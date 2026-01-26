@@ -191,8 +191,8 @@ public partial class @PlayerInput: IInputActionCollection2, IDisposable
                 },
                 {
                     ""name"": """",
-                    ""id"": ""aa794457-8fd1-477d-8057-e6329a807c7f"",
-                    ""path"": ""<Touchscreen>/delta"",
+                    ""id"": ""d9e6cef2-1ae8-4ac3-9aca-b244466748ec"",
+                    ""path"": ""<Touchscreen>/touch1/delta"",
                     ""interactions"": """",
                     ""processors"": """",
                     ""groups"": """",
