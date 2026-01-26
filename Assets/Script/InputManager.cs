@@ -8,7 +8,7 @@ public class InputManager : MonoBehaviour
 
     
     private PlayerInput playerInput;
-    private PlayerInput.OnFootActions onFoot;
+    public PlayerInput.OnFootActions onFoot;
 
     private PlayerMotor motor;
     private PlayerLook look;
@@ -27,6 +27,12 @@ public class InputManager : MonoBehaviour
     {
         motor.ProcessMove(onFoot.Movement.ReadValue<Vector2>());
     }
+
+    //private void LateUpdate()
+    //{
+    //    look.ProcessLook(onFoot.Look.ReadValue<Vector2>());
+    //}
+
 
 
 
