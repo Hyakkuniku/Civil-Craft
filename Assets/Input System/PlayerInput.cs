@@ -211,8 +211,8 @@ public partial class @PlayerInput: IInputActionCollection2, IDisposable
                 },
                 {
                     ""name"": """",
-                    ""id"": ""963cac81-c7c3-43ae-bb93-cf0a15b9c52b"",
-                    ""path"": ""<Touchscreen>/Press"",
+                    ""id"": ""fbc88797-1f25-4a2c-96be-4204b109a45a"",
+                    ""path"": ""<Keyboard>/e"",
                     ""interactions"": """",
                     ""processors"": """",
                     ""groups"": """",
@@ -222,8 +222,8 @@ public partial class @PlayerInput: IInputActionCollection2, IDisposable
                 },
                 {
                     ""name"": """",
-                    ""id"": ""fbc88797-1f25-4a2c-96be-4204b109a45a"",
-                    ""path"": ""<Keyboard>/e"",
+                    ""id"": ""963cac81-c7c3-43ae-bb93-cf0a15b9c52b"",
+                    ""path"": ""<Touchscreen>/Press"",
                     ""interactions"": """",
                     ""processors"": """",
                     ""groups"": """",
