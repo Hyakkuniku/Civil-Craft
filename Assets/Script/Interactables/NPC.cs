@@ -3,7 +3,13 @@ using System.Collections.Generic;
 using UnityEngine;
 
 public class NPC : Interactable
-{
+{   
+
+    [SerializeField]
+    private GameObject door;
+    private bool doorOpen;
+
+
     // Start is called before the first frame update
     void Start()
     {
@@ -19,7 +25,8 @@ public class NPC : Interactable
 
     protected override void Intract()
     {
-        
+        doorOpen = !doorOpen;
+        door.GetComponent<Animator>().SetBool("isOpen", doorOpen);
         Debug.Log("Interacted with " + gameObject.name);
     }
 
