@@ -138,7 +138,7 @@
                     "name": "",
                     "id": "963cac81-c7c3-43ae-bb93-cf0a15b9c52b",
                     "path": "<Touchscreen>/Press",
-                    "interactions": "Hold",
+                    "interactions": "Hold(duration=0.7,pressPoint=0.5)",
                     "processors": "",
                     "groups": "",
                     "action": "Interact",
