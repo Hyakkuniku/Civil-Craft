@@ -16,6 +16,9 @@ public class DialogueManager : MonoBehaviour
 
     private Queue<string> sentences;
 
+    [SerializeField] private InputManager inputManager;
+    
+
 
 
     // Start is called before the first frame update
@@ -27,6 +30,9 @@ public class DialogueManager : MonoBehaviour
 
     public void StartDialogue (Dialogue dialogue)
     {
+        inputManager?.SetPlayerInputEnable(false);
+        inputManager?.SetLookEnabled(false);
+
         animator.SetBool("isOpen", true);
 
         Debug.Log("Starting convesation with " + dialogue.name);
@@ -58,6 +64,8 @@ public class DialogueManager : MonoBehaviour
 
     void EndDialogue()
     {
+        inputManager?.SetPlayerInputEnable(true);
+        inputManager?.SetLookEnabled(true);
         animator.SetBool("isOpen", false);
         Debug.Log("End of conversation");
     }

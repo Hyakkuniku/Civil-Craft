@@ -28,10 +28,10 @@ public class InputManager : MonoBehaviour
         motor.ProcessMove(onFoot.Movement.ReadValue<Vector2>());
     }
 
-    //private void LateUpdate()
-    //{
-    //    look.ProcessLook(onFoot.Look.ReadValue<Vector2>());
-    //}
+    private void LateUpdate()
+    {
+        look.ProcessLook(onFoot.Look.ReadValue<Vector2>());
+    }
 
 
 
@@ -44,6 +44,27 @@ public class InputManager : MonoBehaviour
     private void OnDisable()
     {
         onFoot.Disable();
+    }
+
+
+    public void SetPlayerInputEnable(bool enabled)
+    {
+        if (enabled)
+        {
+            onFoot.Enable();
+        }
+        else
+        {
+            onFoot.Disable();
+        }
+    }
+
+    public void SetLookEnabled(bool enabled)
+    {
+        if (look != null)
+        {
+            look.canLook = enabled;
+        }
     }
 
 }
