@@ -16,15 +16,15 @@ public class GameManager : MonoBehaviour
     // Events
     public UnityEvent OnEnterBuildMode;
     public UnityEvent OnExitBuildMode;
-    public UnityEvent OnEnterBuildGridMode;     // NEW
-    public UnityEvent OnExitBuildGridMode;      // NEW
+    public UnityEvent OnEnterBuildGridMode;
+    public UnityEvent OnExitBuildGridMode;
 
     // Current active build location
     public BuildLocation ActiveBuildLocation { get; private set; }
 
     // Grid system
     [Header("Build Grid")]
-    [SerializeField] private BuildGrid buildGridPrefab;     // ← Drag your BuildGrid prefab here in Inspector
+    [SerializeField] private BuildGrid buildGridPrefab;
     private BuildGrid activeBuildGrid;
 
     // References
@@ -33,15 +33,16 @@ public class GameManager : MonoBehaviour
     private PlayerLook playerLook;
     private InputManager inputManager;
 
-    // Camera transition (when no dedicated location camera is used)
+    // Camera transition
     private Vector3 cameraTargetPos;
     private Quaternion cameraTargetRot;
     private float cameraTransitionSpeed = 5f;
     private bool isTransitioning;
 
     [Header("UI to hide during build mode")]
-    [SerializeField] private GameObject joystickUI;     // Drag joystick canvas / mobile controls here
-    [SerializeField] private GameObject dialogueUI;     // Drag dialogue panel / canvas here
+    [SerializeField] private GameObject joystickUI;       // mobile joystick canvas/panel
+    [SerializeField] private GameObject dialogueUI;       // dialogue panel/canvas
+    [SerializeField] private GameObject promptUI;         // ← NEW: the prompt text GameObject (or its parent)
 
     private void Awake()
     {
@@ -85,7 +86,7 @@ public class GameManager : MonoBehaviour
             }
         }
 
-        // Quick exit from build mode (mostly for testing)
+        // Quick exit (for testing)
         if (CurrentState == GameState.Building && Input.GetKeyDown(KeyCode.Escape))
         {
             ExitBuildMode();
@@ -107,27 +108,30 @@ public class GameManager : MonoBehaviour
             inputManager.SetPlayerInputEnable(false);
         }
 
-        // ────────────────────────────── CAMERA LOGIC ──────────────────────────────
+        // Camera logic
         if (location.locationCamera != null)
         {
-            // Use dedicated camera for this build location
             if (mainCamera != null) mainCamera.enabled = false;
             location.locationCamera.enabled = true;
         }
         else
         {
-            // Smoothly move main camera to overview position
             cameraTargetPos = location.GetDesiredCameraPosition();
             cameraTargetRot = location.GetDesiredCameraRotation();
             isTransitioning = true;
         }
 
-        // ────────────────────────────── SPAWN GRID ──────────────────────────────
+        // Spawn grid
         SpawnBuildGrid(location);
 
-        // Hide mobile joystick & dialogue UI
+        // Hide UI elements during build mode
         if (joystickUI != null) joystickUI.SetActive(false);
         if (dialogueUI   != null) dialogueUI.SetActive(false);
+        if (promptUI     != null) promptUI.SetActive(false);           // ← NEW
+
+        // Optional: force clear the prompt text immediately
+        var playerUI = FindObjectOfType<PlayerUI>();
+        if (playerUI != null) playerUI.UpdateText(string.Empty);
 
         OnEnterBuildMode?.Invoke();
         OnEnterBuildGridMode?.Invoke();
@@ -141,7 +145,7 @@ public class GameManager : MonoBehaviour
 
         CurrentState = GameState.Normal;
 
-        // Re-enable player controls
+        // Re-enable controls
         if (playerMotor != null) playerMotor.enabled = true;
         if (inputManager != null)
         {
@@ -149,14 +153,14 @@ public class GameManager : MonoBehaviour
             inputManager.SetPlayerInputEnable(true);
         }
 
-        // ────────────────────────────── CAMERA BACK ──────────────────────────────
+        // Camera back
         if (ActiveBuildLocation != null && ActiveBuildLocation.locationCamera != null)
         {
             ActiveBuildLocation.locationCamera.enabled = false;
         }
         if (mainCamera != null) mainCamera.enabled = true;
 
-        // ────────────────────────────── CLEAN UP GRID ──────────────────────────────
+        // Clean up grid
         if (activeBuildGrid != null)
         {
             Destroy(activeBuildGrid.gameObject);
@@ -164,14 +168,13 @@ public class GameManager : MonoBehaviour
             OnExitBuildGridMode?.Invoke();
         }
 
-        // Let location clean up (unparent player, etc.)
         ActiveBuildLocation?.DeactivateBuildMode(FindObjectOfType<PlayerMotor>()?.transform);
-
         ActiveBuildLocation = null;
 
-        // Show mobile joystick & dialogue UI again
+        // Show UI elements again
         if (joystickUI != null) joystickUI.SetActive(true);
         if (dialogueUI   != null) dialogueUI.SetActive(true);
+        if (promptUI     != null) promptUI.SetActive(true);            // ← NEW
 
         OnExitBuildMode?.Invoke();
 
@@ -186,15 +189,12 @@ public class GameManager : MonoBehaviour
             return;
         }
 
-        // Instantiate grid as child of the BuildLocation
         activeBuildGrid = Instantiate(buildGridPrefab, location.transform);
         activeBuildGrid.transform.localPosition = Vector3.zero;
         activeBuildGrid.transform.localRotation = Quaternion.identity;
 
-        // Let the grid initialize itself (pass reference to location if needed)
         activeBuildGrid.Initialize(location);
     }
 
-    // Optional: helper method you can call from other scripts
     public bool IsInBuildMode() => CurrentState == GameState.Building;
 }
