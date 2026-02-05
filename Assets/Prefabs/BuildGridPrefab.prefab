@@ -57,8 +57,10 @@ MonoBehaviour:
   gridLayer:
     serializedVersion: 2
     m_Bits: 1
-  alignToCamera: 1
-  cameraAlignDistance: 15
+  distanceFromCamera: 100
+  verticalOffset: 0.1
+  smoothMovement: 1
+  smoothSpeed: 15
 --- !u!23 &7389297545749281069
 MeshRenderer:
   m_ObjectHideFlags: 0
