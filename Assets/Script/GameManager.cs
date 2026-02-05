@@ -39,6 +39,10 @@ public class GameManager : MonoBehaviour
     private float cameraTransitionSpeed = 5f;
     private bool isTransitioning;
 
+    [Header("UI to hide during build mode")]
+    [SerializeField] private GameObject joystickUI;     // Drag joystick canvas / mobile controls here
+    [SerializeField] private GameObject dialogueUI;     // Drag dialogue panel / canvas here
+
     private void Awake()
     {
         if (Instance == null)
@@ -121,6 +125,10 @@ public class GameManager : MonoBehaviour
         // ────────────────────────────── SPAWN GRID ──────────────────────────────
         SpawnBuildGrid(location);
 
+        // Hide mobile joystick & dialogue UI
+        if (joystickUI != null) joystickUI.SetActive(false);
+        if (dialogueUI   != null) dialogueUI.SetActive(false);
+
         OnEnterBuildMode?.Invoke();
         OnEnterBuildGridMode?.Invoke();
 
@@ -160,6 +168,10 @@ public class GameManager : MonoBehaviour
         ActiveBuildLocation?.DeactivateBuildMode(FindObjectOfType<PlayerMotor>()?.transform);
 
         ActiveBuildLocation = null;
+
+        // Show mobile joystick & dialogue UI again
+        if (joystickUI != null) joystickUI.SetActive(true);
+        if (dialogueUI   != null) dialogueUI.SetActive(true);
 
         OnExitBuildMode?.Invoke();
 
