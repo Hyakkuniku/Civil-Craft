@@ -1,122 +1,122 @@
-// Replace your TutorialManager with this enhanced version
-using System.Collections;
 using UnityEngine;
-using UnityEngine.UI;
+using UnityEngine.Events;
 using TMPro;
 
 public class TutorialManager : MonoBehaviour
 {
-    public static TutorialManager Instance { get; private set; }
-
-    [Header("UI References")]
-    public GameObject tutorialCanvas;
-    public TextMeshProUGUI tutorialTitle;
-    public TextMeshProUGUI tutorialText;
-    public Button nextButton;
-    public Button skipButton;
-    public Image highlightImage;
-    public GameObject touchArrowPrefab;
-
-    [Header("Steps")]
+    [Header("Tutorial Steps")]
     public TutorialStep[] tutorialSteps;
 
-    int currentStep = 0;
-    bool tutorialActive = false;
-    Coroutine currentCoroutine;
+    [Header("Player & UI References")]
+    [SerializeField] private Transform player;
+    [SerializeField] private InputManager inputManager;
+    [SerializeField] private PlayerInteract playerInteract;
 
-    [System.Serializable]
-    public class TutorialStep
+    [Header("Tutorial UI")]
+    [SerializeField] private GameObject tutorialPanel;
+    [SerializeField] private TextMeshProUGUI tutorialText;
+    [SerializeField] private GameObject nextButton;     // better as Button type, see note below
+    [SerializeField] private GameObject skipButton;
+
+    private int currentStepIndex = -1;
+    public static TutorialManager Instance { get; private set; }
+
+    public bool IsTutorialActive { get; private set; } = true;
+
+    private void Awake()
     {
-        public string title;
-        [TextArea(3,6)] public string description;
-        public TutorialStepType type;
-        public string targetTag;
-        public float highlightDuration = 2f;
-        public bool requireMovement;
-        public Vector3 movementTarget;
-        public float movementRadius = 2f;
-    }
-
-    public enum TutorialStepType { InfoOnly, HighlightObject, WaitForMovement, WaitForInteraction, WaitForBuildMode }
-
-    void Awake() { Instance = this; }
-    
-    void Start()
-    {
-        tutorialCanvas.SetActive(false);
-        nextButton.onClick.AddListener(() => { currentStep++; ShowStep(); });
-        skipButton.onClick.AddListener(CompleteTutorial);
-    }
-
-    public void StartTutorial()
-    {
-        if (tutorialActive || PlayerPrefs.GetInt("TutorialCompleted", 0) == 1) return;
-        tutorialActive = true;
-        currentStep = 0;
-        tutorialCanvas.SetActive(true);
-        ShowStep();
-    }
-
-    void ShowStep()
-    {
-        if (currentStep >= tutorialSteps.Length) { CompleteTutorial(); return; }
-        
-        var step = tutorialSteps[currentStep];
-        tutorialTitle.text = step.title;
-        tutorialText.text = step.description;
-
-        // Stop previous effects
-        if (currentCoroutine != null) StopCoroutine(currentCoroutine);
-
-        switch (step.type)
+        if (Instance == null)
         {
-            case TutorialStepType.HighlightObject:
-                currentCoroutine = StartCoroutine(HighlightObject(step));
-                break;
-            case TutorialStepType.WaitForMovement:
-                currentCoroutine = StartCoroutine(WaitForMovement(step));
-                break;
+            Instance = this;
+            DontDestroyOnLoad(gameObject);
+        }
+        else
+        {
+            Destroy(gameObject);
+            return;
         }
     }
 
-    IEnumerator HighlightObject(TutorialStep step)
+    private void Start()
     {
-        GameObject target = GameObject.FindWithTag(step.targetTag);
-        if (target == null) yield break;
-
-        highlightImage.gameObject.SetActive(true);
-        Canvas canvas = tutorialCanvas.GetComponent<Canvas>();
-
-        while (true)
+        // Optional: hook up buttons here instead of doing it in prefab
+        if (nextButton != null)
         {
-            Vector2 screenPos = RectTransformUtility.WorldToScreenPoint(Camera.main, target.transform.position);
-            RectTransformUtility.ScreenPointToLocalPointInRectangle(
-                canvas.transform as RectTransform, screenPos, canvas.worldCamera, out Vector2 canvasPos);
-            highlightImage.rectTransform.anchoredPosition = canvasPos;
-            yield return null;
+            var btn = nextButton.GetComponent<UnityEngine.UI.Button>();
+            if (btn != null) btn.onClick.AddListener(ShowNextStep);
+        }
+
+        if (skipButton != null)
+        {
+            var btn = skipButton.GetComponent<UnityEngine.UI.Button>();
+            if (btn != null) btn.onClick.AddListener(SkipTutorial);
+        }
+
+        ShowNextStep();
+    }
+
+    public void ShowNextStep()
+    {
+        currentStepIndex++;
+
+        if (currentStepIndex >= tutorialSteps.Length)
+        {
+            CompleteTutorial();
+            return;
+        }
+
+        var step = tutorialSteps[currentStepIndex];
+        ShowTutorialStep(step);
+    }
+
+    private void ShowTutorialStep(TutorialStep step)
+    {
+        IsTutorialActive = true;
+        if (tutorialPanel != null) tutorialPanel.SetActive(true);
+        if (tutorialText != null) tutorialText.text = step.message ?? "";
+
+        if (nextButton != null)   nextButton.SetActive(step.showNextButton);
+        if (skipButton != null)   skipButton.SetActive(step.canSkip);
+
+        step.OnStepStart?.Invoke();
+    }
+
+    private void CompleteTutorial()
+    {
+        IsTutorialActive = false;
+        if (tutorialPanel != null) tutorialPanel.SetActive(false);
+        Debug.Log("Tutorial Complete!");
+    }
+
+    public void SkipTutorial()
+    {
+        CompleteTutorial();
+    }
+
+    // Optional helper — call this from other scripts if you want to force-advance
+    public void MarkCurrentStepComplete()
+    {
+        if (currentStepIndex >= 0 && currentStepIndex < tutorialSteps.Length)
+        {
+            tutorialSteps[currentStepIndex].isComplete = true;
         }
     }
-
-    IEnumerator WaitForMovement(TutorialStep step)
-    {
-        var player = FindObjectOfType<PlayerMotor>().transform;
-        while (Vector3.Distance(player.position, step.movementTarget) > step.movementRadius)
-            yield return new WaitForSeconds(0.1f);
-        currentStep++;
-        ShowStep();
-    }
-
-    void CompleteTutorial()
-    {
-        tutorialActive = false;
-        tutorialCanvas.SetActive(false);
-        PlayerPrefs.SetInt("TutorialCompleted", 1);
-    }
-
-    void Update()
-{
-    // Press T to start tutorial (testing only)
-    if (Input.GetKeyDown(KeyCode.T))
-        StartTutorial();
 }
+
+// ────────────────────────────────────────────────
+// Moved outside + removed wrong inheritance
+// ────────────────────────────────────────────────
+[System.Serializable]
+public class TutorialStep
+{
+    [TextArea(3, 6)]
+    public string message = "Step description here...";
+
+    public bool showNextButton = true;
+    public bool canSkip = false;
+
+    [HideInInspector]
+    public bool isComplete;
+
+    public UnityEvent OnStepStart = new UnityEvent();
 }
