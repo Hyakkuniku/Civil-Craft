@@ -39,12 +39,12 @@ Material:
     m_Ints: []
     m_Floats:
     - _Depth_Fade_Distance: 0.39
-    - _Flow_Direction: 0.05
-    - _Flow_Noise_Scale: 15
-    - _Flow_Speed: 1.37
+    - _Flow_Direction: 0.339
+    - _Flow_Noise_Scale: 50
+    - _Flow_Speed: 0.22
     - _Foam_Amount: 6
-    - _Foam_Cutoff: 4.67
-    - _Foam_Speed: 0.05
+    - _Foam_Cutoff: 3.89
+    - _Foam_Speed: 0
     - _Object_Color_Value: 0
     - _QueueControl: 1
     - _QueueOffset: 50
@@ -52,9 +52,9 @@ Material:
     - _Refraction_Strength: 0.0047
     m_Colors:
     - _Deep_Color: {r: 0.14653791, g: 0.2600711, b: 0.3490566, a: 0.9490196}
-    - _Flow_Color: {r: 0, g: 0, b: 0, a: 0}
+    - _Flow_Color: {r: 1, g: 1, b: 1, a: 0}
     - _Foam_Color: {r: 1, g: 1, b: 1, a: 0}
-    - _Foam_Scale: {r: 0.01, g: 0.1, b: 0, a: 0}
+    - _Foam_Scale: {r: 0, g: 0, b: 0, a: 0}
     - _Refraction_XY_Scale: {r: 1, g: 1, b: 0, a: 0}
     - _Shallow_Color: {r: 0.2516465, g: 0.71235317, b: 0.8207547, a: 0.7803922}
   m_BuildTextureStacks: []
