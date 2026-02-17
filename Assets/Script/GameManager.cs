@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.Events;
+using System.Collections.Generic;
 
 public class GameManager : MonoBehaviour
 {
@@ -42,7 +43,11 @@ public class GameManager : MonoBehaviour
     [Header("UI to hide during build mode")]
     [SerializeField] private GameObject joystickUI;       // mobile joystick canvas/panel
     [SerializeField] private GameObject dialogueUI;       // dialogue panel/canvas
-    [SerializeField] private GameObject promptUI;         // ← NEW: the prompt text GameObject (or its parent)
+    [SerializeField] private GameObject promptUI;         // prompt text GameObject or parent
+
+    // Wireframe toggle support
+    private List<BuildableVisual> cachedBuildables = new List<BuildableVisual>();
+
 
     private void Awake()
     {
@@ -65,6 +70,7 @@ public class GameManager : MonoBehaviour
             mainCamera = Camera.main;
     }
 
+
     private void Update()
     {
         if (CurrentState == GameState.Building && isTransitioning)
@@ -86,12 +92,13 @@ public class GameManager : MonoBehaviour
             }
         }
 
-        // Quick exit (for testing)
+        // Quick exit (for testing / PC debugging)
         if (CurrentState == GameState.Building && Input.GetKeyDown(KeyCode.Escape))
         {
             ExitBuildMode();
         }
     }
+
 
     public void EnterBuildMode(BuildLocation location, Transform player)
     {
@@ -100,8 +107,14 @@ public class GameManager : MonoBehaviour
         ActiveBuildLocation = location;
         CurrentState = GameState.Building;
 
+        // Cache buildable objects (only once or when needed)
+        if (cachedBuildables.Count == 0)
+        {
+            CacheBuildableObjects();
+        }
+
         // Disable player controls
-        if (playerMotor != null) playerMotor.enabled = false;
+        if (playerMotor != null)    playerMotor.enabled = false;
         if (inputManager != null)
         {
             inputManager.SetLookEnabled(false);
@@ -125,19 +138,23 @@ public class GameManager : MonoBehaviour
         SpawnBuildGrid(location);
 
         // Hide UI elements during build mode
-        if (joystickUI != null) joystickUI.SetActive(false);
-        if (dialogueUI   != null) dialogueUI.SetActive(false);
-        if (promptUI     != null) promptUI.SetActive(false);           // ← NEW
+        if (joystickUI != null)     joystickUI.SetActive(false);
+        if (dialogueUI   != null)   dialogueUI.SetActive(false);
+        if (promptUI     != null)   promptUI.SetActive(false);
 
-        // Optional: force clear the prompt text immediately
+        // Optional: force clear prompt text
         var playerUI = FindObjectOfType<PlayerUI>();
         if (playerUI != null) playerUI.UpdateText(string.Empty);
+
+        // Switch environment to wireframe mode
+        SetAllBuildablesToWireframe(true);
 
         OnEnterBuildMode?.Invoke();
         OnEnterBuildGridMode?.Invoke();
 
         Debug.Log($"Entered build mode at: {location.name}");
     }
+
 
     public void ExitBuildMode()
     {
@@ -146,14 +163,14 @@ public class GameManager : MonoBehaviour
         CurrentState = GameState.Normal;
 
         // Re-enable controls
-        if (playerMotor != null) playerMotor.enabled = true;
+        if (playerMotor != null)    playerMotor.enabled = true;
         if (inputManager != null)
         {
             inputManager.SetLookEnabled(true);
             inputManager.SetPlayerInputEnable(true);
         }
 
-        // Camera back
+        // Camera back to normal
         if (ActiveBuildLocation != null && ActiveBuildLocation.locationCamera != null)
         {
             ActiveBuildLocation.locationCamera.enabled = false;
@@ -172,14 +189,18 @@ public class GameManager : MonoBehaviour
         ActiveBuildLocation = null;
 
         // Show UI elements again
-        if (joystickUI != null) joystickUI.SetActive(true);
-        if (dialogueUI   != null) dialogueUI.SetActive(true);
-        if (promptUI     != null) promptUI.SetActive(true);            // ← NEW
+        if (joystickUI != null)     joystickUI.SetActive(true);
+        if (dialogueUI   != null)   dialogueUI.SetActive(true);
+        if (promptUI     != null)   promptUI.SetActive(true);
+
+        // Restore normal shaded rendering
+        SetAllBuildablesToWireframe(false);
 
         OnExitBuildMode?.Invoke();
 
         Debug.Log("Exited build mode");
     }
+
 
     private void SpawnBuildGrid(BuildLocation location)
     {
@@ -195,6 +216,33 @@ public class GameManager : MonoBehaviour
 
         activeBuildGrid.Initialize(location);
     }
+
+
+    // ────────────────────────────────────────────────
+    //  Wireframe / Buildable Visuals Logic
+    // ────────────────────────────────────────────────
+
+    private void CacheBuildableObjects()
+    {
+        cachedBuildables.Clear();
+        var all = FindObjectsOfType<BuildableVisual>(true); // include inactive objects
+        cachedBuildables.AddRange(all);
+        Debug.Log($"Cached {cachedBuildables.Count} buildable visual objects");
+    }
+
+    private void SetAllBuildablesToWireframe(bool inBuildMode)
+    {
+        foreach (var visual in cachedBuildables)
+        {
+            if (visual == null) continue; // object was destroyed
+
+            if (inBuildMode)
+                visual.SetBuildMode();
+            else
+                visual.SetNormalMode();
+        }
+    }
+
 
     public bool IsInBuildMode() => CurrentState == GameState.Building;
 }
