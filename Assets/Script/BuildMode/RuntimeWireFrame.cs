@@ -3,7 +3,7 @@ using UnityEngine;
 [RequireComponent(typeof(MeshFilter))]
 public class RuntimeWireframe : MonoBehaviour
 {
-    public Color lineColor = Color.green;
+    public Color lineColor = Color.blue;
 
     private Material lineMaterial;
     private Mesh mesh;
