@@ -17,16 +17,9 @@ public class GameManager : MonoBehaviour
     // Events
     public UnityEvent OnEnterBuildMode;
     public UnityEvent OnExitBuildMode;
-    public UnityEvent OnEnterBuildGridMode;
-    public UnityEvent OnExitBuildGridMode;
 
     // Current active build location
     public BuildLocation ActiveBuildLocation { get; private set; }
-
-    // Grid system
-    [Header("Build Grid")]
-    [SerializeField] private BuildGrid buildGridPrefab;
-    private BuildGrid activeBuildGrid;
 
     // References
     [SerializeField] private Camera mainCamera;
@@ -134,9 +127,6 @@ public class GameManager : MonoBehaviour
             isTransitioning = true;
         }
 
-        // Spawn grid
-        SpawnBuildGrid(location);
-
         // Hide UI elements during build mode
         if (joystickUI != null)     joystickUI.SetActive(false);
         if (dialogueUI   != null)   dialogueUI.SetActive(false);
@@ -150,7 +140,6 @@ public class GameManager : MonoBehaviour
         SetAllBuildablesToWireframe(true);
 
         OnEnterBuildMode?.Invoke();
-        OnEnterBuildGridMode?.Invoke();
 
         Debug.Log($"Entered build mode at: {location.name}");
     }
@@ -177,14 +166,6 @@ public class GameManager : MonoBehaviour
         }
         if (mainCamera != null) mainCamera.enabled = true;
 
-        // Clean up grid
-        if (activeBuildGrid != null)
-        {
-            Destroy(activeBuildGrid.gameObject);
-            activeBuildGrid = null;
-            OnExitBuildGridMode?.Invoke();
-        }
-
         ActiveBuildLocation?.DeactivateBuildMode(FindObjectOfType<PlayerMotor>()?.transform);
         ActiveBuildLocation = null;
 
@@ -199,22 +180,6 @@ public class GameManager : MonoBehaviour
         OnExitBuildMode?.Invoke();
 
         Debug.Log("Exited build mode");
-    }
-
-
-    private void SpawnBuildGrid(BuildLocation location)
-    {
-        if (buildGridPrefab == null)
-        {
-            Debug.LogWarning("No BuildGrid prefab assigned in GameManager!");
-            return;
-        }
-
-        activeBuildGrid = Instantiate(buildGridPrefab, location.transform);
-        activeBuildGrid.transform.localPosition = Vector3.zero;
-        activeBuildGrid.transform.localRotation = Quaternion.identity;
-
-        activeBuildGrid.Initialize(location);
     }
 
 
@@ -234,7 +199,7 @@ public class GameManager : MonoBehaviour
     {
         foreach (var visual in cachedBuildables)
         {
-            if (visual == null) continue; // object was destroyed
+            if (visual == null) continue;
 
             if (inBuildMode)
                 visual.SetBuildMode();

@@ -11,6 +11,7 @@ public class Node : MonoBehaviour
     // Future: visual feedback, occupied check, etc.
     public bool IsOccupied { get; private set; } = false;
 
+
     private void Update()
     {
         if (!Application.isPlaying && snapInEditor && transform.hasChanged)

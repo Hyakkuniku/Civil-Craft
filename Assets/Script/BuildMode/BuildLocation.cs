@@ -19,7 +19,6 @@ public class BuildLocation : MonoBehaviour
     public float maxBuildDistanceFromCenter = 25f;  // optional soft boundary
 
     // You can later add:
-    // public BuildGrid grid;
     // public List<GameObject> allowedPrefabs;
     // public UnityEvent onBuildComplete;
 
