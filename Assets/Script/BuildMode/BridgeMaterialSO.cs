@@ -10,9 +10,15 @@ public class BridgeMaterialSO : ScriptableObject
     public Material overrideMaterial;       
     public Color gizmoColor = Color.white;
 
+    [Header("Beam Mirroring (3D)")]
+    [Tooltip("Check this for wood/steel supports. Uncheck for the central road.")]
+    public bool isDualBeam = false; 
+    [Tooltip("How far outward from the center the beams should spawn.")]
+    public float zOffset = 1.5f;
+
     [Header("Side Beams (Optional)")]
-    public GameObject sideBeamPrefab;       // The beam to spawn on the sides
-    public Vector3 sideBeamOffset = new Vector3(0, 0, 1f); // Offset distance (Z=1 pushes it back 1 unit)
+    public GameObject sideBeamPrefab;       
+    public Vector3 sideBeamOffset = new Vector3(0, 0, 1f); 
 
     [Header("Physics (future)")]
     public float massPerMeter      = 2f;

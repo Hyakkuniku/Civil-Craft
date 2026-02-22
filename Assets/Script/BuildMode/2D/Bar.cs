@@ -1,57 +1,92 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
 public class Bar : MonoBehaviour
 {
-    public Vector2 StartPosition;
+    public Vector3 StartPosition; 
     public BridgeMaterialSO materialData;
 
-    private GameObject visualSegment;
+    private List<GameObject> visualSegments = new List<GameObject>();
     private float baseLength = 1f; 
     private Vector3 originalScale = Vector3.one;
 
     public void Initialize(BridgeMaterialSO data)
     {
         materialData = data;
+        visualSegments.Clear();
+        
+        // Clean up any stray children to prevent clones inside clones
+        foreach (Transform child in transform)
+        {
+            child.gameObject.SetActive(false); 
+            Destroy(child.gameObject);
+        }
         
         if (materialData.segmentPrefab != null)
         {
-            visualSegment = Instantiate(materialData.segmentPrefab, transform);
-            visualSegment.name = "VisualSegment";
-            
-            var renderer = visualSegment.GetComponentInChildren<Renderer>();
-            if (renderer != null)
+            int spawnCount = materialData.isDualBeam ? 2 : 1;
+
+            for (int i = 0; i < spawnCount; i++)
             {
-                baseLength = renderer.bounds.size.x;
-                if (baseLength == 0) baseLength = 1f; 
+                GameObject newSegment = Instantiate(materialData.segmentPrefab, transform);
+                newSegment.name = materialData.isDualBeam ? $"VisualSegment_{i}" : "VisualSegment";
+                
+                float offsetValue = 0f;
+                if (materialData.isDualBeam)
+                {
+                    offsetValue = (i == 0) ? materialData.zOffset : -materialData.zOffset;
+                }
+                
+                newSegment.transform.localPosition = new Vector3(0, 0, offsetValue);
+
+                // FIX: Calculate the base length and save original scale BEFORE hiding it!
+                if (i == 0)
+                {
+                    originalScale = newSegment.transform.localScale;
+                    
+                    var renderer = newSegment.GetComponentInChildren<Renderer>();
+                    if (renderer != null)
+                    {
+                        baseLength = renderer.bounds.size.x;
+                        if (baseLength <= 0f) baseLength = 1f; 
+                    }
+                }
+                
+                // NOW we can safely hide it for the first frame
+                newSegment.transform.localScale = Vector3.zero;
+                visualSegments.Add(newSegment);
             }
-            
-            originalScale = visualSegment.transform.localScale;
         }
     }
 
-    public void UpdateCreatingBar(Vector2 ToPosition)
+    public void UpdateCreatingBar(Vector3 ToPosition) 
     {
-        if (visualSegment == null) return;
+        if (visualSegments.Count == 0) return;
 
-        Vector2 dir = ToPosition - StartPosition;
-        float totalDistance = dir.magnitude;
+        Vector3 dir3D = ToPosition - StartPosition;
+        float totalDistance = dir3D.magnitude;
         
-        if (totalDistance < 0.01f) return;
+        if (totalDistance < 0.01f) 
+        {
+            foreach (var seg in visualSegments) seg.transform.localScale = Vector3.zero;
+            return;
+        }
 
-        float angle = Vector2.SignedAngle(Vector2.right, dir);
-        Quaternion rotation = Quaternion.Euler(0, 0, angle);
-
-        Vector2 midPoint = StartPosition + (dir / 2f);
-        visualSegment.transform.position = midPoint;
-        visualSegment.transform.rotation = rotation;
+        Vector2 dir2D = new Vector2(dir3D.x, dir3D.y);
+        float angle = Vector2.SignedAngle(Vector2.right, dir2D);
+        Vector3 midPoint = StartPosition + (dir3D / 2f);
+        
+        transform.SetPositionAndRotation(
+            midPoint, 
+            Quaternion.Euler(0, 0, angle)
+        );
 
         float scaleMultiplier = totalDistance / baseLength;
-        visualSegment.transform.localScale = new Vector3(
-            originalScale.x * scaleMultiplier, 
-            originalScale.y, 
-            originalScale.z
-        );
+        Vector3 newScale = new Vector3(originalScale.x * scaleMultiplier, originalScale.y, originalScale.z);
+
+        foreach (var seg in visualSegments)
+        {
+            seg.transform.localScale = newScale;
+        }
     }
 }
