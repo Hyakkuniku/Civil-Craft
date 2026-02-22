@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d6617cda65e2ddd49ac84cabbc41a409, type: 3}
+  m_Name: WoodRoad
+  m_EditorClassIdentifier: 
+  displayName: Wood
+  segmentPrefab: {fileID: 986403571932401943, guid: 73590dc066914f04b8363cc6c03e7f3f,
+    type: 3}
+  overrideMaterial: {fileID: 0}
+  gizmoColor: {r: 1, g: 1, b: 1, a: 1}
+  massPerMeter: 2
+  breakForce: 800
+  breakTorque: 600
+  useSpring: 0
+  spring: 1000
+  damper: 50
+  woodCost: 5
+  metalCost: 0
+  maxLength: 10

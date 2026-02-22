@@ -4,40 +4,44 @@ public class BuildLocation : MonoBehaviour
 {
     [Header("Visuals & Prompt")]
     public string promptMessage = "Build Bridge / Structure";
+    
+    // ADD THIS: Reference to your grid canvas setup
+    [Header("UI / Grid")]
+    [Tooltip("The camera-space canvas holding the grid material for this specific location")]
+    public Canvas gridCanvas; 
 
     [Header("Camera")]
-    [Tooltip("Optional: If you want a specific camera for this location")]
-    public Camera locationCamera;           // drag a camera child-object here (or leave null → use default build cam logic)
-
-    [Tooltip("If no camera is assigned → world position + offset the camera should move to")]
+    public Camera locationCamera;           
     public Vector3 cameraPositionOffset = new Vector3(0, 8, -12);
-    public Vector3 cameraLookAtOffset   = new Vector3(0, 2, 0);   // look slightly above the pivot
+    public Vector3 cameraLookAtOffset   = new Vector3(0, 2, 0);   
 
     [Header("Behavior")]
     public bool disablePlayerMovement = true;
-    public bool lockPlayerToZone = false;           // optional: prevent walking away while building
-    public float maxBuildDistanceFromCenter = 25f;  // optional soft boundary
-
-    // You can later add:
-    // public List<GameObject> allowedPrefabs;
-    // public UnityEvent onBuildComplete;
+    public bool lockPlayerToZone = false;           
+    public float maxBuildDistanceFromCenter = 25f;  
 
     private Transform originalPlayerParent;
 
     private void Awake()
     {
-        // Optional: hide camera if assigned
         if (locationCamera != null)
             locationCamera.enabled = false;
+            
+        // ADD THIS: Ensure the grid is hidden during normal gameplay
+        if (gridCanvas != null)
+            gridCanvas.enabled = false;
     }
 
     public void ActivateBuildMode(Transform player)
     {
         if (GameManager.Instance == null) return;
 
+        // ADD THIS: Turn on the grid canvas
+        if (gridCanvas != null)
+            gridCanvas.enabled = true;
+
         GameManager.Instance.EnterBuildMode(this, player);
 
-        // Optional: parent player to this object to keep relative position
         if (lockPlayerToZone)
         {
             originalPlayerParent = player.parent;
@@ -47,6 +51,10 @@ public class BuildLocation : MonoBehaviour
 
     public void DeactivateBuildMode(Transform player)
     {
+        // ADD THIS: Turn off the grid canvas
+        if (gridCanvas != null)
+            gridCanvas.enabled = false;
+
         if (lockPlayerToZone && originalPlayerParent != null)
         {
             player.SetParent(originalPlayerParent);
@@ -54,7 +62,6 @@ public class BuildLocation : MonoBehaviour
         }
     }
 
-    // Optional helper — get desired camera position
     public Vector3 GetDesiredCameraPosition()
     {
         return transform.position + cameraPositionOffset;

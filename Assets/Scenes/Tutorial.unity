@@ -575,14 +575,16 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   currentBar: {fileID: 0}
-  barToInstantiate: {fileID: 4309310901645721842, guid: 753a0e41cce19714f82dccc4d5543b47,
+  barToInstantiate: {fileID: 1325218389885495257, guid: 73590dc066914f04b8363cc6c03e7f3f,
     type: 3}
   barParent: {fileID: 909984183}
+  activeMaterial: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
   currentStartPoint: {fileID: 0}
   currentEndPoint: {fileID: 0}
   pointToInstantiate: {fileID: 2422477481410238689, guid: f4ace0a8cb9406c4eaf0671f09ad3a39,
     type: 3}
   pointParent: {fileID: 1794843380}
+  canvasZDistance: 10
 --- !u!114 &193374981
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -638,17 +640,17 @@ PrefabInstance:
     - target: {fileID: 4156907150165446014, guid: f4ace0a8cb9406c4eaf0671f09ad3a39,
         type: 3}
       propertyPath: m_LocalPosition.x
-      value: 0.4909234
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 4156907150165446014, guid: f4ace0a8cb9406c4eaf0671f09ad3a39,
         type: 3}
       propertyPath: m_LocalPosition.y
-      value: -5.6306095
+      value: -6
       objectReference: {fileID: 0}
     - target: {fileID: 4156907150165446014, guid: f4ace0a8cb9406c4eaf0671f09ad3a39,
         type: 3}
       propertyPath: m_LocalPosition.z
-      value: 1.9820137
+      value: 2
       objectReference: {fileID: 0}
     - target: {fileID: 4156907150165446014, guid: f4ace0a8cb9406c4eaf0671f09ad3a39,
         type: 3}
@@ -2093,17 +2095,17 @@ PrefabInstance:
     - target: {fileID: 4156907150165446014, guid: f4ace0a8cb9406c4eaf0671f09ad3a39,
         type: 3}
       propertyPath: m_LocalPosition.x
-      value: 48.490925
+      value: 48
       objectReference: {fileID: 0}
     - target: {fileID: 4156907150165446014, guid: f4ace0a8cb9406c4eaf0671f09ad3a39,
         type: 3}
       propertyPath: m_LocalPosition.y
-      value: -5.6306095
+      value: -6
       objectReference: {fileID: 0}
     - target: {fileID: 4156907150165446014, guid: f4ace0a8cb9406c4eaf0671f09ad3a39,
         type: 3}
       propertyPath: m_LocalPosition.z
-      value: 1.9820137
+      value: 2
       objectReference: {fileID: 0}
     - target: {fileID: 4156907150165446014, guid: f4ace0a8cb9406c4eaf0671f09ad3a39,
         type: 3}
@@ -2154,7 +2156,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 909984183}
-  - component: {fileID: 909984184}
   m_Layer: 0
   m_Name: BarParent
   m_TagString: Untagged
@@ -2171,31 +2172,12 @@ Transform:
   m_GameObject: {fileID: 909984182}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 1.5090766, y: 19.63061, z: 22.017986}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &909984184
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 909984182}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 38a9ea5ee03fa2d4193f729dcbeaa89b, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  currentBar: {fileID: 0}
-  barToInstantiate: {fileID: 0}
-  barParent: {fileID: 0}
-  currentStartPoint: {fileID: 0}
-  currentEndPoint: {fileID: 0}
-  pointToInstantiate: {fileID: 0}
-  pointParent: {fileID: 0}
 --- !u!1 &940258111
 GameObject:
   m_ObjectHideFlags: 0
@@ -4460,7 +4442,7 @@ Transform:
   m_GameObject: {fileID: 1794843379}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 1.5090766, y: 19.63061, z: 22.017986}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
