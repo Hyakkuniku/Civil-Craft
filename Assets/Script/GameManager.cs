@@ -33,10 +33,10 @@ public class GameManager : MonoBehaviour
     private float cameraTransitionSpeed = 5f;
     private bool isTransitioning;
 
+    // UPGRADED: Now an easily expandable list in the Inspector
     [Header("UI to hide during build mode")]
-    [SerializeField] private GameObject joystickUI;       // mobile joystick canvas/panel
-    [SerializeField] private GameObject dialogueUI;       // dialogue panel/canvas
-    [SerializeField] private GameObject promptUI;         // prompt text GameObject or parent
+    [Tooltip("Add any UI GameObjects here that should disappear when building.")]
+    [SerializeField] private List<GameObject> uiElementsToHide = new List<GameObject>();
 
     // Wireframe toggle support
     private List<BuildableVisual> cachedBuildables = new List<BuildableVisual>();
@@ -127,10 +127,11 @@ public class GameManager : MonoBehaviour
             isTransitioning = true;
         }
 
-        // Hide UI elements during build mode
-        if (joystickUI != null)     joystickUI.SetActive(false);
-        if (dialogueUI   != null)   dialogueUI.SetActive(false);
-        if (promptUI     != null)   promptUI.SetActive(false);
+        // UPGRADED: Loop through the dynamic list and hide everything
+        foreach (GameObject uiElement in uiElementsToHide)
+        {
+            if (uiElement != null) uiElement.SetActive(false);
+        }
 
         // Optional: force clear prompt text
         var playerUI = FindObjectOfType<PlayerUI>();
@@ -169,10 +170,11 @@ public class GameManager : MonoBehaviour
         ActiveBuildLocation?.DeactivateBuildMode(FindObjectOfType<PlayerMotor>()?.transform);
         ActiveBuildLocation = null;
 
-        // Show UI elements again
-        if (joystickUI != null)     joystickUI.SetActive(true);
-        if (dialogueUI   != null)   dialogueUI.SetActive(true);
-        if (promptUI     != null)   promptUI.SetActive(true);
+        // UPGRADED: Loop through the dynamic list and show everything again
+        foreach (GameObject uiElement in uiElementsToHide)
+        {
+            if (uiElement != null) uiElement.SetActive(true);
+        }
 
         // Restore normal shaded rendering
         SetAllBuildablesToWireframe(false);

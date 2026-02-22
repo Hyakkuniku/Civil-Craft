@@ -29,7 +29,8 @@ RectTransform:
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children: []
+  m_Children:
+  - {fileID: 7657037032983596510}
   m_Father: {fileID: 2146872158447704589}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
@@ -60,6 +61,81 @@ MonoBehaviour:
   m_Material: {fileID: -876546973899608171, guid: efe0feacb16ba134da9cf3d74ccaf03f,
     type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 0.8862745}
+  m_RaycastTarget: 1
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  m_Sprite: {fileID: 0}
+  m_Type: 0
+  m_PreserveAspect: 0
+  m_FillCenter: 1
+  m_FillMethod: 4
+  m_FillAmount: 1
+  m_FillClockwise: 1
+  m_FillOrigin: 0
+  m_UseSpriteMesh: 0
+  m_PixelsPerUnitMultiplier: 1
+--- !u!1 &2765448759317824369
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 7657037032983596510}
+  - component: {fileID: 9113062257615124962}
+  - component: {fileID: 7569653743327587963}
+  m_Layer: 5
+  m_Name: Image
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &7657037032983596510
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2765448759317824369}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1207182431296208719}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 0, y: 0}
+  m_SizeDelta: {x: 100, y: 100}
+  m_Pivot: {x: 0.5, y: 0.5}
+--- !u!222 &9113062257615124962
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2765448759317824369}
+  m_CullTransparentMesh: 1
+--- !u!114 &7569653743327587963
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2765448759317824369}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_Material: {fileID: 0}
+  m_Color: {r: 0, g: 0.1254902, b: 0.50980395, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -673,7 +749,7 @@ PrefabInstance:
     - target: {fileID: 4156907150165446014, guid: f4ace0a8cb9406c4eaf0671f09ad3a39,
         type: 3}
       propertyPath: m_LocalPosition.x
-      value: -15.509075
+      value: -15.381794
       objectReference: {fileID: 0}
     - target: {fileID: 4156907150165446014, guid: f4ace0a8cb9406c4eaf0671f09ad3a39,
         type: 3}
@@ -683,7 +759,7 @@ PrefabInstance:
     - target: {fileID: 4156907150165446014, guid: f4ace0a8cb9406c4eaf0671f09ad3a39,
         type: 3}
       propertyPath: m_LocalPosition.z
-      value: 91.89481
+      value: 91.544815
       objectReference: {fileID: 0}
     - target: {fileID: 4156907150165446014, guid: f4ace0a8cb9406c4eaf0671f09ad3a39,
         type: 3}
@@ -752,7 +828,7 @@ PrefabInstance:
     - target: {fileID: 4156907150165446014, guid: f4ace0a8cb9406c4eaf0671f09ad3a39,
         type: 3}
       propertyPath: m_LocalPosition.x
-      value: 8.490923
+      value: 8.618206
       objectReference: {fileID: 0}
     - target: {fileID: 4156907150165446014, guid: f4ace0a8cb9406c4eaf0671f09ad3a39,
         type: 3}
@@ -762,7 +838,7 @@ PrefabInstance:
     - target: {fileID: 4156907150165446014, guid: f4ace0a8cb9406c4eaf0671f09ad3a39,
         type: 3}
       propertyPath: m_LocalPosition.z
-      value: 91.89481
+      value: 91.544815
       objectReference: {fileID: 0}
     - target: {fileID: 4156907150165446014, guid: f4ace0a8cb9406c4eaf0671f09ad3a39,
         type: 3}
