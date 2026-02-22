@@ -13,9 +13,12 @@ MonoBehaviour:
   m_Name: Beam
   m_EditorClassIdentifier: 
   displayName: Beam
-  segmentPrefab: {fileID: 0}
+  segmentPrefab: {fileID: 4806764515897639862, guid: 75c2a0cd61ea5ed409c4bfcde0ac4aa9,
+    type: 3}
   overrideMaterial: {fileID: 0}
   gizmoColor: {r: 1, g: 1, b: 1, a: 1}
+  isDualBeam: 1
+  zOffset: 3.8
   sideBeamPrefab: {fileID: 0}
   sideBeamOffset: {x: 0, y: 0, z: 1}
   massPerMeter: 2
@@ -26,4 +29,4 @@ MonoBehaviour:
   damper: 50
   woodCost: 5
   metalCost: 0
-  maxLength: 6
+  maxLength: 9
