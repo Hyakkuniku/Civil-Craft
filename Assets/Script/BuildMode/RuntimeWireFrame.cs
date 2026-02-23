@@ -4,6 +4,7 @@ using UnityEngine;
 public class RuntimeWireframe : MonoBehaviour
 {
     public Color lineColor = Color.blue;
+    [Range(0f, 1f)] public float transitionAlpha = 1f; // ADDED: Controls fade
 
     private Material lineMaterial;
     private Mesh mesh;
@@ -16,6 +17,7 @@ public class RuntimeWireframe : MonoBehaviour
         lineMaterial = new Material(shader);
         lineMaterial.hideFlags = HideFlags.HideAndDontSave;
 
+        // Set up alpha blending
         lineMaterial.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
         lineMaterial.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
         lineMaterial.SetInt("_Cull", (int)UnityEngine.Rendering.CullMode.Off);
@@ -24,10 +26,14 @@ public class RuntimeWireframe : MonoBehaviour
 
     void OnRenderObject()
     {
-        if (!lineMaterial || !mesh) return;
+        if (!lineMaterial || !mesh || transitionAlpha <= 0f) return; // ADDED: Skip rendering if invisible
 
         lineMaterial.SetPass(0);
-        lineMaterial.SetColor("_Color", lineColor);
+        
+        // ADDED: Apply the transition alpha to the line color
+        Color currentColor = lineColor;
+        currentColor.a *= transitionAlpha; 
+        lineMaterial.SetColor("_Color", currentColor);
 
         GL.PushMatrix();
         GL.MultMatrix(transform.localToWorldMatrix);

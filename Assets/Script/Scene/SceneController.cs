@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -57,8 +58,25 @@ public class SceneController : MonoBehaviour
             return;
         }
 
-        Debug.Log($"Loading scene: {sceneName}");
-        SceneManager.LoadScene(sceneName);
+        Debug.Log($"Starting background load for scene: {sceneName}");
+        
+        // Start the background loading process
+        StartCoroutine(LoadSceneAsyncCoroutine(sceneName));
+    }
+
+    // The coroutine that handles loading in the background
+    private IEnumerator LoadSceneAsyncCoroutine(string sceneName)
+    {
+        AsyncOperation asyncLoad = SceneManager.LoadSceneAsync(sceneName);
+
+        // Wait until the asynchronous scene fully loads
+        while (!asyncLoad.isDone)
+        {
+            // Here is where you would update a progress bar later!
+            // float progress = Mathf.Clamp01(asyncLoad.progress / 0.9f);
+            
+            yield return null; // Wait for the next frame
+        }
     }
 
     // Optional helper – prevents silent failures
