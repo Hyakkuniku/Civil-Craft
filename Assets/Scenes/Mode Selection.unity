@@ -229,7 +229,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3b3bc8edbb30f0b4da152749918ca9d9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  amplitude: 1
+  amplitude: 0.2
   frequency: 1
   attachSpeed: 2
   floatBackSpeed: 3
@@ -650,7 +650,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3b3bc8edbb30f0b4da152749918ca9d9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  amplitude: 1
+  amplitude: 0.2
   frequency: 1
   attachSpeed: 4
   floatBackSpeed: 3
@@ -981,8 +981,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3b3bc8edbb30f0b4da152749918ca9d9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  amplitude: 0
-  frequency: 0
+  amplitude: 0.2
+  frequency: 1
   attachSpeed: 1
   floatBackSpeed: 3
   isFloating: 1
@@ -1778,7 +1778,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3b3bc8edbb30f0b4da152749918ca9d9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  amplitude: 1
+  amplitude: 0.2
   frequency: 1
   attachSpeed: 3
   floatBackSpeed: 3
@@ -2211,7 +2211,6 @@ RectTransform:
   m_LocalScale: {x: 0, y: 0, z: 0}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 1004223972}
   - {fileID: 1822184619}
   - {fileID: 1959202998}
   - {fileID: 488545791}
@@ -2859,88 +2858,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cec0b76ae4534d944afe6cd748411d76, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  amplitude: 0.2
-  frequency: 1
-  fixedTarget: {fileID: 0}
-  moveSpeed: 4
-  startFloatPos: {x: 0, y: 0, z: 0}
-  startFloatRot: {x: 0, y: 0, z: 0, w: 0}
-  isAssembled: 0
---- !u!1 &1004223971
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1004223972}
-  - component: {fileID: 1004223974}
-  - component: {fileID: 1004223973}
-  m_Layer: 5
-  m_Name: Image
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!224 &1004223972
-RectTransform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1004223971}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 16.39, y: 10.02, z: 8}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 740636838}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 100, y: 100}
-  m_Pivot: {x: 0.5, y: 0.5}
---- !u!114 &1004223973
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1004223971}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_RaycastTarget: 1
-  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
-  m_Maskable: 1
-  m_OnCullStateChanged:
-    m_PersistentCalls:
-      m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 8f73925e29a43fd46a26100756fb433a, type: 3}
-  m_Type: 0
-  m_PreserveAspect: 0
-  m_FillCenter: 1
-  m_FillMethod: 4
-  m_FillAmount: 1
-  m_FillClockwise: 1
-  m_FillOrigin: 0
-  m_UseSpriteMesh: 0
-  m_PixelsPerUnitMultiplier: 1
---- !u!222 &1004223974
-CanvasRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1004223971}
-  m_CullTransparentMesh: 1
 --- !u!1 &1028687558
 GameObject:
   m_ObjectHideFlags: 0
@@ -3656,7 +3573,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3b3bc8edbb30f0b4da152749918ca9d9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  amplitude: 1
+  amplitude: 0.2
   frequency: 1
   attachSpeed: 3
   floatBackSpeed: 3
@@ -3855,7 +3772,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3b3bc8edbb30f0b4da152749918ca9d9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  amplitude: 1
+  amplitude: 0.2
   frequency: 1
   attachSpeed: 8
   floatBackSpeed: 3
@@ -4176,8 +4093,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3b3bc8edbb30f0b4da152749918ca9d9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  amplitude: 0
-  frequency: 0
+  amplitude: 0.2
+  frequency: 1
   attachSpeed: 2
   floatBackSpeed: 3
   isFloating: 1
@@ -5347,8 +5264,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3b3bc8edbb30f0b4da152749918ca9d9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  amplitude: 0
-  frequency: 0
+  amplitude: 0.2
+  frequency: 1
   attachSpeed: 2
   floatBackSpeed: 3
   isFloating: 1
@@ -5370,7 +5287,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3b3bc8edbb30f0b4da152749918ca9d9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  amplitude: 1
+  amplitude: 0.2
   frequency: 1
   attachSpeed: 5
   floatBackSpeed: 3
@@ -5655,8 +5572,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3b3bc8edbb30f0b4da152749918ca9d9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  amplitude: 0
-  frequency: 0
+  amplitude: 0.2
+  frequency: 1
   attachSpeed: 2
   floatBackSpeed: 3
   isFloating: 1
@@ -6204,7 +6121,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3b3bc8edbb30f0b4da152749918ca9d9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  amplitude: 1
+  amplitude: 0.2
   frequency: 1
   attachSpeed: 6
   floatBackSpeed: 3
@@ -6227,7 +6144,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3b3bc8edbb30f0b4da152749918ca9d9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  amplitude: 1
+  amplitude: 0.2
   frequency: 1
   attachSpeed: 7
   floatBackSpeed: 3
