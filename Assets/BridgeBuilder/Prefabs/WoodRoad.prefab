@@ -10,7 +10,6 @@ GameObject:
   m_Component:
   - component: {fileID: 2363955547268711415}
   - component: {fileID: 3461321936216871119}
-  - component: {fileID: -4681928582980964838}
   m_Layer: 0
   m_Name: WoodRoad
   m_TagString: Untagged
@@ -48,28 +47,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   StartPosition: {x: 0, y: 0, z: 0}
   materialData: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
---- !u!64 &-4681928582980964838
-MeshCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 986403571932401943}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 5
-  m_Convex: 0
-  m_CookingOptions: 30
-  m_Mesh: {fileID: 0}
 --- !u!1 &6382237213447043504
 GameObject:
   m_ObjectHideFlags: 0
@@ -81,7 +58,6 @@ GameObject:
   - component: {fileID: 1618606862614620759}
   - component: {fileID: 8063916340364536539}
   - component: {fileID: 4621828602467432225}
-  - component: {fileID: 7460949374860806766}
   m_Layer: 0
   m_Name: mat_wood
   m_TagString: Untagged
@@ -154,25 +130,3 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!64 &7460949374860806766
-MeshCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6382237213447043504}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 5
-  m_Convex: 0
-  m_CookingOptions: 30
-  m_Mesh: {fileID: 8137965400027745830, guid: f2589571afe5bb74b9bef3b651c643e4, type: 3}

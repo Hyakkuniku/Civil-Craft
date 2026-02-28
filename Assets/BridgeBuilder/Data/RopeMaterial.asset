@@ -12,18 +12,19 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d6617cda65e2ddd49ac84cabbc41a409, type: 3}
   m_Name: RopeMaterial
   m_EditorClassIdentifier: 
-  displayName: Wood
-  segmentPrefab: {fileID: 0}
+  displayName: Rope
+  segmentPrefab: {fileID: 8846941766389065738, guid: 10c1b50154ff8924281486b4e7c6b513,
+    type: 3}
   overrideMaterial: {fileID: 0}
   gizmoColor: {r: 1, g: 1, b: 1, a: 1}
-  isDualBeam: 0
-  zOffset: 1.5
+  isDualBeam: 1
+  zOffset: 3.3
   sideBeamPrefab: {fileID: 0}
   sideBeamOffset: {x: 0, y: 0, z: 1}
   massPerMeter: 2
   breakForce: 800
   breakTorque: 600
-  useSpring: 0
+  useSpring: 1
   spring: 1000
   damper: 50
   woodCost: 5

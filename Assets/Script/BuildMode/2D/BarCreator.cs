@@ -2,7 +2,8 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-public class BarCreator : MonoBehaviour, IPointerDownHandler
+// 1. ADDED IPointerUpHandler to detect when the finger is lifted
+public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler 
 {
     [Header("References")]
     public Bar currentBar;
@@ -31,11 +32,9 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler
     {
         if (GameManager.Instance != null)
         {
-            // Listen to GameManager events
             GameManager.Instance.OnEnterBuildMode.AddListener(HandleEnterBuildMode);
             GameManager.Instance.OnExitBuildMode.AddListener(HandleExitBuildMode);
 
-            // Set the initial visibility based on the starting state
             bool isBuilding = GameManager.Instance.CurrentState == GameManager.GameState.Building;
             if (pointParent != null) pointParent.gameObject.SetActive(isBuilding);
         }
@@ -45,7 +44,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler
     {
         if (GameManager.Instance != null)
         {
-            // Always clean up listeners to prevent memory leaks!
             GameManager.Instance.OnEnterBuildMode.RemoveListener(HandleEnterBuildMode);
             GameManager.Instance.OnExitBuildMode.RemoveListener(HandleExitBuildMode);
         }
@@ -58,13 +56,12 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler
 
     private void HandleExitBuildMode()
     {
-        CancelCreation(); // Stop dragging if the player exits mid-build
+        CancelCreation(); 
         if (pointParent != null) pointParent.gameObject.SetActive(false);
     }
 
     private void Update()
     {
-        // GUARD: Stop processing if we are NOT in build mode
         if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building)
             return;
 
@@ -75,25 +72,50 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler
             Vector2 screenPos = Input.mousePosition;
             Point hoveredNode = CheckForExistingPoint(screenPos);
             Vector3 worldMousePos = GetWorldMousePosition(screenPos, hoveredNode);
+            
             Vector3 targetPos = CalculateTargetPosition(worldMousePos, hoveredNode);
 
-            // Z is dynamically preserved based on snap logic
+            float maxLen = activeMaterial != null ? activeMaterial.maxLength : 5f;
+            Vector3 startPos = currentStartPoint.transform.position;
+            
+            if (Vector3.Distance(startPos, targetPos) > maxLen)
+            {
+                Vector3 direction = (targetPos - startPos).normalized;
+                targetPos = startPos + (direction * maxLen);
+
+                if (isGridSnappingEnabled && hoveredNode == null)
+                {
+                    targetPos = new Vector3(Mathf.RoundToInt(targetPos.x), Mathf.RoundToInt(targetPos.y), Mathf.RoundToInt(targetPos.z));
+                    if (Vector3.Distance(startPos, targetPos) > maxLen)
+                    {
+                        targetPos = startPos + (direction * maxLen); 
+                    }
+                }
+            }
+
             currentEndPoint.transform.position = targetPos;
             currentBar.UpdateCreatingBar(targetPos);
         }
     }
 
+    // --- CHANGED: Now only handles the initial touch/click ---
     public void OnPointerDown(PointerEventData eventData)
     {
-        // GUARD: Ignore all clicks if we are NOT in build mode
         if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building)
             return;
 
+        // Right click to cancel (PC only)
+        if (eventData.button == PointerEventData.InputButton.Right)
+        {
+            CancelCreation();
+            return;
+        }
+
         Vector2 screenPos = eventData.position;
         Point hoveredNode = CheckForExistingPoint(screenPos);
-        Vector3 worldPos = GetWorldMousePosition(screenPos, hoveredNode);
 
-        if (!barCreationStarted)
+        // Start drawing only if we click a valid node with the left mouse button (or tap)
+        if (!barCreationStarted && eventData.button == PointerEventData.InputButton.Left)
         {
             if (hoveredNode != null) 
             {
@@ -101,21 +123,22 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler
                 barCreationStarted = true;
                 StartBarCreation(hoveredNode.transform.position);
             }
-            else 
-            {
-                Debug.Log("Cannot start here! You must click an existing node.");
-            }
         }
-        else
+    }
+
+    // --- NEW: Detects when you lift your finger off the screen ---
+    public void OnPointerUp(PointerEventData eventData)
+    {
+        if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building)
+            return;
+
+        if (barCreationStarted && eventData.button == PointerEventData.InputButton.Left)
         {
-            if (eventData.button == PointerEventData.InputButton.Left)
-            {
-                FinishBarCreation(worldPos, hoveredNode);
-            }
-            else if (eventData.button == PointerEventData.InputButton.Right)
-            {
-                CancelCreation();
-            }
+            Vector2 screenPos = eventData.position;
+            Point hoveredNode = CheckForExistingPoint(screenPos);
+            Vector3 worldPos = GetWorldMousePosition(screenPos, hoveredNode);
+
+            FinishBarCreation(worldPos, hoveredNode);
         }
     }
 
@@ -124,7 +147,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler
         if (newMaterial != null)
         {
             activeMaterial = newMaterial;
-            Debug.Log($"Switched material to: {activeMaterial.displayName}");
             if (barCreationStarted) DrawRadiusCircle(); 
         }
     }
@@ -204,9 +226,29 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler
     {
         Vector3 finalPosition = CalculateTargetPosition(rawWorldPos, existingEndPoint);
         float limit = activeMaterial != null ? activeMaterial.maxLength : 5f;
+        Vector3 startPos = currentStartPoint.transform.position;
 
-        if (Vector3.Distance(currentStartPoint.transform.position, finalPosition) > limit) return;
-        if (Vector3.Distance(currentStartPoint.transform.position, finalPosition) < 0.1f) return;
+        if (Vector3.Distance(startPos, finalPosition) > limit)
+        {
+            Vector3 direction = (finalPosition - startPos).normalized;
+            finalPosition = startPos + (direction * limit);
+            
+            if (isGridSnappingEnabled && existingEndPoint == null)
+            {
+                finalPosition = new Vector3(Mathf.RoundToInt(finalPosition.x), Mathf.RoundToInt(finalPosition.y), Mathf.RoundToInt(finalPosition.z));
+                if (Vector3.Distance(startPos, finalPosition) > limit) finalPosition = startPos + (direction * limit);
+            }
+
+            existingEndPoint = null; 
+        }
+
+        // Check if the user barely moved their finger (tapped instead of dragged)
+        // If the bar is too short, we cancel it to prevent glitchy invisible beams
+        if (Vector3.Distance(startPos, finalPosition) < 0.1f) 
+        {
+            CancelCreation();
+            return;
+        }
 
         if (existingEndPoint != null)
         {
@@ -224,10 +266,12 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler
         currentStartPoint.ConnectedBars.Add(currentBar);
         currentEndPoint.ConnectedBars.Add(currentBar);
         
-        currentStartPoint = currentEndPoint;
-        currentEndPoint = null; 
-        
-        StartBarCreation(currentStartPoint.transform.position);
+        // --- CHANGED: End the building phase entirely here ---
+        barCreationStarted = false;
+        currentStartPoint = null;
+        currentEndPoint = null;
+        currentBar = null;
+        if (radiusIndicator != null) radiusIndicator.enabled = false;
     }
 
     private void CancelCreation()

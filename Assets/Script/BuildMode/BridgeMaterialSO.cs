@@ -20,7 +20,7 @@ public class BridgeMaterialSO : ScriptableObject
     public GameObject sideBeamPrefab;       
     public Vector3 sideBeamOffset = new Vector3(0, 0, 1f); 
 
-    [Header("Physics (future)")]
+    [Header("Physics")]
     public float massPerMeter      = 2f;
     public float breakForce        = 800f;
     public float breakTorque       = 600f;
