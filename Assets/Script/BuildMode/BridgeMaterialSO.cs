@@ -20,10 +20,17 @@ public class BridgeMaterialSO : ScriptableObject
     public GameObject sideBeamPrefab;       
     public Vector3 sideBeamOffset = new Vector3(0, 0, 1f); 
 
-    [Header("Physics")]
+    [Header("Physics & Structural Integrity")]
     public float massPerMeter      = 2f;
+    [Tooltip("Max pulling force before snapping.")]
+    public float maxTension        = 1200f; 
+    [Tooltip("Max pushing force before buckling.")]
+    public float maxCompression    = 800f;  
+    [Tooltip("Native Unity joint limit for shear/twisting forces.")]
     public float breakForce        = 800f;
     public float breakTorque       = 600f;
+
+    [Header("Spring Settings")]
     public bool  useSpring         = false;
     public float spring            = 1000f;
     public float damper            = 50f;
