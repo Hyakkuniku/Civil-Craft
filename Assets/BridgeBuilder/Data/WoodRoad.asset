@@ -21,12 +21,14 @@ MonoBehaviour:
   zOffset: 1.5
   sideBeamPrefab: {fileID: 0}
   sideBeamOffset: {x: 0, y: 0, z: 1}
-  massPerMeter: 0.1
-  breakForce: 10000000
-  breakTorque: 10000000
+  massPerMeter: 0.01
+  maxTension: Infinity
+  maxCompression: Infinity
+  breakForce: Infinity
+  breakTorque: Infinity
   useSpring: 0
-  spring: 1000
-  damper: 50
+  spring: Infinity
+  damper: Infinity
   woodCost: 5
   metalCost: 0
   maxLength: 10
