@@ -39,7 +39,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
     public bool isGridSnappingEnabled = true;
     public bool isDeleteMode = false;
     
-    // ADDED: Stops player from building while the simulation is running
     [HideInInspector] public bool isSimulating = false; 
 
     [Header("Visual Aids")]
@@ -59,10 +58,9 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
         {
             GameManager.Instance.OnEnterBuildMode.AddListener(HandleEnterBuildMode);
             GameManager.Instance.OnExitBuildMode.AddListener(HandleExitBuildMode);
-
-            bool isBuilding = GameManager.Instance.CurrentState == GameManager.GameState.Building;
-            if (pointParent != null) pointParent.gameObject.SetActive(isBuilding);
         }
+
+        if (pointParent != null) pointParent.gameObject.SetActive(true); 
     }
 
     private void OnDestroy()
@@ -76,14 +74,17 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
 
     private void HandleEnterBuildMode()
     {
-        if (pointParent != null) pointParent.gameObject.SetActive(true);
+        // THE FIX: Unlock the building tools when re-entering the build zone!
+        isSimulating = false; 
     }
 
     private void HandleExitBuildMode()
     {
         CancelCreation(); 
         isDeleteMode = false; 
-        if (pointParent != null) pointParent.gameObject.SetActive(false);
+        
+        // THE FIX: Reset the lock when leaving so it doesn't get stuck!
+        isSimulating = false; 
     }
 
     private void Update()
@@ -91,7 +92,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
         if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building)
             return;
 
-        if (isSimulating) return; // Block input during simulation
+        if (isSimulating) return;
 
         if (barCreationStarted && currentEndPoint != null && !isDeleteMode)
         {
@@ -127,7 +128,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
     public void OnPointerDown(PointerEventData eventData)
     {
         if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building) return;
-        if (isSimulating) return; // Block input during simulation
+        if (isSimulating) return; 
 
         if (eventData.button == PointerEventData.InputButton.Right)
         {
@@ -173,7 +174,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
     public void OnPointerUp(PointerEventData eventData)
     {
         if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building) return;
-        if (isSimulating) return; // Block input during simulation
+        if (isSimulating) return; 
 
         if (barCreationStarted && eventData.button == PointerEventData.InputButton.Left && !isDeleteMode)
         {

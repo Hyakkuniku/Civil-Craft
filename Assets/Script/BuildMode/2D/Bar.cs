@@ -9,9 +9,11 @@ public class Bar : MonoBehaviour
     public Point startPoint;
     public Point endPoint;
 
-    // ADDED: Snapshot variables for Restarting
     [HideInInspector] public Vector3 preSimPos;
     [HideInInspector] public Quaternion preSimRot;
+
+    // ADDED: Stores the actual dimensions of your 3D asset!
+    [HideInInspector] public Vector3 visualSize = new Vector3(1f, 0.2f, 0.2f);
 
     private List<GameObject> visualSegments = new List<GameObject>();
     private float baseLength = 1f; 
@@ -65,6 +67,10 @@ public class Bar : MonoBehaviour
                     if (renderer != null)
                     {
                         baseLength = renderer.bounds.size.x;
+                        
+                        // NEW: Capture the exact height (Y) and width (Z) of your prefab
+                        visualSize = renderer.bounds.size; 
+                        
                         if (baseLength <= 0f) baseLength = 1f; 
                     }
                 }

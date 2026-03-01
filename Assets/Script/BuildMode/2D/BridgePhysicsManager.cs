@@ -9,16 +9,27 @@ public class BridgePhysicsManager : MonoBehaviour
 
     [HideInInspector] public bool isSimulating = false;
 
+    // ────────────────────────────────────────────────────────────
+    // NEW: Automatically start physics when the game loads!
+    // This hides the anchors and makes the bridge solid immediately.
+    // ────────────────────────────────────────────────────────────
+    private void Start()
+    {
+        ActivatePhysics();
+    }
+
     public void ActivatePhysics()
     {
         if (isSimulating) return;
         isSimulating = true;
 
-        // --- 1. SAVE SNAPSHOT BEFORE SIMULATION ---
         foreach (Point p in Point.AllPoints)
         {
             p.preSimPos = p.transform.position;
             p.preSimParent = p.transform.parent;
+
+            Renderer r = p.GetComponentInChildren<Renderer>();
+            if (r != null) r.enabled = false;
         }
 
         HashSet<Bar> allBars = new HashSet<Bar>();
@@ -34,7 +45,6 @@ public class BridgePhysicsManager : MonoBehaviour
             b.preSimRot = b.transform.rotation;
         }
 
-        // --- 2. START PHYSICS ---
         Physics.defaultSolverIterations = physicsSolverIterations;
         Physics.defaultSolverVelocityIterations = 15;
 
@@ -45,30 +55,30 @@ public class BridgePhysicsManager : MonoBehaviour
         Debug.Log("<color=green>Physics Activated!</color>");
     }
 
-    // ADDED: The Restart Function
     public void StopPhysicsAndReset()
     {
         if (!isSimulating) return;
         isSimulating = false;
 
-        // 1. Restore Points
         foreach (Point p in Point.AllPoints)
         {
             Rigidbody rb = p.GetComponent<Rigidbody>();
             if (rb != null) 
             {
-                rb.isKinematic = true; // Stop movement safely before destroying
+                rb.isKinematic = true; 
                 Destroy(rb);
             }
 
             Collider[] cols = p.GetComponents<Collider>();
-            foreach(var col in cols) col.enabled = true; // Turn click-boxes back on
+            foreach(var col in cols) col.enabled = true; 
 
             p.transform.SetParent(p.preSimParent);
             p.transform.position = p.preSimPos;
+
+            Renderer r = p.GetComponentInChildren<Renderer>();
+            if (r != null) r.enabled = true;
         }
 
-        // 2. Restore Bars
         HashSet<Bar> allBars = new HashSet<Bar>();
         foreach (Point p in Point.AllPoints)
         {
@@ -78,7 +88,6 @@ public class BridgePhysicsManager : MonoBehaviour
 
         foreach (Bar bar in allBars)
         {
-            // Strip out all the physics junk
             Joint[] joints = bar.GetComponents<Joint>();
             foreach (Joint j in joints) Destroy(j);
 
@@ -95,7 +104,6 @@ public class BridgePhysicsManager : MonoBehaviour
                 Destroy(barRb);
             }
 
-            // Snap back to starting transform
             bar.transform.position = bar.preSimPos;
             bar.transform.rotation = bar.preSimRot;
         }
@@ -136,9 +144,38 @@ public class BridgePhysicsManager : MonoBehaviour
         barRb.interpolation = RigidbodyInterpolation.Interpolate;
         barRb.collisionDetectionMode = CollisionDetectionMode.Continuous;
 
-        BoxCollider barCol = bar.gameObject.AddComponent<BoxCollider>();
-        float zDepth = bar.materialData.isDualBeam ? (bar.materialData.zOffset * 2f + barColliderThickness) : barColliderThickness;
-        barCol.size = new Vector3(length, barColliderThickness, zDepth);
+        int spawnCount = bar.materialData.isDualBeam ? 2 : 1;
+
+        for (int i = 0; i < spawnCount; i++)
+        {
+            BoxCollider col = bar.gameObject.AddComponent<BoxCollider>();
+            
+            float thickness = bar.visualSize.y > 0.05f ? bar.visualSize.y : barColliderThickness;
+            float depth = bar.visualSize.z; 
+
+            if (!bar.materialData.isDualBeam && depth < 2.0f)
+            {
+                depth = 2.0f; 
+            }
+            else if (bar.materialData.isDualBeam && depth < 0.2f)
+            {
+                depth = 0.2f;
+            }
+
+            float zOffsetValue = 0f;
+            if (bar.materialData.isDualBeam)
+            {
+                zOffsetValue = (i == 0) ? bar.materialData.zOffset : -bar.materialData.zOffset;
+            }
+
+            float physicsLength = length - 0.4f; 
+            if (physicsLength < 0.1f) physicsLength = 0.1f; 
+
+            col.size = new Vector3(physicsLength, thickness, depth);
+            col.center = new Vector3(0, 0, zOffsetValue);
+        }
+
+        bar.gameObject.layer = LayerMask.NameToLayer("Bridge"); 
 
         BarStressHandler stressHandler = bar.gameObject.AddComponent<BarStressHandler>();
         stressHandler.Setup(bar.materialData, p1, p2);
@@ -151,7 +188,6 @@ public class BridgePhysicsManager : MonoBehaviour
             if (p.ConnectedBars.Count == 0) continue;
 
             Collider[] oldCols = p.GetComponents<Collider>();
-            // CHANGED: Disable instead of Destroy so we can re-enable them on Restart
             foreach(var col in oldCols) col.enabled = false; 
 
             if (p.isAnchor)
@@ -221,14 +257,20 @@ public class BridgePhysicsManager : MonoBehaviour
         {
             for (int i = 0; i < p.ConnectedBars.Count; i++)
             {
-                Collider colA = p.ConnectedBars[i].GetComponent<Collider>();
-                if (colA == null) continue;
+                Collider[] colsA = p.ConnectedBars[i].GetComponents<Collider>();
+                if (colsA.Length == 0) continue;
 
                 for (int j = i + 1; j < p.ConnectedBars.Count; j++)
                 {
-                    Collider colB = p.ConnectedBars[j].GetComponent<Collider>();
-                    if (colB != null)
-                        Physics.IgnoreCollision(colA, colB, true);
+                    Collider[] colsB = p.ConnectedBars[j].GetComponents<Collider>();
+                    
+                    foreach (Collider cA in colsA)
+                    {
+                        foreach (Collider cB in colsB)
+                        {
+                            Physics.IgnoreCollision(cA, cB, true);
+                        }
+                    }
                 }
             }
         }
@@ -292,8 +334,6 @@ public class BarStressHandler : MonoBehaviour
 
         Debug.Log($"<color=orange>Stress limit reached!</color> Bar snapped due to {cause}. Force: {force}");
 
-        // CHANGED: We no longer Destroy(gameObject). We just break the joints so it physically falls down. 
-        // This allows us to re-use it when the player clicks Restart!
         foreach (Joint j in joints)
         {
             if (j != null) Destroy(j);
