@@ -22,10 +22,10 @@ MonoBehaviour:
   sideBeamPrefab: {fileID: 0}
   sideBeamOffset: {x: 0, y: 0, z: 1}
   massPerMeter: 1
-  maxTension: 1000000
-  maxCompression: 100000
-  breakForce: Infinity
-  breakTorque: Infinity
+  maxTension: 50000
+  maxCompression: 50000
+  breakForce: 50000
+  breakTorque: 50000
   useSpring: 0
   spring: 1000
   damper: 50

@@ -50,6 +50,8 @@ MonoBehaviour:
   defaultMaterial: {fileID: 2100000, guid: 2dc34487b0de833468c87dffc1126a8f, type: 2}
   anchorMaterial: {fileID: 2100000, guid: d71ec78405d77e846b5e45a7681c2df2, type: 2}
   ConnectedBars: []
+  preSimPos: {x: 0, y: 0, z: 0}
+  preSimParent: {fileID: 0}
 --- !u!1 &2698180583655231422
 GameObject:
   m_ObjectHideFlags: 0

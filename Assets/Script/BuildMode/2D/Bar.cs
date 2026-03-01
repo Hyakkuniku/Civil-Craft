@@ -6,16 +6,34 @@ public class Bar : MonoBehaviour
     public Vector3 StartPosition; 
     public BridgeMaterialSO materialData;
 
+    public Point startPoint;
+    public Point endPoint;
+
+    // ADDED: Snapshot variables for Restarting
+    [HideInInspector] public Vector3 preSimPos;
+    [HideInInspector] public Quaternion preSimRot;
+
     private List<GameObject> visualSegments = new List<GameObject>();
     private float baseLength = 1f; 
     private Vector3 originalScale = Vector3.one;
+
+    private void OnEnable()
+    {
+        if (startPoint != null && !startPoint.ConnectedBars.Contains(this)) startPoint.ConnectedBars.Add(this);
+        if (endPoint != null && !endPoint.ConnectedBars.Contains(this)) endPoint.ConnectedBars.Add(this);
+    }
+
+    private void OnDisable()
+    {
+        if (startPoint != null) startPoint.ConnectedBars.Remove(this);
+        if (endPoint != null) endPoint.ConnectedBars.Remove(this);
+    }
 
     public void Initialize(BridgeMaterialSO data)
     {
         materialData = data;
         visualSegments.Clear();
         
-        // Clean up any stray children to prevent clones inside clones
         foreach (Transform child in transform)
         {
             child.gameObject.SetActive(false); 
@@ -39,7 +57,6 @@ public class Bar : MonoBehaviour
                 
                 newSegment.transform.localPosition = new Vector3(0, 0, offsetValue);
 
-                // FIX: Calculate the base length and save original scale BEFORE hiding it!
                 if (i == 0)
                 {
                     originalScale = newSegment.transform.localScale;
@@ -52,7 +69,6 @@ public class Bar : MonoBehaviour
                     }
                 }
                 
-                // NOW we can safely hide it for the first frame
                 newSegment.transform.localScale = Vector3.zero;
                 visualSegments.Add(newSegment);
             }
