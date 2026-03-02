@@ -5,7 +5,6 @@ using TMPro;
 
 public class BuildUIController : MonoBehaviour
 {
-    // ADDED: Singleton access so the BarCreator can easily read the budget
     public static BuildUIController Instance { get; private set; }
 
     [Header("System References")]
@@ -17,15 +16,20 @@ public class BuildUIController : MonoBehaviour
     public KeyCode simulateKey = KeyCode.Return;   
     public KeyCode restartKey = KeyCode.Backspace; 
 
-    // ADDED: Budget Visualization System
     [Header("Budget Visualization")]
     public float maxBudget = 1000f;
-    [Tooltip("Text element to display Budget (e.g., 'Budget: $400 / $1000')")]
     public TextMeshProUGUI budgetText; 
-    [Tooltip("Optional image fill bar to visually represent spent budget")]
     public Image budgetFillBar; 
     public Color normalTextColor = Color.white;
     public Color overBudgetTextColor = Color.red;
+
+    // ADDED: Stress Indicator Settings
+    [Header("Stress Visualization")]
+    public TextMeshProUGUI stressText;
+    public Image stressFillBar;
+    public Color safeStressColor = Color.green;
+    public Color warningStressColor = Color.yellow;
+    public Color criticalStressColor = Color.red;
 
     private void Awake()
     {
@@ -46,11 +50,53 @@ public class BuildUIController : MonoBehaviour
             if (Input.GetKeyDown(restartKey)) OnRestartButtonClicked();
         }
 
-        // ADDED: Update UI every frame to catch real-time drawing costs
         UpdateBudgetUI();
+        UpdateStressUI(); // ADDED: Update the stress UI every frame
     }
 
-    // ADDED: Core logic to calculate the total cost of placed bridge parts
+    private void UpdateStressUI()
+    {
+        // Only show stress if physics are active
+        if (physicsManager != null && physicsManager.isSimulating)
+        {
+            float maxStress = physicsManager.GetMaxBridgeStress();
+            int stressPercent = Mathf.RoundToInt(maxStress * 100f);
+
+            // Blend the colors: Green -> Yellow (0 to 50%), Yellow -> Red (50% to 100%)
+            Color currentStressColor = safeStressColor;
+            if (maxStress <= 0.5f)
+                currentStressColor = Color.Lerp(safeStressColor, warningStressColor, maxStress * 2f);
+            else
+                currentStressColor = Color.Lerp(warningStressColor, criticalStressColor, (maxStress - 0.5f) * 2f);
+
+            if (stressText != null)
+            {
+                stressText.text = $"Max Stress: {stressPercent}%";
+                stressText.color = currentStressColor;
+            }
+
+            if (stressFillBar != null)
+            {
+                stressFillBar.fillAmount = maxStress;
+                stressFillBar.color = currentStressColor;
+            }
+        }
+        else
+        {
+            // Reset when building
+            if (stressText != null)
+            {
+                stressText.text = "Max Stress: 0%";
+                stressText.color = safeStressColor;
+            }
+            if (stressFillBar != null)
+            {
+                stressFillBar.fillAmount = 0f;
+                stressFillBar.color = safeStressColor;
+            }
+        }
+    }
+
     public float GetTotalCost()
     {
         float totalCost = 0f;
@@ -67,7 +113,6 @@ public class BuildUIController : MonoBehaviour
 
         foreach (Bar b in uniqueBars)
         {
-            // Don't count the active "ghost" preview bar; we handle that below
             if (barCreator != null && barCreator.currentBar == b && barCreator.IsCreating) continue;
             totalCost += b.GetCost();
         }
@@ -75,7 +120,6 @@ public class BuildUIController : MonoBehaviour
         return totalCost;
     }
 
-    // ADDED: Pushes the calculated costs into the UI elements
     private void UpdateBudgetUI()
     {
         float baseCost = GetTotalCost();
@@ -101,6 +145,7 @@ public class BuildUIController : MonoBehaviour
         }
     }
 
+    // ... (Keep your existing button methods below: OnSimulateButtonClicked, OnRestartButtonClicked, etc.)
     public void OnSimulateButtonClicked()
     {
         if (physicsManager != null && !physicsManager.isSimulating)

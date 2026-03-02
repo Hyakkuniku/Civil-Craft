@@ -29,6 +29,5 @@ MonoBehaviour:
   useSpring: 0
   spring: 1000
   damper: 50
-  woodCost: 5
-  metalCost: 0
+  costPerMeter: 10
   maxLength: 11

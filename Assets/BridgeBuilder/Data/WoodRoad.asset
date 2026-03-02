@@ -29,6 +29,5 @@ MonoBehaviour:
   useSpring: 0
   spring: Infinity
   damper: Infinity
-  woodCost: 5
-  metalCost: 0
+  costPerMeter: 10
   maxLength: 10

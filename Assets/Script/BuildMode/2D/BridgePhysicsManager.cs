@@ -8,11 +8,10 @@ public class BridgePhysicsManager : MonoBehaviour
     public int physicsSolverIterations = 30; 
 
     [HideInInspector] public bool isSimulating = false;
+    
+    // ADDED: List to track all active stress handlers to calculate global max stress
+    [HideInInspector] public List<BarStressHandler> activeStressHandlers = new List<BarStressHandler>();
 
-    // ────────────────────────────────────────────────────────────
-    // NEW: Automatically start physics when the game loads!
-    // This hides the anchors and makes the bridge solid immediately.
-    // ────────────────────────────────────────────────────────────
     private void Start()
     {
         ActivatePhysics();
@@ -22,6 +21,7 @@ public class BridgePhysicsManager : MonoBehaviour
     {
         if (isSimulating) return;
         isSimulating = true;
+        activeStressHandlers.Clear(); // Reset the list
 
         foreach (Point p in Point.AllPoints)
         {
@@ -59,25 +59,7 @@ public class BridgePhysicsManager : MonoBehaviour
     {
         if (!isSimulating) return;
         isSimulating = false;
-
-        foreach (Point p in Point.AllPoints)
-        {
-            Rigidbody rb = p.GetComponent<Rigidbody>();
-            if (rb != null) 
-            {
-                rb.isKinematic = true; 
-                Destroy(rb);
-            }
-
-            Collider[] cols = p.GetComponents<Collider>();
-            foreach(var col in cols) col.enabled = true; 
-
-            p.transform.SetParent(p.preSimParent);
-            p.transform.position = p.preSimPos;
-
-            Renderer r = p.GetComponentInChildren<Renderer>();
-            if (r != null) r.enabled = true;
-        }
+        activeStressHandlers.Clear();
 
         HashSet<Bar> allBars = new HashSet<Bar>();
         foreach (Point p in Point.AllPoints)
@@ -86,11 +68,57 @@ public class BridgePhysicsManager : MonoBehaviour
                 if (b != null) allBars.Add(b);
         }
 
+        // STEP 1: Sever all physics connections immediately to stop end-of-frame drifting
         foreach (Bar bar in allBars)
         {
             Joint[] joints = bar.GetComponents<Joint>();
-            foreach (Joint j in joints) Destroy(j);
+            foreach (Joint j in joints) 
+            {
+                j.connectedBody = null; // Instantly stops the joint from pulling
+                Destroy(j);
+            }
 
+            Rigidbody barRb = bar.GetComponent<Rigidbody>();
+            if (barRb != null) 
+            {
+                barRb.isKinematic = true;
+                barRb.velocity = Vector3.zero;
+                barRb.angularVelocity = Vector3.zero;
+                barRb.interpolation = RigidbodyInterpolation.None; // Stops visual drifting
+            }
+        }
+
+        foreach (Point p in Point.AllPoints)
+        {
+            Rigidbody rb = p.GetComponent<Rigidbody>();
+            if (rb != null) 
+            {
+                rb.isKinematic = true;
+                rb.velocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+                rb.interpolation = RigidbodyInterpolation.None;
+            }
+        }
+
+        // STEP 2: Now that physics are frozen, put everything back in its place
+        foreach (Point p in Point.AllPoints)
+        {
+            Rigidbody rb = p.GetComponent<Rigidbody>();
+            if (rb != null) Destroy(rb);
+
+            Collider[] cols = p.GetComponents<Collider>();
+            foreach(var col in cols) col.enabled = true; 
+
+            p.transform.SetParent(p.preSimParent);
+            p.transform.position = p.preSimPos;
+            p.transform.rotation = Quaternion.identity; // Ensure nodes stand up straight
+
+            Renderer r = p.GetComponentInChildren<Renderer>();
+            if (r != null) r.enabled = true;
+        }
+
+        foreach (Bar bar in allBars)
+        {
             BarStressHandler stress = bar.GetComponent<BarStressHandler>();
             if (stress != null) Destroy(stress);
 
@@ -98,11 +126,7 @@ public class BridgePhysicsManager : MonoBehaviour
             foreach (BoxCollider c in barCols) Destroy(c);
 
             Rigidbody barRb = bar.GetComponent<Rigidbody>();
-            if (barRb != null) 
-            {
-                barRb.isKinematic = true;
-                Destroy(barRb);
-            }
+            if (barRb != null) Destroy(barRb);
 
             bar.transform.position = bar.preSimPos;
             bar.transform.rotation = bar.preSimRot;
@@ -111,14 +135,28 @@ public class BridgePhysicsManager : MonoBehaviour
         Debug.Log("<color=yellow>Bridge Reset. Back to Build Mode!</color>");
     }
 
+    // ADDED: Calculates the highest stress percentage on the bridge right now (0.0 to 1.0)
+    public float GetMaxBridgeStress()
+    {
+        float maxStress = 0f;
+        foreach (var handler in activeStressHandlers)
+        {
+            if (handler != null && !handler.isBroken)
+            {
+                if (handler.currentStressPercent > maxStress)
+                {
+                    maxStress = handler.currentStressPercent;
+                }
+            }
+        }
+        return Mathf.Clamp01(maxStress); // Prevent it from briefly reporting over 100%
+    }
+
     private void SetupBarsPhysics(HashSet<Bar> allBars)
     {
         foreach (Bar bar in allBars)
         {
-            if (bar.GetComponent<Rigidbody>() == null)
-            {
-                ApplyPhysicsToBar(bar);
-            }
+            if (bar.GetComponent<Rigidbody>() == null) ApplyPhysicsToBar(bar);
         }
     }
 
@@ -149,25 +187,13 @@ public class BridgePhysicsManager : MonoBehaviour
         for (int i = 0; i < spawnCount; i++)
         {
             BoxCollider col = bar.gameObject.AddComponent<BoxCollider>();
-            
             float thickness = bar.visualSize.y > 0.05f ? bar.visualSize.y : barColliderThickness;
             float depth = bar.visualSize.z; 
 
-            if (!bar.materialData.isDualBeam && depth < 2.0f)
-            {
-                depth = 2.0f; 
-            }
-            else if (bar.materialData.isDualBeam && depth < 0.2f)
-            {
-                depth = 0.2f;
-            }
+            if (!bar.materialData.isDualBeam && depth < 2.0f) depth = 2.0f; 
+            else if (bar.materialData.isDualBeam && depth < 0.2f) depth = 0.2f;
 
-            float zOffsetValue = 0f;
-            if (bar.materialData.isDualBeam)
-            {
-                zOffsetValue = (i == 0) ? bar.materialData.zOffset : -bar.materialData.zOffset;
-            }
-
+            float zOffsetValue = bar.materialData.isDualBeam ? ((i == 0) ? bar.materialData.zOffset : -bar.materialData.zOffset) : 0f;
             float physicsLength = length - 0.4f; 
             if (physicsLength < 0.1f) physicsLength = 0.1f; 
 
@@ -179,6 +205,9 @@ public class BridgePhysicsManager : MonoBehaviour
 
         BarStressHandler stressHandler = bar.gameObject.AddComponent<BarStressHandler>();
         stressHandler.Setup(bar.materialData, p1, p2);
+        
+        // ADDED: Track this handler for our UI calculations
+        activeStressHandlers.Add(stressHandler);
     }
 
     private void SetupDirectConnections()
@@ -263,14 +292,7 @@ public class BridgePhysicsManager : MonoBehaviour
                 for (int j = i + 1; j < p.ConnectedBars.Count; j++)
                 {
                     Collider[] colsB = p.ConnectedBars[j].GetComponents<Collider>();
-                    
-                    foreach (Collider cA in colsA)
-                    {
-                        foreach (Collider cB in colsB)
-                        {
-                            Physics.IgnoreCollision(cA, cB, true);
-                        }
-                    }
+                    foreach (Collider cA in colsA) foreach (Collider cB in colsB) Physics.IgnoreCollision(cA, cB, true);
                 }
             }
         }
@@ -285,7 +307,10 @@ public class BarStressHandler : MonoBehaviour
     
     private float restLength;
     private Joint[] joints;
-    private bool isBroken = false;
+    
+    [HideInInspector] public bool isBroken = false;
+    [HideInInspector] public float currentStressPercent = 0f; 
+    
     private int framesActive = 0; 
 
     public void Setup(BridgeMaterialSO mat, Point point1, Point point2)
@@ -295,42 +320,57 @@ public class BarStressHandler : MonoBehaviour
         p2 = point2;
         
         restLength = Vector3.Distance(p1.transform.position, p2.transform.position);
-        joints = GetComponents<Joint>();
+        
+        // REMOVED: GetComponents<Joint>() from here because the joints haven't been created yet!
     }
 
     private void FixedUpdate()
     {
         if (isBroken || p1 == null || p2 == null) return;
 
+        // THE FIX: Grab the joints during the first few physics frames after they have been safely created
+        if (joints == null || joints.Length == 0)
+        {
+            joints = GetComponents<Joint>();
+            if (joints == null || joints.Length == 0) return; 
+        }
+
         framesActive++;
         if (framesActive < 10) return;
 
         float currentLength = Vector3.Distance(p1.transform.position, p2.transform.position);
         bool isTension = currentLength > restLength; 
+        
+        float maxForceThisFrame = 0f;
 
         foreach (Joint joint in joints)
         {
             if (joint == null) continue;
 
             float forceMag = joint.currentForce.magnitude;
+            if (forceMag > maxForceThisFrame) maxForceThisFrame = forceMag;
 
             if (isTension && forceMag > material.maxTension)
             {
                 BreakBar("Tension (Pulled apart)", forceMag);
-                break; 
+                return; 
             }
             else if (!isTension && forceMag > material.maxCompression)
             {
                 BreakBar("Compression (Buckled)", forceMag);
-                break;
+                return;
             }
         }
+
+        float stressLimit = isTension ? material.maxTension : material.maxCompression;
+        currentStressPercent = maxForceThisFrame / stressLimit;
     }
 
     private void BreakBar(string cause, float force)
     {
         if (isBroken) return;
         isBroken = true;
+        currentStressPercent = 1f; 
 
         Debug.Log($"<color=orange>Stress limit reached!</color> Bar snapped due to {cause}. Force: {force}");
 
