@@ -10,10 +10,11 @@ public class ContractSO : ScriptableObject
     public string jobDescription = "We need a bridge across this ravine!";
 
     [Header("Job Constraints")]
-    [Tooltip("The maximum amount of money the player can spend on this bridge.")]
     public float budget = 2000f;
     
+    // ADDED: The required weight of the object to carry
+    public float cargoWeight = 50f; 
+    
     [Header("Dialogue Integration")]
-    [Tooltip("The dialogue the NPC will say when handing over this contract.")]
     public Dialogue offerDialogue;
 }

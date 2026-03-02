@@ -2,9 +2,6 @@ using UnityEngine;
 
 public class BuildLocation : MonoBehaviour
 {
-    [Header("Visuals & Prompt")]
-    public string promptMessage = "Build Bridge / Structure";
-    
     [Header("UI / Grid")]
     [Tooltip("The camera-space canvas holding the grid material for this specific location")]
     public Canvas gridCanvas; 
@@ -24,23 +21,41 @@ public class BuildLocation : MonoBehaviour
     public ContractSO activeContract; 
 
     private Transform originalPlayerParent;
+    
+    // ADDED: A reference to the Interactable component on this object
+    private Interactable myInteractable;
 
     private void Awake()
     {
         if (locationCamera != null) locationCamera.enabled = false;
         if (gridCanvas != null) gridCanvas.enabled = false;
+        
+        // Grab the interactable component so we can change its text directly!
+        myInteractable = GetComponent<Interactable>();
+    }
+
+    // ADDED: This constantly checks if you have a contract and updates the UI prompt instantly
+    private void Update()
+    {
+        if (myInteractable != null)
+        {
+            if (activeContract == null)
+            {
+                myInteractable.promptMessage = "Requires Contract! Talk to the client.";
+            }
+            else
+            {
+                myInteractable.promptMessage = "Enter Build Mode";
+            }
+        }
     }
 
     public void ActivateBuildMode(Transform player)
     {
         if (GameManager.Instance == null) return;
 
-        // Block building if no contract has been accepted!
-        if (activeContract == null)
-        {
-            Debug.LogWarning("You must accept a contract from an NPC before building here!");
-            return; 
-        }
+        // Block building if no contract has been accepted (it will just ignore your click)
+        if (activeContract == null) return; 
 
         if (gridCanvas != null) gridCanvas.enabled = true;
 

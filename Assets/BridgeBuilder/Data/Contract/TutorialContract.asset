@@ -12,11 +12,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
   m_Name: TutorialContract
   m_EditorClassIdentifier: 
-  clientName: Mayor Thomas
-  jobDescription: We need a bridge across this ravine!
-  budget: 20000
+  clientName: Merchant Clara
+  jobDescription: I need a sturdy bridge to transport my heavy crate of iron tools
+    across the gorge. Do not let it fall!
+  budget: 5000
+  cargoWeight: 500
   offerDialogue:
-    name: Mayor Thomas
+    name: Merchant Clara
     sentences:
-    - hello!
-    - 20000 for bridge building
+    - Hello, builder. I need your help.
+    - The bridge across has collapsed, and I need to deliver a crate of iron tools
+      to the settlement on the other side.
+    - "The crate weighs 500kg, so the bridge must be strong and stable. It can\u2019t
+      be weak or unstable."
+    - My budget is $4000 for materials. Build a solid bridge and carry the crate
+      safely to the delivery area. Can you take this job?
