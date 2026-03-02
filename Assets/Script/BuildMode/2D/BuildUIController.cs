@@ -1,7 +1,7 @@
 using UnityEngine;
-using UnityEngine.UI;
+using UnityEngine.UI; // We still need this for the Image (Fill Bar)
+using TMPro; // ADDED: This lets us use TextMeshPro!
 using System.Collections.Generic;
-using TMPro;
 
 public class BuildUIController : MonoBehaviour
 {
@@ -16,14 +16,20 @@ public class BuildUIController : MonoBehaviour
     public KeyCode simulateKey = KeyCode.Return;   
     public KeyCode restartKey = KeyCode.Backspace; 
 
+    // --- UPDATED: Now using TextMeshProUGUI ---
     [Header("Budget Visualization")]
     public float maxBudget = 1000f;
-    public TextMeshProUGUI budgetText; 
+    [Tooltip("Text element above the bar showing how much is spent.")]
+    public TextMeshProUGUI usedBudgetText; 
+    [Tooltip("The fill bar image.")]
     public Image budgetFillBar; 
+    [Tooltip("Text element below the bar showing the limit.")]
+    public TextMeshProUGUI maxBudgetText; 
+    
     public Color normalTextColor = Color.white;
     public Color overBudgetTextColor = Color.red;
 
-    // ADDED: Stress Indicator Settings
+    // --- UPDATED: Now using TextMeshProUGUI ---
     [Header("Stress Visualization")]
     public TextMeshProUGUI stressText;
     public Image stressFillBar;
@@ -51,18 +57,16 @@ public class BuildUIController : MonoBehaviour
         }
 
         UpdateBudgetUI();
-        UpdateStressUI(); // ADDED: Update the stress UI every frame
+        UpdateStressUI(); 
     }
 
     private void UpdateStressUI()
     {
-        // Only show stress if physics are active
         if (physicsManager != null && physicsManager.isSimulating)
         {
             float maxStress = physicsManager.GetMaxBridgeStress();
             int stressPercent = Mathf.RoundToInt(maxStress * 100f);
 
-            // Blend the colors: Green -> Yellow (0 to 50%), Yellow -> Red (50% to 100%)
             Color currentStressColor = safeStressColor;
             if (maxStress <= 0.5f)
                 currentStressColor = Color.Lerp(safeStressColor, warningStressColor, maxStress * 2f);
@@ -71,7 +75,7 @@ public class BuildUIController : MonoBehaviour
 
             if (stressText != null)
             {
-                stressText.text = $"Max Stress: {stressPercent}%";
+                stressText.text = $"{stressPercent}%";
                 stressText.color = currentStressColor;
             }
 
@@ -83,10 +87,9 @@ public class BuildUIController : MonoBehaviour
         }
         else
         {
-            // Reset when building
             if (stressText != null)
             {
-                stressText.text = "Max Stress: 0%";
+                stressText.text = "0%";
                 stressText.color = safeStressColor;
             }
             if (stressFillBar != null)
@@ -132,10 +135,15 @@ public class BuildUIController : MonoBehaviour
 
         float totalProjectedCost = baseCost + previewCost;
 
-        if (budgetText != null)
+        if (usedBudgetText != null)
         {
-            budgetText.text = $"Budget: ${Mathf.RoundToInt(totalProjectedCost)} / ${Mathf.RoundToInt(maxBudget)}";
-            budgetText.color = totalProjectedCost > maxBudget ? overBudgetTextColor : normalTextColor;
+            usedBudgetText.text = $" ${Mathf.RoundToInt(totalProjectedCost)}";
+            usedBudgetText.color = totalProjectedCost > maxBudget ? overBudgetTextColor : normalTextColor;
+        }
+
+        if (maxBudgetText != null)
+        {
+            maxBudgetText.text = $" ${Mathf.RoundToInt(maxBudget)}";
         }
 
         if (budgetFillBar != null)
@@ -145,7 +153,6 @@ public class BuildUIController : MonoBehaviour
         }
     }
 
-    // ... (Keep your existing button methods below: OnSimulateButtonClicked, OnRestartButtonClicked, etc.)
     public void OnSimulateButtonClicked()
     {
         if (physicsManager != null && !physicsManager.isSimulating)

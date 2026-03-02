@@ -1,3 +1,4 @@
+using System; // ADDED: We need this to use 'Action' callbacks
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -6,36 +7,34 @@ using TMPro;
 
 public class DialogueManager : MonoBehaviour
 {
-
     public TextMeshProUGUI nameText;
     public TextMeshProUGUI dialogueText;
 
-
     public Animator animator;
-
 
     private Queue<string> sentences;
 
     [SerializeField] private InputManager inputManager;
     
+    // ADDED: This will store the code we want to run after the dialogue finishes
+    private Action onDialogueEndCallback; 
 
-
-
-    // Start is called before the first frame update
     void Start()
     {
         sentences = new Queue<string>();
-
     }
 
-    public void StartDialogue (Dialogue dialogue)
+    // ADDED: We added 'Action onEnd = null' so other scripts can pass in a delayed command
+    public void StartDialogue (Dialogue dialogue, Action onEnd = null)
     {
+        onDialogueEndCallback = onEnd; // Save the delayed command
+
         inputManager?.SetPlayerInputEnable(false);
         inputManager?.SetLookEnabled(false);
 
         animator.SetBool("isOpen", true);
 
-        Debug.Log("Starting convesation with " + dialogue.name);
+        Debug.Log("Starting conversation with " + dialogue.name);
 
         nameText.text = dialogue.name;
 
@@ -48,7 +47,6 @@ public class DialogueManager : MonoBehaviour
 
         DisplayNextSentence();
     }
-
 
     public void DisplayNextSentence ()
     {
@@ -68,6 +66,11 @@ public class DialogueManager : MonoBehaviour
         inputManager?.SetLookEnabled(true);
         animator.SetBool("isOpen", false);
         Debug.Log("End of conversation");
+
+        // ADDED: Run the delayed command (like showing the Objective UI) now that we are done!
+        onDialogueEndCallback?.Invoke();
+        
+        // Clear it out so it doesn't accidentally run again next time
+        onDialogueEndCallback = null; 
     }
-  
 }

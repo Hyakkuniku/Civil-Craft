@@ -5,7 +5,6 @@ public class BuildLocation : MonoBehaviour
     [Header("Visuals & Prompt")]
     public string promptMessage = "Build Bridge / Structure";
     
-    // ADD THIS: Reference to your grid canvas setup
     [Header("UI / Grid")]
     [Tooltip("The camera-space canvas holding the grid material for this specific location")]
     public Canvas gridCanvas; 
@@ -19,26 +18,31 @@ public class BuildLocation : MonoBehaviour
     public bool disablePlayerMovement = true;
     public bool lockPlayerToZone = false;           
     public float maxBuildDistanceFromCenter = 25f;  
+    
+    [Header("Active Contract")]
+    [Tooltip("The contract currently assigned to this ravine. Can be assigned by an NPC.")]
+    public ContractSO activeContract; 
 
     private Transform originalPlayerParent;
 
     private void Awake()
     {
-        if (locationCamera != null)
-            locationCamera.enabled = false;
-            
-        // ADD THIS: Ensure the grid is hidden during normal gameplay
-        if (gridCanvas != null)
-            gridCanvas.enabled = false;
+        if (locationCamera != null) locationCamera.enabled = false;
+        if (gridCanvas != null) gridCanvas.enabled = false;
     }
 
     public void ActivateBuildMode(Transform player)
     {
         if (GameManager.Instance == null) return;
 
-        // ADD THIS: Turn on the grid canvas
-        if (gridCanvas != null)
-            gridCanvas.enabled = true;
+        // Block building if no contract has been accepted!
+        if (activeContract == null)
+        {
+            Debug.LogWarning("You must accept a contract from an NPC before building here!");
+            return; 
+        }
+
+        if (gridCanvas != null) gridCanvas.enabled = true;
 
         GameManager.Instance.EnterBuildMode(this, player);
 
@@ -51,9 +55,7 @@ public class BuildLocation : MonoBehaviour
 
     public void DeactivateBuildMode(Transform player)
     {
-        // ADD THIS: Turn off the grid canvas
-        if (gridCanvas != null)
-            gridCanvas.enabled = false;
+        if (gridCanvas != null) gridCanvas.enabled = false;
 
         if (lockPlayerToZone && originalPlayerParent != null)
         {

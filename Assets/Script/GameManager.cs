@@ -24,8 +24,6 @@ public class GameManager : MonoBehaviour
     private PlayerMotor playerMotor;
     private PlayerLook playerLook;
     private InputManager inputManager;
-
-    // ADDED: Reference to the Physics Manager
     private BridgePhysicsManager physicsManager;
 
     private float cameraTransitionSpeed = 1.5f;
@@ -56,8 +54,6 @@ public class GameManager : MonoBehaviour
         playerMotor = FindObjectOfType<PlayerMotor>();
         playerLook  = FindObjectOfType<PlayerLook>();
         inputManager = FindObjectOfType<InputManager>();
-        
-        // ADDED: Auto-find the physics manager
         physicsManager = FindObjectOfType<BridgePhysicsManager>();
 
         if (mainCamera == null)
@@ -76,7 +72,6 @@ public class GameManager : MonoBehaviour
     {
         if (CurrentState == GameState.Building) return;
 
-        // --- NEW: Snap bridge back to editable blueprint when starting to build! ---
         if (physicsManager != null && physicsManager.isSimulating)
         {
             physicsManager.StopPhysicsAndReset();
@@ -84,6 +79,12 @@ public class GameManager : MonoBehaviour
 
         ActiveBuildLocation = location;
         CurrentState = GameState.Building;
+
+        // NEW: Pull the budget from the Contract given by the NPC
+        if (BuildUIController.Instance != null && location.activeContract != null)
+        {
+            BuildUIController.Instance.maxBudget = location.activeContract.budget;
+        }
 
         if (cachedBuildables.Count == 0) CacheBuildableObjects();
 
@@ -119,7 +120,6 @@ public class GameManager : MonoBehaviour
 
         CurrentState = GameState.Normal;
 
-        // --- NEW: Automatically solidify the bridge so the player can walk on it! ---
         if (physicsManager != null && !physicsManager.isSimulating)
         {
             physicsManager.ActivatePhysics();
