@@ -41,6 +41,9 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
     
     [HideInInspector] public bool isSimulating = false; 
 
+    // ADDED: Let other scripts know if we are actively drawing a bar
+    public bool IsCreating => barCreationStarted;
+
     [Header("Visual Aids")]
     public Image gridVisual; 
     public LineRenderer radiusIndicator; 
@@ -74,7 +77,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
 
     private void HandleEnterBuildMode()
     {
-        // THE FIX: Unlock the building tools when re-entering the build zone!
         isSimulating = false; 
     }
 
@@ -82,8 +84,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
     {
         CancelCreation(); 
         isDeleteMode = false; 
-        
-        // THE FIX: Reset the lock when leaving so it doesn't get stuck!
         isSimulating = false; 
     }
 
@@ -103,6 +103,18 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
             Vector3 targetPos = CalculateTargetPosition(worldMousePos, hoveredNode);
 
             float maxLen = activeMaterial != null ? activeMaterial.maxLength : 5f;
+            
+            // ADDED: Dynamically restrict max length based on remaining budget!
+            if (BuildUIController.Instance != null && activeMaterial != null)
+            {
+                float remainingBudget = BuildUIController.Instance.maxBudget - BuildUIController.Instance.GetTotalCost();
+                float costPerMeter = activeMaterial.costPerMeter * (activeMaterial.isDualBeam ? 2 : 1);
+                float maxAffordableLength = Mathf.Max(0f, remainingBudget / costPerMeter);
+                
+                if (maxAffordableLength < maxLen) 
+                    maxLen = maxAffordableLength;
+            }
+
             Vector3 startPos = currentStartPoint.transform.position;
             
             if (Vector3.Distance(startPos, targetPos) > maxLen)
@@ -385,6 +397,16 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
     {
         Vector3 finalPosition = CalculateTargetPosition(rawWorldPos, existingEndPoint);
         float limit = activeMaterial != null ? activeMaterial.maxLength : 5f;
+        
+        // ADDED: Enforce the budget constraint on the final drop!
+        if (BuildUIController.Instance != null && activeMaterial != null)
+        {
+            float remainingBudget = BuildUIController.Instance.maxBudget - BuildUIController.Instance.GetTotalCost();
+            float costPerMeter = activeMaterial.costPerMeter * (activeMaterial.isDualBeam ? 2 : 1);
+            float maxAffordable = Mathf.Max(0f, remainingBudget / costPerMeter);
+            if (maxAffordable < limit) limit = maxAffordable;
+        }
+
         Vector3 startPos = currentStartPoint.transform.position;
 
         if (Vector3.Distance(startPos, finalPosition) > limit)
@@ -465,6 +487,16 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
 
         Vector3 center = currentStartPoint.transform.position;
         float radius = activeMaterial.maxLength;
+        
+        // ADDED: Shrink the UI circle to reflect remaining budget constraints
+        if (BuildUIController.Instance != null && activeMaterial != null)
+        {
+            float remainingBudget = BuildUIController.Instance.maxBudget - BuildUIController.Instance.GetTotalCost();
+            float costPerMeter = activeMaterial.costPerMeter * (activeMaterial.isDualBeam ? 2 : 1);
+            float maxAffordable = Mathf.Max(0f, remainingBudget / costPerMeter);
+            if (maxAffordable < radius) radius = maxAffordable;
+        }
+
         float angleStep = 360f / circleResolution;
 
         for (int i = 0; i <= circleResolution; i++)

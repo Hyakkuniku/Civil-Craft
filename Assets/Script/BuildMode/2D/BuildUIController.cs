@@ -1,16 +1,36 @@
 using UnityEngine;
+using UnityEngine.UI;
+using System.Collections.Generic;
+using TMPro;
 
 public class BuildUIController : MonoBehaviour
 {
+    // ADDED: Singleton access so the BarCreator can easily read the budget
+    public static BuildUIController Instance { get; private set; }
+
     [Header("System References")]
     public BarCreator barCreator;
     public BridgePhysicsManager physicsManager;
 
     [Header("Global Keyboard Shortcuts")]
-    [Tooltip("Allow simulating and restarting via keyboard from any game state.")]
     public bool useKeyboardShortcuts = true;
-    public KeyCode simulateKey = KeyCode.Return;   // Press Enter to Simulate
-    public KeyCode restartKey = KeyCode.Backspace; // Press Backspace to Restart
+    public KeyCode simulateKey = KeyCode.Return;   
+    public KeyCode restartKey = KeyCode.Backspace; 
+
+    // ADDED: Budget Visualization System
+    [Header("Budget Visualization")]
+    public float maxBudget = 1000f;
+    [Tooltip("Text element to display Budget (e.g., 'Budget: $400 / $1000')")]
+    public TextMeshProUGUI budgetText; 
+    [Tooltip("Optional image fill bar to visually represent spent budget")]
+    public Image budgetFillBar; 
+    public Color normalTextColor = Color.white;
+    public Color overBudgetTextColor = Color.red;
+
+    private void Awake()
+    {
+        Instance = this;
+    }
 
     private void Start()
     {
@@ -20,36 +40,76 @@ public class BuildUIController : MonoBehaviour
 
     private void Update()
     {
-        // Listen for keyboard presses regardless of UI visibility
         if (useKeyboardShortcuts)
         {
-            if (Input.GetKeyDown(simulateKey))
-            {
-                OnSimulateButtonClicked();
-            }
-
-            if (Input.GetKeyDown(restartKey))
-            {
-                OnRestartButtonClicked();
-            }
+            if (Input.GetKeyDown(simulateKey)) OnSimulateButtonClicked();
+            if (Input.GetKeyDown(restartKey)) OnRestartButtonClicked();
         }
+
+        // ADDED: Update UI every frame to catch real-time drawing costs
+        UpdateBudgetUI();
     }
 
-    // ────────────────────────────────────────────────
-    // BUTTON TRIGGERS (Can be called by UI or Keyboard)
-    // ────────────────────────────────────────────────
+    // ADDED: Core logic to calculate the total cost of placed bridge parts
+    public float GetTotalCost()
+    {
+        float totalCost = 0f;
+        HashSet<Bar> uniqueBars = new HashSet<Bar>();
+
+        foreach (Point p in Point.AllPoints)
+        {
+            foreach (Bar b in p.ConnectedBars)
+            {
+                if (b != null && b.gameObject.activeSelf) 
+                    uniqueBars.Add(b);
+            }
+        }
+
+        foreach (Bar b in uniqueBars)
+        {
+            // Don't count the active "ghost" preview bar; we handle that below
+            if (barCreator != null && barCreator.currentBar == b && barCreator.IsCreating) continue;
+            totalCost += b.GetCost();
+        }
+
+        return totalCost;
+    }
+
+    // ADDED: Pushes the calculated costs into the UI elements
+    private void UpdateBudgetUI()
+    {
+        float baseCost = GetTotalCost();
+        float previewCost = 0f;
+
+        if (barCreator != null && barCreator.IsCreating && barCreator.currentBar != null)
+        {
+            previewCost = barCreator.currentBar.GetCost();
+        }
+
+        float totalProjectedCost = baseCost + previewCost;
+
+        if (budgetText != null)
+        {
+            budgetText.text = $"Budget: ${Mathf.RoundToInt(totalProjectedCost)} / ${Mathf.RoundToInt(maxBudget)}";
+            budgetText.color = totalProjectedCost > maxBudget ? overBudgetTextColor : normalTextColor;
+        }
+
+        if (budgetFillBar != null)
+        {
+            budgetFillBar.fillAmount = totalProjectedCost / maxBudget;
+            budgetFillBar.color = totalProjectedCost > maxBudget ? overBudgetTextColor : normalTextColor;
+        }
+    }
 
     public void OnSimulateButtonClicked()
     {
         if (physicsManager != null && !physicsManager.isSimulating)
         {
-            // Force the player to drop whatever line they are drawing
             if (barCreator != null) 
             {
                 barCreator.CancelCreation();
                 barCreator.isSimulating = true;
             }
-            
             physicsManager.ActivatePhysics();
         }
     }
@@ -59,8 +119,6 @@ public class BuildUIController : MonoBehaviour
         if (physicsManager != null && physicsManager.isSimulating)
         {
             physicsManager.StopPhysicsAndReset();
-            
-            // Allow the player to build again
             if (barCreator != null) barCreator.isSimulating = false;
         }
     }

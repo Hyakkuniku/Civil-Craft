@@ -36,7 +36,7 @@ public class BridgeMaterialSO : ScriptableObject
     public float damper            = 50f;
 
     [Header("Cost / Gameplay")]
-    public int   woodCost          = 5;
-    public int   metalCost         = 0;
+    // ADDED: Replaced static costs with a unified cost per meter
+    public float costPerMeter      = 10f;
     public float maxLength         = 6f;
 }

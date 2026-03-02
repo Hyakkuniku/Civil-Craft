@@ -12,8 +12,10 @@ public class Bar : MonoBehaviour
     [HideInInspector] public Vector3 preSimPos;
     [HideInInspector] public Quaternion preSimRot;
 
-    // ADDED: Stores the actual dimensions of your 3D asset!
     [HideInInspector] public Vector3 visualSize = new Vector3(1f, 0.2f, 0.2f);
+    
+    // ADDED: Tracks length for cost calculations
+    [HideInInspector] public float currentLength = 0f;
 
     private List<GameObject> visualSegments = new List<GameObject>();
     private float baseLength = 1f; 
@@ -67,10 +69,7 @@ public class Bar : MonoBehaviour
                     if (renderer != null)
                     {
                         baseLength = renderer.bounds.size.x;
-                        
-                        // NEW: Capture the exact height (Y) and width (Z) of your prefab
                         visualSize = renderer.bounds.size; 
-                        
                         if (baseLength <= 0f) baseLength = 1f; 
                     }
                 }
@@ -88,6 +87,9 @@ public class Bar : MonoBehaviour
         Vector3 dir3D = ToPosition - StartPosition;
         float totalDistance = dir3D.magnitude;
         
+        // ADDED: Store current length
+        currentLength = totalDistance;
+        
         if (totalDistance < 0.01f) 
         {
             foreach (var seg in visualSegments) seg.transform.localScale = Vector3.zero;
@@ -98,10 +100,7 @@ public class Bar : MonoBehaviour
         float angle = Vector2.SignedAngle(Vector2.right, dir2D);
         Vector3 midPoint = StartPosition + (dir3D / 2f);
         
-        transform.SetPositionAndRotation(
-            midPoint, 
-            Quaternion.Euler(0, 0, angle)
-        );
+        transform.SetPositionAndRotation(midPoint, Quaternion.Euler(0, 0, angle));
 
         float scaleMultiplier = totalDistance / baseLength;
         Vector3 newScale = new Vector3(originalScale.x * scaleMultiplier, originalScale.y, originalScale.z);
@@ -110,5 +109,13 @@ public class Bar : MonoBehaviour
         {
             seg.transform.localScale = newScale;
         }
+    }
+
+    // ADDED: Calculates cost based on length and beam count
+    public float GetCost()
+    {
+        if (materialData == null) return 0f;
+        int multiplier = materialData.isDualBeam ? 2 : 1;
+        return currentLength * materialData.costPerMeter * multiplier;
     }
 }
