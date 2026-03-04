@@ -763,6 +763,19 @@ Transform:
     type: 3}
   m_PrefabInstance: {fileID: 322691704}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &172394385
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 172394368}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1d1eb421da5cf7546b06e1af73659b66, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  fallThreshold: -15
 --- !u!1 &195671919
 GameObject:
   m_ObjectHideFlags: 0
@@ -1253,7 +1266,7 @@ MonoBehaviour:
   - {fileID: 1996274495}
   - {fileID: 2120214942}
   - {fileID: 1881085596}
-  - {fileID: 951873430}
+  - {fileID: 0}
   - {fileID: 940258111}
   - {fileID: 1424707881}
   - {fileID: 1671591935}
@@ -1401,6 +1414,14 @@ PrefabInstance:
         type: 3}
       insertIndex: -1
       addedObject: {fileID: 172394369}
+    - targetCorrespondingSourceObject: {fileID: 450956806638189609, guid: db77d626f6ad63d439d5caadb9f0d348,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 172394385}
+    - targetCorrespondingSourceObject: {fileID: 3051679551491938493, guid: db77d626f6ad63d439d5caadb9f0d348,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1604779865}
   m_SourcePrefab: {fileID: 100100000, guid: db77d626f6ad63d439d5caadb9f0d348, type: 3}
 --- !u!1 &326994261
 GameObject:
@@ -4466,6 +4487,12 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1229126877 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 3051679551491938493, guid: db77d626f6ad63d439d5caadb9f0d348,
+    type: 3}
+  m_PrefabInstance: {fileID: 322691704}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1261420244
 GameObject:
   m_ObjectHideFlags: 0
@@ -6926,6 +6953,21 @@ Camera:
     type: 3}
   m_PrefabInstance: {fileID: 322691704}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &1604779865
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1229126877}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: df38f566f847252438f4236097722eb0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  waterPlane: {fileID: 951873434}
+  underwaterColor: {r: 0.14509805, g: 0.25882354, b: 0.34901962, a: 1}
+  underwaterFogDensity: 0.15
 --- !u!1 &1613213594
 GameObject:
   m_ObjectHideFlags: 0

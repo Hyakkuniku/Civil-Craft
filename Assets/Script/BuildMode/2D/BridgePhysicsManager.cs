@@ -294,7 +294,7 @@ public class BridgePhysicsManager : MonoBehaviour
     }
 }
 
-// --- UPDATED BAR STRESS HANDLER ---
+// --- STANDARD BAR STRESS HANDLER ---
 public class BarStressHandler : MonoBehaviour
 {
     private BridgeMaterialSO material;
@@ -334,27 +334,6 @@ public class BarStressHandler : MonoBehaviour
         float currentLength = Vector3.Distance(p1.transform.position, p2.transform.position);
         bool isTension = currentLength > restLength; 
         
-        // --- ADDED: THE ROPE MAGIC ---
-        if (material.isRope)
-        {
-            foreach (Joint joint in joints)
-            {
-                if (joint is SpringJoint springJoint)
-                {
-                    // If squashed, turn the spring OFF (it goes limp). 
-                    // If pulled, turn the spring ON (it holds the weight).
-                    springJoint.spring = isTension ? material.spring : 0f;
-                }
-            }
-
-            // Ropes don't break from being squashed, they just fold.
-            if (!isTension)
-            {
-                currentStressPercent = 0f; // 0% stress when slack
-                return; // Skip the break calculations this frame!
-            }
-        }
-        
         float maxForceThisFrame = 0f;
 
         foreach (Joint joint in joints)
@@ -369,8 +348,7 @@ public class BarStressHandler : MonoBehaviour
                 BreakBar("Tension (Pulled apart)", forceMag);
                 return; 
             }
-            // Safety check: Ropes never break from compression
-            else if (!isTension && !material.isRope && forceMag > material.maxCompression)
+            else if (!isTension && forceMag > material.maxCompression)
             {
                 BreakBar("Compression (Buckled)", forceMag);
                 return;

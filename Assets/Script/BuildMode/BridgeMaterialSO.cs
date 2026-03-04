@@ -3,10 +3,6 @@ using UnityEngine;
 [CreateAssetMenu(fileName = "NewBridgeMaterial", menuName = "Bridge/Material")]
 public class BridgeMaterialSO : ScriptableObject
 {
-    [Header("Material Type")]
-    [Tooltip("Check this if the material is a cable/rope. Ropes will go limp when squashed!")]
-    public bool isRope = false; 
-
     [Header("Base Properties")]
     public float costPerMeter = 100f;
     public float massPerMeter = 2f;

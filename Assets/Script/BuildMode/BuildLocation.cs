@@ -22,7 +22,6 @@ public class BuildLocation : MonoBehaviour
 
     private Transform originalPlayerParent;
     
-    // ADDED: A reference to the Interactable component on this object
     private Interactable myInteractable;
 
     private void Awake()
@@ -30,11 +29,9 @@ public class BuildLocation : MonoBehaviour
         if (locationCamera != null) locationCamera.enabled = false;
         if (gridCanvas != null) gridCanvas.enabled = false;
         
-        // Grab the interactable component so we can change its text directly!
         myInteractable = GetComponent<Interactable>();
     }
 
-    // ADDED: This constantly checks if you have a contract and updates the UI prompt instantly
     private void Update()
     {
         if (myInteractable != null)
@@ -54,8 +51,15 @@ public class BuildLocation : MonoBehaviour
     {
         if (GameManager.Instance == null) return;
 
-        // Block building if no contract has been accepted (it will just ignore your click)
+        // Block building if no contract has been accepted
         if (activeContract == null) return; 
+
+        // --- ADDED: Store the respawn point exactly where they clicked "Build"! ---
+        PlayerRespawn respawn = player.GetComponent<PlayerRespawn>();
+        if (respawn != null)
+        {
+            respawn.SetRespawnPoint(player.position, player.rotation);
+        }
 
         if (gridCanvas != null) gridCanvas.enabled = true;
 

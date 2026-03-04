@@ -12,16 +12,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d6617cda65e2ddd49ac84cabbc41a409, type: 3}
   m_Name: WoodRoad
   m_EditorClassIdentifier: 
-  displayName: Wood
-  segmentPrefab: {fileID: 986403571932401943, guid: 73590dc066914f04b8363cc6c03e7f3f,
-    type: 3}
-  overrideMaterial: {fileID: 0}
-  gizmoColor: {r: 1, g: 1, b: 1, a: 1}
-  isDualBeam: 0
-  zOffset: 1.5
-  sideBeamPrefab: {fileID: 0}
-  sideBeamOffset: {x: 0, y: 0, z: 1}
+  costPerMeter: 10
   massPerMeter: 2
+  maxLength: 10
   maxTension: 40000
   maxCompression: 40000
   breakForce: 40000
@@ -29,5 +22,8 @@ MonoBehaviour:
   useSpring: 0
   spring: Infinity
   damper: Infinity
-  costPerMeter: 10
-  maxLength: 10
+  segmentPrefab: {fileID: 986403571932401943, guid: 73590dc066914f04b8363cc6c03e7f3f,
+    type: 3}
+  gizmoColor: {r: 1, g: 1, b: 1, a: 1}
+  isDualBeam: 0
+  zOffset: 1.5
