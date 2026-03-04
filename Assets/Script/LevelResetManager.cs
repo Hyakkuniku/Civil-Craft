@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Events; 
 using System.Collections.Generic;
 
 public class LevelResetManager : MonoBehaviour
@@ -11,6 +12,7 @@ public class LevelResetManager : MonoBehaviour
         
         [HideInInspector] public Vector3 startPos;
         [HideInInspector] public Quaternion startRot;
+        [HideInInspector] public Transform startParent; 
         [HideInInspector] public Rigidbody rb;
         [HideInInspector] public CharacterController cc;
     }
@@ -26,17 +28,22 @@ public class LevelResetManager : MonoBehaviour
     [Tooltip("Add the Player, Cargo, and any vehicles to this list.")]
     public List<ResetableObject> objectsToReset = new List<ResetableObject>();
 
+    [Header("Custom Reset Actions")]
+    [Tooltip("Use this to call the 'Drop' function on your player's grabbing script.")]
+    public UnityEvent onReset; 
+
     private void Start()
     {
-        // The moment the scene starts, take a "snapshot" of where everything is
+        // Take a "snapshot" of where everything is
         foreach (var obj in objectsToReset)
         {
             if (obj.objectTransform != null)
             {
                 obj.startPos = obj.objectTransform.position;
                 obj.startRot = obj.objectTransform.rotation;
+                obj.startParent = obj.objectTransform.parent; 
                 
-                // Cache physics components so we can reset momentum later
+                // Cache physics components
                 obj.rb = obj.objectTransform.GetComponent<Rigidbody>();
                 obj.cc = obj.objectTransform.GetComponent<CharacterController>();
             }
@@ -54,9 +61,12 @@ public class LevelResetManager : MonoBehaviour
 
     public void TriggerReset()
     {
-        Debug.Log("<color=cyan>Player fell! Resetting level (keeping bridge progress)...</color>");
+        Debug.Log("<color=cyan>Player fell! Resetting player and cargo, leaving bridge broken...</color>");
 
-        // 1. Reset all registered objects (Player, Cargo, etc.) back to square one
+        // 1. Tell the player's scripts to let go of the item!
+        onReset?.Invoke();
+
+        // 2. Reset all registered objects (Player, Cargo) back to the ledge
         foreach (var obj in objectsToReset)
         {
             if (obj.objectTransform == null) continue;
@@ -64,11 +74,14 @@ public class LevelResetManager : MonoBehaviour
             // Disable CharacterController to allow Unity to teleport it
             if (obj.cc != null) obj.cc.enabled = false;
 
+            // Un-stick the object from the player's hand
+            obj.objectTransform.SetParent(obj.startParent);
+
             // Teleport back to the exact starting spot
             obj.objectTransform.position = obj.startPos;
             obj.objectTransform.rotation = obj.startRot;
 
-            // Kill any falling momentum so they don't keep falling after teleporting
+            // Kill falling momentum
             if (obj.rb != null)
             {
                 obj.rb.velocity = Vector3.zero;
@@ -79,11 +92,7 @@ public class LevelResetManager : MonoBehaviour
             if (obj.cc != null) obj.cc.enabled = true;
         }
 
-        // 2. Reset the bridge physics! 
-        // This stops the simulation and snaps the bridge pieces back to their un-broken, built state.
-        if (BuildUIController.Instance != null)
-        {
-            BuildUIController.Instance.OnRestartButtonClicked();
-        }
+        // NOTICE: The Bridge Reset code has been completely removed!
+        // The physics simulation will keep running, and the bridge will stay broken.
     }
 }

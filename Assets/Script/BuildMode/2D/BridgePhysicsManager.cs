@@ -137,12 +137,18 @@ public class BridgePhysicsManager : MonoBehaviour
         float maxStress = 0f;
         foreach (var handler in activeStressHandlers)
         {
-            if (handler != null && !handler.isBroken)
+            if (handler == null) continue;
+
+            // NEW: If ANY bar is broken, the bridge has failed. 
+            // Instantly lock the UI meter to 100% (1.0f)!
+            if (handler.isBroken)
             {
-                if (handler.currentStressPercent > maxStress)
-                {
-                    maxStress = handler.currentStressPercent;
-                }
+                return 1f; 
+            }
+
+            if (handler.currentStressPercent > maxStress)
+            {
+                maxStress = handler.currentStressPercent;
             }
         }
         return Mathf.Clamp01(maxStress); 
