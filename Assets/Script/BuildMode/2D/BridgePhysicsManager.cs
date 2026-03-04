@@ -9,7 +9,6 @@ public class BridgePhysicsManager : MonoBehaviour
 
     [HideInInspector] public bool isSimulating = false;
     
-    // ADDED: List to track all active stress handlers to calculate global max stress
     [HideInInspector] public List<BarStressHandler> activeStressHandlers = new List<BarStressHandler>();
 
     private void Start()
@@ -21,7 +20,7 @@ public class BridgePhysicsManager : MonoBehaviour
     {
         if (isSimulating) return;
         isSimulating = true;
-        activeStressHandlers.Clear(); // Reset the list
+        activeStressHandlers.Clear(); 
 
         foreach (Point p in Point.AllPoints)
         {
@@ -68,13 +67,12 @@ public class BridgePhysicsManager : MonoBehaviour
                 if (b != null) allBars.Add(b);
         }
 
-        // STEP 1: Sever all physics connections immediately to stop end-of-frame drifting
         foreach (Bar bar in allBars)
         {
             Joint[] joints = bar.GetComponents<Joint>();
             foreach (Joint j in joints) 
             {
-                j.connectedBody = null; // Instantly stops the joint from pulling
+                j.connectedBody = null; 
                 Destroy(j);
             }
 
@@ -84,7 +82,7 @@ public class BridgePhysicsManager : MonoBehaviour
                 barRb.isKinematic = true;
                 barRb.velocity = Vector3.zero;
                 barRb.angularVelocity = Vector3.zero;
-                barRb.interpolation = RigidbodyInterpolation.None; // Stops visual drifting
+                barRb.interpolation = RigidbodyInterpolation.None; 
             }
         }
 
@@ -100,7 +98,6 @@ public class BridgePhysicsManager : MonoBehaviour
             }
         }
 
-        // STEP 2: Now that physics are frozen, put everything back in its place
         foreach (Point p in Point.AllPoints)
         {
             Rigidbody rb = p.GetComponent<Rigidbody>();
@@ -111,7 +108,7 @@ public class BridgePhysicsManager : MonoBehaviour
 
             p.transform.SetParent(p.preSimParent);
             p.transform.position = p.preSimPos;
-            p.transform.rotation = Quaternion.identity; // Ensure nodes stand up straight
+            p.transform.rotation = Quaternion.identity; 
 
             Renderer r = p.GetComponentInChildren<Renderer>();
             if (r != null) r.enabled = true;
@@ -135,7 +132,6 @@ public class BridgePhysicsManager : MonoBehaviour
         Debug.Log("<color=yellow>Bridge Reset. Back to Build Mode!</color>");
     }
 
-    // ADDED: Calculates the highest stress percentage on the bridge right now (0.0 to 1.0)
     public float GetMaxBridgeStress()
     {
         float maxStress = 0f;
@@ -149,7 +145,7 @@ public class BridgePhysicsManager : MonoBehaviour
                 }
             }
         }
-        return Mathf.Clamp01(maxStress); // Prevent it from briefly reporting over 100%
+        return Mathf.Clamp01(maxStress); 
     }
 
     private void SetupBarsPhysics(HashSet<Bar> allBars)
@@ -206,7 +202,6 @@ public class BridgePhysicsManager : MonoBehaviour
         BarStressHandler stressHandler = bar.gameObject.AddComponent<BarStressHandler>();
         stressHandler.Setup(bar.materialData, p1, p2);
         
-        // ADDED: Track this handler for our UI calculations
         activeStressHandlers.Add(stressHandler);
     }
 
@@ -299,6 +294,7 @@ public class BridgePhysicsManager : MonoBehaviour
     }
 }
 
+// --- UPDATED BAR STRESS HANDLER ---
 public class BarStressHandler : MonoBehaviour
 {
     private BridgeMaterialSO material;
@@ -320,15 +316,12 @@ public class BarStressHandler : MonoBehaviour
         p2 = point2;
         
         restLength = Vector3.Distance(p1.transform.position, p2.transform.position);
-        
-        // REMOVED: GetComponents<Joint>() from here because the joints haven't been created yet!
     }
 
     private void FixedUpdate()
     {
         if (isBroken || p1 == null || p2 == null) return;
 
-        // THE FIX: Grab the joints during the first few physics frames after they have been safely created
         if (joints == null || joints.Length == 0)
         {
             joints = GetComponents<Joint>();
@@ -340,6 +333,27 @@ public class BarStressHandler : MonoBehaviour
 
         float currentLength = Vector3.Distance(p1.transform.position, p2.transform.position);
         bool isTension = currentLength > restLength; 
+        
+        // --- ADDED: THE ROPE MAGIC ---
+        if (material.isRope)
+        {
+            foreach (Joint joint in joints)
+            {
+                if (joint is SpringJoint springJoint)
+                {
+                    // If squashed, turn the spring OFF (it goes limp). 
+                    // If pulled, turn the spring ON (it holds the weight).
+                    springJoint.spring = isTension ? material.spring : 0f;
+                }
+            }
+
+            // Ropes don't break from being squashed, they just fold.
+            if (!isTension)
+            {
+                currentStressPercent = 0f; // 0% stress when slack
+                return; // Skip the break calculations this frame!
+            }
+        }
         
         float maxForceThisFrame = 0f;
 
@@ -355,7 +369,8 @@ public class BarStressHandler : MonoBehaviour
                 BreakBar("Tension (Pulled apart)", forceMag);
                 return; 
             }
-            else if (!isTension && forceMag > material.maxCompression)
+            // Safety check: Ropes never break from compression
+            else if (!isTension && !material.isRope && forceMag > material.maxCompression)
             {
                 BreakBar("Compression (Buckled)", forceMag);
                 return;

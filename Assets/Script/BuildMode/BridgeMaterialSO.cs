@@ -1,42 +1,33 @@
 using UnityEngine;
 
-[CreateAssetMenu(menuName = "Bridge/Bridge Material", fileName = "BridgeMaterial")]
+[CreateAssetMenu(fileName = "NewBridgeMaterial", menuName = "Bridge/Material")]
 public class BridgeMaterialSO : ScriptableObject
 {
-    public string displayName = "Wood";
+    [Header("Material Type")]
+    [Tooltip("Check this if the material is a cable/rope. Ropes will go limp when squashed!")]
+    public bool isRope = false; 
 
-    [Header("Visual")]
-    public GameObject segmentPrefab;        
-    public Material overrideMaterial;       
-    public Color gizmoColor = Color.white;
+    [Header("Base Properties")]
+    public float costPerMeter = 100f;
+    public float massPerMeter = 2f;
+    public float maxLength = 6f;
 
-    [Header("Beam Mirroring (3D)")]
-    [Tooltip("Check this for wood/steel supports. Uncheck for the central road.")]
-    public bool isDualBeam = false; 
-    [Tooltip("How far outward from the center the beams should spawn.")]
-    public float zOffset = 1.5f;
+    [Header("Stress Limits (Newtons)")]
+    public float maxTension = 3000f;
+    public float maxCompression = 3000f;
 
-    [Header("Side Beams (Optional)")]
-    public GameObject sideBeamPrefab;       
-    public Vector3 sideBeamOffset = new Vector3(0, 0, 1f); 
-
-    [Header("Physics & Structural Integrity")]
-    public float massPerMeter      = 2f;
-    [Tooltip("Max pulling force before snapping.")]
-    public float maxTension        = 1200f; 
-    [Tooltip("Max pushing force before buckling.")]
-    public float maxCompression    = 800f;  
-    [Tooltip("Native Unity joint limit for shear/twisting forces.")]
-    public float breakForce        = 800f;
-    public float breakTorque       = 600f;
+    [Header("Physics Constraints")]
+    public float breakForce = Mathf.Infinity;
+    public float breakTorque = Mathf.Infinity;
 
     [Header("Spring Settings")]
-    public bool  useSpring         = false;
-    public float spring            = 1000f;
-    public float damper            = 50f;
+    public bool useSpring = false;
+    public float spring = 5000f;
+    public float damper = 50f;
 
-    [Header("Cost / Gameplay")]
-    // ADDED: Replaced static costs with a unified cost per meter
-    public float costPerMeter      = 10f;
-    public float maxLength         = 6f;
+    [Header("Visuals")]
+    public GameObject segmentPrefab;
+    public Color gizmoColor = Color.white;
+    public bool isDualBeam = false;
+    public float zOffset = 0.5f;
 }

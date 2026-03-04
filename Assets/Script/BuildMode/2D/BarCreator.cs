@@ -104,7 +104,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
 
             float maxLen = activeMaterial != null ? activeMaterial.maxLength : 5f;
             
-            // ADDED: Dynamically restrict max length based on remaining budget!
+            // Dynamically restrict max length based on remaining budget!
             if (BuildUIController.Instance != null && activeMaterial != null)
             {
                 float remainingBudget = BuildUIController.Instance.maxBudget - BuildUIController.Instance.GetTotalCost();
@@ -398,7 +398,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
         Vector3 finalPosition = CalculateTargetPosition(rawWorldPos, existingEndPoint);
         float limit = activeMaterial != null ? activeMaterial.maxLength : 5f;
         
-        // ADDED: Enforce the budget constraint on the final drop!
+        // Enforce the budget constraint on the final drop!
         if (BuildUIController.Instance != null && activeMaterial != null)
         {
             float remainingBudget = BuildUIController.Instance.maxBudget - BuildUIController.Instance.GetTotalCost();
@@ -408,6 +408,13 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
         }
 
         Vector3 startPos = currentStartPoint.transform.position;
+
+        // Max Length Leniency 
+        float distanceToTarget = Vector3.Distance(startPos, finalPosition);
+        if (existingEndPoint != null && distanceToTarget > limit && distanceToTarget <= limit + 0.2f)
+        {
+            limit = distanceToTarget; 
+        }
 
         if (Vector3.Distance(startPos, finalPosition) > limit)
         {
@@ -420,6 +427,22 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
                 if (Vector3.Distance(startPos, finalPosition) > limit) finalPosition = startPos + (direction * limit);
             }
             existingEndPoint = null; 
+        }
+
+        // --- THE FIX IS HERE ---
+        // Prevent Overlapping Grid Nodes, but IGNORE the ghost point (currentEndPoint)
+        if (existingEndPoint == null)
+        {
+            foreach (Point p in Point.AllPoints)
+            {
+                // We added '&& p != currentEndPoint' so it stops deleting itself!
+                if (p != currentStartPoint && p != currentEndPoint && Vector3.Distance(p.transform.position, finalPosition) < 0.05f)
+                {
+                    existingEndPoint = p;
+                    finalPosition = p.transform.position; // Lock perfectly to the existing node
+                    break;
+                }
+            }
         }
 
         if (Vector3.Distance(startPos, finalPosition) < 0.1f) 
@@ -488,7 +511,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
         Vector3 center = currentStartPoint.transform.position;
         float radius = activeMaterial.maxLength;
         
-        // ADDED: Shrink the UI circle to reflect remaining budget constraints
         if (BuildUIController.Instance != null && activeMaterial != null)
         {
             float remainingBudget = BuildUIController.Instance.maxBudget - BuildUIController.Instance.GetTotalCost();
