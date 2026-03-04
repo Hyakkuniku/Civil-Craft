@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 7305647779311595527}
   - component: {fileID: 2978011072342046309}
   - component: {fileID: 4309520279729151914}
-  m_Layer: 10
+  m_Layer: 7
   m_Name: wood__beam
   m_TagString: Untagged
   m_Icon: {fileID: 0}

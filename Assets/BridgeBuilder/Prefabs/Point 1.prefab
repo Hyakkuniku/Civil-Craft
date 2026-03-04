@@ -10,7 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 4156907150165446014}
   - component: {fileID: 3664463398387174561}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Point 1
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -63,7 +63,7 @@ GameObject:
   - component: {fileID: 2796757510119621013}
   - component: {fileID: 1309355633510229062}
   - component: {fileID: 5395247382609591951}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Cylinder
   m_TagString: Untagged
   m_Icon: {fileID: 0}

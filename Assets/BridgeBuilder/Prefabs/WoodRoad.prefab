@@ -10,7 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 2363955547268711415}
   - component: {fileID: 3461321936216871119}
-  m_Layer: 10
+  m_Layer: 7
   m_Name: WoodRoad
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -66,7 +66,7 @@ GameObject:
   - component: {fileID: 1618606862614620759}
   - component: {fileID: 8063916340364536539}
   - component: {fileID: 4621828602467432225}
-  m_Layer: 10
+  m_Layer: 7
   m_Name: mat_wood
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -154,7 +154,7 @@ PrefabInstance:
     - target: {fileID: 4806764515897639862, guid: 75c2a0cd61ea5ed409c4bfcde0ac4aa9,
         type: 3}
       propertyPath: m_Layer
-      value: 10
+      value: 7
       objectReference: {fileID: 0}
     - target: {fileID: 7305647779311595527, guid: 75c2a0cd61ea5ed409c4bfcde0ac4aa9,
         type: 3}
@@ -238,7 +238,7 @@ PrefabInstance:
     - target: {fileID: 4806764515897639862, guid: 75c2a0cd61ea5ed409c4bfcde0ac4aa9,
         type: 3}
       propertyPath: m_Layer
-      value: 10
+      value: 7
       objectReference: {fileID: 0}
     - target: {fileID: 7305647779311595527, guid: 75c2a0cd61ea5ed409c4bfcde0ac4aa9,
         type: 3}

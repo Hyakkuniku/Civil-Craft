@@ -4784,8 +4784,8 @@
     "m_ObjectId": "3b59a31ef7924e0bbe40745dccd27bad",
     "m_Title": "Fog",
     "m_Position": {
-        "x": -3618.0,
-        "y": -4359.0
+        "x": -3618.00048828125,
+        "y": -4359.00048828125
     }
 }
 
@@ -5102,7 +5102,7 @@
     "m_Title": "Flow Direction",
     "m_Position": {
         "x": -12128.0,
-        "y": -3421.0
+        "y": -3420.999755859375
     }
 }
 
@@ -6789,7 +6789,7 @@
     "m_Title": "Restore Underwater Objects Color",
     "m_Position": {
         "x": -4845.0,
-        "y": -4275.0
+        "y": -4275.00048828125
     }
 }
 
@@ -13341,7 +13341,7 @@
     "m_Title": "Clean Fake Refraction",
     "m_Position": {
         "x": -9931.0,
-        "y": -4488.0
+        "y": -4488.00048828125
     }
 }
 

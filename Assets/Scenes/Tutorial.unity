@@ -567,7 +567,7 @@ PrefabInstance:
     - target: {fileID: 919132149155446097, guid: ae8b8e11cc2f1fe4686eb19bcccd4751,
         type: 3}
       propertyPath: m_Layer
-      value: 7
+      value: 10
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -763,19 +763,6 @@ Transform:
     type: 3}
   m_PrefabInstance: {fileID: 322691704}
   m_PrefabAsset: {fileID: 0}
---- !u!114 &172394385
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 172394368}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 1d1eb421da5cf7546b06e1af73659b66, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  fallThreshold: -15
 --- !u!1 &195671919
 GameObject:
   m_ObjectHideFlags: 0
@@ -922,7 +909,7 @@ GameObject:
   - component: {fileID: 202958583}
   - component: {fileID: 202958585}
   - component: {fileID: 202958584}
-  m_Layer: 5
+  m_Layer: 0
   m_Name: Text (TMP)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1286,7 +1273,7 @@ PrefabInstance:
     - target: {fileID: 450956806638189609, guid: db77d626f6ad63d439d5caadb9f0d348,
         type: 3}
       propertyPath: m_Layer
-      value: 7
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 450956806638189609, guid: db77d626f6ad63d439d5caadb9f0d348,
         type: 3}
@@ -1296,7 +1283,7 @@ PrefabInstance:
     - target: {fileID: 3051679551491938493, guid: db77d626f6ad63d439d5caadb9f0d348,
         type: 3}
       propertyPath: m_Layer
-      value: 7
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 3051679551491938493, guid: db77d626f6ad63d439d5caadb9f0d348,
         type: 3}
@@ -1414,10 +1401,6 @@ PrefabInstance:
         type: 3}
       insertIndex: -1
       addedObject: {fileID: 172394369}
-    - targetCorrespondingSourceObject: {fileID: 450956806638189609, guid: db77d626f6ad63d439d5caadb9f0d348,
-        type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 172394385}
     - targetCorrespondingSourceObject: {fileID: 3051679551491938493, guid: db77d626f6ad63d439d5caadb9f0d348,
         type: 3}
       insertIndex: -1
@@ -1552,7 +1535,7 @@ PrefabInstance:
     - target: {fileID: 7070865561135318530, guid: 4816a55e283232a4d8ebf1a276883600,
         type: 3}
       propertyPath: m_LocalPosition.x
-      value: -20.381794
+      value: -22.381794
       objectReference: {fileID: 0}
     - target: {fileID: 7070865561135318530, guid: 4816a55e283232a4d8ebf1a276883600,
         type: 3}
@@ -2474,7 +2457,7 @@ GameObject:
   - component: {fileID: 597403996}
   - component: {fileID: 597403998}
   - component: {fileID: 597403997}
-  m_Layer: 5
+  m_Layer: 0
   m_Name: Text (TMP) (3)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2609,7 +2592,7 @@ GameObject:
   - component: {fileID: 605461238}
   - component: {fileID: 605461240}
   - component: {fileID: 605461239}
-  m_Layer: 5
+  m_Layer: 0
   m_Name: ObjectiveTrackerPanel
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -3094,7 +3077,7 @@ PrefabInstance:
     - target: {fileID: -5568371526223589888, guid: 6317b1a092b0e8942aa06ebbb536c1c1,
         type: 3}
       propertyPath: m_Layer
-      value: 7
+      value: 10
       objectReference: {fileID: 0}
     - target: {fileID: -2577548232221058511, guid: 6317b1a092b0e8942aa06ebbb536c1c1,
         type: 3}
@@ -3109,12 +3092,12 @@ PrefabInstance:
     - target: {fileID: 919132149155446097, guid: 6317b1a092b0e8942aa06ebbb536c1c1,
         type: 3}
       propertyPath: m_Layer
-      value: 7
+      value: 10
       objectReference: {fileID: 0}
     - target: {fileID: 8513859187771203891, guid: 6317b1a092b0e8942aa06ebbb536c1c1,
         type: 3}
       propertyPath: m_Layer
-      value: 7
+      value: 10
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -3652,7 +3635,7 @@ GameObject:
   - component: {fileID: 949758350}
   - component: {fileID: 949758352}
   - component: {fileID: 949758351}
-  m_Layer: 5
+  m_Layer: 0
   m_Name: Text (TMP) (2)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -3940,22 +3923,22 @@ PrefabInstance:
     - target: {fileID: -7640558969779515294, guid: 73fba0a4760886c45b11b49e2de298f7,
         type: 3}
       propertyPath: m_Layer
-      value: 7
+      value: 10
       objectReference: {fileID: 0}
     - target: {fileID: -7146521406498821007, guid: 73fba0a4760886c45b11b49e2de298f7,
         type: 3}
       propertyPath: m_Layer
-      value: 7
+      value: 10
       objectReference: {fileID: 0}
     - target: {fileID: -516098083770646512, guid: 73fba0a4760886c45b11b49e2de298f7,
         type: 3}
       propertyPath: m_Layer
-      value: 7
+      value: 10
       objectReference: {fileID: 0}
     - target: {fileID: -466329591000292508, guid: 73fba0a4760886c45b11b49e2de298f7,
         type: 3}
       propertyPath: m_Layer
-      value: 7
+      value: 10
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 73fba0a4760886c45b11b49e2de298f7,
         type: 3}
@@ -3965,12 +3948,12 @@ PrefabInstance:
     - target: {fileID: 919132149155446097, guid: 73fba0a4760886c45b11b49e2de298f7,
         type: 3}
       propertyPath: m_Layer
-      value: 7
+      value: 10
       objectReference: {fileID: 0}
     - target: {fileID: 7103153012782714218, guid: 73fba0a4760886c45b11b49e2de298f7,
         type: 3}
       propertyPath: m_Layer
-      value: 7
+      value: 10
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -4111,7 +4094,7 @@ PrefabInstance:
     - target: {fileID: 919132149155446097, guid: 039850b132883634dbeb1a7d561fe90c,
         type: 3}
       propertyPath: m_Layer
-      value: 7
+      value: 10
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -4252,7 +4235,7 @@ GameObject:
   - component: {fileID: 1145129136}
   - component: {fileID: 1145129138}
   - component: {fileID: 1145129137}
-  m_Layer: 5
+  m_Layer: 0
   m_Name: Text (TMP)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -4780,6 +4763,63 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 564a75b3916392d468b71bf02f88b745, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!1 &1274456315
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1274456316}
+  - component: {fileID: 1274456317}
+  m_Layer: 0
+  m_Name: LevelResetManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1274456316
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1274456315}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1931269657}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1274456317
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1274456315}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1c18e12ea15100540a5e59b84f84295e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  playerTransform: {fileID: 172394378}
+  deathThreshold: -50
+  objectsToReset:
+  - objectTransform: {fileID: 172394378}
+    startPos: {x: 0, y: 0, z: 0}
+    startRot: {x: 0, y: 0, z: 0, w: 0}
+    rb: {fileID: 0}
+    cc: {fileID: 0}
+  - objectTransform: {fileID: 1527578615}
+    startPos: {x: 0, y: 0, z: 0}
+    startRot: {x: 0, y: 0, z: 0, w: 0}
+    rb: {fileID: 0}
+    cc: {fileID: 0}
 --- !u!1 &1278851645
 GameObject:
   m_ObjectHideFlags: 0
@@ -5002,7 +5042,7 @@ GameObject:
   - component: {fileID: 1307273199}
   - component: {fileID: 1307273201}
   - component: {fileID: 1307273200}
-  m_Layer: 5
+  m_Layer: 0
   m_Name: Text (TMP) (1)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -5730,7 +5770,7 @@ GameObject:
   - component: {fileID: 1424707884}
   - component: {fileID: 1424707883}
   - component: {fileID: 1424707886}
-  m_Layer: 5
+  m_Layer: 0
   m_Name: Canvas
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -6278,7 +6318,7 @@ PrefabInstance:
     - target: {fileID: 919132149155446097, guid: 286a3c6042a18df42ad60cce3231c5ba,
         type: 3}
       propertyPath: m_Layer
-      value: 7
+      value: 10
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -6378,6 +6418,7 @@ GameObject:
   - component: {fileID: 1527578612}
   - component: {fileID: 1527578611}
   - component: {fileID: 1527578610}
+  - component: {fileID: 1527578616}
   m_Layer: 6
   m_Name: Cube (1)
   m_TagString: Untagged
@@ -6514,6 +6555,22 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1527578616
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1527578609}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bca07617a8ec9c24baa01a3ea9fc72a8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  savedPosition: {x: 0, y: 0, z: 0}
+  savedRotation: {x: 0, y: 0, z: 0, w: 0}
+  rb: {fileID: 0}
+  cc: {fileID: 0}
 --- !u!1001 &1546210093
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -6575,12 +6632,12 @@ PrefabInstance:
     - target: {fileID: -7554185044202950738, guid: af6799aedd03af746a441e1622033fb2,
         type: 3}
       propertyPath: m_Layer
-      value: 7
+      value: 10
       objectReference: {fileID: 0}
     - target: {fileID: -6555761030402644055, guid: af6799aedd03af746a441e1622033fb2,
         type: 3}
       propertyPath: m_Layer
-      value: 7
+      value: 10
       objectReference: {fileID: 0}
     - target: {fileID: -5477749408508380018, guid: af6799aedd03af746a441e1622033fb2,
         type: 3}
@@ -6967,7 +7024,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   waterPlane: {fileID: 951873434}
   underwaterColor: {r: 0.14509805, g: 0.25882354, b: 0.34901962, a: 1}
-  underwaterFogDensity: 0.15
+  underwaterFogDensity: 0.1
 --- !u!1 &1613213594
 GameObject:
   m_ObjectHideFlags: 0
@@ -6980,7 +7037,7 @@ GameObject:
   - component: {fileID: 1613213598}
   - component: {fileID: 1613213597}
   - component: {fileID: 1613213596}
-  m_Layer: 5
+  m_Layer: 0
   m_Name: Button
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -7841,7 +7898,7 @@ PrefabInstance:
     - target: {fileID: -5568371526223589888, guid: 6317b1a092b0e8942aa06ebbb536c1c1,
         type: 3}
       propertyPath: m_Layer
-      value: 7
+      value: 10
       objectReference: {fileID: 0}
     - target: {fileID: -2577548232221058511, guid: 6317b1a092b0e8942aa06ebbb536c1c1,
         type: 3}
@@ -7856,12 +7913,12 @@ PrefabInstance:
     - target: {fileID: 919132149155446097, guid: 6317b1a092b0e8942aa06ebbb536c1c1,
         type: 3}
       propertyPath: m_Layer
-      value: 7
+      value: 10
       objectReference: {fileID: 0}
     - target: {fileID: 8513859187771203891, guid: 6317b1a092b0e8942aa06ebbb536c1c1,
         type: 3}
       propertyPath: m_Layer
-      value: 7
+      value: 10
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -8463,7 +8520,7 @@ PrefabInstance:
     - target: {fileID: 919132149155446097, guid: 4055128056ad14c439633863b41a1399,
         type: 3}
       propertyPath: m_Layer
-      value: 7
+      value: 10
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -8511,6 +8568,7 @@ Transform:
   - {fileID: 1310283887}
   - {fileID: 625540418}
   - {fileID: 396379709}
+  - {fileID: 1274456316}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1933540854
@@ -8636,7 +8694,7 @@ PrefabInstance:
     - target: {fileID: 919132149155446097, guid: 3069307eb3e339144b5e513c2a2ee2c5,
         type: 3}
       propertyPath: m_Layer
-      value: 7
+      value: 10
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
