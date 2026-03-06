@@ -1,6 +1,5 @@
 using UnityEngine;
 using UnityEngine.Events;
-using System.Collections;
 using System.Collections.Generic;
 
 public class GameManager : MonoBehaviour
@@ -26,8 +25,7 @@ public class GameManager : MonoBehaviour
     private InputManager inputManager;
     private BridgePhysicsManager physicsManager;
 
-    private float cameraTransitionSpeed = 1.5f;
-    private Coroutine cameraTransitionCoroutine;
+    // Transition variables removed since it now snaps instantly!
     
     private Transform mainCamParent;
     private Vector3 mainCamLocalPos;
@@ -96,13 +94,25 @@ public class GameManager : MonoBehaviour
             inputManager.SetPlayerInputEnable(false);
         }
 
-        // 3. Unparent Camera safely
+        // 3. Unparent Camera safely and SNAP instantly to Build Camera
         if (mainCamera != null)
         {
             mainCamParent = mainCamera.transform.parent;
             mainCamLocalPos = mainCamera.transform.localPosition;
             mainCamLocalRot = mainCamera.transform.localRotation;
             mainCamera.transform.SetParent(null); 
+
+            Vector3 targetPos = location.locationCamera != null ? location.locationCamera.transform.position : location.GetDesiredCameraPosition();
+            Quaternion targetRot = location.locationCamera != null ? location.locationCamera.transform.rotation : location.GetDesiredCameraRotation();
+
+            mainCamera.transform.position = targetPos;
+            mainCamera.transform.rotation = targetRot;
+
+            if (location.locationCamera != null)
+            {
+                mainCamera.enabled = false;
+                location.locationCamera.enabled = true;
+            }
         }
 
         // 4. Update UI instantly
@@ -114,11 +124,8 @@ public class GameManager : MonoBehaviour
 
         SetAllBuildablesToWireframe(true);
 
-        // 5. Fire Event INSTANTLY before the camera moves!
+        // 5. Fire Event INSTANTLY
         OnEnterBuildMode?.Invoke();
-
-        if (cameraTransitionCoroutine != null) StopCoroutine(cameraTransitionCoroutine);
-        cameraTransitionCoroutine = StartCoroutine(TransitionToBuildCamera(location));
     }
 
     public void ExitBuildMode()
@@ -130,72 +137,19 @@ public class GameManager : MonoBehaviour
         // 1. Fire Event INSTANTLY to shut down the BarCreator and UI
         OnExitBuildMode?.Invoke();
 
-        // 2. Activate physics so the player can walk on the bridge (If it falls, build a stronger bridge!)
+        // 2. Activate physics so the player can walk on the bridge
         if (physicsManager != null && !physicsManager.isSimulating)
         {
             physicsManager.ActivatePhysics();
         }
 
-        if (cameraTransitionCoroutine != null) StopCoroutine(cameraTransitionCoroutine);
-        cameraTransitionCoroutine = StartCoroutine(TransitionToPlayerCamera());
-    }
-
-    private IEnumerator TransitionToBuildCamera(BuildLocation location)
-    {
-        if (mainCamera != null)
-        {
-            Vector3 startPos = mainCamera.transform.position;
-            Quaternion startRot = mainCamera.transform.rotation;
-            Vector3 targetPos = location.locationCamera != null ? location.locationCamera.transform.position : location.GetDesiredCameraPosition();
-            Quaternion targetRot = location.locationCamera != null ? location.locationCamera.transform.rotation : location.GetDesiredCameraRotation();
-
-            float t = 0f;
-            while (t < 1f)
-            {
-                t += Time.deltaTime * cameraTransitionSpeed;
-                float smoothT = Mathf.SmoothStep(0f, 1f, t);
-                mainCamera.transform.position = Vector3.Lerp(startPos, targetPos, smoothT);
-                mainCamera.transform.rotation = Quaternion.Slerp(startRot, targetRot, smoothT);
-                yield return null;
-            }
-
-            mainCamera.transform.position = targetPos;
-            mainCamera.transform.rotation = targetRot;
-
-            if (location.locationCamera != null)
-            {
-                mainCamera.enabled = false;
-                location.locationCamera.enabled = true;
-            }
-        }
-    }
-
-    private IEnumerator TransitionToPlayerCamera()
-    {
+        // 3. INSTANT SNAP back to Player Camera
         if (mainCamera != null && ActiveBuildLocation != null)
         {
             if (ActiveBuildLocation.locationCamera != null)
             {
-                mainCamera.transform.position = ActiveBuildLocation.locationCamera.transform.position;
-                mainCamera.transform.rotation = ActiveBuildLocation.locationCamera.transform.rotation;
                 ActiveBuildLocation.locationCamera.enabled = false;
                 mainCamera.enabled = true;
-            }
-
-            Vector3 startPos = mainCamera.transform.position;
-            Quaternion startRot = mainCamera.transform.rotation;
-
-            float t = 0f;
-            while (t < 1f)
-            {
-                t += Time.deltaTime * cameraTransitionSpeed;
-                float smoothT = Mathf.SmoothStep(0f, 1f, t);
-                Vector3 targetPos = mainCamParent != null ? mainCamParent.TransformPoint(mainCamLocalPos) : startPos;
-                Quaternion targetRot = mainCamParent != null ? mainCamParent.rotation * mainCamLocalRot : startRot;
-
-                mainCamera.transform.position = Vector3.Lerp(startPos, targetPos, smoothT);
-                mainCamera.transform.rotation = Quaternion.Slerp(startRot, targetRot, smoothT);
-                yield return null;
             }
 
             if (mainCamParent != null)

@@ -5,7 +5,7 @@ public class BridgePhysicsManager : MonoBehaviour
 {
     [Header("Physics Settings")]
     public float barColliderThickness = 0.2f;
-    public int physicsSolverIterations = 30; 
+    public int physicsSolverIterations = 40; // Bumped slightly for higher stability
 
     [HideInInspector] public bool isSimulating = false;
     
@@ -45,13 +45,13 @@ public class BridgePhysicsManager : MonoBehaviour
         }
 
         Physics.defaultSolverIterations = physicsSolverIterations;
-        Physics.defaultSolverVelocityIterations = 15;
+        Physics.defaultSolverVelocityIterations = 20;
 
         SetupBarsPhysics(allBars);
         SetupDirectConnections(allBars);
-        ResolveAdjacentCollisions(); 
+        ResolveAdjacentCollisions(allBars); 
 
-        Debug.Log("<color=green>Physics Activated! Real knots and swinging bars enabled.</color>");
+        Debug.Log("<color=green>Physics Activated! Mass ratios stabilized.</color>");
     }
 
     public void StopPhysicsAndReset()
@@ -67,7 +67,6 @@ public class BridgePhysicsManager : MonoBehaviour
                 if (b != null) allBars.Add(b);
         }
 
-        // 1. Destroy all joints first
         foreach (Bar bar in allBars)
         {
             Joint[] joints = bar.GetComponents<Joint>();
@@ -88,8 +87,6 @@ public class BridgePhysicsManager : MonoBehaviour
             }
         }
 
-        // --- THE FIX: Step 2 - Reset POINTS (Nodes) FIRST! ---
-        // They must be back at the top of the cliff before the bars try to draw to them.
         foreach (Point p in Point.AllPoints)
         {
             Rigidbody rb = p.GetComponent<Rigidbody>();
@@ -106,7 +103,6 @@ public class BridgePhysicsManager : MonoBehaviour
             if (r != null) r.enabled = true;
         }
 
-        // 3. Clean up physics on Bars and reset their raw positions
         foreach (Bar bar in allBars)
         {
             Rigidbody barRb = bar.GetComponent<Rigidbody>();
@@ -122,9 +118,6 @@ public class BridgePhysicsManager : MonoBehaviour
             bar.transform.rotation = bar.preSimRot;
         }
 
-        // --- THE FIX: Step 4 - Redraw Bars LAST ---
-        // Now that the nodes are guaranteed to be back in their exact blueprint spots, 
-        // the bars will connect flawlessly without shifting out of place!
         foreach (Bar bar in allBars)
         {
             if (bar.startPoint != null && bar.endPoint != null)
@@ -183,8 +176,10 @@ public class BridgePhysicsManager : MonoBehaviour
             
             barRb.isKinematic = false; 
             barRb.mass = length * bar.materialData.massPerMeter; 
-            barRb.drag = 0.1f;
-            barRb.angularDrag = 0.1f;
+            
+            // --- THE FIX: Increased air resistance so the bars stop swinging forever ---
+            barRb.drag = 0.5f;
+            barRb.angularDrag = 0.5f;
             barRb.interpolation = RigidbodyInterpolation.Interpolate;
             barRb.collisionDetectionMode = CollisionDetectionMode.Continuous;
 
@@ -239,9 +234,19 @@ public class BridgePhysicsManager : MonoBehaviour
             else
             {
                 nodeRb.isKinematic = false; 
-                nodeRb.mass = 0.5f;
-                nodeRb.drag = 0.1f;
-                nodeRb.angularDrag = 0.1f;
+                
+                // --- THE MASS RATIO FIX ---
+                // We dynamically calculate the mass of the knot based on the heavy bars attached to it!
+                float calculatedMass = 0.5f;
+                foreach (Bar bar in p.ConnectedBars)
+                {
+                    float len = Vector3.Distance(bar.startPoint.transform.position, bar.endPoint.transform.position);
+                    calculatedMass += (len * bar.materialData.massPerMeter) * 0.5f;
+                }
+                
+                nodeRb.mass = calculatedMass;
+                nodeRb.drag = 0.5f;
+                nodeRb.angularDrag = 0.5f;
                 nodeRb.interpolation = RigidbodyInterpolation.Interpolate;
             }
 
@@ -275,7 +280,8 @@ public class BridgePhysicsManager : MonoBehaviour
                 ropeSpring.maxDistance = length;
                 ropeSpring.minDistance = 0f;
                 ropeSpring.spring = rope.materialData.spring > 0 ? rope.materialData.spring : 5000f;
-                ropeSpring.damper = rope.materialData.damper > 0 ? rope.materialData.damper : 50f;
+                // --- THE ROPE FIX: Increased damper so ropes don't bounce infinitely ---
+                ropeSpring.damper = rope.materialData.damper > 0 ? rope.materialData.damper : 500f; 
                 ropeSpring.breakForce = rope.materialData.breakForce;
 
                 BarStressHandler stressHandler = rope.GetComponent<BarStressHandler>();
@@ -319,20 +325,20 @@ public class BridgePhysicsManager : MonoBehaviour
         }
     }
 
-    private void ResolveAdjacentCollisions()
+    // --- THE COLLISION FIX: Blanket ignore internal bridge collisions! ---
+    private void ResolveAdjacentCollisions(HashSet<Bar> allBars)
     {
-        foreach (Point p in Point.AllPoints)
+        List<Collider> bridgeCols = new List<Collider>();
+        foreach(Bar b in allBars)
         {
-            for (int i = 0; i < p.ConnectedBars.Count; i++)
-            {
-                Collider[] colsA = p.ConnectedBars[i].GetComponents<Collider>();
-                if (colsA.Length == 0) continue;
+            bridgeCols.AddRange(b.GetComponents<Collider>());
+        }
 
-                for (int j = i + 1; j < p.ConnectedBars.Count; j++)
-                {
-                    Collider[] colsB = p.ConnectedBars[j].GetComponents<Collider>();
-                    foreach (Collider cA in colsA) foreach (Collider cB in colsB) Physics.IgnoreCollision(cA, cB, true);
-                }
+        for (int i = 0; i < bridgeCols.Count; i++)
+        {
+            for (int j = i + 1; j < bridgeCols.Count; j++)
+            {
+                Physics.IgnoreCollision(bridgeCols[i], bridgeCols[j], true);
             }
         }
     }

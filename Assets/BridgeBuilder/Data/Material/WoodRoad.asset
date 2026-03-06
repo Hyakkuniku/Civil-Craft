@@ -13,15 +13,16 @@ MonoBehaviour:
   m_Name: WoodRoad
   m_EditorClassIdentifier: 
   costPerMeter: 10
-  massPerMeter: 2
+  massPerMeter: 1
   maxLength: 10
-  maxTension: 40000
-  maxCompression: 40000
-  breakForce: 40000
-  breakTorque: 40000
+  maxTension: 50000
+  maxCompression: 50000
+  breakForce: 50000
+  breakTorque: 50000
   useSpring: 0
   spring: Infinity
   damper: Infinity
+  isRope: 0
   segmentPrefab: {fileID: 986403571932401943, guid: 73590dc066914f04b8363cc6c03e7f3f,
     type: 3}
   gizmoColor: {r: 1, g: 1, b: 1, a: 1}

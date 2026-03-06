@@ -1313,7 +1313,7 @@ MonoBehaviour:
   maxZoom: 40
   touchPanSpeed: 0.02
   touchPitchSpeed: 0.1
-  pitchDeadzone: 2
+  pitchDeadzone: 5
 --- !u!1001 &322691704
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -1609,6 +1609,16 @@ PrefabInstance:
       propertyPath: m_PlaneDistance
       value: 70
       objectReference: {fileID: 0}
+    - target: {fileID: 4038371196598856498, guid: 4816a55e283232a4d8ebf1a276883600,
+        type: 3}
+      propertyPath: m_VertexColorAlwaysGammaSpace
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 4038371196598856498, guid: 4816a55e283232a4d8ebf1a276883600,
+        type: 3}
+      propertyPath: m_UpdateRectTransformForStandalone
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 4361130149702583474, guid: 4816a55e283232a4d8ebf1a276883600,
         type: 3}
       propertyPath: m_LocalPosition.x
@@ -1733,6 +1743,11 @@ PrefabInstance:
         type: 3}
       propertyPath: far clip plane
       value: 5000
+      objectReference: {fileID: 0}
+    - target: {fileID: 7769843673557199223, guid: 4816a55e283232a4d8ebf1a276883600,
+        type: 3}
+      propertyPath: m_TargetTexture
+      value: 
       objectReference: {fileID: 0}
     - target: {fileID: 7769843673557199223, guid: 4816a55e283232a4d8ebf1a276883600,
         type: 3}
