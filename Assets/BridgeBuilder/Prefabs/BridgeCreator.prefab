@@ -556,6 +556,7 @@ MonoBehaviour:
   isGridSnappingEnabled: 1
   isDeleteMode: 0
   isSimulating: 0
+  touchSnapRadiusPixels: 100
   gridVisual: {fileID: 2999278537205885771}
   radiusIndicator: {fileID: 3266573539776685830}
   circleResolution: 50

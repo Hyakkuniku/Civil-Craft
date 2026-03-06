@@ -13,15 +13,16 @@ MonoBehaviour:
   m_Name: RopeMaterial
   m_EditorClassIdentifier: 
   costPerMeter: 1
-  massPerMeter: 2
-  maxLength: 15
-  maxTension: 3000
-  maxCompression: 3000
-  breakForce: 800
-  breakTorque: 600
+  massPerMeter: 0.5
+  maxLength: 20
+  maxTension: 50000
+  maxCompression: 50000
+  breakForce: 20000
+  breakTorque: 20000
   useSpring: 1
-  spring: 1000
-  damper: 50
+  spring: 20000
+  damper: 20000
+  isRope: 1
   segmentPrefab: {fileID: 8846941766389065738, guid: 10c1b50154ff8924281486b4e7c6b513,
     type: 3}
   gizmoColor: {r: 1, g: 1, b: 1, a: 1}

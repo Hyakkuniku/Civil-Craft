@@ -48,10 +48,10 @@ public class BridgePhysicsManager : MonoBehaviour
         Physics.defaultSolverVelocityIterations = 15;
 
         SetupBarsPhysics(allBars);
-        SetupDirectConnections();
+        SetupDirectConnections(allBars);
         ResolveAdjacentCollisions(); 
 
-        Debug.Log("<color=green>Physics Activated!</color>");
+        Debug.Log("<color=green>Physics Activated! Real knots and swinging bars enabled.</color>");
     }
 
     public void StopPhysicsAndReset()
@@ -67,6 +67,7 @@ public class BridgePhysicsManager : MonoBehaviour
                 if (b != null) allBars.Add(b);
         }
 
+        // 1. Destroy all joints first
         foreach (Bar bar in allBars)
         {
             Joint[] joints = bar.GetComponents<Joint>();
@@ -75,29 +76,20 @@ public class BridgePhysicsManager : MonoBehaviour
                 j.connectedBody = null; 
                 Destroy(j);
             }
-
-            Rigidbody barRb = bar.GetComponent<Rigidbody>();
-            if (barRb != null) 
-            {
-                barRb.isKinematic = true;
-                barRb.velocity = Vector3.zero;
-                barRb.angularVelocity = Vector3.zero;
-                barRb.interpolation = RigidbodyInterpolation.None; 
-            }
         }
 
         foreach (Point p in Point.AllPoints)
         {
-            Rigidbody rb = p.GetComponent<Rigidbody>();
-            if (rb != null) 
+            Joint[] joints = p.GetComponents<Joint>();
+            foreach (Joint j in joints) 
             {
-                rb.isKinematic = true;
-                rb.velocity = Vector3.zero;
-                rb.angularVelocity = Vector3.zero;
-                rb.interpolation = RigidbodyInterpolation.None;
+                j.connectedBody = null; 
+                Destroy(j);
             }
         }
 
+        // --- THE FIX: Step 2 - Reset POINTS (Nodes) FIRST! ---
+        // They must be back at the top of the cliff before the bars try to draw to them.
         foreach (Point p in Point.AllPoints)
         {
             Rigidbody rb = p.GetComponent<Rigidbody>();
@@ -114,19 +106,32 @@ public class BridgePhysicsManager : MonoBehaviour
             if (r != null) r.enabled = true;
         }
 
+        // 3. Clean up physics on Bars and reset their raw positions
         foreach (Bar bar in allBars)
         {
-            BarStressHandler stress = bar.GetComponent<BarStressHandler>();
-            if (stress != null) Destroy(stress);
+            Rigidbody barRb = bar.GetComponent<Rigidbody>();
+            if (barRb != null) Destroy(barRb);
 
             BoxCollider[] barCols = bar.GetComponents<BoxCollider>();
             foreach (BoxCollider c in barCols) Destroy(c);
 
-            Rigidbody barRb = bar.GetComponent<Rigidbody>();
-            if (barRb != null) Destroy(barRb);
+            BarStressHandler stress = bar.GetComponent<BarStressHandler>();
+            if (stress != null) Destroy(stress);
 
             bar.transform.position = bar.preSimPos;
             bar.transform.rotation = bar.preSimRot;
+        }
+
+        // --- THE FIX: Step 4 - Redraw Bars LAST ---
+        // Now that the nodes are guaranteed to be back in their exact blueprint spots, 
+        // the bars will connect flawlessly without shifting out of place!
+        foreach (Bar bar in allBars)
+        {
+            if (bar.startPoint != null && bar.endPoint != null)
+            {
+                bar.StartPosition = bar.startPoint.transform.position;
+                bar.UpdateCreatingBar(bar.endPoint.transform.position);
+            }
         }
 
         Debug.Log("<color=yellow>Bridge Reset. Back to Build Mode!</color>");
@@ -138,13 +143,7 @@ public class BridgePhysicsManager : MonoBehaviour
         foreach (var handler in activeStressHandlers)
         {
             if (handler == null) continue;
-
-            // NEW: If ANY bar is broken, the bridge has failed. 
-            // Instantly lock the UI meter to 100% (1.0f)!
-            if (handler.isBroken)
-            {
-                return 1f; 
-            }
+            if (handler.isBroken) return 1f; 
 
             if (handler.currentStressPercent > maxStress)
             {
@@ -175,43 +174,53 @@ public class BridgePhysicsManager : MonoBehaviour
         Point p1 = endpoints[0];
         Point p2 = endpoints[1];
 
-        float length = Vector3.Distance(p1.transform.position, p2.transform.position);
-        
-        Rigidbody barRb = bar.gameObject.AddComponent<Rigidbody>();
-        barRb.mass = length * bar.materialData.massPerMeter; 
-        barRb.drag = 0.1f;
-        barRb.angularDrag = 0.1f;
-        barRb.interpolation = RigidbodyInterpolation.Interpolate;
-        barRb.collisionDetectionMode = CollisionDetectionMode.Continuous;
-
-        int spawnCount = bar.materialData.isDualBeam ? 2 : 1;
-
-        for (int i = 0; i < spawnCount; i++)
+        if (!bar.materialData.isRope)
         {
-            BoxCollider col = bar.gameObject.AddComponent<BoxCollider>();
-            float thickness = bar.visualSize.y > 0.05f ? bar.visualSize.y : barColliderThickness;
-            float depth = bar.visualSize.z; 
+            float length = Vector3.Distance(p1.transform.position, p2.transform.position);
+            
+            Rigidbody barRb = bar.GetComponent<Rigidbody>();
+            if (barRb == null) barRb = bar.gameObject.AddComponent<Rigidbody>();
+            
+            barRb.isKinematic = false; 
+            barRb.mass = length * bar.materialData.massPerMeter; 
+            barRb.drag = 0.1f;
+            barRb.angularDrag = 0.1f;
+            barRb.interpolation = RigidbodyInterpolation.Interpolate;
+            barRb.collisionDetectionMode = CollisionDetectionMode.Continuous;
 
-            if (!bar.materialData.isDualBeam && depth < 2.0f) depth = 2.0f; 
-            else if (bar.materialData.isDualBeam && depth < 0.2f) depth = 0.2f;
+            BoxCollider[] oldCols = bar.GetComponents<BoxCollider>();
+            foreach(var c in oldCols) Destroy(c);
 
-            float zOffsetValue = bar.materialData.isDualBeam ? ((i == 0) ? bar.materialData.zOffset : -bar.materialData.zOffset) : 0f;
-            float physicsLength = length - 0.4f; 
-            if (physicsLength < 0.1f) physicsLength = 0.1f; 
+            int spawnCount = bar.materialData.isDualBeam ? 2 : 1;
 
-            col.size = new Vector3(physicsLength, thickness, depth);
-            col.center = new Vector3(0, 0, zOffsetValue);
+            for (int i = 0; i < spawnCount; i++)
+            {
+                BoxCollider col = bar.gameObject.AddComponent<BoxCollider>();
+                float thickness = bar.visualSize.y > 0.05f ? bar.visualSize.y : barColliderThickness;
+                float depth = bar.visualSize.z; 
+
+                if (!bar.materialData.isDualBeam && depth < 2.0f) depth = 2.0f; 
+                else if (bar.materialData.isDualBeam && depth < 0.2f) depth = 0.2f;
+
+                float zOffsetValue = bar.materialData.isDualBeam ? ((i == 0) ? bar.materialData.zOffset : -bar.materialData.zOffset) : 0f;
+                float physicsLength = length - 0.4f; 
+                if (physicsLength < 0.1f) physicsLength = 0.1f; 
+
+                col.size = new Vector3(physicsLength, thickness, depth);
+                col.center = new Vector3(0, 0, zOffsetValue);
+            }
         }
 
         bar.gameObject.layer = LayerMask.NameToLayer("Bridge"); 
 
-        BarStressHandler stressHandler = bar.gameObject.AddComponent<BarStressHandler>();
-        stressHandler.Setup(bar.materialData, p1, p2);
+        BarStressHandler stressHandler = bar.GetComponent<BarStressHandler>();
+        if (stressHandler == null) stressHandler = bar.gameObject.AddComponent<BarStressHandler>();
         
+        stressHandler.Setup(bar.materialData, p1, p2);
         activeStressHandlers.Add(stressHandler);
     }
 
-    private void SetupDirectConnections()
+    private void SetupDirectConnections(HashSet<Bar> allBars)
     {
         foreach (Point p in Point.AllPoints)
         {
@@ -220,28 +229,57 @@ public class BridgePhysicsManager : MonoBehaviour
             Collider[] oldCols = p.GetComponents<Collider>();
             foreach(var col in oldCols) col.enabled = false; 
 
+            Rigidbody nodeRb = p.GetComponent<Rigidbody>();
+            if (nodeRb == null) nodeRb = p.gameObject.AddComponent<Rigidbody>();
+            
             if (p.isAnchor)
             {
-                Rigidbody anchorRb = p.gameObject.AddComponent<Rigidbody>();
-                anchorRb.isKinematic = true;
-
-                foreach (Bar bar in p.ConnectedBars)
-                {
-                    AttachJoint(bar.gameObject, anchorRb, bar.materialData, p.transform.position);
-                }
+                nodeRb.isKinematic = true;
             }
             else
             {
-                Bar hubBar = p.ConnectedBars[0];
-                Rigidbody hubRb = hubBar.GetComponent<Rigidbody>();
+                nodeRb.isKinematic = false; 
+                nodeRb.mass = 0.5f;
+                nodeRb.drag = 0.1f;
+                nodeRb.angularDrag = 0.1f;
+                nodeRb.interpolation = RigidbodyInterpolation.Interpolate;
+            }
 
-                for (int i = 1; i < p.ConnectedBars.Count; i++)
+            foreach (Bar bar in p.ConnectedBars)
+            {
+                if (!bar.materialData.isRope)
                 {
-                    Bar attachedBar = p.ConnectedBars[i];
-                    AttachJoint(attachedBar.gameObject, hubRb, attachedBar.materialData, p.transform.position);
+                    AttachJoint(bar.gameObject, nodeRb, bar.materialData, p.transform.position);
                 }
+            }
+        }
 
-                p.transform.SetParent(hubBar.transform, true);
+        foreach (Bar rope in allBars)
+        {
+            if (!rope.materialData.isRope) continue;
+
+            Rigidbody rbA = rope.startPoint.GetComponent<Rigidbody>();
+            Rigidbody rbB = rope.endPoint.GetComponent<Rigidbody>();
+
+            if (rbA != null && rbB != null)
+            {
+                SpringJoint ropeSpring = rbA.gameObject.AddComponent<SpringJoint>();
+                ropeSpring.connectedBody = rbB;
+                ropeSpring.autoConfigureConnectedAnchor = false;
+
+                ropeSpring.anchor = rbA.transform.InverseTransformPoint(rope.startPoint.transform.position);
+                ropeSpring.connectedAnchor = rbB.transform.InverseTransformPoint(rope.endPoint.transform.position);
+
+                float length = Vector3.Distance(rope.startPoint.transform.position, rope.endPoint.transform.position);
+
+                ropeSpring.maxDistance = length;
+                ropeSpring.minDistance = 0f;
+                ropeSpring.spring = rope.materialData.spring > 0 ? rope.materialData.spring : 5000f;
+                ropeSpring.damper = rope.materialData.damper > 0 ? rope.materialData.damper : 50f;
+                ropeSpring.breakForce = rope.materialData.breakForce;
+
+                BarStressHandler stressHandler = rope.GetComponent<BarStressHandler>();
+                if (stressHandler != null) stressHandler.SetRopeJoint(ropeSpring);
             }
         }
     }
@@ -300,15 +338,16 @@ public class BridgePhysicsManager : MonoBehaviour
     }
 }
 
-// --- STANDARD BAR STRESS HANDLER ---
 public class BarStressHandler : MonoBehaviour
 {
     private BridgeMaterialSO material;
     private Point p1;
     private Point p2;
+    private Bar myBar;
     
     private float restLength;
-    private Joint[] joints;
+    private Joint[] joints; 
+    private SpringJoint ropeJoint; 
     
     [HideInInspector] public bool isBroken = false;
     [HideInInspector] public float currentStressPercent = 0f; 
@@ -320,15 +359,27 @@ public class BarStressHandler : MonoBehaviour
         material = mat;
         p1 = point1;
         p2 = point2;
+        myBar = GetComponent<Bar>();
         
         restLength = Vector3.Distance(p1.transform.position, p2.transform.position);
+    }
+
+    public void SetRopeJoint(SpringJoint joint)
+    {
+        ropeJoint = joint;
     }
 
     private void FixedUpdate()
     {
         if (isBroken || p1 == null || p2 == null) return;
 
-        if (joints == null || joints.Length == 0)
+        if (material.isRope && myBar != null)
+        {
+            myBar.StartPosition = p1.transform.position;
+            myBar.UpdateCreatingBar(p2.transform.position);
+        }
+
+        if (!material.isRope && (joints == null || joints.Length == 0))
         {
             joints = GetComponents<Joint>();
             if (joints == null || joints.Length == 0) return; 
@@ -339,48 +390,78 @@ public class BarStressHandler : MonoBehaviour
 
         float currentLength = Vector3.Distance(p1.transform.position, p2.transform.position);
         bool isTension = currentLength > restLength; 
-        
         float maxForceThisFrame = 0f;
+        
+        Joint breakingJoint = null;
+        string breakCause = "";
 
-        foreach (Joint joint in joints)
+        if (material.isRope)
         {
-            if (joint == null) continue;
-
-            float forceMag = joint.currentForce.magnitude;
-            if (forceMag > maxForceThisFrame) maxForceThisFrame = forceMag;
-
-            if (isTension && forceMag > material.maxTension)
+            if (ropeJoint != null)
             {
-                BreakBar("Tension (Pulled apart)", forceMag);
-                return; 
+                maxForceThisFrame = ropeJoint.currentForce.magnitude;
+                if (maxForceThisFrame > material.maxTension)
+                {
+                    breakingJoint = ropeJoint;
+                    breakCause = "Tension (Rope Snapped)";
+                }
             }
-            else if (!isTension && forceMag > material.maxCompression)
+        }
+        else
+        {
+            foreach (Joint joint in joints)
             {
-                BreakBar("Compression (Buckled)", forceMag);
-                return;
+                if (joint == null) continue;
+
+                float forceMag = joint.currentForce.magnitude;
+                if (forceMag > maxForceThisFrame) maxForceThisFrame = forceMag;
+
+                if (isTension && forceMag > material.maxTension)
+                {
+                    breakingJoint = joint;
+                    breakCause = "Tension (Pulled apart)";
+                }
+                else if (!isTension && forceMag > material.maxCompression)
+                {
+                    breakingJoint = joint;
+                    breakCause = "Compression (Buckled)";
+                }
             }
         }
 
         float stressLimit = isTension ? material.maxTension : material.maxCompression;
-        currentStressPercent = maxForceThisFrame / stressLimit;
+        if (stressLimit <= 0f) stressLimit = 1f; 
+
+        if (material.isRope && !isTension) currentStressPercent = 0f; 
+        else currentStressPercent = maxForceThisFrame / stressLimit;
+
+        if (breakingJoint != null && !isBroken)
+        {
+            BreakBar(breakCause, maxForceThisFrame, breakingJoint);
+        }
     }
 
-    private void BreakBar(string cause, float force)
+    private void BreakBar(string cause, float force, Joint brokenJoint)
     {
         if (isBroken) return;
         isBroken = true;
         currentStressPercent = 1f; 
 
-        Debug.Log($"<color=orange>Stress limit reached!</color> Bar snapped due to {cause}. Force: {force}");
-
-        foreach (Joint j in joints)
+        if (brokenJoint != null) Destroy(brokenJoint);
+        
+        if (material.isRope && myBar != null)
         {
-            if (j != null) Destroy(j);
+            myBar.StartPosition = p1.transform.position;
+            myBar.UpdateCreatingBar(p1.transform.position + (Vector3.down * restLength));
         }
     }
 
     private void OnJointBreak(float breakForce)
     {
-        if (!isBroken) BreakBar("Shear/Torque (Native Joint Break)", breakForce);
+        if (!isBroken) 
+        {
+            isBroken = true;
+            currentStressPercent = 1f;
+        }
     }
 }

@@ -1,10 +1,11 @@
 using UnityEngine;
+using UnityEngine.Rendering; // NEW: Required to talk to URP
 
 [RequireComponent(typeof(MeshFilter))]
 public class RuntimeWireframe : MonoBehaviour
 {
     public Color lineColor = Color.blue;
-    [Range(0f, 1f)] public float transitionAlpha = 1f; // ADDED: Controls fade
+    [Range(0f, 1f)] public float transitionAlpha = 1f;
 
     private Material lineMaterial;
     private Mesh mesh;
@@ -13,7 +14,12 @@ public class RuntimeWireframe : MonoBehaviour
     {
         mesh = GetComponent<MeshFilter>().sharedMesh;
 
-        Shader shader = Shader.Find("Hidden/Internal-Colored");
+        // Sprites/Default is safe from build-stripping and works perfectly in URP
+        Shader shader = Shader.Find("Sprites/Default");
+        
+        // Fallback to URP Unlit just in case
+        if (shader == null) shader = Shader.Find("Universal Render Pipeline/Unlit");
+
         lineMaterial = new Material(shader);
         lineMaterial.hideFlags = HideFlags.HideAndDontSave;
 
@@ -24,20 +30,41 @@ public class RuntimeWireframe : MonoBehaviour
         lineMaterial.SetInt("_ZWrite", 0);
     }
 
-    void OnRenderObject()
+    // NEW: Subscribe to URP's rendering event when enabled
+    void OnEnable()
     {
-        if (!lineMaterial || !mesh || transitionAlpha <= 0f) return; // ADDED: Skip rendering if invisible
+        RenderPipelineManager.endCameraRendering += DrawWireframe;
+    }
+
+    // NEW: Unsubscribe when disabled to prevent memory leaks!
+    void OnDisable()
+    {
+        RenderPipelineManager.endCameraRendering -= DrawWireframe;
+    }
+
+    // NEW: URP's modern replacement for OnRenderObject()
+    void DrawWireframe(ScriptableRenderContext context, Camera cam)
+    {
+        if (!lineMaterial || !mesh || transitionAlpha <= 0f) return;
+        if (cam != Camera.main && cam.cameraType != CameraType.SceneView) return;
 
         lineMaterial.SetPass(0);
         
-        // ADDED: Apply the transition alpha to the line color
         Color currentColor = lineColor;
         currentColor.a *= transitionAlpha; 
-        lineMaterial.SetColor("_Color", currentColor);
+
+        // Apply to material just in case the shader relies on it
+        if (lineMaterial.HasProperty("_BaseColor"))
+            lineMaterial.SetColor("_BaseColor", currentColor);
+        else
+            lineMaterial.SetColor("_Color", currentColor);
 
         GL.PushMatrix();
         GL.MultMatrix(transform.localToWorldMatrix);
         GL.Begin(GL.LINES);
+        
+        // FIX: Explicitly tell the GL pipeline the exact color and alpha of the lines!
+        GL.Color(currentColor); 
 
         int[] triangles = mesh.triangles;
         Vector3[] vertices = mesh.vertices;

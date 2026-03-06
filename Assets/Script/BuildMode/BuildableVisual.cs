@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering; 
 
 [RequireComponent(typeof(MeshRenderer))]
 [RequireComponent(typeof(MeshFilter))]
@@ -15,26 +16,26 @@ public class BuildableVisual : MonoBehaviour
 
     private Material[] materials;
     private Color[] originalColors;
+    
+    // NEW: Track the active alpha so rapid toggling doesn't snap visually
+    private float currentAlphaMultiplier = 1f;
 
     private void Awake()
     {
         meshRenderer = GetComponent<MeshRenderer>();
         wireframe = GetComponent<RuntimeWireframe>();
 
-        // Safely cache materials and their starting colors
         materials = meshRenderer.materials;
         originalColors = new Color[materials.Length];
         
         for (int i = 0; i < materials.Length; i++)
         {
-            if (materials[i].HasProperty("_Color"))
-            {
+            if (materials[i].HasProperty("_BaseColor"))
+                originalColors[i] = materials[i].GetColor("_BaseColor");
+            else if (materials[i].HasProperty("_Color"))
                 originalColors[i] = materials[i].color;
-            }
             else
-            {
                 originalColors[i] = Color.white; 
-            }
         }
 
         SetNormalModeImmediate();
@@ -63,7 +64,7 @@ public class BuildableVisual : MonoBehaviour
         {
             meshRenderer.enabled = true;
             SetMeshAlpha(1f); 
-            SetMaterialsToOpaque(); // Ensure it starts solid
+            SetMaterialsToOpaque(); 
         }
         if (wireframe != null)
         {
@@ -72,17 +73,19 @@ public class BuildableVisual : MonoBehaviour
         }
     }
 
-    // Helper method to apply alpha to all materials on the mesh
     private void SetMeshAlpha(float alphaMultiplier)
     {
+        currentAlphaMultiplier = alphaMultiplier; // Keep track for seamless interruptions
+
         for (int i = 0; i < materials.Length; i++)
         {
-            if (materials[i].HasProperty("_Color"))
-            {
-                Color c = originalColors[i];
-                c.a *= alphaMultiplier; 
+            Color c = originalColors[i];
+            c.a *= alphaMultiplier; 
+
+            if (materials[i].HasProperty("_BaseColor"))
+                materials[i].SetColor("_BaseColor", c);
+            else if (materials[i].HasProperty("_Color"))
                 materials[i].color = c;
-            }
         }
     }
 
@@ -90,22 +93,28 @@ public class BuildableVisual : MonoBehaviour
     {
         float elapsed = 0f;
         
-        float startWireAlpha = enteringBuildMode ? 0f : 1f;
+        // FIX: Start from the EXACT current alpha so it doesn't jerk if interrupted
+        float startWireAlpha = wireframe != null ? wireframe.transitionAlpha : (enteringBuildMode ? 0f : 1f);
         float targetWireAlpha = enteringBuildMode ? 1f : 0f;
 
-        float startMeshAlpha = enteringBuildMode ? 1f : 0f;
+        float startMeshAlpha = currentAlphaMultiplier;
         float targetMeshAlpha = enteringBuildMode ? 0f : 1f;
+
+        // FIX: Shorten the duration if we are already partially transitioned
+        float transitionDistance = Mathf.Abs(targetMeshAlpha - startMeshAlpha);
+        float actualDuration = transitionDuration * transitionDistance;
+        if (actualDuration <= 0.01f) actualDuration = 0.01f; // Prevent divide by zero
 
         if (meshRenderer != null) 
         {
             meshRenderer.enabled = true;
-            SetMaterialsToTransparent(); // Unlock transparency for the fade
+            SetMaterialsToTransparent(); 
         }
 
-        while (elapsed < transitionDuration)
+        while (elapsed < actualDuration)
         {
             elapsed += Time.deltaTime;
-            float t = elapsed / transitionDuration;
+            float t = elapsed / actualDuration;
             
             t = t * t * (3f - 2f * t); // Smoothstep
 
@@ -128,27 +137,29 @@ public class BuildableVisual : MonoBehaviour
         else
         {
             if (wireframe != null) wireframe.enabled = false;
-            SetMaterialsToOpaque(); // Lock it back to solid Opaque mode for better performance
+            SetMaterialsToOpaque(); 
         }
     }
 
     // ────────────────────────────────────────────────
-    // Standard Shader Render Mode Switchers
+    // URP Shader Render Mode Switchers
     // ────────────────────────────────────────────────
 
     private void SetMaterialsToTransparent()
     {
         foreach (Material mat in materials)
         {
-            // Forces the Standard Shader into "Transparent" mode
-            mat.SetFloat("_Mode", 3);
-            mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-            mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-            mat.SetInt("_ZWrite", 0);
-            mat.DisableKeyword("_ALPHATEST_ON");
-            mat.EnableKeyword("_ALPHABLEND_ON");
-            mat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-            mat.renderQueue = 3000;
+            mat.SetFloat("_Surface", 1); // Transparent
+            mat.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
+            mat.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
+            
+            // SEAMLESS FIX: Keep Depth Writing ON during the fade. 
+            // This stops the mesh from showing its hollow backfaces while it fades out.
+            mat.SetInt("_ZWrite", 1); 
+            
+            mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            mat.SetOverrideTag("RenderType", "Transparent"); // Tells URP to properly sort it
+            mat.renderQueue = (int)RenderQueue.Transparent;
         }
     }
 
@@ -156,15 +167,14 @@ public class BuildableVisual : MonoBehaviour
     {
         foreach (Material mat in materials)
         {
-            // Forces the Standard Shader back into "Opaque" mode
-            mat.SetFloat("_Mode", 0);
-            mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
-            mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero);
+            mat.SetFloat("_Surface", 0); // Opaque
+            mat.SetInt("_SrcBlend", (int)BlendMode.One);
+            mat.SetInt("_DstBlend", (int)BlendMode.Zero);
             mat.SetInt("_ZWrite", 1);
-            mat.DisableKeyword("_ALPHATEST_ON");
-            mat.DisableKeyword("_ALPHABLEND_ON");
-            mat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-            mat.renderQueue = -1;
+            
+            mat.DisableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            mat.SetOverrideTag("RenderType", "Opaque");
+            mat.renderQueue = (int)RenderQueue.Geometry;
         }
     }
 }

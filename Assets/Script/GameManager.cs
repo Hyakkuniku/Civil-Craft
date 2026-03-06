@@ -72,6 +72,7 @@ public class GameManager : MonoBehaviour
     {
         if (CurrentState == GameState.Building) return;
 
+        // 1. Instantly reset physics
         if (physicsManager != null && physicsManager.isSimulating)
         {
             physicsManager.StopPhysicsAndReset();
@@ -80,7 +81,6 @@ public class GameManager : MonoBehaviour
         ActiveBuildLocation = location;
         CurrentState = GameState.Building;
 
-        // NEW: Pull the budget from the Contract given by the NPC
         if (BuildUIController.Instance != null && location.activeContract != null)
         {
             BuildUIController.Instance.maxBudget = location.activeContract.budget;
@@ -88,20 +88,24 @@ public class GameManager : MonoBehaviour
 
         if (cachedBuildables.Count == 0) CacheBuildableObjects();
 
-        if (playerMotor != null)    playerMotor.enabled = false;
+        // 2. Disable Player
+        if (playerMotor != null) playerMotor.enabled = false;
         if (inputManager != null)
         {
             inputManager.SetLookEnabled(false);
             inputManager.SetPlayerInputEnable(false);
         }
 
+        // 3. Unparent Camera safely
         if (mainCamera != null)
         {
             mainCamParent = mainCamera.transform.parent;
             mainCamLocalPos = mainCamera.transform.localPosition;
             mainCamLocalRot = mainCamera.transform.localRotation;
+            mainCamera.transform.SetParent(null); 
         }
 
+        // 4. Update UI instantly
         foreach (GameObject uiElement in uiElementsToHide)
             if (uiElement != null) uiElement.SetActive(false);
 
@@ -109,6 +113,9 @@ public class GameManager : MonoBehaviour
         if (playerUI != null) playerUI.UpdateText(string.Empty);
 
         SetAllBuildablesToWireframe(true);
+
+        // 5. Fire Event INSTANTLY before the camera moves!
+        OnEnterBuildMode?.Invoke();
 
         if (cameraTransitionCoroutine != null) StopCoroutine(cameraTransitionCoroutine);
         cameraTransitionCoroutine = StartCoroutine(TransitionToBuildCamera(location));
@@ -120,6 +127,10 @@ public class GameManager : MonoBehaviour
 
         CurrentState = GameState.Normal;
 
+        // 1. Fire Event INSTANTLY to shut down the BarCreator and UI
+        OnExitBuildMode?.Invoke();
+
+        // 2. Activate physics so the player can walk on the bridge (If it falls, build a stronger bridge!)
         if (physicsManager != null && !physicsManager.isSimulating)
         {
             physicsManager.ActivatePhysics();
@@ -133,7 +144,6 @@ public class GameManager : MonoBehaviour
     {
         if (mainCamera != null)
         {
-            mainCamera.transform.SetParent(null);
             Vector3 startPos = mainCamera.transform.position;
             Quaternion startRot = mainCamera.transform.rotation;
             Vector3 targetPos = location.locationCamera != null ? location.locationCamera.transform.position : location.GetDesiredCameraPosition();
@@ -158,7 +168,6 @@ public class GameManager : MonoBehaviour
                 location.locationCamera.enabled = true;
             }
         }
-        OnEnterBuildMode?.Invoke();
     }
 
     private IEnumerator TransitionToPlayerCamera()
@@ -197,6 +206,7 @@ public class GameManager : MonoBehaviour
             }
         }
 
+        // Restore Player Controls
         if (playerMotor != null) playerMotor.enabled = true;
         if (inputManager != null)
         {
@@ -204,14 +214,19 @@ public class GameManager : MonoBehaviour
             inputManager.SetPlayerInputEnable(true);
         }
 
-        ActiveBuildLocation?.DeactivateBuildMode(FindObjectOfType<PlayerMotor>()?.transform);
-        ActiveBuildLocation = null;
+        // Safely Deactivate Build Location
+        if (ActiveBuildLocation != null)
+        {
+            Transform pTransform = playerMotor != null ? playerMotor.transform : null;
+            if (pTransform != null) ActiveBuildLocation.DeactivateBuildMode(pTransform);
+            ActiveBuildLocation = null;
+        }
 
+        // Restore Normal UI
         foreach (GameObject uiElement in uiElementsToHide)
             if (uiElement != null) uiElement.SetActive(true);
 
         SetAllBuildablesToWireframe(false);
-        OnExitBuildMode?.Invoke();
     }
 
     private void CacheBuildableObjects()

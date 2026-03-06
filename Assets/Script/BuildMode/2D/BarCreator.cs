@@ -2,6 +2,9 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using System.Collections.Generic;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.EnhancedTouch;
+using Touch = UnityEngine.InputSystem.EnhancedTouch.Touch;
 
 public class HistoryAction
 {
@@ -21,7 +24,7 @@ public class HistoryAction
     }
 }
 
-public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler 
+public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IDragHandler 
 {
     [Header("References")]
     public Bar currentBar;
@@ -41,8 +44,10 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
     
     [HideInInspector] public bool isSimulating = false; 
 
-    // ADDED: Let other scripts know if we are actively drawing a bar
     public bool IsCreating => barCreationStarted;
+
+    [Header("Mobile Touch Settings")]
+    public float touchSnapRadiusPixels = 100f; 
 
     [Header("Visual Aids")]
     public Image gridVisual; 
@@ -54,6 +59,17 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
 
     private Stack<HistoryAction> undoStack = new Stack<HistoryAction>();
     private Stack<HistoryAction> redoStack = new Stack<HistoryAction>();
+    private HistoryAction currentSwipeDeleteAction;
+
+    private void OnEnable()
+    {
+        EnhancedTouchSupport.Enable();
+    }
+
+    private void OnDisable()
+    {
+        EnhancedTouchSupport.Disable();
+    }
 
     private void Start()
     {
@@ -75,16 +91,38 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
         }
     }
 
-    private void HandleEnterBuildMode()
-    {
-        isSimulating = false; 
-    }
+    private void HandleEnterBuildMode() { isSimulating = false; }
 
     private void HandleExitBuildMode()
     {
         CancelCreation(); 
         isDeleteMode = false; 
         isSimulating = false; 
+    }
+
+    private Camera GetActiveCamera()
+    {
+        if (GameManager.Instance != null && GameManager.Instance.ActiveBuildLocation != null && GameManager.Instance.ActiveBuildLocation.locationCamera != null)
+        {
+            return GameManager.Instance.ActiveBuildLocation.locationCamera;
+        }
+        return Camera.main;
+    }
+
+    // --- FIX: Force real-time hardware touch polling ---
+    private Vector2 GetPointerPosition()
+    {
+        // 1. Try mobile touch first
+        if (Touch.activeTouches.Count > 0)
+        {
+            return Touch.activeTouches[0].screenPosition;
+        }
+        // 2. Fallback to PC Mouse
+        if (Pointer.current != null)
+        {
+            return Pointer.current.position.ReadValue();
+        }
+        return Input.mousePosition;
     }
 
     private void Update()
@@ -94,17 +132,23 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
 
         if (isSimulating) return;
 
+        if (Touch.activeTouches.Count > 1)
+        {
+            if (barCreationStarted) CancelCreation();
+            return;
+        }
+
         if (barCreationStarted && currentEndPoint != null && !isDeleteMode)
         {
-            Vector2 screenPos = Input.mousePosition;
+            // Read from hardware directly every frame so it never stutters!
+            Vector2 screenPos = GetPointerPosition();
+            
             Point hoveredNode = CheckForExistingPoint(screenPos);
             Vector3 worldMousePos = GetWorldMousePosition(screenPos, hoveredNode);
-            
             Vector3 targetPos = CalculateTargetPosition(worldMousePos, hoveredNode);
 
             float maxLen = activeMaterial != null ? activeMaterial.maxLength : 5f;
             
-            // Dynamically restrict max length based on remaining budget!
             if (BuildUIController.Instance != null && activeMaterial != null)
             {
                 float remainingBudget = BuildUIController.Instance.maxBudget - BuildUIController.Instance.GetTotalCost();
@@ -125,10 +169,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
                 if (isGridSnappingEnabled && hoveredNode == null)
                 {
                     targetPos = new Vector3(Mathf.RoundToInt(targetPos.x), Mathf.RoundToInt(targetPos.y), Mathf.RoundToInt(targetPos.z));
-                    if (Vector3.Distance(startPos, targetPos) > maxLen)
-                    {
-                        targetPos = startPos + (direction * maxLen); 
-                    }
+                    if (Vector3.Distance(startPos, targetPos) > maxLen) targetPos = startPos + (direction * maxLen); 
                 }
             }
 
@@ -140,7 +181,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
     public void OnPointerDown(PointerEventData eventData)
     {
         if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building) return;
-        if (isSimulating) return; 
+        if (isSimulating || Touch.activeTouches.Count > 1) return;
 
         if (eventData.button == PointerEventData.InputButton.Right)
         {
@@ -152,22 +193,8 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
 
         if (isDeleteMode && eventData.button == PointerEventData.InputButton.Left)
         {
-            Point clickedPoint = CheckForExistingPoint(screenPos);
-            if (clickedPoint != null)
-            {
-                HistoryAction deleteAction = new HistoryAction { isBuildEvent = false };
-                DeletePoint(clickedPoint, deleteAction);
-                if (deleteAction.affectedObjects.Count > 0) RecordAction(deleteAction);
-                return;
-            }
-
-            Bar clickedBar = CheckForExistingBar(screenPos);
-            if (clickedBar != null)
-            {
-                HistoryAction deleteAction = new HistoryAction { isBuildEvent = false };
-                DeleteBar(clickedBar, deleteAction);
-                if (deleteAction.affectedObjects.Count > 0) RecordAction(deleteAction);
-            }
+            currentSwipeDeleteAction = new HistoryAction { isBuildEvent = false };
+            PerformSwipeDelete(screenPos);
             return; 
         }
 
@@ -183,18 +210,51 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
         }
     }
 
+    public void OnDrag(PointerEventData eventData)
+    {
+        if (isDeleteMode && currentSwipeDeleteAction != null)
+        {
+            PerformSwipeDelete(eventData.position);
+        }
+    }
+
     public void OnPointerUp(PointerEventData eventData)
     {
         if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building) return;
         if (isSimulating) return; 
 
+        if (isDeleteMode)
+        {
+            if (currentSwipeDeleteAction != null && currentSwipeDeleteAction.affectedObjects.Count > 0)
+            {
+                RecordAction(currentSwipeDeleteAction);
+            }
+            currentSwipeDeleteAction = null;
+            return;
+        }
+
         if (barCreationStarted && eventData.button == PointerEventData.InputButton.Left && !isDeleteMode)
         {
-            Vector2 screenPos = eventData.position;
+            Vector2 screenPos = GetPointerPosition();
             Point hoveredNode = CheckForExistingPoint(screenPos);
             Vector3 worldPos = GetWorldMousePosition(screenPos, hoveredNode);
-
             FinishBarCreation(worldPos, hoveredNode);
+        }
+    }
+
+    private void PerformSwipeDelete(Vector2 screenPos)
+    {
+        Point hoveredPoint = CheckForExistingPoint(screenPos);
+        if (hoveredPoint != null)
+        {
+            DeletePoint(hoveredPoint, currentSwipeDeleteAction);
+            return; 
+        }
+
+        Bar hoveredBar = CheckForExistingBar(screenPos);
+        if (hoveredBar != null)
+        {
+            DeleteBar(hoveredBar, currentSwipeDeleteAction);
         }
     }
 
@@ -273,47 +333,42 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
 
     private Bar CheckForExistingBar(Vector2 screenPos)
     {
-        float zDepth = (Point.AllPoints.Count > 0) ? Point.AllPoints[0].transform.position.z : 0f;
-        Plane plane = new Plane(Vector3.forward, new Vector3(0, 0, zDepth));
-        Ray ray = Camera.main.ScreenPointToRay(screenPos);
-        
-        if (!plane.Raycast(ray, out float distance)) return null;
-        
-        Vector3 worldPos = ray.GetPoint(distance);
+        Camera cam = GetActiveCamera();
         Bar closestBar = null;
-        float minDist = 0.5f; 
+        float minSqrDist = touchSnapRadiusPixels * touchSnapRadiusPixels;
 
         foreach (Point p in Point.AllPoints)
         {
             foreach (Bar b in p.ConnectedBars)
             {
-                if (b.startPoint == null || b.endPoint == null) continue;
+                if (b == null || !b.gameObject.activeSelf || b.startPoint == null || b.endPoint == null) continue;
 
-                float dist = DistancePointToLineSegment(worldPos, b.startPoint.transform.position, b.endPoint.transform.position);
-                if (dist < minDist)
+                Vector3 startScreenPos = cam.WorldToScreenPoint(b.startPoint.transform.position);
+                Vector3 endScreenPos = cam.WorldToScreenPoint(b.endPoint.transform.position);
+
+                if (startScreenPos.z > 0 && endScreenPos.z > 0)
                 {
-                    minDist = dist;
-                    closestBar = b;
+                    float sqrDist = SqrDistancePointToLineSegment(screenPos, startScreenPos, endScreenPos);
+                    if (sqrDist < minSqrDist)
+                    {
+                        minSqrDist = sqrDist;
+                        closestBar = b;
+                    }
                 }
             }
         }
         return closestBar;
     }
 
-    private float DistancePointToLineSegment(Vector3 point, Vector3 lineStart, Vector3 lineEnd)
+    private float SqrDistancePointToLineSegment(Vector2 point, Vector2 lineStart, Vector2 lineEnd)
     {
-        Vector3 lineDir = lineEnd - lineStart;
-        float length = lineDir.magnitude;
-        lineDir.Normalize();
-
-        Vector3 pointVector = point - lineStart;
-        float dotProduct = Vector3.Dot(pointVector, lineDir);
-
-        if (dotProduct <= 0) return Vector3.Distance(point, lineStart);
-        if (dotProduct >= length) return Vector3.Distance(point, lineEnd);
-
-        Vector3 projection = lineStart + lineDir * dotProduct;
-        return Vector3.Distance(point, projection);
+        Vector2 lineDir = lineEnd - lineStart;
+        float sqrLength = lineDir.sqrMagnitude;
+        if (sqrLength == 0) return (point - lineStart).sqrMagnitude;
+        
+        float t = Mathf.Clamp01(Vector2.Dot(point - lineStart, lineDir) / sqrLength);
+        Vector2 projection = lineStart + t * lineDir;
+        return (point - projection).sqrMagnitude;
     }
 
     public void SetActiveMaterial(BridgeMaterialSO newMaterial)
@@ -334,30 +389,30 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
     private Vector3 CalculateTargetPosition(Vector3 rawPos, Point hoveredNode)
     {
         if (hoveredNode != null) return hoveredNode.transform.position;
-        
-        if (isGridSnappingEnabled)
-        {
-            return new Vector3(Mathf.RoundToInt(rawPos.x), Mathf.RoundToInt(rawPos.y), Mathf.RoundToInt(rawPos.z));
-        }
-
+        if (isGridSnappingEnabled) return new Vector3(Mathf.RoundToInt(rawPos.x), Mathf.RoundToInt(rawPos.y), Mathf.RoundToInt(rawPos.z));
         return rawPos;
     }
 
     private Point CheckForExistingPoint(Vector2 screenPos)
     {
-        Ray ray = Camera.main.ScreenPointToRay(screenPos);
+        Camera cam = GetActiveCamera();
         Point closest = null;
-        float minDist = 0.5f; 
+        float minSqrDist = touchSnapRadiusPixels * touchSnapRadiusPixels;
 
         foreach (Point p in Point.AllPoints)
         {
-            if (p == currentEndPoint) continue;
+            if (p == currentEndPoint || !p.gameObject.activeSelf) continue;
             
-            float dist = Vector3.Cross(ray.direction, p.transform.position - ray.origin).magnitude;
-            if (dist < minDist)
+            Vector3 pointScreenPos = cam.WorldToScreenPoint(p.transform.position);
+            
+            if (pointScreenPos.z > 0) 
             {
-                minDist = dist;
-                closest = p;
+                float sqrDist = (new Vector2(pointScreenPos.x, pointScreenPos.y) - screenPos).sqrMagnitude;
+                if (sqrDist < minSqrDist)
+                {
+                    minSqrDist = sqrDist;
+                    closest = p;
+                }
             }
         }
         return closest;
@@ -366,11 +421,9 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
     private Vector3 GetWorldMousePosition(Vector2 screenPos, Point snappedPoint)
     {
         if (snappedPoint != null) return snappedPoint.transform.position;
-        
         float zDepth = currentStartPoint != null ? currentStartPoint.transform.position.z : 0f;
         Plane plane = new Plane(Vector3.forward, new Vector3(0, 0, zDepth));
-        Ray ray = Camera.main.ScreenPointToRay(screenPos);
-        
+        Ray ray = GetActiveCamera().ScreenPointToRay(screenPos);
         if (plane.Raycast(ray, out float distance)) return ray.GetPoint(distance);
         return Vector3.zero;
     }
@@ -382,7 +435,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
         GameObject newBar = Instantiate(barToInstantiate, barParent);
         newBar.name = "Bar";
         currentBar = newBar.GetComponent<Bar>();
-        
         currentBar.Initialize(activeMaterial);
         currentBar.StartPosition = startPosition;
 
@@ -398,7 +450,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
         Vector3 finalPosition = CalculateTargetPosition(rawWorldPos, existingEndPoint);
         float limit = activeMaterial != null ? activeMaterial.maxLength : 5f;
         
-        // Enforce the budget constraint on the final drop!
         if (BuildUIController.Instance != null && activeMaterial != null)
         {
             float remainingBudget = BuildUIController.Instance.maxBudget - BuildUIController.Instance.GetTotalCost();
@@ -408,13 +459,10 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
         }
 
         Vector3 startPos = currentStartPoint.transform.position;
-
-        // Max Length Leniency 
         float distanceToTarget = Vector3.Distance(startPos, finalPosition);
+        
         if (existingEndPoint != null && distanceToTarget > limit && distanceToTarget <= limit + 0.2f)
-        {
             limit = distanceToTarget; 
-        }
 
         if (Vector3.Distance(startPos, finalPosition) > limit)
         {
@@ -429,17 +477,14 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler
             existingEndPoint = null; 
         }
 
-        // --- THE FIX IS HERE ---
-        // Prevent Overlapping Grid Nodes, but IGNORE the ghost point (currentEndPoint)
         if (existingEndPoint == null)
         {
             foreach (Point p in Point.AllPoints)
             {
-                // We added '&& p != currentEndPoint' so it stops deleting itself!
-                if (p != currentStartPoint && p != currentEndPoint && Vector3.Distance(p.transform.position, finalPosition) < 0.05f)
+                if (p != currentStartPoint && p != currentEndPoint && p.gameObject.activeSelf && Vector3.Distance(p.transform.position, finalPosition) < 0.05f)
                 {
                     existingEndPoint = p;
-                    finalPosition = p.transform.position; // Lock perfectly to the existing node
+                    finalPosition = p.transform.position; 
                     break;
                 }
             }

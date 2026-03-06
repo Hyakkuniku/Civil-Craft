@@ -21,6 +21,9 @@ public class BridgeMaterialSO : ScriptableObject
     public float spring = 5000f;
     public float damper = 50f;
 
+    [Header("Rope Settings")]
+    public bool isRope = false; // ADDED: Defines if this material acts like a rope
+
     [Header("Visuals")]
     public GameObject segmentPrefab;
     public Color gizmoColor = Color.white;

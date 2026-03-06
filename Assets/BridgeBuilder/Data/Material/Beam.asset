@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   costPerMeter: 10
   massPerMeter: 1
-  maxLength: 13
+  maxLength: 11
   maxTension: 50000
   maxCompression: 50000
   breakForce: 50000
