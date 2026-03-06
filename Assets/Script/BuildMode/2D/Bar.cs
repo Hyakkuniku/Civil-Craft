@@ -14,7 +14,6 @@ public class Bar : MonoBehaviour
 
     [HideInInspector] public Vector3 visualSize = new Vector3(1f, 0.2f, 0.2f);
     
-    // ADDED: Tracks length for cost calculations
     [HideInInspector] public float currentLength = 0f;
 
     private List<GameObject> visualSegments = new List<GameObject>();
@@ -84,10 +83,13 @@ public class Bar : MonoBehaviour
     {
         if (visualSegments.Count == 0) return;
 
-        Vector3 dir3D = ToPosition - StartPosition;
-        float totalDistance = dir3D.magnitude;
+        // --- THE FIX: Force the bar to stay perfectly flat on the 2D Z-plane! ---
+        Vector3 flatToPosition = ToPosition;
+        flatToPosition.z = StartPosition.z; 
+
+        Vector3 dir2D = flatToPosition - StartPosition;
+        float totalDistance = dir2D.magnitude;
         
-        // ADDED: Store current length
         currentLength = totalDistance;
         
         if (totalDistance < 0.01f) 
@@ -96,10 +98,10 @@ public class Bar : MonoBehaviour
             return;
         }
 
-        Vector2 dir2D = new Vector2(dir3D.x, dir3D.y);
-        float angle = Vector2.SignedAngle(Vector2.right, dir2D);
-        Vector3 midPoint = StartPosition + (dir3D / 2f);
+        Vector3 midPoint = StartPosition + (dir2D / 2f);
         
+        // --- THE FIX: Standard 2D Clock Rotation ---
+        float angle = Mathf.Atan2(dir2D.y, dir2D.x) * Mathf.Rad2Deg;
         transform.SetPositionAndRotation(midPoint, Quaternion.Euler(0, 0, angle));
 
         float scaleMultiplier = totalDistance / baseLength;
@@ -111,7 +113,6 @@ public class Bar : MonoBehaviour
         }
     }
 
-    // ADDED: Calculates cost based on length and beam count
     public float GetCost()
     {
         if (materialData == null) return 0f;

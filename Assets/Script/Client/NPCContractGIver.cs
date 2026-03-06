@@ -6,34 +6,56 @@ public class NPCContractGiver : Interactable
     public ContractSO contractToGive;
     public BuildLocation targetBuildLocation;
     
-    // ADDED: Link the physical cargo box in the scene to this NPC
     public CargoItem linkedCargo; 
+
+    // NEW: A true/false memory switch to track if we already gave the job
+    private bool hasGivenContract = false;
 
     protected override void Intract()
     {
         if (contractToGive == null) return;
-
-        if (targetBuildLocation != null)
-            targetBuildLocation.activeContract = contractToGive;
-
-        // ADDED: Set the cargo weight!
-        if (linkedCargo != null)
-            linkedCargo.SetWeight(contractToGive.cargoWeight);
-
+        
         DialogueManager dm = FindObjectOfType<DialogueManager>();
-        if (dm != null && contractToGive.offerDialogue != null)
+
+        // Scenario A: We haven't given the contract yet
+        if (!hasGivenContract)
         {
-            contractToGive.offerDialogue.name = contractToGive.clientName;
-            dm.StartDialogue(contractToGive.offerDialogue, () => 
+            if (targetBuildLocation != null)
+                targetBuildLocation.activeContract = contractToGive;
+
+            if (linkedCargo != null)
+                linkedCargo.SetWeight(contractToGive.cargoWeight);
+
+            if (dm != null && contractToGive.offerDialogue != null)
+            {
+                contractToGive.offerDialogue.name = contractToGive.clientName;
+                dm.StartDialogue(contractToGive.offerDialogue, () => 
+                {
+                    if (ObjectiveTrackerUI.Instance != null)
+                        ObjectiveTrackerUI.Instance.SetObjective(contractToGive);
+                });
+            }
+            else
             {
                 if (ObjectiveTrackerUI.Instance != null)
                     ObjectiveTrackerUI.Instance.SetObjective(contractToGive);
-            });
+            }
+
+            // NEW: Flip the switch so we don't give the job again!
+            hasGivenContract = true;
+            
+            // Optional: Change the button text from "Accept Job" to "Talk" 
+            promptMessage = "Talk to " + contractToGive.clientName;
         }
+        // Scenario B: We already gave the contract
         else
         {
-            if (ObjectiveTrackerUI.Instance != null)
-                ObjectiveTrackerUI.Instance.SetObjective(contractToGive);
+            // Just play the reminder dialogue, don't reset the cargo or objective
+            if (dm != null && contractToGive.reminderDialogue != null)
+            {
+                contractToGive.reminderDialogue.name = contractToGive.clientName;
+                dm.StartDialogue(contractToGive.reminderDialogue);
+            }
         }
     }
 }

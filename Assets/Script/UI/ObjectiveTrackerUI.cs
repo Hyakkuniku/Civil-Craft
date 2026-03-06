@@ -1,6 +1,7 @@
+using System.Collections.Generic;
 using UnityEngine;
 using TMPro;
-using UnityEngine.UI; // Needed for the Button
+using UnityEngine.UI; 
 
 public class ObjectiveTrackerUI : MonoBehaviour
 {
@@ -9,13 +10,19 @@ public class ObjectiveTrackerUI : MonoBehaviour
     [Header("UI References")]
     public GameObject trackerPanel; 
     
+    // NEW: The button that stays on the screen to open the panel
+    public GameObject openTrackerButton; 
+    
     public TextMeshProUGUI titleText;
     public TextMeshProUGUI descriptionText;
     public TextMeshProUGUI budgetText;
-    
-    // ADDED: Text for the cargo weight and the Complete button
     public TextMeshProUGUI weightText; 
     public GameObject completeButton; 
+
+    [Header("Other UI to Hide")]
+    public List<GameObject> otherUIElements = new List<GameObject>();
+
+    private bool hasActiveObjective = false;
 
     private void Awake()
     {
@@ -23,40 +30,83 @@ public class ObjectiveTrackerUI : MonoBehaviour
         else { Destroy(gameObject); return; }
         
         if (trackerPanel != null) trackerPanel.SetActive(false);
+        
+        // NEW: Hide the open button at the start since we don't have a contract yet
+        if (openTrackerButton != null) openTrackerButton.SetActive(false);
     }
 
     public void SetObjective(ContractSO contract)
     {
         if (contract == null) return;
 
-        if (trackerPanel != null) trackerPanel.SetActive(true);
-        if (completeButton != null) completeButton.SetActive(false); // Hide button initially
+        hasActiveObjective = true;
 
         if (titleText != null) titleText.text = "Client: " + contract.clientName;
         if (descriptionText != null) descriptionText.text = contract.jobDescription;
         if (budgetText != null) budgetText.text = "Budget: $" + contract.budget;
-        
-        // ADDED: Show the weight
         if (weightText != null) weightText.text = "Cargo Weight: " + contract.cargoWeight + "kg";
+        
+        if (completeButton != null) completeButton.SetActive(false); 
+
+        // Automatically open the panel
+        if (trackerPanel != null) 
+        {
+            trackerPanel.SetActive(true);
+            SetOtherUIActive(false); 
+            
+            // Hide the open button while the panel is open
+            if (openTrackerButton != null) openTrackerButton.SetActive(false);
+        }
     }
 
-    // ADDED: Called by the Delivery Zone when the cargo arrives
     public void ShowCompleteButton()
     {
         if (completeButton != null) completeButton.SetActive(true);
     }
 
-    // ADDED: Link this to the UI Button's OnClick event in the inspector!
     public void OnCompleteButtonClicked()
     {
-        Debug.Log("<color=green>Contract Completed!</color> Ready for the next one.");
         ClearObjective();
-        
-        // Optional: Add logic here to load the next level, grant money, or unlock the next NPC!
     }
 
     public void ClearObjective()
     {
-        if (trackerPanel != null) trackerPanel.SetActive(false);
+        hasActiveObjective = false;
+        
+        if (trackerPanel != null) 
+        {
+            trackerPanel.SetActive(false);
+            SetOtherUIActive(true); 
+            
+            // Hide the open button because we no longer have an active mission
+            if (openTrackerButton != null) openTrackerButton.SetActive(false);
+        }
+    }
+
+    // ────────────────────────────────────────────────────────────
+    // Both of your buttons will call this exact same method!
+    // ────────────────────────────────────────────────────────────
+    public void ToggleTrackerPanel()
+    {
+        if (trackerPanel != null && hasActiveObjective)
+        {
+            bool isNowActive = !trackerPanel.activeSelf;
+            trackerPanel.SetActive(isNowActive);
+            SetOtherUIActive(!isNowActive);
+            
+            // If the panel is now OFF, show the Open button. If it is ON, hide it.
+            if (openTrackerButton != null) openTrackerButton.SetActive(!isNowActive);
+        }
+    }
+
+    private void SetOtherUIActive(bool isActive)
+    {
+        foreach (GameObject uiElement in otherUIElements)
+        {
+            if (uiElement != null)
+            {
+                uiElement.SetActive(isActive);
+            }
+        }
     }
 }

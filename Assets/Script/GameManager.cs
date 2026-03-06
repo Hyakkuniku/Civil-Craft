@@ -24,15 +24,19 @@ public class GameManager : MonoBehaviour
     private PlayerLook playerLook;
     private InputManager inputManager;
     private BridgePhysicsManager physicsManager;
+    private PlayerInteract playerInteract;
 
-    // Transition variables removed since it now snaps instantly!
-    
     private Transform mainCamParent;
     private Vector3 mainCamLocalPos;
     private Quaternion mainCamLocalRot;
 
-    [Header("UI to hide during build mode")]
+    [Header("UI Management")]
+    [Tooltip("UI to hide during build mode (like crosshairs, player health, etc)")]
     [SerializeField] private List<GameObject> uiElementsToHide = new List<GameObject>();
+    
+    // NEW: List of UI elements to show ONLY when building
+    [Tooltip("UI to show only during build mode (like budget, build menus, etc)")]
+    [SerializeField] private List<GameObject> buildModeUIElements = new List<GameObject>();
 
     private List<BuildableVisual> cachedBuildables = new List<BuildableVisual>();
 
@@ -53,9 +57,16 @@ public class GameManager : MonoBehaviour
         playerLook  = FindObjectOfType<PlayerLook>();
         inputManager = FindObjectOfType<InputManager>();
         physicsManager = FindObjectOfType<BridgePhysicsManager>();
+        playerInteract = FindObjectOfType<PlayerInteract>();
 
         if (mainCamera == null)
             mainCamera = Camera.main;
+            
+        // NEW: Ensure build UI is turned off when the game first starts!
+        foreach (GameObject uiElement in buildModeUIElements)
+        {
+            if (uiElement != null) uiElement.SetActive(false);
+        }
     }
 
     private void Update()
@@ -70,7 +81,6 @@ public class GameManager : MonoBehaviour
     {
         if (CurrentState == GameState.Building) return;
 
-        // 1. Instantly reset physics
         if (physicsManager != null && physicsManager.isSimulating)
         {
             physicsManager.StopPhysicsAndReset();
@@ -86,15 +96,17 @@ public class GameManager : MonoBehaviour
 
         if (cachedBuildables.Count == 0) CacheBuildableObjects();
 
-        // 2. Disable Player
+        // Disable Player Controls and Interactions
         if (playerMotor != null) playerMotor.enabled = false;
+        if (playerInteract != null) playerInteract.enabled = false; 
+        
         if (inputManager != null)
         {
             inputManager.SetLookEnabled(false);
             inputManager.SetPlayerInputEnable(false);
         }
 
-        // 3. Unparent Camera safely and SNAP instantly to Build Camera
+        // Unparent Camera safely and SNAP instantly to Build Camera
         if (mainCamera != null)
         {
             mainCamParent = mainCamera.transform.parent;
@@ -115,16 +127,22 @@ public class GameManager : MonoBehaviour
             }
         }
 
-        // 4. Update UI instantly
+        // --- UI MANAGEMENT ---
+        
+        // Hide normal player UI
         foreach (GameObject uiElement in uiElementsToHide)
             if (uiElement != null) uiElement.SetActive(false);
 
+        // NEW: Show build mode UI
+        foreach (GameObject uiElement in buildModeUIElements)
+            if (uiElement != null) uiElement.SetActive(true);
+
+        // Clear out interaction buttons
         var playerUI = FindObjectOfType<PlayerUI>();
-        if (playerUI != null) playerUI.UpdateText(string.Empty);
+        if (playerUI != null) playerUI.UpdateButtons(new List<Interactable>());
 
         SetAllBuildablesToWireframe(true);
 
-        // 5. Fire Event INSTANTLY
         OnEnterBuildMode?.Invoke();
     }
 
@@ -134,16 +152,13 @@ public class GameManager : MonoBehaviour
 
         CurrentState = GameState.Normal;
 
-        // 1. Fire Event INSTANTLY to shut down the BarCreator and UI
         OnExitBuildMode?.Invoke();
 
-        // 2. Activate physics so the player can walk on the bridge
         if (physicsManager != null && !physicsManager.isSimulating)
         {
             physicsManager.ActivatePhysics();
         }
 
-        // 3. INSTANT SNAP back to Player Camera
         if (mainCamera != null && ActiveBuildLocation != null)
         {
             if (ActiveBuildLocation.locationCamera != null)
@@ -160,15 +175,16 @@ public class GameManager : MonoBehaviour
             }
         }
 
-        // Restore Player Controls
+        // Restore Player Controls and Interactions
         if (playerMotor != null) playerMotor.enabled = true;
+        if (playerInteract != null) playerInteract.enabled = true;
+        
         if (inputManager != null)
         {
             inputManager.SetLookEnabled(true);
             inputManager.SetPlayerInputEnable(true);
         }
 
-        // Safely Deactivate Build Location
         if (ActiveBuildLocation != null)
         {
             Transform pTransform = playerMotor != null ? playerMotor.transform : null;
@@ -176,9 +192,15 @@ public class GameManager : MonoBehaviour
             ActiveBuildLocation = null;
         }
 
-        // Restore Normal UI
+        // --- UI MANAGEMENT ---
+        
+        // Restore normal player UI
         foreach (GameObject uiElement in uiElementsToHide)
             if (uiElement != null) uiElement.SetActive(true);
+
+        // NEW: Hide build mode UI
+        foreach (GameObject uiElement in buildModeUIElements)
+            if (uiElement != null) uiElement.SetActive(false);
 
         SetAllBuildablesToWireframe(false);
     }

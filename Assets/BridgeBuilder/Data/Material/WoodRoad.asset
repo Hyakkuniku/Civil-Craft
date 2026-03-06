@@ -15,10 +15,10 @@ MonoBehaviour:
   costPerMeter: 10
   massPerMeter: 1
   maxLength: 10
-  maxTension: 50000
-  maxCompression: 50000
-  breakForce: 50000
-  breakTorque: 50000
+  maxTension: 20000
+  maxCompression: 20000
+  breakForce: 20000
+  breakTorque: 20000
   useSpring: 0
   spring: Infinity
   damper: Infinity

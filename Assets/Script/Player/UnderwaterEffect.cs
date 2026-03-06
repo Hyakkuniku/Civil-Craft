@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Rendering.Universal; // NEW: We need this to talk to URP!
 
 public class UnderwaterEffect : MonoBehaviour
 {
@@ -7,10 +8,9 @@ public class UnderwaterEffect : MonoBehaviour
     public Transform waterPlane;
 
     [Header("Underwater Visuals")]
-    public Color underwaterColor = new Color(0.1f, 0.4f, 0.5f, 1f); // A deep murky blue
+    public Color underwaterColor = new Color(0.1f, 0.4f, 0.5f, 1f); 
     public float underwaterFogDensity = 0.15f;
 
-    // We save the original settings so we can revert when they pop back out!
     private bool defaultFogState;
     private Color defaultFogColor;
     private float defaultFogDensity;
@@ -18,11 +18,20 @@ public class UnderwaterEffect : MonoBehaviour
     private Color defaultCameraColor;
 
     private Camera cam;
+    private UniversalAdditionalCameraData urpCameraData; // NEW: URP Camera Data
+    private CameraRenderType defaultRenderType; // NEW: URP Render Type
+
     private bool isUnderwater = false;
 
     private void Start()
     {
         cam = GetComponent<Camera>();
+        
+        // Grab the URP specific camera data
+        if (cam != null)
+        {
+            urpCameraData = cam.GetComponent<UniversalAdditionalCameraData>();
+        }
 
         // Remember what the air looked like before we fell in
         defaultFogState = RenderSettings.fog;
@@ -57,23 +66,25 @@ public class UnderwaterEffect : MonoBehaviour
 
         if (state)
         {
-            // Turn on the thick water fog
             RenderSettings.fog = true;
             RenderSettings.fogColor = underwaterColor;
             RenderSettings.fogDensity = underwaterFogDensity;
-            
-            // Exponential fog looks the most realistic for underwater depth
             RenderSettings.fogMode = FogMode.Exponential; 
 
             if (cam != null)
             {
                 cam.backgroundColor = underwaterColor;
-                cam.clearFlags = CameraClearFlags.SolidColor; // Hides the skybox
+                cam.clearFlags = CameraClearFlags.SolidColor; 
+                
+                // NEW: Force URP to respect the solid color background
+                if (urpCameraData != null)
+                {
+                    urpCameraData.renderType = CameraRenderType.Base;
+                }
             }
         }
         else
         {
-            // Revert back to normal air
             RenderSettings.fog = defaultFogState;
             RenderSettings.fogColor = defaultFogColor;
             RenderSettings.fogDensity = defaultFogDensity;
@@ -81,7 +92,7 @@ public class UnderwaterEffect : MonoBehaviour
             if (cam != null)
             {
                 cam.backgroundColor = defaultCameraColor;
-                cam.clearFlags = defaultClearFlags; // Brings the skybox back
+                cam.clearFlags = defaultClearFlags; 
             }
         }
     }

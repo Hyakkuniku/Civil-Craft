@@ -1,4 +1,4 @@
-using System; // ADDED: We need this to use 'Action' callbacks
+using System; 
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -16,21 +16,37 @@ public class DialogueManager : MonoBehaviour
 
     [SerializeField] private InputManager inputManager;
     
-    // ADDED: This will store the code we want to run after the dialogue finishes
+    // NEW: We need references to your interact scripts
+    private PlayerInteract playerInteract;
+    private PlayerUI playerUI;
+    
     private Action onDialogueEndCallback; 
+
+    void Awake()
+    {
+        // Automatically find these scripts in the scene when the game starts
+        playerInteract = FindObjectOfType<PlayerInteract>();
+        playerUI = FindObjectOfType<PlayerUI>();
+    }
 
     void Start()
     {
         sentences = new Queue<string>();
     }
 
-    // ADDED: We added 'Action onEnd = null' so other scripts can pass in a delayed command
     public void StartDialogue (Dialogue dialogue, Action onEnd = null)
     {
-        onDialogueEndCallback = onEnd; // Save the delayed command
+        onDialogueEndCallback = onEnd; 
 
+        // Disable movement and camera look
         inputManager?.SetPlayerInputEnable(false);
         inputManager?.SetLookEnabled(false);
+
+        // NEW: Turn off the interaction scanner so new buttons don't spawn
+        if (playerInteract != null) playerInteract.enabled = false;
+        
+        // NEW: Instantly clear any buttons that are currently on the screen
+        if (playerUI != null) playerUI.UpdateButtons(new List<Interactable>());
 
         animator.SetBool("isOpen", true);
 
@@ -62,15 +78,18 @@ public class DialogueManager : MonoBehaviour
 
     void EndDialogue()
     {
+        // Restore movement and camera look
         inputManager?.SetPlayerInputEnable(true);
         inputManager?.SetLookEnabled(true);
+        
+        // NEW: Turn the interaction scanner back on so we can interact again
+        if (playerInteract != null) playerInteract.enabled = true;
+
         animator.SetBool("isOpen", false);
         Debug.Log("End of conversation");
 
-        // ADDED: Run the delayed command (like showing the Objective UI) now that we are done!
         onDialogueEndCallback?.Invoke();
         
-        // Clear it out so it doesn't accidentally run again next time
         onDialogueEndCallback = null; 
     }
 }

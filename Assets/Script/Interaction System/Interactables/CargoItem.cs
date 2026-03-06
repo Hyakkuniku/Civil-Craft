@@ -80,7 +80,7 @@ public class CargoItem : Interactable
     public void Drop()
     {
         isHeld = false;
-        promptMessage = "Pick Up Cargo"; 
+        promptMessage = "Pick up Cargo"; 
 
         transform.SetParent(originalParent);
         

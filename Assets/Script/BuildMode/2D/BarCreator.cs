@@ -109,15 +109,12 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         return Camera.main;
     }
 
-    // --- FIX: Force real-time hardware touch polling ---
     private Vector2 GetPointerPosition()
     {
-        // 1. Try mobile touch first
         if (Touch.activeTouches.Count > 0)
         {
             return Touch.activeTouches[0].screenPosition;
         }
-        // 2. Fallback to PC Mouse
         if (Pointer.current != null)
         {
             return Pointer.current.position.ReadValue();
@@ -140,7 +137,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
         if (barCreationStarted && currentEndPoint != null && !isDeleteMode)
         {
-            // Read from hardware directly every frame so it never stutters!
             Vector2 screenPos = GetPointerPosition();
             
             Point hoveredNode = CheckForExistingPoint(screenPos);
@@ -168,7 +164,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
                 if (isGridSnappingEnabled && hoveredNode == null)
                 {
-                    targetPos = new Vector3(Mathf.RoundToInt(targetPos.x), Mathf.RoundToInt(targetPos.y), Mathf.RoundToInt(targetPos.z));
+                    targetPos = new Vector3(Mathf.RoundToInt(targetPos.x), Mathf.RoundToInt(targetPos.y), targetPos.z);
                     if (Vector3.Distance(startPos, targetPos) > maxLen) targetPos = startPos + (direction * maxLen); 
                 }
             }
@@ -386,11 +382,17 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (gridVisual != null) gridVisual.canvasRenderer.SetAlpha(isGridSnappingEnabled ? 1f : 0f);
     }
 
+    // --- THE FIX: Lock the target position rigidly to the 2D Z-Plane! ---
     private Vector3 CalculateTargetPosition(Vector3 rawPos, Point hoveredNode)
     {
         if (hoveredNode != null) return hoveredNode.transform.position;
-        if (isGridSnappingEnabled) return new Vector3(Mathf.RoundToInt(rawPos.x), Mathf.RoundToInt(rawPos.y), Mathf.RoundToInt(rawPos.z));
-        return rawPos;
+        
+        float lockedZ = currentStartPoint != null ? currentStartPoint.transform.position.z : 0f;
+        
+        if (isGridSnappingEnabled) 
+            return new Vector3(Mathf.RoundToInt(rawPos.x), Mathf.RoundToInt(rawPos.y), lockedZ);
+            
+        return new Vector3(rawPos.x, rawPos.y, lockedZ);
     }
 
     private Point CheckForExistingPoint(Vector2 screenPos)
@@ -418,14 +420,24 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         return closest;
     }
 
+    // --- THE FIX: The drawing wall is permanently locked facing out from the screen, perfectly flat! ---
     private Vector3 GetWorldMousePosition(Vector2 screenPos, Point snappedPoint)
     {
         if (snappedPoint != null) return snappedPoint.transform.position;
-        float zDepth = currentStartPoint != null ? currentStartPoint.transform.position.z : 0f;
-        Plane plane = new Plane(Vector3.forward, new Vector3(0, 0, zDepth));
-        Ray ray = GetActiveCamera().ScreenPointToRay(screenPos);
-        if (plane.Raycast(ray, out float distance)) return ray.GetPoint(distance);
-        return Vector3.zero;
+        
+        Camera cam = GetActiveCamera();
+        Vector3 referencePoint = currentStartPoint != null ? currentStartPoint.transform.position : Vector3.zero;
+        
+        // Plane faces Vector3.back so it aligns perfectly with the flat 2D world
+        Plane flatWorldPlane = new Plane(Vector3.back, referencePoint);
+        Ray ray = cam.ScreenPointToRay(screenPos);
+        
+        if (flatWorldPlane.Raycast(ray, out float distance)) 
+        {
+            return ray.GetPoint(distance);
+        }
+        
+        return referencePoint; 
     }
 
     private void StartBarCreation(Vector3 startPosition)
@@ -471,7 +483,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             
             if (isGridSnappingEnabled && existingEndPoint == null)
             {
-                finalPosition = new Vector3(Mathf.RoundToInt(finalPosition.x), Mathf.RoundToInt(finalPosition.y), Mathf.RoundToInt(finalPosition.z));
+                finalPosition = new Vector3(Mathf.RoundToInt(finalPosition.x), Mathf.RoundToInt(finalPosition.y), finalPosition.z);
                 if (Vector3.Distance(startPos, finalPosition) > limit) finalPosition = startPos + (direction * limit);
             }
             existingEndPoint = null; 
@@ -541,6 +553,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (radiusIndicator != null) radiusIndicator.enabled = false;
     }
 
+    // --- THE FIX: Lock the Red Radius Circle so it draws flat on the world axes! ---
     private void DrawRadiusCircle()
     {
         if (radiusIndicator == null || currentStartPoint == null || activeMaterial == null) return;
@@ -564,16 +577,16 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             if (maxAffordable < radius) radius = maxAffordable;
         }
 
+        // Draws flat on the X/Y axes regardless of camera angle
+        Vector3 right = Vector3.right;
+        Vector3 up = Vector3.up;
+
         float angleStep = 360f / circleResolution;
 
         for (int i = 0; i <= circleResolution; i++)
         {
             float currentAngle = i * angleStep * Mathf.Deg2Rad;
-            Vector3 pos = new Vector3(
-                center.x + Mathf.Cos(currentAngle) * radius,
-                center.y + Mathf.Sin(currentAngle) * radius,
-                center.z 
-            );
+            Vector3 pos = center + (right * Mathf.Cos(currentAngle) * radius) + (up * Mathf.Sin(currentAngle) * radius);
             radiusIndicator.SetPosition(i, pos);
         }
     }

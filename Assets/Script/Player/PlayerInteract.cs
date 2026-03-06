@@ -4,40 +4,44 @@ using UnityEngine;
 
 public class PlayerInteract : MonoBehaviour
 {
-
-    private Camera cam;
-    [SerializeField] private float distance = 3f;
+    [Header("Interaction Settings")]
+    [SerializeField] private float interactionRadius = 3f;
     [SerializeField] private LayerMask mask;
-    private PlayerUI playerUI;
-    private InputManager inputManager;
 
-    // Start is called before the first frame update
+    private PlayerUI playerUI;
+
     void Start()
     {
-        cam = GetComponent<PlayerLook>().cam;
         playerUI = GetComponent<PlayerUI>();
-        inputManager = GetComponent<InputManager>();
     }
 
-    // Update is called once per frame
     void Update()
     {
-        playerUI.UpdateText(string.Empty);
+        // Grab all colliders inside our invisible bubble
+        Collider[] nearbyColliders = Physics.OverlapSphere(transform.position, interactionRadius, mask);
+        
+        List<Interactable> nearbyInteractables = new List<Interactable>();
 
-        Ray ray = new Ray(cam.transform.position, cam.transform.forward);
-        Debug.DrawRay(ray.origin, ray.direction * distance);
-        RaycastHit hitInfo; // variable to store our collision information
-        if (Physics.Raycast(ray, out hitInfo, distance, mask))
+        // Loop through everything we caught and add it to our list
+        foreach (Collider col in nearbyColliders)
         {
-            if (hitInfo.collider.GetComponent<Interactable>() != null)
+            Interactable interactable = col.GetComponent<Interactable>();
+            if (interactable != null)
             {
-                Interactable interactable = hitInfo.collider.GetComponent<Interactable>();
-                playerUI.UpdateText(interactable.promptMessage);
-                if (inputManager.onFoot.Interact.triggered)
-                {
-                    interactable.BaseInteract();
-                }
+                nearbyInteractables.Add(interactable);
             }
         }
+
+        // Send the list of nearby objects to the UI to create buttons
+        if (playerUI != null)
+        {
+            playerUI.UpdateButtons(nearbyInteractables);
+        }
+    }
+
+    private void OnDrawGizmosSelected()
+    {
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(transform.position, interactionRadius);
     }
 }

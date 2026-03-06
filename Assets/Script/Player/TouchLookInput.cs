@@ -1,11 +1,11 @@
 using UnityEngine;
 using UnityEngine.InputSystem.EnhancedTouch;
 using Touch = UnityEngine.InputSystem.EnhancedTouch.Touch;
+using UnityEngine.EventSystems; // Add this line!
 
 public class TouchLookInput : MonoBehaviour
 {
     private PlayerLook look;
-
     private int rightFingerId = -1;
     private float halfScreenWidth;
 
@@ -15,15 +15,8 @@ public class TouchLookInput : MonoBehaviour
         halfScreenWidth = Screen.width / 2f;
     }
 
-    void OnEnable()
-    {
-        EnhancedTouchSupport.Enable();
-    }
-
-    void OnDisable()
-    {
-        EnhancedTouchSupport.Disable();
-    }
+    void OnEnable() { EnhancedTouchSupport.Enable(); }
+    void OnDisable() { EnhancedTouchSupport.Disable(); }
 
     void Update()
     {
@@ -34,6 +27,10 @@ public class TouchLookInput : MonoBehaviour
 
             if (touch.phase == UnityEngine.InputSystem.TouchPhase.Began)
             {
+                // NEW: Stop here if we are tapping a UI button!
+                if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject(fingerId))
+                    continue;
+
                 if (pos.x > halfScreenWidth && rightFingerId == -1)
                 {
                     rightFingerId = fingerId;

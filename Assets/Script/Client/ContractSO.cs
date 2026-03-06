@@ -12,9 +12,13 @@ public class ContractSO : ScriptableObject
     [Header("Job Constraints")]
     public float budget = 2000f;
     
-    // ADDED: The required weight of the object to carry
     public float cargoWeight = 50f; 
     
     [Header("Dialogue Integration")]
+    [Tooltip("What they say when giving you the job")]
     public Dialogue offerDialogue;
+    
+    // NEW: What they say if you talk to them again before finishing the job
+    [Tooltip("What they say if you talk to them while the job is active")]
+    public Dialogue reminderDialogue; 
 }

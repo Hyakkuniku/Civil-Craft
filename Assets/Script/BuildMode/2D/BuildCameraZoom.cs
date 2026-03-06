@@ -7,21 +7,44 @@ public class BuildCameraController : MonoBehaviour
     [Header("System References")]
     public BarCreator barCreator;
 
-    [Header("Zoom Settings (2 Fingers)")]
+    [Header("Zoom Settings")]
     public float touchZoomSpeed = 0.05f;
+    public float pcZoomSpeed = 15f; 
     public float minZoom = 15f;
     public float maxZoom = 60f;
 
-    [Header("Pan Settings (1 Finger)")]
+    [Header("Pan Settings")]
     public float touchPanSpeed = 0.02f;
+    public float pcPanSpeed = 0.5f; 
 
-    [Header("Pitch Settings (2 Fingers)")]
-    [Tooltip("How fast the camera rotates up and down.")]
+    [Header("Movement Limits (Boundary)")]
+    [Tooltip("Prevents losing the bridge. Camera won't go higher than this.")]
+    public float maxHeight = 50f;
+    [Tooltip("Prevents losing the bridge. Camera won't go lower than this.")]
+    public float minHeight = -10f;
+    [Tooltip("How far left/right the camera can go.")]
+    public float maxHorizontal = 50f;
+    [Tooltip("How far left/right the camera can go.")]
+    public float minHorizontal = -50f;
+
+    [Header("Pitch Settings (Rotation)")]
     public float touchPitchSpeed = 0.1f;
-    [Tooltip("How much you have to swipe before the camera starts rotating (prevents accidental rotation while zooming).")]
-    public float pitchDeadzone = 2.0f;
+    public float pcPitchSpeed = 3.0f; 
+    public float pitchDeadzone = 2.0f; 
+    
+    [Tooltip("Maximum angle looking UP (usually a negative number like -90)")]
+    public float minPitch = -90f; 
+    [Tooltip("Maximum angle looking DOWN (usually a positive number like 90)")]
+    public float maxPitch = 90f;  
+
+    [Header("PC Controls")]
+    public KeyCode rotateCameraKey = KeyCode.R; 
 
     private Camera activeCamera;
+    private float lastTwoFingerTime = 0f;
+
+    private bool isInitialized = false;
+    private float lockedZPosition; 
 
     private void OnEnable()
     {
@@ -30,7 +53,11 @@ public class BuildCameraController : MonoBehaviour
 
     private void Update()
     {
-        if (GameManager.Instance == null || GameManager.Instance.CurrentState != GameManager.GameState.Building) return;
+        if (GameManager.Instance == null || GameManager.Instance.CurrentState != GameManager.GameState.Building) 
+        {
+            isInitialized = false; 
+            return;
+        }
 
         if (GameManager.Instance.ActiveBuildLocation != null && GameManager.Instance.ActiveBuildLocation.locationCamera != null)
         {
@@ -41,69 +68,135 @@ public class BuildCameraController : MonoBehaviour
             activeCamera = Camera.main;
         }
 
-        // Wait for the GameManager camera animation to finish
         if (activeCamera == null || !activeCamera.enabled) return;
         
         if (barCreator == null) barCreator = FindObjectOfType<BarCreator>();
 
-        HandleTouchInput();
+        if (!isInitialized)
+        {
+            lockedZPosition = activeCamera.transform.position.z;
+            isInitialized = true;
+        }
+
+        HandleCameraInput();
     }
 
-    private void HandleTouchInput()
+    private void HandleCameraInput()
     {
-        if (Touch.activeTouches.Count == 0) return;
-
-        // --- 1-FINGER PANNING ---
-        if (Touch.activeTouches.Count == 1)
+        // 1. MOBILE TOUCH
+        if (Touch.activeTouches.Count > 0)
         {
-            if (barCreator != null && barCreator.IsCreating) return;
-
-            Touch touch = Touch.activeTouches[0];
-            if (touch.phase == UnityEngine.InputSystem.TouchPhase.Moved)
+            if (Touch.activeTouches.Count == 2)
             {
-                Vector3 panDelta = new Vector3(-touch.delta.x * touchPanSpeed, -touch.delta.y * touchPanSpeed, 0);
-                activeCamera.transform.Translate(panDelta, Space.Self);
+                lastTwoFingerTime = Time.time;
+                Touch t0 = Touch.activeTouches[0];
+                Touch t1 = Touch.activeTouches[1];
+
+                if (t0.phase == UnityEngine.InputSystem.TouchPhase.Began || t1.phase == UnityEngine.InputSystem.TouchPhase.Began) return;
+
+                // ZOOM
+                float prevMag = ((t0.screenPosition - t0.delta) - (t1.screenPosition - t1.delta)).magnitude;
+                float currentMag = (t0.screenPosition - t1.screenPosition).magnitude;
+                float zoomDelta = (currentMag - prevMag) * -touchZoomSpeed;
+
+                if (Mathf.Abs(zoomDelta) > 0.001f)
+                {
+                    if (activeCamera.orthographic)
+                        activeCamera.orthographicSize = Mathf.Clamp(activeCamera.orthographicSize + zoomDelta, minZoom, maxZoom);
+                    else
+                        activeCamera.fieldOfView = Mathf.Clamp(activeCamera.fieldOfView + zoomDelta, minZoom, maxZoom);
+                }
+
+                // ROTATION
+                float avgDeltaY = (t0.delta.y + t1.delta.y) / 2f;
+                if (Mathf.Abs(avgDeltaY) > pitchDeadzone)
+                {
+                    RotateCamera(avgDeltaY * touchPitchSpeed);
+                }
+            }
+            else if (Touch.activeTouches.Count == 1)
+            {
+                if (Time.time - lastTwoFingerTime < 0.15f) return; 
+                if (barCreator != null && barCreator.IsCreating) return;
+
+                Touch touch = Touch.activeTouches[0];
+                if (touch.phase == UnityEngine.InputSystem.TouchPhase.Moved)
+                {
+                    Vector3 panDelta = new Vector3(-touch.delta.x * touchPanSpeed, -touch.delta.y * touchPanSpeed, 0);
+                    activeCamera.transform.position += panDelta;
+                    ApplyConstraints();
+                }
             }
         }
-        // --- 2-FINGER ZOOM AND PITCH ---
-        else if (Touch.activeTouches.Count == 2)
+        // 2. PC CONTROLS
+        else 
         {
-            Touch t0 = Touch.activeTouches[0];
-            Touch t1 = Touch.activeTouches[1];
-
-            // 1. ZOOM LOGIC
-            float prevMagnitude = ((t0.screenPosition - t0.delta) - (t1.screenPosition - t1.delta)).magnitude;
-            float currentMagnitude = (t0.screenPosition - t1.screenPosition).magnitude;
-            float zoomDelta = (currentMagnitude - prevMagnitude) * -touchZoomSpeed;
-
-            if (Mathf.Abs(zoomDelta) > 0.001f)
+            // ZOOM
+            float scroll = Input.GetAxis("Mouse ScrollWheel");
+            if (Mathf.Abs(scroll) > 0.001f)
             {
+                float zoomDelta = scroll * -pcZoomSpeed;
                 if (activeCamera.orthographic)
                     activeCamera.orthographicSize = Mathf.Clamp(activeCamera.orthographicSize + zoomDelta, minZoom, maxZoom);
                 else
                     activeCamera.fieldOfView = Mathf.Clamp(activeCamera.fieldOfView + zoomDelta, minZoom, maxZoom);
             }
 
-            // 2. PITCH LOGIC (Swipe Up/Down)
-            float avgDeltaY = (t0.delta.y + t1.delta.y) / 2f;
-
-            // Only rotate if the swipe is larger than our deadzone threshold
-            if (Mathf.Abs(avgDeltaY) > pitchDeadzone)
+            // PAN
+            Vector3 panInput = Vector3.zero;
+            if (Input.GetMouseButton(2)) 
             {
-                // Get current pitch safely
-                float currentPitch = activeCamera.transform.eulerAngles.x;
-                if (currentPitch > 180f) currentPitch -= 360f; 
-
-                // Apply new pitch
-                currentPitch -= avgDeltaY * touchPitchSpeed;
-                currentPitch = Mathf.Clamp(currentPitch, -90f, 90f);
-
-                activeCamera.transform.rotation = Quaternion.Euler(currentPitch, activeCamera.transform.eulerAngles.y, activeCamera.transform.eulerAngles.z);
+                panInput = new Vector3(-Input.GetAxis("Mouse X") * pcPanSpeed, -Input.GetAxis("Mouse Y") * pcPanSpeed, 0);
             }
+            else
+            {
+                panInput = new Vector3(Input.GetAxis("Horizontal") * pcPanSpeed * Time.deltaTime * 50f, 
+                                       Input.GetAxis("Vertical") * pcPanSpeed * Time.deltaTime * 50f, 0);
+            }
+
+            if (panInput != Vector3.zero)
+            {
+                activeCamera.transform.position += panInput;
+                ApplyConstraints();
+            }
+
+            // ROTATE
+            if (Input.GetMouseButton(1))
+            {
+                RotateCamera(Input.GetAxis("Mouse Y") * pcPitchSpeed);
+            }
+
+            if (Input.GetKeyDown(rotateCameraKey)) CycleCameraRotation();
         }
     }
 
-    // --- BUTTON TRIGGER FUNCTION ---
+    private void RotateCamera(float amount)
+    {
+        float currentPitch = activeCamera.transform.eulerAngles.x;
+        if (currentPitch > 180f) currentPitch -= 360f; 
+
+        currentPitch -= amount;
+        currentPitch = Mathf.Clamp(currentPitch, minPitch, maxPitch);
+
+        activeCamera.transform.rotation = Quaternion.Euler(currentPitch, activeCamera.transform.eulerAngles.y, activeCamera.transform.eulerAngles.z);
+        
+        ApplyConstraints();
+    }
+
+    private void ApplyConstraints()
+    {
+        Vector3 pos = activeCamera.transform.position;
+
+        // Constraint: X/Y Boundary
+        pos.x = Mathf.Clamp(pos.x, minHorizontal, maxHorizontal);
+        pos.y = Mathf.Clamp(pos.y, minHeight, maxHeight);
+        
+        // Constraint: Strict Z-Plane Depth
+        pos.z = lockedZPosition;
+
+        activeCamera.transform.position = pos;
+    }
+
     public void CycleCameraRotation()
     {
         if (activeCamera == null || !activeCamera.enabled) return;
@@ -112,21 +205,23 @@ public class BuildCameraController : MonoBehaviour
         if (currentX > 180f) currentX -= 360f; 
 
         float newPitch = 0f;
+        float topThreshold = maxPitch * 0.5f;
+        float bottomThreshold = minPitch * 0.5f;
 
-        // Cycle: 0 -> 90 -> -90
-        if (currentX > -45f && currentX < 45f) 
-        {
-            newPitch = 90f;   // Look down
-        }
-        else if (currentX >= 45f) 
-        {
-            newPitch = -90f;  // Look up
-        }
-        else 
-        {
-            newPitch = 0f;    // Look ahead
-        }
+        if (currentX > bottomThreshold && currentX < topThreshold) newPitch = maxPitch;   
+        else if (currentX >= topThreshold) newPitch = minPitch;  
+        else newPitch = 0f;    
 
         activeCamera.transform.rotation = Quaternion.Euler(newPitch, activeCamera.transform.eulerAngles.y, activeCamera.transform.eulerAngles.z);
+        ApplyConstraints();
+    }
+
+    // Helps you see the bounds in the Scene View
+    private void OnDrawGizmosSelected()
+    {
+        Gizmos.color = Color.yellow;
+        Vector3 center = new Vector3((minHorizontal + maxHorizontal) / 2f, (minHeight + maxHeight) / 2f, lockedZPosition);
+        Vector3 size = new Vector3(maxHorizontal - minHorizontal, maxHeight - minHeight, 1f);
+        Gizmos.DrawWireCube(center, size);
     }
 }

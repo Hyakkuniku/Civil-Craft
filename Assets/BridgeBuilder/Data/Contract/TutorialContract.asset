@@ -27,3 +27,7 @@ MonoBehaviour:
       be weak or unstable."
     - My budget is $4000 for materials. Build a solid bridge and carry the crate
       safely to the delivery area. Can you take this job?
+  reminderDialogue:
+    name: Merchant Clara
+    sentences:
+    - build it please make it sturdy
