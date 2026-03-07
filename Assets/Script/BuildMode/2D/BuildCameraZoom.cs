@@ -18,13 +18,9 @@ public class BuildCameraController : MonoBehaviour
     public float pcPanSpeed = 0.5f; 
 
     [Header("Movement Limits (Boundary)")]
-    [Tooltip("Prevents losing the bridge. Camera won't go higher than this.")]
     public float maxHeight = 50f;
-    [Tooltip("Prevents losing the bridge. Camera won't go lower than this.")]
     public float minHeight = -10f;
-    [Tooltip("How far left/right the camera can go.")]
     public float maxHorizontal = 50f;
-    [Tooltip("How far left/right the camera can go.")]
     public float minHorizontal = -50f;
 
     [Header("Pitch Settings (Rotation)")]
@@ -32,9 +28,7 @@ public class BuildCameraController : MonoBehaviour
     public float pcPitchSpeed = 3.0f; 
     public float pitchDeadzone = 2.0f; 
     
-    [Tooltip("Maximum angle looking UP (usually a negative number like -90)")]
     public float minPitch = -90f; 
-    [Tooltip("Maximum angle looking DOWN (usually a positive number like 90)")]
     public float maxPitch = 90f;  
 
     [Header("PC Controls")]
@@ -83,7 +77,6 @@ public class BuildCameraController : MonoBehaviour
 
     private void HandleCameraInput()
     {
-        // 1. MOBILE TOUCH
         if (Touch.activeTouches.Count > 0)
         {
             if (Touch.activeTouches.Count == 2)
@@ -94,7 +87,6 @@ public class BuildCameraController : MonoBehaviour
 
                 if (t0.phase == UnityEngine.InputSystem.TouchPhase.Began || t1.phase == UnityEngine.InputSystem.TouchPhase.Began) return;
 
-                // ZOOM
                 float prevMag = ((t0.screenPosition - t0.delta) - (t1.screenPosition - t1.delta)).magnitude;
                 float currentMag = (t0.screenPosition - t1.screenPosition).magnitude;
                 float zoomDelta = (currentMag - prevMag) * -touchZoomSpeed;
@@ -107,7 +99,6 @@ public class BuildCameraController : MonoBehaviour
                         activeCamera.fieldOfView = Mathf.Clamp(activeCamera.fieldOfView + zoomDelta, minZoom, maxZoom);
                 }
 
-                // ROTATION
                 float avgDeltaY = (t0.delta.y + t1.delta.y) / 2f;
                 if (Mathf.Abs(avgDeltaY) > pitchDeadzone)
                 {
@@ -117,7 +108,9 @@ public class BuildCameraController : MonoBehaviour
             else if (Touch.activeTouches.Count == 1)
             {
                 if (Time.time - lastTwoFingerTime < 0.15f) return; 
-                if (barCreator != null && barCreator.IsCreating) return;
+                
+                // --- THE FIX: Ignore camera panning if you are building OR erasing! ---
+                if (barCreator != null && (barCreator.IsCreating || barCreator.IsErasing)) return;
 
                 Touch touch = Touch.activeTouches[0];
                 if (touch.phase == UnityEngine.InputSystem.TouchPhase.Moved)
@@ -128,10 +121,8 @@ public class BuildCameraController : MonoBehaviour
                 }
             }
         }
-        // 2. PC CONTROLS
         else 
         {
-            // ZOOM
             float scroll = Input.GetAxis("Mouse ScrollWheel");
             if (Mathf.Abs(scroll) > 0.001f)
             {
@@ -142,7 +133,6 @@ public class BuildCameraController : MonoBehaviour
                     activeCamera.fieldOfView = Mathf.Clamp(activeCamera.fieldOfView + zoomDelta, minZoom, maxZoom);
             }
 
-            // PAN
             Vector3 panInput = Vector3.zero;
             if (Input.GetMouseButton(2)) 
             {
@@ -160,7 +150,6 @@ public class BuildCameraController : MonoBehaviour
                 ApplyConstraints();
             }
 
-            // ROTATE
             if (Input.GetMouseButton(1))
             {
                 RotateCamera(Input.GetAxis("Mouse Y") * pcPitchSpeed);
@@ -187,11 +176,9 @@ public class BuildCameraController : MonoBehaviour
     {
         Vector3 pos = activeCamera.transform.position;
 
-        // Constraint: X/Y Boundary
         pos.x = Mathf.Clamp(pos.x, minHorizontal, maxHorizontal);
         pos.y = Mathf.Clamp(pos.y, minHeight, maxHeight);
         
-        // Constraint: Strict Z-Plane Depth
         pos.z = lockedZPosition;
 
         activeCamera.transform.position = pos;
@@ -216,7 +203,6 @@ public class BuildCameraController : MonoBehaviour
         ApplyConstraints();
     }
 
-    // Helps you see the bounds in the Scene View
     private void OnDrawGizmosSelected()
     {
         Gizmos.color = Color.yellow;

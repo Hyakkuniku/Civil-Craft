@@ -1,6 +1,7 @@
 using UnityEngine;
 
-public class BuildLocation : MonoBehaviour
+// 1. Inherit from YOUR Interactable script!
+public class BuildLocation : Interactable 
 {
     [Header("UI / Grid")]
     [Tooltip("The camera-space canvas holding the grid material for this specific location")]
@@ -12,56 +13,64 @@ public class BuildLocation : MonoBehaviour
     public Vector3 cameraLookAtOffset   = new Vector3(0, 2, 0);   
 
     [Header("Behavior")]
-    public bool disablePlayerMovement = true;
     public bool lockPlayerToZone = false;           
-    public float maxBuildDistanceFromCenter = 25f;  
     
     [Header("Active Contract")]
     [Tooltip("The contract currently assigned to this ravine. Can be assigned by an NPC.")]
     public ContractSO activeContract; 
 
     private Transform originalPlayerParent;
-    
-    // ADDED: A reference to the Interactable component on this object
-    private Interactable myInteractable;
 
     private void Awake()
     {
         if (locationCamera != null) locationCamera.enabled = false;
         if (gridCanvas != null) gridCanvas.enabled = false;
-        
-        // Grab the interactable component so we can change its text directly!
-        myInteractable = GetComponent<Interactable>();
     }
 
-    // ADDED: This constantly checks if you have a contract and updates the UI prompt instantly
     private void Update()
     {
-        if (myInteractable != null)
+        // 2. We update the promptMessage variable from your Interactable base class
+        if (activeContract == null)
         {
-            if (activeContract == null)
-            {
-                myInteractable.promptMessage = "Requires Contract! Talk to the client.";
-            }
-            else
-            {
-                myInteractable.promptMessage = "Enter Build Mode";
-            }
+            promptMessage = "Requires Contract! Talk to the client.";
+        }
+        else
+        {
+            promptMessage = "Enter Build Mode";
+        }
+    }
+
+    // 3. This overrides the virtual Intract() method in YOUR Interactable.cs!
+    // It triggers automatically when your PlayerUI button is clicked.
+    protected override void Intract()
+    {
+        TryEnterBuildMode();
+    }
+
+    public void TryEnterBuildMode()
+    {
+        if (activeContract == null)
+        {
+            Debug.LogWarning("<color=red>Access Denied!</color> You cannot build here without a valid contract.");
+            return;
+        }
+
+        PlayerMotor player = FindObjectOfType<PlayerMotor>();
+        if (player != null)
+        {
+            ActivateBuildMode(player.transform);
         }
     }
 
     public void ActivateBuildMode(Transform player)
     {
-        if (GameManager.Instance == null) return;
-
-        // Block building if no contract has been accepted (it will just ignore your click)
-        if (activeContract == null) return; 
+        if (GameManager.Instance == null || activeContract == null) return; 
 
         if (gridCanvas != null) gridCanvas.enabled = true;
 
         GameManager.Instance.EnterBuildMode(this, player);
 
-        if (lockPlayerToZone)
+        if (lockPlayerToZone && player != null)
         {
             originalPlayerParent = player.parent;
             player.SetParent(transform);
@@ -72,7 +81,7 @@ public class BuildLocation : MonoBehaviour
     {
         if (gridCanvas != null) gridCanvas.enabled = false;
 
-        if (lockPlayerToZone && originalPlayerParent != null)
+        if (lockPlayerToZone && originalPlayerParent != null && player != null)
         {
             player.SetParent(originalPlayerParent);
             originalPlayerParent = null;
