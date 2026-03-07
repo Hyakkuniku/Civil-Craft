@@ -44,20 +44,15 @@ public class PlayerMotor : MonoBehaviour
         controller.Move(playerVelocity * Time.deltaTime);
     }
 
-    // ────────────────────────────────────────────────────────────
-    // NEW: Apply physical weight to the bridge when walking on it
-    // ────────────────────────────────────────────────────────────
     private void OnControllerColliderHit(ControllerColliderHit hit)
     {
-        // Get the Rigidbody of whatever we are standing on (like a bridge piece)
+        // Get the Rigidbody of whatever we are standing on 
         Rigidbody body = hit.collider.attachedRigidbody;
 
         // If it doesn't have a physics body, or if it's locked, do nothing
         if (body == null || body.isKinematic)
             return;
 
-        // We only want to push DOWN (gravity), not shove the bridge sideways
-        // hit.moveDirection.y is negative when gravity is pulling us down
         if (hit.moveDirection.y < -0.3f)
         {
             // Push down on the exact spot the player's feet are touching
