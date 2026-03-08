@@ -1,6 +1,6 @@
 using UnityEngine;
-using UnityEngine.UI; // We still need this for the Image (Fill Bar)
-using TMPro; // ADDED: This lets us use TextMeshPro!
+using UnityEngine.UI; 
+using TMPro; 
 using System.Collections.Generic;
 
 public class BuildUIController : MonoBehaviour
@@ -16,26 +16,35 @@ public class BuildUIController : MonoBehaviour
     public KeyCode simulateKey = KeyCode.Return;   
     public KeyCode restartKey = KeyCode.Backspace; 
 
-    // --- UPDATED: Now using TextMeshProUGUI ---
     [Header("Budget Visualization")]
     public float maxBudget = 1000f;
-    [Tooltip("Text element above the bar showing how much is spent.")]
     public TextMeshProUGUI usedBudgetText; 
-    [Tooltip("The fill bar image.")]
     public Image budgetFillBar; 
-    [Tooltip("Text element below the bar showing the limit.")]
     public TextMeshProUGUI maxBudgetText; 
     
     public Color normalTextColor = Color.white;
     public Color overBudgetTextColor = Color.red;
 
-    // --- UPDATED: Now using TextMeshProUGUI ---
     [Header("Stress Visualization")]
     public TextMeshProUGUI stressText;
     public Image stressFillBar;
     public Color safeStressColor = Color.green;
     public Color warningStressColor = Color.yellow;
     public Color criticalStressColor = Color.red;
+
+    [Header("Engineering Stats (CAD Readout)")]
+    [Tooltip("Shows total meters of the ROAD used")]
+    public TextMeshProUGUI totalLengthText; 
+    [Tooltip("Shows true 3D number of members (M) and joints (J)")]
+    public TextMeshProUGUI membersCountText;  
+    [Tooltip("The physical weight of the bridge itself")]
+    public TextMeshProUGUI deadLoadText;  
+    [Tooltip("The estimated theoretical max weight")]
+    public TextMeshProUGUI estimatedCapacityText;
+    [Tooltip("Ratio of Capacity vs Dead Load")]
+    public TextMeshProUGUI efficiencyRatioText;
+    [Tooltip("Calculates M = 2J - 3 to find redundancy")]
+    public TextMeshProUGUI determinacyText;
 
     private void Awake()
     {
@@ -58,6 +67,90 @@ public class BuildUIController : MonoBehaviour
 
         UpdateBudgetUI();
         UpdateStressUI(); 
+        
+        if (!physicsManager.isSimulating) 
+        {
+            UpdateStatsUI();
+        }
+    }
+
+    private void UpdateStatsUI()
+    {
+        HashSet<Bar> uniqueBars = new HashSet<Bar>();
+        HashSet<Point> activePoints = new HashSet<Point>(); 
+
+        foreach (Point p in Point.AllPoints)
+        {
+            bool hasActiveBar = false;
+            foreach (Bar b in p.ConnectedBars)
+            {
+                if (b != null && b.gameObject.activeSelf) 
+                {
+                    uniqueBars.Add(b);
+                    hasActiveBar = true;
+                }
+            }
+            if (hasActiveBar) activePoints.Add(p);
+        }
+
+        int logicalM = uniqueBars.Count;
+        int logicalJ = activePoints.Count;
+        
+        int displayJ = logicalJ * 2;
+        int displayM = 0;
+
+        float roadLength = 0f;
+        float deadLoad = 0f;
+        float weakestStressLimit = Mathf.Infinity;
+
+        foreach (Bar b in uniqueBars)
+        {
+            if (barCreator != null && barCreator.currentBar == b && barCreator.IsCreating) continue; 
+            
+            if (b.materialData != null)
+            {
+                displayM += b.materialData.isDualBeam ? 2 : 1;
+
+                // --- THE FIX: Now using your explicit isRoad checkbox! ---
+                if (b.materialData.isRoad)
+                {
+                    roadLength += b.currentLength;
+                }
+
+                deadLoad += b.currentLength * b.materialData.massPerMeter;
+                
+                if (b.materialData.maxCompression < weakestStressLimit) weakestStressLimit = b.materialData.maxCompression;
+                if (b.materialData.maxTension < weakestStressLimit) weakestStressLimit = b.materialData.maxTension;
+            }
+        }
+
+        float theoreticalCapacityKg = 0f;
+        if (weakestStressLimit != Mathf.Infinity && weakestStressLimit > 0)
+        {
+            theoreticalCapacityKg = (weakestStressLimit / 9.81f) - (deadLoad * 0.5f);
+            if (theoreticalCapacityKg < 0) theoreticalCapacityKg = 0; 
+        }
+
+        float efficiencyRatio = 0f;
+        if (deadLoad > 0) efficiencyRatio = theoreticalCapacityKg / deadLoad;
+
+        string determinacyString = "N/A";
+        if (logicalJ >= 3) 
+        {
+            int redundancy = logicalM - ((2 * logicalJ) - 3);
+            
+            if (redundancy == 0) determinacyString = "<color=green>Determinate (Perfect)</color>";
+            else if (redundancy > 0) determinacyString = $"<color=yellow>Indeterminate (+{redundancy} Redundant)</color>";
+            else determinacyString = $"<color=red>Unstable ({redundancy} Members)</color>";
+        }
+
+        if (totalLengthText != null) totalLengthText.text = $"Road Length: {roadLength:F1}m";
+        if (membersCountText != null) membersCountText.text = $"Members (M): {displayM} | Joints (J): {displayJ}";
+        if (deadLoadText != null) deadLoadText.text = $"Dead Load: {deadLoad:F1}kg";
+        if (estimatedCapacityText != null) estimatedCapacityText.text = $"Est. Ultimate Capacity: ~{theoreticalCapacityKg:F0}kg";
+        
+        if (efficiencyRatioText != null) efficiencyRatioText.text = $"Efficiency Ratio: {efficiencyRatio:F2}";
+        if (determinacyText != null) determinacyText.text = $"Statical Determinacy: {determinacyString}";
     }
 
     private void UpdateStressUI()

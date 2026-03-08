@@ -5,10 +5,9 @@ public class BridgePhysicsManager : MonoBehaviour
 {
     [Header("Physics Settings")]
     public float barColliderThickness = 0.2f;
-    public int physicsSolverIterations = 40; // Bumped slightly for higher stability
+    public int physicsSolverIterations = 40; 
 
     [HideInInspector] public bool isSimulating = false;
-    
     [HideInInspector] public List<BarStressHandler> activeStressHandlers = new List<BarStressHandler>();
 
     private void Start()
@@ -50,8 +49,6 @@ public class BridgePhysicsManager : MonoBehaviour
         SetupBarsPhysics(allBars);
         SetupDirectConnections(allBars);
         ResolveAdjacentCollisions(allBars); 
-
-        Debug.Log("<color=green>Physics Activated! Mass ratios stabilized.</color>");
     }
 
     public void StopPhysicsAndReset()
@@ -126,8 +123,6 @@ public class BridgePhysicsManager : MonoBehaviour
                 bar.UpdateCreatingBar(bar.endPoint.transform.position);
             }
         }
-
-        Debug.Log("<color=yellow>Bridge Reset. Back to Build Mode!</color>");
     }
 
     public float GetMaxBridgeStress()
@@ -177,7 +172,6 @@ public class BridgePhysicsManager : MonoBehaviour
             barRb.isKinematic = false; 
             barRb.mass = length * bar.materialData.massPerMeter; 
             
-            // --- THE FIX: Increased air resistance so the bars stop swinging forever ---
             barRb.drag = 0.5f;
             barRb.angularDrag = 0.5f;
             barRb.interpolation = RigidbodyInterpolation.Interpolate;
@@ -235,8 +229,6 @@ public class BridgePhysicsManager : MonoBehaviour
             {
                 nodeRb.isKinematic = false; 
                 
-                // --- THE MASS RATIO FIX ---
-                // We dynamically calculate the mass of the knot based on the heavy bars attached to it!
                 float calculatedMass = 0.5f;
                 foreach (Bar bar in p.ConnectedBars)
                 {
@@ -280,7 +272,6 @@ public class BridgePhysicsManager : MonoBehaviour
                 ropeSpring.maxDistance = length;
                 ropeSpring.minDistance = 0f;
                 ropeSpring.spring = rope.materialData.spring > 0 ? rope.materialData.spring : 5000f;
-                // --- THE ROPE FIX: Increased damper so ropes don't bounce infinitely ---
                 ropeSpring.damper = rope.materialData.damper > 0 ? rope.materialData.damper : 500f; 
                 ropeSpring.breakForce = rope.materialData.breakForce;
 
@@ -325,7 +316,6 @@ public class BridgePhysicsManager : MonoBehaviour
         }
     }
 
-    // --- THE COLLISION FIX: Blanket ignore internal bridge collisions! ---
     private void ResolveAdjacentCollisions(HashSet<Bar> allBars)
     {
         List<Collider> bridgeCols = new List<Collider>();
@@ -346,6 +336,7 @@ public class BridgePhysicsManager : MonoBehaviour
 
 public class BarStressHandler : MonoBehaviour
 {
+    private BridgePhysicsManager manager; 
     private BridgeMaterialSO material;
     private Point p1;
     private Point p2;
@@ -362,6 +353,7 @@ public class BarStressHandler : MonoBehaviour
 
     public void Setup(BridgeMaterialSO mat, Point point1, Point point2)
     {
+        manager = FindObjectOfType<BridgePhysicsManager>(); 
         material = mat;
         p1 = point1;
         p2 = point2;

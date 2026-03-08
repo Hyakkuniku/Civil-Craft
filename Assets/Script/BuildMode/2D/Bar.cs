@@ -60,13 +60,12 @@ public class Bar : MonoBehaviour
                 
                 newSegment.transform.localPosition = new Vector3(0, 0, offsetValue);
 
-                if (i == 0)
+                var renderer = newSegment.GetComponentInChildren<Renderer>();
+                if (renderer != null)
                 {
-                    originalScale = newSegment.transform.localScale;
-                    
-                    var renderer = newSegment.GetComponentInChildren<Renderer>();
-                    if (renderer != null)
+                    if (i == 0)
                     {
+                        originalScale = newSegment.transform.localScale;
                         baseLength = renderer.bounds.size.x;
                         visualSize = renderer.bounds.size; 
                         if (baseLength <= 0f) baseLength = 1f; 
@@ -83,7 +82,6 @@ public class Bar : MonoBehaviour
     {
         if (visualSegments.Count == 0) return;
 
-        // --- THE FIX: Force the bar to stay perfectly flat on the 2D Z-plane! ---
         Vector3 flatToPosition = ToPosition;
         flatToPosition.z = StartPosition.z; 
 
@@ -100,8 +98,16 @@ public class Bar : MonoBehaviour
 
         Vector3 midPoint = StartPosition + (dir2D / 2f);
         
-        // --- THE FIX: Standard 2D Clock Rotation ---
-        float angle = Mathf.Atan2(dir2D.y, dir2D.x) * Mathf.Rad2Deg;
+        // --- THE FIX: Prevent Upside-Down Inversion ---
+        // We create a temporary direction vector. If it points to the left (x < 0),
+        // we flip it so the mathematical angle always forces the top of the road to face upwards!
+        Vector3 angleDir = dir2D;
+        if (angleDir.x < 0)
+        {
+            angleDir = -angleDir;
+        }
+
+        float angle = Mathf.Atan2(angleDir.y, angleDir.x) * Mathf.Rad2Deg;
         transform.SetPositionAndRotation(midPoint, Quaternion.Euler(0, 0, angle));
 
         float scaleMultiplier = totalDistance / baseLength;

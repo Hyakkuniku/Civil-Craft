@@ -21,8 +21,9 @@ public class BridgeMaterialSO : ScriptableObject
     public float spring = 5000f;
     public float damper = 50f;
 
-    [Header("Rope Settings")]
-    public bool isRope = false; // ADDED: Defines if this material acts like a rope
+    [Header("Special Types")]
+    public bool isRope = false; 
+    public bool isRoad = false; // --- NEW: Defines if this material counts towards total road length ---
 
     [Header("Visuals")]
     public GameObject segmentPrefab;
