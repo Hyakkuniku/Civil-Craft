@@ -16,8 +16,10 @@ public class BuildUIController : MonoBehaviour
     public KeyCode simulateKey = KeyCode.Return;   
     public KeyCode restartKey = KeyCode.Backspace; 
 
-    [Header("Budget Visualization")]
-    public float maxBudget = 1000f;
+    [Header("Contract Info (Budget)")]
+    public float fallbackMaxBudget = 1000f; 
+    [HideInInspector] public float maxBudget = 1000f; // Hidden but public so BarCreator can read it!
+    
     public TextMeshProUGUI usedBudgetText; 
     public Image budgetFillBar; 
     public TextMeshProUGUI maxBudgetText; 
@@ -32,19 +34,22 @@ public class BuildUIController : MonoBehaviour
     public Color warningStressColor = Color.yellow;
     public Color criticalStressColor = Color.red;
 
+    // --- RESTORED STATS PANEL ---
     [Header("Engineering Stats (CAD Readout)")]
-    [Tooltip("Shows total meters of the ROAD used")]
     public TextMeshProUGUI totalLengthText; 
-    [Tooltip("Shows true 3D number of members (M) and joints (J)")]
     public TextMeshProUGUI membersCountText;  
+    
     [Tooltip("The physical weight of the bridge itself")]
     public TextMeshProUGUI deadLoadText;  
-    [Tooltip("The estimated theoretical max weight")]
+    
+    [Tooltip("The weight of the cargo passing over (Live Load)")]
+    public TextMeshProUGUI targetCargoWeightText; 
+    
     public TextMeshProUGUI estimatedCapacityText;
-    [Tooltip("Ratio of Capacity vs Dead Load")]
     public TextMeshProUGUI efficiencyRatioText;
-    [Tooltip("Calculates M = 2J - 3 to find redundancy")]
-    public TextMeshProUGUI determinacyText;
+    
+    [Tooltip("Replaces Determinacy. FoS = Ultimate Capacity / Live Load")]
+    public TextMeshProUGUI factorOfSafetyText; 
 
     private void Awake()
     {
@@ -65,13 +70,24 @@ public class BuildUIController : MonoBehaviour
             if (Input.GetKeyDown(restartKey)) OnRestartButtonClicked();
         }
 
-        UpdateBudgetUI();
+        UpdateContractUI(); 
         UpdateStressUI(); 
         
-        if (!physicsManager.isSimulating) 
+        // Only update stats while drafting (not simulating)
+        if (physicsManager != null && !physicsManager.isSimulating) 
         {
-            UpdateStatsUI();
+            UpdateStatsUI(); 
         }
+    }
+
+    // Helper to automatically find the active contract via the GameManager
+    private ContractSO GetActiveContract()
+    {
+        if (GameManager.Instance != null && GameManager.Instance.ActiveBuildLocation != null)
+        {
+            return GameManager.Instance.ActiveBuildLocation.activeContract;
+        }
+        return null;
     }
 
     private void UpdateStatsUI()
@@ -79,6 +95,7 @@ public class BuildUIController : MonoBehaviour
         HashSet<Bar> uniqueBars = new HashSet<Bar>();
         HashSet<Point> activePoints = new HashSet<Point>(); 
 
+        // 1. Collect all active bridge pieces
         foreach (Point p in Point.AllPoints)
         {
             bool hasActiveBar = false;
@@ -93,30 +110,27 @@ public class BuildUIController : MonoBehaviour
             if (hasActiveBar) activePoints.Add(p);
         }
 
-        int logicalM = uniqueBars.Count;
         int logicalJ = activePoints.Count;
-        
-        int displayJ = logicalJ * 2;
+        int displayJ = logicalJ * 2; 
         int displayM = 0;
-
+        
         float roadLength = 0f;
         float deadLoad = 0f;
         float weakestStressLimit = Mathf.Infinity;
 
+        // 2. Calculate physical properties
         foreach (Bar b in uniqueBars)
         {
+            // Don't count the line the player is currently drawing
             if (barCreator != null && barCreator.currentBar == b && barCreator.IsCreating) continue; 
             
             if (b.materialData != null)
             {
                 displayM += b.materialData.isDualBeam ? 2 : 1;
-
-                // --- THE FIX: Now using your explicit isRoad checkbox! ---
-                if (b.materialData.isRoad)
-                {
-                    roadLength += b.currentLength;
-                }
-
+                
+                if (b.materialData.isRoad) roadLength += b.currentLength;
+                
+                // Add to DEAD LOAD
                 deadLoad += b.currentLength * b.materialData.massPerMeter;
                 
                 if (b.materialData.maxCompression < weakestStressLimit) weakestStressLimit = b.materialData.maxCompression;
@@ -124,33 +138,46 @@ public class BuildUIController : MonoBehaviour
             }
         }
 
+        // 3. Estimate Capacity
         float theoreticalCapacityKg = 0f;
         if (weakestStressLimit != Mathf.Infinity && weakestStressLimit > 0)
         {
-            theoreticalCapacityKg = (weakestStressLimit / 9.81f) - (deadLoad * 0.5f);
+            float safetyFactor = 0.2f; 
+            theoreticalCapacityKg = ((weakestStressLimit / 9.81f) * safetyFactor) - (deadLoad * 0.5f);
             if (theoreticalCapacityKg < 0) theoreticalCapacityKg = 0; 
+        }
+
+        // 4. Fetch LIVE LOAD (Cargo Weight)
+        ContractSO currentContract = GetActiveContract();
+        float liveLoad = currentContract != null ? currentContract.cargoWeight : 1000f;
+        
+        // 5. Calculate Factor of Safety (FoS)
+        float estimatedFoS = 0f;
+        if (liveLoad > 0)
+        {
+            estimatedFoS = theoreticalCapacityKg / liveLoad;
         }
 
         float efficiencyRatio = 0f;
         if (deadLoad > 0) efficiencyRatio = theoreticalCapacityKg / deadLoad;
 
-        string determinacyString = "N/A";
-        if (logicalJ >= 3) 
-        {
-            int redundancy = logicalM - ((2 * logicalJ) - 3);
-            
-            if (redundancy == 0) determinacyString = "<color=green>Determinate (Perfect)</color>";
-            else if (redundancy > 0) determinacyString = $"<color=yellow>Indeterminate (+{redundancy} Redundant)</color>";
-            else determinacyString = $"<color=red>Unstable ({redundancy} Members)</color>";
-        }
-
+        // --- UPDATE THE UI TEXT FIELDS ---
         if (totalLengthText != null) totalLengthText.text = $"Road Length: {roadLength:F1}m";
         if (membersCountText != null) membersCountText.text = $"Members (M): {displayM} | Joints (J): {displayJ}";
         if (deadLoadText != null) deadLoadText.text = $"Dead Load: {deadLoad:F1}kg";
-        if (estimatedCapacityText != null) estimatedCapacityText.text = $"Est. Ultimate Capacity: ~{theoreticalCapacityKg:F0}kg";
         
+        if (targetCargoWeightText != null) targetCargoWeightText.text = $"Live Load: {liveLoad:F0}kg";
+        
+        if (estimatedCapacityText != null) estimatedCapacityText.text = $"Est. Capacity: ~{theoreticalCapacityKg:F0}kg";
         if (efficiencyRatioText != null) efficiencyRatioText.text = $"Efficiency Ratio: {efficiencyRatio:F2}";
-        if (determinacyText != null) determinacyText.text = $"Statical Determinacy: {determinacyString}";
+        
+        // Output FoS with colors!
+        if (factorOfSafetyText != null)
+        {
+            if (estimatedFoS >= 2.0f) factorOfSafetyText.text = $"Est. FoS: <color=green>{estimatedFoS:F2} (Safe)</color>";
+            else if (estimatedFoS >= 1.0f) factorOfSafetyText.text = $"Est. FoS: <color=yellow>{estimatedFoS:F2} (Risky)</color>";
+            else factorOfSafetyText.text = $"Est. FoS: <color=red>{estimatedFoS:F2} (Will Fail)</color>";
+        }
     }
 
     private void UpdateStressUI()
@@ -159,16 +186,17 @@ public class BuildUIController : MonoBehaviour
         {
             float maxStress = physicsManager.GetMaxBridgeStress();
             int stressPercent = Mathf.RoundToInt(maxStress * 100f);
+            
+            // Calculate Live Simulation FoS based on current stress
+            float liveFoS = maxStress > 0.05f ? (1f / maxStress) : 99.9f; 
 
-            Color currentStressColor = safeStressColor;
-            if (maxStress <= 0.5f)
-                currentStressColor = Color.Lerp(safeStressColor, warningStressColor, maxStress * 2f);
-            else
-                currentStressColor = Color.Lerp(warningStressColor, criticalStressColor, (maxStress - 0.5f) * 2f);
+            Color currentStressColor = maxStress <= 0.5f ? 
+                Color.Lerp(safeStressColor, warningStressColor, maxStress * 2f) : 
+                Color.Lerp(warningStressColor, criticalStressColor, (maxStress - 0.5f) * 2f);
 
             if (stressText != null)
             {
-                stressText.text = $"{stressPercent}%";
+                stressText.text = liveFoS > 99f ? $"{stressPercent}% (FoS: ∞)" : $"{stressPercent}% (FoS: {liveFoS:F1})";
                 stressText.color = currentStressColor;
             }
 
@@ -182,7 +210,7 @@ public class BuildUIController : MonoBehaviour
         {
             if (stressText != null)
             {
-                stressText.text = "0%";
+                stressText.text = "0% (FoS: ∞)";
                 stressText.color = safeStressColor;
             }
             if (stressFillBar != null)
@@ -216,8 +244,13 @@ public class BuildUIController : MonoBehaviour
         return totalCost;
     }
 
-    private void UpdateBudgetUI()
+    private void UpdateContractUI()
     {
+        ContractSO currentContract = GetActiveContract();
+        
+        // Updates the public maxBudget behind the scenes for the BarCreator to use
+        maxBudget = currentContract != null ? currentContract.budget : fallbackMaxBudget;
+
         float baseCost = GetTotalCost();
         float previewCost = 0f;
 
@@ -246,64 +279,14 @@ public class BuildUIController : MonoBehaviour
         }
     }
 
-    public void OnSimulateButtonClicked()
-    {
-        if (physicsManager != null && !physicsManager.isSimulating)
-        {
-            if (barCreator != null) 
-            {
-                barCreator.CancelCreation();
-                barCreator.isSimulating = true;
-            }
-            physicsManager.ActivatePhysics();
-        }
-    }
-
-    public void OnRestartButtonClicked()
-    {
-        if (physicsManager != null && physicsManager.isSimulating)
-        {
-            physicsManager.StopPhysicsAndReset();
-            if (barCreator != null) barCreator.isSimulating = false;
-        }
-    }
-
-    public void OnToggleGridButtonClicked()
-    {
-        if (barCreator != null) barCreator.ToggleGrid();
-    }
-
-    public void OnCancelDrawingButtonClicked()
-    {
-        if (barCreator != null) barCreator.CancelCreation();
-    }
-
-    public void OnExitBuildModeButtonClicked()
-    {
-        if (GameManager.Instance != null) GameManager.Instance.ExitBuildMode();
-    }
-
-    public void OnMaterialSelected(BridgeMaterialSO newMaterial)
-    {
-        if (barCreator != null)
-        {
-            barCreator.isDeleteMode = false;
-            barCreator.SetActiveMaterial(newMaterial);
-        }
-    }
-
-    public void OnToggleDeleteModeButtonClicked()
-    {
-        if (barCreator != null) barCreator.ToggleDeleteMode();
-    }
-
-    public void OnUndoButtonClicked()
-    {
-        if (barCreator != null) barCreator.Undo();
-    }
-
-    public void OnRedoButtonClicked()
-    {
-        if (barCreator != null) barCreator.Redo();
-    }
+    // --- BUTTON EVENT METHODS ---
+    public void OnSimulateButtonClicked() { if (physicsManager != null && !physicsManager.isSimulating) { if (barCreator != null) { barCreator.CancelCreation(); barCreator.isSimulating = true; } physicsManager.ActivatePhysics(); } }
+    public void OnRestartButtonClicked() { if (physicsManager != null && physicsManager.isSimulating) { physicsManager.StopPhysicsAndReset(); if (barCreator != null) barCreator.isSimulating = false; } }
+    public void OnToggleGridButtonClicked() { if (barCreator != null) barCreator.ToggleGrid(); }
+    public void OnCancelDrawingButtonClicked() { if (barCreator != null) barCreator.CancelCreation(); }
+    public void OnExitBuildModeButtonClicked() { if (GameManager.Instance != null) GameManager.Instance.ExitBuildMode(); }
+    public void OnMaterialSelected(BridgeMaterialSO newMaterial) { if (barCreator != null) { barCreator.isDeleteMode = false; barCreator.SetActiveMaterial(newMaterial); } }
+    public void OnToggleDeleteModeButtonClicked() { if (barCreator != null) barCreator.ToggleDeleteMode(); }
+    public void OnUndoButtonClicked() { if (barCreator != null) barCreator.Undo(); }
+    public void OnRedoButtonClicked() { if (barCreator != null) barCreator.Redo(); }
 }

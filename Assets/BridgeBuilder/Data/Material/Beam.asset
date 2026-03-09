@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   costPerMeter: 10
   massPerMeter: 1
-  maxLength: 11
+  maxLength: 100
   maxTension: 50000
   maxCompression: 50000
   breakForce: 50000
@@ -23,6 +23,7 @@ MonoBehaviour:
   spring: 1000
   damper: 50
   isRope: 0
+  isRoad: 0
   segmentPrefab: {fileID: 4806764515897639862, guid: 75c2a0cd61ea5ed409c4bfcde0ac4aa9,
     type: 3}
   gizmoColor: {r: 1, g: 1, b: 1, a: 1}
