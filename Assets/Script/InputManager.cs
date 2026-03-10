@@ -5,15 +5,12 @@ using UnityEngine.InputSystem;
 
 public class InputManager : MonoBehaviour
 {
-
-    
     private PlayerInput playerInput;
     public PlayerInput.OnFootActions onFoot;
 
     private PlayerMotor motor;
     private PlayerLook look;
 
-    // Start is called before the first frame update
     void Awake()
     {
         playerInput = new PlayerInput();
@@ -22,19 +19,46 @@ public class InputManager : MonoBehaviour
         look = GetComponent<PlayerLook>();
     }
 
-    // Update is called once per frame
+    void Start()
+    {
+        // NEW: Subscribe to GameManager events
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.OnEnterBuildMode.AddListener(HandleEnterBuildMode);
+            GameManager.Instance.OnExitBuildMode.AddListener(HandleExitBuildMode);
+        }
+    }
+
+    void OnDestroy()
+    {
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.OnEnterBuildMode.RemoveListener(HandleEnterBuildMode);
+            GameManager.Instance.OnExitBuildMode.RemoveListener(HandleExitBuildMode);
+        }
+    }
+
+    private void HandleEnterBuildMode()
+    {
+        SetLookEnabled(false);
+        SetPlayerInputEnable(false);
+    }
+
+    private void HandleExitBuildMode()
+    {
+        SetLookEnabled(true);
+        SetPlayerInputEnable(true);
+    }
+
     void FixedUpdate()
     {
         motor.ProcessMove(onFoot.Movement.ReadValue<Vector2>());
     }
 
-   private void LateUpdate()
+    private void LateUpdate()
     {
-    look.ProcessLook(onFoot.Look.ReadValue<Vector2>());
+        look.ProcessLook(onFoot.Look.ReadValue<Vector2>());
     }
-
-
-
 
     private void OnEnable() 
     {
@@ -46,25 +70,17 @@ public class InputManager : MonoBehaviour
         onFoot.Disable();
     }
 
-
     public void SetPlayerInputEnable(bool enabled)
     {
         if (enabled)
-        {
             onFoot.Enable();
-        }
         else
-        {
             onFoot.Disable();
-        }
     }
 
     public void SetLookEnabled(bool enabled)
     {
         if (look != null)
-        {
             look.canLook = enabled;
-        }
     }
-
 }

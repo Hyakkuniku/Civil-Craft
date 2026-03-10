@@ -13,6 +13,33 @@ public class BridgePhysicsManager : MonoBehaviour
     private void Start()
     {
         ActivatePhysics();
+
+        // NEW: Subscribe to GameManager events
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.OnEnterBuildMode.AddListener(HandleEnterBuildMode);
+            GameManager.Instance.OnExitBuildMode.AddListener(HandleExitBuildMode);
+        }
+    }
+
+    private void OnDestroy()
+    {
+        // NEW: Unsubscribe to prevent memory leaks
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.OnEnterBuildMode.RemoveListener(HandleEnterBuildMode);
+            GameManager.Instance.OnExitBuildMode.RemoveListener(HandleExitBuildMode);
+        }
+    }
+
+    private void HandleEnterBuildMode()
+    {
+        if (isSimulating) StopPhysicsAndReset();
+    }
+
+    private void HandleExitBuildMode()
+    {
+        if (!isSimulating) ActivatePhysics();
     }
 
     public void ActivatePhysics()

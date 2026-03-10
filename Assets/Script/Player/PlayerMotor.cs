@@ -16,13 +16,37 @@ public class PlayerMotor : MonoBehaviour
     [Tooltip("How heavy the player is. Increase this to break the bridge!")]
     public float playerWeight = 500f; 
 
-    // Start is called before the first frame update
     void Start()
     {
         controller = GetComponent<CharacterController>();
+
+        // NEW: Subscribe to GameManager events
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.OnEnterBuildMode.AddListener(HandleEnterBuildMode);
+            GameManager.Instance.OnExitBuildMode.AddListener(HandleExitBuildMode);
+        }
     }
 
-    // Update is called once per frame
+    void OnDestroy()
+    {
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.OnEnterBuildMode.RemoveListener(HandleEnterBuildMode);
+            GameManager.Instance.OnExitBuildMode.RemoveListener(HandleExitBuildMode);
+        }
+    }
+
+    private void HandleEnterBuildMode()
+    {
+        this.enabled = false;
+    }
+
+    private void HandleExitBuildMode()
+    {
+        this.enabled = true;
+    }
+
     void Update()
     {
         isGrounded = controller.isGrounded;
@@ -46,16 +70,13 @@ public class PlayerMotor : MonoBehaviour
 
     private void OnControllerColliderHit(ControllerColliderHit hit)
     {
-        // Get the Rigidbody of whatever we are standing on 
         Rigidbody body = hit.collider.attachedRigidbody;
 
-        // If it doesn't have a physics body, or if it's locked, do nothing
         if (body == null || body.isKinematic)
             return;
 
         if (hit.moveDirection.y < -0.3f)
         {
-            // Push down on the exact spot the player's feet are touching
             Vector3 downwardForce = new Vector3(0, -1, 0);
             body.AddForceAtPosition(downwardForce * playerWeight, hit.point);
         }

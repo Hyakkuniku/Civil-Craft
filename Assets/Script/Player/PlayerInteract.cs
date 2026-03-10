@@ -13,16 +13,41 @@ public class PlayerInteract : MonoBehaviour
     void Start()
     {
         playerUI = GetComponent<PlayerUI>();
+
+        // NEW: Subscribe to GameManager events
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.OnEnterBuildMode.AddListener(HandleEnterBuildMode);
+            GameManager.Instance.OnExitBuildMode.AddListener(HandleExitBuildMode);
+        }
+    }
+
+    void OnDestroy()
+    {
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.OnEnterBuildMode.RemoveListener(HandleEnterBuildMode);
+            GameManager.Instance.OnExitBuildMode.RemoveListener(HandleExitBuildMode);
+        }
+    }
+
+    private void HandleEnterBuildMode()
+    {
+        // Instantly clear the screen of any interact buttons before disabling itself!
+        if (playerUI != null) playerUI.UpdateButtons(new List<Interactable>());
+        this.enabled = false;
+    }
+
+    private void HandleExitBuildMode()
+    {
+        this.enabled = true;
     }
 
     void Update()
     {
-        // Grab all colliders inside our invisible bubble
         Collider[] nearbyColliders = Physics.OverlapSphere(transform.position, interactionRadius, mask);
-        
         List<Interactable> nearbyInteractables = new List<Interactable>();
 
-        // Loop through everything we caught and add it to our list
         foreach (Collider col in nearbyColliders)
         {
             Interactable interactable = col.GetComponent<Interactable>();
@@ -32,7 +57,6 @@ public class PlayerInteract : MonoBehaviour
             }
         }
 
-        // Send the list of nearby objects to the UI to create buttons
         if (playerUI != null)
         {
             playerUI.UpdateButtons(nearbyInteractables);
