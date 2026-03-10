@@ -13,12 +13,10 @@ MonoBehaviour:
   m_Name: Wood Road
   m_EditorClassIdentifier: 
   costPerMeter: 10
-  massPerMeter: 1
+  massPerMeter: 3
   maxLength: 10
-  maxTension: 50000
-  maxCompression: 50000
-  breakForce: 50000
-  breakTorque: 50000
+  maxTension: 15000
+  maxCompression: 15000
   useSpring: 0
   spring: Infinity
   damper: Infinity

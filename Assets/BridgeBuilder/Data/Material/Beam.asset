@@ -13,12 +13,10 @@ MonoBehaviour:
   m_Name: Beam
   m_EditorClassIdentifier: 
   costPerMeter: 10
-  massPerMeter: 1
-  maxLength: 100
-  maxTension: 50000
-  maxCompression: 50000
-  breakForce: 50000
-  breakTorque: 50000
+  massPerMeter: 2
+  maxLength: 30
+  maxTension: 30000
+  maxCompression: 60000
   useSpring: 0
   spring: 1000
   damper: 50

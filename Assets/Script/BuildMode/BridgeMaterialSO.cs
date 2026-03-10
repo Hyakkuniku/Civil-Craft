@@ -12,10 +12,6 @@ public class BridgeMaterialSO : ScriptableObject
     public float maxTension = 3000f;
     public float maxCompression = 3000f;
 
-    [Header("Physics Constraints")]
-    public float breakForce = Mathf.Infinity;
-    public float breakTorque = Mathf.Infinity;
-
     [Header("Spring Settings")]
     public bool useSpring = false;
     public float spring = 5000f;
@@ -23,7 +19,7 @@ public class BridgeMaterialSO : ScriptableObject
 
     [Header("Special Types")]
     public bool isRope = false; 
-    public bool isRoad = false; // --- NEW: Defines if this material counts towards total road length ---
+    public bool isRoad = false; 
 
     [Header("Visuals")]
     public GameObject segmentPrefab;

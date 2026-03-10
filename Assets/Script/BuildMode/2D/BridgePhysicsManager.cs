@@ -14,7 +14,6 @@ public class BridgePhysicsManager : MonoBehaviour
     {
         ActivatePhysics();
 
-        // NEW: Subscribe to GameManager events
         if (GameManager.Instance != null)
         {
             GameManager.Instance.OnEnterBuildMode.AddListener(HandleEnterBuildMode);
@@ -24,7 +23,6 @@ public class BridgePhysicsManager : MonoBehaviour
 
     private void OnDestroy()
     {
-        // NEW: Unsubscribe to prevent memory leaks
         if (GameManager.Instance != null)
         {
             GameManager.Instance.OnEnterBuildMode.RemoveListener(HandleEnterBuildMode);
@@ -300,7 +298,6 @@ public class BridgePhysicsManager : MonoBehaviour
                 ropeSpring.minDistance = 0f;
                 ropeSpring.spring = rope.materialData.spring > 0 ? rope.materialData.spring : 5000f;
                 ropeSpring.damper = rope.materialData.damper > 0 ? rope.materialData.damper : 500f; 
-                ropeSpring.breakForce = rope.materialData.breakForce;
 
                 BarStressHandler stressHandler = rope.GetComponent<BarStressHandler>();
                 if (stressHandler != null) stressHandler.SetRopeJoint(ropeSpring);
@@ -326,8 +323,6 @@ public class BridgePhysicsManager : MonoBehaviour
                 spring.connectedAnchor = targetRb.transform.InverseTransformPoint(finalAnchorWorld);
                 spring.spring = mat.spring;
                 spring.damper = mat.damper;
-                spring.breakForce = mat.breakForce; 
-                spring.breakTorque = mat.breakTorque;
             }
             else
             {
@@ -337,8 +332,6 @@ public class BridgePhysicsManager : MonoBehaviour
                 hinge.anchor = barObj.transform.InverseTransformPoint(finalAnchorWorld);
                 hinge.connectedAnchor = targetRb.transform.InverseTransformPoint(finalAnchorWorld);
                 hinge.axis = new Vector3(0, 0, 1); 
-                hinge.breakForce = mat.breakForce;
-                hinge.breakTorque = mat.breakTorque;
             }
         }
     }

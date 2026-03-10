@@ -15,14 +15,13 @@ MonoBehaviour:
   costPerMeter: 1
   massPerMeter: 0.5
   maxLength: 20
-  maxTension: 100000
-  maxCompression: 50000
-  breakForce: 50000
-  breakTorque: 50000
+  maxTension: 80000
+  maxCompression: 1
   useSpring: 1
-  spring: 20000
-  damper: 20000
+  spring: 10000
+  damper: 500
   isRope: 1
+  isRoad: 0
   segmentPrefab: {fileID: 8846941766389065738, guid: 10c1b50154ff8924281486b4e7c6b513,
     type: 3}
   gizmoColor: {r: 1, g: 1, b: 1, a: 1}
