@@ -13,10 +13,48 @@ public class SimpleTestSphere : MonoBehaviour
     private Rigidbody rb;
     private BridgePhysicsManager physicsManager;
 
+    // --- NEW: Variables to track state and starting position ---
+    private Vector3 initialPosition;
+    private Quaternion initialRotation;
+    private bool wasSimulating = false;
+
     private void Awake()
     {
         rb = GetComponent<Rigidbody>();
         physicsManager = FindObjectOfType<BridgePhysicsManager>();
+
+        // Save starting position so we can teleport back when simulation stops
+        initialPosition = transform.position;
+        initialRotation = transform.rotation;
+
+        // Force it to be kinematic (frozen) when the game starts
+        rb.isKinematic = true;
+    }
+
+    private void Update()
+    {
+        if (physicsManager == null) return;
+
+        // --- NEW: Watch for simulation state changes ---
+        if (physicsManager.isSimulating && !wasSimulating)
+        {
+            // Simulation just started: unfreeze the sphere so gravity grabs it
+            rb.isKinematic = false;
+            wasSimulating = true;
+        }
+        else if (!physicsManager.isSimulating && wasSimulating)
+        {
+            // Simulation just stopped: freeze it, kill momentum, and teleport back
+            rb.isKinematic = true;
+            rb.velocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+
+            transform.position = initialPosition;
+            transform.rotation = initialRotation;
+
+            isDriving = false;
+            wasSimulating = false;
+        }
     }
 
     // Your UI Button calls this!
@@ -45,11 +83,6 @@ public class SimpleTestSphere : MonoBehaviour
                 // AddTorque around the local X-axis makes it roll forward along the Z-axis
                 rb.AddTorque(transform.right * rollTorque * Time.fixedDeltaTime, ForceMode.Acceleration);
             }
-        }
-        else
-        {
-            // If simulation stops, cut the engine (gravity and friction will slow it down)
-            isDriving = false;
         }
     }
 }

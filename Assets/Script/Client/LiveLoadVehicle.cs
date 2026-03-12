@@ -1,102 +1,120 @@
 using UnityEngine;
-using System.Collections.Generic;
 
 [RequireComponent(typeof(Rigidbody))]
 public class LiveLoadVehicle : MonoBehaviour
 {
-    [Header("Engineering Specifications")]
-    public float chassisWeight = 1500f; 
-    public Transform centerOfMass;
+    [Header("Path Settings")]
+    [Tooltip("Where the vehicle spawns when driving starts.")]
+    public Transform startPoint;
+    [Tooltip("The destination the vehicle is driving towards.")]
+    public Transform endPoint;
 
-    [Header("Drive System (Hinge Motors)")]
-    [Tooltip("Drag the 4 WHEELS (that have Hinge Joints) here")]
-    public List<HingeJoint> wheelJoints = new List<HingeJoint>();
-    
-    [Tooltip("Target spin speed (Degrees per second)")]
-    public float targetSpeed = 800f; 
-    [Tooltip("How much force the motor pushes with")]
-    public float motorForce = 5000f; 
+    [Header("Vehicle Settings")]
+    public float speed = 5f;
+    public float vehicleMass = 1000f;
+    [Tooltip("How far down to check for the bridge. Adjust if your vehicle is tall.")]
+    public float groundedRaycastLength = 1.5f;
 
-    [HideInInspector] public bool isDriving = false;
+    [Header("System")]
+    public BridgePhysicsManager physicsManager;
 
     private Rigidbody rb;
-    private float totalCargoWeight = 0f;
-    private BridgePhysicsManager physicsManager;
+    private bool isDriving = false;
+    private bool wasSimulating = false;
 
     private void Awake()
     {
         rb = GetComponent<Rigidbody>();
-        physicsManager = FindObjectOfType<BridgePhysicsManager>();
         
-        if (centerOfMass != null)
-        {
-            rb.centerOfMass = centerOfMass.localPosition;
-        }
+        // Configure the Rigidbody for bridge physics
+        rb.mass = vehicleMass;
+        rb.isKinematic = true; 
+        rb.useGravity = true; // Ensure gravity is ON
+        rb.collisionDetectionMode = CollisionDetectionMode.Continuous;
+
+        if (physicsManager == null)
+            physicsManager = FindObjectOfType<BridgePhysicsManager>();
     }
 
-    public void SetCargoWeight(float payload)
+    private void Update()
     {
-        totalCargoWeight = payload;
-        rb.mass = chassisWeight + totalCargoWeight;
+        if (physicsManager == null) return;
+
+        // Auto-start driving when Simulation begins
+        if (physicsManager.isSimulating && !wasSimulating)
+        {
+            StartDriving();
+            wasSimulating = true;
+        }
+        // Auto-reset when Simulation stops
+        else if (!physicsManager.isSimulating && wasSimulating)
+        {
+            StopAndReset();
+            wasSimulating = false;
+        }
     }
 
     public void StartDriving()
     {
-        if (physicsManager != null && physicsManager.isSimulating)
+        if (startPoint != null)
         {
-            isDriving = true;
-            Debug.Log("<color=green>TRUCK IS ROLLING WITH MOTORS!</color>");
+            transform.position = startPoint.position;
+            transform.rotation = startPoint.rotation;
         }
-        else
-        {
-            Debug.LogWarning("Hit Simulate first!");
-        }
+
+        rb.isKinematic = false;
+        rb.velocity = Vector3.zero; // Clear any weird leftover momentum
+        isDriving = true;
     }
 
-    public void StopDriving()
+    public void StopAndReset()
     {
         isDriving = false;
+        rb.isKinematic = true;
+        rb.velocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+
+        if (startPoint != null)
+        {
+            transform.position = startPoint.position;
+            transform.rotation = startPoint.rotation;
+        }
     }
 
     private void FixedUpdate()
     {
-        if (physicsManager != null && physicsManager.isSimulating && isDriving)
+        if (!isDriving || endPoint == null) return;
+
+        // Stop the vehicle if it reaches the destination's X coordinate
+        if (Mathf.Abs(transform.position.x - endPoint.position.x) < 0.5f)
         {
-            DriveForward();
+            isDriving = false;
+            rb.velocity = new Vector3(0, rb.velocity.y, 0); // Stop horizontal movement
+            return;
         }
-        else
+
+        // --- THE FIX: GROUNDED CHECK ---
+        // Shoot a laser down to see if we are standing on a bridge or ground.
+        bool isGrounded = Physics.Raycast(transform.position, Vector3.down, groundedRaycastLength);
+
+        if (isGrounded)
         {
-            ApplyBrakes();
+            // Calculate horizontal direction (ignoring Y so it doesn't try to fly)
+            Vector3 direction = (endPoint.position - transform.position);
+            direction.y = 0; 
+            direction.Normalize();
+
+            // Drive forward, but preserve the natural Y velocity (gravity)
+            rb.velocity = new Vector3(direction.x * speed, rb.velocity.y, 0f);
         }
+        // If isGrounded is false (no bridge), we do nothing. The vehicle's forward momentum 
+        // will naturally die out, and gravity will pull it straight down into the ravine!
     }
 
-    private void DriveForward()
+    // Draws a line in the editor so you can see the Grounded Check distance
+    private void OnDrawGizmosSelected()
     {
-        foreach (HingeJoint joint in wheelJoints)
-        {
-            if (joint != null)
-            {
-                joint.useMotor = true;
-                JointMotor motor = joint.motor;
-                motor.targetVelocity = targetSpeed; // Spin forward!
-                motor.force = motorForce;
-                joint.motor = motor;
-            }
-        }
-    }
-
-    private void ApplyBrakes()
-    {
-        foreach (HingeJoint joint in wheelJoints)
-        {
-            if (joint != null)
-            {
-                joint.useMotor = true;
-                JointMotor motor = joint.motor;
-                motor.targetVelocity = 0; // Lock the wheels at 0 speed
-                motor.force = motorForce;
-                joint.motor = motor;
-            }
-        }
+        Gizmos.color = Color.red;
+        Gizmos.DrawLine(transform.position, transform.position + (Vector3.down * groundedRaycastLength));
     }
 }

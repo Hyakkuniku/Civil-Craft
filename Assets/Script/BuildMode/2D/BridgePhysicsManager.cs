@@ -12,8 +12,6 @@ public class BridgePhysicsManager : MonoBehaviour
 
     private void Start()
     {
-        ActivatePhysics();
-
         if (GameManager.Instance != null)
         {
             GameManager.Instance.OnEnterBuildMode.AddListener(HandleEnterBuildMode);
@@ -32,12 +30,31 @@ public class BridgePhysicsManager : MonoBehaviour
 
     private void HandleEnterBuildMode()
     {
-        if (isSimulating) StopPhysicsAndReset();
+        if (isSimulating) 
+        {
+            StopPhysicsAndReset();
+        }
+        else
+        {
+            // If simulation is already stopped, just make sure nodes become visible again
+            SetNodesVisible(true);
+        }
     }
 
     private void HandleExitBuildMode()
     {
-        if (!isSimulating) ActivatePhysics();
+        // When we exit build mode, hide all the node spheres so they don't clutter the game view
+        SetNodesVisible(false);
+    }
+
+    // --- NEW HELPER METHOD ---
+    private void SetNodesVisible(bool isVisible)
+    {
+        foreach (Point p in Point.AllPoints)
+        {
+            Renderer r = p.GetComponentInChildren<Renderer>();
+            if (r != null) r.enabled = isVisible;
+        }
     }
 
     public void ActivatePhysics()
@@ -51,6 +68,7 @@ public class BridgePhysicsManager : MonoBehaviour
             p.preSimPos = p.transform.position;
             p.preSimParent = p.transform.parent;
 
+            // Hide nodes when physics starts
             Renderer r = p.GetComponentInChildren<Renderer>();
             if (r != null) r.enabled = false;
         }
@@ -109,6 +127,9 @@ public class BridgePhysicsManager : MonoBehaviour
             }
         }
 
+        // --- THE FIX: Check if we are in build mode before turning nodes back on! ---
+        bool isCurrentlyBuilding = GameManager.Instance != null && GameManager.Instance.CurrentState == GameManager.GameState.Building;
+
         foreach (Point p in Point.AllPoints)
         {
             Rigidbody rb = p.GetComponent<Rigidbody>();
@@ -121,8 +142,9 @@ public class BridgePhysicsManager : MonoBehaviour
             p.transform.position = p.preSimPos;
             p.transform.rotation = Quaternion.identity; 
 
+            // Only make them visible if we are safely inside build mode
             Renderer r = p.GetComponentInChildren<Renderer>();
-            if (r != null) r.enabled = true;
+            if (r != null) r.enabled = isCurrentlyBuilding;
         }
 
         foreach (Bar bar in allBars)
