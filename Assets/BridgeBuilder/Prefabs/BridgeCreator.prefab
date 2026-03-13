@@ -556,6 +556,7 @@ MonoBehaviour:
   isGridSnappingEnabled: 1
   isDeleteMode: 0
   isSimulating: 0
+  pierBaseY: -10
   deleteSnapRadiusPixels: 50
   nodeSnapRadiusWorld: 1.2
   gridVisual: {fileID: 2999278537205885771}

@@ -14,6 +14,8 @@ public class LiveLoadVehicle : MonoBehaviour
     [Tooltip("How hard the engine rotates the wheels to pull the mass.")]
     public float engineTorque = 1500f; 
     public float vehicleMass = 1000f;
+    [Tooltip("Lowers the center of gravity so the car doesn't do a backflip!")]
+    public float centerOfMassOffset = -0.5f; // --- NEW: Keeps the car grounded! ---
 
     [Header("Custom Wheel Setup")]
     [Tooltip("Drag your 4 wheel GameObjects here from the hierarchy!")]
@@ -23,7 +25,7 @@ public class LiveLoadVehicle : MonoBehaviour
     [Tooltip("Mass of each individual wheel in kg.")]
     public float wheelMass = 50f;
     [Tooltip("Which direction the wheels spin. Change to (0,0,1) or (0,1,0) if they wobble!")]
-    public Vector3 spinAxis = new Vector3(1, 0, 0); // --- THE FIX: Defaulted to X-axis! ---
+    public Vector3 spinAxis = new Vector3(1, 0, 0); 
 
     [Header("System")]
     public BridgePhysicsManager physicsManager;
@@ -51,8 +53,11 @@ public class LiveLoadVehicle : MonoBehaviour
         rb.useGravity = true; 
         rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic; 
 
-        rb.constraints = RigidbodyConstraints.FreezeRotationX | 
-                         RigidbodyConstraints.FreezeRotationY | 
+        // --- THE FIX: Lower the center of mass so it doesn't flip over! ---
+        rb.centerOfMass = new Vector3(0, centerOfMassOffset, 0);
+
+        // Allow X rotation so it tilts, but freeze Y and Z so it doesn't fall off the 2D bridge
+        rb.constraints = RigidbodyConstraints.FreezeRotationY | 
                          RigidbodyConstraints.FreezePositionZ;
 
         Collider chassisCol = GetComponent<Collider>();
@@ -96,6 +101,12 @@ public class LiveLoadVehicle : MonoBehaviour
             sc.radius = wheelRadius;
             sc.material = wheelMat;
 
+            // --- THE FIX: Tell Unity to ignore collisions between the wheel and the car body! ---
+            if (chassisCol != null)
+            {
+                Physics.IgnoreCollision(chassisCol, sc, true);
+            }
+
             wd.rb = physWheel.AddComponent<Rigidbody>();
             wd.rb.mass = wheelMass;
             wd.rb.isKinematic = true;
@@ -104,7 +115,6 @@ public class LiveLoadVehicle : MonoBehaviour
             wd.hinge = physWheel.AddComponent<HingeJoint>();
             wd.hinge.connectedBody = rb;
             
-            // --- THE FIX IS APPLIED HERE ---
             wd.hinge.axis = spinAxis; 
             
             JointMotor motor = wd.hinge.motor;
@@ -220,7 +230,6 @@ public class LiveLoadVehicle : MonoBehaviour
             foreach (var w in wheels)
             {
                 JointMotor motor = w.hinge.motor;
-                // If the wheels spin BACKWARDS, just change this to a positive number!
                 motor.targetVelocity = speedDegPerSec * -directionX; 
                 w.hinge.motor = motor;
                 w.hinge.useMotor = true;

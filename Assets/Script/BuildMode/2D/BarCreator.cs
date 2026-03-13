@@ -47,6 +47,13 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     public bool IsCreating => barCreationStarted;
     public bool IsErasing => isDeleteMode && currentSwipeDeleteAction != null;
 
+    [Header("Pier Settings")]
+    [Tooltip("The exact Y coordinate of the ravine floor where piers will automatically spawn.")]
+    public float pierBaseY = -10f; 
+    
+    // --- THE FIX: We use an actual Bar for the ghost now instead of a Point! ---
+    private Bar ghostPierBar; 
+
     [Header("Snapping Sensitivity")]
     public float deleteSnapRadiusPixels = 50f; 
     public float nodeSnapRadiusWorld = 1.2f;
@@ -87,7 +94,13 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     }
 
     private void HandleEnterBuildMode() { isSimulating = false; }
-    private void HandleExitBuildMode() { CancelCreation(); isDeleteMode = false; isSimulating = false; }
+    private void HandleExitBuildMode() 
+    { 
+        CancelCreation(); 
+        isDeleteMode = false; 
+        isSimulating = false; 
+        if (ghostPierBar != null) Destroy(ghostPierBar.gameObject);
+    }
 
     private Camera GetActiveCamera()
     {
@@ -114,10 +127,69 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             return;
         }
 
+        // --- NEW: Visual Material Ghost for the Pier ---
+        if (activeMaterial != null && activeMaterial.isPier && !barCreationStarted && !isDeleteMode)
+        {
+            if (ghostPierBar == null) CreateGhostPierBar();
+
+            Vector2 screenPos = GetPointerPosition();
+            Vector3 worldPos = GetWorldMousePosition(screenPos);
+            
+            float snapThreshold = 1.5f; 
+            float alignedX = worldPos.x;
+            float bridgeZ = Point.AllPoints.Count > 0 ? Point.AllPoints[0].transform.position.z : 0f;
+
+            foreach (Point p in Point.AllPoints)
+            {
+                if (p.gameObject.activeSelf)
+                {
+                    float xDiff = Mathf.Abs(p.transform.position.x - worldPos.x);
+                    if (xDiff < snapThreshold)
+                    {
+                        snapThreshold = xDiff;
+                        alignedX = p.transform.position.x;
+                    }
+                }
+            }
+
+            Vector3 floorPos = new Vector3(alignedX, pierBaseY, bridgeZ);
+            
+            // Limit the ghost to stretch from the floor up to your mouse cursor!
+            float targetY = Mathf.Max(worldPos.y, pierBaseY + 0.5f); 
+            if (isGridSnappingEnabled)
+            {
+                targetY = Mathf.Round(targetY);
+                if (targetY <= pierBaseY) targetY = pierBaseY + 1f;
+            }
+
+            Vector3 targetPos = new Vector3(alignedX, targetY, bridgeZ);
+
+            float maxLen = activeMaterial.maxLength;
+            if (BuildUIController.Instance != null)
+            {
+                float remainingBudget = BuildUIController.Instance.maxBudget - BuildUIController.Instance.GetTotalCost();
+                float costPerMeter = activeMaterial.costPerMeter * (activeMaterial.isDualBeam ? 2 : 1);
+                float maxAffordable = Mathf.Max(0f, remainingBudget / costPerMeter);
+                if (maxAffordable < maxLen) maxLen = maxAffordable;
+            }
+
+            if (Vector3.Distance(floorPos, targetPos) > maxLen)
+            {
+                targetPos = floorPos + Vector3.up * maxLen;
+            }
+
+            ghostPierBar.gameObject.SetActive(true);
+            ghostPierBar.StartPosition = floorPos;
+            ghostPierBar.UpdateCreatingBar(targetPos);
+        }
+        else if (ghostPierBar != null)
+        {
+            ghostPierBar.gameObject.SetActive(false);
+        }
+
         if (barCreationStarted && currentEndPoint != null && !isDeleteMode)
         {
             Vector2 screenPos = GetPointerPosition();
-            
             Point hoveredNode = CheckForExistingPoint(screenPos);
             Vector3 worldMousePos = GetWorldMousePosition(screenPos);
             Vector3 targetPos = CalculateTargetPosition(worldMousePos, hoveredNode);
@@ -157,6 +229,14 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         }
     }
 
+    private void CreateGhostPierBar()
+    {
+        GameObject obj = Instantiate(barToInstantiate, barParent);
+        obj.name = "GhostPierBar";
+        ghostPierBar = obj.GetComponent<Bar>();
+        ghostPierBar.Initialize(activeMaterial);
+    }
+
     public void OnPointerDown(PointerEventData eventData)
     {
         if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building) return;
@@ -180,55 +260,34 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         Point hoveredNode = CheckForExistingPoint(screenPos);
         if (!barCreationStarted && eventData.button == PointerEventData.InputButton.Left)
         {
-            if (hoveredNode != null) 
+            // Piers ALWAYS start from the floor now to ensure a perfect vertical build!
+            if (activeMaterial != null && activeMaterial.isPier)
             {
-                currentStartPoint = hoveredNode;
-                createdStartPoint = false;
-                barCreationStarted = true;
-                StartBarCreation(hoveredNode.transform.position);
-            }
-            else if (activeMaterial != null && activeMaterial.isPier)
-            {
-                Vector3 worldPos = GetWorldMousePosition(screenPos);
-                worldPos = CalculateTargetPosition(worldPos, null); 
+                if (ghostPierBar == null || !ghostPierBar.gameObject.activeSelf) return;
 
-                float snapThreshold = 2.0f; 
-                float perfectlyAlignedX = worldPos.x;
-                float activeBridgeZ = 0f;
+                Vector3 startPos = ghostPierBar.StartPosition;
 
-                if (Point.AllPoints.Count > 0)
-                {
-                    activeBridgeZ = Point.AllPoints[0].transform.position.z; 
-                    
-                    foreach (Point p in Point.AllPoints)
-                    {
-                        if (p.gameObject.activeSelf)
-                        {
-                            float xDifference = Mathf.Abs(p.transform.position.x - worldPos.x);
-                            if (xDifference < snapThreshold)
-                            {
-                                snapThreshold = xDifference; 
-                                perfectlyAlignedX = p.transform.position.x;
-                            }
-                        }
-                    }
-                }
-
-                worldPos.x = perfectlyAlignedX;
-                worldPos.z = activeBridgeZ; 
-
-                GameObject startObj = Instantiate(pointToInstantiate, worldPos, Quaternion.identity, pointParent);
+                GameObject startObj = Instantiate(pointToInstantiate, startPos, Quaternion.identity, pointParent);
                 startObj.name = "PierTip";
                 currentStartPoint = startObj.GetComponent<Point>();
                 
-                // Set memory state before changing to Anchor
-                currentStartPoint.originalIsAnchor = false; 
+                currentStartPoint.originalIsAnchor = true; 
                 currentStartPoint.isAnchor = true; 
                 currentStartPoint.UpdateMaterial();
                 
                 createdStartPoint = true;
                 barCreationStarted = true;
-                StartBarCreation(worldPos);
+                ghostPierBar.gameObject.SetActive(false); // Hide the ghost, switch to the real thing
+                
+                StartBarCreation(startPos);
+            }
+            // Standard wood/road logic
+            else if (hoveredNode != null) 
+            {
+                currentStartPoint = hoveredNode;
+                createdStartPoint = false;
+                barCreationStarted = true;
+                StartBarCreation(hoveredNode.transform.position);
             }
         }
     }
@@ -275,7 +334,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         HistoryAction action = undoStack.Pop();
         action.Undo();
         redoStack.Push(action);
-        RefreshAllPoints(); // --- THE FIX: Force points to recalculate after Undo
+        RefreshAllPoints(); 
     }
 
     public void Redo()
@@ -285,7 +344,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         HistoryAction action = redoStack.Pop();
         action.Redo();
         undoStack.Push(action);
-        RefreshAllPoints(); // --- THE FIX: Force points to recalculate after Redo
+        RefreshAllPoints(); 
     }
 
     private void RecordAction(HistoryAction action)
@@ -311,7 +370,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         currentAction.affectedObjects.Add(bar.gameObject);
         bar.gameObject.SetActive(false); 
 
-        // Safely extract points before deletion
         Point p1 = bar.startPoint;
         Point p2 = bar.endPoint;
 
@@ -327,7 +385,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             p2.gameObject.SetActive(false);
         }
 
-        // --- THE FIX: Evaluate points after deletion! ---
         if (p1 != null && p1.gameObject.activeSelf) p1.EvaluateAnchorState();
         if (p2 != null && p2.gameObject.activeSelf) p2.EvaluateAnchorState();
     }
@@ -391,6 +448,17 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         {
             activeMaterial = newMaterial;
             if (barCreationStarted) DrawRadiusCircle(); 
+            
+            // Clean up the material ghost if they switch to a normal road/wood!
+            if (!activeMaterial.isPier && ghostPierBar != null)
+            {
+                Destroy(ghostPierBar.gameObject);
+                ghostPierBar = null;
+            }
+            else if (activeMaterial.isPier && ghostPierBar != null)
+            {
+                ghostPierBar.Initialize(activeMaterial);
+            }
         }
     }
 
@@ -549,6 +617,14 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             currentEndPoint.transform.position = finalPosition;
         }
 
+        if (activeMaterial != null && activeMaterial.isPier)
+        {
+            currentStartPoint.isAnchor = true;
+            currentStartPoint.UpdateMaterial();
+            currentEndPoint.isAnchor = true;
+            currentEndPoint.UpdateMaterial();
+        }
+
         currentBar.UpdateCreatingBar(finalPosition);
         currentBar.startPoint = currentStartPoint;
         currentBar.endPoint = currentEndPoint;
@@ -556,7 +632,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (!currentStartPoint.ConnectedBars.Contains(currentBar)) currentStartPoint.ConnectedBars.Add(currentBar);
         if (!currentEndPoint.ConnectedBars.Contains(currentBar)) currentEndPoint.ConnectedBars.Add(currentBar);
         
-        // --- THE FIX: Let the points figure out if they should be anchors! ---
         currentStartPoint.EvaluateAnchorState();
         currentEndPoint.EvaluateAnchorState();
 
@@ -593,7 +668,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (radiusIndicator != null) radiusIndicator.enabled = false;
     }
 
-    // --- NEW HELPER METHOD: For undo/redo refresh ---
     private void RefreshAllPoints()
     {
         foreach (Point p in Point.AllPoints)
