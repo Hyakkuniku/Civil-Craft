@@ -22,6 +22,7 @@ MonoBehaviour:
   damper: 50
   isRope: 0
   isRoad: 0
+  isPier: 0
   segmentPrefab: {fileID: 4806764515897639862, guid: 75c2a0cd61ea5ed409c4bfcde0ac4aa9,
     type: 3}
   gizmoColor: {r: 1, g: 1, b: 1, a: 1}

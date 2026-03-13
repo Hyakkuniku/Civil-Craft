@@ -47,6 +47,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   Runtime: 1
   isAnchor: 0
+  originalIsAnchor: 0
   defaultMaterial: {fileID: 2100000, guid: 2dc34487b0de833468c87dffc1126a8f, type: 2}
   anchorMaterial: {fileID: 2100000, guid: d71ec78405d77e846b5e45a7681c2df2, type: 2}
   ConnectedBars: []

@@ -45,8 +45,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     [HideInInspector] public bool isSimulating = false; 
 
     public bool IsCreating => barCreationStarted;
-    
-    // --- THE FIX: Tracks if the player is currently swiping to erase! ---
     public bool IsErasing => isDeleteMode && currentSwipeDeleteAction != null;
 
     [Header("Snapping Sensitivity")]
@@ -60,20 +58,14 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     public float circleLineWidth = 0.05f;
 
     private bool barCreationStarted = false;
+    private bool createdStartPoint = false; 
 
     private Stack<HistoryAction> undoStack = new Stack<HistoryAction>();
     private Stack<HistoryAction> redoStack = new Stack<HistoryAction>();
     private HistoryAction currentSwipeDeleteAction;
 
-    private void OnEnable()
-    {
-        EnhancedTouchSupport.Enable();
-    }
-
-    private void OnDisable()
-    {
-        EnhancedTouchSupport.Disable();
-    }
+    private void OnEnable() { EnhancedTouchSupport.Enable(); }
+    private void OnDisable() { EnhancedTouchSupport.Disable(); }
 
     private void Start()
     {
@@ -82,7 +74,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             GameManager.Instance.OnEnterBuildMode.AddListener(HandleEnterBuildMode);
             GameManager.Instance.OnExitBuildMode.AddListener(HandleExitBuildMode);
         }
-
         if (pointParent != null) pointParent.gameObject.SetActive(true); 
     }
 
@@ -96,41 +87,25 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     }
 
     private void HandleEnterBuildMode() { isSimulating = false; }
-
-    private void HandleExitBuildMode()
-    {
-        CancelCreation(); 
-        isDeleteMode = false; 
-        isSimulating = false; 
-    }
+    private void HandleExitBuildMode() { CancelCreation(); isDeleteMode = false; isSimulating = false; }
 
     private Camera GetActiveCamera()
     {
         if (GameManager.Instance != null && GameManager.Instance.ActiveBuildLocation != null && GameManager.Instance.ActiveBuildLocation.locationCamera != null)
-        {
             return GameManager.Instance.ActiveBuildLocation.locationCamera;
-        }
         return Camera.main;
     }
 
     private Vector2 GetPointerPosition()
     {
-        if (Touch.activeTouches.Count > 0)
-        {
-            return Touch.activeTouches[0].screenPosition;
-        }
-        if (Pointer.current != null)
-        {
-            return Pointer.current.position.ReadValue();
-        }
+        if (Touch.activeTouches.Count > 0) return Touch.activeTouches[0].screenPosition;
+        if (Pointer.current != null) return Pointer.current.position.ReadValue();
         return Input.mousePosition;
     }
 
     private void Update()
     {
-        if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building)
-            return;
-
+        if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building) return;
         if (isSimulating) return;
 
         if (Touch.activeTouches.Count > 1)
@@ -147,6 +122,11 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             Vector3 worldMousePos = GetWorldMousePosition(screenPos);
             Vector3 targetPos = CalculateTargetPosition(worldMousePos, hoveredNode);
 
+            if (activeMaterial != null && activeMaterial.isPier)
+            {
+                targetPos.x = currentStartPoint.transform.position.x;
+            }
+
             float maxLen = activeMaterial != null ? activeMaterial.maxLength : 5f;
             
             if (BuildUIController.Instance != null && activeMaterial != null)
@@ -154,9 +134,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 float remainingBudget = BuildUIController.Instance.maxBudget - BuildUIController.Instance.GetTotalCost();
                 float costPerMeter = activeMaterial.costPerMeter * (activeMaterial.isDualBeam ? 2 : 1);
                 float maxAffordableLength = Mathf.Max(0f, remainingBudget / costPerMeter);
-                
-                if (maxAffordableLength < maxLen) 
-                    maxLen = maxAffordableLength;
+                if (maxAffordableLength < maxLen) maxLen = maxAffordableLength;
             }
 
             Vector3 startPos = currentStartPoint.transform.position;
@@ -169,6 +147,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 if (isGridSnappingEnabled && hoveredNode == null)
                 {
                     targetPos = new Vector3(Mathf.RoundToInt(targetPos.x), Mathf.RoundToInt(targetPos.y), targetPos.z);
+                    if (activeMaterial != null && activeMaterial.isPier) targetPos.x = startPos.x;
                     if (Vector3.Distance(startPos, targetPos) > maxLen) targetPos = startPos + (direction * maxLen); 
                 }
             }
@@ -204,18 +183,59 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             if (hoveredNode != null) 
             {
                 currentStartPoint = hoveredNode;
+                createdStartPoint = false;
                 barCreationStarted = true;
                 StartBarCreation(hoveredNode.transform.position);
+            }
+            else if (activeMaterial != null && activeMaterial.isPier)
+            {
+                Vector3 worldPos = GetWorldMousePosition(screenPos);
+                worldPos = CalculateTargetPosition(worldPos, null); 
+
+                float snapThreshold = 2.0f; 
+                float perfectlyAlignedX = worldPos.x;
+                float activeBridgeZ = 0f;
+
+                if (Point.AllPoints.Count > 0)
+                {
+                    activeBridgeZ = Point.AllPoints[0].transform.position.z; 
+                    
+                    foreach (Point p in Point.AllPoints)
+                    {
+                        if (p.gameObject.activeSelf)
+                        {
+                            float xDifference = Mathf.Abs(p.transform.position.x - worldPos.x);
+                            if (xDifference < snapThreshold)
+                            {
+                                snapThreshold = xDifference; 
+                                perfectlyAlignedX = p.transform.position.x;
+                            }
+                        }
+                    }
+                }
+
+                worldPos.x = perfectlyAlignedX;
+                worldPos.z = activeBridgeZ; 
+
+                GameObject startObj = Instantiate(pointToInstantiate, worldPos, Quaternion.identity, pointParent);
+                startObj.name = "PierTip";
+                currentStartPoint = startObj.GetComponent<Point>();
+                
+                // Set memory state before changing to Anchor
+                currentStartPoint.originalIsAnchor = false; 
+                currentStartPoint.isAnchor = true; 
+                currentStartPoint.UpdateMaterial();
+                
+                createdStartPoint = true;
+                barCreationStarted = true;
+                StartBarCreation(worldPos);
             }
         }
     }
 
     public void OnDrag(PointerEventData eventData)
     {
-        if (isDeleteMode && currentSwipeDeleteAction != null)
-        {
-            PerformSwipeDelete(eventData.position);
-        }
+        if (isDeleteMode && currentSwipeDeleteAction != null) PerformSwipeDelete(eventData.position);
     }
 
     public void OnPointerUp(PointerEventData eventData)
@@ -225,10 +245,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
         if (isDeleteMode)
         {
-            if (currentSwipeDeleteAction != null && currentSwipeDeleteAction.affectedObjects.Count > 0)
-            {
-                RecordAction(currentSwipeDeleteAction);
-            }
+            if (currentSwipeDeleteAction != null && currentSwipeDeleteAction.affectedObjects.Count > 0) RecordAction(currentSwipeDeleteAction);
             currentSwipeDeleteAction = null;
             return;
         }
@@ -245,17 +262,10 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     private void PerformSwipeDelete(Vector2 screenPos)
     {
         Point hoveredPoint = CheckForExistingPoint(screenPos);
-        if (hoveredPoint != null)
-        {
-            DeletePoint(hoveredPoint, currentSwipeDeleteAction);
-            return; 
-        }
+        if (hoveredPoint != null) { DeletePoint(hoveredPoint, currentSwipeDeleteAction); return; }
 
         Bar hoveredBar = CheckForExistingBar(screenPos);
-        if (hoveredBar != null)
-        {
-            DeleteBar(hoveredBar, currentSwipeDeleteAction);
-        }
+        if (hoveredBar != null) DeleteBar(hoveredBar, currentSwipeDeleteAction);
     }
 
     public void Undo()
@@ -265,6 +275,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         HistoryAction action = undoStack.Pop();
         action.Undo();
         redoStack.Push(action);
+        RefreshAllPoints(); // --- THE FIX: Force points to recalculate after Undo
     }
 
     public void Redo()
@@ -274,6 +285,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         HistoryAction action = redoStack.Pop();
         action.Redo();
         undoStack.Push(action);
+        RefreshAllPoints(); // --- THE FIX: Force points to recalculate after Redo
     }
 
     private void RecordAction(HistoryAction action)
@@ -290,12 +302,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         redoStack.Clear();
     }
 
-    public void ToggleDeleteMode()
-    {
-        if (isSimulating) return;
-        isDeleteMode = !isDeleteMode;
-        if (isDeleteMode) CancelCreation(); 
-    }
+    public void ToggleDeleteMode() { if (isSimulating) return; isDeleteMode = !isDeleteMode; if (isDeleteMode) CancelCreation(); }
 
     public void DeleteBar(Bar bar, HistoryAction currentAction)
     {
@@ -304,23 +311,30 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         currentAction.affectedObjects.Add(bar.gameObject);
         bar.gameObject.SetActive(false); 
 
-        if (bar.startPoint != null && bar.startPoint.ConnectedBars.Count == 0 && bar.startPoint.Runtime && bar.startPoint.gameObject.activeSelf)
+        // Safely extract points before deletion
+        Point p1 = bar.startPoint;
+        Point p2 = bar.endPoint;
+
+        if (p1 != null && p1.ConnectedBars.Count == 0 && p1.Runtime && p1.gameObject.activeSelf)
         {
-            currentAction.affectedObjects.Add(bar.startPoint.gameObject);
-            bar.startPoint.gameObject.SetActive(false);
+            currentAction.affectedObjects.Add(p1.gameObject);
+            p1.gameObject.SetActive(false);
         }
 
-        if (bar.endPoint != null && bar.endPoint.ConnectedBars.Count == 0 && bar.endPoint.Runtime && bar.endPoint.gameObject.activeSelf)
+        if (p2 != null && p2.ConnectedBars.Count == 0 && p2.Runtime && p2.gameObject.activeSelf)
         {
-            currentAction.affectedObjects.Add(bar.endPoint.gameObject);
-            bar.endPoint.gameObject.SetActive(false);
+            currentAction.affectedObjects.Add(p2.gameObject);
+            p2.gameObject.SetActive(false);
         }
+
+        // --- THE FIX: Evaluate points after deletion! ---
+        if (p1 != null && p1.gameObject.activeSelf) p1.EvaluateAnchorState();
+        if (p2 != null && p2.gameObject.activeSelf) p2.EvaluateAnchorState();
     }
 
     public void DeletePoint(Point p, HistoryAction currentAction)
     {
         if (p == null || !p.Runtime || !p.gameObject.activeSelf) return; 
-
         List<Bar> barsToDelete = new List<Bar>(p.ConnectedBars);
         foreach (Bar b in barsToDelete) DeleteBar(b, currentAction);
 
@@ -380,21 +394,13 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         }
     }
 
-    public void ToggleGrid()
-    {
-        isGridSnappingEnabled = !isGridSnappingEnabled;
-        if (gridVisual != null) gridVisual.canvasRenderer.SetAlpha(isGridSnappingEnabled ? 1f : 0f);
-    }
+    public void ToggleGrid() { isGridSnappingEnabled = !isGridSnappingEnabled; if (gridVisual != null) gridVisual.canvasRenderer.SetAlpha(isGridSnappingEnabled ? 1f : 0f); }
 
     private Vector3 CalculateTargetPosition(Vector3 rawPos, Point hoveredNode)
     {
         if (hoveredNode != null) return hoveredNode.transform.position;
-        
         float lockedZ = currentStartPoint != null ? currentStartPoint.transform.position.z : 0f;
-        
-        if (isGridSnappingEnabled) 
-            return new Vector3(Mathf.RoundToInt(rawPos.x), Mathf.RoundToInt(rawPos.y), lockedZ);
-            
+        if (isGridSnappingEnabled) return new Vector3(Mathf.RoundToInt(rawPos.x), Mathf.RoundToInt(rawPos.y), lockedZ);
         return new Vector3(rawPos.x, rawPos.y, lockedZ);
     }
 
@@ -427,7 +433,13 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
         if (currentStartPoint == null)
         {
-            Plane flatWorldPlane = new Plane(Vector3.back, Vector3.zero);
+            float bridgeZ = 0f;
+            if (Point.AllPoints.Count > 0) 
+            {
+                bridgeZ = Point.AllPoints[0].transform.position.z;
+            }
+
+            Plane flatWorldPlane = new Plane(Vector3.back, new Vector3(0, 0, bridgeZ));
             Ray ray = cam.ScreenPointToRay(screenPos);
             
             if (flatWorldPlane.Raycast(ray, out float distance)) 
@@ -446,11 +458,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             {
                 Vector3 hitPoint = ray.GetPoint(distance);
                 Vector3 localOffset = hitPoint - referencePoint;
-                
-                float screenXMovement = Vector3.Dot(localOffset, cam.transform.right);
-                float screenYMovement = Vector3.Dot(localOffset, cam.transform.up);
-                
-                return referencePoint + new Vector3(screenXMovement, screenYMovement, 0);
+                return referencePoint + new Vector3(Vector3.Dot(localOffset, cam.transform.right), Vector3.Dot(localOffset, cam.transform.up), 0);
             }
             return referencePoint;
         }
@@ -476,6 +484,9 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     private void FinishBarCreation(Vector3 rawWorldPos, Point existingEndPoint)
     {
         Vector3 finalPosition = CalculateTargetPosition(rawWorldPos, existingEndPoint);
+        
+        if (activeMaterial != null && activeMaterial.isPier) finalPosition.x = currentStartPoint.transform.position.x;
+
         float limit = activeMaterial != null ? activeMaterial.maxLength : 5f;
         
         if (BuildUIController.Instance != null && activeMaterial != null)
@@ -489,8 +500,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         Vector3 startPos = currentStartPoint.transform.position;
         float distanceToTarget = Vector3.Distance(startPos, finalPosition);
         
-        if (existingEndPoint != null && distanceToTarget > limit && distanceToTarget <= limit + 0.2f)
-            limit = distanceToTarget; 
+        if (existingEndPoint != null && distanceToTarget > limit && distanceToTarget <= limit + 0.2f) limit = distanceToTarget; 
 
         if (Vector3.Distance(startPos, finalPosition) > limit)
         {
@@ -500,6 +510,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             if (isGridSnappingEnabled && existingEndPoint == null)
             {
                 finalPosition = new Vector3(Mathf.RoundToInt(finalPosition.x), Mathf.RoundToInt(finalPosition.y), finalPosition.z);
+                if (activeMaterial != null && activeMaterial.isPier) finalPosition.x = startPos.x;
                 if (Vector3.Distance(startPos, finalPosition) > limit) finalPosition = startPos + (direction * limit);
             }
             existingEndPoint = null; 
@@ -524,7 +535,8 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             return;
         }
 
-        bool createdNewPoint = (existingEndPoint == null);
+        bool createdNewEndPoint = (existingEndPoint == null);
+        bool createdNewStartPoint = createdStartPoint;
 
         if (existingEndPoint != null)
         {
@@ -544,11 +556,17 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (!currentStartPoint.ConnectedBars.Contains(currentBar)) currentStartPoint.ConnectedBars.Add(currentBar);
         if (!currentEndPoint.ConnectedBars.Contains(currentBar)) currentEndPoint.ConnectedBars.Add(currentBar);
         
+        // --- THE FIX: Let the points figure out if they should be anchors! ---
+        currentStartPoint.EvaluateAnchorState();
+        currentEndPoint.EvaluateAnchorState();
+
         barCreationStarted = false;
+        createdStartPoint = false; 
 
         HistoryAction buildAction = new HistoryAction { isBuildEvent = true };
         buildAction.affectedObjects.Add(currentBar.gameObject);
-        if (createdNewPoint) buildAction.affectedObjects.Add(currentEndPoint.gameObject);
+        if (createdNewStartPoint) buildAction.affectedObjects.Add(currentStartPoint.gameObject); 
+        if (createdNewEndPoint) buildAction.affectedObjects.Add(currentEndPoint.gameObject);
         RecordAction(buildAction);
 
         currentStartPoint = null;
@@ -563,10 +581,28 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (currentBar != null) Destroy(currentBar.gameObject);
         if (currentEndPoint != null) Destroy(currentEndPoint.gameObject);
         
+        if (createdStartPoint && currentStartPoint != null) 
+        {
+            Destroy(currentStartPoint.gameObject);
+        }
+
+        createdStartPoint = false;
         currentStartPoint = null;
         currentEndPoint = null;
 
         if (radiusIndicator != null) radiusIndicator.enabled = false;
+    }
+
+    // --- NEW HELPER METHOD: For undo/redo refresh ---
+    private void RefreshAllPoints()
+    {
+        foreach (Point p in Point.AllPoints)
+        {
+            if (p != null && p.gameObject.activeSelf)
+            {
+                p.EvaluateAnchorState();
+            }
+        }
     }
 
     private void DrawRadiusCircle()

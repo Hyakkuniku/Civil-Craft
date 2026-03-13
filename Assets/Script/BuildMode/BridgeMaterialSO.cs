@@ -20,6 +20,7 @@ public class BridgeMaterialSO : ScriptableObject
     [Header("Special Types")]
     public bool isRope = false; 
     public bool isRoad = false; 
+    public bool isPier = false; // --- NEW: Check this box in the Inspector for your Pier material! ---
 
     [Header("Visuals")]
     public GameObject segmentPrefab;

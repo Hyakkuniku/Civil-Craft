@@ -6,6 +6,10 @@ public class Point : MonoBehaviour
 {
     public bool Runtime = true; 
     public bool isAnchor = false;
+    
+    // --- THE FIX: Memory tracking ---
+    [HideInInspector] public bool originalIsAnchor = false;
+    private bool hasInitializedAnchor = false;
 
     public Material defaultMaterial;
     public Material anchorMaterial;
@@ -15,13 +19,19 @@ public class Point : MonoBehaviour
 
     private Renderer pointRenderer;
 
-    // ADDED: Snapshot variables for Restarting
     [HideInInspector] public Vector3 preSimPos;
     [HideInInspector] public Transform preSimParent;
 
     private void Awake()
     {
         pointRenderer = GetComponentInChildren<Renderer>();
+        
+        // Memorize the original state of this point the moment it spawns!
+        if (Application.isPlaying && !hasInitializedAnchor)
+        {
+            originalIsAnchor = isAnchor;
+            hasInitializedAnchor = true;
+        }
     }
 
     private void OnEnable()
@@ -61,6 +71,33 @@ public class Point : MonoBehaviour
             else if (!isAnchor && defaultMaterial != null)
                 pointRenderer.sharedMaterial = defaultMaterial;
         }
+    }
+
+    // --- THE FIX: Smart Anchor Evaluation ---
+    // This checks if the node should revert to normal after a pier is deleted
+    public void EvaluateAnchorState()
+    {
+        if (!Application.isPlaying) return;
+        
+        if (!hasInitializedAnchor)
+        {
+            originalIsAnchor = isAnchor;
+            hasInitializedAnchor = true;
+        }
+
+        bool hasActivePier = false;
+        foreach (Bar b in ConnectedBars)
+        {
+            if (b != null && b.gameObject.activeSelf && b.materialData != null && b.materialData.isPier)
+            {
+                hasActivePier = true;
+                break; // Found a pier, we must remain an anchor!
+            }
+        }
+
+        // If we were a permanent anchor originally, OR we have a pier touching us, be an anchor.
+        isAnchor = originalIsAnchor || hasActivePier;
+        UpdateMaterial();
     }
 
     private void OnDrawGizmos()
