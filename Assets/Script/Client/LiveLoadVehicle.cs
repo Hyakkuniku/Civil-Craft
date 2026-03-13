@@ -10,7 +10,10 @@ public class LiveLoadVehicle : MonoBehaviour
     public Transform endPoint;
 
     [Header("Vehicle Settings")]
+    [Tooltip("Target top speed.")]
     public float speed = 5f;
+    [Tooltip("How hard the engine pushes to reach top speed.")]
+    public float accelerationForce = 10f;
     public float vehicleMass = 1000f;
     [Tooltip("How far down to check for the bridge. Adjust if your vehicle is tall.")]
     public float groundedRaycastLength = 1.5f;
@@ -19,18 +22,41 @@ public class LiveLoadVehicle : MonoBehaviour
     public BridgePhysicsManager physicsManager;
 
     private Rigidbody rb;
+    private Collider vehicleCollider;
     private bool isDriving = false;
     private bool wasSimulating = false;
 
     private void Awake()
     {
         rb = GetComponent<Rigidbody>();
+        vehicleCollider = GetComponent<Collider>();
         
         // Configure the Rigidbody for bridge physics
         rb.mass = vehicleMass;
         rb.isKinematic = true; 
         rb.useGravity = true; // Ensure gravity is ON
-        rb.collisionDetectionMode = CollisionDetectionMode.Continuous;
+        
+        // Continuous Dynamic is required so heavy, fast objects don't clip through thin bridge bars
+        rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic; 
+
+        // --- STABILITY FIX 1: Lock Rotation ---
+        // Lock rotation so the vehicle doesn't nose-dive into the bridge joints.
+        // Lock Z position so it doesn't fall off the side of the 2D bridge.
+        rb.constraints = RigidbodyConstraints.FreezeRotation | RigidbodyConstraints.FreezePositionZ;
+
+        // --- STABILITY FIX 2: Zero-Friction Sled ---
+        // Automatically apply a frictionless material so it glides smoothly over seams
+        if (vehicleCollider != null)
+        {
+            PhysicMaterial smoothSledMat = new PhysicMaterial("SmoothSled");
+            smoothSledMat.dynamicFriction = 0f;
+            smoothSledMat.staticFriction = 0f;
+            smoothSledMat.frictionCombine = PhysicMaterialCombine.Minimum;
+            smoothSledMat.bounciness = 0f;
+            smoothSledMat.bounceCombine = PhysicMaterialCombine.Minimum;
+            
+            vehicleCollider.material = smoothSledMat;
+        }
 
         if (physicsManager == null)
             physicsManager = FindObjectOfType<BridgePhysicsManager>();
@@ -93,7 +119,6 @@ public class LiveLoadVehicle : MonoBehaviour
             return;
         }
 
-        // --- THE FIX: GROUNDED CHECK ---
         // Shoot a laser down to see if we are standing on a bridge or ground.
         bool isGrounded = Physics.Raycast(transform.position, Vector3.down, groundedRaycastLength);
 
@@ -104,11 +129,17 @@ public class LiveLoadVehicle : MonoBehaviour
             direction.y = 0; 
             direction.Normalize();
 
-            // Drive forward, but preserve the natural Y velocity (gravity)
-            rb.velocity = new Vector3(direction.x * speed, rb.velocity.y, 0f);
+            // --- STABILITY FIX 3: Physical Push instead of Infinite Velocity ---
+            // Check current horizontal speed
+            Vector3 flatVelocity = new Vector3(rb.velocity.x, 0, rb.velocity.z);
+
+            // Only push forward if we haven't reached top speed yet
+            if (flatVelocity.magnitude < speed)
+            {
+                // Push the vehicle forward smoothly. We multiply by mass so heavy objects actually move.
+                rb.AddForce(direction * accelerationForce * vehicleMass, ForceMode.Force);
+            }
         }
-        // If isGrounded is false (no bridge), we do nothing. The vehicle's forward momentum 
-        // will naturally die out, and gravity will pull it straight down into the ravine!
     }
 
     // Draws a line in the editor so you can see the Grounded Check distance

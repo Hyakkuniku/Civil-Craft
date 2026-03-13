@@ -2208,7 +2208,6 @@ MonoBehaviour:
   - {fileID: 1671591935}
   - {fileID: 951873430}
   buildModeUIElements:
-  - {fileID: 0}
   - {fileID: 24175780}
 --- !u!114 &317690258
 MonoBehaviour:
@@ -3081,6 +3080,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   barColliderThickness: 0.2
   physicsSolverIterations: 30
+  warningColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  criticalColor: {r: 1, g: 0, b: 0, a: 1}
+  brokenColor: {r: 0, g: 0, b: 0, a: 1}
   isSimulating: 0
   activeStressHandlers: []
 --- !u!1 &401507344
@@ -3174,12 +3176,12 @@ PrefabInstance:
     - target: {fileID: -8679921383154817045, guid: 223482a58bc90474ea1bb4cf73f2a4f3,
         type: 3}
       propertyPath: m_LocalPosition.x
-      value: -0.87
+      value: -9.72
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 223482a58bc90474ea1bb4cf73f2a4f3,
         type: 3}
       propertyPath: m_LocalPosition.y
-      value: 14.42
+      value: 14.23
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 223482a58bc90474ea1bb4cf73f2a4f3,
         type: 3}
@@ -3241,7 +3243,7 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 223482a58bc90474ea1bb4cf73f2a4f3,
         type: 3}
       insertIndex: -1
-      addedObject: {fileID: 848539409}
+      addedObject: {fileID: 848539413}
   m_SourcePrefab: {fileID: 100100000, guid: 223482a58bc90474ea1bb4cf73f2a4f3, type: 3}
 --- !u!1 &412503215
 GameObject:
@@ -5575,27 +5577,6 @@ GameObject:
     type: 3}
   m_PrefabInstance: {fileID: 402588066}
   m_PrefabAsset: {fileID: 0}
---- !u!65 &848539409
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 848539404}
-  m_Material: {fileID: 13400000, guid: bed79a946e5b1474d9700a9adffdebf3, type: 2}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 1.97, y: 1, z: 3.47}
-  m_Center: {x: 1.68, y: -0.32, z: 0}
 --- !u!114 &848539410
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5610,7 +5591,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   startPoint: {fileID: 1011347636}
   endPoint: {fileID: 564195638}
-  speed: 1
+  speed: 5
+  accelerationForce: 10
   vehicleMass: 250
   groundedRaycastLength: 1.5
   physicsManager: {fileID: 396379710}
@@ -5641,6 +5623,27 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 72
   m_CollisionDetection: 0
+--- !u!65 &848539413
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 848539404}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 2.2, y: 1, z: 2.86}
+  m_Center: {x: 0, y: 0.35, z: 0}
 --- !u!1 &887801356
 GameObject:
   m_ObjectHideFlags: 0
@@ -6334,7 +6337,7 @@ Transform:
   m_GameObject: {fileID: 1011347635}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: 0.7071068, z: -0, w: 0.7071068}
-  m_LocalPosition: {x: -0.69, y: 14.96, z: 21.09}
+  m_LocalPosition: {x: -14.02, y: 14.4, z: 21.09}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

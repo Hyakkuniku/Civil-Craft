@@ -15,7 +15,7 @@ MonoBehaviour:
   clientName: Merchant Clara
   jobDescription: I need a sturdy bridge to transport my heavy crate of iron tools
     across the gorge. Do not let it fall!
-  budget: 5000
+  budget: 500000
   cargoWeight: 500
   offerDialogue:
     name: Merchant Clara

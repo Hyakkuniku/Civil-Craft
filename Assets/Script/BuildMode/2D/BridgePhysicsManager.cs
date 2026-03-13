@@ -7,6 +7,12 @@ public class BridgePhysicsManager : MonoBehaviour
     public float barColliderThickness = 0.2f;
     public int physicsSolverIterations = 40; 
 
+    [Header("Stress Visualizer Colors")]
+    public bool enableVisualizer = true;
+    public Color warningColor = Color.yellow;
+    public Color criticalColor = Color.red;
+    public Color brokenColor = Color.black;
+
     [HideInInspector] public bool isSimulating = false;
     [HideInInspector] public List<BarStressHandler> activeStressHandlers = new List<BarStressHandler>();
 
@@ -36,18 +42,15 @@ public class BridgePhysicsManager : MonoBehaviour
         }
         else
         {
-            // If simulation is already stopped, just make sure nodes become visible again
             SetNodesVisible(true);
         }
     }
 
     private void HandleExitBuildMode()
     {
-        // When we exit build mode, hide all the node spheres so they don't clutter the game view
         SetNodesVisible(false);
     }
 
-    // --- NEW HELPER METHOD ---
     private void SetNodesVisible(bool isVisible)
     {
         foreach (Point p in Point.AllPoints)
@@ -68,7 +71,6 @@ public class BridgePhysicsManager : MonoBehaviour
             p.preSimPos = p.transform.position;
             p.preSimParent = p.transform.parent;
 
-            // Hide nodes when physics starts
             Renderer r = p.GetComponentInChildren<Renderer>();
             if (r != null) r.enabled = false;
         }
@@ -127,7 +129,6 @@ public class BridgePhysicsManager : MonoBehaviour
             }
         }
 
-        // --- THE FIX: Check if we are in build mode before turning nodes back on! ---
         bool isCurrentlyBuilding = GameManager.Instance != null && GameManager.Instance.CurrentState == GameManager.GameState.Building;
 
         foreach (Point p in Point.AllPoints)
@@ -142,7 +143,6 @@ public class BridgePhysicsManager : MonoBehaviour
             p.transform.position = p.preSimPos;
             p.transform.rotation = Quaternion.identity; 
 
-            // Only make them visible if we are safely inside build mode
             Renderer r = p.GetComponentInChildren<Renderer>();
             if (r != null) r.enabled = isCurrentlyBuilding;
         }
@@ -392,6 +392,10 @@ public class BarStressHandler : MonoBehaviour
     [HideInInspector] public float currentStressPercent = 0f; 
     
     private int framesActive = 0; 
+    private float smoothedForce = 0f;
+
+    private Renderer[] childRenderers;
+    private Color[] originalColors;
 
     public void Setup(BridgeMaterialSO mat, Point point1, Point point2)
     {
@@ -402,11 +406,33 @@ public class BarStressHandler : MonoBehaviour
         myBar = GetComponent<Bar>();
         
         restLength = Vector3.Distance(p1.transform.position, p2.transform.position);
+
+        childRenderers = GetComponentsInChildren<Renderer>();
+        originalColors = new Color[childRenderers.Length];
+        
+        for (int i = 0; i < childRenderers.Length; i++)
+        {
+            if (childRenderers[i].material.HasProperty("_Color"))
+                originalColors[i] = childRenderers[i].material.color;
+            else if (childRenderers[i].material.HasProperty("_BaseColor"))
+                originalColors[i] = childRenderers[i].material.GetColor("_BaseColor");
+            else
+                originalColors[i] = Color.white;
+        }
     }
 
     public void SetRopeJoint(SpringJoint joint)
     {
         ropeJoint = joint;
+    }
+
+    private void OnDestroy()
+    {
+        if (childRenderers == null) return;
+        for (int i = 0; i < childRenderers.Length; i++)
+        {
+            if (childRenderers[i] != null) SetBarColor(originalColors[i], i);
+        }
     }
 
     private void FixedUpdate()
@@ -426,7 +452,7 @@ public class BarStressHandler : MonoBehaviour
         }
 
         framesActive++;
-        if (framesActive < 10) return;
+        if (framesActive < 30) return;
 
         float currentLength = Vector3.Distance(p1.transform.position, p2.transform.position);
         bool isTension = currentLength > restLength; 
@@ -437,35 +463,52 @@ public class BarStressHandler : MonoBehaviour
 
         if (material.isRope)
         {
-            if (ropeJoint != null)
-            {
-                maxForceThisFrame = ropeJoint.currentForce.magnitude;
-                if (maxForceThisFrame > material.maxTension)
-                {
-                    breakingJoint = ropeJoint;
-                    breakCause = "Tension (Rope Snapped)";
-                }
-            }
+            if (ropeJoint != null) maxForceThisFrame = ropeJoint.currentForce.magnitude;
         }
         else
         {
             foreach (Joint joint in joints)
             {
                 if (joint == null) continue;
-
                 float forceMag = joint.currentForce.magnitude;
                 if (forceMag > maxForceThisFrame) maxForceThisFrame = forceMag;
+            }
+        }
 
-                if (isTension && forceMag > material.maxTension)
-                {
-                    breakingJoint = joint;
-                    breakCause = "Tension (Pulled apart)";
-                }
-                else if (!isTension && forceMag > material.maxCompression)
-                {
-                    breakingJoint = joint;
-                    breakCause = "Compression (Buckled)";
-                }
+        // --- THE FIX: Hard Rate-Limiting ---
+        float absoluteLimit = isTension ? material.maxTension : material.maxCompression;
+        if (absoluteLimit <= 0f) absoluteLimit = 1f;
+
+        float maxStressChangePerFrame = (absoluteLimit * 5f) * Time.fixedDeltaTime;
+        
+        // Push the smoothed force towards the raw force, but cap the speed so it ignores 1-frame explosions
+        smoothedForce = Mathf.MoveTowards(smoothedForce, maxForceThisFrame, maxStressChangePerFrame);
+        
+        // Let it drop instantly if the weight leaves, so visuals are snappy
+        if (maxForceThisFrame < smoothedForce)
+        {
+            smoothedForce = Mathf.Lerp(smoothedForce, maxForceThisFrame, Time.fixedDeltaTime * 15f);
+        }
+
+        if (material.isRope)
+        {
+            if (smoothedForce > material.maxTension)
+            {
+                breakingJoint = ropeJoint;
+                breakCause = "Tension (Rope Snapped)";
+            }
+        }
+        else
+        {
+            if (isTension && smoothedForce > material.maxTension)
+            {
+                breakingJoint = joints[0]; 
+                breakCause = "Tension (Pulled apart)";
+            }
+            else if (!isTension && smoothedForce > material.maxCompression)
+            {
+                breakingJoint = joints[0];
+                breakCause = "Compression (Buckled)";
             }
         }
 
@@ -473,11 +516,37 @@ public class BarStressHandler : MonoBehaviour
         if (stressLimit <= 0f) stressLimit = 1f; 
 
         if (material.isRope && !isTension) currentStressPercent = 0f; 
-        else currentStressPercent = maxForceThisFrame / stressLimit;
+        else currentStressPercent = smoothedForce / stressLimit;
+
+        if (manager.enableVisualizer)
+        {
+            UpdateStressVisuals();
+        }
 
         if (breakingJoint != null && !isBroken)
         {
-            BreakBar(breakCause, maxForceThisFrame, breakingJoint);
+            BreakBar(breakCause, smoothedForce, breakingJoint);
+        }
+    }
+
+    private void UpdateStressVisuals()
+    {
+        if (childRenderers == null || childRenderers.Length == 0) return;
+
+        for (int i = 0; i < childRenderers.Length; i++)
+        {
+            Color stressColor;
+
+            if (currentStressPercent < 0.5f)
+            {
+                stressColor = Color.Lerp(originalColors[i], manager.warningColor, currentStressPercent * 2f);
+            }
+            else
+            {
+                stressColor = Color.Lerp(manager.warningColor, manager.criticalColor, (currentStressPercent - 0.5f) * 2f);
+            }
+
+            SetBarColor(stressColor, i);
         }
     }
 
@@ -489,10 +558,26 @@ public class BarStressHandler : MonoBehaviour
 
         if (brokenJoint != null) Destroy(brokenJoint);
         
+        for (int i = 0; i < childRenderers.Length; i++) SetBarColor(manager.brokenColor, i);
+        
         if (material.isRope && myBar != null)
         {
             myBar.StartPosition = p1.transform.position;
             myBar.UpdateCreatingBar(p1.transform.position + (Vector3.down * restLength));
+        }
+    }
+
+    private void SetBarColor(Color targetColor, int index)
+    {
+        if (childRenderers[index] == null) return;
+
+        if (childRenderers[index].material.HasProperty("_Color"))
+        {
+            childRenderers[index].material.color = targetColor;
+        }
+        else if (childRenderers[index].material.HasProperty("_BaseColor"))
+        {
+            childRenderers[index].material.SetColor("_BaseColor", targetColor);
         }
     }
 
@@ -502,6 +587,7 @@ public class BarStressHandler : MonoBehaviour
         {
             isBroken = true;
             currentStressPercent = 1f;
+            for (int i = 0; i < childRenderers.Length; i++) SetBarColor(manager.brokenColor, i);
         }
     }
 }
