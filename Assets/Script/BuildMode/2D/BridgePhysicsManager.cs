@@ -232,7 +232,7 @@ public class BridgePhysicsManager : MonoBehaviour
             for (int i = 0; i < spawnCount; i++)
             {
                 BoxCollider col = bar.gameObject.AddComponent<BoxCollider>();
-                float thickness = bar.visualSize.y > 0.05f ? bar.visualSize.y : barColliderThickness;
+                float thickness = bar.materialData.isRoad ? 0.05f : barColliderThickness;
                 float depth = bar.visualSize.z; 
 
                 if (!bar.materialData.isDualBeam && depth < 2.0f) depth = 2.0f; 
