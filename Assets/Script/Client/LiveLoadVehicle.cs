@@ -1,61 +1,119 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 [RequireComponent(typeof(Rigidbody))]
 public class LiveLoadVehicle : MonoBehaviour
 {
     [Header("Path Settings")]
-    [Tooltip("Where the vehicle spawns when driving starts.")]
     public Transform startPoint;
-    [Tooltip("The destination the vehicle is driving towards.")]
     public Transform endPoint;
 
-    [Header("Vehicle Settings")]
-    [Tooltip("Target top speed.")]
-    public float speed = 5f;
-    [Tooltip("How hard the engine pushes to reach top speed.")]
-    public float accelerationForce = 10f;
+    [Header("Engine & Chassis")]
+    [Tooltip("Target top speed in m/s.")]
+    public float maxSpeed = 5f;
+    [Tooltip("How hard the engine rotates the wheels to pull the mass.")]
+    public float engineTorque = 1500f; 
     public float vehicleMass = 1000f;
-    [Tooltip("How far down to check for the bridge. Adjust if your vehicle is tall.")]
-    public float groundedRaycastLength = 1.5f;
+
+    [Header("Custom Wheel Setup")]
+    [Tooltip("Drag your 4 wheel GameObjects here from the hierarchy!")]
+    public GameObject[] wheelObjects;
+    [Tooltip("Adjust this so the cyan sphere perfectly wraps your wheel meshes.")]
+    public float wheelRadius = 0.4f;
+    [Tooltip("Mass of each individual wheel in kg.")]
+    public float wheelMass = 50f;
+    [Tooltip("Which direction the wheels spin. Change to (0,0,1) or (0,1,0) if they wobble!")]
+    public Vector3 spinAxis = new Vector3(1, 0, 0); // --- THE FIX: Defaulted to X-axis! ---
 
     [Header("System")]
     public BridgePhysicsManager physicsManager;
 
     private Rigidbody rb;
-    private Collider vehicleCollider;
     private bool isDriving = false;
     private bool wasSimulating = false;
+
+    private class WheelData
+    {
+        public GameObject physObj;
+        public Rigidbody rb;
+        public HingeJoint hinge;
+        public Vector3 originalLocalPos;
+        public Quaternion originalLocalRot;
+    }
+    private List<WheelData> wheels = new List<WheelData>();
 
     private void Awake()
     {
         rb = GetComponent<Rigidbody>();
-        vehicleCollider = GetComponent<Collider>();
         
-        // Configure the Rigidbody for bridge physics
         rb.mass = vehicleMass;
         rb.isKinematic = true; 
-        rb.useGravity = true; // Ensure gravity is ON
-        
-        // Continuous Dynamic is required so heavy, fast objects don't clip through thin bridge bars
+        rb.useGravity = true; 
         rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic; 
 
-        // --- STABILITY FIX 1: Lock Rotation ---
-        // Lock rotation so the vehicle doesn't nose-dive into the bridge joints.
-        // Lock Z position so it doesn't fall off the side of the 2D bridge.
-        rb.constraints = RigidbodyConstraints.FreezeRotation | RigidbodyConstraints.FreezePositionZ;
+        rb.constraints = RigidbodyConstraints.FreezeRotationX | 
+                         RigidbodyConstraints.FreezeRotationY | 
+                         RigidbodyConstraints.FreezePositionZ;
 
-        // --- STABILITY FIX 2: Zero-Friction Sled ---
-        // Automatically apply a frictionless material so it glides smoothly over seams
-        if (vehicleCollider != null)
+        Collider chassisCol = GetComponent<Collider>();
+        if (chassisCol != null)
         {
-            PhysicMaterial smoothSledMat = new PhysicMaterial("SmoothSled");
-            smoothSledMat.dynamicFriction = 0f;
-            smoothSledMat.staticFriction = 0f;
-            smoothSledMat.frictionCombine = PhysicMaterialCombine.Minimum;
-            smoothSledMat.bounciness = 0f;
-            smoothSledMat.bounceCombine = PhysicMaterialCombine.Minimum;
+            PhysicMaterial slipMat = new PhysicMaterial("ChassisSlip");
+            slipMat.dynamicFriction = 0f; slipMat.staticFriction = 0f; slipMat.bounciness = 0f;
+            chassisCol.material = slipMat;
+        }
+
+        PhysicMaterial wheelMat = new PhysicMaterial("WheelGrip");
+        wheelMat.dynamicFriction = 1f;
+        wheelMat.staticFriction = 1f;
+        wheelMat.frictionCombine = PhysicMaterialCombine.Maximum;
+        wheelMat.bounciness = 0f;
+
+        foreach (GameObject visualWheel in wheelObjects)
+        {
+            if (visualWheel == null) continue;
+
+            Renderer rend = visualWheel.GetComponentInChildren<Renderer>();
+            if (rend == null) continue;
+            Vector3 trueCenter = rend.bounds.center;
+
+            GameObject physWheel = new GameObject(visualWheel.name + "_PhysicsAxle");
+            physWheel.transform.position = trueCenter;
+            physWheel.transform.rotation = visualWheel.transform.rotation;
+            physWheel.transform.SetParent(transform);
+
+            visualWheel.transform.SetParent(physWheel.transform, true);
+
+            WheelData wd = new WheelData();
+            wd.physObj = physWheel;
+            wd.originalLocalPos = physWheel.transform.localPosition;
+            wd.originalLocalRot = physWheel.transform.localRotation;
+
+            Collider oldCol = visualWheel.GetComponent<Collider>();
+            if (oldCol != null) Destroy(oldCol);
+
+            SphereCollider sc = physWheel.AddComponent<SphereCollider>();
+            sc.radius = wheelRadius;
+            sc.material = wheelMat;
+
+            wd.rb = physWheel.AddComponent<Rigidbody>();
+            wd.rb.mass = wheelMass;
+            wd.rb.isKinematic = true;
+            wd.rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+
+            wd.hinge = physWheel.AddComponent<HingeJoint>();
+            wd.hinge.connectedBody = rb;
             
-            vehicleCollider.material = smoothSledMat;
+            // --- THE FIX IS APPLIED HERE ---
+            wd.hinge.axis = spinAxis; 
+            
+            JointMotor motor = wd.hinge.motor;
+            motor.force = engineTorque;
+            motor.freeSpin = false;
+            wd.hinge.motor = motor;
+            wd.hinge.useMotor = false;
+
+            wheels.Add(wd);
         }
 
         if (physicsManager == null)
@@ -66,13 +124,11 @@ public class LiveLoadVehicle : MonoBehaviour
     {
         if (physicsManager == null) return;
 
-        // Auto-start driving when Simulation begins
         if (physicsManager.isSimulating && !wasSimulating)
         {
             StartDriving();
             wasSimulating = true;
         }
-        // Auto-reset when Simulation stops
         else if (!physicsManager.isSimulating && wasSimulating)
         {
             StopAndReset();
@@ -86,24 +142,52 @@ public class LiveLoadVehicle : MonoBehaviour
         {
             transform.position = startPoint.position;
             transform.rotation = startPoint.rotation;
+
+            foreach (var w in wheels)
+            {
+                w.physObj.transform.localPosition = w.originalLocalPos;
+                w.physObj.transform.localRotation = w.originalLocalRot;
+            }
         }
 
         rb.isKinematic = false;
-        rb.velocity = Vector3.zero; // Clear any weird leftover momentum
+        rb.velocity = Vector3.zero;
+        
+        foreach (var w in wheels)
+        {
+            w.rb.isKinematic = false;
+            w.rb.velocity = Vector3.zero;
+        }
+
         isDriving = true;
     }
 
     public void StopAndReset()
     {
         isDriving = false;
+
         rb.isKinematic = true;
         rb.velocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
+
+        foreach (var w in wheels)
+        {
+            w.rb.isKinematic = true;
+            w.rb.velocity = Vector3.zero;
+            w.rb.angularVelocity = Vector3.zero;
+            w.hinge.useMotor = false; 
+        }
 
         if (startPoint != null)
         {
             transform.position = startPoint.position;
             transform.rotation = startPoint.rotation;
+
+            foreach (var w in wheels)
+            {
+                w.physObj.transform.localPosition = w.originalLocalPos;
+                w.physObj.transform.localRotation = w.originalLocalRot;
+            }
         }
     }
 
@@ -111,41 +195,56 @@ public class LiveLoadVehicle : MonoBehaviour
     {
         if (!isDriving || endPoint == null) return;
 
-        // Stop the vehicle if it reaches the destination's X coordinate
         if (Mathf.Abs(transform.position.x - endPoint.position.x) < 0.5f)
         {
             isDriving = false;
-            rb.velocity = new Vector3(0, rb.velocity.y, 0); // Stop horizontal movement
+            foreach (var w in wheels) w.hinge.useMotor = false;
             return;
         }
 
-        // Shoot a laser down to see if we are standing on a bridge or ground.
-        bool isGrounded = Physics.Raycast(transform.position, Vector3.down, groundedRaycastLength);
+        bool isGrounded = false;
+        foreach (var w in wheels)
+        {
+            if (Physics.Raycast(w.physObj.transform.position, Vector3.down, wheelRadius + 0.2f))
+            {
+                isGrounded = true;
+                break;
+            }
+        }
 
         if (isGrounded)
         {
-            // Calculate horizontal direction (ignoring Y so it doesn't try to fly)
-            Vector3 direction = (endPoint.position - transform.position);
-            direction.y = 0; 
-            direction.Normalize();
+            float directionX = Mathf.Sign(endPoint.position.x - transform.position.x);
+            float speedDegPerSec = (maxSpeed / wheelRadius) * Mathf.Rad2Deg;
 
-            // --- STABILITY FIX 3: Physical Push instead of Infinite Velocity ---
-            // Check current horizontal speed
-            Vector3 flatVelocity = new Vector3(rb.velocity.x, 0, rb.velocity.z);
-
-            // Only push forward if we haven't reached top speed yet
-            if (flatVelocity.magnitude < speed)
+            foreach (var w in wheels)
             {
-                // Push the vehicle forward smoothly. We multiply by mass so heavy objects actually move.
-                rb.AddForce(direction * accelerationForce * vehicleMass, ForceMode.Force);
+                JointMotor motor = w.hinge.motor;
+                // If the wheels spin BACKWARDS, just change this to a positive number!
+                motor.targetVelocity = speedDegPerSec * -directionX; 
+                w.hinge.motor = motor;
+                w.hinge.useMotor = true;
             }
+        }
+        else
+        {
+            foreach (var w in wheels) w.hinge.useMotor = false;
         }
     }
 
-    // Draws a line in the editor so you can see the Grounded Check distance
     private void OnDrawGizmosSelected()
     {
-        Gizmos.color = Color.red;
-        Gizmos.DrawLine(transform.position, transform.position + (Vector3.down * groundedRaycastLength));
+        if (wheelObjects == null) return;
+        
+        Gizmos.color = Color.cyan;
+        foreach (GameObject w in wheelObjects)
+        {
+            if (w != null)
+            {
+                Renderer rend = w.GetComponentInChildren<Renderer>();
+                if (rend != null) Gizmos.DrawWireSphere(rend.bounds.center, wheelRadius);
+                else Gizmos.DrawWireSphere(w.transform.position, wheelRadius);
+            }
+        }
     }
 }

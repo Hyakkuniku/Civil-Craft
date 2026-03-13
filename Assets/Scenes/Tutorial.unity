@@ -3078,7 +3078,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fd4ee45156ae6e1408619ee6816d32a5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  barColliderThickness: 0.2
+  barColliderThickness: 0.1
   physicsSolverIterations: 30
   enableVisualizer: 1
   warningColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
@@ -3182,7 +3182,7 @@ PrefabInstance:
     - target: {fileID: -8679921383154817045, guid: 223482a58bc90474ea1bb4cf73f2a4f3,
         type: 3}
       propertyPath: m_LocalPosition.y
-      value: 21.358
+      value: 14.375
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 223482a58bc90474ea1bb4cf73f2a4f3,
         type: 3}
@@ -3381,6 +3381,12 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 412503215}
   m_CullTransparentMesh: 1
+--- !u!1 &428109814 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: -9036740416172153920, guid: 223482a58bc90474ea1bb4cf73f2a4f3,
+    type: 3}
+  m_PrefabInstance: {fileID: 402588066}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &461603476
 GameObject:
   m_ObjectHideFlags: 0
@@ -5592,10 +5598,17 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   startPoint: {fileID: 1011347636}
   endPoint: {fileID: 564195638}
-  speed: 5
-  accelerationForce: 10
+  maxSpeed: 5
+  engineTorque: 5000
   vehicleMass: 250
-  groundedRaycastLength: 1.5
+  wheelObjects:
+  - {fileID: 428109814}
+  - {fileID: 1247647431}
+  - {fileID: 864629816}
+  - {fileID: 1222945127}
+  wheelRadius: 0.5
+  wheelMass: 50
+  spinAxis: {x: -1, y: 0, z: 0}
   physicsManager: {fileID: 396379710}
 --- !u!54 &848539411
 Rigidbody:
@@ -5643,8 +5656,14 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 2.2, y: 2.69, z: 2.86}
-  m_Center: {x: 0, y: 0.35, z: 0}
+  m_Size: {x: 1.57, y: 1.31, z: 2.86}
+  m_Center: {x: 0, y: 0.27, z: 0}
+--- !u!1 &864629816 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 3056816762090440387, guid: 223482a58bc90474ea1bb4cf73f2a4f3,
+    type: 3}
+  m_PrefabInstance: {fileID: 402588066}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &887801356
 GameObject:
   m_ObjectHideFlags: 0
@@ -7132,6 +7151,12 @@ MonoBehaviour:
   tutorialText: {fileID: 1488544410}
   nextButton: {fileID: 1501903578}
   skipButton: {fileID: 670184984}
+--- !u!1 &1222945127 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 5544821465288111194, guid: 223482a58bc90474ea1bb4cf73f2a4f3,
+    type: 3}
+  m_PrefabInstance: {fileID: 402588066}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1229126877 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 3051679551491938493, guid: db77d626f6ad63d439d5caadb9f0d348,
@@ -7261,6 +7286,12 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1236967775}
   m_CullTransparentMesh: 1
+--- !u!1 &1247647431 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: -1693475291915744651, guid: 223482a58bc90474ea1bb4cf73f2a4f3,
+    type: 3}
+  m_PrefabInstance: {fileID: 402588066}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1261420244
 GameObject:
   m_ObjectHideFlags: 0
