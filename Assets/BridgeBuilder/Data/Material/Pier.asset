@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   costPerMeter: 100
   massPerMeter: 2
-  maxLength: 41
+  maxLength: 30
   maxTension: 3000
   maxCompression: 3000
   useSpring: 0
@@ -23,8 +23,10 @@ MonoBehaviour:
   isRope: 0
   isRoad: 0
   isPier: 1
-  segmentPrefab: {fileID: 2050839888849446331, guid: 1478968ea7329cd41a32168339135772,
+  segmentPrefab: {fileID: 2167323857712518596, guid: ef1cb42bc4b0fbb4aaa559067e5726b5,
+    type: 3}
+  pierCapPrefab: {fileID: 3480219191514089514, guid: eb578acce07273e4ea2a1fb07c129abb,
     type: 3}
   gizmoColor: {r: 1, g: 1, b: 1, a: 1}
-  isDualBeam: 1
+  isDualBeam: 0
   zOffset: 3.65

@@ -20,10 +20,14 @@ public class BridgeMaterialSO : ScriptableObject
     [Header("Special Types")]
     public bool isRope = false; 
     public bool isRoad = false; 
-    public bool isPier = false; // --- NEW: Check this box in the Inspector for your Pier material! ---
+    public bool isPier = false; 
 
     [Header("Visuals")]
+    [Tooltip("For Piers: This is the bottom Pillar that stretches up.")]
     public GameObject segmentPrefab;
+    [Tooltip("For Piers: This is the T-Shaped Cap that sits at the top.")]
+    public GameObject pierCapPrefab; 
+    
     public Color gizmoColor = Color.white;
     public bool isDualBeam = false;
     public float zOffset = 0.5f;

@@ -11,14 +11,19 @@ public class Bar : MonoBehaviour
 
     [HideInInspector] public Vector3 preSimPos;
     [HideInInspector] public Quaternion preSimRot;
-
     [HideInInspector] public Vector3 visualSize = new Vector3(1f, 0.2f, 0.2f);
-    
     [HideInInspector] public float currentLength = 0f;
 
     private List<GameObject> visualSegments = new List<GameObject>();
     private float baseLength = 1f; 
     private Vector3 originalScale = Vector3.one;
+    
+    private GameObject pierCapInstance;
+    private Vector3 originalCapScale = Vector3.one;
+    
+    // We now track BOTH the top and bottom of the T-Cap
+    private float capTopOffset = 0f;
+    private float capBottomOffset = 0f;
 
     private void OnEnable()
     {
@@ -61,20 +66,38 @@ public class Bar : MonoBehaviour
                 newSegment.transform.localPosition = new Vector3(0, 0, offsetValue);
 
                 var renderer = newSegment.GetComponentInChildren<Renderer>();
-                if (renderer != null)
+                if (renderer != null && i == 0)
                 {
-                    if (i == 0)
-                    {
-                        originalScale = newSegment.transform.localScale;
-                        baseLength = renderer.bounds.size.x;
-                        visualSize = renderer.bounds.size; 
-                        if (baseLength <= 0f) baseLength = 1f; 
-                    }
+                    originalScale = newSegment.transform.localScale;
+                    
+                    baseLength = materialData.isPier ? renderer.bounds.size.y : renderer.bounds.size.x;
+                    visualSize = renderer.bounds.size; 
+                    if (baseLength <= 0f) baseLength = 1f; 
                 }
                 
                 newSegment.transform.localScale = Vector3.zero;
                 visualSegments.Add(newSegment);
             }
+        }
+
+        if (materialData.isPier && materialData.pierCapPrefab != null)
+        {
+            pierCapInstance = Instantiate(materialData.pierCapPrefab, transform);
+            pierCapInstance.name = "PierCap";
+            originalCapScale = pierCapInstance.transform.localScale;
+
+            // --- THE FIX: Measure BOTH the top and bottom of the T-Cap ---
+            pierCapInstance.transform.position = Vector3.zero;
+            pierCapInstance.transform.rotation = Quaternion.identity;
+            
+            Renderer capRend = pierCapInstance.GetComponentInChildren<Renderer>();
+            if (capRend != null)
+            {
+                capTopOffset = capRend.bounds.max.y;    // The absolute highest point
+                capBottomOffset = capRend.bounds.min.y; // The absolute lowest point
+            }
+
+            pierCapInstance.transform.localScale = Vector3.zero; 
         }
     }
 
@@ -93,29 +116,65 @@ public class Bar : MonoBehaviour
         if (totalDistance < 0.01f) 
         {
             foreach (var seg in visualSegments) seg.transform.localScale = Vector3.zero;
+            if (pierCapInstance != null) pierCapInstance.transform.localScale = Vector3.zero;
             return;
         }
 
-        Vector3 midPoint = StartPosition + (dir2D / 2f);
-        
-        // --- THE FIX: Prevent Upside-Down Inversion ---
-        // We create a temporary direction vector. If it points to the left (x < 0),
-        // we flip it so the mathematical angle always forces the top of the road to face upwards!
-        Vector3 angleDir = dir2D;
-        if (angleDir.x < 0)
+        if (materialData.isPier)
         {
-            angleDir = -angleDir;
+            // 1. Position the T-Cap so its TOP edge aligns exactly with the Anchor Node!
+            if (pierCapInstance != null)
+            {
+                pierCapInstance.transform.localScale = originalCapScale;
+                
+                Vector3 capPos = ToPosition;
+                // Shift down by the top offset so the roof of the T is exactly at the node
+                capPos.y -= capTopOffset; 
+                
+                pierCapInstance.transform.position = capPos;
+                pierCapInstance.transform.rotation = Quaternion.identity;
+            }
+
+            // 2. Shrink the main pillar so it connects exactly to the bottom of the shifted T-cap
+            float targetPillarTopY = ToPosition.y;
+            if (pierCapInstance != null)
+            {
+                // ToPosition.y is the top roof. We add the bottom offset to find exactly where the neck ends.
+                targetPillarTopY = ToPosition.y - capTopOffset + capBottomOffset; 
+            }
+
+            float adjustedDistance = targetPillarTopY - StartPosition.y;
+            if (adjustedDistance < 0.05f) adjustedDistance = 0.05f; 
+
+            // 3. Move and stretch the Pillar
+            Vector3 midPointAdjusted = StartPosition + (Vector3.up * (adjustedDistance / 2f));
+            transform.SetPositionAndRotation(midPointAdjusted, Quaternion.identity);
+
+            float scaleMultiplier = adjustedDistance / baseLength;
+            Vector3 newScale = new Vector3(originalScale.x, originalScale.y * scaleMultiplier, originalScale.z);
+
+            foreach (var seg in visualSegments)
+            {
+                seg.transform.localScale = newScale;
+            }
         }
-
-        float angle = Mathf.Atan2(angleDir.y, angleDir.x) * Mathf.Rad2Deg;
-        transform.SetPositionAndRotation(midPoint, Quaternion.Euler(0, 0, angle));
-
-        float scaleMultiplier = totalDistance / baseLength;
-        Vector3 newScale = new Vector3(originalScale.x * scaleMultiplier, originalScale.y, originalScale.z);
-
-        foreach (var seg in visualSegments)
+        else
         {
-            seg.transform.localScale = newScale;
+            // Standard Bridge Beam Logic (Wood / Roads)
+            Vector3 midPoint = StartPosition + (dir2D / 2f);
+            Vector3 angleDir = dir2D;
+            if (angleDir.x < 0) angleDir = -angleDir;
+
+            float angle = Mathf.Atan2(angleDir.y, angleDir.x) * Mathf.Rad2Deg;
+            transform.SetPositionAndRotation(midPoint, Quaternion.Euler(0, 0, angle));
+
+            float scaleMultiplier = totalDistance / baseLength;
+            Vector3 newScale = new Vector3(originalScale.x * scaleMultiplier, originalScale.y, originalScale.z);
+
+            foreach (var seg in visualSegments)
+            {
+                seg.transform.localScale = newScale;
+            }
         }
     }
 

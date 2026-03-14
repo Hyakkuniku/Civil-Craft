@@ -93,6 +93,8 @@ public class BridgePhysicsManager : MonoBehaviour
 
         SetupBarsPhysics(allBars);
         SetupDirectConnections(allBars);
+        
+        // This stops the bridge from exploding!
         ResolveAdjacentCollisions(allBars); 
     }
 
@@ -152,8 +154,9 @@ public class BridgePhysicsManager : MonoBehaviour
             Rigidbody barRb = bar.GetComponent<Rigidbody>();
             if (barRb != null) Destroy(barRb);
 
-            BoxCollider[] barCols = bar.GetComponents<BoxCollider>();
-            foreach (BoxCollider c in barCols) Destroy(c);
+            // --- THE FIX: Make sure we clean up the T-Cap colliders too! ---
+            Collider[] barCols = bar.GetComponentsInChildren<Collider>();
+            foreach (Collider c in barCols) Destroy(c);
 
             BarStressHandler stress = bar.GetComponent<BarStressHandler>();
             if (stress != null) Destroy(stress);
@@ -216,7 +219,7 @@ public class BridgePhysicsManager : MonoBehaviour
             Rigidbody barRb = bar.GetComponent<Rigidbody>();
             if (barRb == null) barRb = bar.gameObject.AddComponent<Rigidbody>();
             
-            barRb.isKinematic = false; 
+            barRb.isKinematic = bar.materialData.isPier; 
             barRb.mass = length * bar.materialData.massPerMeter; 
             
             barRb.drag = 0.5f;
@@ -227,23 +230,53 @@ public class BridgePhysicsManager : MonoBehaviour
             BoxCollider[] oldCols = bar.GetComponents<BoxCollider>();
             foreach(var c in oldCols) Destroy(c);
 
-            int spawnCount = bar.materialData.isDualBeam ? 2 : 1;
-
-            for (int i = 0; i < spawnCount; i++)
+            // --- THE FIX: Perfectly shrink-wrapped Pier Colliders! ---
+            if (bar.materialData.isPier)
             {
-                BoxCollider col = bar.gameObject.AddComponent<BoxCollider>();
-                float thickness = bar.materialData.isRoad ? 0.05f : barColliderThickness;
-                float depth = bar.visualSize.z; 
+                // 1. Auto-wrap the T-Cap
+                Transform cap = bar.transform.Find("PierCap");
+                if (cap != null)
+                {
+                    Renderer capRend = cap.GetComponentInChildren<Renderer>();
+                    if (capRend != null && capRend.gameObject.GetComponent<Collider>() == null)
+                    {
+                        capRend.gameObject.AddComponent<BoxCollider>();
+                    }
+                }
 
-                if (!bar.materialData.isDualBeam && depth < 2.0f) depth = 2.0f; 
-                else if (bar.materialData.isDualBeam && depth < 0.2f) depth = 0.2f;
+                // 2. Auto-wrap the Pillar below it
+                foreach (Transform child in bar.transform)
+                {
+                    if (child.name.StartsWith("VisualSegment"))
+                    {
+                        Renderer segRend = child.GetComponentInChildren<Renderer>();
+                        if (segRend != null && segRend.gameObject.GetComponent<Collider>() == null)
+                        {
+                            segRend.gameObject.AddComponent<BoxCollider>();
+                        }
+                    }
+                }
+            }
+            else
+            {
+                // Standard Road/Wood logic (unchanged)
+                int spawnCount = bar.materialData.isDualBeam ? 2 : 1;
+                for (int i = 0; i < spawnCount; i++)
+                {
+                    BoxCollider col = bar.gameObject.AddComponent<BoxCollider>();
+                    
+                    float thickness = bar.materialData.isRoad ? 0.05f : barColliderThickness;
+                    float depth = bar.visualSize.z; 
 
-                float zOffsetValue = bar.materialData.isDualBeam ? ((i == 0) ? bar.materialData.zOffset : -bar.materialData.zOffset) : 0f;
-                float physicsLength = length - 0.4f; 
-                if (physicsLength < 0.1f) physicsLength = 0.1f; 
+                    if (!bar.materialData.isDualBeam && depth < 2.0f) depth = 2.0f; 
+                    else if (bar.materialData.isDualBeam && depth < 0.2f) depth = 0.2f;
 
-                col.size = new Vector3(physicsLength, thickness, depth);
-                col.center = new Vector3(0, 0, zOffsetValue);
+                    float zOffsetValue = bar.materialData.isDualBeam ? ((i == 0) ? bar.materialData.zOffset : -bar.materialData.zOffset) : 0f;
+                    float physicsLength = length + 0.05f; 
+                    
+                    col.size = new Vector3(physicsLength, thickness, depth);
+                    col.center = new Vector3(0, 0, zOffsetValue);
+                }
             }
         }
 
@@ -363,7 +396,8 @@ public class BridgePhysicsManager : MonoBehaviour
         List<Collider> bridgeCols = new List<Collider>();
         foreach(Bar b in allBars)
         {
-            bridgeCols.AddRange(b.GetComponents<Collider>());
+            // --- THE FIX: We must search children to find the T-Cap colliders! ---
+            bridgeCols.AddRange(b.GetComponentsInChildren<Collider>());
         }
 
         for (int i = 0; i < bridgeCols.Count; i++)
@@ -475,16 +509,13 @@ public class BarStressHandler : MonoBehaviour
             }
         }
 
-        // --- THE FIX: Hard Rate-Limiting ---
         float absoluteLimit = isTension ? material.maxTension : material.maxCompression;
         if (absoluteLimit <= 0f) absoluteLimit = 1f;
 
         float maxStressChangePerFrame = (absoluteLimit * 5f) * Time.fixedDeltaTime;
         
-        // Push the smoothed force towards the raw force, but cap the speed so it ignores 1-frame explosions
         smoothedForce = Mathf.MoveTowards(smoothedForce, maxForceThisFrame, maxStressChangePerFrame);
         
-        // Let it drop instantly if the weight leaves, so visuals are snappy
         if (maxForceThisFrame < smoothedForce)
         {
             smoothedForce = Mathf.Lerp(smoothedForce, maxForceThisFrame, Time.fixedDeltaTime * 15f);
