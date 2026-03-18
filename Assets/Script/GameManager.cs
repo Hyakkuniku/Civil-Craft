@@ -6,65 +6,41 @@ public class GameManager : MonoBehaviour
 {
     public static GameManager Instance { get; private set; }
 
-    public enum GameState
-    {
-        Normal,
-        Building
-    }
-
+    public enum GameState { Normal, Building }
     public GameState CurrentState { get; private set; } = GameState.Normal;
 
     public UnityEvent OnEnterBuildMode;
     public UnityEvent OnExitBuildMode;
 
     public BuildLocation ActiveBuildLocation { get; private set; }
+    
+    // --- NEW: Global memory of the active contract! ---
+    public ContractSO CurrentContract { get; private set; } 
 
     [SerializeField] private Camera mainCamera;
-
     private Transform mainCamParent;
     private Vector3 mainCamLocalPos;
     private Quaternion mainCamLocalRot;
-    
-    // NEW: We cache the player's transform here so we don't need the PlayerMotor script
     private Transform currentPlayerTransform;
 
     [Header("UI Management")]
-    [Tooltip("UI to hide during build mode (like crosshairs, player health, etc)")]
     [SerializeField] private List<GameObject> uiElementsToHide = new List<GameObject>();
-    
-    [Tooltip("UI to show only during build mode (like budget, build menus, etc)")]
     [SerializeField] private List<GameObject> buildModeUIElements = new List<GameObject>();
 
     private List<BuildableVisual> cachedBuildables = new List<BuildableVisual>();
 
     private void Awake()
     {
-        if (Instance == null)
-        {
-            Instance = this;
-            DontDestroyOnLoad(gameObject);
-        }
-        else
-        {
-            Destroy(gameObject);
-            return;
-        }
+        if (Instance == null) { Instance = this; DontDestroyOnLoad(gameObject); }
+        else { Destroy(gameObject); return; }
 
-        if (mainCamera == null)
-            mainCamera = Camera.main;
-            
-        foreach (GameObject uiElement in buildModeUIElements)
-        {
-            if (uiElement != null) uiElement.SetActive(false);
-        }
+        if (mainCamera == null) mainCamera = Camera.main;
+        foreach (GameObject uiElement in buildModeUIElements) if (uiElement != null) uiElement.SetActive(false);
     }
 
     private void Update()
     {
-        if (CurrentState == GameState.Building && Input.GetKeyDown(KeyCode.Escape))
-        {
-            ExitBuildMode();
-        }
+        if (CurrentState == GameState.Building && Input.GetKeyDown(KeyCode.Escape)) ExitBuildMode();
     }
 
     public void EnterBuildMode(BuildLocation location, Transform player)
@@ -72,13 +48,18 @@ public class GameManager : MonoBehaviour
         if (CurrentState == GameState.Building) return;
 
         ActiveBuildLocation = location;
+        
+        // --- NEW: Save the contract to global memory ---
+        if (location != null && location.activeContract != null)
+        {
+            CurrentContract = location.activeContract; 
+        }
+
         CurrentState = GameState.Building;
         currentPlayerTransform = player;
 
-        if (BuildUIController.Instance != null && location.activeContract != null)
-        {
-            BuildUIController.Instance.maxBudget = location.activeContract.budget;
-        }
+        if (BuildUIController.Instance != null && CurrentContract != null)
+            BuildUIController.Instance.maxBudget = CurrentContract.budget;
 
         if (cachedBuildables.Count == 0) CacheBuildableObjects();
 
@@ -102,15 +83,10 @@ public class GameManager : MonoBehaviour
             }
         }
 
-        foreach (GameObject uiElement in uiElementsToHide)
-            if (uiElement != null) uiElement.SetActive(false);
-
-        foreach (GameObject uiElement in buildModeUIElements)
-            if (uiElement != null) uiElement.SetActive(true);
+        foreach (GameObject uiElement in uiElementsToHide) if (uiElement != null) uiElement.SetActive(false);
+        foreach (GameObject uiElement in buildModeUIElements) if (uiElement != null) uiElement.SetActive(true);
 
         SetAllBuildablesToWireframe(true);
-
-        // This single line now tells the Player, Input, and Physics to do their thing!
         OnEnterBuildMode?.Invoke();
     }
 
@@ -119,8 +95,6 @@ public class GameManager : MonoBehaviour
         if (CurrentState == GameState.Normal) return;
 
         CurrentState = GameState.Normal;
-
-        // This single line tells the Player, Input, and Physics to restore themselves!
         OnExitBuildMode?.Invoke();
 
         if (mainCamera != null && ActiveBuildLocation != null)
@@ -142,15 +116,14 @@ public class GameManager : MonoBehaviour
         if (ActiveBuildLocation != null)
         {
             if (currentPlayerTransform != null) ActiveBuildLocation.DeactivateBuildMode(currentPlayerTransform);
-            ActiveBuildLocation = null;
+            
+            // --- THE FIX: We NO LONGER set ActiveBuildLocation = null here! ---
+            // This allows the game to remember the budget even when walking around!
             currentPlayerTransform = null;
         }
 
-        foreach (GameObject uiElement in uiElementsToHide)
-            if (uiElement != null) uiElement.SetActive(true);
-
-        foreach (GameObject uiElement in buildModeUIElements)
-            if (uiElement != null) uiElement.SetActive(false);
+        foreach (GameObject uiElement in uiElementsToHide) if (uiElement != null) uiElement.SetActive(true);
+        foreach (GameObject uiElement in buildModeUIElements) if (uiElement != null) uiElement.SetActive(false);
 
         SetAllBuildablesToWireframe(false);
     }
@@ -158,8 +131,7 @@ public class GameManager : MonoBehaviour
     private void CacheBuildableObjects()
     {
         cachedBuildables.Clear();
-        var all = FindObjectsOfType<BuildableVisual>(true);
-        cachedBuildables.AddRange(all);
+        cachedBuildables.AddRange(FindObjectsOfType<BuildableVisual>(true));
     }
 
     private void SetAllBuildablesToWireframe(bool inBuildMode)

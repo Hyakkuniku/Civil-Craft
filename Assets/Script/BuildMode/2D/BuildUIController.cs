@@ -16,13 +16,9 @@ public class BuildUIController : MonoBehaviour
     public KeyCode simulateKey = KeyCode.Return;   
     public KeyCode restartKey = KeyCode.Backspace; 
 
-    // --- NEW: PLAY/PAUSE UI TOGGLE ---
     [Header("Play/Pause Button UI")]
-    [Tooltip("Drag the Image component of your Play button here")]
     public Image playPauseButtonImage; 
-    [Tooltip("The Play/Simulate icon")]
     public Sprite playIcon;            
-    [Tooltip("The Stop/Edit Mode icon")]
     public Sprite stopIcon;            
 
     [Header("Contract Info (Budget)")]
@@ -52,10 +48,7 @@ public class BuildUIController : MonoBehaviour
     public TextMeshProUGUI efficiencyRatioText;
     public TextMeshProUGUI factorOfSafetyText; 
 
-    private void Awake()
-    {
-        Instance = this;
-    }
+    private void Awake() { Instance = this; }
 
     private void Start()
     {
@@ -73,36 +66,23 @@ public class BuildUIController : MonoBehaviour
 
         UpdateContractUI();
         UpdateStressUI();
-        
-        // Always update the play/pause button icon so it matches keyboard shortcuts too!
         UpdatePlayPauseButtonUI();
         
-        if (physicsManager != null && !physicsManager.isSimulating) 
-        {
-            UpdateStatsUI();
-        }
+        if (physicsManager != null && !physicsManager.isSimulating) UpdateStatsUI();
     }
 
-    // --- NEW: Updates the Button Sprite Automatically ---
     private void UpdatePlayPauseButtonUI()
     {
         if (playPauseButtonImage == null || physicsManager == null) return;
-
-        if (physicsManager.isSimulating)
-        {
-            if (stopIcon != null) playPauseButtonImage.sprite = stopIcon;
-        }
-        else
-        {
-            if (playIcon != null) playPauseButtonImage.sprite = playIcon;
-        }
+        playPauseButtonImage.sprite = physicsManager.isSimulating ? (stopIcon != null ? stopIcon : playPauseButtonImage.sprite) : (playIcon != null ? playIcon : playPauseButtonImage.sprite);
     }
 
+    // --- THE FIX: Point this directly to the new global contract memory ---
     private ContractSO GetActiveContract()
     {
-        if (GameManager.Instance != null && GameManager.Instance.ActiveBuildLocation != null)
+        if (GameManager.Instance != null)
         {
-            return GameManager.Instance.ActiveBuildLocation.activeContract;
+            return GameManager.Instance.CurrentContract;
         }
         return null;
     }
@@ -192,17 +172,8 @@ public class BuildUIController : MonoBehaviour
                 Color.Lerp(safeStressColor, warningStressColor, maxStress * 2f) : 
                 Color.Lerp(warningStressColor, criticalStressColor, (maxStress - 0.5f) * 2f);
 
-            if (stressText != null)
-            {
-                stressText.text = liveFoS > 99f ? $"{stressPercent}% (FoS: ∞)" : $"{stressPercent}% (FoS: {liveFoS:F1})";
-                stressText.color = currentStressColor;
-            }
-
-            if (stressFillBar != null)
-            {
-                stressFillBar.fillAmount = maxStress;
-                stressFillBar.color = currentStressColor;
-            }
+            if (stressText != null) { stressText.text = liveFoS > 99f ? $"{stressPercent}% (FoS: ∞)" : $"{stressPercent}% (FoS: {liveFoS:F1})"; stressText.color = currentStressColor; }
+            if (stressFillBar != null) { stressFillBar.fillAmount = maxStress; stressFillBar.color = currentStressColor; }
         }
         else
         {
@@ -235,24 +206,12 @@ public class BuildUIController : MonoBehaviour
         if (budgetFillBar != null) { budgetFillBar.fillAmount = totalProjectedCost / maxBudget; budgetFillBar.color = totalProjectedCost > maxBudget ? overBudgetTextColor : normalTextColor; }
     }
 
-    // --- NEW: THE UNIFIED TOGGLE BUTTON METHOD ---
     public void OnToggleSimulationButtonClicked()
     {
         if (physicsManager == null) return;
-
-        if (physicsManager.isSimulating)
-        {
-            // If it is running, stop it!
-            OnRestartButtonClicked();
-        }
-        else
-        {
-            // If it is stopped, start it!
-            OnSimulateButtonClicked();
-        }
+        if (physicsManager.isSimulating) OnRestartButtonClicked(); else OnSimulateButtonClicked();
     }
 
-    // --- BUTTON EVENT METHODS ---
     public void OnSimulateButtonClicked() { if (physicsManager != null && !physicsManager.isSimulating) { if (barCreator != null) { barCreator.CancelCreation(); barCreator.isSimulating = true; } physicsManager.ActivatePhysics(); } }
     public void OnRestartButtonClicked() { if (physicsManager != null && physicsManager.isSimulating) { physicsManager.StopPhysicsAndReset(); if (barCreator != null) barCreator.isSimulating = false; } }
     public void OnToggleGridButtonClicked() { if (barCreator != null) barCreator.ToggleGrid(); }

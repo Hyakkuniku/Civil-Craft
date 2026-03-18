@@ -16,6 +16,8 @@ public class BridgePhysicsManager : MonoBehaviour
     [HideInInspector] public bool isSimulating = false;
     [HideInInspector] public List<BarStressHandler> activeStressHandlers = new List<BarStressHandler>();
 
+    [HideInInspector] public float peakStressThisRun = 0f;
+
     private void Start()
     {
         if (GameManager.Instance != null)
@@ -31,6 +33,19 @@ public class BridgePhysicsManager : MonoBehaviour
         {
             GameManager.Instance.OnEnterBuildMode.RemoveListener(HandleEnterBuildMode);
             GameManager.Instance.OnExitBuildMode.RemoveListener(HandleExitBuildMode);
+        }
+    }
+
+    // --- THE FIX: We changed Update() to FixedUpdate() so it never misses a physics frame! ---
+    private void FixedUpdate()
+    {
+        if (isSimulating)
+        {
+            float currentMax = GetMaxBridgeStress();
+            if (currentMax > peakStressThisRun)
+            {
+                peakStressThisRun = currentMax;
+            }
         }
     }
 
@@ -66,6 +81,8 @@ public class BridgePhysicsManager : MonoBehaviour
         isSimulating = true;
         activeStressHandlers.Clear(); 
 
+        peakStressThisRun = 0f;
+
         foreach (Point p in Point.AllPoints)
         {
             p.preSimPos = p.transform.position;
@@ -94,7 +111,6 @@ public class BridgePhysicsManager : MonoBehaviour
         SetupBarsPhysics(allBars);
         SetupDirectConnections(allBars);
         
-        // This stops the bridge from exploding!
         ResolveAdjacentCollisions(allBars); 
     }
 
@@ -154,7 +170,6 @@ public class BridgePhysicsManager : MonoBehaviour
             Rigidbody barRb = bar.GetComponent<Rigidbody>();
             if (barRb != null) Destroy(barRb);
 
-            // --- THE FIX: Make sure we clean up the T-Cap colliders too! ---
             Collider[] barCols = bar.GetComponentsInChildren<Collider>();
             foreach (Collider c in barCols) Destroy(c);
 
@@ -188,6 +203,12 @@ public class BridgePhysicsManager : MonoBehaviour
                 maxStress = handler.currentStressPercent;
             }
         }
+        
+        if (maxStress > peakStressThisRun) 
+        {
+            peakStressThisRun = maxStress;
+        }
+
         return Mathf.Clamp01(maxStress); 
     }
 
@@ -230,10 +251,8 @@ public class BridgePhysicsManager : MonoBehaviour
             BoxCollider[] oldCols = bar.GetComponents<BoxCollider>();
             foreach(var c in oldCols) Destroy(c);
 
-            // --- THE FIX: Perfectly shrink-wrapped Pier Colliders! ---
             if (bar.materialData.isPier)
             {
-                // 1. Auto-wrap the T-Cap
                 Transform cap = bar.transform.Find("PierCap");
                 if (cap != null)
                 {
@@ -244,7 +263,6 @@ public class BridgePhysicsManager : MonoBehaviour
                     }
                 }
 
-                // 2. Auto-wrap the Pillar below it
                 foreach (Transform child in bar.transform)
                 {
                     if (child.name.StartsWith("VisualSegment"))
@@ -259,7 +277,6 @@ public class BridgePhysicsManager : MonoBehaviour
             }
             else
             {
-                // Standard Road/Wood logic (unchanged)
                 int spawnCount = bar.materialData.isDualBeam ? 2 : 1;
                 for (int i = 0; i < spawnCount; i++)
                 {
@@ -357,7 +374,7 @@ public class BridgePhysicsManager : MonoBehaviour
                 BarStressHandler stressHandler = rope.GetComponent<BarStressHandler>();
                 if (stressHandler != null) stressHandler.SetRopeJoint(ropeSpring);
             }
-        }
+        } 
     }
 
     private void AttachJoint(GameObject barObj, Rigidbody targetRb, BridgeMaterialSO mat, Vector3 anchorWorldPosition)
@@ -396,7 +413,6 @@ public class BridgePhysicsManager : MonoBehaviour
         List<Collider> bridgeCols = new List<Collider>();
         foreach(Bar b in allBars)
         {
-            // --- THE FIX: We must search children to find the T-Cap colliders! ---
             bridgeCols.AddRange(b.GetComponentsInChildren<Collider>());
         }
 
@@ -486,6 +502,7 @@ public class BarStressHandler : MonoBehaviour
         }
 
         framesActive++;
+        // Give the physics engine a split second to settle before reading stress
         if (framesActive < 30) return;
 
         float currentLength = Vector3.Distance(p1.transform.position, p2.transform.position);
@@ -512,6 +529,10 @@ public class BarStressHandler : MonoBehaviour
         float absoluteLimit = isTension ? material.maxTension : material.maxCompression;
         if (absoluteLimit <= 0f) absoluteLimit = 1f;
 
+        // --- THE FIX: Impulse Shock Absorber ---
+        // This limits how fast the stress can rise in a single frame.
+        // It completely absorbs the fake 1-frame spikes caused by wheels hitting the seams 
+        // between bridge panels, while remaining 100% mathematically deterministic!
         float maxStressChangePerFrame = (absoluteLimit * 5f) * Time.fixedDeltaTime;
         
         smoothedForce = Mathf.MoveTowards(smoothedForce, maxForceThisFrame, maxStressChangePerFrame);
