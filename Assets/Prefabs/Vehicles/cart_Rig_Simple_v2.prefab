@@ -63,6 +63,11 @@ PrefabInstance:
       propertyPath: m_Name
       value: cart_Rig_Simple_v2
       objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 223482a58bc90474ea1bb4cf73f2a4f3,
+        type: 3}
+      propertyPath: m_TagString
+      value: Vehicle
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -142,6 +147,7 @@ MonoBehaviour:
   maxSpeed: 8
   engineTorque: 1500
   vehicleMass: 250
+  centerOfMassOffset: -0.5
   wheelObjects:
   - {fileID: 6682329466374676013}
   - {fileID: 3915029366587914136}
