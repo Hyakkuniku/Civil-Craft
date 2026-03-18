@@ -48,6 +48,17 @@ public class BuildUIController : MonoBehaviour
     public TextMeshProUGUI efficiencyRatioText;
     public TextMeshProUGUI factorOfSafetyText; 
 
+    // ────────────────────────────────────────────────
+    // --- THE FIX: Optimization Cache Variables ---
+    // ────────────────────────────────────────────────
+    private bool isBridgeDirty = true;
+    private float cachedBaseCost = 0f;
+    private float cachedBaseDeadLoad = 0f;
+    private int cachedBaseM = 0;
+    private int cachedBaseJ = 0;
+    private float cachedBaseRoadLength = 0f;
+    private float cachedBaseWeakestStress = Mathf.Infinity;
+
     private void Awake() { Instance = this; }
 
     private void Start()
@@ -64,30 +75,21 @@ public class BuildUIController : MonoBehaviour
             if (Input.GetKeyDown(restartKey)) OnRestartButtonClicked();
         }
 
+        // Even though these run in Update, they now use the lightning-fast cached data!
         UpdateContractUI();
+        if (physicsManager != null && !physicsManager.isSimulating) UpdateStatsUI();
+        
         UpdateStressUI();
         UpdatePlayPauseButtonUI();
-        
-        if (physicsManager != null && !physicsManager.isSimulating) UpdateStatsUI();
     }
 
-    private void UpdatePlayPauseButtonUI()
+    // Call this whenever a bar is placed, deleted, undone, or redone!
+    public void MarkBridgeDirty()
     {
-        if (playPauseButtonImage == null || physicsManager == null) return;
-        playPauseButtonImage.sprite = physicsManager.isSimulating ? (stopIcon != null ? stopIcon : playPauseButtonImage.sprite) : (playIcon != null ? playIcon : playPauseButtonImage.sprite);
+        isBridgeDirty = true;
     }
 
-    // --- THE FIX: Point this directly to the new global contract memory ---
-    private ContractSO GetActiveContract()
-    {
-        if (GameManager.Instance != null)
-        {
-            return GameManager.Instance.CurrentContract;
-        }
-        return null;
-    }
-
-    private void UpdateStatsUI()
+    private void RecalculateStaticBridge()
     {
         HashSet<Bar> uniqueBars = new HashSet<Bar>();
         HashSet<Point> activePoints = new HashSet<Point>(); 
@@ -106,26 +108,55 @@ public class BuildUIController : MonoBehaviour
             if (hasActiveBar) activePoints.Add(p);
         }
 
-        int logicalJ = activePoints.Count;
-        int displayJ = logicalJ * 2; 
-        int displayM = 0;
-        float roadLength = 0f;
-        float deadLoad = 0f;
-        float weakestStressLimit = Mathf.Infinity;
+        cachedBaseJ = activePoints.Count * 2; 
+        cachedBaseM = 0;
+        cachedBaseRoadLength = 0f;
+        cachedBaseDeadLoad = 0f;
+        cachedBaseWeakestStress = Mathf.Infinity;
+        cachedBaseCost = 0f;
 
         foreach (Bar b in uniqueBars)
         {
+            // Ignore the preview bar while drawing
             if (barCreator != null && barCreator.currentBar == b && barCreator.IsCreating) continue;
             
+            cachedBaseCost += b.GetCost();
+
             if (b.materialData != null)
             {
-                displayM += b.materialData.isDualBeam ? 2 : 1;
-                if (b.materialData.isRoad) roadLength += b.currentLength;
-                deadLoad += b.currentLength * b.materialData.massPerMeter;
+                cachedBaseM += b.materialData.isDualBeam ? 2 : 1;
+                if (b.materialData.isRoad) cachedBaseRoadLength += b.currentLength;
+                cachedBaseDeadLoad += b.currentLength * b.materialData.massPerMeter;
                 
-                if (b.materialData.maxCompression < weakestStressLimit) weakestStressLimit = b.materialData.maxCompression;
-                if (b.materialData.maxTension < weakestStressLimit) weakestStressLimit = b.materialData.maxTension;
+                if (b.materialData.maxCompression < cachedBaseWeakestStress) cachedBaseWeakestStress = b.materialData.maxCompression;
+                if (b.materialData.maxTension < cachedBaseWeakestStress) cachedBaseWeakestStress = b.materialData.maxTension;
             }
+        }
+
+        isBridgeDirty = false;
+    }
+
+    private void UpdateStatsUI()
+    {
+        if (isBridgeDirty) RecalculateStaticBridge();
+
+        // 1. Load the frozen cache
+        int displayJ = cachedBaseJ; 
+        int displayM = cachedBaseM;
+        float roadLength = cachedBaseRoadLength;
+        float deadLoad = cachedBaseDeadLoad;
+        float weakestStressLimit = cachedBaseWeakestStress;
+
+        // 2. Add the LIVE preview bar stats dynamically!
+        if (barCreator != null && barCreator.IsCreating && barCreator.currentBar != null && barCreator.currentBar.materialData != null)
+        {
+            Bar preview = barCreator.currentBar;
+            displayM += preview.materialData.isDualBeam ? 2 : 1;
+            if (preview.materialData.isRoad) roadLength += preview.currentLength;
+            deadLoad += preview.currentLength * preview.materialData.massPerMeter;
+            
+            if (preview.materialData.maxCompression < weakestStressLimit) weakestStressLimit = preview.materialData.maxCompression;
+            if (preview.materialData.maxTension < weakestStressLimit) weakestStressLimit = preview.materialData.maxTension;
         }
 
         float theoreticalCapacityKg = 0f;
@@ -160,6 +191,40 @@ public class BuildUIController : MonoBehaviour
         }
     }
 
+    public float GetTotalCost()
+    {
+        // Massively speeds up BarCreator's length checking!
+        if (isBridgeDirty) RecalculateStaticBridge();
+        return cachedBaseCost;
+    }
+
+    private void UpdateContractUI()
+    {
+        ContractSO currentContract = GetActiveContract();
+        maxBudget = currentContract != null ? currentContract.budget : fallbackMaxBudget;
+
+        float baseCost = GetTotalCost();
+        float previewCost = 0f;
+        if (barCreator != null && barCreator.IsCreating && barCreator.currentBar != null) previewCost = barCreator.currentBar.GetCost();
+        float totalProjectedCost = baseCost + previewCost;
+
+        if (usedBudgetText != null) { usedBudgetText.text = $" ${Mathf.RoundToInt(totalProjectedCost)}"; usedBudgetText.color = totalProjectedCost > maxBudget ? overBudgetTextColor : normalTextColor; }
+        if (maxBudgetText != null) maxBudgetText.text = $" ${Mathf.RoundToInt(maxBudget)}";
+        if (budgetFillBar != null) { budgetFillBar.fillAmount = totalProjectedCost / maxBudget; budgetFillBar.color = totalProjectedCost > maxBudget ? overBudgetTextColor : normalTextColor; }
+    }
+
+    private void UpdatePlayPauseButtonUI()
+    {
+        if (playPauseButtonImage == null || physicsManager == null) return;
+        playPauseButtonImage.sprite = physicsManager.isSimulating ? (stopIcon != null ? stopIcon : playPauseButtonImage.sprite) : (playIcon != null ? playIcon : playPauseButtonImage.sprite);
+    }
+
+    private ContractSO GetActiveContract()
+    {
+        if (GameManager.Instance != null) return GameManager.Instance.CurrentContract;
+        return null;
+    }
+
     private void UpdateStressUI()
     {
         if (physicsManager != null && physicsManager.isSimulating)
@@ -180,30 +245,6 @@ public class BuildUIController : MonoBehaviour
             if (stressText != null) { stressText.text = "0% (FoS: ∞)"; stressText.color = safeStressColor; }
             if (stressFillBar != null) { stressFillBar.fillAmount = 0f; stressFillBar.color = safeStressColor; }
         }
-    }
-
-    public float GetTotalCost()
-    {
-        float totalCost = 0f;
-        HashSet<Bar> uniqueBars = new HashSet<Bar>();
-        foreach (Point p in Point.AllPoints) foreach (Bar b in p.ConnectedBars) if (b != null && b.gameObject.activeSelf) uniqueBars.Add(b);
-        foreach (Bar b in uniqueBars) if (!(barCreator != null && barCreator.currentBar == b && barCreator.IsCreating)) totalCost += b.GetCost();
-        return totalCost;
-    }
-
-    private void UpdateContractUI()
-    {
-        ContractSO currentContract = GetActiveContract();
-        maxBudget = currentContract != null ? currentContract.budget : fallbackMaxBudget;
-
-        float baseCost = GetTotalCost();
-        float previewCost = 0f;
-        if (barCreator != null && barCreator.IsCreating && barCreator.currentBar != null) previewCost = barCreator.currentBar.GetCost();
-        float totalProjectedCost = baseCost + previewCost;
-
-        if (usedBudgetText != null) { usedBudgetText.text = $" ${Mathf.RoundToInt(totalProjectedCost)}"; usedBudgetText.color = totalProjectedCost > maxBudget ? overBudgetTextColor : normalTextColor; }
-        if (maxBudgetText != null) maxBudgetText.text = $" ${Mathf.RoundToInt(maxBudget)}";
-        if (budgetFillBar != null) { budgetFillBar.fillAmount = totalProjectedCost / maxBudget; budgetFillBar.color = totalProjectedCost > maxBudget ? overBudgetTextColor : normalTextColor; }
     }
 
     public void OnToggleSimulationButtonClicked()

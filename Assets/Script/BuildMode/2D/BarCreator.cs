@@ -37,8 +37,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
     [Header("3D Material Data")]
     public BridgeMaterialSO activeMaterial;
-    
-    // --- NEW: Memory for the auto-swap feature ---
     private BridgeMaterialSO previousNonPierMaterial;
 
     [Header("Modes & Settings")]
@@ -381,6 +379,9 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         action.Undo();
         redoStack.Push(action);
         RefreshAllPoints(); 
+
+        // --- OPTIMIZATION HOOK ---
+        if (BuildUIController.Instance != null) BuildUIController.Instance.MarkBridgeDirty();
     }
 
     public void Redo()
@@ -391,6 +392,9 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         action.Redo();
         undoStack.Push(action);
         RefreshAllPoints(); 
+
+        // --- OPTIMIZATION HOOK ---
+        if (BuildUIController.Instance != null) BuildUIController.Instance.MarkBridgeDirty();
     }
 
     private void RecordAction(HistoryAction action)
@@ -433,6 +437,9 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
         if (p1 != null && p1.gameObject.activeSelf) p1.EvaluateAnchorState();
         if (p2 != null && p2.gameObject.activeSelf) p2.EvaluateAnchorState();
+
+        // --- OPTIMIZATION HOOK ---
+        if (BuildUIController.Instance != null) BuildUIController.Instance.MarkBridgeDirty();
     }
 
     public void DeletePoint(Point p, HistoryAction currentAction)
@@ -492,7 +499,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     {
         if (newMaterial != null)
         {
-            // --- NEW: Track the previous non-pier material ---
             if (activeMaterial != null && !activeMaterial.isPier)
             {
                 previousNonPierMaterial = activeMaterial;
@@ -704,7 +710,9 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         currentBar = null;
         if (radiusIndicator != null) radiusIndicator.enabled = false;
 
-        // --- NEW: Auto-Revert back to your previous material after building a pier! ---
+        // --- OPTIMIZATION HOOK ---
+        if (BuildUIController.Instance != null) BuildUIController.Instance.MarkBridgeDirty();
+
         if (activeMaterial != null && activeMaterial.isPier && previousNonPierMaterial != null)
         {
             SetActiveMaterial(previousNonPierMaterial);
@@ -727,6 +735,9 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         currentEndPoint = null;
 
         if (radiusIndicator != null) radiusIndicator.enabled = false;
+        
+        // --- OPTIMIZATION HOOK ---
+        if (BuildUIController.Instance != null) BuildUIController.Instance.MarkBridgeDirty();
     }
 
     private void RefreshAllPoints()
