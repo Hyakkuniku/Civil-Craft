@@ -2238,6 +2238,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   buttonMaterial: {fileID: 11400000, guid: b98aa9ba752ac28449feebc76f256bf2, type: 2}
   selectedUpOffset: 30
+  buttonImage: {fileID: 214224441}
+  defaultSprite: {fileID: 21300000, guid: fe5bc2a0e832954428d3c666dca2284f, type: 3}
+  selectedOutlineSprite: {fileID: 21300000, guid: 1502b803a5510c443853c7beed4c98de,
+    type: 3}
 --- !u!114 &214224440
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5668,7 +5672,6 @@ GameObject:
   - component: {fileID: 770063833}
   - component: {fileID: 770063832}
   - component: {fileID: 770063836}
-  - component: {fileID: 770063835}
   m_Layer: 5
   m_Name: Road
   m_TagString: Untagged
@@ -5790,20 +5793,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 770063830}
   m_CullTransparentMesh: 1
---- !u!114 &770063835
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 770063830}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fe5331a9b210b154eae0eebd0d177cd1, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  buttonMaterial: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
-  selectedUpOffset: 15
 --- !u!114 &770063836
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5816,8 +5805,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fe5331a9b210b154eae0eebd0d177cd1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  buttonMaterial: {fileID: 0}
+  buttonMaterial: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
   selectedUpOffset: 30
+  buttonImage: {fileID: 770063833}
+  defaultSprite: {fileID: 21300000, guid: 07f65aea806e3164282f9fc0f8d21a94, type: 3}
+  selectedOutlineSprite: {fileID: 21300000, guid: 1ae0d662eb8e3f6489ee37f29ba5fa38,
+    type: 3}
 --- !u!1 &800872602
 GameObject:
   m_ObjectHideFlags: 0
@@ -12309,6 +12302,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   buttonMaterial: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
   selectedUpOffset: 30
+  buttonImage: {fileID: 1867707649}
+  defaultSprite: {fileID: 21300000, guid: 999161720269b2c43881339b86f9c2b6, type: 3}
+  selectedOutlineSprite: {fileID: 21300000, guid: 413f5669a408a1c4389d8d86ac2702d0,
+    type: 3}
 --- !u!1 &1878090979
 GameObject:
   m_ObjectHideFlags: 0
@@ -12802,7 +12799,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: a705f556c6b12354185417fa575d6ef5, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 69f3ba5b0653805438eff98b9377ce57, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -12834,6 +12831,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   buttonMaterial: {fileID: 11400000, guid: 4524a3fc876c6b640a735e6808fe1271, type: 2}
   selectedUpOffset: 30
+  buttonImage: {fileID: 1909416289}
+  defaultSprite: {fileID: 21300000, guid: 69f3ba5b0653805438eff98b9377ce57, type: 3}
+  selectedOutlineSprite: {fileID: 21300000, guid: 59e112ccc40198244b535fda856d3610,
+    type: 3}
 --- !u!1001 &1926739924
 PrefabInstance:
   m_ObjectHideFlags: 0

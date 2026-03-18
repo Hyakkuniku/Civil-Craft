@@ -114,6 +114,28 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         return Input.mousePosition;
     }
 
+    // --- THE FIX: Helper method to detect if we are hovering over a UI Button! ---
+    private bool IsPointerOverUI()
+    {
+        if (EventSystem.current == null) return false;
+        
+        PointerEventData eventData = new PointerEventData(EventSystem.current);
+        eventData.position = GetPointerPosition();
+        List<RaycastResult> results = new List<RaycastResult>();
+        EventSystem.current.RaycastAll(eventData, results);
+
+        if (results.Count > 0)
+        {
+            // If the topmost UI element we hit is NOT this background drawing canvas, 
+            // it means we are hovering over a button or panel!
+            if (results[0].gameObject != this.gameObject)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void Update()
     {
         if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building) return;
@@ -127,56 +149,64 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
         if (activeMaterial != null && activeMaterial.isPier && !barCreationStarted && !isDeleteMode)
         {
-            if (ghostPierBar == null) CreateGhostPierBar();
-
-            Vector2 screenPos = GetPointerPosition();
-            Vector3 worldPos = GetWorldMousePosition(screenPos);
-            
-            float snapThreshold = 1.5f; 
-            float alignedX = worldPos.x;
-            float bridgeZ = Point.AllPoints.Count > 0 ? Point.AllPoints[0].transform.position.z : 0f;
-
-            foreach (Point p in Point.AllPoints)
+            // --- THE FIX: Hide the ghost pier if over a button! ---
+            if (IsPointerOverUI())
             {
-                if (p.gameObject.activeSelf)
+                if (ghostPierBar != null) ghostPierBar.gameObject.SetActive(false);
+            }
+            else
+            {
+                if (ghostPierBar == null) CreateGhostPierBar();
+
+                Vector2 screenPos = GetPointerPosition();
+                Vector3 worldPos = GetWorldMousePosition(screenPos);
+                
+                float snapThreshold = 1.5f; 
+                float alignedX = worldPos.x;
+                float bridgeZ = Point.AllPoints.Count > 0 ? Point.AllPoints[0].transform.position.z : 0f;
+
+                foreach (Point p in Point.AllPoints)
                 {
-                    float xDiff = Mathf.Abs(p.transform.position.x - worldPos.x);
-                    if (xDiff < snapThreshold)
+                    if (p.gameObject.activeSelf)
                     {
-                        snapThreshold = xDiff;
-                        alignedX = p.transform.position.x;
+                        float xDiff = Mathf.Abs(p.transform.position.x - worldPos.x);
+                        if (xDiff < snapThreshold)
+                        {
+                            snapThreshold = xDiff;
+                            alignedX = p.transform.position.x;
+                        }
                     }
                 }
+
+                Vector3 floorPos = new Vector3(alignedX, pierBaseY, bridgeZ);
+                
+                float targetY = Mathf.Max(worldPos.y, pierBaseY + 0.5f); 
+                if (isGridSnappingEnabled)
+                {
+                    targetY = Mathf.Round(targetY);
+                    if (targetY <= pierBaseY) targetY = pierBaseY + 1f;
+                }
+
+                Vector3 targetPos = new Vector3(alignedX, targetY, bridgeZ);
+
+                float maxLen = activeMaterial.maxLength;
+                if (BuildUIController.Instance != null)
+                {
+                    float remainingBudget = BuildUIController.Instance.maxBudget - BuildUIController.Instance.GetTotalCost();
+                    float costPerMeter = activeMaterial.costPerMeter * (activeMaterial.isDualBeam ? 2 : 1);
+                    float maxAffordable = Mathf.Max(0f, remainingBudget / costPerMeter);
+                    if (maxAffordable < maxLen) maxLen = maxAffordable;
+                }
+
+                if (Vector3.Distance(floorPos, targetPos) > maxLen)
+                {
+                    targetPos = floorPos + Vector3.up * maxLen;
+                }
+
+                ghostPierBar.gameObject.SetActive(true);
+                ghostPierBar.StartPosition = floorPos;
+                ghostPierBar.UpdateCreatingBar(targetPos);
             }
-
-            Vector3 floorPos = new Vector3(alignedX, pierBaseY, bridgeZ);
-            
-            float targetY = Mathf.Max(worldPos.y, pierBaseY + 0.5f); 
-            if (isGridSnappingEnabled)
-            {
-                targetY = Mathf.Round(targetY);
-                if (targetY <= pierBaseY) targetY = pierBaseY + 1f;
-            }
-
-            Vector3 targetPos = new Vector3(alignedX, targetY, bridgeZ);
-
-            float maxLen = activeMaterial.maxLength;
-            if (BuildUIController.Instance != null)
-            {
-                float remainingBudget = BuildUIController.Instance.maxBudget - BuildUIController.Instance.GetTotalCost();
-                float costPerMeter = activeMaterial.costPerMeter * (activeMaterial.isDualBeam ? 2 : 1);
-                float maxAffordable = Mathf.Max(0f, remainingBudget / costPerMeter);
-                if (maxAffordable < maxLen) maxLen = maxAffordable;
-            }
-
-            if (Vector3.Distance(floorPos, targetPos) > maxLen)
-            {
-                targetPos = floorPos + Vector3.up * maxLen;
-            }
-
-            ghostPierBar.gameObject.SetActive(true);
-            ghostPierBar.StartPosition = floorPos;
-            ghostPierBar.UpdateCreatingBar(targetPos);
         }
         else if (ghostPierBar != null)
         {
@@ -380,7 +410,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         redoStack.Push(action);
         RefreshAllPoints(); 
 
-        // --- OPTIMIZATION HOOK ---
         if (BuildUIController.Instance != null) BuildUIController.Instance.MarkBridgeDirty();
     }
 
@@ -393,7 +422,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         undoStack.Push(action);
         RefreshAllPoints(); 
 
-        // --- OPTIMIZATION HOOK ---
         if (BuildUIController.Instance != null) BuildUIController.Instance.MarkBridgeDirty();
     }
 
@@ -438,7 +466,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (p1 != null && p1.gameObject.activeSelf) p1.EvaluateAnchorState();
         if (p2 != null && p2.gameObject.activeSelf) p2.EvaluateAnchorState();
 
-        // --- OPTIMIZATION HOOK ---
         if (BuildUIController.Instance != null) BuildUIController.Instance.MarkBridgeDirty();
     }
 
@@ -710,7 +737,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         currentBar = null;
         if (radiusIndicator != null) radiusIndicator.enabled = false;
 
-        // --- OPTIMIZATION HOOK ---
         if (BuildUIController.Instance != null) BuildUIController.Instance.MarkBridgeDirty();
 
         if (activeMaterial != null && activeMaterial.isPier && previousNonPierMaterial != null)
@@ -736,7 +762,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
         if (radiusIndicator != null) radiusIndicator.enabled = false;
         
-        // --- OPTIMIZATION HOOK ---
         if (BuildUIController.Instance != null) BuildUIController.Instance.MarkBridgeDirty();
     }
 
