@@ -1,21 +1,33 @@
 using UnityEngine;
+using UnityEngine.UI; 
 using TMPro; 
 using PlayFab;
 using PlayFab.ClientModels;
+using UnityEngine.SceneManagement; 
 
 public class PlayFabAuthManager : MonoBehaviour
 {
     public static PlayFabAuthManager Instance { get; private set; }
 
     [Header("PlayFab Configuration")]
-    [Tooltip("Paste your Title ID from the PlayFab website here!")]
     public string playFabTitleID = ""; 
 
-    [Header("UI Panels")]
+    [Header("Player Data")]
+    public string loggedInPlayerName = ""; 
+    public bool isGuest = false; 
+
+    [Header("Scene Management")]
+    public string sceneToLoad = "GameScene"; 
+
+    [Header("UI Panels & Text")]
     public GameObject authCanvas;       
     public GameObject loginPanel;
     public GameObject registerPanel;
     public GameObject forgotPasswordPanel;
+    
+    // NEW: The text element on your main menu that shows the name
+    [Tooltip("Text on the main menu to show 'Playing as: Name'")]
+    public TextMeshProUGUI playerNameDisplay; 
 
     [Header("Login Inputs")]
     public TMP_InputField loginUsername;
@@ -28,6 +40,12 @@ public class PlayFabAuthManager : MonoBehaviour
 
     [Header("Forgot Password Inputs")]
     public TMP_InputField resetEmailInput; 
+    
+    [Header("Password Visibility Icons")]
+    public Image loginPasswordToggleImage;
+    public Image registerPasswordToggleImage;
+    public Sprite showPasswordSprite; 
+    public Sprite hidePasswordSprite; 
 
     [Header("Feedback UI")]
     public TextMeshProUGUI feedbackText; 
@@ -40,7 +58,6 @@ public class PlayFabAuthManager : MonoBehaviour
         if (Instance == null) Instance = this;
         else Destroy(gameObject);
 
-        // Tell the SDK what our Title ID is the moment the game starts
         if (string.IsNullOrEmpty(PlayFabSettings.staticSettings.TitleId))
         {
             PlayFabSettings.staticSettings.TitleId = playFabTitleID;
@@ -49,8 +66,78 @@ public class PlayFabAuthManager : MonoBehaviour
         if (authCanvas != null) authCanvas.SetActive(false);
     }
 
+    private void Start()
+    {
+        // NEW: Check the player's name the second the game starts!
+        UpdatePlayerNameDisplay();
+    }
+
     // ────────────────────────────────────────────────
-    // UI NAVIGATION
+    // NEW: NAME DISPLAY LOGIC
+    // ────────────────────────────────────────────────
+
+    private void UpdatePlayerNameDisplay()
+    {
+        if (playerNameDisplay == null) return;
+
+        int choice = PlayerPrefs.GetInt("LoginChoice", 0);
+
+        if (choice == 0)
+        {
+            // Brand new player, no name to show! Hide the text.
+            playerNameDisplay.gameObject.SetActive(false);
+        }
+        else
+        {
+            // They are a Guest or a Logged-in user. Show the text!
+            playerNameDisplay.gameObject.SetActive(true);
+            string savedName = PlayerPrefs.GetString("SavedPlayerName", "Player");
+            playerNameDisplay.text = "Playing as: " + savedName;
+        }
+    }
+
+    // ────────────────────────────────────────────────
+    // MAIN PLAY BUTTON LOGIC
+    // ────────────────────────────────────────────────
+
+    public void OnMainPlayButtonClicked()
+    {
+        int choice = PlayerPrefs.GetInt("LoginChoice", 0); 
+
+        if (choice == 0)
+        {
+            // Brand new player! Open AuthCanvas directly to the Login Panel
+            OpenAuthCanvas();
+        }
+        else if (choice == 1)
+        {
+            // They chose Guest previously. Skip menus and load the game!
+            isGuest = true;
+            LoadGameScene();
+        }
+        else if (choice == 2)
+        {
+            // They have an account. Are they still securely logged in?
+            if (PlayFabClientAPI.IsClientLoggedIn())
+            {
+                LoadGameScene(); 
+            }
+            else
+            {
+                // Session expired. Show them the Login screen.
+                OpenAuthCanvas();
+            }
+        }
+    }
+
+    private void LoadGameScene()
+    {
+        Debug.Log("Loading Scene: " + sceneToLoad);
+        SceneManager.LoadScene(sceneToLoad);
+    }
+
+    // ────────────────────────────────────────────────
+    // UI NAVIGATION & TOGGLES
     // ────────────────────────────────────────────────
 
     public void OpenAuthCanvas()
@@ -62,6 +149,22 @@ public class PlayFabAuthManager : MonoBehaviour
     public void CloseAuthCanvas()
     {
         authCanvas.SetActive(false);
+    }
+
+    public void OnPlayAsGuestClicked()
+    {
+        isGuest = true;
+        loggedInPlayerName = "Guest";
+        
+        // Save their choice permanently, AND save their name!
+        PlayerPrefs.SetInt("LoginChoice", 1); 
+        PlayerPrefs.SetString("SavedPlayerName", "Guest"); 
+        PlayerPrefs.Save();
+
+        UpdatePlayerNameDisplay(); // Instantly update the UI text
+
+        SetFeedbackMessage("Starting as Guest...", successColor);
+        Invoke(nameof(LoadGameScene), 1.0f); 
     }
 
     public void ShowLoginPanel()
@@ -97,6 +200,42 @@ public class PlayFabAuthManager : MonoBehaviour
         }
     }
 
+    public void ToggleLoginPasswordVisibility()
+    {
+        if (loginPassword.contentType == TMP_InputField.ContentType.Password)
+        {
+            loginPassword.contentType = TMP_InputField.ContentType.Standard;
+            if (loginPasswordToggleImage != null && hidePasswordSprite != null)
+                loginPasswordToggleImage.sprite = hidePasswordSprite;
+        }
+        else
+        {
+            loginPassword.contentType = TMP_InputField.ContentType.Password;
+            if (loginPasswordToggleImage != null && showPasswordSprite != null)
+                loginPasswordToggleImage.sprite = showPasswordSprite;
+        }
+
+        loginPassword.ForceLabelUpdate();
+    }
+
+    public void ToggleRegisterPasswordVisibility()
+    {
+        if (registerPassword.contentType == TMP_InputField.ContentType.Password)
+        {
+            registerPassword.contentType = TMP_InputField.ContentType.Standard;
+            if (registerPasswordToggleImage != null && hidePasswordSprite != null)
+                registerPasswordToggleImage.sprite = hidePasswordSprite;
+        }
+        else
+        {
+            registerPassword.contentType = TMP_InputField.ContentType.Password;
+            if (registerPasswordToggleImage != null && showPasswordSprite != null)
+                registerPasswordToggleImage.sprite = showPasswordSprite;
+        }
+
+        registerPassword.ForceLabelUpdate();
+    }
+
     // ────────────────────────────────────────────────
     // PLAYFAB API CALLS
     // ────────────────────────────────────────────────
@@ -114,7 +253,17 @@ public class PlayFabAuthManager : MonoBehaviour
         var request = new LoginWithPlayFabRequest
         {
             Username = loginUsername.text,
-            Password = loginPassword.text
+            Password = loginPassword.text,
+            
+            InfoRequestParameters = new GetPlayerCombinedInfoRequestParams
+            {
+                GetPlayerProfile = true,
+                ProfileConstraints = new PlayerProfileViewConstraints
+                {
+                    ShowContactEmailAddresses = true,
+                    ShowDisplayName = true
+                }
+            }
         };
 
         PlayFabClientAPI.LoginWithPlayFab(request, OnLoginSuccess, OnLoginError);
@@ -166,56 +315,62 @@ public class PlayFabAuthManager : MonoBehaviour
         PlayFabClientAPI.SendAccountRecoveryEmail(request, OnPasswordResetSuccess, OnPasswordResetError);
     }
 
+    public void SubmitNewDisplayName(string newName)
+    {
+        var request = new UpdateUserTitleDisplayNameRequest { DisplayName = newName };
+        PlayFabClientAPI.UpdateUserTitleDisplayName(request, 
+            result => {
+                loggedInPlayerName = result.DisplayName;
+                PlayerPrefs.SetString("SavedPlayerName", result.DisplayName); // Update locally too!
+                UpdatePlayerNameDisplay();
+                Debug.Log("Display Name successfully changed to: " + result.DisplayName);
+            }, 
+            error => Debug.LogError("Failed to change name: " + error.ErrorMessage));
+    }
+
     // ────────────────────────────────────────────────
     // PLAYFAB SUCCESS/ERROR CALLBACKS
     // ────────────────────────────────────────────────
 
     private void OnLoginSuccess(LoginResult result)
     {
-        SetFeedbackMessage("Checking email verification...", processColor);
-        
-        // We ask PlayFab for the Player's Profile, requesting their Contact Email info
-        var request = new GetPlayerProfileRequest
-        {
-            PlayFabId = result.PlayFabId,
-            ProfileConstraints = new PlayerProfileViewConstraints
-            {
-                ShowContactEmailAddresses = true // This requires the box you checked in the Dashboard!
-            }
-        };
-
-        PlayFabClientAPI.GetPlayerProfile(request, OnProfileSuccess, OnLoginError);
-    }
-
-    private void OnProfileSuccess(GetPlayerProfileResult result)
-    {
         bool isEmailVerified = false;
         
-        // Loop through all emails attached to the profile to see if any are Confirmed
-        if (result.PlayerProfile != null && result.PlayerProfile.ContactEmailAddresses != null)
+        if (result.InfoResultPayload != null && result.InfoResultPayload.PlayerProfile != null)
         {
-            foreach (var emailInfo in result.PlayerProfile.ContactEmailAddresses)
+            loggedInPlayerName = result.InfoResultPayload.PlayerProfile.DisplayName;
+
+            if (result.InfoResultPayload.PlayerProfile.ContactEmailAddresses != null)
             {
-                if (emailInfo.VerificationStatus == EmailVerificationStatus.Confirmed)
+                foreach (var emailInfo in result.InfoResultPayload.PlayerProfile.ContactEmailAddresses)
                 {
-                    isEmailVerified = true;
-                    break;
+                    if (emailInfo.VerificationStatus == EmailVerificationStatus.Confirmed)
+                    {
+                        isEmailVerified = true;
+                        break;
+                    }
                 }
             }
         }
 
         if (isEmailVerified)
         {
-            SetFeedbackMessage("Login Successful!", successColor);
-            Debug.Log("Logged in and Verified! PlayFab ID: " + result.PlayerProfile.PlayerId);
-            Invoke(nameof(CloseAuthCanvas), 1.5f); 
+            string welcomeName = string.IsNullOrEmpty(loggedInPlayerName) ? "Player" : loggedInPlayerName;
+            SetFeedbackMessage("Login Successful! Welcome, " + welcomeName + "!", successColor);
+            
+            // Save their choice AND their name permanently!
+            PlayerPrefs.SetInt("LoginChoice", 2);
+            PlayerPrefs.SetString("SavedPlayerName", welcomeName);
+            PlayerPrefs.Save();
+
+            UpdatePlayerNameDisplay(); // Instantly update the UI text
+            
+            Debug.Log("Logged in! Name: " + welcomeName);
+            Invoke(nameof(LoadGameScene), 1.5f); 
         }
         else
         {
-            // Block them from entering the game
             SetFeedbackMessage("Please check your email and click the verification link before logging in.", errorColor);
-            
-            // Forcefully clear their local login session since they aren't verified
             PlayFabClientAPI.ForgetAllCredentials(); 
         }
     }
@@ -223,25 +378,24 @@ public class PlayFabAuthManager : MonoBehaviour
     private void OnLoginError(PlayFabError error)
     {
         SetFeedbackMessage("Login Failed: " + error.ErrorMessage, errorColor);
-        Debug.LogWarning("PlayFab Login Error: " + error.GenerateErrorReport());
     }
 
     private void OnRegisterSuccess(RegisterPlayFabUserResult result)
     {
         SetFeedbackMessage("Registration Successful! Please check your email for the verification link.", successColor);
-        Debug.Log("Registered! PlayFab ID: " + result.PlayFabId);
         
+        var displayNameRequest = new UpdateUserTitleDisplayNameRequest { DisplayName = registerUsername.text };
+        PlayFabClientAPI.UpdateUserTitleDisplayName(displayNameRequest, 
+            nameResult => Debug.Log("Name set to: " + nameResult.DisplayName), 
+            nameError => Debug.LogWarning("Failed to set display name: " + nameError.ErrorMessage));
+
         registerPassword.text = "";
         loginUsername.text = registerUsername.text; 
         
-        // Tell PlayFab to save this email as their Contact Email (this triggers the Verification Email)
-        var emailRequest = new AddOrUpdateContactEmailRequest
-        {
-            EmailAddress = registerEmail.text
-        };
+        var emailRequest = new AddOrUpdateContactEmailRequest { EmailAddress = registerEmail.text };
         PlayFabClientAPI.AddOrUpdateContactEmail(emailRequest, 
-            success => Debug.Log("Verification email sent!"), 
-            failure => Debug.LogWarning("Failed to send verification email: " + failure.ErrorMessage));
+            success => Debug.Log("Email sent!"), 
+            failure => Debug.LogWarning("Email failed: " + failure.ErrorMessage));
 
         Invoke(nameof(ShowLoginPanel), 2.5f);
     }
@@ -251,7 +405,6 @@ public class PlayFabAuthManager : MonoBehaviour
         SetFeedbackMessage("Registration Failed: " + error.ErrorMessage, errorColor);
     }
 
-    // --- Password Reset Callbacks ---
     private void OnPasswordResetSuccess(SendAccountRecoveryEmailResult result)
     {
         SetFeedbackMessage("Recovery email sent! Check your inbox.", successColor);

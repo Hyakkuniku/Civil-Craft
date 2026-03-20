@@ -17,7 +17,7 @@ public class BuildCameraController : MonoBehaviour
     public float touchPanSpeed = 0.02f;
     public float pcPanSpeed = 0.5f; 
 
-    [Header("Movement Limits (Boundary)")]
+    [Header("Movement Limits (Local Space Boundary)")]
     public float maxHeight = 50f;
     public float minHeight = -10f;
     public float maxHorizontal = 50f;
@@ -68,7 +68,8 @@ public class BuildCameraController : MonoBehaviour
 
         if (!isInitialized)
         {
-            lockedZPosition = activeCamera.transform.position.z;
+            // Initialize using localPosition instead of world position
+            lockedZPosition = activeCamera.transform.localPosition.z;
             isInitialized = true;
         }
 
@@ -116,7 +117,8 @@ public class BuildCameraController : MonoBehaviour
                 if (touch.phase == UnityEngine.InputSystem.TouchPhase.Moved)
                 {
                     Vector3 panDelta = new Vector3(-touch.delta.x * touchPanSpeed, -touch.delta.y * touchPanSpeed, 0);
-                    activeCamera.transform.position += panDelta;
+                    // Apply to localPosition
+                    activeCamera.transform.localPosition += panDelta;
                     ApplyConstraints();
                 }
             }
@@ -146,7 +148,8 @@ public class BuildCameraController : MonoBehaviour
 
             if (panInput != Vector3.zero)
             {
-                activeCamera.transform.position += panInput;
+                // Apply to localPosition
+                activeCamera.transform.localPosition += panInput;
                 ApplyConstraints();
             }
 
@@ -161,34 +164,35 @@ public class BuildCameraController : MonoBehaviour
 
     private void RotateCamera(float amount)
     {
-        float currentPitch = activeCamera.transform.eulerAngles.x;
+        float currentPitch = activeCamera.transform.localEulerAngles.x;
         if (currentPitch > 180f) currentPitch -= 360f; 
 
         currentPitch -= amount;
         currentPitch = Mathf.Clamp(currentPitch, minPitch, maxPitch);
 
-        activeCamera.transform.rotation = Quaternion.Euler(currentPitch, activeCamera.transform.eulerAngles.y, activeCamera.transform.eulerAngles.z);
+        activeCamera.transform.localRotation = Quaternion.Euler(currentPitch, activeCamera.transform.localEulerAngles.y, activeCamera.transform.localEulerAngles.z);
         
         ApplyConstraints();
     }
 
     private void ApplyConstraints()
     {
-        Vector3 pos = activeCamera.transform.position;
+        // Clamp based on local position instead of world position
+        Vector3 localPos = activeCamera.transform.localPosition;
 
-        pos.x = Mathf.Clamp(pos.x, minHorizontal, maxHorizontal);
-        pos.y = Mathf.Clamp(pos.y, minHeight, maxHeight);
+        localPos.x = Mathf.Clamp(localPos.x, minHorizontal, maxHorizontal);
+        localPos.y = Mathf.Clamp(localPos.y, minHeight, maxHeight);
         
-        pos.z = lockedZPosition;
+        localPos.z = lockedZPosition;
 
-        activeCamera.transform.position = pos;
+        activeCamera.transform.localPosition = localPos;
     }
 
     public void CycleCameraRotation()
     {
         if (activeCamera == null || !activeCamera.enabled) return;
 
-        float currentX = activeCamera.transform.eulerAngles.x;
+        float currentX = activeCamera.transform.localEulerAngles.x;
         if (currentX > 180f) currentX -= 360f; 
 
         float newPitch = 0f;
@@ -199,13 +203,17 @@ public class BuildCameraController : MonoBehaviour
         else if (currentX >= topThreshold) newPitch = minPitch;  
         else newPitch = 0f;    
 
-        activeCamera.transform.rotation = Quaternion.Euler(newPitch, activeCamera.transform.eulerAngles.y, activeCamera.transform.eulerAngles.z);
+        activeCamera.transform.localRotation = Quaternion.Euler(newPitch, activeCamera.transform.localEulerAngles.y, activeCamera.transform.localEulerAngles.z);
         ApplyConstraints();
     }
 
     private void OnDrawGizmosSelected()
     {
         Gizmos.color = Color.yellow;
+        
+        // Draw the limits gizmo aligned to the local space of the object this script is on
+        Gizmos.matrix = transform.localToWorldMatrix;
+        
         Vector3 center = new Vector3((minHorizontal + maxHorizontal) / 2f, (minHeight + maxHeight) / 2f, lockedZPosition);
         Vector3 size = new Vector3(maxHorizontal - minHorizontal, maxHeight - minHeight, 1f);
         Gizmos.DrawWireCube(center, size);
