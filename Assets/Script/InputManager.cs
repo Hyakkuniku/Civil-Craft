@@ -55,10 +55,10 @@ public class InputManager : MonoBehaviour
         motor.ProcessMove(onFoot.Movement.ReadValue<Vector2>());
     }
 
-    private void LateUpdate()
-    {
-        look.ProcessLook(onFoot.Look.ReadValue<Vector2>());
-    }
+    //private void LateUpdate()
+    //{
+    //    look.ProcessLook(onFoot.Look.ReadValue<Vector2>());
+    //}
 
     private void OnEnable() 
     {

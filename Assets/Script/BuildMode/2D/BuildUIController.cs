@@ -40,6 +40,7 @@ public class BuildUIController : MonoBehaviour
     public Color criticalStressColor = Color.red;
 
     [Header("Engineering Stats (CAD Readout)")]
+    public GameObject statsPanel; // <-- NEW: The main background panel holding all the stats!
     public TextMeshProUGUI totalLengthText; 
     public TextMeshProUGUI membersCountText;  
     public TextMeshProUGUI deadLoadText;  
@@ -49,7 +50,7 @@ public class BuildUIController : MonoBehaviour
     public TextMeshProUGUI factorOfSafetyText; 
 
     // ────────────────────────────────────────────────
-    // --- THE FIX: Optimization Cache Variables ---
+    // --- Optimization Cache Variables ---
     // ────────────────────────────────────────────────
     private bool isBridgeDirty = true;
     private float cachedBaseCost = 0f;
@@ -75,7 +76,6 @@ public class BuildUIController : MonoBehaviour
             if (Input.GetKeyDown(restartKey)) OnRestartButtonClicked();
         }
 
-        // Even though these run in Update, they now use the lightning-fast cached data!
         UpdateContractUI();
         if (physicsManager != null && !physicsManager.isSimulating) UpdateStatsUI();
         
@@ -83,7 +83,6 @@ public class BuildUIController : MonoBehaviour
         UpdatePlayPauseButtonUI();
     }
 
-    // Call this whenever a bar is placed, deleted, undone, or redone!
     public void MarkBridgeDirty()
     {
         isBridgeDirty = true;
@@ -117,7 +116,6 @@ public class BuildUIController : MonoBehaviour
 
         foreach (Bar b in uniqueBars)
         {
-            // Ignore the preview bar while drawing
             if (barCreator != null && barCreator.currentBar == b && barCreator.IsCreating) continue;
             
             cachedBaseCost += b.GetCost();
@@ -140,14 +138,12 @@ public class BuildUIController : MonoBehaviour
     {
         if (isBridgeDirty) RecalculateStaticBridge();
 
-        // 1. Load the frozen cache
         int displayJ = cachedBaseJ; 
         int displayM = cachedBaseM;
         float roadLength = cachedBaseRoadLength;
         float deadLoad = cachedBaseDeadLoad;
         float weakestStressLimit = cachedBaseWeakestStress;
 
-        // 2. Add the LIVE preview bar stats dynamically!
         if (barCreator != null && barCreator.IsCreating && barCreator.currentBar != null && barCreator.currentBar.materialData != null)
         {
             Bar preview = barCreator.currentBar;
@@ -193,7 +189,6 @@ public class BuildUIController : MonoBehaviour
 
     public float GetTotalCost()
     {
-        // Massively speeds up BarCreator's length checking!
         if (isBridgeDirty) RecalculateStaticBridge();
         return cachedBaseCost;
     }
@@ -208,8 +203,9 @@ public class BuildUIController : MonoBehaviour
         if (barCreator != null && barCreator.IsCreating && barCreator.currentBar != null) previewCost = barCreator.currentBar.GetCost();
         float totalProjectedCost = baseCost + previewCost;
 
-        if (usedBudgetText != null) { usedBudgetText.text = $" ${Mathf.RoundToInt(totalProjectedCost)}"; usedBudgetText.color = totalProjectedCost > maxBudget ? overBudgetTextColor : normalTextColor; }
-        if (maxBudgetText != null) maxBudgetText.text = $" ${Mathf.RoundToInt(maxBudget)}";
+        // --- UPDATED: Dollar ($) to Peso (₱) ---
+        if (usedBudgetText != null) { usedBudgetText.text = $" ₱{Mathf.RoundToInt(totalProjectedCost)}"; usedBudgetText.color = totalProjectedCost > maxBudget ? overBudgetTextColor : normalTextColor; }
+        if (maxBudgetText != null) maxBudgetText.text = $" ₱{Mathf.RoundToInt(maxBudget)}";
         if (budgetFillBar != null) { budgetFillBar.fillAmount = totalProjectedCost / maxBudget; budgetFillBar.color = totalProjectedCost > maxBudget ? overBudgetTextColor : normalTextColor; }
     }
 
@@ -231,19 +227,47 @@ public class BuildUIController : MonoBehaviour
         {
             float maxStress = physicsManager.GetMaxBridgeStress();
             int stressPercent = Mathf.RoundToInt(maxStress * 100f);
-            float liveFoS = maxStress > 0.05f ? (1f / maxStress) : 99.9f;
 
             Color currentStressColor = maxStress <= 0.5f ? 
                 Color.Lerp(safeStressColor, warningStressColor, maxStress * 2f) : 
                 Color.Lerp(warningStressColor, criticalStressColor, (maxStress - 0.5f) * 2f);
 
-            if (stressText != null) { stressText.text = liveFoS > 99f ? $"{stressPercent}% (FoS: ∞)" : $"{stressPercent}% (FoS: {liveFoS:F1})"; stressText.color = currentStressColor; }
-            if (stressFillBar != null) { stressFillBar.fillAmount = maxStress; stressFillBar.color = currentStressColor; }
+            if (stressText != null) 
+            { 
+                stressText.text = $"{stressPercent}%"; 
+                stressText.color = currentStressColor; 
+            }
+            if (stressFillBar != null) 
+            { 
+                stressFillBar.fillAmount = maxStress; 
+                stressFillBar.color = currentStressColor; 
+            }
         }
         else
         {
-            if (stressText != null) { stressText.text = "0% (FoS: ∞)"; stressText.color = safeStressColor; }
-            if (stressFillBar != null) { stressFillBar.fillAmount = 0f; stressFillBar.color = safeStressColor; }
+            if (stressText != null) 
+            { 
+                stressText.text = "0%"; 
+                stressText.color = safeStressColor; 
+            }
+            if (stressFillBar != null) 
+            { 
+                stressFillBar.fillAmount = 0f; 
+                stressFillBar.color = safeStressColor; 
+            }
+        }
+    }
+
+    // ────────────────────────────────────────────────
+    // --- BUTTON CALLBACKS ---
+    // ────────────────────────────────────────────────
+
+    // NEW: Toggles the CAD stats panel on and off!
+    public void OnToggleStatsButtonClicked()
+    {
+        if (statsPanel != null)
+        {
+            statsPanel.SetActive(!statsPanel.activeSelf);
         }
     }
 

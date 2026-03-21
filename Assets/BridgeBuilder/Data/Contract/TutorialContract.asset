@@ -12,22 +12,22 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
   m_Name: TutorialContract
   m_EditorClassIdentifier: 
-  clientName: Merchant Clara
-  jobDescription: I need a sturdy bridge to transport my heavy crate of iron tools
-    across the gorge. Do not let it fall!
-  budget: 500000
+  clientName: Guide
+  jobDescription: '"The old wooden bridge washed away in the storm. We need a quick
+    replacement so the supply cart can cross the creek. Keep it simple, and remember:
+    triangles make the strongest supports!"'
+  budget: 100000
   cargoWeight: 500
   offerDialogue:
-    name: Merchant Clara
+    name: Guide
     sentences:
-    - Hello, builder. I need your help.
-    - The bridge across has collapsed, and I need to deliver a crate of iron tools
-      to the settlement on the other side.
-    - "The crate weighs 500kg, so the bridge must be strong and stable. It can\u2019t
-      be weak or unstable."
-    - My budget is $4000 for materials. Build a solid bridge and carry the crate
-      safely to the delivery area. Can you take this job?
+    - Hey there! Ready for your first real job?
+    - The storm washed out the crossing over Muddy Creek. We need to get a supply
+      cart to the other side
+    - You have a budget of $1500. Head over to the Drafting Table when you are ready
+      to build.
   reminderDialogue:
-    name: Merchant Clara
+    name: Guide
     sentences:
-    - build it please make it sturdy
+    - What are you waiting for? The creek isn't going to bridge itself!
+    - Tap the Drafting Table to get started. Build across the gap and run the simulation.

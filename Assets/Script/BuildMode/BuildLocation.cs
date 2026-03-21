@@ -19,6 +19,12 @@ public class BuildLocation : Interactable
     [Tooltip("The contract currently assigned to this ravine. Can be assigned by an NPC.")]
     public ContractSO activeContract; 
 
+    // --- NEW: Tutorial Integration ---
+    [Header("Tutorial Settings")]
+    [Tooltip("Check this if successfully entering Build Mode here should finish the tutorial!")]
+    public bool advancesTutorial = false; 
+    // ---------------------------------
+
     private Transform originalPlayerParent;
 
     private void Awake()
@@ -75,6 +81,13 @@ public class BuildLocation : Interactable
             originalPlayerParent = player.parent;
             player.SetParent(transform);
         }
+
+        // --- NEW: Trigger the end of the tutorial! ---
+        if (advancesTutorial && TutorialManager.Instance != null)
+        {
+            TutorialManager.Instance.ShowNextStep();
+        }
+        // ---------------------------------------------
     }
 
     public void DeactivateBuildMode(Transform player)

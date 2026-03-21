@@ -1,0 +1,95 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &4291416709806265251
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 3397920407953328531}
+  - component: {fileID: 7041668349513576209}
+  - component: {fileID: 2872368986010330726}
+  m_Layer: 0
+  m_Name: BuildUIManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &3397920407953328531
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4291416709806265251}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 61.68111, y: -128.9, z: 50.97237}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &7041668349513576209
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4291416709806265251}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b80a52e972006974caa6c608eb09b59e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  barCreator: {fileID: 0}
+  physicsManager: {fileID: 0}
+  useKeyboardShortcuts: 1
+  simulateKey: 13
+  restartKey: 8
+  playPauseButtonImage: {fileID: 0}
+  playIcon: {fileID: 21300000, guid: cb4b39314e8cf1141bed74906648d979, type: 3}
+  stopIcon: {fileID: 21300000, guid: 93c3e577a5c59984e80b3a0b0827185d, type: 3}
+  fallbackMaxBudget: 1000
+  maxBudget: 0
+  usedBudgetText: {fileID: 0}
+  budgetFillBar: {fileID: 0}
+  maxBudgetText: {fileID: 0}
+  normalTextColor: {r: 1, g: 1, b: 1, a: 1}
+  overBudgetTextColor: {r: 1, g: 0, b: 0, a: 1}
+  stressText: {fileID: 0}
+  stressFillBar: {fileID: 0}
+  safeStressColor: {r: 0, g: 1, b: 0, a: 1}
+  warningStressColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  criticalStressColor: {r: 1, g: 0, b: 0, a: 1}
+  statsPanel: {fileID: 0}
+  totalLengthText: {fileID: 0}
+  membersCountText: {fileID: 0}
+  deadLoadText: {fileID: 0}
+  targetCargoWeightText: {fileID: 0}
+  estimatedCapacityText: {fileID: 0}
+  efficiencyRatioText: {fileID: 0}
+  factorOfSafetyText: {fileID: 0}
+--- !u!114 &2872368986010330726
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4291416709806265251}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a598a22bf5b074e47ae65866e66f9051, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  hoverDelay: 0.5
+  tooltipPanel: {fileID: 0}
+  materialNameText: {fileID: 0}
+  costText: {fileID: 0}
+  weightText: {fileID: 0}
+  strengthText: {fileID: 0}
+  lengthText: {fileID: 0}
+  typeText: {fileID: 0}

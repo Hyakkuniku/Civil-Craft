@@ -8,10 +8,13 @@ public class NPCContractGiver : Interactable
     
     public CargoItem linkedCargo; 
 
-    // NEW: A true/false memory switch to track if we already gave the job
+    [Header("Tutorial Settings")]
+    [Tooltip("Check this if talking to this NPC should advance the tutorial!")]
+    public bool advancesTutorial = false; // <-- NEW: Tutorial Checkbox
+
     private bool hasGivenContract = false;
 
-    protected override void Intract()
+    protected override void Intract() // Keeping your exact spelling here!
     {
         if (contractToGive == null) return;
         
@@ -29,28 +32,39 @@ public class NPCContractGiver : Interactable
             if (dm != null && contractToGive.offerDialogue != null)
             {
                 contractToGive.offerDialogue.name = contractToGive.clientName;
+                
+                // Start the dialogue, and run this block of code when it finishes!
                 dm.StartDialogue(contractToGive.offerDialogue, () => 
                 {
                     if (ObjectiveTrackerUI.Instance != null)
                         ObjectiveTrackerUI.Instance.SetObjective(contractToGive);
+
+                    // <-- NEW: Advance the tutorial after they finish talking! -->
+                    if (advancesTutorial && TutorialManager.Instance != null)
+                    {
+                        TutorialManager.Instance.ShowNextStep();
+                    }
                 });
             }
             else
             {
                 if (ObjectiveTrackerUI.Instance != null)
                     ObjectiveTrackerUI.Instance.SetObjective(contractToGive);
+
+                // <-- NEW: Advance tutorial even if there is no dialogue text -->
+                if (advancesTutorial && TutorialManager.Instance != null)
+                {
+                    TutorialManager.Instance.ShowNextStep();
+                }
             }
 
-            // NEW: Flip the switch so we don't give the job again!
             hasGivenContract = true;
             
-            // Optional: Change the button text from "Accept Job" to "Talk" 
             promptMessage = "Talk to " + contractToGive.clientName;
         }
         // Scenario B: We already gave the contract
         else
         {
-            // Just play the reminder dialogue, don't reset the cargo or objective
             if (dm != null && contractToGive.reminderDialogue != null)
             {
                 contractToGive.reminderDialogue.name = contractToGive.clientName;
