@@ -2405,7 +2405,6 @@ GameObject:
   - component: {fileID: 327835026}
   - component: {fileID: 327835028}
   - component: {fileID: 327835027}
-  - component: {fileID: 327835029}
   m_Layer: 5
   m_Name: ForgotPasswordPanel
   m_TagString: Untagged
@@ -2475,21 +2474,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 327835025}
   m_CullTransparentMesh: 1
---- !u!114 &327835029
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 327835025}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 09f2e4d33adafe0488c4f5a14543ab9a, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  panelToMove: {fileID: 327835026}
-  slideUpDistance: 400
-  slideSpeed: 10
 --- !u!1001 &339050277
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -10777,7 +10761,6 @@ GameObject:
   - component: {fileID: 1494347067}
   - component: {fileID: 1494347069}
   - component: {fileID: 1494347068}
-  - component: {fileID: 1494347070}
   m_Layer: 5
   m_Name: RegisterPanel
   m_TagString: Untagged
@@ -10851,21 +10834,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1494347066}
   m_CullTransparentMesh: 1
---- !u!114 &1494347070
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1494347066}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 09f2e4d33adafe0488c4f5a14543ab9a, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  panelToMove: {fileID: 1494347067}
-  slideUpDistance: 400
-  slideSpeed: 10
 --- !u!1001 &1498002755
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -11697,7 +11665,6 @@ GameObject:
   - component: {fileID: 1609075573}
   - component: {fileID: 1609075575}
   - component: {fileID: 1609075574}
-  - component: {fileID: 1609075576}
   m_Layer: 5
   m_Name: LoginPanel
   m_TagString: Untagged
@@ -11769,21 +11736,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1609075572}
   m_CullTransparentMesh: 1
---- !u!114 &1609075576
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1609075572}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 09f2e4d33adafe0488c4f5a14543ab9a, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  panelToMove: {fileID: 1609075573}
-  slideUpDistance: 400
-  slideSpeed: 10
 --- !u!1 &1614338341
 GameObject:
   m_ObjectHideFlags: 0
