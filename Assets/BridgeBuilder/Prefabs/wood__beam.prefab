@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 7305647779311595527}
   - component: {fileID: 2978011072342046309}
   - component: {fileID: 4309520279729151914}
+  - component: {fileID: 7781203748315044018}
   m_Layer: 7
   m_Name: wood__beam
   m_TagString: Untagged
@@ -83,3 +84,23 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!114 &7781203748315044018
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4806764515897639862}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1b77fa90958c5d9408a617dcbb14ff89, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  StartPosition: {x: 0, y: 0, z: 0}
+  materialData: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
+  startPoint: {fileID: 0}
+  endPoint: {fileID: 0}
+  preSimPos: {x: 0, y: 0, z: 0}
+  preSimRot: {x: 0, y: 0, z: 0, w: 0}
+  visualSize: {x: 1, y: 0.2, z: 0.2}
+  currentLength: 0

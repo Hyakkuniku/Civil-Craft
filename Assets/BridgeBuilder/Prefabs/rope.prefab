@@ -9,6 +9,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 8182325863134507696}
+  - component: {fileID: -6269905910918716362}
   m_Layer: 0
   m_Name: rope
   m_TagString: Untagged
@@ -32,6 +33,26 @@ Transform:
   - {fileID: 1482007791694898407}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &-6269905910918716362
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8846941766389065738}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1b77fa90958c5d9408a617dcbb14ff89, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  StartPosition: {x: 0, y: 0, z: 0}
+  materialData: {fileID: 11400000, guid: 4524a3fc876c6b640a735e6808fe1271, type: 2}
+  startPoint: {fileID: 0}
+  endPoint: {fileID: 0}
+  preSimPos: {x: 0, y: 0, z: 0}
+  preSimRot: {x: 0, y: 0, z: 0, w: 0}
+  visualSize: {x: 1, y: 0.2, z: 0.2}
+  currentLength: 0
 --- !u!1001 &1376869214574904076
 PrefabInstance:
   m_ObjectHideFlags: 0
