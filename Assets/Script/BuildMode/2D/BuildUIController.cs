@@ -40,7 +40,7 @@ public class BuildUIController : MonoBehaviour
     public Color criticalStressColor = Color.red;
 
     [Header("Engineering Stats (CAD Readout)")]
-    public GameObject statsPanel; // <-- NEW: The main background panel holding all the stats!
+    public GameObject statsPanel; 
     public TextMeshProUGUI totalLengthText; 
     public TextMeshProUGUI membersCountText;  
     public TextMeshProUGUI deadLoadText;  
@@ -49,9 +49,9 @@ public class BuildUIController : MonoBehaviour
     public TextMeshProUGUI efficiencyRatioText;
     public TextMeshProUGUI factorOfSafetyText; 
 
-    // ────────────────────────────────────────────────
-    // --- Optimization Cache Variables ---
-    // ────────────────────────────────────────────────
+    [Header("Selection UI")]
+    public GameObject selectionActionPanel; 
+
     private bool isBridgeDirty = true;
     private float cachedBaseCost = 0f;
     private float cachedBaseDeadLoad = 0f;
@@ -66,6 +66,8 @@ public class BuildUIController : MonoBehaviour
     {
         if (barCreator == null) barCreator = FindObjectOfType<BarCreator>();
         if (physicsManager == null) physicsManager = FindObjectOfType<BridgePhysicsManager>();
+        
+        if (selectionActionPanel != null) selectionActionPanel.SetActive(false);
     }
 
     private void Update()
@@ -83,10 +85,7 @@ public class BuildUIController : MonoBehaviour
         UpdatePlayPauseButtonUI();
     }
 
-    public void MarkBridgeDirty()
-    {
-        isBridgeDirty = true;
-    }
+    public void MarkBridgeDirty() { isBridgeDirty = true; }
 
     private void RecalculateStaticBridge()
     {
@@ -203,7 +202,6 @@ public class BuildUIController : MonoBehaviour
         if (barCreator != null && barCreator.IsCreating && barCreator.currentBar != null) previewCost = barCreator.currentBar.GetCost();
         float totalProjectedCost = baseCost + previewCost;
 
-        // --- UPDATED: Dollar ($) to Peso (₱) ---
         if (usedBudgetText != null) { usedBudgetText.text = $" ₱{Mathf.RoundToInt(totalProjectedCost)}"; usedBudgetText.color = totalProjectedCost > maxBudget ? overBudgetTextColor : normalTextColor; }
         if (maxBudgetText != null) maxBudgetText.text = $" ₱{Mathf.RoundToInt(maxBudget)}";
         if (budgetFillBar != null) { budgetFillBar.fillAmount = totalProjectedCost / maxBudget; budgetFillBar.color = totalProjectedCost > maxBudget ? overBudgetTextColor : normalTextColor; }
@@ -258,31 +256,67 @@ public class BuildUIController : MonoBehaviour
         }
     }
 
+    public void SetSelectionPanelActive(bool isActive)
+    {
+        if (selectionActionPanel != null) selectionActionPanel.SetActive(isActive);
+    }
+
+    public void OnCloseSelectionPanelButtonClicked()
+    {
+        if (barCreator != null) barCreator.CancelAllModes();
+        SetSelectionPanelActive(false);
+    }
+
+    public void OnResetCameraButtonClicked()
+    {
+        BuildCameraController camCtrl = FindObjectOfType<BuildCameraController>();
+        if (camCtrl != null) camCtrl.ResetCameraRotation();
+    }
+
     // ────────────────────────────────────────────────
     // --- BUTTON CALLBACKS ---
     // ────────────────────────────────────────────────
 
-    // NEW: Toggles the CAD stats panel on and off!
-    public void OnToggleStatsButtonClicked()
-    {
-        if (statsPanel != null)
-        {
-            statsPanel.SetActive(!statsPanel.activeSelf);
-        }
+    public void OnToggleStatsButtonClicked() { if (statsPanel != null) statsPanel.SetActive(!statsPanel.activeSelf); }
+    
+    // --- THE FIX: Wipes ALL ghosts and closes panels BEFORE physics drop ---
+    public void OnSimulateButtonClicked() 
+    { 
+        if (physicsManager != null && !physicsManager.isSimulating) 
+        { 
+            if (barCreator != null) 
+            { 
+                barCreator.CancelAllModes(); 
+                barCreator.isSimulating = true; 
+            } 
+            SetSelectionPanelActive(false);
+            physicsManager.ActivatePhysics(); 
+        } 
     }
 
-    public void OnToggleSimulationButtonClicked()
-    {
-        if (physicsManager == null) return;
-        if (physicsManager.isSimulating) OnRestartButtonClicked(); else OnSimulateButtonClicked();
-    }
+    public void OnToggleSimulationButtonClicked() { if (physicsManager == null) return; if (physicsManager.isSimulating) OnRestartButtonClicked(); else OnSimulateButtonClicked(); }
+    
+    public void OnToggleSelectModeButtonClicked() { if (barCreator != null) barCreator.ToggleSelectMode(); }
+    public void OnToggleMoveModeButtonClicked() { if (barCreator != null) barCreator.ToggleMoveMode(); }
+    
+    public void OnCopyButtonClicked() { if (barCreator != null) barCreator.CopySelected(); }
+    public void OnPasteButtonClicked() { if (barCreator != null) barCreator.StampPaste(); }
 
-    public void OnSimulateButtonClicked() { if (physicsManager != null && !physicsManager.isSimulating) { if (barCreator != null) { barCreator.CancelCreation(); barCreator.isSimulating = true; } physicsManager.ActivatePhysics(); } }
     public void OnRestartButtonClicked() { if (physicsManager != null && physicsManager.isSimulating) { physicsManager.StopPhysicsAndReset(); if (barCreator != null) barCreator.isSimulating = false; } }
     public void OnToggleGridButtonClicked() { if (barCreator != null) barCreator.ToggleGrid(); }
     public void OnCancelDrawingButtonClicked() { if (barCreator != null) barCreator.CancelCreation(); }
     public void OnExitBuildModeButtonClicked() { if (GameManager.Instance != null) GameManager.Instance.ExitBuildMode(); }
-    public void OnMaterialSelected(BridgeMaterialSO newMaterial) { if (barCreator != null) { barCreator.isDeleteMode = false; barCreator.SetActiveMaterial(newMaterial); } }
+    
+    public void OnMaterialSelected(BridgeMaterialSO newMaterial) 
+    { 
+        if (barCreator != null) 
+        { 
+            barCreator.isDeleteMode = false; 
+            barCreator.SetActiveMaterial(newMaterial); 
+            SetSelectionPanelActive(false);
+        } 
+    }
+
     public void OnToggleDeleteModeButtonClicked() { if (barCreator != null) barCreator.ToggleDeleteMode(); }
     public void OnUndoButtonClicked() { if (barCreator != null) barCreator.Undo(); }
     public void OnRedoButtonClicked() { if (barCreator != null) barCreator.Redo(); }

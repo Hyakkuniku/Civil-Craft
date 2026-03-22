@@ -47,9 +47,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   Runtime: 1
   isAnchor: 0
+  isSelected: 0
   originalIsAnchor: 0
   defaultMaterial: {fileID: 2100000, guid: 2dc34487b0de833468c87dffc1126a8f, type: 2}
   anchorMaterial: {fileID: 2100000, guid: d71ec78405d77e846b5e45a7681c2df2, type: 2}
+  selectedMaterial: {fileID: 2100000, guid: f93b0b02c4e3f9449bf6707a8d16354d, type: 2}
   ConnectedBars: []
   preSimPos: {x: 0, y: 0, z: 0}
   preSimParent: {fileID: 0}

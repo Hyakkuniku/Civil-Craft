@@ -7,12 +7,15 @@ public class Point : MonoBehaviour
     public bool Runtime = true; 
     public bool isAnchor = false;
     
-    // --- THE FIX: Memory tracking ---
+    // --- NEW: Selection State ---
+    [HideInInspector] public bool isSelected = false; 
+    
     [HideInInspector] public bool originalIsAnchor = false;
     private bool hasInitializedAnchor = false;
 
     public Material defaultMaterial;
     public Material anchorMaterial;
+    public Material selectedMaterial; // <-- Drag your yellow/blue highlight material here on the Prefab!
 
     public List<Bar> ConnectedBars = new List<Bar>();
     public static readonly List<Point> AllPoints = new List<Point>();
@@ -26,7 +29,6 @@ public class Point : MonoBehaviour
     {
         pointRenderer = GetComponentInChildren<Renderer>();
         
-        // Memorize the original state of this point the moment it spawns!
         if (Application.isPlaying && !hasInitializedAnchor)
         {
             originalIsAnchor = isAnchor;
@@ -66,15 +68,16 @@ public class Point : MonoBehaviour
         
         if (pointRenderer != null)
         {
-            if (isAnchor && anchorMaterial != null)
+            // Prioritize showing the Selection material over the normal materials!
+            if (isSelected && selectedMaterial != null)
+                pointRenderer.sharedMaterial = selectedMaterial;
+            else if (isAnchor && anchorMaterial != null)
                 pointRenderer.sharedMaterial = anchorMaterial;
             else if (!isAnchor && defaultMaterial != null)
                 pointRenderer.sharedMaterial = defaultMaterial;
         }
     }
 
-    // --- THE FIX: Smart Anchor Evaluation ---
-    // This checks if the node should revert to normal after a pier is deleted
     public void EvaluateAnchorState()
     {
         if (!Application.isPlaying) return;
@@ -91,11 +94,10 @@ public class Point : MonoBehaviour
             if (b != null && b.gameObject.activeSelf && b.materialData != null && b.materialData.isPier)
             {
                 hasActivePier = true;
-                break; // Found a pier, we must remain an anchor!
+                break; 
             }
         }
 
-        // If we were a permanent anchor originally, OR we have a pier touching us, be an anchor.
         isAnchor = originalIsAnchor || hasActivePier;
         UpdateMaterial();
     }

@@ -40,10 +40,7 @@ public class BuildCameraController : MonoBehaviour
     private bool isInitialized = false;
     private float lockedZPosition; 
 
-    private void OnEnable()
-    {
-        EnhancedTouchSupport.Enable();
-    }
+    private void OnEnable() { EnhancedTouchSupport.Enable(); }
 
     private void Update()
     {
@@ -54,21 +51,15 @@ public class BuildCameraController : MonoBehaviour
         }
 
         if (GameManager.Instance.ActiveBuildLocation != null && GameManager.Instance.ActiveBuildLocation.locationCamera != null)
-        {
             activeCamera = GameManager.Instance.ActiveBuildLocation.locationCamera;
-        }
         else
-        {
             activeCamera = Camera.main;
-        }
 
         if (activeCamera == null || !activeCamera.enabled) return;
-        
         if (barCreator == null) barCreator = FindObjectOfType<BarCreator>();
 
         if (!isInitialized)
         {
-            // Initialize using localPosition instead of world position
             lockedZPosition = activeCamera.transform.localPosition.z;
             isInitialized = true;
         }
@@ -87,6 +78,8 @@ public class BuildCameraController : MonoBehaviour
                 Touch t1 = Touch.activeTouches[1];
 
                 if (t0.phase == UnityEngine.InputSystem.TouchPhase.Began || t1.phase == UnityEngine.InputSystem.TouchPhase.Began) return;
+                
+                if (barCreator != null && barCreator.IsPasting) return;
 
                 float prevMag = ((t0.screenPosition - t0.delta) - (t1.screenPosition - t1.delta)).magnitude;
                 float currentMag = (t0.screenPosition - t1.screenPosition).magnitude;
@@ -94,15 +87,14 @@ public class BuildCameraController : MonoBehaviour
 
                 if (Mathf.Abs(zoomDelta) > 0.001f)
                 {
-                    if (activeCamera.orthographic)
-                        activeCamera.orthographicSize = Mathf.Clamp(activeCamera.orthographicSize + zoomDelta, minZoom, maxZoom);
-                    else
-                        activeCamera.fieldOfView = Mathf.Clamp(activeCamera.fieldOfView + zoomDelta, minZoom, maxZoom);
+                    if (activeCamera.orthographic) activeCamera.orthographicSize = Mathf.Clamp(activeCamera.orthographicSize + zoomDelta, minZoom, maxZoom);
+                    else activeCamera.fieldOfView = Mathf.Clamp(activeCamera.fieldOfView + zoomDelta, minZoom, maxZoom);
                 }
 
                 float avgDeltaY = (t0.delta.y + t1.delta.y) / 2f;
-                if (Mathf.Abs(avgDeltaY) > pitchDeadzone)
+                if (Mathf.Abs(avgDeltaY) > pitchDeadzone) 
                 {
+                    // Allowed to rotate freely again!
                     RotateCamera(avgDeltaY * touchPitchSpeed);
                 }
             }
@@ -110,14 +102,12 @@ public class BuildCameraController : MonoBehaviour
             {
                 if (Time.time - lastTwoFingerTime < 0.15f) return; 
                 
-                // --- THE FIX: Ignore camera panning if you are building OR erasing! ---
-                if (barCreator != null && (barCreator.IsCreating || barCreator.IsErasing)) return;
+                if (barCreator != null && (barCreator.IsCreating || barCreator.IsErasing || barCreator.IsSelecting || barCreator.IsMoving || barCreator.IsPasting)) return;
 
                 Touch touch = Touch.activeTouches[0];
                 if (touch.phase == UnityEngine.InputSystem.TouchPhase.Moved)
                 {
                     Vector3 panDelta = new Vector3(-touch.delta.x * touchPanSpeed, -touch.delta.y * touchPanSpeed, 0);
-                    // Apply to localPosition
                     activeCamera.transform.localPosition += panDelta;
                     ApplyConstraints();
                 }
@@ -129,35 +119,26 @@ public class BuildCameraController : MonoBehaviour
             if (Mathf.Abs(scroll) > 0.001f)
             {
                 float zoomDelta = scroll * -pcZoomSpeed;
-                if (activeCamera.orthographic)
-                    activeCamera.orthographicSize = Mathf.Clamp(activeCamera.orthographicSize + zoomDelta, minZoom, maxZoom);
-                else
-                    activeCamera.fieldOfView = Mathf.Clamp(activeCamera.fieldOfView + zoomDelta, minZoom, maxZoom);
+                if (activeCamera.orthographic) activeCamera.orthographicSize = Mathf.Clamp(activeCamera.orthographicSize + zoomDelta, minZoom, maxZoom);
+                else activeCamera.fieldOfView = Mathf.Clamp(activeCamera.fieldOfView + zoomDelta, minZoom, maxZoom);
             }
 
             Vector3 panInput = Vector3.zero;
-            if (Input.GetMouseButton(2)) 
-            {
-                panInput = new Vector3(-Input.GetAxis("Mouse X") * pcPanSpeed, -Input.GetAxis("Mouse Y") * pcPanSpeed, 0);
-            }
-            else
-            {
-                panInput = new Vector3(Input.GetAxis("Horizontal") * pcPanSpeed * Time.deltaTime * 50f, 
-                                       Input.GetAxis("Vertical") * pcPanSpeed * Time.deltaTime * 50f, 0);
-            }
+            if (Input.GetMouseButton(2)) panInput = new Vector3(-Input.GetAxis("Mouse X") * pcPanSpeed, -Input.GetAxis("Mouse Y") * pcPanSpeed, 0);
+            else panInput = new Vector3(Input.GetAxis("Horizontal") * pcPanSpeed * Time.deltaTime * 50f, Input.GetAxis("Vertical") * pcPanSpeed * Time.deltaTime * 50f, 0);
 
             if (panInput != Vector3.zero)
             {
-                // Apply to localPosition
                 activeCamera.transform.localPosition += panInput;
                 ApplyConstraints();
             }
 
-            if (Input.GetMouseButton(1))
+            if (Input.GetMouseButton(1)) 
             {
+                // Allowed to rotate freely again!
                 RotateCamera(Input.GetAxis("Mouse Y") * pcPitchSpeed);
             }
-
+            
             if (Input.GetKeyDown(rotateCameraKey)) CycleCameraRotation();
         }
     }
@@ -171,20 +152,15 @@ public class BuildCameraController : MonoBehaviour
         currentPitch = Mathf.Clamp(currentPitch, minPitch, maxPitch);
 
         activeCamera.transform.localRotation = Quaternion.Euler(currentPitch, activeCamera.transform.localEulerAngles.y, activeCamera.transform.localEulerAngles.z);
-        
         ApplyConstraints();
     }
 
     private void ApplyConstraints()
     {
-        // Clamp based on local position instead of world position
         Vector3 localPos = activeCamera.transform.localPosition;
-
         localPos.x = Mathf.Clamp(localPos.x, minHorizontal, maxHorizontal);
         localPos.y = Mathf.Clamp(localPos.y, minHeight, maxHeight);
-        
         localPos.z = lockedZPosition;
-
         activeCamera.transform.localPosition = localPos;
     }
 
@@ -207,15 +183,12 @@ public class BuildCameraController : MonoBehaviour
         ApplyConstraints();
     }
 
-    private void OnDrawGizmosSelected()
+    public void ResetCameraRotation()
     {
-        Gizmos.color = Color.yellow;
-        
-        // Draw the limits gizmo aligned to the local space of the object this script is on
-        Gizmos.matrix = transform.localToWorldMatrix;
-        
-        Vector3 center = new Vector3((minHorizontal + maxHorizontal) / 2f, (minHeight + maxHeight) / 2f, lockedZPosition);
-        Vector3 size = new Vector3(maxHorizontal - minHorizontal, maxHeight - minHeight, 1f);
-        Gizmos.DrawWireCube(center, size);
+        if (activeCamera != null)
+        {
+            activeCamera.transform.localRotation = Quaternion.Euler(0, 0, 0);
+            ApplyConstraints();
+        }
     }
 }
