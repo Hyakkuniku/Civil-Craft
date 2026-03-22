@@ -293,6 +293,8 @@ public class BuildUIController : MonoBehaviour
             physicsManager.ActivatePhysics(); 
         } 
     }
+    public void OnCutSelectedButtonClicked() { if (barCreator != null) barCreator.CutSelected(); }
+    public void OnDeleteSelectedButtonClicked() { if (barCreator != null) barCreator.DeleteSelected(); }
 
     public void OnToggleSimulationButtonClicked() { if (physicsManager == null) return; if (physicsManager.isSimulating) OnRestartButtonClicked(); else OnSimulateButtonClicked(); }
     

@@ -83,6 +83,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
     [Header("Copy/Paste")]
     public bool isPasteMode = false;
+    private bool isPasteFromCut = false; // --- NEW: Tracks if we should close the panel after pasting ---
     private List<Vector3> copiedRelativePoints = new List<Vector3>();
     private List<CopiedBarInfo> copiedBars = new List<CopiedBarInfo>();
     private List<GameObject> ghostPastePoints = new List<GameObject>();
@@ -160,6 +161,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         isSelectMode = false;
         isMoveMode = false;
         isPasteMode = false;
+        isPasteFromCut = false; 
         isDeleteMode = false;
         DestroyPasteGhosts();
         CancelCreation();
@@ -499,6 +501,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         }
 
         isPasteMode = true;
+        isPasteFromCut = false; // --- Set to False because this is a standard Copy ---
         isSelectMode = false;
         isMoveMode = false;
         isDeleteMode = false;
@@ -513,10 +516,119 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         CreatePasteGhosts();
         UpdatePasteGhostsWorldPosition(pasteRootPos); 
     }
+    
+    public void CutSelected()
+    {
+        if (selectedPoints.Count == 0) return;
+        
+        HashSet<Point> expandedPoints = new HashSet<Point>(selectedPoints);
+        HashSet<Bar> capturedBars = new HashSet<Bar>();
+
+        foreach (Point p in selectedPoints)
+        {
+            foreach (Bar b in p.ConnectedBars)
+            {
+                if (b != null && b.gameObject.activeSelf)
+                {
+                    capturedBars.Add(b);
+                    expandedPoints.Add(b.startPoint);
+                    expandedPoints.Add(b.endPoint);
+                }
+            }
+        }
+
+        if (capturedBars.Count == 0)
+        {
+            ClearSelection();
+            return;
+        }
+
+        List<Point> finalPointList = new List<Point>(expandedPoints);
+        copiedRelativePoints.Clear();
+        copiedBars.Clear();
+
+        Vector3 rootPos = selectedPoints[0].transform.position;
+        for (int i = 0; i < finalPointList.Count; i++)
+        {
+            copiedRelativePoints.Add(finalPointList[i].transform.position - rootPos);
+        }
+
+        foreach (Bar b in capturedBars)
+        {
+            int sIdx = finalPointList.IndexOf(b.startPoint);
+            int eIdx = finalPointList.IndexOf(b.endPoint);
+            
+            if (sIdx != -1 && eIdx != -1) 
+            {
+                copiedBars.Add(new CopiedBarInfo { startIdx = sIdx, endIdx = eIdx, mat = b.materialData });
+            }
+        }
+
+        // Delete the originals
+        HistoryAction cutAction = new HistoryAction { isBuildEvent = false };
+        List<Point> pointsToProcess = new List<Point>(selectedPoints);
+        
+        foreach (Point p in pointsToProcess)
+        {
+            DeletePoint(p, cutAction);
+        }
+
+        if (cutAction.affectedObjects.Count > 0) RecordAction(cutAction);
+
+        // Enter Paste Mode
+        isPasteMode = true;
+        isPasteFromCut = true; // --- Set to True so it knows to close the UI panel AFTER stamping! ---
+        isSelectMode = false;
+        isMoveMode = false;
+        isDeleteMode = false;
+        pasteRotationOffset = 0f; 
+        CancelCreation();
+        ClearSelection();
+
+        Vector3 spawnPos = GetWorldMousePosition(new Vector2(Screen.width / 2f, Screen.height / 2f));
+        if (isGridSnappingEnabled) spawnPos = new Vector3(Mathf.Round(spawnPos.x), Mathf.Round(spawnPos.y), spawnPos.z);
+        
+        pasteRootPos = spawnPos; 
+        CreatePasteGhosts();
+        UpdatePasteGhostsWorldPosition(pasteRootPos); 
+
+        // Important: We purposely DO NOT close the SelectionPanel here. We leave it open so the user can click Paste.
+        if (BuildUIController.Instance != null)
+        {
+            BuildUIController.Instance.MarkBridgeDirty();
+        }
+    }
+
+    public void DeleteSelected()
+    {
+        if (selectedPoints.Count == 0) return;
+
+        HistoryAction deleteAction = new HistoryAction { isBuildEvent = false };
+        List<Point> pointsToProcess = new List<Point>(selectedPoints);
+        
+        foreach (Point p in pointsToProcess)
+        {
+            DeletePoint(p, deleteAction);
+        }
+
+        if (deleteAction.affectedObjects.Count > 0)
+        {
+            RecordAction(deleteAction);
+        }
+
+        ClearSelection();
+
+        if (BuildUIController.Instance != null)
+        {
+            BuildUIController.Instance.SetSelectionPanelActive(false);
+            BuildUIController.Instance.MarkBridgeDirty();
+        }
+    }
 
     public void CancelPasteMode()
     {
         isPasteMode = false;
+        isPasteFromCut = false;
         DestroyPasteGhosts();
     }
 
@@ -708,6 +820,13 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
         RecordAction(pasteAction);
         if (BuildUIController.Instance != null) BuildUIController.Instance.MarkBridgeDirty();
+
+        // --- NEW: If this paste was initiated by a Cut, close the panel and end paste mode! ---
+        if (isPasteFromCut)
+        {
+            CancelPasteMode();
+            if (BuildUIController.Instance != null) BuildUIController.Instance.SetSelectionPanelActive(false);
+        }
     }
 
     private void DestroyPasteGhosts()
@@ -731,9 +850,9 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building) return;
         if (isSimulating || Touch.activeTouches.Count > 1) return;
 
-        // --- THE FIX: Right click (PC Camera Rotation) ignores the tool cancel, so you can freely rotate your camera! ---
         if (eventData.button == PointerEventData.InputButton.Right)
         {
+            CancelAllModes();
             return;
         }
 
