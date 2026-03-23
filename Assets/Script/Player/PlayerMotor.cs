@@ -16,11 +16,14 @@ public class PlayerMotor : MonoBehaviour
     [Tooltip("How heavy the player is. Increase this to break the bridge!")]
     public float playerWeight = 500f; 
 
+    [Header("Animation")]
+    [Tooltip("Drag the 3D model that has the Animator component here!")]
+    public Animator playerAnimator; // <-- NEW: Reference to your animator
+
     void Start()
     {
         controller = GetComponent<CharacterController>();
 
-        // NEW: Subscribe to GameManager events
         if (GameManager.Instance != null)
         {
             GameManager.Instance.OnEnterBuildMode.AddListener(HandleEnterBuildMode);
@@ -66,6 +69,16 @@ public class PlayerMotor : MonoBehaviour
             playerVelocity.y = -2f;
             
         controller.Move(playerVelocity * Time.deltaTime);
+
+        // --- NEW: ANIMATION LOGIC ---
+        if (playerAnimator != null)
+        {
+            // Calculate how much the player is moving based on input (0 means still, >0 means moving)
+            float moveAmount = Mathf.Clamp01(Mathf.Abs(input.x) + Mathf.Abs(input.y));
+            
+            // Send this number to the Animator's "Speed" parameter!
+            playerAnimator.SetFloat("Speed", moveAmount);
+        }
     }
 
     private void OnControllerColliderHit(ControllerColliderHit hit)
