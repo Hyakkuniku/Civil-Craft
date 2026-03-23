@@ -2,10 +2,16 @@ using UnityEngine;
 using UnityEngine.UI; 
 using TMPro; 
 using System.Collections.Generic;
+using System.Collections; // Required for Coroutines
 
 public class BuildUIController : MonoBehaviour
 {
     public static BuildUIController Instance { get; private set; }
+
+    [Header("Action Log")]
+    public TextMeshProUGUI actionLogText; // <-- Drag your new UI Text element here!
+    public float logDisplayTime = 3f;
+    private Coroutine clearLogCoroutine;
 
     [Header("System References")]
     public BarCreator barCreator;
@@ -68,6 +74,7 @@ public class BuildUIController : MonoBehaviour
         if (physicsManager == null) physicsManager = FindObjectOfType<BridgePhysicsManager>();
         
         if (selectionActionPanel != null) selectionActionPanel.SetActive(false);
+        if (actionLogText != null) actionLogText.text = ""; // Clear log on start
     }
 
     private void Update()
@@ -84,6 +91,25 @@ public class BuildUIController : MonoBehaviour
         UpdateStressUI();
         UpdatePlayPauseButtonUI();
     }
+
+    // --- NEW: ACTION LOG METHOD ---
+    public void LogAction(string message)
+    {
+        if (actionLogText != null)
+        {
+            actionLogText.text = message;
+            if (clearLogCoroutine != null) StopCoroutine(clearLogCoroutine);
+            clearLogCoroutine = StartCoroutine(ClearLogRoutine());
+        }
+        Debug.Log("[Action Log] " + message);
+    }
+
+    private IEnumerator ClearLogRoutine()
+    {
+        yield return new WaitForSeconds(logDisplayTime);
+        if (actionLogText != null) actionLogText.text = "";
+    }
+    // ------------------------------
 
     public void MarkBridgeDirty() { isBridgeDirty = true; }
 
@@ -265,21 +291,26 @@ public class BuildUIController : MonoBehaviour
     {
         if (barCreator != null) barCreator.CancelAllModes();
         SetSelectionPanelActive(false);
+        LogAction("Selection Cleared");
     }
 
     public void OnResetCameraButtonClicked()
     {
         BuildCameraController camCtrl = FindObjectOfType<BuildCameraController>();
         if (camCtrl != null) camCtrl.ResetCameraRotation();
+        LogAction("Camera Reset");
     }
 
     // ────────────────────────────────────────────────
-    // --- BUTTON CALLBACKS ---
+    // --- BUTTON CALLBACKS (Now with logging!) ---
     // ────────────────────────────────────────────────
 
-    public void OnToggleStatsButtonClicked() { if (statsPanel != null) statsPanel.SetActive(!statsPanel.activeSelf); }
+    public void OnToggleStatsButtonClicked() 
+    { 
+        if (statsPanel != null) statsPanel.SetActive(!statsPanel.activeSelf); 
+        LogAction(statsPanel != null && statsPanel.activeSelf ? "Stats Panel Opened" : "Stats Panel Closed");
+    }
     
-    // --- THE FIX: Wipes ALL ghosts and closes panels BEFORE physics drop ---
     public void OnSimulateButtonClicked() 
     { 
         if (physicsManager != null && !physicsManager.isSimulating) 
@@ -291,6 +322,7 @@ public class BuildUIController : MonoBehaviour
             } 
             SetSelectionPanelActive(false);
             physicsManager.ActivatePhysics(); 
+            LogAction("Simulation Started");
         } 
     }
     public void OnCutSelectedButtonClicked() { if (barCreator != null) barCreator.CutSelected(); }
@@ -304,7 +336,16 @@ public class BuildUIController : MonoBehaviour
     public void OnCopyButtonClicked() { if (barCreator != null) barCreator.CopySelected(); }
     public void OnPasteButtonClicked() { if (barCreator != null) barCreator.StampPaste(); }
 
-    public void OnRestartButtonClicked() { if (physicsManager != null && physicsManager.isSimulating) { physicsManager.StopPhysicsAndReset(); if (barCreator != null) barCreator.isSimulating = false; } }
+    public void OnRestartButtonClicked() 
+    { 
+        if (physicsManager != null && physicsManager.isSimulating) 
+        { 
+            physicsManager.StopPhysicsAndReset(); 
+            if (barCreator != null) barCreator.isSimulating = false; 
+            LogAction("Simulation Stopped");
+        } 
+    }
+
     public void OnToggleGridButtonClicked() { if (barCreator != null) barCreator.ToggleGrid(); }
     public void OnCancelDrawingButtonClicked() { if (barCreator != null) barCreator.CancelCreation(); }
     public void OnExitBuildModeButtonClicked() { if (GameManager.Instance != null) GameManager.Instance.ExitBuildMode(); }
@@ -316,6 +357,7 @@ public class BuildUIController : MonoBehaviour
             barCreator.isDeleteMode = false; 
             barCreator.SetActiveMaterial(newMaterial); 
             SetSelectionPanelActive(false);
+            LogAction($"Selected Material: {newMaterial.name}");
         } 
     }
 

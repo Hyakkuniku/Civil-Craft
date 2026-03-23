@@ -516,7 +516,11 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         CreatePasteGhosts();
         UpdatePasteGhostsWorldPosition(pasteRootPos); 
         
-        if (BuildUIController.Instance != null) BuildUIController.Instance.SetSelectionPanelActive(true);
+        if (BuildUIController.Instance != null) 
+        {
+            BuildUIController.Instance.SetSelectionPanelActive(true);
+            BuildUIController.Instance.LogAction("Selection Copied");
+        }
     }
     
     public void CutSelected()
@@ -598,6 +602,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         {
             BuildUIController.Instance.SetSelectionPanelActive(true);
             BuildUIController.Instance.MarkBridgeDirty();
+            BuildUIController.Instance.LogAction("Selection Cut");
         }
     }
 
@@ -624,6 +629,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         {
             BuildUIController.Instance.SetSelectionPanelActive(false);
             BuildUIController.Instance.MarkBridgeDirty();
+            BuildUIController.Instance.LogAction("Bulk Selection Deleted");
         }
     }
 
@@ -821,7 +827,12 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         foreach(Point p in newRealPoints) p.EvaluateAnchorState();
 
         RecordAction(pasteAction);
-        if (BuildUIController.Instance != null) BuildUIController.Instance.MarkBridgeDirty();
+        
+        if (BuildUIController.Instance != null)
+        {
+            BuildUIController.Instance.MarkBridgeDirty();
+            BuildUIController.Instance.LogAction("Selection Pasted");
+        }
 
         if (isPasteFromCut)
         {
@@ -851,11 +862,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building) return;
         if (isSimulating || Touch.activeTouches.Count > 1) return;
 
-        // --- THE FIX: We ignore non-left clicks completely! This prevents camera rotation from destroying selections/clipboard. ---
-        if (eventData.button != PointerEventData.InputButton.Left)
-        {
-            return;
-        }
+        if (eventData.button != PointerEventData.InputButton.Left) return;
 
         Vector2 screenPos = eventData.position;
 
@@ -961,7 +968,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
     public void OnDrag(PointerEventData eventData)
     {
-        // --- THE FIX: Ignore non-left drag inputs ---
         if (eventData.button != PointerEventData.InputButton.Left) return;
 
         if (isDeleteMode && currentSwipeDeleteAction != null) PerformSwipeDelete(eventData.position);
@@ -997,7 +1003,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building) return;
         if (isSimulating) return; 
 
-        // --- THE FIX: Safe return on right-click/middle-click so it doesn't break modes ---
         if (eventData.button != PointerEventData.InputButton.Left) return;
 
         if (isPasteMode)
@@ -1018,6 +1023,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                     foreach (Point p in selectedPoints) currentMoveAction.newPositions[p] = p.transform.position;
                     RecordAction(currentMoveAction);
                     currentMoveAction = null;
+                    if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("Selection Moved");
                 }
             }
             return; 
@@ -1084,6 +1090,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             p.UpdateMaterial();
             selectedPoints.Add(p);
         }
+        if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction(p.isSelected ? "Node Selected" : "Node Deselected");
     }
 
     private void ToggleBarSelection(Bar bar)
@@ -1103,6 +1110,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             if (!p1Selected) { p1.isSelected = true; p1.UpdateMaterial(); selectedPoints.Add(p1); }
             if (!p2Selected) { p2.isSelected = true; p2.UpdateMaterial(); selectedPoints.Add(p2); }
         }
+        if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("Beam Selected");
     }
 
     public void ToggleSelectMode()
@@ -1119,6 +1127,8 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             SetActiveMaterial(null); 
         }
         else ClearSelection();
+        
+        if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("Select Mode: " + (isSelectMode ? "ON" : "OFF"));
     }
 
     public void ToggleMoveMode()
@@ -1135,6 +1145,8 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             SetActiveMaterial(null); 
         }
         else if (radiusIndicator != null) radiusIndicator.enabled = false;
+
+        if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("Move Mode: " + (isMoveMode ? "ON" : "OFF"));
     }
 
     public void ToggleDeleteMode() 
@@ -1147,6 +1159,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             isDeleteMode = true; 
             SetActiveMaterial(null);
         } 
+        if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("Delete Mode: " + (isDeleteMode ? "ON" : "OFF"));
     }
 
     public void SetActiveMaterial(BridgeMaterialSO newMaterial)
@@ -1215,7 +1228,11 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 if (selectionRect.Contains(screenPos)) { p.isSelected = true; p.UpdateMaterial(); selectedPoints.Add(p); }
             }
         }
-        if (selectedPoints.Count > 0 && BuildUIController.Instance != null) BuildUIController.Instance.SetSelectionPanelActive(true);
+        if (selectedPoints.Count > 0 && BuildUIController.Instance != null) 
+        {
+            BuildUIController.Instance.SetSelectionPanelActive(true);
+            BuildUIController.Instance.LogAction("Box Selection Applied");
+        }
     }
 
     private void UpdateBarsForSelectedPoints()
@@ -1229,9 +1246,16 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     private void PerformSwipeDelete(Vector2 screenPos)
     {
         Point hoveredPoint = CheckForExistingPoint(screenPos);
-        if (hoveredPoint != null) { DeletePoint(hoveredPoint, currentSwipeDeleteAction); return; }
+        if (hoveredPoint != null) { 
+            DeletePoint(hoveredPoint, currentSwipeDeleteAction); 
+            if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("Deleted Node");
+            return; 
+        }
         Bar hoveredBar = CheckForExistingBar(screenPos);
-        if (hoveredBar != null) DeleteBar(hoveredBar, currentSwipeDeleteAction);
+        if (hoveredBar != null) {
+            DeleteBar(hoveredBar, currentSwipeDeleteAction);
+            if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("Deleted Beam");
+        }
     }
 
     public void Undo()
@@ -1243,7 +1267,11 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         redoStack.Push(action);
         RefreshAllPoints(); 
         if (action.isMoveEvent) foreach (var bar in FindObjectsOfType<Bar>()) { if (bar.startPoint != null && bar.endPoint != null) { bar.StartPosition = bar.startPoint.transform.position; bar.UpdateCreatingBar(bar.endPoint.transform.position); } }
-        if (BuildUIController.Instance != null) BuildUIController.Instance.MarkBridgeDirty();
+        if (BuildUIController.Instance != null) 
+        {
+            BuildUIController.Instance.MarkBridgeDirty();
+            BuildUIController.Instance.LogAction("Undid Last Action");
+        }
     }
 
     public void Redo()
@@ -1255,7 +1283,11 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         undoStack.Push(action);
         RefreshAllPoints(); 
         if (action.isMoveEvent) foreach (var bar in FindObjectsOfType<Bar>()) { if (bar.startPoint != null && bar.endPoint != null) { bar.StartPosition = bar.startPoint.transform.position; bar.UpdateCreatingBar(bar.endPoint.transform.position); } }
-        if (BuildUIController.Instance != null) BuildUIController.Instance.MarkBridgeDirty();
+        if (BuildUIController.Instance != null) 
+        {
+            BuildUIController.Instance.MarkBridgeDirty();
+            BuildUIController.Instance.LogAction("Redid Last Action");
+        }
     }
 
     private void RecordAction(HistoryAction action)
@@ -1319,7 +1351,12 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         return (point - projection).sqrMagnitude;
     }
 
-    public void ToggleGrid() { isGridSnappingEnabled = !isGridSnappingEnabled; if (gridVisual != null) gridVisual.canvasRenderer.SetAlpha(isGridSnappingEnabled ? 1f : 0f); }
+    public void ToggleGrid() 
+    { 
+        isGridSnappingEnabled = !isGridSnappingEnabled; 
+        if (gridVisual != null) gridVisual.canvasRenderer.SetAlpha(isGridSnappingEnabled ? 1f : 0f); 
+        if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("Grid Snapping: " + (isGridSnappingEnabled ? "ON" : "OFF"));
+    }
 
     private Vector3 CalculateTargetPosition(Vector3 rawPos, Point hoveredNode)
     {
@@ -1430,7 +1467,14 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 }
             }
         }
-        if (Vector3.Distance(startPos, finalPosition) < 0.1f) { CancelCreation(); return; }
+        
+        // Check for cancel
+        if (Vector3.Distance(startPos, finalPosition) < 0.1f) 
+        { 
+            CancelCreation(); 
+            if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("Drawing Canceled");
+            return; 
+        }
 
         bool createdNewEndPoint = (existingEndPoint == null);
         bool createdNewStartPoint = createdStartPoint;
@@ -1458,7 +1502,17 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         currentEndPoint = null;
         currentBar = null;
         if (radiusIndicator != null) radiusIndicator.enabled = false;
-        if (BuildUIController.Instance != null) BuildUIController.Instance.MarkBridgeDirty();
+        
+        // --- NEW: LOG THE RESULT ---
+        if (BuildUIController.Instance != null) 
+        {
+            BuildUIController.Instance.MarkBridgeDirty();
+            if (createdNewEndPoint)
+                BuildUIController.Instance.LogAction("Point created");
+            else
+                BuildUIController.Instance.LogAction("Point connected");
+        }
+
         if (activeMaterial != null && activeMaterial.isPier && previousNonPierMaterial != null) SetActiveMaterial(previousNonPierMaterial);
     }
 
