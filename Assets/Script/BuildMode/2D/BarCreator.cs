@@ -83,7 +83,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
     [Header("Copy/Paste")]
     public bool isPasteMode = false;
-    private bool isPasteFromCut = false; // --- NEW: Tracks if we should close the panel after pasting ---
+    private bool isPasteFromCut = false; 
     private List<Vector3> copiedRelativePoints = new List<Vector3>();
     private List<CopiedBarInfo> copiedBars = new List<CopiedBarInfo>();
     private List<GameObject> ghostPastePoints = new List<GameObject>();
@@ -501,7 +501,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         }
 
         isPasteMode = true;
-        isPasteFromCut = false; // --- Set to False because this is a standard Copy ---
+        isPasteFromCut = false; // Ensures standard Copy leaves panel open infinitely
         isSelectMode = false;
         isMoveMode = false;
         isDeleteMode = false;
@@ -515,6 +515,8 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         pasteRootPos = spawnPos; 
         CreatePasteGhosts();
         UpdatePasteGhostsWorldPosition(pasteRootPos); 
+        
+        if (BuildUIController.Instance != null) BuildUIController.Instance.SetSelectionPanelActive(true);
     }
     
     public void CutSelected()
@@ -564,7 +566,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             }
         }
 
-        // Delete the originals
         HistoryAction cutAction = new HistoryAction { isBuildEvent = false };
         List<Point> pointsToProcess = new List<Point>(selectedPoints);
         
@@ -575,15 +576,16 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
         if (cutAction.affectedObjects.Count > 0) RecordAction(cutAction);
 
-        // Enter Paste Mode
         isPasteMode = true;
-        isPasteFromCut = true; // --- Set to True so it knows to close the UI panel AFTER stamping! ---
+        isPasteFromCut = true; // Flags UI to close automatically after 1 paste
         isSelectMode = false;
         isMoveMode = false;
         isDeleteMode = false;
         pasteRotationOffset = 0f; 
         CancelCreation();
-        ClearSelection();
+
+        foreach (Point p in selectedPoints) if (p != null) { p.isSelected = false; p.UpdateMaterial(); }
+        selectedPoints.Clear();
 
         Vector3 spawnPos = GetWorldMousePosition(new Vector2(Screen.width / 2f, Screen.height / 2f));
         if (isGridSnappingEnabled) spawnPos = new Vector3(Mathf.Round(spawnPos.x), Mathf.Round(spawnPos.y), spawnPos.z);
@@ -592,9 +594,9 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         CreatePasteGhosts();
         UpdatePasteGhostsWorldPosition(pasteRootPos); 
 
-        // Important: We purposely DO NOT close the SelectionPanel here. We leave it open so the user can click Paste.
         if (BuildUIController.Instance != null)
         {
+            BuildUIController.Instance.SetSelectionPanelActive(true);
             BuildUIController.Instance.MarkBridgeDirty();
         }
     }
@@ -821,7 +823,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         RecordAction(pasteAction);
         if (BuildUIController.Instance != null) BuildUIController.Instance.MarkBridgeDirty();
 
-        // --- NEW: If this paste was initiated by a Cut, close the panel and end paste mode! ---
         if (isPasteFromCut)
         {
             CancelPasteMode();
@@ -850,9 +851,9 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building) return;
         if (isSimulating || Touch.activeTouches.Count > 1) return;
 
-        if (eventData.button == PointerEventData.InputButton.Right)
+        // --- THE FIX: We ignore non-left clicks completely! This prevents camera rotation from destroying selections/clipboard. ---
+        if (eventData.button != PointerEventData.InputButton.Left)
         {
-            CancelAllModes();
             return;
         }
 
@@ -960,6 +961,9 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
     public void OnDrag(PointerEventData eventData)
     {
+        // --- THE FIX: Ignore non-left drag inputs ---
+        if (eventData.button != PointerEventData.InputButton.Left) return;
+
         if (isDeleteMode && currentSwipeDeleteAction != null) PerformSwipeDelete(eventData.position);
         
         if (isSelectMode)
@@ -992,6 +996,9 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     {
         if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building) return;
         if (isSimulating) return; 
+
+        // --- THE FIX: Safe return on right-click/middle-click so it doesn't break modes ---
+        if (eventData.button != PointerEventData.InputButton.Left) return;
 
         if (isPasteMode)
         {
@@ -1171,6 +1178,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     {
         foreach (Point p in selectedPoints) if (p != null) { p.isSelected = false; p.UpdateMaterial(); }
         selectedPoints.Clear();
+        if (BuildUIController.Instance != null) BuildUIController.Instance.SetSelectionPanelActive(false);
     }
 
     private void UpdateSelectionBox(Vector2 currentScreenPos)
