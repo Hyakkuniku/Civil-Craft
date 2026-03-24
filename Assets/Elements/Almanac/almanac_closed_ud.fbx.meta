@@ -1,9 +1,24 @@
 fileFormatVersion: 2
-guid: 43333259d05f04146b0d0b7d10462fd7
+guid: 2da1419de9b05c6408ea4e7e69c09774
 ModelImporter:
   serializedVersion: 22200
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Book Cover Fabric Brown
+    second: {fileID: 2100000, guid: 0138588af34428742969e22dabc3620a, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Material.001
+    second: {fileID: 2100000, guid: a9a39755625e5f64e99c300343aee863, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Material.002
+    second: {fileID: 2100000, guid: f2e51a424eedf484189cce222dbcbe36, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0

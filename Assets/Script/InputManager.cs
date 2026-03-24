@@ -11,6 +11,10 @@ public class InputManager : MonoBehaviour
     private PlayerMotor motor;
     private PlayerLook look;
 
+    [Header("PC Controls")]
+    [Tooltip("If true, the player must hold Right-Click to look around, freeing the mouse cursor.")]
+    public bool requireRightClickToLook = true;
+
     void Awake()
     {
         playerInput = new PlayerInput();
@@ -21,7 +25,7 @@ public class InputManager : MonoBehaviour
 
     void Start()
     {
-        // NEW: Subscribe to GameManager events
+        // Subscribe to GameManager events
         if (GameManager.Instance != null)
         {
             GameManager.Instance.OnEnterBuildMode.AddListener(HandleEnterBuildMode);
@@ -57,7 +61,32 @@ public class InputManager : MonoBehaviour
 
     private void LateUpdate()
     {
-        look.ProcessLook(onFoot.Look.ReadValue<Vector2>());
+        // --- NEW: Require holding Right-Click to look around so the mouse is free ---
+        if (requireRightClickToLook)
+        {
+            if (Input.GetMouseButton(1)) // 1 = Right Mouse Button
+            {
+                // Lock and hide the cursor while actively looking around
+                Cursor.lockState = CursorLockMode.Locked;
+                Cursor.visible = false;
+                
+                look.ProcessLook(onFoot.Look.ReadValue<Vector2>());
+            }
+            else
+            {
+                // Free the cursor so you can click UI and interactables
+                Cursor.lockState = CursorLockMode.None;
+                Cursor.visible = true;
+                
+                // Stop the camera from drifting
+                look.ProcessLook(Vector2.zero);
+            }
+        }
+        else
+        {
+            // Old behavior: Constantly follow the mouse
+            look.ProcessLook(onFoot.Look.ReadValue<Vector2>());
+        }
     }
 
     private void OnEnable() 

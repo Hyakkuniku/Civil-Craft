@@ -10,12 +10,14 @@ public class NPCContractGiver : Interactable
 
     [Header("Tutorial Settings")]
     [Tooltip("Check this if talking to this NPC should advance the tutorial!")]
-    public bool advancesTutorial = false; // <-- NEW: Tutorial Checkbox
+    public bool advancesTutorial = false; 
 
     private bool hasGivenContract = false;
 
-    protected override void Intract() // Keeping your exact spelling here!
+    protected override void Intract() 
     {
+        FacePlayer(); // <-- Instantly snaps to look at you
+
         if (contractToGive == null) return;
         
         DialogueManager dm = FindObjectOfType<DialogueManager>();
@@ -39,7 +41,7 @@ public class NPCContractGiver : Interactable
                     if (ObjectiveTrackerUI.Instance != null)
                         ObjectiveTrackerUI.Instance.SetObjective(contractToGive);
 
-                    // <-- NEW: Advance the tutorial after they finish talking! -->
+                    // Advance the tutorial after they finish talking!
                     if (advancesTutorial && TutorialManager.Instance != null)
                     {
                         TutorialManager.Instance.ShowNextStep();
@@ -51,7 +53,7 @@ public class NPCContractGiver : Interactable
                 if (ObjectiveTrackerUI.Instance != null)
                     ObjectiveTrackerUI.Instance.SetObjective(contractToGive);
 
-                // <-- NEW: Advance tutorial even if there is no dialogue text -->
+                // Advance tutorial even if there is no dialogue text
                 if (advancesTutorial && TutorialManager.Instance != null)
                 {
                     TutorialManager.Instance.ShowNextStep();
@@ -70,6 +72,19 @@ public class NPCContractGiver : Interactable
                 contractToGive.reminderDialogue.name = contractToGive.clientName;
                 dm.StartDialogue(contractToGive.reminderDialogue);
             }
+        }
+    }
+
+    // --- Instant Look Logic ---
+    private void FacePlayer()
+    {
+        GameObject player = GameObject.FindGameObjectWithTag("Player");
+        if (player != null)
+        {
+            Vector3 targetPosition = player.transform.position;
+            // Keep the Y-coordinate exactly the same so the NPC stays upright
+            targetPosition.y = transform.position.y;
+            transform.LookAt(targetPosition);
         }
     }
 }

@@ -8,6 +8,8 @@ public class DialogueTrigger : MonoBehaviour
 
     public void TriggerDialogue()
     {
+        FacePlayer(); // <-- Instantly snaps to look at you
+
         if (advancesTutorial && TutorialManager.Instance != null)
         {
             // Start dialogue, and tell it to advance the tutorial when it finishes!
@@ -17,6 +19,19 @@ public class DialogueTrigger : MonoBehaviour
         {
             // Normal dialogue
             FindObjectOfType<DialogueManager>().StartDialogue(dialogue);
+        }
+    }
+
+    // --- Instant Look Logic ---
+    private void FacePlayer()
+    {
+        GameObject player = GameObject.FindGameObjectWithTag("Player");
+        if (player != null)
+        {
+            Vector3 targetPosition = player.transform.position;
+            // Keep the Y-coordinate exactly the same so the NPC stays upright
+            targetPosition.y = transform.position.y;
+            transform.LookAt(targetPosition);
         }
     }
 }

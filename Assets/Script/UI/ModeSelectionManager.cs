@@ -27,6 +27,10 @@ public class ModeSelectionManager : MonoBehaviour
     [Tooltip("Speed of the camera panning.")]
     public float transitionSpeed = 2f; 
 
+    [Header("UI Navigation Buttons")]
+    public GameObject previousButton; // <-- Assign in Inspector
+    public GameObject nextButton;     // <-- Assign in Inspector
+
     private int currentIndex = 0;
     private Coroutine cameraCoroutine;
 
@@ -53,9 +57,12 @@ public class ModeSelectionManager : MonoBehaviour
 
         currentIndex += direction;
         
-        // Handle looping
-        if (currentIndex >= modes.Length) currentIndex = 0;
-        else if (currentIndex < 0) currentIndex = modes.Length - 1;
+        // Clamp the index to prevent out-of-bounds instead of looping
+        if (currentIndex >= modes.Length) currentIndex = modes.Length - 1;
+        if (currentIndex < 0) currentIndex = 0;
+
+        // If the index didn't change (e.g., trying to go previous on index 0), stop here
+        if (currentIndex == previousIndex) return;
 
         UpdateUI();
         MoveCamera(false);
@@ -79,10 +86,15 @@ public class ModeSelectionManager : MonoBehaviour
 
     private void UpdateUI()
     {
+        // Update individual mode buttons
         for (int i = 0; i < modes.Length; i++)
         {
             if (modes[i].uiButton != null) modes[i].uiButton.SetActive(i == currentIndex);
         }
+
+        // Hide/Show Next and Previous buttons based on the current index limits
+        if (previousButton != null) previousButton.SetActive(currentIndex > 0);
+        if (nextButton != null) nextButton.SetActive(currentIndex < modes.Length - 1);
     }
 
     private void SetModeBridges(ModeData mode, bool isAttached, bool snapInstantly)
