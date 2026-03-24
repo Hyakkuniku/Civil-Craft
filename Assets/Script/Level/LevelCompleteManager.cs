@@ -14,8 +14,10 @@ public class LevelCompleteManager : MonoBehaviour
     public TextMeshProUGUI stressText;
 
     [Header("Gameplay Elements to Hide")]
-    [Tooltip("Drag the player's crosshair, interaction UI, or any canvas you want to hide when the level ends.")]
     public List<GameObject> uiElementsToHide = new List<GameObject>();
+
+    // --- NEW: The Snapshot Memory List! ---
+    private List<GameObject> temporarilyHiddenPanels = new List<GameObject>();
 
     private void Awake()
     {
@@ -29,13 +31,17 @@ public class LevelCompleteManager : MonoBehaviour
     {
         if (levelCompletePanel != null) levelCompletePanel.SetActive(true);
 
-        // 1. Hide the normal game UI (crosshairs, interact buttons, etc.)
+        // --- THE FIX: Memorize what is currently ON, then hide it! ---
+        temporarilyHiddenPanels.Clear();
         foreach (GameObject ui in uiElementsToHide)
         {
-            if (ui != null) ui.SetActive(false);
+            if (ui != null && ui.activeSelf)
+            {
+                temporarilyHiddenPanels.Add(ui);
+                ui.SetActive(false);
+            }
         }
 
-        // 2. Disable player movement and camera look using your InputManager
         InputManager inputObj = FindObjectOfType<InputManager>();
         if (inputObj != null)
         {
@@ -43,11 +49,9 @@ public class LevelCompleteManager : MonoBehaviour
             inputObj.SetLookEnabled(false);
         }
 
-        // Disable PlayerMotor directly just to be completely sure gravity/movement stops
         PlayerMotor player = FindObjectOfType<PlayerMotor>();
         if (player != null) player.enabled = false;
 
-        // --- Pull from GameManager's Global Memory ---
         float maxBudget = 0f;
         if (GameManager.Instance != null && GameManager.Instance.CurrentContract != null)
         {
@@ -64,10 +68,9 @@ public class LevelCompleteManager : MonoBehaviour
         BridgePhysicsManager physicsManager = FindObjectOfType<BridgePhysicsManager>();
         if (physicsManager != null)
         {
-            peakStress = physicsManager.peakStressThisRun * 100f; // Convert decimal to percentage
+            peakStress = physicsManager.peakStressThisRun * 100f; 
         }
 
-        // --- UPDATE TEXT READOUTS ---
         if (costText != null)
         {
             costText.text = $"Final Cost: ${Mathf.RoundToInt(finalCost)} / ${Mathf.RoundToInt(maxBudget)}";
@@ -93,30 +96,66 @@ public class LevelCompleteManager : MonoBehaviour
                 feedbackText.text = "<color=red>Over Budget! The client isn't happy, but the bridge held.</color>";
             }
         }
+
+        if (BridgeHandbookManager.Instance != null && BridgeHandbookManager.globalHasBook)
+        {
+            Camera photoCam = Camera.main; 
+
+            if (GameManager.Instance != null && GameManager.Instance.IsInBuildMode() && GameManager.Instance.ActiveBuildLocation != null)
+            {
+                if (GameManager.Instance.ActiveBuildLocation.locationCamera != null)
+                {
+                    photoCam = GameManager.Instance.ActiveBuildLocation.locationCamera;
+                }
+            }
+            
+            if (photoCam != null)
+            {
+                bool wasEnabled = photoCam.enabled;
+                float originalFOV = photoCam.fieldOfView;
+                float originalOrtho = photoCam.orthographicSize;
+
+                photoCam.enabled = true;
+
+                if (photoCam.orthographic) photoCam.orthographicSize *= 1.3f;
+                else photoCam.fieldOfView *= 1.3f;
+
+                string levelName = SceneManager.GetActiveScene().name; 
+                string stats = $"Budget Used: ${Mathf.RoundToInt(finalCost)} / ${Mathf.RoundToInt(maxBudget)}\n\nPeak Stress: {Mathf.RoundToInt(peakStress)}%\n\nStatus: Successfully Engineered!";
+
+                BridgeHandbookManager.Instance.RecordBridgeSnapshot(photoCam, levelName, stats);
+
+                if (photoCam.orthographic) photoCam.orthographicSize = originalOrtho;
+                else photoCam.fieldOfView = originalFOV;
+                photoCam.enabled = wasEnabled;
+            }
+        }
     }
 
-    // --- NEW: The method to close the screen and keep playing! ---
     public void ClosePanel()
     {
-        // 1. Hide the Level Complete screen
         if (levelCompletePanel != null) levelCompletePanel.SetActive(false);
 
-        // 2. Turn the normal game UI back on
-        foreach (GameObject ui in uiElementsToHide)
+        // --- THE FIX: Only turn back on the exact panels that were on before! ---
+        foreach (GameObject ui in temporarilyHiddenPanels)
         {
             if (ui != null) ui.SetActive(true);
         }
+        temporarilyHiddenPanels.Clear();
 
-        // 3. Give the player their controls back
+        // Player controls still stay smartly locked if we are building
+        bool isBuilding = (GameManager.Instance != null && GameManager.Instance.IsInBuildMode());
+        bool shouldEnableInput = !isBuilding;
+
         InputManager inputObj = FindObjectOfType<InputManager>();
         if (inputObj != null)
         {
-            inputObj.SetPlayerInputEnable(true);
-            inputObj.SetLookEnabled(true);
+            inputObj.SetPlayerInputEnable(shouldEnableInput);
+            inputObj.SetLookEnabled(shouldEnableInput);
         }
 
         PlayerMotor player = FindObjectOfType<PlayerMotor>();
-        if (player != null) player.enabled = true;
+        if (player != null) player.enabled = shouldEnableInput;
     }
 
     public void NextLevel(string nextSceneName)

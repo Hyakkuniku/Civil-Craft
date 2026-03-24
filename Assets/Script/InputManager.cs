@@ -15,12 +15,21 @@ public class InputManager : MonoBehaviour
     [Tooltip("If true, the player must hold Right-Click to look around, freeing the mouse cursor.")]
     public bool requireRightClickToLook = true;
 
+    [Header("Mobile Settings")]
+    [Tooltip("Check this to test mobile touch controls in the Unity Editor. Automatically enables on phone builds!")]
+    public bool useMobileTouchControls = false;
+
     void Awake()
     {
         playerInput = new PlayerInput();
         onFoot = playerInput.onFoot;
         motor = GetComponent<PlayerMotor>();
         look = GetComponent<PlayerLook>();
+
+        // Automatically detect if we are building for a mobile device
+        #if UNITY_ANDROID || UNITY_IOS
+            useMobileTouchControls = true;
+        #endif
     }
 
     void Start()
@@ -56,17 +65,24 @@ public class InputManager : MonoBehaviour
 
     void FixedUpdate()
     {
+        // Movement is still handled here (your on-screen joystick will feed into this perfectly)
         motor.ProcessMove(onFoot.Movement.ReadValue<Vector2>());
     }
 
     private void LateUpdate()
     {
-        // --- NEW: Require holding Right-Click to look around so the mouse is free ---
+        // --- THE FIX: If we are on mobile, STOP the PC camera logic! ---
+        // Let your TouchLookInput.cs script handle the camera instead.
+        if (useMobileTouchControls)
+        {
+            return;
+        }
+
+        // --- PC Camera Logic ---
         if (requireRightClickToLook)
         {
             if (Input.GetMouseButton(1)) // 1 = Right Mouse Button
             {
-                // Lock and hide the cursor while actively looking around
                 Cursor.lockState = CursorLockMode.Locked;
                 Cursor.visible = false;
                 
@@ -74,17 +90,14 @@ public class InputManager : MonoBehaviour
             }
             else
             {
-                // Free the cursor so you can click UI and interactables
                 Cursor.lockState = CursorLockMode.None;
                 Cursor.visible = true;
                 
-                // Stop the camera from drifting
                 look.ProcessLook(Vector2.zero);
             }
         }
         else
         {
-            // Old behavior: Constantly follow the mouse
             look.ProcessLook(onFoot.Look.ReadValue<Vector2>());
         }
     }
