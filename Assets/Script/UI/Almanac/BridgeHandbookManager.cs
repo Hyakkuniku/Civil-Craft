@@ -1,3 +1,4 @@
+using System.Collections; // --- NEW: Required for Coroutines (Animations) ---
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -42,7 +43,6 @@ public class BridgeHandbookManager : MonoBehaviour
 {
     public static BridgeHandbookManager Instance { get; private set; }
 
-    // --- STATIC MEMORY: Remembers book and photos across all levels ---
     public static bool globalHasBook = false;
     public static List<HandbookSpread> globalPages = new List<HandbookSpread>();
 
@@ -52,6 +52,13 @@ public class BridgeHandbookManager : MonoBehaviour
     [Header("Book UI Reference")]
     public GameObject handbookUIPanel; 
     public GameObject[] otherUIPanelsToHide; 
+
+    [Header("Animation Settings")] // --- NEW: Page Flip Settings ---
+    [Tooltip("The parent object holding EVERYTHING for the Left Page.")]
+    public RectTransform leftPageContainer; 
+    [Tooltip("The parent object holding EVERYTHING for the Right Page.")]
+    public RectTransform rightPageContainer;
+    public float flipDuration = 0.4f;
 
     [Header("Navigation Buttons")] 
     public Button nextButton;
@@ -70,6 +77,9 @@ public class BridgeHandbookManager : MonoBehaviour
     private InputManager inputManager;
     private int currentSpreadIndex = 0;
     public bool isBookOpen { get; private set; } = false;
+    
+    // --- NEW: Prevents spam-clicking while a page is turning ---
+    private bool isTurningPage = false; 
 
     private List<GameObject> temporarilyHiddenPanels = new List<GameObject>();
 
@@ -90,20 +100,23 @@ public class BridgeHandbookManager : MonoBehaviour
         if (handbookUIPanel != null) handbookUIPanel.SetActive(false);
         if (openHandbookButton != null) openHandbookButton.gameObject.SetActive(globalHasBook); 
 
+        // Ensure pages start flat
+        if (leftPageContainer != null) leftPageContainer.localRotation = Quaternion.identity;
+        if (rightPageContainer != null) rightPageContainer.localRotation = Quaternion.identity;
+
         UpdatePageUI();
     }
 
     public void AcquireBook()
     {
         globalHasBook = true;
-        
         if (openHandbookButton != null) openHandbookButton.gameObject.SetActive(true);
         if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("Acquired the Builder's Handbook! Click the icon to read.");
     }
 
     public void ToggleBook()
     {
-        if (!globalHasBook) return;
+        if (!globalHasBook || isTurningPage) return; // Don't allow closing mid-turn!
 
         isBookOpen = !isBookOpen;
         if (handbookUIPanel != null) handbookUIPanel.SetActive(isBookOpen);
@@ -151,12 +164,76 @@ public class BridgeHandbookManager : MonoBehaviour
 
     private void TurnPage(int direction)
     {
+        if (isTurningPage) return; // Stop player from breaking the animation
+
         int newIndex = currentSpreadIndex + direction;
         if (newIndex >= 0 && newIndex < globalPages.Count)
         {
+            // --- THE FIX: Start the animation instead of instantly swapping! ---
+            StartCoroutine(PageFlipRoutine(direction, newIndex));
+        }
+    }
+
+    // --- NEW: The 3D Animation Coroutine ---
+    private IEnumerator PageFlipRoutine(int direction, int newIndex)
+    {
+        isTurningPage = true;
+
+        // Disable buttons so they look grayed out during the turn
+        if (nextButton != null) nextButton.interactable = false;
+        if (prevButton != null) prevButton.interactable = false;
+
+        float halfDuration = flipDuration / 2f;
+
+        if (direction == 1) // Turning to the NEXT page (Right page folds left)
+        {
+            // 1. Fold the right page up to 90 degrees (so it becomes invisible)
+            yield return RotatePage(rightPageContainer, 0f, 90f, halfDuration);
+            
+            // 2. Change the text and pictures while it is invisible!
             currentSpreadIndex = newIndex;
             UpdatePageUI();
+
+            // 3. Unfold the left page down from -90 degrees
+            yield return RotatePage(leftPageContainer, -90f, 0f, halfDuration);
         }
+        else // Turning to the PREVIOUS page (Left page folds right)
+        {
+            // 1. Fold the left page up to -90 degrees
+            yield return RotatePage(leftPageContainer, 0f, -90f, halfDuration);
+            
+            // 2. Change the text and pictures
+            currentSpreadIndex = newIndex;
+            UpdatePageUI();
+
+            // 3. Unfold the right page down from 90 degrees
+            yield return RotatePage(rightPageContainer, 90f, 0f, halfDuration);
+        }
+
+        // Make sure everything is perfectly flat at the end
+        if (leftPageContainer != null) leftPageContainer.localRotation = Quaternion.Euler(0, 0, 0);
+        if (rightPageContainer != null) rightPageContainer.localRotation = Quaternion.Euler(0, 0, 0);
+
+        isTurningPage = false;
+        
+        // Re-evaluate button states
+        if (prevButton != null) prevButton.interactable = (currentSpreadIndex > 0);
+        if (nextButton != null) nextButton.interactable = (currentSpreadIndex < globalPages.Count - 1);
+    }
+
+    private IEnumerator RotatePage(RectTransform page, float startAngle, float endAngle, float time)
+    {
+        if (page == null) yield break;
+
+        float elapsed = 0f;
+        while (elapsed < time)
+        {
+            elapsed += Time.deltaTime;
+            float currentAngle = Mathf.Lerp(startAngle, endAngle, elapsed / time);
+            page.localRotation = Quaternion.Euler(0, currentAngle, 0);
+            yield return null;
+        }
+        page.localRotation = Quaternion.Euler(0, endAngle, 0);
     }
 
     private void UpdatePageUI()
@@ -171,8 +248,12 @@ public class BridgeHandbookManager : MonoBehaviour
         ApplyLayout(currentSpread.leftLayout, leftPageUI, currentSpread.leftTitle, currentSpread.leftBodyText, currentSpread.leftImage);
         ApplyLayout(currentSpread.rightLayout, rightPageUI, currentSpread.rightTitle, currentSpread.rightBodyText, currentSpread.rightImage);
 
-        if (prevButton != null) prevButton.interactable = (currentSpreadIndex > 0);
-        if (nextButton != null) nextButton.interactable = (currentSpreadIndex < globalPages.Count - 1);
+        // Only update button visuals if we aren't currently playing an animation
+        if (!isTurningPage)
+        {
+            if (prevButton != null) prevButton.interactable = (currentSpreadIndex > 0);
+            if (nextButton != null) nextButton.interactable = (currentSpreadIndex < globalPages.Count - 1);
+        }
     }
 
     private void ApplyLayout(PageLayout layout, PageUIGroup uiGroup, string title, string body, Sprite image)
@@ -207,14 +288,11 @@ public class BridgeHandbookManager : MonoBehaviour
         }
     }
 
+    // ... [RecordBridgeSnapshot method remains exactly the same as the previous version!]
     public void RecordBridgeSnapshot(Camera captureCamera, string levelName, string bridgeStats)
     {
         if (captureCamera == null) return;
-
-        // Take a 1920x1080 widescreen photo so the sides don't get cut off!
-        int resWidth = 1920;
-        int resHeight = 1080;
-
+        int resWidth = 1920; int resHeight = 1080;
         RenderTexture rt = new RenderTexture(resWidth, resHeight, 24);
         captureCamera.targetTexture = rt;
         Texture2D screenShot = new Texture2D(resWidth, resHeight, TextureFormat.RGB24, false);
@@ -222,23 +300,14 @@ public class BridgeHandbookManager : MonoBehaviour
         RenderTexture.active = rt;
         screenShot.ReadPixels(new Rect(0, 0, resWidth, resHeight), 0, 0);
         screenShot.Apply();
-        
-        captureCamera.targetTexture = null;
-        RenderTexture.active = null; 
-        Destroy(rt);
+        captureCamera.targetTexture = null; RenderTexture.active = null; Destroy(rt);
 
         Sprite bridgePhoto = Sprite.Create(screenShot, new Rect(0, 0, resWidth, resHeight), new Vector2(0.5f, 0.5f));
-
         HandbookSpread newSpread = new HandbookSpread();
-        newSpread.leftLayout = PageLayout.TextOnly;
-        newSpread.leftTitle = "Record: " + levelName;
-        newSpread.leftBodyText = bridgeStats;
-
-        newSpread.rightLayout = PageLayout.FullImage;
-        newSpread.rightImage = bridgePhoto;
+        newSpread.leftLayout = PageLayout.TextOnly; newSpread.leftTitle = "Record: " + levelName; newSpread.leftBodyText = bridgeStats;
+        newSpread.rightLayout = PageLayout.FullImage; newSpread.rightImage = bridgePhoto;
 
         globalPages.Add(newSpread);
-        
         currentSpreadIndex = globalPages.Count - 1; 
         if (isBookOpen) UpdatePageUI();
     }

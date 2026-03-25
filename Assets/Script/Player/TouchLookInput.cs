@@ -1,7 +1,9 @@
 using UnityEngine;
 using UnityEngine.InputSystem.EnhancedTouch;
 using Touch = UnityEngine.InputSystem.EnhancedTouch.Touch;
-using UnityEngine.EventSystems; // Add this line!
+using UnityEngine.EventSystems; 
+using System.Collections.Generic;
+using UnityEngine.UI; // --- NEW: Required to check for Buttons ---
 
 public class TouchLookInput : MonoBehaviour
 {
@@ -27,8 +29,8 @@ public class TouchLookInput : MonoBehaviour
 
             if (touch.phase == UnityEngine.InputSystem.TouchPhase.Began)
             {
-                // NEW: Stop here if we are tapping a UI button!
-                if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject(fingerId))
+                // Use our smart UI check
+                if (IsTouchOverClickableUI(pos))
                     continue;
 
                 if (pos.x > halfScreenWidth && rightFingerId == -1)
@@ -52,5 +54,28 @@ public class TouchLookInput : MonoBehaviour
                     rightFingerId = -1;
             }
         }
+    }
+
+    // --- THE SMART FIX: Only block the camera for ACTUAL buttons! ---
+    private bool IsTouchOverClickableUI(Vector2 touchPosition)
+    {
+        if (EventSystem.current == null) return false;
+
+        PointerEventData eventData = new PointerEventData(EventSystem.current);
+        eventData.position = touchPosition;
+        List<RaycastResult> results = new List<RaycastResult>();
+        
+        EventSystem.current.RaycastAll(eventData, results);
+        
+        foreach (RaycastResult result in results)
+        {
+            // Check if the UI element we touched (or its parent) has a Selectable component (like a Button, Slider, or Toggle)
+            if (result.gameObject.GetComponentInParent<Selectable>() != null)
+            {
+                return true; // It's a real button! Block the camera.
+            }
+        }
+        
+        return false; // We just hit a transparent background or plain text. Let the camera move!
     }
 }
