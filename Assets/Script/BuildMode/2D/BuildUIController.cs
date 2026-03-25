@@ -2,14 +2,14 @@ using UnityEngine;
 using UnityEngine.UI; 
 using TMPro; 
 using System.Collections.Generic;
-using System.Collections; // Required for Coroutines
+using System.Collections; 
 
 public class BuildUIController : MonoBehaviour
 {
     public static BuildUIController Instance { get; private set; }
 
     [Header("Action Log")]
-    public TextMeshProUGUI actionLogText; // <-- Drag your new UI Text element here!
+    public TextMeshProUGUI actionLogText; 
     public float logDisplayTime = 3f;
     private Coroutine clearLogCoroutine;
 
@@ -74,7 +74,7 @@ public class BuildUIController : MonoBehaviour
         if (physicsManager == null) physicsManager = FindObjectOfType<BridgePhysicsManager>();
         
         if (selectionActionPanel != null) selectionActionPanel.SetActive(false);
-        if (actionLogText != null) actionLogText.text = ""; // Clear log on start
+        if (actionLogText != null) actionLogText.text = ""; 
     }
 
     private void Update()
@@ -92,7 +92,6 @@ public class BuildUIController : MonoBehaviour
         UpdatePlayPauseButtonUI();
     }
 
-    // --- NEW: ACTION LOG METHOD ---
     public void LogAction(string message)
     {
         if (actionLogText != null)
@@ -109,7 +108,6 @@ public class BuildUIController : MonoBehaviour
         yield return new WaitForSeconds(logDisplayTime);
         if (actionLogText != null) actionLogText.text = "";
     }
-    // ------------------------------
 
     public void MarkBridgeDirty() { isBridgeDirty = true; }
 
@@ -302,7 +300,7 @@ public class BuildUIController : MonoBehaviour
     }
 
     // ────────────────────────────────────────────────
-    // --- BUTTON CALLBACKS (Now with logging!) ---
+    // --- BUTTON CALLBACKS ---
     // ────────────────────────────────────────────────
 
     public void OnToggleStatsButtonClicked() 
@@ -325,7 +323,15 @@ public class BuildUIController : MonoBehaviour
             LogAction("Simulation Started");
         } 
     }
-    public void OnCutSelectedButtonClicked() { if (barCreator != null) barCreator.CutSelected(); }
+    
+    // --- ROUTED TO NEW MANAGERS ---
+    public void OnCutSelectedButtonClicked() { if (ClipboardManager.Instance != null && barCreator != null) ClipboardManager.Instance.CutSelected(barCreator.GetSelectedPoints()); }
+    public void OnCopyButtonClicked() { if (ClipboardManager.Instance != null && barCreator != null) ClipboardManager.Instance.CopySelected(barCreator.GetSelectedPoints()); }
+    public void OnPasteButtonClicked() { if (ClipboardManager.Instance != null) ClipboardManager.Instance.StampPaste(); }
+    public void OnUndoButtonClicked() { if (CommandManager.Instance != null) CommandManager.Instance.Undo(); }
+    public void OnRedoButtonClicked() { if (CommandManager.Instance != null) CommandManager.Instance.Redo(); }
+    // ------------------------------
+
     public void OnDeleteSelectedButtonClicked() { if (barCreator != null) barCreator.DeleteSelected(); }
 
     public void OnToggleSimulationButtonClicked() { if (physicsManager == null) return; if (physicsManager.isSimulating) OnRestartButtonClicked(); else OnSimulateButtonClicked(); }
@@ -333,9 +339,6 @@ public class BuildUIController : MonoBehaviour
     public void OnToggleSelectModeButtonClicked() { if (barCreator != null) barCreator.ToggleSelectMode(); }
     public void OnToggleMoveModeButtonClicked() { if (barCreator != null) barCreator.ToggleMoveMode(); }
     
-    public void OnCopyButtonClicked() { if (barCreator != null) barCreator.CopySelected(); }
-    public void OnPasteButtonClicked() { if (barCreator != null) barCreator.StampPaste(); }
-
     public void OnRestartButtonClicked() 
     { 
         if (physicsManager != null && physicsManager.isSimulating) 
@@ -362,6 +365,4 @@ public class BuildUIController : MonoBehaviour
     }
 
     public void OnToggleDeleteModeButtonClicked() { if (barCreator != null) barCreator.ToggleDeleteMode(); }
-    public void OnUndoButtonClicked() { if (barCreator != null) barCreator.Undo(); }
-    public void OnRedoButtonClicked() { if (barCreator != null) barCreator.Redo(); }
 }

@@ -6,49 +6,6 @@ using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.EnhancedTouch;
 using Touch = UnityEngine.InputSystem.EnhancedTouch.Touch;
 
-public class HistoryAction
-{
-    public bool isBuildEvent; 
-    public List<GameObject> affectedObjects = new List<GameObject>();
-    public Dictionary<Point, Vector3> originalPositions = new Dictionary<Point, Vector3>();
-    public Dictionary<Point, Vector3> newPositions = new Dictionary<Point, Vector3>();
-    public bool isMoveEvent = false; 
-
-    public void Undo()
-    {
-        if (isMoveEvent)
-        {
-            foreach (var kvp in originalPositions) if (kvp.Key != null) kvp.Key.transform.position = kvp.Value;
-        }
-        else
-        {
-            for (int i = affectedObjects.Count - 1; i >= 0; i--)
-                if (affectedObjects[i] != null) affectedObjects[i].SetActive(!isBuildEvent);
-        }
-    }
-
-    public void Redo()
-    {
-        if (isMoveEvent)
-        {
-            foreach (var kvp in newPositions) if (kvp.Key != null) kvp.Key.transform.position = kvp.Value;
-        }
-        else
-        {
-            for (int i = 0; i < affectedObjects.Count; i++)
-                if (affectedObjects[i] != null) affectedObjects[i].SetActive(isBuildEvent);
-        }
-    }
-}
-
-[System.Serializable]
-public class CopiedBarInfo 
-{ 
-    public int startIdx; 
-    public int endIdx; 
-    public BridgeMaterialSO mat; 
-}
-
 public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IDragHandler 
 {
     [Header("References")]
@@ -81,28 +38,13 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     private Vector3 dragLastValidDelta;
     private HistoryAction currentMoveAction;
 
-    [Header("Copy/Paste")]
-    public bool isPasteMode = false;
-    private bool isPasteFromCut = false; 
-    private List<Vector3> copiedRelativePoints = new List<Vector3>();
-    private List<CopiedBarInfo> copiedBars = new List<CopiedBarInfo>();
-    private List<GameObject> ghostPastePoints = new List<GameObject>();
-    private List<Bar> ghostPasteBars = new List<Bar>();
-    private bool isValidPaste = false;
-    private Vector3 pasteRootPos;
-    private Vector3 pasteDragOffset; 
-
-    [Header("Copy/Paste Rotation")]
-    private float initialRotationAngle = 0f;
-    private float pasteRotationOffset = 0f;
-
     [HideInInspector] public bool isSimulating = false; 
 
     public bool IsCreating => barCreationStarted;
     public bool IsErasing => isDeleteMode && currentSwipeDeleteAction != null;
     public bool IsSelecting => isSelectMode; 
     public bool IsMoving => isMoveMode; 
-    public bool IsPasting => isPasteMode; 
+    public bool IsPasting => ClipboardManager.Instance != null && ClipboardManager.Instance.isPasteMode; 
 
     [Header("Pier Settings")]
     public float pierBaseY = -10f; 
@@ -121,8 +63,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     private bool barCreationStarted = false;
     private bool createdStartPoint = false; 
 
-    private Stack<HistoryAction> undoStack = new Stack<HistoryAction>();
-    private Stack<HistoryAction> redoStack = new Stack<HistoryAction>();
     private HistoryAction currentSwipeDeleteAction;
 
     private void OnEnable() { EnhancedTouchSupport.Enable(); }
@@ -160,15 +100,13 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     {
         isSelectMode = false;
         isMoveMode = false;
-        isPasteMode = false;
-        isPasteFromCut = false; 
         isDeleteMode = false;
-        DestroyPasteGhosts();
+        if (ClipboardManager.Instance != null) ClipboardManager.Instance.CancelPasteMode();
         CancelCreation();
         ClearSelection();
     }
 
-    private Camera GetActiveCamera()
+    public Camera GetActiveCamera()
     {
         if (GameManager.Instance != null && GameManager.Instance.ActiveBuildLocation != null && GameManager.Instance.ActiveBuildLocation.locationCamera != null)
             return GameManager.Instance.ActiveBuildLocation.locationCamera;
@@ -191,8 +129,17 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         List<RaycastResult> results = new List<RaycastResult>();
         EventSystem.current.RaycastAll(eventData, results);
 
-        if (results.Count > 0 && results[0].gameObject != this.gameObject) return true;
-        return false;
+        return results.Count > 0 && results[0].gameObject != this.gameObject;
+    }
+
+    public List<Point> GetSelectedPoints()
+    {
+        return selectedPoints;
+    }
+    
+    public void ClearSelectionPublic()
+    {
+        ClearSelection();
     }
 
     private void Update()
@@ -200,35 +147,11 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building) return;
         if (isSimulating) return;
 
-        if (isPasteMode && Touch.activeTouches.Count == 2)
-        {
-            var touch0 = Touch.activeTouches[0];
-            var touch1 = Touch.activeTouches[1];
-
-            if (touch1.phase == UnityEngine.InputSystem.TouchPhase.Began)
-            {
-                Vector2 dir = touch1.screenPosition - touch0.screenPosition;
-                initialRotationAngle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
-            }
-            else if (touch0.phase == UnityEngine.InputSystem.TouchPhase.Moved || touch1.phase == UnityEngine.InputSystem.TouchPhase.Moved)
-            {
-                Vector2 currentDir = touch1.screenPosition - touch0.screenPosition;
-                float currentAngle = Mathf.Atan2(currentDir.y, currentDir.x) * Mathf.Rad2Deg;
-                float deltaAngle = currentAngle - initialRotationAngle;
-                
-                pasteRotationOffset += deltaAngle;
-                initialRotationAngle = currentAngle; 
-
-                UpdatePasteGhostsWorldPosition(pasteRootPos);
-            }
-            return; 
-        }
-
         if (Touch.activeTouches.Count > 1)
         {
             if (barCreationStarted) CancelCreation();
             if (selectionBoxUI != null) selectionBoxUI.gameObject.SetActive(false); 
-            if (isPasteMode) isDraggingSelection = false; 
+            if (ClipboardManager.Instance != null && ClipboardManager.Instance.isPasteMode) ClipboardManager.Instance.isDraggingSelection = false; 
             return;
         }
 
@@ -256,14 +179,14 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 bool constraintHit = false;
                 foreach (Point p in selectedPoints)
                 {
-                    if (p.isAnchor) continue; 
+                    if (p.originalIsAnchor) continue; 
                     
                     foreach (Bar b in p.ConnectedBars)
                     {
-                        if (b == null || !b.gameObject.activeSelf) continue;
+                        if (b == null || !b.gameObject.activeSelf || b.materialData.isPier) continue;
                         
                         Point otherPoint = (b.startPoint == p) ? b.endPoint : b.startPoint;
-                        if (selectedPoints.Contains(otherPoint)) continue; 
+                        if (selectedPoints.Contains(otherPoint) && !otherPoint.originalIsAnchor) continue; 
                         
                         float maxLen = b.materialData.maxLength;
                         Vector3 movingNodeOriginalPos = currentMoveAction.originalPositions[p];
@@ -292,12 +215,12 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             bool isSafe = true;
             foreach (Point p in selectedPoints)
             {
-                if (p.isAnchor) continue;
+                if (p.originalIsAnchor) continue;
                 foreach (Bar b in p.ConnectedBars)
                 {
-                    if (b == null || !b.gameObject.activeSelf) continue;
+                    if (b == null || !b.gameObject.activeSelf || b.materialData.isPier) continue; 
                     Point otherPoint = (b.startPoint == p) ? b.endPoint : b.startPoint;
-                    if (selectedPoints.Contains(otherPoint)) continue; 
+                    if (selectedPoints.Contains(otherPoint) && !otherPoint.originalIsAnchor) continue; 
                     
                     Vector3 proposedPos = currentMoveAction.originalPositions[p] + finalDelta;
                     if (Vector3.Distance(otherPoint.transform.position, proposedPos) > b.materialData.maxLength + 0.05f) 
@@ -314,9 +237,39 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
             foreach (Point p in selectedPoints)
             {
-                if (!p.isAnchor) p.transform.position = currentMoveAction.originalPositions[p] + finalDelta;
+                if (!p.originalIsAnchor) p.transform.position = currentMoveAction.originalPositions[p] + finalDelta;
             }
             
+            // --- BUG FIX: Enforce Pier rules dynamically during movement ---
+            foreach (Point p in selectedPoints)
+            {
+                foreach (Bar b in p.ConnectedBars)
+                {
+                    if (b != null && b.gameObject.activeSelf && b.materialData.isPier)
+                    {
+                        Point pBot = b.startPoint.transform.position.y < b.endPoint.transform.position.y ? b.startPoint : b.endPoint;
+                        Point pTop = b.startPoint.transform.position.y > b.endPoint.transform.position.y ? b.startPoint : b.endPoint;
+                        
+                        Vector3 botPos = pBot.transform.position;
+                        Vector3 topPos = pTop.transform.position;
+                        
+                        // Force X alignment (if top moves, bottom follows. If bottom moves alone, top follows)
+                        if (selectedPoints.Contains(pBot) && !selectedPoints.Contains(pTop)) topPos.x = botPos.x;
+                        else botPos.x = topPos.x; 
+                        
+                        // Force Bottom Y to be locked to the floor
+                        botPos.y = pierBaseY; 
+                        
+                        // Force Y limits
+                        if (topPos.y < botPos.y + 1f) topPos.y = botPos.y + 1f;
+                        if (topPos.y > botPos.y + b.materialData.maxLength) topPos.y = botPos.y + b.materialData.maxLength;
+                        
+                        pBot.transform.position = botPos;
+                        pTop.transform.position = topPos;
+                    }
+                }
+            }
+
             UpdateBarsForSelectedPoints();
 
             if (constraintCenter != null) DrawMoveRadius(constraintCenter.transform.position, constraintRadius, constraintColor);
@@ -325,7 +278,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             return; 
         }
 
-        if (activeMaterial != null && activeMaterial.isPier && !barCreationStarted && !isDeleteMode && !isSelectMode && !isMoveMode && !isPasteMode)
+        if (activeMaterial != null && activeMaterial.isPier && !barCreationStarted && !isDeleteMode && !isSelectMode && !isMoveMode && !IsPasting)
         {
             if (IsPointerOverUI())
             {
@@ -387,7 +340,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             ghostPierBar.gameObject.SetActive(false);
         }
 
-        if (barCreationStarted && currentEndPoint != null && !isDeleteMode && !isSelectMode && !isMoveMode && !isPasteMode)
+        if (barCreationStarted && currentEndPoint != null && !isDeleteMode && !isSelectMode && !isMoveMode && !IsPasting)
         {
             Vector2 screenPos = GetPointerPosition();
             Point hoveredNode = CheckForExistingPoint(screenPos);
@@ -453,159 +406,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         }
     }
 
-    public void CopySelected()
-    {
-        if (selectedPoints.Count == 0) return;
-        
-        HashSet<Point> expandedPoints = new HashSet<Point>(selectedPoints);
-        HashSet<Bar> capturedBars = new HashSet<Bar>();
-
-        foreach (Point p in selectedPoints)
-        {
-            foreach (Bar b in p.ConnectedBars)
-            {
-                if (b != null && b.gameObject.activeSelf)
-                {
-                    capturedBars.Add(b);
-                    expandedPoints.Add(b.startPoint);
-                    expandedPoints.Add(b.endPoint);
-                }
-            }
-        }
-
-        if (capturedBars.Count == 0)
-        {
-            ClearSelection();
-            return;
-        }
-
-        List<Point> finalPointList = new List<Point>(expandedPoints);
-        copiedRelativePoints.Clear();
-        copiedBars.Clear();
-
-        Vector3 rootPos = selectedPoints[0].transform.position;
-        for (int i = 0; i < finalPointList.Count; i++)
-        {
-            copiedRelativePoints.Add(finalPointList[i].transform.position - rootPos);
-        }
-
-        foreach (Bar b in capturedBars)
-        {
-            int sIdx = finalPointList.IndexOf(b.startPoint);
-            int eIdx = finalPointList.IndexOf(b.endPoint);
-            
-            if (sIdx != -1 && eIdx != -1) 
-            {
-                copiedBars.Add(new CopiedBarInfo { startIdx = sIdx, endIdx = eIdx, mat = b.materialData });
-            }
-        }
-
-        isPasteMode = true;
-        isPasteFromCut = false; // Ensures standard Copy leaves panel open infinitely
-        isSelectMode = false;
-        isMoveMode = false;
-        isDeleteMode = false;
-        pasteRotationOffset = 0f; 
-        CancelCreation();
-        ClearSelection();
-
-        Vector3 spawnPos = GetWorldMousePosition(new Vector2(Screen.width / 2f, Screen.height / 2f));
-        if (isGridSnappingEnabled) spawnPos = new Vector3(Mathf.Round(spawnPos.x), Mathf.Round(spawnPos.y), spawnPos.z);
-        
-        pasteRootPos = spawnPos; 
-        CreatePasteGhosts();
-        UpdatePasteGhostsWorldPosition(pasteRootPos); 
-        
-        if (BuildUIController.Instance != null) 
-        {
-            BuildUIController.Instance.SetSelectionPanelActive(true);
-            BuildUIController.Instance.LogAction("Selection Copied");
-        }
-    }
-    
-    public void CutSelected()
-    {
-        if (selectedPoints.Count == 0) return;
-        
-        HashSet<Point> expandedPoints = new HashSet<Point>(selectedPoints);
-        HashSet<Bar> capturedBars = new HashSet<Bar>();
-
-        foreach (Point p in selectedPoints)
-        {
-            foreach (Bar b in p.ConnectedBars)
-            {
-                if (b != null && b.gameObject.activeSelf)
-                {
-                    capturedBars.Add(b);
-                    expandedPoints.Add(b.startPoint);
-                    expandedPoints.Add(b.endPoint);
-                }
-            }
-        }
-
-        if (capturedBars.Count == 0)
-        {
-            ClearSelection();
-            return;
-        }
-
-        List<Point> finalPointList = new List<Point>(expandedPoints);
-        copiedRelativePoints.Clear();
-        copiedBars.Clear();
-
-        Vector3 rootPos = selectedPoints[0].transform.position;
-        for (int i = 0; i < finalPointList.Count; i++)
-        {
-            copiedRelativePoints.Add(finalPointList[i].transform.position - rootPos);
-        }
-
-        foreach (Bar b in capturedBars)
-        {
-            int sIdx = finalPointList.IndexOf(b.startPoint);
-            int eIdx = finalPointList.IndexOf(b.endPoint);
-            
-            if (sIdx != -1 && eIdx != -1) 
-            {
-                copiedBars.Add(new CopiedBarInfo { startIdx = sIdx, endIdx = eIdx, mat = b.materialData });
-            }
-        }
-
-        HistoryAction cutAction = new HistoryAction { isBuildEvent = false };
-        List<Point> pointsToProcess = new List<Point>(selectedPoints);
-        
-        foreach (Point p in pointsToProcess)
-        {
-            DeletePoint(p, cutAction);
-        }
-
-        if (cutAction.affectedObjects.Count > 0) RecordAction(cutAction);
-
-        isPasteMode = true;
-        isPasteFromCut = true; // Flags UI to close automatically after 1 paste
-        isSelectMode = false;
-        isMoveMode = false;
-        isDeleteMode = false;
-        pasteRotationOffset = 0f; 
-        CancelCreation();
-
-        foreach (Point p in selectedPoints) if (p != null) { p.isSelected = false; p.UpdateMaterial(); }
-        selectedPoints.Clear();
-
-        Vector3 spawnPos = GetWorldMousePosition(new Vector2(Screen.width / 2f, Screen.height / 2f));
-        if (isGridSnappingEnabled) spawnPos = new Vector3(Mathf.Round(spawnPos.x), Mathf.Round(spawnPos.y), spawnPos.z);
-        
-        pasteRootPos = spawnPos; 
-        CreatePasteGhosts();
-        UpdatePasteGhostsWorldPosition(pasteRootPos); 
-
-        if (BuildUIController.Instance != null)
-        {
-            BuildUIController.Instance.SetSelectionPanelActive(true);
-            BuildUIController.Instance.MarkBridgeDirty();
-            BuildUIController.Instance.LogAction("Selection Cut");
-        }
-    }
-
     public void DeleteSelected()
     {
         if (selectedPoints.Count == 0) return;
@@ -620,7 +420,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
         if (deleteAction.affectedObjects.Count > 0)
         {
-            RecordAction(deleteAction);
+            if (CommandManager.Instance != null) CommandManager.Instance.RecordAction(deleteAction);
         }
 
         ClearSelection();
@@ -631,222 +431,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             BuildUIController.Instance.MarkBridgeDirty();
             BuildUIController.Instance.LogAction("Bulk Selection Deleted");
         }
-    }
-
-    public void CancelPasteMode()
-    {
-        isPasteMode = false;
-        isPasteFromCut = false;
-        DestroyPasteGhosts();
-    }
-
-    private void CreatePasteGhosts()
-    {
-        DestroyPasteGhosts(); 
-        
-        foreach (Vector3 relPos in copiedRelativePoints)
-        {
-            GameObject gp = Instantiate(pointToInstantiate, pointParent);
-            gp.name = "GhostPastePoint";
-            Destroy(gp.GetComponent<Collider>());
-            Destroy(gp.GetComponent<Point>()); 
-            ghostPastePoints.Add(gp);
-        }
-        
-        foreach (var cb in copiedBars)
-        {
-            GameObject gb = Instantiate(barToInstantiate, barParent);
-            gb.name = "GhostPasteBar";
-            Bar bar = gb.GetComponent<Bar>();
-            bar.Initialize(cb.mat);
-            ghostPasteBars.Add(bar);
-        }
-    }
-
-    private void UpdatePasteGhostsWorldPosition(Vector3 rootWorldPos)
-    {
-        if (!isPasteMode || ghostPastePoints.Count == 0) return;
-
-        float snappedRotation = Mathf.Round(pasteRotationOffset / 15f) * 15f;
-        Quaternion rotation = Quaternion.Euler(0, 0, snappedRotation);
-        
-        pasteRootPos = rootWorldPos; 
-        isValidPaste = false;
-        Vector3 rigidSnapShift = Vector3.zero;
-
-        for (int i = 0; i < ghostPastePoints.Count; i++)
-        {
-            Vector3 rotatedOffset = rotation * copiedRelativePoints[i];
-            ghostPastePoints[i].transform.position = pasteRootPos + rotatedOffset;
-        }
-
-        foreach (GameObject gp in ghostPastePoints)
-        {
-            foreach (Point existingP in Point.AllPoints)
-            {
-                if (existingP.gameObject.activeSelf && !ghostPastePoints.Contains(existingP.gameObject))
-                {
-                    if (Vector3.Distance(gp.transform.position, existingP.transform.position) < 0.6f)
-                    {
-                        rigidSnapShift = existingP.transform.position - gp.transform.position;
-                        isValidPaste = true;
-                        break;
-                    }
-                }
-            }
-            if (isValidPaste) break; 
-        }
-
-        pasteRootPos += rigidSnapShift;
-
-        for (int i = 0; i < ghostPastePoints.Count; i++)
-        {
-            Vector3 rotatedOffset = rotation * copiedRelativePoints[i];
-            ghostPastePoints[i].transform.position = pasteRootPos + rotatedOffset;
-        }
-
-        for (int i = 0; i < ghostPasteBars.Count; i++)
-        {
-            Bar gb = ghostPasteBars[i];
-            var cb = copiedBars[i];
-            gb.StartPosition = ghostPastePoints[cb.startIdx].transform.position;
-            gb.UpdateCreatingBar(ghostPastePoints[cb.endIdx].transform.position);
-        }
-
-        if (isValidPaste)
-        {
-            foreach (var cb in copiedBars)
-            {
-                if (cb.mat.isPier)
-                {
-                    float bottomY = Mathf.Min(ghostPastePoints[cb.startIdx].transform.position.y, ghostPastePoints[cb.endIdx].transform.position.y);
-                    if (Mathf.Abs(bottomY - pierBaseY) > 1.5f) 
-                    {
-                        isValidPaste = false; 
-                        break;
-                    }
-                }
-            }
-        }
-
-        Color tintColor = isValidPaste ? new Color(0.2f, 1f, 0.2f, 0.6f) : new Color(1f, 0.2f, 0.2f, 0.6f);
-        foreach (GameObject gp in ghostPastePoints)
-        {
-            Renderer r = gp.GetComponentInChildren<Renderer>();
-            if (r != null)
-            {
-                if (r.material.HasProperty("_Color")) r.material.color = tintColor;
-                else if (r.material.HasProperty("_BaseColor")) r.material.SetColor("_BaseColor", tintColor);
-            }
-        }
-        foreach (Bar gb in ghostPasteBars)
-        {
-            Renderer[] rends = gb.GetComponentsInChildren<Renderer>();
-            foreach(Renderer r in rends)
-            {
-                if (r.material.HasProperty("_Color")) r.material.color = tintColor;
-                else if (r.material.HasProperty("_BaseColor")) r.material.SetColor("_BaseColor", tintColor);
-            }
-        }
-    }
-
-    public void StampPaste()
-    {
-        if (!isPasteMode || !isValidPaste) return;
-
-        HistoryAction pasteAction = new HistoryAction { isBuildEvent = true };
-        List<Point> newRealPoints = new List<Point>();
-        
-        float snappedRotation = Mathf.Round(pasteRotationOffset / 15f) * 15f;
-        Quaternion rotation = Quaternion.Euler(0, 0, snappedRotation);
-
-        for (int i = 0; i < copiedRelativePoints.Count; i++)
-        {
-            Vector3 rotatedOffset = rotation * copiedRelativePoints[i];
-            Vector3 targetPos = pasteRootPos + rotatedOffset;
-            Point mappedPoint = null;
-
-            foreach (Point existingP in Point.AllPoints)
-            {
-                if (existingP.gameObject.activeSelf && Vector3.Distance(targetPos, existingP.transform.position) < 0.2f)
-                {
-                    mappedPoint = existingP;
-                    break;
-                }
-            }
-
-            if (mappedPoint == null)
-            {
-                GameObject pObj = Instantiate(pointToInstantiate, targetPos, Quaternion.identity, pointParent);
-                mappedPoint = pObj.GetComponent<Point>();
-                pasteAction.affectedObjects.Add(pObj);
-            }
-            newRealPoints.Add(mappedPoint);
-        }
-
-        for (int i = 0; i < copiedBars.Count; i++)
-        {
-            var cb = copiedBars[i];
-            Point p1 = newRealPoints[cb.startIdx];
-            Point p2 = newRealPoints[cb.endIdx];
-
-            if (cb.mat.isPier && p1.transform.position.y > p2.transform.position.y)
-            {
-                Point temp = p1; 
-                p1 = p2; 
-                p2 = temp;
-            }
-
-            bool barExists = false;
-            foreach(Bar b in p1.ConnectedBars) 
-            {
-                if ((b.startPoint == p1 && b.endPoint == p2) || (b.startPoint == p2 && b.endPoint == p1)) 
-                {
-                    barExists = true; 
-                    break;
-                }
-            }
-
-            if (!barExists)
-            {
-                GameObject bObj = Instantiate(barToInstantiate, barParent);
-                Bar newBar = bObj.GetComponent<Bar>();
-                newBar.Initialize(cb.mat);
-                newBar.StartPosition = p1.transform.position;
-                newBar.UpdateCreatingBar(p2.transform.position);
-                newBar.startPoint = p1;
-                newBar.endPoint = p2;
-                
-                p1.ConnectedBars.Add(newBar);
-                p2.ConnectedBars.Add(newBar);
-                
-                pasteAction.affectedObjects.Add(bObj);
-            }
-        }
-
-        foreach(Point p in newRealPoints) p.EvaluateAnchorState();
-
-        RecordAction(pasteAction);
-        
-        if (BuildUIController.Instance != null)
-        {
-            BuildUIController.Instance.MarkBridgeDirty();
-            BuildUIController.Instance.LogAction("Selection Pasted");
-        }
-
-        if (isPasteFromCut)
-        {
-            CancelPasteMode();
-            if (BuildUIController.Instance != null) BuildUIController.Instance.SetSelectionPanelActive(false);
-        }
-    }
-
-    private void DestroyPasteGhosts()
-    {
-        foreach (GameObject gp in ghostPastePoints) if (gp != null) Destroy(gp);
-        foreach (Bar gb in ghostPasteBars) if (gb != null) Destroy(gb.gameObject);
-        ghostPastePoints.Clear();
-        ghostPasteBars.Clear();
     }
 
     private void CreateGhostPierBar()
@@ -866,11 +450,9 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
         Vector2 screenPos = eventData.position;
 
-        if (isPasteMode && eventData.button == PointerEventData.InputButton.Left)
+        if (IsPasting && eventData.button == PointerEventData.InputButton.Left)
         {
-            isDraggingSelection = true;
-            Vector3 worldPos = GetWorldMousePosition(screenPos);
-            pasteDragOffset = pasteRootPos - worldPos; 
+            ClipboardManager.Instance.HandlePointerDown(eventData);
             return;
         }
 
@@ -896,8 +478,12 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 dragStartMouseWorld = GetWorldMousePosition(screenPos);
                 dragLastValidDelta = Vector3.zero; 
                 
+                // --- BUG FIX: Populate original positions for ALL points just in case Pier nodes are implicitly moved ---
                 currentMoveAction = new HistoryAction { isMoveEvent = true };
-                foreach (Point p in selectedPoints) currentMoveAction.originalPositions[p] = p.transform.position;
+                foreach (Point p in Point.AllPoints) 
+                {
+                    if (p.gameObject.activeSelf) currentMoveAction.originalPositions[p] = p.transform.position;
+                }
             }
             return;
         }
@@ -918,7 +504,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
         Point existingNode = CheckForExistingPoint(screenPos);
         
-        if (!barCreationStarted && eventData.button == PointerEventData.InputButton.Left && activeMaterial != null && !isSelectMode && !isMoveMode && !isPasteMode && !isDeleteMode)
+        if (!barCreationStarted && eventData.button == PointerEventData.InputButton.Left && activeMaterial != null && !isSelectMode && !isMoveMode && !IsPasting && !isDeleteMode)
         {
             if (activeMaterial.isPier)
             {
@@ -984,17 +570,10 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             if (isDraggingSelectionBox) UpdateSelectionBox(eventData.position);
         }
 
-        if (isPasteMode && isDraggingSelection)
+        if (IsPasting)
         {
-            Vector3 worldPos = GetWorldMousePosition(eventData.position);
-            Vector3 targetRoot = worldPos + pasteDragOffset;
-            
-            if (isGridSnappingEnabled) 
-            {
-                targetRoot = new Vector3(Mathf.Round(targetRoot.x), Mathf.Round(targetRoot.y), targetRoot.z);
-            }
-            
-            UpdatePasteGhostsWorldPosition(targetRoot);
+            ClipboardManager.Instance.HandleDrag(eventData);
+            return;
         }
     }
 
@@ -1005,9 +584,9 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
         if (eventData.button != PointerEventData.InputButton.Left) return;
 
-        if (isPasteMode)
+        if (IsPasting)
         {
-            if (isDraggingSelection) isDraggingSelection = false;
+            ClipboardManager.Instance.HandlePointerUp(eventData);
             return;
         }
 
@@ -1020,8 +599,13 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 
                 if (currentMoveAction != null)
                 {
-                    foreach (Point p in selectedPoints) currentMoveAction.newPositions[p] = p.transform.position;
-                    RecordAction(currentMoveAction);
+                    // --- BUG FIX: Finalize all moved points for Undo/Redo ---
+                    foreach (Point p in Point.AllPoints) 
+                    {
+                        if (p.gameObject.activeSelf) currentMoveAction.newPositions[p] = p.transform.position;
+                    }
+
+                    if (CommandManager.Instance != null) CommandManager.Instance.RecordAction(currentMoveAction);
                     currentMoveAction = null;
                     if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("Selection Moved");
                 }
@@ -1058,12 +642,15 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
         if (isDeleteMode)
         {
-            if (currentSwipeDeleteAction != null && currentSwipeDeleteAction.affectedObjects.Count > 0) RecordAction(currentSwipeDeleteAction);
+            if (currentSwipeDeleteAction != null && currentSwipeDeleteAction.affectedObjects.Count > 0) 
+            {
+                if (CommandManager.Instance != null) CommandManager.Instance.RecordAction(currentSwipeDeleteAction);
+            }
             currentSwipeDeleteAction = null;
             return;
         }
 
-        if (barCreationStarted && activeMaterial != null && eventData.button == PointerEventData.InputButton.Left && !isDeleteMode && !isSelectMode && !isMoveMode && !isPasteMode)
+        if (barCreationStarted && activeMaterial != null && eventData.button == PointerEventData.InputButton.Left && !isDeleteMode && !isSelectMode && !isMoveMode && !IsPasting)
         {
             Vector2 screenPos = GetPointerPosition();
             Point hoveredNode = CheckForExistingPoint(screenPos);
@@ -1121,8 +708,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         { 
             isMoveMode = false; 
             isDeleteMode = false; 
-            isPasteMode = false; 
-            DestroyPasteGhosts(); 
+            if (ClipboardManager.Instance != null) ClipboardManager.Instance.CancelPasteMode(); 
             CancelCreation(); 
             SetActiveMaterial(null); 
         }
@@ -1139,8 +725,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         { 
             isSelectMode = false; 
             isDeleteMode = false; 
-            isPasteMode = false; 
-            DestroyPasteGhosts(); 
+            if (ClipboardManager.Instance != null) ClipboardManager.Instance.CancelPasteMode(); 
             CancelCreation(); 
             SetActiveMaterial(null); 
         }
@@ -1174,7 +759,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         
         if (activeMaterial != null)
         {
-            if (barCreationStarted) DrawRadiusCircle(); 
+            if (barCreationStarted) DrawRadiusVisual(); 
             
             if (!activeMaterial.isPier && ghostPierBar != null) { Destroy(ghostPierBar.gameObject); ghostPierBar = null; }
             else if (activeMaterial.isPier && ghostPierBar != null) ghostPierBar.Initialize(activeMaterial);
@@ -1238,7 +823,23 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     private void UpdateBarsForSelectedPoints()
     {
         HashSet<Bar> affectedBars = new HashSet<Bar>();
-        foreach (Point p in selectedPoints) foreach (Bar b in p.ConnectedBars) if (b != null && b.gameObject.activeSelf) affectedBars.Add(b);
+        foreach (Point p in selectedPoints) 
+        {
+            foreach (Bar b in p.ConnectedBars) 
+            {
+                if (b != null && b.gameObject.activeSelf) 
+                {
+                    affectedBars.Add(b);
+                    
+                    // --- BUG FIX: Also update the other end of any attached piers since we auto-align them!
+                    if (b.materialData.isPier)
+                    {
+                        foreach(Bar botBar in b.startPoint.ConnectedBars) if (botBar.gameObject.activeSelf) affectedBars.Add(botBar);
+                        foreach(Bar topBar in b.endPoint.ConnectedBars) if (topBar.gameObject.activeSelf) affectedBars.Add(topBar);
+                    }
+                }
+            }
+        }
         foreach (Bar b in affectedBars) { b.StartPosition = b.startPoint.transform.position; b.UpdateCreatingBar(b.endPoint.transform.position); }
         if (BuildUIController.Instance != null) BuildUIController.Instance.MarkBridgeDirty();
     }
@@ -1256,45 +857,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             DeleteBar(hoveredBar, currentSwipeDeleteAction);
             if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("Deleted Beam");
         }
-    }
-
-    public void Undo()
-    {
-        if (isSimulating || undoStack.Count == 0 || (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building)) return;
-        CancelCreation(); 
-        HistoryAction action = undoStack.Pop();
-        action.Undo();
-        redoStack.Push(action);
-        RefreshAllPoints(); 
-        if (action.isMoveEvent) foreach (var bar in FindObjectsOfType<Bar>()) { if (bar.startPoint != null && bar.endPoint != null) { bar.StartPosition = bar.startPoint.transform.position; bar.UpdateCreatingBar(bar.endPoint.transform.position); } }
-        if (BuildUIController.Instance != null) 
-        {
-            BuildUIController.Instance.MarkBridgeDirty();
-            BuildUIController.Instance.LogAction("Undid Last Action");
-        }
-    }
-
-    public void Redo()
-    {
-        if (isSimulating || redoStack.Count == 0 || (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building)) return;
-        CancelCreation(); 
-        HistoryAction action = redoStack.Pop();
-        action.Redo();
-        undoStack.Push(action);
-        RefreshAllPoints(); 
-        if (action.isMoveEvent) foreach (var bar in FindObjectsOfType<Bar>()) { if (bar.startPoint != null && bar.endPoint != null) { bar.StartPosition = bar.startPoint.transform.position; bar.UpdateCreatingBar(bar.endPoint.transform.position); } }
-        if (BuildUIController.Instance != null) 
-        {
-            BuildUIController.Instance.MarkBridgeDirty();
-            BuildUIController.Instance.LogAction("Redid Last Action");
-        }
-    }
-
-    private void RecordAction(HistoryAction action)
-    {
-        undoStack.Push(action);
-        foreach (var redoAction in redoStack) if (redoAction.isBuildEvent && !redoAction.isMoveEvent) foreach(var obj in redoAction.affectedObjects) if (obj != null) Destroy(obj);
-        redoStack.Clear();
     }
 
     public void DeleteBar(Bar bar, HistoryAction currentAction)
@@ -1381,7 +943,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         return closest;
     }
 
-    private Vector3 GetWorldMousePosition(Vector2 screenPos)
+    public Vector3 GetWorldMousePosition(Vector2 screenPos)
     {
         Camera cam = GetActiveCamera();
         if (currentStartPoint == null)
@@ -1418,7 +980,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         GameObject endObj = Instantiate(pointToInstantiate, startPosition, Quaternion.identity, pointParent);
         endObj.name = "GhostPoint";
         currentEndPoint = endObj.GetComponent<Point>();
-        DrawRadiusCircle();
+        DrawRadiusVisual();
     }
 
     private void FinishBarCreation(Vector3 rawWorldPos, Point existingEndPoint)
@@ -1468,7 +1030,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             }
         }
         
-        // Check for cancel
         if (Vector3.Distance(startPos, finalPosition) < 0.1f) 
         { 
             CancelCreation(); 
@@ -1496,14 +1057,13 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         buildAction.affectedObjects.Add(currentBar.gameObject);
         if (createdNewStartPoint) buildAction.affectedObjects.Add(currentStartPoint.gameObject); 
         if (createdNewEndPoint) buildAction.affectedObjects.Add(currentEndPoint.gameObject);
-        RecordAction(buildAction);
+        if (CommandManager.Instance != null) CommandManager.Instance.RecordAction(buildAction);
 
         currentStartPoint = null;
         currentEndPoint = null;
         currentBar = null;
         if (radiusIndicator != null) radiusIndicator.enabled = false;
         
-        // --- NEW: LOG THE RESULT ---
         if (BuildUIController.Instance != null) 
         {
             BuildUIController.Instance.MarkBridgeDirty();
@@ -1529,37 +1089,51 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (BuildUIController.Instance != null) BuildUIController.Instance.MarkBridgeDirty();
     }
 
-    private void RefreshAllPoints() { foreach (Point p in Point.AllPoints) if (p != null && p.gameObject.activeSelf) p.EvaluateAnchorState(); }
-
-    private void DrawRadiusCircle()
+    // --- BUG FIX: Draw a horizontal line for Piers instead of a circle ---
+    private void DrawRadiusVisual()
     {
         if (radiusIndicator == null || currentStartPoint == null || activeMaterial == null) return;
         radiusIndicator.enabled = true;
         radiusIndicator.useWorldSpace = true;
-        radiusIndicator.positionCount = circleResolution + 1;
-        radiusIndicator.startColor = activeMaterial.gizmoColor;
-        radiusIndicator.endColor = activeMaterial.gizmoColor;
-        radiusIndicator.startWidth = circleLineWidth;
-        radiusIndicator.endWidth = circleLineWidth;
-
+        
         Vector3 center = currentStartPoint.transform.position;
-        float radius = activeMaterial.maxLength;
-        if (BuildUIController.Instance != null && activeMaterial != null)
+        float limit = activeMaterial.maxLength;
+        if (BuildUIController.Instance != null)
         {
             float remainingBudget = BuildUIController.Instance.maxBudget - BuildUIController.Instance.GetTotalCost();
             float costPerMeter = activeMaterial.costPerMeter * (activeMaterial.isDualBeam ? 2 : 1);
             float maxAffordable = Mathf.Max(0f, remainingBudget / costPerMeter);
-            if (maxAffordable < radius) radius = maxAffordable;
+            if (maxAffordable < limit) limit = maxAffordable;
         }
 
-        Vector3 right = Vector3.right;
-        Vector3 up = Vector3.up;
-        float angleStep = 360f / circleResolution;
-        for (int i = 0; i <= circleResolution; i++)
+        if (activeMaterial.isPier)
         {
-            float currentAngle = i * angleStep * Mathf.Deg2Rad;
-            Vector3 pos = center + (right * Mathf.Cos(currentAngle) * radius) + (up * Mathf.Sin(currentAngle) * radius);
-            radiusIndicator.SetPosition(i, pos);
+            radiusIndicator.positionCount = 2;
+            radiusIndicator.startColor = activeMaterial.gizmoColor;
+            radiusIndicator.endColor = activeMaterial.gizmoColor;
+            radiusIndicator.startWidth = circleLineWidth * 1.5f; 
+            radiusIndicator.endWidth = circleLineWidth * 1.5f;
+            
+            radiusIndicator.SetPosition(0, center + new Vector3(-200f, limit, 0));
+            radiusIndicator.SetPosition(1, center + new Vector3(200f, limit, 0));
+        }
+        else
+        {
+            radiusIndicator.positionCount = circleResolution + 1;
+            radiusIndicator.startColor = activeMaterial.gizmoColor;
+            radiusIndicator.endColor = activeMaterial.gizmoColor;
+            radiusIndicator.startWidth = circleLineWidth;
+            radiusIndicator.endWidth = circleLineWidth;
+
+            Vector3 right = Vector3.right;
+            Vector3 up = Vector3.up;
+            float angleStep = 360f / circleResolution;
+            for (int i = 0; i <= circleResolution; i++)
+            {
+                float currentAngle = i * angleStep * Mathf.Deg2Rad;
+                Vector3 pos = center + (right * Mathf.Cos(currentAngle) * limit) + (up * Mathf.Sin(currentAngle) * limit);
+                radiusIndicator.SetPosition(i, pos);
+            }
         }
     }
 

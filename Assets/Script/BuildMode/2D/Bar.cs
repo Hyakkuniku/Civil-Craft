@@ -21,7 +21,6 @@ public class Bar : MonoBehaviour
     private GameObject pierCapInstance;
     private Vector3 originalCapScale = Vector3.one;
     
-    // We now track BOTH the top and bottom of the T-Cap
     private float capTopOffset = 0f;
     private float capBottomOffset = 0f;
 
@@ -86,15 +85,14 @@ public class Bar : MonoBehaviour
             pierCapInstance.name = "PierCap";
             originalCapScale = pierCapInstance.transform.localScale;
 
-            // --- THE FIX: Measure BOTH the top and bottom of the T-Cap ---
             pierCapInstance.transform.position = Vector3.zero;
             pierCapInstance.transform.rotation = Quaternion.identity;
             
             Renderer capRend = pierCapInstance.GetComponentInChildren<Renderer>();
             if (capRend != null)
             {
-                capTopOffset = capRend.bounds.max.y;    // The absolute highest point
-                capBottomOffset = capRend.bounds.min.y; // The absolute lowest point
+                capTopOffset = capRend.bounds.max.y;    
+                capBottomOffset = capRend.bounds.min.y; 
             }
 
             pierCapInstance.transform.localScale = Vector3.zero; 
@@ -105,10 +103,18 @@ public class Bar : MonoBehaviour
     {
         if (visualSegments.Count == 0) return;
 
-        Vector3 flatToPosition = ToPosition;
-        flatToPosition.z = StartPosition.z; 
+        Vector3 actualStart = StartPosition;
+        Vector3 actualEnd = ToPosition;
+        if (materialData.isPier && actualStart.y > actualEnd.y)
+        {
+            actualStart = ToPosition;
+            actualEnd = StartPosition;
+        }
 
-        Vector3 dir2D = flatToPosition - StartPosition;
+        Vector3 flatToPosition = actualEnd;
+        flatToPosition.z = actualStart.z; 
+
+        Vector3 dir2D = flatToPosition - actualStart;
         float totalDistance = dir2D.magnitude;
         
         currentLength = totalDistance;
@@ -122,32 +128,17 @@ public class Bar : MonoBehaviour
 
         if (materialData.isPier)
         {
-            // 1. Position the T-Cap so its TOP edge aligns exactly with the Anchor Node!
+            float targetPillarTopY = actualEnd.y;
             if (pierCapInstance != null)
             {
-                pierCapInstance.transform.localScale = originalCapScale;
-                
-                Vector3 capPos = ToPosition;
-                // Shift down by the top offset so the roof of the T is exactly at the node
-                capPos.y -= capTopOffset; 
-                
-                pierCapInstance.transform.position = capPos;
-                pierCapInstance.transform.rotation = Quaternion.identity;
+                targetPillarTopY = actualEnd.y - capTopOffset + capBottomOffset; 
             }
 
-            // 2. Shrink the main pillar so it connects exactly to the bottom of the shifted T-cap
-            float targetPillarTopY = ToPosition.y;
-            if (pierCapInstance != null)
-            {
-                // ToPosition.y is the top roof. We add the bottom offset to find exactly where the neck ends.
-                targetPillarTopY = ToPosition.y - capTopOffset + capBottomOffset; 
-            }
-
-            float adjustedDistance = targetPillarTopY - StartPosition.y;
+            float adjustedDistance = targetPillarTopY - actualStart.y;
             if (adjustedDistance < 0.05f) adjustedDistance = 0.05f; 
 
-            // 3. Move and stretch the Pillar
-            Vector3 midPointAdjusted = StartPosition + (Vector3.up * (adjustedDistance / 2f));
+            // --- BUG FIX: ALWAYS move the parent first BEFORE positioning the child T-Cap ---
+            Vector3 midPointAdjusted = actualStart + (Vector3.up * (adjustedDistance / 2f));
             transform.SetPositionAndRotation(midPointAdjusted, Quaternion.identity);
 
             float scaleMultiplier = adjustedDistance / baseLength;
@@ -157,10 +148,21 @@ public class Bar : MonoBehaviour
             {
                 seg.transform.localScale = newScale;
             }
+
+            // --- Now that the parent is settled, place the T-Cap in world space ---
+            if (pierCapInstance != null)
+            {
+                pierCapInstance.transform.localScale = originalCapScale;
+                
+                Vector3 capPos = actualEnd;
+                capPos.y -= capTopOffset; 
+                
+                pierCapInstance.transform.position = capPos;
+                pierCapInstance.transform.rotation = Quaternion.identity;
+            }
         }
         else
         {
-            // Standard Bridge Beam Logic (Wood / Roads)
             Vector3 midPoint = StartPosition + (dir2D / 2f);
             Vector3 angleDir = dir2D;
             if (angleDir.x < 0) angleDir = -angleDir;
