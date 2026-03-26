@@ -5,12 +5,19 @@ public class MapManager : MonoBehaviour
 {
     [Header("Nodes")]
     public LevelNode[] levels; 
-    public int highestUnlockedLevel = 2; // Change this to test drawing more lines
+    public int highestUnlockedLevel = 2; 
 
     [Header("Line Geometry")]
     public LineRenderer pathRenderer;
-    public int curveResolution = 20; // How smooth the curve is
-    public float curveAmount = 1.5f; // How far the curve bows out
+    public int curveResolution = 20; 
+    public float curveAmount = 1.5f; 
+
+    private Camera cam;
+
+    void Awake()
+    {
+        cam = Camera.main;
+    }
 
     void Start()
     {
@@ -18,8 +25,44 @@ public class MapManager : MonoBehaviour
         DrawPathsToUnlockedLevels();
     }
 
-    // Notice: There is NO Update() method anymore. 
-    // Your Shader Graph's Time node handles all the animation now!
+    // --- THE FIX: We now use Screen Space to find the closest node! ---
+    void Update()
+    {
+        if (cam == null || levels == null || levels.Length == 0) return;
+
+        // 1. Find the exact center of your screen in 2D pixels
+        Vector2 screenCenter = new Vector2(Screen.width / 2f, Screen.height / 2f);
+        
+        float minDistance = float.MaxValue;
+        string closestRegion = "";
+
+        // 2. Loop through all nodes and find which one is closest to the center of the screen
+        foreach (LevelNode node in levels) 
+        {
+            if (node == null || !node.gameObject.activeInHierarchy) continue;
+            
+            // Convert the 3D node into 2D screen coordinates
+            Vector3 screenPos = cam.WorldToScreenPoint(node.transform.position);
+            
+            // If the node is behind the camera, ignore it
+            if (screenPos.z < 0) continue; 
+            
+            Vector2 screenPos2D = new Vector2(screenPos.x, screenPos.y);
+            float dist = Vector2.Distance(screenCenter, screenPos2D);
+            
+            if (dist < minDistance) 
+            {
+                minDistance = dist;
+                closestRegion = node.regionName;
+            }
+        }
+
+        // 3. Update the UI Title continuously!
+        if (MapUIManager.Instance != null && !string.IsNullOrEmpty(closestRegion)) 
+        {
+            MapUIManager.Instance.UpdateMapTitle(closestRegion);
+        }
+    }
 
     void InitializeLevels()
     {
@@ -49,8 +92,6 @@ public class MapManager : MonoBehaviour
     void DrawPathsToUnlockedLevels()
     {
         List<Vector3> allPathPoints = new List<Vector3>();
-
-        // Only calculate paths up to the highest unlocked level
         int pathsToDraw = Mathf.Clamp(highestUnlockedLevel - 1, 0, levels.Length - 1);
 
         for (int i = 0; i < pathsToDraw; i++)
@@ -71,7 +112,7 @@ public class MapManager : MonoBehaviour
                 
                 float t = j / (float)curveResolution;
                 Vector3 pointOnCurve = CalculateQuadraticBezierPoint(t, startPos, controlPoint, endPos);
-                pointOnCurve.y += 0.05f; // Keep slightly above the ground
+                pointOnCurve.y += 0.05f; 
                 allPathPoints.Add(pointOnCurve);
             }
         }

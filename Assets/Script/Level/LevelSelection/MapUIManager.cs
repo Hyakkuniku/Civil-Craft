@@ -1,39 +1,76 @@
 using UnityEngine;
 using TMPro;
 
-public class UIManager : MonoBehaviour
+public class MapUIManager : MonoBehaviour
 {
-    public static UIManager Instance;
+    public static MapUIManager Instance;
 
+    [Header("Overarching Map UI")]
+    [Tooltip("The text at the top/middle of the screen that changes as you pan")]
+    public TextMeshProUGUI mapTitleText; 
+
+    [Header("Popup Panel UI")]
+    [Tooltip("The panel containing the Play button, level title, and description.")]
     public GameObject levelInfoPanel;
-    public TextMeshProUGUI levelTitleText;
+    
+    [Tooltip("The text INSIDE the panel for the Level Title")]
+    public TextMeshProUGUI panelLevelTitleText;
+    
+    [Tooltip("The text INSIDE the panel for the Level Description")]
+    public TextMeshProUGUI panelLevelDescriptionText;
     
     private int selectedLevelID;
 
     void Awake()
     {
-        // Simple Singleton pattern
         if (Instance == null) Instance = this;
-        levelInfoPanel.SetActive(false); // Hide at start
+        if (levelInfoPanel != null) levelInfoPanel.SetActive(false); 
     }
 
-    public void OpenLevelInfo(int levelID)
+    public void UpdateMapTitle(string regionName)
+    {
+        if (mapTitleText != null && mapTitleText.text != regionName)
+        {
+            mapTitleText.text = regionName;
+        }
+    }
+
+    public void OpenLevelInfo(int levelID, string levelTitle, string description)
     {
         selectedLevelID = levelID;
-        levelTitleText.text = "Level " + levelID;
-        // You could pull specific level data (loot, enemies) from a ScriptableObject here
         
-        levelInfoPanel.SetActive(true);
+        if (panelLevelTitleText != null) 
+        {
+            panelLevelTitleText.text = "Level " + levelID + ": " + levelTitle;
+        }
+        
+        if (panelLevelDescriptionText != null)
+        {
+            panelLevelDescriptionText.text = description;
+        }
+            
+        if (levelInfoPanel != null) 
+            levelInfoPanel.SetActive(true);
     }
 
     public void CloseLevelInfo()
     {
-        levelInfoPanel.SetActive(false);
+        if (levelInfoPanel != null && levelInfoPanel.activeSelf) 
+        {
+            levelInfoPanel.SetActive(false);
+        }
     }
 
     public void StartLevel()
     {
-        Debug.Log("Loading Scene for Level: " + selectedLevelID);
-        // SceneManager.LoadScene("Level" + selectedLevelID);
+        SceneController sceneController = FindObjectOfType<SceneController>();
+        if (sceneController != null)
+        {
+            sceneController.LoadLevel(selectedLevelID);
+        }
+        else
+        {
+            UnityEngine.SceneManagement.SceneManager.LoadScene("Level" + selectedLevelID);
+        }
     }
 }

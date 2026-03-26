@@ -11,6 +11,14 @@ public class PlayerMotor : MonoBehaviour
     [Header("Movement")]
     public float speed = 5f;
     public float gravity = -9.8f;
+    
+    [Header("Jumping")]
+    public float jumpHeight = 1.5f;
+    
+    // --- NEW: Controls how fast you move in the air! ---
+    [Tooltip("1 = full speed. 0.5 = half speed. 0 = no moving in the air.")]
+    [Range(0f, 1f)]
+    public float airSpeedMultiplier = 0.4f; 
 
     [Header("Physics Interaction")]
     [Tooltip("How heavy the player is. Increase this to break the bridge!")]
@@ -18,7 +26,7 @@ public class PlayerMotor : MonoBehaviour
 
     [Header("Animation")]
     [Tooltip("Drag the 3D model that has the Animator component here!")]
-    public Animator playerAnimator; // <-- NEW: Reference to your animator
+    public Animator playerAnimator; 
 
     void Start()
     {
@@ -53,6 +61,11 @@ public class PlayerMotor : MonoBehaviour
     void Update()
     {
         isGrounded = controller.isGrounded;
+        
+        if (isGrounded && Input.GetKeyDown(KeyCode.Space))
+        {
+            Jump();
+        }
     }
 
     public void ProcessMove(Vector2 input)
@@ -61,8 +74,13 @@ public class PlayerMotor : MonoBehaviour
         moveDirection.x = input.x;
         moveDirection.z = input.y;
         
-        controller.Move(transform.TransformDirection(moveDirection) * speed * Time.deltaTime);
+        // --- THE FIX: Calculate the current speed based on whether we are on the ground or in the air ---
+        float currentSpeed = isGrounded ? speed : (speed * airSpeedMultiplier);
         
+        // Apply horizontal movement with the new speed limit
+        controller.Move(transform.TransformDirection(moveDirection) * currentSpeed * Time.deltaTime);
+        
+        // Apply gravity and vertical movement
         playerVelocity.y += gravity * Time.deltaTime;
         
         if (isGrounded && playerVelocity.y < 0)
@@ -70,14 +88,18 @@ public class PlayerMotor : MonoBehaviour
             
         controller.Move(playerVelocity * Time.deltaTime);
 
-        // --- NEW: ANIMATION LOGIC ---
         if (playerAnimator != null)
         {
-            // Calculate how much the player is moving based on input (0 means still, >0 means moving)
             float moveAmount = Mathf.Clamp01(Mathf.Abs(input.x) + Mathf.Abs(input.y));
-            
-            // Send this number to the Animator's "Speed" parameter!
             playerAnimator.SetFloat("Speed", moveAmount);
+        }
+    }
+
+    public void Jump()
+    {
+        if (isGrounded)
+        {
+            playerVelocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
         }
     }
 

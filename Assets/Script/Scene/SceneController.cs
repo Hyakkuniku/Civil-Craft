@@ -4,19 +4,9 @@ using UnityEngine.SceneManagement;
 
 public class SceneController : MonoBehaviour
 {
-    // Optional: you can use build index or scene names
-    // Using names is usually clearer and less error-prone
-
     private const string SCENE_MAIN_MENU      = "Main Menu";
     private const string SCENE_MODE_SELECTION = "Mode Selection";
     private const string SCENE_Tutorial = "Tutorial";
-    // Add more later, e.g.:
-    // private const string SCENE_GAME           = "Game";
-    // private const string SCENE_TUTORIAL       = "Tutorial";
-
-    // ────────────────────────────────────────────────
-    // Call these from buttons (via OnClick in Inspector)
-    // ────────────────────────────────────────────────
 
     public void LoadMainMenu()
     {
@@ -33,18 +23,15 @@ public class SceneController : MonoBehaviour
         LoadScene(SCENE_Tutorial);
     }
 
+    // --- NEW: Helper method to load levels by their ID dynamically ---
+    public void LoadLevel(int levelID)
+    {
+        // Assuming your scenes are named "Level1", "Level2", etc.
+        LoadScene("Level" + levelID); 
+    }
 
-    // Example – add when you have a game scene
-    // public void LoadGame()
-    // {
-    //     LoadScene(SCENE_GAME);
-    // }
-
-    // ────────────────────────────────────────────────
-    // Core loading method (you can expand later)
-    // ────────────────────────────────────────────────
-
-    private void LoadScene(string sceneName)
+    // --- THE FIX: Made this PUBLIC so the MapUIManager can access it! ---
+    public void LoadScene(string sceneName)
     {
         if (string.IsNullOrEmpty(sceneName))
         {
@@ -60,26 +47,19 @@ public class SceneController : MonoBehaviour
 
         Debug.Log($"Starting background load for scene: {sceneName}");
         
-        // Start the background loading process
         StartCoroutine(LoadSceneAsyncCoroutine(sceneName));
     }
 
-    // The coroutine that handles loading in the background
     private IEnumerator LoadSceneAsyncCoroutine(string sceneName)
     {
         AsyncOperation asyncLoad = SceneManager.LoadSceneAsync(sceneName);
 
-        // Wait until the asynchronous scene fully loads
         while (!asyncLoad.isDone)
         {
-            // Here is where you would update a progress bar later!
-            // float progress = Mathf.Clamp01(asyncLoad.progress / 0.9f);
-            
-            yield return null; // Wait for the next frame
+            yield return null; 
         }
     }
 
-    // Optional helper – prevents silent failures
     private bool SceneExists(string sceneName)
     {
         for (int i = 0; i < SceneManager.sceneCountInBuildSettings; i++)
@@ -92,7 +72,6 @@ public class SceneController : MonoBehaviour
         return false;
     }
 
-    // Bonus: Quit game (very useful for main menu)
     public void QuitGame()
     {
         #if UNITY_EDITOR

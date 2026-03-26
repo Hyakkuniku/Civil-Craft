@@ -1,9 +1,16 @@
 using UnityEngine;
-using UnityEngine.EventSystems; // Required to check for UI overlaps
 
 public class LevelNode : MonoBehaviour
 {
+    [Header("Level Data")]
     public int levelID;
+    public string levelTitle = "The First Gap";
+    public string regionName = "Region 1: The Ravine"; 
+    
+    [TextArea(3, 5)] 
+    public string levelDescription = "A simple gap. Wood is cheap, but steel is strong.";
+
+    [Header("Progression State")]
     public bool isUnlocked;
     public bool isCompleted;
 
@@ -15,11 +22,7 @@ public class LevelNode : MonoBehaviour
 
     void Awake()
     {
-        // Auto-assign the MeshRenderer if it wasn't assigned in the Inspector
-        if (meshRenderer == null)
-        {
-            meshRenderer = GetComponent<MeshRenderer>();
-        }
+        if (meshRenderer == null) meshRenderer = GetComponent<MeshRenderer>();
     }
 
     public void UpdateVisuals()
@@ -29,25 +32,17 @@ public class LevelNode : MonoBehaviour
         else meshRenderer.material = lockedMat;
     }
 
-    void OnMouseDown()
+    public void OnNodeTapped()
     {
-        // FIX 1: Prevent clicking the 3D node if the mouse/finger is over a UI element
-        if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
+        if (!isUnlocked) 
         {
-            return; 
+            Debug.Log("Level " + levelID + " is locked!");
+            return;
         }
-
-        // FIX 2: Prevent clicking if the level is locked
-        if (!isUnlocked) return;
         
-        // Tell the UI Manager to open the popup
-        if (UIManager.Instance != null)
+        if (MapUIManager.Instance != null)
         {
-            UIManager.Instance.OpenLevelInfo(levelID);
-        }
-        else
-        {
-            Debug.LogError("UIManager Instance is missing! Make sure the UIManager script is in your scene.");
+            MapUIManager.Instance.OpenLevelInfo(levelID, levelTitle, levelDescription);
         }
     }
 }
