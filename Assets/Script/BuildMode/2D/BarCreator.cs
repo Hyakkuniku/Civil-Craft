@@ -1,3 +1,4 @@
+using System; // <-- ADDED for the Action Event
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -8,6 +9,9 @@ using Touch = UnityEngine.InputSystem.EnhancedTouch.Touch;
 
 public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IDragHandler 
 {
+    // --- ADDED THIS LINE: Broadcasts when the material changes so UI can update efficiently ---
+    public event Action<BridgeMaterialSO> OnActiveMaterialChanged; 
+
     [Header("References")]
     public Bar currentBar;
     public GameObject barToInstantiate;
@@ -743,6 +747,9 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             CancelAllModes(); 
             isDeleteMode = true; 
             SetActiveMaterial(null);
+            
+            // --- ADDED THIS LINE: Tells UI buttons to deselect because we are erasing! ---
+            OnActiveMaterialChanged?.Invoke(null);
         } 
         if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("Delete Mode: " + (isDeleteMode ? "ON" : "OFF"));
     }
@@ -756,6 +763,9 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         }
 
         activeMaterial = newMaterial;
+        
+        // --- ADDED THIS LINE: Broadcasts to the UI that the material changed! ---
+        OnActiveMaterialChanged?.Invoke(activeMaterial);
         
         if (activeMaterial != null)
         {
@@ -1089,7 +1099,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (BuildUIController.Instance != null) BuildUIController.Instance.MarkBridgeDirty();
     }
 
-    // --- BUG FIX: Draw a horizontal line for Piers instead of a circle ---
     private void DrawRadiusVisual()
     {
         if (radiusIndicator == null || currentStartPoint == null || activeMaterial == null) return;

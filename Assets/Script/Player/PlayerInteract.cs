@@ -9,12 +9,15 @@ public class PlayerInteract : MonoBehaviour
     [SerializeField] private LayerMask mask;
 
     private PlayerUI playerUI;
+    private Coroutine scanRoutine; // --- NEW: Tracks the physics scanning coroutine ---
+
+    void Awake()
+    {
+        playerUI = GetComponent<PlayerUI>();
+    }
 
     void Start()
     {
-        playerUI = GetComponent<PlayerUI>();
-
-        // NEW: Subscribe to GameManager events
         if (GameManager.Instance != null)
         {
             GameManager.Instance.OnEnterBuildMode.AddListener(HandleEnterBuildMode);
@@ -31,35 +34,53 @@ public class PlayerInteract : MonoBehaviour
         }
     }
 
+    // --- NEW: Start and Stop the scanning coroutine cleanly ---
+    private void OnEnable()
+    {
+        scanRoutine = StartCoroutine(ScanForInteractablesRoutine());
+    }
+
+    private void OnDisable()
+    {
+        if (scanRoutine != null) StopCoroutine(scanRoutine);
+    }
+
     private void HandleEnterBuildMode()
     {
-        // Instantly clear the screen of any interact buttons before disabling itself!
         if (playerUI != null) playerUI.UpdateButtons(new List<Interactable>());
-        this.enabled = false;
+        this.enabled = false; // This automatically triggers OnDisable() and stops the coroutine!
     }
 
     private void HandleExitBuildMode()
     {
-        this.enabled = true;
+        this.enabled = true; // This automatically triggers OnEnable() and starts the coroutine!
     }
 
-    void Update()
+    // --- THE FIX: We only run Physics.OverlapSphere 10 times a second instead of 60-144 times! ---
+    private IEnumerator ScanForInteractablesRoutine()
     {
-        Collider[] nearbyColliders = Physics.OverlapSphere(transform.position, interactionRadius, mask);
-        List<Interactable> nearbyInteractables = new List<Interactable>();
+        WaitForSeconds wait = new WaitForSeconds(0.1f); 
 
-        foreach (Collider col in nearbyColliders)
+        while (true)
         {
-            Interactable interactable = col.GetComponent<Interactable>();
-            if (interactable != null)
+            Collider[] nearbyColliders = Physics.OverlapSphere(transform.position, interactionRadius, mask);
+            List<Interactable> nearbyInteractables = new List<Interactable>();
+
+            foreach (Collider col in nearbyColliders)
             {
-                nearbyInteractables.Add(interactable);
+                Interactable interactable = col.GetComponent<Interactable>();
+                if (interactable != null)
+                {
+                    nearbyInteractables.Add(interactable);
+                }
             }
-        }
 
-        if (playerUI != null)
-        {
-            playerUI.UpdateButtons(nearbyInteractables);
+            if (playerUI != null)
+            {
+                playerUI.UpdateButtons(nearbyInteractables);
+            }
+
+            yield return wait;
         }
     }
 

@@ -4116,6 +4116,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7788697005057690450, guid: 4816a55e283232a4d8ebf1a276883600,
         type: 3}
+      propertyPath: environmentMask.m_Bits
+      value: 1024
+      objectReference: {fileID: 0}
+    - target: {fileID: 7788697005057690450, guid: 4816a55e283232a4d8ebf1a276883600,
+        type: 3}
       propertyPath: materialsList.Array.size
       value: 3
       objectReference: {fileID: 0}
@@ -4240,7 +4245,15 @@ PrefabInstance:
         type: 3}
       insertIndex: -1
       addedObject: {fileID: 566079330}
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 7169221580132665890, guid: 4816a55e283232a4d8ebf1a276883600,
+        type: 3}
+      insertIndex: 2
+      addedObject: {fileID: 1354119888}
+    - targetCorrespondingSourceObject: {fileID: 7169221580132665890, guid: 4816a55e283232a4d8ebf1a276883600,
+        type: 3}
+      insertIndex: 3
+      addedObject: {fileID: 1354119887}
   m_SourcePrefab: {fileID: 100100000, guid: 4816a55e283232a4d8ebf1a276883600, type: 3}
 --- !u!1 &359810897
 GameObject:
@@ -4501,6 +4514,8 @@ MonoBehaviour:
   uiElementsToHide:
   - {fileID: 234291876}
   - {fileID: 1424707881}
+  - {fileID: 24175780}
+  - {fileID: 1409873046}
 --- !u!1 &396379707
 GameObject:
   m_ObjectHideFlags: 0
@@ -6142,6 +6157,7 @@ GameObject:
   - component: {fileID: 625540418}
   - component: {fileID: 625540419}
   - component: {fileID: 625540420}
+  - component: {fileID: 625540421}
   m_Layer: 0
   m_Name: BuildUIManager
   m_TagString: Untagged
@@ -6227,6 +6243,18 @@ MonoBehaviour:
   strengthText: {fileID: 1467247804}
   lengthText: {fileID: 1819889768}
   typeText: {fileID: 664679568}
+--- !u!114 &625540421
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 625540417}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0e958704f1f2c0742b25fd60c32574ec, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &627798026
 GameObject:
   m_ObjectHideFlags: 0
@@ -9810,6 +9838,12 @@ MonoBehaviour:
   m_FlexibleWidth: 0
   m_FlexibleHeight: 0
   m_LayoutPriority: 1
+--- !u!1 &1080361704 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 7169221580132665890, guid: 4816a55e283232a4d8ebf1a276883600,
+    type: 3}
+  m_PrefabInstance: {fileID: 338395996}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1085434430 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: 4055128056ad14c439633863b41a1399,
@@ -12690,12 +12724,38 @@ MonoBehaviour:
     type: 3}
   m_PrefabInstance: {fileID: 338395996}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
+  m_GameObject: {fileID: 1080361704}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 38a9ea5ee03fa2d4193f729dcbeaa89b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!114 &1354119887
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1080361704}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0e958704f1f2c0742b25fd60c32574ec, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!114 &1354119888
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1080361704}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c39ae86b5799dd74ab97cc469a45277f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  isPasteMode: 0
+  isDraggingSelection: 0
 --- !u!1 &1382954336
 GameObject:
   m_ObjectHideFlags: 0
@@ -20545,7 +20605,7 @@ PrefabInstance:
         type: 3}
       propertyPath: fpsText
       value: 
-      objectReference: {fileID: 0}
+      objectReference: {fileID: 1263343630}
     - target: {fileID: 8059245649288491198, guid: 5b6645b099fa1c44b84ef469cb386c88,
         type: 3}
       propertyPath: m_LocalPosition.x

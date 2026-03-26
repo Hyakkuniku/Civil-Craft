@@ -553,12 +553,16 @@ MonoBehaviour:
     type: 3}
   pointParent: {fileID: 4266503104923221931}
   activeMaterial: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
+  environmentMask:
+    serializedVersion: 2
+    m_Bits: 0
+  checkEnvironmentCollisions: 1
+  environmentCheckMargin: 1
   isGridSnappingEnabled: 1
   isDeleteMode: 0
   isSelectMode: 0
   isMoveMode: 0
   selectionBoxUI: {fileID: 0}
-  isPasteMode: 0
   isSimulating: 0
   pierBaseY: -10
   deleteSnapRadiusPixels: 50

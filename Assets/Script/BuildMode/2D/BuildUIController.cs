@@ -58,7 +58,7 @@ public class BuildUIController : MonoBehaviour
     [Header("Selection UI")]
     public GameObject selectionActionPanel; 
 
-    private bool isBridgeDirty = true;
+    // --- NEW: Removed isBridgeDirty. The math only runs when instructed. ---
     private float cachedBaseCost = 0f;
     private float cachedBaseDeadLoad = 0f;
     private int cachedBaseM = 0;
@@ -75,6 +75,9 @@ public class BuildUIController : MonoBehaviour
         
         if (selectionActionPanel != null) selectionActionPanel.SetActive(false);
         if (actionLogText != null) actionLogText.text = ""; 
+
+        // Initial setup
+        MarkBridgeDirty();
     }
 
     private void Update()
@@ -85,10 +88,23 @@ public class BuildUIController : MonoBehaviour
             if (Input.GetKeyDown(restartKey)) OnRestartButtonClicked();
         }
 
-        UpdateContractUI();
-        if (physicsManager != null && !physicsManager.isSimulating) UpdateStatsUI();
+        // --- THE FIX: Only calculate what is necessary based on the current state! ---
+        if (physicsManager != null && physicsManager.isSimulating)
+        {
+            UpdateStressUI();
+        }
+        else
+        {
+            UpdateStressUI(); // Keep it zeroed out
+
+            // Only update dynamic stats if the player is actively dragging a preview bar
+            if (barCreator != null && barCreator.IsCreating)
+            {
+                UpdateStatsUI();
+                UpdateContractUI();
+            }
+        }
         
-        UpdateStressUI();
         UpdatePlayPauseButtonUI();
     }
 
@@ -109,7 +125,13 @@ public class BuildUIController : MonoBehaviour
         if (actionLogText != null) actionLogText.text = "";
     }
 
-    public void MarkBridgeDirty() { isBridgeDirty = true; }
+    // --- THE FIX: This triggers the recalculation instantly instead of waiting for Update ---
+    public void MarkBridgeDirty() 
+    { 
+        RecalculateStaticBridge(); 
+        UpdateStatsUI();
+        UpdateContractUI();
+    }
 
     private void RecalculateStaticBridge()
     {
@@ -153,14 +175,10 @@ public class BuildUIController : MonoBehaviour
                 if (b.materialData.maxTension < cachedBaseWeakestStress) cachedBaseWeakestStress = b.materialData.maxTension;
             }
         }
-
-        isBridgeDirty = false;
     }
 
     private void UpdateStatsUI()
     {
-        if (isBridgeDirty) RecalculateStaticBridge();
-
         int displayJ = cachedBaseJ; 
         int displayM = cachedBaseM;
         float roadLength = cachedBaseRoadLength;
@@ -212,7 +230,6 @@ public class BuildUIController : MonoBehaviour
 
     public float GetTotalCost()
     {
-        if (isBridgeDirty) RecalculateStaticBridge();
         return cachedBaseCost;
     }
 
@@ -226,8 +243,8 @@ public class BuildUIController : MonoBehaviour
         if (barCreator != null && barCreator.IsCreating && barCreator.currentBar != null) previewCost = barCreator.currentBar.GetCost();
         float totalProjectedCost = baseCost + previewCost;
 
-        if (usedBudgetText != null) { usedBudgetText.text = $" ₱{Mathf.RoundToInt(totalProjectedCost)}"; usedBudgetText.color = totalProjectedCost > maxBudget ? overBudgetTextColor : normalTextColor; }
-        if (maxBudgetText != null) maxBudgetText.text = $" ₱{Mathf.RoundToInt(maxBudget)}";
+        if (usedBudgetText != null) { usedBudgetText.text = $" ${Mathf.RoundToInt(totalProjectedCost)}"; usedBudgetText.color = totalProjectedCost > maxBudget ? overBudgetTextColor : normalTextColor; }
+        if (maxBudgetText != null) maxBudgetText.text = $" ${Mathf.RoundToInt(maxBudget)}";
         if (budgetFillBar != null) { budgetFillBar.fillAmount = totalProjectedCost / maxBudget; budgetFillBar.color = totalProjectedCost > maxBudget ? overBudgetTextColor : normalTextColor; }
     }
 
@@ -299,10 +316,6 @@ public class BuildUIController : MonoBehaviour
         LogAction("Camera Reset");
     }
 
-    // ────────────────────────────────────────────────
-    // --- BUTTON CALLBACKS ---
-    // ────────────────────────────────────────────────
-
     public void OnToggleStatsButtonClicked() 
     { 
         if (statsPanel != null) statsPanel.SetActive(!statsPanel.activeSelf); 
@@ -324,13 +337,11 @@ public class BuildUIController : MonoBehaviour
         } 
     }
     
-    // --- ROUTED TO NEW MANAGERS ---
     public void OnCutSelectedButtonClicked() { if (ClipboardManager.Instance != null && barCreator != null) ClipboardManager.Instance.CutSelected(barCreator.GetSelectedPoints()); }
     public void OnCopyButtonClicked() { if (ClipboardManager.Instance != null && barCreator != null) ClipboardManager.Instance.CopySelected(barCreator.GetSelectedPoints()); }
     public void OnPasteButtonClicked() { if (ClipboardManager.Instance != null) ClipboardManager.Instance.StampPaste(); }
     public void OnUndoButtonClicked() { if (CommandManager.Instance != null) CommandManager.Instance.Undo(); }
     public void OnRedoButtonClicked() { if (CommandManager.Instance != null) CommandManager.Instance.Redo(); }
-    // ------------------------------
 
     public void OnDeleteSelectedButtonClicked() { if (barCreator != null) barCreator.DeleteSelected(); }
 
