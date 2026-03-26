@@ -4,14 +4,36 @@ using System.Collections.Generic;
 public class HistoryAction
 {
     public bool isBuildEvent; 
+    public bool isMoveEvent = false; 
+    public bool isMergeEvent = false; // --- NEW: Tracks Node Merges ---
+
     public List<GameObject> affectedObjects = new List<GameObject>();
     public Dictionary<Point, Vector3> originalPositions = new Dictionary<Point, Vector3>();
     public Dictionary<Point, Vector3> newPositions = new Dictionary<Point, Vector3>();
-    public bool isMoveEvent = false; 
+
+    // --- NEW: For tracking bar reconnections during a merge ---
+    public Dictionary<Bar, Point> originalStartPoints = new Dictionary<Bar, Point>();
+    public Dictionary<Bar, Point> originalEndPoints = new Dictionary<Bar, Point>();
+    public Dictionary<Bar, Point> mergedStartPoints = new Dictionary<Bar, Point>();
+    public Dictionary<Bar, Point> mergedEndPoints = new Dictionary<Bar, Point>();
 
     public void Undo()
     {
-        if (isMoveEvent)
+        if (isMergeEvent)
+        {
+            // 1. Restore the original points for all transferred bars
+            foreach (var kvp in originalStartPoints) if (kvp.Key != null) { kvp.Key.startPoint = kvp.Value; if (!kvp.Value.ConnectedBars.Contains(kvp.Key)) kvp.Value.ConnectedBars.Add(kvp.Key); }
+            foreach (var kvp in originalEndPoints) if (kvp.Key != null) { kvp.Key.endPoint = kvp.Value; if (!kvp.Value.ConnectedBars.Contains(kvp.Key)) kvp.Value.ConnectedBars.Add(kvp.Key); }
+
+            // 2. Remove the bars from the target point they were merged into
+            foreach (var kvp in mergedStartPoints) if (kvp.Key != null && kvp.Value != null) kvp.Value.ConnectedBars.Remove(kvp.Key);
+            foreach (var kvp in mergedEndPoints) if (kvp.Key != null && kvp.Value != null) kvp.Value.ConnectedBars.Remove(kvp.Key);
+
+            // 3. Reactivate the deleted node and teleport it back to where it started before the drag!
+            foreach (GameObject obj in affectedObjects) if (obj != null) obj.SetActive(true);
+            foreach (var kvp in originalPositions) if (kvp.Key != null) kvp.Key.transform.position = kvp.Value;
+        }
+        else if (isMoveEvent)
         {
             foreach (var kvp in originalPositions) if (kvp.Key != null) kvp.Key.transform.position = kvp.Value;
         }
@@ -24,7 +46,20 @@ public class HistoryAction
 
     public void Redo()
     {
-        if (isMoveEvent)
+        if (isMergeEvent)
+        {
+            // 1. Re-apply the merge transfers
+            foreach (var kvp in mergedStartPoints) if (kvp.Key != null) { kvp.Key.startPoint = kvp.Value; if (!kvp.Value.ConnectedBars.Contains(kvp.Key)) kvp.Value.ConnectedBars.Add(kvp.Key); }
+            foreach (var kvp in mergedEndPoints) if (kvp.Key != null) { kvp.Key.endPoint = kvp.Value; if (!kvp.Value.ConnectedBars.Contains(kvp.Key)) kvp.Value.ConnectedBars.Add(kvp.Key); }
+
+            foreach (var kvp in originalStartPoints) if (kvp.Key != null && kvp.Value != null) kvp.Value.ConnectedBars.Remove(kvp.Key);
+            foreach (var kvp in originalEndPoints) if (kvp.Key != null && kvp.Value != null) kvp.Value.ConnectedBars.Remove(kvp.Key);
+
+            // 2. Move the node to the target position and deactivate it
+            foreach (var kvp in newPositions) if (kvp.Key != null) kvp.Key.transform.position = kvp.Value;
+            foreach (GameObject obj in affectedObjects) if (obj != null) obj.SetActive(false);
+        }
+        else if (isMoveEvent)
         {
             foreach (var kvp in newPositions) if (kvp.Key != null) kvp.Key.transform.position = kvp.Value;
         }
@@ -53,7 +88,7 @@ public class CommandManager : MonoBehaviour
         undoStack.Push(action);
         foreach (var redoAction in redoStack) 
         {
-            if (redoAction.isBuildEvent && !redoAction.isMoveEvent) 
+            if (redoAction.isBuildEvent && !redoAction.isMoveEvent && !redoAction.isMergeEvent) 
             {
                 foreach(var obj in redoAction.affectedObjects) 
                 {
@@ -77,8 +112,7 @@ public class CommandManager : MonoBehaviour
         
         RefreshAllPoints(); 
         
-        // --- BUG FIX: ALWAYS refresh active bars on ANY Undo (Move, Build, Delete, Paste) ---
-        foreach (var bar in FindObjectsOfType<Bar>()) 
+        foreach (var bar in FindObjectsOfType<Bar>(true)) 
         {
             if (bar.gameObject.activeSelf && bar.startPoint != null && bar.endPoint != null) 
             { 
@@ -107,8 +141,7 @@ public class CommandManager : MonoBehaviour
         
         RefreshAllPoints(); 
         
-        // --- BUG FIX: ALWAYS refresh active bars on ANY Redo ---
-        foreach (var bar in FindObjectsOfType<Bar>()) 
+        foreach (var bar in FindObjectsOfType<Bar>(true)) 
         {
             if (bar.gameObject.activeSelf && bar.startPoint != null && bar.endPoint != null) 
             { 

@@ -1,4 +1,4 @@
-using System; // <-- ADDED for the Action Event
+using System;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -9,7 +9,6 @@ using Touch = UnityEngine.InputSystem.EnhancedTouch.Touch;
 
 public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IDragHandler 
 {
-    // --- ADDED THIS LINE: Broadcasts when the material changes so UI can update efficiently ---
     public event Action<BridgeMaterialSO> OnActiveMaterialChanged; 
 
     [Header("References")]
@@ -239,12 +238,31 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             if (isSafe) dragLastValidDelta = finalDelta;
             else finalDelta = dragLastValidDelta; 
 
+            // --- NEW: MERGE MAGNETIC SNAPPING PREVIEW ---
+            if (selectedPoints.Count == 1)
+            {
+                Point movingPoint = selectedPoints[0];
+                Vector3 proposedPos = currentMoveAction.originalPositions[movingPoint] + finalDelta;
+
+                foreach (Point p in Point.AllPoints)
+                {
+                    if (p != movingPoint && p.gameObject.activeSelf)
+                    {
+                        // If we drag close to an existing point, snap perfectly to it!
+                        if (Vector3.Distance(proposedPos, p.transform.position) < 0.3f)
+                        {
+                            finalDelta = p.transform.position - currentMoveAction.originalPositions[movingPoint];
+                            break;
+                        }
+                    }
+                }
+            }
+
             foreach (Point p in selectedPoints)
             {
                 if (!p.originalIsAnchor) p.transform.position = currentMoveAction.originalPositions[p] + finalDelta;
             }
             
-            // --- BUG FIX: Enforce Pier rules dynamically during movement ---
             foreach (Point p in selectedPoints)
             {
                 foreach (Bar b in p.ConnectedBars)
@@ -257,14 +275,11 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                         Vector3 botPos = pBot.transform.position;
                         Vector3 topPos = pTop.transform.position;
                         
-                        // Force X alignment (if top moves, bottom follows. If bottom moves alone, top follows)
                         if (selectedPoints.Contains(pBot) && !selectedPoints.Contains(pTop)) topPos.x = botPos.x;
                         else botPos.x = topPos.x; 
                         
-                        // Force Bottom Y to be locked to the floor
                         botPos.y = pierBaseY; 
                         
-                        // Force Y limits
                         if (topPos.y < botPos.y + 1f) topPos.y = botPos.y + 1f;
                         if (topPos.y > botPos.y + b.materialData.maxLength) topPos.y = botPos.y + b.materialData.maxLength;
                         
@@ -482,7 +497,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 dragStartMouseWorld = GetWorldMousePosition(screenPos);
                 dragLastValidDelta = Vector3.zero; 
                 
-                // --- BUG FIX: Populate original positions for ALL points just in case Pier nodes are implicitly moved ---
                 currentMoveAction = new HistoryAction { isMoveEvent = true };
                 foreach (Point p in Point.AllPoints) 
                 {
@@ -601,18 +615,47 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 isDraggingSelection = false;
                 if (radiusIndicator != null) radiusIndicator.enabled = false; 
                 
-                if (currentMoveAction != null)
+                bool didMerge = false;
+
+                // --- NEW: ACTUAL MERGE EXECUTION ---
+                if (selectedPoints.Count == 1)
                 {
-                    // --- BUG FIX: Finalize all moved points for Undo/Redo ---
+                    Point movedPoint = selectedPoints[0];
+                    Point targetPoint = null;
+
+                    foreach (Point p in Point.AllPoints)
+                    {
+                        if (p != movedPoint && p.gameObject.activeSelf)
+                        {
+                            // If dropped almost exactly on top of an existing node...
+                            if (Vector3.Distance(movedPoint.transform.position, p.transform.position) < 0.1f)
+                            {
+                                targetPoint = p;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (targetPoint != null)
+                    {
+                        didMerge = true;
+                        PerformMerge(movedPoint, targetPoint, currentMoveAction.originalPositions[movedPoint]);
+                    }
+                }
+
+                // If we didn't merge, save it as a normal Move action
+                if (!didMerge && currentMoveAction != null)
+                {
                     foreach (Point p in Point.AllPoints) 
                     {
                         if (p.gameObject.activeSelf) currentMoveAction.newPositions[p] = p.transform.position;
                     }
 
                     if (CommandManager.Instance != null) CommandManager.Instance.RecordAction(currentMoveAction);
-                    currentMoveAction = null;
                     if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("Selection Moved");
                 }
+
+                currentMoveAction = null;
             }
             return; 
         }
@@ -664,6 +707,74 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         else
         {
             CancelCreation(); 
+        }
+    }
+
+    // --- NEW: THE MERGE LOGIC ---
+    private void PerformMerge(Point movedPoint, Point targetPoint, Vector3 originalPos)
+    {
+        HistoryAction mergeAction = new HistoryAction { isMergeEvent = true };
+        
+        mergeAction.originalPositions[movedPoint] = originalPos; // Store where it came from so it can be un-merged!
+        mergeAction.newPositions[movedPoint] = targetPoint.transform.position;
+        mergeAction.affectedObjects.Add(movedPoint.gameObject); // Disable the duplicate node
+
+        List<Bar> barsToTransfer = new List<Bar>(movedPoint.ConnectedBars);
+        List<Bar> barsToCollapse = new List<Bar>();
+
+        // 1. Re-assign the ends of the bars to the new Target node
+        foreach (Bar b in barsToTransfer)
+        {
+            bool wasStart = (b.startPoint == movedPoint);
+            bool wasEnd = (b.endPoint == movedPoint);
+
+            if (wasStart)
+            {
+                mergeAction.originalStartPoints[b] = movedPoint;
+                mergeAction.mergedStartPoints[b] = targetPoint;
+                b.startPoint = targetPoint;
+            }
+            if (wasEnd)
+            {
+                mergeAction.originalEndPoints[b] = movedPoint;
+                mergeAction.mergedEndPoints[b] = targetPoint;
+                b.endPoint = targetPoint;
+            }
+
+            movedPoint.ConnectedBars.Remove(b);
+            if (!targetPoint.ConnectedBars.Contains(b)) targetPoint.ConnectedBars.Add(b);
+
+            // 2. Check if a bar collapsed (if you merged a node onto the node it was already connected to)
+            if (b.startPoint == b.endPoint)
+            {
+                barsToCollapse.Add(b);
+            }
+            else
+            {
+                b.StartPosition = b.startPoint.transform.position;
+                b.UpdateCreatingBar(b.endPoint.transform.position);
+            }
+        }
+
+        // 3. Clean up the collapsed "zero length" bars
+        foreach (Bar b in barsToCollapse)
+        {
+            mergeAction.affectedObjects.Add(b.gameObject);
+            targetPoint.ConnectedBars.Remove(b);
+            b.gameObject.SetActive(false);
+        }
+
+        // 4. Finalize the merge
+        movedPoint.gameObject.SetActive(false);
+        targetPoint.EvaluateAnchorState();
+        ClearSelection();
+
+        if (CommandManager.Instance != null) CommandManager.Instance.RecordAction(mergeAction);
+
+        if (BuildUIController.Instance != null)
+        {
+            BuildUIController.Instance.MarkBridgeDirty();
+            BuildUIController.Instance.LogAction("Nodes Merged");
         }
     }
 
@@ -747,8 +858,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             CancelAllModes(); 
             isDeleteMode = true; 
             SetActiveMaterial(null);
-            
-            // --- ADDED THIS LINE: Tells UI buttons to deselect because we are erasing! ---
             OnActiveMaterialChanged?.Invoke(null);
         } 
         if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("Delete Mode: " + (isDeleteMode ? "ON" : "OFF"));
@@ -763,8 +872,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         }
 
         activeMaterial = newMaterial;
-        
-        // --- ADDED THIS LINE: Broadcasts to the UI that the material changed! ---
         OnActiveMaterialChanged?.Invoke(activeMaterial);
         
         if (activeMaterial != null)
@@ -840,8 +947,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 if (b != null && b.gameObject.activeSelf) 
                 {
                     affectedBars.Add(b);
-                    
-                    // --- BUG FIX: Also update the other end of any attached piers since we auto-align them!
                     if (b.materialData.isPier)
                     {
                         foreach(Bar botBar in b.startPoint.ConnectedBars) if (botBar.gameObject.activeSelf) affectedBars.Add(botBar);
