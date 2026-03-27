@@ -13,9 +13,12 @@ public class LiveLoadVehicle : MonoBehaviour
     public float maxSpeed = 5f;
     [Tooltip("How hard the engine rotates the wheels to pull the mass.")]
     public float engineTorque = 1500f; 
+    
+    [Tooltip("Fallback mass if no contract is active.")]
     public float vehicleMass = 1000f;
+    
     [Tooltip("Lowers the center of gravity so the car doesn't do a backflip!")]
-    public float centerOfMassOffset = -0.5f; // --- NEW: Keeps the car grounded! ---
+    public float centerOfMassOffset = -0.5f; 
 
     [Header("Custom Wheel Setup")]
     [Tooltip("Drag your 4 wheel GameObjects here from the hierarchy!")]
@@ -48,15 +51,14 @@ public class LiveLoadVehicle : MonoBehaviour
     {
         rb = GetComponent<Rigidbody>();
         
+        // Initial fallback mass (will be overwritten by the contract later)
         rb.mass = vehicleMass;
         rb.isKinematic = true; 
         rb.useGravity = true; 
         rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic; 
 
-        // --- THE FIX: Lower the center of mass so it doesn't flip over! ---
         rb.centerOfMass = new Vector3(0, centerOfMassOffset, 0);
 
-        // Allow X rotation so it tilts, but freeze Y and Z so it doesn't fall off the 2D bridge
         rb.constraints = RigidbodyConstraints.FreezeRotationY | 
                          RigidbodyConstraints.FreezePositionZ;
 
@@ -101,7 +103,6 @@ public class LiveLoadVehicle : MonoBehaviour
             sc.radius = wheelRadius;
             sc.material = wheelMat;
 
-            // --- THE FIX: Tell Unity to ignore collisions between the wheel and the car body! ---
             if (chassisCol != null)
             {
                 Physics.IgnoreCollision(chassisCol, sc, true);
@@ -148,6 +149,14 @@ public class LiveLoadVehicle : MonoBehaviour
 
     public void StartDriving()
     {
+        // --- NEW: Dynamically fetch the vehicle weight from the Contract! ---
+        if (GameManager.Instance != null && GameManager.Instance.CurrentContract != null)
+        {
+            vehicleMass = GameManager.Instance.CurrentContract.liveLoadWeight;
+            if (rb != null) rb.mass = vehicleMass;
+            Debug.Log($"<color=cyan>Vehicle mass dynamically set to {vehicleMass}kg from the Contract.</color>");
+        }
+
         if (startPoint != null)
         {
             transform.position = startPoint.position;

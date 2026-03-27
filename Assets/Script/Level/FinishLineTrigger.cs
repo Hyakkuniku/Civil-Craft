@@ -15,7 +15,6 @@ public class FinishLineTrigger : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        // Prevent triggering multiple times (like if multiple car wheels hit it)
         if (levelCompleted) return;
 
         foreach (string acceptedTag in acceptedTags)
@@ -24,14 +23,25 @@ public class FinishLineTrigger : MonoBehaviour
             {
                 levelCompleted = true;
                 
-                // Fire off any custom events (like fireworks or sounds)
                 OnLevelCompleted?.Invoke();
 
-                // Tell the UI Manager to pop up and pause the game!
                 if (LevelCompleteManager.Instance != null)
                 {
                     LevelCompleteManager.Instance.ShowLevelCompleteScreen();
                 }
+
+                // --- NEW: Tell the NPC and UI that the job is done! ---
+                NPCContractGiver npc = FindObjectOfType<NPCContractGiver>();
+                if (npc != null)
+                {
+                    npc.isContractCompleted = true; // Unlocks the final dialogue
+                    
+                    if (ObjectiveTrackerUI.Instance != null)
+                    {
+                        ObjectiveTrackerUI.Instance.descriptionText.text = $"<color=green>Bridge Tested!</color> Return to {npc.contractToGive.clientName}.";
+                    }
+                }
+                
                 break;
             }
         }

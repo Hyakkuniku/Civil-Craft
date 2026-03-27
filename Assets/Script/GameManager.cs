@@ -27,8 +27,6 @@ public class GameManager : MonoBehaviour
     [SerializeField] private List<GameObject> uiElementsToHide = new List<GameObject>();
     [SerializeField] private List<GameObject> buildModeUIElements = new List<GameObject>();
 
-    private List<BuildableVisual> cachedBuildables = new List<BuildableVisual>();
-
     private void Awake()
     {
         if (Instance == null) { Instance = this; DontDestroyOnLoad(gameObject); }
@@ -36,6 +34,13 @@ public class GameManager : MonoBehaviour
 
         if (mainCamera == null) mainCamera = Camera.main;
         foreach (GameObject uiElement in buildModeUIElements) if (uiElement != null) uiElement.SetActive(false);
+    }
+
+    // --- NEW: Safe Framerate Lock ---
+    private void Start()
+    {
+        // Tells the Unity Engine to natively target 60 FPS without freezing the main thread!
+        Application.targetFrameRate = 60;
     }
 
     private void Update()
@@ -49,7 +54,6 @@ public class GameManager : MonoBehaviour
 
         ActiveBuildLocation = location;
         
-        // --- NEW: Save the contract to global memory ---
         if (location != null && location.activeContract != null)
         {
             CurrentContract = location.activeContract; 
@@ -60,8 +64,6 @@ public class GameManager : MonoBehaviour
 
         if (BuildUIController.Instance != null && CurrentContract != null)
             BuildUIController.Instance.maxBudget = CurrentContract.budget;
-
-        if (cachedBuildables.Count == 0) CacheBuildableObjects();
 
         if (mainCamera != null)
         {
@@ -86,7 +88,6 @@ public class GameManager : MonoBehaviour
         foreach (GameObject uiElement in uiElementsToHide) if (uiElement != null) uiElement.SetActive(false);
         foreach (GameObject uiElement in buildModeUIElements) if (uiElement != null) uiElement.SetActive(true);
 
-        SetAllBuildablesToWireframe(true);
         OnEnterBuildMode?.Invoke();
     }
 
@@ -116,32 +117,11 @@ public class GameManager : MonoBehaviour
         if (ActiveBuildLocation != null)
         {
             if (currentPlayerTransform != null) ActiveBuildLocation.DeactivateBuildMode(currentPlayerTransform);
-            
-            // --- THE FIX: We NO LONGER set ActiveBuildLocation = null here! ---
-            // This allows the game to remember the budget even when walking around!
             currentPlayerTransform = null;
         }
 
         foreach (GameObject uiElement in uiElementsToHide) if (uiElement != null) uiElement.SetActive(true);
         foreach (GameObject uiElement in buildModeUIElements) if (uiElement != null) uiElement.SetActive(false);
-
-        SetAllBuildablesToWireframe(false);
-    }
-
-    private void CacheBuildableObjects()
-    {
-        cachedBuildables.Clear();
-        cachedBuildables.AddRange(FindObjectsOfType<BuildableVisual>(true));
-    }
-
-    private void SetAllBuildablesToWireframe(bool inBuildMode)
-    {
-        foreach (var visual in cachedBuildables)
-        {
-            if (visual == null) continue;
-            if (inBuildMode) visual.SetBuildMode();
-            else visual.SetNormalMode();
-        }
     }
 
     public bool IsInBuildMode() => CurrentState == GameState.Building;

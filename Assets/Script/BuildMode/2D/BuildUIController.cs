@@ -58,7 +58,6 @@ public class BuildUIController : MonoBehaviour
     [Header("Selection UI")]
     public GameObject selectionActionPanel; 
 
-    // --- NEW: Removed isBridgeDirty. The math only runs when instructed. ---
     private float cachedBaseCost = 0f;
     private float cachedBaseDeadLoad = 0f;
     private int cachedBaseM = 0;
@@ -88,7 +87,6 @@ public class BuildUIController : MonoBehaviour
             if (Input.GetKeyDown(restartKey)) OnRestartButtonClicked();
         }
 
-        // --- THE FIX: Only calculate what is necessary based on the current state! ---
         if (physicsManager != null && physicsManager.isSimulating)
         {
             UpdateStressUI();
@@ -125,7 +123,6 @@ public class BuildUIController : MonoBehaviour
         if (actionLogText != null) actionLogText.text = "";
     }
 
-    // --- THE FIX: This triggers the recalculation instantly instead of waiting for Update ---
     public void MarkBridgeDirty() 
     { 
         RecalculateStaticBridge(); 
@@ -205,7 +202,9 @@ public class BuildUIController : MonoBehaviour
         }
 
         ContractSO currentContract = GetActiveContract();
-        float liveLoad = currentContract != null ? currentContract.cargoWeight : 1000f;
+        
+        // --- THE FIX: We now use liveLoadWeight instead of cargoWeight ---
+        float liveLoad = currentContract != null ? currentContract.liveLoadWeight : 1000f;
         
         float estimatedFoS = 0f;
         if (liveLoad > 0) estimatedFoS = theoreticalCapacityKg / liveLoad;

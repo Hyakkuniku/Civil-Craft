@@ -9,8 +9,6 @@ public class ObjectiveTrackerUI : MonoBehaviour
 
     [Header("UI References")]
     public GameObject trackerPanel; 
-    
-    // NEW: The button that stays on the screen to open the panel
     public GameObject openTrackerButton; 
     
     public TextMeshProUGUI titleText;
@@ -30,8 +28,6 @@ public class ObjectiveTrackerUI : MonoBehaviour
         else { Destroy(gameObject); return; }
         
         if (trackerPanel != null) trackerPanel.SetActive(false);
-        
-        // NEW: Hide the open button at the start since we don't have a contract yet
         if (openTrackerButton != null) openTrackerButton.SetActive(false);
     }
 
@@ -44,17 +40,16 @@ public class ObjectiveTrackerUI : MonoBehaviour
         if (titleText != null) titleText.text = "Client: " + contract.clientName;
         if (descriptionText != null) descriptionText.text = contract.jobDescription;
         if (budgetText != null) budgetText.text = "Budget: $" + contract.budget;
-        if (weightText != null) weightText.text = "Cargo Weight: " + contract.cargoWeight + "kg";
+        
+        // --- THE FIX: Changed to Live Load ---
+        if (weightText != null) weightText.text = "Live Load: " + contract.liveLoadWeight + "kg";
         
         if (completeButton != null) completeButton.SetActive(false); 
 
-        // Automatically open the panel
         if (trackerPanel != null) 
         {
             trackerPanel.SetActive(true);
             SetOtherUIActive(false); 
-            
-            // Hide the open button while the panel is open
             if (openTrackerButton != null) openTrackerButton.SetActive(false);
         }
     }
@@ -77,15 +72,10 @@ public class ObjectiveTrackerUI : MonoBehaviour
         {
             trackerPanel.SetActive(false);
             SetOtherUIActive(true); 
-            
-            // Hide the open button because we no longer have an active mission
             if (openTrackerButton != null) openTrackerButton.SetActive(false);
         }
     }
 
-    // ────────────────────────────────────────────────────────────
-    // Both of your buttons will call this exact same method!
-    // ────────────────────────────────────────────────────────────
     public void ToggleTrackerPanel()
     {
         if (trackerPanel != null && hasActiveObjective)
@@ -94,7 +84,6 @@ public class ObjectiveTrackerUI : MonoBehaviour
             trackerPanel.SetActive(isNowActive);
             SetOtherUIActive(!isNowActive);
             
-            // If the panel is now OFF, show the Open button. If it is ON, hide it.
             if (openTrackerButton != null) openTrackerButton.SetActive(!isNowActive);
         }
     }
@@ -103,10 +92,7 @@ public class ObjectiveTrackerUI : MonoBehaviour
     {
         foreach (GameObject uiElement in otherUIElements)
         {
-            if (uiElement != null)
-            {
-                uiElement.SetActive(isActive);
-            }
+            if (uiElement != null) uiElement.SetActive(isActive);
         }
     }
 }

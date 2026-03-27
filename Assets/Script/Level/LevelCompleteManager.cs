@@ -12,12 +12,19 @@ public class LevelCompleteManager : MonoBehaviour
     public TextMeshProUGUI feedbackText;
     public TextMeshProUGUI costText;
     public TextMeshProUGUI stressText;
+    
+    // --- NEW: UI for showing what they earned! ---
+    [Header("Reward UI")]
+    public TextMeshProUGUI goldEarnedText;
+    public TextMeshProUGUI expEarnedText;
 
     [Header("Gameplay Elements to Hide")]
     public List<GameObject> uiElementsToHide = new List<GameObject>();
 
-    // --- NEW: The Snapshot Memory List! ---
     private List<GameObject> temporarilyHiddenPanels = new List<GameObject>();
+    
+    // --- NEW: Make sure they only get paid once per level! ---
+    private bool rewardsClaimedThisSession = false;
 
     private void Awake()
     {
@@ -31,7 +38,6 @@ public class LevelCompleteManager : MonoBehaviour
     {
         if (levelCompletePanel != null) levelCompletePanel.SetActive(true);
 
-        // --- THE FIX: Memorize what is currently ON, then hide it! ---
         temporarilyHiddenPanels.Clear();
         foreach (GameObject ui in uiElementsToHide)
         {
@@ -53,9 +59,17 @@ public class LevelCompleteManager : MonoBehaviour
         if (player != null) player.enabled = false;
 
         float maxBudget = 0f;
+        int baseGoldReward = 0;
+        int baseExpReward = 0;
+        
+        ContractSO currentContract = null;
+
         if (GameManager.Instance != null && GameManager.Instance.CurrentContract != null)
         {
-            maxBudget = GameManager.Instance.CurrentContract.budget;
+            currentContract = GameManager.Instance.CurrentContract;
+            maxBudget = currentContract.budget;
+            baseGoldReward = currentContract.goldReward;
+            baseExpReward = currentContract.expReward;
         }
 
         float finalCost = 0f;
@@ -71,79 +85,83 @@ public class LevelCompleteManager : MonoBehaviour
             peakStress = physicsManager.peakStressThisRun * 100f; 
         }
 
-        if (costText != null)
+        // --- NEW: Reward Calculation & Saving ---
+        if (!rewardsClaimedThisSession && PlayerDataManager.Instance != null)
         {
-            costText.text = $"Final Cost: ${Mathf.RoundToInt(finalCost)} / ${Mathf.RoundToInt(maxBudget)}";
-        }
+            int finalGold = baseGoldReward;
+            int finalExp = baseExpReward;
 
-        if (stressText != null)
-        {
-            stressText.text = $"Peak Bridge Stress: {Mathf.RoundToInt(peakStress)}%";
-            
-            if (peakStress >= 100f) stressText.color = Color.red;
-            else if (peakStress >= 50f) stressText.color = Color.yellow;
-            else stressText.color = Color.green;
-        }
-
-        if (feedbackText != null)
-        {
+            // Optional: Give them a bonus if they were under budget!
             if (finalCost <= maxBudget)
             {
+                int bonusGold = Mathf.RoundToInt((maxBudget - finalCost) * 0.2f); // 20% of the saved money!
+                finalGold += bonusGold;
                 feedbackText.text = "<color=green>Under Budget! Excellent Engineering!</color>";
             }
             else
             {
+                // Penalize them if they went over budget
+                int penaltyGold = Mathf.RoundToInt((finalCost - maxBudget) * 0.5f);
+                finalGold -= penaltyGold;
+                if (finalGold < 0) finalGold = 0; // Don't let them go into debt
+                
                 feedbackText.text = "<color=red>Over Budget! The client isn't happy, but the bridge held.</color>";
             }
-        }
 
-        if (BridgeHandbookManager.Instance != null && BridgeHandbookManager.globalHasBook)
-        {
-            Camera photoCam = Camera.main; 
-
-            if (GameManager.Instance != null && GameManager.Instance.IsInBuildMode() && GameManager.Instance.ActiveBuildLocation != null)
-            {
-                if (GameManager.Instance.ActiveBuildLocation.locationCamera != null)
-                {
-                    photoCam = GameManager.Instance.ActiveBuildLocation.locationCamera;
-                }
-            }
+            // Save the data to the hard drive
+            PlayerDataManager.Instance.AddGold(finalGold);
+            PlayerDataManager.Instance.AddExp(finalExp);
+            PlayerDataManager.Instance.AddBridgeBuilt();
             
-            if (photoCam != null)
+            // Mark this scene as unlocked so they can play the next level!
+            string nextSceneName = GetNextSceneName(); 
+            if (!string.IsNullOrEmpty(nextSceneName))
             {
-                bool wasEnabled = photoCam.enabled;
-                float originalFOV = photoCam.fieldOfView;
-                float originalOrtho = photoCam.orthographicSize;
-
-                photoCam.enabled = true;
-
-                if (photoCam.orthographic) photoCam.orthographicSize *= 1.3f;
-                else photoCam.fieldOfView *= 1.3f;
-
-                string levelName = SceneManager.GetActiveScene().name; 
-                string stats = $"Budget Used: ${Mathf.RoundToInt(finalCost)} / ${Mathf.RoundToInt(maxBudget)}\n\nPeak Stress: {Mathf.RoundToInt(peakStress)}%\n\nStatus: Successfully Engineered!";
-
-                BridgeHandbookManager.Instance.RecordBridgeSnapshot(photoCam, levelName, stats);
-
-                if (photoCam.orthographic) photoCam.orthographicSize = originalOrtho;
-                else photoCam.fieldOfView = originalFOV;
-                photoCam.enabled = wasEnabled;
+                PlayerDataManager.Instance.UnlockLevel(nextSceneName);
             }
+
+            // Update the UI to show the player what they earned
+            if (goldEarnedText != null) goldEarnedText.text = $"+{finalGold} Gold";
+            if (expEarnedText != null) expEarnedText.text = $"+{finalExp} EXP";
+
+            // Lock it so they can't just drive across 5 times to farm gold
+            rewardsClaimedThisSession = true;
         }
+
+        if (costText != null) costText.text = $"Final Cost: ${Mathf.RoundToInt(finalCost)} / ${Mathf.RoundToInt(maxBudget)}";
+
+        if (stressText != null)
+        {
+            stressText.text = $"Peak Bridge Stress: {Mathf.RoundToInt(peakStress)}%";
+            if (peakStress >= 100f) stressText.color = Color.red;
+            else if (peakStress >= 50f) stressText.color = Color.yellow;
+            else stressText.color = Color.green;
+        }
+    }
+
+    private string GetNextSceneName()
+    {
+        // Simple helper to guess the next scene name (e.g. "Level_1" -> "Level_2")
+        // You can replace this with a hardcoded string if you prefer.
+        int currentIndex = SceneManager.GetActiveScene().buildIndex;
+        if (currentIndex + 1 < SceneManager.sceneCountInBuildSettings)
+        {
+            string nextScenePath = SceneUtility.GetScenePathByBuildIndex(currentIndex + 1);
+            return System.IO.Path.GetFileNameWithoutExtension(nextScenePath);
+        }
+        return "";
     }
 
     public void ClosePanel()
     {
         if (levelCompletePanel != null) levelCompletePanel.SetActive(false);
 
-        // --- THE FIX: Only turn back on the exact panels that were on before! ---
         foreach (GameObject ui in temporarilyHiddenPanels)
         {
             if (ui != null) ui.SetActive(true);
         }
         temporarilyHiddenPanels.Clear();
 
-        // Player controls still stay smartly locked if we are building
         bool isBuilding = (GameManager.Instance != null && GameManager.Instance.IsInBuildMode());
         bool shouldEnableInput = !isBuilding;
 
@@ -158,9 +176,13 @@ public class LevelCompleteManager : MonoBehaviour
         if (player != null) player.enabled = shouldEnableInput;
     }
 
-    public void NextLevel(string nextSceneName)
+    public void NextLevel()
     {
-        SceneManager.LoadScene(nextSceneName);
+        string nextScene = GetNextSceneName();
+        if (!string.IsNullOrEmpty(nextScene))
+        {
+            SceneManager.LoadScene(nextScene);
+        }
     }
 
     public void RestartLevel()
