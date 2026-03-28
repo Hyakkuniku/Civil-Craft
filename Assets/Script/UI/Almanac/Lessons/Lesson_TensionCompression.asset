@@ -9,35 +9,31 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 0}
+  m_Script: {fileID: 11500000, guid: 0345522f1e483c24e82a5f0697649860, type: 3}
   m_Name: Lesson_TensionCompression
   m_EditorClassIdentifier: Assembly-CSharp::LessonSO
   lessonTitle: Tension vs. Compression
-  lessonContent: 'The fundamental secret to bridge engineering lies in understanding
-    two opposing forces: Tension and Compression.
+  lessonContent: 'In bridge engineering, forces act on materials in two main ways:
+    Tension and Compression.
 
 
-    Compression is a pushing
-    force that squeezes a material together. Think of stepping on an empty soda can.
-    Concrete and stone are incredibly strong under compression, which is why ancient
-    arch bridges have lasted thousands of years!
+    Tension is a pulling force that stretches a material
+    outwards. Think of a tug-of-war rope or the cables on a suspension bridge. Steel
+    cables are excellent at handling tension.
 
 
-    Tension is a pulling force
-    that stretches a material apart. Think of playing tug-of-war with a rope. Steel
-    cables are fantastic at handling tension, which is why modern suspension bridges
-    use steel cables to hold up the road.
+    Compression is a pushing force
+    that squeezes a material inwards. Think of the heavy pillars holding up a bridge
+    from underneath. Concrete and thick wood are great at handling compression.
 
 
-    A successful bridge perfectly balances
-    these two forces. If a bridge has too much tension, it snaps. If it has too much
-    compression, it crushes.'
-  quizQuestion: Which force is described as a "pulling" force that stretches a material
-    apart?
+    A
+    successful bridge balances both of these forces perfectly!'
+  quizQuestion: What type of force stretches a material apart?
   quizOptions:
-  - Compression
-  - Gravity
-  - Tension
-  - Friction
+  - Squeezing
+  - Bending
+  - Pulling
+  - Pushing
   correctOptionIndex: 2
   expReward: 50

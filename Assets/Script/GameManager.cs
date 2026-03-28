@@ -29,11 +29,15 @@ public class GameManager : MonoBehaviour
 
     private void Awake()
     {
-        if (Instance == null) { Instance = this; DontDestroyOnLoad(gameObject); }
-        else { Destroy(gameObject); return; }
+        // FIX: Removed DontDestroyOnLoad so each scene can cleanly use its own GameManager!
+        Instance = this; 
 
         if (mainCamera == null) mainCamera = Camera.main;
-        foreach (GameObject uiElement in buildModeUIElements) if (uiElement != null) uiElement.SetActive(false);
+        
+        foreach (GameObject uiElement in buildModeUIElements) 
+        {
+            if (uiElement != null) uiElement.SetActive(false);
+        }
     }
 
     // --- NEW: Safe Framerate Lock ---

@@ -9,7 +9,7 @@ public class PlayerData
     public int bridgesBuilt = 0;
     public bool hasAlmanac = false; 
     
-    public List<string> unlockedLevels = new List<string> { "Level_1" };
+    public List<string> unlockedLevels = new List<string> { "Tutorial" };
     public List<string> completedContracts = new List<string>();
     
     // --- NEW: Tracks which lessons the player has passed ---
