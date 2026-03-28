@@ -16,7 +16,7 @@ MonoBehaviour:
   jobDescription: '"The old wooden bridge washed away in the storm. We need a quick
     replacement so the supply cart can cross the creek. Keep it simple, and remember:
     triangles make the strongest supports!"'
-  budget: 100000
+  budget: 5000
   liveLoadWeight: 411
   goldReward: 500
   expReward: 1000
