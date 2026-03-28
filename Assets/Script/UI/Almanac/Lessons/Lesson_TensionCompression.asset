@@ -1,0 +1,43 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 0}
+  m_Name: Lesson_TensionCompression
+  m_EditorClassIdentifier: Assembly-CSharp::LessonSO
+  lessonTitle: Tension vs. Compression
+  lessonContent: 'The fundamental secret to bridge engineering lies in understanding
+    two opposing forces: Tension and Compression.
+
+
+    Compression is a pushing
+    force that squeezes a material together. Think of stepping on an empty soda can.
+    Concrete and stone are incredibly strong under compression, which is why ancient
+    arch bridges have lasted thousands of years!
+
+
+    Tension is a pulling force
+    that stretches a material apart. Think of playing tug-of-war with a rope. Steel
+    cables are fantastic at handling tension, which is why modern suspension bridges
+    use steel cables to hold up the road.
+
+
+    A successful bridge perfectly balances
+    these two forces. If a bridge has too much tension, it snaps. If it has too much
+    compression, it crushes.'
+  quizQuestion: Which force is described as a "pulling" force that stretches a material
+    apart?
+  quizOptions:
+  - Compression
+  - Gravity
+  - Tension
+  - Friction
+  correctOptionIndex: 2
+  expReward: 50

@@ -7,6 +7,9 @@ public class LevelNode : MonoBehaviour
     public string levelTitle = "The First Gap";
     public string regionName = "Region 1: The Ravine"; 
     
+    // Type the exact name of your Unity Scene here! (e.g., "Level_1")
+    public string sceneName = "Level_1"; 
+    
     [TextArea(3, 5)] 
     public string levelDescription = "A simple gap. Wood is cheap, but steel is strong.";
 
@@ -42,7 +45,7 @@ public class LevelNode : MonoBehaviour
         
         if (MapUIManager.Instance != null)
         {
-            MapUIManager.Instance.OpenLevelInfo(levelID, levelTitle, levelDescription);
+            MapUIManager.Instance.OpenLevelInfo(levelID, levelTitle, levelDescription, sceneName);
         }
     }
 }

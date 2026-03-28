@@ -5,7 +5,6 @@ public class MapManager : MonoBehaviour
 {
     [Header("Nodes")]
     public LevelNode[] levels; 
-    public int highestUnlockedLevel = 2; 
 
     [Header("Line Geometry")]
     public LineRenderer pathRenderer;
@@ -25,26 +24,19 @@ public class MapManager : MonoBehaviour
         DrawPathsToUnlockedLevels();
     }
 
-    // --- THE FIX: We now use Screen Space to find the closest node! ---
     void Update()
     {
         if (cam == null || levels == null || levels.Length == 0) return;
 
-        // 1. Find the exact center of your screen in 2D pixels
         Vector2 screenCenter = new Vector2(Screen.width / 2f, Screen.height / 2f);
-        
         float minDistance = float.MaxValue;
         string closestRegion = "";
 
-        // 2. Loop through all nodes and find which one is closest to the center of the screen
         foreach (LevelNode node in levels) 
         {
             if (node == null || !node.gameObject.activeInHierarchy) continue;
             
-            // Convert the 3D node into 2D screen coordinates
             Vector3 screenPos = cam.WorldToScreenPoint(node.transform.position);
-            
-            // If the node is behind the camera, ignore it
             if (screenPos.z < 0) continue; 
             
             Vector2 screenPos2D = new Vector2(screenPos.x, screenPos.y);
@@ -57,7 +49,6 @@ public class MapManager : MonoBehaviour
             }
         }
 
-        // 3. Update the UI Title continuously!
         if (MapUIManager.Instance != null && !string.IsNullOrEmpty(closestRegion)) 
         {
             MapUIManager.Instance.UpdateMapTitle(closestRegion);
@@ -66,24 +57,42 @@ public class MapManager : MonoBehaviour
 
     void InitializeLevels()
     {
+        List<string> unlockedNames = new List<string> { "Level_1" };
+        if (PlayerDataManager.Instance != null && PlayerDataManager.Instance.CurrentData != null)
+        {
+            unlockedNames = PlayerDataManager.Instance.CurrentData.unlockedLevels;
+        }
+
         for (int i = 0; i < levels.Length; i++)
         {
             levels[i].levelID = i + 1;
             
-            if (i < highestUnlockedLevel - 1)
+            // 1. Is it unlocked?
+            levels[i].isUnlocked = unlockedNames.Contains(levels[i].sceneName);
+            
+            // --- THE FIX: Failsafe to ensure Level 1 is ALWAYS unlocked ---
+            if (i == 0) levels[i].isUnlocked = true;
+
+            // 2. Is it completed? (Did we unlock the NEXT level?)
+            if (i < levels.Length - 1)
             {
-                levels[i].isCompleted = true;
-                levels[i].isUnlocked = true;
-            }
-            else if (i == highestUnlockedLevel - 1)
-            {
-                levels[i].isCompleted = false;
-                levels[i].isUnlocked = true;
+                // If the scene name is blank, don't accidentally mark it as completed!
+                if (!string.IsNullOrEmpty(levels[i + 1].sceneName))
+                {
+                    levels[i].isCompleted = unlockedNames.Contains(levels[i + 1].sceneName);
+                }
+                else
+                {
+                    levels[i].isCompleted = false;
+                }
             }
             else
             {
-                levels[i].isUnlocked = false;
+                levels[i].isCompleted = false; 
             }
+
+            // --- THE FIX: If a level is completed, it MUST be unlocked! ---
+            if (levels[i].isCompleted) levels[i].isUnlocked = true;
 
             levels[i].UpdateVisuals();
         }
@@ -92,28 +101,34 @@ public class MapManager : MonoBehaviour
     void DrawPathsToUnlockedLevels()
     {
         List<Vector3> allPathPoints = new List<Vector3>();
-        int pathsToDraw = Mathf.Clamp(highestUnlockedLevel - 1, 0, levels.Length - 1);
 
-        for (int i = 0; i < pathsToDraw; i++)
+        for (int i = 0; i < levels.Length - 1; i++)
         {
-            Vector3 startPos = levels[i].transform.position;
-            Vector3 endPos = levels[i + 1].transform.position;
-            
-            Vector3 midPoint = (startPos + endPos) / 2f;
-            Vector3 direction = (endPos - startPos).normalized;
-            Vector3 perpendicular = new Vector3(-direction.z, 0, direction.x); 
-
-            float directionMultiplier = (i % 2 == 0) ? 1f : -1f;
-            Vector3 controlPoint = midPoint + (perpendicular * curveAmount * directionMultiplier);
-
-            for (int j = 0; j <= curveResolution; j++)
+            if (levels[i].isUnlocked && levels[i + 1].isUnlocked)
             {
-                if (j == 0 && i > 0) continue; 
+                Vector3 startPos = levels[i].transform.position;
+                Vector3 endPos = levels[i + 1].transform.position;
                 
-                float t = j / (float)curveResolution;
-                Vector3 pointOnCurve = CalculateQuadraticBezierPoint(t, startPos, controlPoint, endPos);
-                pointOnCurve.y += 0.05f; 
-                allPathPoints.Add(pointOnCurve);
+                Vector3 midPoint = (startPos + endPos) / 2f;
+                Vector3 direction = (endPos - startPos).normalized;
+                Vector3 perpendicular = new Vector3(-direction.z, 0, direction.x); 
+
+                float directionMultiplier = (i % 2 == 0) ? 1f : -1f;
+                Vector3 controlPoint = midPoint + (perpendicular * curveAmount * directionMultiplier);
+
+                for (int j = 0; j <= curveResolution; j++)
+                {
+                    if (j == 0 && i > 0) continue; 
+                    
+                    float t = j / (float)curveResolution;
+                    Vector3 pointOnCurve = CalculateQuadraticBezierPoint(t, startPos, controlPoint, endPos);
+                    pointOnCurve.y += 0.05f; 
+                    allPathPoints.Add(pointOnCurve);
+                }
+            }
+            else
+            {
+                break; 
             }
         }
 

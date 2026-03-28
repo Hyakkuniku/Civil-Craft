@@ -6,30 +6,39 @@ public class DialogueTrigger : MonoBehaviour
     [Tooltip("Check this if talking to this NPC should advance the tutorial!")]
     public bool advancesTutorial = false;
 
+    // --- OPTIMIZATION: Cache references! ---
+    private Transform playerTransform;
+    private DialogueManager dialogueManager;
+
+    private void Awake()
+    {
+        GameObject player = GameObject.FindGameObjectWithTag("Player");
+        if (player != null) playerTransform = player.transform;
+        
+        dialogueManager = FindObjectOfType<DialogueManager>();
+    }
+
     public void TriggerDialogue()
     {
-        FacePlayer(); // <-- Instantly snaps to look at you
+        FacePlayer(); 
+
+        if (dialogueManager == null) return;
 
         if (advancesTutorial && TutorialManager.Instance != null)
         {
-            // Start dialogue, and tell it to advance the tutorial when it finishes!
-            FindObjectOfType<DialogueManager>().StartDialogue(dialogue, TutorialManager.Instance.ShowNextStep);
+            dialogueManager.StartDialogue(dialogue, TutorialManager.Instance.ShowNextStep);
         }
         else
         {
-            // Normal dialogue
-            FindObjectOfType<DialogueManager>().StartDialogue(dialogue);
+            dialogueManager.StartDialogue(dialogue);
         }
     }
 
-    // --- Instant Look Logic ---
     private void FacePlayer()
     {
-        GameObject player = GameObject.FindGameObjectWithTag("Player");
-        if (player != null)
+        if (playerTransform != null)
         {
-            Vector3 targetPosition = player.transform.position;
-            // Keep the Y-coordinate exactly the same so the NPC stays upright
+            Vector3 targetPosition = playerTransform.position;
             targetPosition.y = transform.position.y;
             transform.LookAt(targetPosition);
         }

@@ -2,10 +2,15 @@ using UnityEngine;
 using TMPro;
 using UnityEngine.SceneManagement;
 using System.Collections.Generic;
+using System.Collections;
+using System.IO;
 
 public class LevelCompleteManager : MonoBehaviour
 {
     public static LevelCompleteManager Instance { get; private set; }
+
+    [Header("Progression (Map System)")]
+    public string nextLevelToUnlock;
 
     [Header("UI References")]
     public GameObject levelCompletePanel;
@@ -13,7 +18,6 @@ public class LevelCompleteManager : MonoBehaviour
     public TextMeshProUGUI costText;
     public TextMeshProUGUI stressText;
     
-    // --- NEW: UI for showing what they earned! ---
     [Header("Reward UI")]
     public TextMeshProUGUI goldEarnedText;
     public TextMeshProUGUI expEarnedText;
@@ -22,22 +26,29 @@ public class LevelCompleteManager : MonoBehaviour
     public List<GameObject> uiElementsToHide = new List<GameObject>();
 
     private List<GameObject> temporarilyHiddenPanels = new List<GameObject>();
-    
-    // --- NEW: Make sure they only get paid once per level! ---
     private bool rewardsClaimedThisSession = false;
+    private bool levelAlreadyCompleted = false;
 
     private void Awake()
     {
         if (Instance == null) Instance = this;
         else Destroy(gameObject);
 
-        if (levelCompletePanel != null) levelCompletePanel.SetActive(false);
+        if (levelCompletePanel != null) levelCompletePanel.SetActive(false); 
     }
 
-    public void ShowLevelCompleteScreen()
+    public void CompleteLevel(ContractSO currentContract)
     {
-        if (levelCompletePanel != null) levelCompletePanel.SetActive(true);
+        if (levelAlreadyCompleted) return;
+        levelAlreadyCompleted = true;
 
+        // Start the snapshot process!
+        StartCoroutine(TakeSnapshotAndShowUIRoutine(currentContract));
+    }
+
+    private IEnumerator TakeSnapshotAndShowUIRoutine(ContractSO currentContract)
+    {
+        // 1. Hide Gameplay UI instantly
         temporarilyHiddenPanels.Clear();
         foreach (GameObject ui in uiElementsToHide)
         {
@@ -48,6 +59,7 @@ public class LevelCompleteManager : MonoBehaviour
             }
         }
 
+        // Disable Player Input so the camera stops moving
         InputManager inputObj = FindObjectOfType<InputManager>();
         if (inputObj != null)
         {
@@ -58,73 +70,78 @@ public class LevelCompleteManager : MonoBehaviour
         PlayerMotor player = FindObjectOfType<PlayerMotor>();
         if (player != null) player.enabled = false;
 
-        float maxBudget = 0f;
-        int baseGoldReward = 0;
-        int baseExpReward = 0;
-        
-        ContractSO currentContract = null;
+        // 2. Wait exactly one frame so the UI actually disappears from the screen!
+        yield return new WaitForEndOfFrame();
 
-        if (GameManager.Instance != null && GameManager.Instance.CurrentContract != null)
+        // 3. Take the Photo and Save it to the Hard Drive!
+        if (currentContract != null)
         {
-            currentContract = GameManager.Instance.CurrentContract;
-            maxBudget = currentContract.budget;
-            baseGoldReward = currentContract.goldReward;
-            baseExpReward = currentContract.expReward;
+            // Read the pixels directly from the screen
+            Texture2D screenImage = new Texture2D(Screen.width, Screen.height, TextureFormat.RGB24, false);
+            screenImage.ReadPixels(new Rect(0, 0, Screen.width, Screen.height), 0, 0);
+            screenImage.Apply();
+
+            // Encode to PNG and save it using the Contract's name
+            byte[] imageBytes = screenImage.EncodeToPNG();
+            string photoPath = Application.persistentDataPath + "/" + currentContract.name + "_photo.png";
+            File.WriteAllBytes(photoPath, imageBytes);
+            
+            // Clean up memory
+            Destroy(screenImage);
+            
+            // Mark the contract as complete in the save file
+            if (PlayerDataManager.Instance != null)
+            {
+                PlayerDataManager.Instance.CompleteContract(currentContract.name);
+            }
         }
+
+        // 4. Show the Panel and do the Math
+        if (levelCompletePanel != null) levelCompletePanel.SetActive(true);
+
+        float maxBudget = currentContract != null ? currentContract.budget : 0f;
+        int baseGoldReward = currentContract != null ? currentContract.goldReward : 0;
+        int baseExpReward = currentContract != null ? currentContract.expReward : 0;
 
         float finalCost = 0f;
-        if (BuildUIController.Instance != null)
-        {
-            finalCost = BuildUIController.Instance.GetTotalCost();
-        }
+        if (BuildUIController.Instance != null) finalCost = BuildUIController.Instance.GetTotalCost();
 
         float peakStress = 0f;
         BridgePhysicsManager physicsManager = FindObjectOfType<BridgePhysicsManager>();
-        if (physicsManager != null)
-        {
-            peakStress = physicsManager.peakStressThisRun * 100f; 
-        }
+        if (physicsManager != null) peakStress = physicsManager.peakStressThisRun * 100f; 
 
-        // --- NEW: Reward Calculation & Saving ---
         if (!rewardsClaimedThisSession && PlayerDataManager.Instance != null)
         {
             int finalGold = baseGoldReward;
             int finalExp = baseExpReward;
 
-            // Optional: Give them a bonus if they were under budget!
             if (finalCost <= maxBudget)
             {
-                int bonusGold = Mathf.RoundToInt((maxBudget - finalCost) * 0.2f); // 20% of the saved money!
+                int bonusGold = Mathf.RoundToInt((maxBudget - finalCost) * 0.2f); 
                 finalGold += bonusGold;
-                feedbackText.text = "<color=green>Under Budget! Excellent Engineering!</color>";
+                if (feedbackText != null) feedbackText.text = "<color=green>Under Budget! Excellent Engineering!</color>";
             }
             else
             {
-                // Penalize them if they went over budget
                 int penaltyGold = Mathf.RoundToInt((finalCost - maxBudget) * 0.5f);
                 finalGold -= penaltyGold;
-                if (finalGold < 0) finalGold = 0; // Don't let them go into debt
+                if (finalGold < 0) finalGold = 0; 
                 
-                feedbackText.text = "<color=red>Over Budget! The client isn't happy, but the bridge held.</color>";
+                if (feedbackText != null) feedbackText.text = "<color=red>Over Budget! The client isn't happy, but the bridge held.</color>";
             }
 
-            // Save the data to the hard drive
             PlayerDataManager.Instance.AddGold(finalGold);
             PlayerDataManager.Instance.AddExp(finalExp);
             PlayerDataManager.Instance.AddBridgeBuilt();
             
-            // Mark this scene as unlocked so they can play the next level!
-            string nextSceneName = GetNextSceneName(); 
-            if (!string.IsNullOrEmpty(nextSceneName))
+            if (!string.IsNullOrEmpty(nextLevelToUnlock))
             {
-                PlayerDataManager.Instance.UnlockLevel(nextSceneName);
+                PlayerDataManager.Instance.UnlockLevel(nextLevelToUnlock);
             }
 
-            // Update the UI to show the player what they earned
             if (goldEarnedText != null) goldEarnedText.text = $"+{finalGold} Gold";
             if (expEarnedText != null) expEarnedText.text = $"+{finalExp} EXP";
 
-            // Lock it so they can't just drive across 5 times to farm gold
             rewardsClaimedThisSession = true;
         }
 
@@ -137,19 +154,6 @@ public class LevelCompleteManager : MonoBehaviour
             else if (peakStress >= 50f) stressText.color = Color.yellow;
             else stressText.color = Color.green;
         }
-    }
-
-    private string GetNextSceneName()
-    {
-        // Simple helper to guess the next scene name (e.g. "Level_1" -> "Level_2")
-        // You can replace this with a hardcoded string if you prefer.
-        int currentIndex = SceneManager.GetActiveScene().buildIndex;
-        if (currentIndex + 1 < SceneManager.sceneCountInBuildSettings)
-        {
-            string nextScenePath = SceneUtility.GetScenePathByBuildIndex(currentIndex + 1);
-            return System.IO.Path.GetFileNameWithoutExtension(nextScenePath);
-        }
-        return "";
     }
 
     public void ClosePanel()
@@ -176,22 +180,7 @@ public class LevelCompleteManager : MonoBehaviour
         if (player != null) player.enabled = shouldEnableInput;
     }
 
-    public void NextLevel()
-    {
-        string nextScene = GetNextSceneName();
-        if (!string.IsNullOrEmpty(nextScene))
-        {
-            SceneManager.LoadScene(nextScene);
-        }
-    }
-
-    public void RestartLevel()
-    {
-        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
-    }
-
-    public void ReturnToMainMenu(string mainMenuName)
-    {
-        SceneManager.LoadScene(mainMenuName);
-    }
+    public void NextLevel() { if (!string.IsNullOrEmpty(nextLevelToUnlock)) SceneManager.LoadScene(nextLevelToUnlock); }
+    public void RestartLevel() { SceneManager.LoadScene(SceneManager.GetActiveScene().name); }
+    public void ReturnToMap() { SceneManager.LoadScene("MapScene"); }
 }

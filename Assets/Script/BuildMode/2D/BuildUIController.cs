@@ -65,6 +65,17 @@ public class BuildUIController : MonoBehaviour
     private float cachedBaseRoadLength = 0f;
     private float cachedBaseWeakestStress = Mathf.Infinity;
 
+    // --- OPTIMIZATION 1: Pre-allocated HashSets to stop Garbage Collection! ---
+    private HashSet<Bar> uniqueBars = new HashSet<Bar>();
+    private HashSet<Point> activePoints = new HashSet<Point>();
+
+    // --- OPTIMIZATION 2: Caching UI values to stop String Generation every frame! ---
+    private int lastStressPercent = -1;
+    private int lastProjectedCost = -1;
+    private float lastRoadLength = -1f;
+    private int lastDisplayM = -1;
+    private int lastDisplayJ = -1;
+
     private void Awake() { Instance = this; }
 
     private void Start()
@@ -73,9 +84,12 @@ public class BuildUIController : MonoBehaviour
         if (physicsManager == null) physicsManager = FindObjectOfType<BridgePhysicsManager>();
         
         if (selectionActionPanel != null) selectionActionPanel.SetActive(false);
+        
+        // THE FIX: Explicitly ensure the stats panel is turned off when the game starts!
+        if (statsPanel != null) statsPanel.SetActive(false); 
+        
         if (actionLogText != null) actionLogText.text = ""; 
 
-        // Initial setup
         MarkBridgeDirty();
     }
 
@@ -93,9 +107,8 @@ public class BuildUIController : MonoBehaviour
         }
         else
         {
-            UpdateStressUI(); // Keep it zeroed out
+            UpdateStressUI(); 
 
-            // Only update dynamic stats if the player is actively dragging a preview bar
             if (barCreator != null && barCreator.IsCreating)
             {
                 UpdateStatsUI();
@@ -132,8 +145,8 @@ public class BuildUIController : MonoBehaviour
 
     private void RecalculateStaticBridge()
     {
-        HashSet<Bar> uniqueBars = new HashSet<Bar>();
-        HashSet<Point> activePoints = new HashSet<Point>(); 
+        uniqueBars.Clear();
+        activePoints.Clear();
 
         foreach (Point p in Point.AllPoints)
         {
@@ -172,6 +185,9 @@ public class BuildUIController : MonoBehaviour
                 if (b.materialData.maxTension < cachedBaseWeakestStress) cachedBaseWeakestStress = b.materialData.maxTension;
             }
         }
+        
+        lastRoadLength = -1f; 
+        lastDisplayM = -1;
     }
 
     private void UpdateStatsUI()
@@ -202,8 +218,6 @@ public class BuildUIController : MonoBehaviour
         }
 
         ContractSO currentContract = GetActiveContract();
-        
-        // --- THE FIX: We now use liveLoadWeight instead of cargoWeight ---
         float liveLoad = currentContract != null ? currentContract.liveLoadWeight : 1000f;
         
         float estimatedFoS = 0f;
@@ -212,18 +226,29 @@ public class BuildUIController : MonoBehaviour
         float efficiencyRatio = 0f;
         if (deadLoad > 0) efficiencyRatio = theoreticalCapacityKg / deadLoad;
 
-        if (totalLengthText != null) totalLengthText.text = $"Road Length: {roadLength:F1}m";
-        if (membersCountText != null) membersCountText.text = $"Members (M): {displayM} | Joints (J): {displayJ}";
-        if (deadLoadText != null) deadLoadText.text = $"Dead Load: {deadLoad:F1}kg";
-        if (targetCargoWeightText != null) targetCargoWeightText.text = $"Live Load: {liveLoad:F0}kg";
-        if (estimatedCapacityText != null) estimatedCapacityText.text = $"Est. Capacity: ~{theoreticalCapacityKg:F0}kg";
-        if (efficiencyRatioText != null) efficiencyRatioText.text = $"Efficiency Ratio: {efficiencyRatio:F2}";
-        
-        if (factorOfSafetyText != null)
+        if (Mathf.Abs(lastRoadLength - roadLength) > 0.05f)
         {
-            if (estimatedFoS >= 2.0f) factorOfSafetyText.text = $"Est. FoS: <color=green>{estimatedFoS:F2} (Safe)</color>";
-            else if (estimatedFoS >= 1.0f) factorOfSafetyText.text = $"Est. FoS: <color=yellow>{estimatedFoS:F2} (Risky)</color>";
-            else factorOfSafetyText.text = $"Est. FoS: <color=red>{estimatedFoS:F2} (Will Fail)</color>";
+            lastRoadLength = roadLength;
+            if (totalLengthText != null) totalLengthText.text = $"Road Length: {roadLength:F1}m";
+            if (deadLoadText != null) deadLoadText.text = $"Dead Load: {deadLoad:F1}kg";
+            
+            if (targetCargoWeightText != null) targetCargoWeightText.text = $"Live Load: {liveLoad:F0}kg";
+            if (estimatedCapacityText != null) estimatedCapacityText.text = $"Est. Capacity: ~{theoreticalCapacityKg:F0}kg";
+            if (efficiencyRatioText != null) efficiencyRatioText.text = $"Efficiency Ratio: {efficiencyRatio:F2}";
+            
+            if (factorOfSafetyText != null)
+            {
+                if (estimatedFoS >= 2.0f) factorOfSafetyText.text = $"Est. FoS: <color=green>{estimatedFoS:F2} (Safe)</color>";
+                else if (estimatedFoS >= 1.0f) factorOfSafetyText.text = $"Est. FoS: <color=yellow>{estimatedFoS:F2} (Risky)</color>";
+                else factorOfSafetyText.text = $"Est. FoS: <color=red>{estimatedFoS:F2} (Will Fail)</color>";
+            }
+        }
+
+        if (displayM != lastDisplayM || displayJ != lastDisplayJ)
+        {
+            lastDisplayM = displayM;
+            lastDisplayJ = displayJ;
+            if (membersCountText != null) membersCountText.text = $"Members (M): {displayM} | Joints (J): {displayJ}";
         }
     }
 
@@ -240,11 +265,25 @@ public class BuildUIController : MonoBehaviour
         float baseCost = GetTotalCost();
         float previewCost = 0f;
         if (barCreator != null && barCreator.IsCreating && barCreator.currentBar != null) previewCost = barCreator.currentBar.GetCost();
-        float totalProjectedCost = baseCost + previewCost;
+        
+        int totalProjectedCost = Mathf.RoundToInt(baseCost + previewCost);
 
-        if (usedBudgetText != null) { usedBudgetText.text = $" ${Mathf.RoundToInt(totalProjectedCost)}"; usedBudgetText.color = totalProjectedCost > maxBudget ? overBudgetTextColor : normalTextColor; }
-        if (maxBudgetText != null) maxBudgetText.text = $" ${Mathf.RoundToInt(maxBudget)}";
-        if (budgetFillBar != null) { budgetFillBar.fillAmount = totalProjectedCost / maxBudget; budgetFillBar.color = totalProjectedCost > maxBudget ? overBudgetTextColor : normalTextColor; }
+        if (budgetFillBar != null) 
+        { 
+            budgetFillBar.fillAmount = totalProjectedCost / maxBudget; 
+            budgetFillBar.color = totalProjectedCost > maxBudget ? overBudgetTextColor : normalTextColor; 
+        }
+
+        if (totalProjectedCost != lastProjectedCost)
+        {
+            lastProjectedCost = totalProjectedCost;
+            if (usedBudgetText != null) 
+            { 
+                usedBudgetText.text = $" ${totalProjectedCost}"; 
+                usedBudgetText.color = totalProjectedCost > maxBudget ? overBudgetTextColor : normalTextColor; 
+            }
+            if (maxBudgetText != null) maxBudgetText.text = $" ${Mathf.RoundToInt(maxBudget)}";
+        }
     }
 
     private void UpdatePlayPauseButtonUI()
@@ -270,29 +309,30 @@ public class BuildUIController : MonoBehaviour
                 Color.Lerp(safeStressColor, warningStressColor, maxStress * 2f) : 
                 Color.Lerp(warningStressColor, criticalStressColor, (maxStress - 0.5f) * 2f);
 
-            if (stressText != null) 
-            { 
-                stressText.text = $"{stressPercent}%"; 
-                stressText.color = currentStressColor; 
-            }
             if (stressFillBar != null) 
             { 
                 stressFillBar.fillAmount = maxStress; 
                 stressFillBar.color = currentStressColor; 
             }
+
+            if (stressPercent != lastStressPercent)
+            {
+                lastStressPercent = stressPercent;
+                if (stressText != null) 
+                { 
+                    stressText.text = $"{stressPercent}%"; 
+                    stressText.color = currentStressColor; 
+                }
+            }
         }
         else
         {
-            if (stressText != null) 
-            { 
-                stressText.text = "0%"; 
-                stressText.color = safeStressColor; 
+            if (lastStressPercent != 0)
+            {
+                lastStressPercent = 0;
+                if (stressText != null) { stressText.text = "0%"; stressText.color = safeStressColor; }
             }
-            if (stressFillBar != null) 
-            { 
-                stressFillBar.fillAmount = 0f; 
-                stressFillBar.color = safeStressColor; 
-            }
+            if (stressFillBar != null) { stressFillBar.fillAmount = 0f; stressFillBar.color = safeStressColor; }
         }
     }
 
@@ -308,28 +348,19 @@ public class BuildUIController : MonoBehaviour
         LogAction("Selection Cleared");
     }
 
-    public void OnResetCameraButtonClicked()
-    {
-        BuildCameraController camCtrl = FindObjectOfType<BuildCameraController>();
-        if (camCtrl != null) camCtrl.ResetCameraRotation();
-        LogAction("Camera Reset");
-    }
-
+    public void OnResetCameraButtonClicked() { BuildCameraController camCtrl = FindObjectOfType<BuildCameraController>(); if (camCtrl != null) camCtrl.ResetCameraRotation(); LogAction("Camera Reset"); }
+    
     public void OnToggleStatsButtonClicked() 
     { 
         if (statsPanel != null) statsPanel.SetActive(!statsPanel.activeSelf); 
-        LogAction(statsPanel != null && statsPanel.activeSelf ? "Stats Panel Opened" : "Stats Panel Closed");
+        LogAction(statsPanel != null && statsPanel.activeSelf ? "Stats Panel Opened" : "Stats Panel Closed"); 
     }
     
     public void OnSimulateButtonClicked() 
     { 
         if (physicsManager != null && !physicsManager.isSimulating) 
         { 
-            if (barCreator != null) 
-            { 
-                barCreator.CancelAllModes(); 
-                barCreator.isSimulating = true; 
-            } 
+            if (barCreator != null) { barCreator.CancelAllModes(); barCreator.isSimulating = true; } 
             SetSelectionPanelActive(false);
             physicsManager.ActivatePhysics(); 
             LogAction("Simulation Started");
@@ -341,11 +372,9 @@ public class BuildUIController : MonoBehaviour
     public void OnPasteButtonClicked() { if (ClipboardManager.Instance != null) ClipboardManager.Instance.StampPaste(); }
     public void OnUndoButtonClicked() { if (CommandManager.Instance != null) CommandManager.Instance.Undo(); }
     public void OnRedoButtonClicked() { if (CommandManager.Instance != null) CommandManager.Instance.Redo(); }
-
     public void OnDeleteSelectedButtonClicked() { if (barCreator != null) barCreator.DeleteSelected(); }
 
     public void OnToggleSimulationButtonClicked() { if (physicsManager == null) return; if (physicsManager.isSimulating) OnRestartButtonClicked(); else OnSimulateButtonClicked(); }
-    
     public void OnToggleSelectModeButtonClicked() { if (barCreator != null) barCreator.ToggleSelectMode(); }
     public void OnToggleMoveModeButtonClicked() { if (barCreator != null) barCreator.ToggleMoveMode(); }
     

@@ -7,11 +7,13 @@ public class PlayerData
     public int gold = 0;
     public int exp = 0;
     public int bridgesBuilt = 0;
-    
-    // Tracks if the player has picked up the physical book
     public bool hasAlmanac = false; 
     
     public List<string> unlockedLevels = new List<string> { "Level_1" };
+    public List<string> completedContracts = new List<string>();
+    
+    // --- NEW: Tracks which lessons the player has passed ---
+    public List<string> completedLessons = new List<string>();
 
     public string GetTitle()
     {

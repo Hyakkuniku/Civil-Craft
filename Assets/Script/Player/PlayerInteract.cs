@@ -7,13 +7,24 @@ public class PlayerInteract : MonoBehaviour
     [Header("Interaction Settings")]
     [SerializeField] private float interactionRadius = 3f;
     [SerializeField] private LayerMask mask;
+    
+    [Tooltip("The maximum number of interactables the player can stand near at exactly the same time.")]
+    [SerializeField] private int maxInteractables = 10; 
 
     private PlayerUI playerUI;
-    private Coroutine scanRoutine; // --- NEW: Tracks the physics scanning coroutine ---
+    private Coroutine scanRoutine; 
+
+    // --- NEW: Pre-allocate memory so we don't generate Garbage! ---
+    private Collider[] hitColliders;
+    private List<Interactable> nearbyInteractables;
 
     void Awake()
     {
         playerUI = GetComponent<PlayerUI>();
+        
+        // Create the memory buckets ONCE when the game starts
+        hitColliders = new Collider[maxInteractables];
+        nearbyInteractables = new List<Interactable>(maxInteractables);
     }
 
     void Start()
@@ -34,7 +45,6 @@ public class PlayerInteract : MonoBehaviour
         }
     }
 
-    // --- NEW: Start and Stop the scanning coroutine cleanly ---
     private void OnEnable()
     {
         scanRoutine = StartCoroutine(ScanForInteractablesRoutine());
@@ -48,27 +58,30 @@ public class PlayerInteract : MonoBehaviour
     private void HandleEnterBuildMode()
     {
         if (playerUI != null) playerUI.UpdateButtons(new List<Interactable>());
-        this.enabled = false; // This automatically triggers OnDisable() and stops the coroutine!
+        this.enabled = false; 
     }
 
     private void HandleExitBuildMode()
     {
-        this.enabled = true; // This automatically triggers OnEnable() and starts the coroutine!
+        this.enabled = true; 
     }
 
-    // --- THE FIX: We only run Physics.OverlapSphere 10 times a second instead of 60-144 times! ---
     private IEnumerator ScanForInteractablesRoutine()
     {
         WaitForSeconds wait = new WaitForSeconds(0.1f); 
 
         while (true)
         {
-            Collider[] nearbyColliders = Physics.OverlapSphere(transform.position, interactionRadius, mask);
-            List<Interactable> nearbyInteractables = new List<Interactable>();
+            // 1. Clear the reusable list instead of making a new one
+            nearbyInteractables.Clear();
 
-            foreach (Collider col in nearbyColliders)
+            // 2. Use NonAlloc! This fills our existing array instead of creating a new one in RAM.
+            int numColliders = Physics.OverlapSphereNonAlloc(transform.position, interactionRadius, hitColliders, mask);
+
+            // 3. Only loop through the ones we actually hit
+            for (int i = 0; i < numColliders; i++)
             {
-                Interactable interactable = col.GetComponent<Interactable>();
+                Interactable interactable = hitColliders[i].GetComponent<Interactable>();
                 if (interactable != null)
                 {
                     nearbyInteractables.Add(interactable);

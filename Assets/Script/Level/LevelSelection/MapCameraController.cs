@@ -12,8 +12,6 @@ public class MapCameraController : MonoBehaviour
     [Header("Pan Settings")]
     public float pcPanSpeed = 15f;
     public float touchPanSpeed = 0.01f; 
-    
-    // --- NEW: How far the mouse/finger needs to move before we consider it a "pan" and close the UI ---
     public float panCloseUIThreshold = 2f; 
 
     [Header("Zoom Settings")]
@@ -23,6 +21,8 @@ public class MapCameraController : MonoBehaviour
     public float maxZoom = 25f;
 
     [Header("Map Boundaries")]
+    [Tooltip("Assign your water plane here to automatically calculate bounds!")]
+    public Renderer waterPlane; 
     public Vector2 minBounds = new Vector2(-30, -30);
     public Vector2 maxBounds = new Vector2(30, 30);
 
@@ -34,9 +34,26 @@ public class MapCameraController : MonoBehaviour
     private bool isDraggingPC = false;
     private float lastTapTime = 0f;
 
+    // --- OPTIMIZATION: Pre-allocate to prevent UI Raycast memory leaks! ---
+    private PointerEventData cachedEventData;
+    private List<RaycastResult> cachedRaycastResults = new List<RaycastResult>();
+
     void Awake()
     {
         if (cam == null) cam = Camera.main;
+    }
+
+    void Start()
+    {
+        // Automatically calculate map limits if a water plane is assigned
+        if (waterPlane != null)
+        {
+            minBounds = new Vector2(waterPlane.bounds.min.x, waterPlane.bounds.min.z);
+            maxBounds = new Vector2(waterPlane.bounds.max.x, waterPlane.bounds.max.z);
+        }
+
+        if (EventSystem.current != null)
+            cachedEventData = new PointerEventData(EventSystem.current);
     }
 
     void OnEnable() { EnhancedTouchSupport.Enable(); }
@@ -66,7 +83,6 @@ public class MapCameraController : MonoBehaviour
             }
             else if (touch.phase == UnityEngine.InputSystem.TouchPhase.Moved)
             {
-                // --- NEW: If we pan intentionally, close the Level Info Panel! ---
                 if (touch.delta.magnitude > panCloseUIThreshold)
                 {
                     if (MapUIManager.Instance != null) MapUIManager.Instance.CloseLevelInfo();
@@ -92,7 +108,6 @@ public class MapCameraController : MonoBehaviour
             Touch t0 = Touch.activeTouches[0];
             Touch t1 = Touch.activeTouches[1];
 
-            // --- NEW: Also close the UI if they pinch to zoom! ---
             if (MapUIManager.Instance != null) MapUIManager.Instance.CloseLevelInfo();
 
             Vector2 t0Prev = t0.screenPosition - t0.delta;
@@ -112,7 +127,6 @@ public class MapCameraController : MonoBehaviour
         if (Mathf.Abs(scroll) > 0.001f)
         {
             ApplyZoom(scroll * -zoomSpeedPC);
-            // --- NEW: Close UI on scroll zoom ---
             if (MapUIManager.Instance != null) MapUIManager.Instance.CloseLevelInfo();
         }
 
@@ -138,7 +152,6 @@ public class MapCameraController : MonoBehaviour
             Vector2 delta = (Vector2)Input.mousePosition - dragOriginPC;
             dragOriginPC = Input.mousePosition;
 
-            // --- NEW: If we drag intentionally, close the Level Info Panel! ---
             if (delta.magnitude > panCloseUIThreshold)
             {
                 if (MapUIManager.Instance != null) MapUIManager.Instance.CloseLevelInfo();
@@ -164,8 +177,48 @@ public class MapCameraController : MonoBehaviour
     void ApplyBounds()
     {
         Vector3 pos = cam.transform.position;
-        pos.x = Mathf.Clamp(pos.x, minBounds.x, maxBounds.x);
-        pos.z = Mathf.Clamp(pos.z, minBounds.y, maxBounds.y);
+
+        if (waterPlane != null)
+        {
+            float halfHeight = 0f;
+            float halfWidth = 0f;
+
+            // 1. Calculate how much the camera can currently see
+            if (cam.orthographic)
+            {
+                halfHeight = cam.orthographicSize;
+                halfWidth = halfHeight * cam.aspect;
+            }
+            else
+            {
+                // For Perspective cameras, calculate based on distance to the water
+                float distance = Mathf.Abs(cam.transform.position.y - waterPlane.bounds.center.y);
+                halfHeight = distance * Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad);
+                halfWidth = halfHeight * cam.aspect;
+            }
+
+            // 2. Shrink the bounds by the size of the camera's view
+            float limitMinX = waterPlane.bounds.min.x + halfWidth;
+            float limitMaxX = waterPlane.bounds.max.x - halfWidth;
+            float limitMinZ = waterPlane.bounds.min.z + halfHeight;
+            float limitMaxZ = waterPlane.bounds.max.z - halfHeight;
+
+            // Failsafe: If zoomed out so far that the camera sees MORE than the whole water plane,
+            // this locks the camera to the center so it doesn't glitch out.
+            if (limitMinX > limitMaxX) limitMinX = limitMaxX = waterPlane.bounds.center.x;
+            if (limitMinZ > limitMaxZ) limitMinZ = limitMaxZ = waterPlane.bounds.center.z;
+
+            // 3. Apply the dynamic limits!
+            pos.x = Mathf.Clamp(pos.x, limitMinX, limitMaxX);
+            pos.z = Mathf.Clamp(pos.z, limitMinZ, limitMaxZ);
+        }
+        else
+        {
+            // Fallback to manual bounds if no water plane is assigned
+            pos.x = Mathf.Clamp(pos.x, minBounds.x, maxBounds.x);
+            pos.z = Mathf.Clamp(pos.z, minBounds.y, maxBounds.y);
+        }
+
         cam.transform.position = pos;
     }
 
@@ -187,10 +240,13 @@ public class MapCameraController : MonoBehaviour
     private bool IsPointerOverUI(Vector2 screenPosition)
     {
         if (EventSystem.current == null) return false;
-        PointerEventData eventData = new PointerEventData(EventSystem.current);
-        eventData.position = screenPosition;
-        List<RaycastResult> results = new List<RaycastResult>();
-        EventSystem.current.RaycastAll(eventData, results);
-        return results.Count > 0;
+        
+        if (cachedEventData == null) cachedEventData = new PointerEventData(EventSystem.current);
+        
+        cachedEventData.position = screenPosition;
+        cachedRaycastResults.Clear();
+        
+        EventSystem.current.RaycastAll(cachedEventData, cachedRaycastResults);
+        return cachedRaycastResults.Count > 0;
     }
 }

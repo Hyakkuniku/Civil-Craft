@@ -6,20 +6,14 @@ public class MapUIManager : MonoBehaviour
     public static MapUIManager Instance;
 
     [Header("Overarching Map UI")]
-    [Tooltip("The text at the top/middle of the screen that changes as you pan")]
     public TextMeshProUGUI mapTitleText; 
 
     [Header("Popup Panel UI")]
-    [Tooltip("The panel containing the Play button, level title, and description.")]
     public GameObject levelInfoPanel;
-    
-    [Tooltip("The text INSIDE the panel for the Level Title")]
     public TextMeshProUGUI panelLevelTitleText;
-    
-    [Tooltip("The text INSIDE the panel for the Level Description")]
     public TextMeshProUGUI panelLevelDescriptionText;
     
-    private int selectedLevelID;
+    private string selectedSceneName; 
 
     void Awake()
     {
@@ -35,19 +29,15 @@ public class MapUIManager : MonoBehaviour
         }
     }
 
-    public void OpenLevelInfo(int levelID, string levelTitle, string description)
+    public void OpenLevelInfo(int levelID, string levelTitle, string description, string sceneName)
     {
-        selectedLevelID = levelID;
+        selectedSceneName = sceneName; 
         
         if (panelLevelTitleText != null) 
-        {
             panelLevelTitleText.text = "Level " + levelID + ": " + levelTitle;
-        }
         
         if (panelLevelDescriptionText != null)
-        {
             panelLevelDescriptionText.text = description;
-        }
             
         if (levelInfoPanel != null) 
             levelInfoPanel.SetActive(true);
@@ -56,21 +46,18 @@ public class MapUIManager : MonoBehaviour
     public void CloseLevelInfo()
     {
         if (levelInfoPanel != null && levelInfoPanel.activeSelf) 
-        {
             levelInfoPanel.SetActive(false);
-        }
     }
 
     public void StartLevel()
     {
-        SceneController sceneController = FindObjectOfType<SceneController>();
-        if (sceneController != null)
+        if (!string.IsNullOrEmpty(selectedSceneName))
         {
-            sceneController.LoadLevel(selectedLevelID);
+            UnityEngine.SceneManagement.SceneManager.LoadScene(selectedSceneName);
         }
         else
         {
-            UnityEngine.SceneManagement.SceneManager.LoadScene("Level" + selectedLevelID);
+            Debug.LogError("No scene name provided for this level!");
         }
     }
 }

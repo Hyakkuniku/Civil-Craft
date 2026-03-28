@@ -40,7 +40,7 @@ public class GameManager : MonoBehaviour
     private void Start()
     {
         // Tells the Unity Engine to natively target 60 FPS without freezing the main thread!
-        Application.targetFrameRate = 60;
+        Application.targetFrameRate = 100000;
     }
 
     private void Update()

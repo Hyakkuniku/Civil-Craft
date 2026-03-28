@@ -68,6 +68,15 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
     private HistoryAction currentSwipeDeleteAction;
 
+    // --- OPTIMIZATION: Cache Canvas and Pointers to stop GC Leaks! ---
+    private Canvas cachedSelectionCanvas;
+    private PointerEventData cachedPointerData;
+    private List<RaycastResult> cachedRaycastResults = new List<RaycastResult>();
+    private HashSet<Bar> cachedAffectedBars = new HashSet<Bar>();
+    private List<Point> cachedPointsToProcess = new List<Point>();
+    private List<Bar> cachedBarsToTransfer = new List<Bar>();
+    private List<Bar> cachedBarsToCollapse = new List<Bar>();
+
     private void OnEnable() { EnhancedTouchSupport.Enable(); }
     private void OnDisable() { EnhancedTouchSupport.Disable(); }
 
@@ -79,7 +88,16 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             GameManager.Instance.OnExitBuildMode.AddListener(HandleExitBuildMode);
         }
         if (pointParent != null) pointParent.gameObject.SetActive(true); 
-        if (selectionBoxUI != null) selectionBoxUI.gameObject.SetActive(false); 
+        
+        if (selectionBoxUI != null) 
+        {
+            // THE FIX: Grab the Canvas BEFORE turning the object off, and force it to include inactive objects!
+            cachedSelectionCanvas = selectionBoxUI.GetComponentInParent<Canvas>(true);
+            selectionBoxUI.gameObject.SetActive(false); 
+        }
+        
+        // Initialize Pointer Data once
+        if (EventSystem.current != null) cachedPointerData = new PointerEventData(EventSystem.current);
     }
 
     private void OnDestroy()
@@ -127,12 +145,13 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     {
         if (EventSystem.current == null) return false;
         
-        PointerEventData eventData = new PointerEventData(EventSystem.current);
-        eventData.position = GetPointerPosition();
-        List<RaycastResult> results = new List<RaycastResult>();
-        EventSystem.current.RaycastAll(eventData, results);
+        if (cachedPointerData == null) cachedPointerData = new PointerEventData(EventSystem.current);
+        cachedPointerData.position = GetPointerPosition();
+        
+        cachedRaycastResults.Clear();
+        EventSystem.current.RaycastAll(cachedPointerData, cachedRaycastResults);
 
-        return results.Count > 0 && results[0].gameObject != this.gameObject;
+        return cachedRaycastResults.Count > 0 && cachedRaycastResults[0].gameObject != this.gameObject;
     }
 
     public List<Point> GetSelectedPoints()
@@ -238,7 +257,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             if (isSafe) dragLastValidDelta = finalDelta;
             else finalDelta = dragLastValidDelta; 
 
-            // --- NEW: MERGE MAGNETIC SNAPPING PREVIEW ---
             if (selectedPoints.Count == 1)
             {
                 Point movingPoint = selectedPoints[0];
@@ -248,7 +266,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 {
                     if (p != movingPoint && p.gameObject.activeSelf)
                     {
-                        // If we drag close to an existing point, snap perfectly to it!
                         if (Vector3.Distance(proposedPos, p.transform.position) < 0.3f)
                         {
                             finalDelta = p.transform.position - currentMoveAction.originalPositions[movingPoint];
@@ -430,9 +447,11 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (selectedPoints.Count == 0) return;
 
         HistoryAction deleteAction = new HistoryAction { isBuildEvent = false };
-        List<Point> pointsToProcess = new List<Point>(selectedPoints);
         
-        foreach (Point p in pointsToProcess)
+        cachedPointsToProcess.Clear();
+        cachedPointsToProcess.AddRange(selectedPoints);
+        
+        foreach (Point p in cachedPointsToProcess)
         {
             DeletePoint(p, deleteAction);
         }
@@ -617,7 +636,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 
                 bool didMerge = false;
 
-                // --- NEW: ACTUAL MERGE EXECUTION ---
                 if (selectedPoints.Count == 1)
                 {
                     Point movedPoint = selectedPoints[0];
@@ -627,7 +645,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                     {
                         if (p != movedPoint && p.gameObject.activeSelf)
                         {
-                            // If dropped almost exactly on top of an existing node...
                             if (Vector3.Distance(movedPoint.transform.position, p.transform.position) < 0.1f)
                             {
                                 targetPoint = p;
@@ -643,7 +660,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                     }
                 }
 
-                // If we didn't merge, save it as a normal Move action
                 if (!didMerge && currentMoveAction != null)
                 {
                     foreach (Point p in Point.AllPoints) 
@@ -710,20 +726,19 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         }
     }
 
-    // --- NEW: THE MERGE LOGIC ---
     private void PerformMerge(Point movedPoint, Point targetPoint, Vector3 originalPos)
     {
         HistoryAction mergeAction = new HistoryAction { isMergeEvent = true };
         
-        mergeAction.originalPositions[movedPoint] = originalPos; // Store where it came from so it can be un-merged!
+        mergeAction.originalPositions[movedPoint] = originalPos; 
         mergeAction.newPositions[movedPoint] = targetPoint.transform.position;
-        mergeAction.affectedObjects.Add(movedPoint.gameObject); // Disable the duplicate node
+        mergeAction.affectedObjects.Add(movedPoint.gameObject); 
 
-        List<Bar> barsToTransfer = new List<Bar>(movedPoint.ConnectedBars);
-        List<Bar> barsToCollapse = new List<Bar>();
+        cachedBarsToTransfer.Clear();
+        cachedBarsToCollapse.Clear();
+        cachedBarsToTransfer.AddRange(movedPoint.ConnectedBars);
 
-        // 1. Re-assign the ends of the bars to the new Target node
-        foreach (Bar b in barsToTransfer)
+        foreach (Bar b in cachedBarsToTransfer)
         {
             bool wasStart = (b.startPoint == movedPoint);
             bool wasEnd = (b.endPoint == movedPoint);
@@ -744,10 +759,9 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             movedPoint.ConnectedBars.Remove(b);
             if (!targetPoint.ConnectedBars.Contains(b)) targetPoint.ConnectedBars.Add(b);
 
-            // 2. Check if a bar collapsed (if you merged a node onto the node it was already connected to)
             if (b.startPoint == b.endPoint)
             {
-                barsToCollapse.Add(b);
+                cachedBarsToCollapse.Add(b);
             }
             else
             {
@@ -756,15 +770,13 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             }
         }
 
-        // 3. Clean up the collapsed "zero length" bars
-        foreach (Bar b in barsToCollapse)
+        foreach (Bar b in cachedBarsToCollapse)
         {
             mergeAction.affectedObjects.Add(b.gameObject);
             targetPoint.ConnectedBars.Remove(b);
             b.gameObject.SetActive(false);
         }
 
-        // 4. Finalize the merge
         movedPoint.gameObject.SetActive(false);
         targetPoint.EvaluateAnchorState();
         ClearSelection();
@@ -901,8 +913,8 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (selectionBoxUI == null || selectionBoxUI.parent == null) return;
         RectTransform parentRect = selectionBoxUI.parent as RectTransform;
         Camera uiCam = GetActiveCamera();
-        Canvas canvas = selectionBoxUI.GetComponentInParent<Canvas>();
-        if (canvas != null && canvas.renderMode == RenderMode.ScreenSpaceOverlay) uiCam = null;
+        
+        if (cachedSelectionCanvas != null && cachedSelectionCanvas.renderMode == RenderMode.ScreenSpaceOverlay) uiCam = null;
 
         RectTransformUtility.ScreenPointToLocalPointInRectangle(parentRect, selectionStartPos, uiCam, out Vector2 localStart);
         RectTransformUtility.ScreenPointToLocalPointInRectangle(parentRect, currentScreenPos, uiCam, out Vector2 localEnd);
@@ -939,23 +951,23 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
     private void UpdateBarsForSelectedPoints()
     {
-        HashSet<Bar> affectedBars = new HashSet<Bar>();
+        cachedAffectedBars.Clear();
         foreach (Point p in selectedPoints) 
         {
             foreach (Bar b in p.ConnectedBars) 
             {
                 if (b != null && b.gameObject.activeSelf) 
                 {
-                    affectedBars.Add(b);
+                    cachedAffectedBars.Add(b);
                     if (b.materialData.isPier)
                     {
-                        foreach(Bar botBar in b.startPoint.ConnectedBars) if (botBar.gameObject.activeSelf) affectedBars.Add(botBar);
-                        foreach(Bar topBar in b.endPoint.ConnectedBars) if (topBar.gameObject.activeSelf) affectedBars.Add(topBar);
+                        foreach(Bar botBar in b.startPoint.ConnectedBars) if (botBar.gameObject.activeSelf) cachedAffectedBars.Add(botBar);
+                        foreach(Bar topBar in b.endPoint.ConnectedBars) if (topBar.gameObject.activeSelf) cachedAffectedBars.Add(topBar);
                     }
                 }
             }
         }
-        foreach (Bar b in affectedBars) { b.StartPosition = b.startPoint.transform.position; b.UpdateCreatingBar(b.endPoint.transform.position); }
+        foreach (Bar b in cachedAffectedBars) { b.StartPosition = b.startPoint.transform.position; b.UpdateCreatingBar(b.endPoint.transform.position); }
         if (BuildUIController.Instance != null) BuildUIController.Instance.MarkBridgeDirty();
     }
 
@@ -991,8 +1003,11 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     public void DeletePoint(Point p, HistoryAction currentAction)
     {
         if (p == null || !p.Runtime || !p.gameObject.activeSelf) return; 
-        List<Bar> barsToDelete = new List<Bar>(p.ConnectedBars);
-        foreach (Bar b in barsToDelete) DeleteBar(b, currentAction);
+        
+        cachedBarsToTransfer.Clear();
+        cachedBarsToTransfer.AddRange(p.ConnectedBars);
+        
+        foreach (Bar b in cachedBarsToTransfer) DeleteBar(b, currentAction);
         if (p.gameObject.activeSelf) { currentAction.affectedObjects.Add(p.gameObject); p.gameObject.SetActive(false); }
     }
 

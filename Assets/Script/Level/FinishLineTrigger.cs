@@ -25,21 +25,29 @@ public class FinishLineTrigger : MonoBehaviour
                 
                 OnLevelCompleted?.Invoke();
 
-                if (LevelCompleteManager.Instance != null)
-                {
-                    LevelCompleteManager.Instance.ShowLevelCompleteScreen();
-                }
-
-                // --- NEW: Tell the NPC and UI that the job is done! ---
+                // 1. Find the NPC to update their dialogue and grab the active contract
                 NPCContractGiver npc = FindObjectOfType<NPCContractGiver>();
+                ContractSO activeContract = null;
+
                 if (npc != null)
                 {
                     npc.isContractCompleted = true; // Unlocks the final dialogue
+                    activeContract = npc.contractToGive; // Grab the contract data!
                     
                     if (ObjectiveTrackerUI.Instance != null)
                     {
                         ObjectiveTrackerUI.Instance.descriptionText.text = $"<color=green>Bridge Tested!</color> Return to {npc.contractToGive.clientName}.";
                     }
+                }
+                
+                // 2. Tell the Level Complete Manager to give rewards and unlock the NEXT level!
+                if (LevelCompleteManager.Instance != null)
+                {
+                    LevelCompleteManager.Instance.CompleteLevel(activeContract);
+                }
+                else
+                {
+                    Debug.LogWarning("FinishLineTrigger could not find LevelCompleteManager! Progression will not save.");
                 }
                 
                 break;

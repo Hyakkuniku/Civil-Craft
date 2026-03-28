@@ -3,13 +3,17 @@ using UnityEngine.InputSystem.EnhancedTouch;
 using Touch = UnityEngine.InputSystem.EnhancedTouch.Touch;
 using UnityEngine.EventSystems; 
 using System.Collections.Generic;
-using UnityEngine.UI; // --- NEW: Required to check for Buttons ---
+using UnityEngine.UI;
 
 public class TouchLookInput : MonoBehaviour
 {
     private PlayerLook look;
     private int rightFingerId = -1;
     private float halfScreenWidth;
+
+    // --- OPTIMIZATION: Cache these to prevent memory allocation on every screen tap! ---
+    private PointerEventData cachedEventData;
+    private List<RaycastResult> cachedRaycastResults = new List<RaycastResult>();
 
     void Awake()
     {
@@ -29,7 +33,6 @@ public class TouchLookInput : MonoBehaviour
 
             if (touch.phase == UnityEngine.InputSystem.TouchPhase.Began)
             {
-                // Use our smart UI check
                 if (IsTouchOverClickableUI(pos))
                     continue;
 
@@ -56,26 +59,29 @@ public class TouchLookInput : MonoBehaviour
         }
     }
 
-    // --- THE SMART FIX: Only block the camera for ACTUAL buttons! ---
     private bool IsTouchOverClickableUI(Vector2 touchPosition)
     {
         if (EventSystem.current == null) return false;
 
-        PointerEventData eventData = new PointerEventData(EventSystem.current);
-        eventData.position = touchPosition;
-        List<RaycastResult> results = new List<RaycastResult>();
-        
-        EventSystem.current.RaycastAll(eventData, results);
-        
-        foreach (RaycastResult result in results)
+        // Initialize it once if it's null, otherwise reuse it!
+        if (cachedEventData == null)
         {
-            // Check if the UI element we touched (or its parent) has a Selectable component (like a Button, Slider, or Toggle)
+            cachedEventData = new PointerEventData(EventSystem.current);
+        }
+        
+        cachedEventData.position = touchPosition;
+        cachedRaycastResults.Clear(); // Empty the old results
+        
+        EventSystem.current.RaycastAll(cachedEventData, cachedRaycastResults);
+        
+        foreach (RaycastResult result in cachedRaycastResults)
+        {
             if (result.gameObject.GetComponentInParent<Selectable>() != null)
             {
-                return true; // It's a real button! Block the camera.
+                return true; 
             }
         }
         
-        return false; // We just hit a transparent background or plain text. Let the camera move!
+        return false; 
     }
 }
