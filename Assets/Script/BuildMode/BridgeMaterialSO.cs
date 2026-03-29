@@ -23,6 +23,10 @@ public class BridgeMaterialSO : ScriptableObject
     public bool isPier = false; 
 
     [Header("Visuals")]
+    // --- NEW: Icon for the Receipt UI! ---
+    [Tooltip("The 2D sprite icon shown in the UI and Receipt.")]
+    public Sprite materialIcon; 
+    
     [Tooltip("For Piers: This is the bottom Pillar that stretches up.")]
     public GameObject segmentPrefab;
     [Tooltip("For Piers: This is the T-Shaped Cap that sits at the top.")]

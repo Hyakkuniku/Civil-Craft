@@ -23,6 +23,7 @@ MonoBehaviour:
   isRope: 0
   isRoad: 0
   isPier: 1
+  materialIcon: {fileID: 21300000, guid: fe5bc2a0e832954428d3c666dca2284f, type: 3}
   segmentPrefab: {fileID: 2167323857712518596, guid: ef1cb42bc4b0fbb4aaa559067e5726b5,
     type: 3}
   pierCapPrefab: {fileID: 3480219191514089514, guid: eb578acce07273e4ea2a1fb07c129abb,

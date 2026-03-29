@@ -40,7 +40,10 @@ public class BuildUIController : MonoBehaviour
 
     [Header("Stress Visualization")]
     public TextMeshProUGUI stressText;
+    
+    [Tooltip("WARNING: Make sure this Image component in the Inspector has its 'Image Type' set to 'Filled'!")]
     public Image stressFillBar;
+    
     public Color safeStressColor = Color.green;
     public Color warningStressColor = Color.yellow;
     public Color criticalStressColor = Color.red;

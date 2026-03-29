@@ -23,8 +23,10 @@ MonoBehaviour:
   isRope: 0
   isRoad: 0
   isPier: 0
+  materialIcon: {fileID: 21300000, guid: 999161720269b2c43881339b86f9c2b6, type: 3}
   segmentPrefab: {fileID: 4806764515897639862, guid: 75c2a0cd61ea5ed409c4bfcde0ac4aa9,
     type: 3}
+  pierCapPrefab: {fileID: 0}
   gizmoColor: {r: 1, g: 1, b: 1, a: 1}
   isDualBeam: 1
   zOffset: 3.3

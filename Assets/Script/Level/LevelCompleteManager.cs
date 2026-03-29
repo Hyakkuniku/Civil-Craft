@@ -15,9 +15,16 @@ public class LevelCompleteManager : MonoBehaviour
     [Header("UI References")]
     public GameObject levelCompletePanel;
     public TextMeshProUGUI feedbackText;
-    public TextMeshProUGUI costText;
+    public TextMeshProUGUI costText;   // <-- Now just shows Total Cost
+    public TextMeshProUGUI budgetText; // <-- NEW: Shows the Max Budget separately
     public TextMeshProUGUI stressText;
     
+    [Header("Receipt UI System")]
+    [Tooltip("The 'Content' object inside your Scroll View")]
+    public Transform receiptContentParent; 
+    [Tooltip("The Prefab with the ReceiptRowUI script attached")]
+    public GameObject receiptRowPrefab;    
+
     [Header("Reward UI")]
     public TextMeshProUGUI goldEarnedText;
     public TextMeshProUGUI expEarnedText;
@@ -42,7 +49,6 @@ public class LevelCompleteManager : MonoBehaviour
         if (levelAlreadyCompleted) return;
         levelAlreadyCompleted = true;
 
-        // Start the snapshot process!
         StartCoroutine(TakeSnapshotAndShowUIRoutine(currentContract));
     }
 
@@ -59,7 +65,6 @@ public class LevelCompleteManager : MonoBehaviour
             }
         }
 
-        // Disable Player Input so the camera stops moving
         InputManager inputObj = FindObjectOfType<InputManager>();
         if (inputObj != null)
         {
@@ -70,33 +75,73 @@ public class LevelCompleteManager : MonoBehaviour
         PlayerMotor player = FindObjectOfType<PlayerMotor>();
         if (player != null) player.enabled = false;
 
-        // 2. Wait exactly one frame so the UI actually disappears from the screen!
+        // 2. Wait exactly one frame so UI disappears from the screenshot
         yield return new WaitForEndOfFrame();
 
-        // 3. Take the Photo and Save it to the Hard Drive!
+        // 3. Take Photo
         if (currentContract != null)
         {
-            // Read the pixels directly from the screen
             Texture2D screenImage = new Texture2D(Screen.width, Screen.height, TextureFormat.RGB24, false);
             screenImage.ReadPixels(new Rect(0, 0, Screen.width, Screen.height), 0, 0);
             screenImage.Apply();
 
-            // Encode to PNG and save it using the Contract's name
             byte[] imageBytes = screenImage.EncodeToPNG();
             string photoPath = Application.persistentDataPath + "/" + currentContract.name + "_photo.png";
             File.WriteAllBytes(photoPath, imageBytes);
             
-            // Clean up memory
             Destroy(screenImage);
             
-            // Mark the contract as complete in the save file
             if (PlayerDataManager.Instance != null)
             {
                 PlayerDataManager.Instance.CompleteContract(currentContract.name);
             }
         }
 
-        // 4. Show the Panel and do the Math
+        // 4. Generate the Itemized Receipt!
+        if (receiptContentParent != null && receiptRowPrefab != null)
+        {
+            // Clear old rows from previous attempts
+            foreach (Transform child in receiptContentParent) Destroy(child.gameObject);
+
+            // Group bars by material and sum up their lengths
+            Dictionary<BridgeMaterialSO, float> materialUsage = new Dictionary<BridgeMaterialSO, float>();
+            HashSet<Bar> countedBars = new HashSet<Bar>();
+
+            foreach (Point p in Point.AllPoints)
+            {
+                if (!p.gameObject.activeSelf) continue;
+                foreach (Bar b in p.ConnectedBars)
+                {
+                    if (b != null && b.gameObject.activeSelf && !countedBars.Contains(b))
+                    {
+                        countedBars.Add(b); // Prevent double-counting bars shared by two points
+                        
+                        if (!materialUsage.ContainsKey(b.materialData))
+                            materialUsage[b.materialData] = 0f;
+                        
+                        // Dual beams count as twice the length for billing!
+                        int multiplier = b.materialData.isDualBeam ? 2 : 1;
+                        materialUsage[b.materialData] += (b.currentLength * multiplier);
+                    }
+                }
+            }
+
+            // Spawn a UI row for each material used
+            foreach (var kvp in materialUsage)
+            {
+                BridgeMaterialSO mat = kvp.Key;
+                float totalLength = kvp.Value;
+
+                GameObject rowObj = Instantiate(receiptRowPrefab, receiptContentParent);
+                ReceiptRowUI rowUI = rowObj.GetComponent<ReceiptRowUI>();
+                if (rowUI != null)
+                {
+                    rowUI.Setup(mat, totalLength);
+                }
+            }
+        }
+
+        // 5. Show Panel and Calculate Grand Totals
         if (levelCompletePanel != null) levelCompletePanel.SetActive(true);
 
         float maxBudget = currentContract != null ? currentContract.budget : 0f;
@@ -134,10 +179,7 @@ public class LevelCompleteManager : MonoBehaviour
             PlayerDataManager.Instance.AddExp(finalExp);
             PlayerDataManager.Instance.AddBridgeBuilt();
             
-            if (!string.IsNullOrEmpty(nextLevelToUnlock))
-            {
-                PlayerDataManager.Instance.UnlockLevel(nextLevelToUnlock);
-            }
+            if (!string.IsNullOrEmpty(nextLevelToUnlock)) PlayerDataManager.Instance.UnlockLevel(nextLevelToUnlock);
 
             if (goldEarnedText != null) goldEarnedText.text = $"+{finalGold} Gold";
             if (expEarnedText != null) expEarnedText.text = $"+{finalExp} EXP";
@@ -145,7 +187,18 @@ public class LevelCompleteManager : MonoBehaviour
             rewardsClaimedThisSession = true;
         }
 
-        if (costText != null) costText.text = $"Final Cost: ${Mathf.RoundToInt(finalCost)} / ${Mathf.RoundToInt(maxBudget)}";
+        // --- NEW: Separated Grand Total and Budget text ---
+        if (costText != null) 
+        {
+            costText.text = $"Total Cost: ${Mathf.RoundToInt(finalCost)}";
+            // Optional: Make it red if they went over budget
+            costText.color = (finalCost > maxBudget) ? Color.red : Color.white;
+        }
+        
+        if (budgetText != null) 
+        {
+            budgetText.text = $"Budget: ${Mathf.RoundToInt(maxBudget)}";
+        }
 
         if (stressText != null)
         {

@@ -68,7 +68,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
     private HistoryAction currentSwipeDeleteAction;
 
-    // --- OPTIMIZATION: Cache Canvas and Pointers to stop GC Leaks! ---
     private Canvas cachedSelectionCanvas;
     private PointerEventData cachedPointerData;
     private List<RaycastResult> cachedRaycastResults = new List<RaycastResult>();
@@ -91,12 +90,10 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         
         if (selectionBoxUI != null) 
         {
-            // THE FIX: Grab the Canvas BEFORE turning the object off, and force it to include inactive objects!
             cachedSelectionCanvas = selectionBoxUI.GetComponentInParent<Canvas>(true);
             selectionBoxUI.gameObject.SetActive(false); 
         }
         
-        // Initialize Pointer Data once
         if (EventSystem.current != null) cachedPointerData = new PointerEventData(EventSystem.current);
     }
 
@@ -162,6 +159,16 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     public void ClearSelectionPublic()
     {
         ClearSelection();
+    }
+
+    // --- MATH UTILITY FOR BAR SLICING ---
+    private Vector3 GetClosestPointOnLineSegment(Vector3 point, Vector3 lineStart, Vector3 lineEnd)
+    {
+        Vector3 lineDir = lineEnd - lineStart;
+        float sqrLength = lineDir.sqrMagnitude;
+        if (sqrLength == 0) return lineStart;
+        float t = Mathf.Clamp01(Vector3.Dot(point - lineStart, lineDir) / sqrLength);
+        return lineStart + t * lineDir;
     }
 
     private void Update()
@@ -382,6 +389,31 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             Point hoveredNode = CheckForExistingPoint(screenPos);
             Vector3 worldMousePos = GetWorldMousePosition(screenPos);
             Vector3 targetPos = CalculateTargetPosition(worldMousePos, hoveredNode);
+
+            // --- BAR SPLIT PREVIEW SNAPPING ---
+            if (hoveredNode == null && activeMaterial != null && !activeMaterial.isPier)
+            {
+                float minBarDist = 0.4f;
+                foreach (Point p in Point.AllPoints)
+                {
+                    if (!p.gameObject.activeSelf) continue;
+                    foreach (Bar b in p.ConnectedBars)
+                    {
+                        if (b != null && b.gameObject.activeSelf && b != currentBar && !b.materialData.isPier)
+                        {
+                            Vector3 closestOnBar = GetClosestPointOnLineSegment(targetPos, b.startPoint.transform.position, b.endPoint.transform.position);
+                            float dist = Vector3.Distance(targetPos, closestOnBar);
+                            if (dist < minBarDist &&
+                                Vector3.Distance(closestOnBar, b.startPoint.transform.position) > 0.2f &&
+                                Vector3.Distance(closestOnBar, b.endPoint.transform.position) > 0.2f)
+                            {
+                                minBarDist = dist;
+                                targetPos = closestOnBar;
+                            }
+                        }
+                    }
+                }
+            }
 
             if (activeMaterial != null && activeMaterial.isPier)
             {
@@ -1124,6 +1156,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         Vector3 finalPosition = CalculateTargetPosition(rawWorldPos, existingEndPoint);
         if (activeMaterial != null && activeMaterial.isPier) finalPosition.x = currentStartPoint.transform.position.x;
         float limit = activeMaterial != null ? activeMaterial.maxLength : 5f;
+        
         if (BuildUIController.Instance != null && activeMaterial != null)
         {
             float remainingBudget = BuildUIController.Instance.maxBudget - BuildUIController.Instance.GetTotalCost();
@@ -1131,9 +1164,11 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             float maxAffordable = Mathf.Max(0f, remainingBudget / costPerMeter);
             if (maxAffordable < limit) limit = maxAffordable;
         }
+
         Vector3 startPos = currentStartPoint.transform.position;
         float distanceToTarget = Vector3.Distance(startPos, finalPosition);
         if (existingEndPoint != null && distanceToTarget > limit && distanceToTarget <= limit + 0.2f) limit = distanceToTarget; 
+        
         if (Vector3.Distance(startPos, finalPosition) > limit)
         {
             Vector3 direction = (finalPosition - startPos).normalized;
@@ -1160,6 +1195,33 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             }
         }
         
+        // --- NEW: BAR SLICING LOGIC ---
+        Bar barToSplit = null;
+        if (existingEndPoint == null && activeMaterial != null && !activeMaterial.isPier)
+        {
+            float minBarDist = 0.5f;
+            foreach (Point p in Point.AllPoints)
+            {
+                if (!p.gameObject.activeSelf) continue;
+                foreach (Bar b in p.ConnectedBars)
+                {
+                    if (b != null && b.gameObject.activeSelf && b != currentBar && !b.materialData.isPier)
+                    {
+                        Vector3 closestOnBar = GetClosestPointOnLineSegment(finalPosition, b.startPoint.transform.position, b.endPoint.transform.position);
+                        float dist = Vector3.Distance(finalPosition, closestOnBar);
+                        if (dist < minBarDist &&
+                            Vector3.Distance(closestOnBar, b.startPoint.transform.position) > 0.2f &&
+                            Vector3.Distance(closestOnBar, b.endPoint.transform.position) > 0.2f)
+                        {
+                            minBarDist = dist;
+                            barToSplit = b;
+                            finalPosition = closestOnBar;
+                        }
+                    }
+                }
+            }
+        }
+
         if (Vector3.Distance(startPos, finalPosition) < 0.1f) 
         { 
             CancelCreation(); 
@@ -1169,10 +1231,12 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
         bool createdNewEndPoint = (existingEndPoint == null);
         bool createdNewStartPoint = createdStartPoint;
+        
         if (existingEndPoint != null) { Destroy(currentEndPoint.gameObject); currentEndPoint = existingEndPoint; }
         else { currentEndPoint.name = "Point"; currentEndPoint.transform.position = finalPosition; }
 
         if (activeMaterial != null && activeMaterial.isPier) { currentStartPoint.isAnchor = true; currentStartPoint.UpdateMaterial(); currentEndPoint.isAnchor = true; currentEndPoint.UpdateMaterial(); }
+        
         currentBar.UpdateCreatingBar(finalPosition);
         currentBar.startPoint = currentStartPoint;
         currentBar.endPoint = currentEndPoint;
@@ -1181,28 +1245,104 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         currentStartPoint.EvaluateAnchorState();
         currentEndPoint.EvaluateAnchorState();
 
-        barCreationStarted = false;
-        createdStartPoint = false; 
         HistoryAction buildAction = new HistoryAction { isBuildEvent = true };
         buildAction.affectedObjects.Add(currentBar.gameObject);
         if (createdNewStartPoint) buildAction.affectedObjects.Add(currentStartPoint.gameObject); 
         if (createdNewEndPoint) buildAction.affectedObjects.Add(currentEndPoint.gameObject);
+
+        // --- NEW: EXECUTE BAR SPLIT ---
+        if (barToSplit != null)
+        {
+            Point originalStart = barToSplit.startPoint;
+            Point originalEnd = barToSplit.endPoint;
+
+            // Deactivate old bar and save to Undo history
+            barToSplit.gameObject.SetActive(false);
+            buildAction.disabledObjects.Add(barToSplit.gameObject);
+
+            // Remove old connections
+            originalStart.ConnectedBars.Remove(barToSplit);
+            originalEnd.ConnectedBars.Remove(barToSplit);
+
+            // Check if currentBar perfectly overlaps one of the slices to prevent duplicated beams!
+            bool startsAtOriginalStart = (currentStartPoint == originalStart);
+            bool startsAtOriginalEnd = (currentStartPoint == originalEnd);
+
+            if (startsAtOriginalStart)
+            {
+                // We only need to generate the second half!
+                GameObject bObj = Instantiate(barToInstantiate, barParent);
+                Bar newBar = bObj.GetComponent<Bar>();
+                newBar.Initialize(barToSplit.materialData);
+                newBar.StartPosition = finalPosition;
+                newBar.UpdateCreatingBar(originalEnd.transform.position);
+                newBar.startPoint = currentEndPoint;
+                newBar.endPoint = originalEnd;
+                currentEndPoint.ConnectedBars.Add(newBar);
+                originalEnd.ConnectedBars.Add(newBar);
+                
+                buildAction.affectedObjects.Add(bObj);
+            }
+            else if (startsAtOriginalEnd)
+            {
+                // We only need to generate the first half!
+                GameObject bObj = Instantiate(barToInstantiate, barParent);
+                Bar newBar = bObj.GetComponent<Bar>();
+                newBar.Initialize(barToSplit.materialData);
+                newBar.StartPosition = finalPosition;
+                newBar.UpdateCreatingBar(originalStart.transform.position);
+                newBar.startPoint = currentEndPoint;
+                newBar.endPoint = originalStart;
+                currentEndPoint.ConnectedBars.Add(newBar);
+                originalStart.ConnectedBars.Add(newBar);
+                
+                buildAction.affectedObjects.Add(bObj);
+            }
+            else
+            {
+                // We cut the bar completely in half from an unrelated angle. Generate both pieces!
+                GameObject bObj1 = Instantiate(barToInstantiate, barParent);
+                Bar newBar1 = bObj1.GetComponent<Bar>();
+                newBar1.Initialize(barToSplit.materialData);
+                newBar1.StartPosition = originalStart.transform.position;
+                newBar1.UpdateCreatingBar(finalPosition);
+                newBar1.startPoint = originalStart;
+                newBar1.endPoint = currentEndPoint;
+                originalStart.ConnectedBars.Add(newBar1);
+                currentEndPoint.ConnectedBars.Add(newBar1);
+
+                GameObject bObj2 = Instantiate(barToInstantiate, barParent);
+                Bar newBar2 = bObj2.GetComponent<Bar>();
+                newBar2.Initialize(barToSplit.materialData);
+                newBar2.StartPosition = finalPosition;
+                newBar2.UpdateCreatingBar(originalEnd.transform.position);
+                newBar2.startPoint = currentEndPoint;
+                newBar2.endPoint = originalEnd;
+                currentEndPoint.ConnectedBars.Add(newBar2);
+                originalEnd.ConnectedBars.Add(newBar2);
+
+                buildAction.affectedObjects.Add(bObj1);
+                buildAction.affectedObjects.Add(bObj2);
+            }
+            
+            if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("Beam Sliced");
+        }
+        else if (BuildUIController.Instance != null) 
+        {
+            if (createdNewEndPoint) BuildUIController.Instance.LogAction("Point created");
+            else BuildUIController.Instance.LogAction("Point connected");
+        }
+
         if (CommandManager.Instance != null) CommandManager.Instance.RecordAction(buildAction);
 
+        barCreationStarted = false;
+        createdStartPoint = false; 
         currentStartPoint = null;
         currentEndPoint = null;
         currentBar = null;
         if (radiusIndicator != null) radiusIndicator.enabled = false;
         
-        if (BuildUIController.Instance != null) 
-        {
-            BuildUIController.Instance.MarkBridgeDirty();
-            if (createdNewEndPoint)
-                BuildUIController.Instance.LogAction("Point created");
-            else
-                BuildUIController.Instance.LogAction("Point connected");
-        }
-
+        if (BuildUIController.Instance != null) BuildUIController.Instance.MarkBridgeDirty();
         if (activeMaterial != null && activeMaterial.isPier && previousNonPierMaterial != null) SetActiveMaterial(previousNonPierMaterial);
     }
 

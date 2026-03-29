@@ -17,11 +17,11 @@ MonoBehaviour:
     replacement so the supply cart can cross the creek. Keep it simple, and remember:
     triangles make the strongest supports!"'
   budget: 51555
-  liveLoadWeight: 411
+  liveLoadWeight: 1000
   goldReward: 500
   expReward: 1000
   offerDialogue:
-    name: 12421
+    name: dadasdsa
     sentences:
     - Hey there! Ready for your first real job?
     - The storm washed out the crossing over Muddy Creek. We need to get a supply

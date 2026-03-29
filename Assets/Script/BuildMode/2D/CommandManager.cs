@@ -5,13 +5,14 @@ public class HistoryAction
 {
     public bool isBuildEvent; 
     public bool isMoveEvent = false; 
-    public bool isMergeEvent = false; // --- NEW: Tracks Node Merges ---
+    public bool isMergeEvent = false; 
 
     public List<GameObject> affectedObjects = new List<GameObject>();
+    public List<GameObject> disabledObjects = new List<GameObject>(); 
+
     public Dictionary<Point, Vector3> originalPositions = new Dictionary<Point, Vector3>();
     public Dictionary<Point, Vector3> newPositions = new Dictionary<Point, Vector3>();
 
-    // --- NEW: For tracking bar reconnections during a merge ---
     public Dictionary<Bar, Point> originalStartPoints = new Dictionary<Bar, Point>();
     public Dictionary<Bar, Point> originalEndPoints = new Dictionary<Bar, Point>();
     public Dictionary<Bar, Point> mergedStartPoints = new Dictionary<Bar, Point>();
@@ -21,15 +22,12 @@ public class HistoryAction
     {
         if (isMergeEvent)
         {
-            // 1. Restore the original points for all transferred bars
             foreach (var kvp in originalStartPoints) if (kvp.Key != null) { kvp.Key.startPoint = kvp.Value; if (!kvp.Value.ConnectedBars.Contains(kvp.Key)) kvp.Value.ConnectedBars.Add(kvp.Key); }
             foreach (var kvp in originalEndPoints) if (kvp.Key != null) { kvp.Key.endPoint = kvp.Value; if (!kvp.Value.ConnectedBars.Contains(kvp.Key)) kvp.Value.ConnectedBars.Add(kvp.Key); }
 
-            // 2. Remove the bars from the target point they were merged into
             foreach (var kvp in mergedStartPoints) if (kvp.Key != null && kvp.Value != null) kvp.Value.ConnectedBars.Remove(kvp.Key);
             foreach (var kvp in mergedEndPoints) if (kvp.Key != null && kvp.Value != null) kvp.Value.ConnectedBars.Remove(kvp.Key);
 
-            // 3. Reactivate the deleted node and teleport it back to where it started before the drag!
             foreach (GameObject obj in affectedObjects) if (obj != null) obj.SetActive(true);
             foreach (var kvp in originalPositions) if (kvp.Key != null) kvp.Key.transform.position = kvp.Value;
         }
@@ -41,6 +39,9 @@ public class HistoryAction
         {
             for (int i = affectedObjects.Count - 1; i >= 0; i--)
                 if (affectedObjects[i] != null) affectedObjects[i].SetActive(!isBuildEvent);
+                
+            foreach (var obj in disabledObjects) 
+                if (obj != null) obj.SetActive(isBuildEvent);
         }
     }
 
@@ -48,14 +49,12 @@ public class HistoryAction
     {
         if (isMergeEvent)
         {
-            // 1. Re-apply the merge transfers
             foreach (var kvp in mergedStartPoints) if (kvp.Key != null) { kvp.Key.startPoint = kvp.Value; if (!kvp.Value.ConnectedBars.Contains(kvp.Key)) kvp.Value.ConnectedBars.Add(kvp.Key); }
             foreach (var kvp in mergedEndPoints) if (kvp.Key != null) { kvp.Key.endPoint = kvp.Value; if (!kvp.Value.ConnectedBars.Contains(kvp.Key)) kvp.Value.ConnectedBars.Add(kvp.Key); }
 
             foreach (var kvp in originalStartPoints) if (kvp.Key != null && kvp.Value != null) kvp.Value.ConnectedBars.Remove(kvp.Key);
             foreach (var kvp in originalEndPoints) if (kvp.Key != null && kvp.Value != null) kvp.Value.ConnectedBars.Remove(kvp.Key);
 
-            // 2. Move the node to the target position and deactivate it
             foreach (var kvp in newPositions) if (kvp.Key != null) kvp.Key.transform.position = kvp.Value;
             foreach (GameObject obj in affectedObjects) if (obj != null) obj.SetActive(false);
         }
@@ -67,6 +66,9 @@ public class HistoryAction
         {
             for (int i = 0; i < affectedObjects.Count; i++)
                 if (affectedObjects[i] != null) affectedObjects[i].SetActive(isBuildEvent);
+                
+            foreach (var obj in disabledObjects) 
+                if (obj != null) obj.SetActive(!isBuildEvent);
         }
     }
 }
@@ -78,22 +80,22 @@ public class CommandManager : MonoBehaviour
     private Stack<HistoryAction> undoStack = new Stack<HistoryAction>();
     private Stack<HistoryAction> redoStack = new Stack<HistoryAction>();
 
-    private void Awake() 
-    { 
-        Instance = this; 
-    }
+    private void Awake() { Instance = this; }
 
     public void RecordAction(HistoryAction action)
     {
         undoStack.Push(action);
+        
+        // Clear out future paths we can no longer reach
         foreach (var redoAction in redoStack) 
         {
             if (redoAction.isBuildEvent && !redoAction.isMoveEvent && !redoAction.isMergeEvent) 
             {
-                foreach(var obj in redoAction.affectedObjects) 
-                {
-                    if (obj != null) Destroy(obj);
-                }
+                // DESTROY the slices that were generated, because we can never Redo to reach them.
+                foreach(var obj in redoAction.affectedObjects) if (obj != null) Destroy(obj);
+                
+                // THE BUG FIX: Do NOT destroy the disabledObjects here! 
+                // Because we undid the action, those objects are currently ALIVE and part of the bridge!
             }
         }
         redoStack.Clear();

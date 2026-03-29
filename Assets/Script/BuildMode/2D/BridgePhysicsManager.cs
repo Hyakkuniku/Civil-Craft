@@ -1,8 +1,13 @@
+using System; // <-- NEW: Required for Action Events
 using System.Collections.Generic;
 using UnityEngine;
 
 public class BridgePhysicsManager : MonoBehaviour
 {
+    // --- NEW: Events that broadcast when simulation changes state ---
+    public event Action OnSimulationStarted;
+    public event Action OnSimulationStopped;
+
     [Header("Physics Settings")]
     public float barColliderThickness = 0.2f;
     public int physicsSolverIterations = 40; 
@@ -36,7 +41,6 @@ public class BridgePhysicsManager : MonoBehaviour
         }
     }
 
-    // --- THE FIX: We changed Update() to FixedUpdate() so it never misses a physics frame! ---
     private void FixedUpdate()
     {
         if (isSimulating)
@@ -71,16 +75,18 @@ public class BridgePhysicsManager : MonoBehaviour
         foreach (Point p in Point.AllPoints)
         {
             Renderer r = p.GetComponentInChildren<Renderer>();
-            if (r != null) r.enabled = isVisible;
+            if (r != null) r.enabled = isVisible && p.gameObject.activeSelf;
         }
     }
 
     public void ActivatePhysics()
     {
         if (isSimulating) return;
+        
         isSimulating = true;
-        activeStressHandlers.Clear(); 
+        OnSimulationStarted?.Invoke(); // <-- NEW: Tells barricades to hide!
 
+        activeStressHandlers.Clear(); 
         peakStressThisRun = 0f;
 
         foreach (Point p in Point.AllPoints)
@@ -95,8 +101,12 @@ public class BridgePhysicsManager : MonoBehaviour
         HashSet<Bar> allBars = new HashSet<Bar>();
         foreach (Point p in Point.AllPoints)
         {
+            if (!p.gameObject.activeSelf) continue; 
+            
             foreach (Bar b in p.ConnectedBars)
-                if (b != null) allBars.Add(b);
+            {
+                if (b != null && b.gameObject.activeSelf) allBars.Add(b); 
+            }
         }
 
         foreach (Bar b in allBars)
@@ -117,7 +127,10 @@ public class BridgePhysicsManager : MonoBehaviour
     public void StopPhysicsAndReset()
     {
         if (!isSimulating) return;
+        
         isSimulating = false;
+        OnSimulationStopped?.Invoke(); // <-- NEW: Tells barricades to reappear!
+
         activeStressHandlers.Clear();
 
         HashSet<Bar> allBars = new HashSet<Bar>();
@@ -162,7 +175,7 @@ public class BridgePhysicsManager : MonoBehaviour
             p.transform.rotation = Quaternion.identity; 
 
             Renderer r = p.GetComponentInChildren<Renderer>();
-            if (r != null) r.enabled = isCurrentlyBuilding;
+            if (r != null) r.enabled = isCurrentlyBuilding && p.gameObject.activeSelf;
         }
 
         foreach (Bar bar in allBars)
@@ -182,7 +195,7 @@ public class BridgePhysicsManager : MonoBehaviour
 
         foreach (Bar bar in allBars)
         {
-            if (bar.startPoint != null && bar.endPoint != null)
+            if (bar.gameObject.activeSelf && bar.startPoint != null && bar.endPoint != null)
             {
                 bar.StartPosition = bar.startPoint.transform.position;
                 bar.UpdateCreatingBar(bar.endPoint.transform.position);
@@ -225,7 +238,7 @@ public class BridgePhysicsManager : MonoBehaviour
         List<Point> endpoints = new List<Point>();
         foreach (Point p in Point.AllPoints)
         {
-            if (p.ConnectedBars.Contains(bar)) endpoints.Add(p);
+            if (p.gameObject.activeSelf && p.ConnectedBars.Contains(bar)) endpoints.Add(p);
         }
 
         if (endpoints.Count != 2) return; 
@@ -310,7 +323,7 @@ public class BridgePhysicsManager : MonoBehaviour
     {
         foreach (Point p in Point.AllPoints)
         {
-            if (p.ConnectedBars.Count == 0) continue;
+            if (!p.gameObject.activeSelf || p.ConnectedBars.Count == 0) continue; 
 
             Collider[] oldCols = p.GetComponents<Collider>();
             foreach(var col in oldCols) col.enabled = false; 
@@ -329,6 +342,8 @@ public class BridgePhysicsManager : MonoBehaviour
                 float calculatedMass = 0.5f;
                 foreach (Bar bar in p.ConnectedBars)
                 {
+                    if (bar == null || !bar.gameObject.activeSelf) continue; 
+                    
                     float len = Vector3.Distance(bar.startPoint.transform.position, bar.endPoint.transform.position);
                     calculatedMass += (len * bar.materialData.massPerMeter) * 0.5f;
                 }
@@ -341,6 +356,8 @@ public class BridgePhysicsManager : MonoBehaviour
 
             foreach (Bar bar in p.ConnectedBars)
             {
+                if (bar == null || !bar.gameObject.activeSelf) continue; 
+                
                 if (!bar.materialData.isRope)
                 {
                     AttachJoint(bar.gameObject, nodeRb, bar.materialData, p.transform.position);
@@ -502,7 +519,6 @@ public class BarStressHandler : MonoBehaviour
         }
 
         framesActive++;
-        // Give the physics engine a split second to settle before reading stress
         if (framesActive < 30) return;
 
         float currentLength = Vector3.Distance(p1.transform.position, p2.transform.position);
@@ -529,10 +545,6 @@ public class BarStressHandler : MonoBehaviour
         float absoluteLimit = isTension ? material.maxTension : material.maxCompression;
         if (absoluteLimit <= 0f) absoluteLimit = 1f;
 
-        // --- THE FIX: Impulse Shock Absorber ---
-        // This limits how fast the stress can rise in a single frame.
-        // It completely absorbs the fake 1-frame spikes caused by wheels hitting the seams 
-        // between bridge panels, while remaining 100% mathematically deterministic!
         float maxStressChangePerFrame = (absoluteLimit * 5f) * Time.fixedDeltaTime;
         
         smoothedForce = Mathf.MoveTowards(smoothedForce, maxForceThisFrame, maxStressChangePerFrame);

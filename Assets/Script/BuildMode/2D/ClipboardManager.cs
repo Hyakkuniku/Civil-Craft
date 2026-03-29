@@ -205,9 +205,38 @@ public class ClipboardManager : MonoBehaviour
         }
     }
 
+    // --- NEW: Calculates if the player can afford to paste the clipboard contents ---
+    private bool CanAffordPaste()
+    {
+        if (BuildUIController.Instance == null) return true;
+        
+        float pasteCost = 0f;
+        foreach (var cb in copiedBars)
+        {
+            Vector3 p1 = copiedRelativePoints[cb.startIdx];
+            Vector3 p2 = copiedRelativePoints[cb.endIdx];
+            float length = Vector3.Distance(p1, p2);
+            int multiplier = cb.mat.isDualBeam ? 2 : 1;
+            pasteCost += length * cb.mat.costPerMeter * multiplier;
+        }
+
+        float remainingBudget = BuildUIController.Instance.maxBudget - BuildUIController.Instance.GetTotalCost();
+        return pasteCost <= remainingBudget;
+    }
+
     public void StampPaste()
     {
-        if (!isPasteMode || !isValidPaste) return;
+        if (!isPasteMode) return;
+
+        // --- NEW: Block stamping if unaffordable or invalid ---
+        if (!isValidPaste) 
+        {
+            if (!CanAffordPaste() && BuildUIController.Instance != null)
+            {
+                BuildUIController.Instance.LogAction("Insufficient budget to paste!");
+            }
+            return;
+        }
 
         HistoryAction pasteAction = new HistoryAction { isBuildEvent = true };
         List<Point> newRealPoints = new List<Point>();
@@ -388,6 +417,12 @@ public class ClipboardManager : MonoBehaviour
                     }
                 }
             }
+        }
+
+        // --- NEW: Budget check applied to visual validity! ---
+        if (isValidPaste && !CanAffordPaste())
+        {
+            isValidPaste = false;
         }
 
         Color tintColor = isValidPaste ? new Color(0.2f, 1f, 0.2f, 0.6f) : new Color(1f, 0.2f, 0.2f, 0.6f);
