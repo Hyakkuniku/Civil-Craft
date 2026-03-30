@@ -13,20 +13,20 @@ MonoBehaviour:
   m_Name: Bhan's Contract
   m_EditorClassIdentifier: 
   clientName: Professor Bhan
-  jobDescription: '"The old wooden bridge washed away in the storm. We need a quick
-    replacement so the supply cart can cross the creek. Keep it simple, and remember:
-    triangles make the strongest supports!"'
-  budget: 51555
-  liveLoadWeight: 1000
+  jobDescription: Build a safe crossing for the merchant cart using your basic wooden
+    beams. Make sure to brace your structure with triangles!
+  budget: 10000
+  liveLoadWeight: 500
   goldReward: 500
   expReward: 1000
   offerDialogue:
-    name: dadasdsa
+    name: Professor Bhan
     sentences:
-    - Hey there! Ready for your first real job?
+    - Build a safe crossing for the merchant cart using your basic wooden beams.
+      Make sure to brace your structure with triangles!
     - The storm washed out the crossing over Muddy Creek. We need to get a supply
       cart to the other side
-    - You have a budget of $1500. Head over to the Drafting Table when you are ready
+    - You have a budget of $10000. Head over to the Drafting Table when you are ready
       to build.
   reminderDialogue:
     name: 412421
