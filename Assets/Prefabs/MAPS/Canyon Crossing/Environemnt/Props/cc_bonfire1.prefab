@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!1001 &4761304753713748327
+--- !u!1001 &8644403577976679179
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
@@ -11,7 +11,7 @@ PrefabInstance:
     - target: {fileID: -8679921383154817045, guid: 4055128056ad14c439633863b41a1399,
         type: 3}
       propertyPath: m_LocalPosition.x
-      value: -153.71863
+      value: -77.806175
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 4055128056ad14c439633863b41a1399,
         type: 3}
@@ -21,7 +21,7 @@ PrefabInstance:
     - target: {fileID: -8679921383154817045, guid: 4055128056ad14c439633863b41a1399,
         type: 3}
       propertyPath: m_LocalPosition.z
-      value: 7.924309
+      value: -5.9252257
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 4055128056ad14c439633863b41a1399,
         type: 3}
@@ -70,21 +70,21 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 4055128056ad14c439633863b41a1399,
         type: 3}
       insertIndex: -1
-      addedObject: {fileID: 3337650176432695283}
+      addedObject: {fileID: 3259515143646067912}
   m_SourcePrefab: {fileID: 100100000, guid: 4055128056ad14c439633863b41a1399, type: 3}
---- !u!1 &5679853471288894518 stripped
+--- !u!1 &8878422876448314970 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: 4055128056ad14c439633863b41a1399,
     type: 3}
-  m_PrefabInstance: {fileID: 4761304753713748327}
+  m_PrefabInstance: {fileID: 8644403577976679179}
   m_PrefabAsset: {fileID: 0}
---- !u!64 &3337650176432695283
+--- !u!64 &3259515143646067912
 MeshCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5679853471288894518}
+  m_GameObject: {fileID: 8878422876448314970}
   m_Material: {fileID: 0}
   m_IncludeLayers:
     serializedVersion: 2

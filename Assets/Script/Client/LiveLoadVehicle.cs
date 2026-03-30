@@ -51,7 +51,6 @@ public class LiveLoadVehicle : MonoBehaviour
     {
         rb = GetComponent<Rigidbody>();
         
-        // Initial fallback mass (will be overwritten by the contract later)
         rb.mass = vehicleMass;
         rb.isKinematic = true; 
         rb.useGravity = true; 
@@ -149,7 +148,6 @@ public class LiveLoadVehicle : MonoBehaviour
 
     public void StartDriving()
     {
-        // --- NEW: Dynamically fetch the vehicle weight from the Contract! ---
         if (GameManager.Instance != null && GameManager.Instance.CurrentContract != null)
         {
             vehicleMass = GameManager.Instance.CurrentContract.liveLoadWeight;
@@ -212,12 +210,40 @@ public class LiveLoadVehicle : MonoBehaviour
 
     private void FixedUpdate()
     {
-        if (!isDriving || endPoint == null) return;
+        if (!isDriving || endPoint == null || startPoint == null) return;
 
-        if (Mathf.Abs(transform.position.x - endPoint.position.x) < 0.5f)
+        // --- THE FIX: Robust "Crossed the Finish Line" Check ---
+        float driveDirectionX = Mathf.Sign(endPoint.position.x - startPoint.position.x);
+        bool reachedEnd = (driveDirectionX > 0 && transform.position.x >= endPoint.position.x) || 
+                          (driveDirectionX < 0 && transform.position.x <= endPoint.position.x);
+
+        if (reachedEnd)
         {
             isDriving = false;
-            foreach (var w in wheels) w.hinge.useMotor = false;
+            
+            // 1. Kill the chassis momentum
+            rb.velocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+            
+            foreach (var w in wheels)
+            {
+                // 2. Kill the wheel momentum
+                w.rb.velocity = Vector3.zero;
+                w.rb.angularVelocity = Vector3.zero;
+                
+                // 3. Engage the parking brake! (Tell the motor to hold at 0 speed)
+                JointMotor motor = w.hinge.motor;
+                motor.targetVelocity = 0;
+                w.hinge.motor = motor;
+                w.hinge.useMotor = true; 
+            }
+
+            // 4. Trigger the Level Complete UI!
+            if (LevelCompleteManager.Instance != null && GameManager.Instance != null)
+            {
+                LevelCompleteManager.Instance.CompleteLevel(GameManager.Instance.CurrentContract);
+            }
+
             return;
         }
 

@@ -12,27 +12,37 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
   m_Name: Tutorial
   m_EditorClassIdentifier: 
-  clientName: Guide
-  jobDescription: '"The old wooden bridge washed away in the storm. We need a quick
-    replacement so the supply cart can cross the creek. Keep it simple, and remember:
-    triangles make the strongest supports!"'
-  budget: 5000
+  clientName: Professor Bhan
+  jobDescription: 
+  budget: 50000
   liveLoadWeight: 411
   goldReward: 500
   expReward: 1000
   offerDialogue:
-    name: Guide
+    name: Professor Bhan
     sentences:
-    - Hey there! Ready for your first real job?
-    - The storm washed out the crossing over Muddy Creek. We need to get a supply
-      cart to the other side
-    - You have a budget of $1500. Head over to the Drafting Table when you are ready
-      to build.
+    - Ah, you must be the new engineer the guild sent over! Welcome, welcome! Come
+      in, don't just stand in the doorway.
+    - I am Professor Bhan. I oversee all the major infrastructure and bridge contracts
+      around these parts.
+    - I hear you're looking for work. I actually have a ravine that desperately needs
+      a crossing, but I can't just hand the job to a rookie without making sure you
+      know your physics.
+    - 'Before we talk business, you are going to need the holy grail of our profession:
+      The Engineering Almanac.'
+    - I left a spare copy on the table right over there. Go grab it, flip through
+      it, and then come talk to me. We'll get you started on your first official
+      contract!
   reminderDialogue:
-    name: Guide
+    name: Professor Bhan
     sentences:
-    - What are you waiting for? The creek isn't going to bridge itself!
-    - Tap the Drafting Table to get started. Build across the gap and run the simulation.
+    - Ah, excellent! You have it. Treat that book well
+    - Now, down to business. The local merchants desperately need a supply route
+      across the eastern ravine.
+    - I am authorizing your first official contract. We have a strict budget, and
+      a heavy cargo vehicle is already waiting to cross..
+    - Come on, let's go outside for your first contract. The build site is just down
+      the path!
   finishedContractDialogue:
     name: 
     sentences: []

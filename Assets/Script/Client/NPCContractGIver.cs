@@ -8,6 +8,7 @@ public class NPCContractGiver : Interactable
     public CargoItem linkedCargo; 
 
     [Header("Tutorial Settings")]
+    [Tooltip("If checked, the tutorial will advance EVERY time the player finishes talking to this NPC.")]
     public bool advancesTutorial = false; 
 
     private bool hasGivenContract = false;
@@ -31,6 +32,7 @@ public class NPCContractGiver : Interactable
 
         if (contractToGive == null) return;
 
+        // SCENARIO 1: The contract is completely finished
         if (isContractCompleted)
         {
             if (dialogueManager != null && contractToGive.finishedContractDialogue != null)
@@ -40,10 +42,18 @@ public class NPCContractGiver : Interactable
                 {
                     if (ObjectiveTrackerUI.Instance != null)
                         ObjectiveTrackerUI.Instance.ShowCompleteButton();
+                        
+                    // Advance tutorial after dialogue finishes
+                    TryAdvanceTutorial();
                 });
+            }
+            else
+            {
+                TryAdvanceTutorial();
             }
             promptMessage = "Contract Complete!";
         }
+        // SCENARIO 2: The player is talking to them for the FIRST time to get the contract
         else if (!hasGivenContract)
         {
             if (targetBuildLocation != null) targetBuildLocation.activeContract = contractToGive;
@@ -56,25 +66,44 @@ public class NPCContractGiver : Interactable
                 dialogueManager.StartDialogue(contractToGive.offerDialogue, () => 
                 {
                     if (ObjectiveTrackerUI.Instance != null) ObjectiveTrackerUI.Instance.SetObjective(contractToGive);
-                    if (advancesTutorial && TutorialManager.Instance != null) TutorialManager.Instance.ShowNextStep();
+                    
+                    // Advance tutorial after dialogue finishes
+                    TryAdvanceTutorial();
                 });
             }
             else
             {
                 if (ObjectiveTrackerUI.Instance != null) ObjectiveTrackerUI.Instance.SetObjective(contractToGive);
-                if (advancesTutorial && TutorialManager.Instance != null) TutorialManager.Instance.ShowNextStep();
+                TryAdvanceTutorial();
             }
 
             hasGivenContract = true;
             promptMessage = "Talk to " + contractToGive.clientName;
         }
+        // SCENARIO 3: The player talks to them AGAIN before finishing the bridge (Reminder)
         else
         {
             if (dialogueManager != null && contractToGive.reminderDialogue != null)
             {
                 contractToGive.reminderDialogue.name = contractToGive.clientName;
-                dialogueManager.StartDialogue(contractToGive.reminderDialogue);
+                dialogueManager.StartDialogue(contractToGive.reminderDialogue, () => 
+                {
+                    // Advance tutorial after the reminder dialogue finishes
+                    TryAdvanceTutorial();
+                });
             }
+            else
+            {
+                TryAdvanceTutorial();
+            }
+        }
+    }
+
+    private void TryAdvanceTutorial()
+    {
+        if (advancesTutorial && TutorialManager.Instance != null)
+        {
+            TutorialManager.Instance.ShowNextStep();
         }
     }
 

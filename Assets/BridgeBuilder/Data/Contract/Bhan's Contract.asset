@@ -1,0 +1,38 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
+  m_Name: Bhan's Contract
+  m_EditorClassIdentifier: 
+  clientName: Professor Bhan
+  jobDescription: '"The old wooden bridge washed away in the storm. We need a quick
+    replacement so the supply cart can cross the creek. Keep it simple, and remember:
+    triangles make the strongest supports!"'
+  budget: 51555
+  liveLoadWeight: 1000
+  goldReward: 500
+  expReward: 1000
+  offerDialogue:
+    name: dadasdsa
+    sentences:
+    - Hey there! Ready for your first real job?
+    - The storm washed out the crossing over Muddy Creek. We need to get a supply
+      cart to the other side
+    - You have a budget of $1500. Head over to the Drafting Table when you are ready
+      to build.
+  reminderDialogue:
+    name: 412421
+    sentences:
+    - What are you waiting for? The creek isn't going to bridge itself!
+    - Tap the Drafting Table to get started. Build across the gap and run the simulation.
+  finishedContractDialogue:
+    name: 421421
+    sentences: []
