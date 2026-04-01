@@ -3471,6 +3471,7 @@ RectTransform:
   - {fileID: 2775276630274169133}
   - {fileID: 2675316758156500506}
   - {fileID: 1711030023328775899}
+  - {fileID: 105505407115210854}
   - {fileID: 468782453933291868}
   - {fileID: 4333753915940663902}
   - {fileID: 9114665302353621800}
@@ -8030,7 +8031,7 @@ Transform:
   m_GameObject: {fileID: 2729102322330200102}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 29.97593, y: -19.775827, z: 107.26054}
+  m_LocalPosition: {x: 29.618202, y: -19.65, z: 107.544815}
   m_LocalScale: {x: 1, y: 1, z: 1.3938}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -12961,12 +12962,12 @@ RectTransform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 8647267380516931299}
+  m_Father: {fileID: 2452979459600477529}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 0, y: 0}
+  m_AnchoredPosition: {x: 13.000061, y: -506.43518}
+  m_SizeDelta: {x: -1539.9396, y: -1066.5902}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &3150725531461429438
 CanvasRenderer:
@@ -23280,7 +23281,6 @@ RectTransform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 5680235776648344874}
-  - {fileID: 105505407115210854}
   m_Father: {fileID: 1711030023328775899}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
@@ -23731,6 +23731,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e87ca3c9458bbeb48ad49f61d7bb9caa, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  waspObject: {fileID: 0}
+  waspSpeed: 8
+  waspTurnSpeed: 10
+  respawnDelay: 1.5
   waypoints:
   - {fileID: 0}
   - {fileID: 0}
@@ -23738,8 +23742,11 @@ MonoBehaviour:
   - {fileID: 0}
   player: {fileID: 7347695104854613077}
   stoppingDistance: 2
+  pathResolution: 1
   heightOffset: 0.5
-  updateInterval: 0.2
+  groundLayer:
+    serializedVersion: 2
+    m_Bits: 0
 --- !u!1 &7536899080639805523
 GameObject:
   m_ObjectHideFlags: 0
@@ -27199,7 +27206,7 @@ Transform:
   m_GameObject: {fileID: 8551256113600355158}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -20.02407, y: -19.775827, z: 107.26054}
+  m_LocalPosition: {x: -20.381794, y: -19.65, z: 107.544815}
   m_LocalScale: {x: 1, y: 1, z: 2.8530052}
   m_ConstrainProportionsScale: 0
   m_Children:
