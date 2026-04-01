@@ -1,10 +1,9 @@
 using UnityEngine;
+using System.Collections.Generic;
 
-// 1. Inherit from YOUR Interactable script!
 public class BuildLocation : Interactable 
 {
     [Header("UI / Grid")]
-    [Tooltip("The camera-space canvas holding the grid material for this specific location")]
     public Canvas gridCanvas; 
 
     [Header("Camera")]
@@ -16,14 +15,17 @@ public class BuildLocation : Interactable
     public bool lockPlayerToZone = false;           
     
     [Header("Active Contract")]
-    [Tooltip("The contract currently assigned to this ravine. Can be assigned by an NPC.")]
     public ContractSO activeContract; 
 
-    // --- NEW: Tutorial Integration ---
     [Header("Tutorial Settings")]
-    [Tooltip("Check this if successfully entering Build Mode here should finish the tutorial!")]
     public bool advancesTutorial = false; 
-    // ---------------------------------
+
+    [Header("Pre-placed Anchors")]
+    [Tooltip("Drag the starting cliff anchor points for this specific ravine here.")]
+    public List<Point> startingAnchors = new List<Point>();
+
+    [HideInInspector] public List<Bar> bakedBars = new List<Bar>();
+    [HideInInspector] public List<Point> bakedPoints = new List<Point>();
 
     private Transform originalPlayerParent;
 
@@ -33,12 +35,23 @@ public class BuildLocation : Interactable
         if (gridCanvas != null) gridCanvas.enabled = false;
     }
 
+    private void Start()
+    {
+        if (bakedBars.Count == 0) 
+        {
+            SetBridgeScriptsActive(false);
+        }
+    }
+
     private void Update()
     {
-        // 2. We update the promptMessage variable from your Interactable base class
         if (activeContract == null)
         {
             promptMessage = "Requires Contract! Talk to the client.";
+        }
+        else if (bakedBars.Count > 0)
+        {
+            promptMessage = "Redo Bridge (Deletes Old)"; 
         }
         else
         {
@@ -46,8 +59,6 @@ public class BuildLocation : Interactable
         }
     }
 
-    // 3. This overrides the virtual Intract() method in YOUR Interactable.cs!
-    // It triggers automatically when your PlayerUI button is clicked.
     protected override void Intract()
     {
         TryEnterBuildMode();
@@ -61,10 +72,49 @@ public class BuildLocation : Interactable
             return;
         }
 
+        if (bakedBars.Count > 0)
+        {
+            if (GameManager.Instance != null) GameManager.Instance.ShowRedoConfirmPanel(this);
+            return;
+        }
+
         PlayerMotor player = FindObjectOfType<PlayerMotor>();
         if (player != null)
         {
             ActivateBuildMode(player.transform);
+        }
+    }
+
+    public void DeleteBakedBridge()
+    {
+        foreach (Bar b in bakedBars) 
+        {
+            if (b != null) Destroy(b.gameObject);
+        }
+        
+        foreach (Point p in bakedPoints) 
+        {
+            if (p != null) 
+            {
+                if (startingAnchors.Contains(p))
+                {
+                    p.ConnectedBars.Clear(); 
+                    p.enabled = false; 
+                }
+                else
+                {
+                    Destroy(p.gameObject);
+                }
+            }
+        }
+        
+        bakedPoints.Clear();
+        bakedBars.Clear();
+
+        NPCContractGiver[] npcs = FindObjectsOfType<NPCContractGiver>();
+        foreach (var npc in npcs)
+        {
+            if (npc.contractToGive == activeContract) npc.isContractCompleted = false;
         }
     }
 
@@ -74,6 +124,8 @@ public class BuildLocation : Interactable
 
         if (gridCanvas != null) gridCanvas.enabled = true;
 
+        SetBridgeScriptsActive(true);
+
         GameManager.Instance.EnterBuildMode(this, player);
 
         if (lockPlayerToZone && player != null)
@@ -82,22 +134,64 @@ public class BuildLocation : Interactable
             player.SetParent(transform);
         }
 
-        // --- NEW: Trigger the end of the tutorial! ---
         if (advancesTutorial && TutorialManager.Instance != null)
         {
             TutorialManager.Instance.ShowNextStep();
         }
-        // ---------------------------------------------
     }
 
     public void DeactivateBuildMode(Transform player)
     {
         if (gridCanvas != null) gridCanvas.enabled = false;
 
+        if (bakedBars.Count == 0)
+        {
+            SetBridgeScriptsActive(false);
+        }
+
         if (lockPlayerToZone && originalPlayerParent != null && player != null)
         {
             player.SetParent(originalPlayerParent);
             originalPlayerParent = null;
+        }
+    }
+
+    private void SetBridgeScriptsActive(bool isActive)
+    {
+        HashSet<Point> bridgePoints = new HashSet<Point>();
+        Queue<Point> queue = new Queue<Point>();
+
+        foreach (Point p in startingAnchors)
+        {
+            if (p != null)
+            {
+                p.enabled = true; 
+                queue.Enqueue(p);
+                bridgePoints.Add(p);
+            }
+        }
+
+        while (queue.Count > 0)
+        {
+            Point current = queue.Dequeue();
+            foreach (Bar b in current.ConnectedBars)
+            {
+                if (b != null)
+                {
+                    b.enabled = isActive;
+                    Point neighbor = (b.startPoint == current) ? b.endPoint : b.startPoint;
+                    if (neighbor != null && !bridgePoints.Contains(neighbor))
+                    {
+                        bridgePoints.Add(neighbor);
+                        queue.Enqueue(neighbor);
+                    }
+                }
+            }
+        }
+
+        foreach (Point p in bridgePoints)
+        {
+            p.enabled = isActive;
         }
     }
 

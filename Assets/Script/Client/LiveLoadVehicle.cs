@@ -4,6 +4,10 @@ using UnityEngine;
 [RequireComponent(typeof(Rigidbody))]
 public class LiveLoadVehicle : MonoBehaviour
 {
+    [Header("Open World Settings")]
+    [Tooltip("Drag the ContractSO for THIS specific ravine here.")]
+    public ContractSO assignedContract; 
+
     [Header("Path Settings")]
     public Transform startPoint;
     public Transform endPoint;
@@ -36,6 +40,7 @@ public class LiveLoadVehicle : MonoBehaviour
     private Rigidbody rb;
     private bool isDriving = false;
     private bool wasSimulating = false;
+    private NPCContractGiver myNPC; // <-- NEW: Memory of who to ask for parking permission
 
     private class WheelData
     {
@@ -130,29 +135,64 @@ public class LiveLoadVehicle : MonoBehaviour
             physicsManager = FindObjectOfType<BridgePhysicsManager>();
     }
 
+    private void Start()
+    {
+        // Find the specific NPC on the map holding our contract
+        NPCContractGiver[] npcs = FindObjectsOfType<NPCContractGiver>();
+        foreach(var npc in npcs)
+        {
+            if(npc.contractToGive == assignedContract)
+            {
+                myNPC = npc;
+                break;
+            }
+        }
+    }
+
     private void Update()
     {
         if (physicsManager == null) return;
 
         if (physicsManager.isSimulating && !wasSimulating)
         {
-            StartDriving();
-            wasSimulating = true;
+            if (GameManager.Instance != null && GameManager.Instance.CurrentContract == assignedContract)
+            {
+                StartDriving();
+                wasSimulating = true;
+            }
         }
         else if (!physicsManager.isSimulating && wasSimulating)
         {
             StopAndReset();
             wasSimulating = false;
         }
+        // --- NEW: Handle "Redo Bridge" Snapping! ---
+        else if (!physicsManager.isSimulating && !wasSimulating)
+        {
+            // If the car is parked at the finish line, but the player hit Redo...
+            if (startPoint != null && Vector3.Distance(transform.position, startPoint.position) > 0.5f)
+            {
+                // Snap it back to the start!
+                if (myNPC != null && !myNPC.isContractCompleted)
+                {
+                    transform.position = startPoint.position;
+                    transform.rotation = startPoint.rotation;
+                    foreach (var w in wheels)
+                    {
+                        w.physObj.transform.localPosition = w.originalLocalPos;
+                        w.physObj.transform.localRotation = w.originalLocalRot;
+                    }
+                }
+            }
+        }
     }
 
     public void StartDriving()
     {
-        if (GameManager.Instance != null && GameManager.Instance.CurrentContract != null)
+        if (assignedContract != null)
         {
-            vehicleMass = GameManager.Instance.CurrentContract.liveLoadWeight;
+            vehicleMass = assignedContract.liveLoadWeight;
             if (rb != null) rb.mass = vehicleMass;
-            Debug.Log($"<color=cyan>Vehicle mass dynamically set to {vehicleMass}kg from the Contract.</color>");
         }
 
         if (startPoint != null)
@@ -183,6 +223,7 @@ public class LiveLoadVehicle : MonoBehaviour
     {
         isDriving = false;
 
+        // Turn off gravity so it becomes a static prop
         rb.isKinematic = true;
         rb.velocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
@@ -195,7 +236,11 @@ public class LiveLoadVehicle : MonoBehaviour
             w.hinge.useMotor = false; 
         }
 
-        if (startPoint != null)
+        // --- NEW: Ask the NPC for permission to park! ---
+        bool isContractDone = (myNPC != null && myNPC.isContractCompleted);
+
+        // ONLY teleport back if the contract isn't officially finished!
+        if (!isContractDone && startPoint != null)
         {
             transform.position = startPoint.position;
             transform.rotation = startPoint.rotation;
@@ -212,7 +257,6 @@ public class LiveLoadVehicle : MonoBehaviour
     {
         if (!isDriving || endPoint == null || startPoint == null) return;
 
-        // --- THE FIX: Robust "Crossed the Finish Line" Check ---
         float driveDirectionX = Mathf.Sign(endPoint.position.x - startPoint.position.x);
         bool reachedEnd = (driveDirectionX > 0 && transform.position.x >= endPoint.position.x) || 
                           (driveDirectionX < 0 && transform.position.x <= endPoint.position.x);
@@ -221,30 +265,21 @@ public class LiveLoadVehicle : MonoBehaviour
         {
             isDriving = false;
             
-            // 1. Kill the chassis momentum
             rb.velocity = Vector3.zero;
             rb.angularVelocity = Vector3.zero;
             
             foreach (var w in wheels)
             {
-                // 2. Kill the wheel momentum
                 w.rb.velocity = Vector3.zero;
                 w.rb.angularVelocity = Vector3.zero;
                 
-                // 3. Engage the parking brake! (Tell the motor to hold at 0 speed)
                 JointMotor motor = w.hinge.motor;
                 motor.targetVelocity = 0;
                 w.hinge.motor = motor;
                 w.hinge.useMotor = true; 
             }
 
-            // 4. Trigger the Level Complete UI!
-            if (LevelCompleteManager.Instance != null && GameManager.Instance != null)
-            {
-                LevelCompleteManager.Instance.CompleteLevel(GameManager.Instance.CurrentContract);
-            }
-
-            return;
+            return; 
         }
 
         bool isGrounded = false;

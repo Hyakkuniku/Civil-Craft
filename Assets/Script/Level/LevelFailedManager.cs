@@ -57,33 +57,46 @@ public class LevelFailedManager : MonoBehaviour
         // Only check for failure while the bridge is actually being simulated
         if (physicsManager != null && physicsManager.isSimulating)
         {
+            // --- NEW: Structural Failure Check (100% Stress) ---
+            // peakStressThisRun stores 1.0f if a beam breaks or maxes out its tension/compression!
+            if (physicsManager.peakStressThisRun >= 1f)
+            {
+                TriggerLevelFailed("Bridge Collapsed!");
+                return; // Stop reading the rest of the code this frame
+            }
+
             // Find the vehicle in the scene
             if (activeVehicle == null) activeVehicle = FindObjectOfType<LiveLoadVehicle>();
 
-            // Check if the vehicle has fallen past the death line
+            // --- Original: Vehicle Fell Check ---
             if (activeVehicle != null && activeVehicle.gameObject.activeInHierarchy)
             {
                 if (activeVehicle.transform.position.y < deathThreshold)
                 {
-                    TriggerLevelFailed();
+                    TriggerLevelFailed("Vehicle Destroyed!");
                 }
             }
         }
     }
 
-    public void TriggerLevelFailed()
+    // --- UPDATED: Now accepts a custom reason so the player knows what went wrong! ---
+    public void TriggerLevelFailed(string failureReason = "")
     {
         isFailed = true;
 
         // Show the UI Panel
         if (levelFailedPanel != null) levelFailedPanel.SetActive(true);
 
-        // Display the current Contract/Level Name
+        // Display the specific failure reason, or fallback to the Contract Name
         if (levelNameText != null)
         {
-            if (GameManager.Instance != null && GameManager.Instance.CurrentContract != null)
+            if (!string.IsNullOrEmpty(failureReason))
             {
-                levelNameText.text = GameManager.Instance.CurrentContract.name;
+                levelNameText.text = failureReason;
+            }
+            else if (GameManager.Instance != null && GameManager.Instance.CurrentContract != null)
+            {
+                levelNameText.text = GameManager.Instance.CurrentContract.name + " Failed";
             }
             else
             {

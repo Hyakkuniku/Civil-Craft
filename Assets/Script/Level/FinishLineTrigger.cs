@@ -11,36 +11,32 @@ public class FinishLineTrigger : MonoBehaviour
     [Header("Events")]
     public UnityEvent OnLevelCompleted;
 
-    private bool levelCompleted = false;
-
     private void OnTriggerEnter(Collider other)
     {
-        if (levelCompleted) return;
+        // --- NEW SAFETY: Only trigger if the physics simulation is actively running! ---
+        BridgePhysicsManager physicsManager = FindObjectOfType<BridgePhysicsManager>();
+        if (physicsManager != null && !physicsManager.isSimulating) return;
 
         foreach (string acceptedTag in acceptedTags)
         {
             if (other.CompareTag(acceptedTag))
             {
-                levelCompleted = true;
-                
                 OnLevelCompleted?.Invoke();
 
-                // 1. Find the NPC to update their dialogue and grab the active contract
-                NPCContractGiver npc = FindObjectOfType<NPCContractGiver>();
+                // 1. Stop searching for random NPCs! Grab the exact contract from the GameManager.
                 ContractSO activeContract = null;
-
-                if (npc != null)
+                if (GameManager.Instance != null)
                 {
-                    npc.isContractCompleted = true; // Unlocks the final dialogue
-                    activeContract = npc.contractToGive; // Grab the contract data!
-                    
-                    if (ObjectiveTrackerUI.Instance != null)
-                    {
-                        ObjectiveTrackerUI.Instance.descriptionText.text = $"<color=green>Bridge Tested!</color> Return to {npc.contractToGive.clientName}.";
-                    }
+                    activeContract = GameManager.Instance.CurrentContract;
+                }
+
+                // 2. Safely update the objective tracker using the Contract data
+                if (activeContract != null && ObjectiveTrackerUI.Instance != null)
+                {
+                    ObjectiveTrackerUI.Instance.descriptionText.text = $"<color=green>Bridge Tested!</color> Return to {activeContract.clientName}.";
                 }
                 
-                // 2. Tell the Level Complete Manager to give rewards and unlock the NEXT level!
+                // 3. Tell the Level Complete Manager to pop up and calculate rewards!
                 if (LevelCompleteManager.Instance != null)
                 {
                     LevelCompleteManager.Instance.CompleteLevel(activeContract);

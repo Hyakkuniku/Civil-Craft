@@ -8,13 +8,12 @@ public class NPCContractGiver : Interactable
     public CargoItem linkedCargo; 
 
     [Header("Tutorial Settings")]
-    [Tooltip("If checked, the tutorial will advance EVERY time the player finishes talking to this NPC.")]
     public bool advancesTutorial = false; 
 
     private bool hasGivenContract = false;
     [HideInInspector] public bool isContractCompleted = false; 
+    [HideInInspector] public bool isFullyTurnedIn = false; 
 
-    // --- OPTIMIZATION: Cache references! ---
     private Transform playerTransform;
     private DialogueManager dialogueManager;
 
@@ -26,13 +25,41 @@ public class NPCContractGiver : Interactable
         dialogueManager = FindObjectOfType<DialogueManager>();
     }
 
+    private void Update()
+    {
+        if (contractToGive == null) return;
+
+        if (isFullyTurnedIn)
+        {
+            promptMessage = "Bridge Completed!";
+        }
+        else if (isContractCompleted)
+        {
+            promptMessage = "Turn in Contract!";
+        }
+        else if (hasGivenContract)
+        {
+            promptMessage = "Talk to " + contractToGive.clientName;
+        }
+        else
+        {
+            promptMessage = "Accept Contract";
+        }
+    }
+
     protected override void Intract() 
     {
         FacePlayer(); 
 
         if (contractToGive == null) return;
 
-        // SCENARIO 1: The contract is completely finished
+        if (isFullyTurnedIn)
+        {
+            Debug.Log("This NPC has no more jobs for you.");
+            return;
+        }
+
+        // SCENARIO 1: The contract is completely finished (Bridge is Baked!)
         if (isContractCompleted)
         {
             if (dialogueManager != null && contractToGive.finishedContractDialogue != null)
@@ -40,20 +67,15 @@ public class NPCContractGiver : Interactable
                 contractToGive.finishedContractDialogue.name = contractToGive.clientName;
                 dialogueManager.StartDialogue(contractToGive.finishedContractDialogue, () => 
                 {
-                    if (ObjectiveTrackerUI.Instance != null)
-                        ObjectiveTrackerUI.Instance.ShowCompleteButton();
-                        
-                    // Advance tutorial after dialogue finishes
-                    TryAdvanceTutorial();
+                    ClaimReward();
                 });
             }
             else
             {
-                TryAdvanceTutorial();
+                ClaimReward();
             }
-            promptMessage = "Contract Complete!";
         }
-        // SCENARIO 2: The player is talking to them for the FIRST time to get the contract
+        // SCENARIO 2: Talking for the FIRST time
         else if (!hasGivenContract)
         {
             if (targetBuildLocation != null) targetBuildLocation.activeContract = contractToGive;
@@ -66,8 +88,6 @@ public class NPCContractGiver : Interactable
                 dialogueManager.StartDialogue(contractToGive.offerDialogue, () => 
                 {
                     if (ObjectiveTrackerUI.Instance != null) ObjectiveTrackerUI.Instance.SetObjective(contractToGive);
-                    
-                    // Advance tutorial after dialogue finishes
                     TryAdvanceTutorial();
                 });
             }
@@ -78,9 +98,8 @@ public class NPCContractGiver : Interactable
             }
 
             hasGivenContract = true;
-            promptMessage = "Talk to " + contractToGive.clientName;
         }
-        // SCENARIO 3: The player talks to them AGAIN before finishing the bridge (Reminder)
+        // SCENARIO 3: Reminder Dialogue
         else
         {
             if (dialogueManager != null && contractToGive.reminderDialogue != null)
@@ -88,7 +107,6 @@ public class NPCContractGiver : Interactable
                 contractToGive.reminderDialogue.name = contractToGive.clientName;
                 dialogueManager.StartDialogue(contractToGive.reminderDialogue, () => 
                 {
-                    // Advance tutorial after the reminder dialogue finishes
                     TryAdvanceTutorial();
                 });
             }
@@ -99,12 +117,23 @@ public class NPCContractGiver : Interactable
         }
     }
 
+    private void ClaimReward()
+    {
+        if (ObjectiveTrackerUI.Instance != null && LevelCompleteManager.Instance != null)
+        {
+            // Fetch the specific rewards for THIS contract
+            int gold = LevelCompleteManager.Instance.GetContractGold(contractToGive.name);
+            int exp = LevelCompleteManager.Instance.GetContractExp(contractToGive.name);
+            
+            // Pass the money AND this NPC script to the tracker
+            ObjectiveTrackerUI.Instance.ShowCompleteButton(gold, exp, this);
+        }
+        TryAdvanceTutorial();
+    }
+
     private void TryAdvanceTutorial()
     {
-        if (advancesTutorial && TutorialManager.Instance != null)
-        {
-            TutorialManager.Instance.ShowNextStep();
-        }
+        if (advancesTutorial && TutorialManager.Instance != null) TutorialManager.Instance.ShowNextStep();
     }
 
     private void FacePlayer()

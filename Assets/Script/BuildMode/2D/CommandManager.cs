@@ -86,16 +86,11 @@ public class CommandManager : MonoBehaviour
     {
         undoStack.Push(action);
         
-        // Clear out future paths we can no longer reach
         foreach (var redoAction in redoStack) 
         {
             if (redoAction.isBuildEvent && !redoAction.isMoveEvent && !redoAction.isMergeEvent) 
             {
-                // DESTROY the slices that were generated, because we can never Redo to reach them.
                 foreach(var obj in redoAction.affectedObjects) if (obj != null) Destroy(obj);
-                
-                // THE BUG FIX: Do NOT destroy the disabledObjects here! 
-                // Because we undid the action, those objects are currently ALIVE and part of the bridge!
             }
         }
         redoStack.Clear();
@@ -163,5 +158,19 @@ public class CommandManager : MonoBehaviour
     { 
         foreach (Point p in Point.AllPoints) 
             if (p != null && p.gameObject.activeSelf) p.EvaluateAnchorState(); 
+    }
+
+    // --- NEW: Wipes the memory so baked bridges can't be undone! ---
+    public void ClearHistory()
+    {
+        foreach (var redoAction in redoStack) 
+        {
+            if (redoAction.isBuildEvent && !redoAction.isMoveEvent && !redoAction.isMergeEvent) 
+            {
+                foreach(var obj in redoAction.affectedObjects) if (obj != null) Destroy(obj);
+            }
+        }
+        undoStack.Clear();
+        redoStack.Clear();
     }
 }

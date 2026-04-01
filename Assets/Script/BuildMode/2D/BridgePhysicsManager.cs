@@ -1,10 +1,9 @@
-using System; // <-- NEW: Required for Action Events
+using System; 
 using System.Collections.Generic;
 using UnityEngine;
 
 public class BridgePhysicsManager : MonoBehaviour
 {
-    // --- NEW: Events that broadcast when simulation changes state ---
     public event Action OnSimulationStarted;
     public event Action OnSimulationStopped;
 
@@ -53,6 +52,49 @@ public class BridgePhysicsManager : MonoBehaviour
         }
     }
 
+    // --- NEW: Flood-fill algorithm to isolate the active bridge! ---
+    public HashSet<Point> GetActiveBridgePoints()
+    {
+        HashSet<Point> activePoints = new HashSet<Point>();
+        if (GameManager.Instance == null || GameManager.Instance.ActiveBuildLocation == null) 
+            return activePoints;
+
+        BuildLocation loc = GameManager.Instance.ActiveBuildLocation;
+        
+        // If no anchors are assigned, fallback to global list to prevent breaking
+        if (loc.startingAnchors == null || loc.startingAnchors.Count == 0)
+        {
+            return new HashSet<Point>(Point.AllPoints); 
+        }
+
+        Queue<Point> queue = new Queue<Point>();
+        foreach (Point anchor in loc.startingAnchors)
+        {
+            if (anchor != null && anchor.gameObject.activeSelf)
+            {
+                queue.Enqueue(anchor);
+                activePoints.Add(anchor);
+            }
+        }
+
+        // Trace the graph outward from the anchors
+        while (queue.Count > 0)
+        {
+            Point current = queue.Dequeue();
+            foreach (Bar b in current.ConnectedBars)
+            {
+                if (b == null || !b.gameObject.activeSelf) continue;
+                Point neighbor = (b.startPoint == current) ? b.endPoint : b.startPoint;
+                if (neighbor != null && neighbor.gameObject.activeSelf && !activePoints.Contains(neighbor))
+                {
+                    activePoints.Add(neighbor);
+                    queue.Enqueue(neighbor);
+                }
+            }
+        }
+        return activePoints;
+    }
+
     private void HandleEnterBuildMode()
     {
         if (isSimulating) 
@@ -84,7 +126,7 @@ public class BridgePhysicsManager : MonoBehaviour
         if (isSimulating) return;
         
         isSimulating = true;
-        OnSimulationStarted?.Invoke(); // <-- NEW: Tells barricades to hide!
+        OnSimulationStarted?.Invoke(); 
 
         activeStressHandlers.Clear(); 
         peakStressThisRun = 0f;
@@ -129,7 +171,7 @@ public class BridgePhysicsManager : MonoBehaviour
         if (!isSimulating) return;
         
         isSimulating = false;
-        OnSimulationStopped?.Invoke(); // <-- NEW: Tells barricades to reappear!
+        OnSimulationStopped?.Invoke(); 
 
         activeStressHandlers.Clear();
 
@@ -201,6 +243,84 @@ public class BridgePhysicsManager : MonoBehaviour
                 bar.UpdateCreatingBar(bar.endPoint.transform.position);
             }
         }
+    }
+
+    // --- THE FIX: Mathematically isolated Bake Function ---
+    public void BakeBridge()
+    {
+        // 1. Grab ONLY the points logically connected to this ravine's anchors!
+        HashSet<Point> isolatedPoints = GetActiveBridgePoints();
+        HashSet<Bar> isolatedBars = new HashSet<Bar>();
+
+        foreach(Point p in isolatedPoints)
+        {
+            foreach(Bar b in p.ConnectedBars)
+            {
+                if (b != null && b.gameObject.activeSelf) isolatedBars.Add(b);
+            }
+        }
+
+        BuildLocation activeLoc = GameManager.Instance != null ? GameManager.Instance.ActiveBuildLocation : null;
+        if (activeLoc != null)
+        {
+            activeLoc.bakedPoints.Clear();
+            activeLoc.bakedBars.Clear();
+        }
+
+        // STEP 1: Time-Stop
+        foreach (Point p in isolatedPoints)
+        {
+            if (p == null) continue;
+            Rigidbody rb = p.GetComponent<Rigidbody>();
+            if (rb != null)
+            {
+                rb.isKinematic = true;
+                rb.useGravity = false;
+                rb.velocity = Vector3.zero;
+            }
+        }
+
+        foreach (Bar b in isolatedBars)
+        {
+            if (b == null) continue;
+            Rigidbody rb = b.GetComponent<Rigidbody>();
+            if (rb != null)
+            {
+                rb.isKinematic = true;
+                rb.useGravity = false;
+                rb.velocity = Vector3.zero;
+            }
+        }
+
+        // STEP 2: Safely destroy components and SAVE them to the Location
+        foreach (Point p in isolatedPoints)
+        {
+            if (p == null) continue;
+            foreach (var j in p.GetComponents<Joint>()) Destroy(j);
+            if (p.GetComponent<Rigidbody>() != null) Destroy(p.GetComponent<Rigidbody>());
+            
+            p.enabled = false; 
+            if (activeLoc != null) activeLoc.bakedPoints.Add(p); 
+        }
+
+        foreach (Bar b in isolatedBars)
+        {
+            if (b == null) continue;
+            foreach (var j in b.GetComponents<Joint>()) Destroy(j);
+            if (b.GetComponent<Rigidbody>() != null) Destroy(b.GetComponent<Rigidbody>());
+            if (b.GetComponent<BarStressHandler>() != null) Destroy(b.GetComponent<BarStressHandler>());
+            
+            b.enabled = false; 
+            if (activeLoc != null) activeLoc.bakedBars.Add(b); 
+        }
+        
+        // --- NOTE: We DO NOT clear Point.AllPoints here anymore! ---
+        // This ensures unbaked pre-placed anchors at other ravines stay safe in memory!
+        
+        activeStressHandlers.Clear();
+        isSimulating = false;
+        
+        OnSimulationStopped?.Invoke(); 
     }
 
     public float GetMaxBridgeStress()

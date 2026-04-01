@@ -29,10 +29,13 @@ MonoBehaviour:
     - You have a budget of $10000. Head over to the Drafting Table when you are ready
       to build.
   reminderDialogue:
-    name: 412421
+    name: Professor Bhan
     sentences:
     - What are you waiting for? The creek isn't going to bridge itself!
     - Tap the Drafting Table to get started. Build across the gap and run the simulation.
   finishedContractDialogue:
-    name: 421421
-    sentences: []
+    name: Professor Bhan
+    sentences:
+    - wqewqe
+    - wqee
+    - eqweweq

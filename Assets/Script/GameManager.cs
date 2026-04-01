@@ -13,8 +13,6 @@ public class GameManager : MonoBehaviour
     public UnityEvent OnExitBuildMode;
 
     public BuildLocation ActiveBuildLocation { get; private set; }
-    
-    // --- NEW: Global memory of the active contract! ---
     public ContractSO CurrentContract { get; private set; } 
 
     [SerializeField] private Camera mainCamera;
@@ -27,9 +25,12 @@ public class GameManager : MonoBehaviour
     [SerializeField] private List<GameObject> uiElementsToHide = new List<GameObject>();
     [SerializeField] private List<GameObject> buildModeUIElements = new List<GameObject>();
 
+    [Header("Open World UI")]
+    public GameObject redoConfirmPanel;
+    private BuildLocation pendingRedoLocation;
+
     private void Awake()
     {
-        // FIX: Removed DontDestroyOnLoad so each scene can cleanly use its own GameManager!
         Instance = this; 
 
         if (mainCamera == null) mainCamera = Camera.main;
@@ -38,12 +39,12 @@ public class GameManager : MonoBehaviour
         {
             if (uiElement != null) uiElement.SetActive(false);
         }
+
+        if (redoConfirmPanel != null) redoConfirmPanel.SetActive(false);
     }
 
-    // --- NEW: Safe Framerate Lock ---
     private void Start()
     {
-        // Tells the Unity Engine to natively target 60 FPS without freezing the main thread!
         Application.targetFrameRate = 100000;
     }
 
@@ -52,9 +53,53 @@ public class GameManager : MonoBehaviour
         if (CurrentState == GameState.Building && Input.GetKeyDown(KeyCode.Escape)) ExitBuildMode();
     }
 
+    public void ShowRedoConfirmPanel(BuildLocation loc)
+    {
+        pendingRedoLocation = loc;
+        if (redoConfirmPanel != null) redoConfirmPanel.SetActive(true);
+        
+        InputManager inputObj = FindObjectOfType<InputManager>();
+        if (inputObj != null) 
+        { 
+            inputObj.SetPlayerInputEnable(false); 
+            inputObj.SetLookEnabled(false); 
+        }
+    }
+
+    public void ConfirmRedo()
+    {
+        if (redoConfirmPanel != null) redoConfirmPanel.SetActive(false);
+        if (pendingRedoLocation != null)
+        {
+            pendingRedoLocation.DeleteBakedBridge(); 
+            
+            PlayerMotor player = FindObjectOfType<PlayerMotor>();
+            if (player != null) pendingRedoLocation.ActivateBuildMode(player.transform);
+        }
+        pendingRedoLocation = null;
+    }
+
+    public void CancelRedo()
+    {
+        if (redoConfirmPanel != null) redoConfirmPanel.SetActive(false);
+        pendingRedoLocation = null;
+        
+        InputManager inputObj = FindObjectOfType<InputManager>();
+        if (inputObj != null) 
+        { 
+            inputObj.SetPlayerInputEnable(true); 
+            inputObj.SetLookEnabled(true); 
+        }
+    }
+
     public void EnterBuildMode(BuildLocation location, Transform player)
     {
         if (CurrentState == GameState.Building) return;
+
+        if (LevelCompleteManager.Instance != null)
+        {
+            LevelCompleteManager.Instance.ResetCompletionState();
+        }
 
         ActiveBuildLocation = location;
         
@@ -98,8 +143,22 @@ public class GameManager : MonoBehaviour
     public void ExitBuildMode()
     {
         if (CurrentState == GameState.Normal) return;
-
         CurrentState = GameState.Normal;
+
+        // --- FAIL-SAFE 1: Guarantee the UI comes back instantly! ---
+        foreach (GameObject uiElement in uiElementsToHide) if (uiElement != null) uiElement.SetActive(true);
+        foreach (GameObject uiElement in buildModeUIElements) if (uiElement != null) uiElement.SetActive(false);
+
+        // --- FAIL-SAFE 2: Unlock player controls instantly! ---
+        InputManager inputObj = FindObjectOfType<InputManager>();
+        if (inputObj != null)
+        {
+            inputObj.SetPlayerInputEnable(true);
+            inputObj.SetLookEnabled(true);
+        }
+        PlayerMotor player = FindObjectOfType<PlayerMotor>();
+        if (player != null) player.enabled = true;
+
         OnExitBuildMode?.Invoke();
 
         if (mainCamera != null && ActiveBuildLocation != null)
@@ -110,22 +169,21 @@ public class GameManager : MonoBehaviour
                 mainCamera.enabled = true;
             }
 
-            if (mainCamParent != null)
-            {
-                mainCamera.transform.SetParent(mainCamParent);
-                mainCamera.transform.localPosition = mainCamLocalPos;
-                mainCamera.transform.localRotation = mainCamLocalRot;
-            }
+            // THE FIX: Unconditionally snap the camera back, even if parent is null!
+            mainCamera.transform.SetParent(mainCamParent);
+            mainCamera.transform.localPosition = mainCamLocalPos;
+            mainCamera.transform.localRotation = mainCamLocalRot;
         }
 
         if (ActiveBuildLocation != null)
         {
             if (currentPlayerTransform != null) ActiveBuildLocation.DeactivateBuildMode(currentPlayerTransform);
-            currentPlayerTransform = null;
         }
 
-        foreach (GameObject uiElement in uiElementsToHide) if (uiElement != null) uiElement.SetActive(true);
-        foreach (GameObject uiElement in buildModeUIElements) if (uiElement != null) uiElement.SetActive(false);
+        // --- THE FIX: Wipe the GameManager's memory clean for the next ravine! ---
+        currentPlayerTransform = null;
+        ActiveBuildLocation = null; 
+        CurrentContract = null;
     }
 
     public bool IsInBuildMode() => CurrentState == GameState.Building;

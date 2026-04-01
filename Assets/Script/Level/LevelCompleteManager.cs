@@ -9,23 +9,18 @@ public class LevelCompleteManager : MonoBehaviour
 {
     public static LevelCompleteManager Instance { get; private set; }
 
-    [Header("Progression (Map System)")]
-    public string nextLevelToUnlock;
-
     [Header("UI References")]
     public GameObject levelCompletePanel;
     public TextMeshProUGUI feedbackText;
-    public TextMeshProUGUI costText;   // <-- Now just shows Total Cost
-    public TextMeshProUGUI budgetText; // <-- NEW: Shows the Max Budget separately
+    public TextMeshProUGUI costText;   
+    public TextMeshProUGUI budgetText; 
     public TextMeshProUGUI stressText;
     
     [Header("Receipt UI System")]
-    [Tooltip("The 'Content' object inside your Scroll View")]
     public Transform receiptContentParent; 
-    [Tooltip("The Prefab with the ReceiptRowUI script attached")]
     public GameObject receiptRowPrefab;    
 
-    [Header("Reward UI")]
+    [Header("Potential Reward UI (Visual Only)")]
     public TextMeshProUGUI goldEarnedText;
     public TextMeshProUGUI expEarnedText;
 
@@ -33,8 +28,13 @@ public class LevelCompleteManager : MonoBehaviour
     public List<GameObject> uiElementsToHide = new List<GameObject>();
 
     private List<GameObject> temporarilyHiddenPanels = new List<GameObject>();
-    private bool rewardsClaimedThisSession = false;
     private bool levelAlreadyCompleted = false;
+
+    private ContractSO activeContract;
+    private HashSet<string> alreadyPaidContracts = new HashSet<string>();
+
+    private Dictionary<string, int> contractGoldRewards = new Dictionary<string, int>();
+    private Dictionary<string, int> contractExpRewards = new Dictionary<string, int>();
 
     private void Awake()
     {
@@ -44,17 +44,36 @@ public class LevelCompleteManager : MonoBehaviour
         if (levelCompletePanel != null) levelCompletePanel.SetActive(false); 
     }
 
+    public int GetContractGold(string contractName) { return contractGoldRewards.ContainsKey(contractName) ? contractGoldRewards[contractName] : 0; }
+    public int GetContractExp(string contractName) { return contractExpRewards.ContainsKey(contractName) ? contractExpRewards[contractName] : 0; }
+
+    public void MarkContractAsPaid(string contractName)
+    {
+        if (!string.IsNullOrEmpty(contractName))
+        {
+            alreadyPaidContracts.Add(contractName);
+        }
+    }
+
+    public void ResetCompletionState()
+    {
+        levelAlreadyCompleted = false;
+    }
+
     public void CompleteLevel(ContractSO currentContract)
     {
+        BridgePhysicsManager physicsManager = FindObjectOfType<BridgePhysicsManager>();
+        if (physicsManager != null && !physicsManager.isSimulating) return;
+
         if (levelAlreadyCompleted) return;
         levelAlreadyCompleted = true;
+        activeContract = currentContract;
 
         StartCoroutine(TakeSnapshotAndShowUIRoutine(currentContract));
     }
 
     private IEnumerator TakeSnapshotAndShowUIRoutine(ContractSO currentContract)
     {
-        // 1. Hide Gameplay UI instantly
         temporarilyHiddenPanels.Clear();
         foreach (GameObject ui in uiElementsToHide)
         {
@@ -75,10 +94,8 @@ public class LevelCompleteManager : MonoBehaviour
         PlayerMotor player = FindObjectOfType<PlayerMotor>();
         if (player != null) player.enabled = false;
 
-        // 2. Wait exactly one frame so UI disappears from the screenshot
         yield return new WaitForEndOfFrame();
 
-        // 3. Take Photo
         if (currentContract != null)
         {
             Texture2D screenImage = new Texture2D(Screen.width, Screen.height, TextureFormat.RGB24, false);
@@ -88,22 +105,15 @@ public class LevelCompleteManager : MonoBehaviour
             byte[] imageBytes = screenImage.EncodeToPNG();
             string photoPath = Application.persistentDataPath + "/" + currentContract.name + "_photo.png";
             File.WriteAllBytes(photoPath, imageBytes);
-            
             Destroy(screenImage);
             
-            if (PlayerDataManager.Instance != null)
-            {
-                PlayerDataManager.Instance.CompleteContract(currentContract.name);
-            }
+            if (PlayerDataManager.Instance != null) PlayerDataManager.Instance.CompleteContract(currentContract.name);
         }
 
-        // 4. Generate the Itemized Receipt!
         if (receiptContentParent != null && receiptRowPrefab != null)
         {
-            // Clear old rows from previous attempts
             foreach (Transform child in receiptContentParent) Destroy(child.gameObject);
 
-            // Group bars by material and sum up their lengths
             Dictionary<BridgeMaterialSO, float> materialUsage = new Dictionary<BridgeMaterialSO, float>();
             HashSet<Bar> countedBars = new HashSet<Bar>();
 
@@ -114,34 +124,22 @@ public class LevelCompleteManager : MonoBehaviour
                 {
                     if (b != null && b.gameObject.activeSelf && !countedBars.Contains(b))
                     {
-                        countedBars.Add(b); // Prevent double-counting bars shared by two points
-                        
-                        if (!materialUsage.ContainsKey(b.materialData))
-                            materialUsage[b.materialData] = 0f;
-                        
-                        // Dual beams count as twice the length for billing!
+                        countedBars.Add(b); 
+                        if (!materialUsage.ContainsKey(b.materialData)) materialUsage[b.materialData] = 0f;
                         int multiplier = b.materialData.isDualBeam ? 2 : 1;
                         materialUsage[b.materialData] += (b.currentLength * multiplier);
                     }
                 }
             }
 
-            // Spawn a UI row for each material used
             foreach (var kvp in materialUsage)
             {
-                BridgeMaterialSO mat = kvp.Key;
-                float totalLength = kvp.Value;
-
                 GameObject rowObj = Instantiate(receiptRowPrefab, receiptContentParent);
                 ReceiptRowUI rowUI = rowObj.GetComponent<ReceiptRowUI>();
-                if (rowUI != null)
-                {
-                    rowUI.Setup(mat, totalLength);
-                }
+                if (rowUI != null) rowUI.Setup(kvp.Key, kvp.Value);
             }
         }
 
-        // 5. Show Panel and Calculate Grand Totals
         if (levelCompletePanel != null) levelCompletePanel.SetActive(true);
 
         float maxBudget = currentContract != null ? currentContract.budget : 0f;
@@ -152,53 +150,51 @@ public class LevelCompleteManager : MonoBehaviour
         if (BuildUIController.Instance != null) finalCost = BuildUIController.Instance.GetTotalCost();
 
         float peakStress = 0f;
-        BridgePhysicsManager physicsManager = FindObjectOfType<BridgePhysicsManager>();
-        if (physicsManager != null) peakStress = physicsManager.peakStressThisRun * 100f; 
+        BridgePhysicsManager manager = FindObjectOfType<BridgePhysicsManager>();
+        if (manager != null) peakStress = manager.peakStressThisRun * 100f; 
 
-        if (!rewardsClaimedThisSession && PlayerDataManager.Instance != null)
+        int calculatedGold = 0;
+        int calculatedExp = 0;
+
+        if (currentContract != null && alreadyPaidContracts.Contains(currentContract.name))
         {
-            int finalGold = baseGoldReward;
-            int finalExp = baseExpReward;
+            if (feedbackText != null) feedbackText.text = "<color=yellow>Redesign Successful! (Rewards already claimed)</color>";
+        }
+        else
+        {
+            calculatedGold = baseGoldReward;
+            calculatedExp = baseExpReward;
 
             if (finalCost <= maxBudget)
             {
                 int bonusGold = Mathf.RoundToInt((maxBudget - finalCost) * 0.2f); 
-                finalGold += bonusGold;
+                calculatedGold += bonusGold;
                 if (feedbackText != null) feedbackText.text = "<color=green>Under Budget! Excellent Engineering!</color>";
             }
             else
             {
                 int penaltyGold = Mathf.RoundToInt((finalCost - maxBudget) * 0.5f);
-                finalGold -= penaltyGold;
-                if (finalGold < 0) finalGold = 0; 
-                
+                calculatedGold -= penaltyGold;
+                if (calculatedGold < 0) calculatedGold = 0; 
                 if (feedbackText != null) feedbackText.text = "<color=red>Over Budget! The client isn't happy, but the bridge held.</color>";
             }
-
-            PlayerDataManager.Instance.AddGold(finalGold);
-            PlayerDataManager.Instance.AddExp(finalExp);
-            PlayerDataManager.Instance.AddBridgeBuilt();
-            
-            if (!string.IsNullOrEmpty(nextLevelToUnlock)) PlayerDataManager.Instance.UnlockLevel(nextLevelToUnlock);
-
-            if (goldEarnedText != null) goldEarnedText.text = $"+{finalGold} Gold";
-            if (expEarnedText != null) expEarnedText.text = $"+{finalExp} EXP";
-
-            rewardsClaimedThisSession = true;
         }
 
-        // --- NEW: Separated Grand Total and Budget text ---
+        if (currentContract != null)
+        {
+            contractGoldRewards[currentContract.name] = calculatedGold;
+            contractExpRewards[currentContract.name] = calculatedExp;
+        }
+
+        if (goldEarnedText != null) goldEarnedText.text = $"+{calculatedGold} Gold (Pending)";
+        if (expEarnedText != null) expEarnedText.text = $"+{calculatedExp} EXP (Pending)";
+
         if (costText != null) 
         {
             costText.text = $"Total Cost: ${Mathf.RoundToInt(finalCost)}";
-            // Optional: Make it red if they went over budget
             costText.color = (finalCost > maxBudget) ? Color.red : Color.white;
         }
-        
-        if (budgetText != null) 
-        {
-            budgetText.text = $"Budget: ${Mathf.RoundToInt(maxBudget)}";
-        }
+        if (budgetText != null) budgetText.text = $"Budget: ${Mathf.RoundToInt(maxBudget)}";
 
         if (stressText != null)
         {
@@ -207,6 +203,38 @@ public class LevelCompleteManager : MonoBehaviour
             else if (peakStress >= 50f) stressText.color = Color.yellow;
             else stressText.color = Color.green;
         }
+    }
+
+    public void RetrySimulation()
+    {
+        levelAlreadyCompleted = false; 
+        
+        BridgePhysicsManager physicsManager = FindObjectOfType<BridgePhysicsManager>();
+        if (physicsManager != null) physicsManager.StopPhysicsAndReset();
+        
+        BarCreator creator = FindObjectOfType<BarCreator>();
+        if (creator != null) creator.isSimulating = false;
+
+        ClosePanel();
+    }
+
+    public void SaveAndBakeBridge()
+    {
+        NPCContractGiver[] npcs = FindObjectsOfType<NPCContractGiver>();
+        foreach (var npc in npcs)
+        {
+            if (npc.contractToGive == activeContract) npc.isContractCompleted = true;
+        }
+
+        BridgePhysicsManager physicsManager = FindObjectOfType<BridgePhysicsManager>();
+        if (physicsManager != null) physicsManager.BakeBridge();
+
+        // --- NEW: Wipe the memory banks! You can no longer Undo the baked bridge! ---
+        if (CommandManager.Instance != null) CommandManager.Instance.ClearHistory();
+
+        ClosePanel();
+        
+        if (GameManager.Instance != null) GameManager.Instance.ExitBuildMode();
     }
 
     public void ClosePanel()
@@ -232,8 +260,4 @@ public class LevelCompleteManager : MonoBehaviour
         PlayerMotor player = FindObjectOfType<PlayerMotor>();
         if (player != null) player.enabled = shouldEnableInput;
     }
-
-    public void NextLevel() { if (!string.IsNullOrEmpty(nextLevelToUnlock)) SceneManager.LoadScene(nextLevelToUnlock); }
-    public void RestartLevel() { SceneManager.LoadScene(SceneManager.GetActiveScene().name); }
-    public void ReturnToMap() { SceneManager.LoadScene("MapScene"); }
 }
