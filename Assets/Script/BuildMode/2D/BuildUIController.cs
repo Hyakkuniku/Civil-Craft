@@ -40,10 +40,7 @@ public class BuildUIController : MonoBehaviour
 
     [Header("Stress Visualization")]
     public TextMeshProUGUI stressText;
-    
-    [Tooltip("WARNING: Make sure this Image component in the Inspector has its 'Image Type' set to 'Filled'!")]
     public Image stressFillBar;
-    
     public Color safeStressColor = Color.green;
     public Color warningStressColor = Color.yellow;
     public Color criticalStressColor = Color.red;
@@ -61,6 +58,12 @@ public class BuildUIController : MonoBehaviour
     [Header("Selection UI")]
     public GameObject selectionActionPanel; 
 
+    [Header("Live Beam Stats (Drawing/Moving Readout)")]
+    public GameObject liveBeamStatsPanel; 
+    public TextMeshProUGUI liveBeamLengthText;
+    public TextMeshProUGUI liveBeamCostText;
+    public TextMeshProUGUI liveBeamAngleText;
+
     private float cachedBaseCost = 0f;
     private float cachedBaseDeadLoad = 0f;
     private int cachedBaseM = 0;
@@ -68,11 +71,9 @@ public class BuildUIController : MonoBehaviour
     private float cachedBaseRoadLength = 0f;
     private float cachedBaseWeakestStress = Mathf.Infinity;
 
-    // --- OPTIMIZATION 1: Pre-allocated HashSets to stop Garbage Collection! ---
     private HashSet<Bar> uniqueBars = new HashSet<Bar>();
     private HashSet<Point> activePoints = new HashSet<Point>();
 
-    // --- OPTIMIZATION 2: Caching UI values to stop String Generation every frame! ---
     private int lastStressPercent = -1;
     private int lastProjectedCost = -1;
     private float lastRoadLength = -1f;
@@ -87,10 +88,10 @@ public class BuildUIController : MonoBehaviour
         if (physicsManager == null) physicsManager = FindObjectOfType<BridgePhysicsManager>();
         
         if (selectionActionPanel != null) selectionActionPanel.SetActive(false);
-        
-        // THE FIX: Explicitly ensure the stats panel is turned off when the game starts!
         if (statsPanel != null) statsPanel.SetActive(false); 
         
+        if (liveBeamStatsPanel != null) liveBeamStatsPanel.SetActive(false);
+
         if (actionLogText != null) actionLogText.text = ""; 
 
         MarkBridgeDirty();
@@ -119,7 +120,71 @@ public class BuildUIController : MonoBehaviour
             }
         }
         
+        UpdateLiveBeamStatsUI();
         UpdatePlayPauseButtonUI();
+    }
+
+    private void UpdateLiveBeamStatsUI()
+    {
+        Bar targetBar = null;
+
+        if (barCreator != null)
+        {
+            // Scenario 1: We are actively drawing a brand new beam
+            if (barCreator.IsCreating && barCreator.currentBar != null)
+            {
+                targetBar = barCreator.currentBar;
+            }
+            // Scenario 2: We are actively moving an existing node using the Move Tool
+            else if (barCreator.IsMoving && barCreator.isDraggingSelection)
+            {
+                var selectedPoints = barCreator.GetSelectedPoints();
+                HashSet<Bar> affectedBars = new HashSet<Bar>();
+                foreach (Point p in selectedPoints)
+                {
+                    foreach (Bar b in p.ConnectedBars)
+                    {
+                        if (b != null && b.gameObject.activeSelf)
+                        {
+                            affectedBars.Add(b);
+                        }
+                    }
+                }
+
+                if (affectedBars.Count == 1)
+                {
+                    var enumerator = affectedBars.GetEnumerator();
+                    enumerator.MoveNext();
+                    targetBar = enumerator.Current;
+                }
+            }
+            // Scenario 3 (NEW!): We just tapped a single beam in Select Mode!
+            else if (barCreator.IsSelecting && barCreator.selectedBars.Count == 1 && barCreator.selectedPoints.Count == 0)
+            {
+                targetBar = barCreator.selectedBars[0];
+            }
+        }
+
+        // Output to the panel if we have a valid beam
+        if (targetBar != null && targetBar.materialData != null)
+        {
+            if (liveBeamStatsPanel != null && !liveBeamStatsPanel.activeSelf) 
+                liveBeamStatsPanel.SetActive(true);
+
+            if (liveBeamLengthText != null) 
+                liveBeamLengthText.text = $"{targetBar.currentLength:F2}m";
+                
+            if (liveBeamCostText != null) 
+                liveBeamCostText.text = $"${targetBar.GetCost():F0}";
+                
+            if (liveBeamAngleText != null) 
+                liveBeamAngleText.text = $"{targetBar.currentAngle:F1}°";
+        }
+        else
+        {
+            if (liveBeamStatsPanel != null && liveBeamStatsPanel.activeSelf) 
+                liveBeamStatsPanel.SetActive(false);
+        }
     }
 
     public void LogAction(string message)

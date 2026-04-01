@@ -13,6 +13,9 @@ public class Bar : MonoBehaviour
     [HideInInspector] public Quaternion preSimRot;
     [HideInInspector] public Vector3 visualSize = new Vector3(1f, 0.2f, 0.2f);
     [HideInInspector] public float currentLength = 0f;
+    [HideInInspector] public float currentAngle = 0f; 
+    
+    [HideInInspector] public bool isHighlighted = false; // <-- NEW
 
     private List<GameObject> visualSegments = new List<GameObject>();
     private float baseLength = 1f; 
@@ -23,6 +26,9 @@ public class Bar : MonoBehaviour
     
     private float capTopOffset = 0f;
     private float capBottomOffset = 0f;
+
+    // --- NEW: Stores the original materials so we can swap back after highlighting ---
+    private Dictionary<Renderer, Material> originalMats = new Dictionary<Renderer, Material>();
 
     private void OnEnable()
     {
@@ -97,6 +103,26 @@ public class Bar : MonoBehaviour
 
             pierCapInstance.transform.localScale = Vector3.zero; 
         }
+
+        // --- NEW: Capture all default materials immediately after generation ---
+        originalMats.Clear();
+        foreach (var r in GetComponentsInChildren<Renderer>(true))
+        {
+            if (r != null) originalMats[r] = r.sharedMaterial;
+        }
+    }
+
+    // --- NEW: Safely swaps the materials to the highlight color and back ---
+    public void SetHighlight(bool highlight, Material highlightMat)
+    {
+        isHighlighted = highlight;
+        foreach (var kvp in originalMats)
+        {
+            if (kvp.Key != null)
+            {
+                kvp.Key.sharedMaterial = (highlight && highlightMat != null) ? highlightMat : kvp.Value;
+            }
+        }
     }
 
     public void UpdateCreatingBar(Vector3 ToPosition) 
@@ -128,6 +154,8 @@ public class Bar : MonoBehaviour
 
         if (materialData.isPier)
         {
+            currentAngle = 90f; 
+
             float targetPillarTopY = actualEnd.y;
             if (pierCapInstance != null)
             {
@@ -137,7 +165,6 @@ public class Bar : MonoBehaviour
             float adjustedDistance = targetPillarTopY - actualStart.y;
             if (adjustedDistance < 0.05f) adjustedDistance = 0.05f; 
 
-            // --- BUG FIX: ALWAYS move the parent first BEFORE positioning the child T-Cap ---
             Vector3 midPointAdjusted = actualStart + (Vector3.up * (adjustedDistance / 2f));
             transform.SetPositionAndRotation(midPointAdjusted, Quaternion.identity);
 
@@ -149,7 +176,6 @@ public class Bar : MonoBehaviour
                 seg.transform.localScale = newScale;
             }
 
-            // --- Now that the parent is settled, place the T-Cap in world space ---
             if (pierCapInstance != null)
             {
                 pierCapInstance.transform.localScale = originalCapScale;
@@ -168,6 +194,8 @@ public class Bar : MonoBehaviour
             if (angleDir.x < 0) angleDir = -angleDir;
 
             float angle = Mathf.Atan2(angleDir.y, angleDir.x) * Mathf.Rad2Deg;
+            currentAngle = angle; 
+
             transform.SetPositionAndRotation(midPoint, Quaternion.Euler(0, 0, angle));
 
             float scaleMultiplier = totalDistance / baseLength;

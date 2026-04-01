@@ -28,14 +28,20 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     public bool isGridSnappingEnabled = true;
     public bool isDeleteMode = false;
     
+    [Header("Selection Visuals")]
+    [Tooltip("Drag the same highlight material used by Point here!")]
+    public Material selectedBarMaterial; // <-- NEW: Used to highlight beams!
+
     [Header("Selection & Move Tools")]
     public bool isSelectMode = false;
     public bool isMoveMode = false; 
     public RectTransform selectionBoxUI; 
     private Vector2 selectionStartPos;
-    private List<Point> selectedPoints = new List<Point>();
     
-    private bool isDraggingSelection = false;
+    [HideInInspector] public List<Point> selectedPoints = new List<Point>();
+    [HideInInspector] public List<Bar> selectedBars = new List<Bar>(); 
+    
+    public bool isDraggingSelection = false;
     private bool isDraggingSelectionBox = false; 
     private Vector3 dragStartMouseWorld;
     private Vector3 dragLastValidDelta;
@@ -153,7 +159,13 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
     public List<Point> GetSelectedPoints()
     {
-        return selectedPoints;
+        HashSet<Point> allSelected = new HashSet<Point>(selectedPoints);
+        foreach(Bar b in selectedBars)
+        {
+            if (b.startPoint != null) allSelected.Add(b.startPoint);
+            if (b.endPoint != null) allSelected.Add(b.endPoint);
+        }
+        return new List<Point>(allSelected);
     }
     
     public void ClearSelectionPublic()
@@ -161,7 +173,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         ClearSelection();
     }
 
-    // --- MATH UTILITY FOR BAR SLICING ---
     private Vector3 GetClosestPointOnLineSegment(Vector3 point, Vector3 lineStart, Vector3 lineEnd)
     {
         Vector3 lineDir = lineEnd - lineStart;
@@ -390,7 +401,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             Vector3 worldMousePos = GetWorldMousePosition(screenPos);
             Vector3 targetPos = CalculateTargetPosition(worldMousePos, hoveredNode);
 
-            // --- BAR SPLIT PREVIEW SNAPPING ---
             if (hoveredNode == null && activeMaterial != null && !activeMaterial.isPier)
             {
                 float minBarDist = 0.4f;
@@ -476,17 +486,16 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
     public void DeleteSelected()
     {
-        if (selectedPoints.Count == 0) return;
+        if (selectedPoints.Count == 0 && selectedBars.Count == 0) return;
 
         HistoryAction deleteAction = new HistoryAction { isBuildEvent = false };
         
+        List<Bar> barsToDelete = new List<Bar>(selectedBars);
+        foreach (Bar b in barsToDelete) DeleteBar(b, deleteAction);
+
         cachedPointsToProcess.Clear();
         cachedPointsToProcess.AddRange(selectedPoints);
-        
-        foreach (Point p in cachedPointsToProcess)
-        {
-            DeletePoint(p, deleteAction);
-        }
+        foreach (Point p in cachedPointsToProcess) DeletePoint(p, deleteAction);
 
         if (deleteAction.affectedObjects.Count > 0)
         {
@@ -537,6 +546,8 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                     hoveredNode.isSelected = true;
                     hoveredNode.UpdateMaterial();
                     selectedPoints.Add(hoveredNode);
+                    
+                    UpdateBarHighlights(); // <-- Apply Material
                 }
                 else
                 {
@@ -727,10 +738,10 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                     else ClearSelection(); 
                 }
 
-                if (BuildUIController.Instance != null && selectedPoints.Count > 0)
+                if (BuildUIController.Instance != null && (selectedPoints.Count > 0 || selectedBars.Count > 0))
                 {
                     BuildUIController.Instance.SetSelectionPanelActive(true);
-                }
+                }               
             }
             return;
         }
@@ -836,27 +847,68 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             p.UpdateMaterial();
             selectedPoints.Add(p);
         }
+        UpdateBarHighlights(); // <-- Apply Material
         if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction(p.isSelected ? "Node Selected" : "Node Deselected");
     }
 
     private void ToggleBarSelection(Bar bar)
     {
-        Point p1 = bar.startPoint;
-        Point p2 = bar.endPoint;
-        bool p1Selected = selectedPoints.Contains(p1);
-        bool p2Selected = selectedPoints.Contains(p2);
-        
-        if (p1Selected && p2Selected)
+        if (selectedBars.Contains(bar))
         {
-            p1.isSelected = false; p1.UpdateMaterial(); selectedPoints.Remove(p1);
-            p2.isSelected = false; p2.UpdateMaterial(); selectedPoints.Remove(p2);
+            selectedBars.Remove(bar);
         }
         else
         {
-            if (!p1Selected) { p1.isSelected = true; p1.UpdateMaterial(); selectedPoints.Add(p1); }
-            if (!p2Selected) { p2.isSelected = true; p2.UpdateMaterial(); selectedPoints.Add(p2); }
+            selectedBars.Add(bar);
         }
+
+        UpdateBarHighlights(); // <-- Apply Material
+        
         if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("Beam Selected");
+    }
+
+    // --- NEW: Forces the beams to light up using SetHighlight! ---
+    public void UpdateBarHighlights()
+    {
+        // 1. Reset everything back to normal colors first
+        foreach (Point p in Point.AllPoints) 
+        {
+            foreach (Bar b in p.ConnectedBars) 
+            {
+                if (b != null) b.SetHighlight(false, selectedBarMaterial);
+            }
+        }
+
+        // 2. Light up the "Spider-Web" if only 1 node is selected and no bars are explicitly selected
+        if (selectedPoints.Count == 1 && selectedBars.Count == 0) 
+        {
+            foreach (Bar b in selectedPoints[0].ConnectedBars) 
+            {
+                if (b != null && b.gameObject.activeSelf) b.SetHighlight(true, selectedBarMaterial);
+            }
+        } 
+        // 3. Light up ONLY the fully enclosed beams if multiple nodes or specific bars are selected
+        else if (selectedPoints.Count > 1 || selectedBars.Count > 0) 
+        {
+            // Highlight explicitly selected bars
+            foreach (Bar b in selectedBars)
+            {
+                if (b != null && b.gameObject.activeSelf) b.SetHighlight(true, selectedBarMaterial);
+            }
+
+            // Highlight fully enclosed bars from selected nodes
+            foreach (Point p in selectedPoints) 
+            {
+                foreach (Bar b in p.ConnectedBars) 
+                {
+                    if (b != null && b.gameObject.activeSelf && 
+                        selectedPoints.Contains(b.startPoint) && selectedPoints.Contains(b.endPoint)) 
+                    {
+                        b.SetHighlight(true, selectedBarMaterial);
+                    }
+                }
+            }
+        }
     }
 
     public void ToggleSelectMode()
@@ -937,6 +989,11 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     {
         foreach (Point p in selectedPoints) if (p != null) { p.isSelected = false; p.UpdateMaterial(); }
         selectedPoints.Clear();
+
+        selectedBars.Clear();
+
+        UpdateBarHighlights(); // <-- Apply Material
+
         if (BuildUIController.Instance != null) BuildUIController.Instance.SetSelectionPanelActive(false);
     }
 
@@ -966,15 +1023,45 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         Camera cam = GetActiveCamera();
         Rect selectionRect = new Rect(Mathf.Min(startPos.x, endPos.x), Mathf.Min(startPos.y, endPos.y), Mathf.Abs(startPos.x - endPos.x), Mathf.Abs(startPos.y - endPos.y));
 
+        HashSet<Bar> allActiveBars = new HashSet<Bar>();
+
+        // 1. Select all the nodes inside the box
         foreach (Point p in Point.AllPoints)
         {
             if (p.gameObject.activeSelf) 
             {
                 Vector2 screenPos = cam.WorldToScreenPoint(p.transform.position);
-                if (selectionRect.Contains(screenPos)) { p.isSelected = true; p.UpdateMaterial(); selectedPoints.Add(p); }
+                if (selectionRect.Contains(screenPos)) 
+                { 
+                    p.isSelected = true; 
+                    p.UpdateMaterial(); 
+                    selectedPoints.Add(p); 
+                }
+                
+                // Gather bars to check in the next step
+                foreach (Bar b in p.ConnectedBars)
+                {
+                    if (b != null && b.gameObject.activeSelf) allActiveBars.Add(b);
+                }
             }
         }
-        if (selectedPoints.Count > 0 && BuildUIController.Instance != null) 
+
+        // 2. Select the beams if their center point is inside the box!
+        foreach (Bar b in allActiveBars)
+        {
+            Vector2 s1 = cam.WorldToScreenPoint(b.startPoint.transform.position);
+            Vector2 s2 = cam.WorldToScreenPoint(b.endPoint.transform.position);
+            Vector2 mid = (s1 + s2) / 2f;
+
+            if (selectionRect.Contains(mid) || (selectionRect.Contains(s1) && selectionRect.Contains(s2)))
+            {
+                selectedBars.Add(b);
+            }
+        }
+
+        UpdateBarHighlights(); 
+
+        if ((selectedPoints.Count > 0 || selectedBars.Count > 0) && BuildUIController.Instance != null) 
         {
             BuildUIController.Instance.SetSelectionPanelActive(true);
             BuildUIController.Instance.LogAction("Box Selection Applied");
@@ -1195,7 +1282,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             }
         }
         
-        // --- NEW: BAR SLICING LOGIC ---
         Bar barToSplit = null;
         if (existingEndPoint == null && activeMaterial != null && !activeMaterial.isPier)
         {
@@ -1250,27 +1336,22 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (createdNewStartPoint) buildAction.affectedObjects.Add(currentStartPoint.gameObject); 
         if (createdNewEndPoint) buildAction.affectedObjects.Add(currentEndPoint.gameObject);
 
-        // --- NEW: EXECUTE BAR SPLIT ---
         if (barToSplit != null)
         {
             Point originalStart = barToSplit.startPoint;
             Point originalEnd = barToSplit.endPoint;
 
-            // Deactivate old bar and save to Undo history
             barToSplit.gameObject.SetActive(false);
             buildAction.disabledObjects.Add(barToSplit.gameObject);
 
-            // Remove old connections
             originalStart.ConnectedBars.Remove(barToSplit);
             originalEnd.ConnectedBars.Remove(barToSplit);
 
-            // Check if currentBar perfectly overlaps one of the slices to prevent duplicated beams!
             bool startsAtOriginalStart = (currentStartPoint == originalStart);
             bool startsAtOriginalEnd = (currentStartPoint == originalEnd);
 
             if (startsAtOriginalStart)
             {
-                // We only need to generate the second half!
                 GameObject bObj = Instantiate(barToInstantiate, barParent);
                 Bar newBar = bObj.GetComponent<Bar>();
                 newBar.Initialize(barToSplit.materialData);
@@ -1285,7 +1366,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             }
             else if (startsAtOriginalEnd)
             {
-                // We only need to generate the first half!
                 GameObject bObj = Instantiate(barToInstantiate, barParent);
                 Bar newBar = bObj.GetComponent<Bar>();
                 newBar.Initialize(barToSplit.materialData);
@@ -1300,7 +1380,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             }
             else
             {
-                // We cut the bar completely in half from an unrelated angle. Generate both pieces!
                 GameObject bObj1 = Instantiate(barToInstantiate, barParent);
                 Bar newBar1 = bObj1.GetComponent<Bar>();
                 newBar1.Initialize(barToSplit.materialData);

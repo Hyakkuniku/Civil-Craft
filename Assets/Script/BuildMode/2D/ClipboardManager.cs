@@ -18,6 +18,11 @@ public class ClipboardManager : MonoBehaviour
     public static ClipboardManager Instance { get; private set; }
     private BarCreator barCreator;
 
+    [Header("Override Confirmation UI")]
+    public GameObject overrideConfirmPanel;
+    public UnityEngine.UI.Toggle dontShowAgainToggle;
+    private bool skipOverrideConfirm = false;
+
     [HideInInspector] public bool isPasteMode = false;
     private bool isPasteFromCut = false; 
     [HideInInspector] public bool isDraggingSelection = false;
@@ -38,6 +43,7 @@ public class ClipboardManager : MonoBehaviour
     { 
         Instance = this; 
         barCreator = GetComponent<BarCreator>();
+        if (overrideConfirmPanel != null) overrideConfirmPanel.SetActive(false);
     }
 
     private void Update()
@@ -69,22 +75,32 @@ public class ClipboardManager : MonoBehaviour
         }
     }
 
-    public void CopySelected(List<Point> selectedPoints)
+    public void CopySelected(List<Point> ignoredPointsParam)
     {
-        if (selectedPoints.Count == 0) return;
+        if (barCreator.selectedPoints.Count == 0 && barCreator.selectedBars.Count == 0) return;
         
-        HashSet<Point> expandedPoints = new HashSet<Point>(selectedPoints);
-        HashSet<Bar> capturedBars = new HashSet<Bar>();
+        HashSet<Point> expandedPoints = new HashSet<Point>(barCreator.selectedPoints);
+        HashSet<Bar> capturedBars = new HashSet<Bar>(barCreator.selectedBars);
 
-        foreach (Point p in selectedPoints)
+        if (barCreator.selectedPoints.Count == 1 && barCreator.selectedBars.Count == 0)
         {
-            foreach (Bar b in p.ConnectedBars)
+            foreach (Bar b in barCreator.selectedPoints[0].ConnectedBars)
             {
-                if (b != null && b.gameObject.activeSelf)
+                if (b != null && b.gameObject.activeSelf) capturedBars.Add(b);
+            }
+        }
+        else
+        {
+            foreach (Point p in barCreator.selectedPoints)
+            {
+                foreach (Bar b in p.ConnectedBars)
                 {
-                    capturedBars.Add(b);
-                    expandedPoints.Add(b.startPoint);
-                    expandedPoints.Add(b.endPoint);
+                    if (b != null && b.gameObject.activeSelf &&
+                        barCreator.selectedPoints.Contains(b.startPoint) &&
+                        barCreator.selectedPoints.Contains(b.endPoint))
+                    {
+                        capturedBars.Add(b);
+                    }
                 }
             }
         }
@@ -95,11 +111,17 @@ public class ClipboardManager : MonoBehaviour
             return;
         }
 
+        foreach(Bar b in capturedBars)
+        {
+            expandedPoints.Add(b.startPoint);
+            expandedPoints.Add(b.endPoint);
+        }
+
         List<Point> finalPointList = new List<Point>(expandedPoints);
         copiedRelativePoints.Clear();
         copiedBars.Clear();
 
-        Vector3 rootPos = selectedPoints[0].transform.position;
+        Vector3 rootPos = finalPointList[0].transform.position;
         for (int i = 0; i < finalPointList.Count; i++)
         {
             copiedRelativePoints.Add(finalPointList[i].transform.position - rootPos);
@@ -135,22 +157,32 @@ public class ClipboardManager : MonoBehaviour
         }
     }
     
-    public void CutSelected(List<Point> selectedPoints)
+    public void CutSelected(List<Point> ignoredPointsParam)
     {
-        if (selectedPoints.Count == 0) return;
+        if (barCreator.selectedPoints.Count == 0 && barCreator.selectedBars.Count == 0) return;
         
-        HashSet<Point> expandedPoints = new HashSet<Point>(selectedPoints);
-        HashSet<Bar> capturedBars = new HashSet<Bar>();
+        HashSet<Point> expandedPoints = new HashSet<Point>(barCreator.selectedPoints);
+        HashSet<Bar> capturedBars = new HashSet<Bar>(barCreator.selectedBars);
 
-        foreach (Point p in selectedPoints)
+        if (barCreator.selectedPoints.Count == 1 && barCreator.selectedBars.Count == 0)
         {
-            foreach (Bar b in p.ConnectedBars)
+            foreach (Bar b in barCreator.selectedPoints[0].ConnectedBars)
             {
-                if (b != null && b.gameObject.activeSelf)
+                if (b != null && b.gameObject.activeSelf) capturedBars.Add(b);
+            }
+        }
+        else
+        {
+            foreach (Point p in barCreator.selectedPoints)
+            {
+                foreach (Bar b in p.ConnectedBars)
                 {
-                    capturedBars.Add(b);
-                    expandedPoints.Add(b.startPoint);
-                    expandedPoints.Add(b.endPoint);
+                    if (b != null && b.gameObject.activeSelf &&
+                        barCreator.selectedPoints.Contains(b.startPoint) &&
+                        barCreator.selectedPoints.Contains(b.endPoint))
+                    {
+                        capturedBars.Add(b);
+                    }
                 }
             }
         }
@@ -161,11 +193,17 @@ public class ClipboardManager : MonoBehaviour
             return;
         }
 
+        foreach(Bar b in capturedBars)
+        {
+            expandedPoints.Add(b.startPoint);
+            expandedPoints.Add(b.endPoint);
+        }
+
         List<Point> finalPointList = new List<Point>(expandedPoints);
         copiedRelativePoints.Clear();
         copiedBars.Clear();
 
-        Vector3 rootPos = selectedPoints[0].transform.position;
+        Vector3 rootPos = finalPointList[0].transform.position;
         for (int i = 0; i < finalPointList.Count; i++)
             copiedRelativePoints.Add(finalPointList[i].transform.position - rootPos);
 
@@ -178,10 +216,26 @@ public class ClipboardManager : MonoBehaviour
         }
 
         HistoryAction cutAction = new HistoryAction { isBuildEvent = false };
-        List<Point> pointsToProcess = new List<Point>(selectedPoints);
         
-        foreach (Point p in pointsToProcess)
-            barCreator.DeletePoint(p, cutAction);
+        foreach (Bar b in capturedBars)
+        {
+            barCreator.DeleteBar(b, cutAction);
+        }
+
+        foreach (Point p in finalPointList)
+        {
+            bool hasActiveNeighbors = false;
+            foreach (Bar b in p.ConnectedBars)
+            {
+                if (b.gameObject.activeSelf) hasActiveNeighbors = true;
+            }
+
+            if (!hasActiveNeighbors && p.Runtime && p.gameObject.activeSelf)
+            {
+                cutAction.affectedObjects.Add(p.gameObject);
+                p.gameObject.SetActive(false);
+            }
+        }
 
         if (cutAction.affectedObjects.Count > 0) CommandManager.Instance.RecordAction(cutAction);
 
@@ -205,7 +259,6 @@ public class ClipboardManager : MonoBehaviour
         }
     }
 
-    // --- NEW: Calculates if the player can afford to paste the clipboard contents ---
     private bool CanAffordPaste()
     {
         if (BuildUIController.Instance == null) return true;
@@ -224,11 +277,23 @@ public class ClipboardManager : MonoBehaviour
         return pasteCost <= remainingBudget;
     }
 
+    private Bar GetExistingBar(Point p1, Point p2) 
+    {
+        if (p1 == null || p2 == null) return null;
+        foreach(Bar b in p1.ConnectedBars) 
+        {
+            if (b.gameObject.activeSelf && ((b.startPoint == p1 && b.endPoint == p2) || (b.startPoint == p2 && b.endPoint == p1))) 
+            {
+                return b;
+            }
+        }
+        return null;
+    }
+
     public void StampPaste()
     {
         if (!isPasteMode) return;
 
-        // --- NEW: Block stamping if unaffordable or invalid ---
         if (!isValidPaste) 
         {
             if (!CanAffordPaste() && BuildUIController.Instance != null)
@@ -238,6 +303,81 @@ public class ClipboardManager : MonoBehaviour
             return;
         }
 
+        List<Point> newRealPoints = new List<Point>();
+        float snappedRotation = Mathf.Round(pasteRotationOffset / 15f) * 15f;
+        Quaternion rotation = Quaternion.Euler(0, 0, snappedRotation);
+
+        for (int i = 0; i < copiedRelativePoints.Count; i++)
+        {
+            Vector3 rotatedOffset = rotation * copiedRelativePoints[i];
+            Vector3 targetPos = pasteRootPos + rotatedOffset;
+            Point mappedPoint = null;
+
+            foreach (Point existingP in Point.AllPoints)
+            {
+                if (existingP.gameObject.activeSelf && Vector3.Distance(targetPos, existingP.transform.position) < 0.2f)
+                {
+                    mappedPoint = existingP;
+                    break;
+                }
+            }
+            newRealPoints.Add(mappedPoint); 
+        }
+
+        bool needsOverride = false;
+        for (int i = 0; i < copiedBars.Count; i++)
+        {
+            var cb = copiedBars[i];
+            Point p1 = newRealPoints[cb.startIdx];
+            Point p2 = newRealPoints[cb.endIdx];
+
+            Bar existingBar = GetExistingBar(p1, p2);
+            if (existingBar != null && existingBar.materialData != cb.mat) 
+            {
+                needsOverride = true;
+                break;
+            }
+        }
+
+        // --- Checks if we should show the UI panel! ---
+        if (needsOverride && !skipOverrideConfirm)
+        {
+            if (overrideConfirmPanel != null) 
+            {
+                overrideConfirmPanel.SetActive(true);
+            }
+            else ExecutePaste(); 
+            return;
+        }
+
+        ExecutePaste();
+    }
+
+    // --- CALLED BY THE "CONFIRM" BUTTON ---
+    public void ConfirmOverride()
+    {
+        if (dontShowAgainToggle != null) 
+        {
+            skipOverrideConfirm = dontShowAgainToggle.isOn; // Saves preference!
+        }
+        if (overrideConfirmPanel != null) overrideConfirmPanel.SetActive(false);
+        
+        ExecutePaste();
+    }
+
+    // --- CALLED BY THE "CANCEL" BUTTON ---
+    public void CancelOverride()
+    {
+        if (overrideConfirmPanel != null) overrideConfirmPanel.SetActive(false);
+        
+        if (BuildUIController.Instance != null) 
+        {
+            BuildUIController.Instance.LogAction("Paste Canceled"); // Visual feedback!
+        }
+    }
+
+    private void ExecutePaste()
+    {
         HistoryAction pasteAction = new HistoryAction { isBuildEvent = true };
         List<Point> newRealPoints = new List<Point>();
         
@@ -279,31 +419,33 @@ public class ClipboardManager : MonoBehaviour
                 Point temp = p1; p1 = p2; p2 = temp;
             }
 
-            bool barExists = false;
-            foreach(Bar b in p1.ConnectedBars) 
+            Bar existingBar = GetExistingBar(p1, p2);
+
+            if (existingBar != null)
             {
-                if ((b.startPoint == p1 && b.endPoint == p2) || (b.startPoint == p2 && b.endPoint == p1)) 
+                if (existingBar.materialData != cb.mat)
                 {
-                    barExists = true; 
-                    break;
+                    pasteAction.disabledObjects.Add(existingBar.gameObject);
+                    existingBar.gameObject.SetActive(false); 
+                }
+                else
+                {
+                    continue; 
                 }
             }
 
-            if (!barExists)
-            {
-                GameObject bObj = Instantiate(barCreator.barToInstantiate, barCreator.barParent);
-                Bar newBar = bObj.GetComponent<Bar>();
-                newBar.Initialize(cb.mat);
-                newBar.StartPosition = p1.transform.position;
-                newBar.UpdateCreatingBar(p2.transform.position);
-                newBar.startPoint = p1;
-                newBar.endPoint = p2;
-                
-                p1.ConnectedBars.Add(newBar);
-                p2.ConnectedBars.Add(newBar);
-                
-                pasteAction.affectedObjects.Add(bObj);
-            }
+            GameObject bObj = Instantiate(barCreator.barToInstantiate, barCreator.barParent);
+            Bar newBar = bObj.GetComponent<Bar>();
+            newBar.Initialize(cb.mat);
+            newBar.StartPosition = p1.transform.position;
+            newBar.UpdateCreatingBar(p2.transform.position);
+            newBar.startPoint = p1;
+            newBar.endPoint = p2;
+            
+            p1.ConnectedBars.Add(newBar);
+            p2.ConnectedBars.Add(newBar);
+            
+            pasteAction.affectedObjects.Add(bObj);
         }
 
         foreach(Point p in newRealPoints) p.EvaluateAnchorState();
@@ -419,7 +561,6 @@ public class ClipboardManager : MonoBehaviour
             }
         }
 
-        // --- NEW: Budget check applied to visual validity! ---
         if (isValidPaste && !CanAffordPaste())
         {
             isValidPaste = false;
