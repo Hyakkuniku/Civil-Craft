@@ -29,6 +29,13 @@ public class NPCContractGiver : Interactable
     {
         if (contractToGive == null) return;
 
+        // --- THE FIX: Constantly check if this contract has already been paid out ---
+        // Even if the player deletes the bridge and rebuilds it, the manager remembers they were paid!
+        if (!isFullyTurnedIn && LevelCompleteManager.Instance != null && LevelCompleteManager.Instance.IsContractPaid(contractToGive.name))
+        {
+            isFullyTurnedIn = true;
+        }
+
         if (isFullyTurnedIn)
         {
             promptMessage = "Bridge Completed!";
@@ -52,6 +59,12 @@ public class NPCContractGiver : Interactable
         FacePlayer(); 
 
         if (contractToGive == null) return;
+
+        // Ensure state is synced before interacting
+        if (LevelCompleteManager.Instance != null && LevelCompleteManager.Instance.IsContractPaid(contractToGive.name))
+        {
+            isFullyTurnedIn = true;
+        }
 
         if (isFullyTurnedIn)
         {

@@ -36,7 +36,7 @@ public class LiveLoadVehicle : MonoBehaviour
     private Rigidbody rb;
     private bool isDriving = false;
     private bool wasSimulating = false;
-    private NPCContractGiver myNPC; 
+    private bool hasReachedEnd = false; // --- THE FIX: Internal memory flag ---
 
     private class WheelData
     {
@@ -131,19 +131,6 @@ public class LiveLoadVehicle : MonoBehaviour
             physicsManager = FindObjectOfType<BridgePhysicsManager>();
     }
 
-    private void Start()
-    {
-        NPCContractGiver[] npcs = FindObjectsOfType<NPCContractGiver>();
-        foreach(var npc in npcs)
-        {
-            if(npc.contractToGive == assignedContract)
-            {
-                myNPC = npc;
-                break;
-            }
-        }
-    }
-
     private void Update()
     {
         if (physicsManager == null) return;
@@ -165,7 +152,8 @@ public class LiveLoadVehicle : MonoBehaviour
         {
             if (startPoint != null && Vector3.Distance(transform.position, startPoint.position) > 0.5f)
             {
-                if (myNPC != null && !myNPC.isContractCompleted)
+                // --- THE FIX: Only snap back if it FAILED to reach the end ---
+                if (!hasReachedEnd)
                 {
                     transform.position = startPoint.position;
                     transform.rotation = startPoint.rotation;
@@ -181,6 +169,8 @@ public class LiveLoadVehicle : MonoBehaviour
 
     public void StartDriving()
     {
+        hasReachedEnd = false; // Reset the memory flag for the new run!
+
         if (assignedContract != null)
         {
             vehicleMass = assignedContract.liveLoadWeight;
@@ -227,9 +217,8 @@ public class LiveLoadVehicle : MonoBehaviour
             w.hinge.useMotor = false; 
         }
 
-        bool isContractDone = (myNPC != null && myNPC.isContractCompleted);
-
-        if (!isContractDone && startPoint != null)
+        // --- THE FIX: Only snap back if it FAILED to reach the end ---
+        if (!hasReachedEnd && startPoint != null)
         {
             transform.position = startPoint.position;
             transform.rotation = startPoint.rotation;
@@ -242,7 +231,6 @@ public class LiveLoadVehicle : MonoBehaviour
         }
     }
 
-    // --- THE FIX: Instantly cuts the engine and applies the brakes! ---
     public void EmergencyStop()
     {
         isDriving = false;
@@ -265,6 +253,8 @@ public class LiveLoadVehicle : MonoBehaviour
 
         if (reachedEnd)
         {
+            hasReachedEnd = true; // --- THE FIX: Flag this vehicle as victorious! ---
+
             isDriving = false;
             
             rb.velocity = Vector3.zero;

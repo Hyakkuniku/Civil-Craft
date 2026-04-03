@@ -69,6 +69,13 @@ public class LevelCompleteManager : MonoBehaviour
         }
     }
 
+    // --- THE FIX: Helper method so the NPC knows if they already paid you! ---
+    public bool IsContractPaid(string contractName)
+    {
+        if (string.IsNullOrEmpty(contractName)) return false;
+        return alreadyPaidContracts.Contains(contractName);
+    }
+
     public void ResetCompletionState()
     {
         levelAlreadyCompleted = false;
@@ -294,13 +301,19 @@ public class LevelCompleteManager : MonoBehaviour
         ClosePanel();
     }
 
-    // --- THE FIX: Pass the activeContract to the baker! ---
     public void SaveAndBakeBridge()
     {
         NPCContractGiver[] npcs = FindObjectsOfType<NPCContractGiver>();
         foreach (var npc in npcs)
         {
-            if (npc.contractToGive == activeContract) npc.isContractCompleted = true;
+            if (npc.contractToGive == activeContract) 
+            {
+                // --- THE FIX: Don't tell the NPC to ask for a turn-in if they already paid! ---
+                if (!alreadyPaidContracts.Contains(activeContract.name))
+                {
+                    npc.isContractCompleted = true;
+                }
+            }
         }
 
         BridgePhysicsManager physicsManager = FindObjectOfType<BridgePhysicsManager>();

@@ -38,15 +38,32 @@ public class Point : MonoBehaviour
     private void OnEnable()
     {
         if (!AllPoints.Contains(this)) AllPoints.Add(this);
+        
+        if (pointRenderer == null) pointRenderer = GetComponentInChildren<Renderer>();
+        
+        // --- THE FIX: Wake up the visual node when entering Build Mode ---
+        if (Application.isPlaying && pointRenderer != null)
+        {
+            // Only turn the renderer on if we aren't actively simulating physics
+            BridgePhysicsManager bpm = FindObjectOfType<BridgePhysicsManager>();
+            if (bpm == null || !bpm.isSimulating)
+            {
+                pointRenderer.enabled = true;
+            }
+        }
+        
         UpdateMaterial();
     }
 
-    // --- THE FIX: Unconditional Removal ---
-    // If this point goes to sleep (exiting build mode), remove it from the master list 
-    // so the physics manager in the NEXT ravine doesn't accidentally grab it!
     private void OnDisable()
     {
         AllPoints.Remove(this);
+        
+        // --- THE FIX: Hide the node immediately when exiting Build Mode or Baking! ---
+        if (pointRenderer != null)
+        {
+            pointRenderer.enabled = false;
+        }
     }
 
     private void OnDestroy()
