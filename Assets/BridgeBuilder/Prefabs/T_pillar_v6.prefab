@@ -11,7 +11,7 @@ PrefabInstance:
     - target: {fileID: -8679921383154817045, guid: 8697521bde36da54695b0a2808836506,
         type: 3}
       propertyPath: m_LocalScale.x
-      value: 2
+      value: 4
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 8697521bde36da54695b0a2808836506,
         type: 3}
@@ -21,22 +21,22 @@ PrefabInstance:
     - target: {fileID: -8679921383154817045, guid: 8697521bde36da54695b0a2808836506,
         type: 3}
       propertyPath: m_LocalScale.z
-      value: 2
+      value: 4
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 8697521bde36da54695b0a2808836506,
         type: 3}
       propertyPath: m_LocalPosition.x
-      value: 10.616175
+      value: -70.89
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 8697521bde36da54695b0a2808836506,
         type: 3}
       propertyPath: m_LocalPosition.y
-      value: 0
+      value: 16.88
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 8697521bde36da54695b0a2808836506,
         type: 3}
       propertyPath: m_LocalPosition.z
-      value: -26.380514
+      value: -71.52
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 8697521bde36da54695b0a2808836506,
         type: 3}
@@ -118,3 +118,5 @@ MonoBehaviour:
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   visualSize: {x: 1, y: 0.2, z: 0.2}
   currentLength: 0
+  currentAngle: 0
+  isHighlighted: 0

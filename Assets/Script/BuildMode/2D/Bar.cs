@@ -15,7 +15,7 @@ public class Bar : MonoBehaviour
     [HideInInspector] public float currentLength = 0f;
     [HideInInspector] public float currentAngle = 0f; 
     
-    [HideInInspector] public bool isHighlighted = false; // <-- NEW
+    [HideInInspector] public bool isHighlighted = false; 
 
     private List<GameObject> visualSegments = new List<GameObject>();
     private float baseLength = 1f; 
@@ -27,7 +27,6 @@ public class Bar : MonoBehaviour
     private float capTopOffset = 0f;
     private float capBottomOffset = 0f;
 
-    // --- NEW: Stores the original materials so we can swap back after highlighting ---
     private Dictionary<Renderer, Material> originalMats = new Dictionary<Renderer, Material>();
 
     private void OnEnable()
@@ -36,7 +35,23 @@ public class Bar : MonoBehaviour
         if (endPoint != null && !endPoint.ConnectedBars.Contains(this)) endPoint.ConnectedBars.Add(this);
     }
 
+    // --- THE FIX: Smart Disable ---
+    // Only sever connections if the GameObject is deactivated (Player deleted it)
     private void OnDisable()
+    {
+        if (!gameObject.activeInHierarchy)
+        {
+            RemoveConnections();
+        }
+    }
+
+    // Backup safety net for when Unity destroys the object on scene changes
+    private void OnDestroy()
+    {
+        RemoveConnections();
+    }
+
+    private void RemoveConnections()
     {
         if (startPoint != null) startPoint.ConnectedBars.Remove(this);
         if (endPoint != null) endPoint.ConnectedBars.Remove(this);
@@ -104,7 +119,6 @@ public class Bar : MonoBehaviour
             pierCapInstance.transform.localScale = Vector3.zero; 
         }
 
-        // --- NEW: Capture all default materials immediately after generation ---
         originalMats.Clear();
         foreach (var r in GetComponentsInChildren<Renderer>(true))
         {
@@ -112,7 +126,6 @@ public class Bar : MonoBehaviour
         }
     }
 
-    // --- NEW: Safely swaps the materials to the highlight color and back ---
     public void SetHighlight(bool highlight, Material highlightMat)
     {
         isHighlighted = highlight;

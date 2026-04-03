@@ -25,13 +25,9 @@ public class LiveLoadVehicle : MonoBehaviour
     public float centerOfMassOffset = -0.5f; 
 
     [Header("Custom Wheel Setup")]
-    [Tooltip("Drag your 4 wheel GameObjects here from the hierarchy!")]
     public GameObject[] wheelObjects;
-    [Tooltip("Adjust this so the cyan sphere perfectly wraps your wheel meshes.")]
     public float wheelRadius = 0.4f;
-    [Tooltip("Mass of each individual wheel in kg.")]
     public float wheelMass = 50f;
-    [Tooltip("Which direction the wheels spin. Change to (0,0,1) or (0,1,0) if they wobble!")]
     public Vector3 spinAxis = new Vector3(1, 0, 0); 
 
     [Header("System")]
@@ -40,7 +36,7 @@ public class LiveLoadVehicle : MonoBehaviour
     private Rigidbody rb;
     private bool isDriving = false;
     private bool wasSimulating = false;
-    private NPCContractGiver myNPC; // <-- NEW: Memory of who to ask for parking permission
+    private NPCContractGiver myNPC; 
 
     private class WheelData
     {
@@ -137,7 +133,6 @@ public class LiveLoadVehicle : MonoBehaviour
 
     private void Start()
     {
-        // Find the specific NPC on the map holding our contract
         NPCContractGiver[] npcs = FindObjectsOfType<NPCContractGiver>();
         foreach(var npc in npcs)
         {
@@ -166,13 +161,10 @@ public class LiveLoadVehicle : MonoBehaviour
             StopAndReset();
             wasSimulating = false;
         }
-        // --- NEW: Handle "Redo Bridge" Snapping! ---
         else if (!physicsManager.isSimulating && !wasSimulating)
         {
-            // If the car is parked at the finish line, but the player hit Redo...
             if (startPoint != null && Vector3.Distance(transform.position, startPoint.position) > 0.5f)
             {
-                // Snap it back to the start!
                 if (myNPC != null && !myNPC.isContractCompleted)
                 {
                     transform.position = startPoint.position;
@@ -223,7 +215,6 @@ public class LiveLoadVehicle : MonoBehaviour
     {
         isDriving = false;
 
-        // Turn off gravity so it becomes a static prop
         rb.isKinematic = true;
         rb.velocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
@@ -236,10 +227,8 @@ public class LiveLoadVehicle : MonoBehaviour
             w.hinge.useMotor = false; 
         }
 
-        // --- NEW: Ask the NPC for permission to park! ---
         bool isContractDone = (myNPC != null && myNPC.isContractCompleted);
 
-        // ONLY teleport back if the contract isn't officially finished!
         if (!isContractDone && startPoint != null)
         {
             transform.position = startPoint.position;
@@ -250,6 +239,19 @@ public class LiveLoadVehicle : MonoBehaviour
                 w.physObj.transform.localPosition = w.originalLocalPos;
                 w.physObj.transform.localRotation = w.originalLocalRot;
             }
+        }
+    }
+
+    // --- THE FIX: Instantly cuts the engine and applies the brakes! ---
+    public void EmergencyStop()
+    {
+        isDriving = false;
+        foreach (var w in wheels)
+        {
+            JointMotor motor = w.hinge.motor;
+            motor.targetVelocity = 0; // Lock wheels
+            w.hinge.motor = motor;
+            w.hinge.useMotor = true; 
         }
     }
 

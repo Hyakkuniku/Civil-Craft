@@ -227,9 +227,13 @@ MonoBehaviour:
   activeMaterial: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
   isGridSnappingEnabled: 1
   isDeleteMode: 0
+  selectedBarMaterial: {fileID: 0}
   isSelectMode: 0
   isMoveMode: 0
   selectionBoxUI: {fileID: 0}
+  selectedPoints: []
+  selectedBars: []
+  isDraggingSelection: 0
   isSimulating: 0
   pierBaseY: -10
   deleteSnapRadiusPixels: 50
@@ -250,6 +254,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c39ae86b5799dd74ab97cc469a45277f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  overrideConfirmPanel: {fileID: 0}
+  dontShowAgainToggle: {fileID: 0}
   isPasteMode: 0
   isDraggingSelection: 0
 --- !u!114 &7304876413726837360

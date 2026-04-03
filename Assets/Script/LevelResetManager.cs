@@ -61,10 +61,20 @@ public class LevelResetManager : MonoBehaviour
 
     public void TriggerReset()
     {
-        Debug.Log("<color=cyan>Player fell! Resetting player and cargo, leaving bridge broken...</color>");
+        Debug.Log("<color=cyan>Player fell! Resetting player and cargo, stopping simulation...</color>");
 
         // 1. Tell the player's scripts to let go of the item!
         onReset?.Invoke();
+
+        // --- THE FIX: We MUST stop the physics simulation, otherwise the bridge stays broken! ---
+        BridgePhysicsManager bridgeManager = FindObjectOfType<BridgePhysicsManager>();
+        if (bridgeManager != null && bridgeManager.isSimulating)
+        {
+            bridgeManager.StopPhysicsAndReset();
+            
+            BarCreator bc = FindObjectOfType<BarCreator>();
+            if (bc != null) bc.isSimulating = false;
+        }
 
         // 2. Reset all registered objects (Player, Cargo) back to the ledge
         foreach (var obj in objectsToReset)
@@ -91,8 +101,5 @@ public class LevelResetManager : MonoBehaviour
             // Turn CharacterController back on
             if (obj.cc != null) obj.cc.enabled = true;
         }
-
-        // NOTICE: The Bridge Reset code has been completely removed!
-        // The physics simulation will keep running, and the bridge will stay broken.
     }
 }

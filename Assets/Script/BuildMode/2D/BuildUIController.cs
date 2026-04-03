@@ -130,12 +130,10 @@ public class BuildUIController : MonoBehaviour
 
         if (barCreator != null)
         {
-            // Scenario 1: We are actively drawing a brand new beam
             if (barCreator.IsCreating && barCreator.currentBar != null)
             {
                 targetBar = barCreator.currentBar;
             }
-            // Scenario 2: We are actively moving an existing node using the Move Tool
             else if (barCreator.IsMoving && barCreator.isDraggingSelection)
             {
                 var selectedPoints = barCreator.GetSelectedPoints();
@@ -158,14 +156,12 @@ public class BuildUIController : MonoBehaviour
                     targetBar = enumerator.Current;
                 }
             }
-            // Scenario 3 (NEW!): We just tapped a single beam in Select Mode!
             else if (barCreator.IsSelecting && barCreator.selectedBars.Count == 1 && barCreator.selectedPoints.Count == 0)
             {
                 targetBar = barCreator.selectedBars[0];
             }
         }
 
-        // Output to the panel if we have a valid beam
         if (targetBar != null && targetBar.materialData != null)
         {
             if (liveBeamStatsPanel != null && !liveBeamStatsPanel.activeSelf) 
@@ -216,8 +212,10 @@ public class BuildUIController : MonoBehaviour
         uniqueBars.Clear();
         activePoints.Clear();
 
+        // 1. Gather all points that are currently awake (Build Mode fallback)
         foreach (Point p in Point.AllPoints)
         {
+            if (!p.gameObject.activeSelf || !p.enabled) continue;
             bool hasActiveBar = false;
             foreach (Bar b in p.ConnectedBars)
             {
@@ -230,6 +228,68 @@ public class BuildUIController : MonoBehaviour
             if (hasActiveBar) activePoints.Add(p);
         }
 
+        // 2. Spider-web Network Traversal (Ensures dormant bridges are counted)
+        ContractSO activeContract = GetActiveContract();
+        if (activeContract != null)
+        {
+            BuildLocation targetLoc = null;
+            BuildLocation[] allLocs = Resources.FindObjectsOfTypeAll<BuildLocation>();
+            foreach (var loc in allLocs)
+            {
+                if (loc.gameObject.scene.name != null && loc.activeContract == activeContract)
+                {
+                    targetLoc = loc;
+                    break;
+                }
+            }
+
+            if (targetLoc != null)
+            {
+                foreach (Bar b in targetLoc.bakedBars)
+                {
+                    if (b != null && b.gameObject.activeSelf)
+                    {
+                        uniqueBars.Add(b);
+                        if (b.startPoint != null) activePoints.Add(b.startPoint);
+                        if (b.endPoint != null) activePoints.Add(b.endPoint);
+                    }
+                }
+
+                HashSet<Point> visitedPoints = new HashSet<Point>();
+                Queue<Point> queue = new Queue<Point>();
+
+                foreach (Point anchor in targetLoc.startingAnchors)
+                {
+                    if (anchor != null)
+                    {
+                        visitedPoints.Add(anchor);
+                        queue.Enqueue(anchor);
+                        activePoints.Add(anchor);
+                    }
+                }
+
+                while (queue.Count > 0)
+                {
+                    Point current = queue.Dequeue();
+                    foreach (Bar b in current.ConnectedBars)
+                    {
+                        if (b != null && b.gameObject.activeSelf)
+                        {
+                            uniqueBars.Add(b);
+                            Point neighbor = (b.startPoint == current) ? b.endPoint : b.startPoint;
+                            if (neighbor != null && !visitedPoints.Contains(neighbor))
+                            {
+                                visitedPoints.Add(neighbor);
+                                queue.Enqueue(neighbor);
+                                activePoints.Add(neighbor);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Process Math
         cachedBaseJ = activePoints.Count * 2; 
         cachedBaseM = 0;
         cachedBaseRoadLength = 0f;

@@ -29,6 +29,7 @@ public class LevelCompleteManager : MonoBehaviour
 
     private List<GameObject> temporarilyHiddenPanels = new List<GameObject>();
     private bool levelAlreadyCompleted = false;
+    private bool wasSimulating = false; 
 
     private ContractSO activeContract;
     private HashSet<string> alreadyPaidContracts = new HashSet<string>();
@@ -42,6 +43,19 @@ public class LevelCompleteManager : MonoBehaviour
         else Destroy(gameObject);
 
         if (levelCompletePanel != null) levelCompletePanel.SetActive(false); 
+    }
+
+    private void Update()
+    {
+        BridgePhysicsManager physicsManager = FindObjectOfType<BridgePhysicsManager>();
+        bool isSimulating = physicsManager != null && physicsManager.isSimulating;
+
+        if (isSimulating && !wasSimulating)
+        {
+            ResetCompletionState();
+        }
+        
+        wasSimulating = isSimulating;
     }
 
     public int GetContractGold(string contractName) { return contractGoldRewards.ContainsKey(contractName) ? contractGoldRewards[contractName] : 0; }
@@ -62,10 +76,12 @@ public class LevelCompleteManager : MonoBehaviour
 
     public void CompleteLevel(ContractSO currentContract)
     {
-        BridgePhysicsManager physicsManager = FindObjectOfType<BridgePhysicsManager>();
-        if (physicsManager != null && !physicsManager.isSimulating) return;
-
-        if (levelAlreadyCompleted) return;
+        if (levelAlreadyCompleted) 
+        {
+            Debug.LogWarning("<b>[Level Complete Manager]</b> Level is already marked as completed. Ignoring duplicate trigger.");
+            return;
+        }
+        
         levelAlreadyCompleted = true;
         activeContract = currentContract;
 
@@ -110,6 +126,8 @@ public class LevelCompleteManager : MonoBehaviour
             if (PlayerDataManager.Instance != null) PlayerDataManager.Instance.CompleteContract(currentContract.name);
         }
 
+        float totalCalculatedCost = 0f;
+
         if (receiptContentParent != null && receiptRowPrefab != null)
         {
             foreach (Transform child in receiptContentParent) Destroy(child.gameObject);
@@ -119,17 +137,75 @@ public class LevelCompleteManager : MonoBehaviour
 
             foreach (Point p in Point.AllPoints)
             {
-                if (!p.gameObject.activeSelf) continue;
+                if (!p.gameObject.activeSelf || !p.enabled) continue;
                 foreach (Bar b in p.ConnectedBars)
                 {
-                    if (b != null && b.gameObject.activeSelf && !countedBars.Contains(b))
+                    if (b != null && b.gameObject.activeSelf && b.materialData != null && !countedBars.Contains(b))
                     {
-                        countedBars.Add(b); 
-                        if (!materialUsage.ContainsKey(b.materialData)) materialUsage[b.materialData] = 0f;
-                        int multiplier = b.materialData.isDualBeam ? 2 : 1;
-                        materialUsage[b.materialData] += (b.currentLength * multiplier);
+                        countedBars.Add(b);
                     }
                 }
+            }
+
+            if (currentContract != null)
+            {
+                BuildLocation targetLoc = null;
+                BuildLocation[] allLocs = Resources.FindObjectsOfTypeAll<BuildLocation>();
+                foreach (var loc in allLocs)
+                {
+                    if (loc.gameObject.scene.name != null && loc.activeContract == currentContract)
+                    {
+                        targetLoc = loc;
+                        break;
+                    }
+                }
+
+                if (targetLoc != null)
+                {
+                    foreach (Bar b in targetLoc.bakedBars)
+                    {
+                        if (b != null && b.materialData != null && !countedBars.Contains(b)) countedBars.Add(b);
+                    }
+
+                    HashSet<Point> visitedPoints = new HashSet<Point>();
+                    Queue<Point> queue = new Queue<Point>();
+
+                    foreach (Point anchor in targetLoc.startingAnchors)
+                    {
+                        if (anchor != null)
+                        {
+                            visitedPoints.Add(anchor);
+                            queue.Enqueue(anchor);
+                        }
+                    }
+
+                    while (queue.Count > 0)
+                    {
+                        Point current = queue.Dequeue();
+                        foreach (Bar b in current.ConnectedBars)
+                        {
+                            if (b != null && b.gameObject.activeSelf && b.materialData != null && !countedBars.Contains(b))
+                            {
+                                countedBars.Add(b);
+
+                                Point neighbor = (b.startPoint == current) ? b.endPoint : b.startPoint;
+                                if (neighbor != null && !visitedPoints.Contains(neighbor))
+                                {
+                                    visitedPoints.Add(neighbor);
+                                    queue.Enqueue(neighbor);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            foreach (Bar b in countedBars)
+            {
+                if (!materialUsage.ContainsKey(b.materialData)) materialUsage[b.materialData] = 0f;
+                int multiplier = b.materialData.isDualBeam ? 2 : 1;
+                materialUsage[b.materialData] += (b.currentLength * multiplier);
+                totalCalculatedCost += (b.currentLength * b.materialData.costPerMeter * multiplier);
             }
 
             foreach (var kvp in materialUsage)
@@ -146,8 +222,8 @@ public class LevelCompleteManager : MonoBehaviour
         int baseGoldReward = currentContract != null ? currentContract.goldReward : 0;
         int baseExpReward = currentContract != null ? currentContract.expReward : 0;
 
-        float finalCost = 0f;
-        if (BuildUIController.Instance != null) finalCost = BuildUIController.Instance.GetTotalCost();
+        float finalCost = totalCalculatedCost;
+        if (finalCost == 0f && BuildUIController.Instance != null) finalCost = BuildUIController.Instance.GetTotalCost();
 
         float peakStress = 0f;
         BridgePhysicsManager manager = FindObjectOfType<BridgePhysicsManager>();
@@ -218,6 +294,7 @@ public class LevelCompleteManager : MonoBehaviour
         ClosePanel();
     }
 
+    // --- THE FIX: Pass the activeContract to the baker! ---
     public void SaveAndBakeBridge()
     {
         NPCContractGiver[] npcs = FindObjectsOfType<NPCContractGiver>();
@@ -227,9 +304,8 @@ public class LevelCompleteManager : MonoBehaviour
         }
 
         BridgePhysicsManager physicsManager = FindObjectOfType<BridgePhysicsManager>();
-        if (physicsManager != null) physicsManager.BakeBridge();
+        if (physicsManager != null) physicsManager.BakeBridge(activeContract); 
 
-        // --- NEW: Wipe the memory banks! You can no longer Undo the baked bridge! ---
         if (CommandManager.Instance != null) CommandManager.Instance.ClearHistory();
 
         ClosePanel();

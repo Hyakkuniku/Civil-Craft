@@ -22,6 +22,9 @@ public class BridgePhysicsManager : MonoBehaviour
 
     [HideInInspector] public float peakStressThisRun = 0f;
 
+    private HashSet<Point> simPoints = new HashSet<Point>();
+    private HashSet<Bar> simBars = new HashSet<Bar>();
+
     private void Start()
     {
         if (GameManager.Instance != null)
@@ -52,59 +55,35 @@ public class BridgePhysicsManager : MonoBehaviour
         }
     }
 
-    // --- NEW: Flood-fill algorithm to isolate the active bridge! ---
-    public HashSet<Point> GetActiveBridgePoints()
+    private void GatherActiveBridgeData(out HashSet<Point> outPoints, out HashSet<Bar> outBars)
     {
-        HashSet<Point> activePoints = new HashSet<Point>();
-        if (GameManager.Instance == null || GameManager.Instance.ActiveBuildLocation == null) 
-            return activePoints;
+        outPoints = new HashSet<Point>();
+        outBars = new HashSet<Bar>();
 
-        BuildLocation loc = GameManager.Instance.ActiveBuildLocation;
-        
-        // If no anchors are assigned, fallback to global list to prevent breaking
-        if (loc.startingAnchors == null || loc.startingAnchors.Count == 0)
+        foreach (Point p in Point.AllPoints)
         {
-            return new HashSet<Point>(Point.AllPoints); 
+            if (p != null && p.gameObject.activeSelf && p.enabled) outPoints.Add(p);
         }
 
-        Queue<Point> queue = new Queue<Point>();
-        foreach (Point anchor in loc.startingAnchors)
+        foreach (Point p in outPoints)
         {
-            if (anchor != null && anchor.gameObject.activeSelf)
+            foreach (Bar b in p.ConnectedBars)
             {
-                queue.Enqueue(anchor);
-                activePoints.Add(anchor);
+                if (b != null && b.gameObject.activeSelf && b.enabled) outBars.Add(b);
             }
         }
 
-        // Trace the graph outward from the anchors
-        while (queue.Count > 0)
+        foreach (Bar b in outBars)
         {
-            Point current = queue.Dequeue();
-            foreach (Bar b in current.ConnectedBars)
-            {
-                if (b == null || !b.gameObject.activeSelf) continue;
-                Point neighbor = (b.startPoint == current) ? b.endPoint : b.startPoint;
-                if (neighbor != null && neighbor.gameObject.activeSelf && !activePoints.Contains(neighbor))
-                {
-                    activePoints.Add(neighbor);
-                    queue.Enqueue(neighbor);
-                }
-            }
+            if (b.startPoint != null && b.startPoint.enabled) outPoints.Add(b.startPoint);
+            if (b.endPoint != null && b.endPoint.enabled) outPoints.Add(b.endPoint);
         }
-        return activePoints;
     }
 
     private void HandleEnterBuildMode()
     {
-        if (isSimulating) 
-        {
-            StopPhysicsAndReset();
-        }
-        else
-        {
-            SetNodesVisible(true);
-        }
+        if (isSimulating) StopPhysicsAndReset();
+        else SetNodesVisible(true);
     }
 
     private void HandleExitBuildMode()
@@ -114,10 +93,14 @@ public class BridgePhysicsManager : MonoBehaviour
 
     private void SetNodesVisible(bool isVisible)
     {
+        HashSet<Point> points;
+        HashSet<Bar> bars;
+        GatherActiveBridgeData(out points, out bars);
+
         foreach (Point p in Point.AllPoints)
         {
             Renderer r = p.GetComponentInChildren<Renderer>();
-            if (r != null) r.enabled = isVisible && p.gameObject.activeSelf;
+            if (r != null) r.enabled = isVisible && p.gameObject.activeSelf && points.Contains(p);
         }
     }
 
@@ -131,7 +114,9 @@ public class BridgePhysicsManager : MonoBehaviour
         activeStressHandlers.Clear(); 
         peakStressThisRun = 0f;
 
-        foreach (Point p in Point.AllPoints)
+        GatherActiveBridgeData(out simPoints, out simBars);
+
+        foreach (Point p in simPoints)
         {
             p.preSimPos = p.transform.position;
             p.preSimParent = p.transform.parent;
@@ -140,18 +125,7 @@ public class BridgePhysicsManager : MonoBehaviour
             if (r != null) r.enabled = false;
         }
 
-        HashSet<Bar> allBars = new HashSet<Bar>();
-        foreach (Point p in Point.AllPoints)
-        {
-            if (!p.gameObject.activeSelf) continue; 
-            
-            foreach (Bar b in p.ConnectedBars)
-            {
-                if (b != null && b.gameObject.activeSelf) allBars.Add(b); 
-            }
-        }
-
-        foreach (Bar b in allBars)
+        foreach (Bar b in simBars)
         {
             b.preSimPos = b.transform.position;
             b.preSimRot = b.transform.rotation;
@@ -160,10 +134,10 @@ public class BridgePhysicsManager : MonoBehaviour
         Physics.defaultSolverIterations = physicsSolverIterations;
         Physics.defaultSolverVelocityIterations = 20;
 
-        SetupBarsPhysics(allBars);
-        SetupDirectConnections(allBars);
+        SetupBarsPhysics(simBars);
+        SetupDirectConnections(simBars, simPoints);
         
-        ResolveAdjacentCollisions(allBars); 
+        ResolveAdjacentCollisions(simBars); 
     }
 
     public void StopPhysicsAndReset()
@@ -175,41 +149,27 @@ public class BridgePhysicsManager : MonoBehaviour
 
         activeStressHandlers.Clear();
 
-        HashSet<Bar> allBars = new HashSet<Bar>();
-        foreach (Point p in Point.AllPoints)
+        foreach (Bar bar in simBars)
         {
-            foreach (Bar b in p.ConnectedBars)
-                if (b != null) allBars.Add(b);
+            if (bar == null) continue;
+            foreach (Joint j in bar.GetComponentsInChildren<Joint>()) { j.connectedBody = null; Destroy(j); }
+            foreach (Rigidbody rb in bar.GetComponentsInChildren<Rigidbody>()) Destroy(rb);
         }
 
-        foreach (Bar bar in allBars)
+        foreach (Point p in simPoints)
         {
-            Joint[] joints = bar.GetComponents<Joint>();
-            foreach (Joint j in joints) 
-            {
-                j.connectedBody = null; 
-                Destroy(j);
-            }
-        }
-
-        foreach (Point p in Point.AllPoints)
-        {
-            Joint[] joints = p.GetComponents<Joint>();
-            foreach (Joint j in joints) 
-            {
-                j.connectedBody = null; 
-                Destroy(j);
-            }
+            if (p == null) continue;
+            foreach (Joint j in p.GetComponentsInChildren<Joint>()) { j.connectedBody = null; Destroy(j); }
+            foreach (Rigidbody rb in p.GetComponentsInChildren<Rigidbody>()) Destroy(rb);
         }
 
         bool isCurrentlyBuilding = GameManager.Instance != null && GameManager.Instance.CurrentState == GameManager.GameState.Building;
 
-        foreach (Point p in Point.AllPoints)
+        foreach (Point p in simPoints)
         {
-            Rigidbody rb = p.GetComponent<Rigidbody>();
-            if (rb != null) Destroy(rb);
-
-            Collider[] cols = p.GetComponents<Collider>();
+            if (p == null) continue;
+            
+            Collider[] cols = p.GetComponentsInChildren<Collider>();
             foreach(var col in cols) col.enabled = true; 
 
             p.transform.SetParent(p.preSimParent);
@@ -220,106 +180,183 @@ public class BridgePhysicsManager : MonoBehaviour
             if (r != null) r.enabled = isCurrentlyBuilding && p.gameObject.activeSelf;
         }
 
-        foreach (Bar bar in allBars)
+        foreach (Bar bar in simBars)
         {
-            Rigidbody barRb = bar.GetComponent<Rigidbody>();
-            if (barRb != null) Destroy(barRb);
+            if (bar == null) continue;
+            
+            if (bar.materialData != null && bar.materialData.isPier)
+            {
+                Transform cap = bar.transform.Find("PierCap");
+                if (cap != null)
+                {
+                    Renderer capRend = cap.GetComponentInChildren<Renderer>();
+                    if (capRend != null)
+                    {
+                        BoxCollider bc = capRend.GetComponent<BoxCollider>();
+                        if (bc != null) Destroy(bc);
+                    }
+                }
 
-            Collider[] barCols = bar.GetComponentsInChildren<Collider>();
-            foreach (Collider c in barCols) Destroy(c);
+                foreach (Transform child in bar.transform)
+                {
+                    if (child.name.StartsWith("VisualSegment"))
+                    {
+                        Renderer segRend = child.GetComponentInChildren<Renderer>();
+                        if (segRend != null)
+                        {
+                            BoxCollider bc = segRend.GetComponent<BoxCollider>();
+                            if (bc != null) Destroy(bc);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                BoxCollider[] parentCols = bar.GetComponents<BoxCollider>();
+                foreach (BoxCollider c in parentCols) Destroy(c);
+            }
 
             BarStressHandler stress = bar.GetComponent<BarStressHandler>();
             if (stress != null) Destroy(stress);
 
             bar.transform.position = bar.preSimPos;
             bar.transform.rotation = bar.preSimRot;
-        }
-
-        foreach (Bar bar in allBars)
-        {
+            
             if (bar.gameObject.activeSelf && bar.startPoint != null && bar.endPoint != null)
             {
                 bar.StartPosition = bar.startPoint.transform.position;
                 bar.UpdateCreatingBar(bar.endPoint.transform.position);
             }
         }
+
+        simPoints.Clear();
+        simBars.Clear();
     }
 
-    // --- THE FIX: Mathematically isolated Bake Function ---
-    public void BakeBridge()
+    // --- THE FIX: Smart Baking! ---
+    // Now accepts the activeContract, spider-webs the ravine, and bakes everything even if it's asleep!
+    public void BakeBridge(ContractSO contract = null)
     {
-        // 1. Grab ONLY the points logically connected to this ravine's anchors!
-        HashSet<Point> isolatedPoints = GetActiveBridgePoints();
-        HashSet<Bar> isolatedBars = new HashSet<Bar>();
+        HashSet<Point> bakePoints = new HashSet<Point>();
+        HashSet<Bar> bakeBars = new HashSet<Bar>();
 
-        foreach(Point p in isolatedPoints)
+        BuildLocation targetLoc = null;
+
+        if (contract != null)
         {
-            foreach(Bar b in p.ConnectedBars)
+            BuildLocation[] allLocs = Resources.FindObjectsOfTypeAll<BuildLocation>();
+            foreach (var loc in allLocs)
             {
-                if (b != null && b.gameObject.activeSelf) isolatedBars.Add(b);
+                if (loc.gameObject.scene.name != null && loc.activeContract == contract)
+                {
+                    targetLoc = loc;
+                    break;
+                }
+            }
+        }
+        else if (GameManager.Instance != null && GameManager.Instance.ActiveBuildLocation != null)
+        {
+            targetLoc = GameManager.Instance.ActiveBuildLocation;
+        }
+
+        if (targetLoc == null) 
+        {
+            Debug.LogWarning("<b>[Baker]</b> Cannot bake bridge: Target location not found!");
+            return;
+        }
+
+        // 1. Gather all awake points/bars first (if called from inside Build Mode)
+        foreach (Point p in Point.AllPoints)
+        {
+            if (p != null && p.gameObject.activeSelf && p.enabled)
+            {
+                bakePoints.Add(p);
+                foreach (Bar b in p.ConnectedBars)
+                {
+                    if (b != null && b.gameObject.activeSelf && b.enabled) bakeBars.Add(b);
+                }
             }
         }
 
-        BuildLocation activeLoc = GameManager.Instance != null ? GameManager.Instance.ActiveBuildLocation : null;
-        if (activeLoc != null)
+        // 2. Spider-web to gather sleeping points/bars (if called from outside Build Mode)
+        foreach (Point anchor in targetLoc.startingAnchors)
         {
-            activeLoc.bakedPoints.Clear();
-            activeLoc.bakedBars.Clear();
+            if (anchor != null)
+            {
+                bakePoints.Add(anchor);
+                Queue<Point> queue = new Queue<Point>();
+                queue.Enqueue(anchor);
+
+                while (queue.Count > 0)
+                {
+                    Point current = queue.Dequeue();
+                    foreach (Bar b in current.ConnectedBars)
+                    {
+                        if (b != null && b.gameObject.activeSelf && !bakeBars.Contains(b))
+                        {
+                            bakeBars.Add(b);
+                            Point neighbor = (b.startPoint == current) ? b.endPoint : b.startPoint;
+                            if (neighbor != null && !bakePoints.Contains(neighbor))
+                            {
+                                bakePoints.Add(neighbor);
+                                queue.Enqueue(neighbor);
+                            }
+                        }
+                    }
+                }
+            }
         }
 
-        // STEP 1: Time-Stop
-        foreach (Point p in isolatedPoints)
+        // 3. Keep previously baked bars in case we are modifying an existing bridge
+        foreach(Bar b in targetLoc.bakedBars) { if (b != null) bakeBars.Add(b); }
+        foreach(Point p in targetLoc.bakedPoints) { if (p != null) bakePoints.Add(p); }
+
+        targetLoc.bakedPoints.Clear();
+        targetLoc.bakedBars.Clear();
+
+        // 4. Freeze Physics
+        foreach (Point p in bakePoints)
         {
             if (p == null) continue;
-            Rigidbody rb = p.GetComponent<Rigidbody>();
-            if (rb != null)
+            foreach (Rigidbody rb in p.GetComponentsInChildren<Rigidbody>())
             {
-                rb.isKinematic = true;
-                rb.useGravity = false;
-                rb.velocity = Vector3.zero;
+                rb.isKinematic = true; rb.useGravity = false; rb.velocity = Vector3.zero;
             }
         }
-
-        foreach (Bar b in isolatedBars)
+        foreach (Bar b in bakeBars)
         {
             if (b == null) continue;
-            Rigidbody rb = b.GetComponent<Rigidbody>();
-            if (rb != null)
+            foreach (Rigidbody rb in b.GetComponentsInChildren<Rigidbody>())
             {
-                rb.isKinematic = true;
-                rb.useGravity = false;
-                rb.velocity = Vector3.zero;
+                rb.isKinematic = true; rb.useGravity = false; rb.velocity = Vector3.zero;
             }
         }
 
-        // STEP 2: Safely destroy components and SAVE them to the Location
-        foreach (Point p in isolatedPoints)
+        // 5. Destroy Physics and Move to Baked Lists
+        foreach (Point p in bakePoints)
         {
             if (p == null) continue;
-            foreach (var j in p.GetComponents<Joint>()) Destroy(j);
-            if (p.GetComponent<Rigidbody>() != null) Destroy(p.GetComponent<Rigidbody>());
-            
+            foreach (var j in p.GetComponentsInChildren<Joint>()) Destroy(j);
+            foreach (var rb in p.GetComponentsInChildren<Rigidbody>()) Destroy(rb);
             p.enabled = false; 
-            if (activeLoc != null) activeLoc.bakedPoints.Add(p); 
+            targetLoc.bakedPoints.Add(p); 
         }
 
-        foreach (Bar b in isolatedBars)
+        foreach (Bar b in bakeBars)
         {
             if (b == null) continue;
-            foreach (var j in b.GetComponents<Joint>()) Destroy(j);
-            if (b.GetComponent<Rigidbody>() != null) Destroy(b.GetComponent<Rigidbody>());
+            foreach (var j in b.GetComponentsInChildren<Joint>()) Destroy(j);
+            foreach (var rb in b.GetComponentsInChildren<Rigidbody>()) Destroy(rb);
             if (b.GetComponent<BarStressHandler>() != null) Destroy(b.GetComponent<BarStressHandler>());
-            
             b.enabled = false; 
-            if (activeLoc != null) activeLoc.bakedBars.Add(b); 
+            targetLoc.bakedBars.Add(b); 
         }
-        
-        // --- NOTE: We DO NOT clear Point.AllPoints here anymore! ---
-        // This ensures unbaked pre-placed anchors at other ravines stay safe in memory!
-        
+
         activeStressHandlers.Clear();
         isSimulating = false;
-        
+        simPoints.Clear();
+        simBars.Clear();
+
         OnSimulationStopped?.Invoke(); 
     }
 
@@ -345,9 +382,9 @@ public class BridgePhysicsManager : MonoBehaviour
         return Mathf.Clamp01(maxStress); 
     }
 
-    private void SetupBarsPhysics(HashSet<Bar> allBars)
+    private void SetupBarsPhysics(HashSet<Bar> activeBars)
     {
-        foreach (Bar bar in allBars)
+        foreach (Bar bar in activeBars)
         {
             if (bar.GetComponent<Rigidbody>() == null) ApplyPhysicsToBar(bar);
         }
@@ -356,7 +393,8 @@ public class BridgePhysicsManager : MonoBehaviour
     private void ApplyPhysicsToBar(Bar bar)
     {
         List<Point> endpoints = new List<Point>();
-        foreach (Point p in Point.AllPoints)
+        
+        foreach (Point p in simPoints)
         {
             if (p.gameObject.activeSelf && p.ConnectedBars.Contains(bar)) endpoints.Add(p);
         }
@@ -439,9 +477,9 @@ public class BridgePhysicsManager : MonoBehaviour
         activeStressHandlers.Add(stressHandler);
     }
 
-    private void SetupDirectConnections(HashSet<Bar> allBars)
+    private void SetupDirectConnections(HashSet<Bar> activeBars, HashSet<Point> activePoints)
     {
-        foreach (Point p in Point.AllPoints)
+        foreach (Point p in activePoints)
         {
             if (!p.gameObject.activeSelf || p.ConnectedBars.Count == 0) continue; 
 
@@ -485,7 +523,7 @@ public class BridgePhysicsManager : MonoBehaviour
             }
         }
 
-        foreach (Bar rope in allBars)
+        foreach (Bar rope in activeBars)
         {
             if (!rope.materialData.isRope) continue;
 
@@ -545,10 +583,10 @@ public class BridgePhysicsManager : MonoBehaviour
         }
     }
 
-    private void ResolveAdjacentCollisions(HashSet<Bar> allBars)
+    private void ResolveAdjacentCollisions(HashSet<Bar> activeBars)
     {
         List<Collider> bridgeCols = new List<Collider>();
-        foreach(Bar b in allBars)
+        foreach(Bar b in activeBars)
         {
             bridgeCols.AddRange(b.GetComponentsInChildren<Collider>());
         }

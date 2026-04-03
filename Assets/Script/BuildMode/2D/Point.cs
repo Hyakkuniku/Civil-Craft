@@ -7,7 +7,6 @@ public class Point : MonoBehaviour
     public bool Runtime = true; 
     public bool isAnchor = false;
     
-    // --- NEW: Selection State ---
     [HideInInspector] public bool isSelected = false; 
     
     [HideInInspector] public bool originalIsAnchor = false;
@@ -15,7 +14,7 @@ public class Point : MonoBehaviour
 
     public Material defaultMaterial;
     public Material anchorMaterial;
-    public Material selectedMaterial; // <-- Drag your yellow/blue highlight material here on the Prefab!
+    public Material selectedMaterial; 
 
     public List<Bar> ConnectedBars = new List<Bar>();
     public static readonly List<Point> AllPoints = new List<Point>();
@@ -42,7 +41,15 @@ public class Point : MonoBehaviour
         UpdateMaterial();
     }
 
+    // --- THE FIX: Unconditional Removal ---
+    // If this point goes to sleep (exiting build mode), remove it from the master list 
+    // so the physics manager in the NEXT ravine doesn't accidentally grab it!
     private void OnDisable()
+    {
+        AllPoints.Remove(this);
+    }
+
+    private void OnDestroy()
     {
         AllPoints.Remove(this);
     }
@@ -68,7 +75,6 @@ public class Point : MonoBehaviour
         
         if (pointRenderer != null)
         {
-            // Prioritize showing the Selection material over the normal materials!
             if (isSelected && selectedMaterial != null)
                 pointRenderer.sharedMaterial = selectedMaterial;
             else if (isAnchor && anchorMaterial != null)
