@@ -7,7 +7,10 @@ public class BuildLocation : Interactable
     public Canvas gridCanvas; 
 
     [Header("Camera")]
-    public Camera locationCamera;           
+    public Camera locationCamera;  
+    [Tooltip("A fixed camera perfectly framed for the final completion screenshot. (Optional)")]
+    public Camera cinematicCamera; // --- NEW: The dedicated photo camera! ---         
+    
     public Vector3 cameraPositionOffset = new Vector3(0, 8, -12);
     public Vector3 cameraLookAtOffset   = new Vector3(0, 2, 0);   
 
@@ -32,6 +35,7 @@ public class BuildLocation : Interactable
     private void Awake()
     {
         if (locationCamera != null) locationCamera.enabled = false;
+        if (cinematicCamera != null) cinematicCamera.enabled = false; // Make sure it sleeps!
         if (gridCanvas != null) gridCanvas.enabled = false;
     }
 

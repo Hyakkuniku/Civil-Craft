@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.UI; // --- NEW: Required for RawImage ---
 using TMPro;
 using UnityEngine.SceneManagement;
 using System.Collections.Generic;
@@ -23,6 +24,11 @@ public class LevelCompleteManager : MonoBehaviour
     [Header("Potential Reward UI (Visual Only)")]
     public TextMeshProUGUI goldEarnedText;
     public TextMeshProUGUI expEarnedText;
+
+    [Header("Photo Display")]
+    [Tooltip("Drag the RawImage component from your UI here to display the bridge photo!")]
+    public RawImage bridgePhotoDisplay; // --- NEW: The UI element to show the picture ---
+    private Texture2D currentBridgePhoto; // --- NEW: Memory cache for the picture ---
 
     [Header("Gameplay Elements to Hide")]
     public List<GameObject> uiElementsToHide = new List<GameObject>();
@@ -58,6 +64,12 @@ public class LevelCompleteManager : MonoBehaviour
         wasSimulating = isSimulating;
     }
 
+    private void OnDestroy()
+    {
+        // Clean up the texture from memory when changing scenes
+        if (currentBridgePhoto != null) Destroy(currentBridgePhoto);
+    }
+
     public int GetContractGold(string contractName) { return contractGoldRewards.ContainsKey(contractName) ? contractGoldRewards[contractName] : 0; }
     public int GetContractExp(string contractName) { return contractExpRewards.ContainsKey(contractName) ? contractExpRewards[contractName] : 0; }
 
@@ -69,7 +81,6 @@ public class LevelCompleteManager : MonoBehaviour
         }
     }
 
-    // --- THE FIX: Helper method so the NPC knows if they already paid you! ---
     public bool IsContractPaid(string contractName)
     {
         if (string.IsNullOrEmpty(contractName)) return false;
@@ -121,14 +132,81 @@ public class LevelCompleteManager : MonoBehaviour
 
         if (currentContract != null)
         {
-            Texture2D screenImage = new Texture2D(Screen.width, Screen.height, TextureFormat.RGB24, false);
-            screenImage.ReadPixels(new Rect(0, 0, Screen.width, Screen.height), 0, 0);
-            screenImage.Apply();
+            Camera snapCam = null;
+            BuildLocation targetLoc = null;
+            BuildLocation[] allLocs = Resources.FindObjectsOfTypeAll<BuildLocation>();
+            
+            foreach (var loc in allLocs)
+            {
+                if (loc.gameObject.scene.name != null && loc.activeContract == currentContract)
+                {
+                    targetLoc = loc;
+                    snapCam = loc.cinematicCamera != null ? loc.cinematicCamera : loc.locationCamera;
+                    break;
+                }
+            }
 
-            byte[] imageBytes = screenImage.EncodeToPNG();
+            Texture2D screenImage;
+
+            if (snapCam != null)
+            {
+                int resWidth = 1920;
+                int resHeight = 1080;
+                
+                RenderTexture rt = new RenderTexture(resWidth, resHeight, 24);
+                snapCam.targetTexture = rt;
+                
+                bool wasEnabled = snapCam.enabled;
+                snapCam.enabled = true;
+
+                bool locGridWasOn = targetLoc != null && targetLoc.gridCanvas != null && targetLoc.gridCanvas.enabled;
+                if (locGridWasOn) targetLoc.gridCanvas.enabled = false;
+
+                BarCreator bc = FindObjectOfType<BarCreator>();
+                bool bcGridWasOn = bc != null && bc.gridVisual != null && bc.gridVisual.canvasRenderer.GetAlpha() > 0;
+                if (bcGridWasOn) bc.gridVisual.canvasRenderer.SetAlpha(0f);
+                
+                snapCam.Render();
+                
+                RenderTexture.active = rt;
+                screenImage = new Texture2D(resWidth, resHeight, TextureFormat.RGB24, false);
+                screenImage.ReadPixels(new Rect(0, 0, resWidth, resHeight), 0, 0);
+                screenImage.Apply();
+                
+                snapCam.enabled = wasEnabled;
+                snapCam.targetTexture = null;
+                RenderTexture.active = null;
+                Destroy(rt);
+
+                if (locGridWasOn) targetLoc.gridCanvas.enabled = true;
+                if (bcGridWasOn) bc.gridVisual.canvasRenderer.SetAlpha(1f);
+            }
+            else
+            {
+                screenImage = new Texture2D(Screen.width, Screen.height, TextureFormat.RGB24, false);
+                screenImage.ReadPixels(new Rect(0, 0, Screen.width, Screen.height), 0, 0);
+                screenImage.Apply();
+            }
+
+            // --- THE FIX: Display the Photo! ---
+            // Clear out the old photo from memory if we took one previously
+            if (currentBridgePhoto != null) Destroy(currentBridgePhoto);
+            
+            // Save the new photo to memory
+            currentBridgePhoto = screenImage;
+
+            // Slap it onto the UI Panel!
+            if (bridgePhotoDisplay != null)
+            {
+                bridgePhotoDisplay.texture = currentBridgePhoto;
+            }
+
+            // Still save it to the hard drive for your saving/loading system
+            byte[] imageBytes = currentBridgePhoto.EncodeToPNG();
             string photoPath = Application.persistentDataPath + "/" + currentContract.name + "_photo.png";
             File.WriteAllBytes(photoPath, imageBytes);
-            Destroy(screenImage);
+            
+            // Notice: We DO NOT Destroy(screenImage) here anymore, because the UI is currently using it!
             
             if (PlayerDataManager.Instance != null) PlayerDataManager.Instance.CompleteContract(currentContract.name);
         }
@@ -308,7 +386,6 @@ public class LevelCompleteManager : MonoBehaviour
         {
             if (npc.contractToGive == activeContract) 
             {
-                // --- THE FIX: Don't tell the NPC to ask for a turn-in if they already paid! ---
                 if (!alreadyPaidContracts.Contains(activeContract.name))
                 {
                     npc.isContractCompleted = true;
