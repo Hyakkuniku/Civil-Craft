@@ -16,6 +16,13 @@ public class FinishLineTrigger : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
+        // --- NEW: Ignore Finish Line if this is a Timer Contract! ---
+        if (assignedContract != null && assignedContract.winCondition == ContractSO.WinCondition.Timer)
+        {
+            Debug.LogWarning("<b>[Finish Line]</b> Hit detected, but this contract is a TIMER contract. Waiting for time to expire instead!");
+            return;
+        }
+
         Transform rootObj = other.attachedRigidbody != null ? other.attachedRigidbody.transform : other.transform.root;
         
         bool hasValidTag = false;
@@ -63,8 +70,6 @@ public class FinishLineTrigger : MonoBehaviour
             return;
         }
 
-        // --- THE FIX: Smart Contract Check ---
-        // We ONLY strictly ask the GameManager if we are actively inside Build Mode.
         bool isBuilding = GameManager.Instance != null && GameManager.Instance.CurrentState == GameManager.GameState.Building;
         if (isBuilding && GameManager.Instance.CurrentContract != assignedContract)
         {
@@ -86,7 +91,6 @@ public class FinishLineTrigger : MonoBehaviour
         
         if (LevelCompleteManager.Instance != null)
         {
-            // Always pass the assignedContract directly, bypassing the empty GameManager memory!
             LevelCompleteManager.Instance.CompleteLevel(assignedContract);
         }
         else

@@ -36,6 +36,9 @@ public class LevelCompleteManager : MonoBehaviour
     private bool levelAlreadyCompleted = false;
     private bool wasSimulating = false; 
 
+    // --- THE FIX: Made public so BuildUIController can read it! ---
+    public float currentSimulationTime { get; private set; } = 0f;
+
     private ContractSO activeContract;
     private HashSet<string> alreadyPaidContracts = new HashSet<string>();
 
@@ -58,9 +61,108 @@ public class LevelCompleteManager : MonoBehaviour
         if (isSimulating && !wasSimulating)
         {
             ResetCompletionState();
+            currentSimulationTime = 0f; 
+        }
+
+        if (isSimulating && !levelAlreadyCompleted)
+        {
+            ContractSO currentContract = GameManager.Instance != null ? GameManager.Instance.CurrentContract : null;
+
+            if (currentContract != null && currentContract.winCondition == ContractSO.WinCondition.Timer)
+            {
+                if (LevelFailedManager.Instance == null || !LevelFailedManager.Instance.isFailed)
+                {
+                    BuildLocation activeLoc = null;
+                    if (GameManager.Instance != null && GameManager.Instance.ActiveBuildLocation != null)
+                    {
+                        activeLoc = GameManager.Instance.ActiveBuildLocation;
+                    }
+                    else
+                    {
+                        BuildLocation[] allLocs = Resources.FindObjectsOfTypeAll<BuildLocation>();
+                        foreach (var loc in allLocs)
+                        {
+                            if (loc.gameObject.scene.name != null && loc.activeContract == currentContract)
+                            {
+                                activeLoc = loc;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (activeLoc != null && IsBridgeConnected(activeLoc))
+                    {
+                        currentSimulationTime += Time.deltaTime;
+
+                        if (currentSimulationTime >= currentContract.requiredIntactTime)
+                        {
+                            Debug.Log("<color=green><b>[Timer]</b> Bridge held and spanned the gap! Firing Level Complete sequence...</color>");
+
+                            if (ObjectiveTrackerUI.Instance != null)
+                            {
+                                ObjectiveTrackerUI.Instance.descriptionText.text = $"<color=green>Bridge Tested!</color> Return to {currentContract.clientName}.";
+                            }
+
+                            CompleteLevel(currentContract);
+                        }
+                    }
+                    else
+                    {
+                        currentSimulationTime = 0f;
+                    }
+                }
+            }
         }
         
         wasSimulating = isSimulating;
+    }
+
+    private bool IsBridgeConnected(BuildLocation loc)
+    {
+        if (loc == null || loc.startingAnchors.Count == 0) return false;
+
+        if (loc.endingAnchors.Count == 0)
+        {
+            Debug.LogWarning("<b>[LevelCompleteManager]</b> Ending Anchors list is EMPTY on this BuildLocation! The timer win condition won't trigger until you assign the anchors on the other side of the gap.");
+            return false;
+        }
+
+        HashSet<Point> visited = new HashSet<Point>();
+        Queue<Point> queue = new Queue<Point>();
+
+        foreach (Point p in loc.startingAnchors)
+        {
+            if (p != null && p.gameObject.activeSelf)
+            {
+                visited.Add(p);
+                queue.Enqueue(p);
+            }
+        }
+
+        while (queue.Count > 0)
+        {
+            Point current = queue.Dequeue();
+
+            if (loc.endingAnchors.Contains(current)) return true;
+
+            foreach (Bar b in current.ConnectedBars)
+            {
+                if (b != null && b.gameObject.activeSelf && b.materialData != null && b.materialData.isRoad)
+                {
+                    BarStressHandler stress = b.GetComponent<BarStressHandler>();
+                    if (stress != null && stress.isBroken) continue;
+
+                    Point neighbor = (b.startPoint == current) ? b.endPoint : b.startPoint;
+                    if (neighbor != null && neighbor.gameObject.activeSelf && !visited.Contains(neighbor))
+                    {
+                        visited.Add(neighbor);
+                        queue.Enqueue(neighbor);
+                    }
+                }
+            }
+        }
+
+        return false; 
     }
 
     private void OnDestroy()
@@ -157,7 +259,6 @@ public class LevelCompleteManager : MonoBehaviour
                 bool wasEnabled = snapCam.enabled;
                 snapCam.enabled = true;
 
-                // --- THE FIX: Hide ONLY the BuildLocation's Image! ---
                 bool locGridWasOn = targetLoc != null && targetLoc.gridImage != null && targetLoc.gridImage.enabled;
                 if (locGridWasOn) targetLoc.gridImage.enabled = false;
 
@@ -173,7 +274,6 @@ public class LevelCompleteManager : MonoBehaviour
                 RenderTexture.active = null;
                 Destroy(rt);
 
-                // --- Restore the Grid! ---
                 if (locGridWasOn) targetLoc.gridImage.enabled = true;
             }
             else
@@ -244,11 +344,11 @@ public class LevelCompleteManager : MonoBehaviour
 
                     foreach (Point anchor in targetLoc.startingAnchors)
                     {
-                        if (anchor != null)
-                        {
-                            visitedPoints.Add(anchor);
-                            queue.Enqueue(anchor);
-                        }
+                        if (anchor != null) { visitedPoints.Add(anchor); queue.Enqueue(anchor); }
+                    }
+                    foreach (Point anchor in targetLoc.endingAnchors)
+                    {
+                        if (anchor != null && !visitedPoints.Contains(anchor)) { visitedPoints.Add(anchor); queue.Enqueue(anchor); }
                     }
 
                     while (queue.Count > 0)

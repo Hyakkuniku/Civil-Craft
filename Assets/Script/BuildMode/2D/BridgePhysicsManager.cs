@@ -233,8 +233,6 @@ public class BridgePhysicsManager : MonoBehaviour
         simBars.Clear();
     }
 
-    // --- THE FIX: Smart Baking! ---
-    // Now accepts the activeContract, spider-webs the ravine, and bakes everything even if it's asleep!
     public void BakeBridge(ContractSO contract = null)
     {
         HashSet<Point> bakePoints = new HashSet<Point>();
@@ -265,7 +263,6 @@ public class BridgePhysicsManager : MonoBehaviour
             return;
         }
 
-        // 1. Gather all awake points/bars first (if called from inside Build Mode)
         foreach (Point p in Point.AllPoints)
         {
             if (p != null && p.gameObject.activeSelf && p.enabled)
@@ -278,43 +275,43 @@ public class BridgePhysicsManager : MonoBehaviour
             }
         }
 
-        // 2. Spider-web to gather sleeping points/bars (if called from outside Build Mode)
         foreach (Point anchor in targetLoc.startingAnchors)
         {
-            if (anchor != null)
-            {
-                bakePoints.Add(anchor);
-                Queue<Point> queue = new Queue<Point>();
-                queue.Enqueue(anchor);
+            if (anchor != null) { bakePoints.Add(anchor); Queue<Point> q = new Queue<Point>(); q.Enqueue(anchor); ProcessQueue(q); }
+        }
+        
+        foreach (Point anchor in targetLoc.endingAnchors)
+        {
+            if (anchor != null && !bakePoints.Contains(anchor)) { bakePoints.Add(anchor); Queue<Point> q = new Queue<Point>(); q.Enqueue(anchor); ProcessQueue(q); }
+        }
 
-                while (queue.Count > 0)
+        void ProcessQueue(Queue<Point> queue)
+        {
+            while (queue.Count > 0)
+            {
+                Point current = queue.Dequeue();
+                foreach (Bar b in current.ConnectedBars)
                 {
-                    Point current = queue.Dequeue();
-                    foreach (Bar b in current.ConnectedBars)
+                    if (b != null && b.gameObject.activeSelf && !bakeBars.Contains(b))
                     {
-                        if (b != null && b.gameObject.activeSelf && !bakeBars.Contains(b))
+                        bakeBars.Add(b);
+                        Point neighbor = (b.startPoint == current) ? b.endPoint : b.startPoint;
+                        if (neighbor != null && !bakePoints.Contains(neighbor))
                         {
-                            bakeBars.Add(b);
-                            Point neighbor = (b.startPoint == current) ? b.endPoint : b.startPoint;
-                            if (neighbor != null && !bakePoints.Contains(neighbor))
-                            {
-                                bakePoints.Add(neighbor);
-                                queue.Enqueue(neighbor);
-                            }
+                            bakePoints.Add(neighbor);
+                            queue.Enqueue(neighbor);
                         }
                     }
                 }
             }
         }
 
-        // 3. Keep previously baked bars in case we are modifying an existing bridge
         foreach(Bar b in targetLoc.bakedBars) { if (b != null) bakeBars.Add(b); }
         foreach(Point p in targetLoc.bakedPoints) { if (p != null) bakePoints.Add(p); }
 
         targetLoc.bakedPoints.Clear();
         targetLoc.bakedBars.Clear();
 
-        // 4. Freeze Physics
         foreach (Point p in bakePoints)
         {
             if (p == null) continue;
@@ -332,7 +329,6 @@ public class BridgePhysicsManager : MonoBehaviour
             }
         }
 
-        // 5. Destroy Physics and Move to Baked Lists
         foreach (Point p in bakePoints)
         {
             if (p == null) continue;

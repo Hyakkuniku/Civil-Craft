@@ -7,25 +7,20 @@ public class TutorialTrigger : MonoBehaviour
 
     private void Awake()
     {
-        // Automatically ensures the collider doesn't block player movement
         GetComponent<BoxCollider>().isTrigger = true;
     }
 
     private void OnTriggerEnter(Collider other)
     {
-        // When the player walks into this invisible box
+        // SAFETY FIX: Check if the tutorial is actually active before advancing
         if (other.CompareTag("Player") && !hasTriggered)
         {
-            hasTriggered = true;
-
-            // Call YOUR existing manager to advance the step!
-            if (TutorialManager.Instance != null)
+            if (TutorialManager.Instance != null && TutorialManager.Instance.IsTutorialActive)
             {
+                hasTriggered = true;
                 TutorialManager.Instance.ShowNextStep();
+                gameObject.SetActive(false);
             }
-
-            // Turn off this trigger so it never fires again
-            gameObject.SetActive(false);
         }
     }
 }

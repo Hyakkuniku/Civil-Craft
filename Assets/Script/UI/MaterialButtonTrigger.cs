@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI; 
 
-public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerDownHandler, IPointerUpHandler
+public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerDownHandler, IPointerUpHandler, IPointerClickHandler
 {
     [Tooltip("Drag the BridgeMaterialSO for this specific button here!")]
     public BridgeMaterialSO buttonMaterial;
@@ -19,11 +19,18 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
     [Tooltip("The selected image WITH the outline")]
     public Sprite selectedOutlineSprite;
 
+    [Header("Disabled Visuals")]
+    [Tooltip("What color should the button turn if the contract forbids this material?")]
+    public Color disabledColor = new Color(0.4f, 0.4f, 0.4f, 0.8f);
+    private Color originalColor = Color.white;
+
     private RectTransform rectTransform;
     private Vector2 originalPosition;
     private bool isCurrentlySelected = false;
+    
+    private bool isMaterialAllowed = true;
 
-    private void Start()
+    private void Awake()
     {
         rectTransform = GetComponent<RectTransform>();
         if (rectTransform != null)
@@ -31,35 +38,90 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
             originalPosition = rectTransform.anchoredPosition;
         }
 
+        if (buttonImage != null)
+        {
+            originalColor = buttonImage.color;
+        }
+
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.OnEnterBuildMode.AddListener(EvaluateMaterialRestriction);
+        }
+    }
+
+    private void Start()
+    {
         if (buttonImage != null && defaultSprite != null && !isCurrentlySelected)
         {
             buttonImage.sprite = defaultSprite;
         }
 
-        // --- NEW: Subscribe to the BarCreator event instead of polling in Update! ---
         if (BuildUIController.Instance != null && BuildUIController.Instance.barCreator != null)
         {
             BuildUIController.Instance.barCreator.OnActiveMaterialChanged += HandleMaterialChanged;
-            
-            // Check initial state
             HandleMaterialChanged(BuildUIController.Instance.barCreator.activeMaterial);
         }
     }
 
+    private void OnEnable()
+    {
+        EvaluateMaterialRestriction();
+    }
+
     private void OnDestroy()
     {
-        // Always unsubscribe to prevent memory leaks!
         if (BuildUIController.Instance != null && BuildUIController.Instance.barCreator != null)
         {
             BuildUIController.Instance.barCreator.OnActiveMaterialChanged -= HandleMaterialChanged;
         }
+
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.OnEnterBuildMode.RemoveListener(EvaluateMaterialRestriction);
+        }
     }
 
-    // --- NEW: Event Callback ---
+    public void EvaluateMaterialRestriction()
+    {
+        isMaterialAllowed = true; 
+
+        if (GameManager.Instance != null && GameManager.Instance.CurrentContract != null)
+        {
+            ContractSO contract = GameManager.Instance.CurrentContract;
+            
+            if (contract.allowedMaterials != null && contract.allowedMaterials.Count > 0)
+            {
+                bool isNaturallyAllowed = contract.allowedMaterials.Contains(buttonMaterial);
+                
+                // --- THE FIX: Ask the PlayerDataManager if we bought this! ---
+                bool isUnlockedByPurchase = false;
+                if (PlayerDataManager.Instance != null)
+                {
+                    isUnlockedByPurchase = PlayerDataManager.Instance.IsMaterialUnlockedForContract(contract.name, buttonMaterial.name);
+                }
+
+                if (!isNaturallyAllowed && !isUnlockedByPurchase)
+                {
+                    isMaterialAllowed = false;
+                }
+            }
+        }
+
+        if (buttonImage != null)
+        {
+            buttonImage.color = isMaterialAllowed ? originalColor : disabledColor;
+        }
+
+        if (!isMaterialAllowed && isCurrentlySelected && BuildUIController.Instance != null)
+        {
+            BuildUIController.Instance.barCreator.SetActiveMaterial(null);
+        }
+    }
+
     private void HandleMaterialChanged(BridgeMaterialSO newMaterial)
     {
-        bool isDeleting = BuildUIController.Instance.barCreator.isDeleteMode;
-        bool shouldBeSelected = !isDeleting && (newMaterial == buttonMaterial);
+        bool isDeleting = BuildUIController.Instance != null && BuildUIController.Instance.barCreator.isDeleteMode;
+        bool shouldBeSelected = !isDeleting && (newMaterial == buttonMaterial) && isMaterialAllowed;
 
         if (shouldBeSelected != isCurrentlySelected)
         {
@@ -82,9 +144,26 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
         }
     }
 
+    public void OnPointerClick(PointerEventData eventData)
+    {
+        if (!isMaterialAllowed)
+        {
+            if (BuildUIController.Instance != null)
+            {
+                BuildUIController.Instance.PromptUnlockMaterial(this);
+            }
+            return;
+        }
+
+        if (BuildUIController.Instance != null)
+        {
+            BuildUIController.Instance.OnMaterialSelected(buttonMaterial);
+        }
+    }
+
     public void OnPointerEnter(PointerEventData eventData)
     {
-        if (MaterialTooltipManager.Instance != null && buttonMaterial != null)
+        if (MaterialTooltipManager.Instance != null && buttonMaterial != null && isMaterialAllowed)
             MaterialTooltipManager.Instance.ShowTooltip(buttonMaterial);
     }
 
@@ -96,7 +175,7 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
 
     public void OnPointerDown(PointerEventData eventData)
     {
-        if (MaterialTooltipManager.Instance != null && buttonMaterial != null)
+        if (MaterialTooltipManager.Instance != null && buttonMaterial != null && isMaterialAllowed)
             MaterialTooltipManager.Instance.ShowTooltip(buttonMaterial);
     }
 

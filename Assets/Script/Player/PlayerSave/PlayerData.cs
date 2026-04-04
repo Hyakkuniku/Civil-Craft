@@ -11,9 +11,11 @@ public class PlayerData
     
     public List<string> unlockedLevels = new List<string> { "Tutorial" };
     public List<string> completedContracts = new List<string>();
-    
-    // --- NEW: Tracks which lessons the player has passed ---
     public List<string> completedLessons = new List<string>();
+    public List<string> unlockedContractMaterials = new List<string>();
+    
+    // --- NEW: Keeps track of which doors you have permanently unlocked ---
+    public List<string> unlockedDoors = new List<string>();
 
     public string GetTitle()
     {

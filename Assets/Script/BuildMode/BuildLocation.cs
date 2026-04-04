@@ -1,11 +1,11 @@
 using UnityEngine;
-using UnityEngine.UI; // --- ADDED: Required for Image ---
+using UnityEngine.UI; 
 using System.Collections.Generic;
 
 public class BuildLocation : Interactable 
 {
     [Header("UI / Grid")]
-    public Image gridImage; // --- CHANGED: Now simply takes an Image ---
+    public Image gridImage; 
 
     [Header("Camera")]
     public Camera locationCamera;  
@@ -25,8 +25,12 @@ public class BuildLocation : Interactable
     public bool advancesTutorial = false; 
 
     [Header("Pre-placed Anchors")]
-    [Tooltip("Drag the starting cliff anchor points for this specific ravine here.")]
+    [Tooltip("Drag the starting cliff anchor points (e.g., Left Side) here.")]
     public List<Point> startingAnchors = new List<Point>();
+    
+    // --- NEW: Ending Anchors ---
+    [Tooltip("Drag the ending cliff anchor points (e.g., Right Side) here.")]
+    public List<Point> endingAnchors = new List<Point>(); 
 
     [HideInInspector] public List<Bar> bakedBars = new List<Bar>();
     [HideInInspector] public List<Point> bakedPoints = new List<Point>();
@@ -37,8 +41,6 @@ public class BuildLocation : Interactable
     {
         if (locationCamera != null) locationCamera.enabled = false;
         if (cinematicCamera != null) cinematicCamera.enabled = false; 
-        
-        // Ensure the image is turned off by default
         if (gridImage != null) gridImage.enabled = false; 
     }
 
@@ -103,7 +105,8 @@ public class BuildLocation : Interactable
         {
             if (p != null) 
             {
-                if (startingAnchors.Contains(p))
+                // Cleanly wipe memory from BOTH anchor sides
+                if (startingAnchors.Contains(p) || endingAnchors.Contains(p))
                 {
                     p.ConnectedBars.Clear(); 
                     p.enabled = false; 
@@ -129,7 +132,6 @@ public class BuildLocation : Interactable
     {
         if (GameManager.Instance == null || activeContract == null) return; 
 
-        // Check if the global snapping tool is ON before showing the image!
         BarCreator barCreator = FindObjectOfType<BarCreator>();
         if (gridImage != null) 
         {
@@ -183,12 +185,12 @@ public class BuildLocation : Interactable
 
         foreach (Point p in startingAnchors)
         {
-            if (p != null)
-            {
-                p.enabled = true; 
-                queue.Enqueue(p);
-                bridgePoints.Add(p);
-            }
+            if (p != null) { p.enabled = true; queue.Enqueue(p); bridgePoints.Add(p); }
+        }
+        // Wake up the ending anchors too!
+        foreach (Point p in endingAnchors)
+        {
+            if (p != null && !bridgePoints.Contains(p)) { p.enabled = true; queue.Enqueue(p); bridgePoints.Add(p); }
         }
 
         while (queue.Count > 0)

@@ -45,6 +45,10 @@ public class BuildUIController : MonoBehaviour
     public Color warningStressColor = Color.yellow;
     public Color criticalStressColor = Color.red;
 
+    [Header("Timer UI")]
+    public GameObject timerPanel; 
+    public TextMeshProUGUI timerText; 
+
     [Header("Engineering Stats (CAD Readout)")]
     public GameObject statsPanel; 
     public TextMeshProUGUI totalLengthText; 
@@ -63,6 +67,11 @@ public class BuildUIController : MonoBehaviour
     public TextMeshProUGUI liveBeamLengthText;
     public TextMeshProUGUI liveBeamCostText;
     public TextMeshProUGUI liveBeamAngleText;
+
+    [Header("Unlock Material UI")]
+    public GameObject unlockMaterialPanel; 
+    public TextMeshProUGUI unlockMaterialText; 
+    private MaterialButtonTrigger pendingUnlockButton;
 
     private float cachedBaseCost = 0f;
     private float cachedBaseDeadLoad = 0f;
@@ -89,8 +98,10 @@ public class BuildUIController : MonoBehaviour
         
         if (selectionActionPanel != null) selectionActionPanel.SetActive(false);
         if (statsPanel != null) statsPanel.SetActive(false); 
-        
         if (liveBeamStatsPanel != null) liveBeamStatsPanel.SetActive(false);
+        if (timerPanel != null) timerPanel.SetActive(false); 
+        
+        if (unlockMaterialPanel != null) unlockMaterialPanel.SetActive(false); 
 
         if (actionLogText != null) actionLogText.text = ""; 
 
@@ -108,10 +119,27 @@ public class BuildUIController : MonoBehaviour
         if (physicsManager != null && physicsManager.isSimulating)
         {
             UpdateStressUI();
+
+            ContractSO currentContract = GetActiveContract();
+            if (currentContract != null && currentContract.winCondition == ContractSO.WinCondition.Timer)
+            {
+                if (timerPanel != null && !timerPanel.activeSelf) timerPanel.SetActive(true);
+                if (timerText != null && LevelCompleteManager.Instance != null)
+                {
+                    float currentTime = LevelCompleteManager.Instance.currentSimulationTime;
+                    timerText.text = $"Holding: {currentTime:F1}s / {currentContract.requiredIntactTime:F1}s";
+                }
+            }
+            else
+            {
+                if (timerPanel != null && timerPanel.activeSelf) timerPanel.SetActive(false);
+            }
         }
         else
         {
             UpdateStressUI(); 
+            
+            if (timerPanel != null && timerPanel.activeSelf) timerPanel.SetActive(false);
 
             if (barCreator != null && barCreator.IsCreating)
             {
@@ -122,6 +150,61 @@ public class BuildUIController : MonoBehaviour
         
         UpdateLiveBeamStatsUI();
         UpdatePlayPauseButtonUI();
+    }
+
+    public void PromptUnlockMaterial(MaterialButtonTrigger btn)
+    {
+        pendingUnlockButton = btn;
+        if (unlockMaterialPanel != null && btn != null)
+        {
+            unlockMaterialPanel.SetActive(true);
+            int cost = btn.buttonMaterial.unlockCost;
+
+            if (unlockMaterialText != null)
+            {
+                unlockMaterialText.text = $"Unlock {btn.buttonMaterial.name} for this level?\nCost: {cost} Gold";
+            }
+        }
+    }
+
+    public void ConfirmUnlockMaterial()
+    {
+        if (pendingUnlockButton != null && GameManager.Instance != null && GameManager.Instance.CurrentContract != null)
+        {
+            int cost = pendingUnlockButton.buttonMaterial.unlockCost;
+            
+            // --- THE FIX: Uses the official PlayerDataManager to check and spend gold! ---
+            if (PlayerDataManager.Instance != null && PlayerDataManager.Instance.CurrentData.gold >= cost)
+            {
+                // Spend the gold
+                PlayerDataManager.Instance.SpendGold(cost);
+                
+                // Unlock the material for this contract
+                PlayerDataManager.Instance.UnlockMaterialForContract(GameManager.Instance.CurrentContract.name, pendingUnlockButton.buttonMaterial.name);
+
+                // Refresh the UI buttons to remove the gray tint
+                MaterialButtonTrigger[] allButtons = FindObjectsOfType<MaterialButtonTrigger>();
+                foreach (var b in allButtons)
+                {
+                    b.EvaluateMaterialRestriction();
+                }
+
+                LogAction($"{pendingUnlockButton.buttonMaterial.name} Unlocked!");
+            }
+            else
+            {
+                LogAction("Not enough Gold to unlock!");
+            }
+        }
+
+        if (unlockMaterialPanel != null) unlockMaterialPanel.SetActive(false);
+        pendingUnlockButton = null;
+    }
+
+    public void CancelUnlockMaterial()
+    {
+        if (unlockMaterialPanel != null) unlockMaterialPanel.SetActive(false);
+        pendingUnlockButton = null;
     }
 
     private void UpdateLiveBeamStatsUI()
@@ -212,7 +295,6 @@ public class BuildUIController : MonoBehaviour
         uniqueBars.Clear();
         activePoints.Clear();
 
-        // 1. Gather all points that are currently awake (Build Mode fallback)
         foreach (Point p in Point.AllPoints)
         {
             if (!p.gameObject.activeSelf || !p.enabled) continue;
@@ -228,7 +310,6 @@ public class BuildUIController : MonoBehaviour
             if (hasActiveBar) activePoints.Add(p);
         }
 
-        // 2. Spider-web Network Traversal (Ensures dormant bridges are counted)
         ContractSO activeContract = GetActiveContract();
         if (activeContract != null)
         {
@@ -260,12 +341,11 @@ public class BuildUIController : MonoBehaviour
 
                 foreach (Point anchor in targetLoc.startingAnchors)
                 {
-                    if (anchor != null)
-                    {
-                        visitedPoints.Add(anchor);
-                        queue.Enqueue(anchor);
-                        activePoints.Add(anchor);
-                    }
+                    if (anchor != null) { visitedPoints.Add(anchor); queue.Enqueue(anchor); activePoints.Add(anchor); }
+                }
+                foreach (Point anchor in targetLoc.endingAnchors)
+                {
+                    if (anchor != null && !visitedPoints.Contains(anchor)) { visitedPoints.Add(anchor); queue.Enqueue(anchor); activePoints.Add(anchor); }
                 }
 
                 while (queue.Count > 0)
@@ -289,7 +369,6 @@ public class BuildUIController : MonoBehaviour
             }
         }
 
-        // 3. Process Math
         cachedBaseJ = activePoints.Count * 2; 
         cachedBaseM = 0;
         cachedBaseRoadLength = 0f;

@@ -22,8 +22,12 @@ public class BridgeMaterialSO : ScriptableObject
     public bool isRoad = false; 
     public bool isPier = false; 
 
+    // --- NEW: Unlock System ---
+    [Header("Unlock System")]
+    [Tooltip("How much Gold it costs to unlock this material if a contract restricts it.")]
+    public int unlockCost = 500; 
+
     [Header("Visuals")]
-    // --- NEW: Icon for the Receipt UI! ---
     [Tooltip("The 2D sprite icon shown in the UI and Receipt.")]
     public Sprite materialIcon; 
     

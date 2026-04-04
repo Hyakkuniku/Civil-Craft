@@ -51,6 +51,18 @@ public class PlayerDataManager : MonoBehaviour
     }
 
     public void AddGold(int amount) { CurrentData.gold += amount; SaveGame(); }
+    
+    public bool SpendGold(int amount) 
+    { 
+        if (CurrentData.gold >= amount)
+        {
+            CurrentData.gold -= amount; 
+            SaveGame(); 
+            return true;
+        }
+        return false;
+    }
+    
     public void AddExp(int amount) { CurrentData.exp += amount; SaveGame(); }
     public void AddBridgeBuilt() { CurrentData.bridgesBuilt++; SaveGame(); }
     
@@ -72,7 +84,6 @@ public class PlayerDataManager : MonoBehaviour
         }
     }
 
-    // --- NEW: Saves the completed lesson! ---
     public void CompleteLesson(string lessonName)
     {
         if (!CurrentData.completedLessons.Contains(lessonName))
@@ -80,6 +91,22 @@ public class PlayerDataManager : MonoBehaviour
             CurrentData.completedLessons.Add(lessonName);
             SaveGame();
         }
+    }
+
+    public void UnlockMaterialForContract(string contractName, string materialName)
+    {
+        string key = contractName + "_" + materialName;
+        if (!CurrentData.unlockedContractMaterials.Contains(key))
+        {
+            CurrentData.unlockedContractMaterials.Add(key);
+            SaveGame();
+        }
+    }
+
+    public bool IsMaterialUnlockedForContract(string contractName, string materialName)
+    {
+        string key = contractName + "_" + materialName;
+        return CurrentData.unlockedContractMaterials.Contains(key);
     }
 
     public void UnlockAlmanac()
@@ -90,5 +117,21 @@ public class PlayerDataManager : MonoBehaviour
             SaveGame();
             OnAlmanacUnlocked?.Invoke();
         }
+    }
+
+    // --- NEW: Save the door unlock permanently ---
+    public void UnlockDoor(string doorID)
+    {
+        if (!CurrentData.unlockedDoors.Contains(doorID))
+        {
+            CurrentData.unlockedDoors.Add(doorID);
+            SaveGame();
+        }
+    }
+
+    // --- NEW: Check if the door is unlocked ---
+    public bool IsDoorUnlocked(string doorID)
+    {
+        return CurrentData.unlockedDoors.Contains(doorID);
     }
 }

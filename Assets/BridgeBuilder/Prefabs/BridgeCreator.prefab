@@ -555,14 +555,17 @@ MonoBehaviour:
   activeMaterial: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
   isGridSnappingEnabled: 1
   isDeleteMode: 0
+  selectedBarMaterial: {fileID: 0}
   isSelectMode: 0
   isMoveMode: 0
   selectionBoxUI: {fileID: 0}
+  selectedPoints: []
+  selectedBars: []
+  isDraggingSelection: 0
   isSimulating: 0
   pierBaseY: -10
   deleteSnapRadiusPixels: 50
   nodeSnapRadiusWorld: 1.2
-  gridVisual: {fileID: 2999278537205885771}
   radiusIndicator: {fileID: 3266573539776685830}
   circleResolution: 50
   circleLineWidth: 0.05
