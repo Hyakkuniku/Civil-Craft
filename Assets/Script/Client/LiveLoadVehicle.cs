@@ -1,9 +1,22 @@
 using System.Collections.Generic;
 using UnityEngine;
+using TMPro;
 
 [RequireComponent(typeof(Rigidbody))]
-public class LiveLoadVehicle : MonoBehaviour
+public class LiveLoadVehicle : Interactable 
 {
+    [Header("Vehicle Information UI")]
+    public string vehicleName = "Heavy Transport";
+    public GameObject vehicleInfoPanel;
+    public TextMeshProUGUI vehicleNameText;
+    public TextMeshProUGUI vehicleWeightText;
+    public TextMeshProUGUI vehicleSpeedText;
+
+    [Header("Gameplay Elements to Hide")]
+    [Tooltip("UI elements to hide when this panel is open (e.g., Crosshair, HUD)")]
+    public List<GameObject> uiElementsToHide = new List<GameObject>(); // --- NEW ---
+    private List<GameObject> temporarilyHiddenPanels = new List<GameObject>(); // --- NEW ---
+
     [Header("Open World Settings")]
     [Tooltip("Drag the ContractSO for THIS specific ravine here.")]
     public ContractSO assignedContract; 
@@ -36,7 +49,7 @@ public class LiveLoadVehicle : MonoBehaviour
     private Rigidbody rb;
     private bool isDriving = false;
     private bool wasSimulating = false;
-    private bool hasReachedEnd = false; // --- THE FIX: Internal memory flag ---
+    private bool hasReachedEnd = false; 
 
     private class WheelData
     {
@@ -129,10 +142,14 @@ public class LiveLoadVehicle : MonoBehaviour
 
         if (physicsManager == null)
             physicsManager = FindObjectOfType<BridgePhysicsManager>();
+
+        if (vehicleInfoPanel != null) vehicleInfoPanel.SetActive(false);
     }
 
     private void Update()
     {
+        promptMessage = "Inspect " + vehicleName;
+
         if (physicsManager == null) return;
 
         if (physicsManager.isSimulating && !wasSimulating)
@@ -152,7 +169,6 @@ public class LiveLoadVehicle : MonoBehaviour
         {
             if (startPoint != null && Vector3.Distance(transform.position, startPoint.position) > 0.5f)
             {
-                // --- THE FIX: Only snap back if it FAILED to reach the end ---
                 if (!hasReachedEnd)
                 {
                     transform.position = startPoint.position;
@@ -167,9 +183,67 @@ public class LiveLoadVehicle : MonoBehaviour
         }
     }
 
+    protected override void Intract()
+    {
+        if (vehicleInfoPanel != null)
+        {
+            if (vehicleNameText != null) vehicleNameText.text = vehicleName;
+            
+            float displayWeight = assignedContract != null ? assignedContract.liveLoadWeight : vehicleMass;
+            if (vehicleWeightText != null) vehicleWeightText.text = $"Weight: {displayWeight} kg";
+            
+            if (vehicleSpeedText != null) vehicleSpeedText.text = $"Top Speed: {maxSpeed} m/s";
+
+            // --- THE FIX: Hide UI Elements ---
+            temporarilyHiddenPanels.Clear();
+            foreach (GameObject ui in uiElementsToHide)
+            {
+                if (ui != null && ui.activeSelf)
+                {
+                    temporarilyHiddenPanels.Add(ui);
+                    ui.SetActive(false);
+                }
+            }
+
+            vehicleInfoPanel.SetActive(true);
+
+            InputManager inputObj = FindObjectOfType<InputManager>();
+            if (inputObj != null)
+            {
+                inputObj.SetPlayerInputEnable(false);
+                inputObj.SetLookEnabled(false);
+            }
+
+            PlayerMotor player = FindObjectOfType<PlayerMotor>();
+            if (player != null) player.enabled = false;
+        }
+    }
+
+    public void CloseInfoPanel()
+    {
+        if (vehicleInfoPanel != null) vehicleInfoPanel.SetActive(false);
+
+        // --- THE FIX: Restore UI Elements ---
+        foreach (GameObject ui in temporarilyHiddenPanels)
+        {
+            if (ui != null) ui.SetActive(true);
+        }
+        temporarilyHiddenPanels.Clear();
+
+        InputManager inputObj = FindObjectOfType<InputManager>();
+        if (inputObj != null)
+        {
+            inputObj.SetPlayerInputEnable(true);
+            inputObj.SetLookEnabled(true);
+        }
+
+        PlayerMotor player = FindObjectOfType<PlayerMotor>();
+        if (player != null) player.enabled = true;
+    }
+
     public void StartDriving()
     {
-        hasReachedEnd = false; // Reset the memory flag for the new run!
+        hasReachedEnd = false; 
 
         if (assignedContract != null)
         {
@@ -217,7 +291,6 @@ public class LiveLoadVehicle : MonoBehaviour
             w.hinge.useMotor = false; 
         }
 
-        // --- THE FIX: Only snap back if it FAILED to reach the end ---
         if (!hasReachedEnd && startPoint != null)
         {
             transform.position = startPoint.position;
@@ -237,7 +310,7 @@ public class LiveLoadVehicle : MonoBehaviour
         foreach (var w in wheels)
         {
             JointMotor motor = w.hinge.motor;
-            motor.targetVelocity = 0; // Lock wheels
+            motor.targetVelocity = 0; 
             w.hinge.motor = motor;
             w.hinge.useMotor = true; 
         }
@@ -253,7 +326,7 @@ public class LiveLoadVehicle : MonoBehaviour
 
         if (reachedEnd)
         {
-            hasReachedEnd = true; // --- THE FIX: Flag this vehicle as victorious! ---
+            hasReachedEnd = true; 
 
             isDriving = false;
             

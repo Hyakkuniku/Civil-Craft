@@ -1,6 +1,7 @@
 using UnityEngine;
 using TMPro;
 using UnityEngine.SceneManagement;
+using System.Collections.Generic; // --- NEW ---
 
 public class LevelFailedManager : MonoBehaviour
 {
@@ -12,6 +13,11 @@ public class LevelFailedManager : MonoBehaviour
     
     [Tooltip("Drag the Text element that will display the level/contract name here.")]
     public TextMeshProUGUI levelNameText;
+
+    [Header("Gameplay Elements to Hide")]
+    [Tooltip("UI elements to hide when this panel is open (e.g., Crosshair, HUD)")]
+    public List<GameObject> uiElementsToHide = new List<GameObject>(); // --- NEW ---
+    private List<GameObject> temporarilyHiddenPanels = new List<GameObject>(); // --- NEW ---
 
     [Header("Failure Settings")]
     [Tooltip("The Y-axis height at which the vehicle is considered fallen/destroyed.")]
@@ -79,6 +85,17 @@ public class LevelFailedManager : MonoBehaviour
         if (activeVehicle == null) activeVehicle = FindObjectOfType<LiveLoadVehicle>();
         if (activeVehicle != null) activeVehicle.EmergencyStop();
 
+        // --- THE FIX: Hide UI Elements ---
+        temporarilyHiddenPanels.Clear();
+        foreach (GameObject ui in uiElementsToHide)
+        {
+            if (ui != null && ui.activeSelf)
+            {
+                temporarilyHiddenPanels.Add(ui);
+                ui.SetActive(false);
+            }
+        }
+
         if (levelFailedPanel != null) levelFailedPanel.SetActive(true);
 
         if (levelNameText != null)
@@ -98,6 +115,15 @@ public class LevelFailedManager : MonoBehaviour
         }
     }
 
+    private void RestoreHiddenUI()
+    {
+        foreach (GameObject ui in temporarilyHiddenPanels)
+        {
+            if (ui != null) ui.SetActive(true);
+        }
+        temporarilyHiddenPanels.Clear();
+    }
+
     public void RetryLevel()
     {
         if (physicsManager != null)
@@ -108,7 +134,7 @@ public class LevelFailedManager : MonoBehaviour
         BarCreator barCreator = FindObjectOfType<BarCreator>();
         if (barCreator != null) barCreator.isSimulating = false;
 
-        // --- THE CHANGE: Level Reset call REMOVED per your constraints! ---
+        RestoreHiddenUI(); // --- THE FIX: Restore UI ---
 
         if (levelFailedPanel != null) levelFailedPanel.SetActive(false);
         isFailed = false;
@@ -123,6 +149,7 @@ public class LevelFailedManager : MonoBehaviour
     private void HandleSimulationStopped()
     {
         isFailed = false;
+        RestoreHiddenUI(); // --- THE FIX: Restore UI ---
         if (levelFailedPanel != null) levelFailedPanel.SetActive(false);
     }
 }

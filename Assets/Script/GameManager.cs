@@ -27,6 +27,9 @@ public class GameManager : MonoBehaviour
 
     [Header("Open World UI")]
     public GameObject redoConfirmPanel;
+    [Tooltip("Add things here that you want hidden ONLY when the Redo Panel is open (Optional)")]
+    public List<GameObject> extraElementsToHideOnRedo = new List<GameObject>(); // --- NEW ---
+    
     private BuildLocation pendingRedoLocation;
 
     private void Awake()
@@ -58,6 +61,13 @@ public class GameManager : MonoBehaviour
         pendingRedoLocation = loc;
         if (redoConfirmPanel != null) redoConfirmPanel.SetActive(true);
         
+        // --- THE FIX: Hide UI elements when the panel opens ---
+        foreach (GameObject uiElement in uiElementsToHide) 
+            if (uiElement != null) uiElement.SetActive(false);
+            
+        foreach (GameObject uiElement in extraElementsToHideOnRedo) 
+            if (uiElement != null) uiElement.SetActive(false);
+
         InputManager inputObj = FindObjectOfType<InputManager>();
         if (inputObj != null) 
         { 
@@ -69,6 +79,11 @@ public class GameManager : MonoBehaviour
     public void ConfirmRedo()
     {
         if (redoConfirmPanel != null) redoConfirmPanel.SetActive(false);
+        
+        // Restore ONLY the extra elements (EnterBuildMode will keep the standard UI hidden)
+        foreach (GameObject uiElement in extraElementsToHideOnRedo) 
+            if (uiElement != null) uiElement.SetActive(true);
+
         if (pendingRedoLocation != null)
         {
             pendingRedoLocation.DeleteBakedBridge(); 
@@ -84,6 +99,13 @@ public class GameManager : MonoBehaviour
         if (redoConfirmPanel != null) redoConfirmPanel.SetActive(false);
         pendingRedoLocation = null;
         
+        // --- THE FIX: Restore UI elements when the panel closes ---
+        foreach (GameObject uiElement in uiElementsToHide) 
+            if (uiElement != null) uiElement.SetActive(true);
+            
+        foreach (GameObject uiElement in extraElementsToHideOnRedo) 
+            if (uiElement != null) uiElement.SetActive(true);
+
         InputManager inputObj = FindObjectOfType<InputManager>();
         if (inputObj != null) 
         { 
@@ -169,7 +191,6 @@ public class GameManager : MonoBehaviour
                 mainCamera.enabled = true;
             }
 
-            // THE FIX: Unconditionally snap the camera back, even if parent is null!
             mainCamera.transform.SetParent(mainCamParent);
             mainCamera.transform.localPosition = mainCamLocalPos;
             mainCamera.transform.localRotation = mainCamLocalRot;
@@ -180,7 +201,6 @@ public class GameManager : MonoBehaviour
             if (currentPlayerTransform != null) ActiveBuildLocation.DeactivateBuildMode(currentPlayerTransform);
         }
 
-        // --- THE FIX: Wipe the GameManager's memory clean for the next ravine! ---
         currentPlayerTransform = null;
         ActiveBuildLocation = null; 
         CurrentContract = null;
