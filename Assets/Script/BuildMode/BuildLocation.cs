@@ -1,15 +1,16 @@
 using UnityEngine;
+using UnityEngine.UI; // --- ADDED: Required for Image ---
 using System.Collections.Generic;
 
 public class BuildLocation : Interactable 
 {
     [Header("UI / Grid")]
-    public Canvas gridCanvas; 
+    public Image gridImage; // --- CHANGED: Now simply takes an Image ---
 
     [Header("Camera")]
     public Camera locationCamera;  
     [Tooltip("A fixed camera perfectly framed for the final completion screenshot. (Optional)")]
-    public Camera cinematicCamera; // --- NEW: The dedicated photo camera! ---         
+    public Camera cinematicCamera; 
     
     public Vector3 cameraPositionOffset = new Vector3(0, 8, -12);
     public Vector3 cameraLookAtOffset   = new Vector3(0, 2, 0);   
@@ -35,8 +36,10 @@ public class BuildLocation : Interactable
     private void Awake()
     {
         if (locationCamera != null) locationCamera.enabled = false;
-        if (cinematicCamera != null) cinematicCamera.enabled = false; // Make sure it sleeps!
-        if (gridCanvas != null) gridCanvas.enabled = false;
+        if (cinematicCamera != null) cinematicCamera.enabled = false; 
+        
+        // Ensure the image is turned off by default
+        if (gridImage != null) gridImage.enabled = false; 
     }
 
     private void Start()
@@ -126,7 +129,12 @@ public class BuildLocation : Interactable
     {
         if (GameManager.Instance == null || activeContract == null) return; 
 
-        if (gridCanvas != null) gridCanvas.enabled = true;
+        // Check if the global snapping tool is ON before showing the image!
+        BarCreator barCreator = FindObjectOfType<BarCreator>();
+        if (gridImage != null) 
+        {
+            gridImage.enabled = (barCreator != null && barCreator.isGridSnappingEnabled);
+        }
 
         SetBridgeScriptsActive(true);
 
@@ -146,7 +154,7 @@ public class BuildLocation : Interactable
 
     public void DeactivateBuildMode(Transform player)
     {
-        if (gridCanvas != null) gridCanvas.enabled = false;
+        if (gridImage != null) gridImage.enabled = false;
 
         if (bakedBars.Count == 0)
         {
@@ -157,6 +165,14 @@ public class BuildLocation : Interactable
         {
             player.SetParent(originalPlayerParent);
             originalPlayerParent = null;
+        }
+    }
+
+    public void SetGridVisualActive(bool isActive)
+    {
+        if (gridImage != null)
+        {
+            gridImage.enabled = isActive;
         }
     }
 

@@ -1,5 +1,5 @@
 using UnityEngine;
-using UnityEngine.UI; // --- NEW: Required for RawImage ---
+using UnityEngine.UI; 
 using TMPro;
 using UnityEngine.SceneManagement;
 using System.Collections.Generic;
@@ -26,9 +26,8 @@ public class LevelCompleteManager : MonoBehaviour
     public TextMeshProUGUI expEarnedText;
 
     [Header("Photo Display")]
-    [Tooltip("Drag the RawImage component from your UI here to display the bridge photo!")]
-    public RawImage bridgePhotoDisplay; // --- NEW: The UI element to show the picture ---
-    private Texture2D currentBridgePhoto; // --- NEW: Memory cache for the picture ---
+    public RawImage bridgePhotoDisplay; 
+    private Texture2D currentBridgePhoto; 
 
     [Header("Gameplay Elements to Hide")]
     public List<GameObject> uiElementsToHide = new List<GameObject>();
@@ -66,7 +65,6 @@ public class LevelCompleteManager : MonoBehaviour
 
     private void OnDestroy()
     {
-        // Clean up the texture from memory when changing scenes
         if (currentBridgePhoto != null) Destroy(currentBridgePhoto);
     }
 
@@ -159,13 +157,10 @@ public class LevelCompleteManager : MonoBehaviour
                 bool wasEnabled = snapCam.enabled;
                 snapCam.enabled = true;
 
-                bool locGridWasOn = targetLoc != null && targetLoc.gridCanvas != null && targetLoc.gridCanvas.enabled;
-                if (locGridWasOn) targetLoc.gridCanvas.enabled = false;
+                // --- THE FIX: Hide ONLY the BuildLocation's Image! ---
+                bool locGridWasOn = targetLoc != null && targetLoc.gridImage != null && targetLoc.gridImage.enabled;
+                if (locGridWasOn) targetLoc.gridImage.enabled = false;
 
-                BarCreator bc = FindObjectOfType<BarCreator>();
-                bool bcGridWasOn = bc != null && bc.gridVisual != null && bc.gridVisual.canvasRenderer.GetAlpha() > 0;
-                if (bcGridWasOn) bc.gridVisual.canvasRenderer.SetAlpha(0f);
-                
                 snapCam.Render();
                 
                 RenderTexture.active = rt;
@@ -178,8 +173,8 @@ public class LevelCompleteManager : MonoBehaviour
                 RenderTexture.active = null;
                 Destroy(rt);
 
-                if (locGridWasOn) targetLoc.gridCanvas.enabled = true;
-                if (bcGridWasOn) bc.gridVisual.canvasRenderer.SetAlpha(1f);
+                // --- Restore the Grid! ---
+                if (locGridWasOn) targetLoc.gridImage.enabled = true;
             }
             else
             {
@@ -188,25 +183,17 @@ public class LevelCompleteManager : MonoBehaviour
                 screenImage.Apply();
             }
 
-            // --- THE FIX: Display the Photo! ---
-            // Clear out the old photo from memory if we took one previously
             if (currentBridgePhoto != null) Destroy(currentBridgePhoto);
-            
-            // Save the new photo to memory
             currentBridgePhoto = screenImage;
 
-            // Slap it onto the UI Panel!
             if (bridgePhotoDisplay != null)
             {
                 bridgePhotoDisplay.texture = currentBridgePhoto;
             }
 
-            // Still save it to the hard drive for your saving/loading system
             byte[] imageBytes = currentBridgePhoto.EncodeToPNG();
             string photoPath = Application.persistentDataPath + "/" + currentContract.name + "_photo.png";
             File.WriteAllBytes(photoPath, imageBytes);
-            
-            // Notice: We DO NOT Destroy(screenImage) here anymore, because the UI is currently using it!
             
             if (PlayerDataManager.Instance != null) PlayerDataManager.Instance.CompleteContract(currentContract.name);
         }

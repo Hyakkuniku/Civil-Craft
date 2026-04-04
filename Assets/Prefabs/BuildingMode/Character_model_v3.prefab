@@ -1454,11 +1454,12 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   useEvents: 1
   promptMessage: Talk to Merchant Clara
-  contractToGive: {fileID: 11400000, guid: 5edc8d91db6f6014190820a7c01cea37, type: 2}
+  contractToGive: {fileID: 11400000, guid: d58e962a84aed8944ad5741d6404b861, type: 2}
   targetBuildLocation: {fileID: 0}
   linkedCargo: {fileID: 0}
   advancesTutorial: 1
   isContractCompleted: 0
+  isFullyTurnedIn: 0
 --- !u!114 &3072315545871577382
 MonoBehaviour:
   m_ObjectHideFlags: 0

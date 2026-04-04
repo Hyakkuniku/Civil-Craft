@@ -30,7 +30,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     
     [Header("Selection Visuals")]
     [Tooltip("Drag the same highlight material used by Point here!")]
-    public Material selectedBarMaterial; // <-- NEW: Used to highlight beams!
+    public Material selectedBarMaterial; 
 
     [Header("Selection & Move Tools")]
     public bool isSelectMode = false;
@@ -64,10 +64,10 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     public float nodeSnapRadiusWorld = 1.2f;
 
     [Header("Visual Aids")]
-    public Image gridVisual; 
     public LineRenderer radiusIndicator; 
     public int circleResolution = 50;    
     public float circleLineWidth = 0.05f;
+    // --- THE FIX: Removed the global gridVisual image from here! ---
 
     private bool barCreationStarted = false;
     private bool createdStartPoint = false; 
@@ -547,7 +547,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                     hoveredNode.UpdateMaterial();
                     selectedPoints.Add(hoveredNode);
                     
-                    UpdateBarHighlights(); // <-- Apply Material
+                    UpdateBarHighlights(); 
                 }
                 else
                 {
@@ -847,7 +847,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             p.UpdateMaterial();
             selectedPoints.Add(p);
         }
-        UpdateBarHighlights(); // <-- Apply Material
+        UpdateBarHighlights(); 
         if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction(p.isSelected ? "Node Selected" : "Node Deselected");
     }
 
@@ -862,15 +862,13 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             selectedBars.Add(bar);
         }
 
-        UpdateBarHighlights(); // <-- Apply Material
+        UpdateBarHighlights(); 
         
         if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("Beam Selected");
     }
 
-    // --- NEW: Forces the beams to light up using SetHighlight! ---
     public void UpdateBarHighlights()
     {
-        // 1. Reset everything back to normal colors first
         foreach (Point p in Point.AllPoints) 
         {
             foreach (Bar b in p.ConnectedBars) 
@@ -879,7 +877,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             }
         }
 
-        // 2. Light up the "Spider-Web" if only 1 node is selected and no bars are explicitly selected
         if (selectedPoints.Count == 1 && selectedBars.Count == 0) 
         {
             foreach (Bar b in selectedPoints[0].ConnectedBars) 
@@ -887,16 +884,13 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 if (b != null && b.gameObject.activeSelf) b.SetHighlight(true, selectedBarMaterial);
             }
         } 
-        // 3. Light up ONLY the fully enclosed beams if multiple nodes or specific bars are selected
         else if (selectedPoints.Count > 1 || selectedBars.Count > 0) 
         {
-            // Highlight explicitly selected bars
             foreach (Bar b in selectedBars)
             {
                 if (b != null && b.gameObject.activeSelf) b.SetHighlight(true, selectedBarMaterial);
             }
 
-            // Highlight fully enclosed bars from selected nodes
             foreach (Point p in selectedPoints) 
             {
                 foreach (Bar b in p.ConnectedBars) 
@@ -992,7 +986,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
         selectedBars.Clear();
 
-        UpdateBarHighlights(); // <-- Apply Material
+        UpdateBarHighlights(); 
 
         if (BuildUIController.Instance != null) BuildUIController.Instance.SetSelectionPanelActive(false);
     }
@@ -1025,7 +1019,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
         HashSet<Bar> allActiveBars = new HashSet<Bar>();
 
-        // 1. Select all the nodes inside the box
         foreach (Point p in Point.AllPoints)
         {
             if (p.gameObject.activeSelf) 
@@ -1038,7 +1031,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                     selectedPoints.Add(p); 
                 }
                 
-                // Gather bars to check in the next step
                 foreach (Bar b in p.ConnectedBars)
                 {
                     if (b != null && b.gameObject.activeSelf) allActiveBars.Add(b);
@@ -1046,7 +1038,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             }
         }
 
-        // 2. Select the beams if their center point is inside the box!
         foreach (Bar b in allActiveBars)
         {
             Vector2 s1 = cam.WorldToScreenPoint(b.startPoint.transform.position);
@@ -1162,10 +1153,16 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         return (point - projection).sqrMagnitude;
     }
 
+    // --- THE FIX: We now tell GameManager to find the active ravine and toggle ITS grid ---
     public void ToggleGrid() 
     { 
         isGridSnappingEnabled = !isGridSnappingEnabled; 
-        if (gridVisual != null) gridVisual.canvasRenderer.SetAlpha(isGridSnappingEnabled ? 1f : 0f); 
+        
+        if (GameManager.Instance != null && GameManager.Instance.ActiveBuildLocation != null)
+        {
+            GameManager.Instance.ActiveBuildLocation.SetGridVisualActive(isGridSnappingEnabled);
+        }
+
         if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("Grid Snapping: " + (isGridSnappingEnabled ? "ON" : "OFF"));
     }
 
@@ -1264,7 +1261,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             {
                 finalPosition = new Vector3(Mathf.RoundToInt(finalPosition.x), Mathf.RoundToInt(finalPosition.y), finalPosition.z);
                 if (activeMaterial != null && activeMaterial.isPier) finalPosition.x = startPos.x;
-                if (Vector3.Distance(startPos, finalPosition) > limit) finalPosition = startPos + (direction * limit);
+                if (Vector3.Distance(startPos, finalPosition) > limit) finalPosition = startPos + (direction * limit); 
             }
             existingEndPoint = null; 
         }
