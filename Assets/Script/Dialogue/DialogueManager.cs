@@ -14,6 +14,11 @@ public class DialogueManager : MonoBehaviour
     [Tooltip("Time delay between each letter appearing.")]
     public float typingSpeed = 0.03f; 
 
+    // --- NEW: List of things to hide during dialogue ---
+    [Header("UI Management")]
+    [Tooltip("Drag any UI elements (like Crosshair, Minimap, etc.) here to hide them during dialogue.")]
+    public List<GameObject> elementsToHide = new List<GameObject>();
+
     private Queue<string> sentences;
     [SerializeField] private InputManager inputManager;
     private PlayerInteract playerInteract;
@@ -23,7 +28,6 @@ public class DialogueManager : MonoBehaviour
     private bool isTyping = false;
     private Coroutine typingCoroutine;
     
-    // --- OPTIMIZATION: Cache the wait timer so we don't generate garbage! ---
     private WaitForSeconds cachedTypingWait;
 
     void Awake()
@@ -35,7 +39,6 @@ public class DialogueManager : MonoBehaviour
     void Start()
     {
         sentences = new Queue<string>();
-        // Create the memory object ONCE here!
         cachedTypingWait = new WaitForSeconds(typingSpeed); 
     }
 
@@ -47,6 +50,12 @@ public class DialogueManager : MonoBehaviour
 
         if (playerInteract != null) playerInteract.enabled = false;
         if (playerUI != null) playerUI.UpdateButtons(new List<Interactable>());
+
+        // --- NEW: Hide the extra UI elements! ---
+        foreach (GameObject obj in elementsToHide)
+        {
+            if (obj != null) obj.SetActive(false);
+        }
 
         animator.SetBool("isOpen", true);
         nameText.text = dialogue.name;
@@ -94,7 +103,6 @@ public class DialogueManager : MonoBehaviour
         for (int i = 0; i <= totalVisibleCharacters; i++)
         {
             dialogueText.maxVisibleCharacters = i;
-            // Use the cached wait instead of 'new'!
             yield return cachedTypingWait; 
         }
 
@@ -108,6 +116,13 @@ public class DialogueManager : MonoBehaviour
         if (playerInteract != null) playerInteract.enabled = true;
 
         animator.SetBool("isOpen", false);
+
+        // --- NEW: Restore the UI elements when dialogue finishes! ---
+        foreach (GameObject obj in elementsToHide)
+        {
+            if (obj != null) obj.SetActive(true);
+        }
+
         onDialogueEndCallback?.Invoke();
         onDialogueEndCallback = null; 
     }

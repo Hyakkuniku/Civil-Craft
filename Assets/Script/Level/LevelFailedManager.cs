@@ -1,7 +1,7 @@
 using UnityEngine;
 using TMPro;
 using UnityEngine.SceneManagement;
-using System.Collections.Generic; // --- NEW ---
+using System.Collections.Generic; 
 
 public class LevelFailedManager : MonoBehaviour
 {
@@ -16,8 +16,8 @@ public class LevelFailedManager : MonoBehaviour
 
     [Header("Gameplay Elements to Hide")]
     [Tooltip("UI elements to hide when this panel is open (e.g., Crosshair, HUD)")]
-    public List<GameObject> uiElementsToHide = new List<GameObject>(); // --- NEW ---
-    private List<GameObject> temporarilyHiddenPanels = new List<GameObject>(); // --- NEW ---
+    public List<GameObject> uiElementsToHide = new List<GameObject>(); 
+    private List<GameObject> temporarilyHiddenPanels = new List<GameObject>(); 
 
     [Header("Failure Settings")]
     [Tooltip("The Y-axis height at which the vehicle is considered fallen/destroyed.")]
@@ -60,12 +60,28 @@ public class LevelFailedManager : MonoBehaviour
 
         if (physicsManager != null && physicsManager.isSimulating)
         {
-            if (physicsManager.peakStressThisRun >= 1f)
+            // --- THE FIX: Dynamic Stress Threshold Checking ---
+            float stressThreshold = 1.0f; // Default 100% failure point
+            string stressFailReason = "Bridge Collapsed!";
+
+            if (GameManager.Instance != null && GameManager.Instance.CurrentContract != null)
             {
-                TriggerLevelFailed("Bridge Collapsed!");
+                ContractSO contract = GameManager.Instance.CurrentContract;
+                if (contract.enforceMaxStress)
+                {
+                    stressThreshold = contract.maxAllowedStress / 100f; // Convert 85% to 0.85
+                    stressFailReason = $"Challenge Failed: Stress exceeded {contract.maxAllowedStress}%!";
+                }
+            }
+
+            // Check if we hit the limit!
+            if (physicsManager.peakStressThisRun >= stressThreshold)
+            {
+                TriggerLevelFailed(stressFailReason);
                 return; 
             }
 
+            // Vehicle death check
             if (activeVehicle == null) activeVehicle = FindObjectOfType<LiveLoadVehicle>();
 
             if (activeVehicle != null && activeVehicle.gameObject.activeInHierarchy)
@@ -85,7 +101,6 @@ public class LevelFailedManager : MonoBehaviour
         if (activeVehicle == null) activeVehicle = FindObjectOfType<LiveLoadVehicle>();
         if (activeVehicle != null) activeVehicle.EmergencyStop();
 
-        // --- THE FIX: Hide UI Elements ---
         temporarilyHiddenPanels.Clear();
         foreach (GameObject ui in uiElementsToHide)
         {
@@ -134,7 +149,7 @@ public class LevelFailedManager : MonoBehaviour
         BarCreator barCreator = FindObjectOfType<BarCreator>();
         if (barCreator != null) barCreator.isSimulating = false;
 
-        RestoreHiddenUI(); // --- THE FIX: Restore UI ---
+        RestoreHiddenUI(); 
 
         if (levelFailedPanel != null) levelFailedPanel.SetActive(false);
         isFailed = false;
@@ -149,7 +164,7 @@ public class LevelFailedManager : MonoBehaviour
     private void HandleSimulationStopped()
     {
         isFailed = false;
-        RestoreHiddenUI(); // --- THE FIX: Restore UI ---
+        RestoreHiddenUI(); 
         if (levelFailedPanel != null) levelFailedPanel.SetActive(false);
     }
 }

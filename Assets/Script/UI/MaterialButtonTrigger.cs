@@ -1,47 +1,46 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
-using UnityEngine.UI; 
+using UnityEngine.UI;
+using TMPro; 
 
 public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerDownHandler, IPointerUpHandler, IPointerClickHandler
 {
     [Tooltip("Drag the BridgeMaterialSO for this specific button here!")]
     public BridgeMaterialSO buttonMaterial;
 
+    // --- NEW: Parent Wrapper to Hide ---
+    [Header("Tutorial UI Hiding")]
+    [Tooltip("Drag the PARENT layout object here (e.g., the 'Road' or 'Beam' GameObject). This hides the empty space!")]
+    public GameObject parentWrapper;
+
     [Header("Selection Visuals (Movement)")]
-    [Tooltip("How many pixels the button moves UP when selected. Set to 0 if you only want the outline change.")]
     public float selectedUpOffset = 15f;
 
     [Header("Selection Visuals (Images)")]
-    [Tooltip("The Image component on this button that shows the icon")]
     public Image buttonImage;
-    [Tooltip("The normal image without the outline")]
     public Sprite defaultSprite;
-    [Tooltip("The selected image WITH the outline")]
     public Sprite selectedOutlineSprite;
 
     [Header("Disabled Visuals")]
-    [Tooltip("What color should the button turn if the contract forbids this material?")]
     public Color disabledColor = new Color(0.4f, 0.4f, 0.4f, 0.8f);
     private Color originalColor = Color.white;
+
+    [Header("Quantity Badge")]
+    public GameObject badgeContainer;
+    public TextMeshProUGUI quantityText;
 
     private RectTransform rectTransform;
     private Vector2 originalPosition;
     private bool isCurrentlySelected = false;
     
     private bool isMaterialAllowed = true;
+    private bool hasReachedQuantityLimit = false;
 
     private void Awake()
     {
         rectTransform = GetComponent<RectTransform>();
-        if (rectTransform != null)
-        {
-            originalPosition = rectTransform.anchoredPosition;
-        }
-
-        if (buttonImage != null)
-        {
-            originalColor = buttonImage.color;
-        }
+        if (rectTransform != null) originalPosition = rectTransform.anchoredPosition;
+        if (buttonImage != null) originalColor = buttonImage.color;
 
         if (GameManager.Instance != null)
         {
@@ -84,16 +83,27 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
     public void EvaluateMaterialRestriction()
     {
         isMaterialAllowed = true; 
+        hasReachedQuantityLimit = false;
+        bool isTutorial = false; // Track if this is a tutorial!
 
         if (GameManager.Instance != null && GameManager.Instance.CurrentContract != null)
         {
             ContractSO contract = GameManager.Instance.CurrentContract;
+            isTutorial = contract.isTutorialContract;
             
             if (contract.allowedMaterials != null && contract.allowedMaterials.Count > 0)
             {
-                bool isNaturallyAllowed = contract.allowedMaterials.Contains(buttonMaterial);
-                
-                // --- THE FIX: Ask the PlayerDataManager if we bought this! ---
+                MaterialAllowance allowanceData = null;
+                foreach (var allowance in contract.allowedMaterials)
+                {
+                    if (allowance.material == buttonMaterial)
+                    {
+                        allowanceData = allowance;
+                        break;
+                    }
+                }
+
+                bool isNaturallyAllowed = allowanceData != null;
                 bool isUnlockedByPurchase = false;
                 if (PlayerDataManager.Instance != null)
                 {
@@ -104,15 +114,57 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
                 {
                     isMaterialAllowed = false;
                 }
+                
+                if (isMaterialAllowed && allowanceData != null && allowanceData.maxPieces > 0)
+                {
+                    int currentCount = 0;
+                    if (BuildUIController.Instance != null)
+                    {
+                        currentCount = BuildUIController.Instance.GetMaterialUsageCount(buttonMaterial);
+                        if (currentCount >= allowanceData.maxPieces)
+                        {
+                            hasReachedQuantityLimit = true;
+                        }
+                    }
+
+                    if (badgeContainer != null) badgeContainer.SetActive(true);
+                    if (quantityText != null)
+                    {
+                        int remainingPieces = allowanceData.maxPieces - currentCount;
+                        quantityText.text = remainingPieces.ToString(); 
+                    }
+                }
+                else
+                {
+                    if (badgeContainer != null) badgeContainer.SetActive(false);
+                }
+            }
+            else
+            {
+                if (badgeContainer != null) badgeContainer.SetActive(false);
             }
         }
 
-        if (buttonImage != null)
+        // --- THE FIX: Completely hide forbidden materials in a tutorial! ---
+        if (isTutorial && !isMaterialAllowed)
         {
-            buttonImage.color = isMaterialAllowed ? originalColor : disabledColor;
+            if (parentWrapper != null) parentWrapper.SetActive(false);
+            else gameObject.SetActive(false); // Fallback to just the button if parent is missing
+            return; // Skip the rest of the visual logic
+        }
+        else
+        {
+            // Make sure it's turned back on if it's NOT a tutorial
+            if (parentWrapper != null) parentWrapper.SetActive(true);
+            else gameObject.SetActive(true);
+
+            if (buttonImage != null)
+            {
+                buttonImage.color = (!isMaterialAllowed || hasReachedQuantityLimit) ? disabledColor : originalColor;
+            }
         }
 
-        if (!isMaterialAllowed && isCurrentlySelected && BuildUIController.Instance != null)
+        if ((!isMaterialAllowed || hasReachedQuantityLimit) && isCurrentlySelected && BuildUIController.Instance != null)
         {
             BuildUIController.Instance.barCreator.SetActiveMaterial(null);
         }
@@ -121,7 +173,7 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
     private void HandleMaterialChanged(BridgeMaterialSO newMaterial)
     {
         bool isDeleting = BuildUIController.Instance != null && BuildUIController.Instance.barCreator.isDeleteMode;
-        bool shouldBeSelected = !isDeleting && (newMaterial == buttonMaterial) && isMaterialAllowed;
+        bool shouldBeSelected = !isDeleting && (newMaterial == buttonMaterial) && isMaterialAllowed && !hasReachedQuantityLimit;
 
         if (shouldBeSelected != isCurrentlySelected)
         {
@@ -151,6 +203,15 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
             if (BuildUIController.Instance != null)
             {
                 BuildUIController.Instance.PromptUnlockMaterial(this);
+            }
+            return;
+        }
+
+        if (hasReachedQuantityLimit)
+        {
+            if (BuildUIController.Instance != null)
+            {
+                BuildUIController.Instance.LogAction($"Limit Reached for {buttonMaterial.name}!");
             }
             return;
         }

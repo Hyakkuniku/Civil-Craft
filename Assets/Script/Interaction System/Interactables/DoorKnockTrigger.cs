@@ -15,6 +15,10 @@ public class DoorKnockTrigger : MonoBehaviour
     [Tooltip("How many seconds to wait after clicking before the dialogue appears.")]
     public float delayAfterKnock = 1.0f;
 
+    [Header("Tutorial Settings")]
+    [Tooltip("Check this if finishing this knock dialogue should advance the tutorial!")]
+    public bool advancesTutorial = false; // --- NEW: Toggle for tutorial advancement ---
+
     [Header("Door Enter Event")]
     [Tooltip("What happens when the player actually enters the door? (Put your DoorTransition.EnterDoor here!)")]
     public UnityEvent onEnterDoor;
@@ -37,13 +41,11 @@ public class DoorKnockTrigger : MonoBehaviour
         {
             if (PlayerDataManager.Instance.IsDoorUnlocked(uniqueDoorID))
             {
-                // If we already unlocked it, immediately set it to "Enter Door"
                 hasKnocked = true;
                 if (interactable != null) interactable.promptMessage = "Enter Door";
             }
             else
             {
-                // Otherwise, ensure it says Knock
                 if (interactable != null) interactable.promptMessage = "Knock on Door";
             }
         }
@@ -72,12 +74,12 @@ public class DoorKnockTrigger : MonoBehaviour
 
         if (dialogueManager != null)
         {
+            // The code inside the () => { ... } runs EXACTLY when the dialogue finishes!
             dialogueManager.StartDialogue(dialogue, () => 
             {
                 isKnocking = false;
                 hasKnocked = true; 
                 
-                // --- THE FIX: Save the door as unlocked forever! ---
                 if (PlayerDataManager.Instance != null && !string.IsNullOrEmpty(uniqueDoorID))
                 {
                     PlayerDataManager.Instance.UnlockDoor(uniqueDoorID);
@@ -87,6 +89,12 @@ public class DoorKnockTrigger : MonoBehaviour
                 {
                     interactable.promptMessage = "Enter Door";
                 }
+
+                // --- THE FIX: Advance the tutorial ONLY after the dialogue is done! ---
+                if (advancesTutorial && TutorialManager.Instance != null)
+                {
+                    TutorialManager.Instance.ShowNextStep();
+                }
             });
         }
         else
@@ -94,6 +102,12 @@ public class DoorKnockTrigger : MonoBehaviour
             hasKnocked = true;
             if (interactable != null) interactable.promptMessage = "Enter Door";
             isKnocking = false;
+            
+            // Fallback just in case there is no dialogue manager
+            if (advancesTutorial && TutorialManager.Instance != null)
+            {
+                TutorialManager.Instance.ShowNextStep();
+            }
         }
     }
 }

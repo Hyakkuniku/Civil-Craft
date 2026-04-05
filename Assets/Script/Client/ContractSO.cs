@@ -1,10 +1,24 @@
 using UnityEngine;
 using System.Collections.Generic;
 
+[System.Serializable]
+public class MaterialAllowance
+{
+    public BridgeMaterialSO material;
+    
+    [Tooltip("The maximum number of pieces allowed. Set to 0 for INFINITE pieces.")]
+    public int maxPieces = 0; 
+}
+
 [CreateAssetMenu(fileName = "NewContract", menuName = "Bridge/Contract")]
 public class ContractSO : ScriptableObject
 {
     public enum WinCondition { FinishLine, Timer }
+
+    // --- NEW: Tutorial Flag ---
+    [Header("Tutorial Settings")]
+    [Tooltip("If checked, any materials NOT on the Allowed list will be completely hidden instead of grayed out.")]
+    public bool isTutorialContract = false;
 
     [Header("Contract Details")]
     public string clientName = "Mayor";
@@ -16,10 +30,15 @@ public class ContractSO : ScriptableObject
     public float budget = 2000f;
     public float liveLoadWeight = 50f; 
 
-    // --- NEW: Material Restrictions ---
     [Header("Material Restrictions")]
-    [Tooltip("List the specific materials allowed for this job. If this list is EMPTY, ALL materials are allowed!")]
-    public List<BridgeMaterialSO> allowedMaterials = new List<BridgeMaterialSO>();
+    [Tooltip("List the specific materials allowed for this job and their quantity limits.")]
+    public List<MaterialAllowance> allowedMaterials = new List<MaterialAllowance>();
+
+    [Header("Challenges / Constraints (Checklist)")]
+    [Tooltip("If checked, the bridge will instantly fail if it hits a certain stress level.")]
+    public bool enforceMaxStress = false;
+    [Tooltip("The maximum allowed stress percentage before failure (e.g., 85)")]
+    [Range(1f, 100f)] public float maxAllowedStress = 100f;
 
     [Header("Winning Condition")]
     public WinCondition winCondition = WinCondition.FinishLine;

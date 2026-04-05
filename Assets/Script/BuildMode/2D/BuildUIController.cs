@@ -89,6 +89,9 @@ public class BuildUIController : MonoBehaviour
     private int lastDisplayM = -1;
     private int lastDisplayJ = -1;
 
+    // --- NEW: Tracks how many pieces of each material are currently in use ---
+    private Dictionary<BridgeMaterialSO, int> materialUsageCount = new Dictionary<BridgeMaterialSO, int>();
+
     private void Awake() { Instance = this; }
 
     private void Start()
@@ -152,6 +155,16 @@ public class BuildUIController : MonoBehaviour
         UpdatePlayPauseButtonUI();
     }
 
+    // --- THE FIX: Call this from anywhere to see how many pieces of a material are currently drawn! ---
+    public int GetMaterialUsageCount(BridgeMaterialSO material)
+    {
+        if (materialUsageCount.ContainsKey(material))
+        {
+            return materialUsageCount[material];
+        }
+        return 0;
+    }
+
     public void PromptUnlockMaterial(MaterialButtonTrigger btn)
     {
         pendingUnlockButton = btn;
@@ -173,16 +186,11 @@ public class BuildUIController : MonoBehaviour
         {
             int cost = pendingUnlockButton.buttonMaterial.unlockCost;
             
-            // --- THE FIX: Uses the official PlayerDataManager to check and spend gold! ---
             if (PlayerDataManager.Instance != null && PlayerDataManager.Instance.CurrentData.gold >= cost)
             {
-                // Spend the gold
                 PlayerDataManager.Instance.SpendGold(cost);
-                
-                // Unlock the material for this contract
                 PlayerDataManager.Instance.UnlockMaterialForContract(GameManager.Instance.CurrentContract.name, pendingUnlockButton.buttonMaterial.name);
 
-                // Refresh the UI buttons to remove the gray tint
                 MaterialButtonTrigger[] allButtons = FindObjectsOfType<MaterialButtonTrigger>();
                 foreach (var b in allButtons)
                 {
@@ -288,12 +296,20 @@ public class BuildUIController : MonoBehaviour
         RecalculateStaticBridge(); 
         UpdateStatsUI();
         UpdateContractUI();
+
+        // --- THE FIX: Tell the buttons to update their colors based on new quantity counts! ---
+        MaterialButtonTrigger[] allButtons = FindObjectsOfType<MaterialButtonTrigger>();
+        foreach (var b in allButtons)
+        {
+            b.EvaluateMaterialRestriction();
+        }
     }
 
     private void RecalculateStaticBridge()
     {
         uniqueBars.Clear();
         activePoints.Clear();
+        materialUsageCount.Clear(); // --- NEW: Reset the count every time! ---
 
         foreach (Point p in Point.AllPoints)
         {
@@ -384,6 +400,13 @@ public class BuildUIController : MonoBehaviour
 
             if (b.materialData != null)
             {
+                // --- NEW: Count up the quantity of materials in use! ---
+                if (!materialUsageCount.ContainsKey(b.materialData))
+                {
+                    materialUsageCount[b.materialData] = 0;
+                }
+                materialUsageCount[b.materialData]++;
+
                 cachedBaseM += b.materialData.isDualBeam ? 2 : 1;
                 if (b.materialData.isRoad) cachedBaseRoadLength += b.currentLength;
                 cachedBaseDeadLoad += b.currentLength * b.materialData.massPerMeter;
