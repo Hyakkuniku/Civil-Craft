@@ -12,16 +12,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
   m_Name: Bhan's Contract
   m_EditorClassIdentifier: 
+  isTutorialContract: 1
   clientName: Professor Bhan
   jobDescription: Build a safe crossing for the merchant cart using your basic wooden
     beams. Make sure to brace your structure with triangles!
   budget: 10000
   liveLoadWeight: 600
   allowedMaterials:
-  - material: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
-    maxPieces: 0
   - material: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
-    maxPieces: 24
+    maxPieces: 3
+  - material: {fileID: 11400000, guid: b98aa9ba752ac28449feebc76f256bf2, type: 2}
+    maxPieces: 2
   enforceMaxStress: 1
   maxAllowedStress: 100
   winCondition: 1

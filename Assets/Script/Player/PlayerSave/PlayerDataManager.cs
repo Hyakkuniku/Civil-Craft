@@ -1,6 +1,7 @@
 using UnityEngine;
 using System.IO;
 using System;
+using System.Collections.Generic;
 
 public class PlayerDataManager : MonoBehaviour
 {
@@ -51,87 +52,66 @@ public class PlayerDataManager : MonoBehaviour
     }
 
     public void AddGold(int amount) { CurrentData.gold += amount; SaveGame(); }
-    
     public bool SpendGold(int amount) 
     { 
-        if (CurrentData.gold >= amount)
-        {
-            CurrentData.gold -= amount; 
-            SaveGame(); 
-            return true;
-        }
+        if (CurrentData.gold >= amount) { CurrentData.gold -= amount; SaveGame(); return true; }
         return false;
     }
-    
     public void AddExp(int amount) { CurrentData.exp += amount; SaveGame(); }
     public void AddBridgeBuilt() { CurrentData.bridgesBuilt++; SaveGame(); }
     
-    public void UnlockLevel(string levelName)
+    public void UnlockLevel(string levelName) { if (!CurrentData.unlockedLevels.Contains(levelName)) { CurrentData.unlockedLevels.Add(levelName); SaveGame(); } }
+    public void CompleteContract(string contractName) { if (!CurrentData.completedContracts.Contains(contractName)) { CurrentData.completedContracts.Add(contractName); SaveGame(); } }
+    public void CompleteLesson(string lessonName) { if (!CurrentData.completedLessons.Contains(lessonName)) { CurrentData.completedLessons.Add(lessonName); SaveGame(); } }
+    public void UnlockMaterialForContract(string contractName, string materialName) { string key = contractName + "_" + materialName; if (!CurrentData.unlockedContractMaterials.Contains(key)) { CurrentData.unlockedContractMaterials.Add(key); SaveGame(); } }
+    public bool IsMaterialUnlockedForContract(string contractName, string materialName) { string key = contractName + "_" + materialName; return CurrentData.unlockedContractMaterials.Contains(key); }
+    public void UnlockAlmanac() { if (!CurrentData.hasAlmanac) { CurrentData.hasAlmanac = true; SaveGame(); OnAlmanacUnlocked?.Invoke(); } }
+    public void UnlockDoor(string doorID) { if (!CurrentData.unlockedDoors.Contains(doorID)) { CurrentData.unlockedDoors.Add(doorID); SaveGame(); } }
+    public bool IsDoorUnlocked(string doorID) { return CurrentData.unlockedDoors.Contains(doorID); }
+
+    // --- NEW: Save/Load Bridge Methods ---
+    public void SaveBridgeData(string contractId, List<Point> points, List<Bar> bars)
     {
-        if (!CurrentData.unlockedLevels.Contains(levelName))
+        CurrentData.savedBridges.RemoveAll(b => b.contractId == contractId); // Clear old save for this level
+
+        SavedBridgeData newSave = new SavedBridgeData { contractId = contractId };
+        Dictionary<Point, int> pointToIndex = new Dictionary<Point, int>();
+        
+        for(int i = 0; i < points.Count; i++)
         {
-            CurrentData.unlockedLevels.Add(levelName);
-            SaveGame();
+            pointToIndex[points[i]] = i;
+            newSave.points.Add(new SavedPointData {
+                index = i,
+                position = new SerializableVector3(points[i].transform.position),
+                isAnchor = points[i].isAnchor,
+                originalIsAnchor = points[i].originalIsAnchor
+            });
         }
-    }
 
-    public void CompleteContract(string contractName)
-    {
-        if (!CurrentData.completedContracts.Contains(contractName))
+        foreach(Bar b in bars)
         {
-            CurrentData.completedContracts.Add(contractName);
-            SaveGame();
+            if(b.startPoint != null && b.endPoint != null && pointToIndex.ContainsKey(b.startPoint) && pointToIndex.ContainsKey(b.endPoint))
+            {
+                newSave.bars.Add(new SavedBarData {
+                    startPointIndex = pointToIndex[b.startPoint],
+                    endPointIndex = pointToIndex[b.endPoint],
+                    materialName = b.materialData.name
+                });
+            }
         }
+
+        CurrentData.savedBridges.Add(newSave);
+        SaveGame();
     }
 
-    public void CompleteLesson(string lessonName)
+    public SavedBridgeData GetSavedBridge(string contractId)
     {
-        if (!CurrentData.completedLessons.Contains(lessonName))
-        {
-            CurrentData.completedLessons.Add(lessonName);
-            SaveGame();
-        }
+        return CurrentData.savedBridges.Find(b => b.contractId == contractId);
     }
 
-    public void UnlockMaterialForContract(string contractName, string materialName)
+    public void DeleteSavedBridge(string contractId)
     {
-        string key = contractName + "_" + materialName;
-        if (!CurrentData.unlockedContractMaterials.Contains(key))
-        {
-            CurrentData.unlockedContractMaterials.Add(key);
-            SaveGame();
-        }
-    }
-
-    public bool IsMaterialUnlockedForContract(string contractName, string materialName)
-    {
-        string key = contractName + "_" + materialName;
-        return CurrentData.unlockedContractMaterials.Contains(key);
-    }
-
-    public void UnlockAlmanac()
-    {
-        if (!CurrentData.hasAlmanac)
-        {
-            CurrentData.hasAlmanac = true;
-            SaveGame();
-            OnAlmanacUnlocked?.Invoke();
-        }
-    }
-
-    // --- NEW: Save the door unlock permanently ---
-    public void UnlockDoor(string doorID)
-    {
-        if (!CurrentData.unlockedDoors.Contains(doorID))
-        {
-            CurrentData.unlockedDoors.Add(doorID);
-            SaveGame();
-        }
-    }
-
-    // --- NEW: Check if the door is unlocked ---
-    public bool IsDoorUnlocked(string doorID)
-    {
-        return CurrentData.unlockedDoors.Contains(doorID);
+        CurrentData.savedBridges.RemoveAll(b => b.contractId == contractId);
+        SaveGame();
     }
 }

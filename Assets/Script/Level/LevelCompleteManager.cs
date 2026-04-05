@@ -36,7 +36,6 @@ public class LevelCompleteManager : MonoBehaviour
     private bool levelAlreadyCompleted = false;
     private bool wasSimulating = false; 
 
-    // --- THE FIX: Made public so BuildUIController can read it! ---
     public float currentSimulationTime { get; private set; } = 0f;
 
     private ContractSO activeContract;
@@ -482,6 +481,19 @@ public class LevelCompleteManager : MonoBehaviour
 
         BridgePhysicsManager physicsManager = FindObjectOfType<BridgePhysicsManager>();
         if (physicsManager != null) physicsManager.BakeBridge(activeContract); 
+
+        // --- NEW: Save the bridge data permanently to JSON! ---
+        if (PlayerDataManager.Instance != null && activeContract != null)
+        {
+            BuildLocation targetLoc = null;
+            BuildLocation[] allLocs = Resources.FindObjectsOfTypeAll<BuildLocation>();
+            foreach (var loc in allLocs) { if (loc.gameObject.scene.name != null && loc.activeContract == activeContract) { targetLoc = loc; break; } }
+
+            if (targetLoc != null)
+            {
+                PlayerDataManager.Instance.SaveBridgeData(activeContract.name, targetLoc.bakedPoints, targetLoc.bakedBars);
+            }
+        }
 
         if (CommandManager.Instance != null) CommandManager.Instance.ClearHistory();
 
