@@ -14,6 +14,7 @@ public class LevelCompleteManager : MonoBehaviour
     public GameObject levelCompletePanel;
     public TextMeshProUGUI feedbackText;
     public TextMeshProUGUI costText;   
+    public TextMeshProUGUI costPercentageText; 
     public TextMeshProUGUI budgetText; 
     public TextMeshProUGUI stressText;
     
@@ -21,8 +22,11 @@ public class LevelCompleteManager : MonoBehaviour
     public Transform receiptContentParent; 
     public GameObject receiptRowPrefab;    
 
-    [Header("Potential Reward UI (Visual Only)")]
-    public TextMeshProUGUI goldEarnedText;
+    [Header("Earnings Breakdown UI")]
+    public TextMeshProUGUI baseRewardText; 
+    public TextMeshProUGUI bonusText;      
+    public TextMeshProUGUI penaltyText;    
+    public TextMeshProUGUI goldEarnedText; 
     public TextMeshProUGUI expEarnedText;
 
     [Header("Photo Display")]
@@ -95,8 +99,6 @@ public class LevelCompleteManager : MonoBehaviour
 
                         if (currentSimulationTime >= currentContract.requiredIntactTime)
                         {
-                            Debug.Log("<color=green><b>[Timer]</b> Bridge held and spanned the gap! Firing Level Complete sequence...</color>");
-
                             if (ObjectiveTrackerUI.Instance != null)
                             {
                                 ObjectiveTrackerUI.Instance.descriptionText.text = $"<color=green>Bridge Tested!</color> Return to {currentContract.clientName}.";
@@ -120,11 +122,7 @@ public class LevelCompleteManager : MonoBehaviour
     {
         if (loc == null || loc.startingAnchors.Count == 0) return false;
 
-        if (loc.endingAnchors.Count == 0)
-        {
-            Debug.LogWarning("<b>[LevelCompleteManager]</b> Ending Anchors list is EMPTY on this BuildLocation! The timer win condition won't trigger until you assign the anchors on the other side of the gap.");
-            return false;
-        }
+        if (loc.endingAnchors.Count == 0) return false;
 
         HashSet<Point> visited = new HashSet<Point>();
         Queue<Point> queue = new Queue<Point>();
@@ -174,10 +172,7 @@ public class LevelCompleteManager : MonoBehaviour
 
     public void MarkContractAsPaid(string contractName)
     {
-        if (!string.IsNullOrEmpty(contractName))
-        {
-            alreadyPaidContracts.Add(contractName);
-        }
+        if (!string.IsNullOrEmpty(contractName)) alreadyPaidContracts.Add(contractName);
     }
 
     public bool IsContractPaid(string contractName)
@@ -193,11 +188,7 @@ public class LevelCompleteManager : MonoBehaviour
 
     public void CompleteLevel(ContractSO currentContract)
     {
-        if (levelAlreadyCompleted) 
-        {
-            Debug.LogWarning("<b>[Level Complete Manager]</b> Level is already marked as completed. Ignoring duplicate trigger.");
-            return;
-        }
+        if (levelAlreadyCompleted) return;
         
         levelAlreadyCompleted = true;
         activeContract = currentContract;
@@ -285,10 +276,7 @@ public class LevelCompleteManager : MonoBehaviour
             if (currentBridgePhoto != null) Destroy(currentBridgePhoto);
             currentBridgePhoto = screenImage;
 
-            if (bridgePhotoDisplay != null)
-            {
-                bridgePhotoDisplay.texture = currentBridgePhoto;
-            }
+            if (bridgePhotoDisplay != null) bridgePhotoDisplay.texture = currentBridgePhoto;
 
             byte[] imageBytes = currentBridgePhoto.EncodeToPNG();
             string photoPath = Application.persistentDataPath + "/" + currentContract.name + "_photo.png";
@@ -396,16 +384,46 @@ public class LevelCompleteManager : MonoBehaviour
         float finalCost = totalCalculatedCost;
         if (finalCost == 0f && BuildUIController.Instance != null) finalCost = BuildUIController.Instance.GetTotalCost();
 
+        float costPercentage = 0f;
+        if (maxBudget > 0f)
+        {
+            costPercentage = (finalCost / maxBudget) * 100f;
+        }
+
         float peakStress = 0f;
         BridgePhysicsManager manager = FindObjectOfType<BridgePhysicsManager>();
         if (manager != null) peakStress = manager.peakStressThisRun * 100f; 
 
         int calculatedGold = 0;
         int calculatedExp = 0;
+        int bonusGold = 0;
+        int budgetPenalty = 0;
+        int failPenalty = 0;
 
-        if (currentContract != null && alreadyPaidContracts.Contains(currentContract.name))
+        if (LevelFailedManager.Instance != null)
         {
+            failPenalty = LevelFailedManager.Instance.currentFailCount * LevelFailedManager.Instance.goldPenaltyPerFail;
+        }
+
+        if (currentContract != null && currentContract.isTutorialContract)
+        {
+            calculatedGold = 0;
+            calculatedExp = 0;
+
+            if (feedbackText != null) feedbackText.text = "<color=green>Tutorial Complete! Great Job!</color>";
+            if (baseRewardText != null) baseRewardText.text = "";
+            if (bonusText != null) bonusText.text = "";
+            if (penaltyText != null) penaltyText.text = "";
+        }
+        else if (currentContract != null && alreadyPaidContracts.Contains(currentContract.name))
+        {
+            calculatedGold = 0;
+            calculatedExp = 0;
+
             if (feedbackText != null) feedbackText.text = "<color=yellow>Redesign Successful! (Rewards already claimed)</color>";
+            if (baseRewardText != null) baseRewardText.text = "Base Reward: 0";
+            if (bonusText != null) bonusText.text = "Bonus: 0";
+            if (penaltyText != null) penaltyText.text = "Penalty: 0";
         }
         else
         {
@@ -414,16 +432,41 @@ public class LevelCompleteManager : MonoBehaviour
 
             if (finalCost <= maxBudget)
             {
-                int bonusGold = Mathf.RoundToInt((maxBudget - finalCost) * 0.2f); 
+                bonusGold = Mathf.RoundToInt((maxBudget - finalCost) * 0.2f); 
                 calculatedGold += bonusGold;
-                if (feedbackText != null) feedbackText.text = "<color=green>Under Budget! Excellent Engineering!</color>";
+                
+                if (feedbackText != null) feedbackText.text = "<color=green>Excellent Engineering!</color>";
+                if (bonusText != null) bonusText.text = $"Bonus (Under Budget): <color=green>+{bonusGold}</color>";
             }
             else
             {
-                int penaltyGold = Mathf.RoundToInt((finalCost - maxBudget) * 0.5f);
-                calculatedGold -= penaltyGold;
-                if (calculatedGold < 0) calculatedGold = 0; 
-                if (feedbackText != null) feedbackText.text = "<color=red>Over Budget! The client isn't happy, but the bridge held.</color>";
+                budgetPenalty = Mathf.RoundToInt((finalCost - maxBudget) * 0.5f);
+                
+                if (feedbackText != null) feedbackText.text = "<color=red>Over Budget! The client isn't happy.</color>";
+                if (bonusText != null) bonusText.text = $"Bonus: 0";
+            }
+
+            int totalPenalty = budgetPenalty + failPenalty;
+            calculatedGold -= totalPenalty;
+            if (calculatedGold < 0) calculatedGold = 0; 
+
+            if (baseRewardText != null) baseRewardText.text = $"Base Reward: {baseGoldReward}";
+
+            if (penaltyText != null)
+            {
+                if (totalPenalty > 0)
+                {
+                    string pText = "Penalty";
+                    if (budgetPenalty > 0 && failPenalty > 0) pText += " (Over Budget & Fails)";
+                    else if (budgetPenalty > 0) pText += " (Over Budget)";
+                    else if (failPenalty > 0) pText += $" ({LevelFailedManager.Instance.currentFailCount} Fails)";
+
+                    penaltyText.text = $"{pText}: <color=red>-{totalPenalty}</color>";
+                }
+                else
+                {
+                    penaltyText.text = "Penalty: 0";
+                }
             }
         }
 
@@ -433,15 +476,35 @@ public class LevelCompleteManager : MonoBehaviour
             contractExpRewards[currentContract.name] = calculatedExp;
         }
 
-        if (goldEarnedText != null) goldEarnedText.text = $"+{calculatedGold} Gold (Pending)";
-        if (expEarnedText != null) expEarnedText.text = $"+{calculatedExp} EXP (Pending)";
+        if (goldEarnedText != null) 
+        {
+            if (currentContract != null && currentContract.isTutorialContract) goldEarnedText.text = "";
+            else goldEarnedText.text = $"Total Earnings: {calculatedGold} Gold (Pending)";
+        }
+        
+        if (expEarnedText != null) 
+        {
+            if (currentContract != null && currentContract.isTutorialContract) expEarnedText.text = "";
+            else expEarnedText.text = $"+{calculatedExp} EXP (Pending)";
+        }
 
+        // --- THE FIX: We always output Cost and Budget now, even in tutorials! ---
         if (costText != null) 
         {
             costText.text = $"Total Cost: ${Mathf.RoundToInt(finalCost)}";
             costText.color = (finalCost > maxBudget) ? Color.red : Color.white;
         }
-        if (budgetText != null) budgetText.text = $"Budget: ${Mathf.RoundToInt(maxBudget)}";
+        
+        if (costPercentageText != null)
+        {
+            costPercentageText.text = $"({Mathf.RoundToInt(costPercentage)}%)";
+            costPercentageText.color = (finalCost > maxBudget) ? Color.red : Color.white;
+        }
+        
+        if (budgetText != null) 
+        {
+            budgetText.text = $"Budget: ${Mathf.RoundToInt(maxBudget)}";
+        }
 
         if (stressText != null)
         {
@@ -467,6 +530,8 @@ public class LevelCompleteManager : MonoBehaviour
 
     public void SaveAndBakeBridge()
     {
+        if (LevelFailedManager.Instance != null) LevelFailedManager.Instance.ResetFailCount();
+
         NPCContractGiver[] npcs = FindObjectsOfType<NPCContractGiver>();
         foreach (var npc in npcs)
         {
@@ -482,7 +547,6 @@ public class LevelCompleteManager : MonoBehaviour
         BridgePhysicsManager physicsManager = FindObjectOfType<BridgePhysicsManager>();
         if (physicsManager != null) physicsManager.BakeBridge(activeContract); 
 
-        // --- NEW: Save the bridge data permanently to JSON! ---
         if (PlayerDataManager.Instance != null && activeContract != null)
         {
             BuildLocation targetLoc = null;

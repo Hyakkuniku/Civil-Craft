@@ -24,7 +24,7 @@ EditorBuildSettings:
     path: Assets/Scenes/Level_1.unity
     guid: 91212fb1b466a0141adf42d10a4d1364
   - enabled: 1
-    path: Assets/Scenes/GAME/BHAN HOUSE.unity
+    path: Assets/Scenes/Final/BHAN HOUSE.unity
     guid: 7e30f12a14ee5d141b90784b2bc53b06
   - enabled: 1
     path: Assets/Scenes/GAME/Tutorial.unity

@@ -11,12 +11,9 @@ public class DialogueManager : MonoBehaviour
     public Animator animator;
 
     [Header("Typewriter Settings")]
-    [Tooltip("Time delay between each letter appearing.")]
     public float typingSpeed = 0.03f; 
 
-    // --- NEW: List of things to hide during dialogue ---
     [Header("UI Management")]
-    [Tooltip("Drag any UI elements (like Crosshair, Minimap, etc.) here to hide them during dialogue.")]
     public List<GameObject> elementsToHide = new List<GameObject>();
 
     private Queue<string> sentences;
@@ -51,7 +48,6 @@ public class DialogueManager : MonoBehaviour
         if (playerInteract != null) playerInteract.enabled = false;
         if (playerUI != null) playerUI.UpdateButtons(new List<Interactable>());
 
-        // --- NEW: Hide the extra UI elements! ---
         foreach (GameObject obj in elementsToHide)
         {
             if (obj != null) obj.SetActive(false);
@@ -87,6 +83,12 @@ public class DialogueManager : MonoBehaviour
         }
 
         string sentence = sentences.Dequeue();
+
+        // --- THE MAGIC FIX: Inject the player's name into the text! ---
+        if (PlayerDataManager.Instance != null)
+        {
+            sentence = sentence.Replace("{PlayerName}", PlayerDataManager.Instance.CurrentData.playerName);
+        }
         
         if (typingCoroutine != null) StopCoroutine(typingCoroutine);
         typingCoroutine = StartCoroutine(TypeSentence(sentence));
@@ -117,7 +119,6 @@ public class DialogueManager : MonoBehaviour
 
         animator.SetBool("isOpen", false);
 
-        // --- NEW: Restore the UI elements when dialogue finishes! ---
         foreach (GameObject obj in elementsToHide)
         {
             if (obj != null) obj.SetActive(true);

@@ -14,6 +14,9 @@ public class LevelFailedManager : MonoBehaviour
     [Tooltip("Drag the Text element that will display the level/contract name here.")]
     public TextMeshProUGUI levelNameText;
 
+    [Tooltip("Drag the Text element that will display the gold penalty here.")]
+    public TextMeshProUGUI penaltyText; 
+
     [Header("Gameplay Elements to Hide")]
     [Tooltip("UI elements to hide when this panel is open (e.g., Crosshair, HUD)")]
     public List<GameObject> uiElementsToHide = new List<GameObject>(); 
@@ -22,6 +25,11 @@ public class LevelFailedManager : MonoBehaviour
     [Header("Failure Settings")]
     [Tooltip("The Y-axis height at which the vehicle is considered fallen/destroyed.")]
     public float deathThreshold = -15f;
+
+    [Header("Penalty Tracking")]
+    [Tooltip("How much gold is deducted from the final reward EVERY time the bridge collapses?")]
+    public int goldPenaltyPerFail = 25;
+    [HideInInspector] public int currentFailCount = 0;
 
     private LiveLoadVehicle activeVehicle;
     private BridgePhysicsManager physicsManager;
@@ -60,8 +68,7 @@ public class LevelFailedManager : MonoBehaviour
 
         if (physicsManager != null && physicsManager.isSimulating)
         {
-            // --- THE FIX: Dynamic Stress Threshold Checking ---
-            float stressThreshold = 1.0f; // Default 100% failure point
+            float stressThreshold = 1.0f; 
             string stressFailReason = "Bridge Collapsed!";
 
             if (GameManager.Instance != null && GameManager.Instance.CurrentContract != null)
@@ -69,19 +76,17 @@ public class LevelFailedManager : MonoBehaviour
                 ContractSO contract = GameManager.Instance.CurrentContract;
                 if (contract.enforceMaxStress)
                 {
-                    stressThreshold = contract.maxAllowedStress / 100f; // Convert 85% to 0.85
+                    stressThreshold = contract.maxAllowedStress / 100f; 
                     stressFailReason = $"Challenge Failed: Stress exceeded {contract.maxAllowedStress}%!";
                 }
             }
 
-            // Check if we hit the limit!
             if (physicsManager.peakStressThisRun >= stressThreshold)
             {
                 TriggerLevelFailed(stressFailReason);
                 return; 
             }
 
-            // Vehicle death check
             if (activeVehicle == null) activeVehicle = FindObjectOfType<LiveLoadVehicle>();
 
             if (activeVehicle != null && activeVehicle.gameObject.activeInHierarchy)
@@ -96,6 +101,23 @@ public class LevelFailedManager : MonoBehaviour
 
     public void TriggerLevelFailed(string failureReason = "")
     {
+        bool isTutorial = false;
+        
+        // Check if we are currently playing a tutorial contract
+        if (GameManager.Instance != null && GameManager.Instance.CurrentContract != null)
+        {
+            isTutorial = GameManager.Instance.CurrentContract.isTutorialContract;
+        }
+
+        if (!isFailed) 
+        {
+            // --- THE FIX: Only add to the fail count if it is NOT a tutorial ---
+            if (!isTutorial)
+            {
+                currentFailCount++;
+            }
+        }
+
         isFailed = true;
 
         if (activeVehicle == null) activeVehicle = FindObjectOfType<LiveLoadVehicle>();
@@ -128,6 +150,25 @@ public class LevelFailedManager : MonoBehaviour
                 levelNameText.text = "Bridge Test Failed";
             }
         }
+
+        // --- THE FIX: Hide the penalty text entirely if it's a tutorial ---
+        if (penaltyText != null)
+        {
+            if (isTutorial)
+            {
+                penaltyText.text = ""; // Clears the text so they don't see any penalty info
+            }
+            else
+            {
+                int totalLost = currentFailCount * goldPenaltyPerFail;
+                penaltyText.text = $"<color=red>Penalty: -{goldPenaltyPerFail} Gold</color>\n\nTotal Lost This Job: -{totalLost} Gold";
+            }
+        }
+    }
+
+    public void ResetFailCount()
+    {
+        currentFailCount = 0;
     }
 
     private void RestoreHiddenUI()
@@ -158,6 +199,7 @@ public class LevelFailedManager : MonoBehaviour
     public void ExitLevel()
     {
         Time.timeScale = 1f;
+        ResetFailCount(); 
         SceneManager.LoadScene("Level Selection"); 
     }
 

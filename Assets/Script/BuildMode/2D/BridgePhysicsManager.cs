@@ -193,7 +193,8 @@ public class BridgePhysicsManager : MonoBehaviour
                     if (capRend != null)
                     {
                         BoxCollider bc = capRend.GetComponent<BoxCollider>();
-                        if (bc != null) Destroy(bc);
+                        // --- THE FIX: Disable before destroying to stop the Editor error! ---
+                        if (bc != null) { bc.enabled = false; Destroy(bc); }
                     }
                 }
 
@@ -205,7 +206,8 @@ public class BridgePhysicsManager : MonoBehaviour
                         if (segRend != null)
                         {
                             BoxCollider bc = segRend.GetComponent<BoxCollider>();
-                            if (bc != null) Destroy(bc);
+                            // --- THE FIX: Disable before destroying! ---
+                            if (bc != null) { bc.enabled = false; Destroy(bc); }
                         }
                     }
                 }
@@ -213,7 +215,8 @@ public class BridgePhysicsManager : MonoBehaviour
             else
             {
                 BoxCollider[] parentCols = bar.GetComponents<BoxCollider>();
-                foreach (BoxCollider c in parentCols) Destroy(c);
+                // --- THE FIX: Disable before destroying! ---
+                foreach (BoxCollider c in parentCols) { c.enabled = false; Destroy(c); }
             }
 
             BarStressHandler stress = bar.GetComponent<BarStressHandler>();
@@ -416,7 +419,8 @@ public class BridgePhysicsManager : MonoBehaviour
             barRb.collisionDetectionMode = CollisionDetectionMode.Continuous;
 
             BoxCollider[] oldCols = bar.GetComponents<BoxCollider>();
-            foreach(var c in oldCols) Destroy(c);
+            // --- THE FIX: Disable before destroying! ---
+            foreach(var c in oldCols) { c.enabled = false; Destroy(c); }
 
             if (bar.materialData.isPier)
             {

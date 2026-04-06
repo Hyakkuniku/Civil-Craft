@@ -795,42 +795,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cbdcc7b7825c79c4d8972bd1206907dc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  tutorialSteps:
-  - message: Drag the left joystick to walk forward.
-    screenPosition: 3
-    showNextButton: 0
-    canSkip: 0
-    isComplete: 0
-    OnStepStart:
-      m_PersistentCalls:
-        m_Calls: []
-  - message: Swipe the right side of the screen to look around. Find the Guide!
-    screenPosition: 0
-    showNextButton: 1
-    canSkip: 0
-    isComplete: 0
-    OnStepStart:
-      m_PersistentCalls:
-        m_Calls: []
-  - message: Walk up to the Guide and tap the Interact button.
-    screenPosition: 0
-    showNextButton: 1
-    canSkip: 0
-    isComplete: 0
-    OnStepStart:
-      m_PersistentCalls:
-        m_Calls: []
-  - message: Tap the Drafting Table to open Build Mode.
-    screenPosition: 0
-    showNextButton: 1
-    canSkip: 0
-    isComplete: 0
-    OnStepStart:
-      m_PersistentCalls:
-        m_Calls: []
-  player: {fileID: 4274415236340906572}
-  inputManager: {fileID: 5642563023413880115}
-  playerInteract: {fileID: 4799824103933938814}
   tutorialPanel: {fileID: 7911979307329017542}
   tutorialText: {fileID: 7690747333669892765}
   nextButton: {fileID: 8576043186519041273}
@@ -2632,11 +2596,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   buttonMaterial: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
+  parentWrapper: {fileID: 0}
   selectedUpOffset: 10
   buttonImage: {fileID: 8749272252003751161}
   defaultSprite: {fileID: 21300000, guid: 999161720269b2c43881339b86f9c2b6, type: 3}
   selectedOutlineSprite: {fileID: 21300000, guid: 413f5669a408a1c4389d8d86ac2702d0,
     type: 3}
+  disabledColor: {r: 0.4, g: 0.4, b: 0.4, a: 0.8}
+  badgeContainer: {fileID: 0}
+  quantityText: {fileID: 0}
 --- !u!1 &443402086908820563
 GameObject:
   m_ObjectHideFlags: 0
@@ -3873,6 +3841,7 @@ MonoBehaviour:
   dialogueText: {fileID: 7828709446838457233}
   animator: {fileID: 2482352455532938614}
   typingSpeed: 0.03
+  elementsToHide: []
   inputManager: {fileID: 5642563023413880115}
 --- !u!1 &704127370946914269
 GameObject:
@@ -4411,11 +4380,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   buttonMaterial: {fileID: 11400000, guid: b98aa9ba752ac28449feebc76f256bf2, type: 2}
+  parentWrapper: {fileID: 0}
   selectedUpOffset: 10
   buttonImage: {fileID: 381411014073519037}
   defaultSprite: {fileID: 21300000, guid: fe5bc2a0e832954428d3c666dca2284f, type: 3}
   selectedOutlineSprite: {fileID: 21300000, guid: 1502b803a5510c443853c7beed4c98de,
     type: 3}
+  disabledColor: {r: 0.4, g: 0.4, b: 0.4, a: 0.8}
+  badgeContainer: {fileID: 0}
+  quantityText: {fileID: 0}
 --- !u!114 &5795982104290396581
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -16504,11 +16477,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   buttonMaterial: {fileID: 11400000, guid: 4524a3fc876c6b640a735e6808fe1271, type: 2}
+  parentWrapper: {fileID: 0}
   selectedUpOffset: 10
   buttonImage: {fileID: 5876848413846626988}
   defaultSprite: {fileID: 21300000, guid: 69f3ba5b0653805438eff98b9377ce57, type: 3}
   selectedOutlineSprite: {fileID: 21300000, guid: 59e112ccc40198244b535fda856d3610,
     type: 3}
+  disabledColor: {r: 0.4, g: 0.4, b: 0.4, a: 0.8}
+  badgeContainer: {fileID: 0}
+  quantityText: {fileID: 0}
 --- !u!1 &4355313694852211040
 GameObject:
   m_ObjectHideFlags: 0
@@ -18026,15 +18003,21 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e87ca3c9458bbeb48ad49f61d7bb9caa, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  waspObject: {fileID: 0}
-  waspSpeed: 8
-  waspTurnSpeed: 10
-  respawnDelay: 1.5
+  rockPrefabs: []
+  rockSpacing: 1.5
+  rockPickupDistance: 2
+  randomizeRotation: 1
+  offPathTolerance: 4
+  offPathCheckInterval: 0.5
   waypoints:
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
+  - target: {fileID: 0}
+    advancesTutorial: 1
+  - target: {fileID: 0}
+    advancesTutorial: 1
+  - target: {fileID: 0}
+    advancesTutorial: 1
+  - target: {fileID: 0}
+    advancesTutorial: 1
   player: {fileID: 4274415236340906572}
   stoppingDistance: 2
   pathResolution: 1
@@ -30739,6 +30722,8 @@ MonoBehaviour:
   safeStressColor: {r: 0, g: 1, b: 0, a: 1}
   warningStressColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   criticalStressColor: {r: 1, g: 0, b: 0, a: 1}
+  timerPanel: {fileID: 0}
+  timerText: {fileID: 0}
   statsPanel: {fileID: 2233159533889658714}
   totalLengthText: {fileID: 4513828909672340008}
   membersCountText: {fileID: 2423285203317244410}
@@ -30752,6 +30737,8 @@ MonoBehaviour:
   liveBeamLengthText: {fileID: 4530840123609366553}
   liveBeamCostText: {fileID: 3481437169315240446}
   liveBeamAngleText: {fileID: 409730037865076745}
+  unlockMaterialPanel: {fileID: 0}
+  unlockMaterialText: {fileID: 0}
 --- !u!114 &3523040666602494126
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -32453,11 +32440,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   buttonMaterial: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
+  parentWrapper: {fileID: 0}
   selectedUpOffset: 10
   buttonImage: {fileID: 5990794311908332117}
   defaultSprite: {fileID: 21300000, guid: 07f65aea806e3164282f9fc0f8d21a94, type: 3}
   selectedOutlineSprite: {fileID: 21300000, guid: 1ae0d662eb8e3f6489ee37f29ba5fa38,
     type: 3}
+  disabledColor: {r: 0.4, g: 0.4, b: 0.4, a: 0.8}
+  badgeContainer: {fileID: 0}
+  quantityText: {fileID: 0}
 --- !u!1 &9183294323907935497
 GameObject:
   m_ObjectHideFlags: 0

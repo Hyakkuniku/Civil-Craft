@@ -16,17 +16,13 @@ MonoBehaviour:
   clientName: Professor Bhan
   jobDescription: Build a safe crossing for the merchant cart using your basic wooden
     beams. Make sure to brace your structure with triangles!
-  budget: 10000
+  budget: 100000
   liveLoadWeight: 600
-  allowedMaterials:
-  - material: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
-    maxPieces: 3
-  - material: {fileID: 11400000, guid: b98aa9ba752ac28449feebc76f256bf2, type: 2}
-    maxPieces: 2
-  enforceMaxStress: 1
+  allowedMaterials: []
+  enforceMaxStress: 0
   maxAllowedStress: 100
   winCondition: 1
-  requiredIntactTime: 10
+  requiredIntactTime: 2
   goldReward: 500
   expReward: 1000
   offerDialogue:

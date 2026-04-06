@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Events;
 
 public class DialogueTrigger : MonoBehaviour
 {
@@ -6,7 +7,10 @@ public class DialogueTrigger : MonoBehaviour
     [Tooltip("Check this if talking to this NPC should advance the tutorial!")]
     public bool advancesTutorial = false;
 
-    // --- OPTIMIZATION: Cache references! ---
+    [Header("Post-Dialogue Events")]
+    [Tooltip("Fires exactly when this specific dialogue box closes.")]
+    public UnityEvent onDialogueFinished; // --- NEW: Allows us to chain the UI panel! ---
+
     private Transform playerTransform;
     private DialogueManager dialogueManager;
 
@@ -24,14 +28,16 @@ public class DialogueTrigger : MonoBehaviour
 
         if (dialogueManager == null) return;
 
-        if (advancesTutorial && TutorialManager.Instance != null)
+        // --- THE FIX: We now invoke your custom event right when the dialogue closes ---
+        dialogueManager.StartDialogue(dialogue, () => 
         {
-            dialogueManager.StartDialogue(dialogue, TutorialManager.Instance.ShowNextStep);
-        }
-        else
-        {
-            dialogueManager.StartDialogue(dialogue);
-        }
+            if (advancesTutorial && TutorialManager.Instance != null)
+            {
+                TutorialManager.Instance.ShowNextStep();
+            }
+            
+            onDialogueFinished?.Invoke(); 
+        });
     }
 
     private void FacePlayer()
