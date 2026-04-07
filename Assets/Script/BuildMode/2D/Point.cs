@@ -127,7 +127,7 @@ public class Point : MonoBehaviour
         if (isAnchor)
         {
             Gizmos.color = Color.red;
-            Gizmos.DrawCube(transform.position, Vector3.one * 0.4f);
+            Gizmos.DrawCube(transform.position, Vector3.one * 1f);
         }
         else if (!Runtime)
         {

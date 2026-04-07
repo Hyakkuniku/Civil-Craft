@@ -36,6 +36,17 @@ public class BridgePhysicsManager : MonoBehaviour
     private bool needsPhysicsRelease = false; 
     private int currentSettleFrame = 0;
 
+    private PhysicMaterial sharedRoadPhysicsMat;
+
+    private void Awake()
+    {
+        sharedRoadPhysicsMat = new PhysicMaterial("BridgeRoadGrip");
+        sharedRoadPhysicsMat.dynamicFriction = 1f;
+        sharedRoadPhysicsMat.staticFriction = 1f;
+        sharedRoadPhysicsMat.frictionCombine = PhysicMaterialCombine.Maximum;
+        sharedRoadPhysicsMat.bounciness = 0f;
+    }
+
     private void Start()
     {
         if (GameManager.Instance != null)
@@ -182,23 +193,14 @@ public class BridgePhysicsManager : MonoBehaviour
 
         GatherActiveBridgeData(out simPoints, out simBars);
 
+        // --- THE FIX: Deterministic Sorting ---
+        // Replacing fragile float equality checks with bulletproof, unique Instance IDs.
+        // This guarantees the physics solver processes joints in the exact same mathematical sequence every time.
         deterministicPoints = new List<Point>(simPoints);
-        deterministicPoints.Sort((a, b) => 
-        {
-            int cmp = a.transform.position.x.CompareTo(b.transform.position.x);
-            if (cmp == 0) cmp = a.transform.position.y.CompareTo(b.transform.position.y);
-            if (cmp == 0) cmp = a.transform.position.z.CompareTo(b.transform.position.z);
-            return cmp;
-        });
+        deterministicPoints.Sort((a, b) => a.GetInstanceID().CompareTo(b.GetInstanceID()));
 
         deterministicBars = new List<Bar>(simBars);
-        deterministicBars.Sort((a, b) => 
-        {
-            int cmp = a.transform.position.x.CompareTo(b.transform.position.x);
-            if (cmp == 0) cmp = a.transform.position.y.CompareTo(b.transform.position.y);
-            if (cmp == 0) cmp = a.transform.position.z.CompareTo(b.transform.position.z);
-            return cmp;
-        });
+        deterministicBars.Sort((a, b) => a.GetInstanceID().CompareTo(b.GetInstanceID()));
 
         foreach (Point p in deterministicPoints)
         {
@@ -250,6 +252,7 @@ public class BridgePhysicsManager : MonoBehaviour
             if (p == null) continue;
             foreach (Joint j in p.GetComponentsInChildren<Joint>()) { j.connectedBody = null; Destroy(j); }
             foreach (Rigidbody rb in p.GetComponentsInChildren<Rigidbody>()) Destroy(rb);
+            foreach (CapsuleCollider cc in p.GetComponents<CapsuleCollider>()) Destroy(cc);
         }
 
         bool isCurrentlyBuilding = GameManager.Instance != null && GameManager.Instance.CurrentState == GameManager.GameState.Building;
@@ -308,13 +311,15 @@ public class BridgePhysicsManager : MonoBehaviour
             BarStressHandler stress = bar.GetComponent<BarStressHandler>();
             if (stress != null) Destroy(stress);
 
+            // --- THE FIX: Float Preservation ---
+            // Revert explicitly to the pure, untainted preSim transforms.
+            // DO NOT call UpdateCreatingBar() here anymore, it introduces microscopic rotational drift!
             bar.transform.position = bar.preSimPos;
             bar.transform.rotation = bar.preSimRot;
             
             if (bar.gameObject.activeSelf && bar.startPoint != null && bar.endPoint != null)
             {
                 bar.StartPosition = bar.startPoint.transform.position;
-                bar.UpdateCreatingBar(bar.endPoint.transform.position);
             }
         }
 
@@ -542,25 +547,24 @@ public class BridgePhysicsManager : MonoBehaviour
                     else if (bar.materialData.isDualBeam && depth < 0.2f) depth = 0.2f;
 
                     float zOffsetValue = bar.materialData.isDualBeam ? ((i == 0) ? bar.materialData.zOffset : -bar.materialData.zOffset) : 0f;
-                    float physicsLength = length + 0.05f; 
+                    float physicsLength = length - 0.02f; 
                     
                     col.size = new Vector3(physicsLength, thickness, depth);
                     col.center = new Vector3(0, 0, zOffsetValue);
+                    
+                    if (bar.materialData.isRoad) col.material = sharedRoadPhysicsMat;
                 }
             }
         }
 
-        // Check if either of the connected points is a permanent terrain anchor
         bool isConnectedToTerrainAnchor = p1.originalIsAnchor || p2.originalIsAnchor;
 
         if (isConnectedToTerrainAnchor)
         {
-            // This bar is embedded in the environment, so put it on the layer that ignores it!
             bar.gameObject.layer = LayerMask.NameToLayer("Node"); 
         }
         else
         {
-            // This is a normal mid-air bar, put it on the layer that COLLIDES with the environment
             bar.gameObject.layer = LayerMask.NameToLayer("Bridge"); 
         }
 
@@ -605,14 +609,32 @@ public class BridgePhysicsManager : MonoBehaviour
                 nodeRb.maxDepenetrationVelocity = 2f;
             }
 
+            bool isRoadNode = false;
+            float maxZDepth = 2.0f;
+            
             foreach (Bar bar in p.ConnectedBars)
             {
                 if (bar == null || !bar.gameObject.activeSelf) continue; 
                 
-                if (!bar.materialData.isRope)
+                if (bar.materialData != null && bar.materialData.isRoad)
                 {
-                    AttachJoint(bar.gameObject, nodeRb, bar.materialData, p.transform.position);
+                    isRoadNode = true;
+                    float barZ = bar.materialData.isDualBeam ? bar.visualSize.z + (bar.materialData.zOffset * 2f) : bar.visualSize.z;
+                    if (barZ > maxZDepth) maxZDepth = barZ;
                 }
+                
+                if (!bar.materialData.isRope) AttachJoint(bar.gameObject, nodeRb, bar.materialData, p.transform.position);
+            }
+
+            if (isRoadNode)
+            {
+                CapsuleCollider groutCylinder = p.gameObject.AddComponent<CapsuleCollider>();
+                groutCylinder.radius = 0.025f; 
+                groutCylinder.height = maxZDepth; 
+                groutCylinder.direction = 2; 
+                p.gameObject.layer = LayerMask.NameToLayer("Bridge"); 
+                
+                groutCylinder.material = sharedRoadPhysicsMat;
             }
         }
 
@@ -717,6 +739,9 @@ public class BarStressHandler : MonoBehaviour
     private float smoothedForce = 0f;
     private bool canTrackStress = false; 
 
+    private Queue<float> forceHistory = new Queue<float>();
+    private int smoothingFrames = 15; 
+
     private Renderer[] childRenderers;
     private Color[] originalColors;
 
@@ -754,6 +779,9 @@ public class BarStressHandler : MonoBehaviour
         canTrackStress = true;
         smoothedForce = 0f; 
         currentStressPercent = 0f;
+        
+        forceHistory.Clear();
+        for (int i = 0; i < smoothingFrames; i++) forceHistory.Enqueue(0f);
     }
 
     private void OnDestroy()
@@ -802,28 +830,16 @@ public class BarStressHandler : MonoBehaviour
             }
         }
 
-        // --- ULTIMATE FIX: Force Quantization ---
-        // We round the raw physics force to the nearest 10 Newtons.
-        // This utterly destroys the microscopic 1-5 Newton jitter produced by the PhysX solver.
-        maxForceThisFrame = Mathf.Round(maxForceThisFrame / 10f) * 10f;
+        forceHistory.Enqueue(maxForceThisFrame);
+        if (forceHistory.Count > smoothingFrames) forceHistory.Dequeue();
 
-        float absoluteLimit = isTension ? material.maxTension : material.maxCompression;
-        if (absoluteLimit <= 0f) absoluteLimit = 1f;
-
-        // --- ULTIMATE FIX: Strict Linear Math ---
-        // Removed Mathf.Lerp, which creates infinite drifting decimals. 
-        // MoveTowards is perfectly linear and mathematically finite.
-        float attackRate = absoluteLimit * 10f * Time.fixedDeltaTime; 
-        float decayRate  = absoluteLimit * 5f * Time.fixedDeltaTime;
-
-        if (maxForceThisFrame > smoothedForce)
-        {
-            smoothedForce = Mathf.MoveTowards(smoothedForce, maxForceThisFrame, attackRate);
-        }
-        else
-        {
-            smoothedForce = Mathf.MoveTowards(smoothedForce, maxForceThisFrame, decayRate);
-        }
+        float totalForce = 0f;
+        foreach (float f in forceHistory) totalForce += f;
+        
+        // --- THE FIX: Pure Smooth Averaging ---
+        // We calculate the clean mathematical average without applying harsh 10/50 rounding bounds.
+        float averagedForce = totalForce / forceHistory.Count;
+        smoothedForce = averagedForce; 
 
         if (material.isRope)
         {
@@ -850,9 +866,6 @@ public class BarStressHandler : MonoBehaviour
         float stressLimit = isTension ? material.maxTension : material.maxCompression;
         if (stressLimit <= 0f) stressLimit = 1f; 
 
-        // --- ULTIMATE FIX: Decimal Truncation ---
-        // We snap the final percentage to an EXACT 2 decimal place float (e.g., exactly 0.27)
-        // so it never randomly flips between 27% and 28% in the UI rounding.
         if (material.isRope && !isTension) 
         {
             currentStressPercent = 0f; 

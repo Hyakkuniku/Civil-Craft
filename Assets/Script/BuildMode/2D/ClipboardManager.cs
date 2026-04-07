@@ -300,6 +300,10 @@ public class ClipboardManager : MonoBehaviour
             {
                 BuildUIController.Instance.LogAction("Insufficient budget to paste!");
             }
+            else if (BuildUIController.Instance != null)
+            {
+                BuildUIController.Instance.LogAction("Cannot paste inside terrain!");
+            }
             return;
         }
 
@@ -479,8 +483,6 @@ public class ClipboardManager : MonoBehaviour
             gp.name = "GhostPastePoint";
             Destroy(gp.GetComponent<Collider>());
             
-            // The Point script deletes its own renderer when destroyed,
-            // so we'll destroy it but force the renderer to turn back on in the Update loop!
             Destroy(gp.GetComponent<Point>()); 
             ghostPastePoints.Add(gp);
         }
@@ -506,12 +508,14 @@ public class ClipboardManager : MonoBehaviour
         isValidPaste = false;
         Vector3 rigidSnapShift = Vector3.zero;
 
+        // Apply rotation to points
         for (int i = 0; i < ghostPastePoints.Count; i++)
         {
             Vector3 rotatedOffset = rotation * copiedRelativePoints[i];
             ghostPastePoints[i].transform.position = pasteRootPos + rotatedOffset;
         }
 
+        // Try snapping to existing nodes
         foreach (GameObject gp in ghostPastePoints)
         {
             foreach (Point existingP in Point.AllPoints)
@@ -529,14 +533,17 @@ public class ClipboardManager : MonoBehaviour
             if (isValidPaste) break; 
         }
 
+        // Apply the snap shift to the root
         pasteRootPos += rigidSnapShift;
 
+        // Recalculate final positions for points
         for (int i = 0; i < ghostPastePoints.Count; i++)
         {
             Vector3 rotatedOffset = rotation * copiedRelativePoints[i];
             ghostPastePoints[i].transform.position = pasteRootPos + rotatedOffset;
         }
 
+        // Recalculate final positions for bars
         for (int i = 0; i < ghostPasteBars.Count; i++)
         {
             Bar gb = ghostPasteBars[i];
@@ -545,6 +552,67 @@ public class ClipboardManager : MonoBehaviour
             gb.UpdateCreatingBar(ghostPastePoints[cb.endIdx].transform.position);
         }
 
+        // --- THE FIX: FORGIVING ENVIRONMENT CHECKS ---
+        int envMask = LayerMask.GetMask("Environment");
+        
+        // 1. Prevent pasted nodes from being embedded in the mountain, EXCEPT if snapping to an anchor
+        if (isValidPaste)
+        {
+            foreach (GameObject gp in ghostPastePoints)
+            {
+                bool isSnappingToAnchor = false;
+                foreach (Point existingP in Point.AllPoints)
+                {
+                    if (existingP.gameObject.activeSelf && existingP.originalIsAnchor && Vector3.Distance(gp.transform.position, existingP.transform.position) < 0.2f)
+                    {
+                        isSnappingToAnchor = true;
+                        break;
+                    }
+                }
+
+                if (!isSnappingToAnchor && Physics.CheckSphere(gp.transform.position, 0.2f, envMask))
+                {
+                    isValidPaste = false;
+                    break;
+                }
+            }
+        }
+
+        // 2. Prevent pasted bars from slicing through mountains (respecting 1.0 margin for anchors)
+        if (isValidPaste)
+        {
+            for (int i = 0; i < ghostPasteBars.Count; i++)
+            {
+                Vector3 p1 = ghostPastePoints[copiedBars[i].startIdx].transform.position;
+                Vector3 p2 = ghostPastePoints[copiedBars[i].endIdx].transform.position;
+                Vector3 dir = (p2 - p1).normalized;
+                float dist = Vector3.Distance(p1, p2);
+
+                bool p1IsAnchor = false;
+                bool p2IsAnchor = false;
+
+                // Check if either end of the bar is snapping to a permanent anchor
+                foreach (Point existingP in Point.AllPoints)
+                {
+                    if (existingP.gameObject.activeSelf && existingP.originalIsAnchor)
+                    {
+                        if (Vector3.Distance(p1, existingP.transform.position) < 0.2f) p1IsAnchor = true;
+                        if (Vector3.Distance(p2, existingP.transform.position) < 0.2f) p2IsAnchor = true;
+                    }
+                }
+
+                float startMargin = p1IsAnchor ? 1.0f : 0.4f;
+                float endMargin = p2IsAnchor ? 1.0f : 0.4f;
+
+                if (dist > startMargin + endMargin && Physics.Raycast(p1 + (dir * startMargin), dir, dist - (startMargin + endMargin), envMask))
+                {
+                    isValidPaste = false;
+                    break;
+                }
+            }
+        }
+
+        // Validate Pier Y constraints
         if (isValidPaste)
         {
             foreach (var cb in copiedBars)
@@ -574,7 +642,6 @@ public class ClipboardManager : MonoBehaviour
             Renderer r = gp.GetComponentInChildren<Renderer>();
             if (r != null)
             {
-                // --- THE FIX: Force the node renderer back ON! ---
                 r.enabled = true; 
                 
                 if (r.material.HasProperty("_Color")) r.material.color = tintColor;

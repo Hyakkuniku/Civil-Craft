@@ -44,6 +44,8 @@ public class LiveLoadVehicle : Interactable
     private bool hasReachedEnd = false; 
 
     [HideInInspector] public bool isParkedAtFinish = false;
+    
+    private float currentMotorSpeed = 0f;
 
     private class WheelData
     {
@@ -141,7 +143,6 @@ public class LiveLoadVehicle : Interactable
             physicsManager.OnSimulationStopped += HandleSimulationStopped;
         }
 
-        // --- THE FIX: If the bridge is permanently saved, teleport and park at the finish line instantly! ---
         if (assignedContract != null && PlayerDataManager.Instance != null)
         {
             if (PlayerDataManager.Instance.GetSavedBridge(assignedContract.name) != null || 
@@ -184,35 +185,54 @@ public class LiveLoadVehicle : Interactable
 
         hasReachedEnd = false; 
         isParkedAtFinish = false; 
+        currentMotorSpeed = 0f; 
 
         if (assignedContract != null) { vehicleMass = assignedContract.liveLoadWeight; if (rb != null) rb.mass = vehicleMass; }
 
+        rb.isKinematic = true;
+        foreach (var w in wheels) w.rb.isKinematic = true;
+
         if (startPoint != null)
         {
+            rb.position = startPoint.position;
+            rb.rotation = startPoint.rotation;
             transform.position = startPoint.position;
             transform.rotation = startPoint.rotation;
+
+            // --- THE FIX: Cleanly reset positions without destroying joint integrity ---
             foreach (var w in wheels)
             {
                 w.physObj.transform.localPosition = w.originalLocalPos;
                 w.physObj.transform.localRotation = w.originalLocalRot;
+                w.rb.position = rb.transform.TransformPoint(w.originalLocalPos);
+                w.rb.rotation = rb.transform.rotation * w.originalLocalRot;
             }
         }
 
-        rb.isKinematic = false;
         rb.velocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero; 
+        rb.ResetCenterOfMass();
+        rb.ResetInertiaTensor(); 
         
         foreach (var w in wheels)
         {
-            w.rb.isKinematic = false;
             w.rb.velocity = Vector3.zero;
             w.rb.angularVelocity = Vector3.zero; 
+            w.rb.ResetCenterOfMass();
+            w.rb.ResetInertiaTensor();
         }
+
+        // Force Unity to acknowledge the clean mathematical teleportation before moving forward
+        Physics.SyncTransforms(); 
     }
 
     private void HandleSimulationStarted()
     {
         if (GameManager.Instance != null && assignedContract != null && GameManager.Instance.CurrentContract != assignedContract) return;
+        
+        rb.isKinematic = false;
+        foreach (var w in wheels) w.rb.isKinematic = false;
+        
         isDriving = true; 
     }
 
@@ -224,21 +244,6 @@ public class LiveLoadVehicle : Interactable
     private void Update()
     {
         promptMessage = "Inspect " + vehicleName;
-        if (physicsManager == null) return;
-
-        if (!physicsManager.isSimulating && !isDriving && !isParkedAtFinish)
-        {
-            if (startPoint != null && Vector3.Distance(transform.position, startPoint.position) > 0.5f)
-            {
-                transform.position = startPoint.position;
-                transform.rotation = startPoint.rotation;
-                foreach (var w in wheels)
-                {
-                    w.physObj.transform.localPosition = w.originalLocalPos;
-                    w.physObj.transform.localRotation = w.originalLocalRot;
-                }
-            }
-        }
     }
 
     protected override void Intract()
@@ -285,6 +290,7 @@ public class LiveLoadVehicle : Interactable
     {
         isDriving = false;
         isParkedAtFinish = true; 
+        currentMotorSpeed = 0f;
         
         rb.isKinematic = true;
         foreach (var w in wheels) 
@@ -298,6 +304,7 @@ public class LiveLoadVehicle : Interactable
     public void StopAndReset()
     {
         isDriving = false;
+        currentMotorSpeed = 0f;
 
         Collider[] allCols = GetComponentsInChildren<Collider>();
         foreach (var c in allCols) c.enabled = false;
@@ -353,6 +360,7 @@ public class LiveLoadVehicle : Interactable
     public void EmergencyStop()
     {
         isDriving = false;
+        currentMotorSpeed = 0f;
         foreach (var w in wheels)
         {
             if (w.hinge == null) continue;
@@ -393,19 +401,23 @@ public class LiveLoadVehicle : Interactable
             {
                 hasReachedEnd = true; 
                 isDriving = false;
+                currentMotorSpeed = 0f;
                 foreach (var w in wheels) { if (w.hinge != null) w.hinge.useMotor = false; }
             }
             return; 
         }
 
         float directionX = Mathf.Sign(endPoint.position.x - transform.position.x);
-        float speedDegPerSec = (maxSpeed / wheelRadius) * Mathf.Rad2Deg;
+        float targetSpeedDegPerSec = (maxSpeed / wheelRadius) * Mathf.Rad2Deg;
+
+        float accelerationRate = targetSpeedDegPerSec * 2f * Time.fixedDeltaTime; 
+        currentMotorSpeed = Mathf.MoveTowards(currentMotorSpeed, targetSpeedDegPerSec, accelerationRate);
 
         foreach (var w in wheels)
         {
             if (w.hinge == null) continue;
             JointMotor motor = w.hinge.motor;
-            motor.targetVelocity = speedDegPerSec * -directionX; 
+            motor.targetVelocity = currentMotorSpeed * -directionX; 
             w.hinge.motor = motor;
             w.hinge.useMotor = true;
         }

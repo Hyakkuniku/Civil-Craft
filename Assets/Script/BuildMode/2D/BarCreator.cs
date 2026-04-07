@@ -67,7 +67,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     public LineRenderer radiusIndicator; 
     public int circleResolution = 50;    
     public float circleLineWidth = 0.05f;
-    // --- THE FIX: Removed the global gridVisual image from here! ---
 
     private bool barCreationStarted = false;
     private bool createdStartPoint = false; 
@@ -182,6 +181,24 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         return lineStart + t * lineDir;
     }
 
+    private Vector3 ClampToEnvironment(Vector3 start, Vector3 end)
+    {
+        Vector3 dir = (end - start).normalized;
+        float dist = Vector3.Distance(start, end);
+        int envMask = LayerMask.GetMask("Environment");
+
+        float margin = 1f; 
+        
+        if (dist <= margin * 2) return end;
+
+        if (Physics.Raycast(start + (dir * margin), dir, out RaycastHit hit, dist - (margin * 2), envMask))
+        {
+            return hit.point;
+        }
+        
+        return end;
+    }
+
     private void Update()
     {
         if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building) return;
@@ -253,17 +270,37 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             }
 
             bool isSafe = true;
+            int envMask = LayerMask.GetMask("Environment"); 
+
             foreach (Point p in selectedPoints)
             {
                 if (p.originalIsAnchor) continue;
+
+                Vector3 proposedPos = currentMoveAction.originalPositions[p] + finalDelta;
+
+                if (Physics.CheckSphere(proposedPos, 0.2f, envMask))
+                {
+                    isSafe = false;
+                    break;
+                }
+
                 foreach (Bar b in p.ConnectedBars)
                 {
                     if (b == null || !b.gameObject.activeSelf || b.materialData.isPier) continue; 
                     Point otherPoint = (b.startPoint == p) ? b.endPoint : b.startPoint;
                     if (selectedPoints.Contains(otherPoint) && !otherPoint.originalIsAnchor) continue; 
                     
-                    Vector3 proposedPos = currentMoveAction.originalPositions[p] + finalDelta;
                     if (Vector3.Distance(otherPoint.transform.position, proposedPos) > b.materialData.maxLength + 0.05f) 
+                    {
+                        isSafe = false;
+                        break;
+                    }
+
+                    Vector3 dir = (proposedPos - otherPoint.transform.position).normalized;
+                    float dist = Vector3.Distance(otherPoint.transform.position, proposedPos);
+                    float margin = 0.4f;
+
+                    if (dist > margin * 2 && Physics.Raycast(otherPoint.transform.position + (dir * margin), dir, dist - (margin * 2), envMask))
                     {
                         isSafe = false;
                         break;
@@ -478,6 +515,8 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                     if (Vector3.Distance(startPos, targetPos) > maxLen) targetPos = startPos + (direction * maxLen); 
                 }
             }
+
+            targetPos = ClampToEnvironment(startPos, targetPos);
 
             currentEndPoint.transform.position = targetPos;
             currentBar.UpdateCreatingBar(targetPos);
@@ -1153,7 +1192,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         return (point - projection).sqrMagnitude;
     }
 
-    // --- THE FIX: We now tell GameManager to find the active ravine and toggle ITS grid ---
     public void ToggleGrid() 
     { 
         isGridSnappingEnabled = !isGridSnappingEnabled; 
@@ -1266,6 +1304,16 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             existingEndPoint = null; 
         }
 
+        // --- THE FIX: NO BUILD ZONES ---
+        Vector3 preClampPos = finalPosition;
+        finalPosition = ClampToEnvironment(startPos, finalPosition);
+
+        // Notify the player if their beam got cut short by the mountain
+        if (Vector3.Distance(preClampPos, finalPosition) > 0.05f && BuildUIController.Instance != null)
+        {
+            BuildUIController.Instance.LogAction("Beam stopped by terrain");
+        }
+
         if (existingEndPoint == null)
         {
             foreach (Point p in Point.AllPoints)
@@ -1308,7 +1356,11 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (Vector3.Distance(startPos, finalPosition) < 0.1f) 
         { 
             CancelCreation(); 
-            if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("Drawing Canceled");
+            // We only log canceled if they didn't JUST get a terrain warning
+            if (Vector3.Distance(preClampPos, finalPosition) <= 0.05f && BuildUIController.Instance != null) 
+            {
+                BuildUIController.Instance.LogAction("Drawing Canceled");
+            }
             return; 
         }
 
@@ -1403,7 +1455,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             
             if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("Beam Sliced");
         }
-        else if (BuildUIController.Instance != null) 
+        else if (BuildUIController.Instance != null && Vector3.Distance(preClampPos, finalPosition) <= 0.05f) 
         {
             if (createdNewEndPoint) BuildUIController.Instance.LogAction("Point created");
             else BuildUIController.Instance.LogAction("Point connected");
