@@ -1,6 +1,7 @@
 using UnityEngine;
 using TMPro;
 using UnityEngine.SceneManagement;
+using System.Collections;
 using System.Collections.Generic; 
 
 public class LevelFailedManager : MonoBehaviour
@@ -25,6 +26,10 @@ public class LevelFailedManager : MonoBehaviour
     [Header("Failure Settings")]
     [Tooltip("The Y-axis height at which the vehicle is considered fallen/destroyed.")]
     public float deathThreshold = -15f;
+    
+    // --- NEW: Delay so the player can watch the bridge collapse! ---
+    [Tooltip("How long to wait before showing the fail screen (lets the player watch the destruction).")]
+    public float delayBeforeFailScreen = 2.0f; 
 
     [Header("Penalty Tracking")]
     [Tooltip("How much gold is deducted from the final reward EVERY time the bridge collapses?")]
@@ -33,6 +38,7 @@ public class LevelFailedManager : MonoBehaviour
 
     private LiveLoadVehicle activeVehicle;
     private BridgePhysicsManager physicsManager;
+    private Coroutine failDelayCoroutine;
     
     [HideInInspector] public bool isFailed = false;
 
@@ -83,7 +89,7 @@ public class LevelFailedManager : MonoBehaviour
 
             if (physicsManager.peakStressThisRun >= stressThreshold)
             {
-                TriggerLevelFailed(stressFailReason);
+                InitiateFailure(stressFailReason);
                 return; 
             }
 
@@ -93,32 +99,52 @@ public class LevelFailedManager : MonoBehaviour
             {
                 if (activeVehicle.transform.position.y < deathThreshold)
                 {
-                    TriggerLevelFailed("Vehicle Destroyed!");
+                    InitiateFailure("Vehicle Destroyed!");
                 }
             }
         }
     }
 
+    // --- THE FIX: Start the delay process immediately upon failure ---
+    private void InitiateFailure(string reason)
+    {
+        if (isFailed) return;
+        
+        // Instantly flag as failed behind the scenes to prevent the LevelCompleteManager from counting a win!
+        isFailed = true; 
+
+        if (failDelayCoroutine != null) StopCoroutine(failDelayCoroutine);
+        failDelayCoroutine = StartCoroutine(FailDelayRoutine(reason));
+    }
+
+    private IEnumerator FailDelayRoutine(string reason)
+    {
+        // Let gravity and physics run for a couple of seconds so they watch the destruction
+        yield return new WaitForSeconds(delayBeforeFailScreen);
+        
+        // Then show the UI
+        ShowFailScreen(reason);
+    }
+
+    // Kept public so other scripts can manually fail the level if needed
     public void TriggerLevelFailed(string failureReason = "")
+    {
+        InitiateFailure(failureReason);
+    }
+
+    private void ShowFailScreen(string failureReason)
     {
         bool isTutorial = false;
         
-        // Check if we are currently playing a tutorial contract
         if (GameManager.Instance != null && GameManager.Instance.CurrentContract != null)
         {
             isTutorial = GameManager.Instance.CurrentContract.isTutorialContract;
         }
 
-        if (!isFailed) 
+        if (!isTutorial)
         {
-            // --- THE FIX: Only add to the fail count if it is NOT a tutorial ---
-            if (!isTutorial)
-            {
-                currentFailCount++;
-            }
+            currentFailCount++;
         }
-
-        isFailed = true;
 
         if (activeVehicle == null) activeVehicle = FindObjectOfType<LiveLoadVehicle>();
         if (activeVehicle != null) activeVehicle.EmergencyStop();
@@ -151,12 +177,11 @@ public class LevelFailedManager : MonoBehaviour
             }
         }
 
-        // --- THE FIX: Hide the penalty text entirely if it's a tutorial ---
         if (penaltyText != null)
         {
             if (isTutorial)
             {
-                penaltyText.text = ""; // Clears the text so they don't see any penalty info
+                penaltyText.text = ""; 
             }
             else
             {
@@ -182,6 +207,9 @@ public class LevelFailedManager : MonoBehaviour
 
     public void RetryLevel()
     {
+        // Abort the delay timer if they mash Retry before the UI pops up
+        if (failDelayCoroutine != null) StopCoroutine(failDelayCoroutine); 
+        
         if (physicsManager != null)
         {
             physicsManager.StopPhysicsAndReset();
@@ -205,6 +233,9 @@ public class LevelFailedManager : MonoBehaviour
 
     private void HandleSimulationStopped()
     {
+        // Abort the delay timer if physics stops for any other reason
+        if (failDelayCoroutine != null) StopCoroutine(failDelayCoroutine); 
+        
         isFailed = false;
         RestoreHiddenUI(); 
         if (levelFailedPanel != null) levelFailedPanel.SetActive(false);

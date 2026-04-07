@@ -43,6 +43,8 @@ public class LiveLoadVehicle : Interactable
     private bool isDriving = false;
     private bool hasReachedEnd = false; 
 
+    [HideInInspector] public bool isParkedAtFinish = false;
+
     private class WheelData
     {
         public GameObject physObj;
@@ -106,8 +108,6 @@ public class LiveLoadVehicle : Interactable
 
             if (chassisCol != null) Physics.IgnoreCollision(chassisCol, sc, true);
 
-            // --- ULTIMATE FIX: Create physics components exactly ONCE here! ---
-            // Recreating them on retry was scrambling the PhysX solver order.
             wd.rb = physWheel.AddComponent<Rigidbody>();
             wd.rb.mass = wheelMass; 
             wd.rb.isKinematic = true; 
@@ -140,6 +140,32 @@ public class LiveLoadVehicle : Interactable
             physicsManager.OnSimulationStarted += HandleSimulationStarted;
             physicsManager.OnSimulationStopped += HandleSimulationStopped;
         }
+
+        // --- THE FIX: If the bridge is permanently saved, teleport and park at the finish line instantly! ---
+        if (assignedContract != null && PlayerDataManager.Instance != null)
+        {
+            if (PlayerDataManager.Instance.GetSavedBridge(assignedContract.name) != null || 
+                PlayerDataManager.Instance.CurrentData.completedContracts.Contains(assignedContract.name))
+            {
+                isParkedAtFinish = true;
+                
+                if (endPoint != null)
+                {
+                    rb.position = endPoint.position;
+                    rb.rotation = endPoint.rotation;
+                    transform.position = endPoint.position;
+                    transform.rotation = endPoint.rotation;
+
+                    foreach (var w in wheels)
+                    {
+                        w.physObj.transform.localPosition = w.originalLocalPos;
+                        w.physObj.transform.localRotation = w.originalLocalRot;
+                        w.rb.position = rb.transform.TransformPoint(w.originalLocalPos);
+                        w.rb.rotation = rb.transform.rotation * w.originalLocalRot;
+                    }
+                }
+            }
+        }
     }
 
     private void OnDestroy()
@@ -157,6 +183,7 @@ public class LiveLoadVehicle : Interactable
         if (GameManager.Instance != null && assignedContract != null && GameManager.Instance.CurrentContract != assignedContract) return;
 
         hasReachedEnd = false; 
+        isParkedAtFinish = false; 
 
         if (assignedContract != null) { vehicleMass = assignedContract.liveLoadWeight; if (rb != null) rb.mass = vehicleMass; }
 
@@ -199,7 +226,7 @@ public class LiveLoadVehicle : Interactable
         promptMessage = "Inspect " + vehicleName;
         if (physicsManager == null) return;
 
-        if (!physicsManager.isSimulating && !isDriving)
+        if (!physicsManager.isSimulating && !isDriving && !isParkedAtFinish)
         {
             if (startPoint != null && Vector3.Distance(transform.position, startPoint.position) > 0.5f)
             {
@@ -257,6 +284,8 @@ public class LiveLoadVehicle : Interactable
     public void StopAndFreezeForWin()
     {
         isDriving = false;
+        isParkedAtFinish = true; 
+        
         rb.isKinematic = true;
         foreach (var w in wheels) 
         { 
@@ -277,11 +306,10 @@ public class LiveLoadVehicle : Interactable
         rb.velocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
         
-        // Wipe internal PhysX inertia cache so no momentum leaks between runs
         rb.ResetCenterOfMass();
         rb.ResetInertiaTensor();
 
-        if (startPoint != null)
+        if (!isParkedAtFinish && startPoint != null)
         {
             rb.position = startPoint.position;
             rb.rotation = startPoint.rotation;
@@ -294,7 +322,6 @@ public class LiveLoadVehicle : Interactable
                 w.rb.velocity = Vector3.zero;
                 w.rb.angularVelocity = Vector3.zero;
                 
-                // Deep cache wipe for the wheels too
                 w.rb.ResetCenterOfMass();
                 w.rb.ResetInertiaTensor();
                 
@@ -304,6 +331,18 @@ public class LiveLoadVehicle : Interactable
                 w.physObj.transform.localRotation = w.originalLocalRot;
                 w.rb.position = rb.transform.TransformPoint(w.originalLocalPos);
                 w.rb.rotation = rb.transform.rotation * w.originalLocalRot;
+            }
+        }
+        else if (isParkedAtFinish)
+        {
+            foreach (var w in wheels)
+            {
+                w.rb.isKinematic = true;
+                w.rb.velocity = Vector3.zero;
+                w.rb.angularVelocity = Vector3.zero;
+                w.rb.ResetCenterOfMass();
+                w.rb.ResetInertiaTensor();
+                w.hinge.useMotor = false; 
             }
         }
 

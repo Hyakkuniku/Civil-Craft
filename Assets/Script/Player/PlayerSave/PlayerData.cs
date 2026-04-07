@@ -31,6 +31,11 @@ public class SavedBarData
 public class SavedBridgeData 
 {
     public string contractId; 
+    
+    // --- NEW: Contract Performance Stats ---
+    public float totalSpent;
+    public float maxStress;
+    
     public List<SavedPointData> points = new List<SavedPointData>();
     public List<SavedBarData> bars = new List<SavedBarData>();
 }

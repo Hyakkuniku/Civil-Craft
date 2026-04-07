@@ -5,36 +5,36 @@ EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Scenes:
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/Final/Main Menu.unity
     guid: e6551462db6fec0468d3e1aed3c63ecf
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/Mode Selection.unity
     guid: b41b5aed9f64313438dc1f29fc759ac4
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/LevelSelection.unity
     guid: 65fc0ea8e433471428ddc743903a8d1d
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/TutorialTest.unity
     guid: 5971fb1cd87b90242b2df6751f012f29
   - enabled: 0
     path: Assets/Scenes/Level 2.unity
     guid: 231c26dec079c364683a9b02994c3bcd
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/Level_1.unity
     guid: 91212fb1b466a0141adf42d10a4d1364
   - enabled: 1
-    path: Assets/Scenes/Final/BHAN HOUSE.unity
-    guid: 7e30f12a14ee5d141b90784b2bc53b06
-  - enabled: 1
-    path: Assets/Scenes/GAME/Tutorial.unity
-    guid: 6f9aa13c8efc7244e8bcd46649c3140f
-  - enabled: 1
-    path: Assets/Scenes/GAME/Tutorial 1.unity
-    guid: 1957ff6dff275ad4cb781417f7a26010
-  - enabled: 1
     path: Assets/Scenes/Final/CanyonCrossing.unity
     guid: 8343daa9ef4eff6498c8e7f912c03794
+  - enabled: 1
+    path: Assets/Scenes/Final/BHAN HOUSE.unity
+    guid: 7e30f12a14ee5d141b90784b2bc53b06
+  - enabled: 0
+    path: Assets/Scenes/GAME/Tutorial.unity
+    guid: 6f9aa13c8efc7244e8bcd46649c3140f
+  - enabled: 0
+    path: Assets/Scenes/GAME/Tutorial 1.unity
+    guid: 1957ff6dff275ad4cb781417f7a26010
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: aada04ac81e9ac74d90175374468fb9f,
       type: 3}

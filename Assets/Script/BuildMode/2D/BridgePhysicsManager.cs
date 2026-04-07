@@ -550,7 +550,19 @@ public class BridgePhysicsManager : MonoBehaviour
             }
         }
 
-        bar.gameObject.layer = LayerMask.NameToLayer("Bridge"); 
+        // Check if either of the connected points is a permanent terrain anchor
+        bool isConnectedToTerrainAnchor = p1.originalIsAnchor || p2.originalIsAnchor;
+
+        if (isConnectedToTerrainAnchor)
+        {
+            // This bar is embedded in the environment, so put it on the layer that ignores it!
+            bar.gameObject.layer = LayerMask.NameToLayer("Node"); 
+        }
+        else
+        {
+            // This is a normal mid-air bar, put it on the layer that COLLIDES with the environment
+            bar.gameObject.layer = LayerMask.NameToLayer("Bridge"); 
+        }
 
         BarStressHandler stressHandler = bar.GetComponent<BarStressHandler>();
         if (stressHandler == null) stressHandler = bar.gameObject.AddComponent<BarStressHandler>();

@@ -5,7 +5,7 @@ using UnityEngine.Events;
 public class FinishLineTrigger : MonoBehaviour
 {
     [Header("Completion Settings")]
-    public string[] acceptedTags = { "Player", "Vehicle" };
+    public string[] acceptedTags = { "Vehicle" }; // Only vehicles should trigger this!
     public ContractSO assignedContract; 
 
     [Header("Events")]
@@ -20,58 +20,26 @@ public class FinishLineTrigger : MonoBehaviour
 
         Transform rootObj = other.attachedRigidbody != null ? other.attachedRigidbody.transform : other.transform.root;
         
-        bool hasValidTag = false;
-        Transform currentObj = other.transform;
+        // --- THE FIX 1: Ensure it's specifically the vehicle triggering the win ---
+        LiveLoadVehicle car = rootObj.GetComponentInChildren<LiveLoadVehicle>();
+        if (car == null) car = rootObj.GetComponentInParent<LiveLoadVehicle>();
         
-        while (currentObj != null)
-        {
-            foreach (string acceptedTag in acceptedTags)
-            {
-                if (currentObj.CompareTag(acceptedTag))
-                {
-                    hasValidTag = true;
-                    break;
-                }
-            }
-            if (hasValidTag) break;
-            currentObj = currentObj.parent;
-        }
+        if (car == null) return; // The player character walking into this will be ignored.
         
-        if (!hasValidTag) return; 
+        // --- THE FIX 2: Ensure the vehicle belongs to this specific finish line's contract ---
+        if (car.assignedContract != null && assignedContract != null && car.assignedContract != assignedContract) return;
 
         BridgePhysicsManager physicsManager = FindObjectOfType<BridgePhysicsManager>();
-        bool isSimulating = physicsManager != null && physicsManager.isSimulating;
-
-        bool hasBakedBridge = false;
-        BuildLocation[] allLocations = FindObjectsOfType<BuildLocation>();
-        foreach (BuildLocation loc in allLocations)
-        {
-            if (loc.activeContract == assignedContract && loc.bakedBars.Count > 0)
-            {
-                hasBakedBridge = true;
-                break;
-            }
-        }
-
-        if (!isSimulating && !hasBakedBridge) return;
+        
+        // --- THE FIX 3: ONLY allow triggering if an active simulation is currently running ---
+        if (physicsManager == null || !physicsManager.isSimulating) return;
 
         if (LevelFailedManager.Instance != null && LevelFailedManager.Instance.isFailed) return;
 
-        bool isBuilding = GameManager.Instance != null && GameManager.Instance.CurrentState == GameManager.GameState.Building;
-        if (isBuilding && GameManager.Instance.CurrentContract != assignedContract) return; 
+        physicsManager.lockStressTracking = true;
 
-        // --- THE FIX: Lock the scoreboard FIRST ---
-        if (physicsManager != null)
-        {
-            physicsManager.lockStressTracking = true;
-        }
-
-        // --- THE FIX: Freeze the car safely so it doesn't cause a bridge slingshot bounce! ---
-        LiveLoadVehicle car = currentObj.GetComponent<LiveLoadVehicle>();
-        if (car != null)
-        {
-            car.StopAndFreezeForWin();
-        }
+        // Freeze the car safely and tell it to stay parked!
+        car.StopAndFreezeForWin();
 
         OnLevelCompleted?.Invoke();
 

@@ -69,12 +69,17 @@ public class PlayerDataManager : MonoBehaviour
     public void UnlockDoor(string doorID) { if (!CurrentData.unlockedDoors.Contains(doorID)) { CurrentData.unlockedDoors.Add(doorID); SaveGame(); } }
     public bool IsDoorUnlocked(string doorID) { return CurrentData.unlockedDoors.Contains(doorID); }
 
-    // --- NEW: Save/Load Bridge Methods ---
-    public void SaveBridgeData(string contractId, List<Point> points, List<Bar> bars)
+    // --- UPDATED: SaveBridgeData now accepts totalSpent and maxStress ---
+    public void SaveBridgeData(string contractId, List<Point> points, List<Bar> bars, float totalSpent, float maxStress)
     {
         CurrentData.savedBridges.RemoveAll(b => b.contractId == contractId); // Clear old save for this level
 
-        SavedBridgeData newSave = new SavedBridgeData { contractId = contractId };
+        SavedBridgeData newSave = new SavedBridgeData { 
+            contractId = contractId,
+            totalSpent = totalSpent,
+            maxStress = maxStress
+        };
+        
         Dictionary<Point, int> pointToIndex = new Dictionary<Point, int>();
         
         for(int i = 0; i < points.Count; i++)

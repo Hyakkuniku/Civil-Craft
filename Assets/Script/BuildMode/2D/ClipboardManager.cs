@@ -339,7 +339,6 @@ public class ClipboardManager : MonoBehaviour
             }
         }
 
-        // --- Checks if we should show the UI panel! ---
         if (needsOverride && !skipOverrideConfirm)
         {
             if (overrideConfirmPanel != null) 
@@ -353,26 +352,24 @@ public class ClipboardManager : MonoBehaviour
         ExecutePaste();
     }
 
-    // --- CALLED BY THE "CONFIRM" BUTTON ---
     public void ConfirmOverride()
     {
         if (dontShowAgainToggle != null) 
         {
-            skipOverrideConfirm = dontShowAgainToggle.isOn; // Saves preference!
+            skipOverrideConfirm = dontShowAgainToggle.isOn; 
         }
         if (overrideConfirmPanel != null) overrideConfirmPanel.SetActive(false);
         
         ExecutePaste();
     }
 
-    // --- CALLED BY THE "CANCEL" BUTTON ---
     public void CancelOverride()
     {
         if (overrideConfirmPanel != null) overrideConfirmPanel.SetActive(false);
         
         if (BuildUIController.Instance != null) 
         {
-            BuildUIController.Instance.LogAction("Paste Canceled"); // Visual feedback!
+            BuildUIController.Instance.LogAction("Paste Canceled"); 
         }
     }
 
@@ -481,6 +478,9 @@ public class ClipboardManager : MonoBehaviour
             GameObject gp = Instantiate(barCreator.pointToInstantiate, barCreator.pointParent);
             gp.name = "GhostPastePoint";
             Destroy(gp.GetComponent<Collider>());
+            
+            // The Point script deletes its own renderer when destroyed,
+            // so we'll destroy it but force the renderer to turn back on in the Update loop!
             Destroy(gp.GetComponent<Point>()); 
             ghostPastePoints.Add(gp);
         }
@@ -567,15 +567,21 @@ public class ClipboardManager : MonoBehaviour
         }
 
         Color tintColor = isValidPaste ? new Color(0.2f, 1f, 0.2f, 0.6f) : new Color(1f, 0.2f, 0.2f, 0.6f);
+        
         foreach (GameObject gp in ghostPastePoints)
         {
+            if (gp == null) continue;
             Renderer r = gp.GetComponentInChildren<Renderer>();
             if (r != null)
             {
+                // --- THE FIX: Force the node renderer back ON! ---
+                r.enabled = true; 
+                
                 if (r.material.HasProperty("_Color")) r.material.color = tintColor;
                 else if (r.material.HasProperty("_BaseColor")) r.material.SetColor("_BaseColor", tintColor);
             }
         }
+        
         foreach (Bar gb in ghostPasteBars)
         {
             Renderer[] rends = gb.GetComponentsInChildren<Renderer>();

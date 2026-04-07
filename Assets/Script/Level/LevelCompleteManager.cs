@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.Collections;
 using System.IO;
 
-// --- THE FIX 1: Guarantee the win condition evaluates LAST, after physics have completely settled ---
 [DefaultExecutionOrder(-30)] 
 public class LevelCompleteManager : MonoBehaviour
 {
@@ -51,6 +50,9 @@ public class LevelCompleteManager : MonoBehaviour
     private Dictionary<string, int> contractExpRewards = new Dictionary<string, int>();
 
     private BridgePhysicsManager cachedPhysicsManager;
+
+    private float lastFinalCost = 0f;
+    private float lastPeakStress = 0f;
 
     private void Awake()
     {
@@ -190,10 +192,18 @@ public class LevelCompleteManager : MonoBehaviour
         if (!string.IsNullOrEmpty(contractName)) alreadyPaidContracts.Add(contractName);
     }
 
+    // --- THE FIX: We also check the permanent PlayerDataManager save to see if it's paid ---
     public bool IsContractPaid(string contractName)
     {
         if (string.IsNullOrEmpty(contractName)) return false;
-        return alreadyPaidContracts.Contains(contractName);
+        if (alreadyPaidContracts.Contains(contractName)) return true;
+
+        if (PlayerDataManager.Instance != null && PlayerDataManager.Instance.CurrentData.completedContracts.Contains(contractName))
+        {
+            return true;
+        }
+
+        return false;
     }
 
     public void ResetCompletionState()
@@ -410,6 +420,8 @@ public class LevelCompleteManager : MonoBehaviour
         float finalCost = totalCalculatedCost;
         if (finalCost == 0f && BuildUIController.Instance != null) finalCost = BuildUIController.Instance.GetTotalCost();
 
+        lastFinalCost = finalCost;
+
         float costPercentage = 0f;
         if (maxBudget > 0f)
         {
@@ -418,6 +430,8 @@ public class LevelCompleteManager : MonoBehaviour
 
         float peakStress = 0f;
         if (cachedPhysicsManager != null) peakStress = cachedPhysicsManager.peakStressThisRun * 100f; 
+
+        lastPeakStress = peakStress;
 
         int calculatedGold = 0;
         int calculatedExp = 0;
@@ -543,6 +557,9 @@ public class LevelCompleteManager : MonoBehaviour
     public void RetrySimulation()
     {
         levelAlreadyCompleted = false; 
+
+        LiveLoadVehicle vehicle = FindObjectOfType<LiveLoadVehicle>();
+        if (vehicle != null) vehicle.isParkedAtFinish = false;
         
         if (cachedPhysicsManager != null) cachedPhysicsManager.StopPhysicsAndReset();
         
@@ -578,7 +595,13 @@ public class LevelCompleteManager : MonoBehaviour
 
             if (targetLoc != null)
             {
-                PlayerDataManager.Instance.SaveBridgeData(activeContract.name, targetLoc.bakedPoints, targetLoc.bakedBars);
+                PlayerDataManager.Instance.SaveBridgeData(
+                    activeContract.name, 
+                    targetLoc.bakedPoints, 
+                    targetLoc.bakedBars, 
+                    lastFinalCost, 
+                    lastPeakStress
+                );
             }
         }
 

@@ -1387,7 +1387,6 @@ GameObject:
   - component: {fileID: 8089904398598427617}
   - component: {fileID: 2508819468936577983}
   - component: {fileID: 1979519378410449334}
-  - component: {fileID: 3072315545871577382}
   - component: {fileID: 6043946445319741206}
   m_Layer: 6
   m_Name: Cube
@@ -1460,21 +1459,6 @@ MonoBehaviour:
   advancesTutorial: 1
   isContractCompleted: 0
   isFullyTurnedIn: 0
---- !u!114 &3072315545871577382
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5321347934629793985}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fb2bc0a452793a84ea92eff7e245d9ae, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  OnInteract:
-    m_PersistentCalls:
-      m_Calls: []
 --- !u!114 &6043946445319741206
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1491,6 +1475,9 @@ MonoBehaviour:
     name: 
     sentences: []
   advancesTutorial: 1
+  onDialogueFinished:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!1 &5423885736590711503
 GameObject:
   m_ObjectHideFlags: 0

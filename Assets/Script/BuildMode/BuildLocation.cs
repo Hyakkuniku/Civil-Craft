@@ -170,9 +170,11 @@ public class BuildLocation : Interactable
         return Quaternion.LookRotation(lookAt - GetDesiredCameraPosition());
     }
 
-    private void LoadSavedBridge()
+    // --- THE FIX: Changed to public so the NPC can force-load it after checking the save ---
+    public void LoadSavedBridge()
     {
         if (activeContract == null || PlayerDataManager.Instance == null) return;
+        if (bakedBars.Count > 0) return; // Prevent loading a bridge twice
         
         var savedBridge = PlayerDataManager.Instance.GetSavedBridge(activeContract.name);
         if (savedBridge == null || savedBridge.points.Count == 0) return;
@@ -187,7 +189,6 @@ public class BuildLocation : Interactable
         BridgeMaterialSO[] allMats = Resources.LoadAll<BridgeMaterialSO>("");
         Dictionary<int, Point> indexToPoint = new Dictionary<int, Point>();
 
-        // 1. Reconstruct Points
         foreach (var ptData in savedBridge.points)
         {
             Vector3 pos = ptData.position.ToVector3();
@@ -214,7 +215,6 @@ public class BuildLocation : Interactable
             }
         }
 
-        // 2. Reconstruct Bars
         foreach (var barData in savedBridge.bars)
         {
             if (!indexToPoint.ContainsKey(barData.startPointIndex) || !indexToPoint.ContainsKey(barData.endPointIndex)) continue;
@@ -235,10 +235,9 @@ public class BuildLocation : Interactable
             if (!newBar.startPoint.ConnectedBars.Contains(newBar)) newBar.startPoint.ConnectedBars.Add(newBar);
             if (!newBar.endPoint.ConnectedBars.Contains(newBar)) newBar.endPoint.ConnectedBars.Add(newBar);
 
-            // --- THE FIX: ADD PHYSICAL COLLIDERS SO THE PLAYER CAN WALK ON IT ---
-            newBar.gameObject.layer = LayerMask.NameToLayer("Bridge"); // Or whatever layer your bridge uses
+            newBar.gameObject.layer = LayerMask.NameToLayer("Bridge"); 
             
-            if (!mat.isRope) // Ropes don't need colliders
+            if (!mat.isRope) 
             {
                 if (mat.isPier)
                 {

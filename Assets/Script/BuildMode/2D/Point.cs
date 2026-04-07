@@ -27,7 +27,7 @@ public class Point : MonoBehaviour
     private void Awake()
     {
         pointRenderer = GetComponentInChildren<Renderer>();
-        
+
         if (Application.isPlaying && !hasInitializedAnchor)
         {
             originalIsAnchor = isAnchor;
@@ -41,10 +41,8 @@ public class Point : MonoBehaviour
         
         if (pointRenderer == null) pointRenderer = GetComponentInChildren<Renderer>();
         
-        // --- THE FIX: Wake up the visual node when entering Build Mode ---
         if (Application.isPlaying && pointRenderer != null)
         {
-            // Only turn the renderer on if we aren't actively simulating physics
             BridgePhysicsManager bpm = FindObjectOfType<BridgePhysicsManager>();
             if (bpm == null || !bpm.isSimulating)
             {
@@ -59,7 +57,6 @@ public class Point : MonoBehaviour
     {
         AllPoints.Remove(this);
         
-        // --- THE FIX: Hide the node immediately when exiting Build Mode or Baking! ---
         if (pointRenderer != null)
         {
             pointRenderer.enabled = false;

@@ -12812,11 +12812,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   barColliderThickness: 0.1
   physicsSolverIterations: 30
+  settleFramesAmount: 60
   enableVisualizer: 1
   warningColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   criticalColor: {r: 1, g: 0, b: 0, a: 1}
   brokenColor: {r: 0, g: 0, b: 0, a: 1}
   isSimulating: 0
+  lockStressTracking: 0
   activeStressHandlers: []
   peakStressThisRun: 0
 --- !u!114 &5137540186646988140

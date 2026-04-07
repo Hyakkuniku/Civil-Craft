@@ -23,14 +23,39 @@ public class NPCContractGiver : Interactable
         if (player != null) playerTransform = player.transform;
         
         dialogueManager = FindObjectOfType<DialogueManager>();
+        
+        // Removed the hardcoded activeContract assignment here so the bridge stays locked by default!
+    }
+
+    private void Start()
+    {
+        // --- THE FIX: Only unlock the bridge on load if the player already built it previously ---
+        if (contractToGive != null && PlayerDataManager.Instance != null)
+        {
+            bool isCompleted = PlayerDataManager.Instance.CurrentData.completedContracts.Contains(contractToGive.name);
+            bool hasSavedBridge = PlayerDataManager.Instance.GetSavedBridge(contractToGive.name) != null;
+
+            if (isCompleted || hasSavedBridge)
+            {
+                if (isCompleted) isFullyTurnedIn = true;
+                hasGivenContract = true;
+                isContractCompleted = true;
+                
+                if (targetBuildLocation != null) 
+                {
+                    targetBuildLocation.activeContract = contractToGive;
+                    targetBuildLocation.LoadSavedBridge();
+                }
+            }
+            
+            if (linkedCargo != null) linkedCargo.SetWeight(contractToGive.liveLoadWeight);
+        }
     }
 
     private void Update()
     {
         if (contractToGive == null) return;
 
-        // --- THE FIX: Constantly check if this contract has already been paid out ---
-        // Even if the player deletes the bridge and rebuilds it, the manager remembers they were paid!
         if (!isFullyTurnedIn && LevelCompleteManager.Instance != null && LevelCompleteManager.Instance.IsContractPaid(contractToGive.name))
         {
             isFullyTurnedIn = true;
@@ -60,7 +85,6 @@ public class NPCContractGiver : Interactable
 
         if (contractToGive == null) return;
 
-        // Ensure state is synced before interacting
         if (LevelCompleteManager.Instance != null && LevelCompleteManager.Instance.IsContractPaid(contractToGive.name))
         {
             isFullyTurnedIn = true;
@@ -72,7 +96,6 @@ public class NPCContractGiver : Interactable
             return;
         }
 
-        // SCENARIO 1: The contract is completely finished (Bridge is Baked!)
         if (isContractCompleted)
         {
             if (dialogueManager != null && contractToGive.finishedContractDialogue != null)
@@ -88,9 +111,9 @@ public class NPCContractGiver : Interactable
                 ClaimReward();
             }
         }
-        // SCENARIO 2: Talking for the FIRST time
         else if (!hasGivenContract)
         {
+            // Now, talking to the NPC actually unlocks the build zone
             if (targetBuildLocation != null) targetBuildLocation.activeContract = contractToGive;
             if (linkedCargo != null) linkedCargo.SetWeight(contractToGive.liveLoadWeight);
 
@@ -112,7 +135,6 @@ public class NPCContractGiver : Interactable
 
             hasGivenContract = true;
         }
-        // SCENARIO 3: Reminder Dialogue
         else
         {
             if (dialogueManager != null && contractToGive.reminderDialogue != null)
@@ -134,11 +156,15 @@ public class NPCContractGiver : Interactable
     {
         if (ObjectiveTrackerUI.Instance != null && LevelCompleteManager.Instance != null)
         {
-            // Fetch the specific rewards for THIS contract
             int gold = LevelCompleteManager.Instance.GetContractGold(contractToGive.name);
             int exp = LevelCompleteManager.Instance.GetContractExp(contractToGive.name);
             
-            // Pass the money AND this NPC script to the tracker
+            if (gold == 0 && exp == 0) 
+            {
+                gold = contractToGive.goldReward;
+                exp = contractToGive.expReward;
+            }
+
             ObjectiveTrackerUI.Instance.ShowCompleteButton(gold, exp, this);
         }
         TryAdvanceTutorial();
