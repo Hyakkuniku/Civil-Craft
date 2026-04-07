@@ -6,6 +6,8 @@ using System.Collections.Generic;
 using System.Collections;
 using System.IO;
 
+// --- THE FIX 1: Guarantee the win condition evaluates LAST, after physics have completely settled ---
+[DefaultExecutionOrder(-30)] 
 public class LevelCompleteManager : MonoBehaviour
 {
     public static LevelCompleteManager Instance { get; private set; }
@@ -40,13 +42,15 @@ public class LevelCompleteManager : MonoBehaviour
     private bool levelAlreadyCompleted = false;
     private bool wasSimulating = false; 
 
-    public float currentSimulationTime { get; private set; } = 0f;
+    public int currentSimulationFrames { get; private set; } = 0;
 
     private ContractSO activeContract;
     private HashSet<string> alreadyPaidContracts = new HashSet<string>();
 
     private Dictionary<string, int> contractGoldRewards = new Dictionary<string, int>();
     private Dictionary<string, int> contractExpRewards = new Dictionary<string, int>();
+
+    private BridgePhysicsManager cachedPhysicsManager;
 
     private void Awake()
     {
@@ -56,16 +60,29 @@ public class LevelCompleteManager : MonoBehaviour
         if (levelCompletePanel != null) levelCompletePanel.SetActive(false); 
     }
 
+    private void Start()
+    {
+        cachedPhysicsManager = FindObjectOfType<BridgePhysicsManager>();
+    }
+
     private void Update()
     {
-        BridgePhysicsManager physicsManager = FindObjectOfType<BridgePhysicsManager>();
-        bool isSimulating = physicsManager != null && physicsManager.isSimulating;
+        if (cachedPhysicsManager == null) cachedPhysicsManager = FindObjectOfType<BridgePhysicsManager>();
+        bool isSimulating = cachedPhysicsManager != null && cachedPhysicsManager.isSimulating;
 
         if (isSimulating && !wasSimulating)
         {
             ResetCompletionState();
-            currentSimulationTime = 0f; 
+            currentSimulationFrames = 0; 
         }
+        
+        wasSimulating = isSimulating;
+    }
+
+    private void FixedUpdate()
+    {
+        if (cachedPhysicsManager == null) return;
+        bool isSimulating = cachedPhysicsManager.isSimulating;
 
         if (isSimulating && !levelAlreadyCompleted)
         {
@@ -95,9 +112,10 @@ public class LevelCompleteManager : MonoBehaviour
 
                     if (activeLoc != null && IsBridgeConnected(activeLoc))
                     {
-                        currentSimulationTime += Time.deltaTime;
+                        currentSimulationFrames++; 
+                        int requiredFrames = Mathf.RoundToInt(currentContract.requiredIntactTime / Time.fixedDeltaTime);
 
-                        if (currentSimulationTime >= currentContract.requiredIntactTime)
+                        if (currentSimulationFrames >= requiredFrames)
                         {
                             if (ObjectiveTrackerUI.Instance != null)
                             {
@@ -109,19 +127,16 @@ public class LevelCompleteManager : MonoBehaviour
                     }
                     else
                     {
-                        currentSimulationTime = 0f;
+                        currentSimulationFrames = 0;
                     }
                 }
             }
         }
-        
-        wasSimulating = isSimulating;
     }
 
     private bool IsBridgeConnected(BuildLocation loc)
     {
         if (loc == null || loc.startingAnchors.Count == 0) return false;
-
         if (loc.endingAnchors.Count == 0) return false;
 
         HashSet<Point> visited = new HashSet<Point>();
@@ -192,6 +207,17 @@ public class LevelCompleteManager : MonoBehaviour
         
         levelAlreadyCompleted = true;
         activeContract = currentContract;
+
+        if (cachedPhysicsManager != null)
+        {
+            cachedPhysicsManager.lockStressTracking = true;
+        }
+
+        LiveLoadVehicle vehicle = FindObjectOfType<LiveLoadVehicle>();
+        if (vehicle != null)
+        {
+            vehicle.StopAndFreezeForWin();
+        }
 
         StartCoroutine(TakeSnapshotAndShowUIRoutine(currentContract));
     }
@@ -391,8 +417,7 @@ public class LevelCompleteManager : MonoBehaviour
         }
 
         float peakStress = 0f;
-        BridgePhysicsManager manager = FindObjectOfType<BridgePhysicsManager>();
-        if (manager != null) peakStress = manager.peakStressThisRun * 100f; 
+        if (cachedPhysicsManager != null) peakStress = cachedPhysicsManager.peakStressThisRun * 100f; 
 
         int calculatedGold = 0;
         int calculatedExp = 0;
@@ -488,7 +513,6 @@ public class LevelCompleteManager : MonoBehaviour
             else expEarnedText.text = $"+{calculatedExp} EXP (Pending)";
         }
 
-        // --- THE FIX: We always output Cost and Budget now, even in tutorials! ---
         if (costText != null) 
         {
             costText.text = $"Total Cost: ${Mathf.RoundToInt(finalCost)}";
@@ -509,6 +533,7 @@ public class LevelCompleteManager : MonoBehaviour
         if (stressText != null)
         {
             stressText.text = $"Peak Bridge Stress: {Mathf.RoundToInt(peakStress)}%";
+            
             if (peakStress >= 100f) stressText.color = Color.red;
             else if (peakStress >= 50f) stressText.color = Color.yellow;
             else stressText.color = Color.green;
@@ -519,8 +544,7 @@ public class LevelCompleteManager : MonoBehaviour
     {
         levelAlreadyCompleted = false; 
         
-        BridgePhysicsManager physicsManager = FindObjectOfType<BridgePhysicsManager>();
-        if (physicsManager != null) physicsManager.StopPhysicsAndReset();
+        if (cachedPhysicsManager != null) cachedPhysicsManager.StopPhysicsAndReset();
         
         BarCreator creator = FindObjectOfType<BarCreator>();
         if (creator != null) creator.isSimulating = false;
@@ -544,8 +568,7 @@ public class LevelCompleteManager : MonoBehaviour
             }
         }
 
-        BridgePhysicsManager physicsManager = FindObjectOfType<BridgePhysicsManager>();
-        if (physicsManager != null) physicsManager.BakeBridge(activeContract); 
+        if (cachedPhysicsManager != null) cachedPhysicsManager.BakeBridge(activeContract); 
 
         if (PlayerDataManager.Instance != null && activeContract != null)
         {

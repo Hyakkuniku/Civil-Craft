@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using TMPro;
 
+[DefaultExecutionOrder(-40)] 
 [RequireComponent(typeof(Rigidbody))]
 public class LiveLoadVehicle : Interactable 
 {
@@ -13,12 +14,10 @@ public class LiveLoadVehicle : Interactable
     public TextMeshProUGUI vehicleSpeedText;
 
     [Header("Gameplay Elements to Hide")]
-    [Tooltip("UI elements to hide when this panel is open (e.g., Crosshair, HUD)")]
-    public List<GameObject> uiElementsToHide = new List<GameObject>(); // --- NEW ---
-    private List<GameObject> temporarilyHiddenPanels = new List<GameObject>(); // --- NEW ---
+    public List<GameObject> uiElementsToHide = new List<GameObject>();
+    private List<GameObject> temporarilyHiddenPanels = new List<GameObject>();
 
     [Header("Open World Settings")]
-    [Tooltip("Drag the ContractSO for THIS specific ravine here.")]
     public ContractSO assignedContract; 
 
     [Header("Path Settings")]
@@ -26,15 +25,9 @@ public class LiveLoadVehicle : Interactable
     public Transform endPoint;
 
     [Header("Engine & Chassis")]
-    [Tooltip("Target top speed in m/s.")]
     public float maxSpeed = 5f;
-    [Tooltip("How hard the engine rotates the wheels to pull the mass.")]
     public float engineTorque = 1500f; 
-    
-    [Tooltip("Fallback mass if no contract is active.")]
     public float vehicleMass = 1000f;
-    
-    [Tooltip("Lowers the center of gravity so the car doesn't do a backflip!")]
     public float centerOfMassOffset = -0.5f; 
 
     [Header("Custom Wheel Setup")]
@@ -48,7 +41,6 @@ public class LiveLoadVehicle : Interactable
 
     private Rigidbody rb;
     private bool isDriving = false;
-    private bool wasSimulating = false;
     private bool hasReachedEnd = false; 
 
     private class WheelData
@@ -68,12 +60,12 @@ public class LiveLoadVehicle : Interactable
         rb.mass = vehicleMass;
         rb.isKinematic = true; 
         rb.useGravity = true; 
-        rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic; 
+        rb.collisionDetectionMode = CollisionDetectionMode.Discrete; 
 
         rb.centerOfMass = new Vector3(0, centerOfMassOffset, 0);
-
-        rb.constraints = RigidbodyConstraints.FreezeRotationY | 
-                         RigidbodyConstraints.FreezePositionZ;
+        rb.constraints = RigidbodyConstraints.FreezeRotationY | RigidbodyConstraints.FreezePositionZ;
+        rb.sleepThreshold = 0f;
+        rb.maxDepenetrationVelocity = 2f;
 
         Collider chassisCol = GetComponent<Collider>();
         if (chassisCol != null)
@@ -84,10 +76,8 @@ public class LiveLoadVehicle : Interactable
         }
 
         PhysicMaterial wheelMat = new PhysicMaterial("WheelGrip");
-        wheelMat.dynamicFriction = 1f;
-        wheelMat.staticFriction = 1f;
-        wheelMat.frictionCombine = PhysicMaterialCombine.Maximum;
-        wheelMat.bounciness = 0f;
+        wheelMat.dynamicFriction = 1f; wheelMat.staticFriction = 1f; 
+        wheelMat.frictionCombine = PhysicMaterialCombine.Maximum; wheelMat.bounciness = 0f;
 
         foreach (GameObject visualWheel in wheelObjects)
         {
@@ -101,7 +91,6 @@ public class LiveLoadVehicle : Interactable
             physWheel.transform.position = trueCenter;
             physWheel.transform.rotation = visualWheel.transform.rotation;
             physWheel.transform.SetParent(transform);
-
             visualWheel.transform.SetParent(physWheel.transform, true);
 
             WheelData wd = new WheelData();
@@ -113,71 +102,113 @@ public class LiveLoadVehicle : Interactable
             if (oldCol != null) Destroy(oldCol);
 
             SphereCollider sc = physWheel.AddComponent<SphereCollider>();
-            sc.radius = wheelRadius;
-            sc.material = wheelMat;
+            sc.radius = wheelRadius; sc.material = wheelMat;
 
-            if (chassisCol != null)
-            {
-                Physics.IgnoreCollision(chassisCol, sc, true);
-            }
+            if (chassisCol != null) Physics.IgnoreCollision(chassisCol, sc, true);
 
+            // --- ULTIMATE FIX: Create physics components exactly ONCE here! ---
+            // Recreating them on retry was scrambling the PhysX solver order.
             wd.rb = physWheel.AddComponent<Rigidbody>();
-            wd.rb.mass = wheelMass;
-            wd.rb.isKinematic = true;
-            wd.rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+            wd.rb.mass = wheelMass; 
+            wd.rb.isKinematic = true; 
+            wd.rb.collisionDetectionMode = CollisionDetectionMode.Discrete; 
+            wd.rb.sleepThreshold = 0f; 
+            wd.rb.maxDepenetrationVelocity = 2f;
 
             wd.hinge = physWheel.AddComponent<HingeJoint>();
             wd.hinge.connectedBody = rb;
-            
             wd.hinge.axis = spinAxis; 
             
             JointMotor motor = wd.hinge.motor;
-            motor.force = engineTorque;
+            motor.force = engineTorque; 
             motor.freeSpin = false;
-            wd.hinge.motor = motor;
+            wd.hinge.motor = motor; 
             wd.hinge.useMotor = false;
 
             wheels.Add(wd);
         }
 
-        if (physicsManager == null)
-            physicsManager = FindObjectOfType<BridgePhysicsManager>();
-
+        if (physicsManager == null) physicsManager = FindObjectOfType<BridgePhysicsManager>();
         if (vehicleInfoPanel != null) vehicleInfoPanel.SetActive(false);
+    }
+
+    private void Start()
+    {
+        if (physicsManager != null)
+        {
+            physicsManager.OnSettlePhaseStarted += HandleSettlePhaseStarted;
+            physicsManager.OnSimulationStarted += HandleSimulationStarted;
+            physicsManager.OnSimulationStopped += HandleSimulationStopped;
+        }
+    }
+
+    private void OnDestroy()
+    {
+        if (physicsManager != null)
+        {
+            physicsManager.OnSettlePhaseStarted -= HandleSettlePhaseStarted;
+            physicsManager.OnSimulationStarted -= HandleSimulationStarted;
+            physicsManager.OnSimulationStopped -= HandleSimulationStopped;
+        }
+    }
+
+    private void HandleSettlePhaseStarted()
+    {
+        if (GameManager.Instance != null && assignedContract != null && GameManager.Instance.CurrentContract != assignedContract) return;
+
+        hasReachedEnd = false; 
+
+        if (assignedContract != null) { vehicleMass = assignedContract.liveLoadWeight; if (rb != null) rb.mass = vehicleMass; }
+
+        if (startPoint != null)
+        {
+            transform.position = startPoint.position;
+            transform.rotation = startPoint.rotation;
+            foreach (var w in wheels)
+            {
+                w.physObj.transform.localPosition = w.originalLocalPos;
+                w.physObj.transform.localRotation = w.originalLocalRot;
+            }
+        }
+
+        rb.isKinematic = false;
+        rb.velocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero; 
+        
+        foreach (var w in wheels)
+        {
+            w.rb.isKinematic = false;
+            w.rb.velocity = Vector3.zero;
+            w.rb.angularVelocity = Vector3.zero; 
+        }
+    }
+
+    private void HandleSimulationStarted()
+    {
+        if (GameManager.Instance != null && assignedContract != null && GameManager.Instance.CurrentContract != assignedContract) return;
+        isDriving = true; 
+    }
+
+    private void HandleSimulationStopped()
+    {
+        StopAndReset();
     }
 
     private void Update()
     {
         promptMessage = "Inspect " + vehicleName;
-
         if (physicsManager == null) return;
 
-        if (physicsManager.isSimulating && !wasSimulating)
-        {
-            if (GameManager.Instance != null && GameManager.Instance.CurrentContract == assignedContract)
-            {
-                StartDriving();
-                wasSimulating = true;
-            }
-        }
-        else if (!physicsManager.isSimulating && wasSimulating)
-        {
-            StopAndReset();
-            wasSimulating = false;
-        }
-        else if (!physicsManager.isSimulating && !wasSimulating)
+        if (!physicsManager.isSimulating && !isDriving)
         {
             if (startPoint != null && Vector3.Distance(transform.position, startPoint.position) > 0.5f)
             {
-                if (!hasReachedEnd)
+                transform.position = startPoint.position;
+                transform.rotation = startPoint.rotation;
+                foreach (var w in wheels)
                 {
-                    transform.position = startPoint.position;
-                    transform.rotation = startPoint.rotation;
-                    foreach (var w in wheels)
-                    {
-                        w.physObj.transform.localPosition = w.originalLocalPos;
-                        w.physObj.transform.localRotation = w.originalLocalRot;
-                    }
+                    w.physObj.transform.localPosition = w.originalLocalPos;
+                    w.physObj.transform.localRotation = w.originalLocalRot;
                 }
             }
         }
@@ -191,28 +222,18 @@ public class LiveLoadVehicle : Interactable
             
             float displayWeight = assignedContract != null ? assignedContract.liveLoadWeight : vehicleMass;
             if (vehicleWeightText != null) vehicleWeightText.text = $"Weight: {displayWeight} kg";
-            
             if (vehicleSpeedText != null) vehicleSpeedText.text = $"Top Speed: {maxSpeed} m/s";
 
-            // --- THE FIX: Hide UI Elements ---
             temporarilyHiddenPanels.Clear();
             foreach (GameObject ui in uiElementsToHide)
             {
-                if (ui != null && ui.activeSelf)
-                {
-                    temporarilyHiddenPanels.Add(ui);
-                    ui.SetActive(false);
-                }
+                if (ui != null && ui.activeSelf) { temporarilyHiddenPanels.Add(ui); ui.SetActive(false); }
             }
 
             vehicleInfoPanel.SetActive(true);
 
             InputManager inputObj = FindObjectOfType<InputManager>();
-            if (inputObj != null)
-            {
-                inputObj.SetPlayerInputEnable(false);
-                inputObj.SetLookEnabled(false);
-            }
+            if (inputObj != null) { inputObj.SetPlayerInputEnable(false); inputObj.SetLookEnabled(false); }
 
             PlayerMotor player = FindObjectOfType<PlayerMotor>();
             if (player != null) player.enabled = false;
@@ -223,85 +244,71 @@ public class LiveLoadVehicle : Interactable
     {
         if (vehicleInfoPanel != null) vehicleInfoPanel.SetActive(false);
 
-        // --- THE FIX: Restore UI Elements ---
-        foreach (GameObject ui in temporarilyHiddenPanels)
-        {
-            if (ui != null) ui.SetActive(true);
-        }
+        foreach (GameObject ui in temporarilyHiddenPanels) if (ui != null) ui.SetActive(true);
         temporarilyHiddenPanels.Clear();
 
         InputManager inputObj = FindObjectOfType<InputManager>();
-        if (inputObj != null)
-        {
-            inputObj.SetPlayerInputEnable(true);
-            inputObj.SetLookEnabled(true);
-        }
+        if (inputObj != null) { inputObj.SetPlayerInputEnable(true); inputObj.SetLookEnabled(true); }
 
         PlayerMotor player = FindObjectOfType<PlayerMotor>();
         if (player != null) player.enabled = true;
     }
 
-    public void StartDriving()
+    public void StopAndFreezeForWin()
     {
-        hasReachedEnd = false; 
-
-        if (assignedContract != null)
-        {
-            vehicleMass = assignedContract.liveLoadWeight;
-            if (rb != null) rb.mass = vehicleMass;
+        isDriving = false;
+        rb.isKinematic = true;
+        foreach (var w in wheels) 
+        { 
+            w.rb.isKinematic = true; 
+            w.hinge.useMotor = false; 
         }
-
-        if (startPoint != null)
-        {
-            transform.position = startPoint.position;
-            transform.rotation = startPoint.rotation;
-
-            foreach (var w in wheels)
-            {
-                w.physObj.transform.localPosition = w.originalLocalPos;
-                w.physObj.transform.localRotation = w.originalLocalRot;
-            }
-        }
-
-        rb.isKinematic = false;
-        rb.velocity = Vector3.zero;
-        
-        foreach (var w in wheels)
-        {
-            w.rb.isKinematic = false;
-            w.rb.velocity = Vector3.zero;
-        }
-
-        isDriving = true;
+        rb.Sleep(); 
     }
 
     public void StopAndReset()
     {
         isDriving = false;
 
+        Collider[] allCols = GetComponentsInChildren<Collider>();
+        foreach (var c in allCols) c.enabled = false;
+
         rb.isKinematic = true;
         rb.velocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
+        
+        // Wipe internal PhysX inertia cache so no momentum leaks between runs
+        rb.ResetCenterOfMass();
+        rb.ResetInertiaTensor();
 
-        foreach (var w in wheels)
+        if (startPoint != null)
         {
-            w.rb.isKinematic = true;
-            w.rb.velocity = Vector3.zero;
-            w.rb.angularVelocity = Vector3.zero;
-            w.hinge.useMotor = false; 
-        }
-
-        if (!hasReachedEnd && startPoint != null)
-        {
+            rb.position = startPoint.position;
+            rb.rotation = startPoint.rotation;
             transform.position = startPoint.position;
             transform.rotation = startPoint.rotation;
 
             foreach (var w in wheels)
             {
+                w.rb.isKinematic = true;
+                w.rb.velocity = Vector3.zero;
+                w.rb.angularVelocity = Vector3.zero;
+                
+                // Deep cache wipe for the wheels too
+                w.rb.ResetCenterOfMass();
+                w.rb.ResetInertiaTensor();
+                
+                w.hinge.useMotor = false; 
+                
                 w.physObj.transform.localPosition = w.originalLocalPos;
                 w.physObj.transform.localRotation = w.originalLocalRot;
+                w.rb.position = rb.transform.TransformPoint(w.originalLocalPos);
+                w.rb.rotation = rb.transform.rotation * w.originalLocalRot;
             }
         }
+
+        rb.Sleep(); 
+        foreach (var c in allCols) c.enabled = true;
     }
 
     public void EmergencyStop()
@@ -309,6 +316,7 @@ public class LiveLoadVehicle : Interactable
         isDriving = false;
         foreach (var w in wheels)
         {
+            if (w.hinge == null) continue;
             JointMotor motor = w.hinge.motor;
             motor.targetVelocity = 0; 
             w.hinge.motor = motor;
@@ -318,7 +326,23 @@ public class LiveLoadVehicle : Interactable
 
     private void FixedUpdate()
     {
-        if (!isDriving || endPoint == null || startPoint == null) return;
+        if (endPoint == null || startPoint == null) return;
+
+        if (!isDriving)
+        {
+            if (!rb.isKinematic) 
+            {
+                foreach (var w in wheels)
+                {
+                    if (w.hinge == null) continue;
+                    JointMotor motor = w.hinge.motor;
+                    motor.targetVelocity = 0; 
+                    w.hinge.motor = motor;
+                    w.hinge.useMotor = true;
+                }
+            }
+            return;
+        }
 
         float driveDirectionX = Mathf.Sign(endPoint.position.x - startPoint.position.x);
         bool reachedEnd = (driveDirectionX > 0 && transform.position.x >= endPoint.position.x) || 
@@ -326,53 +350,25 @@ public class LiveLoadVehicle : Interactable
 
         if (reachedEnd)
         {
-            hasReachedEnd = true; 
-
-            isDriving = false;
-            
-            rb.velocity = Vector3.zero;
-            rb.angularVelocity = Vector3.zero;
-            
-            foreach (var w in wheels)
+            if (!hasReachedEnd)
             {
-                w.rb.velocity = Vector3.zero;
-                w.rb.angularVelocity = Vector3.zero;
-                
-                JointMotor motor = w.hinge.motor;
-                motor.targetVelocity = 0;
-                w.hinge.motor = motor;
-                w.hinge.useMotor = true; 
+                hasReachedEnd = true; 
+                isDriving = false;
+                foreach (var w in wheels) { if (w.hinge != null) w.hinge.useMotor = false; }
             }
-
             return; 
         }
 
-        bool isGrounded = false;
+        float directionX = Mathf.Sign(endPoint.position.x - transform.position.x);
+        float speedDegPerSec = (maxSpeed / wheelRadius) * Mathf.Rad2Deg;
+
         foreach (var w in wheels)
         {
-            if (Physics.Raycast(w.physObj.transform.position, Vector3.down, wheelRadius + 0.2f))
-            {
-                isGrounded = true;
-                break;
-            }
-        }
-
-        if (isGrounded)
-        {
-            float directionX = Mathf.Sign(endPoint.position.x - transform.position.x);
-            float speedDegPerSec = (maxSpeed / wheelRadius) * Mathf.Rad2Deg;
-
-            foreach (var w in wheels)
-            {
-                JointMotor motor = w.hinge.motor;
-                motor.targetVelocity = speedDegPerSec * -directionX; 
-                w.hinge.motor = motor;
-                w.hinge.useMotor = true;
-            }
-        }
-        else
-        {
-            foreach (var w in wheels) w.hinge.useMotor = false;
+            if (w.hinge == null) continue;
+            JointMotor motor = w.hinge.motor;
+            motor.targetVelocity = speedDegPerSec * -directionX; 
+            w.hinge.motor = motor;
+            w.hinge.useMotor = true;
         }
     }
 

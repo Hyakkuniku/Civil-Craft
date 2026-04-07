@@ -129,7 +129,8 @@ public class BuildUIController : MonoBehaviour
                 if (timerPanel != null && !timerPanel.activeSelf) timerPanel.SetActive(true);
                 if (timerText != null && LevelCompleteManager.Instance != null)
                 {
-                    float currentTime = LevelCompleteManager.Instance.currentSimulationTime;
+                    // --- THE FIX IS HERE: Convert frames to seconds for the UI display ---
+                    float currentTime = LevelCompleteManager.Instance.currentSimulationFrames * Time.fixedDeltaTime;
                     timerText.text = $"Holding: {currentTime:F1}s / {currentContract.requiredIntactTime:F1}s";
                 }
             }
@@ -297,7 +298,6 @@ public class BuildUIController : MonoBehaviour
         UpdateStatsUI();
         UpdateContractUI();
 
-        // --- THE FIX: Tell the buttons to update their colors based on new quantity counts! ---
         MaterialButtonTrigger[] allButtons = FindObjectsOfType<MaterialButtonTrigger>();
         foreach (var b in allButtons)
         {
@@ -309,7 +309,7 @@ public class BuildUIController : MonoBehaviour
     {
         uniqueBars.Clear();
         activePoints.Clear();
-        materialUsageCount.Clear(); // --- NEW: Reset the count every time! ---
+        materialUsageCount.Clear(); 
 
         foreach (Point p in Point.AllPoints)
         {
@@ -400,7 +400,6 @@ public class BuildUIController : MonoBehaviour
 
             if (b.materialData != null)
             {
-                // --- NEW: Count up the quantity of materials in use! ---
                 if (!materialUsageCount.ContainsKey(b.materialData))
                 {
                     materialUsageCount[b.materialData] = 0;

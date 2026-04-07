@@ -5,10 +5,7 @@ using UnityEngine.Events;
 public class FinishLineTrigger : MonoBehaviour
 {
     [Header("Completion Settings")]
-    [Tooltip("Tags of objects that can trigger the win state (e.g., 'Player', 'Vehicle')")]
     public string[] acceptedTags = { "Player", "Vehicle" };
-
-    [Tooltip("Drag the ContractSO for THIS specific ravine here.")]
     public ContractSO assignedContract; 
 
     [Header("Events")]
@@ -16,10 +13,8 @@ public class FinishLineTrigger : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        // --- NEW: Ignore Finish Line if this is a Timer Contract! ---
         if (assignedContract != null && assignedContract.winCondition == ContractSO.WinCondition.Timer)
         {
-            Debug.LogWarning("<b>[Finish Line]</b> Hit detected, but this contract is a TIMER contract. Waiting for time to expire instead!");
             return;
         }
 
@@ -58,30 +53,26 @@ public class FinishLineTrigger : MonoBehaviour
             }
         }
 
-        if (!isSimulating && !hasBakedBridge)
-        {
-            Debug.LogWarning("<b>[Finish Line]</b> Hit by player/vehicle, but the bridge is NOT actively simulating and NO baked bridge exists! Ignoring.");
-            return;
-        }
+        if (!isSimulating && !hasBakedBridge) return;
 
-        if (LevelFailedManager.Instance != null && LevelFailedManager.Instance.isFailed)
-        {
-            Debug.LogWarning("<b>[Finish Line]</b> Hit by player/vehicle, but the level is already marked as FAILED! Ignoring.");
-            return;
-        }
+        if (LevelFailedManager.Instance != null && LevelFailedManager.Instance.isFailed) return;
 
         bool isBuilding = GameManager.Instance != null && GameManager.Instance.CurrentState == GameManager.GameState.Building;
-        if (isBuilding && GameManager.Instance.CurrentContract != assignedContract)
+        if (isBuilding && GameManager.Instance.CurrentContract != assignedContract) return; 
+
+        // --- THE FIX: Lock the scoreboard FIRST ---
+        if (physicsManager != null)
         {
-            string activeName = GameManager.Instance.CurrentContract != null ? GameManager.Instance.CurrentContract.name : "None";
-            string assignedName = assignedContract != null ? assignedContract.name : "None (Inspector is empty!)";
-            Debug.LogWarning($"<b>[Finish Line]</b> Contract Mismatch! You are playing: '{activeName}', but this finish line requires: '{assignedName}'");
-            return; 
+            physicsManager.lockStressTracking = true;
         }
 
-        // SUCCESS!
-        Debug.Log("<color=green><b>[Finish Line]</b> Valid trigger hit! Firing Level Complete sequence...</color>");
-        
+        // --- THE FIX: Freeze the car safely so it doesn't cause a bridge slingshot bounce! ---
+        LiveLoadVehicle car = currentObj.GetComponent<LiveLoadVehicle>();
+        if (car != null)
+        {
+            car.StopAndFreezeForWin();
+        }
+
         OnLevelCompleted?.Invoke();
 
         if (assignedContract != null && ObjectiveTrackerUI.Instance != null)
@@ -92,10 +83,6 @@ public class FinishLineTrigger : MonoBehaviour
         if (LevelCompleteManager.Instance != null)
         {
             LevelCompleteManager.Instance.CompleteLevel(assignedContract);
-        }
-        else
-        {
-            Debug.LogError("<b>[Finish Line]</b> CRITICAL: Could not find LevelCompleteManager in the scene!");
         }
     }
 }

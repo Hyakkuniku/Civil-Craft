@@ -1291,8 +1291,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   levelFailedPanel: {fileID: 1095639854}
   levelNameText: {fileID: 499380611}
+  penaltyText: {fileID: 0}
   uiElementsToHide: []
   deathThreshold: -50
+  goldPenaltyPerFail: 25
+  currentFailCount: 0
   isFailed: 0
 --- !u!4 &68529550
 Transform:
@@ -16353,11 +16356,15 @@ MonoBehaviour:
   levelCompletePanel: {fileID: 1698089067}
   feedbackText: {fileID: 1588924574}
   costText: {fileID: 1068294405}
+  costPercentageText: {fileID: 0}
   budgetText: {fileID: 2112332104}
   stressText: {fileID: 58211905}
   receiptContentParent: {fileID: 541244346}
   receiptRowPrefab: {fileID: 57992146011034018, guid: 1184363f0986e454191181012f996ef0,
     type: 3}
+  baseRewardText: {fileID: 0}
+  bonusText: {fileID: 0}
+  penaltyText: {fileID: 0}
   goldEarnedText: {fileID: 195060064}
   expEarnedText: {fileID: 1262833676}
   bridgePhotoDisplay: {fileID: 138061138}
@@ -37252,7 +37259,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a99185842958f544dbbbc95e445c7ac9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  hudOpenButton: {fileID: 0}
+  hudOpenButton: {fileID: 281233263}
   uiElementsToHide:
   - {fileID: 0}
   almanacCanvas: {fileID: 1324377562}

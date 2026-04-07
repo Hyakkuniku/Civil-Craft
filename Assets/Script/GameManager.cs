@@ -28,7 +28,7 @@ public class GameManager : MonoBehaviour
     [Header("Open World UI")]
     public GameObject redoConfirmPanel;
     [Tooltip("Add things here that you want hidden ONLY when the Redo Panel is open (Optional)")]
-    public List<GameObject> extraElementsToHideOnRedo = new List<GameObject>(); // --- NEW ---
+    public List<GameObject> extraElementsToHideOnRedo = new List<GameObject>(); 
     
     private BuildLocation pendingRedoLocation;
 
@@ -46,11 +46,6 @@ public class GameManager : MonoBehaviour
         if (redoConfirmPanel != null) redoConfirmPanel.SetActive(false);
     }
 
-    private void Start()
-    {
-        Application.targetFrameRate = 100000;
-    }
-
     private void Update()
     {
         if (CurrentState == GameState.Building && Input.GetKeyDown(KeyCode.Escape)) ExitBuildMode();
@@ -61,7 +56,6 @@ public class GameManager : MonoBehaviour
         pendingRedoLocation = loc;
         if (redoConfirmPanel != null) redoConfirmPanel.SetActive(true);
         
-        // --- THE FIX: Hide UI elements when the panel opens ---
         foreach (GameObject uiElement in uiElementsToHide) 
             if (uiElement != null) uiElement.SetActive(false);
             
@@ -80,7 +74,6 @@ public class GameManager : MonoBehaviour
     {
         if (redoConfirmPanel != null) redoConfirmPanel.SetActive(false);
         
-        // Restore ONLY the extra elements (EnterBuildMode will keep the standard UI hidden)
         foreach (GameObject uiElement in extraElementsToHideOnRedo) 
             if (uiElement != null) uiElement.SetActive(true);
 
@@ -99,7 +92,6 @@ public class GameManager : MonoBehaviour
         if (redoConfirmPanel != null) redoConfirmPanel.SetActive(false);
         pendingRedoLocation = null;
         
-        // --- THE FIX: Restore UI elements when the panel closes ---
         foreach (GameObject uiElement in uiElementsToHide) 
             if (uiElement != null) uiElement.SetActive(true);
             
@@ -167,11 +159,9 @@ public class GameManager : MonoBehaviour
         if (CurrentState == GameState.Normal) return;
         CurrentState = GameState.Normal;
 
-        // --- FAIL-SAFE 1: Guarantee the UI comes back instantly! ---
         foreach (GameObject uiElement in uiElementsToHide) if (uiElement != null) uiElement.SetActive(true);
         foreach (GameObject uiElement in buildModeUIElements) if (uiElement != null) uiElement.SetActive(false);
 
-        // --- FAIL-SAFE 2: Unlock player controls instantly! ---
         InputManager inputObj = FindObjectOfType<InputManager>();
         if (inputObj != null)
         {

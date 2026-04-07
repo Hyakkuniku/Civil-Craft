@@ -2,14 +2,17 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
+[DefaultExecutionOrder(-50)] 
 public class BridgePhysicsManager : MonoBehaviour
 {
+    public event Action OnSettlePhaseStarted;
     public event Action OnSimulationStarted;
     public event Action OnSimulationStopped;
 
     [Header("Physics Settings")]
     public float barColliderThickness = 0.2f;
     public int physicsSolverIterations = 40; 
+    public int settleFramesAmount = 60;
 
     [Header("Stress Visualizer Colors")]
     public bool enableVisualizer = true;
@@ -18,12 +21,20 @@ public class BridgePhysicsManager : MonoBehaviour
     public Color brokenColor = Color.black;
 
     [HideInInspector] public bool isSimulating = false;
+    [HideInInspector] public bool lockStressTracking = false; 
+    
     [HideInInspector] public List<BarStressHandler> activeStressHandlers = new List<BarStressHandler>();
-
     [HideInInspector] public float peakStressThisRun = 0f;
 
     private HashSet<Point> simPoints = new HashSet<Point>();
     private HashSet<Bar> simBars = new HashSet<Bar>();
+
+    private List<Point> deterministicPoints = new List<Point>();
+    private List<Bar> deterministicBars = new List<Bar>();
+
+    private bool pendingSimulationStart = false;
+    private bool needsPhysicsRelease = false; 
+    private int currentSettleFrame = 0;
 
     private void Start()
     {
@@ -45,9 +56,66 @@ public class BridgePhysicsManager : MonoBehaviour
 
     private void FixedUpdate()
     {
-        if (isSimulating)
+        if (pendingSimulationStart)
         {
-            float currentMax = GetMaxBridgeStress();
+            if (needsPhysicsRelease)
+            {
+                needsPhysicsRelease = false;
+                Physics.SyncTransforms(); 
+
+                foreach (Bar bar in deterministicBars)
+                {
+                    if (bar != null && !bar.materialData.isPier)
+                    {
+                        Rigidbody rb = bar.GetComponent<Rigidbody>();
+                        if (rb != null) rb.isKinematic = false;
+                    }
+                }
+
+                foreach (Point p in deterministicPoints)
+                {
+                    if (p != null && !p.isAnchor)
+                    {
+                        Rigidbody rb = p.GetComponent<Rigidbody>();
+                        if (rb != null) rb.isKinematic = false;
+                    }
+                }
+
+                OnSettlePhaseStarted?.Invoke(); 
+            }
+
+            currentSettleFrame++;
+            
+            if (currentSettleFrame >= settleFramesAmount)
+            {
+                pendingSimulationStart = false;
+                isSimulating = true;
+                peakStressThisRun = 0f;
+                lockStressTracking = false;
+                
+                foreach (var handler in activeStressHandlers)
+                {
+                    if (handler != null) handler.BeginTracking();
+                }
+                
+                OnSimulationStarted?.Invoke(); 
+            }
+            return; 
+        }
+
+        if (isSimulating && !lockStressTracking)
+        {
+            float currentMax = 0f;
+            foreach (var handler in activeStressHandlers)
+            {
+                if (handler == null) continue;
+                
+                handler.EvaluateStress(); 
+                
+                if (handler.isBroken) currentMax = 1f;
+                else if (handler.currentStressPercent > currentMax) currentMax = handler.currentStressPercent;
+            }
+
             if (currentMax > peakStressThisRun)
             {
                 peakStressThisRun = currentMax;
@@ -82,7 +150,7 @@ public class BridgePhysicsManager : MonoBehaviour
 
     private void HandleEnterBuildMode()
     {
-        if (isSimulating) StopPhysicsAndReset();
+        if (isSimulating || pendingSimulationStart) StopPhysicsAndReset();
         else SetNodesVisible(true);
     }
 
@@ -106,17 +174,33 @@ public class BridgePhysicsManager : MonoBehaviour
 
     public void ActivatePhysics()
     {
-        if (isSimulating) return;
+        if (isSimulating || pendingSimulationStart) return;
         
-        isSimulating = true;
-        OnSimulationStarted?.Invoke(); 
-
         activeStressHandlers.Clear(); 
         peakStressThisRun = 0f;
+        lockStressTracking = false;
 
         GatherActiveBridgeData(out simPoints, out simBars);
 
-        foreach (Point p in simPoints)
+        deterministicPoints = new List<Point>(simPoints);
+        deterministicPoints.Sort((a, b) => 
+        {
+            int cmp = a.transform.position.x.CompareTo(b.transform.position.x);
+            if (cmp == 0) cmp = a.transform.position.y.CompareTo(b.transform.position.y);
+            if (cmp == 0) cmp = a.transform.position.z.CompareTo(b.transform.position.z);
+            return cmp;
+        });
+
+        deterministicBars = new List<Bar>(simBars);
+        deterministicBars.Sort((a, b) => 
+        {
+            int cmp = a.transform.position.x.CompareTo(b.transform.position.x);
+            if (cmp == 0) cmp = a.transform.position.y.CompareTo(b.transform.position.y);
+            if (cmp == 0) cmp = a.transform.position.z.CompareTo(b.transform.position.z);
+            return cmp;
+        });
+
+        foreach (Point p in deterministicPoints)
         {
             p.preSimPos = p.transform.position;
             p.preSimParent = p.transform.parent;
@@ -125,38 +209,43 @@ public class BridgePhysicsManager : MonoBehaviour
             if (r != null) r.enabled = false;
         }
 
-        foreach (Bar b in simBars)
+        foreach (Bar b in deterministicBars)
         {
             b.preSimPos = b.transform.position;
             b.preSimRot = b.transform.rotation;
         }
 
+        Physics.autoSyncTransforms = true;
         Physics.defaultSolverIterations = physicsSolverIterations;
         Physics.defaultSolverVelocityIterations = 20;
 
-        SetupBarsPhysics(simBars);
-        SetupDirectConnections(simBars, simPoints);
-        
-        ResolveAdjacentCollisions(simBars); 
+        SetupBarsPhysics(deterministicBars);
+        SetupDirectConnections(deterministicBars, deterministicPoints);
+        ResolveAdjacentCollisions(deterministicBars); 
+
+        needsPhysicsRelease = true;
+        currentSettleFrame = 0;
+        pendingSimulationStart = true;
     }
 
     public void StopPhysicsAndReset()
     {
-        if (!isSimulating) return;
+        if (!isSimulating && !pendingSimulationStart) return;
         
         isSimulating = false;
+        pendingSimulationStart = false;
         OnSimulationStopped?.Invoke(); 
 
         activeStressHandlers.Clear();
 
-        foreach (Bar bar in simBars)
+        foreach (Bar bar in deterministicBars)
         {
             if (bar == null) continue;
             foreach (Joint j in bar.GetComponentsInChildren<Joint>()) { j.connectedBody = null; Destroy(j); }
             foreach (Rigidbody rb in bar.GetComponentsInChildren<Rigidbody>()) Destroy(rb);
         }
 
-        foreach (Point p in simPoints)
+        foreach (Point p in deterministicPoints)
         {
             if (p == null) continue;
             foreach (Joint j in p.GetComponentsInChildren<Joint>()) { j.connectedBody = null; Destroy(j); }
@@ -165,7 +254,7 @@ public class BridgePhysicsManager : MonoBehaviour
 
         bool isCurrentlyBuilding = GameManager.Instance != null && GameManager.Instance.CurrentState == GameManager.GameState.Building;
 
-        foreach (Point p in simPoints)
+        foreach (Point p in deterministicPoints)
         {
             if (p == null) continue;
             
@@ -180,7 +269,7 @@ public class BridgePhysicsManager : MonoBehaviour
             if (r != null) r.enabled = isCurrentlyBuilding && p.gameObject.activeSelf;
         }
 
-        foreach (Bar bar in simBars)
+        foreach (Bar bar in deterministicBars)
         {
             if (bar == null) continue;
             
@@ -193,7 +282,6 @@ public class BridgePhysicsManager : MonoBehaviour
                     if (capRend != null)
                     {
                         BoxCollider bc = capRend.GetComponent<BoxCollider>();
-                        // --- THE FIX: Disable before destroying to stop the Editor error! ---
                         if (bc != null) { bc.enabled = false; Destroy(bc); }
                     }
                 }
@@ -206,7 +294,6 @@ public class BridgePhysicsManager : MonoBehaviour
                         if (segRend != null)
                         {
                             BoxCollider bc = segRend.GetComponent<BoxCollider>();
-                            // --- THE FIX: Disable before destroying! ---
                             if (bc != null) { bc.enabled = false; Destroy(bc); }
                         }
                     }
@@ -215,7 +302,6 @@ public class BridgePhysicsManager : MonoBehaviour
             else
             {
                 BoxCollider[] parentCols = bar.GetComponents<BoxCollider>();
-                // --- THE FIX: Disable before destroying! ---
                 foreach (BoxCollider c in parentCols) { c.enabled = false; Destroy(c); }
             }
 
@@ -234,6 +320,8 @@ public class BridgePhysicsManager : MonoBehaviour
 
         simPoints.Clear();
         simBars.Clear();
+        deterministicPoints.Clear();
+        deterministicBars.Clear();
     }
 
     public void BakeBridge(ContractSO contract = null)
@@ -260,11 +348,7 @@ public class BridgePhysicsManager : MonoBehaviour
             targetLoc = GameManager.Instance.ActiveBuildLocation;
         }
 
-        if (targetLoc == null) 
-        {
-            Debug.LogWarning("<b>[Baker]</b> Cannot bake bridge: Target location not found!");
-            return;
-        }
+        if (targetLoc == null) return;
 
         foreach (Point p in Point.AllPoints)
         {
@@ -353,8 +437,11 @@ public class BridgePhysicsManager : MonoBehaviour
 
         activeStressHandlers.Clear();
         isSimulating = false;
+        pendingSimulationStart = false;
         simPoints.Clear();
         simBars.Clear();
+        deterministicPoints.Clear();
+        deterministicBars.Clear();
 
         OnSimulationStopped?.Invoke(); 
     }
@@ -372,16 +459,10 @@ public class BridgePhysicsManager : MonoBehaviour
                 maxStress = handler.currentStressPercent;
             }
         }
-        
-        if (maxStress > peakStressThisRun) 
-        {
-            peakStressThisRun = maxStress;
-        }
-
         return Mathf.Clamp01(maxStress); 
     }
 
-    private void SetupBarsPhysics(HashSet<Bar> activeBars)
+    private void SetupBarsPhysics(List<Bar> activeBars)
     {
         foreach (Bar bar in activeBars)
         {
@@ -393,7 +474,7 @@ public class BridgePhysicsManager : MonoBehaviour
     {
         List<Point> endpoints = new List<Point>();
         
-        foreach (Point p in simPoints)
+        foreach (Point p in deterministicPoints)
         {
             if (p.gameObject.activeSelf && p.ConnectedBars.Contains(bar)) endpoints.Add(p);
         }
@@ -410,16 +491,17 @@ public class BridgePhysicsManager : MonoBehaviour
             Rigidbody barRb = bar.GetComponent<Rigidbody>();
             if (barRb == null) barRb = bar.gameObject.AddComponent<Rigidbody>();
             
-            barRb.isKinematic = bar.materialData.isPier; 
-            barRb.mass = length * bar.materialData.massPerMeter; 
+            barRb.isKinematic = true; 
             
+            barRb.mass = length * bar.materialData.massPerMeter; 
             barRb.drag = 0.5f;
             barRb.angularDrag = 0.5f;
             barRb.interpolation = RigidbodyInterpolation.Interpolate;
-            barRb.collisionDetectionMode = CollisionDetectionMode.Continuous;
+            barRb.collisionDetectionMode = CollisionDetectionMode.Discrete;
+            barRb.sleepThreshold = 0f;
+            barRb.maxDepenetrationVelocity = 2f;
 
             BoxCollider[] oldCols = bar.GetComponents<BoxCollider>();
-            // --- THE FIX: Disable before destroying! ---
             foreach(var c in oldCols) { c.enabled = false; Destroy(c); }
 
             if (bar.materialData.isPier)
@@ -477,7 +559,7 @@ public class BridgePhysicsManager : MonoBehaviour
         activeStressHandlers.Add(stressHandler);
     }
 
-    private void SetupDirectConnections(HashSet<Bar> activeBars, HashSet<Point> activePoints)
+    private void SetupDirectConnections(List<Bar> activeBars, List<Point> activePoints)
     {
         foreach (Point p in activePoints)
         {
@@ -489,14 +571,10 @@ public class BridgePhysicsManager : MonoBehaviour
             Rigidbody nodeRb = p.GetComponent<Rigidbody>();
             if (nodeRb == null) nodeRb = p.gameObject.AddComponent<Rigidbody>();
             
-            if (p.isAnchor)
+            nodeRb.isKinematic = true;
+            
+            if (!p.isAnchor)
             {
-                nodeRb.isKinematic = true;
-            }
-            else
-            {
-                nodeRb.isKinematic = false; 
-                
                 float calculatedMass = 0.5f;
                 foreach (Bar bar in p.ConnectedBars)
                 {
@@ -510,6 +588,9 @@ public class BridgePhysicsManager : MonoBehaviour
                 nodeRb.drag = 0.5f;
                 nodeRb.angularDrag = 0.5f;
                 nodeRb.interpolation = RigidbodyInterpolation.Interpolate;
+
+                nodeRb.sleepThreshold = 0f;
+                nodeRb.maxDepenetrationVelocity = 2f;
             }
 
             foreach (Bar bar in p.ConnectedBars)
@@ -535,6 +616,7 @@ public class BridgePhysicsManager : MonoBehaviour
                 SpringJoint ropeSpring = rbA.gameObject.AddComponent<SpringJoint>();
                 ropeSpring.connectedBody = rbB;
                 ropeSpring.autoConfigureConnectedAnchor = false;
+                ropeSpring.enablePreprocessing = false; 
 
                 ropeSpring.anchor = rbA.transform.InverseTransformPoint(rope.startPoint.transform.position);
                 ropeSpring.connectedAnchor = rbB.transform.InverseTransformPoint(rope.endPoint.transform.position);
@@ -566,6 +648,8 @@ public class BridgePhysicsManager : MonoBehaviour
                 SpringJoint spring = barObj.AddComponent<SpringJoint>();
                 spring.connectedBody = targetRb;
                 spring.autoConfigureConnectedAnchor = false; 
+                spring.enablePreprocessing = false; 
+                
                 spring.anchor = barObj.transform.InverseTransformPoint(finalAnchorWorld);
                 spring.connectedAnchor = targetRb.transform.InverseTransformPoint(finalAnchorWorld);
                 spring.spring = mat.spring;
@@ -576,6 +660,8 @@ public class BridgePhysicsManager : MonoBehaviour
                 HingeJoint hinge = barObj.AddComponent<HingeJoint>();
                 hinge.connectedBody = targetRb;
                 hinge.autoConfigureConnectedAnchor = false; 
+                hinge.enablePreprocessing = false; 
+                
                 hinge.anchor = barObj.transform.InverseTransformPoint(finalAnchorWorld);
                 hinge.connectedAnchor = targetRb.transform.InverseTransformPoint(finalAnchorWorld);
                 hinge.axis = new Vector3(0, 0, 1); 
@@ -583,7 +669,7 @@ public class BridgePhysicsManager : MonoBehaviour
         }
     }
 
-    private void ResolveAdjacentCollisions(HashSet<Bar> activeBars)
+    private void ResolveAdjacentCollisions(List<Bar> activeBars)
     {
         List<Collider> bridgeCols = new List<Collider>();
         foreach(Bar b in activeBars)
@@ -616,8 +702,8 @@ public class BarStressHandler : MonoBehaviour
     [HideInInspector] public bool isBroken = false;
     [HideInInspector] public float currentStressPercent = 0f; 
     
-    private int framesActive = 0; 
     private float smoothedForce = 0f;
+    private bool canTrackStress = false; 
 
     private Renderer[] childRenderers;
     private Color[] originalColors;
@@ -651,6 +737,13 @@ public class BarStressHandler : MonoBehaviour
         ropeJoint = joint;
     }
 
+    public void BeginTracking()
+    {
+        canTrackStress = true;
+        smoothedForce = 0f; 
+        currentStressPercent = 0f;
+    }
+
     private void OnDestroy()
     {
         if (childRenderers == null) return;
@@ -660,9 +753,9 @@ public class BarStressHandler : MonoBehaviour
         }
     }
 
-    private void FixedUpdate()
+    public void EvaluateStress()
     {
-        if (isBroken || p1 == null || p2 == null) return;
+        if (!canTrackStress || isBroken || p1 == null || p2 == null) return;
 
         if (material.isRope && myBar != null)
         {
@@ -675,9 +768,6 @@ public class BarStressHandler : MonoBehaviour
             joints = GetComponents<Joint>();
             if (joints == null || joints.Length == 0) return; 
         }
-
-        framesActive++;
-        if (framesActive < 30) return;
 
         float currentLength = Vector3.Distance(p1.transform.position, p2.transform.position);
         bool isTension = currentLength > restLength; 
@@ -700,16 +790,27 @@ public class BarStressHandler : MonoBehaviour
             }
         }
 
+        // --- ULTIMATE FIX: Force Quantization ---
+        // We round the raw physics force to the nearest 10 Newtons.
+        // This utterly destroys the microscopic 1-5 Newton jitter produced by the PhysX solver.
+        maxForceThisFrame = Mathf.Round(maxForceThisFrame / 10f) * 10f;
+
         float absoluteLimit = isTension ? material.maxTension : material.maxCompression;
         if (absoluteLimit <= 0f) absoluteLimit = 1f;
 
-        float maxStressChangePerFrame = (absoluteLimit * 5f) * Time.fixedDeltaTime;
-        
-        smoothedForce = Mathf.MoveTowards(smoothedForce, maxForceThisFrame, maxStressChangePerFrame);
-        
-        if (maxForceThisFrame < smoothedForce)
+        // --- ULTIMATE FIX: Strict Linear Math ---
+        // Removed Mathf.Lerp, which creates infinite drifting decimals. 
+        // MoveTowards is perfectly linear and mathematically finite.
+        float attackRate = absoluteLimit * 10f * Time.fixedDeltaTime; 
+        float decayRate  = absoluteLimit * 5f * Time.fixedDeltaTime;
+
+        if (maxForceThisFrame > smoothedForce)
         {
-            smoothedForce = Mathf.Lerp(smoothedForce, maxForceThisFrame, Time.fixedDeltaTime * 15f);
+            smoothedForce = Mathf.MoveTowards(smoothedForce, maxForceThisFrame, attackRate);
+        }
+        else
+        {
+            smoothedForce = Mathf.MoveTowards(smoothedForce, maxForceThisFrame, decayRate);
         }
 
         if (material.isRope)
@@ -737,10 +838,20 @@ public class BarStressHandler : MonoBehaviour
         float stressLimit = isTension ? material.maxTension : material.maxCompression;
         if (stressLimit <= 0f) stressLimit = 1f; 
 
-        if (material.isRope && !isTension) currentStressPercent = 0f; 
-        else currentStressPercent = smoothedForce / stressLimit;
+        // --- ULTIMATE FIX: Decimal Truncation ---
+        // We snap the final percentage to an EXACT 2 decimal place float (e.g., exactly 0.27)
+        // so it never randomly flips between 27% and 28% in the UI rounding.
+        if (material.isRope && !isTension) 
+        {
+            currentStressPercent = 0f; 
+        }
+        else 
+        {
+            float rawPercent = smoothedForce / stressLimit;
+            currentStressPercent = Mathf.Round(rawPercent * 100f) / 100f;
+        }
 
-        if (manager.enableVisualizer)
+        if (manager != null && manager.enableVisualizer)
         {
             UpdateStressVisuals();
         }
@@ -800,16 +911,6 @@ public class BarStressHandler : MonoBehaviour
         else if (childRenderers[index].material.HasProperty("_BaseColor"))
         {
             childRenderers[index].material.SetColor("_BaseColor", targetColor);
-        }
-    }
-
-    private void OnJointBreak(float breakForce)
-    {
-        if (!isBroken) 
-        {
-            isBroken = true;
-            currentStressPercent = 1f;
-            for (int i = 0; i < childRenderers.Length; i++) SetBarColor(manager.brokenColor, i);
         }
     }
 }

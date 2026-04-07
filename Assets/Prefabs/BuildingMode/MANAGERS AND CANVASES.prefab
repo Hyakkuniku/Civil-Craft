@@ -12518,11 +12518,15 @@ MonoBehaviour:
   levelCompletePanel: {fileID: 6079639294584877257}
   feedbackText: {fileID: 7462857800497887646}
   costText: {fileID: 8324127656390653244}
+  costPercentageText: {fileID: 0}
   budgetText: {fileID: 3526134621030590408}
   stressText: {fileID: 8337552864788404477}
   receiptContentParent: {fileID: 8647065282940281222}
   receiptRowPrefab: {fileID: 57992146011034018, guid: 1184363f0986e454191181012f996ef0,
     type: 3}
+  baseRewardText: {fileID: 0}
+  bonusText: {fileID: 0}
+  penaltyText: {fileID: 0}
   goldEarnedText: {fileID: 3424550790171164944}
   expEarnedText: {fileID: 3485316572457608821}
   bridgePhotoDisplay: {fileID: 2004973358579151243}
@@ -13383,8 +13387,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   levelFailedPanel: {fileID: 998641529604367835}
   levelNameText: {fileID: 9014256148687314760}
+  penaltyText: {fileID: 0}
   uiElementsToHide: []
   deathThreshold: -50
+  goldPenaltyPerFail: 25
+  currentFailCount: 0
   isFailed: 0
 --- !u!1 &3489965604070079120
 GameObject:
