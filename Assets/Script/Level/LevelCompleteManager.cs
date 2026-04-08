@@ -192,7 +192,6 @@ public class LevelCompleteManager : MonoBehaviour
         if (!string.IsNullOrEmpty(contractName)) alreadyPaidContracts.Add(contractName);
     }
 
-    // --- THE FIX: We also check the permanent PlayerDataManager save to see if it's paid ---
     public bool IsContractPaid(string contractName)
     {
         if (string.IsNullOrEmpty(contractName)) return false;
@@ -558,8 +557,9 @@ public class LevelCompleteManager : MonoBehaviour
     {
         levelAlreadyCompleted = false; 
 
-        LiveLoadVehicle vehicle = FindObjectOfType<LiveLoadVehicle>();
-        if (vehicle != null) vehicle.isParkedAtFinish = false;
+        // Removing the 'isParkedAtFinish' check because it is not in the current LiveLoadVehicle
+        // LiveLoadVehicle vehicle = FindObjectOfType<LiveLoadVehicle>();
+        // if (vehicle != null) vehicle.isParkedAtFinish = false;
         
         if (cachedPhysicsManager != null) cachedPhysicsManager.StopPhysicsAndReset();
         
@@ -595,6 +595,7 @@ public class LevelCompleteManager : MonoBehaviour
 
             if (targetLoc != null)
             {
+                // Make sure we save the bridge data FIRST
                 PlayerDataManager.Instance.SaveBridgeData(
                     activeContract.name, 
                     targetLoc.bakedPoints, 
@@ -602,6 +603,9 @@ public class LevelCompleteManager : MonoBehaviour
                     lastFinalCost, 
                     lastPeakStress
                 );
+                
+                // --- THE FIX: Increment the total bridges built here! ---
+                PlayerDataManager.Instance.AddBridgeBuilt();
             }
         }
 

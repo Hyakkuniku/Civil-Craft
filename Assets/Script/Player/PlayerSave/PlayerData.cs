@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// --- NEW: Data structures for saving bridge coordinates ---
 [System.Serializable]
 public class SerializableVector3 
 {
@@ -31,8 +30,6 @@ public class SavedBarData
 public class SavedBridgeData 
 {
     public string contractId; 
-    
-    // --- NEW: Contract Performance Stats ---
     public float totalSpent;
     public float maxStress;
     
@@ -46,8 +43,16 @@ public class PlayerData
     public string playerName = "Guest";
     public int gold = 0;
     public int exp = 0;
-    public int bridgesBuilt = 0;
     public bool hasAlmanac = false; 
+
+    // --- NEW: Lifetime Statistics for Achievements ---
+    public int lifetimeBridgesBuilt = 0;
+    public int lifetimeGoldEarned = 0;
+    public int lifetimeGoldSpent = 0;
+    public int lifetimeContractsCompleted = 0;
+    
+    // --- NEW: Unlocked Achievements ---
+    public List<string> unlockedAchievements = new List<string>();
     
     public List<string> unlockedLevels = new List<string> { "Tutorial" };
     public List<string> completedContracts = new List<string>();
@@ -55,7 +60,6 @@ public class PlayerData
     public List<string> unlockedContractMaterials = new List<string>();
     public List<string> unlockedDoors = new List<string>();
 
-    // --- NEW: Holds all permanently built bridges! ---
     public List<SavedBridgeData> savedBridges = new List<SavedBridgeData>();
 
     public string GetTitle()

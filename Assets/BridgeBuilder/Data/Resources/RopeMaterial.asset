@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   costPerMeter: 1
   massPerMeter: 0.5
-  maxLength: 1000
+  maxLength: Infinity
   maxTension: 80000
   maxCompression: 1
   useSpring: 1

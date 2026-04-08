@@ -17,7 +17,7 @@ MonoBehaviour:
   jobDescription: Build a safe crossing for the merchant cart using your basic wooden
     beams. Make sure to brace your structure with triangles!
   budget: 100000
-  liveLoadWeight: 4000
+  liveLoadWeight: 700
   allowedMaterials: []
   enforceMaxStress: 0
   maxAllowedStress: 100

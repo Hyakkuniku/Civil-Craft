@@ -10,6 +10,10 @@ public class AlmanacPlayerStats : MonoBehaviour
     public TextMeshProUGUI expText;
     public TextMeshProUGUI bridgesBuiltText;
 
+    [Header("New Lifetime Stats (Optional)")]
+    public TextMeshProUGUI contractsCompletedText; 
+    public TextMeshProUGUI totalGoldEarnedText;
+
     private void OnEnable()
     {
         // Refresh the UI every time they flip to this page
@@ -30,6 +34,12 @@ public class AlmanacPlayerStats : MonoBehaviour
         if (titleText != null) titleText.text = "Rank: " + data.GetTitle();
         if (goldText != null) goldText.text = "Gold: " + data.gold.ToString("N0"); // "N0" adds commas (e.g. 1,000)
         if (expText != null) expText.text = "EXP: " + data.exp.ToString("N0");
-        if (bridgesBuiltText != null) bridgesBuiltText.text = "Bridges Built: " + data.bridgesBuilt;
+        
+        // --- THE FIX: Using the new 'lifetimeBridgesBuilt' variable! ---
+        if (bridgesBuiltText != null) bridgesBuiltText.text = "Bridges Built: " + data.lifetimeBridgesBuilt;
+
+        // Populate the new optional lifetime stats
+        if (contractsCompletedText != null) contractsCompletedText.text = "Contracts Done: " + data.lifetimeContractsCompleted;
+        if (totalGoldEarnedText != null) totalGoldEarnedText.text = "Lifetime Earnings: " + data.lifetimeGoldEarned.ToString("N0");
     }
 }

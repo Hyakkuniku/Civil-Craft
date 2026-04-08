@@ -69,7 +69,7 @@ public class LiveLoadVehicle : Interactable
         rb.centerOfMass = new Vector3(0, centerOfMassOffset, 0);
         rb.constraints = RigidbodyConstraints.FreezeRotationY | RigidbodyConstraints.FreezePositionZ;
         rb.sleepThreshold = 0f;
-        rb.maxDepenetrationVelocity = 2f;
+        rb.maxDepenetrationVelocity = 10f; 
 
         Collider chassisCol = GetComponent<Collider>();
         if (chassisCol != null)
@@ -115,7 +115,7 @@ public class LiveLoadVehicle : Interactable
             wd.rb.isKinematic = true; 
             wd.rb.collisionDetectionMode = CollisionDetectionMode.Discrete; 
             wd.rb.sleepThreshold = 0f; 
-            wd.rb.maxDepenetrationVelocity = 2f;
+            wd.rb.maxDepenetrationVelocity = 10f; 
 
             wd.hinge = physWheel.AddComponent<HingeJoint>();
             wd.hinge.connectedBody = rb;
@@ -199,7 +199,6 @@ public class LiveLoadVehicle : Interactable
             transform.position = startPoint.position;
             transform.rotation = startPoint.rotation;
 
-            // --- THE FIX: Cleanly reset positions without destroying joint integrity ---
             foreach (var w in wheels)
             {
                 w.physObj.transform.localPosition = w.originalLocalPos;
@@ -222,7 +221,6 @@ public class LiveLoadVehicle : Interactable
             w.rb.ResetInertiaTensor();
         }
 
-        // Force Unity to acknowledge the clean mathematical teleportation before moving forward
         Physics.SyncTransforms(); 
     }
 
