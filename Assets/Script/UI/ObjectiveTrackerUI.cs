@@ -31,7 +31,7 @@ public class ObjectiveTrackerUI : MonoBehaviour
     private int finalExpPayout = 0;
 
     private ContractSO currentTrackedContract;
-    private NPCContractGiver currentNPC; // <-- Safely hold the exact NPC we are talking to
+    private NPCContractGiver currentNPC; 
 
     private void Awake()
     {
@@ -66,7 +66,6 @@ public class ObjectiveTrackerUI : MonoBehaviour
         }
     }
 
-    // --- NEW: Requires the NPC so we can officially dismiss them ---
     public void ShowCompleteButton(int gold, int exp, NPCContractGiver npc)
     {
         finalGoldPayout = gold;
@@ -84,11 +83,14 @@ public class ObjectiveTrackerUI : MonoBehaviour
 
     public void OnCompleteButtonClicked()
     {
-        if (PlayerDataManager.Instance != null)
+        if (PlayerDataManager.Instance != null && currentTrackedContract != null)
         {
             PlayerDataManager.Instance.AddGold(finalGoldPayout);
             PlayerDataManager.Instance.AddExp(finalExpPayout);
             PlayerDataManager.Instance.AddBridgeBuilt();
+            
+            // --- THE FIX: We finally save the contract as "Completed" here! ---
+            PlayerDataManager.Instance.CompleteContract(currentTrackedContract.name);
         }
 
         if (LevelCompleteManager.Instance != null && currentTrackedContract != null)
@@ -96,7 +98,6 @@ public class ObjectiveTrackerUI : MonoBehaviour
             LevelCompleteManager.Instance.MarkContractAsPaid(currentTrackedContract.name);
         }
 
-        // Retire the specific NPC that handed us the money
         if (currentNPC != null)
         {
             currentNPC.isFullyTurnedIn = true;

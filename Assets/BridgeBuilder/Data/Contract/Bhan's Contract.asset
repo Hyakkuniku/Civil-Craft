@@ -17,25 +17,25 @@ MonoBehaviour:
   jobDescription: 'Beam Bridges
 
 '
-  budget: 5000
+  budget: 15000
   liveLoadWeight: 700
   allowedMaterials:
   - material: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
-    maxPieces: 0
+    maxPieces: 3
   - material: {fileID: 11400000, guid: b98aa9ba752ac28449feebc76f256bf2, type: 2}
-    maxPieces: 0
+    maxPieces: 2
   enforceMaxStress: 0
   maxAllowedStress: 100
   winCondition: 0
   requiredIntactTime: 6
   goldReward: 500
-  expReward: -200
+  expReward: 150
   offerDialogue:
     name: Professor Bhan
     sentences:
     - For your first job build a bridge using road and piers
     - piers will be the foundation of the bridge
-    - Ill give you a budget of 5000
+    - Ill give you a budget of 15000
   reminderDialogue:
     name: Professor Bhan
     sentences:

@@ -75,7 +75,6 @@ public class LevelCompleteManager : MonoBehaviour
         if (isSimulating && !wasSimulating)
         {
             ResetCompletionState();
-            currentSimulationFrames = 0; 
         }
         
         wasSimulating = isSimulating;
@@ -84,6 +83,15 @@ public class LevelCompleteManager : MonoBehaviour
     private void FixedUpdate()
     {
         if (cachedPhysicsManager == null) return;
+        
+        // --- THE FIX: Bulletproof timer clearing ---
+        // If physics are turned off, aggressively keep the timer at 0 so old data never bleeds over!
+        if (!cachedPhysicsManager.isSimulating)
+        {
+            currentSimulationFrames = 0;
+            return;
+        }
+
         bool isSimulating = cachedPhysicsManager.isSimulating;
 
         if (isSimulating && !levelAlreadyCompleted)
@@ -208,6 +216,9 @@ public class LevelCompleteManager : MonoBehaviour
     public void ResetCompletionState()
     {
         levelAlreadyCompleted = false;
+        
+        // --- THE FIX: Clear the frames here too! ---
+        currentSimulationFrames = 0;
     }
 
     public void CompleteLevel(ContractSO currentContract)
@@ -316,8 +327,6 @@ public class LevelCompleteManager : MonoBehaviour
             byte[] imageBytes = currentBridgePhoto.EncodeToPNG();
             string photoPath = Application.persistentDataPath + "/" + currentContract.name + "_photo.png";
             File.WriteAllBytes(photoPath, imageBytes);
-            
-            if (PlayerDataManager.Instance != null) PlayerDataManager.Instance.CompleteContract(currentContract.name);
         }
 
         float totalCalculatedCost = 0f;
@@ -555,12 +564,9 @@ public class LevelCompleteManager : MonoBehaviour
 
     public void RetrySimulation()
     {
-        levelAlreadyCompleted = false; 
+        // --- THE FIX: We call the central reset method to ensure both flags and timers are wiped ---
+        ResetCompletionState();
 
-        // Removing the 'isParkedAtFinish' check because it is not in the current LiveLoadVehicle
-        // LiveLoadVehicle vehicle = FindObjectOfType<LiveLoadVehicle>();
-        // if (vehicle != null) vehicle.isParkedAtFinish = false;
-        
         if (cachedPhysicsManager != null) cachedPhysicsManager.StopPhysicsAndReset();
         
         BarCreator creator = FindObjectOfType<BarCreator>();
@@ -595,7 +601,6 @@ public class LevelCompleteManager : MonoBehaviour
 
             if (targetLoc != null)
             {
-                // Make sure we save the bridge data FIRST
                 PlayerDataManager.Instance.SaveBridgeData(
                     activeContract.name, 
                     targetLoc.bakedPoints, 
@@ -603,9 +608,6 @@ public class LevelCompleteManager : MonoBehaviour
                     lastFinalCost, 
                     lastPeakStress
                 );
-                
-                // --- THE FIX: Increment the total bridges built here! ---
-                PlayerDataManager.Instance.AddBridgeBuilt();
             }
         }
 
