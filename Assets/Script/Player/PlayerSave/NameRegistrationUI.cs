@@ -1,6 +1,7 @@
 using UnityEngine;
 using TMPro;
 using UnityEngine.Events;
+using System.Collections.Generic; // --- REQUIRED FOR LISTS ---
 
 public class NameRegistrationUI : MonoBehaviour
 {
@@ -15,6 +16,12 @@ public class NameRegistrationUI : MonoBehaviour
     public GameObject confirmationPanel;
     [Tooltip("The text that asks 'Are you sure your name is X?'")]
     public TextMeshProUGUI confirmationText;
+
+    // --- THE FIX: List of Canvases to turn off ---
+    [Header("UI to Hide")]
+    [Tooltip("Drag the HUD or other Canvases here to hide them while typing.")]
+    public List<GameObject> canvasesToHide = new List<GameObject>();
+    private List<GameObject> temporarilyHiddenCanvases = new List<GameObject>();
 
     [Header("Events")]
     [Tooltip("What happens AFTER they confirm their name? (e.g., Trigger the next dialogue!)")]
@@ -34,6 +41,17 @@ public class NameRegistrationUI : MonoBehaviour
         if (confirmationPanel != null) confirmationPanel.SetActive(false);
         if (nameInputPanel != null) nameInputPanel.SetActive(true);
         if (nameInputField != null) nameInputField.text = "";
+
+        // --- THE FIX: Hide other UI elements ---
+        temporarilyHiddenCanvases.Clear();
+        foreach (GameObject canvasObj in canvasesToHide)
+        {
+            if (canvasObj != null && canvasObj.activeSelf)
+            {
+                temporarilyHiddenCanvases.Add(canvasObj);
+                canvasObj.SetActive(false);
+            }
+        }
 
         // Freeze the player while they type
         InputManager inputObj = FindObjectOfType<InputManager>();
@@ -77,6 +95,13 @@ public class NameRegistrationUI : MonoBehaviour
         }
 
         if (confirmationPanel != null) confirmationPanel.SetActive(false);
+
+        // --- THE FIX: Restore the hidden UI elements ---
+        foreach (GameObject canvasObj in temporarilyHiddenCanvases)
+        {
+            if (canvasObj != null) canvasObj.SetActive(true);
+        }
+        temporarilyHiddenCanvases.Clear();
 
         // Unfreeze the player
         InputManager inputObj = FindObjectOfType<InputManager>();
