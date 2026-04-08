@@ -12,36 +12,38 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
   m_Name: Bhan's Contract
   m_EditorClassIdentifier: 
-  isTutorialContract: 0
+  isTutorialContract: 1
   clientName: Professor Bhan
-  jobDescription: Build a safe crossing for the merchant cart using your basic wooden
-    beams. Make sure to brace your structure with triangles!
-  budget: 100000
+  jobDescription: 'Beam Bridges
+
+'
+  budget: 5000
   liveLoadWeight: 700
-  allowedMaterials: []
+  allowedMaterials:
+  - material: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
+    maxPieces: 0
+  - material: {fileID: 11400000, guid: b98aa9ba752ac28449feebc76f256bf2, type: 2}
+    maxPieces: 0
   enforceMaxStress: 0
   maxAllowedStress: 100
   winCondition: 0
   requiredIntactTime: 6
   goldReward: 500
-  expReward: 1000
+  expReward: -200
   offerDialogue:
     name: Professor Bhan
     sentences:
-    - Build a safe crossing for the merchant cart using your basic wooden beams.
-      Make sure to brace your structure with triangles!
-    - The storm washed out the crossing over Muddy Creek. We need to get a supply
-      cart to the other side
-    - You have a budget of $10000. Head over to the Drafting Table when you are ready
-      to build.
+    - For your first job build a bridge using road and piers
+    - piers will be the foundation of the bridge
+    - Ill give you a budget of 5000
   reminderDialogue:
     name: Professor Bhan
     sentences:
-    - What are you waiting for? The creek isn't going to bridge itself!
-    - Tap the Drafting Table to get started. Build across the gap and run the simulation.
+    - 'Still here? The wood is ready. The design is simple: Road, and Piers'
+    - A beam bridge is the foundation of everything else. Build it, and we can move
+      forward
+    - Just add the piers below the road
   finishedContractDialogue:
     name: Professor Bhan
     sentences:
-    - wqewqe
-    - wqee
-    - eqweweq
+    - It held! My cart crossed without a problem. This crossing is connected again
