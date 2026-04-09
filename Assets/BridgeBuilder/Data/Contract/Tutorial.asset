@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: Tutorial
   m_EditorClassIdentifier: 
   isTutorialContract: 0
+  autoCollectReward: 0
   clientName: Professor Bhan
   jobDescription: 
   budget: 50000
@@ -20,6 +21,8 @@ MonoBehaviour:
   allowedMaterials: []
   enforceMaxStress: 0
   maxAllowedStress: 100
+  isTimeAttack: 0
+  timeAttackDuration: 60
   winCondition: 1
   requiredIntactTime: 10
   goldReward: 500

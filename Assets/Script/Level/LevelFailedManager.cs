@@ -27,7 +27,6 @@ public class LevelFailedManager : MonoBehaviour
     [Tooltip("The Y-axis height at which the vehicle is considered fallen/destroyed.")]
     public float deathThreshold = -15f;
     
-    // --- NEW: Delay so the player can watch the bridge collapse! ---
     [Tooltip("How long to wait before showing the fail screen (lets the player watch the destruction).")]
     public float delayBeforeFailScreen = 2.0f; 
 
@@ -105,12 +104,9 @@ public class LevelFailedManager : MonoBehaviour
         }
     }
 
-    // --- THE FIX: Start the delay process immediately upon failure ---
     private void InitiateFailure(string reason)
     {
         if (isFailed) return;
-        
-        // Instantly flag as failed behind the scenes to prevent the LevelCompleteManager from counting a win!
         isFailed = true; 
 
         if (failDelayCoroutine != null) StopCoroutine(failDelayCoroutine);
@@ -119,14 +115,10 @@ public class LevelFailedManager : MonoBehaviour
 
     private IEnumerator FailDelayRoutine(string reason)
     {
-        // Let gravity and physics run for a couple of seconds so they watch the destruction
         yield return new WaitForSeconds(delayBeforeFailScreen);
-        
-        // Then show the UI
         ShowFailScreen(reason);
     }
 
-    // Kept public so other scripts can manually fail the level if needed
     public void TriggerLevelFailed(string failureReason = "")
     {
         InitiateFailure(failureReason);
@@ -207,7 +199,6 @@ public class LevelFailedManager : MonoBehaviour
 
     public void RetryLevel()
     {
-        // Abort the delay timer if they mash Retry before the UI pops up
         if (failDelayCoroutine != null) StopCoroutine(failDelayCoroutine); 
         
         if (physicsManager != null)
@@ -217,6 +208,16 @@ public class LevelFailedManager : MonoBehaviour
         
         BarCreator barCreator = FindObjectOfType<BarCreator>();
         if (barCreator != null) barCreator.isSimulating = false;
+
+        // --- NEW: Reset the Time Attack Timer if they Restart ---
+        BuildLocation[] allLocs = Resources.FindObjectsOfTypeAll<BuildLocation>();
+        foreach (var loc in allLocs)
+        {
+            if (loc.gameObject.scene.name != null && loc.gameObject.activeInHierarchy)
+            {
+                loc.ResetTimeAttack(); 
+            }
+        }
 
         RestoreHiddenUI(); 
 
@@ -233,7 +234,6 @@ public class LevelFailedManager : MonoBehaviour
 
     private void HandleSimulationStopped()
     {
-        // Abort the delay timer if physics stops for any other reason
         if (failDelayCoroutine != null) StopCoroutine(failDelayCoroutine); 
         
         isFailed = false;

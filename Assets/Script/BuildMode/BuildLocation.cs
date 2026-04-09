@@ -31,6 +31,9 @@ public class BuildLocation : Interactable
 
     private Transform originalPlayerParent;
 
+    private float timeAttackTimer;
+    private bool isTimeAttackActive = false;
+
     private void Awake()
     {
         if (locationCamera != null) locationCamera.enabled = false;
@@ -53,6 +56,39 @@ public class BuildLocation : Interactable
         if (activeContract == null) promptMessage = "Requires Contract! Talk to the client.";
         else if (bakedBars.Count > 0) promptMessage = "Redo Bridge (Deletes Old)"; 
         else promptMessage = "Enter Build Mode";
+
+        if (isTimeAttackActive)
+        {
+            BridgePhysicsManager phys = FindObjectOfType<BridgePhysicsManager>();
+            bool isSimulating = phys != null && phys.isSimulating;
+            bool isFailed = LevelFailedManager.Instance != null && LevelFailedManager.Instance.isFailed;
+            bool isPaused = Time.timeScale == 0f;
+
+            if (!isSimulating && !isFailed && !isPaused)
+            {
+                timeAttackTimer -= Time.deltaTime;
+
+                // --- THE FIX: Route through BuildUIController ---
+                if (BuildUIController.Instance != null)
+                {
+                    BuildUIController.Instance.ShowTimer(true);
+                    BuildUIController.Instance.UpdateTimerText("Time Attack: ", timeAttackTimer);
+                }
+
+                if (timeAttackTimer <= 0f)
+                {
+                    timeAttackTimer = 0f;
+                    isTimeAttackActive = false; 
+                    
+                    if (BuildUIController.Instance != null) BuildUIController.Instance.UpdateTimerText("Time Attack: ", 0f);
+                    
+                    if (LevelFailedManager.Instance != null) 
+                    {
+                        LevelFailedManager.Instance.TriggerLevelFailed("Time's Up! You didn't finish the bridge in time.");
+                    }
+                }
+            }
+        }
     }
 
     protected override void Intract()
@@ -121,6 +157,11 @@ public class BuildLocation : Interactable
         }
 
         if (advancesTutorial && TutorialManager.Instance != null) TutorialManager.Instance.ShowNextStep();
+
+        if (activeContract.isTimeAttack)
+        {
+            ResetTimeAttack();
+        }
     }
 
     public void DeactivateBuildMode(Transform player)
@@ -132,6 +173,26 @@ public class BuildLocation : Interactable
         {
             player.SetParent(originalPlayerParent);
             originalPlayerParent = null;
+        }
+
+        isTimeAttackActive = false;
+        // --- THE FIX: Route through BuildUIController ---
+        if (BuildUIController.Instance != null) BuildUIController.Instance.ShowTimer(false);
+    }
+
+    public void ResetTimeAttack()
+    {
+        if (activeContract != null && activeContract.isTimeAttack)
+        {
+            timeAttackTimer = activeContract.timeAttackDuration;
+            isTimeAttackActive = true;
+            
+            // --- THE FIX: Route through BuildUIController ---
+            if (BuildUIController.Instance != null)
+            {
+                BuildUIController.Instance.ShowTimer(true);
+                BuildUIController.Instance.UpdateTimerText("Time Attack: ", timeAttackTimer);
+            }
         }
     }
 
@@ -170,21 +231,16 @@ public class BuildLocation : Interactable
         return Quaternion.LookRotation(lookAt - GetDesiredCameraPosition());
     }
 
-    // --- THE FIX: Changed to public so the NPC can force-load it after checking the save ---
     public void LoadSavedBridge()
     {
         if (activeContract == null || PlayerDataManager.Instance == null) return;
-        if (bakedBars.Count > 0) return; // Prevent loading a bridge twice
+        if (bakedBars.Count > 0) return; 
         
         var savedBridge = PlayerDataManager.Instance.GetSavedBridge(activeContract.name);
         if (savedBridge == null || savedBridge.points.Count == 0) return;
 
         BarCreator creator = FindObjectOfType<BarCreator>(true);
-        if (creator == null || creator.pointToInstantiate == null || creator.barToInstantiate == null)
-        {
-            Debug.LogError("<b>[Bridge Loader]</b> Cannot load bridge: BarCreator or prefabs are missing from the scene!");
-            return;
-        }
+        if (creator == null || creator.pointToInstantiate == null || creator.barToInstantiate == null) return;
 
         BridgeMaterialSO[] allMats = Resources.LoadAll<BridgeMaterialSO>("");
         Dictionary<int, Point> indexToPoint = new Dictionary<int, Point>();
@@ -245,10 +301,7 @@ public class BuildLocation : Interactable
                     if (cap != null)
                     {
                         Renderer capRend = cap.GetComponentInChildren<Renderer>();
-                        if (capRend != null && capRend.gameObject.GetComponent<Collider>() == null)
-                        {
-                            capRend.gameObject.AddComponent<BoxCollider>();
-                        }
+                        if (capRend != null && capRend.gameObject.GetComponent<Collider>() == null) capRend.gameObject.AddComponent<BoxCollider>();
                     }
 
                     foreach (Transform child in newBar.transform)
@@ -256,10 +309,7 @@ public class BuildLocation : Interactable
                         if (child.name.StartsWith("VisualSegment"))
                         {
                             Renderer segRend = child.GetComponentInChildren<Renderer>();
-                            if (segRend != null && segRend.gameObject.GetComponent<Collider>() == null)
-                            {
-                                segRend.gameObject.AddComponent<BoxCollider>();
-                            }
+                            if (segRend != null && segRend.gameObject.GetComponent<Collider>() == null) segRend.gameObject.AddComponent<BoxCollider>();
                         }
                     }
                 }
@@ -271,7 +321,6 @@ public class BuildLocation : Interactable
                     for (int i = 0; i < spawnCount; i++)
                     {
                         BoxCollider col = newBar.gameObject.AddComponent<BoxCollider>();
-                        
                         float thickness = mat.isRoad ? 0.05f : 0.2f; 
                         float depth = newBar.visualSize.z; 
 

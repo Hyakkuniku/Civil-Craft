@@ -12,12 +12,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
   m_Name: Bhan's Contract
   m_EditorClassIdentifier: 
-  isTutorialContract: 1
+  isTutorialContract: 0
+  autoCollectReward: 0
   clientName: Professor Bhan
   jobDescription: 'Beam Bridges
 
 '
-  budget: 15000
+  budget: Infinity
   liveLoadWeight: 700
   allowedMaterials:
   - material: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
@@ -26,6 +27,8 @@ MonoBehaviour:
     maxPieces: 2
   enforceMaxStress: 0
   maxAllowedStress: 100
+  isTimeAttack: 1
+  timeAttackDuration: 242
   winCondition: 0
   requiredIntactTime: 6
   goldReward: 500

@@ -45,7 +45,8 @@ public class BuildUIController : MonoBehaviour
     public Color warningStressColor = Color.yellow;
     public Color criticalStressColor = Color.red;
 
-    [Header("Timer UI")]
+    // --- NEW: Universal Timer UI is now here! ---
+    [Header("Universal Timer UI (Time Attack & Hold)")]
     public GameObject timerPanel; 
     public TextMeshProUGUI timerText; 
 
@@ -89,7 +90,6 @@ public class BuildUIController : MonoBehaviour
     private int lastDisplayM = -1;
     private int lastDisplayJ = -1;
 
-    // --- NEW: Tracks how many pieces of each material are currently in use ---
     private Dictionary<BridgeMaterialSO, int> materialUsageCount = new Dictionary<BridgeMaterialSO, int>();
 
     private void Awake() { Instance = this; }
@@ -102,6 +102,8 @@ public class BuildUIController : MonoBehaviour
         if (selectionActionPanel != null) selectionActionPanel.SetActive(false);
         if (statsPanel != null) statsPanel.SetActive(false); 
         if (liveBeamStatsPanel != null) liveBeamStatsPanel.SetActive(false);
+        
+        // Ensure timer is off by default
         if (timerPanel != null) timerPanel.SetActive(false); 
         
         if (unlockMaterialPanel != null) unlockMaterialPanel.SetActive(false); 
@@ -109,6 +111,22 @@ public class BuildUIController : MonoBehaviour
         if (actionLogText != null) actionLogText.text = ""; 
 
         MarkBridgeDirty();
+    }
+
+    // --- NEW: Universal Timer Methods ---
+    public void ShowTimer(bool isVisible)
+    {
+        if (timerPanel != null) timerPanel.SetActive(isVisible);
+    }
+
+    public void UpdateTimerText(string prefix, float timeInSeconds)
+    {
+        if (timerText != null)
+        {
+            int minutes = Mathf.FloorToInt(timeInSeconds / 60F);
+            int seconds = Mathf.FloorToInt(timeInSeconds - minutes * 60);
+            timerText.text = $"{prefix}<color=red>{minutes:00}:{seconds:00}</color>";
+        }
     }
 
     private void Update()
@@ -123,27 +141,15 @@ public class BuildUIController : MonoBehaviour
         {
             UpdateStressUI();
 
-            ContractSO currentContract = GetActiveContract();
-            if (currentContract != null && currentContract.winCondition == ContractSO.WinCondition.Timer)
-            {
-                if (timerPanel != null && !timerPanel.activeSelf) timerPanel.SetActive(true);
-                if (timerText != null && LevelCompleteManager.Instance != null)
-                {
-                    // --- THE FIX IS HERE: Convert frames to seconds for the UI display ---
-                    float currentTime = LevelCompleteManager.Instance.currentSimulationFrames * Time.fixedDeltaTime;
-                    timerText.text = $"Holding: {currentTime:F1}s / {currentContract.requiredIntactTime:F1}s";
-                }
-            }
-            else
-            {
-                if (timerPanel != null && timerPanel.activeSelf) timerPanel.SetActive(false);
-            }
+            // Note: The Hold Timer display logic is now handled entirely inside LevelCompleteManager
+            // We just let it drive our ShowTimer and UpdateTimerText methods!
         }
         else
         {
             UpdateStressUI(); 
             
-            if (timerPanel != null && timerPanel.activeSelf) timerPanel.SetActive(false);
+            // If we are building, the BuildLocation will handle showing the Time Attack timer.
+            // If there is no Time Attack, BuildLocation will hide it.
 
             if (barCreator != null && barCreator.IsCreating)
             {
@@ -156,7 +162,6 @@ public class BuildUIController : MonoBehaviour
         UpdatePlayPauseButtonUI();
     }
 
-    // --- THE FIX: Call this from anywhere to see how many pieces of a material are currently drawn! ---
     public int GetMaterialUsageCount(BridgeMaterialSO material)
     {
         if (materialUsageCount.ContainsKey(material))

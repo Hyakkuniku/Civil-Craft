@@ -77,6 +77,11 @@ public class LevelCompleteManager : MonoBehaviour
             ResetCompletionState();
         }
         
+        if (!isSimulating && wasSimulating)
+        {
+            if (BuildUIController.Instance != null) BuildUIController.Instance.ShowTimer(false);
+        }
+        
         wasSimulating = isSimulating;
     }
 
@@ -84,8 +89,6 @@ public class LevelCompleteManager : MonoBehaviour
     {
         if (cachedPhysicsManager == null) return;
         
-        // --- THE FIX: Bulletproof timer clearing ---
-        // If physics are turned off, aggressively keep the timer at 0 so old data never bleeds over!
         if (!cachedPhysicsManager.isSimulating)
         {
             currentSimulationFrames = 0;
@@ -123,10 +126,28 @@ public class LevelCompleteManager : MonoBehaviour
                     if (activeLoc != null && IsBridgeConnected(activeLoc))
                     {
                         currentSimulationFrames++; 
-                        int requiredFrames = Mathf.RoundToInt(currentContract.requiredIntactTime / Time.fixedDeltaTime);
+                        
+                        float requiredTime = currentContract.requiredIntactTime;
+                        float elapsedTime = currentSimulationFrames * Time.fixedDeltaTime;
+                        float timeRemaining = requiredTime - elapsedTime;
+                        if (timeRemaining < 0) timeRemaining = 0;
+
+                        // --- THE FIX: Route through BuildUIController ---
+                        if (BuildUIController.Instance != null)
+                        {
+                            BuildUIController.Instance.ShowTimer(true);
+                            BuildUIController.Instance.UpdateTimerText("Hold Bridge: ", timeRemaining);
+                        }
+
+                        int requiredFrames = Mathf.RoundToInt(requiredTime / Time.fixedDeltaTime);
 
                         if (currentSimulationFrames >= requiredFrames)
                         {
+                            if (BuildUIController.Instance != null)
+                            {
+                                BuildUIController.Instance.ShowTimer(false); 
+                            }
+                            
                             if (ObjectiveTrackerUI.Instance != null)
                             {
                                 ObjectiveTrackerUI.Instance.descriptionText.text = $"<color=green>Bridge Tested!</color> Return to {currentContract.clientName}.";
@@ -138,6 +159,12 @@ public class LevelCompleteManager : MonoBehaviour
                     else
                     {
                         currentSimulationFrames = 0;
+                        
+                        if (BuildUIController.Instance != null)
+                        {
+                            BuildUIController.Instance.ShowTimer(true);
+                            BuildUIController.Instance.UpdateTimerText("Hold Bridge: ", currentContract.requiredIntactTime);
+                        }
                     }
                 }
             }
@@ -216,8 +243,6 @@ public class LevelCompleteManager : MonoBehaviour
     public void ResetCompletionState()
     {
         levelAlreadyCompleted = false;
-        
-        // --- THE FIX: Clear the frames here too! ---
         currentSimulationFrames = 0;
     }
 
@@ -564,7 +589,6 @@ public class LevelCompleteManager : MonoBehaviour
 
     public void RetrySimulation()
     {
-        // --- THE FIX: We call the central reset method to ensure both flags and timers are wiped ---
         ResetCompletionState();
 
         if (cachedPhysicsManager != null) cachedPhysicsManager.StopPhysicsAndReset();
@@ -589,6 +613,29 @@ public class LevelCompleteManager : MonoBehaviour
                     npc.isContractCompleted = true;
                 }
             }
+        }
+
+        if (activeContract != null && activeContract.autoCollectReward && !alreadyPaidContracts.Contains(activeContract.name))
+        {
+            int earnedGold = GetContractGold(activeContract.name);
+            int earnedExp = GetContractExp(activeContract.name);
+
+            if (PlayerDataManager.Instance != null)
+            {
+                PlayerDataManager.Instance.AddGold(earnedGold);
+                PlayerDataManager.Instance.AddExp(earnedExp);
+                PlayerDataManager.Instance.AddBridgeBuilt();
+                PlayerDataManager.Instance.CompleteContract(activeContract.name);
+            }
+            
+            MarkContractAsPaid(activeContract.name);
+            
+            if (ObjectiveTrackerUI.Instance != null)
+            {
+                ObjectiveTrackerUI.Instance.ClearObjective();
+            }
+            
+            Debug.Log($"<color=green>Auto-Collected {earnedGold} Gold and {earnedExp} EXP for {activeContract.name}!</color>");
         }
 
         if (cachedPhysicsManager != null) cachedPhysicsManager.BakeBridge(activeContract); 
