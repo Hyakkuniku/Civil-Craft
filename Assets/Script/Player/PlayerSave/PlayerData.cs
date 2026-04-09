@@ -38,6 +38,26 @@ public class SavedBridgeData
 }
 
 [System.Serializable]
+public class TrackedTask
+{
+    public string title;
+    public string description;
+    public bool isTutorial;
+    public string contractName; 
+    public float budget;
+    public float weight;
+
+    public bool isReadyToTurnIn;
+    public bool isCompleted;
+
+    public int pendingGold;
+    public int pendingExp;
+    
+    // --- NEW: Remembers the name of the GameObject to guide the player to! ---
+    public string targetWaypointName; 
+}
+
+[System.Serializable]
 public class PlayerData
 {
     public string playerName = "Guest";
@@ -45,15 +65,16 @@ public class PlayerData
     public int exp = 0;
     public bool hasAlmanac = false; 
 
-    // --- NEW: Lifetime Statistics for Achievements ---
     public int lifetimeBridgesBuilt = 0;
     public int lifetimeGoldEarned = 0;
     public int lifetimeGoldSpent = 0;
     public int lifetimeContractsCompleted = 0;
     
-    // --- NEW: Unlocked Achievements ---
+    public string lastSavedScene = "";
+    public SerializableVector3 lastSavedPosition;
+
     public List<string> unlockedAchievements = new List<string>();
-    
+    public List<TrackedTask> activeQuests = new List<TrackedTask>(); 
     public List<string> unlockedLevels = new List<string> { "Tutorial" };
     public List<string> completedContracts = new List<string>();
     public List<string> completedLessons = new List<string>();

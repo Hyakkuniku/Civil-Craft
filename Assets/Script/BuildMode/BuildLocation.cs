@@ -19,6 +19,11 @@ public class BuildLocation : Interactable
     [Header("Active Contract")]
     public ContractSO activeContract; 
 
+    // --- NEW: Navigation Target ---
+    [Header("Navigation")]
+    [Tooltip("Drag an Empty GameObject placed at the cliff edge here. The rock trail will lead to this exact spot!")]
+    public GameObject navigationTarget;
+
     [Header("Tutorial Settings")]
     public bool advancesTutorial = false; 
 
@@ -43,6 +48,11 @@ public class BuildLocation : Interactable
 
     private void Start()
     {
+        if (activeContract != null && PlayerPrefs.GetInt("LockedContract_" + activeContract.name, 0) == 1)
+        {
+            activeContract = null; 
+        }
+
         LoadSavedBridge();
 
         if (bakedBars.Count == 0) 
@@ -68,7 +78,6 @@ public class BuildLocation : Interactable
             {
                 timeAttackTimer -= Time.deltaTime;
 
-                // --- THE FIX: Route through BuildUIController ---
                 if (BuildUIController.Instance != null)
                 {
                     BuildUIController.Instance.ShowTimer(true);
@@ -82,9 +91,17 @@ public class BuildLocation : Interactable
                     
                     if (BuildUIController.Instance != null) BuildUIController.Instance.UpdateTimerText("Time Attack: ", 0f);
                     
-                    if (LevelFailedManager.Instance != null) 
+                    if (activeContract != null)
                     {
-                        LevelFailedManager.Instance.TriggerLevelFailed("Time's Up! You didn't finish the bridge in time.");
+                        PlayerPrefs.SetInt("LockedContract_" + activeContract.name, 1);
+                        PlayerPrefs.Save();
+                        
+                        if (LevelFailedManager.Instance != null) 
+                        {
+                            LevelFailedManager.Instance.TriggerLevelFailed("Time's Up! This contract is permanently locked.", true);
+                        }
+
+                        activeContract = null; 
                     }
                 }
             }
@@ -176,7 +193,6 @@ public class BuildLocation : Interactable
         }
 
         isTimeAttackActive = false;
-        // --- THE FIX: Route through BuildUIController ---
         if (BuildUIController.Instance != null) BuildUIController.Instance.ShowTimer(false);
     }
 
@@ -187,7 +203,6 @@ public class BuildLocation : Interactable
             timeAttackTimer = activeContract.timeAttackDuration;
             isTimeAttackActive = true;
             
-            // --- THE FIX: Route through BuildUIController ---
             if (BuildUIController.Instance != null)
             {
                 BuildUIController.Instance.ShowTimer(true);

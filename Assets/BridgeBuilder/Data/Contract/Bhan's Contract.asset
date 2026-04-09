@@ -18,7 +18,7 @@ MonoBehaviour:
   jobDescription: 'Beam Bridges
 
 '
-  budget: Infinity
+  budget: 15000
   liveLoadWeight: 700
   allowedMaterials:
   - material: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
@@ -28,7 +28,7 @@ MonoBehaviour:
   enforceMaxStress: 0
   maxAllowedStress: 100
   isTimeAttack: 1
-  timeAttackDuration: 242
+  timeAttackDuration: 2
   winCondition: 0
   requiredIntactTime: 6
   goldReward: 500

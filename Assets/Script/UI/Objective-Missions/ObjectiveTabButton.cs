@@ -5,31 +5,37 @@ using UnityEngine.UI;
 public class ObjectiveTabButton : MonoBehaviour
 {
     public TextMeshProUGUI questTitleText;
-    public GameObject readyToTurnInIcon; // A little '!' or checkmark icon
+    public GameObject readyToTurnInIcon; 
 
-    private ObjectiveTrackerUI.TrackedTask myTask;
+    // --- THE FIX: We use the global TrackedTask now! ---
+    private TrackedTask myTask;
 
-    public void Setup(ObjectiveTrackerUI.TrackedTask task)
+    public void Setup(TrackedTask task)
     {
         myTask = task;
         
         if (questTitleText != null)
         {
-            // Add a prefix so players know what type of quest it is
             string prefix = task.isTutorial ? "[Guide] " : "[Contract] ";
+            
+            if (task.isCompleted) prefix = "[Done] ";
+
             questTitleText.text = prefix + task.title;
             
-            // Turn the text gold if it's ready to complete!
-            questTitleText.color = task.isReadyToTurnIn ? Color.yellow : Color.white;
+            if (task.isCompleted) 
+                questTitleText.color = Color.gray;
+            else if (task.isReadyToTurnIn) 
+                questTitleText.color = Color.yellow;
+            else 
+                questTitleText.color = Color.white;
         }
 
         if (readyToTurnInIcon != null) 
         {
-            readyToTurnInIcon.SetActive(task.isReadyToTurnIn);
+            readyToTurnInIcon.SetActive(task.isReadyToTurnIn && !task.isCompleted);
         }
     }
 
-    // Hook this to the Button's OnClick event in the inspector!
     public void OnClicked()
     {
         if (ObjectiveTrackerUI.Instance != null && myTask != null)

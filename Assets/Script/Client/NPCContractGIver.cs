@@ -16,6 +16,7 @@ public class NPCContractGiver : Interactable
 
     private Transform playerTransform;
     private DialogueManager dialogueManager;
+    private bool isLocked = false;
 
     private void Awake()
     {
@@ -23,14 +24,16 @@ public class NPCContractGiver : Interactable
         if (player != null) playerTransform = player.transform;
         
         dialogueManager = FindObjectOfType<DialogueManager>();
-        
-        // Removed the hardcoded activeContract assignment here so the bridge stays locked by default!
     }
 
     private void Start()
     {
-        // --- THE FIX: Only unlock the bridge on load if the player already built it previously ---
-        if (contractToGive != null && PlayerDataManager.Instance != null)
+        if (contractToGive != null)
+        {
+            isLocked = PlayerPrefs.GetInt("LockedContract_" + contractToGive.name, 0) == 1;
+        }
+
+        if (contractToGive != null && PlayerDataManager.Instance != null && !isLocked)
         {
             bool isCompleted = PlayerDataManager.Instance.CurrentData.completedContracts.Contains(contractToGive.name);
             bool hasSavedBridge = PlayerDataManager.Instance.GetSavedBridge(contractToGive.name) != null;
@@ -55,6 +58,12 @@ public class NPCContractGiver : Interactable
     private void Update()
     {
         if (contractToGive == null) return;
+
+        if (isLocked)
+        {
+            promptMessage = "Contract Locked (Failed)";
+            return;
+        }
 
         if (!isFullyTurnedIn && LevelCompleteManager.Instance != null && LevelCompleteManager.Instance.IsContractPaid(contractToGive.name))
         {
@@ -85,6 +94,12 @@ public class NPCContractGiver : Interactable
 
         if (contractToGive == null) return;
 
+        if (isLocked)
+        {
+            Debug.Log("Contract is locked. You failed the time limit!");
+            return;
+        }
+
         if (LevelCompleteManager.Instance != null && LevelCompleteManager.Instance.IsContractPaid(contractToGive.name))
         {
             isFullyTurnedIn = true;
@@ -113,9 +128,19 @@ public class NPCContractGiver : Interactable
         }
         else if (!hasGivenContract)
         {
-            // Now, talking to the NPC actually unlocks the build zone
             if (targetBuildLocation != null) targetBuildLocation.activeContract = contractToGive;
             if (linkedCargo != null) linkedCargo.SetWeight(contractToGive.liveLoadWeight);
+
+            // --- THE FIX: Look for the custom Navigation Target first! ---
+            string targetLocName = "";
+            if (targetBuildLocation != null)
+            {
+                targetLocName = targetBuildLocation.navigationTarget != null ? targetBuildLocation.navigationTarget.name : targetBuildLocation.gameObject.name;
+            }
+            else
+            {
+                targetLocName = gameObject.name; 
+            }
 
             if (dialogueManager != null && contractToGive.offerDialogue != null)
             {
@@ -123,13 +148,13 @@ public class NPCContractGiver : Interactable
                 
                 dialogueManager.StartDialogue(contractToGive.offerDialogue, () => 
                 {
-                    if (ObjectiveTrackerUI.Instance != null) ObjectiveTrackerUI.Instance.SetObjective(contractToGive);
+                    if (ObjectiveTrackerUI.Instance != null) ObjectiveTrackerUI.Instance.SetObjective(contractToGive, targetLocName);
                     TryAdvanceTutorial();
                 });
             }
             else
             {
-                if (ObjectiveTrackerUI.Instance != null) ObjectiveTrackerUI.Instance.SetObjective(contractToGive);
+                if (ObjectiveTrackerUI.Instance != null) ObjectiveTrackerUI.Instance.SetObjective(contractToGive, targetLocName);
                 TryAdvanceTutorial();
             }
 

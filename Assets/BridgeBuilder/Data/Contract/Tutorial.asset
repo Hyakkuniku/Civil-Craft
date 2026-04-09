@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   isTutorialContract: 0
   autoCollectReward: 0
-  clientName: Professor Bhan
+  clientName: REMIEL
   jobDescription: 
   budget: 50000
   liveLoadWeight: 411
@@ -28,7 +28,7 @@ MonoBehaviour:
   goldReward: 500
   expReward: 1000
   offerDialogue:
-    name: Professor Bhan
+    name: REMIEL
     sentences:
     - Ah, you must be the new engineer the guild sent over! Welcome, welcome! Come
       in, don't just stand in the doorway.
@@ -43,7 +43,7 @@ MonoBehaviour:
       it, and then come talk to me. We'll get you started on your first official
       contract!
   reminderDialogue:
-    name: Professor Bhan
+    name: REMIEL
     sentences:
     - Ah, excellent! You have it. Treat that book well
     - Now, down to business. The local merchants desperately need a supply route
@@ -53,5 +53,6 @@ MonoBehaviour:
     - Come on, let's go outside for your first contract. The build site is just down
       the path!
   finishedContractDialogue:
-    name: 
-    sentences: []
+    name: REMIEL
+    sentences:
+    - tapos na?

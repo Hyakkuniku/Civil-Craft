@@ -132,7 +132,6 @@ public class LevelCompleteManager : MonoBehaviour
                         float timeRemaining = requiredTime - elapsedTime;
                         if (timeRemaining < 0) timeRemaining = 0;
 
-                        // --- THE FIX: Route through BuildUIController ---
                         if (BuildUIController.Instance != null)
                         {
                             BuildUIController.Instance.ShowTimer(true);
@@ -632,7 +631,7 @@ public class LevelCompleteManager : MonoBehaviour
             
             if (ObjectiveTrackerUI.Instance != null)
             {
-                ObjectiveTrackerUI.Instance.ClearObjective();
+                ObjectiveTrackerUI.Instance.ClearObjective(activeContract);
             }
             
             Debug.Log($"<color=green>Auto-Collected {earnedGold} Gold and {earnedExp} EXP for {activeContract.name}!</color>");
@@ -656,6 +655,12 @@ public class LevelCompleteManager : MonoBehaviour
                     lastPeakStress
                 );
             }
+        }
+
+        // --- THE FIX: Trigger the HUD alert if the player needs to talk to the client! ---
+        if (ObjectiveTrackerUI.Instance != null && activeContract != null && !activeContract.autoCollectReward)
+        {
+            ObjectiveTrackerUI.Instance.NotifyBridgeBuilt(activeContract.name);
         }
 
         if (CommandManager.Instance != null) CommandManager.Instance.ClearHistory();

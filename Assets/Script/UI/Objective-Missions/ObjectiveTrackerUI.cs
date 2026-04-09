@@ -2,46 +2,33 @@ using System.Collections.Generic;
 using UnityEngine;
 using TMPro;
 using UnityEngine.UI; 
+using System.Linq; // --- NEW: Required for sorting lists! ---
 
 public class ObjectiveTrackerUI : MonoBehaviour
 {
     public static ObjectiveTrackerUI Instance { get; private set; }
 
-    // --- NEW: Data structure to hold ANY type of quest! ---
-    [System.Serializable]
-    public class TrackedTask
-    {
-        public string title;
-        public string description;
-        public bool isTutorial;
-        public ContractSO contract; 
-        public NPCContractGiver npc; 
-        
-        public bool isReadyToTurnIn;
-        public int pendingGold;
-        public int pendingExp;
-    }
-
     [Header("HUD Alert Notification")]
-    [Tooltip("The button on the player screen to open the mission tab.")]
     public GameObject openTrackerButton; 
-    [Tooltip("A little red dot or '!' that turns on when a new quest is added or completed.")]
     public GameObject newAlertIcon; 
 
-    [Header("Mission List UI (Left Side)")]
-    [Tooltip("The main full-screen/large panel.")]
+    [Header("Main Menu Base")]
     public GameObject trackerPanel; 
-    [Tooltip("The Content object of your Scroll View.")]
+
+    [Header("State 1: Mission List")]
+    public GameObject listPanel; 
     public Transform questListContent;
-    [Tooltip("The Prefab with the ObjectiveTabButton script on it.")]
     public GameObject questTabPrefab;
 
-    [Header("Mission Details UI (Right Side)")]
-    public GameObject detailsPanel; // Hide this if no quest is selected!
+    [Header("State 2: Mission Details")]
+    public GameObject detailsPanel; 
     public TextMeshProUGUI titleText;
     public TextMeshProUGUI descriptionText;
     public TextMeshProUGUI budgetText;
     public TextMeshProUGUI weightText; 
+
+    [Header("Navigation UI")]
+    public GameObject navigateButton;
 
     [Header("Final Payout UI")]
     public GameObject completeButton; 
@@ -52,8 +39,6 @@ public class ObjectiveTrackerUI : MonoBehaviour
     [Header("Other UI to Hide")]
     public List<GameObject> otherUIElements = new List<GameObject>();
 
-    // The master list of all ongoing quests
-    private List<TrackedTask> activeTasks = new List<TrackedTask>();
     private TrackedTask currentlySelectedTask; 
 
     private void Awake()
@@ -62,40 +47,49 @@ public class ObjectiveTrackerUI : MonoBehaviour
         else { Destroy(gameObject); return; }
         
         if (trackerPanel != null) trackerPanel.SetActive(false);
+        if (listPanel != null) listPanel.SetActive(false);
         if (detailsPanel != null) detailsPanel.SetActive(false);
         if (newAlertIcon != null) newAlertIcon.SetActive(false);
+        
+        if (openTrackerButton != null) openTrackerButton.SetActive(true);
     }
 
-    // ─────────────────────────────────────────────────────────────
-    // ADDING QUESTS
-    // ─────────────────────────────────────────────────────────────
-
-    // For your standard Bridge Contracts
-    public void SetObjective(ContractSO contract)
+    private void Start()
     {
-        if (contract == null) return;
+        RefreshQuestList();
+    }
 
-        // Prevent adding duplicates
-        if (activeTasks.Exists(t => t.contract == contract)) return;
+    public void SetObjective(ContractSO contract, string targetName = "")
+    {
+        if (contract == null || PlayerDataManager.Instance == null) return;
+        
+        var activeTasks = PlayerDataManager.Instance.CurrentData.activeQuests;
+        if (activeTasks.Exists(t => t.contractName == contract.name)) return;
 
         TrackedTask newTask = new TrackedTask
         {
             title = contract.clientName + "'s Request",
             description = contract.jobDescription,
-            contract = contract,
+            contractName = contract.name,
+            budget = contract.budget,
+            weight = contract.liveLoadWeight,
             isTutorial = false,
-            isReadyToTurnIn = false
+            isReadyToTurnIn = false,
+            isCompleted = false,
+            targetWaypointName = targetName 
         };
 
         activeTasks.Add(newTask);
+        PlayerDataManager.Instance.SaveGame(); 
+        
         AlertPlayer();
         RefreshQuestList();
     }
 
-    // NEW: For tutorial steps or generic RPG fetch quests!
-    public void AddGenericTask(string taskTitle, string taskDescription)
+    public void AddGenericTask(string taskTitle, string taskDescription, string targetName = "")
     {
-        // Prevent adding duplicates
+        if (PlayerDataManager.Instance == null) return;
+        var activeTasks = PlayerDataManager.Instance.CurrentData.activeQuests;
         if (activeTasks.Exists(t => t.title == taskTitle)) return;
 
         TrackedTask newTask = new TrackedTask
@@ -103,107 +97,229 @@ public class ObjectiveTrackerUI : MonoBehaviour
             title = taskTitle,
             description = taskDescription,
             isTutorial = true,
-            isReadyToTurnIn = false
+            isReadyToTurnIn = false,
+            isCompleted = false,
+            targetWaypointName = targetName 
         };
 
         activeTasks.Add(newTask);
+        PlayerDataManager.Instance.SaveGame();
+        
         AlertPlayer();
         RefreshQuestList();
     }
 
-    // ─────────────────────────────────────────────────────────────
-    // UPDATING & COMPLETING QUESTS
-    // ─────────────────────────────────────────────────────────────
-
-    // Updates a specific contract to show it is ready for payout
-    public void ShowCompleteButton(int gold, int exp, NPCContractGiver npc)
+    public void CompleteGenericTask(string taskTitle)
     {
-        if (npc == null || npc.contractToGive == null) return;
-
-        TrackedTask taskToComplete = activeTasks.Find(t => t.contract == npc.contractToGive);
+        if (PlayerDataManager.Instance == null) return;
         
-        if (taskToComplete != null)
+        var activeTasks = PlayerDataManager.Instance.CurrentData.activeQuests;
+        TrackedTask taskToComplete = activeTasks.Find(t => t.title == taskTitle);
+        
+        if (taskToComplete != null && !taskToComplete.isCompleted)
         {
-            taskToComplete.isReadyToTurnIn = true;
-            taskToComplete.pendingGold = gold;
-            taskToComplete.pendingExp = exp;
-            taskToComplete.npc = npc;
-
-            AlertPlayer();
+            taskToComplete.isCompleted = true;
+            taskToComplete.isReadyToTurnIn = false;
+            
+            PlayerDataManager.Instance.SaveGame();
             RefreshQuestList();
 
-            // If we are currently looking at this exact task, refresh the details panel to show the Complete button!
             if (currentlySelectedTask == taskToComplete)
             {
                 SelectTask(taskToComplete);
             }
+            
+            Debug.Log($"<color=green>Generic Task Completed: {taskTitle}</color>");
         }
     }
 
-    // Tied to the physical "Complete" UI button on the right panel
+    // --- NEW: Triggers the HUD alert and updates the quest to point to the NPC! ---
+    public void NotifyBridgeBuilt(string contractName)
+    {
+        if (PlayerDataManager.Instance == null) return;
+
+        var activeTasks = PlayerDataManager.Instance.CurrentData.activeQuests;
+        TrackedTask task = activeTasks.Find(t => t.contractName == contractName);
+
+        if (task != null && !task.isCompleted && !task.isReadyToTurnIn)
+        {
+            AlertPlayer();
+            
+            task.description = "Bridge successfully built! Return to the client to claim your reward.";
+
+            NPCContractGiver[] npcs = Resources.FindObjectsOfTypeAll<NPCContractGiver>();
+            foreach (var npc in npcs)
+            {
+                if (npc.gameObject.scene.name != null && npc.contractToGive != null && npc.contractToGive.name == contractName)
+                {
+                    task.targetWaypointName = npc.gameObject.name;
+                    break;
+                }
+            }
+
+            PlayerDataManager.Instance.SaveGame();
+            RefreshQuestList();
+
+            if (currentlySelectedTask == task)
+            {
+                SelectTask(task);
+            }
+        }
+    }
+
+    public void ShowCompleteButton(int gold, int exp, NPCContractGiver npc)
+    {
+        if (npc == null || npc.contractToGive == null || PlayerDataManager.Instance == null) return;
+
+        var activeTasks = PlayerDataManager.Instance.CurrentData.activeQuests;
+        TrackedTask taskToComplete = activeTasks.Find(t => t.contractName == npc.contractToGive.name);
+        
+        if (taskToComplete != null && !taskToComplete.isCompleted)
+        {
+            taskToComplete.isReadyToTurnIn = true;
+            taskToComplete.pendingGold = gold;
+            taskToComplete.pendingExp = exp;
+            
+            taskToComplete.targetWaypointName = ""; 
+            
+            PlayerDataManager.Instance.SaveGame();
+            RefreshQuestList();
+
+            if (trackerPanel != null && !trackerPanel.activeSelf)
+            {
+                ToggleTrackerPanel();
+            }
+
+            SelectTask(taskToComplete);
+            
+            if (PathGuider.Instance != null) PathGuider.Instance.SetNewWaypoints(new List<GuiderWaypoint>());
+        }
+    }
+
     public void OnCompleteButtonClicked()
     {
-        if (currentlySelectedTask == null) return;
+        if (currentlySelectedTask == null || currentlySelectedTask.isCompleted) return;
 
-        // If it's a bridge contract, pay the player and save the data
-        if (!currentlySelectedTask.isTutorial && currentlySelectedTask.contract != null)
+        if (!currentlySelectedTask.isTutorial && !string.IsNullOrEmpty(currentlySelectedTask.contractName))
         {
             if (PlayerDataManager.Instance != null)
             {
                 PlayerDataManager.Instance.AddGold(currentlySelectedTask.pendingGold);
                 PlayerDataManager.Instance.AddExp(currentlySelectedTask.pendingExp);
                 PlayerDataManager.Instance.AddBridgeBuilt();
-                PlayerDataManager.Instance.CompleteContract(currentlySelectedTask.contract.name);
+                PlayerDataManager.Instance.CompleteContract(currentlySelectedTask.contractName);
             }
 
             if (LevelCompleteManager.Instance != null)
             {
-                LevelCompleteManager.Instance.MarkContractAsPaid(currentlySelectedTask.contract.name);
+                LevelCompleteManager.Instance.MarkContractAsPaid(currentlySelectedTask.contractName);
             }
 
-            if (currentlySelectedTask.npc != null)
+            NPCContractGiver[] npcs = FindObjectsOfType<NPCContractGiver>();
+            foreach(var npc in npcs)
             {
-                currentlySelectedTask.npc.isFullyTurnedIn = true;
+                if (npc.contractToGive != null && npc.contractToGive.name == currentlySelectedTask.contractName)
+                {
+                    npc.isFullyTurnedIn = true;
+                }
             }
         }
 
-        // Remove the task from the list entirely
-        activeTasks.Remove(currentlySelectedTask);
-        ClearObjective(); // Hides the details panel
+        currentlySelectedTask.isCompleted = true;
+        currentlySelectedTask.isReadyToTurnIn = false;
+        
+        if (PathGuider.Instance != null) PathGuider.Instance.SetNewWaypoints(new List<GuiderWaypoint>());
+        
+        PlayerDataManager.Instance.SaveGame();
+        
+        SelectTask(currentlySelectedTask);
         RefreshQuestList();
     }
 
-    // Can be called to silently remove a quest (e.g., if auto-collected)
     public void ClearObjective(ContractSO specificContract = null)
     {
-        if (specificContract != null)
+        if (specificContract != null && PlayerDataManager.Instance != null)
         {
-            activeTasks.RemoveAll(t => t.contract == specificContract);
+            var activeTasks = PlayerDataManager.Instance.CurrentData.activeQuests;
+            var tasksToComplete = activeTasks.FindAll(t => t.contractName == specificContract.name);
+            
+            foreach(var t in tasksToComplete)
+            {
+                t.isCompleted = true;
+                t.isReadyToTurnIn = false;
+            }
+            
+            if (PathGuider.Instance != null) PathGuider.Instance.SetNewWaypoints(new List<GuiderWaypoint>());
+            
+            PlayerDataManager.Instance.SaveGame();
             RefreshQuestList();
             
-            // If we deleted the one we were looking at, hide the details
-            if (currentlySelectedTask != null && currentlySelectedTask.contract == specificContract)
+            if (currentlySelectedTask != null && currentlySelectedTask.contractName == specificContract.name)
             {
-                currentlySelectedTask = null;
-                if (detailsPanel != null) detailsPanel.SetActive(false);
+                SelectTask(currentlySelectedTask); 
             }
         }
         else
         {
-            // If no specific contract is passed, just clear the Details Panel
-            currentlySelectedTask = null; 
-            if (detailsPanel != null) detailsPanel.SetActive(false);
+            OnBackButtonClicked();
         }
     }
 
-    // ─────────────────────────────────────────────────────────────
-    // UI MANAGEMENT
-    // ─────────────────────────────────────────────────────────────
+    public void OnNavigateButtonClicked()
+    {
+        if (currentlySelectedTask == null) return;
+
+        GameObject targetObj = null;
+
+        if (!currentlySelectedTask.isTutorial && !string.IsNullOrEmpty(currentlySelectedTask.contractName) && PlayerDataManager.Instance != null)
+        {
+            bool isBridgeBuilt = PlayerDataManager.Instance.GetSavedBridge(currentlySelectedTask.contractName) != null;
+
+            if (isBridgeBuilt)
+            {
+                NPCContractGiver[] npcs = Resources.FindObjectsOfTypeAll<NPCContractGiver>();
+                foreach (var npc in npcs)
+                {
+                    if (npc.gameObject.scene.name != null && npc.contractToGive != null && npc.contractToGive.name == currentlySelectedTask.contractName)
+                    {
+                        targetObj = npc.gameObject;
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                BuildLocation[] allLocs = Resources.FindObjectsOfTypeAll<BuildLocation>();
+                foreach (var loc in allLocs)
+                {
+                    if (loc.gameObject.scene.name != null && loc.activeContract != null && loc.activeContract.name == currentlySelectedTask.contractName)
+                    {
+                        targetObj = loc.navigationTarget != null ? loc.navigationTarget : loc.gameObject;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (targetObj == null && !string.IsNullOrEmpty(currentlySelectedTask.targetWaypointName))
+        {
+            targetObj = GameObject.Find(currentlySelectedTask.targetWaypointName);
+        }
+        
+        if (targetObj != null && PathGuider.Instance != null)
+        {
+            PathGuider.Instance.RouteToSingleTarget(targetObj.transform);
+            ToggleTrackerPanel(); 
+        }
+        else
+        {
+            Debug.LogWarning("Could not find the navigation target in the active scene!");
+        }
+    }
 
     private void AlertPlayer()
     {
         if (newAlertIcon != null) newAlertIcon.SetActive(true);
-        if (openTrackerButton != null && !openTrackerButton.activeSelf) openTrackerButton.SetActive(true);
     }
 
     public void ToggleTrackerPanel()
@@ -212,35 +328,64 @@ public class ObjectiveTrackerUI : MonoBehaviour
         {
             bool isNowActive = !trackerPanel.activeSelf;
             trackerPanel.SetActive(isNowActive);
+            
+            if (openTrackerButton != null) openTrackerButton.SetActive(!isNowActive);
+            
             SetOtherUIActive(!isNowActive);
             
             if (isNowActive)
             {
-                if (newAlertIcon != null) newAlertIcon.SetActive(false); // Clear the alert
-                RefreshQuestList();
+                if (newAlertIcon != null) newAlertIcon.SetActive(false); 
                 
-                // Auto-select the first quest if we have one and haven't selected one
-                if (currentlySelectedTask == null && activeTasks.Count > 0)
-                {
-                    SelectTask(activeTasks[0]);
-                }
-            }
-            else
-            {
-                if (openTrackerButton != null) openTrackerButton.SetActive(activeTasks.Count > 0);
+                currentlySelectedTask = null;
+                if (detailsPanel != null) detailsPanel.SetActive(false);
+                if (listPanel != null) listPanel.SetActive(true);
+                
+                RefreshQuestList();
             }
         }
     }
 
+    public void OnBackButtonClicked()
+    {
+        currentlySelectedTask = null;
+        
+        if (detailsPanel != null) detailsPanel.SetActive(false);
+        if (listPanel != null) listPanel.SetActive(true);
+        
+        RefreshQuestList();
+    }
+
     private void RefreshQuestList()
     {
-        if (questListContent == null || questTabPrefab == null) return;
+        if (questListContent == null || questTabPrefab == null || PlayerDataManager.Instance == null) return;
 
-        // Clear old buttons
-        foreach (Transform child in questListContent) Destroy(child.gameObject);
+        // Clear out the old buttons
+        for (int i = questListContent.childCount - 1; i >= 0; i--)
+        {
+            Transform child = questListContent.GetChild(i);
+            child.SetParent(null); 
+            Destroy(child.gameObject);
+        }
 
-        // Spawn new buttons
-        foreach (TrackedTask task in activeTasks)
+        var allTasks = PlayerDataManager.Instance.CurrentData.activeQuests;
+
+        // --- THE NEW SORTING LOGIC ---
+        
+        // 1. Grab all Active tasks, and put the "Ready to Turn In" ones at the very top
+        var activeList = allTasks.Where(t => !t.isCompleted)
+                                 .OrderByDescending(t => t.isReadyToTurnIn)
+                                 .ToList();
+
+        // 2. Grab all Done tasks, and REVERSE them so the oldest ("first done") is at the absolute bottom!
+        var doneList = allTasks.Where(t => t.isCompleted).ToList();
+        doneList.Reverse(); 
+
+        // 3. Glue the Done list to the bottom of the Active list
+        activeList.AddRange(doneList);
+
+        // Spawn the buttons using our newly organized master list
+        foreach (TrackedTask task in activeList)
         {
             GameObject btnObj = Instantiate(questTabPrefab, questListContent);
             ObjectiveTabButton btnScript = btnObj.GetComponent<ObjectiveTabButton>();
@@ -257,16 +402,16 @@ public class ObjectiveTrackerUI : MonoBehaviour
         if (task == null) return;
         currentlySelectedTask = task;
 
+        if (listPanel != null) listPanel.SetActive(false);
         if (detailsPanel != null) detailsPanel.SetActive(true);
 
-        if (titleText != null) titleText.text = task.title;
+        if (titleText != null) titleText.text = task.isCompleted ? "[Done] " + task.title : task.title;
         if (descriptionText != null) descriptionText.text = task.description;
 
-        // Only show Bridge constraints if it's an actual bridge contract
-        if (!task.isTutorial && task.contract != null)
+        if (!task.isTutorial && !string.IsNullOrEmpty(task.contractName))
         {
-            if (budgetText != null) { budgetText.gameObject.SetActive(true); budgetText.text = "Budget: $" + task.contract.budget; }
-            if (weightText != null) { weightText.gameObject.SetActive(true); weightText.text = "Live Load: " + task.contract.liveLoadWeight + "kg"; }
+            if (budgetText != null) { budgetText.gameObject.SetActive(true); budgetText.text = "Budget: $" + task.budget; }
+            if (weightText != null) { weightText.gameObject.SetActive(true); weightText.text = "Live Load: " + task.weight + "kg"; }
         }
         else
         {
@@ -274,8 +419,7 @@ public class ObjectiveTrackerUI : MonoBehaviour
             if (weightText != null) weightText.gameObject.SetActive(false);
         }
         
-        // Show Rewards & Complete button IF it's ready to turn in
-        if (task.isReadyToTurnIn)
+        if (task.isReadyToTurnIn && !task.isCompleted)
         {
             if (rewardContainer != null) rewardContainer.SetActive(true);
             if (rewardGoldText != null) rewardGoldText.text = $"+{task.pendingGold} Gold";
@@ -286,6 +430,52 @@ public class ObjectiveTrackerUI : MonoBehaviour
         {
             if (rewardContainer != null) rewardContainer.SetActive(false);
             if (completeButton != null) completeButton.SetActive(false);
+        }
+
+        if (navigateButton != null)
+        {
+            bool canNavigate = false;
+
+            if (!task.isCompleted && !task.isReadyToTurnIn)
+            {
+                if (!task.isTutorial && !string.IsNullOrEmpty(task.contractName) && PlayerDataManager.Instance != null)
+                {
+                    bool isBridgeBuilt = PlayerDataManager.Instance.GetSavedBridge(task.contractName) != null;
+
+                    if (isBridgeBuilt)
+                    {
+                        NPCContractGiver[] npcs = Resources.FindObjectsOfTypeAll<NPCContractGiver>();
+                        foreach (var npc in npcs)
+                        {
+                            if (npc.gameObject.scene.name != null && npc.contractToGive != null && npc.contractToGive.name == task.contractName)
+                            {
+                                canNavigate = true;
+                                break;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        BuildLocation[] allLocs = Resources.FindObjectsOfTypeAll<BuildLocation>();
+                        foreach (var loc in allLocs)
+                        {
+                            if (loc.gameObject.scene.name != null && loc.activeContract != null && loc.activeContract.name == task.contractName)
+                            {
+                                canNavigate = true; 
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                if (!canNavigate && !string.IsNullOrEmpty(task.targetWaypointName))
+                {
+                    GameObject targetObj = GameObject.Find(task.targetWaypointName);
+                    if (targetObj != null) canNavigate = true;
+                }
+            }
+
+            navigateButton.SetActive(canNavigate);
         }
     }
 

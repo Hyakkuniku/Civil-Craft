@@ -18,6 +18,10 @@ public class LevelFailedManager : MonoBehaviour
     [Tooltip("Drag the Text element that will display the gold penalty here.")]
     public TextMeshProUGUI penaltyText; 
 
+    // --- NEW: Reference to the Retry Button ---
+    [Tooltip("Drag the Retry Button here so we can disable it for locked contracts.")]
+    public GameObject retryButton; 
+
     [Header("Gameplay Elements to Hide")]
     [Tooltip("UI elements to hide when this panel is open (e.g., Crosshair, HUD)")]
     public List<GameObject> uiElementsToHide = new List<GameObject>(); 
@@ -40,6 +44,9 @@ public class LevelFailedManager : MonoBehaviour
     private Coroutine failDelayCoroutine;
     
     [HideInInspector] public bool isFailed = false;
+
+    // --- NEW: Flag to track if we should hide the retry button this specific time ---
+    private bool hideRetryButtonThisFail = false;
 
     private void Awake()
     {
@@ -119,8 +126,10 @@ public class LevelFailedManager : MonoBehaviour
         ShowFailScreen(reason);
     }
 
-    public void TriggerLevelFailed(string failureReason = "")
+    // --- THE FIX: Added the 'hideRetry' parameter to match BuildLocation! ---
+    public void TriggerLevelFailed(string failureReason = "", bool hideRetry = false)
     {
+        hideRetryButtonThisFail = hideRetry;
         InitiateFailure(failureReason);
     }
 
@@ -152,6 +161,9 @@ public class LevelFailedManager : MonoBehaviour
         }
 
         if (levelFailedPanel != null) levelFailedPanel.SetActive(true);
+
+        // --- NEW: Turn off the Retry button if the contract is locked! ---
+        if (retryButton != null) retryButton.SetActive(!hideRetryButtonThisFail);
 
         if (levelNameText != null)
         {
@@ -209,7 +221,6 @@ public class LevelFailedManager : MonoBehaviour
         BarCreator barCreator = FindObjectOfType<BarCreator>();
         if (barCreator != null) barCreator.isSimulating = false;
 
-        // --- NEW: Reset the Time Attack Timer if they Restart ---
         BuildLocation[] allLocs = Resources.FindObjectsOfTypeAll<BuildLocation>();
         foreach (var loc in allLocs)
         {
@@ -223,12 +234,14 @@ public class LevelFailedManager : MonoBehaviour
 
         if (levelFailedPanel != null) levelFailedPanel.SetActive(false);
         isFailed = false;
+        hideRetryButtonThisFail = false; 
     }
 
     public void ExitLevel()
     {
         Time.timeScale = 1f;
         ResetFailCount(); 
+        hideRetryButtonThisFail = false; 
         SceneManager.LoadScene("Level Selection"); 
     }
 

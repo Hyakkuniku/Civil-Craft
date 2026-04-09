@@ -51,6 +51,20 @@ public class PlayerDataManager : MonoBehaviour
         }
     }
 
+    // ────────────────────────────────────────────────
+    // LOCATION SAVING
+    // ────────────────────────────────────────────────
+    
+    public void SavePlayerPosition(string sceneName, Vector3 position)
+    {
+        if (CurrentData != null)
+        {
+            CurrentData.lastSavedScene = sceneName;
+            CurrentData.lastSavedPosition = new SerializableVector3(position);
+            SaveGame();
+        }
+    }
+
     [ContextMenu("Delete Save Data")] 
     public void DeleteSaveData()
     {
