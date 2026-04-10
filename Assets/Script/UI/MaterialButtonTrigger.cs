@@ -8,7 +8,6 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
     [Tooltip("Drag the BridgeMaterialSO for this specific button here!")]
     public BridgeMaterialSO buttonMaterial;
 
-    // --- NEW: Parent Wrapper to Hide ---
     [Header("Tutorial UI Hiding")]
     [Tooltip("Drag the PARENT layout object here (e.g., the 'Road' or 'Beam' GameObject). This hides the empty space!")]
     public GameObject parentWrapper;
@@ -84,7 +83,7 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
     {
         isMaterialAllowed = true; 
         hasReachedQuantityLimit = false;
-        bool isTutorial = false; // Track if this is a tutorial!
+        bool isTutorial = false; 
 
         if (GameManager.Instance != null && GameManager.Instance.CurrentContract != null)
         {
@@ -145,16 +144,15 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
             }
         }
 
-        // --- THE FIX: Completely hide forbidden materials in a tutorial! ---
+        // Hide forbidden materials in a tutorial!
         if (isTutorial && !isMaterialAllowed)
         {
             if (parentWrapper != null) parentWrapper.SetActive(false);
-            else gameObject.SetActive(false); // Fallback to just the button if parent is missing
-            return; // Skip the rest of the visual logic
+            else gameObject.SetActive(false); 
+            return; 
         }
         else
         {
-            // Make sure it's turned back on if it's NOT a tutorial
             if (parentWrapper != null) parentWrapper.SetActive(true);
             else gameObject.SetActive(true);
 
@@ -198,6 +196,16 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
 
     public void OnPointerClick(PointerEventData eventData)
     {
+        // --- THE FIX: Block clicks if the tutorial is locked and this isn't the requested material! ---
+        if (BuildUIController.Instance != null && BuildUIController.Instance.isTutorialUI_Locked)
+        {
+            if (BuildUIController.Instance.whitelistedMaterial != buttonMaterial)
+            {
+                Debug.Log($"<color=orange>Tutorial Blocked Click on: {buttonMaterial.name}</color>");
+                return; // Ignored!
+            }
+        }
+
         if (!isMaterialAllowed)
         {
             if (BuildUIController.Instance != null)

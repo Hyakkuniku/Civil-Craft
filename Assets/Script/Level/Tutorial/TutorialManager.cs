@@ -34,7 +34,6 @@ public class TutorialManager : MonoBehaviour
 
     private void Start()
     {
-        // --- THE FIX: Only turn the panel off if a tutorial hasn't ALREADY started! ---
         if (!IsTutorialActive && tutorialPanel != null) 
         {
             tutorialPanel.SetActive(false);
@@ -122,6 +121,12 @@ public class TutorialManager : MonoBehaviour
         if (skipButton != null)   skipButton.SetActive(step.canSkip);
 
         step.OnStepStart?.Invoke();
+    }
+
+    // --- THE MISSING FIX: Allows the director to hide the next button during tracing/clicking steps ---
+    public void SetNextButtonActive(bool isActive)
+    {
+        if (nextButton != null) nextButton.SetActive(isActive);
     }
 
     private void CompleteTutorial()

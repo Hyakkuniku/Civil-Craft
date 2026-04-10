@@ -19,13 +19,15 @@ public class BuildLocation : Interactable
     [Header("Active Contract")]
     public ContractSO activeContract; 
 
-    // --- NEW: Navigation Target ---
     [Header("Navigation")]
     [Tooltip("Drag an Empty GameObject placed at the cliff edge here. The rock trail will lead to this exact spot!")]
     public GameObject navigationTarget;
 
     [Header("Tutorial Settings")]
     public bool advancesTutorial = false; 
+    // --- NEW: Slot to start a tutorial sequence when entering build mode! ---
+    [Tooltip("If assigned, this tutorial will start the moment the player enters this Build Location.")]
+    public TutorialSequence onEnterBuildModeTutorial;
 
     [Header("Pre-placed Anchors")]
     public List<Point> startingAnchors = new List<Point>();
@@ -174,6 +176,12 @@ public class BuildLocation : Interactable
         }
 
         if (advancesTutorial && TutorialManager.Instance != null) TutorialManager.Instance.ShowNextStep();
+
+        // --- THE FIX: Trigger the Build Mode tutorial exactly when the player enters! ---
+        if (onEnterBuildModeTutorial != null)
+        {
+            onEnterBuildModeTutorial.TryStartTutorial();
+        }
 
         if (activeContract.isTimeAttack)
         {

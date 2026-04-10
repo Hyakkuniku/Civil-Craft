@@ -1276,6 +1276,24 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         }
 
         Vector3 finalPosition = CalculateTargetPosition(rawWorldPos, existingEndPoint);
+
+        // --- TUTORIAL SNAP & CANCEL INTERCEPTOR ---
+        if (BuildTutorialDirector.Instance != null && BuildTutorialDirector.Instance.isTracingStep)
+        {
+            if (!BuildTutorialDirector.Instance.isCurrentDragValid)
+            {
+                // If they let go while the bar is red, cancel it!
+                CancelCreation();
+                if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("Tutorial: Drag exactly to the Ghost Point!");
+                return;
+            }
+            else
+            {
+                // If it is normal/green, PERFECTLY snap their placement to the Ghost Point coordinate!
+                finalPosition = BuildTutorialDirector.Instance.GetClosestValidNode(finalPosition);
+            }
+        }
+        
         if (activeMaterial != null && activeMaterial.isPier) finalPosition.x = currentStartPoint.transform.position.x;
         float limit = activeMaterial != null ? activeMaterial.maxLength : 5f;
         

@@ -8,6 +8,11 @@ public class BuildUIController : MonoBehaviour
 {
     public static BuildUIController Instance { get; private set; }
 
+    [Header("Tutorial System Locks")]
+    [HideInInspector] public bool isTutorialUI_Locked = false;
+    [HideInInspector] public BridgeMaterialSO whitelistedMaterial = null;
+    [HideInInspector] public GameObject whitelistedButton = null;
+
     [Header("Action Log")]
     public TextMeshProUGUI actionLogText; 
     public float logDisplayTime = 3f;
@@ -45,7 +50,6 @@ public class BuildUIController : MonoBehaviour
     public Color warningStressColor = Color.yellow;
     public Color criticalStressColor = Color.red;
 
-    // --- NEW: Universal Timer UI is now here! ---
     [Header("Universal Timer UI (Time Attack & Hold)")]
     public GameObject timerPanel; 
     public TextMeshProUGUI timerText; 
@@ -103,7 +107,6 @@ public class BuildUIController : MonoBehaviour
         if (statsPanel != null) statsPanel.SetActive(false); 
         if (liveBeamStatsPanel != null) liveBeamStatsPanel.SetActive(false);
         
-        // Ensure timer is off by default
         if (timerPanel != null) timerPanel.SetActive(false); 
         
         if (unlockMaterialPanel != null) unlockMaterialPanel.SetActive(false); 
@@ -113,7 +116,6 @@ public class BuildUIController : MonoBehaviour
         MarkBridgeDirty();
     }
 
-    // --- NEW: Universal Timer Methods ---
     public void ShowTimer(bool isVisible)
     {
         if (timerPanel != null) timerPanel.SetActive(isVisible);
@@ -140,16 +142,10 @@ public class BuildUIController : MonoBehaviour
         if (physicsManager != null && physicsManager.isSimulating)
         {
             UpdateStressUI();
-
-            // Note: The Hold Timer display logic is now handled entirely inside LevelCompleteManager
-            // We just let it drive our ShowTimer and UpdateTimerText methods!
         }
         else
         {
             UpdateStressUI(); 
-            
-            // If we are building, the BuildLocation will handle showing the Time Attack timer.
-            // If there is no Time Attack, BuildLocation will hide it.
 
             if (barCreator != null && barCreator.IsCreating)
             {
@@ -582,38 +578,47 @@ public class BuildUIController : MonoBehaviour
         LogAction("Selection Cleared");
     }
 
-    public void OnResetCameraButtonClicked() { BuildCameraController camCtrl = FindObjectOfType<BuildCameraController>(); if (camCtrl != null) camCtrl.ResetCameraRotation(); LogAction("Camera Reset"); }
-    
-    public void OnToggleStatsButtonClicked() 
+    // --- THE FIX: Hard lock to ALL tools so nothing can be clicked out of turn ---
+    public void OnToggleSelectModeButtonClicked() { if (isTutorialUI_Locked) return; if (barCreator != null) barCreator.ToggleSelectMode(); }
+    public void OnToggleMoveModeButtonClicked() { if (isTutorialUI_Locked) return; if (barCreator != null) barCreator.ToggleMoveMode(); }
+    public void OnToggleDeleteModeButtonClicked() { if (isTutorialUI_Locked) return; if (barCreator != null) barCreator.ToggleDeleteMode(); }
+    public void OnCancelDrawingButtonClicked() { if (isTutorialUI_Locked) return; if (barCreator != null) barCreator.CancelCreation(); }
+    public void OnExitBuildModeButtonClicked() { if (isTutorialUI_Locked) return; if (GameManager.Instance != null) GameManager.Instance.ExitBuildMode(); }
+    public void OnToggleGridButtonClicked() { if (isTutorialUI_Locked) return; if (barCreator != null) barCreator.ToggleGrid(); }
+    public void OnResetCameraButtonClicked() { if (isTutorialUI_Locked) return; BuildCameraController camCtrl = FindObjectOfType<BuildCameraController>(); if (camCtrl != null) camCtrl.ResetCameraRotation(); }
+    public void OnToggleStatsButtonClicked() { if (isTutorialUI_Locked) return; if (statsPanel != null) statsPanel.SetActive(!statsPanel.activeSelf); }
+    public void OnCutSelectedButtonClicked() { if (isTutorialUI_Locked) return; if (ClipboardManager.Instance != null && barCreator != null) ClipboardManager.Instance.CutSelected(barCreator.GetSelectedPoints()); }
+    public void OnCopyButtonClicked() { if (isTutorialUI_Locked) return; if (ClipboardManager.Instance != null && barCreator != null) ClipboardManager.Instance.CopySelected(barCreator.GetSelectedPoints()); }
+    public void OnPasteButtonClicked() { if (isTutorialUI_Locked) return; if (ClipboardManager.Instance != null) ClipboardManager.Instance.StampPaste(); }
+    public void OnUndoButtonClicked() { if (isTutorialUI_Locked) return; if (CommandManager.Instance != null) CommandManager.Instance.Undo(); }
+    public void OnRedoButtonClicked() { if (isTutorialUI_Locked) return; if (CommandManager.Instance != null) CommandManager.Instance.Redo(); }
+    public void OnDeleteSelectedButtonClicked() { if (isTutorialUI_Locked) return; if (barCreator != null) barCreator.DeleteSelected(); }
+
+    public void OnToggleSimulationButtonClicked() 
     { 
-        if (statsPanel != null) statsPanel.SetActive(!statsPanel.activeSelf); 
-        LogAction(statsPanel != null && statsPanel.activeSelf ? "Stats Panel Opened" : "Stats Panel Closed"); 
+        if (physicsManager == null) return; 
+        if (physicsManager.isSimulating) OnRestartButtonClicked(); 
+        else OnSimulateButtonClicked(); 
     }
     
     public void OnSimulateButtonClicked() 
     { 
+        if (isTutorialUI_Locked && whitelistedButton != playPauseButtonImage.gameObject) return;
+
         if (physicsManager != null && !physicsManager.isSimulating) 
         { 
             if (barCreator != null) { barCreator.CancelAllModes(); barCreator.isSimulating = true; } 
             SetSelectionPanelActive(false);
             physicsManager.ActivatePhysics(); 
             LogAction("Simulation Started");
+
+            if (isTutorialUI_Locked && TutorialManager.Instance != null) TutorialManager.Instance.ShowNextStep();
         } 
     }
     
-    public void OnCutSelectedButtonClicked() { if (ClipboardManager.Instance != null && barCreator != null) ClipboardManager.Instance.CutSelected(barCreator.GetSelectedPoints()); }
-    public void OnCopyButtonClicked() { if (ClipboardManager.Instance != null && barCreator != null) ClipboardManager.Instance.CopySelected(barCreator.GetSelectedPoints()); }
-    public void OnPasteButtonClicked() { if (ClipboardManager.Instance != null) ClipboardManager.Instance.StampPaste(); }
-    public void OnUndoButtonClicked() { if (CommandManager.Instance != null) CommandManager.Instance.Undo(); }
-    public void OnRedoButtonClicked() { if (CommandManager.Instance != null) CommandManager.Instance.Redo(); }
-    public void OnDeleteSelectedButtonClicked() { if (barCreator != null) barCreator.DeleteSelected(); }
-
-    public void OnToggleSimulationButtonClicked() { if (physicsManager == null) return; if (physicsManager.isSimulating) OnRestartButtonClicked(); else OnSimulateButtonClicked(); }
-    public void OnToggleSelectModeButtonClicked() { if (barCreator != null) barCreator.ToggleSelectMode(); }
-    public void OnToggleMoveModeButtonClicked() { if (barCreator != null) barCreator.ToggleMoveMode(); }
-    
     public void OnRestartButtonClicked() 
     { 
+        if (isTutorialUI_Locked) return; // Prevent restarting during tutorial
         if (physicsManager != null && physicsManager.isSimulating) 
         { 
             physicsManager.StopPhysicsAndReset(); 
@@ -622,20 +627,37 @@ public class BuildUIController : MonoBehaviour
         } 
     }
 
-    public void OnToggleGridButtonClicked() { if (barCreator != null) barCreator.ToggleGrid(); }
-    public void OnCancelDrawingButtonClicked() { if (barCreator != null) barCreator.CancelCreation(); }
-    public void OnExitBuildModeButtonClicked() { if (GameManager.Instance != null) GameManager.Instance.ExitBuildMode(); }
-    
+    // --- THE FIX: Absolute lock for materials to completely block Unity Inspector bypassing! ---
     public void OnMaterialSelected(BridgeMaterialSO newMaterial) 
     { 
+        // --- THE FIX: Absolute UI Lock! ---
+        if (isTutorialUI_Locked)
+        {
+            // If the Director forgot to set a whitelist, block ALL clicks to be safe!
+            if (whitelistedMaterial == null)
+            {
+                LogAction("Tutorial: Please follow the on-screen instructions!");
+                return; 
+            }
+            // If they clicked the wrong material, block it!
+            if (newMaterial != whitelistedMaterial)
+            {
+                LogAction($"Tutorial: Please click the {whitelistedMaterial.name}!");
+                return; 
+            }
+        }
+
         if (barCreator != null) 
         { 
             barCreator.isDeleteMode = false; 
             barCreator.SetActiveMaterial(newMaterial); 
             SetSelectionPanelActive(false);
             LogAction($"Selected Material: {newMaterial.name}");
+
+            if (BuildTutorialDirector.Instance != null)
+            {
+                BuildTutorialDirector.Instance.OnMaterialClicked(newMaterial);
+            }
         } 
     }
-
-    public void OnToggleDeleteModeButtonClicked() { if (barCreator != null) barCreator.ToggleDeleteMode(); }
 }

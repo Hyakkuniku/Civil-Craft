@@ -26,17 +26,17 @@ PrefabInstance:
     - target: {fileID: -8679921383154817045, guid: 8697521bde36da54695b0a2808836506,
         type: 3}
       propertyPath: m_LocalPosition.x
-      value: -70.89
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 8697521bde36da54695b0a2808836506,
         type: 3}
       propertyPath: m_LocalPosition.y
-      value: 16.88
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 8697521bde36da54695b0a2808836506,
         type: 3}
       propertyPath: m_LocalPosition.z
-      value: -71.52
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 8697521bde36da54695b0a2808836506,
         type: 3}
@@ -111,7 +111,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   StartPosition: {x: 0, y: 0, z: 0}
-  materialData: {fileID: 0}
+  materialData: {fileID: 11400000, guid: b98aa9ba752ac28449feebc76f256bf2, type: 2}
   startPoint: {fileID: 0}
   endPoint: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}

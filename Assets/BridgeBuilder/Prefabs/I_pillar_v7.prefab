@@ -26,17 +26,17 @@ PrefabInstance:
     - target: {fileID: -8679921383154817045, guid: efa041ce1d17cec4f954e6ed22d756b8,
         type: 3}
       propertyPath: m_LocalPosition.x
-      value: -32.54539
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: efa041ce1d17cec4f954e6ed22d756b8,
         type: 3}
       propertyPath: m_LocalPosition.y
-      value: 7.2258577
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: efa041ce1d17cec4f954e6ed22d756b8,
         type: 3}
       propertyPath: m_LocalPosition.z
-      value: -69.26496
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: efa041ce1d17cec4f954e6ed22d756b8,
         type: 3}
@@ -86,5 +86,37 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: efa041ce1d17cec4f954e6ed22d756b8,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: -6261766195790587624}
   m_SourcePrefab: {fileID: 100100000, guid: efa041ce1d17cec4f954e6ed22d756b8, type: 3}
+--- !u!1 &2167323857712518596 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: efa041ce1d17cec4f954e6ed22d756b8,
+    type: 3}
+  m_PrefabInstance: {fileID: 1356296251219519637}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &-6261766195790587624
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2167323857712518596}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1b77fa90958c5d9408a617dcbb14ff89, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  StartPosition: {x: 0, y: 0, z: 0}
+  materialData: {fileID: 11400000, guid: b98aa9ba752ac28449feebc76f256bf2, type: 2}
+  startPoint: {fileID: 0}
+  endPoint: {fileID: 0}
+  preSimPos: {x: 0, y: 0, z: 0}
+  preSimRot: {x: 0, y: 0, z: 0, w: 0}
+  visualSize: {x: 1, y: 0.2, z: 0.2}
+  currentLength: 0
+  currentAngle: 0
+  isHighlighted: 0
