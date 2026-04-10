@@ -29,6 +29,11 @@ public class BuildTutorialDirector : MonoBehaviour
 
     [Header("UI References")]
     public TutorialPointer bouncingArrow;
+    
+    // --- NEW: Slot to hold your exit button! ---
+    [Header("Exit Tutorial Control")]
+    [Tooltip("Drag your UI Exit/Leave button here so we can hide it during the tutorial.")]
+    public GameObject exitBuildModeButton;
 
     [Header("Material UI Library")]
     public List<MaterialUIMapping> materialMappings = new List<MaterialUIMapping>();
@@ -39,8 +44,11 @@ public class BuildTutorialDirector : MonoBehaviour
     [HideInInspector] public bool isTracingStep = false;
     [HideInInspector] public bool isCurrentDragValid = true;
     
+    // --- NEW: Flag to track if the tutorial is currently active ---
+    [HideInInspector] public bool isTutorialRunning = false; 
+    
     private GhostSegment[] activeGhosts; 
-    private Transform[] activeGhostPoints; // --- THE FIX: We now track the dots! ---
+    private Transform[] activeGhostPoints; 
     private bool wasInvalidLastFrame = false;
 
     private Bar lastTintedBar;
@@ -210,13 +218,18 @@ public class BuildTutorialDirector : MonoBehaviour
 
     public void LockAllUI()
     {
+        // --- NEW: Mark the tutorial as active and hide the exit button! ---
+        isTutorialRunning = true;
+
         if (BuildUIController.Instance != null)
         {
             BuildUIController.Instance.isTutorialUI_Locked = true;
             BuildUIController.Instance.whitelistedMaterial = null;
             BuildUIController.Instance.whitelistedButton = null;
         }
+        
         if (bouncingArrow != null) bouncingArrow.Hide();
+        if (exitBuildModeButton != null) exitBuildModeButton.SetActive(false);
     }
 
     public void PromptMaterialClick(BridgeMaterialSO mat)
@@ -266,7 +279,6 @@ public class BuildTutorialDirector : MonoBehaviour
         
         activeGhosts = FindObjectsOfType<GhostSegment>(false);
         
-        // --- THE FIX: Find all the Ghost Points so we can hide them! ---
         if (activeGhosts != null && activeGhosts.Length > 0 && activeGhosts[0] != null)
         {
             Transform parentFolder = activeGhosts[0].transform.parent;
@@ -297,7 +309,6 @@ public class BuildTutorialDirector : MonoBehaviour
 
         bool allGhostsCovered = true;
 
-        // 1. Hide Ghost Bars if they are covered
         foreach (var ghost in activeGhosts)
         {
             bool isSegCovered = false;
@@ -322,7 +333,6 @@ public class BuildTutorialDirector : MonoBehaviour
             if (!isSegCovered) allGhostsCovered = false;
         }
 
-        // --- THE FIX: 2. Organically hide Ghost Points if a real Point is on top of them ---
         if (activeGhostPoints != null)
         {
             foreach (Transform gPoint in activeGhostPoints)
@@ -332,7 +342,6 @@ public class BuildTutorialDirector : MonoBehaviour
                 {
                     if (!p.gameObject.activeSelf) continue;
                     
-                    // Flatten Z to perfectly compare their placement on the 2D grid
                     Vector2 gp2D = new Vector2(gPoint.position.x, gPoint.position.y);
                     Vector2 p2D = new Vector2(p.transform.position.x, p.transform.position.y);
                     
@@ -354,7 +363,6 @@ public class BuildTutorialDirector : MonoBehaviour
         {
             isTracingStep = false; 
             
-            // --- THE FIX: 3. Total Cleanup! Turn off the entire folder to ensure no points are left behind! ---
             if (activeGhosts.Length > 0 && activeGhosts[0] != null)
             {
                 activeGhosts[0].transform.parent.gameObject.SetActive(false);
@@ -378,8 +386,13 @@ public class BuildTutorialDirector : MonoBehaviour
 
     public void EndTutorial()
     {
+        // --- NEW: Mark the tutorial as completely finished and turn the exit button back on! ---
+        isTutorialRunning = false; 
+
         if (BuildUIController.Instance != null) BuildUIController.Instance.isTutorialUI_Locked = false;
         if (bouncingArrow != null) bouncingArrow.Hide();
         isTracingStep = false;
+
+        if (exitBuildModeButton != null) exitBuildModeButton.SetActive(true);
     }
 }

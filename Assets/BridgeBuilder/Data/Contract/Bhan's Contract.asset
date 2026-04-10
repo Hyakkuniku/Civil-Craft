@@ -28,7 +28,7 @@ MonoBehaviour:
   enforceMaxStress: 0
   maxAllowedStress: 100
   isTimeAttack: 0
-  timeAttackDuration: 2
+  timeAttackDuration: 20
   winCondition: 0
   requiredIntactTime: 6
   goldReward: 500

@@ -25,7 +25,6 @@ public class BuildLocation : Interactable
 
     [Header("Tutorial Settings")]
     public bool advancesTutorial = false; 
-    // --- NEW: Slot to start a tutorial sequence when entering build mode! ---
     [Tooltip("If assigned, this tutorial will start the moment the player enters this Build Location.")]
     public TutorialSequence onEnterBuildModeTutorial;
 
@@ -177,7 +176,6 @@ public class BuildLocation : Interactable
 
         if (advancesTutorial && TutorialManager.Instance != null) TutorialManager.Instance.ShowNextStep();
 
-        // --- THE FIX: Trigger the Build Mode tutorial exactly when the player enters! ---
         if (onEnterBuildModeTutorial != null)
         {
             onEnterBuildModeTutorial.TryStartTutorial();
@@ -191,6 +189,13 @@ public class BuildLocation : Interactable
 
     public void DeactivateBuildMode(Transform player)
     {
+        // --- THE FIX: Block the exit if the tutorial is currently running! ---
+        if (BuildTutorialDirector.Instance != null && BuildTutorialDirector.Instance.isTutorialRunning)
+        {
+            Debug.LogWarning("Tutorial is active! Exit blocked.");
+            return;
+        }
+
         if (gridImage != null) gridImage.enabled = false;
         if (bakedBars.Count == 0) SetBridgeScriptsActive(false);
 
@@ -202,8 +207,14 @@ public class BuildLocation : Interactable
 
         isTimeAttackActive = false;
         if (BuildUIController.Instance != null) BuildUIController.Instance.ShowTimer(false);
+
+        if (BuildTutorialDirector.Instance != null)
+        {
+            BuildTutorialDirector.Instance.EndTutorial();
+        }
     }
 
+    // ... (The rest of your script remains identical)
     public void ResetTimeAttack()
     {
         if (activeContract != null && activeContract.isTimeAttack)

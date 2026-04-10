@@ -22,6 +22,13 @@ public class AlmanacPickup : Interactable
             }
             
             Debug.Log("<color=orange>You found the Almanac!</color>");
+
+            // --- THE FIX: Auto-open the book using your AlmanacManager! ---
+            if (AlmanacManager.Instance != null)
+            {
+                AlmanacManager.Instance.OpenAlmanac();
+            }
+
             gameObject.SetActive(false);
         }
     }

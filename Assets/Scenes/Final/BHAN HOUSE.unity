@@ -1327,6 +1327,7 @@ MonoBehaviour:
   levelFailedPanel: {fileID: 1095639854}
   levelNameText: {fileID: 499380611}
   penaltyText: {fileID: 0}
+  retryButton: {fileID: 0}
   uiElementsToHide: []
   deathThreshold: -50
   delayBeforeFailScreen: 2
@@ -7703,6 +7704,12 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 426618957}
   m_CullTransparentMesh: 1
+--- !u!1 &429145947 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 8482635864533731828, guid: bd0d441b8ac8b1041a72395228a59cd7,
+    type: 3}
+  m_PrefabInstance: {fileID: 832208259}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &431151086
 GameObject:
   m_ObjectHideFlags: 0
@@ -10771,6 +10778,7 @@ MonoBehaviour:
   - {fileID: 1150427687}
   - {fileID: 1507583169}
   - {fileID: 28603519}
+  minimapCamera: {fileID: 0}
 --- !u!4 &596117517
 Transform:
   m_ObjectHideFlags: 0
@@ -14645,6 +14653,11 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Name
       value: book
+      objectReference: {fileID: 0}
+    - target: {fileID: 8482635864533731828, guid: bd0d441b8ac8b1041a72395228a59cd7,
+        type: 3}
+      propertyPath: m_IsActive
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 9147849661060862798, guid: bd0d441b8ac8b1041a72395228a59cd7,
         type: 3}
@@ -23745,6 +23758,18 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
+      - m_Target: {fileID: 1607045780}
+        m_TargetAssemblyTypeName: TutorialManager, Assembly-CSharp
+        m_MethodName: ShowNextStep
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &1298933113
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -23758,7 +23783,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   useEvents: 1
-  promptMessage: 
+  promptMessage: Get Outside
 --- !u!1 &1302263869
 GameObject:
   m_ObjectHideFlags: 0
@@ -26089,12 +26114,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d582162c8af94644a96d1e19e9c0d1e9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  trackerPanel: {fileID: 1394931112}
   openTrackerButton: {fileID: 1952578943}
+  newAlertIcon: {fileID: 0}
+  trackerPanel: {fileID: 1394931112}
+  listPanel: {fileID: 0}
+  questListContent: {fileID: 0}
+  questTabPrefab: {fileID: 0}
+  detailsPanel: {fileID: 0}
   titleText: {fileID: 920713319}
   descriptionText: {fileID: 900349118}
   budgetText: {fileID: 391814902}
   weightText: {fileID: 2106062998}
+  navigateButton: {fileID: 0}
   completeButton: {fileID: 852898805}
   rewardContainer: {fileID: 0}
   rewardGoldText: {fileID: 0}
@@ -33907,6 +33938,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b80a52e972006974caa6c608eb09b59e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  isTutorialUI_Locked: 0
+  whitelistedMaterial: {fileID: 0}
+  whitelistedButton: {fileID: 0}
   actionLogText: {fileID: 1713261849}
   logDisplayTime: 3
   barCreator: {fileID: 0}
@@ -36598,8 +36632,27 @@ MonoBehaviour:
     canSkip: 0
     OnStepStart:
       m_PersistentCalls:
-        m_Calls: []
+        m_Calls:
+        - m_Target: {fileID: 429145947}
+          m_TargetAssemblyTypeName: UnityEngine.GameObject, UnityEngine
+          m_MethodName: SetActive
+          m_Mode: 6
+          m_Arguments:
+            m_ObjectArgument: {fileID: 0}
+            m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+            m_IntArgument: 0
+            m_FloatArgument: 0
+            m_StringArgument: 
+            m_BoolArgument: 1
+          m_CallState: 2
   - message: Go back to prof Bhan
+    screenPosition: 3
+    showNextButton: 0
+    canSkip: 0
+    OnStepStart:
+      m_PersistentCalls:
+        m_Calls: []
+  - message: Follow Bhan Outside
     screenPosition: 3
     showNextButton: 0
     canSkip: 0

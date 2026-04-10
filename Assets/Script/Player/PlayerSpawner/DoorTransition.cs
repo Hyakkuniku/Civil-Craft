@@ -16,10 +16,18 @@ public class DoorTransition : MonoBehaviour
     [Tooltip("Optional: The exact name of the lesson that permanently unlocks this door once completed.")]
     public string permanentlyUnlockAfterLesson = "HouseTutorial";
 
+    // --- NEW: Reference to the Interactable component ---
+    private Interactable myInteractable;
+
+    private void Awake()
+    {
+        // Grab the Interactable component on this door
+        myInteractable = GetComponent<Interactable>();
+    }
+
     private void Start()
     {
-        // --- THE FIX: Check the save file when the scene loads! ---
-        // If the door is supposed to be locked, but we already beat the tutorial, unlock it forever!
+        // Check the save file when the scene loads
         if (isLocked && !string.IsNullOrEmpty(permanentlyUnlockAfterLesson) && PlayerDataManager.Instance != null)
         {
             if (PlayerDataManager.Instance.CurrentData.completedLessons.Contains(permanentlyUnlockAfterLesson))
@@ -27,12 +35,17 @@ public class DoorTransition : MonoBehaviour
                 isLocked = false; 
             }
         }
+
+        // --- THE FIX: Hide the button if the door is locked! ---
+        if (myInteractable != null)
+        {
+            myInteractable.enabled = !isLocked; 
+        }
     }
 
-    // We will link this to your InteractionEvent in the Inspector!
     public void EnterDoor()
     {
-        // Block the transition if the door is locked!
+        // Failsafe: Block the transition if the door is still somehow locked
         if (isLocked)
         {
             Debug.Log("The door is locked. I should finish what I'm doing first!");
@@ -63,6 +76,13 @@ public class DoorTransition : MonoBehaviour
     public void UnlockDoor()
     {
         isLocked = false;
-        Debug.Log("Door Unlocked!");
+        
+        // --- THE FIX: Turn the interaction button back on! ---
+        if (myInteractable != null)
+        {
+            myInteractable.enabled = true;
+        }
+        
+        Debug.Log("Door Unlocked! The button will now appear.");
     }
 }
