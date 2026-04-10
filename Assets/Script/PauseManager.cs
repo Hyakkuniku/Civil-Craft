@@ -12,9 +12,13 @@ public class PauseManager : MonoBehaviour
     [Tooltip("Drag your Settings Panel here (Optional, to close it when unpausing).")]
     public GameObject settingsPanel; 
 
+    [Header("Elements to Hide")]
+    [Tooltip("Drag any game objects (like HUD elements) here that should disappear when paused.")]
+    public GameObject[] objectsToHide; // --- NEW: Array of objects to hide ---
+
     [Header("Scene Management")]
     [Tooltip("The exact name of your Mode Selection scene.")]
-    public string modeSelectionSceneName = "ModeSelection"; // --- UPDATED NAME ---
+    public string modeSelectionSceneName = "ModeSelection";
 
     [HideInInspector] public bool isPaused = false;
 
@@ -69,6 +73,15 @@ public class PauseManager : MonoBehaviour
         
         if (pausePanel != null) pausePanel.SetActive(true);
 
+        // --- NEW: Hide the objects in the array ---
+        if (objectsToHide != null)
+        {
+            foreach (GameObject obj in objectsToHide)
+            {
+                if (obj != null) obj.SetActive(false);
+            }
+        }
+
         // Disable player movement and camera look
         InputManager inputObj = FindObjectOfType<InputManager>();
         if (inputObj != null) 
@@ -86,6 +99,15 @@ public class PauseManager : MonoBehaviour
         if (pausePanel != null) pausePanel.SetActive(false);
         if (settingsPanel != null) settingsPanel.SetActive(false);
 
+        // --- NEW: Re-enable the objects in the array ---
+        if (objectsToHide != null)
+        {
+            foreach (GameObject obj in objectsToHide)
+            {
+                if (obj != null) obj.SetActive(true);
+            }
+        }
+
         // Re-enable player movement and camera look
         InputManager inputObj = FindObjectOfType<InputManager>();
         if (inputObj != null) 
@@ -95,7 +117,6 @@ public class PauseManager : MonoBehaviour
         }
     }
 
-    // --- UPDATED: Returns to Mode Selection ---
     public void ReturnToModeSelection()
     {
         // CRITICAL: Always reset time scale before loading a new scene, or the next scene will be frozen!

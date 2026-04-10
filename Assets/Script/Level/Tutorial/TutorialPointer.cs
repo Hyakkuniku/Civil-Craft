@@ -15,7 +15,6 @@ public class TutorialPointer : MonoBehaviour
         rectTransform = GetComponent<RectTransform>();
     }
 
-    // --- THE FIX: The script now accepts our 2-part command from the Director! ---
     public void PointAt(RectTransform newTarget, Vector2 offset)
     {
         target = newTarget;
@@ -23,7 +22,6 @@ public class TutorialPointer : MonoBehaviour
         gameObject.SetActive(true);
     }
 
-    // (Fallback just in case any old scripts still use the 1-argument version)
     public void PointAt(RectTransform newTarget)
     {
         target = newTarget;
@@ -41,18 +39,22 @@ public class TutorialPointer : MonoBehaviour
     {
         if (target != null && rectTransform != null)
         {
-            // 1. Snap directly to the center of the UI button
-            rectTransform.position = target.position;
+            // 1. Find the true visual center of the target button, even if its Pivot is weird!
+            Vector3 localCenter = new Vector3(target.rect.center.x, target.rect.center.y, 0f);
 
-            // 2. Apply your custom X/Y offset from the Director Inspector
-            rectTransform.anchoredPosition += customOffset;
+            // 2. Add your custom Inspector offset to that center
+            Vector3 targetLocalPos = localCenter + new Vector3(customOffset.x, customOffset.y, 0f);
 
-            // 3. Make it bounce smoothly!
-            // We use transform.up so it always bounces in the direction it is pointing.
-            // If you rotate it 180 degrees to point down, it will naturally bounce down!
-            // We use unscaledTime so it still bounces even if the game is paused!
+            // 3. THE MAGIC FIX: TransformPoint converts that local coordinate into a perfect World Space coordinate.
+            // This accounts for Canvas scaling, screen resolution, and all parent folders instantly!
+            Vector3 baseWorldPos = target.TransformPoint(targetLocalPos);
+
+            // 4. Calculate the bounce using the pointer's local scale so the bounce height stays consistent
             float bounce = Mathf.Sin(Time.unscaledTime * bounceSpeed) * bounceAmount;
-            rectTransform.position += transform.up * bounce;
+            Vector3 worldBounce = transform.up * (bounce * rectTransform.lossyScale.y);
+
+            // 5. Apply the final position!
+            rectTransform.position = baseWorldPos + worldBounce;
         }
     }
 }

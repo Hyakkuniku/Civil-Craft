@@ -19,10 +19,11 @@ public class TutorialManager : MonoBehaviour
     [SerializeField] private TextMeshProUGUI tutorialText; 
     [SerializeField] private GameObject nextButton;     
     [SerializeField] private GameObject skipButton;
+    
+    [SerializeField] private TutorialPointer bouncingArrow;
 
     public bool IsTutorialActive { get; private set; } = false;
 
-    // The sequence currently being played
     private TutorialSequence currentSequence;
     private int currentStepIndex = -1;
 
@@ -34,9 +35,10 @@ public class TutorialManager : MonoBehaviour
 
     private void Start()
     {
-        if (!IsTutorialActive && tutorialPanel != null) 
+        if (!IsTutorialActive) 
         {
-            tutorialPanel.SetActive(false);
+            if (tutorialPanel != null) tutorialPanel.SetActive(false);
+            if (bouncingArrow != null) bouncingArrow.Hide();
         }
 
         if (nextButton != null)
@@ -49,6 +51,22 @@ public class TutorialManager : MonoBehaviour
         {
             var btn = skipButton.GetComponent<UnityEngine.UI.Button>();
             if (btn != null) btn.onClick.AddListener(SkipTutorial);
+        }
+    }
+
+    // --- THE FIX: Live-update the pointer so you can tweak it in the Inspector! ---
+    private void Update()
+    {
+        if (IsTutorialActive && currentSequence != null && currentStepIndex >= 0 && currentStepIndex < currentSequence.tutorialSteps.Length)
+        {
+            var step = currentSequence.tutorialSteps[currentStepIndex];
+            
+            // Constantly feed the latest Inspector values to the pointer while the step is active!
+            if (step.usePointer && step.pointerTarget != null && bouncingArrow != null)
+            {
+                bouncingArrow.PointAt(step.pointerTarget, step.pointerOffset);
+                bouncingArrow.transform.localEulerAngles = new Vector3(0, 0, step.pointerRotation);
+            }
         }
     }
 
@@ -70,12 +88,10 @@ public class TutorialManager : MonoBehaviour
 
     public void ShowNextStep()
     {
-        // SAFETY FIX: If a random trigger is hit but no tutorial is playing, ignore it!
         if (currentSequence == null || !IsTutorialActive) return;
 
         currentStepIndex++;
 
-        // If we ran out of steps, finish it
         if (currentStepIndex >= currentSequence.tutorialSteps.Length)
         {
             CompleteTutorial();
@@ -117,13 +133,18 @@ public class TutorialManager : MonoBehaviour
             }
         }
 
-        if (nextButton != null)   nextButton.SetActive(step.showNextButton);
-        if (skipButton != null)   skipButton.SetActive(step.canSkip);
+        if (nextButton != null) nextButton.SetActive(step.showNextButton);
+        if (skipButton != null) skipButton.SetActive(step.canSkip);
+
+        // Hide it initially if it's not supposed to be used
+        if (!step.usePointer || step.pointerTarget == null)
+        {
+            if (bouncingArrow != null) bouncingArrow.Hide();
+        }
 
         step.OnStepStart?.Invoke();
     }
 
-    // --- THE MISSING FIX: Allows the director to hide the next button during tracing/clicking steps ---
     public void SetNextButtonActive(bool isActive)
     {
         if (nextButton != null) nextButton.SetActive(isActive);
@@ -133,6 +154,7 @@ public class TutorialManager : MonoBehaviour
     {
         IsTutorialActive = false;
         if (tutorialPanel != null) tutorialPanel.SetActive(false);
+        if (bouncingArrow != null) bouncingArrow.Hide();
         
         if (currentSequence != null && PlayerDataManager.Instance != null && !string.IsNullOrEmpty(currentSequence.lessonName))
         {
@@ -156,5 +178,13 @@ public class TutorialStep
     public TutorialPosition screenPosition = TutorialPosition.TopCenter;
     public bool showNextButton = true;
     public bool canSkip = false;
+
+    [Header("Pointer Settings")]
+    public bool usePointer = false;
+    public RectTransform pointerTarget;
+    public Vector2 pointerOffset = new Vector2(0, 80);
+    public float pointerRotation = 180f;
+
+    [Header("Events")]
     public UnityEvent OnStepStart = new UnityEvent();
 }
