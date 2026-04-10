@@ -31,17 +31,16 @@ public class BuildTutorialDirector : MonoBehaviour
     public TutorialPointer bouncingArrow;
 
     [Header("Material UI Library")]
-    [Tooltip("Add all your materials here (Wood, Pier, Steel, etc.)")]
     public List<MaterialUIMapping> materialMappings = new List<MaterialUIMapping>();
 
     [Header("Tool UI Library")]
-    [Tooltip("Add all your tools here (Play, Erase, Grid, etc.)")]
     public List<ToolUIMapping> toolMappings = new List<ToolUIMapping>();
 
     [HideInInspector] public bool isTracingStep = false;
     [HideInInspector] public bool isCurrentDragValid = true;
     
     private GhostSegment[] activeGhosts; 
+    private Transform[] activeGhostPoints; // --- THE FIX: We now track the dots! ---
     private bool wasInvalidLastFrame = false;
 
     private Bar lastTintedBar;
@@ -176,8 +175,6 @@ public class BuildTutorialDirector : MonoBehaviour
         }
     }
 
-    // --- THE MISSING METHOD IS BACK! ---
-    // BarCreator uses this to perfectly snap the player's mouse to your ghost nodes!
     public Vector3 GetClosestValidNode(Vector3 playerPos)
     {
         Vector3 bestNode = playerPos;
@@ -221,8 +218,6 @@ public class BuildTutorialDirector : MonoBehaviour
         }
         if (bouncingArrow != null) bouncingArrow.Hide();
     }
-
-    // --- UNIVERSAL PROMPT METHODS ---
 
     public void PromptMaterialClick(BridgeMaterialSO mat)
     {
@@ -268,7 +263,21 @@ public class BuildTutorialDirector : MonoBehaviour
     {
         LockAllUI();
         if (TutorialManager.Instance != null) TutorialManager.Instance.SetNextButtonActive(false);
+        
         activeGhosts = FindObjectsOfType<GhostSegment>(false);
+        
+        // --- THE FIX: Find all the Ghost Points so we can hide them! ---
+        if (activeGhosts != null && activeGhosts.Length > 0 && activeGhosts[0] != null)
+        {
+            Transform parentFolder = activeGhosts[0].transform.parent;
+            List<Transform> gPoints = new List<Transform>();
+            foreach (Transform child in parentFolder)
+            {
+                if (child.name.Contains("Ghost_Point")) gPoints.Add(child);
+            }
+            activeGhostPoints = gPoints.ToArray();
+        }
+
         isTracingStep = true;
     }
 
@@ -288,6 +297,7 @@ public class BuildTutorialDirector : MonoBehaviour
 
         bool allGhostsCovered = true;
 
+        // 1. Hide Ghost Bars if they are covered
         foreach (var ghost in activeGhosts)
         {
             bool isSegCovered = false;
@@ -312,9 +322,44 @@ public class BuildTutorialDirector : MonoBehaviour
             if (!isSegCovered) allGhostsCovered = false;
         }
 
+        // --- THE FIX: 2. Organically hide Ghost Points if a real Point is on top of them ---
+        if (activeGhostPoints != null)
+        {
+            foreach (Transform gPoint in activeGhostPoints)
+            {
+                bool isPointCovered = false;
+                foreach (Point p in Point.AllPoints)
+                {
+                    if (!p.gameObject.activeSelf) continue;
+                    
+                    // Flatten Z to perfectly compare their placement on the 2D grid
+                    Vector2 gp2D = new Vector2(gPoint.position.x, gPoint.position.y);
+                    Vector2 p2D = new Vector2(p.transform.position.x, p.transform.position.y);
+                    
+                    if (Vector2.Distance(gp2D, p2D) < 0.5f)
+                    {
+                        isPointCovered = true;
+                        break;
+                    }
+                }
+
+                if (gPoint.gameObject.activeSelf == isPointCovered) 
+                {
+                    gPoint.gameObject.SetActive(!isPointCovered);
+                }
+            }
+        }
+
         if (allGhostsCovered)
         {
             isTracingStep = false; 
+            
+            // --- THE FIX: 3. Total Cleanup! Turn off the entire folder to ensure no points are left behind! ---
+            if (activeGhosts.Length > 0 && activeGhosts[0] != null)
+            {
+                activeGhosts[0].transform.parent.gameObject.SetActive(false);
+            }
+
             if (TutorialManager.Instance != null) TutorialManager.Instance.ShowNextStep(); 
         }
     }

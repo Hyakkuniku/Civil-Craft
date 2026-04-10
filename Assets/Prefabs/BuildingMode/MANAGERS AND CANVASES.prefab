@@ -7421,6 +7421,8 @@ MonoBehaviour:
   goldText: {fileID: 326678090747180307}
   expText: {fileID: 7319386663396863060}
   bridgesBuiltText: {fileID: 4962005249950569040}
+  contractsCompletedText: {fileID: 0}
+  totalGoldEarnedText: {fileID: 0}
 --- !u!1 &1544244922185830778
 GameObject:
   m_ObjectHideFlags: 0
@@ -8145,6 +8147,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fbe92ff9608ed654894f6ceb2d977492, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  allGameAchievements: []
 --- !u!1 &1720876520320307134
 GameObject:
   m_ObjectHideFlags: 0
@@ -13390,8 +13393,10 @@ MonoBehaviour:
   levelFailedPanel: {fileID: 998641529604367835}
   levelNameText: {fileID: 9014256148687314760}
   penaltyText: {fileID: 0}
+  retryButton: {fileID: 0}
   uiElementsToHide: []
   deathThreshold: -50
+  delayBeforeFailScreen: 2
   goldPenaltyPerFail: 25
   currentFailCount: 0
   isFailed: 0
@@ -14545,12 +14550,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d582162c8af94644a96d1e19e9c0d1e9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  trackerPanel: {fileID: 6349239114681427550}
   openTrackerButton: {fileID: 152319930046141419}
+  newAlertIcon: {fileID: 0}
+  trackerPanel: {fileID: 6349239114681427550}
+  listPanel: {fileID: 0}
+  questListContent: {fileID: 0}
+  questTabPrefab: {fileID: 0}
+  detailsPanel: {fileID: 0}
   titleText: {fileID: 6565844109401381557}
   descriptionText: {fileID: 1347098061512405966}
   budgetText: {fileID: 6850389554625328311}
   weightText: {fileID: 2474653737160226986}
+  navigateButton: {fileID: 0}
   completeButton: {fileID: 3650587410292126641}
   rewardContainer: {fileID: 0}
   rewardGoldText: {fileID: 0}
@@ -30709,6 +30720,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b80a52e972006974caa6c608eb09b59e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  isTutorialUI_Locked: 0
+  whitelistedMaterial: {fileID: 0}
+  whitelistedButton: {fileID: 0}
   actionLogText: {fileID: 7791811976296315348}
   logDisplayTime: 3
   barCreator: {fileID: 0}
