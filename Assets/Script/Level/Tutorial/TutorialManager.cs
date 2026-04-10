@@ -26,6 +26,9 @@ public class TutorialManager : MonoBehaviour
 
     private TutorialSequence currentSequence;
     private int currentStepIndex = -1;
+    
+    // --- NEW: Keeps track of the button we are waiting for the player to click! ---
+    private UnityEngine.UI.Button trackedButton = null;
 
     private void Awake()
     {
@@ -54,14 +57,12 @@ public class TutorialManager : MonoBehaviour
         }
     }
 
-    // --- THE FIX: Live-update the pointer so you can tweak it in the Inspector! ---
     private void Update()
     {
         if (IsTutorialActive && currentSequence != null && currentStepIndex >= 0 && currentStepIndex < currentSequence.tutorialSteps.Length)
         {
             var step = currentSequence.tutorialSteps[currentStepIndex];
             
-            // Constantly feed the latest Inspector values to the pointer while the step is active!
             if (step.usePointer && step.pointerTarget != null && bouncingArrow != null)
             {
                 bouncingArrow.PointAt(step.pointerTarget, step.pointerOffset);
@@ -89,6 +90,9 @@ public class TutorialManager : MonoBehaviour
     public void ShowNextStep()
     {
         if (currentSequence == null || !IsTutorialActive) return;
+
+        // Clean up any button listeners from the previous step!
+        ClearTrackedButton();
 
         currentStepIndex++;
 
@@ -136,13 +140,49 @@ public class TutorialManager : MonoBehaviour
         if (nextButton != null) nextButton.SetActive(step.showNextButton);
         if (skipButton != null) skipButton.SetActive(step.canSkip);
 
-        // Hide it initially if it's not supposed to be used
         if (!step.usePointer || step.pointerTarget == null)
         {
             if (bouncingArrow != null) bouncingArrow.Hide();
         }
+        else
+        {
+            // --- THE FIX: Hook into the target button if we want to advance on click! ---
+            if (step.advanceOnClick)
+            {
+                UnityEngine.UI.Button targetBtn = step.pointerTarget.GetComponent<UnityEngine.UI.Button>();
+                if (targetBtn != null)
+                {
+                    trackedButton = targetBtn;
+                    trackedButton.onClick.AddListener(OnTrackedButtonClicked);
+
+                    // Force hide the 'Next' button so the player HAS to click the target UI!
+                    if (nextButton != null) nextButton.SetActive(false);
+                }
+                else
+                {
+                    Debug.LogWarning($"[Tutorial] Step wants to advance on click, but {step.pointerTarget.name} has no Button component!");
+                }
+            }
+        }
 
         step.OnStepStart?.Invoke();
+    }
+
+    // --- NEW: Fired exactly when the player clicks the UI button we are pointing at ---
+    private void OnTrackedButtonClicked()
+    {
+        ClearTrackedButton();
+        ShowNextStep();
+    }
+
+    // --- NEW: Safely removes the listener so we don't accidentally double-fire later ---
+    private void ClearTrackedButton()
+    {
+        if (trackedButton != null)
+        {
+            trackedButton.onClick.RemoveListener(OnTrackedButtonClicked);
+            trackedButton = null;
+        }
     }
 
     public void SetNextButtonActive(bool isActive)
@@ -152,6 +192,8 @@ public class TutorialManager : MonoBehaviour
 
     private void CompleteTutorial()
     {
+        ClearTrackedButton(); // Final cleanup just in case
+        
         IsTutorialActive = false;
         if (tutorialPanel != null) tutorialPanel.SetActive(false);
         if (bouncingArrow != null) bouncingArrow.Hide();
@@ -176,6 +218,8 @@ public class TutorialStep
     [TextArea(3, 6)]
     public string message = "Step description here...";
     public TutorialPosition screenPosition = TutorialPosition.TopCenter;
+    
+    [Tooltip("Show the standard Next button on the tutorial panel.")]
     public bool showNextButton = true;
     public bool canSkip = false;
 
@@ -184,6 +228,10 @@ public class TutorialStep
     public RectTransform pointerTarget;
     public Vector2 pointerOffset = new Vector2(0, 80);
     public float pointerRotation = 180f;
+
+    // --- NEW: The Inspector toggle to turn this feature on! ---
+    [Tooltip("If true, the tutorial will wait for the player to click the pointed target to advance (automatically hides Next button).")]
+    public bool advanceOnClick = false;
 
     [Header("Events")]
     public UnityEvent OnStepStart = new UnityEvent();

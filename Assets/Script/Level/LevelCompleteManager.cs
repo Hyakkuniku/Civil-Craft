@@ -633,8 +633,6 @@ public class LevelCompleteManager : MonoBehaviour
             {
                 ObjectiveTrackerUI.Instance.ClearObjective(activeContract);
             }
-            
-            Debug.Log($"<color=green>Auto-Collected {earnedGold} Gold and {earnedExp} EXP for {activeContract.name}!</color>");
         }
 
         if (cachedPhysicsManager != null) cachedPhysicsManager.BakeBridge(activeContract); 
@@ -657,10 +655,15 @@ public class LevelCompleteManager : MonoBehaviour
             }
         }
 
-        // --- THE FIX: Trigger the HUD alert if the player needs to talk to the client! ---
         if (ObjectiveTrackerUI.Instance != null && activeContract != null && !activeContract.autoCollectReward)
         {
             ObjectiveTrackerUI.Instance.NotifyBridgeBuilt(activeContract.name);
+        }
+
+        // --- THE FIX: Now targets the "Contracts" tab specifically! ---
+        if (AlmanacManager.Instance != null)
+        {
+            AlmanacManager.Instance.TriggerTabAlert("Contracts");
         }
 
         if (CommandManager.Instance != null) CommandManager.Instance.ClearHistory();

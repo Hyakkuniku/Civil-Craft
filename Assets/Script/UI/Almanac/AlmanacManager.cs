@@ -9,6 +9,11 @@ public class AlmanacCategory
     public string categoryName;
     public Button tabButton;
     
+    // --- NEW: Slot for this specific tab's exclamation mark! ---
+    [Header("Alert Integration")]
+    [Tooltip("The pulsing exclamation mark on THIS specific tab.")]
+    public GameObject tabAlertIcon;
+
     [Header("Page Containers")]
     public Transform leftPageZone;
     public Transform rightPageZone;
@@ -22,15 +27,14 @@ public class AlmanacManager : MonoBehaviour
     public static AlmanacManager Instance { get; private set; }
 
     [Header("HUD Integration")]
-    [Tooltip("The button on the player's screen that OPENS the book.")]
     public GameObject hudOpenButton; 
+    public GameObject newAlertIcon; 
 
-    // --- NEW: UI Elements to hide when the book is open ---
+    [Header("Tutorial Integration")]
+    public TutorialSequence onFirstOpenTutorial;
+
     [Header("UI Management")]
-    [Tooltip("Drag the other Canvases or UI Panels you want to hide while reading (Joystick, Interact Buttons, etc.)")]
     public List<GameObject> uiElementsToHide = new List<GameObject>();
-    
-    // Remembers exactly what was open so we don't accidentally turn on hidden UI!
     private List<GameObject> temporarilyHiddenPanels = new List<GameObject>();
 
     [Header("UI Panels")]
@@ -45,6 +49,13 @@ public class AlmanacManager : MonoBehaviour
     public Button prevButton;
     public Button nextButton;
     public float flipDuration = 0.25f; 
+
+    [HideInInspector] public bool useVirtualPagination = false;
+    [HideInInspector] public bool virtualHasNext = false;
+    [HideInInspector] public bool virtualHasPrev = false;
+    private System.Action<bool> OnVirtualPageTurn;
+    
+    public System.Action<int> OnCategoryChanged; 
 
     private int currentCategoryIndex = 0;
     private int currentSpreadIndex = 0; 
@@ -64,6 +75,13 @@ public class AlmanacManager : MonoBehaviour
     private void Start()
     {
         if (almanacCanvas != null) almanacCanvas.SetActive(false);
+        if (newAlertIcon != null) newAlertIcon.SetActive(false); 
+
+        // Hide all the individual tab alerts when the game starts
+        foreach (var cat in categories)
+        {
+            if (cat.tabAlertIcon != null) cat.tabAlertIcon.SetActive(false);
+        }
 
         if (hudOpenButton != null && PlayerDataManager.Instance != null)
         {
@@ -142,12 +160,39 @@ public class AlmanacManager : MonoBehaviour
         if (nextButton != null) nextButton.onClick.AddListener(() => TurnPage(true));
     }
 
-    // --- NEW: Hide other UI when opening! ---
+    // Fallback: triggers the main HUD alert only
+    public void TriggerAlert()
+    {
+        if (newAlertIcon != null && almanacCanvas != null && !almanacCanvas.activeSelf)
+        {
+            newAlertIcon.SetActive(true);
+        }
+    }
+
+    // --- NEW: Triggers the main HUD alert AND a specific tab alert by name! ---
+    public void TriggerTabAlert(string targetCategoryName)
+    {
+        // 1. Turn on the main HUD alert
+        TriggerAlert();
+
+        // 2. Find the specific tab and turn on its mini alert
+        foreach (var cat in categories)
+        {
+            if (cat.categoryName == targetCategoryName)
+            {
+                if (cat.tabAlertIcon != null) cat.tabAlertIcon.SetActive(true);
+                break;
+            }
+        }
+    }
+
     public void OpenAlmanac()
     {
         if (almanacCanvas != null) almanacCanvas.SetActive(true);
         
-        // Hide other UI and remember what was hidden
+        // Turn off the global HUD alert (the player has seen it!)
+        if (newAlertIcon != null) newAlertIcon.SetActive(false);
+        
         temporarilyHiddenPanels.Clear();
         foreach (GameObject ui in uiElementsToHide)
         {
@@ -159,14 +204,17 @@ public class AlmanacManager : MonoBehaviour
         }
 
         SelectCategory(0);
+
+        if (onFirstOpenTutorial != null)
+        {
+            onFirstOpenTutorial.TryStartTutorial();
+        }
     }
 
-    // --- NEW: Restore other UI when closing! ---
     public void CloseAlmanac()
     {
         if (almanacCanvas != null) almanacCanvas.SetActive(false);
 
-        // Turn the UI back on
         foreach (GameObject ui in temporarilyHiddenPanels)
         {
             if (ui != null) ui.SetActive(true);
@@ -177,6 +225,9 @@ public class AlmanacManager : MonoBehaviour
     public void SelectCategory(int index)
     {
         if (index < 0 || index >= categories.Count || isFlipping) return;
+
+        useVirtualPagination = false;
+        OnVirtualPageTurn = null;
 
         ToggleSpread(currentSpreadIndex, false);
 
@@ -189,17 +240,32 @@ public class AlmanacManager : MonoBehaviour
             
             RectTransform tabRect = categories[i].tabButton.GetComponent<RectTransform>();
             if (i == currentCategoryIndex)
+            {
                 targetTabYPositions[tabRect] = originalTabYPositions[tabRect] + selectedTabUpOffset;
+                
+                // --- NEW: Turn off this tab's alert icon because the player clicked it! ---
+                if (categories[i].tabAlertIcon != null) categories[i].tabAlertIcon.SetActive(false);
+            }
             else
+            {
                 targetTabYPositions[tabRect] = originalTabYPositions[tabRect]; 
+            }
         }
 
         ToggleSpread(currentSpreadIndex, true);
+        
+        OnCategoryChanged?.Invoke(currentCategoryIndex);
         UpdatePaginationButtons();
     }
 
     private void TurnPage(bool goingForward)
     {
+        if (useVirtualPagination)
+        {
+            OnVirtualPageTurn?.Invoke(goingForward);
+            return;
+        }
+
         if (isFlipping) return;
 
         AlmanacCategory currentCat = categories[currentCategoryIndex];
@@ -322,8 +388,38 @@ public class AlmanacManager : MonoBehaviour
         return null; 
     }
 
+    public void EnableVirtualPagination(System.Action<bool> callback)
+    {
+        useVirtualPagination = true;
+        OnVirtualPageTurn = callback;
+    }
+
+    public void DisableVirtualPagination(System.Action<bool> callback)
+    {
+        if (OnVirtualPageTurn == callback)
+        {
+            useVirtualPagination = false;
+            OnVirtualPageTurn = null;
+            ForceUpdatePaginationUI();
+        }
+    }
+
+    public void ForceUpdatePaginationUI()
+    {
+        UpdatePaginationButtons();
+    }
+
     private void UpdatePaginationButtons()
     {
+        if (useVirtualPagination)
+        {
+            if (prevButton != null) prevButton.interactable = virtualHasPrev;
+            if (nextButton != null) nextButton.interactable = virtualHasNext;
+            return;
+        }
+
+        if (categories == null || categories.Count == 0 || currentCategoryIndex < 0 || currentCategoryIndex >= categories.Count) return;
+
         AlmanacCategory currentCat = categories[currentCategoryIndex];
         int maxSpreads = Mathf.Max(currentCat.leftPages.Count, currentCat.rightPages.Count);
 
