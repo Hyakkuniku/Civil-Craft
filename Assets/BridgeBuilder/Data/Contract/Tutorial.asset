@@ -12,13 +12,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
   m_Name: Tutorial
   m_EditorClassIdentifier: 
-  isTutorialContract: 0
+  isTutorialContract: 1
   autoCollectReward: 0
-  clientName: REMIEL
-  jobDescription: 
+  clientName: Prof Bhan
+  jobDescription: Truss Bridge
   budget: 50000
   liveLoadWeight: 411
-  allowedMaterials: []
+  allowedMaterials:
+  - material: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
+    maxPieces: 0
+  - material: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
+    maxPieces: 0
   enforceMaxStress: 0
   maxAllowedStress: 100
   isTimeAttack: 0
@@ -28,30 +32,14 @@ MonoBehaviour:
   goldReward: 500
   expReward: 1000
   offerDialogue:
-    name: REMIEL
+    name: Prof Bhan
     sentences:
-    - Ah, you must be the new engineer the guild sent over! Welcome, welcome! Come
-      in, don't just stand in the doorway.
-    - I am Professor Bhan. I oversee all the major infrastructure and bridge contracts
-      around these parts.
-    - I hear you're looking for work. I actually have a ravine that desperately needs
-      a crossing, but I can't just hand the job to a rookie without making sure you
-      know your physics.
-    - 'Before we talk business, you are going to need the holy grail of our profession:
-      The Engineering Almanac.'
-    - I left a spare copy on the table right over there. Go grab it, flip through
-      it, and then come talk to me. We'll get you started on your first official
-      contract!
+    - Now im going to teach you about truss bridges
+    - Enter the Build location so we can start
   reminderDialogue:
-    name: REMIEL
+    name: Prof Bhan
     sentences:
-    - Ah, excellent! You have it. Treat that book well
-    - Now, down to business. The local merchants desperately need a supply route
-      across the eastern ravine.
-    - I am authorizing your first official contract. We have a strict budget, and
-      a heavy cargo vehicle is already waiting to cross..
-    - Come on, let's go outside for your first contract. The build site is just down
-      the path!
+    - What are you waiting for?
   finishedContractDialogue:
     name: REMIEL
     sentences:
