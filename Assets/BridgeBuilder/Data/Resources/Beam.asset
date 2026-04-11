@@ -15,8 +15,8 @@ MonoBehaviour:
   costPerMeter: 10
   massPerMeter: 3
   maxLength: 10
-  maxTension: 60000
-  maxCompression: 60000
+  maxTension: 80000
+  maxCompression: 80000
   useSpring: 0
   spring: 1000
   damper: 50

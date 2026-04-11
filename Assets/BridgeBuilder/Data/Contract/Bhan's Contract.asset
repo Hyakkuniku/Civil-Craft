@@ -22,9 +22,9 @@ MonoBehaviour:
   liveLoadWeight: 700
   allowedMaterials:
   - material: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
-    maxPieces: 3
+    maxPieces: 0
   - material: {fileID: 11400000, guid: b98aa9ba752ac28449feebc76f256bf2, type: 2}
-    maxPieces: 2
+    maxPieces: 0
   enforceMaxStress: 0
   maxAllowedStress: 100
   isTimeAttack: 0
