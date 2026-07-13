@@ -38,6 +38,72 @@ public class BridgePhysicsManager : MonoBehaviour
 
     private PhysicMaterial sharedRoadPhysicsMat;
 
+    // --- NEW: Deterministic Spatial Comparers ---
+    private class SpatialPointComparer : IComparer<Point>
+    {
+        public int Compare(Point a, Point b)
+        {
+            if (ReferenceEquals(a, b)) return 0;
+            if (a == null) return -1;
+            if (b == null) return 1;
+
+            Vector3 posA = a.transform.position;
+            Vector3 posB = b.transform.position;
+
+            // 1mm tolerance to swallow floating-point inaccuracies
+            float tolerance = 0.001f;
+
+            if (Mathf.Abs(posA.x - posB.x) > tolerance)
+                return posA.x.CompareTo(posB.x);
+            if (Mathf.Abs(posA.y - posB.y) > tolerance)
+                return posA.y.CompareTo(posB.y);
+            if (Mathf.Abs(posA.z - posB.z) > tolerance)
+                return posA.z.CompareTo(posB.z);
+
+            // Absolute fallback just in case two points magically occupy the exact same floating-point coordinate
+            return a.GetInstanceID().CompareTo(b.GetInstanceID());
+        }
+    }
+
+    private class SpatialBarComparer : IComparer<Bar>
+    {
+        private SpatialPointComparer pointComparer = new SpatialPointComparer();
+
+        public int Compare(Bar a, Bar b)
+        {
+            if (ReferenceEquals(a, b)) return 0;
+            if (a == null) return -1;
+            if (b == null) return 1;
+
+            // Orient the bar virtually so the "lowest" spatial point is always evaluated first
+            Point a1 = a.startPoint;
+            Point a2 = a.endPoint;
+            if (pointComparer.Compare(a1, a2) > 0) { a1 = a.endPoint; a2 = a.startPoint; }
+
+            Point b1 = b.startPoint;
+            Point b2 = b.endPoint;
+            if (pointComparer.Compare(b1, b2) > 0) { b1 = b.endPoint; b2 = b.startPoint; }
+
+            // Compare primary point
+            int p1Compare = pointComparer.Compare(a1, b1);
+            if (p1Compare != 0) return p1Compare;
+
+            // Compare secondary point
+            int p2Compare = pointComparer.Compare(a2, b2);
+            if (p2Compare != 0) return p2Compare;
+
+            // If bars share the exact same physical coordinates, sort by material
+            if (a.materialData != null && b.materialData != null)
+            {
+                int matCompare = string.Compare(a.materialData.name, b.materialData.name, StringComparison.Ordinal);
+                if (matCompare != 0) return matCompare;
+            }
+
+            // Extreme fallback
+            return a.GetInstanceID().CompareTo(b.GetInstanceID()); 
+        }
+    }
+
     private void Awake()
     {
         sharedRoadPhysicsMat = new PhysicMaterial("BridgeRoadGrip");
@@ -194,13 +260,12 @@ public class BridgePhysicsManager : MonoBehaviour
         GatherActiveBridgeData(out simPoints, out simBars);
 
         // --- THE FIX: Deterministic Sorting ---
-        // Replacing fragile float equality checks with bulletproof, unique Instance IDs.
-        // This guarantees the physics solver processes joints in the exact same mathematical sequence every time.
+        // Using Spatial Topology sorting guarantees identical lists regardless of load order.
         deterministicPoints = new List<Point>(simPoints);
-        deterministicPoints.Sort((a, b) => a.GetInstanceID().CompareTo(b.GetInstanceID()));
+        deterministicPoints.Sort(new SpatialPointComparer());
 
         deterministicBars = new List<Bar>(simBars);
-        deterministicBars.Sort((a, b) => a.GetInstanceID().CompareTo(b.GetInstanceID()));
+        deterministicBars.Sort(new SpatialBarComparer());
 
         foreach (Point p in deterministicPoints)
         {
@@ -311,9 +376,6 @@ public class BridgePhysicsManager : MonoBehaviour
             BarStressHandler stress = bar.GetComponent<BarStressHandler>();
             if (stress != null) Destroy(stress);
 
-            // --- THE FIX: Float Preservation ---
-            // Revert explicitly to the pure, untainted preSim transforms.
-            // DO NOT call UpdateCreatingBar() here anymore, it introduces microscopic rotational drift!
             bar.transform.position = bar.preSimPos;
             bar.transform.rotation = bar.preSimRot;
             

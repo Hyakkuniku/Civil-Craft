@@ -27,7 +27,6 @@ public class TutorialManager : MonoBehaviour
     private TutorialSequence currentSequence;
     private int currentStepIndex = -1;
     
-    // --- NEW: Keeps track of the button we are waiting for the player to click! ---
     private UnityEngine.UI.Button trackedButton = null;
 
     private void Awake()
@@ -91,7 +90,6 @@ public class TutorialManager : MonoBehaviour
     {
         if (currentSequence == null || !IsTutorialActive) return;
 
-        // Clean up any button listeners from the previous step!
         ClearTrackedButton();
 
         currentStepIndex++;
@@ -146,7 +144,6 @@ public class TutorialManager : MonoBehaviour
         }
         else
         {
-            // --- THE FIX: Hook into the target button if we want to advance on click! ---
             if (step.advanceOnClick)
             {
                 UnityEngine.UI.Button targetBtn = step.pointerTarget.GetComponent<UnityEngine.UI.Button>();
@@ -155,7 +152,6 @@ public class TutorialManager : MonoBehaviour
                     trackedButton = targetBtn;
                     trackedButton.onClick.AddListener(OnTrackedButtonClicked);
 
-                    // Force hide the 'Next' button so the player HAS to click the target UI!
                     if (nextButton != null) nextButton.SetActive(false);
                 }
                 else
@@ -168,14 +164,12 @@ public class TutorialManager : MonoBehaviour
         step.OnStepStart?.Invoke();
     }
 
-    // --- NEW: Fired exactly when the player clicks the UI button we are pointing at ---
     private void OnTrackedButtonClicked()
     {
         ClearTrackedButton();
         ShowNextStep();
     }
 
-    // --- NEW: Safely removes the listener so we don't accidentally double-fire later ---
     private void ClearTrackedButton()
     {
         if (trackedButton != null)
@@ -192,12 +186,20 @@ public class TutorialManager : MonoBehaviour
 
     private void CompleteTutorial()
     {
-        ClearTrackedButton(); // Final cleanup just in case
+        ClearTrackedButton(); 
         
         IsTutorialActive = false;
         if (tutorialPanel != null) tutorialPanel.SetActive(false);
         if (bouncingArrow != null) bouncingArrow.Hide();
         
+        // --- THE CRITICAL FIX ---
+        // Ensure we tell the Build Director to shut down its tracing/locks so it 
+        // doesn't keep forcing the bouncing arrow to turn back on!
+        if (BuildTutorialDirector.Instance != null)
+        {
+            BuildTutorialDirector.Instance.EndTutorial();
+        }
+
         if (currentSequence != null && PlayerDataManager.Instance != null && !string.IsNullOrEmpty(currentSequence.lessonName))
         {
             PlayerDataManager.Instance.CompleteLesson(currentSequence.lessonName);
@@ -219,7 +221,6 @@ public class TutorialStep
     public string message = "Step description here...";
     public TutorialPosition screenPosition = TutorialPosition.TopCenter;
     
-    [Tooltip("Show the standard Next button on the tutorial panel.")]
     public bool showNextButton = true;
     public bool canSkip = false;
 
@@ -229,8 +230,6 @@ public class TutorialStep
     public Vector2 pointerOffset = new Vector2(0, 80);
     public float pointerRotation = 180f;
 
-    // --- NEW: The Inspector toggle to turn this feature on! ---
-    [Tooltip("If true, the tutorial will wait for the player to click the pointed target to advance (automatically hides Next button).")]
     public bool advanceOnClick = false;
 
     [Header("Events")]
