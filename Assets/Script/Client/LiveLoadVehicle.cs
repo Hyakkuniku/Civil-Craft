@@ -46,6 +46,7 @@ public class LiveLoadVehicle : Interactable
     [HideInInspector] public bool isParkedAtFinish = false;
     
     private float currentMotorSpeed = 0f;
+    private PhysicMaterial wheelMat; // Cached material
 
     private class WheelData
     {
@@ -66,6 +67,7 @@ public class LiveLoadVehicle : Interactable
         rb.useGravity = true; 
         rb.collisionDetectionMode = CollisionDetectionMode.Discrete; 
 
+        // Set initial Center of Mass
         rb.centerOfMass = new Vector3(0, centerOfMassOffset, 0);
         rb.constraints = RigidbodyConstraints.FreezeRotationY | RigidbodyConstraints.FreezePositionZ;
         rb.sleepThreshold = 0f;
@@ -79,10 +81,11 @@ public class LiveLoadVehicle : Interactable
             chassisCol.material = slipMat;
         }
 
-        PhysicMaterial wheelMat = new PhysicMaterial("WheelGrip");
+        wheelMat = new PhysicMaterial("WheelGrip");
         wheelMat.dynamicFriction = 1f; wheelMat.staticFriction = 1f; 
         wheelMat.frictionCombine = PhysicMaterialCombine.Maximum; wheelMat.bounciness = 0f;
 
+        // Create the physical wheel objects, but DO NOT add joints or rigidbodies yet!
         foreach (GameObject visualWheel in wheelObjects)
         {
             if (visualWheel == null) continue;
@@ -109,23 +112,6 @@ public class LiveLoadVehicle : Interactable
             sc.radius = wheelRadius; sc.material = wheelMat;
 
             if (chassisCol != null) Physics.IgnoreCollision(chassisCol, sc, true);
-
-            wd.rb = physWheel.AddComponent<Rigidbody>();
-            wd.rb.mass = wheelMass; 
-            wd.rb.isKinematic = true; 
-            wd.rb.collisionDetectionMode = CollisionDetectionMode.Discrete; 
-            wd.rb.sleepThreshold = 0f; 
-            wd.rb.maxDepenetrationVelocity = 10f; 
-
-            wd.hinge = physWheel.AddComponent<HingeJoint>();
-            wd.hinge.connectedBody = rb;
-            wd.hinge.axis = spinAxis; 
-            
-            JointMotor motor = wd.hinge.motor;
-            motor.force = engineTorque; 
-            motor.freeSpin = false;
-            wd.hinge.motor = motor; 
-            wd.hinge.useMotor = false;
 
             wheels.Add(wd);
         }
@@ -161,8 +147,6 @@ public class LiveLoadVehicle : Interactable
                     {
                         w.physObj.transform.localPosition = w.originalLocalPos;
                         w.physObj.transform.localRotation = w.originalLocalRot;
-                        w.rb.position = rb.transform.TransformPoint(w.originalLocalPos);
-                        w.rb.rotation = rb.transform.rotation * w.originalLocalRot;
                     }
                 }
             }
@@ -179,6 +163,51 @@ public class LiveLoadVehicle : Interactable
         }
     }
 
+    // --- NEW: Cleanly builds the physics components ---
+    private void BuildWheelPhysics()
+    {
+        Collider chassisCol = GetComponent<Collider>();
+
+        foreach (var w in wheels)
+        {
+            if (w.rb == null)
+            {
+                w.rb = w.physObj.AddComponent<Rigidbody>();
+                w.rb.mass = wheelMass; 
+                w.rb.isKinematic = true; 
+                w.rb.collisionDetectionMode = CollisionDetectionMode.Discrete; 
+                w.rb.sleepThreshold = 0f; 
+                w.rb.maxDepenetrationVelocity = 10f; 
+            }
+
+            if (w.hinge == null)
+            {
+                w.hinge = w.physObj.AddComponent<HingeJoint>();
+                w.hinge.connectedBody = rb;
+                w.hinge.axis = spinAxis; 
+                
+                JointMotor motor = w.hinge.motor;
+                motor.force = engineTorque; 
+                motor.freeSpin = false;
+                w.hinge.motor = motor; 
+                w.hinge.useMotor = false;
+            }
+            
+            Collider wheelCol = w.physObj.GetComponent<Collider>();
+            if (chassisCol != null && wheelCol != null) Physics.IgnoreCollision(chassisCol, wheelCol, true);
+        }
+    }
+
+    // --- NEW: Strips physics components to flush PhysX cache ---
+    private void StripWheelPhysics()
+    {
+        foreach (var w in wheels)
+        {
+            if (w.hinge != null) { Destroy(w.hinge); w.hinge = null; }
+            if (w.rb != null) { Destroy(w.rb); w.rb = null; }
+        }
+    }
+
     private void HandleSettlePhaseStarted()
     {
         if (GameManager.Instance != null && assignedContract != null && GameManager.Instance.CurrentContract != assignedContract) return;
@@ -189,8 +218,9 @@ public class LiveLoadVehicle : Interactable
 
         if (assignedContract != null) { vehicleMass = assignedContract.liveLoadWeight; if (rb != null) rb.mass = vehicleMass; }
 
+        StripWheelPhysics(); // Purge old caches
+
         rb.isKinematic = true;
-        foreach (var w in wheels) w.rb.isKinematic = true;
 
         if (startPoint != null)
         {
@@ -203,14 +233,17 @@ public class LiveLoadVehicle : Interactable
             {
                 w.physObj.transform.localPosition = w.originalLocalPos;
                 w.physObj.transform.localRotation = w.originalLocalRot;
-                w.rb.position = rb.transform.TransformPoint(w.originalLocalPos);
-                w.rb.rotation = rb.transform.rotation * w.originalLocalRot;
             }
         }
 
+        BuildWheelPhysics(); // Rebuild fresh joints
+
         rb.velocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero; 
+        
+        // FIX 1: Reapply the Custom Center of Mass!
         rb.ResetCenterOfMass();
+        rb.centerOfMass = new Vector3(0, centerOfMassOffset, 0);
         rb.ResetInertiaTensor(); 
         
         foreach (var w in wheels)
@@ -229,7 +262,7 @@ public class LiveLoadVehicle : Interactable
         if (GameManager.Instance != null && assignedContract != null && GameManager.Instance.CurrentContract != assignedContract) return;
         
         rb.isKinematic = false;
-        foreach (var w in wheels) w.rb.isKinematic = false;
+        foreach (var w in wheels) if (w.rb != null) w.rb.isKinematic = false;
         
         isDriving = true; 
     }
@@ -293,8 +326,8 @@ public class LiveLoadVehicle : Interactable
         rb.isKinematic = true;
         foreach (var w in wheels) 
         { 
-            w.rb.isKinematic = true; 
-            w.hinge.useMotor = false; 
+            if (w.rb != null) w.rb.isKinematic = true; 
+            if (w.hinge != null) w.hinge.useMotor = false; 
         }
         rb.Sleep(); 
     }
@@ -304,14 +337,13 @@ public class LiveLoadVehicle : Interactable
         isDriving = false;
         currentMotorSpeed = 0f;
 
-        Collider[] allCols = GetComponentsInChildren<Collider>();
-        foreach (var c in allCols) c.enabled = false;
-
         rb.isKinematic = true;
         rb.velocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
         
+        // FIX 1: Reapply Custom Center of Mass!
         rb.ResetCenterOfMass();
+        rb.centerOfMass = new Vector3(0, centerOfMassOffset, 0);
         rb.ResetInertiaTensor();
 
         if (!isParkedAtFinish && startPoint != null)
@@ -323,36 +355,14 @@ public class LiveLoadVehicle : Interactable
 
             foreach (var w in wheels)
             {
-                w.rb.isKinematic = true;
-                w.rb.velocity = Vector3.zero;
-                w.rb.angularVelocity = Vector3.zero;
-                
-                w.rb.ResetCenterOfMass();
-                w.rb.ResetInertiaTensor();
-                
-                w.hinge.useMotor = false; 
-                
                 w.physObj.transform.localPosition = w.originalLocalPos;
                 w.physObj.transform.localRotation = w.originalLocalRot;
-                w.rb.position = rb.transform.TransformPoint(w.originalLocalPos);
-                w.rb.rotation = rb.transform.rotation * w.originalLocalRot;
-            }
-        }
-        else if (isParkedAtFinish)
-        {
-            foreach (var w in wheels)
-            {
-                w.rb.isKinematic = true;
-                w.rb.velocity = Vector3.zero;
-                w.rb.angularVelocity = Vector3.zero;
-                w.rb.ResetCenterOfMass();
-                w.rb.ResetInertiaTensor();
-                w.hinge.useMotor = false; 
             }
         }
 
+        StripWheelPhysics(); // FIX 2: Destroy physics to flush PhysX
+
         rb.Sleep(); 
-        foreach (var c in allCols) c.enabled = true;
     }
 
     public void EmergencyStop()

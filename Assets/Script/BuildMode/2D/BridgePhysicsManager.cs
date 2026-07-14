@@ -38,7 +38,7 @@ public class BridgePhysicsManager : MonoBehaviour
 
     private PhysicMaterial sharedRoadPhysicsMat;
 
-    // --- NEW: Deterministic Spatial Comparers ---
+    // --- Deterministic Spatial Comparers ---
     private class SpatialPointComparer : IComparer<Point>
     {
         public int Compare(Point a, Point b)
@@ -50,17 +50,12 @@ public class BridgePhysicsManager : MonoBehaviour
             Vector3 posA = a.transform.position;
             Vector3 posB = b.transform.position;
 
-            // 1mm tolerance to swallow floating-point inaccuracies
             float tolerance = 0.001f;
 
-            if (Mathf.Abs(posA.x - posB.x) > tolerance)
-                return posA.x.CompareTo(posB.x);
-            if (Mathf.Abs(posA.y - posB.y) > tolerance)
-                return posA.y.CompareTo(posB.y);
-            if (Mathf.Abs(posA.z - posB.z) > tolerance)
-                return posA.z.CompareTo(posB.z);
+            if (Mathf.Abs(posA.x - posB.x) > tolerance) return posA.x.CompareTo(posB.x);
+            if (Mathf.Abs(posA.y - posB.y) > tolerance) return posA.y.CompareTo(posB.y);
+            if (Mathf.Abs(posA.z - posB.z) > tolerance) return posA.z.CompareTo(posB.z);
 
-            // Absolute fallback just in case two points magically occupy the exact same floating-point coordinate
             return a.GetInstanceID().CompareTo(b.GetInstanceID());
         }
     }
@@ -75,7 +70,6 @@ public class BridgePhysicsManager : MonoBehaviour
             if (a == null) return -1;
             if (b == null) return 1;
 
-            // Orient the bar virtually so the "lowest" spatial point is always evaluated first
             Point a1 = a.startPoint;
             Point a2 = a.endPoint;
             if (pointComparer.Compare(a1, a2) > 0) { a1 = a.endPoint; a2 = a.startPoint; }
@@ -84,22 +78,18 @@ public class BridgePhysicsManager : MonoBehaviour
             Point b2 = b.endPoint;
             if (pointComparer.Compare(b1, b2) > 0) { b1 = b.endPoint; b2 = b.startPoint; }
 
-            // Compare primary point
             int p1Compare = pointComparer.Compare(a1, b1);
             if (p1Compare != 0) return p1Compare;
 
-            // Compare secondary point
             int p2Compare = pointComparer.Compare(a2, b2);
             if (p2Compare != 0) return p2Compare;
 
-            // If bars share the exact same physical coordinates, sort by material
             if (a.materialData != null && b.materialData != null)
             {
                 int matCompare = string.Compare(a.materialData.name, b.materialData.name, StringComparison.Ordinal);
                 if (matCompare != 0) return matCompare;
             }
 
-            // Extreme fallback
             return a.GetInstanceID().CompareTo(b.GetInstanceID()); 
         }
     }
@@ -259,8 +249,6 @@ public class BridgePhysicsManager : MonoBehaviour
 
         GatherActiveBridgeData(out simPoints, out simBars);
 
-        // --- THE FIX: Deterministic Sorting ---
-        // Using Spatial Topology sorting guarantees identical lists regardless of load order.
         deterministicPoints = new List<Point>(simPoints);
         deterministicPoints.Sort(new SpatialPointComparer());
 
@@ -308,16 +296,16 @@ public class BridgePhysicsManager : MonoBehaviour
         foreach (Bar bar in deterministicBars)
         {
             if (bar == null) continue;
-            foreach (Joint j in bar.GetComponentsInChildren<Joint>()) { j.connectedBody = null; Destroy(j); }
-            foreach (Rigidbody rb in bar.GetComponentsInChildren<Rigidbody>()) Destroy(rb);
+            foreach (Joint j in bar.GetComponentsInChildren<Joint>()) { j.connectedBody = null; DestroyImmediate(j); }
+            foreach (Rigidbody rb in bar.GetComponentsInChildren<Rigidbody>()) DestroyImmediate(rb);
         }
 
         foreach (Point p in deterministicPoints)
         {
             if (p == null) continue;
-            foreach (Joint j in p.GetComponentsInChildren<Joint>()) { j.connectedBody = null; Destroy(j); }
-            foreach (Rigidbody rb in p.GetComponentsInChildren<Rigidbody>()) Destroy(rb);
-            foreach (CapsuleCollider cc in p.GetComponents<CapsuleCollider>()) Destroy(cc);
+            foreach (Joint j in p.GetComponentsInChildren<Joint>()) { j.connectedBody = null; DestroyImmediate(j); }
+            foreach (Rigidbody rb in p.GetComponentsInChildren<Rigidbody>()) DestroyImmediate(rb);
+            foreach (CapsuleCollider cc in p.GetComponents<CapsuleCollider>()) DestroyImmediate(cc);
         }
 
         bool isCurrentlyBuilding = GameManager.Instance != null && GameManager.Instance.CurrentState == GameManager.GameState.Building;
@@ -350,7 +338,7 @@ public class BridgePhysicsManager : MonoBehaviour
                     if (capRend != null)
                     {
                         BoxCollider bc = capRend.GetComponent<BoxCollider>();
-                        if (bc != null) { bc.enabled = false; Destroy(bc); }
+                        if (bc != null) { bc.enabled = false; DestroyImmediate(bc); }
                     }
                 }
 
@@ -362,7 +350,7 @@ public class BridgePhysicsManager : MonoBehaviour
                         if (segRend != null)
                         {
                             BoxCollider bc = segRend.GetComponent<BoxCollider>();
-                            if (bc != null) { bc.enabled = false; Destroy(bc); }
+                            if (bc != null) { bc.enabled = false; DestroyImmediate(bc); }
                         }
                     }
                 }
@@ -370,11 +358,11 @@ public class BridgePhysicsManager : MonoBehaviour
             else
             {
                 BoxCollider[] parentCols = bar.GetComponents<BoxCollider>();
-                foreach (BoxCollider c in parentCols) { c.enabled = false; Destroy(c); }
+                foreach (BoxCollider c in parentCols) { c.enabled = false; DestroyImmediate(c); }
             }
 
             BarStressHandler stress = bar.GetComponent<BarStressHandler>();
-            if (stress != null) Destroy(stress);
+            if (stress != null) DestroyImmediate(stress);
 
             bar.transform.position = bar.preSimPos;
             bar.transform.rotation = bar.preSimRot;
@@ -569,7 +557,7 @@ public class BridgePhysicsManager : MonoBehaviour
             barRb.maxDepenetrationVelocity = 2f;
 
             BoxCollider[] oldCols = bar.GetComponents<BoxCollider>();
-            foreach(var c in oldCols) { c.enabled = false; Destroy(c); }
+            foreach(var c in oldCols) { c.enabled = false; DestroyImmediate(c); }
 
             if (bar.materialData.isPier)
             {
@@ -643,6 +631,12 @@ public class BridgePhysicsManager : MonoBehaviour
         {
             if (!p.gameObject.activeSelf || p.ConnectedBars.Count == 0) continue; 
 
+            // --- FIX 2: Sort the local Point connections! ---
+            // This guarantees floating-point mass math and PhysX Joint Evaluation 
+            // happen in the exact same sequence regardless of load/draw order.
+            List<Bar> sortedConnectedBars = new List<Bar>(p.ConnectedBars);
+            sortedConnectedBars.Sort(new SpatialBarComparer());
+
             Collider[] oldCols = p.GetComponents<Collider>();
             foreach(var col in oldCols) col.enabled = false; 
 
@@ -654,7 +648,9 @@ public class BridgePhysicsManager : MonoBehaviour
             if (!p.isAnchor)
             {
                 float calculatedMass = 0.5f;
-                foreach (Bar bar in p.ConnectedBars)
+                
+                // USE THE SORTED LIST
+                foreach (Bar bar in sortedConnectedBars)
                 {
                     if (bar == null || !bar.gameObject.activeSelf) continue; 
                     
@@ -674,7 +670,8 @@ public class BridgePhysicsManager : MonoBehaviour
             bool isRoadNode = false;
             float maxZDepth = 2.0f;
             
-            foreach (Bar bar in p.ConnectedBars)
+            // USE THE SORTED LIST
+            foreach (Bar bar in sortedConnectedBars)
             {
                 if (bar == null || !bar.gameObject.activeSelf) continue; 
                 
@@ -782,6 +779,8 @@ public class BridgePhysicsManager : MonoBehaviour
         }
     }
 }
+// Note: BarStressHandler remains exactly the same and has been omitted here to save context space, 
+// as it was fully provided and correctly updated in our previous message!
 
 public class BarStressHandler : MonoBehaviour
 {
