@@ -40,11 +40,6 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
         rectTransform = GetComponent<RectTransform>();
         if (rectTransform != null) originalPosition = rectTransform.anchoredPosition;
         if (buttonImage != null) originalColor = buttonImage.color;
-
-        if (GameManager.Instance != null)
-        {
-            GameManager.Instance.OnEnterBuildMode.AddListener(EvaluateMaterialRestriction);
-        }
     }
 
     private void Start()
@@ -71,11 +66,6 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
         if (BuildUIController.Instance != null && BuildUIController.Instance.barCreator != null)
         {
             BuildUIController.Instance.barCreator.OnActiveMaterialChanged -= HandleMaterialChanged;
-        }
-
-        if (GameManager.Instance != null)
-        {
-            GameManager.Instance.OnEnterBuildMode.RemoveListener(EvaluateMaterialRestriction);
         }
     }
 
@@ -196,13 +186,12 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
 
     public void OnPointerClick(PointerEventData eventData)
     {
-        // --- THE FIX: Block clicks if the tutorial is locked and this isn't the requested material! ---
         if (BuildUIController.Instance != null && BuildUIController.Instance.isTutorialUI_Locked)
         {
             if (BuildUIController.Instance.whitelistedMaterial != buttonMaterial)
             {
                 Debug.Log($"<color=orange>Tutorial Blocked Click on: {buttonMaterial.name}</color>");
-                return; // Ignored!
+                return; 
             }
         }
 

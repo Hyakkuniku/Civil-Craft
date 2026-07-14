@@ -12,13 +12,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
   m_Name: Tutorial
   m_EditorClassIdentifier: 
-  isTutorialContract: 0
+  isTutorialContract: 1
   autoCollectReward: 0
   clientName: Prof Bhan
   jobDescription: Truss Bridge
   budget: 50000
   liveLoadWeight: 411
-  allowedMaterials: []
+  allowedMaterials:
+  - material: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
+    maxPieces: 0
+  - material: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
+    maxPieces: 0
   enforceMaxStress: 0
   maxAllowedStress: 100
   isTimeAttack: 0

@@ -106,14 +106,37 @@ public class BuildUIController : MonoBehaviour
         if (selectionActionPanel != null) selectionActionPanel.SetActive(false);
         if (statsPanel != null) statsPanel.SetActive(false); 
         if (liveBeamStatsPanel != null) liveBeamStatsPanel.SetActive(false);
-        
         if (timerPanel != null) timerPanel.SetActive(false); 
-        
         if (unlockMaterialPanel != null) unlockMaterialPanel.SetActive(false); 
 
         if (actionLogText != null) actionLogText.text = ""; 
 
         MarkBridgeDirty();
+
+        // --- THE FIX: Hook the UI Controller to the Game Manager! ---
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.OnEnterBuildMode.AddListener(RefreshAllMaterialButtons);
+        }
+    }
+
+    private void OnDestroy()
+    {
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.OnEnterBuildMode.RemoveListener(RefreshAllMaterialButtons);
+        }
+    }
+
+    // --- THE FIX: This method reaches into the dark and wakes up sleeping buttons! ---
+    public void RefreshAllMaterialButtons()
+    {
+        // The 'true' parameter is the magic key! It tells Unity to search for INACTIVE objects too!
+        MaterialButtonTrigger[] allButtons = FindObjectsOfType<MaterialButtonTrigger>(true);
+        foreach (var b in allButtons) 
+        {
+            b.EvaluateMaterialRestriction();
+        }
     }
 
     public void ShowTimer(bool isVisible)
@@ -160,10 +183,7 @@ public class BuildUIController : MonoBehaviour
 
     public int GetMaterialUsageCount(BridgeMaterialSO material)
     {
-        if (materialUsageCount.ContainsKey(material))
-        {
-            return materialUsageCount[material];
-        }
+        if (materialUsageCount.ContainsKey(material)) return materialUsageCount[material];
         return 0;
     }
 
@@ -174,11 +194,7 @@ public class BuildUIController : MonoBehaviour
         {
             unlockMaterialPanel.SetActive(true);
             int cost = btn.buttonMaterial.unlockCost;
-
-            if (unlockMaterialText != null)
-            {
-                unlockMaterialText.text = $"Unlock {btn.buttonMaterial.name} for this level?\nCost: {cost} Gold";
-            }
+            if (unlockMaterialText != null) unlockMaterialText.text = $"Unlock {btn.buttonMaterial.name} for this level?\nCost: {cost} Gold";
         }
     }
 
@@ -193,18 +209,11 @@ public class BuildUIController : MonoBehaviour
                 PlayerDataManager.Instance.SpendGold(cost);
                 PlayerDataManager.Instance.UnlockMaterialForContract(GameManager.Instance.CurrentContract.name, pendingUnlockButton.buttonMaterial.name);
 
-                MaterialButtonTrigger[] allButtons = FindObjectsOfType<MaterialButtonTrigger>();
-                foreach (var b in allButtons)
-                {
-                    b.EvaluateMaterialRestriction();
-                }
+                RefreshAllMaterialButtons(); // Force UI update
 
                 LogAction($"{pendingUnlockButton.buttonMaterial.name} Unlocked!");
             }
-            else
-            {
-                LogAction("Not enough Gold to unlock!");
-            }
+            else LogAction("Not enough Gold to unlock!");
         }
 
         if (unlockMaterialPanel != null) unlockMaterialPanel.SetActive(false);
@@ -223,25 +232,15 @@ public class BuildUIController : MonoBehaviour
 
         if (barCreator != null)
         {
-            if (barCreator.IsCreating && barCreator.currentBar != null)
-            {
-                targetBar = barCreator.currentBar;
-            }
+            if (barCreator.IsCreating && barCreator.currentBar != null) targetBar = barCreator.currentBar;
             else if (barCreator.IsMoving && barCreator.isDraggingSelection)
             {
                 var selectedPoints = barCreator.GetSelectedPoints();
                 HashSet<Bar> affectedBars = new HashSet<Bar>();
                 foreach (Point p in selectedPoints)
                 {
-                    foreach (Bar b in p.ConnectedBars)
-                    {
-                        if (b != null && b.gameObject.activeSelf)
-                        {
-                            affectedBars.Add(b);
-                        }
-                    }
+                    foreach (Bar b in p.ConnectedBars) if (b != null && b.gameObject.activeSelf) affectedBars.Add(b);
                 }
-
                 if (affectedBars.Count == 1)
                 {
                     var enumerator = affectedBars.GetEnumerator();
@@ -257,22 +256,14 @@ public class BuildUIController : MonoBehaviour
 
         if (targetBar != null && targetBar.materialData != null)
         {
-            if (liveBeamStatsPanel != null && !liveBeamStatsPanel.activeSelf) 
-                liveBeamStatsPanel.SetActive(true);
-
-            if (liveBeamLengthText != null) 
-                liveBeamLengthText.text = $"{targetBar.currentLength:F2}m";
-                
-            if (liveBeamCostText != null) 
-                liveBeamCostText.text = $"${targetBar.GetCost():F0}";
-                
-            if (liveBeamAngleText != null) 
-                liveBeamAngleText.text = $"{targetBar.currentAngle:F1}°";
+            if (liveBeamStatsPanel != null && !liveBeamStatsPanel.activeSelf) liveBeamStatsPanel.SetActive(true);
+            if (liveBeamLengthText != null) liveBeamLengthText.text = $"{targetBar.currentLength:F2}m";
+            if (liveBeamCostText != null) liveBeamCostText.text = $"${targetBar.GetCost():F0}";
+            if (liveBeamAngleText != null) liveBeamAngleText.text = $"{targetBar.currentAngle:F1}°";
         }
         else
         {
-            if (liveBeamStatsPanel != null && liveBeamStatsPanel.activeSelf) 
-                liveBeamStatsPanel.SetActive(false);
+            if (liveBeamStatsPanel != null && liveBeamStatsPanel.activeSelf) liveBeamStatsPanel.SetActive(false);
         }
     }
 
@@ -299,11 +290,7 @@ public class BuildUIController : MonoBehaviour
         UpdateStatsUI();
         UpdateContractUI();
 
-        MaterialButtonTrigger[] allButtons = FindObjectsOfType<MaterialButtonTrigger>();
-        foreach (var b in allButtons)
-        {
-            b.EvaluateMaterialRestriction();
-        }
+        RefreshAllMaterialButtons(); // Ensure limits trigger UI updates
     }
 
     private void RecalculateStaticBridge()
@@ -327,7 +314,7 @@ public class BuildUIController : MonoBehaviour
             if (hasActiveBar) activePoints.Add(p);
         }
 
-        ContractSO activeContract = GetActiveContract();
+        ContractSO activeContract = GameManager.Instance != null ? GameManager.Instance.CurrentContract : null;
         if (activeContract != null)
         {
             BuildLocation targetLoc = null;
@@ -401,10 +388,7 @@ public class BuildUIController : MonoBehaviour
 
             if (b.materialData != null)
             {
-                if (!materialUsageCount.ContainsKey(b.materialData))
-                {
-                    materialUsageCount[b.materialData] = 0;
-                }
+                if (!materialUsageCount.ContainsKey(b.materialData)) materialUsageCount[b.materialData] = 0;
                 materialUsageCount[b.materialData]++;
 
                 cachedBaseM += b.materialData.isDualBeam ? 2 : 1;
@@ -447,7 +431,7 @@ public class BuildUIController : MonoBehaviour
             if (theoreticalCapacityKg < 0) theoreticalCapacityKg = 0;
         }
 
-        ContractSO currentContract = GetActiveContract();
+        ContractSO currentContract = GameManager.Instance != null ? GameManager.Instance.CurrentContract : null;
         float liveLoad = currentContract != null ? currentContract.liveLoadWeight : 1000f;
         
         float estimatedFoS = 0f;
@@ -489,7 +473,7 @@ public class BuildUIController : MonoBehaviour
 
     private void UpdateContractUI()
     {
-        ContractSO currentContract = GetActiveContract();
+        ContractSO currentContract = GameManager.Instance != null ? GameManager.Instance.CurrentContract : null;
         maxBudget = currentContract != null ? currentContract.budget : fallbackMaxBudget;
 
         float baseCost = GetTotalCost();
@@ -520,12 +504,6 @@ public class BuildUIController : MonoBehaviour
     {
         if (playPauseButtonImage == null || physicsManager == null) return;
         playPauseButtonImage.sprite = physicsManager.isSimulating ? (stopIcon != null ? stopIcon : playPauseButtonImage.sprite) : (playIcon != null ? playIcon : playPauseButtonImage.sprite);
-    }
-
-    private ContractSO GetActiveContract()
-    {
-        if (GameManager.Instance != null) return GameManager.Instance.CurrentContract;
-        return null;
     }
 
     private void UpdateStressUI()
@@ -578,21 +556,37 @@ public class BuildUIController : MonoBehaviour
         LogAction("Selection Cleared");
     }
 
-    // --- THE FIX: Hard lock to ALL tools so nothing can be clicked out of turn ---
-    public void OnToggleSelectModeButtonClicked() { if (isTutorialUI_Locked) return; if (barCreator != null) barCreator.ToggleSelectMode(); }
-    public void OnToggleMoveModeButtonClicked() { if (isTutorialUI_Locked) return; if (barCreator != null) barCreator.ToggleMoveMode(); }
-    public void OnToggleDeleteModeButtonClicked() { if (isTutorialUI_Locked) return; if (barCreator != null) barCreator.ToggleDeleteMode(); }
-    public void OnCancelDrawingButtonClicked() { if (isTutorialUI_Locked) return; if (barCreator != null) barCreator.CancelCreation(); }
-    public void OnExitBuildModeButtonClicked() { if (isTutorialUI_Locked) return; if (GameManager.Instance != null) GameManager.Instance.ExitBuildMode(); }
-    public void OnToggleGridButtonClicked() { if (isTutorialUI_Locked) return; if (barCreator != null) barCreator.ToggleGrid(); }
-    public void OnResetCameraButtonClicked() { if (isTutorialUI_Locked) return; BuildCameraController camCtrl = FindObjectOfType<BuildCameraController>(); if (camCtrl != null) camCtrl.ResetCameraRotation(); }
-    public void OnToggleStatsButtonClicked() { if (isTutorialUI_Locked) return; if (statsPanel != null) statsPanel.SetActive(!statsPanel.activeSelf); }
-    public void OnCutSelectedButtonClicked() { if (isTutorialUI_Locked) return; if (ClipboardManager.Instance != null && barCreator != null) ClipboardManager.Instance.CutSelected(barCreator.GetSelectedPoints()); }
-    public void OnCopyButtonClicked() { if (isTutorialUI_Locked) return; if (ClipboardManager.Instance != null && barCreator != null) ClipboardManager.Instance.CopySelected(barCreator.GetSelectedPoints()); }
-    public void OnPasteButtonClicked() { if (isTutorialUI_Locked) return; if (ClipboardManager.Instance != null) ClipboardManager.Instance.StampPaste(); }
-    public void OnUndoButtonClicked() { if (isTutorialUI_Locked) return; if (CommandManager.Instance != null) CommandManager.Instance.Undo(); }
-    public void OnRedoButtonClicked() { if (isTutorialUI_Locked) return; if (CommandManager.Instance != null) CommandManager.Instance.Redo(); }
-    public void OnDeleteSelectedButtonClicked() { if (isTutorialUI_Locked) return; if (barCreator != null) barCreator.DeleteSelected(); }
+    private bool IsToolAllowed()
+    {
+        if (!isTutorialUI_Locked) return true; 
+
+        GameObject clickedObj = UnityEngine.EventSystems.EventSystem.current?.currentSelectedGameObject;
+        
+        if (whitelistedButton != null && clickedObj == whitelistedButton)
+        {
+            if (TutorialManager.Instance != null) TutorialManager.Instance.ShowNextStep();
+            whitelistedButton = null; 
+            return true;
+        }
+
+        LogAction("Please follow the tutorial instructions!");
+        return false; 
+    }
+
+    public void OnToggleSelectModeButtonClicked() { if (!IsToolAllowed()) return; if (barCreator != null) barCreator.ToggleSelectMode(); }
+    public void OnToggleMoveModeButtonClicked() { if (!IsToolAllowed()) return; if (barCreator != null) barCreator.ToggleMoveMode(); }
+    public void OnToggleDeleteModeButtonClicked() { if (!IsToolAllowed()) return; if (barCreator != null) barCreator.ToggleDeleteMode(); }
+    public void OnToggleGridButtonClicked() { if (!IsToolAllowed()) return; if (barCreator != null) barCreator.ToggleGrid(); }
+    public void OnCancelDrawingButtonClicked() { if (!IsToolAllowed()) return; if (barCreator != null) barCreator.CancelCreation(); }
+    public void OnExitBuildModeButtonClicked() { if (!IsToolAllowed()) return; if (GameManager.Instance != null) GameManager.Instance.ExitBuildMode(); }
+    public void OnResetCameraButtonClicked() { if (!IsToolAllowed()) return; BuildCameraController camCtrl = FindObjectOfType<BuildCameraController>(); if (camCtrl != null) camCtrl.ResetCameraRotation(); }
+    public void OnToggleStatsButtonClicked() { if (!IsToolAllowed()) return; if (statsPanel != null) statsPanel.SetActive(!statsPanel.activeSelf); }
+    public void OnCutSelectedButtonClicked() { if (!IsToolAllowed()) return; if (ClipboardManager.Instance != null && barCreator != null) ClipboardManager.Instance.CutSelected(barCreator.GetSelectedPoints()); }
+    public void OnCopyButtonClicked() { if (!IsToolAllowed()) return; if (ClipboardManager.Instance != null && barCreator != null) ClipboardManager.Instance.CopySelected(barCreator.GetSelectedPoints()); }
+    public void OnPasteButtonClicked() { if (!IsToolAllowed()) return; if (ClipboardManager.Instance != null) ClipboardManager.Instance.StampPaste(); }
+    public void OnUndoButtonClicked() { if (!IsToolAllowed()) return; if (CommandManager.Instance != null) CommandManager.Instance.Undo(); }
+    public void OnRedoButtonClicked() { if (!IsToolAllowed()) return; if (CommandManager.Instance != null) CommandManager.Instance.Redo(); }
+    public void OnDeleteSelectedButtonClicked() { if (!IsToolAllowed()) return; if (barCreator != null) barCreator.DeleteSelected(); }
 
     public void OnToggleSimulationButtonClicked() 
     { 
@@ -603,7 +597,7 @@ public class BuildUIController : MonoBehaviour
     
     public void OnSimulateButtonClicked() 
     { 
-        if (isTutorialUI_Locked && whitelistedButton != playPauseButtonImage.gameObject) return;
+        if (!IsToolAllowed()) return;
 
         if (physicsManager != null && !physicsManager.isSimulating) 
         { 
@@ -611,14 +605,12 @@ public class BuildUIController : MonoBehaviour
             SetSelectionPanelActive(false);
             physicsManager.ActivatePhysics(); 
             LogAction("Simulation Started");
-
-            if (isTutorialUI_Locked && TutorialManager.Instance != null) TutorialManager.Instance.ShowNextStep();
         } 
     }
     
     public void OnRestartButtonClicked() 
     { 
-        if (isTutorialUI_Locked) return; // Prevent restarting during tutorial
+        if (isTutorialUI_Locked) return; 
         if (physicsManager != null && physicsManager.isSimulating) 
         { 
             physicsManager.StopPhysicsAndReset(); 
@@ -627,19 +619,15 @@ public class BuildUIController : MonoBehaviour
         } 
     }
 
-    // --- THE FIX: Absolute lock for materials to completely block Unity Inspector bypassing! ---
     public void OnMaterialSelected(BridgeMaterialSO newMaterial) 
     { 
-        // --- THE FIX: Absolute UI Lock! ---
         if (isTutorialUI_Locked)
         {
-            // If the Director forgot to set a whitelist, block ALL clicks to be safe!
             if (whitelistedMaterial == null)
             {
                 LogAction("Tutorial: Please follow the on-screen instructions!");
                 return; 
             }
-            // If they clicked the wrong material, block it!
             if (newMaterial != whitelistedMaterial)
             {
                 LogAction($"Tutorial: Please click the {whitelistedMaterial.name}!");
