@@ -56,6 +56,12 @@ public class PlayerMotor : MonoBehaviour
     private void Update()
     {
         isGrounded = controller.isGrounded;
+
+        // --- NEW: Tell the Animator if we are currently on the ground or in the air ---
+        if (playerAnimator != null)
+        {
+            playerAnimator.SetBool("IsGrounded", isGrounded);
+        }
         
         if (isGrounded && Input.GetKeyDown(KeyCode.Space))
         {
@@ -67,13 +73,11 @@ public class PlayerMotor : MonoBehaviour
     {
         Vector3 moveDirection = Vector3.zero;
 
-        // 1. Calculate Camera-Relative Movement
         if (cameraTransform != null && (input.x != 0 || input.y != 0))
         {
             Vector3 camForward = cameraTransform.forward;
             Vector3 camRight = cameraTransform.right;
             
-            // Flatten the vectors so looking down doesn't push the player into the ground
             camForward.y = 0;
             camRight.y = 0;
             
@@ -83,18 +87,15 @@ public class PlayerMotor : MonoBehaviour
             moveDirection = (camForward * input.y + camRight * input.x).normalized;
         }
 
-        // 2. Rotate the Player Model smoothly toward the movement direction
         if (moveDirection != Vector3.zero)
         {
             Quaternion targetRotation = Quaternion.LookRotation(moveDirection);
             transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
         }
         
-        // 3. Apply Horizontal Movement
         float currentSpeed = isGrounded ? speed : (speed * airSpeedMultiplier);
         controller.Move(moveDirection * currentSpeed * Time.deltaTime);
         
-        // 4. Apply Gravity and Vertical Movement
         playerVelocity.y += gravity * Time.deltaTime;
         
         if (isGrounded && playerVelocity.y < 0)
@@ -102,7 +103,6 @@ public class PlayerMotor : MonoBehaviour
             
         controller.Move(playerVelocity * Time.deltaTime);
 
-        // 5. Update Animation
         if (playerAnimator != null)
         {
             float moveAmount = Mathf.Clamp01(Mathf.Abs(input.x) + Mathf.Abs(input.y));
@@ -115,6 +115,12 @@ public class PlayerMotor : MonoBehaviour
         if (isGrounded)
         {
             playerVelocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
+
+            // --- NEW: Fire the Jump trigger in the Animator! ---
+            if (playerAnimator != null)
+            {
+                playerAnimator.SetTrigger("Jump");
+            }
         }
     }
 

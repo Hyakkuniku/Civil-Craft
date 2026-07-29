@@ -8607,6 +8607,16 @@ PrefabInstance:
       propertyPath: m_Name
       value: interior_ud
       objectReference: {fileID: 0}
+    - target: {fileID: 4057341976747908463, guid: efa9eeaef25e7d342936229b608db49b,
+        type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
+    - target: {fileID: 4358555110441972425, guid: efa9eeaef25e7d342936229b608db49b,
+        type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
     - target: {fileID: 4358555110441972425, guid: efa9eeaef25e7d342936229b608db49b,
         type: 3}
       propertyPath: m_StaticEditorFlags
@@ -9996,6 +10006,37 @@ GameObject:
     type: 3}
   m_PrefabInstance: {fileID: 832208259}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &432324731
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 432324732}
+  m_Layer: 0
+  m_Name: camera follow
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &432324732
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 432324731}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0.531, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 821695855}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &437138527
 GameObject:
   m_ObjectHideFlags: 0
@@ -13788,7 +13829,6 @@ GameObject:
   m_Component:
   - component: {fileID: 596117517}
   - component: {fileID: 596117515}
-  - component: {fileID: 596117516}
   m_Layer: 0
   m_Name: Character_w_Clothes_v4
   m_TagString: Untagged
@@ -13817,26 +13857,6 @@ Animator:
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorStateOnDisable: 0
   m_WriteDefaultValuesOnDisable: 0
---- !u!114 &596117516
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 596117514}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 7d1983e962d541744afcb9492cc7daca, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  headMeshesToHide:
-  - {fileID: 1673621023}
-  - {fileID: 1698331550}
-  - {fileID: 1192222855}
-  - {fileID: 1150427687}
-  - {fileID: 1507583169}
-  - {fileID: 28603519}
-  minimapCamera: {fileID: 0}
 --- !u!4 &596117517
 Transform:
   m_ObjectHideFlags: 0
@@ -18989,12 +19009,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f1b2b2b5ebe3de748af0a1b232c3badc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  cameraTransform: {fileID: 907539283}
+  playerAnimator: {fileID: 596117515}
   speed: 8
   gravity: -9.8
+  rotationSpeed: 12
   jumpHeight: 1.5
   airSpeedMultiplier: 0.55
   playerWeight: 500
-  playerAnimator: {fileID: 596117515}
 --- !u!4 &821695855
 Transform:
   m_ObjectHideFlags: 0
@@ -19010,6 +19032,7 @@ Transform:
   m_Children:
   - {fileID: 907539283}
   - {fileID: 596117517}
+  - {fileID: 432324732}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 182.571, z: 0}
 --- !u!114 &821695856
@@ -19095,8 +19118,17 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   cam: {fileID: 907539287}
+  followTarget: {fileID: 432324732}
+  defaultDistance: 4
+  minDistance: 1
+  maxDistance: 8
   xSensitivity: 15
   ySensitivity: 15
+  minPitch: -20
+  maxPitch: 70
+  collisionMask:
+    serializedVersion: 2
+    m_Bits: 1024
   canLook: 1
 --- !u!143 &821695862
 CharacterController:
@@ -19503,7 +19535,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 838074741}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: BhanInsideHouse
   m_TagString: Untagged
   m_Icon: {fileID: 0}

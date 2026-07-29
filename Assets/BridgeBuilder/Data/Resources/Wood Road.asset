@@ -15,7 +15,7 @@ MonoBehaviour:
   costPerMeter: 180
   massPerMeter: 3
   maxLength: 10
-  maxTension: 70000
+  maxTension: 80000
   maxCompression: 70000
   useSpring: 0
   spring: Infinity
