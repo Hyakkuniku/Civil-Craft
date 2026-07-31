@@ -3,7 +3,6 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using System.Collections.Generic;
-using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.EnhancedTouch;
 using Touch = UnityEngine.InputSystem.EnhancedTouch.Touch;
 
@@ -139,7 +138,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     private Vector2 GetPointerPosition()
     {
         if (Touch.activeTouches.Count > 0) return Touch.activeTouches[0].screenPosition;
-        if (Pointer.current != null) return Pointer.current.position.ReadValue();
+        if (UnityEngine.InputSystem.Pointer.current != null) return UnityEngine.InputSystem.Pointer.current.position.ReadValue();
         return Input.mousePosition;
     }
 
@@ -240,7 +239,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                     
                     foreach (Bar b in p.ConnectedBars)
                     {
-                        // --- SAFTEY CHECK ADDED ---
                         if (b == null || !b.gameObject.activeSelf || b.materialData.isPier || b.startPoint == null || b.endPoint == null) continue;
                         
                         Point otherPoint = (b.startPoint == p) ? b.endPoint : b.startPoint;
@@ -287,7 +285,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
                 foreach (Bar b in p.ConnectedBars)
                 {
-                    // --- SAFTEY CHECK ADDED ---
                     if (b == null || !b.gameObject.activeSelf || b.materialData.isPier || b.startPoint == null || b.endPoint == null) continue; 
                     Point otherPoint = (b.startPoint == p) ? b.endPoint : b.startPoint;
                     if (selectedPoints.Contains(otherPoint) && !otherPoint.originalIsAnchor) continue; 
@@ -341,7 +338,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             {
                 foreach (Bar b in p.ConnectedBars)
                 {
-                    // --- SAFTEY CHECK ADDED ---
                     if (b != null && b.gameObject.activeSelf && b.materialData.isPier && b.startPoint != null && b.endPoint != null)
                     {
                         Point pBot = b.startPoint.transform.position.y < b.endPoint.transform.position.y ? b.startPoint : b.endPoint;
@@ -437,9 +433,10 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (barCreationStarted && currentEndPoint != null && !isDeleteMode && !isSelectMode && !isMoveMode && !IsPasting)
         {
             Vector2 screenPos = GetPointerPosition();
-            Point hoveredNode = CheckForExistingPoint(screenPos);
+            CheckForExistingPoint(screenPos, out Point hoveredNode, out Vector3 snapPos);
             Vector3 worldMousePos = GetWorldMousePosition(screenPos);
-            Vector3 targetPos = CalculateTargetPosition(worldMousePos, hoveredNode);
+            
+            Vector3 targetPos = CalculateTargetPosition(worldMousePos, hoveredNode, snapPos);
 
             if (hoveredNode == null && activeMaterial != null && !activeMaterial.isPier)
             {
@@ -449,7 +446,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                     if (!p.gameObject.activeSelf) continue;
                     foreach (Bar b in p.ConnectedBars)
                     {
-                        // --- SAFTEY CHECK ADDED ---
                         if (b != null && b.gameObject.activeSelf && b != currentBar && !b.materialData.isPier && b.startPoint != null && b.endPoint != null)
                         {
                             Vector3 closestOnBar = GetClosestPointOnLineSegment(targetPos, b.startPoint.transform.position, b.endPoint.transform.position);
@@ -505,7 +501,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 if (maxAffordableLength < maxLen) maxLen = maxAffordableLength;
             }
 
-            Vector3 startPos = currentStartPoint.transform.position;
+            Vector3 startPos = currentBar.StartPosition;
             
             if (Vector3.Distance(startPos, targetPos) > maxLen)
             {
@@ -580,7 +576,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
         if (isMoveMode && eventData.button == PointerEventData.InputButton.Left)
         {
-            Point hoveredNode = CheckForExistingPoint(screenPos);
+            CheckForExistingPoint(screenPos, out Point hoveredNode, out _);
             if (hoveredNode != null)
             {
                 if (!selectedPoints.Contains(hoveredNode))
@@ -625,7 +621,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             return; 
         }
 
-        Point existingNode = CheckForExistingPoint(screenPos);
+        CheckForExistingPoint(screenPos, out Point existingNode, out Vector3 exactSnapPos);
         
         if (!barCreationStarted && eventData.button == PointerEventData.InputButton.Left && activeMaterial != null && !isSelectMode && !isMoveMode && !IsPasting && !isDeleteMode)
         {
@@ -670,7 +666,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 currentStartPoint = existingNode;
                 createdStartPoint = false;
                 barCreationStarted = true;
-                StartBarCreation(existingNode.transform.position);
+                StartBarCreation(exactSnapPos);
             }
         }
     }
@@ -772,7 +768,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             }
             else
             {
-                Point tappedPoint = CheckForExistingPoint(eventData.position);
+                CheckForExistingPoint(eventData.position, out Point tappedPoint, out _);
                 if (tappedPoint != null) TogglePointSelection(tappedPoint);
                 else
                 {
@@ -802,9 +798,10 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (barCreationStarted && activeMaterial != null && eventData.button == PointerEventData.InputButton.Left && !isDeleteMode && !isSelectMode && !isMoveMode && !IsPasting)
         {
             Vector2 screenPos = GetPointerPosition();
-            Point hoveredNode = CheckForExistingPoint(screenPos);
+            CheckForExistingPoint(screenPos, out Point hoveredNode, out Vector3 exactSnapPos);
             Vector3 worldPos = GetWorldMousePosition(screenPos);
-            FinishBarCreation(worldPos, hoveredNode);
+            
+            FinishBarCreation(worldPos, hoveredNode, exactSnapPos);
         }
         else
         {
@@ -938,7 +935,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             {
                 foreach (Bar b in p.ConnectedBars) 
                 {
-                    // --- SAFTEY CHECK ADDED ---
                     if (b != null && b.gameObject.activeSelf && b.startPoint != null && b.endPoint != null &&
                         selectedPoints.Contains(b.startPoint) && selectedPoints.Contains(b.endPoint)) 
                     {
@@ -1084,7 +1080,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
         foreach (Bar b in allActiveBars)
         {
-            // --- SAFTEY CHECK ADDED ---
             if (b.startPoint == null || b.endPoint == null) continue;
             
             Vector2 s1 = cam.WorldToScreenPoint(b.startPoint.transform.position);
@@ -1113,7 +1108,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         {
             foreach (Bar b in p.ConnectedBars) 
             {
-                // --- SAFTEY CHECK ADDED ---
                 if (b != null && b.gameObject.activeSelf && b.startPoint != null && b.endPoint != null) 
                 {
                     cachedAffectedBars.Add(b);
@@ -1129,8 +1123,18 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         {
             if (b.startPoint != null && b.endPoint != null) 
             {
-                b.StartPosition = b.startPoint.transform.position; 
-                b.UpdateCreatingBar(b.endPoint.transform.position); 
+                // ONLY snap Start Position to the middle if it's NOT an anchor
+                if (!b.startPoint.isAnchor && !b.startPoint.originalIsAnchor) 
+                    b.StartPosition = b.startPoint.transform.position; 
+                
+                Vector3 targetEnd = b.endPoint.transform.position;
+                // ONLY snap End Position to the middle if it's NOT an anchor
+                if (b.endPoint.isAnchor || b.endPoint.originalIsAnchor) 
+                    targetEnd = b.EndPosition; 
+                else
+                    b.EndPosition = targetEnd;
+
+                b.UpdateCreatingBar(targetEnd); 
             }
         }
         if (BuildUIController.Instance != null) BuildUIController.Instance.MarkBridgeDirty();
@@ -1138,7 +1142,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
     private void PerformSwipeDelete(Vector2 screenPos)
     {
-        Point hoveredPoint = CheckForExistingPoint(screenPos);
+        CheckForExistingPoint(screenPos, out Point hoveredPoint, out _);
         if (hoveredPoint != null) { 
             DeletePoint(hoveredPoint, currentSwipeDeleteAction); 
             if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("Deleted Node");
@@ -1220,43 +1224,52 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("Grid Snapping: " + (isGridSnappingEnabled ? "ON" : "OFF"));
     }
 
-    private Vector3 CalculateTargetPosition(Vector3 rawPos, Point hoveredNode)
+    private Vector3 CalculateTargetPosition(Vector3 rawPos, Point hoveredNode, Vector3 snapPos)
     {
-        if (hoveredNode != null) return hoveredNode.transform.position;
+        if (hoveredNode != null) return snapPos;
         float lockedZ = currentStartPoint != null ? currentStartPoint.transform.position.z : 0f;
         if (isGridSnappingEnabled) return new Vector3(Mathf.RoundToInt(rawPos.x), Mathf.RoundToInt(rawPos.y), lockedZ);
         return new Vector3(rawPos.x, rawPos.y, lockedZ);
     }
 
-    private Point CheckForExistingPoint(Vector2 screenPos)
+    // --- THE MAGIC FIX: Determines exactly where the user clicked on ANY node's bounds! ---
+    private bool CheckForExistingPoint(Vector2 screenPos, out Point closestPoint, out Vector3 snapPosition)
     {
+        closestPoint = null;
+        snapPosition = Vector3.zero;
+
         Camera cam = GetActiveCamera();
-        Point closest = null;
-        
-        // Use your existing pixel-based radius for a consistent UI feel from any angle
-        float minScreenDist = deleteSnapRadiusPixels; 
+        Ray ray = cam.ScreenPointToRay(screenPos);
+        float minRayDist = nodeSnapRadiusWorld; 
+        bool found = false;
 
         foreach (Point p in Point.AllPoints)
         {
             if (p == currentEndPoint || !p.gameObject.activeSelf) continue;
 
-            // Convert the 3D node's position into 2D Screen Space
-            Vector3 screenPoint = cam.WorldToScreenPoint(p.transform.position);
-            
-            // Ignore nodes that are physically behind the camera
-            if (screenPoint.z < 0) continue;
+            // 1. Check visual bounds FIRST for ALL points!
+            Renderer r = p.GetComponentInChildren<Renderer>();
+            if (r != null && r.bounds.IntersectRay(ray, out float dist))
+            {
+                Vector3 hitPoint = ray.GetPoint(dist);
+                hitPoint.z = p.transform.position.z; // Flatten to 2D plane
 
-            // Calculate how many pixels the mouse/finger is away from the node's visual center
-            float dist = Vector2.Distance(screenPos, new Vector2(screenPoint.x, screenPoint.y));
+                closestPoint = p;
+                snapPosition = hitPoint;
+                return true; // We found a perfect bounds intersection!
+            }
 
-            if (dist < minScreenDist) 
+            // 2. Standard math fallback for the center of regular small joints
+            float distToRay = Vector3.Cross(ray.direction, p.transform.position - ray.origin).magnitude;
+            if (distToRay < minRayDist) 
             { 
-                minScreenDist = dist; 
-                closest = p; 
+                minRayDist = distToRay; 
+                closestPoint = p; 
+                snapPosition = p.transform.position; // Standard points snap to center
+                found = true;
             }
         }
-        
-        return closest;
+        return found;
     }
 
     public Vector3 GetWorldMousePosition(Vector2 screenPos)
@@ -1292,14 +1305,16 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         newBar.name = "Bar";
         currentBar = newBar.GetComponent<Bar>();
         currentBar.Initialize(activeMaterial);
+        
         currentBar.StartPosition = startPosition;
+        
         GameObject endObj = Instantiate(pointToInstantiate, startPosition, Quaternion.identity, pointParent);
         endObj.name = "GhostPoint";
         currentEndPoint = endObj.GetComponent<Point>();
         DrawRadiusVisual();
     }
 
-    private void FinishBarCreation(Vector3 rawWorldPos, Point existingEndPoint)
+    private void FinishBarCreation(Vector3 rawWorldPos, Point existingEndPoint, Vector3 exactSnapPos)
     {
         if (currentBar == null || currentStartPoint == null || currentEndPoint == null) 
         {
@@ -1307,7 +1322,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             return;
         }
 
-        Vector3 finalPosition = CalculateTargetPosition(rawWorldPos, existingEndPoint);
+        Vector3 finalPosition = CalculateTargetPosition(rawWorldPos, existingEndPoint, exactSnapPos);
 
         if (BuildTutorialDirector.Instance != null && BuildTutorialDirector.Instance.isTracingStep)
         {
@@ -1334,7 +1349,8 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             if (maxAffordable < limit) limit = maxAffordable;
         }
 
-        Vector3 startPos = currentStartPoint.transform.position;
+        Vector3 startPos = currentBar.StartPosition;
+        
         float distanceToTarget = Vector3.Distance(startPos, finalPosition);
         if (existingEndPoint != null && distanceToTarget > limit && distanceToTarget <= limit + 0.2f) limit = distanceToTarget; 
         
@@ -1363,11 +1379,26 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         {
             foreach (Point p in Point.AllPoints)
             {
-                if (p != currentStartPoint && p != currentEndPoint && p.gameObject.activeSelf && Vector3.Distance(p.transform.position, finalPosition) < 0.05f)
+                if (p != currentStartPoint && p != currentEndPoint && p.gameObject.activeSelf)
                 {
-                    existingEndPoint = p;
-                    finalPosition = p.transform.position; 
-                    break;
+                    // Check the visual bounds FIRST for ALL points!
+                    Renderer r = p.GetComponentInChildren<Renderer>();
+                    Ray ray = GetActiveCamera().ScreenPointToRay(GetPointerPosition());
+                    if (r != null && r.bounds.IntersectRay(ray, out float dist))
+                    {
+                        Vector3 hitPoint = ray.GetPoint(dist);
+                        hitPoint.z = p.transform.position.z;
+                        existingEndPoint = p;
+                        finalPosition = hitPoint; 
+                        break;
+                    }
+
+                    if (Vector3.Distance(p.transform.position, finalPosition) < 0.05f)
+                    {
+                        existingEndPoint = p;
+                        finalPosition = p.transform.position; 
+                        break;
+                    }
                 }
             }
         }
@@ -1381,7 +1412,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 if (!p.gameObject.activeSelf) continue;
                 foreach (Bar b in p.ConnectedBars)
                 {
-                    // --- SAFTEY CHECK ADDED ---
                     if (b != null && b.gameObject.activeSelf && b != currentBar && !b.materialData.isPier && b.startPoint != null && b.endPoint != null)
                     {
                         Vector3 closestOnBar = GetClosestPointOnLineSegment(finalPosition, b.startPoint.transform.position, b.endPoint.transform.position);
@@ -1420,6 +1450,9 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         currentBar.UpdateCreatingBar(finalPosition);
         currentBar.startPoint = currentStartPoint;
         currentBar.endPoint = currentEndPoint;
+        
+        currentBar.EndPosition = finalPosition;
+        
         if (!currentStartPoint.ConnectedBars.Contains(currentBar)) currentStartPoint.ConnectedBars.Add(currentBar);
         if (!currentEndPoint.ConnectedBars.Contains(currentBar)) currentEndPoint.ConnectedBars.Add(currentBar);
         currentStartPoint.EvaluateAnchorState();
@@ -1450,6 +1483,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 Bar newBar = bObj.GetComponent<Bar>();
                 newBar.Initialize(barToSplit.materialData);
                 newBar.StartPosition = finalPosition;
+                newBar.EndPosition = originalEnd.transform.position; 
                 newBar.UpdateCreatingBar(originalEnd.transform.position);
                 newBar.startPoint = currentEndPoint;
                 newBar.endPoint = originalEnd;
@@ -1464,6 +1498,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 Bar newBar = bObj.GetComponent<Bar>();
                 newBar.Initialize(barToSplit.materialData);
                 newBar.StartPosition = finalPosition;
+                newBar.EndPosition = originalStart.transform.position; 
                 newBar.UpdateCreatingBar(originalStart.transform.position);
                 newBar.startPoint = currentEndPoint;
                 newBar.endPoint = originalStart;
@@ -1478,6 +1513,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 Bar newBar1 = bObj1.GetComponent<Bar>();
                 newBar1.Initialize(barToSplit.materialData);
                 newBar1.StartPosition = originalStart.transform.position;
+                newBar1.EndPosition = finalPosition; 
                 newBar1.UpdateCreatingBar(finalPosition);
                 newBar1.startPoint = originalStart;
                 newBar1.endPoint = currentEndPoint;
@@ -1488,6 +1524,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 Bar newBar2 = bObj2.GetComponent<Bar>();
                 newBar2.Initialize(barToSplit.materialData);
                 newBar2.StartPosition = finalPosition;
+                newBar2.EndPosition = originalEnd.transform.position; 
                 newBar2.UpdateCreatingBar(originalEnd.transform.position);
                 newBar2.startPoint = currentEndPoint;
                 newBar2.endPoint = originalEnd;
