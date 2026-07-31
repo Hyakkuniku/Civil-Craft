@@ -13,6 +13,13 @@ public class BuildLocation : Interactable
     public Vector3 cameraPositionOffset = new Vector3(0, 8, -12);
     public Vector3 cameraLookAtOffset   = new Vector3(0, 2, 0);   
 
+    // --- NEW: CINEMATIC DIVE TARGET ---
+    [Header("Cinematic Transition")]
+    [Tooltip("Place an empty GameObject exactly on top of the blueprint paper, facing down into it.")]
+    public Transform blueprintDiveTarget;
+    [Tooltip("How long it takes to dive into the blueprint (in seconds).")]
+    public float diveDuration = 1.0f;
+
     [Header("Behavior")]
     public bool lockPlayerToZone = false;           
     
@@ -54,7 +61,6 @@ public class BuildLocation : Interactable
             activeContract = null; 
         }
 
-        // --- NEW FIX: Auto-repair any pre-placed interactive starter bridges! ---
         Bar[] allBarsInScene = FindObjectsOfType<Bar>();
         foreach (Bar b in allBarsInScene) 
         {

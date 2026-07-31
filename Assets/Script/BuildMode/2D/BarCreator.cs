@@ -1101,6 +1101,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         }
     }
 
+    // --- THE FIX: We rigidly enforce that all bars lock exactly to their node's transform! ---
     private void UpdateBarsForSelectedPoints()
     {
         cachedAffectedBars.Clear();
@@ -1123,16 +1124,11 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         {
             if (b.startPoint != null && b.endPoint != null) 
             {
-                if (!b.startPoint.isAnchor && !b.startPoint.originalIsAnchor) 
-                    b.StartPosition = b.startPoint.transform.position; 
-                
-                Vector3 targetEnd = b.endPoint.transform.position;
-                if (b.endPoint.isAnchor || b.endPoint.originalIsAnchor) 
-                    targetEnd = b.EndPosition; 
-                else
-                    b.EndPosition = targetEnd;
+                // ALWAYS snap to the exact mathematical center! No sliding!
+                b.StartPosition = b.startPoint.transform.position; 
+                b.EndPosition = b.endPoint.transform.position; 
 
-                b.UpdateCreatingBar(targetEnd); 
+                b.UpdateCreatingBar(b.EndPosition); 
             }
         }
         if (BuildUIController.Instance != null) BuildUIController.Instance.MarkBridgeDirty();
@@ -1222,66 +1218,86 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("Grid Snapping: " + (isGridSnappingEnabled ? "ON" : "OFF"));
     }
 
+    // --- THE FIX: We added "Straight Line Assist" to automatically enforce perfectly flat roads! ---
     private Vector3 CalculateTargetPosition(Vector3 rawPos, Point hoveredNode, Vector3 snapPos)
     {
         if (hoveredNode != null) return snapPos;
         float lockedZ = currentStartPoint != null ? currentStartPoint.transform.position.z : 0f;
-        if (isGridSnappingEnabled) return new Vector3(Mathf.RoundToInt(rawPos.x), Mathf.RoundToInt(rawPos.y), lockedZ);
-        return new Vector3(rawPos.x, rawPos.y, lockedZ);
+        
+        Vector3 result = new Vector3(rawPos.x, rawPos.y, lockedZ);
+        
+        if (isGridSnappingEnabled)
+        {
+            result.x = Mathf.Round(result.x);
+            result.y = Mathf.Round(result.y);
+        }
+
+        // Horizontal & Vertical Straight-Line Assist!
+        if (currentStartPoint != null)
+        {
+            float yDiff = Mathf.Abs(result.y - currentStartPoint.transform.position.y);
+            float xDiff = Mathf.Abs(result.x - currentStartPoint.transform.position.x);
+
+            // Force perfectly straight lines if dragging roughly horizontal or vertical
+            if (yDiff <= 0.6f && xDiff > yDiff) 
+                result.y = currentStartPoint.transform.position.y;
+            else if (xDiff <= 0.6f && yDiff > xDiff) 
+                result.x = currentStartPoint.transform.position.x;
+        }
+
+        return result;
     }
 
-    // --- THE FIX: Let player click anywhere on the visual mesh for ALL points, 
-    // but force the bar to snap perfectly to the center for Black Nodes! ---
+    // --- THE FIX: Generous Hitbox, but perfectly mathematical centering! ---
     private bool CheckForExistingPoint(Vector2 screenPos, out Point closestPoint, out Vector3 snapPosition)
     {
         closestPoint = null;
         snapPosition = Vector3.zero;
 
-        Camera cam = GetActiveCamera();
-        Ray ray = cam.ScreenPointToRay(screenPos);
+        // 1. Get the mathematically perfectly flat 2D mouse position (ignores camera tilt depth)
+        Vector3 flatMousePos = GetWorldMousePosition(screenPos);
         float minRayDist = nodeSnapRadiusWorld; 
         bool found = false;
+
+        Camera cam = GetActiveCamera();
+        Ray ray = cam.ScreenPointToRay(screenPos);
 
         foreach (Point p in Point.AllPoints)
         {
             if (p == currentEndPoint || !p.gameObject.activeSelf) continue;
 
-            // 1. Check visual bounds FIRST for ALL points!
             Renderer r = p.GetComponentInChildren<Renderer>();
-            if (r != null && r.bounds.IntersectRay(ray, out float dist))
+            if (r != null)
             {
-                closestPoint = p;
+                // 2. We use 2D bounding boxes to prevent tilt-warping
+                Bounds b = r.bounds;
+                b.Expand(0.6f); // Generous hitbox so it's easy to click!
 
-                // If it's a Red Anchor, let them slide the point anywhere along the line
-                if (p.isAnchor || p.originalIsAnchor)
+                bool inX = flatMousePos.x >= b.min.x && flatMousePos.x <= b.max.x;
+                bool inY = flatMousePos.y >= b.min.y && flatMousePos.y <= b.max.y;
+
+                if ((inX && inY) || r.bounds.IntersectRay(ray, out float _))
                 {
-                    Vector3 hitPoint = ray.GetPoint(dist);
-                    hitPoint.z = p.transform.position.z; // Flatten to 2D plane
-                    snapPosition = hitPoint;
-                }
-                // If it's a Black Node, grab it but snap the bar perfectly to its mathematical center!
-                else
-                {
+                    closestPoint = p;
+                    // ALWAYS vacuum to the exact mathematical center to guarantee perfectly straight lines!
                     snapPosition = p.transform.position; 
+                    return true; 
                 }
-
-                return true; 
             }
 
-            // 2. Standard math fallback for the center of regular small joints (if they missed the mesh slightly)
-            float distToRay = Vector3.Cross(ray.direction, p.transform.position - ray.origin).magnitude;
-            if (distToRay < minRayDist) 
+            // 3. Math fallback for tiny nodes if the mouse slightly missed the bounds
+            float dist = Vector2.Distance(new Vector2(flatMousePos.x, flatMousePos.y), new Vector2(p.transform.position.x, p.transform.position.y));
+            if (dist < minRayDist) 
             { 
-                minRayDist = distToRay; 
+                minRayDist = dist; 
                 closestPoint = p; 
-                snapPosition = p.transform.position; // Standard points snap to center
+                snapPosition = p.transform.position; 
                 found = true;
             }
         }
         return found;
     }
 
-    // --- THE FIX: Always use a flat 2D World Plane regardless of Camera tilt! ---
     public Vector3 GetWorldMousePosition(Vector2 screenPos)
     {
         Camera cam = GetActiveCamera();
@@ -1380,38 +1396,15 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             BuildUIController.Instance.LogAction("Beam stopped by terrain");
         }
 
-        // --- THE FIX: Reapply the new Anchor/Node logic for the End Point of the drag ---
         if (existingEndPoint == null)
         {
-            foreach (Point p in Point.AllPoints)
+            Vector2 screenPos = GetPointerPosition();
+            if (CheckForExistingPoint(screenPos, out Point secondCheckNode, out Vector3 secondCheckSnapPos))
             {
-                if (p != currentStartPoint && p != currentEndPoint && p.gameObject.activeSelf)
+                if (Vector3.Distance(startPos, secondCheckSnapPos) <= limit + 0.05f)
                 {
-                    Renderer r = p.GetComponentInChildren<Renderer>();
-                    Ray ray = GetActiveCamera().ScreenPointToRay(GetPointerPosition());
-                    if (r != null && r.bounds.IntersectRay(ray, out float dist))
-                    {
-                        existingEndPoint = p;
-                        
-                        if (p.isAnchor || p.originalIsAnchor)
-                        {
-                            Vector3 hitPoint = ray.GetPoint(dist);
-                            hitPoint.z = p.transform.position.z;
-                            finalPosition = hitPoint; 
-                        }
-                        else
-                        {
-                            finalPosition = p.transform.position; // Snap perfectly for black nodes!
-                        }
-                        break;
-                    }
-
-                    if (Vector3.Distance(p.transform.position, finalPosition) < 0.05f)
-                    {
-                        existingEndPoint = p;
-                        finalPosition = p.transform.position; 
-                        break;
-                    }
+                    existingEndPoint = secondCheckNode;
+                    finalPosition = secondCheckSnapPos;
                 }
             }
         }
