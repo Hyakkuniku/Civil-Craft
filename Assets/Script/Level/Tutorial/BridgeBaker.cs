@@ -27,10 +27,6 @@ public class BridgeBaker : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Bakes a fully interactive bridge that players can build upon, delete, and interact with.
-    /// Retains default colors, Point/Bar scripts, and automatically hides nodes outside build mode.
-    /// </summary>
     public void BakeInteractiveStarterBridge()
     {
         BuildLocation locToBake = GetLocationToBake();
@@ -56,22 +52,18 @@ public class BridgeBaker : MonoBehaviour
         {
             if (p.originalIsAnchor)
             {
-                // Do not duplicate the terrain's permanent red anchors; just map them directly
                 pointMap[p] = p;
             }
             else
             {
-                // Deep clone the Point GameObject
                 GameObject newPointObj = Instantiate(p.gameObject, p.transform.position, p.transform.rotation, masterFolder.transform);
                 newPointObj.name = "Starter_Point";
                 Point newPoint = newPointObj.GetComponent<Point>();
                 
-                // Strip out any physics components that might have been added during a live simulation
                 foreach (var j in newPointObj.GetComponentsInChildren<Joint>()) DestroyImmediate(j);
                 foreach (var rb in newPointObj.GetComponentsInChildren<Rigidbody>()) DestroyImmediate(rb);
                 foreach (var col in newPointObj.GetComponents<CapsuleCollider>()) DestroyImmediate(col);
 
-                // Reset state
                 newPoint.ConnectedBars.Clear();
                 newPoint.isSelected = false;
                 newPoint.UpdateMaterial();
@@ -84,44 +76,38 @@ public class BridgeBaker : MonoBehaviour
         int count = 0;
         foreach (Bar b in connectedBars)
         {
-            // Deep clone the Bar GameObject
             GameObject newBarObj = Instantiate(b.gameObject, b.transform.position, b.transform.rotation, masterFolder.transform);
             newBarObj.name = $"Starter_{b.materialData.name}";
             Bar newBar = newBarObj.GetComponent<Bar>();
 
-            // Strip out any physics components added during a live simulation
             foreach (var j in newBarObj.GetComponentsInChildren<Joint>()) DestroyImmediate(j);
             foreach (var rb in newBarObj.GetComponentsInChildren<Rigidbody>()) DestroyImmediate(rb);
             if (newBarObj.GetComponent<BarStressHandler>()) DestroyImmediate(newBarObj.GetComponent<BarStressHandler>());
             
-            // Strip out root colliders added by the physics manager (leave visual child colliders alone)
             foreach (var col in newBarObj.GetComponents<BoxCollider>())
             {
                 if (col.gameObject == newBarObj) DestroyImmediate(col);
             }
 
-            // Rewire the start and end points to use our newly cloned points
             newBar.startPoint = pointMap[b.startPoint];
             newBar.endPoint = pointMap[b.endPoint];
-            newBar.StartPosition = newBar.startPoint.transform.position;
             
-            // Remove any selection highlighting
+            // --- CRITICAL FIX: Save both coordinates so the Prefab can fix itself later ---
+            newBar.StartPosition = newBar.startPoint.transform.position;
+            newBar.EndPosition = newBar.endPoint.transform.position; 
+            
             newBar.isHighlighted = false;
             newBar.SetHighlight(false, null);
 
-            // Tell the new Points that this Bar is connected to them
             if (!newBar.startPoint.ConnectedBars.Contains(newBar)) newBar.startPoint.ConnectedBars.Add(newBar);
             if (!newBar.endPoint.ConnectedBars.Contains(newBar)) newBar.endPoint.ConnectedBars.Add(newBar);
 
             count++;
         }
 
-        Debug.Log($"<color=cyan><b>[SUCCESS]</b></color> Baked {count} interactive pieces for {locToBake.gameObject.name}! Drag 'STARTER_BRIDGE_{locToBake.gameObject.name}' to your files before exiting Play Mode!");
+        Debug.Log($"<color=cyan><b>[SUCCESS]</b></color> Baked {count} interactive pieces! Drag 'STARTER_BRIDGE_{locToBake.gameObject.name}' to your files before exiting Play Mode!");
     }
 
-    /// <summary>
-    /// Bakes a transparent, non-interactive "Ghost" blueprint used purely for the Tutorial tracing system.
-    /// </summary>
     public void BakeGhostBridge()
     {
         BuildLocation locToBake = GetLocationToBake();
@@ -142,7 +128,6 @@ public class BridgeBaker : MonoBehaviour
         
         int count = 0;
 
-        // --- 1. CLONE THE EXACT VISUAL MESHES FOR BARS ---
         foreach (Bar b in connectedBars)
         {
             if (b.startPoint == null || b.endPoint == null) continue;
@@ -179,7 +164,6 @@ public class BridgeBaker : MonoBehaviour
             count++;
         }
 
-        // --- 2. CLONE THE EXACT VISUAL MESHES FOR POINTS ---
         foreach (Point p in connectedPoints)
         {
             if (p.originalIsAnchor) continue; 
@@ -211,10 +195,8 @@ public class BridgeBaker : MonoBehaviour
             }
         }
 
-        Debug.Log($"<color=green><b>[SUCCESS]</b></color> Baked {count} ghosts for {locToBake.gameObject.name}! Drag 'BAKED_GHOST_BRIDGE_{locToBake.gameObject.name}' to your files before exiting Play Mode!");
+        Debug.Log($"<color=green><b>[SUCCESS]</b></color> Baked {count} ghosts! Drag 'BAKED_GHOST_BRIDGE_{locToBake.gameObject.name}' to your files before exiting Play Mode!");
     }
-
-    // --- HELPER METHODS ---
 
     private BuildLocation GetLocationToBake()
     {
@@ -222,11 +204,6 @@ public class BridgeBaker : MonoBehaviour
         if (loc == null && GameManager.Instance != null)
         {
             loc = GameManager.Instance.ActiveBuildLocation;
-        }
-
-        if (loc == null)
-        {
-            Debug.LogWarning("No Build Location specified or active. Cannot bake bridge.");
         }
         return loc;
     }

@@ -54,6 +54,13 @@ public class BuildLocation : Interactable
             activeContract = null; 
         }
 
+        // --- NEW FIX: Auto-repair any pre-placed interactive starter bridges! ---
+        Bar[] allBarsInScene = FindObjectsOfType<Bar>();
+        foreach (Bar b in allBarsInScene) 
+        {
+            b.AutoRepairEndpoints();
+        }
+
         LoadSavedBridge();
 
         if (bakedBars.Count == 0) 
@@ -189,7 +196,6 @@ public class BuildLocation : Interactable
 
     public void DeactivateBuildMode(Transform player)
     {
-        // --- THE FIX: Block the exit if the tutorial is currently running! ---
         if (BuildTutorialDirector.Instance != null && BuildTutorialDirector.Instance.isTutorialRunning)
         {
             Debug.LogWarning("Tutorial is active! Exit blocked.");
@@ -214,7 +220,6 @@ public class BuildLocation : Interactable
         }
     }
 
-    // ... (The rest of your script remains identical)
     public void ResetTimeAttack()
     {
         if (activeContract != null && activeContract.isTimeAttack)

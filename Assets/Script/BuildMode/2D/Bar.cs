@@ -4,6 +4,8 @@ using UnityEngine;
 public class Bar : MonoBehaviour
 {
     public Vector3 StartPosition; 
+    public Vector3 EndPosition; // --- NEW: Stores the end coordinate to repair broken prefabs! ---
+
     public BridgeMaterialSO materialData;
 
     public Point startPoint;
@@ -29,14 +31,35 @@ public class Bar : MonoBehaviour
 
     private Dictionary<Renderer, Material> originalMats = new Dictionary<Renderer, Material>();
 
+    // --- NEW: Re-knits the graph if this Bar was loaded from a Prefab and lost its scene references ---
+    public void AutoRepairEndpoints()
+    {
+        if (startPoint == null || endPoint == null)
+        {
+            Point[] allPointsInScene = FindObjectsOfType<Point>();
+            foreach (Point p in allPointsInScene)
+            {
+                if (startPoint == null && Vector3.Distance(StartPosition, p.transform.position) < 0.1f)
+                {
+                    startPoint = p;
+                    if (!p.ConnectedBars.Contains(this)) p.ConnectedBars.Add(this);
+                }
+                
+                if (endPoint == null && Vector3.Distance(EndPosition, p.transform.position) < 0.1f)
+                {
+                    endPoint = p;
+                    if (!p.ConnectedBars.Contains(this)) p.ConnectedBars.Add(this);
+                }
+            }
+        }
+    }
+
     private void OnEnable()
     {
         if (startPoint != null && !startPoint.ConnectedBars.Contains(this)) startPoint.ConnectedBars.Add(this);
         if (endPoint != null && !endPoint.ConnectedBars.Contains(this)) endPoint.ConnectedBars.Add(this);
     }
 
-    // --- THE FIX: Smart Disable ---
-    // Only sever connections if the GameObject is deactivated (Player deleted it)
     private void OnDisable()
     {
         if (!gameObject.activeInHierarchy)
@@ -45,7 +68,6 @@ public class Bar : MonoBehaviour
         }
     }
 
-    // Backup safety net for when Unity destroys the object on scene changes
     private void OnDestroy()
     {
         RemoveConnections();
