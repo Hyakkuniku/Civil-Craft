@@ -29,10 +29,6 @@ public class BuildTutorialDirector : MonoBehaviour
 
     [Header("UI References")]
     public TutorialPointer bouncingArrow;
-    
-    // --- NEW: Slot to hold your exit button! ---
-    [Header("Exit Tutorial Control")]
-    [Tooltip("Drag your UI Exit/Leave button here so we can hide it during the tutorial.")]
     public GameObject exitBuildModeButton;
 
     [Header("Material UI Library")]
@@ -43,13 +39,14 @@ public class BuildTutorialDirector : MonoBehaviour
 
     [HideInInspector] public bool isTracingStep = false;
     [HideInInspector] public bool isCurrentDragValid = true;
-    
-    // --- NEW: Flag to track if the tutorial is currently active ---
     [HideInInspector] public bool isTutorialRunning = false; 
     
     private GhostSegment[] activeGhosts; 
     private Transform[] activeGhostPoints; 
     private bool wasInvalidLastFrame = false;
+
+    // --- A strict lock to prevent double-skipping ---
+    private bool hasAdvancedFromMaterialClickThisStep = false;
 
     private Bar lastTintedBar;
     private Dictionary<Renderer, Color> originalColors = new Dictionary<Renderer, Color>();
@@ -81,26 +78,13 @@ public class BuildTutorialDirector : MonoBehaviour
             {
                 if (bc.activeMaterial != neededMat)
                 {
-                    BuildUIController.Instance.whitelistedMaterial = neededMat;
-                    
-                    foreach (var mapping in materialMappings)
-                    {
-                        if (mapping.material == neededMat)
-                        {
-                            if (bouncingArrow != null && mapping.buttonRect != null)
-                            {
-                                bouncingArrow.PointAt(mapping.buttonRect, mapping.arrowOffset);
-                                bouncingArrow.transform.localEulerAngles = new Vector3(0, 0, mapping.arrowRotation);
-                            }
-                            break;
-                        }
-                    }
+                    // If they unequip the tool but still need to draw a ghost, give it back to them instantly!
+                    bc.SetActiveMaterial(neededMat);
                 }
-                else if (!bc.IsCreating) 
-                {
-                    bouncingArrow.Hide();
-                    BuildUIController.Instance.whitelistedMaterial = null;
-                }
+                
+                // Keep the arrow hidden while they are drawing!
+                bouncingArrow.Hide();
+                BuildUIController.Instance.whitelistedMaterial = null;
             }
 
             // --- WARDEN & COMPLETION LOGIC ---
@@ -128,18 +112,30 @@ public class BuildTutorialDirector : MonoBehaviour
                 {
                     if (!ghost.gameObject.activeSelf || ghost.requiredMaterial != bc.currentBar.materialData) continue;
 
-                    if (isPier) isValidStart = true; 
-                    else if (Vector3.Distance(dragStart, ghost.startPos) < 0.8f || Vector3.Distance(dragStart, ghost.endPos) < 0.8f) isValidStart = true;
-
-                    if (IsPointOnLineSegment(dragStart, ghost.startPos, ghost.endPos, 0.8f) &&
-                        IsPointOnLineSegment(dragEnd, ghost.startPos, ghost.endPos, 0.8f))
+                    if (isPier)
                     {
-                        isPerfectlyOnBlueprint = true;
+                        isValidStart = true;
+                        float xDiff = Mathf.Abs(dragEnd.x - ghost.startPos.x);
+                        if (xDiff < 1.5f) 
+                        {
+                            isPerfectlyOnBlueprint = true;
+                            isTouchingGhostPoint = true; 
+                        }
                     }
-
-                    if (Vector3.Distance(dragEnd, ghost.startPos) <= 1.2f || Vector3.Distance(dragEnd, ghost.endPos) <= 1.2f)
+                    else
                     {
-                        isTouchingGhostPoint = true;
+                        if (Vector3.Distance(dragStart, ghost.startPos) < 0.8f || Vector3.Distance(dragStart, ghost.endPos) < 0.8f) isValidStart = true;
+
+                        if (IsPointOnLineSegment(dragStart, ghost.startPos, ghost.endPos, 0.8f) &&
+                            IsPointOnLineSegment(dragEnd, ghost.startPos, ghost.endPos, 0.8f))
+                        {
+                            isPerfectlyOnBlueprint = true;
+                        }
+
+                        if (Vector3.Distance(dragEnd, ghost.startPos) <= 1.2f || Vector3.Distance(dragEnd, ghost.endPos) <= 1.2f)
+                        {
+                            isTouchingGhostPoint = true;
+                        }
                     }
                 }
 
@@ -218,7 +214,6 @@ public class BuildTutorialDirector : MonoBehaviour
 
     public void LockAllUI()
     {
-        // --- NEW: Mark the tutorial as active and hide the exit button! ---
         isTutorialRunning = true;
 
         if (BuildUIController.Instance != null)
@@ -235,6 +230,11 @@ public class BuildTutorialDirector : MonoBehaviour
     public void PromptMaterialClick(BridgeMaterialSO mat)
     {
         LockAllUI();
+        
+        // --- GUARANTEE IT WILL ADVANCE ON CLICK ---
+        isTracingStep = false; 
+        hasAdvancedFromMaterialClickThisStep = false; 
+        
         if (BuildUIController.Instance != null) BuildUIController.Instance.whitelistedMaterial = mat;
 
         foreach (var mapping in materialMappings)
@@ -255,6 +255,11 @@ public class BuildTutorialDirector : MonoBehaviour
     public void PromptToolClick(GameObject toolObj)
     {
         LockAllUI();
+        
+        // --- GUARANTEE IT WILL ADVANCE ON CLICK ---
+        isTracingStep = false; 
+        hasAdvancedFromMaterialClickThisStep = false; 
+
         if (BuildUIController.Instance != null) BuildUIController.Instance.whitelistedButton = toolObj;
 
         foreach (var mapping in toolMappings)
@@ -275,6 +280,10 @@ public class BuildTutorialDirector : MonoBehaviour
     public void PromptDrawBridge()
     {
         LockAllUI();
+        
+        isTracingStep = true;
+        hasAdvancedFromMaterialClickThisStep = false; 
+
         if (TutorialManager.Instance != null) TutorialManager.Instance.SetNextButtonActive(false);
         
         activeGhosts = FindObjectsOfType<GhostSegment>(false);
@@ -289,8 +298,6 @@ public class BuildTutorialDirector : MonoBehaviour
             }
             activeGhostPoints = gPoints.ToArray();
         }
-
-        isTracingStep = true;
     }
 
     public void CheckGhostBridgeCompletion()
@@ -298,16 +305,13 @@ public class BuildTutorialDirector : MonoBehaviour
         if (activeGhosts == null || activeGhosts.Length == 0) return;
 
         List<Bar> allRealBars = new List<Bar>();
-        foreach (Point p in Point.AllPoints)
+        foreach (Bar b in FindObjectsOfType<Bar>())
         {
-            if (!p.gameObject.activeSelf) continue;
-            foreach (Bar b in p.ConnectedBars)
-            {
-                if (b != null && b.gameObject.activeSelf && !allRealBars.Contains(b)) allRealBars.Add(b);
-            }
+            if (b.gameObject.activeInHierarchy) allRealBars.Add(b);
         }
 
         bool allGhostsCovered = true;
+        HashSet<Bar> usedBars = new HashSet<Bar>();
 
         foreach (var ghost in activeGhosts)
         {
@@ -316,15 +320,30 @@ public class BuildTutorialDirector : MonoBehaviour
 
             foreach (Bar realBar in allRealBars)
             {
-                if (realBar.materialData != ghost.requiredMaterial) continue;
+                if (usedBars.Contains(realBar)) continue; 
+                if (realBar.materialData != ghost.requiredMaterial || realBar.startPoint == null || realBar.endPoint == null) continue;
 
                 Vector3 rs = realBar.startPoint.transform.position;
                 Vector3 re = realBar.endPoint.transform.position;
 
-                if (IsPointOnLineSegment(segMidPoint, rs, re, 0.8f))
+                if (ghost.requiredMaterial.isPier)
                 {
-                    isSegCovered = true;
-                    break;
+                    float xDiff = Mathf.Abs(rs.x - ghost.startPos.x);
+                    if (xDiff < 0.8f) 
+                    {
+                        isSegCovered = true;
+                        usedBars.Add(realBar); 
+                        break;
+                    }
+                }
+                else
+                {
+                    if (IsPointOnLineSegment(segMidPoint, rs, re, 0.8f))
+                    {
+                        isSegCovered = true;
+                        usedBars.Add(realBar); 
+                        break;
+                    }
                 }
             }
 
@@ -379,15 +398,20 @@ public class BuildTutorialDirector : MonoBehaviour
             if (clickedMat == BuildUIController.Instance.whitelistedMaterial)
             {
                 bouncingArrow.Hide();
-                if (TutorialManager.Instance != null && !isTracingStep) TutorialManager.Instance.ShowNextStep();
+
+                if (TutorialManager.Instance != null && !isTracingStep && !hasAdvancedFromMaterialClickThisStep)
+                {
+                    hasAdvancedFromMaterialClickThisStep = true;
+                    TutorialManager.Instance.ShowNextStep();
+                }
             }
         }
     }
 
     public void EndTutorial()
     {
-        // --- NEW: Mark the tutorial as completely finished and turn the exit button back on! ---
         isTutorialRunning = false; 
+        hasAdvancedFromMaterialClickThisStep = false;
 
         if (BuildUIController.Instance != null) BuildUIController.Instance.isTutorialUI_Locked = false;
         if (bouncingArrow != null) bouncingArrow.Hide();

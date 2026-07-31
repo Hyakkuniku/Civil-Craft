@@ -10,6 +10,28 @@ public enum TutorialPosition
     Center
 }
 
+[System.Serializable]
+public class TutorialStep
+{
+    [TextArea(3, 6)]
+    public string message = "Step description here...";
+    public TutorialPosition screenPosition = TutorialPosition.TopCenter;
+    
+    public bool showNextButton = true;
+    public bool canSkip = false;
+
+    [Header("Pointer Settings")]
+    public bool usePointer = false;
+    public RectTransform pointerTarget;
+    public Vector2 pointerOffset = new Vector2(0, 80);
+    public float pointerRotation = 180f;
+
+    public bool advanceOnClick = false;
+
+    [Header("Events")]
+    public UnityEvent OnStepStart = new UnityEvent();
+}
+
 public class TutorialManager : MonoBehaviour
 {
     public static TutorialManager Instance { get; private set; }
@@ -28,11 +50,14 @@ public class TutorialManager : MonoBehaviour
     private int currentStepIndex = -1;
     
     private UnityEngine.UI.Button trackedButton = null;
+    private UnityAction trackedButtonAction = null;
 
     private void Awake()
     {
         if (Instance == null) Instance = this;
         else Destroy(gameObject);
+
+        trackedButtonAction = new UnityAction(OnTrackedButtonClicked);
     }
 
     private void Start()
@@ -58,6 +83,11 @@ public class TutorialManager : MonoBehaviour
 
     private void Update()
     {
+        if (BuildTutorialDirector.Instance != null && BuildTutorialDirector.Instance.isTracingStep)
+        {
+            return;
+        }
+
         if (IsTutorialActive && currentSequence != null && currentStepIndex >= 0 && currentStepIndex < currentSequence.tutorialSteps.Length)
         {
             var step = currentSequence.tutorialSteps[currentStepIndex];
@@ -150,13 +180,8 @@ public class TutorialManager : MonoBehaviour
                 if (targetBtn != null)
                 {
                     trackedButton = targetBtn;
-                    trackedButton.onClick.AddListener(OnTrackedButtonClicked);
-
+                    trackedButton.onClick.AddListener(trackedButtonAction);
                     if (nextButton != null) nextButton.SetActive(false);
-                }
-                else
-                {
-                    Debug.LogWarning($"[Tutorial] Step wants to advance on click, but {step.pointerTarget.name} has no Button component!");
                 }
             }
         }
@@ -174,7 +199,7 @@ public class TutorialManager : MonoBehaviour
     {
         if (trackedButton != null)
         {
-            trackedButton.onClick.RemoveListener(OnTrackedButtonClicked);
+            trackedButton.onClick.RemoveListener(trackedButtonAction);
             trackedButton = null;
         }
     }
@@ -192,9 +217,6 @@ public class TutorialManager : MonoBehaviour
         if (tutorialPanel != null) tutorialPanel.SetActive(false);
         if (bouncingArrow != null) bouncingArrow.Hide();
         
-        // --- THE CRITICAL FIX ---
-        // Ensure we tell the Build Director to shut down its tracing/locks so it 
-        // doesn't keep forcing the bouncing arrow to turn back on!
         if (BuildTutorialDirector.Instance != null)
         {
             BuildTutorialDirector.Instance.EndTutorial();
@@ -212,26 +234,4 @@ public class TutorialManager : MonoBehaviour
     {
         CompleteTutorial();
     }
-}
-
-[System.Serializable]
-public class TutorialStep
-{
-    [TextArea(3, 6)]
-    public string message = "Step description here...";
-    public TutorialPosition screenPosition = TutorialPosition.TopCenter;
-    
-    public bool showNextButton = true;
-    public bool canSkip = false;
-
-    [Header("Pointer Settings")]
-    public bool usePointer = false;
-    public RectTransform pointerTarget;
-    public Vector2 pointerOffset = new Vector2(0, 80);
-    public float pointerRotation = 180f;
-
-    public bool advanceOnClick = false;
-
-    [Header("Events")]
-    public UnityEvent OnStepStart = new UnityEvent();
 }

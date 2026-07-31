@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Wood Road
   m_EditorClassIdentifier: 
   costPerMeter: 180
-  massPerMeter: 3
+  massPerMeter: 4
   maxLength: 10
   maxTension: 80000
   maxCompression: 70000

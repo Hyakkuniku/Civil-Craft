@@ -18,11 +18,7 @@ MonoBehaviour:
   jobDescription: Truss Bridge
   budget: 50000
   liveLoadWeight: 411
-  allowedMaterials:
-  - material: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
-    maxPieces: 0
-  - material: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
-    maxPieces: 0
+  allowedMaterials: []
   enforceMaxStress: 0
   maxAllowedStress: 100
   isTimeAttack: 0

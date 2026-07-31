@@ -799,6 +799,7 @@ MonoBehaviour:
   tutorialText: {fileID: 7690747333669892765}
   nextButton: {fileID: 8576043186519041273}
   skipButton: {fileID: 6081865980345199539}
+  bouncingArrow: {fileID: 0}
 --- !u!1 &152319930046141419
 GameObject:
   m_ObjectHideFlags: 0
@@ -7772,6 +7773,7 @@ MonoBehaviour:
   - {fileID: 770362987450438312}
   - {fileID: 4400235389633587778}
   - {fileID: 8003509756148436728}
+  minimapCamera: {fileID: 0}
 --- !u!1 &1661692980851064041
 GameObject:
   m_ObjectHideFlags: 0
@@ -8662,24 +8664,29 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   hudOpenButton: {fileID: 0}
+  newAlertIcon: {fileID: 0}
+  onFirstOpenTutorial: {fileID: 0}
   uiElementsToHide:
   - {fileID: 0}
   almanacCanvas: {fileID: 1595121132325660703}
   categories:
   - categoryName: PlayerStats
     tabButton: {fileID: 5574252379929153613}
+    tabAlertIcon: {fileID: 0}
     leftPageZone: {fileID: 1043438012103828058}
     rightPageZone: {fileID: 129473826173836428}
     leftPages: []
     rightPages: []
   - categoryName: ContractTab
     tabButton: {fileID: 8282635441235484277}
+    tabAlertIcon: {fileID: 0}
     leftPageZone: {fileID: 6818292372227430915}
     rightPageZone: {fileID: 4607099154568815192}
     leftPages: []
     rightPages: []
   - categoryName: Lesson Tab
     tabButton: {fileID: 7117430492720879442}
+    tabAlertIcon: {fileID: 0}
     leftPageZone: {fileID: 1881050328947130107}
     rightPageZone: {fileID: 4491449251106516093}
     leftPages: []
@@ -8689,6 +8696,9 @@ MonoBehaviour:
   prevButton: {fileID: 1903941224210143301}
   nextButton: {fileID: 7702458258576736608}
   flipDuration: 0.25
+  useVirtualPagination: 0
+  virtualHasNext: 0
+  virtualHasPrev: 0
 --- !u!1 &1944419830581280839
 GameObject:
   m_ObjectHideFlags: 0
@@ -10004,12 +10014,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f1b2b2b5ebe3de748af0a1b232c3badc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  cameraTransform: {fileID: 0}
+  playerAnimator: {fileID: 2536865309337666294}
   speed: 8
   gravity: -9.8
+  rotationSpeed: 12
   jumpHeight: 1.5
   airSpeedMultiplier: 0.55
   playerWeight: 500
-  playerAnimator: {fileID: 2536865309337666294}
 --- !u!114 &6977182336504864842
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -10023,8 +10035,17 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   cam: {fileID: 7737074461365544915}
+  followTarget: {fileID: 0}
+  defaultDistance: 4
+  minDistance: 1
+  maxDistance: 8
   xSensitivity: 15
   ySensitivity: 15
+  minPitch: -20
+  maxPitch: 70
+  collisionMask:
+    serializedVersion: 2
+    m_Bits: 0
   canLook: 1
 --- !u!114 &3451788173708025455
 MonoBehaviour:
@@ -12888,15 +12909,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   allGameContracts:
   - {fileID: 11400000, guid: 5edc8d91db6f6014190820a7c01cea37, type: 2}
-  buttonContainer: {fileID: 4742655138363498996}
-  contractButtonPrefab: {fileID: 7163511589650484307, guid: 8a69eb37e4e43d04799a984cda2edf6d,
-    type: 3}
+  snapshotImage: {fileID: 1156478000401813155}
+  snapshotCaptionText: {fileID: 7225792951985068093}
   titleText: {fileID: 1256919603836548756}
   clientText: {fileID: 4664207138575355426}
   descriptionText: {fileID: 4408657186674393457}
   rewardsText: {fileID: 895560094060462381}
-  snapshotImage: {fileID: 1156478000401813155}
-  snapshotCaptionText: {fileID: 7225792951985068093}
+  pageCounterText: {fileID: 0}
 --- !u!1 &3393180985985409342
 GameObject:
   m_ObjectHideFlags: 0
@@ -13115,15 +13134,13 @@ MonoBehaviour:
   allGameContracts:
   - {fileID: 11400000, guid: 5edc8d91db6f6014190820a7c01cea37, type: 2}
   - {fileID: 11400000, guid: d58e962a84aed8944ad5741d6404b861, type: 2}
-  buttonContainer: {fileID: 4742655138363498996}
-  contractButtonPrefab: {fileID: 7163511589650484307, guid: 8a69eb37e4e43d04799a984cda2edf6d,
-    type: 3}
+  snapshotImage: {fileID: 1156478000401813155}
+  snapshotCaptionText: {fileID: 7225792951985068093}
   titleText: {fileID: 1256919603836548756}
   clientText: {fileID: 4664207138575355426}
   descriptionText: {fileID: 4408657186674393457}
   rewardsText: {fileID: 895560094060462381}
-  snapshotImage: {fileID: 1156478000401813155}
-  snapshotCaptionText: {fileID: 7225792951985068093}
+  pageCounterText: {fileID: 0}
 --- !u!1 &3480125145715132105
 GameObject:
   m_ObjectHideFlags: 0
