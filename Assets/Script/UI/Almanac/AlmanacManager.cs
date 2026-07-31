@@ -9,7 +9,6 @@ public class AlmanacCategory
     public string categoryName;
     public Button tabButton;
     
-    // --- NEW: Slot for this specific tab's exclamation mark! ---
     [Header("Alert Integration")]
     [Tooltip("The pulsing exclamation mark on THIS specific tab.")]
     public GameObject tabAlertIcon;
@@ -29,6 +28,18 @@ public class AlmanacManager : MonoBehaviour
     [Header("HUD Integration")]
     public GameObject hudOpenButton; 
     public GameObject newAlertIcon; 
+
+    // --- NEW: FRAME-BY-FRAME ANIMATION ---
+    [Header("Opening Animation")]
+    [Tooltip("Drag the BookAnimationPanel here.")]
+    public GameObject animationPanel; 
+    [Tooltip("Drag the Image component where the frames will play here.")]
+    public Image animationImage; 
+    [Tooltip("Drag your 15 frames here in order (Frame 1 to Frame 15).")]
+    public Sprite[] bookOpenFrames; 
+    [Tooltip("How fast should the frames play? (0.03 = 30fps)")]
+    public float frameRate = 0.03f; 
+    private bool isAnimating = false;
 
     [Header("Tutorial Integration")]
     public TutorialSequence onFirstOpenTutorial;
@@ -76,8 +87,10 @@ public class AlmanacManager : MonoBehaviour
     {
         if (almanacCanvas != null) almanacCanvas.SetActive(false);
         if (newAlertIcon != null) newAlertIcon.SetActive(false); 
+        
+        // Ensure animation panel is hidden on start
+        if (animationPanel != null) animationPanel.SetActive(false); 
 
-        // Hide all the individual tab alerts when the game starts
         foreach (var cat in categories)
         {
             if (cat.tabAlertIcon != null) cat.tabAlertIcon.SetActive(false);
@@ -160,7 +173,6 @@ public class AlmanacManager : MonoBehaviour
         if (nextButton != null) nextButton.onClick.AddListener(() => TurnPage(true));
     }
 
-    // Fallback: triggers the main HUD alert only
     public void TriggerAlert()
     {
         if (newAlertIcon != null && almanacCanvas != null && !almanacCanvas.activeSelf)
@@ -169,13 +181,10 @@ public class AlmanacManager : MonoBehaviour
         }
     }
 
-    // --- NEW: Triggers the main HUD alert AND a specific tab alert by name! ---
     public void TriggerTabAlert(string targetCategoryName)
     {
-        // 1. Turn on the main HUD alert
         TriggerAlert();
 
-        // 2. Find the specific tab and turn on its mini alert
         foreach (var cat in categories)
         {
             if (cat.categoryName == targetCategoryName)
@@ -186,11 +195,17 @@ public class AlmanacManager : MonoBehaviour
         }
     }
 
+    // --- THE FIX: Now calls the coroutine to play the opening animation ---
     public void OpenAlmanac()
     {
-        if (almanacCanvas != null) almanacCanvas.SetActive(true);
-        
-        // Turn off the global HUD alert (the player has seen it!)
+        if (isAnimating) return; // Prevent double-clicking
+        StartCoroutine(OpenAlmanacRoutine());
+    }
+
+    private IEnumerator OpenAlmanacRoutine()
+    {
+        isAnimating = true;
+
         if (newAlertIcon != null) newAlertIcon.SetActive(false);
         
         temporarilyHiddenPanels.Clear();
@@ -203,23 +218,68 @@ public class AlmanacManager : MonoBehaviour
             }
         }
 
+        // Play the 15-frame animation forwards!
+        if (animationPanel != null && animationImage != null && bookOpenFrames.Length > 0)
+        {
+            animationPanel.SetActive(true);
+            
+            for (int i = 0; i < bookOpenFrames.Length; i++)
+            {
+                animationImage.sprite = bookOpenFrames[i];
+                yield return new WaitForSeconds(frameRate);
+            }
+            
+            // Hide the animation panel right as the real Almanac canvas turns on
+            animationPanel.SetActive(false);
+        }
+
+        if (almanacCanvas != null) almanacCanvas.SetActive(true);
+        
         SelectCategory(0);
 
         if (onFirstOpenTutorial != null)
         {
             onFirstOpenTutorial.TryStartTutorial();
         }
+
+        isAnimating = false;
     }
 
+    // --- THE FIX: Now plays the animation in reverse to close the book! ---
     public void CloseAlmanac()
     {
+        if (isAnimating) return;
+        StartCoroutine(CloseAlmanacRoutine());
+    }
+
+    private IEnumerator CloseAlmanacRoutine()
+    {
+        isAnimating = true;
+
+        // Hide the real Almanac UI instantly
         if (almanacCanvas != null) almanacCanvas.SetActive(false);
+
+        // Play the 15-frame animation backwards!
+        if (animationPanel != null && animationImage != null && bookOpenFrames.Length > 0)
+        {
+            animationPanel.SetActive(true);
+            
+            for (int i = bookOpenFrames.Length - 1; i >= 0; i--)
+            {
+                animationImage.sprite = bookOpenFrames[i];
+                yield return new WaitForSeconds(frameRate);
+            }
+            
+            animationPanel.SetActive(false);
+        }
 
         foreach (GameObject ui in temporarilyHiddenPanels)
         {
             if (ui != null) ui.SetActive(true);
         }
         temporarilyHiddenPanels.Clear();
+
+        isAnimating = false;
     }
 
     public void SelectCategory(int index)
@@ -243,7 +303,6 @@ public class AlmanacManager : MonoBehaviour
             {
                 targetTabYPositions[tabRect] = originalTabYPositions[tabRect] + selectedTabUpOffset;
                 
-                // --- NEW: Turn off this tab's alert icon because the player clicked it! ---
                 if (categories[i].tabAlertIcon != null) categories[i].tabAlertIcon.SetActive(false);
             }
             else
