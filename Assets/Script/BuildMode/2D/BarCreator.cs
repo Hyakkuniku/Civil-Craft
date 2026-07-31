@@ -1123,12 +1123,10 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         {
             if (b.startPoint != null && b.endPoint != null) 
             {
-                // ONLY snap Start Position to the middle if it's NOT an anchor
                 if (!b.startPoint.isAnchor && !b.startPoint.originalIsAnchor) 
                     b.StartPosition = b.startPoint.transform.position; 
                 
                 Vector3 targetEnd = b.endPoint.transform.position;
-                // ONLY snap End Position to the middle if it's NOT an anchor
                 if (b.endPoint.isAnchor || b.endPoint.originalIsAnchor) 
                     targetEnd = b.EndPosition; 
                 else
@@ -1232,7 +1230,8 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         return new Vector3(rawPos.x, rawPos.y, lockedZ);
     }
 
-    // --- THE MAGIC FIX: Determines exactly where the user clicked on ANY node's bounds! ---
+    // --- THE FIX: Let player click anywhere on the visual mesh for ALL points, 
+    // but force the bar to snap perfectly to the center for Black Nodes! ---
     private bool CheckForExistingPoint(Vector2 screenPos, out Point closestPoint, out Vector3 snapPosition)
     {
         closestPoint = null;
@@ -1251,15 +1250,25 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             Renderer r = p.GetComponentInChildren<Renderer>();
             if (r != null && r.bounds.IntersectRay(ray, out float dist))
             {
-                Vector3 hitPoint = ray.GetPoint(dist);
-                hitPoint.z = p.transform.position.z; // Flatten to 2D plane
-
                 closestPoint = p;
-                snapPosition = hitPoint;
-                return true; // We found a perfect bounds intersection!
+
+                // If it's a Red Anchor, let them slide the point anywhere along the line
+                if (p.isAnchor || p.originalIsAnchor)
+                {
+                    Vector3 hitPoint = ray.GetPoint(dist);
+                    hitPoint.z = p.transform.position.z; // Flatten to 2D plane
+                    snapPosition = hitPoint;
+                }
+                // If it's a Black Node, grab it but snap the bar perfectly to its mathematical center!
+                else
+                {
+                    snapPosition = p.transform.position; 
+                }
+
+                return true; 
             }
 
-            // 2. Standard math fallback for the center of regular small joints
+            // 2. Standard math fallback for the center of regular small joints (if they missed the mesh slightly)
             float distToRay = Vector3.Cross(ray.direction, p.transform.position - ray.origin).magnitude;
             if (distToRay < minRayDist) 
             { 
@@ -1272,30 +1281,26 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         return found;
     }
 
+    // --- THE FIX: Always use a flat 2D World Plane regardless of Camera tilt! ---
     public Vector3 GetWorldMousePosition(Vector2 screenPos)
     {
         Camera cam = GetActiveCamera();
-        if (currentStartPoint == null)
+        
+        // Lock the building to the exact Z depth of the bridge
+        float bridgeZ = 0f;
+        if (currentStartPoint != null) bridgeZ = currentStartPoint.transform.position.z;
+        else if (Point.AllPoints.Count > 0) bridgeZ = Point.AllPoints[0].transform.position.z;
+
+        // A perfectly flat 2D plane facing the Z-axis, regardless of camera tilt
+        Plane flatWorldPlane = new Plane(Vector3.back, new Vector3(0, 0, bridgeZ));
+        Ray ray = cam.ScreenPointToRay(screenPos);
+        
+        if (flatWorldPlane.Raycast(ray, out float distance)) 
         {
-            float bridgeZ = Point.AllPoints.Count > 0 ? Point.AllPoints[0].transform.position.z : 0f;
-            Plane flatWorldPlane = new Plane(Vector3.back, new Vector3(0, 0, bridgeZ));
-            Ray ray = cam.ScreenPointToRay(screenPos);
-            if (flatWorldPlane.Raycast(ray, out float distance)) return ray.GetPoint(distance);
-            return Vector3.zero; 
+            return ray.GetPoint(distance);
         }
-        else
-        {
-            Vector3 referencePoint = currentStartPoint.transform.position;
-            Plane cameraPlane = new Plane(-cam.transform.forward, referencePoint);
-            Ray ray = cam.ScreenPointToRay(screenPos);
-            if (cameraPlane.Raycast(ray, out float distance))
-            {
-                Vector3 hitPoint = ray.GetPoint(distance);
-                Vector3 localOffset = hitPoint - referencePoint;
-                return referencePoint + new Vector3(Vector3.Dot(localOffset, cam.transform.right), Vector3.Dot(localOffset, cam.transform.up), 0);
-            }
-            return referencePoint;
-        }
+        
+        return currentStartPoint != null ? currentStartPoint.transform.position : Vector3.zero;
     }
 
     private void StartBarCreation(Vector3 startPosition)
@@ -1375,21 +1380,29 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             BuildUIController.Instance.LogAction("Beam stopped by terrain");
         }
 
+        // --- THE FIX: Reapply the new Anchor/Node logic for the End Point of the drag ---
         if (existingEndPoint == null)
         {
             foreach (Point p in Point.AllPoints)
             {
                 if (p != currentStartPoint && p != currentEndPoint && p.gameObject.activeSelf)
                 {
-                    // Check the visual bounds FIRST for ALL points!
                     Renderer r = p.GetComponentInChildren<Renderer>();
                     Ray ray = GetActiveCamera().ScreenPointToRay(GetPointerPosition());
                     if (r != null && r.bounds.IntersectRay(ray, out float dist))
                     {
-                        Vector3 hitPoint = ray.GetPoint(dist);
-                        hitPoint.z = p.transform.position.z;
                         existingEndPoint = p;
-                        finalPosition = hitPoint; 
+                        
+                        if (p.isAnchor || p.originalIsAnchor)
+                        {
+                            Vector3 hitPoint = ray.GetPoint(dist);
+                            hitPoint.z = p.transform.position.z;
+                            finalPosition = hitPoint; 
+                        }
+                        else
+                        {
+                            finalPosition = p.transform.position; // Snap perfectly for black nodes!
+                        }
                         break;
                     }
 
