@@ -10,6 +10,8 @@ public class GameManager : MonoBehaviour
     public enum GameState { Normal, Building }
     public GameState CurrentState { get; private set; } = GameState.Normal;
 
+    
+
     public UnityEvent OnEnterBuildMode;
     public UnityEvent OnExitBuildMode;
 
@@ -79,6 +81,10 @@ public class GameManager : MonoBehaviour
             inputObj.SetLookEnabled(false); 
         }
     }
+
+
+
+    
 
     public void ConfirmRedo()
     {

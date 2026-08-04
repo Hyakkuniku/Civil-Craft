@@ -8665,6 +8665,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   hudOpenButton: {fileID: 0}
   newAlertIcon: {fileID: 0}
+  animationPanel: {fileID: 0}
+  animationImage: {fileID: 0}
+  bookOpenFrames: []
+  frameRate: 0.03
   onFirstOpenTutorial: {fileID: 0}
   uiElementsToHide:
   - {fileID: 0}
