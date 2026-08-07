@@ -78,6 +78,22 @@ public class BuildUIController : MonoBehaviour
     public TextMeshProUGUI unlockMaterialText; 
     private MaterialButtonTrigger pendingUnlockButton;
 
+    [Header("Tool Highlighting")]
+    [Tooltip("Drag the Image component of your Select Button here.")]
+    public Image selectToolImage;
+    [Tooltip("Drag the Image component of your Move Button here.")]
+    public Image moveToolImage;
+    [Tooltip("Drag the Image component of your Delete/Eraser Button here.")]
+    public Image deleteToolImage;
+    [Tooltip("Drag the Image component of your Grid Toggle Button here.")]
+    public Image gridToolImage;
+    [Tooltip("Drag the Image component of your Bridge Info (Stats) Button here.")]
+    public Image infoToolImage;
+    
+    // Defaulting to your hex color #E6BC76
+    public Color activeToolColor = new Color(0.902f, 0.737f, 0.463f, 1f); 
+    public Color inactiveToolColor = Color.white;
+
     private float cachedBaseCost = 0f;
     private float cachedBaseDeadLoad = 0f;
     private int cachedBaseM = 0;
@@ -113,7 +129,6 @@ public class BuildUIController : MonoBehaviour
 
         MarkBridgeDirty();
 
-        // --- THE FIX: Hook the UI Controller to the Game Manager! ---
         if (GameManager.Instance != null)
         {
             GameManager.Instance.OnEnterBuildMode.AddListener(RefreshAllMaterialButtons);
@@ -128,10 +143,8 @@ public class BuildUIController : MonoBehaviour
         }
     }
 
-    // --- THE FIX: This method reaches into the dark and wakes up sleeping buttons! ---
     public void RefreshAllMaterialButtons()
     {
-        // The 'true' parameter is the magic key! It tells Unity to search for INACTIVE objects too!
         MaterialButtonTrigger[] allButtons = FindObjectsOfType<MaterialButtonTrigger>(true);
         foreach (var b in allButtons) 
         {
@@ -179,6 +192,32 @@ public class BuildUIController : MonoBehaviour
         
         UpdateLiveBeamStatsUI();
         UpdatePlayPauseButtonUI();
+        
+        UpdateToolHighlights();
+    }
+
+    private void UpdateToolHighlights()
+    {
+        if (barCreator != null)
+        {
+            if (selectToolImage != null)
+                selectToolImage.color = barCreator.IsSelecting ? activeToolColor : inactiveToolColor;
+
+            if (moveToolImage != null)
+                moveToolImage.color = barCreator.IsMoving ? activeToolColor : inactiveToolColor;
+
+            if (deleteToolImage != null)
+                deleteToolImage.color = barCreator.isDeleteMode ? activeToolColor : inactiveToolColor;
+
+            if (gridToolImage != null)
+                gridToolImage.color = barCreator.isGridSnappingEnabled ? activeToolColor : inactiveToolColor;
+        }
+
+        // Highlight the info button if the stats panel is currently open
+        if (infoToolImage != null)
+        {
+            infoToolImage.color = (statsPanel != null && statsPanel.activeSelf) ? activeToolColor : inactiveToolColor;
+        }
     }
 
     public int GetMaterialUsageCount(BridgeMaterialSO material)
@@ -209,7 +248,7 @@ public class BuildUIController : MonoBehaviour
                 PlayerDataManager.Instance.SpendGold(cost);
                 PlayerDataManager.Instance.UnlockMaterialForContract(GameManager.Instance.CurrentContract.name, pendingUnlockButton.buttonMaterial.name);
 
-                RefreshAllMaterialButtons(); // Force UI update
+                RefreshAllMaterialButtons(); 
 
                 LogAction($"{pendingUnlockButton.buttonMaterial.name} Unlocked!");
             }
@@ -290,7 +329,7 @@ public class BuildUIController : MonoBehaviour
         UpdateStatsUI();
         UpdateContractUI();
 
-        RefreshAllMaterialButtons(); // Ensure limits trigger UI updates
+        RefreshAllMaterialButtons(); 
     }
 
     private void RecalculateStaticBridge()

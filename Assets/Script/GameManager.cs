@@ -10,8 +10,6 @@ public class GameManager : MonoBehaviour
     public enum GameState { Normal, Building }
     public GameState CurrentState { get; private set; } = GameState.Normal;
 
-    
-
     public UnityEvent OnEnterBuildMode;
     public UnityEvent OnExitBuildMode;
 
@@ -33,9 +31,14 @@ public class GameManager : MonoBehaviour
     [Tooltip("Add things here that you want hidden ONLY when the Redo Panel is open (Optional)")]
     public List<GameObject> extraElementsToHideOnRedo = new List<GameObject>(); 
     
+    // --- NEW: CINEMATIC FADER ---
+    [Header("Cinematic Transition Fader")]
+    [Tooltip("Drag a CanvasGroup attached to a full-screen black panel here.")]
+    public CanvasGroup transitionFader;
+    [Tooltip("How fast the screen fades to black during the camera swap.")]
+    public float fadeDuration = 0.25f;
+
     private BuildLocation pendingRedoLocation;
-    
-    // --- NEW: Prevents spamming inputs while the camera is moving ---
     private bool isTransitioning = false; 
 
     private void Awake()
@@ -50,11 +53,18 @@ public class GameManager : MonoBehaviour
         }
 
         if (redoConfirmPanel != null) redoConfirmPanel.SetActive(false);
+
+        // --- THE FIX: Wake up the fader even if you turned it off in the Inspector! ---
+        if (transitionFader != null)
+        {
+            transitionFader.gameObject.SetActive(true); 
+            transitionFader.alpha = 0f;
+            transitionFader.blocksRaycasts = false;
+        }
     }
 
     private void Update()
     {
-        // Block the escape key if we are currently mid-animation
         if (CurrentState == GameState.Building && !isTransitioning && Input.GetKeyDown(KeyCode.Escape)) 
         {
             ExitBuildMode();
@@ -81,10 +91,6 @@ public class GameManager : MonoBehaviour
             inputObj.SetLookEnabled(false); 
         }
     }
-
-
-
-    
 
     public void ConfirmRedo()
     {
@@ -129,7 +135,6 @@ public class GameManager : MonoBehaviour
         StartCoroutine(EnterBuildModeRoutine(location, player));
     }
 
-    // --- NEW: Coroutine to smoothly dive the camera into the blueprint ---
     private IEnumerator EnterBuildModeRoutine(BuildLocation location, Transform player)
     {
         isTransitioning = true;
@@ -159,7 +164,7 @@ public class GameManager : MonoBehaviour
 
         foreach (GameObject uiElement in uiElementsToHide) if (uiElement != null) uiElement.SetActive(false);
 
-        // 2. Unparent and animate the Main Camera
+        // 2. Unparent and animate the Main Camera down to the blueprint
         if (mainCamera != null)
         {
             mainCamParent = mainCamera.transform.parent;
@@ -167,7 +172,6 @@ public class GameManager : MonoBehaviour
             mainCamLocalRot = mainCamera.transform.localRotation;
             mainCamera.transform.SetParent(null); 
 
-            // Smoothly lerp to the blueprint dive target (if it exists)
             if (location.blueprintDiveTarget != null)
             {
                 Vector3 startPos = mainCamera.transform.position;
@@ -186,7 +190,21 @@ public class GameManager : MonoBehaviour
                 }
             }
 
-            // 3. Swap to the 2D Location Camera
+            // --- FADE OUT TO BLACK ---
+            if (transitionFader != null)
+            {
+                transitionFader.blocksRaycasts = true;
+                float elapsedFade = 0f;
+                while (elapsedFade < fadeDuration)
+                {
+                    elapsedFade += Time.deltaTime;
+                    transitionFader.alpha = Mathf.Lerp(0f, 1f, elapsedFade / fadeDuration);
+                    yield return null;
+                }
+                transitionFader.alpha = 1f;
+            }
+
+            // 3. Swap to the 2D Location Camera behind the black screen
             Vector3 targetPos = location.locationCamera != null ? location.locationCamera.transform.position : location.GetDesiredCameraPosition();
             Quaternion targetRot = location.locationCamera != null ? location.locationCamera.transform.rotation : location.GetDesiredCameraRotation();
 
@@ -200,10 +218,24 @@ public class GameManager : MonoBehaviour
             }
         }
 
-        // 4. Show Build Mode UI and fire events
+        // 4. Show Build Mode UI while the screen is black
         foreach (GameObject uiElement in buildModeUIElements) if (uiElement != null) uiElement.SetActive(true);
         OnEnterBuildMode?.Invoke();
-        
+
+        // --- FADE IN TO CLEAR ---
+        if (transitionFader != null)
+        {
+            float elapsedFade = 0f;
+            while (elapsedFade < fadeDuration)
+            {
+                elapsedFade += Time.deltaTime;
+                transitionFader.alpha = Mathf.Lerp(1f, 0f, elapsedFade / fadeDuration);
+                yield return null;
+            }
+            transitionFader.alpha = 0f;
+            transitionFader.blocksRaycasts = false;
+        }
+
         isTransitioning = false;
     }
 
@@ -214,16 +246,29 @@ public class GameManager : MonoBehaviour
         StartCoroutine(ExitBuildModeRoutine());
     }
 
-    // --- NEW: Coroutine to smoothly pull the camera out of the blueprint ---
     private IEnumerator ExitBuildModeRoutine()
     {
         isTransitioning = true;
         CurrentState = GameState.Normal;
 
+        // --- FADE OUT TO BLACK ---
+        if (transitionFader != null)
+        {
+            transitionFader.blocksRaycasts = true;
+            float elapsedFade = 0f;
+            while (elapsedFade < fadeDuration)
+            {
+                elapsedFade += Time.deltaTime;
+                transitionFader.alpha = Mathf.Lerp(0f, 1f, elapsedFade / fadeDuration);
+                yield return null;
+            }
+            transitionFader.alpha = 1f;
+        }
+
         // 1. Hide Build Mode UI instantly
         foreach (GameObject uiElement in buildModeUIElements) if (uiElement != null) uiElement.SetActive(false);
 
-        // 2. Animate the camera back to the player
+        // 2. Prepare the camera swap behind the black screen
         if (mainCamera != null && ActiveBuildLocation != null)
         {
             if (ActiveBuildLocation.locationCamera != null)
@@ -232,40 +277,61 @@ public class GameManager : MonoBehaviour
                 mainCamera.enabled = true;
             }
 
-            // If we have a dive target, start the camera there and pull back smoothly
             if (ActiveBuildLocation.blueprintDiveTarget != null && mainCamParent != null)
             {
                 mainCamera.transform.position = ActiveBuildLocation.blueprintDiveTarget.position;
                 mainCamera.transform.rotation = ActiveBuildLocation.blueprintDiveTarget.rotation;
+            }
+            else
+            {
+                mainCamera.transform.SetParent(mainCamParent);
+                mainCamera.transform.localPosition = mainCamLocalPos;
+                mainCamera.transform.localRotation = mainCamLocalRot;
+            }
+        }
 
-                Vector3 startPos = mainCamera.transform.position;
-                Quaternion startRot = mainCamera.transform.rotation;
-                float duration = ActiveBuildLocation.diveDuration;
-                float elapsed = 0f;
+        // --- FADE IN TO CLEAR ---
+        if (transitionFader != null)
+        {
+            float elapsedFade = 0f;
+            while (elapsedFade < fadeDuration)
+            {
+                elapsedFade += Time.deltaTime;
+                transitionFader.alpha = Mathf.Lerp(1f, 0f, elapsedFade / fadeDuration);
+                yield return null;
+            }
+            transitionFader.alpha = 0f;
+            transitionFader.blocksRaycasts = false;
+        }
 
-                while (elapsed < duration)
-                {
-                    elapsed += Time.deltaTime;
-                    float t = Mathf.SmoothStep(0, 1, elapsed / duration);
-                    
-                    // The player might have played an idle animation, so we calculate the target position dynamically!
-                    Vector3 targetWorldPos = mainCamParent.TransformPoint(mainCamLocalPos);
-                    Quaternion targetWorldRot = mainCamParent.rotation * mainCamLocalRot;
+        // 3. Animate the camera pulling back out of the blueprint
+        if (mainCamera != null && ActiveBuildLocation != null && ActiveBuildLocation.blueprintDiveTarget != null && mainCamParent != null)
+        {
+            Vector3 startPos = mainCamera.transform.position;
+            Quaternion startRot = mainCamera.transform.rotation;
+            float duration = ActiveBuildLocation.diveDuration;
+            float elapsed = 0f;
 
-                    mainCamera.transform.position = Vector3.Lerp(startPos, targetWorldPos, t);
-                    mainCamera.transform.rotation = Quaternion.Slerp(startRot, targetWorldRot, t);
-                    
-                    yield return null;
-                }
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                float t = Mathf.SmoothStep(0, 1, elapsed / duration);
+                
+                Vector3 targetWorldPos = mainCamParent.TransformPoint(mainCamLocalPos);
+                Quaternion targetWorldRot = mainCamParent.rotation * mainCamLocalRot;
+
+                mainCamera.transform.position = Vector3.Lerp(startPos, targetWorldPos, t);
+                mainCamera.transform.rotation = Quaternion.Slerp(startRot, targetWorldRot, t);
+                
+                yield return null;
             }
 
-            // Snap it perfectly back into the player's hierarchy
             mainCamera.transform.SetParent(mainCamParent);
             mainCamera.transform.localPosition = mainCamLocalPos;
             mainCamera.transform.localRotation = mainCamLocalRot;
         }
 
-        // 3. Restore Overworld UI and Unfreeze Player
+        // 4. Restore Overworld UI and Unfreeze Player
         foreach (GameObject uiElement in uiElementsToHide) if (uiElement != null) uiElement.SetActive(true);
 
         InputManager inputObj = FindObjectOfType<InputManager>();
