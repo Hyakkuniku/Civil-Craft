@@ -3,7 +3,8 @@ using UnityEngine.InputSystem.EnhancedTouch;
 using Touch = UnityEngine.InputSystem.EnhancedTouch.Touch;
 using UnityEngine.EventSystems;
 using System.Collections.Generic;
-using UnityEngine.UI; // <-- NEW: Required to identify UI components like ScrollRect and Selectable
+using UnityEngine.UI;
+using System.Collections; // --- NEW: Required for Coroutines ---
 
 public class BuildCameraController : MonoBehaviour
 {
@@ -37,13 +38,26 @@ public class BuildCameraController : MonoBehaviour
     [Header("PC Controls")]
     public KeyCode rotateCameraKey = KeyCode.R; 
 
+    // --- NEW: SIMULATION VIEW TRANSITION ---
+    [Header("Simulation View Transition")]
+    [Tooltip("How much higher the camera goes when you press Play")]
+    public float simHeightOffset = 8f;
+    [Tooltip("How many degrees it tilts down when you press Play")]
+    public float simPitchOffset = 15f;
+    [Tooltip("How fast the camera moves to the simulation view")]
+    public float simTransitionSpeed = 3f;
+
+    private Vector3 preSimPos;
+    private float preSimPitch;
+    private Coroutine simTransitionRoutine;
+    private bool isInSimTransition = false;
+
     private Camera activeCamera;
     private float lastTwoFingerTime = 0f;
 
     private bool isInitialized = false;
     private float lockedZPosition; 
 
-    // --- UI Blocking Variables ---
     private HashSet<int> uiTouches = new HashSet<int>();
     private bool mouseStartedOnUI = false;
     private PointerEventData cachedEventData;
@@ -78,7 +92,6 @@ public class BuildCameraController : MonoBehaviour
         HandleCameraInput();
     }
 
-    // --- THE FIX: SMART UI DETECTION ---
     private bool IsPointerOverUI(Vector2 screenPosition)
     {
         if (EventSystem.current == null) return false;
@@ -92,8 +105,6 @@ public class BuildCameraController : MonoBehaviour
         
         foreach (RaycastResult result in cachedRaycastResults)
         {
-            // Only block the camera if the player is touching an INTERACTIVE UI element
-            // like a ScrollRect (menus/receipts) or a Selectable (Buttons, Toggles)
             if (result.gameObject.GetComponentInParent<ScrollRect>() != null ||
                 result.gameObject.GetComponentInParent<Selectable>() != null)
             {
@@ -101,15 +112,16 @@ public class BuildCameraController : MonoBehaviour
             }
         }
         
-        // If it was just a background Image or invisible panel, allow the camera to pan!
         return false; 
     }
 
     private void HandleCameraInput()
     {
+        // --- NEW: Block camera inputs while we are flying to the Simulation View! ---
+        if (isInSimTransition) return;
+
         if (Touch.activeTouches.Count > 0)
         {
-            // 1. Check if any new touches started ON an interactive UI, and remember their Finger ID!
             foreach (var touch in Touch.activeTouches)
             {
                 if (touch.phase == UnityEngine.InputSystem.TouchPhase.Began)
@@ -121,23 +133,19 @@ public class BuildCameraController : MonoBehaviour
                 }
                 else if (touch.phase == UnityEngine.InputSystem.TouchPhase.Ended || touch.phase == UnityEngine.InputSystem.TouchPhase.Canceled)
                 {
-                    // Finger lifted off the screen, forget it.
                     uiTouches.Remove(touch.finger.index);
                 }
             }
 
-            // 2. Create a list of valid touches that the camera is ALLOWED to use
             List<Touch> validTouches = new List<Touch>();
             foreach (var touch in Touch.activeTouches)
             {
-                // If this finger didn't start on an interactive UI, it's safe for the camera to use!
                 if (!uiTouches.Contains(touch.finger.index))
                 {
                     validTouches.Add(touch);
                 }
             }
 
-            // 3. Process Camera movement ONLY using the valid touches!
             if (validTouches.Count == 2)
             {
                 lastTwoFingerTime = Time.time;
@@ -181,7 +189,6 @@ public class BuildCameraController : MonoBehaviour
         }
         else 
         {
-            // --- PC MOUSE LOGIC ---
             if (Input.GetMouseButtonDown(0) || Input.GetMouseButtonDown(1) || Input.GetMouseButtonDown(2))
             {
                 mouseStartedOnUI = IsPointerOverUI(Input.mousePosition);
@@ -203,7 +210,6 @@ public class BuildCameraController : MonoBehaviour
                 else activeCamera.fieldOfView = Mathf.Clamp(activeCamera.fieldOfView + zoomDelta, minZoom, maxZoom);
             }
 
-            // Only pan or rotate if the click did NOT start on a UI panel
             if (!mouseStartedOnUI)
             {
                 Vector3 panInput = Vector3.zero;
@@ -273,5 +279,63 @@ public class BuildCameraController : MonoBehaviour
             activeCamera.transform.localRotation = Quaternion.Euler(0, 0, 0);
             ApplyConstraints();
         }
+    }
+
+    // --- NEW: CINEMATIC METHODS ---
+    public void GoToSimulationView()
+    {
+        if (activeCamera == null) return;
+        if (simTransitionRoutine != null) StopCoroutine(simTransitionRoutine);
+        
+        preSimPos = activeCamera.transform.localPosition;
+        
+        preSimPitch = activeCamera.transform.localEulerAngles.x;
+        if (preSimPitch > 180f) preSimPitch -= 360f;
+
+        Vector3 targetPos = preSimPos + new Vector3(0, simHeightOffset, 0);
+        targetPos.x = Mathf.Clamp(targetPos.x, minHorizontal, maxHorizontal);
+        targetPos.y = Mathf.Clamp(targetPos.y, minHeight, maxHeight);
+
+        float targetPitch = Mathf.Clamp(preSimPitch + simPitchOffset, minPitch, maxPitch);
+
+        simTransitionRoutine = StartCoroutine(TransitionRoutine(targetPos, targetPitch));
+    }
+
+    public void ReturnToBuildView()
+    {
+        if (activeCamera == null) return;
+        if (simTransitionRoutine != null) StopCoroutine(simTransitionRoutine);
+
+        simTransitionRoutine = StartCoroutine(TransitionRoutine(preSimPos, preSimPitch));
+    }
+
+    private IEnumerator TransitionRoutine(Vector3 targetPos, float targetPitch)
+    {
+        isInSimTransition = true;
+        Vector3 startPos = activeCamera.transform.localPosition;
+        
+        float startPitch = activeCamera.transform.localEulerAngles.x;
+        if (startPitch > 180f) startPitch -= 360f;
+
+        float t = 0f;
+        while (t < 1f)
+        {
+            t += Time.deltaTime * simTransitionSpeed;
+            float smoothT = Mathf.SmoothStep(0, 1, t);
+
+            Vector3 newPos = Vector3.Lerp(startPos, targetPos, smoothT);
+            newPos.z = lockedZPosition; // Guarantee Z depth stays exact
+            activeCamera.transform.localPosition = newPos;
+
+            float newPitch = Mathf.Lerp(startPitch, targetPitch, smoothT);
+            activeCamera.transform.localRotation = Quaternion.Euler(newPitch, activeCamera.transform.localEulerAngles.y, activeCamera.transform.localEulerAngles.z);
+
+            yield return null;
+        }
+
+        activeCamera.transform.localPosition = new Vector3(targetPos.x, targetPos.y, lockedZPosition);
+        activeCamera.transform.localRotation = Quaternion.Euler(targetPitch, activeCamera.transform.localEulerAngles.y, activeCamera.transform.localEulerAngles.z);
+
+        isInSimTransition = false;
     }
 }

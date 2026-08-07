@@ -79,20 +79,21 @@ public class BuildUIController : MonoBehaviour
     private MaterialButtonTrigger pendingUnlockButton;
 
     [Header("Tool Highlighting")]
-    [Tooltip("Drag the Image component of your Select Button here.")]
     public Image selectToolImage;
-    [Tooltip("Drag the Image component of your Move Button here.")]
     public Image moveToolImage;
-    [Tooltip("Drag the Image component of your Delete/Eraser Button here.")]
     public Image deleteToolImage;
-    [Tooltip("Drag the Image component of your Grid Toggle Button here.")]
     public Image gridToolImage;
-    [Tooltip("Drag the Image component of your Bridge Info (Stats) Button here.")]
     public Image infoToolImage;
     
-    // Defaulting to your hex color #E6BC76
     public Color activeToolColor = new Color(0.902f, 0.737f, 0.463f, 1f); 
     public Color inactiveToolColor = Color.white;
+
+    [Header("Simulation UI Hiding")]
+    [Tooltip("Drag UI panels/buttons here that should disappear while the bridge is simulating.")]
+    public List<GameObject> hideDuringSimulation = new List<GameObject>();
+    
+    [Tooltip("Drag 'Panel (1)' here. This forces the grey background to shrink instantly when Undo/Redo are hidden!")]
+    public RectTransform layoutPanelToRebuild; // --- NEW: Fixes the dead space bug! ---
 
     private float cachedBaseCost = 0f;
     private float cachedBaseDeadLoad = 0f;
@@ -133,6 +134,12 @@ public class BuildUIController : MonoBehaviour
         {
             GameManager.Instance.OnEnterBuildMode.AddListener(RefreshAllMaterialButtons);
         }
+
+        if (physicsManager != null)
+        {
+            physicsManager.OnSettlePhaseStarted += HandleSimulationBegan;
+            physicsManager.OnSimulationStopped += HandleSimulationEnded;
+        }
     }
 
     private void OnDestroy()
@@ -141,6 +148,46 @@ public class BuildUIController : MonoBehaviour
         {
             GameManager.Instance.OnEnterBuildMode.RemoveListener(RefreshAllMaterialButtons);
         }
+
+        if (physicsManager != null)
+        {
+            physicsManager.OnSettlePhaseStarted -= HandleSimulationBegan;
+            physicsManager.OnSimulationStopped -= HandleSimulationEnded;
+        }
+    }
+
+    private void HandleSimulationBegan()
+    {
+        foreach (GameObject ui in hideDuringSimulation)
+        {
+            if (ui != null) ui.SetActive(false);
+        }
+        
+        // --- THE FIX: Force the UI to instantly recalculate and shrink the dead space! ---
+        if (layoutPanelToRebuild != null)
+        {
+            LayoutRebuilder.ForceRebuildLayoutImmediate(layoutPanelToRebuild);
+        }
+        
+        BuildCameraController cam = FindObjectOfType<BuildCameraController>();
+        if (cam != null) cam.GoToSimulationView();
+    }
+
+    private void HandleSimulationEnded()
+    {
+        foreach (GameObject ui in hideDuringSimulation)
+        {
+            if (ui != null) ui.SetActive(true);
+        }
+        
+        // --- THE FIX: Force the UI to expand back to normal! ---
+        if (layoutPanelToRebuild != null)
+        {
+            LayoutRebuilder.ForceRebuildLayoutImmediate(layoutPanelToRebuild);
+        }
+        
+        BuildCameraController cam = FindObjectOfType<BuildCameraController>();
+        if (cam != null) cam.ReturnToBuildView();
     }
 
     public void RefreshAllMaterialButtons()
@@ -213,7 +260,6 @@ public class BuildUIController : MonoBehaviour
                 gridToolImage.color = barCreator.isGridSnappingEnabled ? activeToolColor : inactiveToolColor;
         }
 
-        // Highlight the info button if the stats panel is currently open
         if (infoToolImage != null)
         {
             infoToolImage.color = (statsPanel != null && statsPanel.activeSelf) ? activeToolColor : inactiveToolColor;
