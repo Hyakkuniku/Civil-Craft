@@ -89,11 +89,11 @@ public class BuildUIController : MonoBehaviour
     public Color inactiveToolColor = Color.white;
 
     [Header("Simulation UI Hiding")]
-    [Tooltip("Drag UI panels/buttons here that should disappear while the bridge is simulating.")]
     public List<GameObject> hideDuringSimulation = new List<GameObject>();
-    
-    [Tooltip("Drag 'Panel (1)' here. This forces the grey background to shrink instantly when Undo/Redo are hidden!")]
-    public RectTransform layoutPanelToRebuild; // --- NEW: Fixes the dead space bug! ---
+    public RectTransform layoutPanelToRebuild; 
+
+    // --- THE FIX: A memory list so it doesn't auto-turn on panels that were closed! ---
+    private List<GameObject> temporarilyHiddenSimUI = new List<GameObject>();
 
     private float cachedBaseCost = 0f;
     private float cachedBaseDeadLoad = 0f;
@@ -158,12 +158,18 @@ public class BuildUIController : MonoBehaviour
 
     private void HandleSimulationBegan()
     {
+        temporarilyHiddenSimUI.Clear();
+
         foreach (GameObject ui in hideDuringSimulation)
         {
-            if (ui != null) ui.SetActive(false);
+            // --- THE FIX: Only track and hide it if it was ACTUALLY open! ---
+            if (ui != null && ui.activeSelf)
+            {
+                temporarilyHiddenSimUI.Add(ui);
+                ui.SetActive(false);
+            }
         }
         
-        // --- THE FIX: Force the UI to instantly recalculate and shrink the dead space! ---
         if (layoutPanelToRebuild != null)
         {
             LayoutRebuilder.ForceRebuildLayoutImmediate(layoutPanelToRebuild);
@@ -175,12 +181,14 @@ public class BuildUIController : MonoBehaviour
 
     private void HandleSimulationEnded()
     {
-        foreach (GameObject ui in hideDuringSimulation)
+        // --- THE FIX: Only turn on UI elements that we remembered were open! ---
+        foreach (GameObject ui in temporarilyHiddenSimUI)
         {
             if (ui != null) ui.SetActive(true);
         }
         
-        // --- THE FIX: Force the UI to expand back to normal! ---
+        temporarilyHiddenSimUI.Clear();
+        
         if (layoutPanelToRebuild != null)
         {
             LayoutRebuilder.ForceRebuildLayoutImmediate(layoutPanelToRebuild);
