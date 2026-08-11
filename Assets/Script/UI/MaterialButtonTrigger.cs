@@ -134,7 +134,6 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
             }
         }
 
-        // Hide forbidden materials in a tutorial!
         if (isTutorial && !isMaterialAllowed)
         {
             if (parentWrapper != null) parentWrapper.SetActive(false);
@@ -186,14 +185,7 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
 
     public void OnPointerClick(PointerEventData eventData)
     {
-        if (BuildUIController.Instance != null && BuildUIController.Instance.isTutorialUI_Locked)
-        {
-            if (BuildUIController.Instance.whitelistedMaterial != buttonMaterial)
-            {
-                Debug.Log($"<color=orange>Tutorial Blocked Click on: {buttonMaterial.name}</color>");
-                return; 
-            }
-        }
+        // --- THE FIX: Removed the tutorial locking so players can click freely ---
 
         if (!isMaterialAllowed)
         {

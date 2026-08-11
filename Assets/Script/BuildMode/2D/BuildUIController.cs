@@ -92,7 +92,6 @@ public class BuildUIController : MonoBehaviour
     public List<GameObject> hideDuringSimulation = new List<GameObject>();
     public RectTransform layoutPanelToRebuild; 
 
-    // --- THE FIX: A memory list so it doesn't auto-turn on panels that were closed! ---
     private List<GameObject> temporarilyHiddenSimUI = new List<GameObject>();
 
     private float cachedBaseCost = 0f;
@@ -162,7 +161,6 @@ public class BuildUIController : MonoBehaviour
 
         foreach (GameObject ui in hideDuringSimulation)
         {
-            // --- THE FIX: Only track and hide it if it was ACTUALLY open! ---
             if (ui != null && ui.activeSelf)
             {
                 temporarilyHiddenSimUI.Add(ui);
@@ -181,7 +179,6 @@ public class BuildUIController : MonoBehaviour
 
     private void HandleSimulationEnded()
     {
-        // --- THE FIX: Only turn on UI elements that we remembered were open! ---
         foreach (GameObject ui in temporarilyHiddenSimUI)
         {
             if (ui != null) ui.SetActive(true);
@@ -649,21 +646,22 @@ public class BuildUIController : MonoBehaviour
         LogAction("Selection Cleared");
     }
 
+    // --- THE FIX: Removed tool locking here so players can use tools freely ---
     private bool IsToolAllowed()
     {
-        if (!isTutorialUI_Locked) return true; 
-
-        GameObject clickedObj = UnityEngine.EventSystems.EventSystem.current?.currentSelectedGameObject;
-        
-        if (whitelistedButton != null && clickedObj == whitelistedButton)
+        if (isTutorialUI_Locked) 
         {
-            if (TutorialManager.Instance != null) TutorialManager.Instance.ShowNextStep();
-            whitelistedButton = null; 
-            return true;
+            GameObject clickedObj = UnityEngine.EventSystems.EventSystem.current?.currentSelectedGameObject;
+            
+            // Allow the tutorial to advance if they click the highlighted button...
+            if (whitelistedButton != null && clickedObj == whitelistedButton)
+            {
+                if (TutorialManager.Instance != null) TutorialManager.Instance.ShowNextStep();
+                whitelistedButton = null; 
+            }
         }
-
-        LogAction("Please follow the tutorial instructions!");
-        return false; 
+        // ...but ALWAYS return true so they can click whatever they want!
+        return true; 
     }
 
     public void OnToggleSelectModeButtonClicked() { if (!IsToolAllowed()) return; if (barCreator != null) barCreator.ToggleSelectMode(); }
@@ -703,7 +701,7 @@ public class BuildUIController : MonoBehaviour
     
     public void OnRestartButtonClicked() 
     { 
-        if (isTutorialUI_Locked) return; 
+        // --- THE FIX: Let them stop the simulation even during a tutorial! ---
         if (physicsManager != null && physicsManager.isSimulating) 
         { 
             physicsManager.StopPhysicsAndReset(); 
@@ -714,20 +712,8 @@ public class BuildUIController : MonoBehaviour
 
     public void OnMaterialSelected(BridgeMaterialSO newMaterial) 
     { 
-        if (isTutorialUI_Locked)
-        {
-            if (whitelistedMaterial == null)
-            {
-                LogAction("Tutorial: Please follow the on-screen instructions!");
-                return; 
-            }
-            if (newMaterial != whitelistedMaterial)
-            {
-                LogAction($"Tutorial: Please click the {whitelistedMaterial.name}!");
-                return; 
-            }
-        }
-
+        // --- THE FIX: Removed tutorial locking so players can select any unlocked material freely ---
+        
         if (barCreator != null) 
         { 
             barCreator.isDeleteMode = false; 
@@ -735,6 +721,7 @@ public class BuildUIController : MonoBehaviour
             SetSelectionPanelActive(false);
             LogAction($"Selected Material: {newMaterial.name}");
 
+            // Still notify the director in case this click advances a tutorial step!
             if (BuildTutorialDirector.Instance != null)
             {
                 BuildTutorialDirector.Instance.OnMaterialClicked(newMaterial);
