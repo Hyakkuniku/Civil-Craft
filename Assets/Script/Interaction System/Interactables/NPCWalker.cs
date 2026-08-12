@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.Events;
+using System.Collections;
 
 [RequireComponent(typeof(NavMeshAgent))]
 public class NPCWalker : MonoBehaviour
@@ -20,58 +21,78 @@ public class NPCWalker : MonoBehaviour
     public UnityEvent onDestinationReached;
 
     private NavMeshAgent agent;
-    private bool isWalking = false;
 
     private void Awake()
     {
         agent = GetComponent<NavMeshAgent>();
-        // Make sure they don't start walking immediately!
-        agent.isStopped = true; 
+        if (agent != null)
+        {
+            agent.isStopped = true; 
+        }
     }
 
-    // We will call this from your TutorialNameNPC script!
     public void StartWalking()
     {
-        if (targetDestination != null)
+        if (targetDestination == null)
         {
-            agent.isStopped = false;
-            agent.SetDestination(targetDestination.position);
-            isWalking = true;
-            
-            if (animator != null) 
-            {
-                animator.SetBool(walkAnimParameter, true);
-            }
+            Debug.LogWarning($"[NPCWalker] {gameObject.name} has no target destination assigned!");
+            return;
         }
-        else
+
+        // Check if the agent is placed on a valid NavMesh
+        if (!agent.isOnNavMesh)
         {
-            Debug.LogWarning("NPC Walker has no target destination!");
+            Debug.LogError($"[NPCWalker] {gameObject.name} is NOT placed on a baked NavMesh! Please place the NPC on a NavMesh floor.");
+            return;
         }
+
+        StartCoroutine(WalkRoutine());
     }
 
-    private void Update()
+    private IEnumerator WalkRoutine()
     {
-        if (isWalking)
+        // 1. Tell the agent to start moving
+        agent.isStopped = false;
+        agent.SetDestination(targetDestination.position);
+
+        if (animator != null) 
         {
-            // Check if the NPC has reached the door
-            if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance + 0.1f)
+            animator.SetBool(walkAnimParameter, true);
+        }
+
+        // --- THE FIX: Wait 1 frame so Unity has time to initialize the path calculation ---
+        yield return null;
+
+        // 2. Wait while Unity is calculating the path
+        while (agent.pathPending)
+        {
+            yield return null;
+        }
+
+        // 3. Monitor the walk loop safely
+        bool isWalking = true;
+        while (isWalking)
+        {
+            // Only trigger arrival if the distance is close AND path is complete
+            if (agent.remainingDistance <= agent.stoppingDistance + 0.2f)
             {
-                if (!agent.hasPath || agent.velocity.sqrMagnitude == 0f)
+                if (!agent.hasPath || agent.velocity.sqrMagnitude < 0.05f)
                 {
                     isWalking = false;
-                    
-                    if (animator != null) 
-                    {
-                        animator.SetBool(walkAnimParameter, false);
-                    }
-
-                    // Fire the event (we will set this to hide the NPC)
-                    onDestinationReached?.Invoke();
-                    
-                    // Hide the NPC
-                    gameObject.SetActive(false); 
                 }
             }
+            yield return null;
         }
+
+        // 4. Arrived at door!
+        if (animator != null) 
+        {
+            animator.SetBool(walkAnimParameter, false);
+        }
+
+        onDestinationReached?.Invoke();
+        
+        // Hide the NPC after reaching the target
+        gameObject.SetActive(false); 
     }
 }

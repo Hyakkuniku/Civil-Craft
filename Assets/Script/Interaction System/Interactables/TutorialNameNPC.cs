@@ -1,35 +1,39 @@
 using UnityEngine;
+using UnityEngine.Events;
 
 public class TutorialNameNPC : Interactable
 {
     [Header("Dialogues (Phase 1: Registration)")]
-    [Tooltip("The dialogue played when the NPC asks for the player's name.")]
     public Dialogue askNameDialogue;
     
     [Header("Dialogues (Phase 2: Get Almanac)")]
-    [Tooltip("The dialogue played immediately after they register their name.")]
     public Dialogue fetchAlmanacDialogue;
-    [Tooltip("The dialogue played if they talk to him again before grabbing the book.")]
     public Dialogue reminderAlmanacDialogue;
 
     [Header("Dialogues (Phase 3: Exit House)")]
-    [Tooltip("The dialogue played after they grab the book and talk to him again.")]
     public Dialogue finalHouseDialogue;
 
     [Header("Tutorial Settings")]
-    [Tooltip("Does talking to this NPC at the end of the quest advance the tutorial?")]
     public bool advancesTutorial = false;
 
-    // --- NEW: Link to the Walker Script! ---
     [Header("Movement")]
-    [Tooltip("Drag the NPCWalker script here so we can tell him to walk!")]
     public NPCWalker npcWalker;
+
+    // --- NEW: UI Reward Integration ---
+    [Header("Cosmetic Reward")]
+    public string rewardHatID = "EngineerHardHat";
+    [Tooltip("The name of the item shown on the UI popup")]
+    public string rewardDisplayName = "Engineer's Hard Hat";
+    [Tooltip("The 2D picture of the hat for the UI popup")]
+    public Sprite rewardSprite; 
+    
+    [Tooltip("Fires AFTER the player clicks 'Collect' on the UI popup")]
+    public UnityEvent onFinalDialogueFinished;
 
     private DialogueManager dialogueManager;
     private NameRegistrationUI nameUI;
     private Transform playerTransform;
 
-    // Track the quest state locally
     private bool hasGivenFetchQuest = false;
 
     private void Awake()
@@ -43,24 +47,14 @@ public class TutorialNameNPC : Interactable
 
     private void Update()
     {
-        // Dynamically change the hover text based on the quest state!
         if (PlayerDataManager.Instance == null) return;
 
         bool hasName = PlayerDataManager.Instance.CurrentData.playerName != "Guest" && !string.IsNullOrEmpty(PlayerDataManager.Instance.CurrentData.playerName);
         bool hasBook = PlayerDataManager.Instance.CurrentData.hasAlmanac;
 
-        if (!hasName)
-        {
-            promptMessage = "Talk to NPC";
-        }
-        else if (!hasBook)
-        {
-            promptMessage = "Ask about the book";
-        }
-        else
-        {
-            promptMessage = "Show the Almanac";
-        }
+        if (!hasName) promptMessage = "Talk to NPC";
+        else if (!hasBook) promptMessage = "Ask about the book";
+        else promptMessage = "Show the Almanac";
     }
 
     protected override void Intract()
@@ -72,7 +66,6 @@ public class TutorialNameNPC : Interactable
         string currentName = PlayerDataManager.Instance != null ? PlayerDataManager.Instance.CurrentData.playerName : "Guest";
         bool hasBook = PlayerDataManager.Instance != null && PlayerDataManager.Instance.CurrentData.hasAlmanac;
 
-        // STATE 1: The name is still the default "Guest", they haven't registered yet!
         if (currentName == "Guest" || string.IsNullOrEmpty(currentName))
         {
             dialogueManager.StartDialogue(askNameDialogue, () => 
@@ -80,40 +73,51 @@ public class TutorialNameNPC : Interactable
                 if (nameUI != null) nameUI.ShowNamePrompt();
             });
         }
-        // STATE 2: They have a name, but NO ALMANAC
         else if (!hasBook)
         {
             if (!hasGivenFetchQuest)
             {
-                // First time giving them the quest
                 dialogueManager.StartDialogue(fetchAlmanacDialogue, () => 
                 {
                     hasGivenFetchQuest = true;
-                    // --- OPTIONAL: Advance tutorial here if your sequence expects it! ---
                     if (advancesTutorial && TutorialManager.Instance != null) TutorialManager.Instance.ShowNextStep();
                 });
             }
             else
             {
-                // They clicked on him again without getting the book
                 dialogueManager.StartDialogue(reminderAlmanacDialogue, null);
             }
         }
-        // STATE 3: They have a name AND they have the Almanac!
         else
         {
             dialogueManager.StartDialogue(finalHouseDialogue, () => 
             {
-                // The NPC says "Follow me outside!"
                 if (advancesTutorial && TutorialManager.Instance != null)
                 {
                     TutorialManager.Instance.ShowNextStep();
                 }
 
-                // --- THE FIX: Tell the NPC to walk to the door! ---
                 if (npcWalker != null)
                 {
                     npcWalker.StartWalking();
+                }
+
+                // --- THE FIX: Summon the UI Popup instead of instantly equipping! ---
+                if (ItemUnlockUI.Instance != null && !string.IsNullOrEmpty(rewardHatID))
+                {
+                    ItemUnlockUI.Instance.ShowReward(rewardDisplayName, rewardSprite, rewardHatID, () => 
+                    {
+                        onFinalDialogueFinished?.Invoke();
+                    });
+                }
+                else
+                {
+                    // Fallback just in case you forgot to add the UI Canvas to the scene!
+                    if (PlayerCosmetics.Instance != null && !string.IsNullOrEmpty(rewardHatID))
+                    {
+                        PlayerCosmetics.Instance.UnlockAndEquipHat(rewardHatID);
+                    }
+                    onFinalDialogueFinished?.Invoke();
                 }
             });
         }
@@ -129,7 +133,6 @@ public class TutorialNameNPC : Interactable
         }
     }
 
-    // Call this from the NameRegistrationUI's "On Name Confirmed" UnityEvent!
     public void OnNameRegistered()
     {
         if (dialogueManager != null)
@@ -138,7 +141,6 @@ public class TutorialNameNPC : Interactable
             {
                 hasGivenFetchQuest = true;
                 
-                // Advance the tutorial (this triggers the rock path to point to the Almanac!)
                 if (advancesTutorial && TutorialManager.Instance != null)
                 {
                     TutorialManager.Instance.ShowNextStep();

@@ -1,13 +1,12 @@
 using UnityEngine;
 using UnityEngine.Events;
 using TMPro;
+using System.Collections; 
 
 public enum TutorialPosition
 {
-    TopCenter,
-    BottomLeft,
-    BottomRight,
-    Center
+    Center,
+    Left
 }
 
 [System.Serializable]
@@ -15,7 +14,7 @@ public class TutorialStep
 {
     [TextArea(3, 6)]
     public string message = "Step description here...";
-    public TutorialPosition screenPosition = TutorialPosition.TopCenter;
+    public TutorialPosition screenPosition = TutorialPosition.Center;
     
     public bool showNextButton = true;
     public bool canSkip = false;
@@ -36,13 +35,30 @@ public class TutorialManager : MonoBehaviour
 {
     public static TutorialManager Instance { get; private set; }
 
-    [Header("Tutorial UI")]
-    [SerializeField] private GameObject tutorialPanel;
-    [SerializeField] private TextMeshProUGUI tutorialText; 
+    [Header("Center Tutorial UI")]
+    [SerializeField] private GameObject centerPanel;
+    [SerializeField] private TextMeshProUGUI centerText; 
+
+    [Header("Left Tutorial UI")]
+    [SerializeField] private GameObject leftPanel;
+    [SerializeField] private TextMeshProUGUI leftText; 
+
+    [Header("Global Tutorial UI")]
     [SerializeField] private GameObject nextButton;     
     [SerializeField] private GameObject skipButton;
-    
     [SerializeField] private TutorialPointer bouncingArrow;
+
+    [Header("Transition Settings")]
+    [Tooltip("How fast the panel fades and pops when appearing in the same spot.")]
+    public float transitionDuration = 0.25f;
+    [Tooltip("How fast the panel slides when moving from Center to Left (or vice versa).")]
+    public float slideTransitionDuration = 0.6f;
+
+    [Header("Left Panel Attention Animation")]
+    [Tooltip("How fast the left text breathes/pulses to grab attention.")]
+    public float pulseSpeed = 4f;
+    [Tooltip("How much the text grows during the pulse (0.05 = 5% larger).")]
+    public float pulseAmount = 0.05f;
 
     public bool IsTutorialActive { get; private set; } = false;
 
@@ -51,6 +67,11 @@ public class TutorialManager : MonoBehaviour
     
     private UnityEngine.UI.Button trackedButton = null;
     private UnityAction trackedButtonAction = null;
+    
+    private Coroutine currentAnimationCoroutine;
+    private Coroutine leftTextIdleCoroutine; 
+    
+    private TutorialPosition? lastScreenPosition = null;
 
     private void Awake()
     {
@@ -64,7 +85,8 @@ public class TutorialManager : MonoBehaviour
     {
         if (!IsTutorialActive) 
         {
-            if (tutorialPanel != null) tutorialPanel.SetActive(false);
+            if (centerPanel != null) centerPanel.SetActive(false);
+            if (leftPanel != null) leftPanel.SetActive(false);
             if (bouncingArrow != null) bouncingArrow.Hide();
         }
 
@@ -107,6 +129,7 @@ public class TutorialManager : MonoBehaviour
         currentSequence = sequence;
         currentStepIndex = -1;
         IsTutorialActive = true;
+        lastScreenPosition = null; 
 
         if (sequence.tutorialWaypoints != null && sequence.tutorialWaypoints.Count > 0 && PathGuider.Instance != null)
         {
@@ -136,32 +159,48 @@ public class TutorialManager : MonoBehaviour
 
     private void ShowTutorialStep(TutorialStep step)
     {
-        if (tutorialPanel != null) tutorialPanel.SetActive(true);
-        
-        if (tutorialText != null) 
+        // Stop any ongoing idle text pulse before we transition and reset the scale
+        if (leftTextIdleCoroutine != null)
         {
-            tutorialText.text = step.message ?? "";
+            StopCoroutine(leftTextIdleCoroutine);
+            leftTextIdleCoroutine = null;
+            if (leftText != null) leftText.transform.localScale = Vector3.one;
+        }
 
-            RectTransform rt = tutorialText.GetComponent<RectTransform>();
+        GameObject activePanel = step.screenPosition == TutorialPosition.Center ? centerPanel : leftPanel;
+        TextMeshProUGUI activeText = step.screenPosition == TutorialPosition.Center ? centerText : leftText;
+        
+        GameObject oldPanel = null;
+        if (lastScreenPosition != null && lastScreenPosition != step.screenPosition)
+        {
+            oldPanel = lastScreenPosition == TutorialPosition.Center ? centerPanel : leftPanel;
+        }
+
+        if (centerPanel != null) centerPanel.SetActive(false);
+        if (leftPanel != null) leftPanel.SetActive(false);
+
+        if (activePanel != null)
+        {
+            activePanel.SetActive(true);
+            if (activeText != null) activeText.text = step.message ?? "";
             
-            switch (step.screenPosition)
+            float waitDelay = 0f;
+
+            if (oldPanel != null)
             {
-                case TutorialPosition.TopCenter:
-                    rt.anchorMin = new Vector2(0.5f, 1f); rt.anchorMax = new Vector2(0.5f, 1f); rt.pivot = new Vector2(0.5f, 1f);
-                    rt.anchoredPosition = new Vector2(0, -100); 
-                    break;
-                case TutorialPosition.BottomLeft:
-                    rt.anchorMin = new Vector2(0f, 0f); rt.anchorMax = new Vector2(0f, 0f); rt.pivot = new Vector2(0f, 0f);
-                    rt.anchoredPosition = new Vector2(100, 150); 
-                    break;
-                case TutorialPosition.BottomRight:
-                    rt.anchorMin = new Vector2(1f, 0f); rt.anchorMax = new Vector2(1f, 0f); rt.pivot = new Vector2(1f, 0f);
-                    rt.anchoredPosition = new Vector2(-100, 150); 
-                    break;
-                case TutorialPosition.Center:
-                    rt.anchorMin = new Vector2(0.5f, 0.5f); rt.anchorMax = new Vector2(0.5f, 0.5f); rt.pivot = new Vector2(0.5f, 0.5f);
-                    rt.anchoredPosition = Vector2.zero; 
-                    break;
+                AnimatePanelSlide(activePanel, oldPanel.transform.position);
+                waitDelay = slideTransitionDuration;
+            }
+            else
+            {
+                AnimatePanelIn(activePanel);
+                waitDelay = transitionDuration;
+            }
+
+            // --- THE FIX: Only animate the Text component, and wait for the proper duration! ---
+            if (step.screenPosition == TutorialPosition.Left && activeText != null)
+            {
+                leftTextIdleCoroutine = StartCoroutine(IdleTextPulseRoutine(activeText, waitDelay));
             }
         }
 
@@ -186,8 +225,97 @@ public class TutorialManager : MonoBehaviour
             }
         }
 
+        lastScreenPosition = step.screenPosition;
         step.OnStepStart?.Invoke();
     }
+
+    // ==========================================
+    // ANIMATION LOGIC
+    // ==========================================
+
+    private void AnimatePanelIn(GameObject panel)
+    {
+        if (currentAnimationCoroutine != null) StopCoroutine(currentAnimationCoroutine);
+        currentAnimationCoroutine = StartCoroutine(FadeAndPopRoutine(panel));
+    }
+
+    private void AnimatePanelSlide(GameObject panel, Vector3 oldWorldPosition)
+    {
+        if (currentAnimationCoroutine != null) StopCoroutine(currentAnimationCoroutine);
+        currentAnimationCoroutine = StartCoroutine(SlideRoutine(panel, oldWorldPosition));
+    }
+
+    private IEnumerator FadeAndPopRoutine(GameObject panel)
+    {
+        CanvasGroup group = panel.GetComponent<CanvasGroup>();
+        if (group == null) group = panel.AddComponent<CanvasGroup>();
+
+        float elapsed = 0f;
+        group.alpha = 0f;
+        panel.transform.localScale = new Vector3(0.9f, 0.9f, 1f);
+
+        while (elapsed < transitionDuration)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            float smoothT = Mathf.SmoothStep(0f, 1f, elapsed / transitionDuration);
+
+            group.alpha = smoothT;
+            panel.transform.localScale = Vector3.Lerp(new Vector3(0.9f, 0.9f, 1f), Vector3.one, smoothT);
+            yield return null;
+        }
+
+        group.alpha = 1f;
+        panel.transform.localScale = Vector3.one;
+    }
+
+    private IEnumerator SlideRoutine(GameObject panel, Vector3 startWorldPos)
+    {
+        CanvasGroup group = panel.GetComponent<CanvasGroup>();
+        if (group == null) group = panel.AddComponent<CanvasGroup>();
+
+        RectTransform rt = panel.GetComponent<RectTransform>();
+        Vector3 targetWorldPos = rt.position;
+        
+        float elapsed = 0f;
+        group.alpha = 0f;
+        panel.transform.localScale = new Vector3(0.9f, 0.9f, 1f);
+
+        while (elapsed < slideTransitionDuration)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            float smoothT = Mathf.SmoothStep(0f, 1f, elapsed / slideTransitionDuration); 
+
+            group.alpha = smoothT;
+            rt.position = Vector3.Lerp(startWorldPos, targetWorldPos, smoothT);
+            panel.transform.localScale = Vector3.Lerp(new Vector3(0.9f, 0.9f, 1f), Vector3.one, smoothT);
+
+            yield return null;
+        }
+
+        group.alpha = 1f;
+        rt.position = targetWorldPos;
+        panel.transform.localScale = Vector3.one;
+    }
+
+    // --- THE FIX: Idle Pulse Coroutine specifically for the Text ---
+    private IEnumerator IdleTextPulseRoutine(TextMeshProUGUI textToAnimate, float delay)
+    {
+        // Wait for whichever transition is happening to finish
+        yield return new WaitForSecondsRealtime(delay);
+
+        Transform textTransform = textToAnimate.transform;
+
+        while (true)
+        {
+            // Calculate a soft pulsing scale for the text using a sine wave
+            float pulseScale = 1f + (Mathf.Sin(Time.unscaledTime * pulseSpeed) * pulseAmount);
+            textTransform.localScale = new Vector3(pulseScale, pulseScale, 1f);
+            
+            yield return null;
+        }
+    }
+
+    // ==========================================
 
     private void OnTrackedButtonClicked()
     {
@@ -214,7 +342,24 @@ public class TutorialManager : MonoBehaviour
         ClearTrackedButton(); 
         
         IsTutorialActive = false;
-        if (tutorialPanel != null) tutorialPanel.SetActive(false);
+        lastScreenPosition = null;
+
+        if (currentAnimationCoroutine != null)
+        {
+            StopCoroutine(currentAnimationCoroutine);
+            currentAnimationCoroutine = null;
+        }
+
+        if (leftTextIdleCoroutine != null)
+        {
+            StopCoroutine(leftTextIdleCoroutine);
+            leftTextIdleCoroutine = null;
+            if (leftText != null) leftText.transform.localScale = Vector3.one;
+        }
+
+        if (centerPanel != null) centerPanel.SetActive(false);
+        if (leftPanel != null) leftPanel.SetActive(false);
+
         if (bouncingArrow != null) bouncingArrow.Hide();
         
         if (BuildTutorialDirector.Instance != null)

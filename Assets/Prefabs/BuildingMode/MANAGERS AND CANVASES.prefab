@@ -25924,6 +25924,8 @@ MonoBehaviour:
   - {fileID: 4000465654145945648}
   redoConfirmPanel: {fileID: 958456519141442972}
   extraElementsToHideOnRedo: []
+  transitionFader: {fileID: 0}
+  fadeDuration: 0.25
 --- !u!114 &6546353928708746189
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -25953,6 +25955,9 @@ MonoBehaviour:
   minPitch: -50
   maxPitch: 50
   rotateCameraKey: 9
+  simHeightOffset: 8
+  simPitchOffset: 15
+  simTransitionSpeed: 3
 --- !u!1 &7710075611234227435
 GameObject:
   m_ObjectHideFlags: 0
@@ -30783,6 +30788,15 @@ MonoBehaviour:
   liveBeamAngleText: {fileID: 409730037865076745}
   unlockMaterialPanel: {fileID: 0}
   unlockMaterialText: {fileID: 0}
+  selectToolImage: {fileID: 0}
+  moveToolImage: {fileID: 0}
+  deleteToolImage: {fileID: 0}
+  gridToolImage: {fileID: 0}
+  infoToolImage: {fileID: 0}
+  activeToolColor: {r: 0.902, g: 0.737, b: 0.463, a: 1}
+  inactiveToolColor: {r: 1, g: 1, b: 1, a: 1}
+  hideDuringSimulation: []
+  layoutPanelToRebuild: {fileID: 0}
 --- !u!114 &3523040666602494126
 MonoBehaviour:
   m_ObjectHideFlags: 0

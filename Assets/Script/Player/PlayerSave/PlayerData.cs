@@ -73,6 +73,9 @@ public class PlayerData
     public string lastSavedScene = "";
     public SerializableVector3 lastSavedPosition;
 
+    // --- NEW: The saved cosmetic ID for hats ---
+    public string equippedHatID = ""; 
+
     public List<string> unlockedAchievements = new List<string>();
     public List<TrackedTask> activeQuests = new List<TrackedTask>(); 
     public List<string> unlockedLevels = new List<string> { "Tutorial" };

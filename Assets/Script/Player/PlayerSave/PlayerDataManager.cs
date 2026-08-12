@@ -20,6 +20,7 @@ public class PlayerDataManager : MonoBehaviour
     
     private string saveFilePath;
     private bool isCheckingAchievements = false; // Prevents infinite loops!
+    
 
     private void Awake()
     {
