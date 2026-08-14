@@ -105,22 +105,21 @@ public class LevelCompleteManager : MonoBehaviour
             {
                 if (LevelFailedManager.Instance == null || !LevelFailedManager.Instance.isFailed)
                 {
+                    // --- THE FIX: Prioritize finding the exact location tied to this specific contract! ---
                     BuildLocation activeLoc = null;
-                    if (GameManager.Instance != null && GameManager.Instance.ActiveBuildLocation != null)
+                    BuildLocation[] allLocs = Resources.FindObjectsOfTypeAll<BuildLocation>();
+                    foreach (var loc in allLocs)
+                    {
+                        if (loc.gameObject.scene.name != null && loc.activeContract == currentContract)
+                        {
+                            activeLoc = loc;
+                            break;
+                        }
+                    }
+                    
+                    if (activeLoc == null && GameManager.Instance != null && GameManager.Instance.ActiveBuildLocation != null)
                     {
                         activeLoc = GameManager.Instance.ActiveBuildLocation;
-                    }
-                    else
-                    {
-                        BuildLocation[] allLocs = Resources.FindObjectsOfTypeAll<BuildLocation>();
-                        foreach (var loc in allLocs)
-                        {
-                            if (loc.gameObject.scene.name != null && loc.activeContract == currentContract)
-                            {
-                                activeLoc = loc;
-                                break;
-                            }
-                        }
                     }
 
                     if (activeLoc != null && IsBridgeConnected(activeLoc))
@@ -635,7 +634,13 @@ public class LevelCompleteManager : MonoBehaviour
             }
         }
 
-        if (cachedPhysicsManager != null) cachedPhysicsManager.BakeBridge(activeContract); 
+        if (cachedPhysicsManager != null) 
+        {
+            cachedPhysicsManager.BakeBridge(activeContract);
+            
+            // --- THE FIX: We must forcefully stop the physics engine from running here! ---
+            cachedPhysicsManager.StopPhysicsAndReset(); 
+        } 
 
         if (PlayerDataManager.Instance != null && activeContract != null)
         {
@@ -659,14 +664,17 @@ public class LevelCompleteManager : MonoBehaviour
         {
             ObjectiveTrackerUI.Instance.NotifyBridgeBuilt(activeContract.name);
         }
-
-        // --- THE FIX: We entirely removed the hard-coded Almanac alert here! ---
         
         if (CommandManager.Instance != null) CommandManager.Instance.ClearHistory();
 
-        ClosePanel();
-        
+        // --- THE FIX: Make sure the state is fully reset before moving on! ---
+        ResetCompletionState();
+
+        // --- THE FIX: Tell the game we are exiting Build Mode BEFORE we close the panel! ---
+        // This ensures the ClosePanel method realizes we are leaving and restores player controls!
         if (GameManager.Instance != null) GameManager.Instance.ExitBuildMode();
+        
+        ClosePanel();
     }
 
     public void ClosePanel()
