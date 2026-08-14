@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using TMPro;
 using UnityEngine.UI; 
-using System.Linq; // --- NEW: Required for sorting lists! ---
+using System.Linq; 
 
 public class ObjectiveTrackerUI : MonoBehaviour
 {
@@ -49,14 +49,55 @@ public class ObjectiveTrackerUI : MonoBehaviour
         if (trackerPanel != null) trackerPanel.SetActive(false);
         if (listPanel != null) listPanel.SetActive(false);
         if (detailsPanel != null) detailsPanel.SetActive(false);
-        if (newAlertIcon != null) newAlertIcon.SetActive(false);
-        
-        if (openTrackerButton != null) openTrackerButton.SetActive(true);
+        ClearAlert();
     }
 
     private void Start()
     {
+        if (openTrackerButton != null && PlayerDataManager.Instance != null)
+        {
+            openTrackerButton.SetActive(PlayerDataManager.Instance.CurrentData.hasUnlockedObjectiveTracker);
+        }
+
+        ClearAlert();
         RefreshQuestList();
+    }
+
+    private void Update()
+    {
+        // --- SAFEGUARD: Forcibly keep alert icon OFF whenever the tracker panel is open ---
+        if (trackerPanel != null && trackerPanel.activeSelf && newAlertIcon != null && newAlertIcon.activeSelf)
+        {
+            ClearAlert();
+        }
+    }
+
+    public void ClearAlert()
+    {
+        if (newAlertIcon != null)
+        {
+            newAlertIcon.SetActive(false);
+        }
+    }
+
+    private void AlertPlayer()
+    {
+        // Do NOT turn on the alert icon if the player is currently viewing the tracker panel!
+        if (trackerPanel != null && trackerPanel.activeSelf) return;
+
+        if (newAlertIcon != null)
+        {
+            newAlertIcon.SetActive(true);
+        }
+    }
+
+    private void UnlockAndShowTracker()
+    {
+        if (PlayerDataManager.Instance != null && !PlayerDataManager.Instance.CurrentData.hasUnlockedObjectiveTracker)
+        {
+            PlayerDataManager.Instance.CurrentData.hasUnlockedObjectiveTracker = true;
+            if (openTrackerButton != null) openTrackerButton.SetActive(true);
+        }
     }
 
     public void SetObjective(ContractSO contract, string targetName = "")
@@ -80,6 +121,8 @@ public class ObjectiveTrackerUI : MonoBehaviour
         };
 
         activeTasks.Add(newTask);
+        
+        UnlockAndShowTracker(); 
         PlayerDataManager.Instance.SaveGame(); 
         
         AlertPlayer();
@@ -103,6 +146,8 @@ public class ObjectiveTrackerUI : MonoBehaviour
         };
 
         activeTasks.Add(newTask);
+        
+        UnlockAndShowTracker(); 
         PlayerDataManager.Instance.SaveGame();
         
         AlertPlayer();
@@ -133,7 +178,6 @@ public class ObjectiveTrackerUI : MonoBehaviour
         }
     }
 
-    // --- NEW: Triggers the HUD alert and updates the quest to point to the NPC! ---
     public void NotifyBridgeBuilt(string contractName)
     {
         if (PlayerDataManager.Instance == null) return;
@@ -232,6 +276,7 @@ public class ObjectiveTrackerUI : MonoBehaviour
         
         PlayerDataManager.Instance.SaveGame();
         
+        ClearAlert();
         SelectTask(currentlySelectedTask);
         RefreshQuestList();
     }
@@ -317,11 +362,6 @@ public class ObjectiveTrackerUI : MonoBehaviour
         }
     }
 
-    private void AlertPlayer()
-    {
-        if (newAlertIcon != null) newAlertIcon.SetActive(true);
-    }
-
     public void ToggleTrackerPanel()
     {
         if (trackerPanel != null)
@@ -332,11 +372,10 @@ public class ObjectiveTrackerUI : MonoBehaviour
             if (openTrackerButton != null) openTrackerButton.SetActive(!isNowActive);
             
             SetOtherUIActive(!isNowActive);
+            ClearAlert();
             
             if (isNowActive)
             {
-                if (newAlertIcon != null) newAlertIcon.SetActive(false); 
-                
                 currentlySelectedTask = null;
                 if (detailsPanel != null) detailsPanel.SetActive(false);
                 if (listPanel != null) listPanel.SetActive(true);
@@ -353,6 +392,7 @@ public class ObjectiveTrackerUI : MonoBehaviour
         if (detailsPanel != null) detailsPanel.SetActive(false);
         if (listPanel != null) listPanel.SetActive(true);
         
+        ClearAlert();
         RefreshQuestList();
     }
 
@@ -360,7 +400,6 @@ public class ObjectiveTrackerUI : MonoBehaviour
     {
         if (questListContent == null || questTabPrefab == null || PlayerDataManager.Instance == null) return;
 
-        // Clear out the old buttons
         for (int i = questListContent.childCount - 1; i >= 0; i--)
         {
             Transform child = questListContent.GetChild(i);
@@ -369,22 +408,16 @@ public class ObjectiveTrackerUI : MonoBehaviour
         }
 
         var allTasks = PlayerDataManager.Instance.CurrentData.activeQuests;
-
-        // --- THE NEW SORTING LOGIC ---
         
-        // 1. Grab all Active tasks, and put the "Ready to Turn In" ones at the very top
         var activeList = allTasks.Where(t => !t.isCompleted)
                                  .OrderByDescending(t => t.isReadyToTurnIn)
                                  .ToList();
 
-        // 2. Grab all Done tasks, and REVERSE them so the oldest ("first done") is at the absolute bottom!
         var doneList = allTasks.Where(t => t.isCompleted).ToList();
         doneList.Reverse(); 
 
-        // 3. Glue the Done list to the bottom of the Active list
         activeList.AddRange(doneList);
 
-        // Spawn the buttons using our newly organized master list
         foreach (TrackedTask task in activeList)
         {
             GameObject btnObj = Instantiate(questTabPrefab, questListContent);
@@ -401,6 +434,8 @@ public class ObjectiveTrackerUI : MonoBehaviour
     {
         if (task == null) return;
         currentlySelectedTask = task;
+
+        ClearAlert();
 
         if (listPanel != null) listPanel.SetActive(false);
         if (detailsPanel != null) detailsPanel.SetActive(true);

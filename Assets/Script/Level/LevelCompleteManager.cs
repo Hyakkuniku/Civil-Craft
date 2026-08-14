@@ -660,12 +660,8 @@ public class LevelCompleteManager : MonoBehaviour
             ObjectiveTrackerUI.Instance.NotifyBridgeBuilt(activeContract.name);
         }
 
-        // --- THE FIX: Now targets the "Contracts" tab specifically! ---
-        if (AlmanacManager.Instance != null)
-        {
-            AlmanacManager.Instance.TriggerTabAlert("Contracts");
-        }
-
+        // --- THE FIX: We entirely removed the hard-coded Almanac alert here! ---
+        
         if (CommandManager.Instance != null) CommandManager.Instance.ClearHistory();
 
         ClosePanel();

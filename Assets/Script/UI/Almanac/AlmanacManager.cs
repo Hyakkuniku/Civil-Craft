@@ -3,14 +3,27 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
+public enum AlmanacTabType { General, Contracts, Lessons }
+
+public enum TabVisibility { Normal, AlwaysHidden }
+
 [System.Serializable]
 public class AlmanacCategory
 {
     public string categoryName;
+    public AlmanacTabType tabType = AlmanacTabType.General;
+    
+    [Header("Visibility Control")]
+    [Tooltip("Set to Always Hidden if you want to disable this tab while developing it!")]
+    public TabVisibility visibilityMode = TabVisibility.Normal; 
+    
     public Button tabButton;
     
+    [Header("Tab Visuals")]
+    public Sprite inactiveSprite;
+    public Sprite activeSprite;
+
     [Header("Alert Integration")]
-    [Tooltip("The pulsing exclamation mark on THIS specific tab.")]
     public GameObject tabAlertIcon;
 
     [Header("Page Containers")]
@@ -29,15 +42,10 @@ public class AlmanacManager : MonoBehaviour
     public GameObject hudOpenButton; 
     public GameObject newAlertIcon; 
 
-    // --- NEW: FRAME-BY-FRAME ANIMATION ---
     [Header("Opening Animation")]
-    [Tooltip("Drag the BookAnimationPanel here.")]
     public GameObject animationPanel; 
-    [Tooltip("Drag the Image component where the frames will play here.")]
     public Image animationImage; 
-    [Tooltip("Drag your 15 frames here in order (Frame 1 to Frame 15).")]
     public Sprite[] bookOpenFrames; 
-    [Tooltip("How fast should the frames play? (0.03 = 30fps)")]
     public float frameRate = 0.03f; 
     private bool isAnimating = false;
 
@@ -75,6 +83,9 @@ public class AlmanacManager : MonoBehaviour
     private Dictionary<RectTransform, float> originalTabYPositions = new Dictionary<RectTransform, float>();
     private Dictionary<RectTransform, float> targetTabYPositions = new Dictionary<RectTransform, float>();
 
+    private int lastKnownContractsCount = -1;
+    private int lastKnownLessonsCount = -1;
+
     private void Awake()
     {
         if (Instance == null) Instance = this;
@@ -88,19 +99,31 @@ public class AlmanacManager : MonoBehaviour
         if (almanacCanvas != null) almanacCanvas.SetActive(false);
         if (newAlertIcon != null) newAlertIcon.SetActive(false); 
         
-        // Ensure animation panel is hidden on start
         if (animationPanel != null) animationPanel.SetActive(false); 
 
         foreach (var cat in categories)
         {
             if (cat.tabAlertIcon != null) cat.tabAlertIcon.SetActive(false);
+            
+            if (cat.tabButton != null && cat.inactiveSprite != null)
+            {
+                Image tabImage = cat.tabButton.GetComponent<Image>();
+                if (tabImage != null) tabImage.sprite = cat.inactiveSprite;
+            }
         }
 
-        if (hudOpenButton != null && PlayerDataManager.Instance != null)
+        if (PlayerDataManager.Instance != null)
         {
-            hudOpenButton.SetActive(PlayerDataManager.Instance.CurrentData.hasAlmanac);
+            bool playerHasAlmanac = PlayerDataManager.Instance.CurrentData.hasAlmanac;
+            if (hudOpenButton != null) hudOpenButton.SetActive(playerHasAlmanac);
+
             PlayerDataManager.Instance.OnAlmanacUnlocked += ShowHudButton;
+            
+            lastKnownContractsCount = PlayerDataManager.Instance.CurrentData.completedContracts != null ? PlayerDataManager.Instance.CurrentData.completedContracts.Count : 0;
+            lastKnownLessonsCount = PlayerDataManager.Instance.CurrentData.completedLessons != null ? PlayerDataManager.Instance.CurrentData.completedLessons.Count : 0;
         }
+
+        EvaluateTabUnlocks();
     }
 
     private void OnDestroy()
@@ -114,6 +137,7 @@ public class AlmanacManager : MonoBehaviour
     private void ShowHudButton()
     {
         if (hudOpenButton != null) hudOpenButton.SetActive(true);
+        TriggerAlert(); 
     }
 
     private void Update()
@@ -127,7 +151,108 @@ public class AlmanacManager : MonoBehaviour
             currentPos.y = Mathf.Lerp(currentPos.y, targetY, Time.deltaTime * tabTransitionSpeed);
             tabRect.anchoredPosition = currentPos;
         }
+
+        if (PlayerDataManager.Instance != null && PlayerDataManager.Instance.CurrentData != null)
+        {
+            PlayerData data = PlayerDataManager.Instance.CurrentData;
+            
+            if (data.completedContracts != null)
+            {
+                if (lastKnownContractsCount == -1)
+                {
+                    lastKnownContractsCount = data.completedContracts.Count;
+                }
+                else if (data.completedContracts.Count > lastKnownContractsCount)
+                {
+                    lastKnownContractsCount = data.completedContracts.Count;
+                    EvaluateTabUnlocks();
+                    
+                    if (data.hasAlmanac && data.hasUnlockedContractsTab)
+                    {
+                        TriggerTabAlertByType(AlmanacTabType.Contracts);
+                    }
+                }
+            }
+
+            if (data.completedLessons != null)
+            {
+                if (lastKnownLessonsCount == -1)
+                {
+                    lastKnownLessonsCount = data.completedLessons.Count;
+                }
+                else if (data.completedLessons.Count > lastKnownLessonsCount)
+                {
+                    lastKnownLessonsCount = data.completedLessons.Count;
+                    EvaluateTabUnlocks();
+                    
+                    if (data.hasAlmanac && data.hasUnlockedLessonsTab)
+                    {
+                        TriggerTabAlertByType(AlmanacTabType.Lessons);
+                    }
+                }
+            }
+        }
     }
+
+    // ==========================================
+    // UNLOCK & VISIBILITY LOGIC
+    // ==========================================
+
+    public void EvaluateTabUnlocks()
+    {
+        if (PlayerDataManager.Instance == null) return;
+        PlayerData data = PlayerDataManager.Instance.CurrentData;
+
+        if (!data.hasUnlockedContractsTab && data.completedContracts != null && data.completedContracts.Count > 0)
+        {
+            data.hasUnlockedContractsTab = true;
+        }
+
+        if (!data.hasUnlockedLessonsTab && data.completedLessons != null && data.completedLessons.Count > 0)
+        {
+            data.hasUnlockedLessonsTab = true;
+        }
+
+        RefreshTabVisibility(data);
+    }
+
+    private void RefreshTabVisibility(PlayerData data)
+    {
+        foreach (var cat in categories)
+        {
+            if (cat.tabButton != null)
+            {
+                bool shouldBeVisible = true;
+                
+                if (cat.tabType == AlmanacTabType.Contracts) shouldBeVisible = data.hasUnlockedContractsTab;
+                if (cat.tabType == AlmanacTabType.Lessons) shouldBeVisible = data.hasUnlockedLessonsTab;
+
+                if (cat.visibilityMode == TabVisibility.AlwaysHidden)
+                {
+                    shouldBeVisible = false;
+                }
+
+                cat.tabButton.gameObject.SetActive(shouldBeVisible);
+            }
+        }
+    }
+
+    private void TriggerTabAlertByType(AlmanacTabType targetType)
+    {
+        foreach (var cat in categories)
+        {
+            if (cat.tabType == targetType && cat.visibilityMode != TabVisibility.AlwaysHidden)
+            {
+                if (cat.tabButton != null && cat.tabButton.gameObject.activeInHierarchy)
+                {
+                    TriggerAlert(); 
+                    if (cat.tabAlertIcon != null) cat.tabAlertIcon.SetActive(true);
+                }
+            }
+        }
+    }
+
+    // ==========================================
 
     private void InitializeBook()
     {
@@ -175,30 +300,41 @@ public class AlmanacManager : MonoBehaviour
 
     public void TriggerAlert()
     {
-        if (newAlertIcon != null && almanacCanvas != null && !almanacCanvas.activeSelf)
+        if (PlayerDataManager.Instance != null && PlayerDataManager.Instance.CurrentData != null)
         {
-            newAlertIcon.SetActive(true);
+            if (!PlayerDataManager.Instance.CurrentData.hasAlmanac) return;
+        }
+
+        if (hudOpenButton != null && hudOpenButton.activeInHierarchy)
+        {
+            if (newAlertIcon != null && almanacCanvas != null && !almanacCanvas.activeSelf)
+            {
+                newAlertIcon.SetActive(true);
+            }
         }
     }
 
     public void TriggerTabAlert(string targetCategoryName)
     {
-        TriggerAlert();
-
         foreach (var cat in categories)
         {
-            if (cat.categoryName == targetCategoryName)
+            if (cat.categoryName == targetCategoryName && cat.visibilityMode != TabVisibility.AlwaysHidden)
             {
-                if (cat.tabAlertIcon != null) cat.tabAlertIcon.SetActive(true);
-                break;
+                if (cat.tabButton != null && cat.tabButton.gameObject.activeInHierarchy)
+                {
+                    TriggerAlert();
+                    if (cat.tabAlertIcon != null) cat.tabAlertIcon.SetActive(true);
+                    break;
+                }
             }
         }
     }
 
-    // --- THE FIX: Now calls the coroutine to play the opening animation ---
     public void OpenAlmanac()
     {
-        if (isAnimating) return; // Prevent double-clicking
+        if (isAnimating) return; 
+        
+        EvaluateTabUnlocks(); 
         StartCoroutine(OpenAlmanacRoutine());
     }
 
@@ -218,7 +354,6 @@ public class AlmanacManager : MonoBehaviour
             }
         }
 
-        // Play the 15-frame animation forwards!
         if (animationPanel != null && animationImage != null && bookOpenFrames.Length > 0)
         {
             animationPanel.SetActive(true);
@@ -229,13 +364,12 @@ public class AlmanacManager : MonoBehaviour
                 yield return new WaitForSeconds(frameRate);
             }
             
-            // Hide the animation panel right as the real Almanac canvas turns on
             animationPanel.SetActive(false);
         }
 
         if (almanacCanvas != null) almanacCanvas.SetActive(true);
         
-        SelectCategory(0);
+        SelectFirstVisibleCategory();
 
         if (onFirstOpenTutorial != null)
         {
@@ -244,8 +378,20 @@ public class AlmanacManager : MonoBehaviour
 
         isAnimating = false;
     }
+    
+    private void SelectFirstVisibleCategory()
+    {
+        for (int i = 0; i < categories.Count; i++)
+        {
+            if (categories[i].tabButton != null && categories[i].tabButton.gameObject.activeInHierarchy)
+            {
+                SelectCategory(i);
+                return;
+            }
+        }
+        SelectCategory(0);
+    }
 
-    // --- THE FIX: Now plays the animation in reverse to close the book! ---
     public void CloseAlmanac()
     {
         if (isAnimating) return;
@@ -256,10 +402,8 @@ public class AlmanacManager : MonoBehaviour
     {
         isAnimating = true;
 
-        // Hide the real Almanac UI instantly
         if (almanacCanvas != null) almanacCanvas.SetActive(false);
 
-        // Play the 15-frame animation backwards!
         if (animationPanel != null && animationImage != null && bookOpenFrames.Length > 0)
         {
             animationPanel.SetActive(true);
@@ -299,15 +443,26 @@ public class AlmanacManager : MonoBehaviour
             if (categories[i].tabButton == null) continue;
             
             RectTransform tabRect = categories[i].tabButton.GetComponent<RectTransform>();
+            Image tabImage = categories[i].tabButton.GetComponent<Image>();
+
             if (i == currentCategoryIndex)
             {
                 targetTabYPositions[tabRect] = originalTabYPositions[tabRect] + selectedTabUpOffset;
-                
                 if (categories[i].tabAlertIcon != null) categories[i].tabAlertIcon.SetActive(false);
+                
+                if (tabImage != null && categories[i].activeSprite != null) 
+                {
+                    tabImage.sprite = categories[i].activeSprite;
+                }
             }
             else
             {
                 targetTabYPositions[tabRect] = originalTabYPositions[tabRect]; 
+                
+                if (tabImage != null && categories[i].inactiveSprite != null) 
+                {
+                    tabImage.sprite = categories[i].inactiveSprite;
+                }
             }
         }
 

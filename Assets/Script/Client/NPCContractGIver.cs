@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Events;
 
 public class NPCContractGiver : Interactable
 {
@@ -9,6 +10,10 @@ public class NPCContractGiver : Interactable
 
     [Header("Tutorial Settings")]
     public bool advancesTutorial = false; 
+
+    [Header("Events")]
+    [Tooltip("Fires immediately after the offer dialogue finishes and the contract is accepted.")]
+    public UnityEvent onOfferDialogueFinished;
 
     private bool hasGivenContract = false;
     [HideInInspector] public bool isContractCompleted = false; 
@@ -131,7 +136,6 @@ public class NPCContractGiver : Interactable
             if (targetBuildLocation != null) targetBuildLocation.activeContract = contractToGive;
             if (linkedCargo != null) linkedCargo.SetWeight(contractToGive.liveLoadWeight);
 
-            // --- THE FIX: Look for the custom Navigation Target first! ---
             string targetLocName = "";
             if (targetBuildLocation != null)
             {
@@ -150,12 +154,14 @@ public class NPCContractGiver : Interactable
                 {
                     if (ObjectiveTrackerUI.Instance != null) ObjectiveTrackerUI.Instance.SetObjective(contractToGive, targetLocName);
                     TryAdvanceTutorial();
+                    onOfferDialogueFinished?.Invoke();
                 });
             }
             else
             {
                 if (ObjectiveTrackerUI.Instance != null) ObjectiveTrackerUI.Instance.SetObjective(contractToGive, targetLocName);
                 TryAdvanceTutorial();
+                onOfferDialogueFinished?.Invoke();
             }
 
             hasGivenContract = true;

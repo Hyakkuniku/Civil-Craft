@@ -45,7 +45,6 @@ public class BuildTutorialDirector : MonoBehaviour
     private Transform[] activeGhostPoints; 
     private bool wasInvalidLastFrame = false;
 
-    // --- A strict lock to prevent double-skipping ---
     private bool hasAdvancedFromMaterialClickThisStep = false;
 
     private Bar lastTintedBar;
@@ -76,11 +75,7 @@ public class BuildTutorialDirector : MonoBehaviour
 
             if (neededMat != null)
             {
-                if (bc.activeMaterial != neededMat)
-                {
-                    // If they unequip the tool but still need to draw a ghost, give it back to them instantly!
-                    bc.SetActiveMaterial(neededMat);
-                }
+                // THE FIX: We removed the forced re-equip logic here so the player is completely free to swap tools!
                 
                 // Keep the arrow hidden while they are drawing!
                 bouncingArrow.Hide();
@@ -218,12 +213,14 @@ public class BuildTutorialDirector : MonoBehaviour
 
         if (BuildUIController.Instance != null)
         {
-            BuildUIController.Instance.isTutorialUI_Locked = true;
+            // THE FIX: We completely removed the tool locking logic here!
             BuildUIController.Instance.whitelistedMaterial = null;
             BuildUIController.Instance.whitelistedButton = null;
         }
         
         if (bouncingArrow != null) bouncingArrow.Hide();
+        
+        // We still hide the exit button so they don't accidentally leave the tutorial sequence early
         if (exitBuildModeButton != null) exitBuildModeButton.SetActive(false);
     }
 
@@ -231,7 +228,6 @@ public class BuildTutorialDirector : MonoBehaviour
     {
         LockAllUI();
         
-        // --- GUARANTEE IT WILL ADVANCE ON CLICK ---
         isTracingStep = false; 
         hasAdvancedFromMaterialClickThisStep = false; 
         
@@ -256,7 +252,6 @@ public class BuildTutorialDirector : MonoBehaviour
     {
         LockAllUI();
         
-        // --- GUARANTEE IT WILL ADVANCE ON CLICK ---
         isTracingStep = false; 
         hasAdvancedFromMaterialClickThisStep = false; 
 
@@ -393,17 +388,15 @@ public class BuildTutorialDirector : MonoBehaviour
 
     public void OnMaterialClicked(BridgeMaterialSO clickedMat)
     {
-        if (BuildUIController.Instance != null && BuildUIController.Instance.isTutorialUI_Locked)
+        // THE FIX: Instead of checking if the UI is "locked", we just check if they clicked the exact tool we wanted them to click!
+        if (BuildUIController.Instance != null && clickedMat == BuildUIController.Instance.whitelistedMaterial)
         {
-            if (clickedMat == BuildUIController.Instance.whitelistedMaterial)
-            {
-                bouncingArrow.Hide();
+            bouncingArrow.Hide();
 
-                if (TutorialManager.Instance != null && !isTracingStep && !hasAdvancedFromMaterialClickThisStep)
-                {
-                    hasAdvancedFromMaterialClickThisStep = true;
-                    TutorialManager.Instance.ShowNextStep();
-                }
+            if (TutorialManager.Instance != null && !isTracingStep && !hasAdvancedFromMaterialClickThisStep)
+            {
+                hasAdvancedFromMaterialClickThisStep = true;
+                TutorialManager.Instance.ShowNextStep();
             }
         }
     }
@@ -413,7 +406,12 @@ public class BuildTutorialDirector : MonoBehaviour
         isTutorialRunning = false; 
         hasAdvancedFromMaterialClickThisStep = false;
 
-        if (BuildUIController.Instance != null) BuildUIController.Instance.isTutorialUI_Locked = false;
+        if (BuildUIController.Instance != null)
+        {
+            BuildUIController.Instance.whitelistedMaterial = null;
+            BuildUIController.Instance.whitelistedButton = null;
+        }
+        
         if (bouncingArrow != null) bouncingArrow.Hide();
         isTracingStep = false;
 

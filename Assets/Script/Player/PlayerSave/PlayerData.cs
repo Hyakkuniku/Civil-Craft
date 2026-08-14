@@ -53,7 +53,6 @@ public class TrackedTask
     public int pendingGold;
     public int pendingExp;
     
-    // --- NEW: Remembers the name of the GameObject to guide the player to! ---
     public string targetWaypointName; 
 }
 
@@ -73,8 +72,12 @@ public class PlayerData
     public string lastSavedScene = "";
     public SerializableVector3 lastSavedPosition;
 
-    // --- NEW: The saved cosmetic ID for hats ---
     public string equippedHatID = ""; 
+
+    // --- NEW: UI Unlock Trackers ---
+    public bool hasUnlockedContractsTab = false;
+    public bool hasUnlockedLessonsTab = false;
+    public bool hasUnlockedObjectiveTracker = false; 
 
     public List<string> unlockedAchievements = new List<string>();
     public List<TrackedTask> activeQuests = new List<TrackedTask>(); 

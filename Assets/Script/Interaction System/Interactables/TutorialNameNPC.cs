@@ -35,6 +35,7 @@ public class TutorialNameNPC : Interactable
     private Transform playerTransform;
 
     private bool hasGivenFetchQuest = false;
+    private bool isWalkingAway = false; // --- NEW: Tracks if the NPC is leaving ---
 
     private void Awake()
     {
@@ -47,6 +48,13 @@ public class TutorialNameNPC : Interactable
 
     private void Update()
     {
+        // --- THE FIX: Stop updating the prompt once they start walking ---
+        if (isWalkingAway)
+        {
+            promptMessage = "";
+            return;
+        }
+
         if (PlayerDataManager.Instance == null) return;
 
         bool hasName = PlayerDataManager.Instance.CurrentData.playerName != "Guest" && !string.IsNullOrEmpty(PlayerDataManager.Instance.CurrentData.playerName);
@@ -59,6 +67,9 @@ public class TutorialNameNPC : Interactable
 
     protected override void Intract()
     {
+        // --- THE FIX: Block interaction if they are walking away ---
+        if (isWalkingAway) return;
+
         FacePlayer();
 
         if (dialogueManager == null) return;
@@ -97,12 +108,17 @@ public class TutorialNameNPC : Interactable
                     TutorialManager.Instance.ShowNextStep();
                 }
 
+                // --- THE FIX: Disable interactions and collider instantly ---
+                isWalkingAway = true;
+                promptMessage = "";
+                Collider myCollider = GetComponent<Collider>();
+                if (myCollider != null) myCollider.enabled = false;
+
                 if (npcWalker != null)
                 {
                     npcWalker.StartWalking();
                 }
 
-                // --- THE FIX: Summon the UI Popup instead of instantly equipping! ---
                 if (ItemUnlockUI.Instance != null && !string.IsNullOrEmpty(rewardHatID))
                 {
                     ItemUnlockUI.Instance.ShowReward(rewardDisplayName, rewardSprite, rewardHatID, () => 
@@ -112,7 +128,6 @@ public class TutorialNameNPC : Interactable
                 }
                 else
                 {
-                    // Fallback just in case you forgot to add the UI Canvas to the scene!
                     if (PlayerCosmetics.Instance != null && !string.IsNullOrEmpty(rewardHatID))
                     {
                         PlayerCosmetics.Instance.UnlockAndEquipHat(rewardHatID);
