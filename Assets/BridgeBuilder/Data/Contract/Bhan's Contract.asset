@@ -36,9 +36,15 @@ MonoBehaviour:
   offerDialogue:
     name: Professor Bhan
     sentences:
-    - For your first job build a bridge using road and piers
-    - piers will be the foundation of the bridge
-    - Ill give you a budget of 15000
+    - For your first job, you will construct a bridge over a 30m <color=#FFB347>span
+      using standard road decking and piers.
+    - The piers will serve as your deep <color=#FFB347>foundation, transferring the
+      downward compression safely into the riverbed.
+    - I am giving you a strict <color=#FFB347>budget of 15,000 to procure all necessary
+      materials.
+    - Before you draft your design at the <color=#FFB347>workbench, I want you to
+      go inspect the live <color=#FFB347>load vehicle we will be using to test its
+      structural integrity.
   reminderDialogue:
     name: Professor Bhan
     sentences:
@@ -50,6 +56,6 @@ MonoBehaviour:
     name: Professor Bhan
     sentences:
     - It held! My cart crossed without a problem. This crossing is connected again
-    - 'See you on the other side
+    - 'See you on the other side of the bridge
 
 '

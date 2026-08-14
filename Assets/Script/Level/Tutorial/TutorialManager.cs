@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.Events;
 using TMPro;
 using System.Collections; 
+using System.Collections.Generic; // Required for List
 
 public enum TutorialPosition
 {
@@ -18,6 +19,15 @@ public class TutorialStep
     
     public bool showNextButton = true;
     public bool canSkip = false;
+
+    // --- NEW: Step-Specific Wasp Waypoints! ---
+    [Header("Wasp Guide Settings")]
+    [Tooltip("Waypoints for the wasp to guide the player during THIS specific step.")]
+    public List<GuiderWaypoint> stepWaypoints;
+
+    [Header("3D World Highlight")]
+    [Tooltip("Drag your 3D Ghost Box here. It will turn on for this step!")]
+    public GameObject worldHighlightObject; 
 
     [Header("Pointer Settings")]
     public bool usePointer = false;
@@ -49,15 +59,11 @@ public class TutorialManager : MonoBehaviour
     [SerializeField] private TutorialPointer bouncingArrow;
 
     [Header("Transition Settings")]
-    [Tooltip("How fast the panel fades and pops when appearing in the same spot.")]
     public float transitionDuration = 0.25f;
-    [Tooltip("How fast the panel slides when moving from Center to Left (or vice versa).")]
     public float slideTransitionDuration = 0.6f;
 
     [Header("Left Panel Attention Animation")]
-    [Tooltip("How fast the left text breathes/pulses to grab attention.")]
     public float pulseSpeed = 4f;
-    [Tooltip("How much the text grows during the pulse (0.05 = 5% larger).")]
     public float pulseAmount = 0.05f;
 
     public bool IsTutorialActive { get; private set; } = false;
@@ -131,11 +137,6 @@ public class TutorialManager : MonoBehaviour
         IsTutorialActive = true;
         lastScreenPosition = null; 
 
-        if (sequence.tutorialWaypoints != null && sequence.tutorialWaypoints.Count > 0 && PathGuider.Instance != null)
-        {
-            PathGuider.Instance.SetNewWaypoints(sequence.tutorialWaypoints);
-        }
-
         ShowNextStep();
     }
 
@@ -159,12 +160,16 @@ public class TutorialManager : MonoBehaviour
 
     private void ShowTutorialStep(TutorialStep step)
     {
-        // Stop any ongoing idle text pulse before we transition and reset the scale
         if (leftTextIdleCoroutine != null)
         {
             StopCoroutine(leftTextIdleCoroutine);
             leftTextIdleCoroutine = null;
             if (leftText != null) leftText.transform.localScale = Vector3.one;
+        }
+        
+        foreach (var s in currentSequence.tutorialSteps)
+        {
+            if (s.worldHighlightObject != null) s.worldHighlightObject.SetActive(false);
         }
 
         GameObject activePanel = step.screenPosition == TutorialPosition.Center ? centerPanel : leftPanel;
@@ -197,7 +202,6 @@ public class TutorialManager : MonoBehaviour
                 waitDelay = transitionDuration;
             }
 
-            // --- THE FIX: Only animate the Text component, and wait for the proper duration! ---
             if (step.screenPosition == TutorialPosition.Left && activeText != null)
             {
                 leftTextIdleCoroutine = StartCoroutine(IdleTextPulseRoutine(activeText, waitDelay));
@@ -225,13 +229,28 @@ public class TutorialManager : MonoBehaviour
             }
         }
 
+        if (step.worldHighlightObject != null)
+        {
+            step.worldHighlightObject.SetActive(true);
+        }
+
+        // --- NEW: Trigger the step-specific Wasp path! ---
+        if (PathGuider.Instance != null)
+        {
+            if (step.stepWaypoints != null && step.stepWaypoints.Count > 0)
+            {
+                PathGuider.Instance.SetNewWaypoints(step.stepWaypoints);
+            }
+            else
+            {
+                // Clear the wasp if this step doesn't have waypoints
+                PathGuider.Instance.SetNewWaypoints(new List<GuiderWaypoint>()); 
+            }
+        }
+
         lastScreenPosition = step.screenPosition;
         step.OnStepStart?.Invoke();
     }
-
-    // ==========================================
-    // ANIMATION LOGIC
-    // ==========================================
 
     private void AnimatePanelIn(GameObject panel)
     {
@@ -297,25 +316,18 @@ public class TutorialManager : MonoBehaviour
         panel.transform.localScale = Vector3.one;
     }
 
-    // --- THE FIX: Idle Pulse Coroutine specifically for the Text ---
     private IEnumerator IdleTextPulseRoutine(TextMeshProUGUI textToAnimate, float delay)
     {
-        // Wait for whichever transition is happening to finish
         yield return new WaitForSecondsRealtime(delay);
-
         Transform textTransform = textToAnimate.transform;
 
         while (true)
         {
-            // Calculate a soft pulsing scale for the text using a sine wave
             float pulseScale = 1f + (Mathf.Sin(Time.unscaledTime * pulseSpeed) * pulseAmount);
             textTransform.localScale = new Vector3(pulseScale, pulseScale, 1f);
-            
             yield return null;
         }
     }
-
-    // ==========================================
 
     private void OnTrackedButtonClicked()
     {
@@ -361,6 +373,20 @@ public class TutorialManager : MonoBehaviour
         if (leftPanel != null) leftPanel.SetActive(false);
 
         if (bouncingArrow != null) bouncingArrow.Hide();
+        
+        if (currentSequence != null)
+        {
+            foreach (var s in currentSequence.tutorialSteps)
+            {
+                if (s.worldHighlightObject != null) s.worldHighlightObject.SetActive(false);
+            }
+        }
+
+        // --- NEW: Clear the wasp path when the tutorial finishes! ---
+        if (PathGuider.Instance != null)
+        {
+            PathGuider.Instance.SetNewWaypoints(new List<GuiderWaypoint>());
+        }
         
         if (BuildTutorialDirector.Instance != null)
         {

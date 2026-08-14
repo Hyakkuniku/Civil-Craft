@@ -32,6 +32,9 @@ public class ContractSO : ScriptableObject
     [Header("Job Constraints")]
     public float budget = 2000f;
     public float liveLoadWeight = 50f; 
+    // --- NEW: Bridge Span added here! ---
+    [Tooltip("The required span/length of the bridge in meters.")]
+    public float bridgeSpan = 30f; 
 
     [Header("Material Restrictions")]
     [Tooltip("List the specific materials allowed for this job and their quantity limits.")]
@@ -43,7 +46,6 @@ public class ContractSO : ScriptableObject
     [Tooltip("The maximum allowed stress percentage before failure (e.g., 85)")]
     [Range(1f, 100f)] public float maxAllowedStress = 100f;
 
-    // --- NEW: Time Attack Constraint ---
     [Tooltip("If checked, the player has a limited amount of time to build the bridge.")]
     public bool isTimeAttack = false;
     [Tooltip("How many seconds the player has to build the bridge before failing.")]

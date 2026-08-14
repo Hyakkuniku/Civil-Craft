@@ -11,14 +11,11 @@ public class TutorialSequence : MonoBehaviour
     [Tooltip("Check this if this tutorial should automatically start when the scene loads (like the movement tutorial)")]
     public bool playOnStart = false;
 
-    [Header("Wasp Waypoints")]
-    // --- THE FIX: Updated to use the new GuiderWaypoint class! ---
-    public List<GuiderWaypoint> tutorialWaypoints;
+    // --- THE FIX: We removed the global Wasp Waypoints from here! They are now inside the TutorialStep! ---
 
     [Header("Tutorial Steps")]
     public TutorialStep[] tutorialSteps;
 
-    // Wait a fraction of a second before starting so the Managers can finish loading!
     private IEnumerator Start()
     {
         if (playOnStart)

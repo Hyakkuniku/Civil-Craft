@@ -24,6 +24,11 @@ public class CinematicShot
     public Transform playerWalkTarget;
     public bool playWalkAnimation = true;
 
+    // --- NEW: Bridge Info UI Toggle ---
+    [Header("Bridge Info Overlay")]
+    [Tooltip("Check this to display the Bridge Info Canvas during this specific shot.")]
+    public bool showBridgeInfoCanvas = false;
+
     [Header("Timing")]
     public AnimationCurve movementCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
     [Tooltip("Delay before moving to the next shot.")]
@@ -57,6 +62,18 @@ public class CinematicDirector : MonoBehaviour
     [Tooltip("Drag your HUD Canvas or Panels here so they vanish during the movie.")]
     public List<GameObject> hudElementsToHide = new List<GameObject>();
 
+    // --- NEW: Bridge Info UI System ---
+    [Header("Bridge Info UI System")]
+    [Tooltip("The contract containing the data you want to display on screen.")]
+    public ContractSO contractToDisplay;
+    [Tooltip("The parent UI panel/canvas holding the bridge info.")]
+    public GameObject bridgeInfoCanvas;
+    
+    public TMPro.TextMeshProUGUI clientNameText;
+    public TMPro.TextMeshProUGUI spanText;
+    public TMPro.TextMeshProUGUI budgetText;
+    public TMPro.TextMeshProUGUI loadText;
+
     [Header("The Sequence")]
     public List<CinematicShot> shots = new List<CinematicShot>();
 
@@ -69,7 +86,6 @@ public class CinematicDirector : MonoBehaviour
     private Quaternion originalCamLocalRot;
     private bool isPlaying = false;
 
-    // Caching for performance
     private bool isFloatParam = false;
     private bool isParamCached = false;
     private bool shotHasWalked = false;
@@ -78,9 +94,10 @@ public class CinematicDirector : MonoBehaviour
 
     private void Start()
     {
+        if (bridgeInfoCanvas != null) bridgeInfoCanvas.SetActive(false);
+
         if (playOnStart)
         {
-            // --- THE FIX: We removed the 0.2s delay. It now locks instantly on Frame 1! ---
             PlayCinematic();
         }
     }
@@ -103,7 +120,6 @@ public class CinematicDirector : MonoBehaviour
         isPlaying = true;
         OnCinematicStarted?.Invoke();
 
-        // 1. Instantly Freeze the Player and Camera before the screen even renders
         InputManager inputObj = FindObjectOfType<InputManager>();
         if (inputObj != null)
         {
@@ -114,13 +130,11 @@ public class CinematicDirector : MonoBehaviour
         PlayerMotor motor = FindObjectOfType<PlayerMotor>();
         if (motor != null) motor.enabled = false;
 
-        // 2. Instantly Hide HUD
         foreach (GameObject ui in hudElementsToHide)
         {
             if (ui != null) ui.SetActive(false);
         }
 
-        // 3. Take Control of the Camera
         if (cinematicCamera == null) cinematicCamera = Camera.main;
         
         if (cinematicCamera != null)
@@ -131,13 +145,11 @@ public class CinematicDirector : MonoBehaviour
             cinematicCamera.transform.SetParent(null);
         }
 
-        // 4. Play Each Shot
         foreach (CinematicShot shot in shots)
         {
             yield return StartCoroutine(PlayShot(shot));
         }
 
-        // 5. Restore Everything
         if (cinematicCamera != null)
         {
             cinematicCamera.transform.SetParent(originalCamParent);
@@ -158,7 +170,9 @@ public class CinematicDirector : MonoBehaviour
             if (ui != null) ui.SetActive(true);
         }
 
-        // Restore and wipe the Pathfinder
+        // --- NEW: Guarantee the bridge info canvas turns off when the cinematic ends ---
+        if (bridgeInfoCanvas != null) bridgeInfoCanvas.SetActive(false);
+
         if (dynamicallySpawnedRockTrail != null)
         {
             foreach (Transform child in dynamicallySpawnedRockTrail.transform)
@@ -210,13 +224,25 @@ public class CinematicDirector : MonoBehaviour
         bool needsWalking = shot.playWalkAnimation && playerAnimator != null && shot.playerWalkTarget != null;
         if (needsWalking) shotHasWalked = true;
 
+        // --- NEW: Populate and Show/Hide the Bridge Info UI for this specific shot ---
+        if (shot.showBridgeInfoCanvas && bridgeInfoCanvas != null && contractToDisplay != null)
+        {
+            bridgeInfoCanvas.SetActive(true);
+            if (clientNameText != null) clientNameText.text = "Client: " + contractToDisplay.clientName;
+            if (spanText != null) spanText.text = "Span: " + contractToDisplay.bridgeSpan + "m";
+            if (budgetText != null) budgetText.text = "Budget: $" + contractToDisplay.budget;
+            if (loadText != null) loadText.text = "Live Load: " + contractToDisplay.liveLoadWeight + "kg";
+        }
+        else if (bridgeInfoCanvas != null)
+        {
+            bridgeInfoCanvas.SetActive(false);
+        }
+
         while (elapsed < shot.duration)
         {
             elapsed += Time.deltaTime;
             float t = shot.movementCurve.Evaluate(elapsed / shot.duration);
 
-            // --- THE FIX: Real-time Pathfinder Scanner ---
-            // Continuously search for the trail during the shot until we find it and hide it!
             if (dynamicallySpawnedRockTrail == null)
             {
                 dynamicallySpawnedRockTrail = GameObject.Find("RockTrail_Container");
@@ -226,14 +252,12 @@ public class CinematicDirector : MonoBehaviour
                 }
             }
 
-            // Move Camera
             if (cinematicCamera != null)
             {
                 cinematicCamera.transform.position = Vector3.Lerp(camStartPos, camEndPos, t);
                 cinematicCamera.transform.rotation = Quaternion.Slerp(camStartRot, camEndRot, t);
             }
 
-            // Move Player
             if (playerActor != null && shot.playerWalkTarget != null)
             {
                 Vector3 newPos = Vector3.Lerp(playerStartPos, playerEndPos, t);
@@ -261,7 +285,6 @@ public class CinematicDirector : MonoBehaviour
             yield return null;
         }
 
-        // Snap to exact end positions
         if (cinematicCamera != null)
         {
             cinematicCamera.transform.position = camEndPos;

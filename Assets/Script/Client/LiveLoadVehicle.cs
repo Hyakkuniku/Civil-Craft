@@ -20,6 +20,11 @@ public class LiveLoadVehicle : Interactable
     [Header("Open World Settings")]
     public ContractSO assignedContract; 
 
+    // --- NEW: Tutorial Integration ---
+    [Header("Tutorial Settings")]
+    [Tooltip("If checked, closing the Info Panel will automatically advance the active tutorial.")]
+    public bool advancesTutorial = false;
+
     [Header("Path Settings")]
     public Transform startPoint;
     public Transform endPoint;
@@ -46,7 +51,7 @@ public class LiveLoadVehicle : Interactable
     [HideInInspector] public bool isParkedAtFinish = false;
     
     private float currentMotorSpeed = 0f;
-    private PhysicMaterial wheelMat; // Cached material
+    private PhysicMaterial wheelMat; 
 
     private class WheelData
     {
@@ -67,7 +72,6 @@ public class LiveLoadVehicle : Interactable
         rb.useGravity = true; 
         rb.collisionDetectionMode = CollisionDetectionMode.Discrete; 
 
-        // Set initial Center of Mass
         rb.centerOfMass = new Vector3(0, centerOfMassOffset, 0);
         rb.constraints = RigidbodyConstraints.FreezeRotationY | RigidbodyConstraints.FreezePositionZ;
         rb.sleepThreshold = 0f;
@@ -85,7 +89,6 @@ public class LiveLoadVehicle : Interactable
         wheelMat.dynamicFriction = 1f; wheelMat.staticFriction = 1f; 
         wheelMat.frictionCombine = PhysicMaterialCombine.Maximum; wheelMat.bounciness = 0f;
 
-        // Create the physical wheel objects, but DO NOT add joints or rigidbodies yet!
         foreach (GameObject visualWheel in wheelObjects)
         {
             if (visualWheel == null) continue;
@@ -163,7 +166,6 @@ public class LiveLoadVehicle : Interactable
         }
     }
 
-    // --- NEW: Cleanly builds the physics components ---
     private void BuildWheelPhysics()
     {
         Collider chassisCol = GetComponent<Collider>();
@@ -198,7 +200,6 @@ public class LiveLoadVehicle : Interactable
         }
     }
 
-    // --- NEW: Strips physics components to flush PhysX cache ---
     private void StripWheelPhysics()
     {
         foreach (var w in wheels)
@@ -218,7 +219,7 @@ public class LiveLoadVehicle : Interactable
 
         if (assignedContract != null) { vehicleMass = assignedContract.liveLoadWeight; if (rb != null) rb.mass = vehicleMass; }
 
-        StripWheelPhysics(); // Purge old caches
+        StripWheelPhysics(); 
 
         rb.isKinematic = true;
 
@@ -236,12 +237,11 @@ public class LiveLoadVehicle : Interactable
             }
         }
 
-        BuildWheelPhysics(); // Rebuild fresh joints
+        BuildWheelPhysics(); 
 
         rb.velocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero; 
         
-        // FIX 1: Reapply the Custom Center of Mass!
         rb.ResetCenterOfMass();
         rb.centerOfMass = new Vector3(0, centerOfMassOffset, 0);
         rb.ResetInertiaTensor(); 
@@ -315,6 +315,12 @@ public class LiveLoadVehicle : Interactable
 
         PlayerMotor player = FindObjectOfType<PlayerMotor>();
         if (player != null) player.enabled = true;
+
+        // --- THE FIX: Advance the tutorial exactly when the player finishes reading and closes the panel! ---
+        if (advancesTutorial && TutorialManager.Instance != null)
+        {
+            TutorialManager.Instance.ShowNextStep();
+        }
     }
 
     public void StopAndFreezeForWin()
@@ -341,7 +347,6 @@ public class LiveLoadVehicle : Interactable
         rb.velocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
         
-        // FIX 1: Reapply Custom Center of Mass!
         rb.ResetCenterOfMass();
         rb.centerOfMass = new Vector3(0, centerOfMassOffset, 0);
         rb.ResetInertiaTensor();
@@ -360,7 +365,7 @@ public class LiveLoadVehicle : Interactable
             }
         }
 
-        StripWheelPhysics(); // FIX 2: Destroy physics to flush PhysX
+        StripWheelPhysics(); 
 
         rb.Sleep(); 
     }
