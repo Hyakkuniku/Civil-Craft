@@ -489,7 +489,7 @@ public class LevelCompleteManager : MonoBehaviour
             if (bonusText != null) bonusText.text = "";
             if (penaltyText != null) penaltyText.text = "";
         }
-        else if (currentContract != null && alreadyPaidContracts.Contains(currentContract.name))
+        else if (currentContract != null && IsContractPaid(currentContract.name))
         {
             calculatedGold = 0;
             calculatedExp = 0;
@@ -605,19 +605,25 @@ public class LevelCompleteManager : MonoBehaviour
     {
         if (LevelFailedManager.Instance != null) LevelFailedManager.Instance.ResetFailCount();
 
+        // Capture this before any completion/reward mutation below. A redesign may
+        // happen after reloading the game, so the persistent completed-contract list
+        // is authoritative; the local alreadyPaidContracts cache is not enough.
+        bool wasContractAlreadyCompleted = activeContract != null &&
+                                           IsContractPaid(activeContract.name);
+
         NPCContractGiver[] npcs = FindObjectsOfType<NPCContractGiver>();
         foreach (var npc in npcs)
         {
             if (npc.contractToGive == activeContract) 
             {
-                if (!alreadyPaidContracts.Contains(activeContract.name))
+                if (!wasContractAlreadyCompleted)
                 {
                     npc.isContractCompleted = true;
                 }
             }
         }
 
-        if (activeContract != null && activeContract.autoCollectReward && !alreadyPaidContracts.Contains(activeContract.name))
+        if (activeContract != null && activeContract.autoCollectReward && !wasContractAlreadyCompleted)
         {
             int earnedGold = GetContractGold(activeContract.name);
             int earnedExp = GetContractExp(activeContract.name);
@@ -664,7 +670,13 @@ public class LevelCompleteManager : MonoBehaviour
             }
         }
 
-        if (ObjectiveTrackerUI.Instance != null && activeContract != null && !activeContract.autoCollectReward)
+        // Persist the unread objective update before exiting Build Mode or changing scenes.
+        // This does not depend on ObjectiveTrackerUI being present in the current scene.
+        if (PlayerDataManager.Instance != null && activeContract != null && !wasContractAlreadyCompleted)
+            PlayerDataManager.Instance.MarkObjectiveAlertUnread();
+
+        if (ObjectiveTrackerUI.Instance != null && activeContract != null &&
+            !activeContract.autoCollectReward && !wasContractAlreadyCompleted)
         {
             ObjectiveTrackerUI.Instance.NotifyBridgeBuilt(activeContract.name);
         }

@@ -14,6 +14,7 @@ public class PlayerDataManager : MonoBehaviour
 
     public Action OnAlmanacUnlocked;
     public Action OnAlmanacAlertsChanged;
+    public Action OnObjectiveAlertsChanged;
     public Action<AchievementSO> OnAchievementUnlocked; 
     
     // Optional: Useful if you have a top-right Gold UI that needs to refresh immediately!
@@ -129,10 +130,28 @@ public class PlayerDataManager : MonoBehaviour
             CurrentData.lifetimeContractsCompleted++; 
             CurrentData.hasUnlockedContractsTab = true;
             CurrentData.hasUnreadContractsAlert = true;
+            CurrentData.hasUnreadObjectiveAlert = true;
             SaveGame();
             OnAlmanacAlertsChanged?.Invoke();
+            OnObjectiveAlertsChanged?.Invoke();
             CheckAllAchievements(); 
         } 
+    }
+
+    public void MarkObjectiveAlertUnread()
+    {
+        if (CurrentData == null) return;
+        CurrentData.hasUnreadObjectiveAlert = true;
+        SaveGame();
+        OnObjectiveAlertsChanged?.Invoke();
+    }
+
+    public void ClearObjectiveAlert()
+    {
+        if (CurrentData == null || !CurrentData.hasUnreadObjectiveAlert) return;
+        CurrentData.hasUnreadObjectiveAlert = false;
+        SaveGame();
+        OnObjectiveAlertsChanged?.Invoke();
     }
 
     // ────────────────────────────────────────────────

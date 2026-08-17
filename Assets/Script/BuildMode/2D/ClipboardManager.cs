@@ -452,6 +452,11 @@ public class ClipboardManager : MonoBehaviour
         foreach(Point p in newRealPoints) p.EvaluateAnchorState();
 
         CommandManager.Instance.RecordAction(pasteAction);
+
+        // Pasted bars are a normal build action. Route the complete atomic paste
+        // through the same strict ghost validation used by manually drawn bars.
+        if (BuildTutorialDirector.Instance != null)
+            BuildTutorialDirector.Instance.OnBuildActionCompleted(pasteAction);
         
         if (BuildUIController.Instance != null)
         {

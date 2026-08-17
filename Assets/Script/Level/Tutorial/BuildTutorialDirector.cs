@@ -28,6 +28,17 @@ public class ToolUIMapping
 
 public class BuildTutorialDirector : MonoBehaviour
 {
+    private sealed class TraceStepState
+    {
+        public int stepIndex;
+        public GhostSegment[] ghosts;
+        public Transform[] ghostPoints;
+        public Transform parent;
+        public bool completed;
+        public readonly Dictionary<GhostSegment, Bar> coveringBars =
+            new Dictionary<GhostSegment, Bar>();
+    }
+
     public static BuildTutorialDirector Instance { get; private set; }
 
     [Header("UI References")]
@@ -57,10 +68,14 @@ public class BuildTutorialDirector : MonoBehaviour
 
     public bool IsAwaitingInvalidBarUndo { get; private set; }
     public bool CanPlaceMaterials => !IsAwaitingInvalidBarUndo;
+    public bool CanStartSimulation => !isTutorialRunning || simulationUnlockedForTutorial;
 
     private GhostSegment[] activeGhosts;
     private Transform[] activeGhostPoints;
     private int activeStepIndex = -1;
+    private TraceStepState activeTraceState;
+    private readonly Dictionary<int, TraceStepState> traceStatesByStep =
+        new Dictionary<int, TraceStepState>();
 
     private BridgeMaterialSO expectedMaterial;
     private GameObject expectedTool;
@@ -68,6 +83,7 @@ public class BuildTutorialDirector : MonoBehaviour
     private Button trackedToolButton;
     private UnityAction trackedToolButtonAction;
     private Coroutine undoPointerCoroutine;
+    private bool simulationUnlockedForTutorial;
 
     private Bar lastTintedBar;
     private readonly Dictionary<Renderer, Color> originalColors = new Dictionary<Renderer, Color>();
@@ -135,6 +151,7 @@ public class BuildTutorialDirector : MonoBehaviour
         expectedTool = null;
         activeGhosts = null;
         activeGhostPoints = null;
+        activeTraceState = null;
         ClearTrackedToolButton();
         RestoreTintedBar();
         ClearUndoPrompt();
@@ -155,12 +172,18 @@ public class BuildTutorialDirector : MonoBehaviour
                                GameManager.Instance.CurrentState == GameManager.GameState.Building;
 
         EndTutorial();
+        ClearTraceStepStates();
         isTutorialRunning = isBuildSequence;
+        simulationUnlockedForTutorial = false;
+        if (BuildUIController.Instance != null)
+            BuildUIController.Instance.RefreshSimulationButtonLock();
         if (exitBuildModeButton != null) exitBuildModeButton.SetActive(!isBuildSequence);
     }
 
     public void LockAllUI()
     {
+        if (!isTutorialRunning)
+            simulationUnlockedForTutorial = false;
         isTutorialRunning = true;
 
         if (BuildUIController.Instance != null)
@@ -168,10 +191,30 @@ public class BuildTutorialDirector : MonoBehaviour
             BuildUIController.Instance.isTutorialUI_Locked = true;
             BuildUIController.Instance.whitelistedMaterial = null;
             BuildUIController.Instance.whitelistedButton = null;
+            BuildUIController.Instance.RefreshSimulationButtonLock();
         }
 
         if (bouncingArrow != null) bouncingArrow.Hide();
         if (exitBuildModeButton != null) exitBuildModeButton.SetActive(false);
+    }
+
+    /// <summary>
+    /// Assign this to a TutorialStep OnStepStart UnityEvent when simulation should
+    /// become available. It remains available for the rest of the current sequence.
+    /// </summary>
+    public void UnlockSimulation()
+    {
+        simulationUnlockedForTutorial = true;
+        if (BuildUIController.Instance != null)
+            BuildUIController.Instance.RefreshSimulationButtonLock();
+    }
+
+    /// <summary>Allows a later tutorial step to explicitly lock simulation again.</summary>
+    public void LockSimulation()
+    {
+        simulationUnlockedForTutorial = false;
+        if (BuildUIController.Instance != null)
+            BuildUIController.Instance.RefreshSimulationButtonLock();
     }
 
     public void PromptMaterialClick(BridgeMaterialSO material)
@@ -228,6 +271,20 @@ public class BuildTutorialDirector : MonoBehaviour
 
     public void PromptDrawBridge()
     {
+        BeginTracingStep(null);
+    }
+
+    /// <summary>
+    /// Preferred for sequences with multiple baked bridges. Assign the existing ghost
+    /// parent GameObject in the TutorialStep UnityEvent so this step owns only that set.
+    /// </summary>
+    public void PromptDrawBridgeForContainer(GameObject ghostContainer)
+    {
+        BeginTracingStep(ghostContainer);
+    }
+
+    private void BeginTracingStep(GameObject ghostContainer)
+    {
         LockAllUI();
         ClearTrackedToolButton();
         isTracingStep = true;
@@ -247,11 +304,48 @@ public class BuildTutorialDirector : MonoBehaviour
         if (TutorialManager.Instance != null) TutorialManager.Instance.SetNextButtonActive(false);
         if (bouncingArrow != null) bouncingArrow.Hide();
 
-        activeGhosts = FindObjectsOfType<GhostSegment>(false);
-        activeGhostPoints = FindGhostPoints(activeGhosts);
+        if (!traceStatesByStep.TryGetValue(activeStepIndex, out activeTraceState) ||
+            activeTraceState == null)
+        {
+            if (ghostContainer != null)
+            {
+                ghostContainer.SetActive(true);
+                MakeGhostContainerNonBlocking(ghostContainer.transform);
+                activeGhosts = ghostContainer.GetComponentsInChildren<GhostSegment>(true);
+            }
+            else
+            {
+                activeGhosts = FindObjectsOfType<GhostSegment>(false);
+            }
+
+            activeGhostPoints = FindGhostPoints(activeGhosts);
+            activeTraceState = new TraceStepState
+            {
+                stepIndex = activeStepIndex,
+                ghosts = activeGhosts,
+                ghostPoints = activeGhostPoints,
+                parent = ghostContainer != null ? ghostContainer.transform : GetGhostParent(activeGhosts)
+            };
+            traceStatesByStep[activeStepIndex] = activeTraceState;
+            MakeGhostContainerNonBlocking(activeTraceState.parent);
+        }
+        else
+        {
+            activeGhosts = activeTraceState.ghosts;
+            activeGhostPoints = activeTraceState.ghostPoints;
+            if (activeTraceState.parent != null)
+            {
+                activeTraceState.parent.gameObject.SetActive(true);
+                MakeGhostContainerNonBlocking(activeTraceState.parent);
+            }
+        }
+
+        activeTraceState.completed = false;
 
         if (activeGhosts == null || activeGhosts.Length == 0)
             Debug.LogWarning("Build tutorial tracing started, but no active GhostSegment objects were found.");
+        else
+            RefreshGhostCoverage(activeTraceState);
     }
 
     public void OnMaterialClicked(BridgeMaterialSO clickedMaterial)
@@ -380,6 +474,8 @@ public class BuildTutorialDirector : MonoBehaviour
             }
 
             matchedGhosts.Add(matchedGhost);
+            if (activeTraceState != null)
+                activeTraceState.coveringBars[matchedGhost] = bar;
         }
 
         if (firstInvalidBar != null)
@@ -507,6 +603,124 @@ public class BuildTutorialDirector : MonoBehaviour
         CheckGhostBridgeCompletion();
     }
 
+    /// <summary>Called by CommandManager after an Undo has changed the live bridge.</summary>
+    public void OnHistoryActionUndone(HistoryAction undoneAction)
+    {
+        if (undoneAction == null) return;
+
+        if (IsAwaitingInvalidBarUndo)
+        {
+            NotifyUndoCompleted();
+            return;
+        }
+
+        OnBridgeHistoryChanged();
+    }
+
+    /// <summary>
+    /// Called after Redo has restored an action. Rebuilt bars use the same strict,
+    /// one-bar-per-ghost validation path as manually drawn and pasted bars.
+    /// </summary>
+    public void OnHistoryActionRedone(HistoryAction redoneAction)
+    {
+        if (redoneAction == null || IsAwaitingInvalidBarUndo) return;
+
+        if (isTracingStep && redoneAction.isBuildEvent)
+        {
+            OnBuildActionCompleted(redoneAction);
+            return;
+        }
+
+        OnBridgeHistoryChanged();
+    }
+
+    /// <summary>
+    /// Re-evaluates ghost visibility after Undo, Redo, delete, move, or merge actions.
+    /// If a completed trace became incomplete, the tutorial is returned to that trace step.
+    /// </summary>
+    public void OnBridgeHistoryChanged()
+    {
+        if (IsAwaitingInvalidBarUndo) return;
+
+        TraceStepState earliestBrokenCompletedStep = null;
+        List<TraceStepState> orderedStates = new List<TraceStepState>(traceStatesByStep.Values);
+        orderedStates.Sort((a, b) => a.stepIndex.CompareTo(b.stepIndex));
+
+        // Re-evaluate every bridge that this sequence has already completed. This is
+        // essential when Undo removes a first-bridge bar while a later paste step is active.
+        foreach (TraceStepState state in orderedStates)
+        {
+            if (state == null || !state.completed) continue;
+
+            bool stillComplete = RefreshGhostCoverage(state);
+            if (stillComplete)
+            {
+                if (state.parent != null) state.parent.gameObject.SetActive(false);
+                continue;
+            }
+
+            state.completed = false;
+            if (earliestBrokenCompletedStep == null)
+                earliestBrokenCompletedStep = state;
+        }
+
+        if (earliestBrokenCompletedStep != null)
+        {
+            RestoreTraceStep(earliestBrokenCompletedStep, orderedStates);
+            return;
+        }
+
+        if (isTracingStep && activeTraceState != null)
+        {
+            if (activeTraceState.parent != null)
+                activeTraceState.parent.gameObject.SetActive(true);
+            CheckGhostBridgeCompletion();
+        }
+    }
+
+    private void RestoreTraceStep(TraceStepState targetState, List<TraceStepState> orderedStates)
+    {
+        if (targetState == null) return;
+
+        // Later blueprint containers must not leak into the restored step.
+        foreach (TraceStepState state in orderedStates)
+        {
+            if (state == null || state == targetState || state.stepIndex < targetState.stepIndex) continue;
+            if (state.parent != null) state.parent.gameObject.SetActive(false);
+        }
+
+        if (targetState.parent != null)
+        {
+            targetState.parent.gameObject.SetActive(true);
+            MakeGhostContainerNonBlocking(targetState.parent);
+        }
+
+        activeStepIndex = targetState.stepIndex;
+        activeTraceState = targetState;
+        activeGhosts = targetState.ghosts;
+        activeGhostPoints = targetState.ghostPoints;
+
+        TutorialManager tutorial = TutorialManager.Instance;
+        bool returnedToTracingStep = tutorial != null &&
+                                     tutorial.CurrentStepIndex > targetState.stepIndex &&
+                                     tutorial.ReturnToStep(targetState.stepIndex);
+
+        if (!returnedToTracingStep)
+        {
+            // Either the manager was already on this step or it was unavailable.
+            isTracingStep = true;
+            LockAllUI();
+        }
+
+        // ReturnToStep reruns PromptDrawBridge and reconnects activeTraceState. Reapply
+        // coverage afterward so only the specific missing GhostSegments are visible.
+        activeTraceState = targetState;
+        activeGhosts = targetState.ghosts;
+        activeGhostPoints = targetState.ghostPoints;
+        isTracingStep = true;
+        RefreshGhostCoverage(targetState);
+    }
+
     private void ClearUndoPrompt()
     {
         if (undoPointerCoroutine != null)
@@ -524,32 +738,58 @@ public class BuildTutorialDirector : MonoBehaviour
 
     public void CheckGhostBridgeCompletion()
     {
-        if (!isTracingStep || IsAwaitingInvalidBarUndo || activeGhosts == null || activeGhosts.Length == 0) return;
+        if (!isTracingStep || IsAwaitingInvalidBarUndo || activeTraceState == null ||
+            activeGhosts == null || activeGhosts.Length == 0) return;
+
+        bool allGhostsCovered = RefreshGhostCoverage(activeTraceState);
+        if (!allGhostsCovered) return;
+
+        activeTraceState.completed = true;
+
+        isTracingStep = false;
+        RestoreTintedBar();
+
+        if (activeTraceState.parent != null)
+            activeTraceState.parent.gameObject.SetActive(false);
+
+        if (TutorialManager.Instance != null) TutorialManager.Instance.ShowNextStep();
+    }
+
+    private bool RefreshGhostCoverage(TraceStepState state)
+    {
+        if (state == null) return false;
+        GhostSegment[] ghosts = state.ghosts;
+        Transform[] ghostPoints = state.ghostPoints;
+        if (ghosts == null || ghosts.Length == 0) return false;
 
         Bar[] allRealBars = FindObjectsOfType<Bar>();
         bool allGhostsCovered = true;
         HashSet<Bar> usedBars = new HashSet<Bar>();
+        Dictionary<GhostSegment, Bar> previousCoverage =
+            new Dictionary<GhostSegment, Bar>(state.coveringBars);
+        state.coveringBars.Clear();
 
-        foreach (GhostSegment ghost in activeGhosts)
+        foreach (GhostSegment ghost in ghosts)
         {
             if (ghost == null) continue;
             bool covered = false;
 
+            if (previousCoverage.TryGetValue(ghost, out Bar previousBar) &&
+                IsActiveBarMatch(previousBar, ghost) && !usedBars.Contains(previousBar))
+            {
+                covered = true;
+                usedBars.Add(previousBar);
+                state.coveringBars[ghost] = previousBar;
+            }
+
             foreach (Bar realBar in allRealBars)
             {
-                if (usedBars.Contains(realBar) || realBar == null || !realBar.gameObject.activeInHierarchy ||
-                    realBar.materialData != ghost.requiredMaterial || realBar.startPoint == null || realBar.endPoint == null)
-                {
-                    continue;
-                }
+                if (covered) break;
+                if (usedBars.Contains(realBar) || !IsActiveBarMatch(realBar, ghost)) continue;
 
-                if (DoesPlacementMatchGhost(realBar.materialData, realBar.startPoint.transform.position,
-                        realBar.endPoint.transform.position, ghost))
-                {
-                    covered = true;
-                    usedBars.Add(realBar);
-                    break;
-                }
+                covered = true;
+                usedBars.Add(realBar);
+                state.coveringBars[ghost] = realBar;
             }
 
             ghost.isCovered = covered;
@@ -557,23 +797,23 @@ public class BuildTutorialDirector : MonoBehaviour
             if (!covered) allGhostsCovered = false;
         }
 
-        UpdateGhostPointVisibility();
-        if (!allGhostsCovered) return;
-
-        isTracingStep = false;
-        RestoreTintedBar();
-
-        if (activeGhosts.Length > 0 && activeGhosts[0] != null && activeGhosts[0].transform.parent != null)
-            activeGhosts[0].transform.parent.gameObject.SetActive(false);
-
-        if (TutorialManager.Instance != null) TutorialManager.Instance.ShowNextStep();
+        UpdateGhostPointVisibility(ghostPoints);
+        return allGhostsCovered;
     }
 
-    private void UpdateGhostPointVisibility()
+    private bool IsActiveBarMatch(Bar bar, GhostSegment ghost)
     {
-        if (activeGhostPoints == null) return;
+        return bar != null && ghost != null && bar.gameObject.activeInHierarchy &&
+               bar.materialData == ghost.requiredMaterial && bar.startPoint != null && bar.endPoint != null &&
+               DoesPlacementMatchGhost(bar.materialData, bar.startPoint.transform.position,
+                   bar.endPoint.transform.position, ghost);
+    }
 
-        foreach (Transform ghostPoint in activeGhostPoints)
+    private void UpdateGhostPointVisibility(Transform[] ghostPoints)
+    {
+        if (ghostPoints == null) return;
+
+        foreach (Transform ghostPoint in ghostPoints)
         {
             if (ghostPoint == null) continue;
             bool covered = false;
@@ -592,6 +832,40 @@ public class BuildTutorialDirector : MonoBehaviour
 
             ghostPoint.gameObject.SetActive(!covered);
         }
+    }
+
+    private static Transform GetGhostParent(GhostSegment[] ghosts)
+    {
+        if (ghosts == null) return null;
+        foreach (GhostSegment ghost in ghosts)
+        {
+            if (ghost != null) return ghost.transform.parent;
+        }
+        return null;
+    }
+
+    private static void MakeGhostContainerNonBlocking(Transform ghostParent)
+    {
+        if (ghostParent == null) return;
+
+        int ignoreRaycastLayer = LayerMask.NameToLayer("Ignore Raycast");
+        foreach (Transform child in ghostParent.GetComponentsInChildren<Transform>(true))
+        {
+            if (ignoreRaycastLayer >= 0) child.gameObject.layer = ignoreRaycastLayer;
+
+            foreach (Collider collider in child.GetComponents<Collider>())
+                collider.enabled = false;
+            foreach (Collider2D collider in child.GetComponents<Collider2D>())
+                collider.enabled = false;
+            foreach (Graphic graphic in child.GetComponents<Graphic>())
+                graphic.raycastTarget = false;
+        }
+    }
+
+    private void ClearTraceStepStates()
+    {
+        traceStatesByStep.Clear();
+        activeTraceState = null;
     }
 
     private static Transform[] FindGhostPoints(GhostSegment[] ghosts)
@@ -668,6 +942,7 @@ public class BuildTutorialDirector : MonoBehaviour
     public void EndTutorial()
     {
         isTutorialRunning = false;
+        simulationUnlockedForTutorial = false;
         activeStepIndex = -1;
         isTracingStep = false;
         isCurrentDragValid = true;
@@ -679,12 +954,14 @@ public class BuildTutorialDirector : MonoBehaviour
         ClearTrackedToolButton();
         RestoreTintedBar();
         ClearUndoPrompt();
+        ClearTraceStepStates();
 
         if (BuildUIController.Instance != null)
         {
             BuildUIController.Instance.isTutorialUI_Locked = false;
             BuildUIController.Instance.whitelistedMaterial = null;
             BuildUIController.Instance.whitelistedButton = null;
+            BuildUIController.Instance.RefreshSimulationButtonLock();
         }
 
         if (bouncingArrow != null) bouncingArrow.Hide();

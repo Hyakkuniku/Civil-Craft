@@ -65,6 +65,7 @@ public class PlayerData
     public bool hasAlmanac = false; 
     public bool hasUnreadAlmanacUnlockAlert = false;
     public bool hasUnreadContractsAlert = false;
+    public bool hasUnreadObjectiveAlert = false;
 
     public int lifetimeBridgesBuilt = 0;
     public int lifetimeGoldEarned = 0;

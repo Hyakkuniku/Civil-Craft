@@ -72,9 +72,26 @@ public class SettingsManager : MonoBehaviour
     // UI VISIBILITY LOGIC
     // ────────────────────────────────────────────────
 
-    public void OpenSettings() { if (settingsPanel != null) settingsPanel.SetActive(true); }
-    public void CloseSettings() { if (settingsPanel != null) settingsPanel.SetActive(false); }
-    public void ToggleSettings() { if (settingsPanel != null) settingsPanel.SetActive(!settingsPanel.activeSelf); }
+    public void OpenSettings()
+    {
+        if (settingsPanel == null) return;
+        if (UIPanelCoordinator.Instance != null) UIPanelCoordinator.Instance.OpenPanel(settingsPanel);
+        else settingsPanel.SetActive(true);
+    }
+
+    public void CloseSettings()
+    {
+        if (settingsPanel == null) return;
+        if (UIPanelCoordinator.Instance != null) UIPanelCoordinator.Instance.ClosePanel(settingsPanel);
+        else settingsPanel.SetActive(false);
+    }
+
+    public void ToggleSettings()
+    {
+        if (settingsPanel == null) return;
+        if (settingsPanel.activeSelf) CloseSettings();
+        else OpenSettings();
+    }
 
     // ────────────────────────────────────────────────
     // AUDIO LOGIC

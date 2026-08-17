@@ -5,7 +5,7 @@ public class FindHideHeadLocally : MonoBehaviour
     void Start()
     {
         // Use FindObjectsByType with FindObjectsInactive.Include
-        var scripts = Object.FindObjectsByType<LocalHeadHider>(
+        var scripts = Object.FindObjectsByType<PauseManager>(
             FindObjectsInactive.Include, 
             FindObjectsSortMode.None
         );

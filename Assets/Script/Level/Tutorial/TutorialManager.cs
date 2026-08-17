@@ -61,6 +61,8 @@ public class TutorialManager : MonoBehaviour
     [Header("Transition Settings")]
     public float transitionDuration = 0.25f;
     public float slideTransitionDuration = 0.6f;
+    [Tooltip("Incoming offset used only when ReturnToStep forces the tutorial backwards.")]
+    public Vector2 reverseStepOffset = new Vector2(-180f, 0f);
 
     [Header("Left Panel Attention Animation")]
     public float pulseSpeed = 4f;
@@ -201,7 +203,7 @@ public class TutorialManager : MonoBehaviour
                 BuildTutorialDirector.Instance.BeginStep(currentStepIndex);
 
             TutorialStep step = currentSequence.tutorialSteps[currentStepIndex];
-            ShowTutorialStep(step);
+            ShowTutorialStep(step, false);
         }
         finally
         {
@@ -209,7 +211,40 @@ public class TutorialManager : MonoBehaviour
         }
     }
 
-    private void ShowTutorialStep(TutorialStep step)
+    /// <summary>
+    /// Returns an active sequence to an earlier step and invokes that step's setup
+    /// events again. Used when Undo invalidates a tracing step that already advanced.
+    /// </summary>
+    public bool ReturnToStep(int stepIndex)
+    {
+        if (!IsTutorialActive || currentSequence == null || currentSequence.tutorialSteps == null ||
+            stepIndex < 0 || stepIndex >= currentSequence.tutorialSteps.Length ||
+            stepIndex >= currentStepIndex || isAdvancingStep)
+        {
+            return false;
+        }
+
+        isAdvancingStep = true;
+        try
+        {
+            ClearTrackedButton();
+            currentStepIndex = stepIndex;
+            lastAdvanceFrame = -1;
+            lastScreenPosition = null;
+
+            if (BuildTutorialDirector.Instance != null)
+                BuildTutorialDirector.Instance.BeginStep(currentStepIndex);
+
+            ShowTutorialStep(currentSequence.tutorialSteps[currentStepIndex], true);
+            return true;
+        }
+        finally
+        {
+            isAdvancingStep = false;
+        }
+    }
+
+    private void ShowTutorialStep(TutorialStep step, bool playReverseAnimation)
     {
         if (leftTextIdleCoroutine != null)
         {
@@ -242,7 +277,12 @@ public class TutorialManager : MonoBehaviour
             
             float waitDelay = 0f;
 
-            if (oldPanel != null)
+            if (playReverseAnimation)
+            {
+                AnimatePanelReverse(activePanel);
+                waitDelay = slideTransitionDuration;
+            }
+            else if (oldPanel != null)
             {
                 AnimatePanelSlide(activePanel, oldPanel.transform.position);
                 waitDelay = slideTransitionDuration;
@@ -315,6 +355,12 @@ public class TutorialManager : MonoBehaviour
         currentAnimationCoroutine = StartCoroutine(SlideRoutine(panel, oldWorldPosition));
     }
 
+    private void AnimatePanelReverse(GameObject panel)
+    {
+        if (currentAnimationCoroutine != null) StopCoroutine(currentAnimationCoroutine);
+        currentAnimationCoroutine = StartCoroutine(ReverseSlideRoutine(panel));
+    }
+
     private IEnumerator FadeAndPopRoutine(GameObject panel)
     {
         CanvasGroup group = panel.GetComponent<CanvasGroup>();
@@ -365,6 +411,38 @@ public class TutorialManager : MonoBehaviour
         group.alpha = 1f;
         rt.position = targetWorldPos;
         panel.transform.localScale = Vector3.one;
+    }
+
+    private IEnumerator ReverseSlideRoutine(GameObject panel)
+    {
+        CanvasGroup group = panel.GetComponent<CanvasGroup>();
+        if (group == null) group = panel.AddComponent<CanvasGroup>();
+
+        RectTransform rect = panel.GetComponent<RectTransform>();
+        if (rect == null) yield break;
+
+        Vector2 targetPosition = rect.anchoredPosition;
+        Vector2 startPosition = targetPosition + reverseStepOffset;
+        float duration = Mathf.Max(0.01f, slideTransitionDuration);
+        float elapsed = 0f;
+
+        group.alpha = 0f;
+        rect.anchoredPosition = startPosition;
+        rect.localScale = new Vector3(0.95f, 0.95f, 1f);
+
+        while (elapsed < duration)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            float smoothT = Mathf.SmoothStep(0f, 1f, elapsed / duration);
+            group.alpha = smoothT;
+            rect.anchoredPosition = Vector2.Lerp(startPosition, targetPosition, smoothT);
+            rect.localScale = Vector3.Lerp(new Vector3(0.95f, 0.95f, 1f), Vector3.one, smoothT);
+            yield return null;
+        }
+
+        group.alpha = 1f;
+        rect.anchoredPosition = targetPosition;
+        rect.localScale = Vector3.one;
     }
 
     private IEnumerator IdleTextPulseRoutine(TextMeshProUGUI textToAnimate, float delay)

@@ -37,9 +37,13 @@ public class BuildUIController : MonoBehaviour
     public KeyCode restartKey = KeyCode.Backspace; 
 
     [Header("Play/Pause Button UI")]
+    [Tooltip("Optional explicit reference. If empty, the button is found from Play Pause Button Image.")]
+    public Button simulationButton;
     public Image playPauseButtonImage; 
     public Sprite playIcon;            
     public Sprite stopIcon;            
+    [Tooltip("Optional standalone Simulation Off/Pause button or its layout wrapper. It is hidden for tutorial contracts. Leave empty when Play/Stop share one button.")]
+    public GameObject tutorialSimulationStopObject;
 
     [Header("Contract Info (Budget)")]
     public float fallbackMaxBudget = 1000f; 
@@ -119,6 +123,7 @@ public class BuildUIController : MonoBehaviour
     public RectTransform layoutPanelToRebuild; 
 
     private List<GameObject> temporarilyHiddenSimUI = new List<GameObject>();
+    private bool simulationInProgressForUI;
 
     private float cachedBaseCost = 0f;
     private float cachedBaseDeadLoad = 0f;
@@ -171,6 +176,8 @@ public class BuildUIController : MonoBehaviour
             physicsManager.OnSettlePhaseStarted += HandleSimulationBegan;
             physicsManager.OnSimulationStopped += HandleSimulationEnded;
         }
+
+        RefreshSimulationButtonLock();
     }
 
     private void OnDestroy()
@@ -189,6 +196,8 @@ public class BuildUIController : MonoBehaviour
 
     private void HandleSimulationBegan()
     {
+        simulationInProgressForUI = true;
+        RefreshSimulationButtonLock();
         temporarilyHiddenSimUI.Clear();
 
         foreach (GameObject ui in hideDuringSimulation)
@@ -211,6 +220,7 @@ public class BuildUIController : MonoBehaviour
 
     private void HandleSimulationEnded()
     {
+        simulationInProgressForUI = false;
         foreach (GameObject ui in temporarilyHiddenSimUI)
         {
             if (ui != null) ui.SetActive(true);
@@ -225,6 +235,7 @@ public class BuildUIController : MonoBehaviour
         
         BuildCameraController cam = FindObjectOfType<BuildCameraController>();
         if (cam != null) cam.ReturnToBuildView();
+        RefreshSimulationButtonLock();
     }
 
     public void RefreshAllMaterialButtons()
@@ -305,6 +316,7 @@ public class BuildUIController : MonoBehaviour
         if (layoutPanelToRebuild != null)
             LayoutRebuilder.ForceRebuildLayoutImmediate(layoutPanelToRebuild);
         ScheduleToolsPanelResize();
+        RefreshSimulationButtonLock();
     }
 
     public void SetToolForcedVisible(BuildModeTool tool, bool forceVisible)
@@ -874,7 +886,7 @@ public class BuildUIController : MonoBehaviour
     public void OnToggleStatsButtonClicked() { if (!IsToolAllowed()) return; if (statsPanel != null) statsPanel.SetActive(!statsPanel.activeSelf); }
     public void OnCutSelectedButtonClicked() { if (!IsToolAllowed() || IsTopologyEditBlockedDuringTracing()) return; if (ClipboardManager.Instance != null && barCreator != null) ClipboardManager.Instance.CutSelected(barCreator.GetSelectedPoints()); }
     public void OnCopyButtonClicked() { if (!IsToolAllowed()) return; if (ClipboardManager.Instance != null && barCreator != null) ClipboardManager.Instance.CopySelected(barCreator.GetSelectedPoints()); }
-    public void OnPasteButtonClicked() { if (!IsToolAllowed() || IsTopologyEditBlockedDuringTracing()) return; if (ClipboardManager.Instance != null) ClipboardManager.Instance.StampPaste(); }
+    public void OnPasteButtonClicked() { if (!IsToolAllowed()) return; if (ClipboardManager.Instance != null) ClipboardManager.Instance.StampPaste(); }
     public void OnUndoButtonClicked()
     {
         BuildTutorialDirector director = BuildTutorialDirector.Instance;
@@ -886,7 +898,7 @@ public class BuildUIController : MonoBehaviour
         if (CommandManager.Instance != null) CommandManager.Instance.Undo();
         if (director != null) director.NotifyUndoCompleted();
     }
-    public void OnRedoButtonClicked() { if (!IsToolAllowed() || IsTopologyEditBlockedDuringTracing()) return; if (CommandManager.Instance != null) CommandManager.Instance.Redo(); }
+    public void OnRedoButtonClicked() { if (!IsToolAllowed()) return; if (CommandManager.Instance != null) CommandManager.Instance.Redo(); }
     public void OnDeleteSelectedButtonClicked() { if (!IsToolAllowed() || IsTopologyEditBlockedDuringTracing()) return; if (barCreator != null) barCreator.DeleteSelected(); }
 
     public void OnToggleSimulationButtonClicked() 
@@ -900,6 +912,14 @@ public class BuildUIController : MonoBehaviour
     { 
         if (!IsToolAllowed()) return;
 
+        BuildTutorialDirector director = BuildTutorialDirector.Instance;
+        if (director != null && !director.CanStartSimulation)
+        {
+            LogAction("Simulation is locked until the tutorial enables it.");
+            RefreshSimulationButtonLock();
+            return;
+        }
+
         if (physicsManager != null && !physicsManager.isSimulating) 
         { 
             if (barCreator != null) { barCreator.CancelAllModes(); barCreator.isSimulating = true; } 
@@ -911,13 +931,58 @@ public class BuildUIController : MonoBehaviour
     
     public void OnRestartButtonClicked() 
     { 
-        // --- THE FIX: Let them stop the simulation even during a tutorial! ---
+        if (IsTutorialContractActive())
+        {
+            LogAction("Simulation cannot be stopped early during a tutorial.");
+            RefreshSimulationButtonLock();
+            return;
+        }
+
         if (physicsManager != null && physicsManager.isSimulating) 
         { 
             physicsManager.StopPhysicsAndReset(); 
             if (barCreator != null) barCreator.isSimulating = false; 
             LogAction("Simulation Stopped");
         } 
+    }
+
+    public void RefreshSimulationButtonLock()
+    {
+        if (simulationButton == null && playPauseButtonImage != null)
+            simulationButton = playPauseButtonImage.GetComponentInParent<Button>(true);
+
+        if (simulationButton == null) return;
+
+        bool simulationIsRunning = simulationInProgressForUI ||
+                                   (physicsManager != null && physicsManager.isSimulating);
+        bool tutorialContractActive = IsTutorialContractActive();
+        bool hiddenByContract = GameManager.Instance != null &&
+                                GameManager.Instance.CurrentContract != null &&
+                                GameManager.Instance.CurrentContract.IsToolHidden(BuildModeTool.Simulate);
+        BuildTutorialDirector director = BuildTutorialDirector.Instance;
+        bool tutorialAllowsPlay = director == null || director.CanStartSimulation;
+        simulationButton.interactable = tutorialContractActive
+            ? !simulationIsRunning && tutorialAllowsPlay
+            : simulationIsRunning || tutorialAllowsPlay;
+
+        if (tutorialSimulationStopObject != null)
+        {
+            tutorialSimulationStopObject.SetActive(!tutorialContractActive && !hiddenByContract);
+        }
+        else
+        {
+            // A shared Play/Stop button must remain visible before simulation so the
+            // tutorial can unlock Play. Once running, hide it to prevent early stopping.
+            simulationButton.gameObject.SetActive(!hiddenByContract &&
+                                                   !(tutorialContractActive && simulationIsRunning));
+        }
+    }
+
+    private static bool IsTutorialContractActive()
+    {
+        return GameManager.Instance != null &&
+               GameManager.Instance.CurrentContract != null &&
+               GameManager.Instance.CurrentContract.isTutorialContract;
     }
 
     public void OnMaterialSelected(BridgeMaterialSO newMaterial) 

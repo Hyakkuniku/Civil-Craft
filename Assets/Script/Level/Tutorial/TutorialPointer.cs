@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.UI;
 
 public class TutorialPointer : MonoBehaviour
 {
@@ -13,6 +14,18 @@ public class TutorialPointer : MonoBehaviour
     private void Awake()
     {
         rectTransform = GetComponent<RectTransform>();
+
+        // Tutorial arrows are visual guidance only. They must never intercept the
+        // button or build-area pointer event that they are pointing toward.
+        foreach (Graphic graphic in GetComponentsInChildren<Graphic>(true))
+            graphic.raycastTarget = false;
+
+        CanvasGroup canvasGroup = GetComponent<CanvasGroup>();
+        if (canvasGroup != null)
+        {
+            canvasGroup.interactable = false;
+            canvasGroup.blocksRaycasts = false;
+        }
     }
 
     private void OnEnable()

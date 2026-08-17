@@ -94,6 +94,11 @@ public class CommandManager : MonoBehaviour
             }
         }
         redoStack.Clear();
+
+        // Delete/move/merge actions have already changed the bridge when they are
+        // recorded, so tracing ghosts must be refreshed immediately.
+        if (!action.isBuildEvent && BuildTutorialDirector.Instance != null)
+            BuildTutorialDirector.Instance.OnBridgeHistoryChanged();
     }
 
     public void Undo()
@@ -123,6 +128,9 @@ public class CommandManager : MonoBehaviour
             BuildUIController.Instance.MarkBridgeDirty();
             BuildUIController.Instance.LogAction("Undid Last Action");
         }
+
+        if (BuildTutorialDirector.Instance != null)
+            BuildTutorialDirector.Instance.OnHistoryActionUndone(action);
     }
 
     public void Redo()
@@ -152,6 +160,10 @@ public class CommandManager : MonoBehaviour
             BuildUIController.Instance.MarkBridgeDirty();
             BuildUIController.Instance.LogAction("Redid Last Action");
         }
+
+
+        if (BuildTutorialDirector.Instance != null)
+            BuildTutorialDirector.Instance.OnHistoryActionRedone(action);
     }
 
     private void RefreshAllPoints() 

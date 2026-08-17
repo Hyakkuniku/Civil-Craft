@@ -49,7 +49,7 @@ public class ObjectiveTrackerUI : MonoBehaviour
         if (trackerPanel != null) trackerPanel.SetActive(false);
         if (listPanel != null) listPanel.SetActive(false);
         if (detailsPanel != null) detailsPanel.SetActive(false);
-        ClearAlert();
+        if (newAlertIcon != null) newAlertIcon.SetActive(false);
     }
 
     private void Start()
@@ -59,8 +59,16 @@ public class ObjectiveTrackerUI : MonoBehaviour
             openTrackerButton.SetActive(PlayerDataManager.Instance.CurrentData.hasUnlockedObjectiveTracker);
         }
 
-        ClearAlert();
+        if (PlayerDataManager.Instance != null)
+            PlayerDataManager.Instance.OnObjectiveAlertsChanged += RefreshAlertIcon;
+        RefreshAlertIcon();
         RefreshQuestList();
+    }
+
+    private void OnDestroy()
+    {
+        if (PlayerDataManager.Instance != null)
+            PlayerDataManager.Instance.OnObjectiveAlertsChanged -= RefreshAlertIcon;
     }
 
     private void Update()
@@ -74,21 +82,36 @@ public class ObjectiveTrackerUI : MonoBehaviour
 
     public void ClearAlert()
     {
-        if (newAlertIcon != null)
-        {
-            newAlertIcon.SetActive(false);
-        }
+        if (PlayerDataManager.Instance != null)
+            PlayerDataManager.Instance.ClearObjectiveAlert();
+
+        RefreshAlertIcon();
     }
 
     private void AlertPlayer()
     {
-        // Do NOT turn on the alert icon if the player is currently viewing the tracker panel!
-        if (trackerPanel != null && trackerPanel.activeSelf) return;
+        // Content that arrives while the tracker is open is already visible/read.
+        if (trackerPanel != null && trackerPanel.activeSelf)
+        {
+            ClearAlert();
+            return;
+        }
+
+        if (PlayerDataManager.Instance != null)
+            PlayerDataManager.Instance.MarkObjectiveAlertUnread();
+
+        RefreshAlertIcon();
+    }
+
+    private void RefreshAlertIcon()
+    {
+        bool trackerIsOpen = trackerPanel != null && trackerPanel.activeSelf;
+        bool hasUnreadUpdate = PlayerDataManager.Instance != null &&
+                               PlayerDataManager.Instance.CurrentData != null &&
+                               PlayerDataManager.Instance.CurrentData.hasUnreadObjectiveAlert;
 
         if (newAlertIcon != null)
-        {
-            newAlertIcon.SetActive(true);
-        }
+            newAlertIcon.SetActive(hasUnreadUpdate && !trackerIsOpen);
     }
 
     private void UnlockAndShowTracker()
@@ -182,13 +205,16 @@ public class ObjectiveTrackerUI : MonoBehaviour
     {
         if (PlayerDataManager.Instance == null) return;
 
+        // Simulation can finish again while redesigning an already paid contract.
+        // That is not new objective content and must not create another unread alert.
+        if (PlayerDataManager.Instance.CurrentData.completedContracts.Contains(contractName))
+            return;
+
         var activeTasks = PlayerDataManager.Instance.CurrentData.activeQuests;
         TrackedTask task = activeTasks.Find(t => t.contractName == contractName);
 
         if (task != null && !task.isCompleted && !task.isReadyToTurnIn)
         {
-            AlertPlayer();
-            
             task.description = "Bridge successfully built! Return to the client to claim your reward.";
 
             NPCContractGiver[] npcs = Resources.FindObjectsOfTypeAll<NPCContractGiver>();
@@ -209,6 +235,10 @@ public class ObjectiveTrackerUI : MonoBehaviour
                 SelectTask(task);
             }
         }
+
+        // Alert even if the task was already updated by another completion callback.
+        // The persistent flag makes this reliable across the following scene transition.
+        AlertPlayer();
     }
 
     public void ShowCompleteButton(int gold, int exp, NPCContractGiver npc)
@@ -367,11 +397,20 @@ public class ObjectiveTrackerUI : MonoBehaviour
         if (trackerPanel != null)
         {
             bool isNowActive = !trackerPanel.activeSelf;
-            trackerPanel.SetActive(isNowActive);
+            if (UIPanelCoordinator.Instance != null)
+            {
+                if (isNowActive) UIPanelCoordinator.Instance.OpenPanel(trackerPanel);
+                else UIPanelCoordinator.Instance.ClosePanel(trackerPanel);
+            }
+            else
+            {
+                trackerPanel.SetActive(isNowActive);
+            }
             
             if (openTrackerButton != null) openTrackerButton.SetActive(!isNowActive);
             
-            SetOtherUIActive(!isNowActive);
+            if (UIPanelCoordinator.Instance == null)
+                SetOtherUIActive(!isNowActive);
             ClearAlert();
             
             if (isNowActive)

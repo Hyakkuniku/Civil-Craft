@@ -311,14 +311,23 @@ public class AlmanacManager : MonoBehaviour
 
         if (PlayerDataManager.Instance != null) PlayerDataManager.Instance.MarkAlmanacOpened();
         RefreshPersistentAlerts();
-        
-        temporarilyHiddenPanels.Clear();
-        foreach (GameObject ui in uiElementsToHide)
+
+        if (UIPanelCoordinator.Instance != null)
         {
-            if (ui != null && ui.activeSelf)
+            // Hide the HUD and competing panels now; the Almanac itself is activated
+            // after its opening animation finishes.
+            UIPanelCoordinator.Instance.OpenPanel(almanacCanvas, false);
+        }
+        else
+        {
+            temporarilyHiddenPanels.Clear();
+            foreach (GameObject ui in uiElementsToHide)
             {
-                temporarilyHiddenPanels.Add(ui);
-                ui.SetActive(false);
+                if (ui != null && ui.activeSelf)
+                {
+                    temporarilyHiddenPanels.Add(ui);
+                    ui.SetActive(false);
+                }
             }
         }
 
@@ -385,11 +394,18 @@ public class AlmanacManager : MonoBehaviour
             animationPanel.SetActive(false);
         }
 
-        foreach (GameObject ui in temporarilyHiddenPanels)
+        if (UIPanelCoordinator.Instance != null)
         {
-            if (ui != null) ui.SetActive(true);
+            UIPanelCoordinator.Instance.ClosePanel(almanacCanvas);
         }
-        temporarilyHiddenPanels.Clear();
+        else
+        {
+            foreach (GameObject ui in temporarilyHiddenPanels)
+            {
+                if (ui != null) ui.SetActive(true);
+            }
+            temporarilyHiddenPanels.Clear();
+        }
 
         isAnimating = false;
     }
