@@ -6,10 +6,10 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/Scenes/Final/Main Menu.unity
+    path: Assets/Scenes/Main Menu.unity
     guid: e6551462db6fec0468d3e1aed3c63ecf
   - enabled: 1
-    path: Assets/Scenes/Final/Mode Selection.unity
+    path: Assets/Scenes/Mode Selection.unity
     guid: b41b5aed9f64313438dc1f29fc759ac4
   - enabled: 0
     path: Assets/Scenes/LevelSelection.unity
@@ -24,10 +24,10 @@ EditorBuildSettings:
     path: Assets/Scenes/Level_1.unity
     guid: 91212fb1b466a0141adf42d10a4d1364
   - enabled: 1
-    path: Assets/Scenes/Final/CanyonCrossing.unity
+    path: Assets/Scenes/CanyonCrossing.unity
     guid: 8343daa9ef4eff6498c8e7f912c03794
   - enabled: 1
-    path: Assets/Scenes/Final/BHAN HOUSE.unity
+    path: Assets/Scenes/BHAN HOUSE.unity
     guid: 7e30f12a14ee5d141b90784b2bc53b06
   - enabled: 0
     path: Assets/Scenes/GAME/Tutorial.unity

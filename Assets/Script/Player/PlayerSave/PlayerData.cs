@@ -63,6 +63,8 @@ public class PlayerData
     public int gold = 0;
     public int exp = 0;
     public bool hasAlmanac = false; 
+    public bool hasUnreadAlmanacUnlockAlert = false;
+    public bool hasUnreadContractsAlert = false;
 
     public int lifetimeBridgesBuilt = 0;
     public int lifetimeGoldEarned = 0;
@@ -76,7 +78,6 @@ public class PlayerData
 
     // --- NEW: UI Unlock Trackers ---
     public bool hasUnlockedContractsTab = false;
-    public bool hasUnlockedLessonsTab = false;
     public bool hasUnlockedObjectiveTracker = false; 
 
     public List<string> unlockedAchievements = new List<string>();

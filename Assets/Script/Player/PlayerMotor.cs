@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public class PlayerMotor : MonoBehaviour
 {
@@ -63,7 +64,10 @@ public class PlayerMotor : MonoBehaviour
             playerAnimator.SetBool("IsGrounded", isGrounded);
         }
         
-        if (isGrounded && Input.GetKeyDown(KeyCode.Space))
+        bool jumpPressed = (Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame) ||
+                           (Gamepad.current != null && Gamepad.current.buttonSouth.wasPressedThisFrame);
+
+        if (isGrounded && jumpPressed)
         {
             Jump();
         }

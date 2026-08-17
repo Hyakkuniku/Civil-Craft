@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public class PlayerLadderClimb : MonoBehaviour
 {
@@ -99,7 +100,15 @@ public class PlayerLadderClimb : MonoBehaviour
             return inputManager.onFoot.Movement.ReadValue<Vector2>().y; 
         }
         
-        // Backup for testing in the Unity PC Editor without the InputManager assigned
-        return Input.GetAxis("Vertical"); 
+        // Backup for scenes where the InputManager reference has not been assigned.
+        float keyboardInput = 0f;
+        if (Keyboard.current != null)
+        {
+            if (Keyboard.current.wKey.isPressed || Keyboard.current.upArrowKey.isPressed) keyboardInput += 1f;
+            if (Keyboard.current.sKey.isPressed || Keyboard.current.downArrowKey.isPressed) keyboardInput -= 1f;
+        }
+
+        if (Mathf.Abs(keyboardInput) > 0.01f) return keyboardInput;
+        return Gamepad.current != null ? Gamepad.current.leftStick.ReadValue().y : 0f;
     }
 }

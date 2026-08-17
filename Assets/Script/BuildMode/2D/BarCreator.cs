@@ -139,7 +139,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     {
         if (Touch.activeTouches.Count > 0) return Touch.activeTouches[0].screenPosition;
         if (UnityEngine.InputSystem.Pointer.current != null) return UnityEngine.InputSystem.Pointer.current.position.ReadValue();
-        return Input.mousePosition;
+        return Vector2.zero;
     }
 
     private bool IsPointerOverUI()
@@ -563,6 +563,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     {
         if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building) return;
         if (isSimulating || Touch.activeTouches.Count > 1) return;
+        if (BuildTutorialDirector.Instance != null && !BuildTutorialDirector.Instance.CanPlaceMaterials) return;
 
         if (eventData.button != PointerEventData.InputButton.Left) return;
 
@@ -1344,18 +1345,17 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         }
 
         Vector3 finalPosition = CalculateTargetPosition(rawWorldPos, existingEndPoint, exactSnapPos);
+        Vector3 startPos = currentBar.StartPosition;
 
-        if (BuildTutorialDirector.Instance != null && BuildTutorialDirector.Instance.isTracingStep)
+        BuildTutorialDirector tutorialDirector = BuildTutorialDirector.Instance;
+        if (tutorialDirector != null && tutorialDirector.isTracingStep)
         {
-            if (!BuildTutorialDirector.Instance.isCurrentDragValid)
+            Vector3 snappedPosition;
+            if (tutorialDirector.TryGetSnappedEndPosition(activeMaterial, startPos, finalPosition, out snappedPosition))
             {
-                CancelCreation();
-                if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("Tutorial: Drag exactly to the Ghost Point!");
-                return;
-            }
-            else
-            {
-                finalPosition = BuildTutorialDirector.Instance.GetClosestValidNode(finalPosition);
+                finalPosition = snappedPosition;
+                if (existingEndPoint != null && Vector3.Distance(existingEndPoint.transform.position, finalPosition) > 0.01f)
+                    existingEndPoint = null;
             }
         }
         
@@ -1370,8 +1370,6 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             if (maxAffordable < limit) limit = maxAffordable;
         }
 
-        Vector3 startPos = currentBar.StartPosition;
-        
         float distanceToTarget = Vector3.Distance(startPos, finalPosition);
         if (existingEndPoint != null && distanceToTarget > limit && distanceToTarget <= limit + 0.2f) limit = distanceToTarget; 
         
@@ -1560,6 +1558,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         
         if (BuildUIController.Instance != null) BuildUIController.Instance.MarkBridgeDirty();
         if (activeMaterial != null && activeMaterial.isPier && previousNonPierMaterial != null) SetActiveMaterial(previousNonPierMaterial);
+        if (tutorialDirector != null) tutorialDirector.OnBuildActionCompleted(buildAction);
     }
 
     public void CancelCreation()

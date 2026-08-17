@@ -3,6 +3,15 @@ using UnityEngine.UI;
 using TMPro; 
 using System.Collections.Generic;
 using System.Collections; 
+using UnityEngine.InputSystem;
+
+[System.Serializable]
+public class BuildToolUIBinding
+{
+    public BuildModeTool tool;
+    [Tooltip("Assign the button's outer wrapper so hiding it also removes its layout space.")]
+    public GameObject uiObject;
+}
 
 public class BuildUIController : MonoBehaviour
 {
@@ -88,6 +97,23 @@ public class BuildUIController : MonoBehaviour
     public Color activeToolColor = new Color(0.902f, 0.737f, 0.463f, 1f); 
     public Color inactiveToolColor = Color.white;
 
+    [Header("Contract Tool Visibility")]
+    [Tooltip("Map every hideable tool enum to its outermost UI button/wrapper.")]
+    public List<BuildToolUIBinding> contractToolBindings = new List<BuildToolUIBinding>();
+    private readonly HashSet<BuildModeTool> forcedVisibleTools = new HashSet<BuildModeTool>();
+    private readonly HashSet<GameObject> contractHiddenToolObjects = new HashSet<GameObject>();
+
+    [Header("Automatic Tools Panel Sizing")]
+    [Tooltip("Usually the RectTransform that also has your Horizontal/Vertical Layout Group.")]
+    public RectTransform toolsPanelToAutoSize;
+    public bool autoSizeToolsPanelWidth = true;
+    public bool autoSizeToolsPanelHeight = false;
+    public Vector2 toolsPanelExtraPadding = Vector2.zero;
+    private Coroutine resizeToolsPanelCoroutine;
+    private RectTransform EffectiveToolsPanel => toolsPanelToAutoSize != null
+        ? toolsPanelToAutoSize
+        : layoutPanelToRebuild;
+
     [Header("Simulation UI Hiding")]
     public List<GameObject> hideDuringSimulation = new List<GameObject>();
     public RectTransform layoutPanelToRebuild; 
@@ -114,6 +140,12 @@ public class BuildUIController : MonoBehaviour
 
     private void Awake() { Instance = this; }
 
+    private void OnEnable()
+    {
+        if (GameManager.Instance != null && GameManager.Instance.CurrentContract != null)
+            RefreshContractBuildUI();
+    }
+
     private void Start()
     {
         if (barCreator == null) barCreator = FindObjectOfType<BarCreator>();
@@ -131,7 +163,7 @@ public class BuildUIController : MonoBehaviour
 
         if (GameManager.Instance != null)
         {
-            GameManager.Instance.OnEnterBuildMode.AddListener(RefreshAllMaterialButtons);
+            GameManager.Instance.OnEnterBuildMode.AddListener(RefreshContractBuildUI);
         }
 
         if (physicsManager != null)
@@ -145,7 +177,7 @@ public class BuildUIController : MonoBehaviour
     {
         if (GameManager.Instance != null)
         {
-            GameManager.Instance.OnEnterBuildMode.RemoveListener(RefreshAllMaterialButtons);
+            GameManager.Instance.OnEnterBuildMode.RemoveListener(RefreshContractBuildUI);
         }
 
         if (physicsManager != null)
@@ -223,8 +255,8 @@ public class BuildUIController : MonoBehaviour
     {
         if (useKeyboardShortcuts)
         {
-            if (Input.GetKeyDown(simulateKey)) OnSimulateButtonClicked();
-            if (Input.GetKeyDown(restartKey)) OnRestartButtonClicked();
+            if (WasKeyPressedThisFrame(simulateKey)) OnSimulateButtonClicked();
+            if (WasKeyPressedThisFrame(restartKey)) OnRestartButtonClicked();
         }
 
         if (physicsManager != null && physicsManager.isSimulating)
@@ -246,6 +278,168 @@ public class BuildUIController : MonoBehaviour
         UpdatePlayPauseButtonUI();
         
         UpdateToolHighlights();
+    }
+
+    public void RefreshContractBuildUI()
+    {
+        ContractSO contract = GameManager.Instance != null ? GameManager.Instance.CurrentContract : null;
+
+        foreach (GameObject previouslyHiddenObject in contractHiddenToolObjects)
+        {
+            if (previouslyHiddenObject != null) previouslyHiddenObject.SetActive(true);
+        }
+        contractHiddenToolObjects.Clear();
+
+        foreach (BuildModeTool tool in System.Enum.GetValues(typeof(BuildModeTool)))
+        {
+            GameObject toolObject = FindToolUIObject(tool);
+            if (toolObject == null) continue;
+
+            bool shouldHide = contract != null && contract.IsToolHidden(tool) &&
+                              !forcedVisibleTools.Contains(tool);
+            toolObject.SetActive(!shouldHide);
+            if (shouldHide) contractHiddenToolObjects.Add(toolObject);
+        }
+
+        RefreshAllMaterialButtons();
+        if (layoutPanelToRebuild != null)
+            LayoutRebuilder.ForceRebuildLayoutImmediate(layoutPanelToRebuild);
+        ScheduleToolsPanelResize();
+    }
+
+    public void SetToolForcedVisible(BuildModeTool tool, bool forceVisible)
+    {
+        if (forceVisible) forcedVisibleTools.Add(tool);
+        else forcedVisibleTools.Remove(tool);
+        RefreshContractBuildUI();
+    }
+
+    private GameObject FindToolUIObject(BuildModeTool tool)
+    {
+        foreach (BuildToolUIBinding binding in contractToolBindings)
+        {
+            if (binding != null && binding.tool == tool && binding.uiObject != null)
+                return binding.uiObject;
+        }
+
+        string handlerName = GetToolHandlerName(tool);
+        if (string.IsNullOrEmpty(handlerName)) return null;
+
+        foreach (Button button in FindObjectsOfType<Button>(true))
+        {
+            for (int i = 0; i < button.onClick.GetPersistentEventCount(); i++)
+            {
+                if (button.onClick.GetPersistentMethodName(i) == handlerName)
+                {
+                    Transform layoutItem = button.transform;
+                    RectTransform toolsPanel = EffectiveToolsPanel;
+                    if (toolsPanel != null && layoutItem.IsChildOf(toolsPanel))
+                    {
+                        while (layoutItem.parent != null && layoutItem.parent != toolsPanel)
+                            layoutItem = layoutItem.parent;
+                    }
+                    return layoutItem.gameObject;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static string GetToolHandlerName(BuildModeTool tool)
+    {
+        switch (tool)
+        {
+            case BuildModeTool.Select: return nameof(OnToggleSelectModeButtonClicked);
+            case BuildModeTool.Move: return nameof(OnToggleMoveModeButtonClicked);
+            case BuildModeTool.Delete: return nameof(OnToggleDeleteModeButtonClicked);
+            case BuildModeTool.Grid: return nameof(OnToggleGridButtonClicked);
+            case BuildModeTool.CancelDrawing: return nameof(OnCancelDrawingButtonClicked);
+            case BuildModeTool.ExitBuildMode: return nameof(OnExitBuildModeButtonClicked);
+            case BuildModeTool.ResetCamera: return nameof(OnResetCameraButtonClicked);
+            case BuildModeTool.Statistics: return nameof(OnToggleStatsButtonClicked);
+            case BuildModeTool.Cut: return nameof(OnCutSelectedButtonClicked);
+            case BuildModeTool.Copy: return nameof(OnCopyButtonClicked);
+            case BuildModeTool.Paste: return nameof(OnPasteButtonClicked);
+            case BuildModeTool.Undo: return nameof(OnUndoButtonClicked);
+            case BuildModeTool.Redo: return nameof(OnRedoButtonClicked);
+            case BuildModeTool.DeleteSelected: return nameof(OnDeleteSelectedButtonClicked);
+            case BuildModeTool.Simulate: return nameof(OnToggleSimulationButtonClicked);
+            default: return null;
+        }
+    }
+
+    private void ScheduleToolsPanelResize()
+    {
+        if (EffectiveToolsPanel == null) return;
+        if (resizeToolsPanelCoroutine != null) StopCoroutine(resizeToolsPanelCoroutine);
+        resizeToolsPanelCoroutine = StartCoroutine(ResizeToolsPanelAfterLayout());
+    }
+
+    private IEnumerator ResizeToolsPanelAfterLayout()
+    {
+        yield return null;
+        RectTransform toolsPanel = EffectiveToolsPanel;
+        if (toolsPanel == null)
+        {
+            resizeToolsPanelCoroutine = null;
+            yield break;
+        }
+
+        Canvas.ForceUpdateCanvases();
+        LayoutRebuilder.ForceRebuildLayoutImmediate(toolsPanel);
+
+        // A ContentSizeFitter is the preferred setup and already applies the
+        // LayoutGroup's preferred size after the rebuild above.
+        ContentSizeFitter fitter = toolsPanel.GetComponent<ContentSizeFitter>();
+        if (fitter == null)
+        {
+            bool foundVisibleChild = false;
+            Bounds combinedBounds = new Bounds();
+
+            foreach (Transform child in toolsPanel)
+            {
+                if (!child.gameObject.activeSelf) continue;
+                RectTransform childRect = child as RectTransform;
+                if (childRect == null) continue;
+
+                Bounds childBounds = RectTransformUtility.CalculateRelativeRectTransformBounds(
+                    toolsPanel, childRect);
+
+                if (!foundVisibleChild)
+                {
+                    combinedBounds = childBounds;
+                    foundVisibleChild = true;
+                }
+                else
+                {
+                    combinedBounds.Encapsulate(childBounds.min);
+                    combinedBounds.Encapsulate(childBounds.max);
+                }
+            }
+
+            Vector2 desiredSize = foundVisibleChild
+                ? new Vector2(combinedBounds.size.x, combinedBounds.size.y) + toolsPanelExtraPadding
+                : toolsPanelExtraPadding;
+
+            if (autoSizeToolsPanelWidth)
+                toolsPanel.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, desiredSize.x);
+            if (autoSizeToolsPanelHeight)
+                toolsPanel.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, desiredSize.y);
+        }
+
+        LayoutRebuilder.ForceRebuildLayoutImmediate(toolsPanel);
+        if (layoutPanelToRebuild != null && layoutPanelToRebuild != toolsPanel)
+            LayoutRebuilder.ForceRebuildLayoutImmediate(layoutPanelToRebuild);
+        resizeToolsPanelCoroutine = null;
+    }
+
+    private static bool WasKeyPressedThisFrame(KeyCode keyCode)
+    {
+        if (Keyboard.current == null) return false;
+
+        string keyName = keyCode == KeyCode.Return ? nameof(Key.Enter) : keyCode.ToString();
+        return System.Enum.TryParse(keyName, out Key key) && key != Key.None && Keyboard.current[key].wasPressedThisFrame;
     }
 
     private void UpdateToolHighlights()
@@ -348,7 +542,7 @@ public class BuildUIController : MonoBehaviour
         {
             if (liveBeamStatsPanel != null && !liveBeamStatsPanel.activeSelf) liveBeamStatsPanel.SetActive(true);
             if (liveBeamLengthText != null) liveBeamLengthText.text = $"{targetBar.currentLength:F2}m";
-            if (liveBeamCostText != null) liveBeamCostText.text = $"${targetBar.GetCost():F0}";
+            if (liveBeamCostText != null) liveBeamCostText.text = $"₱{targetBar.GetCost():F0}";
             if (liveBeamAngleText != null) liveBeamAngleText.text = $"{targetBar.currentAngle:F1}°";
         }
         else
@@ -583,10 +777,10 @@ public class BuildUIController : MonoBehaviour
             lastProjectedCost = totalProjectedCost;
             if (usedBudgetText != null) 
             { 
-                usedBudgetText.text = $" ${totalProjectedCost}"; 
+                usedBudgetText.text = $" ₱{totalProjectedCost}";
                 usedBudgetText.color = totalProjectedCost > maxBudget ? overBudgetTextColor : normalTextColor; 
             }
-            if (maxBudgetText != null) maxBudgetText.text = $" ${Mathf.RoundToInt(maxBudget)}";
+            if (maxBudgetText != null) maxBudgetText.text = $" ₱{Mathf.RoundToInt(maxBudget)}";
         }
     }
 
@@ -649,35 +843,51 @@ public class BuildUIController : MonoBehaviour
     // --- THE FIX: Removed tool locking here so players can use tools freely ---
     private bool IsToolAllowed()
     {
-        if (isTutorialUI_Locked) 
+        GameObject clickedObject = UnityEngine.EventSystems.EventSystem.current?.currentSelectedGameObject;
+        BuildTutorialDirector director = BuildTutorialDirector.Instance;
+
+        if (director != null && director.IsAwaitingInvalidBarUndo)
+            return false;
+
+        if (isTutorialUI_Locked && director != null)
         {
-            GameObject clickedObj = UnityEngine.EventSystems.EventSystem.current?.currentSelectedGameObject;
-            
-            // Allow the tutorial to advance if they click the highlighted button...
-            if (whitelistedButton != null && clickedObj == whitelistedButton)
-            {
-                if (TutorialManager.Instance != null) TutorialManager.Instance.ShowNextStep();
-                whitelistedButton = null; 
-            }
+            director.OnToolClicked(clickedObject);
         }
-        // ...but ALWAYS return true so they can click whatever they want!
-        return true; 
+
+        return true;
+    }
+
+    private bool IsTopologyEditBlockedDuringTracing()
+    {
+        if (BuildTutorialDirector.Instance == null || !BuildTutorialDirector.Instance.isTracingStep) return false;
+        LogAction("Finish tracing the blueprint before using that edit tool.");
+        return true;
     }
 
     public void OnToggleSelectModeButtonClicked() { if (!IsToolAllowed()) return; if (barCreator != null) barCreator.ToggleSelectMode(); }
-    public void OnToggleMoveModeButtonClicked() { if (!IsToolAllowed()) return; if (barCreator != null) barCreator.ToggleMoveMode(); }
-    public void OnToggleDeleteModeButtonClicked() { if (!IsToolAllowed()) return; if (barCreator != null) barCreator.ToggleDeleteMode(); }
+    public void OnToggleMoveModeButtonClicked() { if (!IsToolAllowed() || IsTopologyEditBlockedDuringTracing()) return; if (barCreator != null) barCreator.ToggleMoveMode(); }
+    public void OnToggleDeleteModeButtonClicked() { if (!IsToolAllowed() || IsTopologyEditBlockedDuringTracing()) return; if (barCreator != null) barCreator.ToggleDeleteMode(); }
     public void OnToggleGridButtonClicked() { if (!IsToolAllowed()) return; if (barCreator != null) barCreator.ToggleGrid(); }
     public void OnCancelDrawingButtonClicked() { if (!IsToolAllowed()) return; if (barCreator != null) barCreator.CancelCreation(); }
     public void OnExitBuildModeButtonClicked() { if (!IsToolAllowed()) return; if (GameManager.Instance != null) GameManager.Instance.ExitBuildMode(); }
     public void OnResetCameraButtonClicked() { if (!IsToolAllowed()) return; BuildCameraController camCtrl = FindObjectOfType<BuildCameraController>(); if (camCtrl != null) camCtrl.ResetCameraRotation(); }
     public void OnToggleStatsButtonClicked() { if (!IsToolAllowed()) return; if (statsPanel != null) statsPanel.SetActive(!statsPanel.activeSelf); }
-    public void OnCutSelectedButtonClicked() { if (!IsToolAllowed()) return; if (ClipboardManager.Instance != null && barCreator != null) ClipboardManager.Instance.CutSelected(barCreator.GetSelectedPoints()); }
+    public void OnCutSelectedButtonClicked() { if (!IsToolAllowed() || IsTopologyEditBlockedDuringTracing()) return; if (ClipboardManager.Instance != null && barCreator != null) ClipboardManager.Instance.CutSelected(barCreator.GetSelectedPoints()); }
     public void OnCopyButtonClicked() { if (!IsToolAllowed()) return; if (ClipboardManager.Instance != null && barCreator != null) ClipboardManager.Instance.CopySelected(barCreator.GetSelectedPoints()); }
-    public void OnPasteButtonClicked() { if (!IsToolAllowed()) return; if (ClipboardManager.Instance != null) ClipboardManager.Instance.StampPaste(); }
-    public void OnUndoButtonClicked() { if (!IsToolAllowed()) return; if (CommandManager.Instance != null) CommandManager.Instance.Undo(); }
-    public void OnRedoButtonClicked() { if (!IsToolAllowed()) return; if (CommandManager.Instance != null) CommandManager.Instance.Redo(); }
-    public void OnDeleteSelectedButtonClicked() { if (!IsToolAllowed()) return; if (barCreator != null) barCreator.DeleteSelected(); }
+    public void OnPasteButtonClicked() { if (!IsToolAllowed() || IsTopologyEditBlockedDuringTracing()) return; if (ClipboardManager.Instance != null) ClipboardManager.Instance.StampPaste(); }
+    public void OnUndoButtonClicked()
+    {
+        BuildTutorialDirector director = BuildTutorialDirector.Instance;
+        if (director == null || !director.IsAwaitingInvalidBarUndo)
+        {
+            if (!IsToolAllowed()) return;
+        }
+
+        if (CommandManager.Instance != null) CommandManager.Instance.Undo();
+        if (director != null) director.NotifyUndoCompleted();
+    }
+    public void OnRedoButtonClicked() { if (!IsToolAllowed() || IsTopologyEditBlockedDuringTracing()) return; if (CommandManager.Instance != null) CommandManager.Instance.Redo(); }
+    public void OnDeleteSelectedButtonClicked() { if (!IsToolAllowed() || IsTopologyEditBlockedDuringTracing()) return; if (barCreator != null) barCreator.DeleteSelected(); }
 
     public void OnToggleSimulationButtonClicked() 
     { 
@@ -712,7 +922,11 @@ public class BuildUIController : MonoBehaviour
 
     public void OnMaterialSelected(BridgeMaterialSO newMaterial) 
     { 
-        // --- THE FIX: Removed tutorial locking so players can select any unlocked material freely ---
+        if (BuildTutorialDirector.Instance != null && BuildTutorialDirector.Instance.IsAwaitingInvalidBarUndo)
+        {
+            LogAction("Undo the invalid bar before selecting another material.");
+            return;
+        }
         
         if (barCreator != null) 
         { 
@@ -721,11 +935,8 @@ public class BuildUIController : MonoBehaviour
             SetSelectionPanelActive(false);
             LogAction($"Selected Material: {newMaterial.name}");
 
-            // Still notify the director in case this click advances a tutorial step!
             if (BuildTutorialDirector.Instance != null)
-            {
                 BuildTutorialDirector.Instance.OnMaterialClicked(newMaterial);
-            }
         } 
     }
 }

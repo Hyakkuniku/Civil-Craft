@@ -445,7 +445,7 @@ public class ObjectiveTrackerUI : MonoBehaviour
 
         if (!task.isTutorial && !string.IsNullOrEmpty(task.contractName))
         {
-            if (budgetText != null) { budgetText.gameObject.SetActive(true); budgetText.text = "Budget: $" + task.budget; }
+            if (budgetText != null) { budgetText.gameObject.SetActive(true); budgetText.text = "Budget: ₱" + task.budget; }
             if (weightText != null) { weightText.gameObject.SetActive(true); weightText.text = "Live Load: " + task.weight + "kg"; }
         }
         else

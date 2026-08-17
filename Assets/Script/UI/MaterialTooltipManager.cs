@@ -48,7 +48,7 @@ public class MaterialTooltipManager : MonoBehaviour
 
         // Populate the UI with the exact data from your SO
         if (materialNameText != null) materialNameText.text = material.name.Replace("Material", "").Trim();
-        if (costText != null) costText.text = $"Cost: ${material.costPerMeter}/m";
+        if (costText != null) costText.text = $"Cost: ₱{material.costPerMeter}/m";
         if (weightText != null) weightText.text = $"Mass: {material.massPerMeter}kg/m";
         if (lengthText != null) lengthText.text = $"Max Length: {material.maxLength}m";
 

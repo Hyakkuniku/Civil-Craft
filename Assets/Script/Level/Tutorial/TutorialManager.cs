@@ -67,9 +67,16 @@ public class TutorialManager : MonoBehaviour
     public float pulseAmount = 0.05f;
 
     public bool IsTutorialActive { get; private set; } = false;
+    public TutorialPointer SharedPointer => bouncingArrow;
 
     private TutorialSequence currentSequence;
     private int currentStepIndex = -1;
+    private bool isAdvancingStep;
+    private int lastAdvanceFrame = -1;
+    private readonly List<TutorialSequence> queuedSequences = new List<TutorialSequence>();
+    private Coroutine queuedSequenceCoroutine;
+
+    public int CurrentStepIndex => currentStepIndex;
     
     private UnityEngine.UI.Button trackedButton = null;
     private UnityAction trackedButtonAction = null;
@@ -130,10 +137,39 @@ public class TutorialManager : MonoBehaviour
 
     public void PlayTutorial(TutorialSequence sequence)
     {
-        if (sequence == null || sequence.tutorialSteps.Length == 0) return;
+        if (sequence == null || sequence.tutorialSteps == null || sequence.tutorialSteps.Length == 0) return;
+        if (IsTutorialActive)
+        {
+            QueueTutorial(sequence);
+            return;
+        }
+
+        ClearTrackedButton();
+        isAdvancingStep = false;
+
+        if (currentAnimationCoroutine != null)
+        {
+            StopCoroutine(currentAnimationCoroutine);
+            currentAnimationCoroutine = null;
+        }
+
+        if (leftTextIdleCoroutine != null)
+        {
+            StopCoroutine(leftTextIdleCoroutine);
+            leftTextIdleCoroutine = null;
+            if (leftText != null) leftText.transform.localScale = Vector3.one;
+        }
+
+        if (centerPanel != null) centerPanel.SetActive(false);
+        if (leftPanel != null) leftPanel.SetActive(false);
+        if (bouncingArrow != null) bouncingArrow.Hide();
+
+        if (BuildTutorialDirector.Instance != null)
+            BuildTutorialDirector.Instance.BeginSequence();
 
         currentSequence = sequence;
         currentStepIndex = -1;
+        lastAdvanceFrame = -1;
         IsTutorialActive = true;
         lastScreenPosition = null; 
 
@@ -142,20 +178,35 @@ public class TutorialManager : MonoBehaviour
 
     public void ShowNextStep()
     {
-        if (currentSequence == null || !IsTutorialActive) return;
+        if (currentSequence == null || !IsTutorialActive || isAdvancingStep) return;
+        if (BuildTutorialDirector.Instance != null && BuildTutorialDirector.Instance.IsAwaitingInvalidBarUndo) return;
+        if (lastAdvanceFrame == Time.frameCount) return;
 
-        ClearTrackedButton();
+        isAdvancingStep = true;
+        lastAdvanceFrame = Time.frameCount;
 
-        currentStepIndex++;
-
-        if (currentStepIndex >= currentSequence.tutorialSteps.Length)
+        try
         {
-            CompleteTutorial();
-            return;
-        }
+            ClearTrackedButton();
 
-        var step = currentSequence.tutorialSteps[currentStepIndex];
-        ShowTutorialStep(step);
+            currentStepIndex++;
+
+            if (currentStepIndex >= currentSequence.tutorialSteps.Length)
+            {
+                CompleteTutorial();
+                return;
+            }
+
+            if (BuildTutorialDirector.Instance != null)
+                BuildTutorialDirector.Instance.BeginStep(currentStepIndex);
+
+            TutorialStep step = currentSequence.tutorialSteps[currentStepIndex];
+            ShowTutorialStep(step);
+        }
+        finally
+        {
+            isAdvancingStep = false;
+        }
     }
 
     private void ShowTutorialStep(TutorialStep step)
@@ -351,6 +402,7 @@ public class TutorialManager : MonoBehaviour
 
     private void CompleteTutorial()
     {
+        TutorialSequence completedSequence = currentSequence;
         ClearTrackedButton(); 
         
         IsTutorialActive = false;
@@ -371,12 +423,14 @@ public class TutorialManager : MonoBehaviour
 
         if (centerPanel != null) centerPanel.SetActive(false);
         if (leftPanel != null) leftPanel.SetActive(false);
+        if (nextButton != null) nextButton.SetActive(false);
+        if (skipButton != null) skipButton.SetActive(false);
 
         if (bouncingArrow != null) bouncingArrow.Hide();
         
-        if (currentSequence != null)
+        if (completedSequence != null)
         {
-            foreach (var s in currentSequence.tutorialSteps)
+            foreach (var s in completedSequence.tutorialSteps)
             {
                 if (s.worldHighlightObject != null) s.worldHighlightObject.SetActive(false);
             }
@@ -393,12 +447,57 @@ public class TutorialManager : MonoBehaviour
             BuildTutorialDirector.Instance.EndTutorial();
         }
 
-        if (currentSequence != null && PlayerDataManager.Instance != null && !string.IsNullOrEmpty(currentSequence.lessonName))
+        if (completedSequence != null && PlayerDataManager.Instance != null && !string.IsNullOrEmpty(completedSequence.lessonName))
         {
-            PlayerDataManager.Instance.CompleteLesson(currentSequence.lessonName);
+            PlayerDataManager.Instance.CompleteLesson(completedSequence.lessonName);
         }
 
-        currentSequence = null; 
+        currentSequence = null;
+        currentStepIndex = -1;
+        lastAdvanceFrame = -1;
+        isAdvancingStep = false;
+
+        if (completedSequence != null && completedSequence.autoStartNextSequence && completedSequence.nextSequence != null)
+            QueueTutorial(completedSequence.nextSequence);
+
+        TryStartQueuedTutorialNextFrame();
+    }
+
+    public void QueueTutorial(TutorialSequence sequence)
+    {
+        if (sequence == null || queuedSequences.Contains(sequence)) return;
+        queuedSequences.Add(sequence);
+        if (!IsTutorialActive) TryStartQueuedTutorialNextFrame();
+    }
+
+    private void TryStartQueuedTutorialNextFrame()
+    {
+        if (queuedSequenceCoroutine != null) StopCoroutine(queuedSequenceCoroutine);
+        queuedSequenceCoroutine = StartCoroutine(StartQueuedTutorialRoutine());
+    }
+
+    private IEnumerator StartQueuedTutorialRoutine()
+    {
+        yield return null;
+        queuedSequenceCoroutine = null;
+
+        if (IsTutorialActive) yield break;
+
+        for (int i = 0; i < queuedSequences.Count; i++)
+        {
+            TutorialSequence candidate = queuedSequences[i];
+            if (candidate == null)
+            {
+                queuedSequences.RemoveAt(i--);
+                continue;
+            }
+
+            if (!candidate.CanStartTutorial()) continue;
+
+            queuedSequences.RemoveAt(i);
+            PlayTutorial(candidate);
+            yield break;
+        }
     }
 
     public void SkipTutorial()

@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.InputSystem.EnhancedTouch;
+using UnityEngine.InputSystem;
 using Touch = UnityEngine.InputSystem.EnhancedTouch.Touch;
 using UnityEngine.EventSystems;
 using System.Collections.Generic;
@@ -189,21 +190,29 @@ public class BuildCameraController : MonoBehaviour
         }
         else 
         {
-            if (Input.GetMouseButtonDown(0) || Input.GetMouseButtonDown(1) || Input.GetMouseButtonDown(2))
+            Mouse mouse = Mouse.current;
+            Keyboard keyboard = Keyboard.current;
+            if (mouse == null) return;
+
+            Vector2 mousePosition = mouse.position.ReadValue();
+            bool anyMousePressed = mouse.leftButton.wasPressedThisFrame || mouse.rightButton.wasPressedThisFrame || mouse.middleButton.wasPressedThisFrame;
+            bool anyMouseReleased = mouse.leftButton.wasReleasedThisFrame || mouse.rightButton.wasReleasedThisFrame || mouse.middleButton.wasReleasedThisFrame;
+
+            if (anyMousePressed)
             {
-                mouseStartedOnUI = IsPointerOverUI(Input.mousePosition);
+                mouseStartedOnUI = IsPointerOverUI(mousePosition);
             }
             
-            if (Input.GetMouseButtonUp(0) || Input.GetMouseButtonUp(1) || Input.GetMouseButtonUp(2))
+            if (anyMouseReleased)
             {
-                if (!Input.GetMouseButton(0) && !Input.GetMouseButton(1) && !Input.GetMouseButton(2))
+                if (!mouse.leftButton.isPressed && !mouse.rightButton.isPressed && !mouse.middleButton.isPressed)
                 {
                     mouseStartedOnUI = false;
                 }
             }
 
-            float scroll = Input.GetAxis("Mouse ScrollWheel");
-            if (Mathf.Abs(scroll) > 0.001f && !IsPointerOverUI(Input.mousePosition))
+            float scroll = mouse.scroll.ReadValue().y / 120f;
+            if (Mathf.Abs(scroll) > 0.001f && !IsPointerOverUI(mousePosition))
             {
                 float zoomDelta = scroll * -pcZoomSpeed;
                 if (activeCamera.orthographic) activeCamera.orthographicSize = Mathf.Clamp(activeCamera.orthographicSize + zoomDelta, minZoom, maxZoom);
@@ -213,8 +222,16 @@ public class BuildCameraController : MonoBehaviour
             if (!mouseStartedOnUI)
             {
                 Vector3 panInput = Vector3.zero;
-                if (Input.GetMouseButton(2)) panInput = new Vector3(-Input.GetAxis("Mouse X") * pcPanSpeed, -Input.GetAxis("Mouse Y") * pcPanSpeed, 0);
-                else panInput = new Vector3(Input.GetAxis("Horizontal") * pcPanSpeed * Time.deltaTime * 50f, Input.GetAxis("Vertical") * pcPanSpeed * Time.deltaTime * 50f, 0);
+                Vector2 mouseDelta = mouse.delta.ReadValue() * 0.1f;
+                if (mouse.middleButton.isPressed) panInput = new Vector3(-mouseDelta.x * pcPanSpeed, -mouseDelta.y * pcPanSpeed, 0);
+                else if (keyboard != null)
+                {
+                    float horizontal = (keyboard.dKey.isPressed || keyboard.rightArrowKey.isPressed ? 1f : 0f) -
+                                       (keyboard.aKey.isPressed || keyboard.leftArrowKey.isPressed ? 1f : 0f);
+                    float vertical = (keyboard.wKey.isPressed || keyboard.upArrowKey.isPressed ? 1f : 0f) -
+                                     (keyboard.sKey.isPressed || keyboard.downArrowKey.isPressed ? 1f : 0f);
+                    panInput = new Vector3(horizontal * pcPanSpeed * Time.deltaTime * 50f, vertical * pcPanSpeed * Time.deltaTime * 50f, 0);
+                }
 
                 if (panInput != Vector3.zero)
                 {
@@ -222,14 +239,22 @@ public class BuildCameraController : MonoBehaviour
                     ApplyConstraints();
                 }
 
-                if (Input.GetMouseButton(1)) 
+                if (mouse.rightButton.isPressed)
                 {
-                    RotateCamera(Input.GetAxis("Mouse Y") * pcPitchSpeed);
+                    RotateCamera(mouseDelta.y * pcPitchSpeed);
                 }
             }
             
-            if (Input.GetKeyDown(rotateCameraKey)) CycleCameraRotation();
+            if (WasKeyPressedThisFrame(rotateCameraKey)) CycleCameraRotation();
         }
+    }
+
+    private static bool WasKeyPressedThisFrame(KeyCode keyCode)
+    {
+        if (Keyboard.current == null) return false;
+
+        string keyName = keyCode == KeyCode.Return ? nameof(Key.Enter) : keyCode.ToString();
+        return System.Enum.TryParse(keyName, out Key key) && key != Key.None && Keyboard.current[key].wasPressedThisFrame;
     }
 
     private void RotateCamera(float amount)

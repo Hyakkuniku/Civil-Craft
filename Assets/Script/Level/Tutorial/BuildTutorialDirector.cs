@@ -1,5 +1,8 @@
-using UnityEngine;
+using System.Collections;
 using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Events;
+using UnityEngine.UI;
 
 [System.Serializable]
 public class MaterialUIMapping
@@ -9,7 +12,7 @@ public class MaterialUIMapping
     [Tooltip("Where should the arrow hover? (0, 80) means above the button.")]
     public Vector2 arrowOffset = new Vector2(0, 80);
     [Tooltip("Rotation: 0 = Pointing Up, 180 = Pointing Down, 90 = Left, -90 = Right")]
-    public float arrowRotation = 180f; 
+    public float arrowRotation = 180f;
 }
 
 [System.Serializable]
@@ -20,7 +23,7 @@ public class ToolUIMapping
     [Tooltip("Where should the arrow hover? (0, -80) means below the button.")]
     public Vector2 arrowOffset = new Vector2(0, -80);
     [Tooltip("Rotation: 0 = Pointing Up, 180 = Pointing Down")]
-    public float arrowRotation = 0f; 
+    public float arrowRotation = 0f;
 }
 
 public class BuildTutorialDirector : MonoBehaviour
@@ -31,180 +34,129 @@ public class BuildTutorialDirector : MonoBehaviour
     public TutorialPointer bouncingArrow;
     public GameObject exitBuildModeButton;
 
+    [Header("Invalid Placement / Undo UI")]
+    public RectTransform undoButtonRect;
+    public GameObject undoWarningPanel;
+    public Vector2 undoArrowOffset = new Vector2(0, 80);
+    public float undoArrowRotation = 180f;
+
     [Header("Material UI Library")]
     public List<MaterialUIMapping> materialMappings = new List<MaterialUIMapping>();
 
     [Header("Tool UI Library")]
     public List<ToolUIMapping> toolMappings = new List<ToolUIMapping>();
 
-    [HideInInspector] public bool isTracingStep = false;
-    [HideInInspector] public bool isCurrentDragValid = true;
-    [HideInInspector] public bool isTutorialRunning = false; 
-    
-    private GhostSegment[] activeGhosts; 
-    private Transform[] activeGhostPoints; 
-    private bool wasInvalidLastFrame = false;
+    [Header("Ghost Matching Tolerances")]
+    [Min(0.01f)] public float endpointTolerance = 0.8f;
+    [Min(0.01f)] public float pierXTolerance = 0.8f;
+    [Min(0.01f)] public float snapTolerance = 1.2f;
 
-    private bool hasAdvancedFromMaterialClickThisStep = false;
+    [HideInInspector] public bool isTracingStep;
+    [HideInInspector] public bool isCurrentDragValid = true;
+    [HideInInspector] public bool isTutorialRunning;
+
+    public bool IsAwaitingInvalidBarUndo { get; private set; }
+    public bool CanPlaceMaterials => !IsAwaitingInvalidBarUndo;
+
+    private GhostSegment[] activeGhosts;
+    private Transform[] activeGhostPoints;
+    private int activeStepIndex = -1;
+
+    private BridgeMaterialSO expectedMaterial;
+    private GameObject expectedTool;
+    private bool hasAdvancedFromRequiredClickThisStep;
+    private Button trackedToolButton;
+    private UnityAction trackedToolButtonAction;
+    private Coroutine undoPointerCoroutine;
 
     private Bar lastTintedBar;
-    private Dictionary<Renderer, Color> originalColors = new Dictionary<Renderer, Color>();
+    private readonly Dictionary<Renderer, Color> originalColors = new Dictionary<Renderer, Color>();
+    private readonly List<GameObject> invalidActionObjects = new List<GameObject>();
 
     private void Awake()
     {
-        Instance = this;
+        if (Instance == null) Instance = this;
+        else
+        {
+            Debug.LogWarning($"Duplicate BuildTutorialDirector on '{name}' was removed. TutorialSequence objects must not be destroyed with duplicate directors.");
+            Destroy(this);
+            return;
+        }
+
         if (bouncingArrow != null) bouncingArrow.Hide();
+        if (undoWarningPanel != null) undoWarningPanel.SetActive(false);
+        trackedToolButtonAction = OnTrackedToolButtonClicked;
     }
 
     private void Update()
     {
-        if (isTracingStep && activeGhosts != null && BuildUIController.Instance != null && BuildUIController.Instance.barCreator != null)
+        if (!isTracingStep || IsAwaitingInvalidBarUndo || activeGhosts == null) return;
+
+        BarCreator barCreator = BuildUIController.Instance != null
+            ? BuildUIController.Instance.barCreator
+            : null;
+
+        if (barCreator == null) return;
+
+        if (!barCreator.IsCreating)
         {
-            var bc = BuildUIController.Instance.barCreator;
-
-            // --- SMART TOOL GUIDANCE ---
-            BridgeMaterialSO neededMat = null;
-            foreach (var ghost in activeGhosts)
-            {
-                if (ghost.gameObject.activeSelf && !ghost.isCovered)
-                {
-                    neededMat = ghost.requiredMaterial;
-                    break;
-                }
-            }
-
-            if (neededMat != null)
-            {
-                // THE FIX: We removed the forced re-equip logic here so the player is completely free to swap tools!
-                
-                // Keep the arrow hidden while they are drawing!
-                bouncingArrow.Hide();
-                BuildUIController.Instance.whitelistedMaterial = null;
-            }
-
-            // --- WARDEN & COMPLETION LOGIC ---
-            if (!bc.IsCreating)
-            {
-                CheckGhostBridgeCompletion();
-                
-                wasInvalidLastFrame = false;
-                isCurrentDragValid = true;
-                originalColors.Clear();
-                lastTintedBar = null;
-            }
-            else if (bc.IsCreating && bc.currentBar != null && bc.currentStartPoint != null && bc.currentEndPoint != null)
-            {
-                bool isValidStart = false;
-                bool isPerfectlyOnBlueprint = false;
-                bool isTouchingGhostPoint = false;
-
-                Vector3 dragStart = bc.currentStartPoint.transform.position;
-                Vector3 dragEnd = bc.currentEndPoint.transform.position;
-                
-                bool isPier = bc.currentBar.materialData != null && bc.currentBar.materialData.isPier;
-
-                foreach (var ghost in activeGhosts)
-                {
-                    if (!ghost.gameObject.activeSelf || ghost.requiredMaterial != bc.currentBar.materialData) continue;
-
-                    if (isPier)
-                    {
-                        isValidStart = true;
-                        float xDiff = Mathf.Abs(dragEnd.x - ghost.startPos.x);
-                        if (xDiff < 1.5f) 
-                        {
-                            isPerfectlyOnBlueprint = true;
-                            isTouchingGhostPoint = true; 
-                        }
-                    }
-                    else
-                    {
-                        if (Vector3.Distance(dragStart, ghost.startPos) < 0.8f || Vector3.Distance(dragStart, ghost.endPos) < 0.8f) isValidStart = true;
-
-                        if (IsPointOnLineSegment(dragStart, ghost.startPos, ghost.endPos, 0.8f) &&
-                            IsPointOnLineSegment(dragEnd, ghost.startPos, ghost.endPos, 0.8f))
-                        {
-                            isPerfectlyOnBlueprint = true;
-                        }
-
-                        if (Vector3.Distance(dragEnd, ghost.startPos) <= 1.2f || Vector3.Distance(dragEnd, ghost.endPos) <= 1.2f)
-                        {
-                            isTouchingGhostPoint = true;
-                        }
-                    }
-                }
-
-                isCurrentDragValid = isValidStart && isPerfectlyOnBlueprint && isTouchingGhostPoint;
-
-                if (!isCurrentDragValid && !wasInvalidLastFrame)
-                {
-                    SetBarTint(bc.currentBar, true); 
-                    wasInvalidLastFrame = true;
-                }
-                else if (isCurrentDragValid && wasInvalidLastFrame)
-                {
-                    SetBarTint(bc.currentBar, false); 
-                    wasInvalidLastFrame = false;
-                }
-            }
+            RestoreTintedBar();
+            isCurrentDragValid = true;
+            CheckGhostBridgeCompletion();
+            return;
         }
+
+        if (barCreator.currentBar == null || barCreator.currentStartPoint == null || barCreator.currentEndPoint == null)
+        {
+            isCurrentDragValid = false;
+            return;
+        }
+
+        isCurrentDragValid = IsPlacementValid(
+            barCreator.currentBar.materialData,
+            barCreator.currentStartPoint.transform.position,
+            barCreator.currentEndPoint.transform.position,
+            null);
+
+        SetBarTint(barCreator.currentBar, !isCurrentDragValid);
     }
 
-    private void SetBarTint(Bar bar, bool isRed)
+    /// <summary>
+    /// Called by TutorialManager before every step event. This makes step state independent
+    /// from whichever prompt method the previous or next step happens to invoke.
+    /// </summary>
+    public void BeginStep(int stepIndex)
     {
-        if (bar == null) return;
-        if (bar != lastTintedBar)
+        activeStepIndex = stepIndex;
+        isTracingStep = false;
+        isCurrentDragValid = true;
+        hasAdvancedFromRequiredClickThisStep = false;
+        expectedMaterial = null;
+        expectedTool = null;
+        activeGhosts = null;
+        activeGhostPoints = null;
+        ClearTrackedToolButton();
+        RestoreTintedBar();
+        ClearUndoPrompt();
+
+        if (BuildUIController.Instance != null)
         {
-            originalColors.Clear();
-            lastTintedBar = bar;
+            BuildUIController.Instance.isTutorialUI_Locked = false;
+            BuildUIController.Instance.whitelistedMaterial = null;
+            BuildUIController.Instance.whitelistedButton = null;
         }
 
-        foreach (Renderer rend in bar.GetComponentsInChildren<Renderer>())
-        {
-            string colorProp = rend.material.HasProperty("_Color") ? "_Color" : (rend.material.HasProperty("_BaseColor") ? "_BaseColor" : null);
-            if (colorProp != null)
-            {
-                if (isRed)
-                {
-                    if (!originalColors.ContainsKey(rend)) originalColors[rend] = rend.material.GetColor(colorProp);
-                    rend.material.SetColor(colorProp, new Color(1f, 0.2f, 0.2f, 1f));
-                }
-                else if (originalColors.ContainsKey(rend)) rend.material.SetColor(colorProp, originalColors[rend]);
-            }
-        }
+        if (bouncingArrow != null) bouncingArrow.Hide();
     }
 
-    public Vector3 GetClosestValidNode(Vector3 playerPos)
+    public void BeginSequence()
     {
-        Vector3 bestNode = playerPos;
-        float minDist = 2.0f; 
-        if (activeGhosts == null) return playerPos;
+        bool isBuildSequence = GameManager.Instance != null &&
+                               GameManager.Instance.CurrentState == GameManager.GameState.Building;
 
-        foreach (var ghost in activeGhosts)
-        {
-            if (!ghost.gameObject.activeSelf) continue;
-            
-            float d1 = Vector3.Distance(playerPos, ghost.startPos);
-            if (d1 < minDist) { minDist = d1; bestNode = ghost.startPos; }
-
-            float d2 = Vector3.Distance(playerPos, ghost.endPos);
-            if (d2 < minDist) { minDist = d2; bestNode = ghost.endPos; }
-        }
-        return bestNode;
-    }
-
-    private bool IsPointOnLineSegment(Vector3 point, Vector3 lineStart, Vector3 lineEnd, float tolerance)
-    {
-        Vector3 lineDir = lineEnd - lineStart;
-        float lineLength = lineDir.magnitude;
-        if (lineLength < 0.01f) return Vector3.Distance(point, lineStart) <= tolerance;
-        
-        lineDir.Normalize();
-        Vector3 pointVec = point - lineStart;
-        float dotProduct = Mathf.Clamp(Vector3.Dot(pointVec, lineDir), 0f, lineLength);
-        Vector3 closestPoint = lineStart + lineDir * dotProduct;
-        
-        return Vector3.Distance(point, closestPoint) <= tolerance;
+        EndTutorial();
+        isTutorialRunning = isBuildSequence;
+        if (exitBuildModeButton != null) exitBuildModeButton.SetActive(!isBuildSequence);
     }
 
     public void LockAllUI()
@@ -213,208 +165,529 @@ public class BuildTutorialDirector : MonoBehaviour
 
         if (BuildUIController.Instance != null)
         {
-            // THE FIX: We completely removed the tool locking logic here!
+            BuildUIController.Instance.isTutorialUI_Locked = true;
             BuildUIController.Instance.whitelistedMaterial = null;
             BuildUIController.Instance.whitelistedButton = null;
         }
-        
+
         if (bouncingArrow != null) bouncingArrow.Hide();
-        
-        // We still hide the exit button so they don't accidentally leave the tutorial sequence early
         if (exitBuildModeButton != null) exitBuildModeButton.SetActive(false);
     }
 
-    public void PromptMaterialClick(BridgeMaterialSO mat)
+    public void PromptMaterialClick(BridgeMaterialSO material)
     {
         LockAllUI();
-        
-        isTracingStep = false; 
-        hasAdvancedFromMaterialClickThisStep = false; 
-        
-        if (BuildUIController.Instance != null) BuildUIController.Instance.whitelistedMaterial = mat;
+        ClearTrackedToolButton();
+        isTracingStep = false;
+        expectedMaterial = material;
+        expectedTool = null;
+        hasAdvancedFromRequiredClickThisStep = false;
 
-        foreach (var mapping in materialMappings)
+        if (BuildUIController.Instance != null)
+            BuildUIController.Instance.whitelistedMaterial = material;
+
+        foreach (MaterialUIMapping mapping in materialMappings)
         {
-            if (mapping.material == mat)
-            {
-                if (bouncingArrow != null && mapping.buttonRect != null)
-                {
-                    bouncingArrow.PointAt(mapping.buttonRect, mapping.arrowOffset);
-                    bouncingArrow.transform.localEulerAngles = new Vector3(0, 0, mapping.arrowRotation);
-                }
-                break;
-            }
+            if (mapping.material != material) continue;
+            PointArrow(mapping.buttonRect, mapping.arrowOffset, mapping.arrowRotation);
+            break;
         }
+
         if (TutorialManager.Instance != null) TutorialManager.Instance.SetNextButtonActive(false);
     }
 
-    public void PromptToolClick(GameObject toolObj)
+    public void PromptToolClick(GameObject toolObject)
     {
         LockAllUI();
-        
-        isTracingStep = false; 
-        hasAdvancedFromMaterialClickThisStep = false; 
+        isTracingStep = false;
+        expectedMaterial = null;
+        expectedTool = toolObject;
+        hasAdvancedFromRequiredClickThisStep = false;
+        ClearTrackedToolButton();
 
-        if (BuildUIController.Instance != null) BuildUIController.Instance.whitelistedButton = toolObj;
+        if (BuildUIController.Instance != null)
+            BuildUIController.Instance.whitelistedButton = toolObject;
 
-        foreach (var mapping in toolMappings)
+        foreach (ToolUIMapping mapping in toolMappings)
         {
-            if (mapping.toolObject == toolObj)
-            {
-                if (bouncingArrow != null && mapping.buttonRect != null)
-                {
-                    bouncingArrow.PointAt(mapping.buttonRect, mapping.arrowOffset);
-                    bouncingArrow.transform.localEulerAngles = new Vector3(0, 0, mapping.arrowRotation);
-                }
-                break;
-            }
+            if (mapping.toolObject != toolObject) continue;
+            PointArrow(mapping.buttonRect, mapping.arrowOffset, mapping.arrowRotation);
+            break;
         }
+
+        if (toolObject != null)
+        {
+            trackedToolButton = toolObject.GetComponent<Button>();
+            if (trackedToolButton == null) trackedToolButton = toolObject.GetComponentInChildren<Button>(true);
+            if (trackedToolButton == null) trackedToolButton = toolObject.GetComponentInParent<Button>();
+            if (trackedToolButton != null) trackedToolButton.onClick.AddListener(trackedToolButtonAction);
+        }
+
         if (TutorialManager.Instance != null) TutorialManager.Instance.SetNextButtonActive(false);
     }
 
     public void PromptDrawBridge()
     {
         LockAllUI();
-        
+        ClearTrackedToolButton();
         isTracingStep = true;
-        hasAdvancedFromMaterialClickThisStep = false; 
-
-        if (TutorialManager.Instance != null) TutorialManager.Instance.SetNextButtonActive(false);
-        
-        activeGhosts = FindObjectsOfType<GhostSegment>(false);
-        
-        if (activeGhosts != null && activeGhosts.Length > 0 && activeGhosts[0] != null)
-        {
-            Transform parentFolder = activeGhosts[0].transform.parent;
-            List<Transform> gPoints = new List<Transform>();
-            foreach (Transform child in parentFolder)
-            {
-                if (child.name.Contains("Ghost_Point")) gPoints.Add(child);
-            }
-            activeGhostPoints = gPoints.ToArray();
-        }
-    }
-
-    public void CheckGhostBridgeCompletion()
-    {
-        if (activeGhosts == null || activeGhosts.Length == 0) return;
-
-        List<Bar> allRealBars = new List<Bar>();
-        foreach (Bar b in FindObjectsOfType<Bar>())
-        {
-            if (b.gameObject.activeInHierarchy) allRealBars.Add(b);
-        }
-
-        bool allGhostsCovered = true;
-        HashSet<Bar> usedBars = new HashSet<Bar>();
-
-        foreach (var ghost in activeGhosts)
-        {
-            bool isSegCovered = false;
-            Vector3 segMidPoint = (ghost.startPos + ghost.endPos) / 2f;
-
-            foreach (Bar realBar in allRealBars)
-            {
-                if (usedBars.Contains(realBar)) continue; 
-                if (realBar.materialData != ghost.requiredMaterial || realBar.startPoint == null || realBar.endPoint == null) continue;
-
-                Vector3 rs = realBar.startPoint.transform.position;
-                Vector3 re = realBar.endPoint.transform.position;
-
-                if (ghost.requiredMaterial.isPier)
-                {
-                    float xDiff = Mathf.Abs(rs.x - ghost.startPos.x);
-                    if (xDiff < 0.8f) 
-                    {
-                        isSegCovered = true;
-                        usedBars.Add(realBar); 
-                        break;
-                    }
-                }
-                else
-                {
-                    if (IsPointOnLineSegment(segMidPoint, rs, re, 0.8f))
-                    {
-                        isSegCovered = true;
-                        usedBars.Add(realBar); 
-                        break;
-                    }
-                }
-            }
-
-            ghost.isCovered = isSegCovered;
-            if (ghost.gameObject.activeSelf == isSegCovered) ghost.gameObject.SetActive(!isSegCovered);
-            if (!isSegCovered) allGhostsCovered = false;
-        }
-
-        if (activeGhostPoints != null)
-        {
-            foreach (Transform gPoint in activeGhostPoints)
-            {
-                bool isPointCovered = false;
-                foreach (Point p in Point.AllPoints)
-                {
-                    if (!p.gameObject.activeSelf) continue;
-                    
-                    Vector2 gp2D = new Vector2(gPoint.position.x, gPoint.position.y);
-                    Vector2 p2D = new Vector2(p.transform.position.x, p.transform.position.y);
-                    
-                    if (Vector2.Distance(gp2D, p2D) < 0.5f)
-                    {
-                        isPointCovered = true;
-                        break;
-                    }
-                }
-
-                if (gPoint.gameObject.activeSelf == isPointCovered) 
-                {
-                    gPoint.gameObject.SetActive(!isPointCovered);
-                }
-            }
-        }
-
-        if (allGhostsCovered)
-        {
-            isTracingStep = false; 
-            
-            if (activeGhosts.Length > 0 && activeGhosts[0] != null)
-            {
-                activeGhosts[0].transform.parent.gameObject.SetActive(false);
-            }
-
-            if (TutorialManager.Instance != null) TutorialManager.Instance.ShowNextStep(); 
-        }
-    }
-
-    public void OnMaterialClicked(BridgeMaterialSO clickedMat)
-    {
-        // THE FIX: Instead of checking if the UI is "locked", we just check if they clicked the exact tool we wanted them to click!
-        if (BuildUIController.Instance != null && clickedMat == BuildUIController.Instance.whitelistedMaterial)
-        {
-            bouncingArrow.Hide();
-
-            if (TutorialManager.Instance != null && !isTracingStep && !hasAdvancedFromMaterialClickThisStep)
-            {
-                hasAdvancedFromMaterialClickThisStep = true;
-                TutorialManager.Instance.ShowNextStep();
-            }
-        }
-    }
-
-    public void EndTutorial()
-    {
-        isTutorialRunning = false; 
-        hasAdvancedFromMaterialClickThisStep = false;
+        isCurrentDragValid = true;
+        expectedMaterial = null;
+        expectedTool = null;
+        hasAdvancedFromRequiredClickThisStep = false;
 
         if (BuildUIController.Instance != null)
         {
             BuildUIController.Instance.whitelistedMaterial = null;
             BuildUIController.Instance.whitelistedButton = null;
+            if (BuildUIController.Instance.barCreator != null)
+                BuildUIController.Instance.barCreator.CancelAllModes();
         }
-        
-        if (bouncingArrow != null) bouncingArrow.Hide();
-        isTracingStep = false;
 
+        if (TutorialManager.Instance != null) TutorialManager.Instance.SetNextButtonActive(false);
+        if (bouncingArrow != null) bouncingArrow.Hide();
+
+        activeGhosts = FindObjectsOfType<GhostSegment>(false);
+        activeGhostPoints = FindGhostPoints(activeGhosts);
+
+        if (activeGhosts == null || activeGhosts.Length == 0)
+            Debug.LogWarning("Build tutorial tracing started, but no active GhostSegment objects were found.");
+    }
+
+    public void OnMaterialClicked(BridgeMaterialSO clickedMaterial)
+    {
+        if (clickedMaterial == null || clickedMaterial != expectedMaterial) return;
+        AdvanceFromRequiredClick();
+    }
+
+    public void OnToolClicked(GameObject clickedObject)
+    {
+        if (!ObjectsRepresentSameButton(clickedObject, expectedTool)) return;
+        ClearTrackedToolButton();
+        AdvanceFromRequiredClick();
+    }
+
+    private void OnTrackedToolButtonClicked()
+    {
+        OnToolClicked(expectedTool);
+    }
+
+    private void ClearTrackedToolButton()
+    {
+        if (trackedToolButton != null && trackedToolButtonAction != null)
+            trackedToolButton.onClick.RemoveListener(trackedToolButtonAction);
+        trackedToolButton = null;
+    }
+
+    private void AdvanceFromRequiredClick()
+    {
+        TutorialManager tutorial = TutorialManager.Instance;
+        if (tutorial == null || !tutorial.IsTutorialActive || isTracingStep ||
+            hasAdvancedFromRequiredClickThisStep || activeStepIndex != tutorial.CurrentStepIndex)
+        {
+            return;
+        }
+
+        hasAdvancedFromRequiredClickThisStep = true;
+        ClearTrackedToolButton();
+        expectedMaterial = null;
+        expectedTool = null;
+        if (bouncingArrow != null) bouncingArrow.Hide();
+        tutorial.ShowNextStep();
+    }
+
+    public bool IsExpectedTool(GameObject clickedObject)
+    {
+        return ObjectsRepresentSameButton(clickedObject, expectedTool);
+    }
+
+    private static bool ObjectsRepresentSameButton(GameObject clickedObject, GameObject expectedObject)
+    {
+        if (clickedObject == null || expectedObject == null) return false;
+        if (clickedObject == expectedObject) return true;
+        return clickedObject.transform.IsChildOf(expectedObject.transform) ||
+               expectedObject.transform.IsChildOf(clickedObject.transform);
+    }
+
+    /// <summary>
+    /// Snaps a near-correct road/steel endpoint exactly onto its matching ghost endpoint.
+    /// Piers intentionally are not endpoint-snapped because only their X coordinate matters.
+    /// </summary>
+    public bool TryGetSnappedEndPosition(
+        BridgeMaterialSO material,
+        Vector3 startPosition,
+        Vector3 candidateEndPosition,
+        out Vector3 snappedEndPosition)
+    {
+        snappedEndPosition = candidateEndPosition;
+        if (!isTracingStep || IsAwaitingInvalidBarUndo || material == null || activeGhosts == null) return false;
+
+        foreach (GhostSegment ghost in activeGhosts)
+        {
+            if (!IsUsableGhost(ghost, material)) continue;
+
+            if (material.isPier)
+            {
+                if (Mathf.Abs(startPosition.x - ghost.startPos.x) <= snapTolerance)
+                {
+                    snappedEndPosition.x = ghost.startPos.x;
+                    return true;
+                }
+                continue;
+            }
+
+            if (Vector3.Distance(startPosition, ghost.startPos) <= snapTolerance &&
+                Vector3.Distance(candidateEndPosition, ghost.endPos) <= snapTolerance)
+            {
+                snappedEndPosition = ghost.endPos;
+                return true;
+            }
+
+            if (Vector3.Distance(startPosition, ghost.endPos) <= snapTolerance &&
+                Vector3.Distance(candidateEndPosition, ghost.startPos) <= snapTolerance)
+            {
+                snappedEndPosition = ghost.startPos;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Called after BarCreator has finalized and recorded the build action. Validation here
+    /// uses the real endpoints, so release-frame ordering, snapping, limits, and terrain clamps
+    /// cannot desynchronize the tutorial.
+    /// </summary>
+    public void OnBuildActionCompleted(HistoryAction buildAction)
+    {
+        if (!isTracingStep || IsAwaitingInvalidBarUndo || buildAction == null) return;
+
+        HashSet<GhostSegment> matchedGhosts = new HashSet<GhostSegment>();
+        Bar firstInvalidBar = null;
+
+        foreach (GameObject affectedObject in buildAction.affectedObjects)
+        {
+            if (affectedObject == null || !affectedObject.activeSelf) continue;
+            Bar bar = affectedObject.GetComponent<Bar>();
+            if (bar == null) continue;
+
+            GhostSegment matchedGhost;
+            if (!IsCompletedBarValid(bar, matchedGhosts, out matchedGhost))
+            {
+                firstInvalidBar = bar;
+                break;
+            }
+
+            matchedGhosts.Add(matchedGhost);
+        }
+
+        if (firstInvalidBar != null)
+        {
+            invalidActionObjects.Clear();
+            invalidActionObjects.AddRange(buildAction.affectedObjects);
+            SetBarTint(firstInvalidBar, true);
+            PromptUndoInvalidBar();
+            return;
+        }
+
+        RestoreTintedBar();
+        CheckGhostBridgeCompletion();
+    }
+
+    private bool IsCompletedBarValid(Bar bar, HashSet<GhostSegment> alreadyMatched, out GhostSegment matchedGhost)
+    {
+        matchedGhost = null;
+        if (bar == null || bar.materialData == null || bar.startPoint == null || bar.endPoint == null) return false;
+
+        Vector3 start = bar.startPoint.transform.position;
+        Vector3 end = bar.endPoint.transform.position;
+
+        foreach (GhostSegment ghost in activeGhosts)
+        {
+            if (alreadyMatched.Contains(ghost)) continue;
+            if (!IsPlacementValid(bar.materialData, start, end, ghost)) continue;
+            matchedGhost = ghost;
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool IsPlacementValid(BridgeMaterialSO material, Vector3 start, Vector3 end, GhostSegment onlyGhost)
+    {
+        if (material == null || activeGhosts == null) return false;
+
+        foreach (GhostSegment ghost in activeGhosts)
+        {
+            if (onlyGhost != null && ghost != onlyGhost) continue;
+            if (!IsUsableGhost(ghost, material)) continue;
+            if (DoesPlacementMatchGhost(material, start, end, ghost)) return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsUsableGhost(GhostSegment ghost, BridgeMaterialSO material)
+    {
+        return ghost != null && ghost.gameObject.activeInHierarchy && !ghost.isCovered &&
+               ghost.requiredMaterial == material;
+    }
+
+    private bool DoesPlacementMatchGhost(BridgeMaterialSO material, Vector3 start, Vector3 end, GhostSegment ghost)
+    {
+        if (material == null || ghost == null || ghost.requiredMaterial != material) return false;
+
+        if (material.isPier)
+        {
+            // Piers intentionally match only the blueprint's X axis.
+            return Mathf.Abs(start.x - ghost.startPos.x) <= pierXTolerance;
+        }
+
+        bool forwardMatch = Vector3.Distance(start, ghost.startPos) <= endpointTolerance &&
+                            Vector3.Distance(end, ghost.endPos) <= endpointTolerance;
+        bool reverseMatch = Vector3.Distance(start, ghost.endPos) <= endpointTolerance &&
+                            Vector3.Distance(end, ghost.startPos) <= endpointTolerance;
+        return forwardMatch || reverseMatch;
+    }
+
+    public void PromptUndoInvalidBar()
+    {
+        IsAwaitingInvalidBarUndo = true;
+        isCurrentDragValid = false;
+
+        if (BuildUIController.Instance != null)
+        {
+            BuildUIController.Instance.SetToolForcedVisible(BuildModeTool.Undo, true);
+            BuildUIController.Instance.isTutorialUI_Locked = true;
+            BuildUIController.Instance.whitelistedMaterial = null;
+            BuildUIController.Instance.whitelistedButton = undoButtonRect != null ? undoButtonRect.gameObject : null;
+        }
+
+        if (undoWarningPanel != null) undoWarningPanel.SetActive(true);
+        Canvas.ForceUpdateCanvases();
+        PointArrow(undoButtonRect, undoArrowOffset, undoArrowRotation);
+
+        if (undoPointerCoroutine != null) StopCoroutine(undoPointerCoroutine);
+        undoPointerCoroutine = StartCoroutine(RepointUndoArrowAfterLayout());
+    }
+
+    private IEnumerator RepointUndoArrowAfterLayout()
+    {
+        yield return null;
+        Canvas.ForceUpdateCanvases();
+
+        if (IsAwaitingInvalidBarUndo)
+            PointArrow(undoButtonRect, undoArrowOffset, undoArrowRotation);
+
+        undoPointerCoroutine = null;
+    }
+
+    public void NotifyUndoCompleted()
+    {
+        if (!IsAwaitingInvalidBarUndo) return;
+
+        foreach (GameObject actionObject in invalidActionObjects)
+        {
+            if (actionObject != null && actionObject.activeSelf) return;
+        }
+
+        ClearUndoPrompt();
+        isCurrentDragValid = true;
+        RestoreTintedBar();
+
+        if (BuildUIController.Instance != null)
+        {
+            BuildUIController.Instance.isTutorialUI_Locked = true;
+            BuildUIController.Instance.whitelistedMaterial = null;
+            BuildUIController.Instance.whitelistedButton = null;
+        }
+
+        if (bouncingArrow != null) bouncingArrow.Hide();
+        CheckGhostBridgeCompletion();
+    }
+
+    private void ClearUndoPrompt()
+    {
+        if (undoPointerCoroutine != null)
+        {
+            StopCoroutine(undoPointerCoroutine);
+            undoPointerCoroutine = null;
+        }
+
+        IsAwaitingInvalidBarUndo = false;
+        invalidActionObjects.Clear();
+        if (undoWarningPanel != null) undoWarningPanel.SetActive(false);
+        if (BuildUIController.Instance != null)
+            BuildUIController.Instance.SetToolForcedVisible(BuildModeTool.Undo, false);
+    }
+
+    public void CheckGhostBridgeCompletion()
+    {
+        if (!isTracingStep || IsAwaitingInvalidBarUndo || activeGhosts == null || activeGhosts.Length == 0) return;
+
+        Bar[] allRealBars = FindObjectsOfType<Bar>();
+        bool allGhostsCovered = true;
+        HashSet<Bar> usedBars = new HashSet<Bar>();
+
+        foreach (GhostSegment ghost in activeGhosts)
+        {
+            if (ghost == null) continue;
+            bool covered = false;
+
+            foreach (Bar realBar in allRealBars)
+            {
+                if (usedBars.Contains(realBar) || realBar == null || !realBar.gameObject.activeInHierarchy ||
+                    realBar.materialData != ghost.requiredMaterial || realBar.startPoint == null || realBar.endPoint == null)
+                {
+                    continue;
+                }
+
+                if (DoesPlacementMatchGhost(realBar.materialData, realBar.startPoint.transform.position,
+                        realBar.endPoint.transform.position, ghost))
+                {
+                    covered = true;
+                    usedBars.Add(realBar);
+                    break;
+                }
+            }
+
+            ghost.isCovered = covered;
+            ghost.gameObject.SetActive(!covered);
+            if (!covered) allGhostsCovered = false;
+        }
+
+        UpdateGhostPointVisibility();
+        if (!allGhostsCovered) return;
+
+        isTracingStep = false;
+        RestoreTintedBar();
+
+        if (activeGhosts.Length > 0 && activeGhosts[0] != null && activeGhosts[0].transform.parent != null)
+            activeGhosts[0].transform.parent.gameObject.SetActive(false);
+
+        if (TutorialManager.Instance != null) TutorialManager.Instance.ShowNextStep();
+    }
+
+    private void UpdateGhostPointVisibility()
+    {
+        if (activeGhostPoints == null) return;
+
+        foreach (Transform ghostPoint in activeGhostPoints)
+        {
+            if (ghostPoint == null) continue;
+            bool covered = false;
+
+            foreach (Point point in Point.AllPoints)
+            {
+                if (point == null || !point.gameObject.activeSelf) continue;
+                Vector2 ghostPosition = new Vector2(ghostPoint.position.x, ghostPoint.position.y);
+                Vector2 pointPosition = new Vector2(point.transform.position.x, point.transform.position.y);
+                if (Vector2.Distance(ghostPosition, pointPosition) < 0.5f)
+                {
+                    covered = true;
+                    break;
+                }
+            }
+
+            ghostPoint.gameObject.SetActive(!covered);
+        }
+    }
+
+    private static Transform[] FindGhostPoints(GhostSegment[] ghosts)
+    {
+        if (ghosts == null || ghosts.Length == 0 || ghosts[0] == null || ghosts[0].transform.parent == null)
+            return new Transform[0];
+
+        List<Transform> points = new List<Transform>();
+        foreach (Transform child in ghosts[0].transform.parent)
+        {
+            if (child.name.Contains("Ghost_Point")) points.Add(child);
+        }
+        return points.ToArray();
+    }
+
+    private void PointArrow(RectTransform target, Vector2 offset, float rotation)
+    {
+        TutorialPointer pointer = bouncingArrow;
+        if (pointer == null && TutorialManager.Instance != null)
+            pointer = TutorialManager.Instance.SharedPointer;
+
+        if (pointer == null || target == null)
+        {
+            Debug.LogWarning("Cannot show the build tutorial pointer. Assign both the pointer and Undo Button Rect references.");
+            return;
+        }
+
+        if (!target.gameObject.activeInHierarchy)
+        {
+            Debug.LogWarning("Cannot point at Undo because its RectTransform is inactive in the hierarchy.");
+            return;
+        }
+
+        pointer.PointAt(target, offset);
+        pointer.transform.localEulerAngles = new Vector3(0, 0, rotation);
+    }
+
+    private void SetBarTint(Bar bar, bool red)
+    {
+        if (bar == null) return;
+        if (bar != lastTintedBar)
+        {
+            RestoreTintedBar();
+            lastTintedBar = bar;
+        }
+
+        foreach (Renderer renderer in bar.GetComponentsInChildren<Renderer>())
+        {
+            string property = renderer.material.HasProperty("_Color")
+                ? "_Color"
+                : renderer.material.HasProperty("_BaseColor") ? "_BaseColor" : null;
+            if (property == null) continue;
+
+            if (!originalColors.ContainsKey(renderer)) originalColors[renderer] = renderer.material.GetColor(property);
+            renderer.material.SetColor(property, red ? new Color(1f, 0.2f, 0.2f, 1f) : originalColors[renderer]);
+        }
+    }
+
+    private void RestoreTintedBar()
+    {
+        foreach (KeyValuePair<Renderer, Color> pair in originalColors)
+        {
+            if (pair.Key == null) continue;
+            string property = pair.Key.material.HasProperty("_Color")
+                ? "_Color"
+                : pair.Key.material.HasProperty("_BaseColor") ? "_BaseColor" : null;
+            if (property != null) pair.Key.material.SetColor(property, pair.Value);
+        }
+
+        originalColors.Clear();
+        lastTintedBar = null;
+    }
+
+    public void EndTutorial()
+    {
+        isTutorialRunning = false;
+        activeStepIndex = -1;
+        isTracingStep = false;
+        isCurrentDragValid = true;
+        expectedMaterial = null;
+        expectedTool = null;
+        hasAdvancedFromRequiredClickThisStep = false;
+        activeGhosts = null;
+        activeGhostPoints = null;
+        ClearTrackedToolButton();
+        RestoreTintedBar();
+        ClearUndoPrompt();
+
+        if (BuildUIController.Instance != null)
+        {
+            BuildUIController.Instance.isTutorialUI_Locked = false;
+            BuildUIController.Instance.whitelistedMaterial = null;
+            BuildUIController.Instance.whitelistedButton = null;
+        }
+
+        if (bouncingArrow != null) bouncingArrow.Hide();
         if (exitBuildModeButton != null) exitBuildModeButton.SetActive(true);
     }
 }

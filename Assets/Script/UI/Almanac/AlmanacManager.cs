@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
-public enum AlmanacTabType { General, Contracts, Lessons }
+public enum AlmanacTabType { General, Contracts }
 
 public enum TabVisibility { Normal, AlwaysHidden }
 
@@ -83,9 +83,6 @@ public class AlmanacManager : MonoBehaviour
     private Dictionary<RectTransform, float> originalTabYPositions = new Dictionary<RectTransform, float>();
     private Dictionary<RectTransform, float> targetTabYPositions = new Dictionary<RectTransform, float>();
 
-    private int lastKnownContractsCount = -1;
-    private int lastKnownLessonsCount = -1;
-
     private void Awake()
     {
         if (Instance == null) Instance = this;
@@ -118,12 +115,11 @@ public class AlmanacManager : MonoBehaviour
             if (hudOpenButton != null) hudOpenButton.SetActive(playerHasAlmanac);
 
             PlayerDataManager.Instance.OnAlmanacUnlocked += ShowHudButton;
-            
-            lastKnownContractsCount = PlayerDataManager.Instance.CurrentData.completedContracts != null ? PlayerDataManager.Instance.CurrentData.completedContracts.Count : 0;
-            lastKnownLessonsCount = PlayerDataManager.Instance.CurrentData.completedLessons != null ? PlayerDataManager.Instance.CurrentData.completedLessons.Count : 0;
+            PlayerDataManager.Instance.OnAlmanacAlertsChanged += RefreshPersistentAlerts;
         }
 
         EvaluateTabUnlocks();
+        RefreshPersistentAlerts();
     }
 
     private void OnDestroy()
@@ -131,13 +127,14 @@ public class AlmanacManager : MonoBehaviour
         if (PlayerDataManager.Instance != null)
         {
             PlayerDataManager.Instance.OnAlmanacUnlocked -= ShowHudButton;
+            PlayerDataManager.Instance.OnAlmanacAlertsChanged -= RefreshPersistentAlerts;
         }
     }
 
     private void ShowHudButton()
     {
         if (hudOpenButton != null) hudOpenButton.SetActive(true);
-        TriggerAlert(); 
+        RefreshPersistentAlerts();
     }
 
     private void Update()
@@ -152,46 +149,6 @@ public class AlmanacManager : MonoBehaviour
             tabRect.anchoredPosition = currentPos;
         }
 
-        if (PlayerDataManager.Instance != null && PlayerDataManager.Instance.CurrentData != null)
-        {
-            PlayerData data = PlayerDataManager.Instance.CurrentData;
-            
-            if (data.completedContracts != null)
-            {
-                if (lastKnownContractsCount == -1)
-                {
-                    lastKnownContractsCount = data.completedContracts.Count;
-                }
-                else if (data.completedContracts.Count > lastKnownContractsCount)
-                {
-                    lastKnownContractsCount = data.completedContracts.Count;
-                    EvaluateTabUnlocks();
-                    
-                    if (data.hasAlmanac && data.hasUnlockedContractsTab)
-                    {
-                        TriggerTabAlertByType(AlmanacTabType.Contracts);
-                    }
-                }
-            }
-
-            if (data.completedLessons != null)
-            {
-                if (lastKnownLessonsCount == -1)
-                {
-                    lastKnownLessonsCount = data.completedLessons.Count;
-                }
-                else if (data.completedLessons.Count > lastKnownLessonsCount)
-                {
-                    lastKnownLessonsCount = data.completedLessons.Count;
-                    EvaluateTabUnlocks();
-                    
-                    if (data.hasAlmanac && data.hasUnlockedLessonsTab)
-                    {
-                        TriggerTabAlertByType(AlmanacTabType.Lessons);
-                    }
-                }
-            }
-        }
     }
 
     // ==========================================
@@ -202,17 +159,15 @@ public class AlmanacManager : MonoBehaviour
     {
         if (PlayerDataManager.Instance == null) return;
         PlayerData data = PlayerDataManager.Instance.CurrentData;
+        bool changed = false;
 
         if (!data.hasUnlockedContractsTab && data.completedContracts != null && data.completedContracts.Count > 0)
         {
             data.hasUnlockedContractsTab = true;
+            changed = true;
         }
 
-        if (!data.hasUnlockedLessonsTab && data.completedLessons != null && data.completedLessons.Count > 0)
-        {
-            data.hasUnlockedLessonsTab = true;
-        }
-
+        if (changed) PlayerDataManager.Instance.SaveGame();
         RefreshTabVisibility(data);
     }
 
@@ -225,7 +180,7 @@ public class AlmanacManager : MonoBehaviour
                 bool shouldBeVisible = true;
                 
                 if (cat.tabType == AlmanacTabType.Contracts) shouldBeVisible = data.hasUnlockedContractsTab;
-                if (cat.tabType == AlmanacTabType.Lessons) shouldBeVisible = data.hasUnlockedLessonsTab;
+                if (!IsSupportedCategory(cat)) shouldBeVisible = false;
 
                 if (cat.visibilityMode == TabVisibility.AlwaysHidden)
                 {
@@ -239,16 +194,34 @@ public class AlmanacManager : MonoBehaviour
 
     private void TriggerTabAlertByType(AlmanacTabType targetType)
     {
-        foreach (var cat in categories)
+        if (PlayerDataManager.Instance == null) return;
+
+        if (targetType == AlmanacTabType.Contracts)
+            PlayerDataManager.Instance.MarkContractsAlmanacUnread();
+    }
+
+    public void RefreshPersistentAlerts()
+    {
+        PlayerData data = PlayerDataManager.Instance != null ? PlayerDataManager.Instance.CurrentData : null;
+        bool hasAlmanac = data != null && data.hasAlmanac;
+        bool bookIsOpen = almanacCanvas != null && almanacCanvas.activeSelf;
+        bool hasGenuineUnreadContent = data != null &&
+            (data.hasUnreadAlmanacUnlockAlert || data.hasUnreadContractsAlert);
+
+        if (hudOpenButton != null) hudOpenButton.SetActive(hasAlmanac);
+        if (newAlertIcon != null)
+            newAlertIcon.SetActive(hasAlmanac && hasGenuineUnreadContent && !bookIsOpen);
+
+        foreach (AlmanacCategory category in categories)
         {
-            if (cat.tabType == targetType && cat.visibilityMode != TabVisibility.AlwaysHidden)
-            {
-                if (cat.tabButton != null && cat.tabButton.gameObject.activeInHierarchy)
-                {
-                    TriggerAlert(); 
-                    if (cat.tabAlertIcon != null) cat.tabAlertIcon.SetActive(true);
-                }
-            }
+            if (category.tabAlertIcon == null) continue;
+
+            bool unread = false;
+            if (data != null && category.tabType == AlmanacTabType.Contracts)
+                unread = data.hasUnreadContractsAlert;
+
+            category.tabAlertIcon.SetActive(hasAlmanac && unread && IsSupportedCategory(category) &&
+                category.visibilityMode != TabVisibility.AlwaysHidden);
         }
     }
 
@@ -260,6 +233,13 @@ public class AlmanacManager : MonoBehaviour
         {
             int index = i; 
             AlmanacCategory cat = categories[i];
+
+            if (!IsSupportedCategory(cat))
+            {
+                if (cat.tabButton != null) cat.tabButton.gameObject.SetActive(false);
+                if (cat.tabAlertIcon != null) cat.tabAlertIcon.SetActive(false);
+                continue;
+            }
 
             if (cat.tabButton != null)
             {
@@ -300,32 +280,19 @@ public class AlmanacManager : MonoBehaviour
 
     public void TriggerAlert()
     {
-        if (PlayerDataManager.Instance != null && PlayerDataManager.Instance.CurrentData != null)
-        {
-            if (!PlayerDataManager.Instance.CurrentData.hasAlmanac) return;
-        }
-
-        if (hudOpenButton != null && hudOpenButton.activeInHierarchy)
-        {
-            if (newAlertIcon != null && almanacCanvas != null && !almanacCanvas.activeSelf)
-            {
-                newAlertIcon.SetActive(true);
-            }
-        }
+        // Alerts are derived from saved unread content. A generic UI call must not
+        // manufacture an unread state when nothing new was added.
+        RefreshPersistentAlerts();
     }
 
     public void TriggerTabAlert(string targetCategoryName)
     {
-        foreach (var cat in categories)
+        foreach (AlmanacCategory category in categories)
         {
-            if (cat.categoryName == targetCategoryName && cat.visibilityMode != TabVisibility.AlwaysHidden)
+            if (category.categoryName == targetCategoryName && category.tabType == AlmanacTabType.Contracts)
             {
-                if (cat.tabButton != null && cat.tabButton.gameObject.activeInHierarchy)
-                {
-                    TriggerAlert();
-                    if (cat.tabAlertIcon != null) cat.tabAlertIcon.SetActive(true);
-                    break;
-                }
+                TriggerTabAlertByType(category.tabType);
+                break;
             }
         }
     }
@@ -342,7 +309,8 @@ public class AlmanacManager : MonoBehaviour
     {
         isAnimating = true;
 
-        if (newAlertIcon != null) newAlertIcon.SetActive(false);
+        if (PlayerDataManager.Instance != null) PlayerDataManager.Instance.MarkAlmanacOpened();
+        RefreshPersistentAlerts();
         
         temporarilyHiddenPanels.Clear();
         foreach (GameObject ui in uiElementsToHide)
@@ -428,7 +396,7 @@ public class AlmanacManager : MonoBehaviour
 
     public void SelectCategory(int index)
     {
-        if (index < 0 || index >= categories.Count || isFlipping) return;
+        if (index < 0 || index >= categories.Count || isFlipping || !IsSupportedCategory(categories[index])) return;
 
         useVirtualPagination = false;
         OnVirtualPageTurn = null;
@@ -437,6 +405,13 @@ public class AlmanacManager : MonoBehaviour
 
         currentCategoryIndex = index;
         currentSpreadIndex = 0; 
+
+        if (PlayerDataManager.Instance != null)
+        {
+            AlmanacTabType selectedType = categories[currentCategoryIndex].tabType;
+            if (selectedType == AlmanacTabType.Contracts)
+                PlayerDataManager.Instance.MarkContractsAlmanacRead();
+        }
 
         for (int i = 0; i < categories.Count; i++)
         {
@@ -470,6 +445,13 @@ public class AlmanacManager : MonoBehaviour
         
         OnCategoryChanged?.Invoke(currentCategoryIndex);
         UpdatePaginationButtons();
+    }
+
+    private static bool IsSupportedCategory(AlmanacCategory category)
+    {
+        if (category == null) return false;
+        return category.tabType == AlmanacTabType.General ||
+               category.tabType == AlmanacTabType.Contracts;
     }
 
     private void TurnPage(bool goingForward)

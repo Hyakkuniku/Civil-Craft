@@ -267,6 +267,10 @@ public class LevelCompleteManager : MonoBehaviour
 
     private IEnumerator TakeSnapshotAndShowUIRoutine(ContractSO currentContract)
     {
+        LiveLoadVehicle finishingVehicle = FindObjectOfType<LiveLoadVehicle>();
+        while (finishingVehicle != null && finishingVehicle.IsFinishBraking)
+            yield return new WaitForFixedUpdate();
+
         temporarilyHiddenPanels.Clear();
         foreach (GameObject ui in uiElementsToHide)
         {
@@ -560,7 +564,7 @@ public class LevelCompleteManager : MonoBehaviour
 
         if (costText != null) 
         {
-            costText.text = $"Total Cost: ${Mathf.RoundToInt(finalCost)}";
+            costText.text = $"Total Cost: ₱{Mathf.RoundToInt(finalCost)}";
             costText.color = (finalCost > maxBudget) ? Color.red : Color.white;
         }
         
@@ -572,7 +576,7 @@ public class LevelCompleteManager : MonoBehaviour
         
         if (budgetText != null) 
         {
-            budgetText.text = $"Budget: ${Mathf.RoundToInt(maxBudget)}";
+            budgetText.text = $"Budget: ₱{Mathf.RoundToInt(maxBudget)}";
         }
 
         if (stressText != null)

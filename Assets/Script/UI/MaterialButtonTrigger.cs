@@ -74,11 +74,13 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
         isMaterialAllowed = true; 
         hasReachedQuantityLimit = false;
         bool isTutorial = false; 
+        bool isExplicitlyHidden = false;
 
         if (GameManager.Instance != null && GameManager.Instance.CurrentContract != null)
         {
             ContractSO contract = GameManager.Instance.CurrentContract;
             isTutorial = contract.isTutorialContract;
+            isExplicitlyHidden = contract.IsMaterialHidden(buttonMaterial);
             
             if (contract.allowedMaterials != null && contract.allowedMaterials.Count > 0)
             {
@@ -134,8 +136,14 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
             }
         }
 
-        if (isTutorial && !isMaterialAllowed)
+        if (isExplicitlyHidden || (isTutorial && !isMaterialAllowed))
         {
+            if (BuildUIController.Instance != null && BuildUIController.Instance.barCreator != null &&
+                BuildUIController.Instance.barCreator.activeMaterial == buttonMaterial)
+            {
+                BuildUIController.Instance.barCreator.SetActiveMaterial(null);
+            }
+
             if (parentWrapper != null) parentWrapper.SetActive(false);
             else gameObject.SetActive(false); 
             return; 

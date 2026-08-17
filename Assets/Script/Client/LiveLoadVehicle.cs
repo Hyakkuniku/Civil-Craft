@@ -41,14 +41,24 @@ public class LiveLoadVehicle : Interactable
     public float wheelMass = 50f;
     public Vector3 spinAxis = new Vector3(1, 0, 0); 
 
+    [Header("Finish Braking")]
+    [Min(0f)] public float brakeTorque = 3000f;
+    [Min(0.001f)] public float stoppedLinearSpeed = 0.08f;
+    [Min(0.001f)] public float stoppedAngularSpeed = 0.15f;
+    [Min(0f)] public float wheelGroundCheckDistance = 0.12f;
+    [Min(0f)] public float requiredSettledTime = 0.5f;
+
     [Header("System")]
     public BridgePhysicsManager physicsManager;
 
     private Rigidbody rb;
     private bool isDriving = false;
     private bool hasReachedEnd = false; 
+    private bool isBrakingAtFinish = false;
+    private float settledAtFinishTimer = 0f;
 
     [HideInInspector] public bool isParkedAtFinish = false;
+    public bool IsFinishBraking => isBrakingAtFinish;
     
     private float currentMotorSpeed = 0f;
     private PhysicMaterial wheelMat; 
@@ -215,6 +225,8 @@ public class LiveLoadVehicle : Interactable
 
         hasReachedEnd = false; 
         isParkedAtFinish = false; 
+        isBrakingAtFinish = false;
+        settledAtFinishTimer = 0f;
         currentMotorSpeed = 0f; 
 
         if (assignedContract != null) { vehicleMass = assignedContract.liveLoadWeight; if (rb != null) rb.mass = vehicleMass; }
@@ -264,6 +276,8 @@ public class LiveLoadVehicle : Interactable
         rb.isKinematic = false;
         foreach (var w in wheels) if (w.rb != null) w.rb.isKinematic = false;
         
+        isBrakingAtFinish = false;
+        settledAtFinishTimer = 0f;
         isDriving = true; 
     }
 
@@ -325,22 +339,28 @@ public class LiveLoadVehicle : Interactable
 
     public void StopAndFreezeForWin()
     {
+        BeginFinishBraking();
+    }
+
+    public void BeginFinishBraking()
+    {
+        if (rb == null || rb.isKinematic || isBrakingAtFinish || isParkedAtFinish) return;
+
         isDriving = false;
-        isParkedAtFinish = true; 
+        hasReachedEnd = true;
+        isParkedAtFinish = true;
+        isBrakingAtFinish = true;
+        settledAtFinishTimer = 0f;
         currentMotorSpeed = 0f;
-        
-        rb.isKinematic = true;
-        foreach (var w in wheels) 
-        { 
-            if (w.rb != null) w.rb.isKinematic = true; 
-            if (w.hinge != null) w.hinge.useMotor = false; 
-        }
-        rb.Sleep(); 
+
+        ApplyFinishBrakes();
     }
 
     public void StopAndReset()
     {
         isDriving = false;
+        isBrakingAtFinish = false;
+        settledAtFinishTimer = 0f;
         currentMotorSpeed = 0f;
 
         rb.isKinematic = true;
@@ -388,6 +408,23 @@ public class LiveLoadVehicle : Interactable
     {
         if (endPoint == null || startPoint == null) return;
 
+        if (isBrakingAtFinish)
+        {
+            ApplyFinishBrakes();
+
+            if (VehicleIsSettled() && AllWheelsAreGrounded())
+                settledAtFinishTimer += Time.fixedDeltaTime;
+            else
+                settledAtFinishTimer = 0f;
+
+            if (settledAtFinishTimer >= requiredSettledTime)
+                FinishParkingAfterPhysicsSettles();
+
+            return;
+        }
+
+        if (isParkedAtFinish) return;
+
         if (!isDriving)
         {
             if (!rb.isKinematic) 
@@ -412,10 +449,7 @@ public class LiveLoadVehicle : Interactable
         {
             if (!hasReachedEnd)
             {
-                hasReachedEnd = true; 
-                isDriving = false;
-                currentMotorSpeed = 0f;
-                foreach (var w in wheels) { if (w.hinge != null) w.hinge.useMotor = false; }
+                BeginFinishBraking();
             }
             return; 
         }
@@ -434,6 +468,87 @@ public class LiveLoadVehicle : Interactable
             w.hinge.motor = motor;
             w.hinge.useMotor = true;
         }
+    }
+
+    private void ApplyFinishBrakes()
+    {
+        foreach (WheelData wheel in wheels)
+        {
+            if (wheel.hinge == null) continue;
+            JointMotor motor = wheel.hinge.motor;
+            motor.targetVelocity = 0f;
+            motor.force = brakeTorque;
+            motor.freeSpin = false;
+            wheel.hinge.motor = motor;
+            wheel.hinge.useMotor = true;
+        }
+    }
+
+    private bool VehicleIsSettled()
+    {
+        if (rb.velocity.magnitude > stoppedLinearSpeed || rb.angularVelocity.magnitude > stoppedAngularSpeed)
+            return false;
+
+        foreach (WheelData wheel in wheels)
+        {
+            if (wheel.rb == null) continue;
+            if (wheel.rb.velocity.magnitude > stoppedLinearSpeed ||
+                wheel.rb.angularVelocity.magnitude > stoppedAngularSpeed)
+                return false;
+        }
+
+        return true;
+    }
+
+    private bool AllWheelsAreGrounded()
+    {
+        foreach (WheelData wheel in wheels)
+        {
+            if (wheel.physObj == null) continue;
+
+            RaycastHit[] hits = Physics.RaycastAll(
+                wheel.physObj.transform.position,
+                Vector3.down,
+                wheelRadius + wheelGroundCheckDistance,
+                Physics.DefaultRaycastLayers,
+                QueryTriggerInteraction.Ignore);
+
+            bool grounded = false;
+            foreach (RaycastHit hit in hits)
+            {
+                if (hit.collider == null || IsVehicleRigidbody(hit.rigidbody)) continue;
+                grounded = true;
+                break;
+            }
+
+            if (!grounded) return false;
+        }
+
+        return wheels.Count > 0;
+    }
+
+    private bool IsVehicleRigidbody(Rigidbody candidate)
+    {
+        if (candidate == rb) return true;
+        foreach (WheelData wheel in wheels)
+        {
+            if (candidate != null && candidate == wheel.rb) return true;
+        }
+        return false;
+    }
+
+    private void FinishParkingAfterPhysicsSettles()
+    {
+        isBrakingAtFinish = false;
+        settledAtFinishTimer = 0f;
+
+        foreach (WheelData wheel in wheels)
+        {
+            if (wheel.hinge != null) wheel.hinge.useMotor = false;
+            if (wheel.rb != null) wheel.rb.Sleep();
+        }
+
+        rb.Sleep();
     }
 
     private void OnDrawGizmosSelected()

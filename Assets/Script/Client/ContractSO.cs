@@ -10,6 +10,25 @@ public class MaterialAllowance
     public int maxPieces = 0; 
 }
 
+public enum BuildModeTool
+{
+    Select,
+    Move,
+    Delete,
+    Grid,
+    CancelDrawing,
+    ExitBuildMode,
+    ResetCamera,
+    Statistics,
+    Cut,
+    Copy,
+    Paste,
+    Undo,
+    Redo,
+    DeleteSelected,
+    Simulate
+}
+
 [CreateAssetMenu(fileName = "NewContract", menuName = "Bridge/Contract")]
 public class ContractSO : ScriptableObject
 {
@@ -39,6 +58,22 @@ public class ContractSO : ScriptableObject
     [Header("Material Restrictions")]
     [Tooltip("List the specific materials allowed for this job and their quantity limits.")]
     public List<MaterialAllowance> allowedMaterials = new List<MaterialAllowance>();
+
+    [Header("Build UI Visibility")]
+    [Tooltip("These tools are completely hidden while this contract is active.")]
+    public List<BuildModeTool> hiddenTools = new List<BuildModeTool>();
+    [Tooltip("These material buttons are completely hidden while this contract is active, regardless of allowance/unlock state.")]
+    public List<BridgeMaterialSO> hiddenMaterials = new List<BridgeMaterialSO>();
+
+    public bool IsToolHidden(BuildModeTool tool)
+    {
+        return hiddenTools != null && hiddenTools.Contains(tool);
+    }
+
+    public bool IsMaterialHidden(BridgeMaterialSO material)
+    {
+        return material != null && hiddenMaterials != null && hiddenMaterials.Contains(material);
+    }
 
     [Header("Challenges / Constraints (Checklist)")]
     [Tooltip("If checked, the bridge will instantly fail if it hits a certain stress level.")]

@@ -5910,7 +5910,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &1881050328947130107
 RectTransform:
   m_ObjectHideFlags: 0
@@ -8686,13 +8686,6 @@ MonoBehaviour:
     tabAlertIcon: {fileID: 0}
     leftPageZone: {fileID: 6818292372227430915}
     rightPageZone: {fileID: 4607099154568815192}
-    leftPages: []
-    rightPages: []
-  - categoryName: Lesson Tab
-    tabButton: {fileID: 7117430492720879442}
-    tabAlertIcon: {fileID: 0}
-    leftPageZone: {fileID: 1881050328947130107}
-    rightPageZone: {fileID: 4491449251106516093}
     leftPages: []
     rightPages: []
   selectedTabUpOffset: 20
@@ -12627,7 +12620,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: $10/m
+  m_text: ₱10/m
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: aaadb7eb00eeee74799e9edce7312ddb, type: 2}
   m_sharedMaterial: {fileID: 334455245469236425, guid: aaadb7eb00eeee74799e9edce7312ddb,
@@ -29706,14 +29699,13 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 4491449251106516093}
-  - component: {fileID: 2904148021806349188}
   m_Layer: 0
   m_Name: RightPageZone
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &4491449251106516093
 RectTransform:
   m_ObjectHideFlags: 0
@@ -29735,38 +29727,6 @@ RectTransform:
   m_AnchoredPosition: {x: 31.684986, y: 0.0008290208}
   m_SizeDelta: {x: 637.8149, y: 719.56}
   m_Pivot: {x: 0, y: 0.5}
---- !u!114 &2904148021806349188
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8640647899112095141}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4fc98494e8e910d45970f3b8fd6fca07, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  allLessons:
-  - {fileID: 11400000, guid: f982a27c0ff62ca4e9db45c67bf6777e, type: 2}
-  buttonContainer: {fileID: 4282756892385130627}
-  lessonButtonPrefab: {fileID: 7163511589650484307, guid: 8a69eb37e4e43d04799a984cda2edf6d,
-    type: 3}
-  titleText: {fileID: 2722310599531307815}
-  contentText: {fileID: 7962372647224064688}
-  quizPanel: {fileID: 0}
-  questionText: {fileID: 2405994823946844174}
-  optionButtons:
-  - {fileID: 4273978237279375838}
-  - {fileID: 8492867218442612104}
-  - {fileID: 6946088621626770522}
-  - {fileID: 1857977719376741529}
-  optionTexts:
-  - {fileID: 1398700032939856885}
-  - {fileID: 7541743095501203955}
-  - {fileID: 8880815461204358512}
-  - {fileID: 1220347216697982147}
-  feedbackText: {fileID: 8849475758466041670}
 --- !u!1 &8669182615357350840
 GameObject:
   m_ObjectHideFlags: 0
@@ -30956,7 +30916,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: = $500
+  m_text: = ₱500
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: aaadb7eb00eeee74799e9edce7312ddb, type: 2}
   m_sharedMaterial: {fileID: 334455245469236425, guid: aaadb7eb00eeee74799e9edce7312ddb,
@@ -31416,7 +31376,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &3344051320928928315
 RectTransform:
   m_ObjectHideFlags: 0

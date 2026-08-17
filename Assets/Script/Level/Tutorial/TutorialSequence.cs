@@ -11,6 +11,11 @@ public class TutorialSequence : MonoBehaviour
     [Tooltip("Check this if this tutorial should automatically start when the scene loads (like the movement tutorial)")]
     public bool playOnStart = false;
 
+    [Header("Sequence Chaining")]
+    [Tooltip("Optional sequence to start after this one finishes and all tutorial state has been reset.")]
+    public TutorialSequence nextSequence;
+    public bool autoStartNextSequence = false;
+
     // --- THE FIX: We removed the global Wasp Waypoints from here! They are now inside the TutorialStep! ---
 
     [Header("Tutorial Steps")]
@@ -27,18 +32,31 @@ public class TutorialSequence : MonoBehaviour
 
     public void TryStartTutorial()
     {
-        if (PlayerDataManager.Instance != null)
+        if (TutorialManager.Instance != null && TutorialManager.Instance.IsTutorialActive)
         {
-            var data = PlayerDataManager.Instance.CurrentData;
-            
-            if (!string.IsNullOrEmpty(lessonName) && data.completedLessons.Contains(lessonName)) return;
-            
-            if (!string.IsNullOrEmpty(requiredPreviousLesson) && !data.completedLessons.Contains(requiredPreviousLesson)) return;
+            TutorialManager.Instance.QueueTutorial(this);
+            return;
         }
+
+        if (!CanStartTutorial()) return;
 
         if (TutorialManager.Instance != null)
         {
             TutorialManager.Instance.PlayTutorial(this);
         }
+    }
+
+    public bool CanStartTutorial()
+    {
+        if (PlayerDataManager.Instance != null)
+        {
+            var data = PlayerDataManager.Instance.CurrentData;
+
+            if (!string.IsNullOrEmpty(lessonName) && data.completedLessons.Contains(lessonName)) return false;
+
+            if (!string.IsNullOrEmpty(requiredPreviousLesson) && !data.completedLessons.Contains(requiredPreviousLesson)) return false;
+        }
+
+        return TutorialManager.Instance != null && !TutorialManager.Instance.IsTutorialActive;
     }
 }

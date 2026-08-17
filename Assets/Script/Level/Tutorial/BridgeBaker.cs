@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
+using UnityEngine.InputSystem;
 
 public class BridgeBaker : MonoBehaviour
 {
@@ -15,13 +16,13 @@ public class BridgeBaker : MonoBehaviour
     void Update()
     {
         // Press B for Ghost (Tutorial) Blueprints
-        if (Input.GetKeyDown(KeyCode.B))
+        if (Keyboard.current != null && Keyboard.current.bKey.wasPressedThisFrame)
         {
             BakeGhostBridge();
         }
 
         // Press N for Normal (Interactive) Starter Bridges
-        if (Input.GetKeyDown(KeyCode.N))
+        if (Keyboard.current != null && Keyboard.current.nKey.wasPressedThisFrame)
         {
             BakeInteractiveStarterBridge();
         }

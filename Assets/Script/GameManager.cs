@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.Events;
 using System.Collections;
 using System.Collections.Generic;
+using UnityEngine.InputSystem;
 
 public class GameManager : MonoBehaviour
 {
@@ -9,6 +10,7 @@ public class GameManager : MonoBehaviour
 
     public enum GameState { Normal, Building }
     public GameState CurrentState { get; private set; } = GameState.Normal;
+    public bool IsTransitioning => isTransitioning;
 
     public UnityEvent OnEnterBuildMode;
     public UnityEvent OnExitBuildMode;
@@ -54,18 +56,21 @@ public class GameManager : MonoBehaviour
 
         if (redoConfirmPanel != null) redoConfirmPanel.SetActive(false);
 
-        // --- THE FIX: Wake up the fader even if you turned it off in the Inspector! ---
-        if (transitionFader != null)
-        {
-            transitionFader.gameObject.SetActive(true); 
-            transitionFader.alpha = 0f;
-            transitionFader.blocksRaycasts = false;
-        }
+        HideTransitionFader();
+    }
+
+    private void OnDisable()
+    {
+        isTransitioning = false;
+        HideTransitionFader();
     }
 
     private void Update()
     {
-        if (CurrentState == GameState.Building && !isTransitioning && Input.GetKeyDown(KeyCode.Escape)) 
+        bool cancelPressed = (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame) ||
+                             (Gamepad.current != null && Gamepad.current.buttonEast.wasPressedThisFrame);
+
+        if (CurrentState == GameState.Building && !isTransitioning && cancelPressed)
         {
             ExitBuildMode();
         }
@@ -128,16 +133,25 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    public void EnterBuildMode(BuildLocation location, Transform player)
+    public bool EnterBuildMode(BuildLocation location, Transform player)
     {
-        if (CurrentState == GameState.Building || isTransitioning) return;
+        if (TutorialManager.Instance != null && TutorialManager.Instance.IsTutorialActive)
+        {
+            Debug.LogWarning("Build Mode entry blocked while a tutorial is active.");
+            return false;
+        }
+
+        if (CurrentState == GameState.Building || isTransitioning) return false;
         
         StartCoroutine(EnterBuildModeRoutine(location, player));
+        return true;
     }
 
     private IEnumerator EnterBuildModeRoutine(BuildLocation location, Transform player)
     {
         isTransitioning = true;
+        try
+        {
         CurrentState = GameState.Building;
         currentPlayerTransform = player;
         ActiveBuildLocation = location;
@@ -181,7 +195,7 @@ public class GameManager : MonoBehaviour
 
                 while (elapsed < duration)
                 {
-                    elapsed += Time.deltaTime;
+                    elapsed += Time.unscaledDeltaTime;
                     float t = Mathf.SmoothStep(0, 1, elapsed / duration);
                     
                     mainCamera.transform.position = Vector3.Lerp(startPos, location.blueprintDiveTarget.position, t);
@@ -193,11 +207,12 @@ public class GameManager : MonoBehaviour
             // --- FADE OUT TO BLACK ---
             if (transitionFader != null)
             {
+                transitionFader.gameObject.SetActive(true);
                 transitionFader.blocksRaycasts = true;
                 float elapsedFade = 0f;
                 while (elapsedFade < fadeDuration)
                 {
-                    elapsedFade += Time.deltaTime;
+                    elapsedFade += Time.unscaledDeltaTime;
                     transitionFader.alpha = Mathf.Lerp(0f, 1f, elapsedFade / fadeDuration);
                     yield return null;
                 }
@@ -220,7 +235,12 @@ public class GameManager : MonoBehaviour
 
         // 4. Show Build Mode UI while the screen is black
         foreach (GameObject uiElement in buildModeUIElements) if (uiElement != null) uiElement.SetActive(true);
-        OnEnterBuildMode?.Invoke();
+        InvokeEventSafely(OnEnterBuildMode);
+
+        // BuildUI may only have awakened when its parent was enabled above, so do not
+        // rely exclusively on its OnEnterBuildMode subscription.
+        if (BuildUIController.Instance != null)
+            BuildUIController.Instance.RefreshContractBuildUI();
 
         // --- FADE IN TO CLEAR ---
         if (transitionFader != null)
@@ -228,19 +248,29 @@ public class GameManager : MonoBehaviour
             float elapsedFade = 0f;
             while (elapsedFade < fadeDuration)
             {
-                elapsedFade += Time.deltaTime;
+                elapsedFade += Time.unscaledDeltaTime;
                 transitionFader.alpha = Mathf.Lerp(1f, 0f, elapsedFade / fadeDuration);
                 yield return null;
             }
-            transitionFader.alpha = 0f;
-            transitionFader.blocksRaycasts = false;
+            HideTransitionFader();
         }
 
-        isTransitioning = false;
+        }
+        finally
+        {
+            HideTransitionFader();
+            isTransitioning = false;
+        }
     }
 
     public void ExitBuildMode()
     {
+        if (BuildTutorialDirector.Instance != null && BuildTutorialDirector.Instance.isTutorialRunning)
+        {
+            Debug.LogWarning("Build Mode exit blocked while the build tutorial is active.");
+            return;
+        }
+
         if (CurrentState == GameState.Normal || isTransitioning) return;
         
         StartCoroutine(ExitBuildModeRoutine());
@@ -249,16 +279,19 @@ public class GameManager : MonoBehaviour
     private IEnumerator ExitBuildModeRoutine()
     {
         isTransitioning = true;
+        try
+        {
         CurrentState = GameState.Normal;
 
         // --- FADE OUT TO BLACK ---
         if (transitionFader != null)
         {
+            transitionFader.gameObject.SetActive(true);
             transitionFader.blocksRaycasts = true;
             float elapsedFade = 0f;
             while (elapsedFade < fadeDuration)
             {
-                elapsedFade += Time.deltaTime;
+                elapsedFade += Time.unscaledDeltaTime;
                 transitionFader.alpha = Mathf.Lerp(0f, 1f, elapsedFade / fadeDuration);
                 yield return null;
             }
@@ -296,12 +329,11 @@ public class GameManager : MonoBehaviour
             float elapsedFade = 0f;
             while (elapsedFade < fadeDuration)
             {
-                elapsedFade += Time.deltaTime;
+                elapsedFade += Time.unscaledDeltaTime;
                 transitionFader.alpha = Mathf.Lerp(1f, 0f, elapsedFade / fadeDuration);
                 yield return null;
             }
-            transitionFader.alpha = 0f;
-            transitionFader.blocksRaycasts = false;
+            HideTransitionFader();
         }
 
         // 3. Animate the camera pulling back out of the blueprint
@@ -314,7 +346,7 @@ public class GameManager : MonoBehaviour
 
             while (elapsed < duration)
             {
-                elapsed += Time.deltaTime;
+                elapsed += Time.unscaledDeltaTime;
                 float t = Mathf.SmoothStep(0, 1, elapsed / duration);
                 
                 Vector3 targetWorldPos = mainCamParent.TransformPoint(mainCamLocalPos);
@@ -344,7 +376,7 @@ public class GameManager : MonoBehaviour
         PlayerMotor player = FindObjectOfType<PlayerMotor>();
         if (player != null) player.enabled = true;
 
-        OnExitBuildMode?.Invoke();
+        InvokeEventSafely(OnExitBuildMode);
 
         if (ActiveBuildLocation != null && currentPlayerTransform != null)
         {
@@ -354,8 +386,35 @@ public class GameManager : MonoBehaviour
         currentPlayerTransform = null;
         ActiveBuildLocation = null; 
         CurrentContract = null;
-        isTransitioning = false;
+        }
+        finally
+        {
+            HideTransitionFader();
+            isTransitioning = false;
+        }
     }
 
     public bool IsInBuildMode() => CurrentState == GameState.Building;
+
+    private void HideTransitionFader()
+    {
+        if (transitionFader == null) return;
+        transitionFader.alpha = 0f;
+        transitionFader.interactable = false;
+        transitionFader.blocksRaycasts = false;
+        transitionFader.gameObject.SetActive(false);
+    }
+
+    private static void InvokeEventSafely(UnityEvent targetEvent)
+    {
+        if (targetEvent == null) return;
+        try
+        {
+            targetEvent.Invoke();
+        }
+        catch (System.Exception exception)
+        {
+            Debug.LogException(exception);
+        }
+    }
 }

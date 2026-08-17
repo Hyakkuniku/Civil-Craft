@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.InputSystem.EnhancedTouch;
+using UnityEngine.InputSystem;
 using Touch = UnityEngine.InputSystem.EnhancedTouch.Touch;
 using UnityEngine.EventSystems;
 using System.Collections.Generic;
@@ -123,34 +124,38 @@ public class MapCameraController : MonoBehaviour
 
     void HandlePCInput()
     {
-        float scroll = Input.GetAxis("Mouse ScrollWheel");
+        Mouse mouse = Mouse.current;
+        if (mouse == null) return;
+
+        Vector2 mousePosition = mouse.position.ReadValue();
+        float scroll = mouse.scroll.ReadValue().y / 120f;
         if (Mathf.Abs(scroll) > 0.001f)
         {
             ApplyZoom(scroll * -zoomSpeedPC);
             if (MapUIManager.Instance != null) MapUIManager.Instance.CloseLevelInfo();
         }
 
-        if (Input.GetMouseButtonDown(0))
+        if (mouse.leftButton.wasPressedThisFrame)
         {
-            if (!IsPointerOverUI(Input.mousePosition))
+            if (!IsPointerOverUI(mousePosition))
             {
-                dragOriginPC = Input.mousePosition;
+                dragOriginPC = mousePosition;
                 isDraggingPC = true;
             }
         }
-        else if (Input.GetMouseButtonUp(0))
+        else if (mouse.leftButton.wasReleasedThisFrame)
         {
-            if (isDraggingPC && Vector2.Distance(dragOriginPC, Input.mousePosition) < 10f)
+            if (isDraggingPC && Vector2.Distance(dragOriginPC, mousePosition) < 10f)
             {
-                TrySelectNode(Input.mousePosition);
+                TrySelectNode(mousePosition);
             }
             isDraggingPC = false;
         }
 
-        if (isDraggingPC && Input.GetMouseButton(0))
+        if (isDraggingPC && mouse.leftButton.isPressed)
         {
-            Vector2 delta = (Vector2)Input.mousePosition - dragOriginPC;
-            dragOriginPC = Input.mousePosition;
+            Vector2 delta = mousePosition - dragOriginPC;
+            dragOriginPC = mousePosition;
 
             if (delta.magnitude > panCloseUIThreshold)
             {

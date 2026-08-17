@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.InputSystem;
 
 public class PauseManager : MonoBehaviour
 {
@@ -34,7 +35,10 @@ public class PauseManager : MonoBehaviour
     private void Update()
     {
         // Toggle pause with the Escape key
-        if (Input.GetKeyDown(KeyCode.Escape))
+        bool pausePressed = (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame) ||
+                            (Gamepad.current != null && Gamepad.current.startButton.wasPressedThisFrame);
+
+        if (pausePressed)
         {
             // If the player is building, the GameManager uses Escape to exit build mode. 
             // We don't want to pause the game at the same time!

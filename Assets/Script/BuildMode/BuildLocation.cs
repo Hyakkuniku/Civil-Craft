@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI; 
+using System.Collections;
 using System.Collections.Generic;
 
 public class BuildLocation : Interactable 
@@ -77,7 +78,8 @@ public class BuildLocation : Interactable
 
     private void Update()
     {
-        if (activeContract == null) promptMessage = "Requires Contract! Talk to the client.";
+        if (IsOverworldTutorialBlockingBuild()) promptMessage = "Finish the current tutorial first.";
+        else if (activeContract == null) promptMessage = "Requires Contract! Talk to the client.";
         else if (bakedBars.Count > 0) promptMessage = "Redo Bridge (Deletes Old)"; 
         else promptMessage = "Enter Build Mode";
 
@@ -129,6 +131,12 @@ public class BuildLocation : Interactable
 
     public void TryEnterBuildMode()
     {
+        if (IsOverworldTutorialBlockingBuild())
+        {
+            Debug.LogWarning("Build Mode is locked while an overworld tutorial is active.");
+            return;
+        }
+
         if (activeContract == null) { Debug.LogWarning("<color=red>Access Denied!</color> You cannot build here without a valid contract."); return; }
         
         if (bakedBars.Count > 0) 
@@ -172,14 +180,15 @@ public class BuildLocation : Interactable
 
     public void ActivateBuildMode(Transform player)
     {
-        if (GameManager.Instance == null || activeContract == null) return; 
+        if (GameManager.Instance == null || activeContract == null || IsOverworldTutorialBlockingBuild()) return;
+
+        if (!GameManager.Instance.EnterBuildMode(this, player)) return;
 
         BarCreator barCreator = FindObjectOfType<BarCreator>(true);
         if (gridImage != null) gridImage.enabled = (barCreator != null && barCreator.isGridSnappingEnabled);
 
         SetBridgeScriptsActive(true);
-
-        GameManager.Instance.EnterBuildMode(this, player);
+        StartCoroutine(StartBuildTutorialAfterTransition());
 
         if (lockPlayerToZone && player != null)
         {
@@ -187,17 +196,30 @@ public class BuildLocation : Interactable
             player.SetParent(transform);
         }
 
-        if (advancesTutorial && TutorialManager.Instance != null) TutorialManager.Instance.ShowNextStep();
-
-        if (onEnterBuildModeTutorial != null)
-        {
-            onEnterBuildModeTutorial.TryStartTutorial();
-        }
-
         if (activeContract.isTimeAttack)
         {
             ResetTimeAttack();
         }
+    }
+
+    private bool IsOverworldTutorialBlockingBuild()
+    {
+        return TutorialManager.Instance != null && TutorialManager.Instance.IsTutorialActive &&
+               (GameManager.Instance == null || GameManager.Instance.CurrentState == GameManager.GameState.Normal);
+    }
+
+    private IEnumerator StartBuildTutorialAfterTransition()
+    {
+        yield return new WaitUntil(() => GameManager.Instance == null ||
+            (GameManager.Instance.ActiveBuildLocation == this && !GameManager.Instance.IsTransitioning));
+
+        if (GameManager.Instance == null || GameManager.Instance.ActiveBuildLocation != this) yield break;
+        if (onEnterBuildModeTutorial == null || !onEnterBuildModeTutorial.CanStartTutorial()) yield break;
+
+        if (BuildTutorialDirector.Instance != null)
+            BuildTutorialDirector.Instance.LockAllUI();
+
+        onEnterBuildModeTutorial.TryStartTutorial();
     }
 
     public void DeactivateBuildMode(Transform player)

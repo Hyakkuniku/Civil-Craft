@@ -81,7 +81,7 @@ public class InputManager : MonoBehaviour
         // --- PC Camera Logic ---
         if (requireRightClickToLook)
         {
-            if (Input.GetMouseButton(1)) // 1 = Right Mouse Button
+            if (Mouse.current != null && Mouse.current.rightButton.isPressed)
             {
                 Cursor.lockState = CursorLockMode.Locked;
                 Cursor.visible = false;

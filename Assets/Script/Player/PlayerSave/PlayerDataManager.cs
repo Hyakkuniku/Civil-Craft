@@ -13,6 +13,7 @@ public class PlayerDataManager : MonoBehaviour
     public List<AchievementSO> allGameAchievements = new List<AchievementSO>();
 
     public Action OnAlmanacUnlocked;
+    public Action OnAlmanacAlertsChanged;
     public Action<AchievementSO> OnAchievementUnlocked; 
     
     // Optional: Useful if you have a top-right Gold UI that needs to refresh immediately!
@@ -126,7 +127,10 @@ public class PlayerDataManager : MonoBehaviour
         { 
             CurrentData.completedContracts.Add(contractName); 
             CurrentData.lifetimeContractsCompleted++; 
-            SaveGame(); 
+            CurrentData.hasUnlockedContractsTab = true;
+            CurrentData.hasUnreadContractsAlert = true;
+            SaveGame();
+            OnAlmanacAlertsChanged?.Invoke();
             CheckAllAchievements(); 
         } 
     }
@@ -202,10 +206,51 @@ public class PlayerDataManager : MonoBehaviour
     // ────────────────────────────────────────────────
 
     public void UnlockLevel(string levelName) { if (!CurrentData.unlockedLevels.Contains(levelName)) { CurrentData.unlockedLevels.Add(levelName); SaveGame(); } }
-    public void CompleteLesson(string lessonName) { if (!CurrentData.completedLessons.Contains(lessonName)) { CurrentData.completedLessons.Add(lessonName); SaveGame(); } }
+    public void CompleteLesson(string lessonName)
+    {
+        if (CurrentData.completedLessons.Contains(lessonName)) return;
+
+        CurrentData.completedLessons.Add(lessonName);
+        SaveGame();
+    }
     public void UnlockMaterialForContract(string contractName, string materialName) { string key = contractName + "_" + materialName; if (!CurrentData.unlockedContractMaterials.Contains(key)) { CurrentData.unlockedContractMaterials.Add(key); SaveGame(); } }
     public bool IsMaterialUnlockedForContract(string contractName, string materialName) { string key = contractName + "_" + materialName; return CurrentData.unlockedContractMaterials.Contains(key); }
-    public void UnlockAlmanac() { if (!CurrentData.hasAlmanac) { CurrentData.hasAlmanac = true; SaveGame(); OnAlmanacUnlocked?.Invoke(); } }
+    public void UnlockAlmanac()
+    {
+        if (CurrentData.hasAlmanac) return;
+
+        CurrentData.hasAlmanac = true;
+        CurrentData.hasUnreadAlmanacUnlockAlert = true;
+        CurrentData.hasUnreadContractsAlert |= CurrentData.completedContracts.Count > 0;
+        SaveGame();
+        OnAlmanacUnlocked?.Invoke();
+        OnAlmanacAlertsChanged?.Invoke();
+    }
+
+    public void MarkContractsAlmanacUnread()
+    {
+        if (CurrentData.hasUnreadContractsAlert) return;
+        CurrentData.hasUnreadContractsAlert = true;
+        SaveGame();
+        OnAlmanacAlertsChanged?.Invoke();
+    }
+
+    public void MarkAlmanacOpened()
+    {
+        if (!CurrentData.hasUnreadAlmanacUnlockAlert) return;
+        CurrentData.hasUnreadAlmanacUnlockAlert = false;
+        SaveGame();
+        OnAlmanacAlertsChanged?.Invoke();
+    }
+
+    public void MarkContractsAlmanacRead()
+    {
+        if (!CurrentData.hasUnreadContractsAlert) return;
+        CurrentData.hasUnreadContractsAlert = false;
+        SaveGame();
+        OnAlmanacAlertsChanged?.Invoke();
+    }
+
     public void UnlockDoor(string doorID) { if (!CurrentData.unlockedDoors.Contains(doorID)) { CurrentData.unlockedDoors.Add(doorID); SaveGame(); } }
     public bool IsDoorUnlocked(string doorID) { return CurrentData.unlockedDoors.Contains(doorID); }
 
