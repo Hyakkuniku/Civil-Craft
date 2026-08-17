@@ -18,20 +18,26 @@ public class PathGuider : MonoBehaviour
     public bool randomizeRotation = true;
 
     [Header("Visual Effects")]
-    // --- NEW: Toggle for the sparkle effect ---
     [Tooltip("Uncheck this to turn off the sparkle effects completely.")]
     public bool enableSparkles = true; 
     [Tooltip("Drop a Sparkle/Glow Particle System Prefab here to attach to every rock!")]
     public GameObject sparklePrefab;
     [Tooltip("Makes the rocks larger or smaller overall. (1.5 = 50% larger)")]
     public float rockScaleMultiplier = 1.0f;
-    [Tooltip("If TRUE, the rocks will continuously pulse in size to grab attention.")]
-    public bool pulseRocks = true;
+
+    // --- NEW: Centralized Wave Animation Settings ---
+    [Header("Wave Animation (Flows to Target)")]
+    [Tooltip("If TRUE, the rocks will animate in a wave flowing toward the destination.")]
+    public bool animateWave = true;
+    [Tooltip("How fast the wave travels down the path.")]
+    public float waveSpeed = 1.5f;
+    [Tooltip("The delay offset between each rock in the line.")]
+    public float waveStep = 0.2f;
+    [Tooltip("The smallest size the rock shrinks to before growing again.")]
+    [Range(0f, 1f)] public float minWaveScale = 0.2f;
 
     [Header("Dynamic Recalculation")]
-    [Tooltip("If the player strays this far (in meters) from the trail, it will draw new rocks to guide them back.")]
     public float offPathTolerance = 4.0f;
-    [Tooltip("How often (in seconds) to check if the player left the path.")]
     public float offPathCheckInterval = 0.5f;
 
     [Header("Path Settings")]
@@ -40,17 +46,20 @@ public class PathGuider : MonoBehaviour
     public float stoppingDistance = 2.0f;
 
     [Header("Terrain Hugging")]
-    [Tooltip("How detailed the path should be calculated.")]
     public float pathResolution = 0.5f;
-    [Tooltip("How high the rocks should sit above the ground so they don't clip inside it.")]
     public float heightOffset = 0.1f; 
-    [Tooltip("Set this to your Ground/Terrain layer!")]
     public LayerMask groundLayer;
 
     private NavMeshPath path;
     private int currentWaypointIndex = 0;
     
-    private List<GameObject> activeRocks = new List<GameObject>(); 
+    // --- THE FIX: We track the object and its Base Scale together now! ---
+    private class TrackedRock
+    {
+        public GameObject obj;
+        public Vector3 baseScale;
+    }
+    private List<TrackedRock> activeRocks = new List<TrackedRock>(); 
     private GameObject rockContainer; 
     
     private Transform currentlyTargetedWaypoint;
@@ -118,6 +127,40 @@ public class PathGuider : MonoBehaviour
         }
 
         HandleRockPickup();
+        
+        // --- NEW: Call the perfectly synced animation every frame ---
+        AnimateRocks();
+    }
+
+    // --- THE FIX: The new, completely shake-free centralized wave logic! ---
+    private void AnimateRocks()
+    {
+        float timeVal = Time.time * waveSpeed;
+        
+        for (int i = 0; i < activeRocks.Count; i++)
+        {
+            if (activeRocks[i].obj == null) continue;
+
+            if (animateWave)
+            {
+                // Fractional looping timer (0.0 to 1.0)
+                // Subtracting i * waveStep makes the wave flow exactly from the Player (0) to Target (N)
+                float t = timeVal - (i * waveStep);
+                t = t - Mathf.Floor(t); // Loops perfectly from 0.0 to 1.0
+
+                // Map the timer to our scale
+                float scaleMult = Mathf.Lerp(minWaveScale, 1f, t);
+                Vector3 targetScale = activeRocks[i].baseScale * scaleMult;
+                
+                // Smooth Lerp towards the target completely kills any jitter/shake
+                activeRocks[i].obj.transform.localScale = Vector3.Lerp(activeRocks[i].obj.transform.localScale, targetScale, Time.deltaTime * 15f);
+            }
+            else
+            {
+                // Standard smooth pop-in if the wave is turned off
+                activeRocks[i].obj.transform.localScale = Vector3.Lerp(activeRocks[i].obj.transform.localScale, activeRocks[i].baseScale, Time.deltaTime * 10f);
+            }
+        }
     }
 
     private bool IsPlayerOffPath(Transform target)
@@ -125,12 +168,12 @@ public class PathGuider : MonoBehaviour
         int validRockCount = 0;
         float minDistToRock = float.MaxValue;
 
-        foreach (GameObject rock in activeRocks)
+        foreach (TrackedRock rock in activeRocks)
         {
-            if (rock == null) continue;
+            if (rock.obj == null) continue;
 
             validRockCount++;
-            float dist = Vector3.Distance(player.position, rock.transform.position);
+            float dist = Vector3.Distance(player.position, rock.obj.transform.position);
             if (dist < minDistToRock)
             {
                 minDistToRock = dist;
@@ -173,8 +216,8 @@ public class PathGuider : MonoBehaviour
 
         for (int i = 0; i < activeRocks.Count; i++)
         {
-            if (activeRocks[i] == null) continue;
-            float dist = Vector3.Distance(player.position, activeRocks[i].transform.position);
+            if (activeRocks[i].obj == null) continue;
+            float dist = Vector3.Distance(player.position, activeRocks[i].obj.transform.position);
             if (dist < minDistToRock)
             {
                 minDistToRock = dist;
@@ -190,13 +233,13 @@ public class PathGuider : MonoBehaviour
 
         for (int i = closestIndex - 1; i >= 0; i--)
         {
-            if (activeRocks[i] != null) Destroy(activeRocks[i]);
+            if (activeRocks[i].obj != null) Destroy(activeRocks[i].obj);
             activeRocks.RemoveAt(i);
         }
 
         NavMeshHit hit;
         Vector3 safeStart = player.position;
-        Vector3 safeTarget = activeRocks[0].transform.position; 
+        Vector3 safeTarget = activeRocks[0].obj.transform.position; 
 
         if (NavMesh.SamplePosition(player.position, out hit, 5f, NavMesh.AllAreas)) safeStart = hit.position;
         if (NavMesh.SamplePosition(safeTarget, out hit, 5f, NavMesh.AllAreas)) safeTarget = hit.position;
@@ -250,7 +293,7 @@ public class PathGuider : MonoBehaviour
         float distanceSinceLastRock = rockSpacing; 
         Vector3 lastPos = pathPoints[0];
 
-        List<GameObject> newlySpawnedRocks = new List<GameObject>();
+        List<TrackedRock> newlySpawnedRocks = new List<TrackedRock>();
 
         foreach (Vector3 point in pathPoints)
         {
@@ -265,11 +308,11 @@ public class PathGuider : MonoBehaviour
                     Vector3 spawnPos = hit.point + new Vector3(0, heightOffset, 0);
 
                     bool isTooCloseToExisting = false;
-                    foreach (GameObject existingRock in activeRocks)
+                    foreach (TrackedRock existingRock in activeRocks)
                     {
-                        if (existingRock == null) continue;
+                        if (existingRock.obj == null) continue;
                         
-                        if (Vector3.Distance(spawnPos, existingRock.transform.position) < (rockSpacing * 0.8f))
+                        if (Vector3.Distance(spawnPos, existingRock.obj.transform.position) < (rockSpacing * 0.8f))
                         {
                             isTooCloseToExisting = true;
                             break;
@@ -293,25 +336,19 @@ public class PathGuider : MonoBehaviour
                     GameObject randomPrefab = rockPrefabs[Random.Range(0, rockPrefabs.Count)];
                     GameObject newRock = Instantiate(randomPrefab, spawnPos, slopeRotation);
 
-                    // --- THE FIX: Calculate the exact target scale first ---
                     Vector3 desiredScale = newRock.transform.localScale * rockScaleMultiplier;
 
-                    // --- NEW: Check the boolean before spawning sparkles ---
                     if (enableSparkles && sparklePrefab != null)
                     {
                         Instantiate(sparklePrefab, newRock.transform.position, Quaternion.identity, newRock.transform);
                     }
                     
-                    RockSpawnAnimation anim = newRock.AddComponent<RockSpawnAnimation>();
-                    // Pass the scale explicitly to the animation script so it doesn't get confused!
-                    anim.targetScale = desiredScale; 
-                    anim.pulse = pulseRocks; 
-
-                    // Force invisible instantly so it doesn't flicker before the animation starts
                     newRock.transform.localScale = Vector3.zero;
-
                     newRock.transform.SetParent(rockContainer.transform);
-                    newlySpawnedRocks.Add(newRock);
+                    
+                    // Bundle it up with its scale target and track it!
+                    TrackedRock tr = new TrackedRock { obj = newRock, baseScale = desiredScale };
+                    newlySpawnedRocks.Add(tr);
                 }
 
                 distanceSinceLastRock = 0f;
@@ -335,7 +372,7 @@ public class PathGuider : MonoBehaviour
 
         for (int i = 0; i < activeRocks.Count; i++)
         {
-            GameObject rock = activeRocks[i];
+            GameObject rock = activeRocks[i].obj;
             if (rock == null) continue;
 
             if (Vector3.Distance(player.position, rock.transform.position) <= rockPickupDistance)
@@ -348,7 +385,7 @@ public class PathGuider : MonoBehaviour
         {
             for (int i = highestTouchedIndex; i >= 0; i--)
             {
-                if (activeRocks[i] != null) Destroy(activeRocks[i]);
+                if (activeRocks[i].obj != null) Destroy(activeRocks[i].obj);
                 activeRocks.RemoveAt(i);
             }
         }
@@ -356,9 +393,9 @@ public class PathGuider : MonoBehaviour
 
     private void ClearRocks()
     {
-        foreach (GameObject rock in activeRocks)
+        foreach (TrackedRock rock in activeRocks)
         {
-            if (rock != null) Destroy(rock);
+            if (rock.obj != null) Destroy(rock.obj);
         }
         activeRocks.Clear();
         
@@ -396,46 +433,4 @@ public class GuiderWaypoint
     
     [Tooltip("If TRUE, reaching this specific waypoint will advance the tutorial to the next step.")]
     public bool advancesTutorial = true; 
-}
-
-public class RockSpawnAnimation : MonoBehaviour
-{
-    // --- THE FIX: Made public so the Guider can set it before Start() ---
-    public Vector3 targetScale = Vector3.one;
-    private float speed = 8f;
-    
-    public bool pulse = false;
-    private float pulseSpeed = 4f;
-    private float pulseIntensity = 0.15f; 
-
-    private void Start()
-    {
-        transform.localScale = Vector3.zero; 
-    }
-
-    private void Update()
-    {
-        if (pulse)
-        {
-            if (transform.localScale.x < targetScale.x * 0.95f)
-            {
-                transform.localScale = Vector3.Lerp(transform.localScale, targetScale, Time.deltaTime * speed);
-            }
-            else
-            {
-                float pulseAmount = 1f + (Mathf.Sin(Time.time * pulseSpeed) * pulseIntensity);
-                transform.localScale = targetScale * pulseAmount;
-            }
-        }
-        else
-        {
-            transform.localScale = Vector3.Lerp(transform.localScale, targetScale, Time.deltaTime * speed);
-            
-            if (Vector3.Distance(transform.localScale, targetScale) < 0.05f)
-            {
-                transform.localScale = targetScale;
-                Destroy(this); 
-            }
-        }
-    }
 }
