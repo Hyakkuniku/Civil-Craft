@@ -214,12 +214,88 @@ public class BuildLocation : Interactable
             (GameManager.Instance.ActiveBuildLocation == this && !GameManager.Instance.IsTransitioning));
 
         if (GameManager.Instance == null || GameManager.Instance.ActiveBuildLocation != this) yield break;
+        if (activeContract != null && activeContract.WasTutorialCompletedByCurrentPlayer()) yield break;
         if (onEnterBuildModeTutorial == null || !onEnterBuildModeTutorial.CanStartTutorial()) yield break;
 
         if (BuildTutorialDirector.Instance != null)
             BuildTutorialDirector.Instance.LockAllUI();
 
         onEnterBuildModeTutorial.TryStartTutorial();
+    }
+
+    /// <summary>
+    /// Forced recovery path used when physics fails an unfinished tutorial contract.
+    /// It resets saved lesson gates for this sequence chain and replays from step zero.
+    /// </summary>
+    public bool RestartBuildTutorialAfterFailure()
+    {
+        if (activeContract == null || !activeContract.IsTutorialForCurrentPlayer() ||
+            onEnterBuildModeTutorial == null || TutorialManager.Instance == null)
+        {
+            return false;
+        }
+
+        // A final Play-button step may have already marked one or more chained
+        // sequences complete before the simulation failure was known.
+        if (PlayerDataManager.Instance != null)
+        {
+            HashSet<TutorialSequence> sequencesToReset = new HashSet<TutorialSequence>();
+            TutorialSequence sequence = onEnterBuildModeTutorial;
+
+            while (sequence != null && sequencesToReset.Add(sequence))
+            {
+                sequence = sequence.autoStartNextSequence ? sequence.nextSequence : null;
+            }
+
+            // Also catch separately-triggered build sequences such as Build2.
+            // Overworld/navigation tutorials are left untouched.
+            foreach (TutorialSequence sceneSequence in Resources.FindObjectsOfTypeAll<TutorialSequence>())
+            {
+                if (sceneSequence != null && sceneSequence.gameObject.scene == gameObject.scene &&
+                    UsesBuildTutorialDirector(sceneSequence))
+                {
+                    sequencesToReset.Add(sceneSequence);
+                }
+            }
+
+            foreach (TutorialSequence buildSequence in sequencesToReset)
+                PlayerDataManager.Instance.ResetLessonProgress(buildSequence.lessonName, false);
+
+            PlayerDataManager.Instance.SaveGame();
+        }
+
+        if (BuildTutorialDirector.Instance != null) BuildTutorialDirector.Instance.EndTutorial();
+
+        BarCreator barCreator = BuildUIController.Instance != null
+            ? BuildUIController.Instance.barCreator
+            : FindObjectOfType<BarCreator>();
+        if (barCreator != null) barCreator.ClearPlayerPlacedBridge(this);
+
+        if (CommandManager.Instance != null) CommandManager.Instance.ClearHistory();
+
+        if (BuildTutorialDirector.Instance != null)
+            BuildTutorialDirector.Instance.PrepareGhostsForTutorialRestart();
+
+        TutorialManager.Instance.RestartTutorial(onEnterBuildModeTutorial);
+        return true;
+    }
+
+    private static bool UsesBuildTutorialDirector(TutorialSequence sequence)
+    {
+        if (sequence == null || sequence.tutorialSteps == null) return false;
+
+        foreach (TutorialStep step in sequence.tutorialSteps)
+        {
+            if (step == null || step.OnStepStart == null) continue;
+
+            for (int i = 0; i < step.OnStepStart.GetPersistentEventCount(); i++)
+            {
+                if (step.OnStepStart.GetPersistentTarget(i) is BuildTutorialDirector)
+                    return true;
+            }
+        }
+
+        return false;
     }
 
     public void DeactivateBuildMode(Transform player)

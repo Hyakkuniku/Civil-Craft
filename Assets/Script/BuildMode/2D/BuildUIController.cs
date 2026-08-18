@@ -1092,7 +1092,7 @@ public class BuildUIController : MonoBehaviour
     {
         return GameManager.Instance != null &&
                GameManager.Instance.CurrentContract != null &&
-               GameManager.Instance.CurrentContract.isTutorialContract;
+               GameManager.Instance.CurrentContract.IsTutorialForCurrentPlayer();
     }
 
     public void OnMaterialSelected(BridgeMaterialSO newMaterial) 

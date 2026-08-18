@@ -42,6 +42,7 @@ public class LevelFailedManager : MonoBehaviour
     private LiveLoadVehicle activeVehicle;
     private BridgePhysicsManager physicsManager;
     private Coroutine failDelayCoroutine;
+    private BuildLocation tutorialLocationToRestart;
     
     [HideInInspector] public bool isFailed = false;
 
@@ -139,13 +140,17 @@ public class LevelFailedManager : MonoBehaviour
         
         if (GameManager.Instance != null && GameManager.Instance.CurrentContract != null)
         {
-            isTutorial = GameManager.Instance.CurrentContract.isTutorialContract;
+            isTutorial = GameManager.Instance.CurrentContract.IsTutorialForCurrentPlayer();
         }
 
         if (!isTutorial)
         {
             currentFailCount++;
         }
+
+        tutorialLocationToRestart = isTutorial && !hideRetryButtonThisFail && GameManager.Instance != null
+            ? GameManager.Instance.ActiveBuildLocation
+            : null;
 
         if (activeVehicle == null) activeVehicle = FindObjectOfType<LiveLoadVehicle>();
         if (activeVehicle != null) activeVehicle.EmergencyStop();
@@ -211,6 +216,9 @@ public class LevelFailedManager : MonoBehaviour
 
     public void RetryLevel()
     {
+        BuildLocation restartLocation = tutorialLocationToRestart;
+        tutorialLocationToRestart = null;
+
         if (failDelayCoroutine != null) StopCoroutine(failDelayCoroutine); 
         
         if (physicsManager != null)
@@ -235,6 +243,22 @@ public class LevelFailedManager : MonoBehaviour
         if (levelFailedPanel != null) levelFailedPanel.SetActive(false);
         isFailed = false;
         hideRetryButtonThisFail = false; 
+
+        if (restartLocation != null)
+            StartCoroutine(RestartTutorialAfterRetry(restartLocation));
+    }
+
+    private IEnumerator RestartTutorialAfterRetry(BuildLocation restartLocation)
+    {
+        // Let the physics reset, restored HUD, and UI layouts finish first.
+        yield return null;
+        Canvas.ForceUpdateCanvases();
+
+        if (restartLocation != null && restartLocation.gameObject.activeInHierarchy)
+        {
+            if (!restartLocation.RestartBuildTutorialAfterFailure())
+                Debug.LogWarning("Tutorial contract retry could not restart its build tutorial. Check the Build Location tutorial reference.");
+        }
     }
 
     public void ExitLevel()
@@ -242,6 +266,7 @@ public class LevelFailedManager : MonoBehaviour
         Time.timeScale = 1f;
         ResetFailCount(); 
         hideRetryButtonThisFail = false; 
+        tutorialLocationToRestart = null;
         SceneManager.LoadScene("Level Selection"); 
     }
 
@@ -250,6 +275,7 @@ public class LevelFailedManager : MonoBehaviour
         if (failDelayCoroutine != null) StopCoroutine(failDelayCoroutine); 
         
         isFailed = false;
+        tutorialLocationToRestart = null;
         RestoreHiddenUI(); 
         if (levelFailedPanel != null) levelFailedPanel.SetActive(false);
     }

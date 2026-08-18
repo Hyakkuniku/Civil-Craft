@@ -38,6 +38,23 @@ public class ContractSO : ScriptableObject
     [Tooltip("If checked, any materials NOT on the Allowed list will be completely hidden instead of grayed out.")]
     public bool isTutorialContract = false;
 
+    /// <summary>
+    /// True only while this contract is configured as a tutorial and the
+    /// current player has not completed it yet. This deliberately does not
+    /// modify the ScriptableObject asset when progression changes.
+    /// </summary>
+    public bool IsTutorialForCurrentPlayer()
+    {
+        return isTutorialContract && !WasTutorialCompletedByCurrentPlayer();
+    }
+
+    public bool WasTutorialCompletedByCurrentPlayer()
+    {
+        return isTutorialContract &&
+               PlayerDataManager.Instance != null &&
+               PlayerDataManager.Instance.IsContractCompleted(name);
+    }
+
     [Header("NPC & Reward Settings")]
     [Tooltip("If TRUE, rewards are given automatically upon clicking Save & Bake (no NPC required).")]
     public bool autoCollectReward = false;

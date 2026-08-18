@@ -123,8 +123,14 @@ public class PlayerDataManager : MonoBehaviour
     }
 
     public void CompleteContract(string contractName) 
-    { 
-        if (!CurrentData.completedContracts.Contains(contractName)) 
+    {
+        if (CurrentData == null || string.IsNullOrWhiteSpace(contractName)) return;
+
+        // Older save files may not contain this list yet.
+        if (CurrentData.completedContracts == null)
+            CurrentData.completedContracts = new List<string>();
+
+        if (!IsContractCompleted(contractName))
         { 
             CurrentData.completedContracts.Add(contractName); 
             CurrentData.lifetimeContractsCompleted++; 
@@ -136,6 +142,14 @@ public class PlayerDataManager : MonoBehaviour
             OnObjectiveAlertsChanged?.Invoke();
             CheckAllAchievements(); 
         } 
+    }
+
+    public bool IsContractCompleted(string contractName)
+    {
+        return CurrentData != null &&
+               CurrentData.completedContracts != null &&
+               !string.IsNullOrWhiteSpace(contractName) &&
+               CurrentData.completedContracts.Contains(contractName);
     }
 
     public void MarkObjectiveAlertUnread()
@@ -231,6 +245,15 @@ public class PlayerDataManager : MonoBehaviour
 
         CurrentData.completedLessons.Add(lessonName);
         SaveGame();
+    }
+
+    public void ResetLessonProgress(string lessonName, bool saveImmediately = true)
+    {
+        if (CurrentData == null || CurrentData.completedLessons == null ||
+            string.IsNullOrWhiteSpace(lessonName)) return;
+
+        if (!CurrentData.completedLessons.Remove(lessonName)) return;
+        if (saveImmediately) SaveGame();
     }
     public void UnlockMaterialForContract(string contractName, string materialName) { string key = contractName + "_" + materialName; if (!CurrentData.unlockedContractMaterials.Contains(key)) { CurrentData.unlockedContractMaterials.Add(key); SaveGame(); } }
     public bool IsMaterialUnlockedForContract(string contractName, string materialName) { string key = contractName + "_" + materialName; return CurrentData.unlockedContractMaterials.Contains(key); }

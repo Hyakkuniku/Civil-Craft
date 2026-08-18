@@ -7,13 +7,27 @@ public class TutorialPointer : MonoBehaviour
     public float bounceSpeed = 8f;
     public float bounceAmount = 15f;
 
+    [Header("Rendering")]
+    [Tooltip("Keeps the pointer above other screen-space canvases, including tutorial warning panels.")]
+    [SerializeField] private bool renderOnTop = true;
+    [SerializeField] private int pointerSortingOrder = 32000;
+
     private RectTransform target;
     private Vector2 customOffset;
     private RectTransform rectTransform;
+    private Canvas pointerCanvas;
 
     private void Awake()
     {
         rectTransform = GetComponent<RectTransform>();
+
+        if (renderOnTop)
+        {
+            pointerCanvas = GetComponent<Canvas>();
+            if (pointerCanvas == null) pointerCanvas = gameObject.AddComponent<Canvas>();
+            pointerCanvas.overrideSorting = true;
+            pointerCanvas.sortingOrder = pointerSortingOrder;
+        }
 
         // Tutorial arrows are visual guidance only. They must never intercept the
         // button or build-area pointer event that they are pointing toward.
@@ -40,20 +54,34 @@ public class TutorialPointer : MonoBehaviour
 
     public void PointAt(RectTransform newTarget, Vector2 offset)
     {
+        if (newTarget == null)
+        {
+            Hide();
+            return;
+        }
+
         target = newTarget;
         customOffset = offset;
-        
-        UpdatePosition();
+
         gameObject.SetActive(true);
+        transform.SetAsLastSibling();
+        UpdatePosition();
     }
 
     public void PointAt(RectTransform newTarget)
     {
+        if (newTarget == null)
+        {
+            Hide();
+            return;
+        }
+
         target = newTarget;
         customOffset = Vector2.zero;
-        
-        UpdatePosition();
+
         gameObject.SetActive(true);
+        transform.SetAsLastSibling();
+        UpdatePosition();
     }
 
     public void Hide()

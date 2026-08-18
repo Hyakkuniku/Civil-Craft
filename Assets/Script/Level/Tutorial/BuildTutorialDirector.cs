@@ -341,6 +341,7 @@ public class BuildTutorialDirector : MonoBehaviour
         }
 
         activeTraceState.completed = false;
+        ResetGhostVisualState(activeTraceState);
 
         if (activeGhosts == null || activeGhosts.Length == 0)
             Debug.LogWarning("Build tutorial tracing started, but no active GhostSegment objects were found.");
@@ -570,11 +571,23 @@ public class BuildTutorialDirector : MonoBehaviour
 
     private IEnumerator RepointUndoArrowAfterLayout()
     {
-        yield return null;
-        Canvas.ForceUpdateCanvases();
+        // Contract visibility and layout rebuilds can span more than one frame.
+        // Retry briefly so the pointer is not lost when Undo was previously hidden.
+        const int maxLayoutFrames = 5;
+        for (int frame = 0; frame < maxLayoutFrames && IsAwaitingInvalidBarUndo; frame++)
+        {
+            yield return null;
+            Canvas.ForceUpdateCanvases();
 
-        if (IsAwaitingInvalidBarUndo)
-            PointArrow(undoButtonRect, undoArrowOffset, undoArrowRotation);
+            if (undoButtonRect != null && undoButtonRect.gameObject.activeInHierarchy &&
+                PointArrow(undoButtonRect, undoArrowOffset, undoArrowRotation))
+            {
+                break;
+            }
+
+            if (BuildUIController.Instance != null)
+                BuildUIController.Instance.SetToolForcedVisible(BuildModeTool.Undo, true);
+        }
 
         undoPointerCoroutine = null;
     }
@@ -864,8 +877,88 @@ public class BuildTutorialDirector : MonoBehaviour
 
     private void ClearTraceStepStates()
     {
+        // Restore every segment before discarding the step-to-container mapping.
+        // Parent containers stay hidden until their own tutorial step starts again.
+        ResetAllTrackedGhostVisuals();
         traceStatesByStep.Clear();
         activeTraceState = null;
+    }
+
+    /// <summary>
+    /// Restores all baked ghost visuals in this scene after a tutorial failure.
+    /// Each container is then hidden so only the matching TutorialStep can reveal it.
+    /// This also catches ghost steps whose runtime tracking was already cleared when
+    /// the final Play-button step completed before physics reported the failure.
+    /// </summary>
+    public void PrepareGhostsForTutorialRestart()
+    {
+        ResetAllTrackedGhostVisuals();
+
+        HashSet<Transform> ghostContainers = new HashSet<Transform>();
+        foreach (GhostSegment ghost in Resources.FindObjectsOfTypeAll<GhostSegment>())
+        {
+            if (ghost == null || ghost.gameObject.scene != gameObject.scene) continue;
+
+            ghost.isCovered = false;
+            ghost.gameObject.SetActive(true);
+
+            Transform container = ghost.transform.parent;
+            if (container != null) ghostContainers.Add(container);
+        }
+
+        foreach (Transform container in ghostContainers)
+        {
+            if (container == null) continue;
+
+            foreach (Transform child in container)
+            {
+                if (child != null && child.name.Contains("Ghost_Point"))
+                    child.gameObject.SetActive(true);
+            }
+
+            container.gameObject.SetActive(false);
+        }
+
+        traceStatesByStep.Clear();
+        activeTraceState = null;
+        activeGhosts = null;
+        activeGhostPoints = null;
+    }
+
+    private static void ResetGhostVisualState(TraceStepState state)
+    {
+        if (state == null) return;
+
+        state.completed = false;
+        state.coveringBars.Clear();
+
+        if (state.ghosts != null)
+        {
+            foreach (GhostSegment ghost in state.ghosts)
+            {
+                if (ghost == null) continue;
+                ghost.isCovered = false;
+                ghost.gameObject.SetActive(true);
+            }
+        }
+
+        if (state.ghostPoints != null)
+        {
+            foreach (Transform ghostPoint in state.ghostPoints)
+            {
+                if (ghostPoint != null) ghostPoint.gameObject.SetActive(true);
+            }
+        }
+    }
+
+    private void ResetAllTrackedGhostVisuals()
+    {
+        foreach (TraceStepState state in traceStatesByStep.Values)
+        {
+            ResetGhostVisualState(state);
+            if (state != null && state.parent != null)
+                state.parent.gameObject.SetActive(false);
+        }
     }
 
     private static Transform[] FindGhostPoints(GhostSegment[] ghosts)
@@ -881,7 +974,7 @@ public class BuildTutorialDirector : MonoBehaviour
         return points.ToArray();
     }
 
-    private void PointArrow(RectTransform target, Vector2 offset, float rotation)
+    private bool PointArrow(RectTransform target, Vector2 offset, float rotation)
     {
         TutorialPointer pointer = bouncingArrow;
         if (pointer == null && TutorialManager.Instance != null)
@@ -890,17 +983,18 @@ public class BuildTutorialDirector : MonoBehaviour
         if (pointer == null || target == null)
         {
             Debug.LogWarning("Cannot show the build tutorial pointer. Assign both the pointer and Undo Button Rect references.");
-            return;
+            return false;
         }
 
         if (!target.gameObject.activeInHierarchy)
         {
             Debug.LogWarning("Cannot point at Undo because its RectTransform is inactive in the hierarchy.");
-            return;
+            return false;
         }
 
         pointer.PointAt(target, offset);
         pointer.transform.localEulerAngles = new Vector3(0, 0, rotation);
+        return pointer.gameObject.activeInHierarchy;
     }
 
     private void SetBarTint(Bar bar, bool red)
@@ -941,6 +1035,11 @@ public class BuildTutorialDirector : MonoBehaviour
 
     public void EndTutorial()
     {
+        // A sequence can finish when the player clicks Play, before physics has
+        // confirmed success. Keep every blueprint ready in case failure restarts it.
+        // Parent containers are hidden and enabled again only by their own step.
+        ResetAllTrackedGhostVisuals();
+
         isTutorialRunning = false;
         simulationUnlockedForTutorial = false;
         activeStepIndex = -1;

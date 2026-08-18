@@ -79,7 +79,7 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
         if (GameManager.Instance != null && GameManager.Instance.CurrentContract != null)
         {
             ContractSO contract = GameManager.Instance.CurrentContract;
-            isTutorial = contract.isTutorialContract;
+            isTutorial = contract.IsTutorialForCurrentPlayer();
             isExplicitlyHidden = contract.IsMaterialHidden(buttonMaterial);
             
             if (contract.allowedMaterials != null && contract.allowedMaterials.Count > 0)

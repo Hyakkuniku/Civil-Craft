@@ -479,7 +479,7 @@ public class LevelCompleteManager : MonoBehaviour
             failPenalty = LevelFailedManager.Instance.currentFailCount * LevelFailedManager.Instance.goldPenaltyPerFail;
         }
 
-        if (currentContract != null && currentContract.isTutorialContract)
+        if (currentContract != null && currentContract.IsTutorialForCurrentPlayer())
         {
             calculatedGold = 0;
             calculatedExp = 0;
@@ -552,13 +552,13 @@ public class LevelCompleteManager : MonoBehaviour
 
         if (goldEarnedText != null) 
         {
-            if (currentContract != null && currentContract.isTutorialContract) goldEarnedText.text = "";
+            if (currentContract != null && currentContract.IsTutorialForCurrentPlayer()) goldEarnedText.text = "";
             else goldEarnedText.text = $"Total Earnings: {calculatedGold} Gold (Pending)";
         }
         
         if (expEarnedText != null) 
         {
-            if (currentContract != null && currentContract.isTutorialContract) expEarnedText.text = "";
+            if (currentContract != null && currentContract.IsTutorialForCurrentPlayer()) expEarnedText.text = "";
             else expEarnedText.text = $"+{calculatedExp} EXP (Pending)";
         }
 

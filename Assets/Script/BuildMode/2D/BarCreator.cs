@@ -551,6 +551,73 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         }
     }
 
+    /// <summary>
+    /// Permanently removes the bridge created during the current build attempt while
+    /// preserving the Build Location's authored anchors and any already-baked bridge.
+    /// This is intentionally not recorded as an Undo action.
+    /// </summary>
+    public void ClearPlayerPlacedBridge(BuildLocation buildLocation)
+    {
+        CancelAllModes();
+
+        HashSet<Bar> preservedBars = new HashSet<Bar>();
+        HashSet<Point> preservedPoints = new HashSet<Point>();
+
+        if (buildLocation != null)
+        {
+            foreach (Bar bakedBar in buildLocation.bakedBars)
+                if (bakedBar != null) preservedBars.Add(bakedBar);
+
+            foreach (Point bakedPoint in buildLocation.bakedPoints)
+                if (bakedPoint != null) preservedPoints.Add(bakedPoint);
+            foreach (Point anchor in buildLocation.startingAnchors)
+                if (anchor != null) preservedPoints.Add(anchor);
+            foreach (Point anchor in buildLocation.endingAnchors)
+                if (anchor != null) preservedPoints.Add(anchor);
+        }
+
+        Bar[] bars = barParent != null
+            ? barParent.GetComponentsInChildren<Bar>(true)
+            : FindObjectsOfType<Bar>(true);
+
+        foreach (Bar bar in bars)
+        {
+            if (bar == null || bar == ghostPierBar || preservedBars.Contains(bar)) continue;
+            bar.gameObject.SetActive(false);
+            Destroy(bar.gameObject);
+        }
+
+        Point[] points = pointParent != null
+            ? pointParent.GetComponentsInChildren<Point>(true)
+            : FindObjectsOfType<Point>(true);
+
+        foreach (Point point in points)
+        {
+            if (point == null || preservedPoints.Contains(point) || !point.Runtime) continue;
+            point.gameObject.SetActive(false);
+            Destroy(point.gameObject);
+        }
+
+        foreach (Point point in preservedPoints)
+        {
+            if (point == null) continue;
+            point.ConnectedBars.RemoveAll(bar => bar == null || !bar.gameObject.activeSelf);
+            if (point.gameObject.activeInHierarchy) point.EvaluateAnchorState();
+        }
+
+        currentBar = null;
+        currentStartPoint = null;
+        currentEndPoint = null;
+        ClearSelection();
+
+        if (BuildUIController.Instance != null)
+        {
+            BuildUIController.Instance.SetSelectionPanelActive(false);
+            BuildUIController.Instance.MarkBridgeDirty();
+            BuildUIController.Instance.LogAction("Tutorial restarted: bridge and budget reset");
+        }
+    }
+
     private void CreateGhostPierBar()
     {
         GameObject obj = Instantiate(barToInstantiate, barParent);
@@ -667,6 +734,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 currentStartPoint = existingNode;
                 createdStartPoint = false;
                 barCreationStarted = true;
+                Tutorial3DIndicator.NotifyAnchorClicked(existingNode.transform);
                 StartBarCreation(exactSnapPos);
             }
         }
@@ -683,6 +751,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             if (!isDraggingSelectionBox && Vector2.Distance(selectionStartPos, eventData.position) > 15f)
             {
                 isDraggingSelectionBox = true;
+                TutorialDragSelectionAnim.NotifySelectionDragStarted();
                 ClearSelection(); 
                 if (selectionBoxUI != null) selectionBoxUI.gameObject.SetActive(true);
             }
@@ -781,8 +850,11 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 if (BuildUIController.Instance != null && (selectedPoints.Count > 0 || selectedBars.Count > 0))
                 {
                     BuildUIController.Instance.SetSelectionPanelActive(true);
-                }               
+                }
             }
+
+            TutorialDragSelectionAnim.NotifySelectionChanged(this);
+
             return;
         }
 

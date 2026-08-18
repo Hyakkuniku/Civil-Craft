@@ -189,7 +189,7 @@ public class PauseManager : MonoBehaviour
         return GameManager.Instance != null &&
                GameManager.Instance.CurrentState == GameManager.GameState.Building &&
                GameManager.Instance.CurrentContract != null &&
-               GameManager.Instance.CurrentContract.isTutorialContract;
+               GameManager.Instance.CurrentContract.IsTutorialForCurrentPlayer();
     }
 
     private GameObject FindPauseButton()

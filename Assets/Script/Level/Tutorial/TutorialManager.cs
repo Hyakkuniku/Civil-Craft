@@ -246,6 +246,10 @@ public class TutorialManager : MonoBehaviour
 
     private void ShowTutorialStep(TutorialStep step, bool playReverseAnimation)
     {
+        // A new step owns its own world indicator. Its OnStepStart event can show
+        // the required indicator again after this cleanup.
+        Tutorial3DIndicator.HideAll();
+
         if (leftTextIdleCoroutine != null)
         {
             StopCoroutine(leftTextIdleCoroutine);
@@ -482,6 +486,7 @@ public class TutorialManager : MonoBehaviour
     {
         TutorialSequence completedSequence = currentSequence;
         ClearTrackedButton(); 
+        Tutorial3DIndicator.HideAll();
         
         IsTutorialActive = false;
         lastScreenPosition = null;
@@ -546,6 +551,70 @@ public class TutorialManager : MonoBehaviour
         if (sequence == null || queuedSequences.Contains(sequence)) return;
         queuedSequences.Add(sequence);
         if (!IsTutorialActive) TryStartQueuedTutorialNextFrame();
+    }
+
+    /// <summary>
+    /// Immediately abandons the current tutorial without recording completion and
+    /// starts the supplied sequence from step zero. Used after a tutorial contract
+    /// fails, including when its final input step already closed the old sequence.
+    /// </summary>
+    public void RestartTutorial(TutorialSequence sequence)
+    {
+        if (sequence == null || sequence.tutorialSteps == null || sequence.tutorialSteps.Length == 0)
+            return;
+
+        ClearTrackedButton();
+
+        if (currentAnimationCoroutine != null)
+        {
+            StopCoroutine(currentAnimationCoroutine);
+            currentAnimationCoroutine = null;
+        }
+
+        if (leftTextIdleCoroutine != null)
+        {
+            StopCoroutine(leftTextIdleCoroutine);
+            leftTextIdleCoroutine = null;
+            if (leftText != null) leftText.transform.localScale = Vector3.one;
+        }
+
+        if (queuedSequenceCoroutine != null)
+        {
+            StopCoroutine(queuedSequenceCoroutine);
+            queuedSequenceCoroutine = null;
+        }
+
+        queuedSequences.Clear();
+
+        if (currentSequence != null && currentSequence.tutorialSteps != null)
+        {
+            foreach (TutorialStep step in currentSequence.tutorialSteps)
+            {
+                if (step != null && step.worldHighlightObject != null)
+                    step.worldHighlightObject.SetActive(false);
+            }
+        }
+
+        if (centerPanel != null) centerPanel.SetActive(false);
+        if (leftPanel != null) leftPanel.SetActive(false);
+        if (nextButton != null) nextButton.SetActive(false);
+        if (skipButton != null) skipButton.SetActive(false);
+        if (bouncingArrow != null) bouncingArrow.Hide();
+
+        if (PathGuider.Instance != null)
+            PathGuider.Instance.SetNewWaypoints(new List<GuiderWaypoint>());
+
+        if (BuildTutorialDirector.Instance != null)
+            BuildTutorialDirector.Instance.EndTutorial();
+
+        IsTutorialActive = false;
+        currentSequence = null;
+        currentStepIndex = -1;
+        lastAdvanceFrame = -1;
+        isAdvancingStep = false;
+        lastScreenPosition = null;
+
+        PlayTutorial(sequence);
     }
 
     private void TryStartQueuedTutorialNextFrame()

@@ -274,13 +274,20 @@ public class ObjectiveTrackerUI : MonoBehaviour
     {
         if (currentlySelectedTask == null || currentlySelectedTask.isCompleted) return;
 
-        if (!currentlySelectedTask.isTutorial && !string.IsNullOrEmpty(currentlySelectedTask.contractName))
+        if (!string.IsNullOrEmpty(currentlySelectedTask.contractName))
         {
             if (PlayerDataManager.Instance != null)
             {
-                PlayerDataManager.Instance.AddGold(currentlySelectedTask.pendingGold);
-                PlayerDataManager.Instance.AddExp(currentlySelectedTask.pendingExp);
-                PlayerDataManager.Instance.AddBridgeBuilt();
+                // Tutorial tasks still need to persist contract completion so
+                // the contract behaves like a normal contract on future runs.
+                // They intentionally do not grant the normal contract payout.
+                if (!currentlySelectedTask.isTutorial)
+                {
+                    PlayerDataManager.Instance.AddGold(currentlySelectedTask.pendingGold);
+                    PlayerDataManager.Instance.AddExp(currentlySelectedTask.pendingExp);
+                    PlayerDataManager.Instance.AddBridgeBuilt();
+                }
+
                 PlayerDataManager.Instance.CompleteContract(currentlySelectedTask.contractName);
             }
 
@@ -289,12 +296,15 @@ public class ObjectiveTrackerUI : MonoBehaviour
                 LevelCompleteManager.Instance.MarkContractAsPaid(currentlySelectedTask.contractName);
             }
 
-            NPCContractGiver[] npcs = FindObjectsOfType<NPCContractGiver>();
-            foreach(var npc in npcs)
+            if (!currentlySelectedTask.isTutorial)
             {
-                if (npc.contractToGive != null && npc.contractToGive.name == currentlySelectedTask.contractName)
+                NPCContractGiver[] npcs = FindObjectsOfType<NPCContractGiver>();
+                foreach(var npc in npcs)
                 {
-                    npc.isFullyTurnedIn = true;
+                    if (npc.contractToGive != null && npc.contractToGive.name == currentlySelectedTask.contractName)
+                    {
+                        npc.isFullyTurnedIn = true;
+                    }
                 }
             }
         }
