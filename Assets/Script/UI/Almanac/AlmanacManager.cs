@@ -46,6 +46,7 @@ public class AlmanacManager : MonoBehaviour
     public GameObject animationPanel; 
     public Image animationImage; 
     public Sprite[] bookOpenFrames; 
+    [Min(0.01f)]
     public float frameRate = 0.03f; 
     private bool isAnimating = false;
 
@@ -79,6 +80,10 @@ public class AlmanacManager : MonoBehaviour
     private int currentCategoryIndex = 0;
     private int currentSpreadIndex = 0; 
     private bool isFlipping = false;
+    private InputManager menuInputManager;
+    private bool restoreMovementAfterClose;
+    private bool restoreLookAfterClose;
+    private bool hasCapturedMenuInput;
 
     private Dictionary<RectTransform, float> originalTabYPositions = new Dictionary<RectTransform, float>();
     private Dictionary<RectTransform, float> targetTabYPositions = new Dictionary<RectTransform, float>();
@@ -129,6 +134,8 @@ public class AlmanacManager : MonoBehaviour
             PlayerDataManager.Instance.OnAlmanacUnlocked -= ShowHudButton;
             PlayerDataManager.Instance.OnAlmanacAlertsChanged -= RefreshPersistentAlerts;
         }
+
+        RestoreMenuInput();
     }
 
     private void ShowHudButton()
@@ -308,40 +315,22 @@ public class AlmanacManager : MonoBehaviour
     private IEnumerator OpenAlmanacRoutine()
     {
         isAnimating = true;
+        CaptureAndDisableMenuInput();
 
         if (PlayerDataManager.Instance != null) PlayerDataManager.Instance.MarkAlmanacOpened();
         RefreshPersistentAlerts();
 
+        // CanyonCrossing's animation panel lives under MainCanvas, which is also in
+        // uiElementsToHide. Hide its siblings instead of disabling its parent canvas.
+        HideUiElementsPreservingAnimation();
+        yield return PlayBookAnimation(true);
+
         if (UIPanelCoordinator.Instance != null)
         {
-            // Hide the HUD and competing panels now; the Almanac itself is activated
-            // after its opening animation finishes.
+            // Restore before taking the coordinator snapshot so it can accurately
+            // restore the HUD after the Almanac closes.
+            RestoreTemporarilyHiddenPanels();
             UIPanelCoordinator.Instance.OpenPanel(almanacCanvas, false);
-        }
-        else
-        {
-            temporarilyHiddenPanels.Clear();
-            foreach (GameObject ui in uiElementsToHide)
-            {
-                if (ui != null && ui.activeSelf)
-                {
-                    temporarilyHiddenPanels.Add(ui);
-                    ui.SetActive(false);
-                }
-            }
-        }
-
-        if (animationPanel != null && animationImage != null && bookOpenFrames.Length > 0)
-        {
-            animationPanel.SetActive(true);
-            
-            for (int i = 0; i < bookOpenFrames.Length; i++)
-            {
-                animationImage.sprite = bookOpenFrames[i];
-                yield return new WaitForSeconds(frameRate);
-            }
-            
-            animationPanel.SetActive(false);
         }
 
         if (almanacCanvas != null) almanacCanvas.SetActive(true);
@@ -381,33 +370,120 @@ public class AlmanacManager : MonoBehaviour
 
         if (almanacCanvas != null) almanacCanvas.SetActive(false);
 
-        if (animationPanel != null && animationImage != null && bookOpenFrames.Length > 0)
-        {
-            animationPanel.SetActive(true);
-            
-            for (int i = bookOpenFrames.Length - 1; i >= 0; i--)
-            {
-                animationImage.sprite = bookOpenFrames[i];
-                yield return new WaitForSeconds(frameRate);
-            }
-            
-            animationPanel.SetActive(false);
-        }
-
         if (UIPanelCoordinator.Instance != null)
         {
+            // Restore the HUD first, then hide everything except the animation branch
+            // while the closing frames play.
             UIPanelCoordinator.Instance.ClosePanel(almanacCanvas);
+            HideUiElementsPreservingAnimation();
+        }
+
+        yield return PlayBookAnimation(false);
+        RestoreTemporarilyHiddenPanels();
+        RestoreMenuInput();
+
+        isAnimating = false;
+    }
+
+    private void CaptureAndDisableMenuInput()
+    {
+        menuInputManager = FindObjectOfType<InputManager>();
+        if (menuInputManager == null) return;
+
+        restoreMovementAfterClose = menuInputManager.IsPlayerInputEnabled;
+        restoreLookAfterClose = menuInputManager.IsLookInputEnabled;
+        hasCapturedMenuInput = true;
+        menuInputManager.SetPlayerInputEnable(false);
+        menuInputManager.SetLookEnabled(false);
+    }
+
+    private void RestoreMenuInput()
+    {
+        if (!hasCapturedMenuInput) return;
+        if (menuInputManager != null)
+        {
+            menuInputManager.SetPlayerInputEnable(restoreMovementAfterClose);
+            menuInputManager.SetLookEnabled(restoreLookAfterClose);
+        }
+
+        hasCapturedMenuInput = false;
+        menuInputManager = null;
+    }
+
+    private IEnumerator PlayBookAnimation(bool opening)
+    {
+        if (animationPanel == null || animationImage == null ||
+            bookOpenFrames == null || bookOpenFrames.Length == 0)
+        {
+            yield break;
+        }
+
+        int firstIndex = opening ? 0 : bookOpenFrames.Length - 1;
+        animationImage.sprite = bookOpenFrames[firstIndex];
+        animationPanel.SetActive(true);
+
+        float delay = Mathf.Max(0.01f, frameRate);
+        if (opening)
+        {
+            for (int i = 0; i < bookOpenFrames.Length; i++)
+            {
+                if (bookOpenFrames[i] != null) animationImage.sprite = bookOpenFrames[i];
+                yield return new WaitForSecondsRealtime(delay);
+            }
         }
         else
         {
-            foreach (GameObject ui in temporarilyHiddenPanels)
+            for (int i = bookOpenFrames.Length - 1; i >= 0; i--)
             {
-                if (ui != null) ui.SetActive(true);
+                if (bookOpenFrames[i] != null) animationImage.sprite = bookOpenFrames[i];
+                yield return new WaitForSecondsRealtime(delay);
             }
-            temporarilyHiddenPanels.Clear();
         }
 
-        isAnimating = false;
+        animationPanel.SetActive(false);
+    }
+
+    private void HideUiElementsPreservingAnimation()
+    {
+        temporarilyHiddenPanels.Clear();
+
+        foreach (GameObject ui in uiElementsToHide)
+        {
+            if (ui == null || !ui.activeSelf) continue;
+
+            bool containsAnimation = animationPanel != null &&
+                                     (ui == animationPanel ||
+                                      animationPanel.transform.IsChildOf(ui.transform));
+            if (!containsAnimation)
+            {
+                TrackAndHide(ui);
+                continue;
+            }
+
+            // Keep the containing Canvas active. Only its animation branch remains.
+            foreach (Transform child in ui.transform)
+            {
+                bool isAnimationBranch = child == animationPanel.transform ||
+                                         animationPanel.transform.IsChildOf(child);
+                if (!isAnimationBranch) TrackAndHide(child.gameObject);
+            }
+        }
+    }
+
+    private void TrackAndHide(GameObject target)
+    {
+        if (target == null || !target.activeSelf || temporarilyHiddenPanels.Contains(target)) return;
+        temporarilyHiddenPanels.Add(target);
+        target.SetActive(false);
+    }
+
+    private void RestoreTemporarilyHiddenPanels()
+    {
+        foreach (GameObject ui in temporarilyHiddenPanels)
+        {
+            if (ui != null) ui.SetActive(true);
+        }
+        temporarilyHiddenPanels.Clear();
     }
 
     public void SelectCategory(int index)
