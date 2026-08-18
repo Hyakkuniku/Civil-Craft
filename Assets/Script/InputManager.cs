@@ -66,7 +66,7 @@ public class InputManager : MonoBehaviour
     void FixedUpdate()
     {
         // Movement is still handled here (your on-screen joystick will feed into this perfectly)
-        motor.ProcessMove(onFoot.Movement.ReadValue<Vector2>());
+        motor.ProcessMove(ReadMovementInput());
     }
 
     private void LateUpdate()
@@ -86,7 +86,7 @@ public class InputManager : MonoBehaviour
                 Cursor.lockState = CursorLockMode.Locked;
                 Cursor.visible = false;
                 
-                look.ProcessLook(onFoot.Look.ReadValue<Vector2>());
+                look.ProcessLook(ReadLookInput());
             }
             else
             {
@@ -98,8 +98,29 @@ public class InputManager : MonoBehaviour
         }
         else
         {
-            look.ProcessLook(onFoot.Look.ReadValue<Vector2>());
+            look.ProcessLook(ReadLookInput());
         }
+    }
+
+    public Vector2 ReadMovementInput()
+    {
+        return onFoot.Movement.ReadValue<Vector2>();
+    }
+
+    public Vector2 ReadLookInput()
+    {
+        Vector2 lookInput = onFoot.Look.ReadValue<Vector2>();
+
+        // The generated Look action currently covers mouse/touch. Reading the right
+        // stick here also supports physical gamepads and an OnScreenStick targeting it.
+        if (Gamepad.current != null)
+        {
+            Vector2 rightStick = Gamepad.current.rightStick.ReadValue();
+            if (rightStick.sqrMagnitude > lookInput.sqrMagnitude)
+                lookInput = rightStick;
+        }
+
+        return lookInput;
     }
 
     private void OnEnable() 

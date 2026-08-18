@@ -45,6 +45,14 @@ public class BuildUIController : MonoBehaviour
     [Tooltip("Optional standalone Simulation Off/Pause button or its layout wrapper. It is hidden for tutorial contracts. Leave empty when Play/Stop share one button.")]
     public GameObject tutorialSimulationStopObject;
 
+    [Header("Simulation Panel Visibility")]
+    [Tooltip("Background/container that should disappear when neither simulation control is usable.")]
+    public GameObject simulationControlsPanel;
+    [Tooltip("Play button or its layout wrapper. Defaults to Simulation Button when empty.")]
+    public GameObject playSimulationButtonObject;
+    [Tooltip("Stop/Pause button or its layout wrapper. Can be the same reference as Tutorial Simulation Stop Object.")]
+    public GameObject stopSimulationButtonObject;
+
     [Header("Contract Info (Budget)")]
     public float fallbackMaxBudget = 1000f; 
     [HideInInspector] public float maxBudget = 1000f; 
@@ -289,6 +297,11 @@ public class BuildUIController : MonoBehaviour
         UpdatePlayPauseButtonUI();
         
         UpdateToolHighlights();
+    }
+
+    private void LateUpdate()
+    {
+        RefreshSimulationPanelVisibility();
     }
 
     public void RefreshContractBuildUI()
@@ -976,6 +989,37 @@ public class BuildUIController : MonoBehaviour
             simulationButton.gameObject.SetActive(!hiddenByContract &&
                                                    !(tutorialContractActive && simulationIsRunning));
         }
+
+
+        RefreshSimulationPanelVisibility();
+    }
+
+    public void RefreshSimulationPanelVisibility()
+    {
+        if (simulationControlsPanel == null) return;
+
+        GameObject playObject = playSimulationButtonObject != null
+            ? playSimulationButtonObject
+            : simulationButton != null ? simulationButton.gameObject : null;
+        GameObject stopObject = stopSimulationButtonObject != null
+            ? stopSimulationButtonObject
+            : tutorialSimulationStopObject;
+
+        bool hasUsablePlayControl = IsSimulationControlUsable(playObject);
+        bool hasUsableStopControl = IsSimulationControlUsable(stopObject);
+        bool shouldShowPanel = hasUsablePlayControl || hasUsableStopControl;
+
+        if (simulationControlsPanel.activeSelf != shouldShowPanel)
+            simulationControlsPanel.SetActive(shouldShowPanel);
+    }
+
+    private static bool IsSimulationControlUsable(GameObject controlObject)
+    {
+        if (controlObject == null || !controlObject.activeSelf) return false;
+
+        Button button = controlObject.GetComponent<Button>();
+        if (button == null) button = controlObject.GetComponentInChildren<Button>(true);
+        return button == null || button.interactable;
     }
 
     private static bool IsTutorialContractActive()
