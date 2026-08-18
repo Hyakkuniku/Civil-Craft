@@ -1,248 +1,420 @@
 using UnityEngine;
 using UnityEngine.Events;
+using System.Collections;
 using System.Collections.Generic;
+using UnityEngine.InputSystem;
 
 public class GameManager : MonoBehaviour
 {
     public static GameManager Instance { get; private set; }
 
-    public enum GameState
-    {
-        Normal,
-        Building
-    }
-
+    public enum GameState { Normal, Building }
     public GameState CurrentState { get; private set; } = GameState.Normal;
+    public bool IsTransitioning => isTransitioning;
 
-    // Events
     public UnityEvent OnEnterBuildMode;
     public UnityEvent OnExitBuildMode;
-    public UnityEvent OnEnterBuildGridMode;
-    public UnityEvent OnExitBuildGridMode;
 
-    // Current active build location
     public BuildLocation ActiveBuildLocation { get; private set; }
+    public ContractSO CurrentContract { get; private set; } 
 
-    // Grid system
-    [Header("Build Grid")]
-    [SerializeField] private BuildGrid buildGridPrefab;
-    private BuildGrid activeBuildGrid;
-
-    // References
     [SerializeField] private Camera mainCamera;
-    private PlayerMotor playerMotor;
-    private PlayerLook playerLook;
-    private InputManager inputManager;
+    private Transform mainCamParent;
+    private Vector3 mainCamLocalPos;
+    private Quaternion mainCamLocalRot;
+    private Transform currentPlayerTransform;
 
-    // Camera transition
-    private Vector3 cameraTargetPos;
-    private Quaternion cameraTargetRot;
-    private float cameraTransitionSpeed = 5f;
-    private bool isTransitioning;
+    [Header("UI Management")]
+    [SerializeField] private List<GameObject> uiElementsToHide = new List<GameObject>();
+    [SerializeField] private List<GameObject> buildModeUIElements = new List<GameObject>();
 
-    [Header("UI to hide during build mode")]
-    [SerializeField] private GameObject joystickUI;       // mobile joystick canvas/panel
-    [SerializeField] private GameObject dialogueUI;       // dialogue panel/canvas
-    [SerializeField] private GameObject promptUI;         // prompt text GameObject or parent
+    [Header("Open World UI")]
+    public GameObject redoConfirmPanel;
+    [Tooltip("Add things here that you want hidden ONLY when the Redo Panel is open (Optional)")]
+    public List<GameObject> extraElementsToHideOnRedo = new List<GameObject>(); 
+    
+    // --- NEW: CINEMATIC FADER ---
+    [Header("Cinematic Transition Fader")]
+    [Tooltip("Drag a CanvasGroup attached to a full-screen black panel here.")]
+    public CanvasGroup transitionFader;
+    [Tooltip("How fast the screen fades to black during the camera swap.")]
+    public float fadeDuration = 0.25f;
 
-    // Wireframe toggle support
-    private List<BuildableVisual> cachedBuildables = new List<BuildableVisual>();
-
+    private BuildLocation pendingRedoLocation;
+    private bool isTransitioning = false; 
 
     private void Awake()
     {
-        if (Instance == null)
+        Instance = this; 
+
+        if (mainCamera == null) mainCamera = Camera.main;
+        
+        foreach (GameObject uiElement in buildModeUIElements) 
         {
-            Instance = this;
-            DontDestroyOnLoad(gameObject);
-        }
-        else
-        {
-            Destroy(gameObject);
-            return;
+            if (uiElement != null) uiElement.SetActive(false);
         }
 
-        playerMotor = FindObjectOfType<PlayerMotor>();
-        playerLook  = FindObjectOfType<PlayerLook>();
-        inputManager = FindObjectOfType<InputManager>();
+        if (redoConfirmPanel != null) redoConfirmPanel.SetActive(false);
 
-        if (mainCamera == null)
-            mainCamera = Camera.main;
+        HideTransitionFader();
     }
 
+    private void OnDisable()
+    {
+        isTransitioning = false;
+        HideTransitionFader();
+    }
 
     private void Update()
     {
-        if (CurrentState == GameState.Building && isTransitioning)
-        {
-            mainCamera.transform.position = Vector3.Lerp(
-                mainCamera.transform.position, 
-                cameraTargetPos, 
-                Time.deltaTime * cameraTransitionSpeed);
+        bool cancelPressed = (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame) ||
+                             (Gamepad.current != null && Gamepad.current.buttonEast.wasPressedThisFrame);
 
-            mainCamera.transform.rotation = Quaternion.Slerp(
-                mainCamera.transform.rotation, 
-                cameraTargetRot, 
-                Time.deltaTime * cameraTransitionSpeed);
-
-            if (Vector3.Distance(mainCamera.transform.position, cameraTargetPos) < 0.1f &&
-                Quaternion.Angle(mainCamera.transform.rotation, cameraTargetRot) < 1f)
-            {
-                isTransitioning = false;
-            }
-        }
-
-        // Quick exit (for testing / PC debugging)
-        if (CurrentState == GameState.Building && Input.GetKeyDown(KeyCode.Escape))
+        if (CurrentState == GameState.Building && !isTransitioning && cancelPressed)
         {
             ExitBuildMode();
         }
     }
 
-
-    public void EnterBuildMode(BuildLocation location, Transform player)
+    public void ShowRedoConfirmPanel(BuildLocation loc)
     {
-        if (CurrentState == GameState.Building) return;
+        if (isTransitioning) return;
 
-        ActiveBuildLocation = location;
-        CurrentState = GameState.Building;
+        pendingRedoLocation = loc;
+        if (redoConfirmPanel != null) redoConfirmPanel.SetActive(true);
+        
+        foreach (GameObject uiElement in uiElementsToHide) 
+            if (uiElement != null) uiElement.SetActive(false);
+            
+        foreach (GameObject uiElement in extraElementsToHideOnRedo) 
+            if (uiElement != null) uiElement.SetActive(false);
 
-        // Cache buildable objects (only once or when needed)
-        if (cachedBuildables.Count == 0)
-        {
-            CacheBuildableObjects();
+        InputManager inputObj = FindObjectOfType<InputManager>();
+        if (inputObj != null) 
+        { 
+            inputObj.SetPlayerInputEnable(false); 
+            inputObj.SetLookEnabled(false); 
         }
-
-        // Disable player controls
-        if (playerMotor != null)    playerMotor.enabled = false;
-        if (inputManager != null)
-        {
-            inputManager.SetLookEnabled(false);
-            inputManager.SetPlayerInputEnable(false);
-        }
-
-        // Camera logic
-        if (location.locationCamera != null)
-        {
-            if (mainCamera != null) mainCamera.enabled = false;
-            location.locationCamera.enabled = true;
-        }
-        else
-        {
-            cameraTargetPos = location.GetDesiredCameraPosition();
-            cameraTargetRot = location.GetDesiredCameraRotation();
-            isTransitioning = true;
-        }
-
-        // Spawn grid
-        SpawnBuildGrid(location);
-
-        // Hide UI elements during build mode
-        if (joystickUI != null)     joystickUI.SetActive(false);
-        if (dialogueUI   != null)   dialogueUI.SetActive(false);
-        if (promptUI     != null)   promptUI.SetActive(false);
-
-        // Optional: force clear prompt text
-        var playerUI = FindObjectOfType<PlayerUI>();
-        if (playerUI != null) playerUI.UpdateText(string.Empty);
-
-        // Switch environment to wireframe mode
-        SetAllBuildablesToWireframe(true);
-
-        OnEnterBuildMode?.Invoke();
-        OnEnterBuildGridMode?.Invoke();
-
-        Debug.Log($"Entered build mode at: {location.name}");
     }
 
+    public void ConfirmRedo()
+    {
+        if (redoConfirmPanel != null) redoConfirmPanel.SetActive(false);
+        
+        foreach (GameObject uiElement in extraElementsToHideOnRedo) 
+            if (uiElement != null) uiElement.SetActive(true);
+
+        if (pendingRedoLocation != null)
+        {
+            pendingRedoLocation.DeleteBakedBridge(); 
+            
+            PlayerMotor player = FindObjectOfType<PlayerMotor>();
+            if (player != null) pendingRedoLocation.ActivateBuildMode(player.transform);
+        }
+        pendingRedoLocation = null;
+    }
+
+    public void CancelRedo()
+    {
+        if (redoConfirmPanel != null) redoConfirmPanel.SetActive(false);
+        pendingRedoLocation = null;
+        
+        foreach (GameObject uiElement in uiElementsToHide) 
+            if (uiElement != null) uiElement.SetActive(true);
+            
+        foreach (GameObject uiElement in extraElementsToHideOnRedo) 
+            if (uiElement != null) uiElement.SetActive(true);
+
+        InputManager inputObj = FindObjectOfType<InputManager>();
+        if (inputObj != null) 
+        { 
+            inputObj.SetPlayerInputEnable(true); 
+            inputObj.SetLookEnabled(true); 
+        }
+    }
+
+    public bool EnterBuildMode(BuildLocation location, Transform player)
+    {
+        if (TutorialManager.Instance != null && TutorialManager.Instance.IsTutorialActive)
+        {
+            Debug.LogWarning("Build Mode entry blocked while a tutorial is active.");
+            return false;
+        }
+
+        if (CurrentState == GameState.Building || isTransitioning) return false;
+        
+        StartCoroutine(EnterBuildModeRoutine(location, player));
+        return true;
+    }
+
+    private IEnumerator EnterBuildModeRoutine(BuildLocation location, Transform player)
+    {
+        isTransitioning = true;
+        try
+        {
+        CurrentState = GameState.Building;
+        currentPlayerTransform = player;
+        ActiveBuildLocation = location;
+
+        if (LevelCompleteManager.Instance != null)
+            LevelCompleteManager.Instance.ResetCompletionState();
+
+        if (location != null && location.activeContract != null)
+            CurrentContract = location.activeContract; 
+
+        if (BuildUIController.Instance != null && CurrentContract != null)
+            BuildUIController.Instance.maxBudget = CurrentContract.budget;
+
+        // 1. Freeze the player and hide Overworld UI instantly
+        InputManager inputObj = FindObjectOfType<InputManager>();
+        if (inputObj != null) 
+        { 
+            inputObj.SetPlayerInputEnable(false); 
+            inputObj.SetLookEnabled(false); 
+        }
+        
+        PlayerMotor motor = FindObjectOfType<PlayerMotor>();
+        if (motor != null) motor.enabled = false;
+
+        foreach (GameObject uiElement in uiElementsToHide) if (uiElement != null) uiElement.SetActive(false);
+
+        // 2. Unparent and animate the Main Camera down to the blueprint
+        if (mainCamera != null)
+        {
+            mainCamParent = mainCamera.transform.parent;
+            mainCamLocalPos = mainCamera.transform.localPosition;
+            mainCamLocalRot = mainCamera.transform.localRotation;
+            mainCamera.transform.SetParent(null); 
+
+            if (location.blueprintDiveTarget != null)
+            {
+                Vector3 startPos = mainCamera.transform.position;
+                Quaternion startRot = mainCamera.transform.rotation;
+                float duration = location.diveDuration;
+                float elapsed = 0f;
+
+                while (elapsed < duration)
+                {
+                    elapsed += Time.unscaledDeltaTime;
+                    float t = Mathf.SmoothStep(0, 1, elapsed / duration);
+                    
+                    mainCamera.transform.position = Vector3.Lerp(startPos, location.blueprintDiveTarget.position, t);
+                    mainCamera.transform.rotation = Quaternion.Slerp(startRot, location.blueprintDiveTarget.rotation, t);
+                    yield return null;
+                }
+            }
+
+            // --- FADE OUT TO BLACK ---
+            if (transitionFader != null)
+            {
+                transitionFader.gameObject.SetActive(true);
+                transitionFader.blocksRaycasts = true;
+                float elapsedFade = 0f;
+                while (elapsedFade < fadeDuration)
+                {
+                    elapsedFade += Time.unscaledDeltaTime;
+                    transitionFader.alpha = Mathf.Lerp(0f, 1f, elapsedFade / fadeDuration);
+                    yield return null;
+                }
+                transitionFader.alpha = 1f;
+            }
+
+            // 3. Swap to the 2D Location Camera behind the black screen
+            Vector3 targetPos = location.locationCamera != null ? location.locationCamera.transform.position : location.GetDesiredCameraPosition();
+            Quaternion targetRot = location.locationCamera != null ? location.locationCamera.transform.rotation : location.GetDesiredCameraRotation();
+
+            mainCamera.transform.position = targetPos;
+            mainCamera.transform.rotation = targetRot;
+
+            if (location.locationCamera != null)
+            {
+                mainCamera.enabled = false;
+                location.locationCamera.enabled = true;
+            }
+        }
+
+        // 4. Show Build Mode UI while the screen is black
+        foreach (GameObject uiElement in buildModeUIElements) if (uiElement != null) uiElement.SetActive(true);
+        InvokeEventSafely(OnEnterBuildMode);
+
+        // BuildUI may only have awakened when its parent was enabled above, so do not
+        // rely exclusively on its OnEnterBuildMode subscription.
+        if (BuildUIController.Instance != null)
+            BuildUIController.Instance.RefreshContractBuildUI();
+
+        // --- FADE IN TO CLEAR ---
+        if (transitionFader != null)
+        {
+            float elapsedFade = 0f;
+            while (elapsedFade < fadeDuration)
+            {
+                elapsedFade += Time.unscaledDeltaTime;
+                transitionFader.alpha = Mathf.Lerp(1f, 0f, elapsedFade / fadeDuration);
+                yield return null;
+            }
+            HideTransitionFader();
+        }
+
+        }
+        finally
+        {
+            HideTransitionFader();
+            isTransitioning = false;
+        }
+    }
 
     public void ExitBuildMode()
     {
-        if (CurrentState == GameState.Normal) return;
-
-        CurrentState = GameState.Normal;
-
-        // Re-enable controls
-        if (playerMotor != null)    playerMotor.enabled = true;
-        if (inputManager != null)
+        if (BuildTutorialDirector.Instance != null && BuildTutorialDirector.Instance.isTutorialRunning)
         {
-            inputManager.SetLookEnabled(true);
-            inputManager.SetPlayerInputEnable(true);
-        }
-
-        // Camera back to normal
-        if (ActiveBuildLocation != null && ActiveBuildLocation.locationCamera != null)
-        {
-            ActiveBuildLocation.locationCamera.enabled = false;
-        }
-        if (mainCamera != null) mainCamera.enabled = true;
-
-        // Clean up grid
-        if (activeBuildGrid != null)
-        {
-            Destroy(activeBuildGrid.gameObject);
-            activeBuildGrid = null;
-            OnExitBuildGridMode?.Invoke();
-        }
-
-        ActiveBuildLocation?.DeactivateBuildMode(FindObjectOfType<PlayerMotor>()?.transform);
-        ActiveBuildLocation = null;
-
-        // Show UI elements again
-        if (joystickUI != null)     joystickUI.SetActive(true);
-        if (dialogueUI   != null)   dialogueUI.SetActive(true);
-        if (promptUI     != null)   promptUI.SetActive(true);
-
-        // Restore normal shaded rendering
-        SetAllBuildablesToWireframe(false);
-
-        OnExitBuildMode?.Invoke();
-
-        Debug.Log("Exited build mode");
-    }
-
-
-    private void SpawnBuildGrid(BuildLocation location)
-    {
-        if (buildGridPrefab == null)
-        {
-            Debug.LogWarning("No BuildGrid prefab assigned in GameManager!");
+            Debug.LogWarning("Build Mode exit blocked while the build tutorial is active.");
             return;
         }
 
-        activeBuildGrid = Instantiate(buildGridPrefab, location.transform);
-        activeBuildGrid.transform.localPosition = Vector3.zero;
-        activeBuildGrid.transform.localRotation = Quaternion.identity;
-
-        activeBuildGrid.Initialize(location);
+        if (CurrentState == GameState.Normal || isTransitioning) return;
+        
+        StartCoroutine(ExitBuildModeRoutine());
     }
 
-
-    // ────────────────────────────────────────────────
-    //  Wireframe / Buildable Visuals Logic
-    // ────────────────────────────────────────────────
-
-    private void CacheBuildableObjects()
+    private IEnumerator ExitBuildModeRoutine()
     {
-        cachedBuildables.Clear();
-        var all = FindObjectsOfType<BuildableVisual>(true); // include inactive objects
-        cachedBuildables.AddRange(all);
-        Debug.Log($"Cached {cachedBuildables.Count} buildable visual objects");
-    }
-
-    private void SetAllBuildablesToWireframe(bool inBuildMode)
-    {
-        foreach (var visual in cachedBuildables)
+        isTransitioning = true;
+        try
         {
-            if (visual == null) continue; // object was destroyed
+        CurrentState = GameState.Normal;
 
-            if (inBuildMode)
-                visual.SetBuildMode();
+        // --- FADE OUT TO BLACK ---
+        if (transitionFader != null)
+        {
+            transitionFader.gameObject.SetActive(true);
+            transitionFader.blocksRaycasts = true;
+            float elapsedFade = 0f;
+            while (elapsedFade < fadeDuration)
+            {
+                elapsedFade += Time.unscaledDeltaTime;
+                transitionFader.alpha = Mathf.Lerp(0f, 1f, elapsedFade / fadeDuration);
+                yield return null;
+            }
+            transitionFader.alpha = 1f;
+        }
+
+        // 1. Hide Build Mode UI instantly
+        foreach (GameObject uiElement in buildModeUIElements) if (uiElement != null) uiElement.SetActive(false);
+
+        // 2. Prepare the camera swap behind the black screen
+        if (mainCamera != null && ActiveBuildLocation != null)
+        {
+            if (ActiveBuildLocation.locationCamera != null)
+            {
+                ActiveBuildLocation.locationCamera.enabled = false;
+                mainCamera.enabled = true;
+            }
+
+            if (ActiveBuildLocation.blueprintDiveTarget != null && mainCamParent != null)
+            {
+                mainCamera.transform.position = ActiveBuildLocation.blueprintDiveTarget.position;
+                mainCamera.transform.rotation = ActiveBuildLocation.blueprintDiveTarget.rotation;
+            }
             else
-                visual.SetNormalMode();
+            {
+                mainCamera.transform.SetParent(mainCamParent);
+                mainCamera.transform.localPosition = mainCamLocalPos;
+                mainCamera.transform.localRotation = mainCamLocalRot;
+            }
+        }
+
+        // --- FADE IN TO CLEAR ---
+        if (transitionFader != null)
+        {
+            float elapsedFade = 0f;
+            while (elapsedFade < fadeDuration)
+            {
+                elapsedFade += Time.unscaledDeltaTime;
+                transitionFader.alpha = Mathf.Lerp(1f, 0f, elapsedFade / fadeDuration);
+                yield return null;
+            }
+            HideTransitionFader();
+        }
+
+        // 3. Animate the camera pulling back out of the blueprint
+        if (mainCamera != null && ActiveBuildLocation != null && ActiveBuildLocation.blueprintDiveTarget != null && mainCamParent != null)
+        {
+            Vector3 startPos = mainCamera.transform.position;
+            Quaternion startRot = mainCamera.transform.rotation;
+            float duration = ActiveBuildLocation.diveDuration;
+            float elapsed = 0f;
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float t = Mathf.SmoothStep(0, 1, elapsed / duration);
+                
+                Vector3 targetWorldPos = mainCamParent.TransformPoint(mainCamLocalPos);
+                Quaternion targetWorldRot = mainCamParent.rotation * mainCamLocalRot;
+
+                mainCamera.transform.position = Vector3.Lerp(startPos, targetWorldPos, t);
+                mainCamera.transform.rotation = Quaternion.Slerp(startRot, targetWorldRot, t);
+                
+                yield return null;
+            }
+
+            mainCamera.transform.SetParent(mainCamParent);
+            mainCamera.transform.localPosition = mainCamLocalPos;
+            mainCamera.transform.localRotation = mainCamLocalRot;
+        }
+
+        // 4. Restore Overworld UI and Unfreeze Player
+        foreach (GameObject uiElement in uiElementsToHide) if (uiElement != null) uiElement.SetActive(true);
+
+        InputManager inputObj = FindObjectOfType<InputManager>();
+        if (inputObj != null)
+        {
+            inputObj.SetPlayerInputEnable(true);
+            inputObj.SetLookEnabled(true);
+        }
+        
+        PlayerMotor player = FindObjectOfType<PlayerMotor>();
+        if (player != null) player.enabled = true;
+
+        InvokeEventSafely(OnExitBuildMode);
+
+        if (ActiveBuildLocation != null && currentPlayerTransform != null)
+        {
+            ActiveBuildLocation.DeactivateBuildMode(currentPlayerTransform);
+        }
+
+        currentPlayerTransform = null;
+        ActiveBuildLocation = null; 
+        CurrentContract = null;
+        }
+        finally
+        {
+            HideTransitionFader();
+            isTransitioning = false;
         }
     }
 
-
     public bool IsInBuildMode() => CurrentState == GameState.Building;
+
+    private void HideTransitionFader()
+    {
+        if (transitionFader == null) return;
+        transitionFader.alpha = 0f;
+        transitionFader.interactable = false;
+        transitionFader.blocksRaycasts = false;
+        transitionFader.gameObject.SetActive(false);
+    }
+
+    private static void InvokeEventSafely(UnityEvent targetEvent)
+    {
+        if (targetEvent == null) return;
+        try
+        {
+            targetEvent.Invoke();
+        }
+        catch (System.Exception exception)
+        {
+            Debug.LogException(exception);
+        }
+    }
 }

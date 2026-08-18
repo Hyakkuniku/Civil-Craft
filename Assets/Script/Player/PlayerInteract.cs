@@ -4,40 +4,102 @@ using UnityEngine;
 
 public class PlayerInteract : MonoBehaviour
 {
-
-    private Camera cam;
-    [SerializeField] private float distance = 3f;
+    [Header("Interaction Settings")]
+    [SerializeField] private float interactionRadius = 3f;
     [SerializeField] private LayerMask mask;
-    private PlayerUI playerUI;
-    private InputManager inputManager;
+    
+    [Tooltip("The maximum number of interactables the player can stand near at exactly the same time.")]
+    [SerializeField] private int maxInteractables = 10; 
 
-    // Start is called before the first frame update
-    void Start()
+    private PlayerUI playerUI;
+    private Coroutine scanRoutine; 
+
+    // --- NEW: Pre-allocate memory so we don't generate Garbage! ---
+    private Collider[] hitColliders;
+    private List<Interactable> nearbyInteractables;
+
+    void Awake()
     {
-        cam = GetComponent<PlayerLook>().cam;
         playerUI = GetComponent<PlayerUI>();
-        inputManager = GetComponent<InputManager>();
+        
+        // Create the memory buckets ONCE when the game starts
+        hitColliders = new Collider[maxInteractables];
+        nearbyInteractables = new List<Interactable>(maxInteractables);
     }
 
-    // Update is called once per frame
-    void Update()
+    void Start()
     {
-        playerUI.UpdateText(string.Empty);
-
-        Ray ray = new Ray(cam.transform.position, cam.transform.forward);
-        Debug.DrawRay(ray.origin, ray.direction * distance);
-        RaycastHit hitInfo; // variable to store our collision information
-        if (Physics.Raycast(ray, out hitInfo, distance, mask))
+        if (GameManager.Instance != null)
         {
-            if (hitInfo.collider.GetComponent<Interactable>() != null)
+            GameManager.Instance.OnEnterBuildMode.AddListener(HandleEnterBuildMode);
+            GameManager.Instance.OnExitBuildMode.AddListener(HandleExitBuildMode);
+        }
+    }
+
+    void OnDestroy()
+    {
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.OnEnterBuildMode.RemoveListener(HandleEnterBuildMode);
+            GameManager.Instance.OnExitBuildMode.RemoveListener(HandleExitBuildMode);
+        }
+    }
+
+    private void OnEnable()
+    {
+        scanRoutine = StartCoroutine(ScanForInteractablesRoutine());
+    }
+
+    private void OnDisable()
+    {
+        if (scanRoutine != null) StopCoroutine(scanRoutine);
+    }
+
+    private void HandleEnterBuildMode()
+    {
+        if (playerUI != null) playerUI.UpdateButtons(new List<Interactable>());
+        this.enabled = false; 
+    }
+
+    private void HandleExitBuildMode()
+    {
+        this.enabled = true; 
+    }
+
+    private IEnumerator ScanForInteractablesRoutine()
+    {
+        WaitForSeconds wait = new WaitForSeconds(0.1f); 
+
+        while (true)
+        {
+            // 1. Clear the reusable list instead of making a new one
+            nearbyInteractables.Clear();
+
+            // 2. Use NonAlloc! This fills our existing array instead of creating a new one in RAM.
+            int numColliders = Physics.OverlapSphereNonAlloc(transform.position, interactionRadius, hitColliders, mask);
+
+            // 3. Only loop through the ones we actually hit
+            for (int i = 0; i < numColliders; i++)
             {
-                Interactable interactable = hitInfo.collider.GetComponent<Interactable>();
-                playerUI.UpdateText(interactable.promptMessage);
-                if (inputManager.onFoot.Interact.triggered)
+                Interactable interactable = hitColliders[i].GetComponent<Interactable>();
+                if (interactable != null)
                 {
-                    interactable.BaseInteract();
+                    nearbyInteractables.Add(interactable);
                 }
             }
+
+            if (playerUI != null)
+            {
+                playerUI.UpdateButtons(nearbyInteractables);
+            }
+
+            yield return wait;
         }
+    }
+
+    private void OnDrawGizmosSelected()
+    {
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(transform.position, interactionRadius);
     }
 }

@@ -1,0 +1,51 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
+  m_Name: Tutorial
+  m_EditorClassIdentifier: 
+  isTutorialContract: 1
+  autoCollectReward: 0
+  clientName: Prof Bhan
+  jobDescription: Truss Bridge
+  budget: 50000
+  liveLoadWeight: 500
+  bridgeSpan: 30
+  allowedMaterials:
+  - material: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
+    maxPieces: 0
+  - material: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
+    maxPieces: 0
+  hiddenTools: 
+  hiddenMaterials: []
+  enforceMaxStress: 0
+  maxAllowedStress: 100
+  isTimeAttack: 0
+  timeAttackDuration: 60
+  winCondition: 0
+  requiredIntactTime: 10
+  goldReward: 500
+  expReward: 1000
+  offerDialogue:
+    name: Prof Bhan
+    sentences:
+    - Now im going to teach you about truss bridges
+    - Enter the Build location so we can start
+  reminderDialogue:
+    name: Prof Bhan
+    sentences:
+    - What are you waiting for?
+  finishedContractDialogue:
+    name: Prof Bhan
+    sentences:
+    - 'Done?
+
+'
