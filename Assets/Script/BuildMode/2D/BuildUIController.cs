@@ -961,65 +961,131 @@ public class BuildUIController : MonoBehaviour
 
     public void RefreshSimulationButtonLock()
     {
-        if (simulationButton == null && playPauseButtonImage != null)
-            simulationButton = playPauseButtonImage.GetComponentInParent<Button>(true);
+        ResolveSimulationUIReferences();
 
-        if (simulationButton == null) return;
-
-        bool simulationIsRunning = simulationInProgressForUI ||
-                                   (physicsManager != null && physicsManager.isSimulating);
-        bool tutorialContractActive = IsTutorialContractActive();
-        bool hiddenByContract = GameManager.Instance != null &&
-                                GameManager.Instance.CurrentContract != null &&
-                                GameManager.Instance.CurrentContract.IsToolHidden(BuildModeTool.Simulate);
-        BuildTutorialDirector director = BuildTutorialDirector.Instance;
-        bool tutorialAllowsPlay = director == null || director.CanStartSimulation;
-        simulationButton.interactable = tutorialContractActive
-            ? !simulationIsRunning && tutorialAllowsPlay
-            : simulationIsRunning || tutorialAllowsPlay;
-
-        if (tutorialSimulationStopObject != null)
+        if (simulationButton != null)
         {
-            tutorialSimulationStopObject.SetActive(!tutorialContractActive && !hiddenByContract);
-        }
-        else
-        {
-            // A shared Play/Stop button must remain visible before simulation so the
-            // tutorial can unlock Play. Once running, hide it to prevent early stopping.
-            simulationButton.gameObject.SetActive(!hiddenByContract &&
-                                                   !(tutorialContractActive && simulationIsRunning));
-        }
+            bool simulationIsRunning = simulationInProgressForUI ||
+                                       (physicsManager != null && physicsManager.isSimulating);
+            bool tutorialContractActive = IsTutorialContractActive();
+            bool hiddenByContract = GameManager.Instance != null &&
+                                    GameManager.Instance.CurrentContract != null &&
+                                    GameManager.Instance.CurrentContract.IsToolHidden(BuildModeTool.Simulate);
+            BuildTutorialDirector director = BuildTutorialDirector.Instance;
+            bool tutorialAllowsPlay = director == null || director.CanStartSimulation;
+            simulationButton.interactable = tutorialContractActive
+                ? !simulationIsRunning && tutorialAllowsPlay
+                : simulationIsRunning || tutorialAllowsPlay;
 
+            if (tutorialSimulationStopObject != null)
+            {
+                tutorialSimulationStopObject.SetActive(!tutorialContractActive && !hiddenByContract);
+            }
+            else
+            {
+                // A shared Play/Stop button must remain visible before simulation so the
+                // tutorial can unlock Play. Once running, hide it to prevent early stopping.
+                simulationButton.gameObject.SetActive(!hiddenByContract &&
+                                                       !(tutorialContractActive && simulationIsRunning));
+            }
+        }
 
         RefreshSimulationPanelVisibility();
     }
 
     public void RefreshSimulationPanelVisibility()
     {
+        ResolveSimulationUIReferences();
         if (simulationControlsPanel == null) return;
 
-        GameObject playObject = playSimulationButtonObject != null
-            ? playSimulationButtonObject
-            : simulationButton != null ? simulationButton.gameObject : null;
-        GameObject stopObject = stopSimulationButtonObject != null
-            ? stopSimulationButtonObject
-            : tutorialSimulationStopObject;
+        // Inspect every Button under the container rather than only its wrapper.
+        // GetComponentsInChildren(true) still works while the panel itself is hidden,
+        // allowing a newly re-enabled child button to bring the container back.
+        Button[] containedButtons = simulationControlsPanel.GetComponentsInChildren<Button>(true);
+        bool shouldShowPanel = false;
+        foreach (Button button in containedButtons)
+        {
+            if (button != null && IsLocallyVisibleWithinPanel(
+                    button.transform,
+                    simulationControlsPanel.transform))
+            {
+                shouldShowPanel = true;
+                break;
+            }
+        }
 
-        bool hasUsablePlayControl = IsSimulationControlUsable(playObject);
-        bool hasUsableStopControl = IsSimulationControlUsable(stopObject);
-        bool shouldShowPanel = hasUsablePlayControl || hasUsableStopControl;
+        // Support containers that use non-Button wrappers supplied in the Inspector.
+        if (containedButtons.Length == 0)
+        {
+            shouldShowPanel = IsControlObjectVisible(playSimulationButtonObject) ||
+                              IsControlObjectVisible(stopSimulationButtonObject) ||
+                              IsControlObjectVisible(tutorialSimulationStopObject);
+        }
 
         if (simulationControlsPanel.activeSelf != shouldShowPanel)
             simulationControlsPanel.SetActive(shouldShowPanel);
     }
 
-    private static bool IsSimulationControlUsable(GameObject controlObject)
+    private void ResolveSimulationUIReferences()
     {
-        if (controlObject == null || !controlObject.activeSelf) return false;
+        if (simulationButton == null && playPauseButtonImage != null)
+            simulationButton = playPauseButtonImage.GetComponentInParent<Button>(true);
 
-        Button button = controlObject.GetComponent<Button>();
-        if (button == null) button = controlObject.GetComponentInChildren<Button>(true);
-        return button == null || button.interactable;
+        if (playSimulationButtonObject == null && simulationButton != null)
+            playSimulationButtonObject = simulationButton.gameObject;
+
+        if (stopSimulationButtonObject == null && tutorialSimulationStopObject != null)
+            stopSimulationButtonObject = tutorialSimulationStopObject;
+
+        if (simulationControlsPanel != null || simulationButton == null) return;
+
+        // Find the nearest visual ancestor. This resolves existing scene layouts such
+        // as CanyonCrossing's Play button -> Content -> Panel hierarchy without adding
+        // or replacing any scene objects.
+        Transform ancestor = simulationButton.transform.parent;
+        while (ancestor != null && ancestor != transform)
+        {
+            if (ancestor.GetComponent<Image>() != null ||
+                ancestor.GetComponent<CanvasGroup>() != null)
+            {
+                simulationControlsPanel = ancestor.gameObject;
+                break;
+            }
+
+            ancestor = ancestor.parent;
+        }
+    }
+
+    private bool IsControlObjectVisible(GameObject controlObject)
+    {
+        if (controlObject == null || simulationControlsPanel == null) return false;
+
+        Button[] childButtons = controlObject.GetComponentsInChildren<Button>(true);
+        foreach (Button button in childButtons)
+        {
+            if (button != null && IsLocallyVisibleWithinPanel(
+                    button.transform,
+                    simulationControlsPanel.transform))
+                return true;
+        }
+
+        return childButtons.Length == 0 && IsLocallyVisibleWithinPanel(
+            controlObject.transform,
+            simulationControlsPanel.transform);
+    }
+
+    private static bool IsLocallyVisibleWithinPanel(Transform item, Transform panel)
+    {
+        if (item == null || panel == null) return false;
+
+        Transform current = item;
+        while (current != null && current != panel)
+        {
+            if (!current.gameObject.activeSelf) return false;
+            current = current.parent;
+        }
+
+        return current == panel;
     }
 
     private static bool IsTutorialContractActive()

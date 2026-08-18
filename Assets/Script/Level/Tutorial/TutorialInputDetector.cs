@@ -209,7 +209,9 @@ public class TutorialInputDetector : MonoBehaviour
     {
         float magnitude = inputManager != null ? inputManager.ReadLookInput().magnitude : 0f;
 
-        if (Mouse.current != null)
+        // Keep desktop tutorial completion consistent with InputManager: moving the
+        // cursor alone is not a look action unless RMB is being held.
+        if (Mouse.current != null && Mouse.current.rightButton.isPressed)
             magnitude = Mathf.Max(magnitude, Mouse.current.delta.ReadValue().magnitude);
         if (Gamepad.current != null)
             magnitude = Mathf.Max(magnitude, Gamepad.current.rightStick.ReadValue().magnitude);

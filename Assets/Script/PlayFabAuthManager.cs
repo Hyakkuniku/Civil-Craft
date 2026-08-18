@@ -5,10 +5,15 @@ using PlayFab;
 using PlayFab.ClientModels;
 using UnityEngine.SceneManagement; 
 using System.Text.RegularExpressions; 
+using System;
 
 public class PlayFabAuthManager : MonoBehaviour
 {
     public static PlayFabAuthManager Instance { get; private set; }
+    public event Action MainMenuAuthenticationSucceeded;
+    public bool IsPlayerLoggedIn => PlayFabClientAPI.IsClientLoggedIn();
+
+    private bool returnToMainMenuAfterLogin;
 
     [Header("PlayFab Configuration")]
     public string playFabTitleID = ""; 
@@ -159,17 +164,34 @@ public class PlayFabAuthManager : MonoBehaviour
 
     public void OpenAuthCanvas()
     {
+        if (authCanvas == null)
+        {
+            Debug.LogError("PlayFabAuthManager: AuthCanvas is not assigned.", this);
+            return;
+        }
+
         authCanvas.SetActive(true);
         ShowLoginPanel(); 
     }
 
+    public void OpenAuthCanvasForMainMenu()
+    {
+        returnToMainMenuAfterLogin = true;
+        OpenAuthCanvas();
+    }
+
     public void CloseAuthCanvas()
     {
-        authCanvas.SetActive(false);
+        returnToMainMenuAfterLogin = false;
+        if (loginPanel != null) loginPanel.SetActive(true);
+        if (registerPanel != null) registerPanel.SetActive(false);
+        if (forgotPasswordPanel != null) forgotPasswordPanel.SetActive(false);
+        if (authCanvas != null) authCanvas.SetActive(false);
     }
 
     public void OnPlayAsGuestClicked()
     {
+        PlayFabClientAPI.ForgetAllCredentials();
         isGuest = true;
         loggedInPlayerName = "Guest";
         
@@ -180,7 +202,14 @@ public class PlayFabAuthManager : MonoBehaviour
         UpdatePlayerNameDisplay(); 
 
         SetFeedbackMessage("Starting as Guest...", successColor);
-        Invoke(nameof(LoadGameScene), 1.0f); 
+        if (returnToMainMenuAfterLogin)
+        {
+            CompleteMainMenuAuthenticationRequest();
+        }
+        else
+        {
+            Invoke(nameof(LoadGameScene), 1.0f);
+        }
     }
 
     public void ShowLoginPanel()
@@ -423,12 +452,27 @@ public class PlayFabAuthManager : MonoBehaviour
         UpdatePlayerNameDisplay(); 
         
         Debug.Log("Logged in! Name: " + welcomeName);
-        Invoke(nameof(LoadGameScene), 1.5f); 
+        if (returnToMainMenuAfterLogin)
+        {
+            CompleteMainMenuAuthenticationRequest();
+        }
+        else
+        {
+            Invoke(nameof(LoadGameScene), 1.5f);
+        }
     }
 
     private void OnLoginError(PlayFabError error)
     {
         SetFeedbackMessage("Login Failed: " + error.ErrorMessage, errorColor);
+    }
+
+    private void CompleteMainMenuAuthenticationRequest()
+    {
+        CancelInvoke(nameof(LoadGameScene));
+        returnToMainMenuAfterLogin = false;
+        if (authCanvas != null) authCanvas.SetActive(false);
+        MainMenuAuthenticationSucceeded?.Invoke();
     }
 
     private void OnRegisterSuccess(RegisterPlayFabUserResult result)

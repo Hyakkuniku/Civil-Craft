@@ -795,11 +795,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cbdcc7b7825c79c4d8972bd1206907dc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  tutorialPanel: {fileID: 7911979307329017542}
-  tutorialText: {fileID: 7690747333669892765}
+  centerPanel: {fileID: 0}
+  centerText: {fileID: 0}
+  leftPanel: {fileID: 0}
+  leftText: {fileID: 0}
   nextButton: {fileID: 8576043186519041273}
   skipButton: {fileID: 6081865980345199539}
   bouncingArrow: {fileID: 0}
+  transitionDuration: 0.25
+  slideTransitionDuration: 0.6
+  reverseStepOffset: {x: -180, y: 0}
+  pulseSpeed: 4
+  pulseAmount: 0.05
 --- !u!1 &152319930046141419
 GameObject:
   m_ObjectHideFlags: 0
@@ -4589,6 +4596,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 65341f6297c579c4490896057a165c66, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  quitConfirmationPanel: {fileID: 0}
 --- !u!1 &891501116451275468
 GameObject:
   m_ObjectHideFlags: 0
@@ -8675,14 +8683,22 @@ MonoBehaviour:
   almanacCanvas: {fileID: 1595121132325660703}
   categories:
   - categoryName: PlayerStats
+    tabType: 0
+    visibilityMode: 0
     tabButton: {fileID: 5574252379929153613}
+    inactiveSprite: {fileID: 0}
+    activeSprite: {fileID: 0}
     tabAlertIcon: {fileID: 0}
     leftPageZone: {fileID: 1043438012103828058}
     rightPageZone: {fileID: 129473826173836428}
     leftPages: []
     rightPages: []
   - categoryName: ContractTab
+    tabType: 0
+    visibilityMode: 0
     tabButton: {fileID: 8282635441235484277}
+    inactiveSprite: {fileID: 0}
+    activeSprite: {fileID: 0}
     tabAlertIcon: {fileID: 0}
     leftPageZone: {fileID: 6818292372227430915}
     rightPageZone: {fileID: 4607099154568815192}
@@ -9997,7 +10013,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1824d3ca49afccb4ca10af0ad6769a9e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  requireRightClickToLook: 1
+  lockCursorForMouseLook: 1
   useMobileTouchControls: 0
 --- !u!114 &8129677714067684310
 MonoBehaviour:
@@ -12620,7 +12636,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: ₱10/m
+  m_text: "\u20B110/m"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: aaadb7eb00eeee74799e9edce7312ddb, type: 2}
   m_sharedMaterial: {fileID: 334455245469236425, guid: aaadb7eb00eeee74799e9edce7312ddb,
@@ -18041,6 +18057,13 @@ MonoBehaviour:
   rockSpacing: 1.5
   rockPickupDistance: 2
   randomizeRotation: 1
+  enableSparkles: 1
+  sparklePrefab: {fileID: 0}
+  rockScaleMultiplier: 1
+  animateWave: 1
+  waveSpeed: 1.5
+  waveStep: 0.2
+  minWaveScale: 0.2
   offPathTolerance: 4
   offPathCheckInterval: 0.5
   waypoints:
@@ -30716,9 +30739,14 @@ MonoBehaviour:
   useKeyboardShortcuts: 1
   simulateKey: 0
   restartKey: 0
+  simulationButton: {fileID: 0}
   playPauseButtonImage: {fileID: 313137984386142777}
   playIcon: {fileID: 21300000, guid: cb4b39314e8cf1141bed74906648d979, type: 3}
   stopIcon: {fileID: 21300000, guid: 93c3e577a5c59984e80b3a0b0827185d, type: 3}
+  tutorialSimulationStopObject: {fileID: 0}
+  simulationControlsPanel: {fileID: 0}
+  playSimulationButtonObject: {fileID: 0}
+  stopSimulationButtonObject: {fileID: 0}
   fallbackMaxBudget: 1000
   maxBudget: 0
   usedBudgetText: {fileID: 5025942036980890427}
@@ -30755,6 +30783,11 @@ MonoBehaviour:
   infoToolImage: {fileID: 0}
   activeToolColor: {r: 0.902, g: 0.737, b: 0.463, a: 1}
   inactiveToolColor: {r: 1, g: 1, b: 1, a: 1}
+  contractToolBindings: []
+  toolsPanelToAutoSize: {fileID: 0}
+  autoSizeToolsPanelWidth: 1
+  autoSizeToolsPanelHeight: 0
+  toolsPanelExtraPadding: {x: 0, y: 0}
   hideDuringSimulation: []
   layoutPanelToRebuild: {fileID: 0}
 --- !u!114 &3523040666602494126
@@ -30916,7 +30949,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: = ₱500
+  m_text: "= \u20B1500"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: aaadb7eb00eeee74799e9edce7312ddb, type: 2}
   m_sharedMaterial: {fileID: 334455245469236425, guid: aaadb7eb00eeee74799e9edce7312ddb,

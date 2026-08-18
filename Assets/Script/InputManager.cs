@@ -12,7 +12,7 @@ public class InputManager : MonoBehaviour
     private PlayerLook look;
 
     [Header("PC Controls")]
-    [Tooltip("Lock and hide the cursor while desktop mouse-look is active.")]
+    [Tooltip("Lock and hide the cursor while the right mouse button is held for desktop look.")]
     public bool lockCursorForMouseLook = true;
 
     [Header("Mobile Settings")]
@@ -82,10 +82,14 @@ public class InputManager : MonoBehaviour
             return;
         }
 
-        // Desktop mouse delta is already bound to onFoot/Look. There is no click,
-        // toggle, or right-button gate: looking is continuous whenever look is enabled.
+        // Mouse look requires RMB on desktop. ReadLookInput still permits a physical
+        // gamepad's right stick without RMB, so controller users are unaffected.
         if (look != null && look.canLook && onFoot.enabled)
-            look.ProcessLook(ReadLookInput());
+        {
+            Vector2 lookInput = ReadLookInput();
+            if (lookInput.sqrMagnitude > 0f)
+                look.ProcessLook(lookInput);
+        }
 
         ApplyCursorState();
     }
@@ -97,7 +101,14 @@ public class InputManager : MonoBehaviour
 
     public Vector2 ReadLookInput()
     {
-        Vector2 lookInput = onFoot.Look.ReadValue<Vector2>();
+        Vector2 lookInput = Vector2.zero;
+
+        // TouchLookInput owns mobile swipes. On desktop, only sample the Look action's
+        // mouse delta while RMB is held so merely moving the pointer cannot turn the camera.
+        bool canReadPointerLook = IsUsingMobileControls ||
+                                  (Mouse.current != null && Mouse.current.rightButton.isPressed);
+        if (canReadPointerLook)
+            lookInput = onFoot.Look.ReadValue<Vector2>();
 
         // The generated Look action currently covers mouse/touch. Reading the right
         // stick here also supports physical gamepads and an OnScreenStick targeting it.
@@ -152,6 +163,7 @@ public class InputManager : MonoBehaviour
         bool shouldLock = lockCursorForMouseLook &&
                           !IsUsingMobileControls &&
                           Mouse.current != null &&
+                          Mouse.current.rightButton.isPressed &&
                           isActiveAndEnabled &&
                           onFoot.enabled &&
                           look != null &&
