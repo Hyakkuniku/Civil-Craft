@@ -138,6 +138,10 @@ public class ClipboardManager : MonoBehaviour
             }
         }
 
+        // Confirm a real copy before CancelAllModes clears the source selection.
+        if (copiedBars.Count > 0 && BuildTutorialDirector.Instance != null)
+            BuildTutorialDirector.Instance.NotifyCopySucceeded();
+
         barCreator.CancelAllModes(); 
         isPasteMode = true;
         isPasteFromCut = false; 
@@ -455,8 +459,12 @@ public class ClipboardManager : MonoBehaviour
 
         // Pasted bars are a normal build action. Route the complete atomic paste
         // through the same strict ghost validation used by manually drawn bars.
+        bool completedTutorialPaste = false;
         if (BuildTutorialDirector.Instance != null)
+        {
             BuildTutorialDirector.Instance.OnBuildActionCompleted(pasteAction);
+            completedTutorialPaste = BuildTutorialDirector.Instance.NotifyPasteSucceeded();
+        }
         
         if (BuildUIController.Instance != null)
         {
@@ -464,7 +472,7 @@ public class ClipboardManager : MonoBehaviour
             BuildUIController.Instance.LogAction("Selection Pasted");
         }
 
-        if (isPasteFromCut)
+        if (isPasteFromCut || completedTutorialPaste)
         {
             CancelPasteMode();
             if (BuildUIController.Instance != null) BuildUIController.Instance.SetSelectionPanelActive(false);
@@ -473,9 +481,13 @@ public class ClipboardManager : MonoBehaviour
 
     public void CancelPasteMode()
     {
+        bool canceledActivePaste = isPasteMode;
         isPasteMode = false;
         isPasteFromCut = false;
         DestroyPasteGhosts();
+
+        if (canceledActivePaste && BuildTutorialDirector.Instance != null)
+            BuildTutorialDirector.Instance.NotifyPasteCanceled();
     }
 
     private void CreatePasteGhosts()
@@ -554,7 +566,8 @@ public class ClipboardManager : MonoBehaviour
             Bar gb = ghostPasteBars[i];
             var cb = copiedBars[i];
             gb.StartPosition = ghostPastePoints[cb.startIdx].transform.position;
-            gb.UpdateCreatingBar(ghostPastePoints[cb.endIdx].transform.position);
+            gb.EndPosition = ghostPastePoints[cb.endIdx].transform.position;
+            gb.UpdateCreatingBar(gb.EndPosition);
         }
 
         // --- THE FIX: FORGIVING ENVIRONMENT CHECKS ---
@@ -663,6 +676,9 @@ public class ClipboardManager : MonoBehaviour
                 else if (r.material.HasProperty("_BaseColor")) r.material.SetColor("_BaseColor", tintColor);
             }
         }
+
+        if (BuildTutorialDirector.Instance != null)
+            BuildTutorialDirector.Instance.NotifyPastePreviewUpdated(ghostPasteBars);
     }
 
     public void DestroyPasteGhosts()

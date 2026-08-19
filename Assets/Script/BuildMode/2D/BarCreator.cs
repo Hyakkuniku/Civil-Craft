@@ -854,6 +854,8 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             }
 
             TutorialDragSelectionAnim.NotifySelectionChanged(this);
+            if (BuildTutorialDirector.Instance != null)
+                BuildTutorialDirector.Instance.NotifySelectionChanged(this);
 
             return;
         }
@@ -1102,6 +1104,9 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         UpdateBarHighlights(); 
 
         if (BuildUIController.Instance != null) BuildUIController.Instance.SetSelectionPanelActive(false);
+
+        if (BuildTutorialDirector.Instance != null)
+            BuildTutorialDirector.Instance.NotifySelectionChanged(this);
     }
 
     private void UpdateSelectionBox(Vector2 currentScreenPos)

@@ -897,7 +897,20 @@ public class BuildUIController : MonoBehaviour
     public void OnExitBuildModeButtonClicked() { if (!IsToolAllowed()) return; if (GameManager.Instance != null) GameManager.Instance.ExitBuildMode(); }
     public void OnResetCameraButtonClicked() { if (!IsToolAllowed()) return; BuildCameraController camCtrl = FindObjectOfType<BuildCameraController>(); if (camCtrl != null) camCtrl.ResetCameraRotation(); }
     public void OnToggleStatsButtonClicked() { if (!IsToolAllowed()) return; if (statsPanel != null) statsPanel.SetActive(!statsPanel.activeSelf); }
-    public void OnCutSelectedButtonClicked() { if (!IsToolAllowed() || IsTopologyEditBlockedDuringTracing()) return; if (ClipboardManager.Instance != null && barCreator != null) ClipboardManager.Instance.CutSelected(barCreator.GetSelectedPoints()); }
+    public void OnCutSelectedButtonClicked()
+    {
+        BuildTutorialDirector director = BuildTutorialDirector.Instance;
+        if (director != null && director.IsCutBlockedForCurrentTutorial())
+        {
+            LogAction("Use Copy for this tutorial. Cut is temporarily disabled.");
+            director.NotifyCutBlocked();
+            return;
+        }
+
+        if (!IsToolAllowed() || IsTopologyEditBlockedDuringTracing()) return;
+        if (ClipboardManager.Instance != null && barCreator != null)
+            ClipboardManager.Instance.CutSelected(barCreator.GetSelectedPoints());
+    }
     public void OnCopyButtonClicked() { if (!IsToolAllowed()) return; if (ClipboardManager.Instance != null && barCreator != null) ClipboardManager.Instance.CopySelected(barCreator.GetSelectedPoints()); }
     public void OnPasteButtonClicked() { if (!IsToolAllowed()) return; if (ClipboardManager.Instance != null) ClipboardManager.Instance.StampPaste(); }
     public void OnUndoButtonClicked()

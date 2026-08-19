@@ -62,6 +62,11 @@ public class BuildTutorialDirector : MonoBehaviour
     [Min(0.01f)] public float pierXTolerance = 0.8f;
     [Min(0.01f)] public float snapTolerance = 1.2f;
 
+    [Header("Selection / Copy-Paste Tutorial")]
+    [SerializeField] private string selectionTutorialLesson = "Sequence_Build2";
+    [Tooltip("Optional warning panel shown when Cut is attempted during this tutorial section.")]
+    [SerializeField] private GameObject cutBlockedWarningPanel;
+
     [HideInInspector] public bool isTracingStep;
     [HideInInspector] public bool isCurrentDragValid = true;
     [HideInInspector] public bool isTutorialRunning;
@@ -84,6 +89,15 @@ public class BuildTutorialDirector : MonoBehaviour
     private UnityAction trackedToolButtonAction;
     private Coroutine undoPointerCoroutine;
     private bool simulationUnlockedForTutorial;
+    private int selectToolStepIndex = -1;
+    private int selectBridgeStepIndex = -1;
+    private bool copiedSelectionThisSection;
+    private bool pasteTargetReachedThisStep;
+    private bool isReturningToSelectionStart;
+    private GhostSegment[] pasteTargetGhosts;
+    private Transform pasteTargetParent;
+    private readonly HashSet<Bar> requiredSelectionBars = new HashSet<Bar>();
+    private readonly HashSet<Point> requiredSelectionPoints = new HashSet<Point>();
 
     private Bar lastTintedBar;
     private readonly Dictionary<Renderer, Color> originalColors = new Dictionary<Renderer, Color>();
@@ -143,6 +157,11 @@ public class BuildTutorialDirector : MonoBehaviour
     /// </summary>
     public void BeginStep(int stepIndex)
     {
+        TutorialManager tutorial = TutorialManager.Instance;
+        bool enteringPasteButtonStep = tutorial != null &&
+                                       tutorial.IsPlayingLesson(selectionTutorialLesson) &&
+                                       tutorial.CurrentStepAction == TutorialStepAction.PasteSelection;
+
         activeStepIndex = stepIndex;
         isTracingStep = false;
         isCurrentDragValid = true;
@@ -152,6 +171,12 @@ public class BuildTutorialDirector : MonoBehaviour
         activeGhosts = null;
         activeGhostPoints = null;
         activeTraceState = null;
+        pasteTargetReachedThisStep = false;
+        if (!enteringPasteButtonStep)
+        {
+            pasteTargetGhosts = null;
+            pasteTargetParent = null;
+        }
         ClearTrackedToolButton();
         RestoreTintedBar();
         ClearUndoPrompt();
@@ -164,6 +189,35 @@ public class BuildTutorialDirector : MonoBehaviour
         }
 
         if (bouncingArrow != null) bouncingArrow.Hide();
+
+        if (tutorial != null && tutorial.IsPlayingLesson(selectionTutorialLesson))
+        {
+            if (tutorial.CurrentStepAction == TutorialStepAction.SelectTool)
+            {
+                selectToolStepIndex = stepIndex;
+                copiedSelectionThisSection = false;
+                requiredSelectionBars.Clear();
+                requiredSelectionPoints.Clear();
+            }
+            else if (tutorial.CurrentStepAction == TutorialStepAction.SelectBridge)
+            {
+                selectBridgeStepIndex = stepIndex;
+                copiedSelectionThisSection = false;
+            }
+            else if (tutorial.CurrentStepAction == TutorialStepAction.CopySelection)
+            {
+                BarCreator creator = BuildUIController.Instance != null
+                    ? BuildUIController.Instance.barCreator
+                    : null;
+                requiredSelectionBars.Clear();
+                requiredSelectionPoints.Clear();
+                if (creator != null)
+                {
+                    requiredSelectionBars.UnionWith(creator.selectedBars);
+                    requiredSelectionPoints.UnionWith(creator.selectedPoints);
+                }
+            }
+        }
     }
 
     public void BeginSequence()
@@ -175,6 +229,7 @@ public class BuildTutorialDirector : MonoBehaviour
         ClearTraceStepStates();
         isTutorialRunning = isBuildSequence;
         simulationUnlockedForTutorial = false;
+        ResetSelectionSectionState();
         if (BuildUIController.Instance != null)
             BuildUIController.Instance.RefreshSimulationButtonLock();
         if (exitBuildModeButton != null) exitBuildModeButton.SetActive(!isBuildSequence);
@@ -383,12 +438,233 @@ public class BuildTutorialDirector : MonoBehaviour
             return;
         }
 
+        // Clipboard steps advance only after ClipboardManager confirms success.
+        if (tutorial.CurrentStepAction == TutorialStepAction.CopySelection ||
+            tutorial.CurrentStepAction == TutorialStepAction.PasteSelection)
+        {
+            return;
+        }
+
         hasAdvancedFromRequiredClickThisStep = true;
         ClearTrackedToolButton();
         expectedMaterial = null;
         expectedTool = null;
         if (bouncingArrow != null) bouncingArrow.Hide();
         tutorial.ShowNextStep();
+    }
+
+    public bool IsCutBlockedForCurrentTutorial()
+    {
+        TutorialManager tutorial = TutorialManager.Instance;
+        if (tutorial == null || !tutorial.IsPlayingLesson(selectionTutorialLesson))
+            return false;
+
+        TutorialStepAction action = tutorial.CurrentStepAction;
+        return action == TutorialStepAction.SelectTool ||
+               action == TutorialStepAction.SelectBridge ||
+               action == TutorialStepAction.CopySelection ||
+               action == TutorialStepAction.PositionPastePreview ||
+               action == TutorialStepAction.PasteSelection;
+    }
+
+    public void NotifyCutBlocked()
+    {
+        if (cutBlockedWarningPanel == null) return;
+        cutBlockedWarningPanel.SetActive(true);
+        StartCoroutine(HideCutWarningAfterDelay());
+    }
+
+    private IEnumerator HideCutWarningAfterDelay()
+    {
+        yield return new WaitForSecondsRealtime(1.5f);
+        if (cutBlockedWarningPanel != null) cutBlockedWarningPanel.SetActive(false);
+    }
+
+    public void NotifySelectionChanged(BarCreator creator)
+    {
+        TutorialManager tutorial = TutorialManager.Instance;
+        if (isReturningToSelectionStart || copiedSelectionThisSection || creator == null ||
+            tutorial == null || !tutorial.IsPlayingLesson(selectionTutorialLesson) ||
+            selectToolStepIndex < 0 || selectBridgeStepIndex < 0 ||
+            tutorial.CurrentStepIndex <= selectBridgeStepIndex)
+        {
+            return;
+        }
+
+        bool selectionStillComplete = requiredSelectionBars.Count > 0 ||
+                                      requiredSelectionPoints.Count > 0;
+
+        foreach (Bar requiredBar in requiredSelectionBars)
+        {
+            if (requiredBar == null || !creator.selectedBars.Contains(requiredBar))
+            {
+                selectionStillComplete = false;
+                break;
+            }
+        }
+
+        if (selectionStillComplete)
+        {
+            foreach (Point requiredPoint in requiredSelectionPoints)
+            {
+                if (requiredPoint == null || !creator.selectedPoints.Contains(requiredPoint))
+                {
+                    selectionStillComplete = false;
+                    break;
+                }
+            }
+        }
+
+        if (!selectionStillComplete) ReturnToSelectionStart();
+    }
+
+    public void NotifyPasteCanceled()
+    {
+        TutorialManager tutorial = TutorialManager.Instance;
+        if (isReturningToSelectionStart || tutorial == null ||
+            !tutorial.IsPlayingLesson(selectionTutorialLesson))
+        {
+            return;
+        }
+
+        if (tutorial.CurrentStepAction == TutorialStepAction.PositionPastePreview ||
+            tutorial.CurrentStepAction == TutorialStepAction.PasteSelection)
+        {
+            ReturnToSelectionStart();
+        }
+    }
+
+    private void ReturnToSelectionStart()
+    {
+        TutorialManager tutorial = TutorialManager.Instance;
+        if (tutorial == null || selectToolStepIndex < 0) return;
+
+        isReturningToSelectionStart = true;
+        copiedSelectionThisSection = false;
+        pasteTargetReachedThisStep = false;
+        requiredSelectionBars.Clear();
+        requiredSelectionPoints.Clear();
+
+        if (pasteTargetParent != null)
+            pasteTargetParent.gameObject.SetActive(false);
+
+        BarCreator creator = BuildUIController.Instance != null
+            ? BuildUIController.Instance.barCreator
+            : null;
+        if (creator != null) creator.CancelAllModes();
+
+        tutorial.ReturnToStep(selectToolStepIndex);
+        isReturningToSelectionStart = false;
+    }
+
+    public void NotifyCopySucceeded()
+    {
+        TutorialManager tutorial = TutorialManager.Instance;
+        if (tutorial == null || !tutorial.IsPlayingLesson(selectionTutorialLesson) ||
+            tutorial.CurrentStepAction != TutorialStepAction.CopySelection)
+        {
+            return;
+        }
+
+        copiedSelectionThisSection = true;
+        if (bouncingArrow != null) bouncingArrow.Hide();
+        tutorial.ShowNextStep();
+    }
+
+    /// <summary>
+    /// Activates the existing destination ghosts without entering tracing mode.
+    /// Unlike PromptDrawBridgeForContainer, this deliberately preserves paste mode.
+    /// </summary>
+    public void PromptPositionPasteAtGhost(GameObject ghostContainer)
+    {
+        LockAllUI();
+        isTracingStep = false;
+        pasteTargetReachedThisStep = false;
+        pasteTargetParent = ghostContainer != null ? ghostContainer.transform : null;
+
+        if (ghostContainer != null)
+        {
+            ghostContainer.SetActive(true);
+            MakeGhostContainerNonBlocking(ghostContainer.transform);
+            pasteTargetGhosts = ghostContainer.GetComponentsInChildren<GhostSegment>(true);
+            foreach (GhostSegment ghost in pasteTargetGhosts)
+                if (ghost != null) ghost.gameObject.SetActive(true);
+        }
+        else
+        {
+            pasteTargetGhosts = null;
+        }
+
+        if (bouncingArrow != null) bouncingArrow.Hide();
+        if (TutorialManager.Instance != null) TutorialManager.Instance.SetNextButtonActive(false);
+    }
+
+    public void NotifyPastePreviewUpdated(IReadOnlyList<Bar> previewBars)
+    {
+        TutorialManager tutorial = TutorialManager.Instance;
+        if (pasteTargetReachedThisStep || previewBars == null ||
+            pasteTargetGhosts == null || pasteTargetGhosts.Length == 0 || tutorial == null ||
+            !tutorial.IsPlayingLesson(selectionTutorialLesson) ||
+            tutorial.CurrentStepAction != TutorialStepAction.PositionPastePreview)
+        {
+            return;
+        }
+
+        HashSet<Bar> usedPreviewBars = new HashSet<Bar>();
+        foreach (GhostSegment ghost in pasteTargetGhosts)
+        {
+            if (ghost == null) continue;
+
+            Bar matchingPreview = null;
+            foreach (Bar previewBar in previewBars)
+            {
+                if (previewBar == null || usedPreviewBars.Contains(previewBar) ||
+                    previewBar.materialData != ghost.requiredMaterial)
+                {
+                    continue;
+                }
+
+                if (DoesPlacementMatchGhost(previewBar.materialData,
+                        previewBar.StartPosition, previewBar.EndPosition, ghost))
+                {
+                    matchingPreview = previewBar;
+                    break;
+                }
+            }
+
+            if (matchingPreview == null) return;
+            usedPreviewBars.Add(matchingPreview);
+        }
+
+        pasteTargetReachedThisStep = true;
+        tutorial.ShowNextStep();
+    }
+
+    public bool NotifyPasteSucceeded()
+    {
+        TutorialManager tutorial = TutorialManager.Instance;
+        if (tutorial == null || !tutorial.IsPlayingLesson(selectionTutorialLesson) ||
+            tutorial.CurrentStepAction != TutorialStepAction.PasteSelection)
+        {
+            return false;
+        }
+
+        if (pasteTargetParent != null) pasteTargetParent.gameObject.SetActive(false);
+        tutorial.ShowNextStep();
+        return true;
+    }
+
+    private void ResetSelectionSectionState()
+    {
+        selectToolStepIndex = -1;
+        selectBridgeStepIndex = -1;
+        copiedSelectionThisSection = false;
+        pasteTargetReachedThisStep = false;
+        isReturningToSelectionStart = false;
+        pasteTargetGhosts = null;
+        pasteTargetParent = null;
+        requiredSelectionBars.Clear();
+        requiredSelectionPoints.Clear();
     }
 
     public bool IsExpectedTool(GameObject clickedObject)
@@ -1042,6 +1318,7 @@ public class BuildTutorialDirector : MonoBehaviour
 
         isTutorialRunning = false;
         simulationUnlockedForTutorial = false;
+        ResetSelectionSectionState();
         activeStepIndex = -1;
         isTracingStep = false;
         isCurrentDragValid = true;

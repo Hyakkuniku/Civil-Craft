@@ -10,6 +10,16 @@ public enum TutorialPosition
     Left
 }
 
+public enum TutorialStepAction
+{
+    None,
+    SelectTool,
+    SelectBridge,
+    CopySelection,
+    PositionPastePreview,
+    PasteSelection
+}
+
 [System.Serializable]
 public class TutorialStep
 {
@@ -36,6 +46,10 @@ public class TutorialStep
     public float pointerRotation = 180f;
 
     public bool advanceOnClick = false;
+
+    [Header("Required Player Action")]
+    [Tooltip("Optional semantic action used by build tutorials that react to selection and clipboard state.")]
+    public TutorialStepAction requiredAction = TutorialStepAction.None;
 
     [Header("Events")]
     public UnityEvent OnStepStart = new UnityEvent();
@@ -79,6 +93,26 @@ public class TutorialManager : MonoBehaviour
     private Coroutine queuedSequenceCoroutine;
 
     public int CurrentStepIndex => currentStepIndex;
+    public string CurrentLessonName => currentSequence != null ? currentSequence.lessonName : string.Empty;
+    public TutorialStepAction CurrentStepAction
+    {
+        get
+        {
+            if (currentSequence == null || currentSequence.tutorialSteps == null ||
+                currentStepIndex < 0 || currentStepIndex >= currentSequence.tutorialSteps.Length)
+            {
+                return TutorialStepAction.None;
+            }
+
+            return currentSequence.tutorialSteps[currentStepIndex].requiredAction;
+        }
+    }
+
+    public bool IsPlayingLesson(string lessonName)
+    {
+        return IsTutorialActive && currentSequence != null &&
+               string.Equals(currentSequence.lessonName, lessonName, System.StringComparison.Ordinal);
+    }
     
     private UnityEngine.UI.Button trackedButton = null;
     private UnityAction trackedButtonAction = null;
