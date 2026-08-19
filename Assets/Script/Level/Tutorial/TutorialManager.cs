@@ -482,6 +482,21 @@ public class TutorialManager : MonoBehaviour
         if (nextButton != null) nextButton.SetActive(isActive);
     }
 
+    /// <summary>
+    /// The tutorial's continue button is intentionally a full-screen click target.
+    /// Camera gesture code must treat it as pass-through or every touch is
+    /// incorrectly classified as UI input while the button is visible.
+    /// </summary>
+    public bool AllowsCameraInputThrough(GameObject hitObject)
+    {
+        if (hitObject == null || nextButton == null || !nextButton.activeInHierarchy)
+            return false;
+
+        Transform hitTransform = hitObject.transform;
+        Transform nextTransform = nextButton.transform;
+        return hitTransform == nextTransform || hitTransform.IsChildOf(nextTransform);
+    }
+
     private void CompleteTutorial()
     {
         TutorialSequence completedSequence = currentSequence;

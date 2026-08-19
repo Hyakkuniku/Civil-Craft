@@ -54,7 +54,23 @@ public class BuildCameraController : MonoBehaviour
     private bool isInSimTransition = false;
 
     private Camera activeCamera;
+    private Camera defaultStateCamera;
+    private Vector3 defaultLocalPosition;
+    private Quaternion defaultLocalRotation;
+    private float defaultOrthographicSize;
+    private float defaultFieldOfView;
+    private bool hasDefaultCameraState;
+    private readonly Dictionary<Camera, CameraDefaultState> cameraDefaultStates =
+        new Dictionary<Camera, CameraDefaultState>();
     private float lastTwoFingerTime = 0f;
+
+    private struct CameraDefaultState
+    {
+        public Vector3 localPosition;
+        public Quaternion localRotation;
+        public float orthographicSize;
+        public float fieldOfView;
+    }
 
     private bool isInitialized = false;
     private float lockedZPosition; 
@@ -84,9 +100,9 @@ public class BuildCameraController : MonoBehaviour
         if (activeCamera == null || !activeCamera.enabled) return;
         if (barCreator == null) barCreator = FindObjectOfType<BarCreator>();
 
-        if (!isInitialized)
+        if (!isInitialized || defaultStateCamera != activeCamera)
         {
-            lockedZPosition = activeCamera.transform.localPosition.z;
+            CaptureDefaultCameraState(activeCamera);
             isInitialized = true;
         }
 
@@ -106,11 +122,24 @@ public class BuildCameraController : MonoBehaviour
         
         foreach (RaycastResult result in cachedRaycastResults)
         {
-            if (result.gameObject.GetComponentInParent<ScrollRect>() != null ||
-                result.gameObject.GetComponentInParent<Selectable>() != null)
+            ScrollRect scrollRect = result.gameObject.GetComponentInParent<ScrollRect>();
+            Selectable selectable = result.gameObject.GetComponentInParent<Selectable>();
+            if (scrollRect == null && selectable == null) continue;
+
+            GameObject interactiveObject = selectable != null
+                ? selectable.gameObject
+                : scrollRect.gameObject;
+
+            // btn_continue covers the entire tutorial canvas so the player can
+            // tap anywhere to advance. It must remain clickable without causing
+            // both fingers to be discarded as UI touches during camera lessons.
+            if (TutorialManager.Instance != null &&
+                TutorialManager.Instance.AllowsCameraInputThrough(interactiveObject))
             {
-                return true;
+                return false;
             }
+
+            return true;
         }
         
         return false; 
@@ -299,11 +328,69 @@ public class BuildCameraController : MonoBehaviour
 
     public void ResetCameraRotation()
     {
-        if (activeCamera != null)
+        ResolveActiveCamera();
+        if (activeCamera == null)
+            return;
+
+        if (!hasDefaultCameraState || defaultStateCamera != activeCamera)
+            CaptureDefaultCameraState(activeCamera);
+
+        if (simTransitionRoutine != null)
         {
-            activeCamera.transform.localRotation = Quaternion.Euler(0, 0, 0);
-            ApplyConstraints();
+            StopCoroutine(simTransitionRoutine);
+            simTransitionRoutine = null;
         }
+
+        isInSimTransition = false;
+        activeCamera.transform.localPosition = defaultLocalPosition;
+        activeCamera.transform.localRotation = defaultLocalRotation;
+
+        if (activeCamera.orthographic)
+            activeCamera.orthographicSize = defaultOrthographicSize;
+        else
+            activeCamera.fieldOfView = defaultFieldOfView;
+
+        lockedZPosition = defaultLocalPosition.z;
+    }
+
+    private void ResolveActiveCamera()
+    {
+        if (GameManager.Instance != null &&
+            GameManager.Instance.ActiveBuildLocation != null &&
+            GameManager.Instance.ActiveBuildLocation.locationCamera != null)
+        {
+            activeCamera = GameManager.Instance.ActiveBuildLocation.locationCamera;
+        }
+        else if (activeCamera == null)
+        {
+            activeCamera = Camera.main;
+        }
+    }
+
+    private void CaptureDefaultCameraState(Camera cameraToCapture)
+    {
+        if (cameraToCapture == null)
+            return;
+
+        if (!cameraDefaultStates.TryGetValue(cameraToCapture, out CameraDefaultState state))
+        {
+            state = new CameraDefaultState
+            {
+                localPosition = cameraToCapture.transform.localPosition,
+                localRotation = cameraToCapture.transform.localRotation,
+                orthographicSize = cameraToCapture.orthographicSize,
+                fieldOfView = cameraToCapture.fieldOfView
+            };
+            cameraDefaultStates.Add(cameraToCapture, state);
+        }
+
+        defaultStateCamera = cameraToCapture;
+        defaultLocalPosition = state.localPosition;
+        defaultLocalRotation = state.localRotation;
+        defaultOrthographicSize = state.orthographicSize;
+        defaultFieldOfView = state.fieldOfView;
+        lockedZPosition = defaultLocalPosition.z;
+        hasDefaultCameraState = true;
     }
 
     // --- NEW: CINEMATIC METHODS ---

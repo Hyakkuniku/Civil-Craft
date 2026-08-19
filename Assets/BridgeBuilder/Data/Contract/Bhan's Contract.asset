@@ -26,7 +26,7 @@ MonoBehaviour:
     maxPieces: 0
   - material: {fileID: 11400000, guid: b98aa9ba752ac28449feebc76f256bf2, type: 2}
     maxPieces: 0
-  hiddenTools: 010000000000000002000000
+  hiddenTools: 0100000000000000
   hiddenMaterials: []
   enforceMaxStress: 0
   maxAllowedStress: 100

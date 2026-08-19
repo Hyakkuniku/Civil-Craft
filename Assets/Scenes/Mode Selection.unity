@@ -1672,6 +1672,98 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: b81f94c2a9d719440b68be3b7200db5a, type: 3}
+--- !u!1 &615352591
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 615352593}
+  - component: {fileID: 615352592}
+  m_Layer: 0
+  m_Name: AudioManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &615352592
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 615352591}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d1de3053a00448b390b4d393c4958505, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  persistAcrossScenes: 1
+  musicOutput: {fileID: -2573065413995798265, guid: 842026f4aa4a40c45a58164f3ab562be,
+    type: 2}
+  sfxOutput: {fileID: -1157879735568590382, guid: 842026f4aa4a40c45a58164f3ab562be,
+    type: 2}
+  musicTracks:
+  - id: BGM
+    clip: {fileID: 8300000, guid: ee2362e55cb8d274baae076db2017bc3, type: 3}
+    volume: 0.4
+    pitch: 1
+    randomPitchRange: 0
+  soundEffects:
+  - id: Walk
+    clip: {fileID: 8300000, guid: f5f7ddf680784d248921d058aa9ae6ab, type: 3}
+    volume: 0.5
+    pitch: 1
+    randomPitchRange: 0.05
+  - id: KnockDoor
+    clip: {fileID: 8300000, guid: cbfba2866471bfe4da2cca88158a56e6, type: 3}
+    volume: 0.7
+    pitch: 1
+    randomPitchRange: 0
+  - id: Click
+    clip: {fileID: 8300000, guid: cc173080757b509429f82d23ed5a69c8, type: 3}
+    volume: 0.8
+    pitch: 1
+    randomPitchRange: 0.3
+  - id: PlaceBar
+    clip: {fileID: 8300000, guid: 7c29dddaff5425a489f0205d34cd6d46, type: 3}
+    volume: 1
+    pitch: 1
+    randomPitchRange: 0.05
+  - id: Undo
+    clip: {fileID: 8300000, guid: 5b92474e79c5e4d40ba922bdfa2c4fbb, type: 3}
+    volume: 1
+    pitch: 1
+    randomPitchRange: 0.06
+  - id: Redo
+    clip: {fileID: 8300000, guid: 7c29dddaff5425a489f0205d34cd6d46, type: 3}
+    volume: 1
+    pitch: 1
+    randomPitchRange: 0.06
+  playMusicOnStart: 1
+  startingMusicId: BGM
+  defaultMusicFadeDuration: 0.75
+  initialSfxVoices: 12
+  maximumSfxVoices: 32
+  sfxIgnoreListenerPause: 1
+--- !u!4 &615352593
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 615352591}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 549.5, y: 284.5, z: 0}
+  m_LocalScale: {x: 0.5491519, y: 0.5491519, z: 0.5491519}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &635313505
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -6074,6 +6166,7 @@ SceneRoots:
   - {fileID: 1582184450}
   - {fileID: 1267692773}
   - {fileID: 2128329863}
+  - {fileID: 615352593}
   - {fileID: 1180119590}
   - {fileID: 740636838}
   - {fileID: 1474767986}
