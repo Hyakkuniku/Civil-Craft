@@ -184,7 +184,7 @@ public class BuildCameraController : MonoBehaviour
 
                 if (t0.phase == UnityEngine.InputSystem.TouchPhase.Began || t1.phase == UnityEngine.InputSystem.TouchPhase.Began) return;
                 
-                if (barCreator != null && barCreator.IsPasting) return;
+                if (ClipboardManager.Instance != null && ClipboardManager.Instance.isDraggingSelection) return;
 
                 float prevMag = ((t0.screenPosition - t0.delta) - (t1.screenPosition - t1.delta)).magnitude;
                 float currentMag = (t0.screenPosition - t1.screenPosition).magnitude;
@@ -206,7 +206,8 @@ public class BuildCameraController : MonoBehaviour
             {
                 if (Time.time - lastTwoFingerTime < 0.15f) return; 
                 
-                if (barCreator != null && (barCreator.IsCreating || barCreator.IsErasing || barCreator.IsSelecting || barCreator.IsMoving || barCreator.IsPasting)) return;
+                if (barCreator != null && (barCreator.IsCreating || barCreator.IsErasing || barCreator.IsSelecting || barCreator.IsMoving)) return;
+                if (ClipboardManager.Instance != null && ClipboardManager.Instance.isDraggingSelection) return;
 
                 Touch touch = validTouches[0];
                 if (touch.phase == UnityEngine.InputSystem.TouchPhase.Moved)

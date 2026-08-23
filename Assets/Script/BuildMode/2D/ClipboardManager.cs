@@ -26,6 +26,14 @@ public class ClipboardManager : MonoBehaviour
     [HideInInspector] public bool isPasteMode = false;
     private bool isPasteFromCut = false; 
     [HideInInspector] public bool isDraggingSelection = false;
+
+    [Header("Mobile Paste Interaction")]
+    [Tooltip("Extra screen-space hit area around copied bars and points. This makes the preview easy to grab without making empty-screen touches drag it.")]
+    [Min(1f)] public float pastePreviewTouchRadiusPixels = 45f;
+
+    [Header("Paste Audio")]
+    [Tooltip("SFX ID configured in AudioManager. Played once when pasted bars are created.")]
+    [SerializeField] private string placeBarSfxId = "PlaceBar";
     
     private List<Vector3> copiedRelativePoints = new List<Vector3>();
     private List<CopiedBarInfo> copiedBars = new List<CopiedBarInfo>();
@@ -51,7 +59,9 @@ public class ClipboardManager : MonoBehaviour
         if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building) return;
         if (barCreator.isSimulating) return;
 
-        if (isPasteMode && Touch.activeTouches.Count == 2)
+        // A two-finger gesture belongs to the copied bridge only after the
+        // gesture began on the preview. Otherwise the camera keeps the touch.
+        if (isPasteMode && isDraggingSelection && Touch.activeTouches.Count == 2)
         {
             var touch0 = Touch.activeTouches[0];
             var touch1 = Touch.activeTouches[1];
@@ -385,6 +395,7 @@ public class ClipboardManager : MonoBehaviour
     {
         HistoryAction pasteAction = new HistoryAction { isBuildEvent = true };
         List<Point> newRealPoints = new List<Point>();
+        bool placedAnyBar = false;
         
         float snappedRotation = Mathf.Round(pasteRotationOffset / 15f) * 15f;
         Quaternion rotation = Quaternion.Euler(0, 0, snappedRotation);
@@ -451,11 +462,15 @@ public class ClipboardManager : MonoBehaviour
             p2.ConnectedBars.Add(newBar);
             
             pasteAction.affectedObjects.Add(bObj);
+            placedAnyBar = true;
         }
 
         foreach(Point p in newRealPoints) p.EvaluateAnchorState();
 
         CommandManager.Instance.RecordAction(pasteAction);
+
+        if (placedAnyBar && AudioManager.Instance != null && !string.IsNullOrWhiteSpace(placeBarSfxId))
+            AudioManager.Instance.PlaySFXAtPosition(placeBarSfxId, pasteRootPos);
 
         // Pasted bars are a normal build action. Route the complete atomic paste
         // through the same strict ghost validation used by manually drawn bars.
@@ -484,6 +499,7 @@ public class ClipboardManager : MonoBehaviour
         bool canceledActivePaste = isPasteMode;
         isPasteMode = false;
         isPasteFromCut = false;
+        isDraggingSelection = false;
         DestroyPasteGhosts();
 
         if (canceledActivePaste && BuildTutorialDirector.Instance != null)
@@ -691,6 +707,9 @@ public class ClipboardManager : MonoBehaviour
 
     public void HandlePointerDown(PointerEventData eventData)
     {
+        isDraggingSelection = false;
+        if (!isPasteMode || !IsPointerOverPastePreview(eventData.position)) return;
+
         isDraggingSelection = true;
         Vector3 worldPos = barCreator.GetWorldMousePosition(eventData.position);
         pasteDragOffset = pasteRootPos - worldPos; 
@@ -715,5 +734,51 @@ public class ClipboardManager : MonoBehaviour
     public void HandlePointerUp(PointerEventData eventData)
     {
         if (isDraggingSelection) isDraggingSelection = false;
+    }
+
+    private bool IsPointerOverPastePreview(Vector2 screenPosition)
+    {
+        Camera buildCamera = barCreator != null ? barCreator.GetActiveCamera() : Camera.main;
+        if (buildCamera == null) return false;
+
+        float maxSqrDistance = pastePreviewTouchRadiusPixels * pastePreviewTouchRadiusPixels;
+
+        foreach (GameObject ghostPoint in ghostPastePoints)
+        {
+            if (ghostPoint == null || !ghostPoint.activeInHierarchy) continue;
+
+            Vector3 screenPoint = buildCamera.WorldToScreenPoint(ghostPoint.transform.position);
+            if (screenPoint.z > 0f && ((Vector2)screenPoint - screenPosition).sqrMagnitude <= maxSqrDistance)
+                return true;
+        }
+
+        for (int i = 0; i < ghostPasteBars.Count && i < copiedBars.Count; i++)
+        {
+            Bar ghostBar = ghostPasteBars[i];
+            CopiedBarInfo copiedBar = copiedBars[i];
+            if (ghostBar == null || !ghostBar.gameObject.activeInHierarchy) continue;
+            if (copiedBar.startIdx < 0 || copiedBar.startIdx >= ghostPastePoints.Count ||
+                copiedBar.endIdx < 0 || copiedBar.endIdx >= ghostPastePoints.Count) continue;
+
+            Vector3 startScreen3 = buildCamera.WorldToScreenPoint(ghostPastePoints[copiedBar.startIdx].transform.position);
+            Vector3 endScreen3 = buildCamera.WorldToScreenPoint(ghostPastePoints[copiedBar.endIdx].transform.position);
+            if (startScreen3.z <= 0f || endScreen3.z <= 0f) continue;
+
+            if (SqrDistanceToScreenSegment(screenPosition, startScreen3, endScreen3) <= maxSqrDistance)
+                return true;
+        }
+
+        return false;
+    }
+
+    private static float SqrDistanceToScreenSegment(Vector2 point, Vector2 start, Vector2 end)
+    {
+        Vector2 segment = end - start;
+        float lengthSqr = segment.sqrMagnitude;
+        if (lengthSqr <= Mathf.Epsilon) return (point - start).sqrMagnitude;
+
+        float t = Mathf.Clamp01(Vector2.Dot(point - start, segment) / lengthSqr);
+        Vector2 closest = start + segment * t;
+        return (point - closest).sqrMagnitude;
     }
 }

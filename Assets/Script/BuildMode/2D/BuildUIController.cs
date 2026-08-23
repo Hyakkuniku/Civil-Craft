@@ -31,6 +31,10 @@ public class BuildUIController : MonoBehaviour
     public BarCreator barCreator;
     public BridgePhysicsManager physicsManager;
 
+    [Header("Build UI Audio")]
+    [Tooltip("SFX ID configured in AudioManager for build UI button presses.")]
+    [SerializeField] private string buildButtonClickSfxId = "Click";
+
     [Header("Global Keyboard Shortcuts")]
     public bool useKeyboardShortcuts = true;
     public KeyCode simulateKey = KeyCode.Return;   
@@ -860,6 +864,7 @@ public class BuildUIController : MonoBehaviour
 
     public void OnCloseSelectionPanelButtonClicked()
     {
+        PlayBuildButtonClickSfx();
         if (barCreator != null) barCreator.CancelAllModes();
         SetSelectionPanelActive(false);
         LogAction("Selection Cleared");
@@ -889,16 +894,17 @@ public class BuildUIController : MonoBehaviour
         return true;
     }
 
-    public void OnToggleSelectModeButtonClicked() { if (!IsToolAllowed()) return; if (barCreator != null) barCreator.ToggleSelectMode(); }
-    public void OnToggleMoveModeButtonClicked() { if (!IsToolAllowed() || IsTopologyEditBlockedDuringTracing()) return; if (barCreator != null) barCreator.ToggleMoveMode(); }
-    public void OnToggleDeleteModeButtonClicked() { if (!IsToolAllowed() || IsTopologyEditBlockedDuringTracing()) return; if (barCreator != null) barCreator.ToggleDeleteMode(); }
-    public void OnToggleGridButtonClicked() { if (!IsToolAllowed()) return; if (barCreator != null) barCreator.ToggleGrid(); }
-    public void OnCancelDrawingButtonClicked() { if (!IsToolAllowed()) return; if (barCreator != null) barCreator.CancelCreation(); }
-    public void OnExitBuildModeButtonClicked() { if (!IsToolAllowed()) return; if (GameManager.Instance != null) GameManager.Instance.ExitBuildMode(); }
-    public void OnResetCameraButtonClicked() { if (!IsToolAllowed()) return; BuildCameraController camCtrl = FindObjectOfType<BuildCameraController>(); if (camCtrl != null) camCtrl.ResetCameraRotation(); }
-    public void OnToggleStatsButtonClicked() { if (!IsToolAllowed()) return; if (statsPanel != null) statsPanel.SetActive(!statsPanel.activeSelf); }
+    public void OnToggleSelectModeButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed()) return; if (barCreator != null) barCreator.ToggleSelectMode(); }
+    public void OnToggleMoveModeButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed() || IsTopologyEditBlockedDuringTracing()) return; if (barCreator != null) barCreator.ToggleMoveMode(); }
+    public void OnToggleDeleteModeButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed() || IsTopologyEditBlockedDuringTracing()) return; if (barCreator != null) barCreator.ToggleDeleteMode(); }
+    public void OnToggleGridButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed()) return; if (barCreator != null) barCreator.ToggleGrid(); }
+    public void OnCancelDrawingButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed()) return; if (barCreator != null) barCreator.CancelCreation(); }
+    public void OnExitBuildModeButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed()) return; if (GameManager.Instance != null) GameManager.Instance.ExitBuildMode(); }
+    public void OnResetCameraButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed()) return; BuildCameraController camCtrl = FindObjectOfType<BuildCameraController>(); if (camCtrl != null) camCtrl.ResetCameraRotation(); }
+    public void OnToggleStatsButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed()) return; if (statsPanel != null) statsPanel.SetActive(!statsPanel.activeSelf); }
     public void OnCutSelectedButtonClicked()
     {
+        PlayBuildButtonClickSfx();
         BuildTutorialDirector director = BuildTutorialDirector.Instance;
         if (director != null && director.IsCutBlockedForCurrentTutorial())
         {
@@ -911,10 +917,11 @@ public class BuildUIController : MonoBehaviour
         if (ClipboardManager.Instance != null && barCreator != null)
             ClipboardManager.Instance.CutSelected(barCreator.GetSelectedPoints());
     }
-    public void OnCopyButtonClicked() { if (!IsToolAllowed()) return; if (ClipboardManager.Instance != null && barCreator != null) ClipboardManager.Instance.CopySelected(barCreator.GetSelectedPoints()); }
-    public void OnPasteButtonClicked() { if (!IsToolAllowed()) return; if (ClipboardManager.Instance != null) ClipboardManager.Instance.StampPaste(); }
+    public void OnCopyButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed()) return; if (ClipboardManager.Instance != null && barCreator != null) ClipboardManager.Instance.CopySelected(barCreator.GetSelectedPoints()); }
+    public void OnPasteButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed()) return; if (ClipboardManager.Instance != null) ClipboardManager.Instance.StampPaste(); }
     public void OnUndoButtonClicked()
     {
+        PlayBuildButtonClickSfx();
         BuildTutorialDirector director = BuildTutorialDirector.Instance;
         if (director == null || !director.IsAwaitingInvalidBarUndo)
         {
@@ -924,8 +931,8 @@ public class BuildUIController : MonoBehaviour
         if (CommandManager.Instance != null) CommandManager.Instance.Undo();
         if (director != null) director.NotifyUndoCompleted();
     }
-    public void OnRedoButtonClicked() { if (!IsToolAllowed()) return; if (CommandManager.Instance != null) CommandManager.Instance.Redo(); }
-    public void OnDeleteSelectedButtonClicked() { if (!IsToolAllowed() || IsTopologyEditBlockedDuringTracing()) return; if (barCreator != null) barCreator.DeleteSelected(); }
+    public void OnRedoButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed()) return; if (CommandManager.Instance != null) CommandManager.Instance.Redo(); }
+    public void OnDeleteSelectedButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed() || IsTopologyEditBlockedDuringTracing()) return; if (barCreator != null) barCreator.DeleteSelected(); }
 
     public void OnToggleSimulationButtonClicked() 
     { 
@@ -936,6 +943,7 @@ public class BuildUIController : MonoBehaviour
     
     public void OnSimulateButtonClicked() 
     { 
+        PlayBuildButtonClickSfx();
         if (!IsToolAllowed()) return;
 
         BuildTutorialDirector director = BuildTutorialDirector.Instance;
@@ -957,6 +965,7 @@ public class BuildUIController : MonoBehaviour
     
     public void OnRestartButtonClicked() 
     { 
+        PlayBuildButtonClickSfx();
         if (IsTutorialContractActive())
         {
             LogAction("Simulation cannot be stopped early during a tutorial.");
@@ -1110,6 +1119,7 @@ public class BuildUIController : MonoBehaviour
 
     public void OnMaterialSelected(BridgeMaterialSO newMaterial) 
     { 
+        PlayBuildButtonClickSfx();
         if (BuildTutorialDirector.Instance != null && BuildTutorialDirector.Instance.IsAwaitingInvalidBarUndo)
         {
             LogAction("Undo the invalid bar before selecting another material.");
@@ -1126,5 +1136,11 @@ public class BuildUIController : MonoBehaviour
             if (BuildTutorialDirector.Instance != null)
                 BuildTutorialDirector.Instance.OnMaterialClicked(newMaterial);
         } 
+    }
+
+    public void PlayBuildButtonClickSfx()
+    {
+        if (AudioManager.Instance != null && !string.IsNullOrWhiteSpace(buildButtonClickSfxId))
+            AudioManager.Instance.PlaySFX(buildButtonClickSfxId);
     }
 }

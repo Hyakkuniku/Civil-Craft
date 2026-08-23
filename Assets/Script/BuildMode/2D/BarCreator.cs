@@ -19,6 +19,10 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     public GameObject pointToInstantiate;
     public Transform pointParent;
 
+    [Header("Build Audio")]
+    [Tooltip("SFX ID configured in AudioManager. Played once after a bar placement succeeds.")]
+    [SerializeField] private string placeBarSfxId = "PlaceBar";
+
     [Header("3D Material Data")]
     public BridgeMaterialSO activeMaterial;
     private BridgeMaterialSO previousNonPierMaterial;
@@ -1625,6 +1629,9 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         }
 
         if (CommandManager.Instance != null) CommandManager.Instance.RecordAction(buildAction);
+
+        if (AudioManager.Instance != null && !string.IsNullOrWhiteSpace(placeBarSfxId))
+            AudioManager.Instance.PlaySFXAtPosition(placeBarSfxId, currentBar.transform.position);
 
         barCreationStarted = false;
         createdStartPoint = false; 
