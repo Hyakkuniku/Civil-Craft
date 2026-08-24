@@ -16,6 +16,8 @@ public class PlayerDataManager : MonoBehaviour
     public Action OnAlmanacAlertsChanged;
     public Action OnObjectiveAlertsChanged;
     public Action<AchievementSO> OnAchievementUnlocked; 
+    /// <summary>Raised once when a contract is newly added to persistent completion data.</summary>
+    public Action<string> OnContractCompleted;
     
     // Optional: Useful if you have a top-right Gold UI that needs to refresh immediately!
     public Action OnCurrencyChanged; 
@@ -140,6 +142,7 @@ public class PlayerDataManager : MonoBehaviour
             SaveGame();
             OnAlmanacAlertsChanged?.Invoke();
             OnObjectiveAlertsChanged?.Invoke();
+            OnContractCompleted?.Invoke(contractName);
             CheckAllAchievements(); 
         } 
     }

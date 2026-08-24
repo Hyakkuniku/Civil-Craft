@@ -176,6 +176,9 @@ public class BuildLocation : Interactable
 
         NPCContractGiver[] npcs = FindObjectsOfType<NPCContractGiver>();
         foreach (var npc in npcs) { if (npc.contractToGive == activeContract) npc.isContractCompleted = false; }
+
+        if (DynamicNavMeshUpdater.Instance != null)
+            DynamicNavMeshUpdater.Instance.UpdateWalkableNavMesh();
     }
 
     public void ActivateBuildMode(Transform player)
@@ -490,5 +493,8 @@ public class BuildLocation : Interactable
         }
 
         SetBridgeScriptsActive(false);
+
+        if (DynamicNavMeshUpdater.Instance != null)
+            DynamicNavMeshUpdater.Instance.UpdateWalkableNavMeshForLocation(this);
     }
 }

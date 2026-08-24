@@ -498,6 +498,9 @@ public class BridgePhysicsManager : MonoBehaviour
         deterministicPoints.Clear();
         deterministicBars.Clear();
 
+        if (DynamicNavMeshUpdater.Instance != null)
+            DynamicNavMeshUpdater.Instance.UpdateWalkableNavMeshForLocation(targetLoc);
+
         OnSimulationStopped?.Invoke(); 
     }
 

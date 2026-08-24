@@ -15,7 +15,7 @@ GameObject:
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
+  m_StaticEditorFlags: 2147483647
   m_IsActive: 1
 --- !u!4 &2363955547268711415
 Transform:
@@ -48,6 +48,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   StartPosition: {x: 0, y: 0, z: 0}
+  EndPosition: {x: 0, y: 0, z: 0}
   materialData: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
   startPoint: {fileID: 0}
   endPoint: {fileID: 0}
@@ -73,7 +74,7 @@ GameObject:
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
+  m_StaticEditorFlags: 2147483647
   m_IsActive: 1
 --- !u!4 &1618606862614620759
 Transform:
@@ -157,6 +158,11 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Layer
       value: 7
+      objectReference: {fileID: 0}
+    - target: {fileID: 4806764515897639862, guid: 75c2a0cd61ea5ed409c4bfcde0ac4aa9,
+        type: 3}
+      propertyPath: m_StaticEditorFlags
+      value: 2147483647
       objectReference: {fileID: 0}
     - target: {fileID: 7305647779311595527, guid: 75c2a0cd61ea5ed409c4bfcde0ac4aa9,
         type: 3}
@@ -242,6 +248,11 @@ PrefabInstance:
         type: 3}
       propertyPath: m_Layer
       value: 7
+      objectReference: {fileID: 0}
+    - target: {fileID: 4806764515897639862, guid: 75c2a0cd61ea5ed409c4bfcde0ac4aa9,
+        type: 3}
+      propertyPath: m_StaticEditorFlags
+      value: 2147483647
       objectReference: {fileID: 0}
     - target: {fileID: 7305647779311595527, guid: 75c2a0cd61ea5ed409c4bfcde0ac4aa9,
         type: 3}

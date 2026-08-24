@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -22,6 +23,14 @@ public class NPCContractGiver : Interactable
     private Transform playerTransform;
     private DialogueManager dialogueManager;
     private bool isLocked = false;
+    private bool isProgressionInteractionLocked;
+    private string progressionLockedPrompt = "Moving to the next site...";
+
+    /// <summary>
+    /// Runtime notification used by NPCProgressionManager. It deliberately stays
+    /// separate from the Inspector UnityEvents so existing NPC setups are unchanged.
+    /// </summary>
+    public event Action<NPCContractGiver> OnNPCInteracted;
 
     private void Awake()
     {
@@ -62,6 +71,12 @@ public class NPCContractGiver : Interactable
 
     private void Update()
     {
+        if (isProgressionInteractionLocked)
+        {
+            promptMessage = progressionLockedPrompt;
+            return;
+        }
+
         if (contractToGive == null) return;
 
         if (isLocked)
@@ -95,7 +110,11 @@ public class NPCContractGiver : Interactable
 
     protected override void Intract() 
     {
+        if (isProgressionInteractionLocked) return;
+
         FacePlayer(); 
+
+        OnNPCInteracted?.Invoke(this);
 
         if (contractToGive == null) return;
 
@@ -214,5 +233,51 @@ public class NPCContractGiver : Interactable
             targetPosition.y = transform.position.y;
             transform.LookAt(targetPosition);
         }
+    }
+
+    /// <summary>Locks only progression-driven interaction without changing failure locks.</summary>
+    public void SetProgressionInteractionLocked(bool locked, string lockedPrompt = "Moving to the next site...")
+    {
+        isProgressionInteractionLocked = locked;
+        if (!string.IsNullOrWhiteSpace(lockedPrompt)) progressionLockedPrompt = lockedPrompt;
+    }
+
+    /// <summary>Reuses this giver for a new phase and rebuilds its runtime state from the save.</summary>
+    public void ConfigureProgressionPhase(
+        ContractSO phaseContract,
+        BuildLocation phaseBuildLocation,
+        CargoItem phaseCargo)
+    {
+        contractToGive = phaseContract;
+        targetBuildLocation = phaseBuildLocation;
+        linkedCargo = phaseCargo;
+
+        hasGivenContract = false;
+        isContractCompleted = false;
+        isFullyTurnedIn = false;
+        isLocked = phaseContract != null &&
+                   PlayerPrefs.GetInt("LockedContract_" + phaseContract.name, 0) == 1;
+
+        if (phaseContract == null) return;
+
+        bool isCompleted = PlayerDataManager.Instance != null &&
+                           PlayerDataManager.Instance.IsContractCompleted(phaseContract.name);
+        bool hasSavedBridge = PlayerDataManager.Instance != null &&
+                              PlayerDataManager.Instance.GetSavedBridge(phaseContract.name) != null;
+
+        if (isCompleted || hasSavedBridge)
+        {
+            hasGivenContract = true;
+            isContractCompleted = true;
+            isFullyTurnedIn = isCompleted;
+
+            if (targetBuildLocation != null)
+            {
+                targetBuildLocation.activeContract = phaseContract;
+                targetBuildLocation.LoadSavedBridge();
+            }
+        }
+
+        if (linkedCargo != null) linkedCargo.SetWeight(phaseContract.liveLoadWeight);
     }
 }
