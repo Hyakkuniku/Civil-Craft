@@ -17,6 +17,11 @@ public class TutorialPointer : MonoBehaviour
     private RectTransform rectTransform;
     private Canvas pointerCanvas;
 
+    public bool IsPointingAt(RectTransform candidate)
+    {
+        return candidate != null && target == candidate && gameObject.activeInHierarchy;
+    }
+
     private void Awake()
     {
         rectTransform = GetComponent<RectTransform>();
@@ -103,16 +108,51 @@ public class TutorialPointer : MonoBehaviour
 
     private void UpdatePosition()
     {
-        if (target != null && rectTransform != null)
+        if (target == null || rectTransform == null) return;
+
+        Canvas targetCanvas = target.GetComponentInParent<Canvas>();
+        Canvas targetRootCanvas = targetCanvas != null ? targetCanvas.rootCanvas : null;
+        Camera targetCamera = targetRootCanvas != null &&
+                              targetRootCanvas.renderMode != RenderMode.ScreenSpaceOverlay
+            ? targetRootCanvas.worldCamera
+            : null;
+
+        Vector3 targetCenterWorld = target.TransformPoint(target.rect.center);
+        Vector2 screenPoint = RectTransformUtility.WorldToScreenPoint(
+            targetCamera,
+            targetCenterWorld);
+
+        Canvas pointerRootCanvas = pointerCanvas != null ? pointerCanvas.rootCanvas : null;
+        float canvasScale = pointerRootCanvas != null
+            ? Mathf.Max(0.0001f, pointerRootCanvas.scaleFactor)
+            : 1f;
+
+        // Offset in canvas/screen space instead of the target's local space.
+        // This keeps arrows accurate for buttons with non-uniform nested scales.
+        float bounce = Mathf.Sin(Time.unscaledTime * bounceSpeed) * bounceAmount;
+        float rotationRadians = rectTransform.eulerAngles.z * Mathf.Deg2Rad;
+        Vector2 bounceDirection = new Vector2(
+            -Mathf.Sin(rotationRadians),
+            Mathf.Cos(rotationRadians));
+        screenPoint += (customOffset + bounceDirection * bounce) * canvasScale;
+
+        RectTransform pointerParent = rectTransform.parent as RectTransform;
+        Camera pointerCamera = pointerRootCanvas != null &&
+                               pointerRootCanvas.renderMode != RenderMode.ScreenSpaceOverlay
+            ? pointerRootCanvas.worldCamera
+            : null;
+
+        if (pointerParent != null && RectTransformUtility.ScreenPointToWorldPointInRectangle(
+                pointerParent,
+                screenPoint,
+                pointerCamera,
+                out Vector3 pointerWorldPosition))
         {
-            Vector3 localCenter = new Vector3(target.rect.center.x, target.rect.center.y, 0f);
-            Vector3 targetLocalPos = localCenter + new Vector3(customOffset.x, customOffset.y, 0f);
-            Vector3 baseWorldPos = target.TransformPoint(targetLocalPos);
-
-            float bounce = Mathf.Sin(Time.unscaledTime * bounceSpeed) * bounceAmount;
-            Vector3 worldBounce = transform.up * (bounce * rectTransform.lossyScale.y);
-
-            rectTransform.position = baseWorldPos + worldBounce;
+            rectTransform.position = pointerWorldPosition;
+        }
+        else
+        {
+            rectTransform.position = screenPoint;
         }
     }
 }

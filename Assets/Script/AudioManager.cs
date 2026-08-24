@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Audio;
+using UnityEngine.SceneManagement;
 
 [Serializable]
 public sealed class AudioLibraryEntry
@@ -24,6 +25,13 @@ public sealed class AudioLibraryEntry
 public sealed class AudioManager : MonoBehaviour
 {
     public static AudioManager Instance { get; private set; }
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStaticState()
+    {
+        // Required when Enter Play Mode Options has Domain Reload disabled.
+        Instance = null;
+    }
 
     [Header("Lifetime")]
     [SerializeField] private bool persistAcrossScenes = true;
@@ -84,14 +92,35 @@ public sealed class AudioManager : MonoBehaviour
 
         Instance = this;
         if (persistAcrossScenes)
+        {
+            // DontDestroyOnLoad only works on root GameObjects. Some scenes keep
+            // this manager inside a Managers container, so detach it at runtime.
+            if (transform.parent != null)
+                transform.SetParent(null, true);
+
             DontDestroyOnLoad(gameObject);
+        }
 
         RebuildLibrary();
         CreateAudioChannels();
     }
 
+    private void OnEnable()
+    {
+        if (Instance == this)
+            SceneManager.sceneLoaded += HandleSceneLoaded;
+    }
+
+    private void OnDisable()
+    {
+        if (Instance == this)
+            SceneManager.sceneLoaded -= HandleSceneLoaded;
+    }
+
     private void Start()
     {
+        if (Instance != this) return;
+
         if (playMusicOnStart && !string.IsNullOrWhiteSpace(startingMusicId))
             PlayMusic(startingMusicId);
     }
@@ -100,6 +129,22 @@ public sealed class AudioManager : MonoBehaviour
     {
         if (Instance == this)
             Instance = null;
+    }
+
+    private void HandleSceneLoaded(Scene scene, LoadSceneMode loadMode)
+    {
+        // Awake normally removes a scene-local duplicate before this callback.
+        // This second pass also catches managers enabled or instantiated late.
+        AudioManager[] managers = Resources.FindObjectsOfTypeAll<AudioManager>();
+        foreach (AudioManager manager in managers)
+        {
+            if (manager == null || manager == this) continue;
+
+            Scene managerScene = manager.gameObject.scene;
+            if (!managerScene.IsValid() || !managerScene.isLoaded) continue;
+
+            Destroy(manager.gameObject);
+        }
     }
 
     /// <summary>Plays a 2D sound effect. Multiple calls can overlap.</summary>

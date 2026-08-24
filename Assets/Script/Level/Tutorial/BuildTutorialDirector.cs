@@ -834,12 +834,15 @@ public class BuildTutorialDirector : MonoBehaviour
             BuildUIController.Instance.SetToolForcedVisible(BuildModeTool.Undo, true);
             BuildUIController.Instance.isTutorialUI_Locked = true;
             BuildUIController.Instance.whitelistedMaterial = null;
-            BuildUIController.Instance.whitelistedButton = undoButtonRect != null ? undoButtonRect.gameObject : null;
         }
+
+        RectTransform undoTarget = ResolveUndoButtonRect();
+        if (BuildUIController.Instance != null)
+            BuildUIController.Instance.whitelistedButton = undoTarget != null ? undoTarget.gameObject : null;
 
         if (undoWarningPanel != null) undoWarningPanel.SetActive(true);
         Canvas.ForceUpdateCanvases();
-        PointArrow(undoButtonRect, undoArrowOffset, undoArrowRotation);
+        PointArrow(undoTarget, undoArrowOffset, undoArrowRotation, true);
 
         if (undoPointerCoroutine != null) StopCoroutine(undoPointerCoroutine);
         undoPointerCoroutine = StartCoroutine(RepointUndoArrowAfterLayout());
@@ -847,22 +850,28 @@ public class BuildTutorialDirector : MonoBehaviour
 
     private IEnumerator RepointUndoArrowAfterLayout()
     {
-        // Contract visibility and layout rebuilds can span more than one frame.
-        // Retry briefly so the pointer is not lost when Undo was previously hidden.
-        const int maxLayoutFrames = 5;
-        for (int frame = 0; frame < maxLayoutFrames && IsAwaitingInvalidBarUndo; frame++)
+        // Keep the Undo button and pointer enforced for the entire invalid-action
+        // state. Layout groups and later tutorial callbacks can otherwise hide or
+        // move either object after a short fixed retry window has expired.
+        while (IsAwaitingInvalidBarUndo)
         {
             yield return null;
-            Canvas.ForceUpdateCanvases();
 
-            if (undoButtonRect != null && undoButtonRect.gameObject.activeInHierarchy &&
-                PointArrow(undoButtonRect, undoArrowOffset, undoArrowRotation))
+            RectTransform undoTarget = ResolveUndoButtonRect();
+            if (BuildUIController.Instance != null)
             {
-                break;
+                if (undoTarget == null || !undoTarget.gameObject.activeInHierarchy)
+                {
+                    BuildUIController.Instance.SetToolForcedVisible(BuildModeTool.Undo, true);
+                    Canvas.ForceUpdateCanvases();
+                    undoTarget = ResolveUndoButtonRect();
+                }
+
+                BuildUIController.Instance.whitelistedButton =
+                    undoTarget != null ? undoTarget.gameObject : null;
             }
 
-            if (BuildUIController.Instance != null)
-                BuildUIController.Instance.SetToolForcedVisible(BuildModeTool.Undo, true);
+            PointArrow(undoTarget, undoArrowOffset, undoArrowRotation, false);
         }
 
         undoPointerCoroutine = null;
@@ -1023,6 +1032,8 @@ public class BuildTutorialDirector : MonoBehaviour
         if (undoWarningPanel != null) undoWarningPanel.SetActive(false);
         if (BuildUIController.Instance != null)
             BuildUIController.Instance.SetToolForcedVisible(BuildModeTool.Undo, false);
+
+        HideUndoPointer();
     }
 
     public void CheckGhostBridgeCompletion()
@@ -1250,27 +1261,72 @@ public class BuildTutorialDirector : MonoBehaviour
         return points.ToArray();
     }
 
-    private bool PointArrow(RectTransform target, Vector2 offset, float rotation)
+    private RectTransform ResolveUndoButtonRect()
+    {
+        if (undoButtonRect != null && undoButtonRect.gameObject.activeInHierarchy)
+            return undoButtonRect;
+
+        if (BuildUIController.Instance == null) return undoButtonRect;
+
+        RectTransform mappedUndo =
+            BuildUIController.Instance.GetToolRectTransform(BuildModeTool.Undo);
+        return mappedUndo != null ? mappedUndo : undoButtonRect;
+    }
+
+    private bool PointArrow(
+        RectTransform target,
+        Vector2 offset,
+        float rotation,
+        bool logFailure = true)
     {
         TutorialPointer pointer = bouncingArrow;
-        if (pointer == null && TutorialManager.Instance != null)
+        if ((pointer == null || !IsPointerHierarchyUsable(pointer)) &&
+            TutorialManager.Instance != null)
             pointer = TutorialManager.Instance.SharedPointer;
 
         if (pointer == null || target == null)
         {
-            Debug.LogWarning("Cannot show the build tutorial pointer. Assign both the pointer and Undo Button Rect references.");
+            if (logFailure)
+                Debug.LogWarning("Cannot show the build tutorial pointer. Assign a pointer and map the Undo tool in BuildUIController.");
             return false;
         }
 
         if (!target.gameObject.activeInHierarchy)
         {
-            Debug.LogWarning("Cannot point at Undo because its RectTransform is inactive in the hierarchy.");
+            if (logFailure)
+                Debug.LogWarning("Cannot point at Undo because its RectTransform is inactive in the hierarchy.");
             return false;
         }
 
-        pointer.PointAt(target, offset);
-        pointer.transform.localEulerAngles = new Vector3(0, 0, rotation);
-        return pointer.gameObject.activeInHierarchy;
+        if (!pointer.IsPointingAt(target))
+        {
+            pointer.PointAt(target, offset);
+            pointer.transform.localEulerAngles = new Vector3(0, 0, rotation);
+        }
+
+        bool visible = pointer.gameObject.activeInHierarchy && IsPointerHierarchyUsable(pointer);
+        if (visible) bouncingArrow = pointer;
+        else if (logFailure)
+            Debug.LogWarning("The tutorial pointer is active but one of its parent objects is inactive.");
+        return visible;
+    }
+
+    private static bool IsPointerHierarchyUsable(TutorialPointer pointer)
+    {
+        if (pointer == null) return false;
+        Transform parent = pointer.transform.parent;
+        return parent == null || parent.gameObject.activeInHierarchy;
+    }
+
+    private void HideUndoPointer()
+    {
+        if (bouncingArrow != null) bouncingArrow.Hide();
+
+        TutorialPointer sharedPointer = TutorialManager.Instance != null
+            ? TutorialManager.Instance.SharedPointer
+            : null;
+        if (sharedPointer != null && sharedPointer != bouncingArrow)
+            sharedPointer.Hide();
     }
 
     private void SetBarTint(Bar bar, bool red)

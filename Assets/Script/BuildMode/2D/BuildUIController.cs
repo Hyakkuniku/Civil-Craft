@@ -343,6 +343,17 @@ public class BuildUIController : MonoBehaviour
         RefreshContractBuildUI();
     }
 
+    /// <summary>
+    /// Returns the mapped button/wrapper for tutorial pointers. The same lookup
+    /// used by contract visibility is used so a missing explicit pointer target
+    /// cannot silently break the Undo prompt.
+    /// </summary>
+    public RectTransform GetToolRectTransform(BuildModeTool tool)
+    {
+        GameObject toolObject = FindToolUIObject(tool);
+        return toolObject != null ? toolObject.GetComponent<RectTransform>() : null;
+    }
+
     private GameObject FindToolUIObject(BuildModeTool tool)
     {
         foreach (BuildToolUIBinding binding in contractToolBindings)
