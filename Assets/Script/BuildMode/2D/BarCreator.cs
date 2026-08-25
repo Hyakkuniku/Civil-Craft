@@ -23,6 +23,10 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     [Tooltip("SFX ID configured in AudioManager. Played once after a bar placement succeeds.")]
     [SerializeField] private string placeBarSfxId = "PlaceBar";
 
+    [Header("Mobile Build Magnifier")]
+    [SerializeField] private MagnifyingGlassController magnifyingGlass;
+    [SerializeField] private bool showMagnifierWhileDrawing = true;
+
     [Header("3D Material Data")]
     public BridgeMaterialSO activeMaterial;
     private BridgeMaterialSO previousNonPierMaterial;
@@ -85,10 +89,17 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     private List<Bar> cachedBarsToCollapse = new List<Bar>();
 
     private void OnEnable() { EnhancedTouchSupport.Enable(); }
-    private void OnDisable() { EnhancedTouchSupport.Disable(); }
+    private void OnDisable()
+    {
+        EnhancedTouchSupport.Disable();
+        if (magnifyingGlass != null) magnifyingGlass.HideMagnifier();
+    }
 
     private void Start()
     {
+        if (magnifyingGlass == null)
+            magnifyingGlass = FindObjectOfType<MagnifyingGlassController>(true);
+
         if (GameManager.Instance != null)
         {
             GameManager.Instance.OnEnterBuildMode.AddListener(HandleEnterBuildMode);
@@ -524,6 +535,9 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
             currentEndPoint.transform.position = targetPos;
             currentBar.UpdateCreatingBar(targetPos);
+
+            if (showMagnifierWhileDrawing && magnifyingGlass != null)
+                magnifyingGlass.UpdateTrackedPosition(screenPos, targetPos);
         }
     }
 
@@ -1415,6 +1429,9 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         endObj.name = "GhostPoint";
         currentEndPoint = endObj.GetComponent<Point>();
         DrawRadiusVisual();
+
+        if (showMagnifierWhileDrawing && magnifyingGlass != null)
+            magnifyingGlass.ShowMagnifier(GetPointerPosition(), startPosition);
     }
 
     private void FinishBarCreation(Vector3 rawWorldPos, Point existingEndPoint, Vector3 exactSnapPos)
@@ -1633,6 +1650,8 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (AudioManager.Instance != null && !string.IsNullOrWhiteSpace(placeBarSfxId))
             AudioManager.Instance.PlaySFXAtPosition(placeBarSfxId, currentBar.transform.position);
 
+        if (magnifyingGlass != null) magnifyingGlass.HideMagnifier();
+
         barCreationStarted = false;
         createdStartPoint = false; 
         currentStartPoint = null;
@@ -1647,6 +1666,8 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
     public void CancelCreation()
     {
+        if (magnifyingGlass != null) magnifyingGlass.HideMagnifier();
+
         barCreationStarted = false;
         if (currentBar != null) Destroy(currentBar.gameObject);
         if (currentEndPoint != null) Destroy(currentEndPoint.gameObject);
