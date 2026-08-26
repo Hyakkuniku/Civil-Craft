@@ -1,0 +1,55 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a4da58d2dc2409c459ef20449bf92a90, type: 3}
+  m_Name: Truss
+  m_EditorClassIdentifier: 
+  lessonId: What is Truss
+  lessonTitle: Lesson Title
+  lessonImage: {fileID: 21300000, guid: c7ad14becd77b714a820300c6ed3a180, type: 3}
+  lessonDescription: 'If you have ever seen a bridge that looks like it is made out
+    of a giant metal web or scaffolding, you are looking at a Truss bridge!
+
+
+    Unlike
+    a simple beam bridge, a truss structure uses a framework of straight pieces of
+    metal or wood connected at joints to form a series of interconnected triangles.
+
+
+    The
+    Engineering Inside:
+
+    Why triangles? In engineering, the triangle is the strongest
+    geometric shape. If you push down on a square, it will easily collapse into a
+    diamond. But if you push down on the top point of a triangle, the weight is evenly
+    distributed down its two sides, while the bottom side stretches to hold it all
+    together.
+
+
+    When a Live Load (like a vehicle) drives across a truss, the
+    heavy weight is instantly spread out across the entire framework. Some pieces
+    of the triangle will be squeezed together (Compression), while other pieces are
+    pulled apart (Tension).
+
+
+    The Challenge:
+
+    Remember how Beam Bridges bend
+    and snap if the gap is too long? Truss bridges solve this problem! Because the
+    triangle framework is so incredibly rigid, a truss can safely span much longer
+    distances than a beam bridge without needing any support piers placed in the
+    water below. It is also surprisingly lightweight because it uses a skeletal frame
+    rather than solid, heavy blocks of material.
+
+
+    Engineer''s Tip: If your bridge
+    is sagging or snapping under pressure, look at its shape. Are your bars forming
+    squares? Add diagonal bars to turn those weak squares into strong triangles!'

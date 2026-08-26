@@ -19,6 +19,8 @@ public class PlayerDataManager : MonoBehaviour
     public Action<AchievementSO> OnAchievementUnlocked; 
     /// <summary>Raised once when a contract is newly added to persistent completion data.</summary>
     public Action<string> OnContractCompleted;
+    /// <summary>Raised once when a LessonData ID is newly added to the archive.</summary>
+    public Action<string> OnLessonUnlocked;
     
     // Optional: Useful if you have a top-right Gold UI that needs to refresh immediately!
     public Action OnCurrencyChanged; 
@@ -77,8 +79,10 @@ public class PlayerDataManager : MonoBehaviour
         {
             CurrentData = new PlayerData();
             CurrentData.playerName = PlayerPrefs.GetString("SavedPlayerName", "Guest"); 
-            SaveGame();
         }
+
+        NormalizeLoadedData();
+        SaveGame();
     }
 
     // ────────────────────────────────────────────────
@@ -275,6 +279,40 @@ public class PlayerDataManager : MonoBehaviour
         SaveGame();
     }
 
+    public bool UnlockLesson(string lessonId)
+    {
+        if (CurrentData == null || string.IsNullOrWhiteSpace(lessonId)) return false;
+
+        string normalizedId = lessonId.Trim();
+        if (CurrentData.unlockedLessonIds == null)
+            CurrentData.unlockedLessonIds = new List<string>();
+
+        if (CurrentData.unlockedLessonIds.Contains(normalizedId)) return false;
+
+        CurrentData.unlockedLessonIds.Add(normalizedId);
+        CurrentData.hasUnlockedLessonsTab = true;
+        CurrentData.hasUnreadLessonsAlert = true;
+        SaveGame();
+        OnLessonUnlocked?.Invoke(normalizedId);
+        OnAlmanacAlertsChanged?.Invoke();
+        return true;
+    }
+
+    public bool IsLessonUnlocked(string lessonId)
+    {
+        return CurrentData != null && CurrentData.unlockedLessonIds != null &&
+               !string.IsNullOrWhiteSpace(lessonId) &&
+               CurrentData.unlockedLessonIds.Contains(lessonId.Trim());
+    }
+
+    public void MarkLessonsAlmanacRead()
+    {
+        if (CurrentData == null || !CurrentData.hasUnreadLessonsAlert) return;
+        CurrentData.hasUnreadLessonsAlert = false;
+        SaveGame();
+        OnAlmanacAlertsChanged?.Invoke();
+    }
+
     public void ResetLessonProgress(string lessonName, bool saveImmediately = true)
     {
         if (CurrentData == null || CurrentData.completedLessons == null ||
@@ -323,6 +361,23 @@ public class PlayerDataManager : MonoBehaviour
 
     public void UnlockDoor(string doorID) { if (!CurrentData.unlockedDoors.Contains(doorID)) { CurrentData.unlockedDoors.Add(doorID); SaveGame(); } }
     public bool IsDoorUnlocked(string doorID) { return CurrentData.unlockedDoors.Contains(doorID); }
+
+    private void NormalizeLoadedData()
+    {
+        if (CurrentData == null) CurrentData = new PlayerData();
+        if (CurrentData.unlockedLessonIds == null) CurrentData.unlockedLessonIds = new List<string>();
+        if (CurrentData.completedLessons == null) CurrentData.completedLessons = new List<string>();
+        if (CurrentData.completedContracts == null) CurrentData.completedContracts = new List<string>();
+        if (CurrentData.unlockedAchievements == null) CurrentData.unlockedAchievements = new List<string>();
+        if (CurrentData.activeQuests == null) CurrentData.activeQuests = new List<TrackedTask>();
+        if (CurrentData.unlockedLevels == null) CurrentData.unlockedLevels = new List<string>();
+        if (CurrentData.unlockedContractMaterials == null) CurrentData.unlockedContractMaterials = new List<string>();
+        if (CurrentData.unlockedDoors == null) CurrentData.unlockedDoors = new List<string>();
+        if (CurrentData.savedBridges == null) CurrentData.savedBridges = new List<SavedBridgeData>();
+
+        if (CurrentData.unlockedLessonIds.Count > 0)
+            CurrentData.hasUnlockedLessonsTab = true;
+    }
 
     public void SaveBridgeData(string contractId, List<Point> points, List<Bar> bars, float totalSpent, float maxStress)
     {

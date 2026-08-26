@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a4da58d2dc2409c459ef20449bf92a90, type: 3}
+  m_Name: LiveLoadLesson
+  m_EditorClassIdentifier: 
+  lessonId: live-load
+  lessonTitle: Live Load
+  lessonImage: {fileID: 21300000, guid: 2db204386ad37a845b49016eb72888b4, type: 3}
+  lessonDescription: "Imagine a bridge standing perfectly still. The permanent weight
+    of the steel, concrete, cables, and asphalt makes up what engineers call the
+    \"Dead Load.\" But bridges aren't built to just stand empty\u2014they are built
+    to be used!\n\nThat is where the Live Load comes in.\n\nA Live Load is any temporary,
+    moving, or changing weight that is placed on a structure. For a bridge, live
+    loads include cars, heavy cargo trucks, trains, and even crowds of people walking
+    across.\n\nWhy are Live Loads an engineering challenge?\nUnlike the bridge's
+    own weight, which never changes, live loads are constantly moving. When a heavy
+    delivery vehicle drives across your bridge, it shifts its weight from one section
+    of the road to the next. This means different beams, joints, and supports will
+    experience intense stress at different times. A beam that is perfectly fine when
+    the truck is at the start of the bridge might suddenly snap when the truck reaches
+    the middle!\n\nThe Engineer's Job:\nWhen designing your bridge, you cannot just
+    make it strong enough to hold itself up. You must build a structure capable of
+    supporting the heaviest possible Live Load, no matter where that load is currently
+    positioned on the bridge.\n\n"

@@ -18,6 +18,11 @@ public sealed class MagnifyingGlassController : MonoBehaviour
     [SerializeField] private GameObject magnifierRoot;
     [SerializeField] private RawImage magnifierImage;
 
+    [Header("UI Sorting")]
+    [Tooltip("Creates or configures a nested Canvas so the magnifier renders above other HUD canvases.")]
+    [SerializeField] private bool forceTopMostCanvas = true;
+    [Range(-32768, 32767)] [SerializeField] private int topMostSortingOrder = 32760;
+
     [Header("Blueprint Grid Overlay")]
     [Tooltip("The existing GridCanvas used by the active build location. If omitted, it is found automatically.")]
     [SerializeField] private Canvas sourceGridCanvas;
@@ -54,6 +59,7 @@ public sealed class MagnifyingGlassController : MonoBehaviour
     [SerializeField] private bool hideOnAwake = true;
 
     private RectTransform magnifierRect;
+    private Canvas topMostCanvas;
     private RectTransform currentSlot;
     private Vector2 trackedScreenPosition;
     private Vector3 trackedWorldPosition;
@@ -91,7 +97,10 @@ public sealed class MagnifyingGlassController : MonoBehaviour
             magnifierRoot = magnifierImage.gameObject;
 
         if (magnifierRoot != null)
+        {
             magnifierRect = magnifierRoot.GetComponent<RectTransform>();
+            ConfigureTopMostCanvas();
+        }
 
         if (magnifierImage != null)
         {
@@ -223,6 +232,7 @@ public sealed class MagnifyingGlassController : MonoBehaviour
         EnsureBlueprintGridOverlay();
         isVisible = true;
         magnifierRoot.SetActive(true);
+        BringMagnifierToFront();
         magnifierCamera.enabled = true;
         SnapToFarthestSlot(trackedScreenPosition);
 
@@ -230,6 +240,33 @@ public sealed class MagnifyingGlassController : MonoBehaviour
             UpdateMagnifierCamera(trackedWorldPosition);
 
         SyncBlueprintGridOverlay();
+    }
+
+    private void ConfigureTopMostCanvas()
+    {
+        if (!forceTopMostCanvas || magnifierRoot == null) return;
+
+        topMostCanvas = magnifierRoot.GetComponent<Canvas>();
+        if (topMostCanvas == null)
+            topMostCanvas = magnifierRoot.AddComponent<Canvas>();
+
+        topMostCanvas.overrideSorting = true;
+        topMostCanvas.sortingOrder = topMostSortingOrder;
+    }
+
+    private void BringMagnifierToFront()
+    {
+        if (magnifierRoot == null) return;
+
+        magnifierRoot.transform.SetAsLastSibling();
+        if (topMostCanvas == null && forceTopMostCanvas)
+            ConfigureTopMostCanvas();
+
+        if (topMostCanvas != null)
+        {
+            topMostCanvas.overrideSorting = true;
+            topMostCanvas.sortingOrder = topMostSortingOrder;
+        }
     }
 
     private Camera ResolveSourceCamera()

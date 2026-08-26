@@ -1,5 +1,8 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.AI;
+using UnityEngine.Events;
 using TMPro;
 
 [DefaultExecutionOrder(-40)] 
@@ -25,6 +28,12 @@ public class LiveLoadVehicle : Interactable
     [Tooltip("If checked, closing the Info Panel will automatically advance the active tutorial.")]
     public bool advancesTutorial = false;
 
+    [Header("Inspection Events")]
+    [Tooltip("Invoked only after an inspection window that was actually open is closed.")]
+    [SerializeField] private UnityEvent onInspectionWindowClosed;
+
+    public event Action InspectionWindowClosed;
+
     [Header("Path Settings")]
     public Transform startPoint;
     public Transform endPoint;
@@ -48,6 +57,12 @@ public class LiveLoadVehicle : Interactable
     [Min(0f)] public float wheelGroundCheckDistance = 0.12f;
     [Min(0f)] public float requiredSettledTime = 0.5f;
 
+    [Header("NPC Avoidance")]
+    [Tooltip("Adds a moving NavMeshObstacle so NavMeshAgents steer around the vehicle.")]
+    [SerializeField] private bool configureNPCObstacle = true;
+    [Min(0f)] [SerializeField] private float npcObstaclePadding = 0.2f;
+    [SerializeField] private NavMeshObstacle npcObstacle;
+
     [Header("System")]
     public BridgePhysicsManager physicsManager;
 
@@ -62,6 +77,7 @@ public class LiveLoadVehicle : Interactable
     
     private float currentMotorSpeed = 0f;
     private PhysicMaterial wheelMat; 
+    private bool isInspectionWindowOpen;
 
     private class WheelData
     {
@@ -94,6 +110,8 @@ public class LiveLoadVehicle : Interactable
             slipMat.dynamicFriction = 0f; slipMat.staticFriction = 0f; slipMat.bounciness = 0f;
             chassisCol.material = slipMat;
         }
+
+        ConfigureNPCNavMeshObstacle(chassisCol);
 
         wheelMat = new PhysicMaterial("WheelGrip");
         wheelMat.dynamicFriction = 1f; wheelMat.staticFriction = 1f; 
@@ -131,6 +149,40 @@ public class LiveLoadVehicle : Interactable
 
         if (physicsManager == null) physicsManager = FindObjectOfType<BridgePhysicsManager>();
         if (vehicleInfoPanel != null) vehicleInfoPanel.SetActive(false);
+    }
+
+    private void ConfigureNPCNavMeshObstacle(Collider chassisCollider)
+    {
+        if (!configureNPCObstacle) return;
+
+        if (npcObstacle == null)
+            npcObstacle = GetComponent<NavMeshObstacle>();
+        if (npcObstacle == null)
+            npcObstacle = gameObject.AddComponent<NavMeshObstacle>();
+
+        npcObstacle.shape = NavMeshObstacleShape.Box;
+
+        if (chassisCollider is BoxCollider boxCollider)
+        {
+            npcObstacle.center = boxCollider.center;
+            npcObstacle.size = boxCollider.size + Vector3.one * (npcObstaclePadding * 2f);
+        }
+        else if (chassisCollider != null)
+        {
+            Vector3 scale = transform.lossyScale;
+            Vector3 worldSize = chassisCollider.bounds.size;
+            npcObstacle.center = transform.InverseTransformPoint(chassisCollider.bounds.center);
+            npcObstacle.size = new Vector3(
+                worldSize.x / Mathf.Max(Mathf.Abs(scale.x), 0.0001f),
+                worldSize.y / Mathf.Max(Mathf.Abs(scale.y), 0.0001f),
+                worldSize.z / Mathf.Max(Mathf.Abs(scale.z), 0.0001f)) +
+                Vector3.one * (npcObstaclePadding * 2f);
+        }
+
+        // Moving obstacles should use local avoidance. Carving a moving physics
+        // vehicle would repeatedly rebuild holes and destabilize agent paths.
+        npcObstacle.carving = false;
+        npcObstacle.carveOnlyStationary = true;
     }
 
     private void Start()
@@ -293,6 +345,13 @@ public class LiveLoadVehicle : Interactable
 
     protected override void Intract()
     {
+        LessonTrigger lessonTrigger = GetComponent<LessonTrigger>();
+        if (lessonTrigger != null && lessonTrigger.ReplaceExistingInteraction &&
+            lessonTrigger.TryShowLesson())
+        {
+            return;
+        }
+
         if (vehicleInfoPanel != null)
         {
             if (vehicleNameText != null) vehicleNameText.text = vehicleName;
@@ -308,6 +367,7 @@ public class LiveLoadVehicle : Interactable
             }
 
             vehicleInfoPanel.SetActive(true);
+            isInspectionWindowOpen = true;
 
             InputManager inputObj = FindObjectOfType<InputManager>();
             if (inputObj != null) { inputObj.SetPlayerInputEnable(false); inputObj.SetLookEnabled(false); }
@@ -319,6 +379,10 @@ public class LiveLoadVehicle : Interactable
 
     public void CloseInfoPanel()
     {
+        bool wasInspectionOpen = isInspectionWindowOpen ||
+                                 (vehicleInfoPanel != null && vehicleInfoPanel.activeSelf);
+        isInspectionWindowOpen = false;
+
         if (vehicleInfoPanel != null) vehicleInfoPanel.SetActive(false);
 
         foreach (GameObject ui in temporarilyHiddenPanels) if (ui != null) ui.SetActive(true);
@@ -334,6 +398,14 @@ public class LiveLoadVehicle : Interactable
         if (advancesTutorial && TutorialManager.Instance != null)
         {
             TutorialManager.Instance.ShowNextStep();
+        }
+
+        // Keep this last: listeners may immediately open another modal window
+        // (such as LessonUI), which should become the active UI state.
+        if (wasInspectionOpen)
+        {
+            onInspectionWindowClosed?.Invoke();
+            InspectionWindowClosed?.Invoke();
         }
     }
 

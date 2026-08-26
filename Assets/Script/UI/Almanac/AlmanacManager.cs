@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
-public enum AlmanacTabType { General, Contracts }
+public enum AlmanacTabType { General, Contracts, Lessons }
 
 public enum TabVisibility { Normal, AlwaysHidden }
 
@@ -174,6 +174,12 @@ public class AlmanacManager : MonoBehaviour
             changed = true;
         }
 
+        if (!data.hasUnlockedLessonsTab && data.unlockedLessonIds != null && data.unlockedLessonIds.Count > 0)
+        {
+            data.hasUnlockedLessonsTab = true;
+            changed = true;
+        }
+
         if (changed) PlayerDataManager.Instance.SaveGame();
         RefreshTabVisibility(data);
     }
@@ -187,6 +193,7 @@ public class AlmanacManager : MonoBehaviour
                 bool shouldBeVisible = true;
                 
                 if (cat.tabType == AlmanacTabType.Contracts) shouldBeVisible = data.hasUnlockedContractsTab;
+                if (cat.tabType == AlmanacTabType.Lessons) shouldBeVisible = data.hasUnlockedLessonsTab;
                 if (!IsSupportedCategory(cat)) shouldBeVisible = false;
 
                 if (cat.visibilityMode == TabVisibility.AlwaysHidden)
@@ -205,6 +212,12 @@ public class AlmanacManager : MonoBehaviour
 
         if (targetType == AlmanacTabType.Contracts)
             PlayerDataManager.Instance.MarkContractsAlmanacUnread();
+        else if (targetType == AlmanacTabType.Lessons)
+        {
+            // Lesson unlock code owns creation of unread state. Do not manufacture
+            // a false alert through a generic UI call.
+            RefreshPersistentAlerts();
+        }
     }
 
     public void RefreshPersistentAlerts()
@@ -213,7 +226,11 @@ public class AlmanacManager : MonoBehaviour
         bool hasAlmanac = data != null && data.hasAlmanac;
         bool bookIsOpen = almanacCanvas != null && almanacCanvas.activeSelf;
         bool hasGenuineUnreadContent = data != null &&
-            (data.hasUnreadAlmanacUnlockAlert || data.hasUnreadContractsAlert);
+            (data.hasUnreadAlmanacUnlockAlert || data.hasUnreadContractsAlert ||
+             data.hasUnreadLessonsAlert);
+
+        if (data != null)
+            RefreshTabVisibility(data);
 
         if (hudOpenButton != null) hudOpenButton.SetActive(hasAlmanac);
         if (newAlertIcon != null)
@@ -226,6 +243,8 @@ public class AlmanacManager : MonoBehaviour
             bool unread = false;
             if (data != null && category.tabType == AlmanacTabType.Contracts)
                 unread = data.hasUnreadContractsAlert;
+            else if (data != null && category.tabType == AlmanacTabType.Lessons)
+                unread = data.hasUnreadLessonsAlert;
 
             category.tabAlertIcon.SetActive(hasAlmanac && unread && IsSupportedCategory(category) &&
                 category.visibilityMode != TabVisibility.AlwaysHidden);
@@ -296,7 +315,7 @@ public class AlmanacManager : MonoBehaviour
     {
         foreach (AlmanacCategory category in categories)
         {
-            if (category.categoryName == targetCategoryName && category.tabType == AlmanacTabType.Contracts)
+            if (category.categoryName == targetCategoryName && IsSupportedCategory(category))
             {
                 TriggerTabAlertByType(category.tabType);
                 break;
@@ -503,6 +522,8 @@ public class AlmanacManager : MonoBehaviour
             AlmanacTabType selectedType = categories[currentCategoryIndex].tabType;
             if (selectedType == AlmanacTabType.Contracts)
                 PlayerDataManager.Instance.MarkContractsAlmanacRead();
+            else if (selectedType == AlmanacTabType.Lessons)
+                PlayerDataManager.Instance.MarkLessonsAlmanacRead();
         }
 
         for (int i = 0; i < categories.Count; i++)
@@ -543,7 +564,8 @@ public class AlmanacManager : MonoBehaviour
     {
         if (category == null) return false;
         return category.tabType == AlmanacTabType.General ||
-               category.tabType == AlmanacTabType.Contracts;
+               category.tabType == AlmanacTabType.Contracts ||
+               category.tabType == AlmanacTabType.Lessons;
     }
 
     private void TurnPage(bool goingForward)

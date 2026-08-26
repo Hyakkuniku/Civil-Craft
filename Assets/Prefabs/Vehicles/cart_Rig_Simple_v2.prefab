@@ -270,6 +270,9 @@ MonoBehaviour:
   wheelRadius: 0.5
   wheelMass: 50
   spinAxis: {x: -1, y: 0, z: 0}
+  configureNPCObstacle: 1
+  npcObstaclePadding: 0.2
+  npcObstacle: {fileID: 0}
   physicsManager: {fileID: 0}
 --- !u!65 &132897088148926006
 BoxCollider:

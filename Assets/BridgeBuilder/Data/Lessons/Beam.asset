@@ -1,0 +1,62 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a4da58d2dc2409c459ef20449bf92a90, type: 3}
+  m_Name: Beam
+  m_EditorClassIdentifier: 
+  lessonId: beam-bridge
+  lessonTitle: What is a Beam Bridge?
+  lessonImage: {fileID: 21300000, guid: 6aedd357aa978324690d88ed82a19beb, type: 3}
+  lessonDescription: 'The Beam Bridge is the oldest, simplest, and most common type
+    of bridge in the world. If you have ever walked across a wooden plank laid over
+    a small creek, you have used a beam bridge!
+
+
+    It consists of a rigid horizontal
+    structure (the beam) resting on two vertical supports (the piers) at either end.
+
+
+    The
+    Engineering Inside:
+
+    When a Live Load (like a heavy truck) drives across
+    a beam bridge, the weight pushes straight down on the beam. This causes two different
+    forces to happen at the exact same time:
+
+
+    Compression: The weight squishes
+    the top of the bridge together.
+
+
+    Tension: The bending causes the bottom
+    of the bridge to stretch and pull apart.
+
+
+    If the beam is not thick or strong
+    enough to handle these forces, it will sag in the middle and eventually snap!
+
+
+    The
+    Challenge:
+
+    Because beam bridges rely purely on the stiffness of the material,
+    they have a major limitation: distance. A beam bridge can only stretch so far
+    before it bends under its own weight.
+
+
+    To cross larger rivers or canyons
+    with a beam bridge, engineers must build multiple piers in the water or ground
+    below to hold up the middle sections.
+
+
+    Engineer''s Tip: Beam bridges are
+    incredibly cheap and effective for short gaps. But if the gap is too wide and
+    you cannot build piers below it, you will need a more advanced design!'

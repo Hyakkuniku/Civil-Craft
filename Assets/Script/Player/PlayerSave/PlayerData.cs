@@ -65,6 +65,7 @@ public class PlayerData
     public bool hasAlmanac = false; 
     public bool hasUnreadAlmanacUnlockAlert = false;
     public bool hasUnreadContractsAlert = false;
+    public bool hasUnreadLessonsAlert = false;
     public bool hasUnreadObjectiveAlert = false;
 
     public int lifetimeBridgesBuilt = 0;
@@ -79,12 +80,16 @@ public class PlayerData
 
     // --- NEW: UI Unlock Trackers ---
     public bool hasUnlockedContractsTab = false;
+    public bool hasUnlockedLessonsTab = false;
     public bool hasUnlockedObjectiveTracker = false; 
 
     public List<string> unlockedAchievements = new List<string>();
     public List<TrackedTask> activeQuests = new List<TrackedTask>(); 
     public List<string> unlockedLevels = new List<string> { "Tutorial" };
     public List<string> completedContracts = new List<string>();
+    // LessonData archive IDs. This is intentionally separate from completedLessons,
+    // which controls TutorialSequence prerequisites and replay behavior.
+    public List<string> unlockedLessonIds = new List<string>();
     public List<string> completedLessons = new List<string>();
     public List<string> unlockedContractMaterials = new List<string>();
     public List<string> unlockedDoors = new List<string>();

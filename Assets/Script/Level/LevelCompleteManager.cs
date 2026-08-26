@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using UnityEngine.UI; 
 using TMPro;
@@ -10,6 +11,12 @@ using System.IO;
 public class LevelCompleteManager : MonoBehaviour
 {
     public static LevelCompleteManager Instance { get; private set; }
+
+    /// <summary>
+    /// Raised after a successfully tested bridge has been saved/baked, Build Mode
+    /// has exited, and the completion panel has closed.
+    /// </summary>
+    public static event Action<ContractSO, BuildLocation> BridgeSavedAtLocation;
 
     [Header("UI References")]
     public GameObject levelCompletePanel;
@@ -603,6 +610,24 @@ public class LevelCompleteManager : MonoBehaviour
 
     public void SaveAndBakeBridge()
     {
+        ContractSO completedContract = activeContract;
+        BuildLocation completedLocation = GameManager.Instance != null
+            ? GameManager.Instance.ActiveBuildLocation
+            : null;
+
+        if (completedLocation == null && completedContract != null)
+        {
+            BuildLocation[] allLocations = FindObjectsOfType<BuildLocation>(true);
+            foreach (BuildLocation location in allLocations)
+            {
+                if (location.activeContract == completedContract)
+                {
+                    completedLocation = location;
+                    break;
+                }
+            }
+        }
+
         if (LevelFailedManager.Instance != null) LevelFailedManager.Instance.ResetFailCount();
 
         // Capture this before any completion/reward mutation below. A redesign may
@@ -654,16 +679,12 @@ public class LevelCompleteManager : MonoBehaviour
 
         if (PlayerDataManager.Instance != null && activeContract != null)
         {
-            BuildLocation targetLoc = null;
-            BuildLocation[] allLocs = Resources.FindObjectsOfTypeAll<BuildLocation>();
-            foreach (var loc in allLocs) { if (loc.gameObject.scene.name != null && loc.activeContract == activeContract) { targetLoc = loc; break; } }
-
-            if (targetLoc != null)
+            if (completedLocation != null)
             {
                 PlayerDataManager.Instance.SaveBridgeData(
-                    activeContract.name, 
-                    targetLoc.bakedPoints, 
-                    targetLoc.bakedBars, 
+                    activeContract.name,
+                    completedLocation.bakedPoints,
+                    completedLocation.bakedBars,
                     lastFinalCost, 
                     lastPeakStress
                 );
@@ -691,6 +712,9 @@ public class LevelCompleteManager : MonoBehaviour
         if (GameManager.Instance != null) GameManager.Instance.ExitBuildMode();
         
         ClosePanel();
+
+        if (completedContract != null)
+            BridgeSavedAtLocation?.Invoke(completedContract, completedLocation);
     }
 
     public void ClosePanel()
