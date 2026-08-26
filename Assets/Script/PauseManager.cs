@@ -93,7 +93,7 @@ public class PauseManager : MonoBehaviour
             return;
         }
 
-        if (!isPaused && IsPauseBlockedByTutorialContract()) return;
+        if (!isPaused && IsPauseBlocked()) return;
 
         if (isPaused)
         {
@@ -107,7 +107,7 @@ public class PauseManager : MonoBehaviour
 
     public void PauseGame()
     {
-        if (IsPauseBlockedByTutorialContract())
+        if (IsPauseBlocked())
         {
             RefreshPauseAvailability();
             return;
@@ -115,6 +115,9 @@ public class PauseManager : MonoBehaviour
 
         isPaused = true;
         Time.timeScale = 0f; // Freezes physics and animations
+
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PauseMusic();
         
         if (UIPanelCoordinator.Instance != null)
             UIPanelCoordinator.Instance.OpenPanel(pausePanel);
@@ -142,6 +145,9 @@ public class PauseManager : MonoBehaviour
     {
         isPaused = false;
         Time.timeScale = 1f; // Unfreezes the game
+
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.ResumeMusic();
         
         if (UIPanelCoordinator.Instance != null)
         {
@@ -178,7 +184,7 @@ public class PauseManager : MonoBehaviour
         if (pauseButton == null)
             pauseButton = FindPauseButton();
 
-        bool pauseAllowed = !IsPauseBlockedByTutorialContract();
+        bool pauseAllowed = !IsPauseBlocked();
         if (pauseButton != null) pauseButton.SetActive(pauseAllowed);
 
         if (!pauseAllowed && isPaused) ResumeGame();
@@ -190,6 +196,16 @@ public class PauseManager : MonoBehaviour
                GameManager.Instance.CurrentState == GameManager.GameState.Building &&
                GameManager.Instance.CurrentContract != null &&
                GameManager.Instance.CurrentContract.IsTutorialForCurrentPlayer();
+    }
+
+    private static bool IsPauseBlocked()
+    {
+        // The Main Canvas pause menu belongs to overworld exploration. Build Mode
+        // has its own simulation controls and must never expose this pause button.
+        bool isInBuildMode = GameManager.Instance != null &&
+                             GameManager.Instance.CurrentState == GameManager.GameState.Building;
+
+        return isInBuildMode || IsPauseBlockedByTutorialContract();
     }
 
     private GameObject FindPauseButton()

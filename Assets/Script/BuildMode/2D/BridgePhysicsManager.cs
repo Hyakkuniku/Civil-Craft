@@ -266,6 +266,9 @@ public class BridgePhysicsManager : MonoBehaviour
 
         foreach (Bar b in deterministicBars)
         {
+            // Existing, pasted, redone, and newly drawn bars must all enter
+            // simulation with the same endpoint order and transform orientation.
+            b.NormalizeEndpointOrder();
             b.preSimPos = b.transform.position;
             b.preSimRot = b.transform.rotation;
         }
@@ -273,6 +276,7 @@ public class BridgePhysicsManager : MonoBehaviour
         Physics.autoSyncTransforms = true;
         Physics.defaultSolverIterations = physicsSolverIterations;
         Physics.defaultSolverVelocityIterations = 20;
+        Physics.SyncTransforms();
 
         SetupBarsPhysics(deterministicBars);
         SetupDirectConnections(deterministicBars, deterministicPoints);
@@ -530,17 +534,11 @@ public class BridgePhysicsManager : MonoBehaviour
 
     private void ApplyPhysicsToBar(Bar bar)
     {
-        List<Point> endpoints = new List<Point>();
-        
-        foreach (Point p in deterministicPoints)
-        {
-            if (p.gameObject.activeSelf && p.ConnectedBars.Contains(bar)) endpoints.Add(p);
-        }
-
-        if (endpoints.Count != 2) return; 
-
-        Point p1 = endpoints[0];
-        Point p2 = endpoints[1];
+        bar.NormalizeEndpointOrder();
+        Point p1 = bar.startPoint;
+        Point p2 = bar.endPoint;
+        if (p1 == null || p2 == null || !p1.gameObject.activeSelf || !p2.gameObject.activeSelf)
+            return;
 
         if (!bar.materialData.isRope)
         {
@@ -558,6 +556,8 @@ public class BridgePhysicsManager : MonoBehaviour
             barRb.collisionDetectionMode = CollisionDetectionMode.Discrete;
             barRb.sleepThreshold = 0f;
             barRb.maxDepenetrationVelocity = 2f;
+            barRb.velocity = Vector3.zero;
+            barRb.angularVelocity = Vector3.zero;
 
             BoxCollider[] oldCols = bar.GetComponents<BoxCollider>();
             foreach(var c in oldCols) { c.enabled = false; DestroyImmediate(c); }
@@ -670,6 +670,9 @@ public class BridgePhysicsManager : MonoBehaviour
                 nodeRb.maxDepenetrationVelocity = 2f;
             }
 
+            nodeRb.velocity = Vector3.zero;
+            nodeRb.angularVelocity = Vector3.zero;
+
             bool isRoadNode = false;
             float maxZDepth = 2.0f;
             
@@ -732,6 +735,10 @@ public class BridgePhysicsManager : MonoBehaviour
 
     private void AttachJoint(GameObject barObj, Rigidbody targetRb, BridgeMaterialSO mat, Vector3 anchorWorldPosition)
     {
+        Rigidbody barRb = barObj != null ? barObj.GetComponent<Rigidbody>() : null;
+        if (barRb == null || targetRb == null || mat == null)
+            return;
+
         int jointCount = mat.isDualBeam ? 2 : 1;
 
         for (int i = 0; i < jointCount; i++)
@@ -743,26 +750,39 @@ public class BridgePhysicsManager : MonoBehaviour
             {
                 SpringJoint spring = barObj.AddComponent<SpringJoint>();
                 spring.connectedBody = targetRb;
-                spring.autoConfigureConnectedAnchor = false; 
                 spring.enablePreprocessing = false; 
-                
-                spring.anchor = barObj.transform.InverseTransformPoint(finalAnchorWorld);
-                spring.connectedAnchor = targetRb.transform.InverseTransformPoint(finalAnchorWorld);
+                ConfigureJointAnchors(spring, barRb, targetRb, finalAnchorWorld);
                 spring.spring = mat.spring;
                 spring.damper = mat.damper;
+                spring.minDistance = 0f;
+                spring.maxDistance = 0f;
             }
             else
             {
                 HingeJoint hinge = barObj.AddComponent<HingeJoint>();
                 hinge.connectedBody = targetRb;
-                hinge.autoConfigureConnectedAnchor = false; 
                 hinge.enablePreprocessing = false; 
-                
-                hinge.anchor = barObj.transform.InverseTransformPoint(finalAnchorWorld);
-                hinge.connectedAnchor = targetRb.transform.InverseTransformPoint(finalAnchorWorld);
-                hinge.axis = new Vector3(0, 0, 1); 
+                ConfigureJointAnchors(hinge, barRb, targetRb, finalAnchorWorld);
+                hinge.axis = barObj.transform.InverseTransformDirection(Vector3.forward).normalized;
             }
         }
+    }
+
+    private static void ConfigureJointAnchors(
+        Joint joint,
+        Rigidbody barBody,
+        Rigidbody nodeBody,
+        Vector3 worldAnchor)
+    {
+        joint.autoConfigureConnectedAnchor = false;
+        joint.enableCollision = false;
+        joint.breakForce = Mathf.Infinity;
+        joint.breakTorque = Mathf.Infinity;
+
+        // Both local anchors are derived from the exact same world point. Their
+        // world positions therefore coincide before either body is released.
+        joint.anchor = barBody.transform.InverseTransformPoint(worldAnchor);
+        joint.connectedAnchor = nodeBody.transform.InverseTransformPoint(worldAnchor);
     }
 
     private void ResolveAdjacentCollisions(List<Bar> activeBars)

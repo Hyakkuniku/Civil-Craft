@@ -470,7 +470,7 @@ public class ClipboardManager : MonoBehaviour
         CommandManager.Instance.RecordAction(pasteAction);
 
         if (placedAnyBar && AudioManager.Instance != null && !string.IsNullOrWhiteSpace(placeBarSfxId))
-            AudioManager.Instance.PlaySFXAtPosition(placeBarSfxId, pasteRootPos);
+            AudioManager.Instance.PlaySFX(placeBarSfxId);
 
         // Pasted bars are a normal build action. Route the complete atomic paste
         // through the same strict ghost validation used by manually drawn bars.

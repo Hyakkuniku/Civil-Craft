@@ -17,6 +17,16 @@ public sealed class AudioLibraryEntry
     [Range(0f, 0.5f)] public float randomPitchRange;
 }
 
+[Serializable]
+public sealed class SceneMusicRule
+{
+    [Tooltip("Exact scene name, for example CanyonCrossing or BHAN HOUSE.")]
+    public string sceneName;
+    [Tooltip("Music ID from the Audio Library above.")]
+    public string musicId;
+    [Min(0f)] public float fadeDuration = 0.75f;
+}
+
 /// <summary>
 /// Persistent global audio service with crossfaded music and pooled,
 /// overlapping sound effects.
@@ -53,6 +63,12 @@ public sealed class AudioManager : MonoBehaviour
     [SerializeField] private string startingMusicId;
     [Min(0f)] [SerializeField] private float defaultMusicFadeDuration = 0.75f;
 
+    [Header("Scene Music")]
+    [Tooltip("Requests the correct track whenever one of these scenes loads. " +
+             "This also runs when Play Mode starts directly in that scene.")]
+    [SerializeField] private List<SceneMusicRule> sceneMusicRules =
+        new List<SceneMusicRule>();
+
     [Header("SFX Pool")]
     [Min(1)] [SerializeField] private int initialSfxVoices = 12;
     [Min(1)] [SerializeField] private int maximumSfxVoices = 32;
@@ -86,6 +102,10 @@ public sealed class AudioManager : MonoBehaviour
     {
         if (Instance != null && Instance != this)
         {
+            // Disable immediately so the scene-local duplicate cannot run Start,
+            // subscribe callbacks, or create a second set of AudioSources before
+            // Unity processes the deferred destruction.
+            enabled = false;
             Destroy(gameObject);
             return;
         }
@@ -121,7 +141,14 @@ public sealed class AudioManager : MonoBehaviour
     {
         if (Instance != this) return;
 
-        if (playMusicOnStart && !string.IsNullOrWhiteSpace(startingMusicId))
+        // sceneLoaded normally handles this first. Checking here as well makes
+        // direct scene testing reliable even if this component was enabled late.
+        if (TryPlayMusicForScene(SceneManager.GetActiveScene()))
+            return;
+
+        if (playMusicOnStart &&
+            !IsMusicPlaying &&
+            !string.IsNullOrWhiteSpace(startingMusicId))
             PlayMusic(startingMusicId);
     }
 
@@ -143,8 +170,55 @@ public sealed class AudioManager : MonoBehaviour
             Scene managerScene = manager.gameObject.scene;
             if (!managerScene.IsValid() || !managerScene.isLoaded) continue;
 
+            manager.enabled = false;
             Destroy(manager.gameObject);
         }
+
+        if (TryPlayMusicForScene(scene))
+            return;
+
+        // The persistent sources normally continue without interruption. This is
+        // only a recovery path if another scene system stopped a source directly.
+        if (!IsMusicPlaying && !string.IsNullOrWhiteSpace(currentMusicId))
+            PlayMusic(currentMusicId, 0f);
+    }
+
+    /// <summary>
+    /// Applies the configured track for a scene. This can also be called by a
+    /// scene-local trigger if a level needs to refresh its music explicitly.
+    /// </summary>
+    public bool PlayMusicForScene(string sceneName)
+    {
+        if (string.IsNullOrWhiteSpace(sceneName))
+            return false;
+
+        foreach (SceneMusicRule rule in sceneMusicRules)
+        {
+            if (rule == null ||
+                !string.Equals(rule.sceneName?.Trim(), sceneName.Trim(),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(rule.musicId))
+            {
+                Debug.LogWarning(
+                    $"AudioManager has no music ID configured for scene '{sceneName}'.",
+                    this);
+                return false;
+            }
+
+            PlayMusic(rule.musicId, rule.fadeDuration);
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool TryPlayMusicForScene(Scene scene)
+    {
+        return scene.IsValid() && PlayMusicForScene(scene.name);
     }
 
     /// <summary>Plays a 2D sound effect. Multiple calls can overlap.</summary>

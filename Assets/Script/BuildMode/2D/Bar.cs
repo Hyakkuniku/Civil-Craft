@@ -162,21 +162,22 @@ public class Bar : MonoBehaviour
 
     public void UpdateCreatingBar(Vector3 ToPosition) 
     {
-        if (visualSegments.Count == 0) return;
+        EndPosition = ToPosition;
+        if (visualSegments.Count == 0 || materialData == null) return;
 
         Vector3 actualStart = StartPosition;
         Vector3 actualEnd = ToPosition;
-        if (materialData.isPier && actualStart.y > actualEnd.y)
+        if (ShouldSwapEndpointOrder(actualStart, actualEnd, materialData.isPier))
         {
             actualStart = ToPosition;
             actualEnd = StartPosition;
         }
 
-        Vector3 flatToPosition = actualEnd;
-        flatToPosition.z = actualStart.z; 
-
-        Vector3 dir2D = flatToPosition - actualStart;
-        float totalDistance = dir2D.magnitude;
+        // Bars are built on one bridge plane. Keep their length positive and let
+        // the rotation carry the full start-to-end direction, including 180 degrees.
+        Vector3 direction = actualEnd - actualStart;
+        direction.z = 0f;
+        float totalDistance = direction.magnitude;
         
         currentLength = totalDistance;
         
@@ -204,7 +205,10 @@ public class Bar : MonoBehaviour
             transform.SetPositionAndRotation(midPointAdjusted, Quaternion.identity);
 
             float scaleMultiplier = adjustedDistance / baseLength;
-            Vector3 newScale = new Vector3(originalScale.x, originalScale.y * scaleMultiplier, originalScale.z);
+            Vector3 newScale = new Vector3(
+                Mathf.Abs(originalScale.x),
+                Mathf.Abs(originalScale.y) * scaleMultiplier,
+                Mathf.Abs(originalScale.z));
 
             foreach (var seg in visualSegments)
             {
@@ -213,7 +217,10 @@ public class Bar : MonoBehaviour
 
             if (pierCapInstance != null)
             {
-                pierCapInstance.transform.localScale = originalCapScale;
+                pierCapInstance.transform.localScale = new Vector3(
+                    Mathf.Abs(originalCapScale.x),
+                    Mathf.Abs(originalCapScale.y),
+                    Mathf.Abs(originalCapScale.z));
                 
                 Vector3 capPos = actualEnd;
                 capPos.y -= capTopOffset; 
@@ -224,23 +231,65 @@ public class Bar : MonoBehaviour
         }
         else
         {
-            Vector3 midPoint = StartPosition + (dir2D / 2f);
-            Vector3 angleDir = dir2D;
-            if (angleDir.x < 0) angleDir = -angleDir;
+            Vector3 midPoint = (actualStart + actualEnd) * 0.5f;
+            midPoint.z = actualStart.z;
 
-            float angle = Mathf.Atan2(angleDir.y, angleDir.x) * Mathf.Rad2Deg;
-            currentAngle = angle; 
+            // actualStart/actualEnd are spatially canonical, so this angle never
+            // flips merely because the player dragged in the opposite direction.
+            float rotationAngle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
+            currentAngle = rotationAngle;
 
-            transform.SetPositionAndRotation(midPoint, Quaternion.Euler(0, 0, angle));
+            transform.SetPositionAndRotation(midPoint, Quaternion.Euler(0, 0, rotationAngle));
 
-            float scaleMultiplier = totalDistance / baseLength;
-            Vector3 newScale = new Vector3(originalScale.x * scaleMultiplier, originalScale.y, originalScale.z);
+            float scaleMultiplier = totalDistance / Mathf.Max(Mathf.Abs(baseLength), 0.0001f);
+            Vector3 newScale = new Vector3(
+                Mathf.Abs(originalScale.x) * scaleMultiplier,
+                Mathf.Abs(originalScale.y),
+                Mathf.Abs(originalScale.z));
 
             foreach (var seg in visualSegments)
             {
                 seg.transform.localScale = newScale;
             }
         }
+    }
+
+    /// <summary>
+    /// Makes endpoint identity independent of drawing direction. Call this after
+    /// assigning startPoint/endPoint and before creating physics joints.
+    /// </summary>
+    public void NormalizeEndpointOrder()
+    {
+        if (startPoint == null || endPoint == null || materialData == null)
+            return;
+
+        if (ShouldSwapEndpointOrder(
+            startPoint.transform.position,
+            endPoint.transform.position,
+            materialData.isPier))
+        {
+            Point previousStart = startPoint;
+            startPoint = endPoint;
+            endPoint = previousStart;
+        }
+
+        StartPosition = startPoint.transform.position;
+        EndPosition = endPoint.transform.position;
+        UpdateCreatingBar(EndPosition);
+    }
+
+    private static bool ShouldSwapEndpointOrder(Vector3 first, Vector3 second, bool isPier)
+    {
+        const float epsilon = 0.0001f;
+
+        if (isPier)
+            return first.y > second.y + epsilon;
+
+        if (first.x > second.x + epsilon) return true;
+        if (first.x < second.x - epsilon) return false;
+        if (first.y > second.y + epsilon) return true;
+        if (first.y < second.y - epsilon) return false;
+        return first.z > second.z;
     }
 
     public float GetCost()

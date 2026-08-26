@@ -3,6 +3,7 @@ using System.IO;
 using System;
 using System.Collections.Generic;
 
+[DisallowMultipleComponent]
 public class PlayerDataManager : MonoBehaviour
 {
     public static PlayerDataManager Instance { get; private set; }
@@ -26,13 +27,37 @@ public class PlayerDataManager : MonoBehaviour
     private bool isCheckingAchievements = false; // Prevents infinite loops!
     
 
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStaticState()
+    {
+        Instance = null;
+    }
+
     private void Awake()
     {
-        if (Instance == null) { Instance = this; DontDestroyOnLoad(gameObject); }
-        else { Destroy(gameObject); return; }
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
+        Instance = this;
+
+        // DontDestroyOnLoad rejects child objects. Keep the code defensive even
+        // when a scene or prefab accidentally nests this service under Managers.
+        if (transform.parent != null)
+            transform.SetParent(null, true);
+
+        DontDestroyOnLoad(gameObject);
 
         saveFilePath = Application.persistentDataPath + "/playerSaveData.json";
         LoadGame();
+    }
+
+    private void OnDestroy()
+    {
+        if (Instance == this)
+            Instance = null;
     }
 
     public void SaveGame()

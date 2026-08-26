@@ -5,6 +5,8 @@ using TMPro;
 
 public class SettingsManager : MonoBehaviour
 {
+    private const string AudioStartupMigrationKey = "AudioSettingsStartupFixV1";
+
     [Header("UI Panel Visibility")]
     public GameObject settingsPanel;
 
@@ -102,41 +104,61 @@ public class SettingsManager : MonoBehaviour
         PlayerPrefs.SetInt("GlobalMute", isMuted ? 1 : 0);
         PlayerPrefs.Save();
 
-        if (mainAudioMixer != null)
-        {
-            if (isMuted)
-            {
-                mainAudioMixer.SetFloat("MasterVolume", -80f);
-            }
-            else if (masterVolumeSlider != null)
-            {
-                ApplyVolume("MasterVolume", "PrefMaster", masterVolumeSlider.value, masterVolumeText);
-            }
-        }
+        ApplyMuteState(isMuted);
     }
 
-    private void ApplyVolume(string mixerParam, string prefKey, float sliderValue, TMP_Text percentText)
+    private void ApplyMuteState(bool isMuted)
+    {
+        if (mainAudioMixer == null)
+            return;
+
+        if (isMuted)
+        {
+            mainAudioMixer.SetFloat("MasterVolume", -80f);
+            return;
+        }
+
+        // Do not use an Inspector slider's current value here. In CanyonCrossing
+        // and BHAN HOUSE that value is serialized as zero until settings load,
+        // which previously overwrote PrefMaster and muted the game on startup.
+        float savedMaster = PlayerPrefs.GetFloat("PrefMaster", 1f);
+        SetMixerVolume("MasterVolume", savedMaster);
+    }
+
+    private void ApplyVolume(
+        string mixerParam,
+        string prefKey,
+        float sliderValue,
+        TMP_Text percentText,
+        bool savePreference = true)
     {
         if (percentText != null)
         {
             percentText.text = Mathf.RoundToInt(sliderValue * 100f).ToString() + "%";
         }
 
-        PlayerPrefs.SetFloat(prefKey, sliderValue);
-        PlayerPrefs.Save();
+        if (savePreference)
+        {
+            PlayerPrefs.SetFloat(prefKey, sliderValue);
+            PlayerPrefs.Save();
+        }
 
         if (mixerParam == "MasterVolume" && globalMuteToggle != null && globalMuteToggle.isOn)
         {
             return; 
         }
 
-        float clampedValue = Mathf.Clamp(sliderValue, 0.0001f, 1f);
+        SetMixerVolume(mixerParam, sliderValue);
+    }
+
+    private void SetMixerVolume(string mixerParam, float linearVolume)
+    {
+        if (mainAudioMixer == null)
+            return;
+
+        float clampedValue = Mathf.Clamp(linearVolume, 0.0001f, 1f);
         float decibels = Mathf.Log10(clampedValue) * 20f;
-        
-        if (mainAudioMixer != null)
-        {
-            mainAudioMixer.SetFloat(mixerParam, decibels);
-        }
+        mainAudioMixer.SetFloat(mixerParam, decibels);
     }
 
     // ────────────────────────────────────────────────
@@ -196,19 +218,20 @@ public class SettingsManager : MonoBehaviour
 
     private void LoadSettings()
     {
-        // 1. Load Audio
-        if (globalMuteToggle != null)
-        {
-            bool isMuted = PlayerPrefs.GetInt("GlobalMute", 0) == 1;
-            globalMuteToggle.isOn = isMuted;
-            SetMute(isMuted);
-        }
+        RepairMasterVolumeCorruptedByOldStartupOrder();
 
+        // Load every mixer value before applying mute. This works even in scenes
+        // such as Main Menu where the optional slider references are not assigned.
         LoadSlider(masterVolumeSlider, masterVolumeText, "MasterVolume", "PrefMaster", 1f);
         LoadSlider(musicVolumeSlider, musicVolumeText, "MusicVolume", "PrefMusic", 1f);
         LoadSlider(sfxVolumeSlider, sfxVolumeText, "SFXVolume", "PrefSFX", 1f);
         LoadSlider(ambientVolumeSlider, ambientVolumeText, "AmbientVolume", "PrefAmbient", 1f);
         LoadSlider(uiVolumeSlider, uiVolumeText, "UIVolume", "PrefUI", 1f);
+
+        bool isMuted = PlayerPrefs.GetInt("GlobalMute", 0) == 1;
+        if (globalMuteToggle != null)
+            globalMuteToggle.SetIsOnWithoutNotify(isMuted);
+        ApplyMuteState(isMuted);
 
         // 2. Load Graphics & Gameplay
         if (qualityDropdown != null)
@@ -233,11 +256,28 @@ public class SettingsManager : MonoBehaviour
 
     private void LoadSlider(Slider slider, TMP_Text text, string mixerParam, string prefKey, float defaultVal)
     {
+        float savedVol = PlayerPrefs.GetFloat(prefKey, defaultVal);
         if (slider != null)
+            slider.SetValueWithoutNotify(savedVol);
+
+        ApplyVolume(mixerParam, prefKey, savedVol, text, false);
+    }
+
+    private static void RepairMasterVolumeCorruptedByOldStartupOrder()
+    {
+        if (PlayerPrefs.GetInt(AudioStartupMigrationKey, 0) == 1)
+            return;
+
+        // The old startup order copied the scene slider's serialized zero into
+        // PrefMaster whenever the game was not globally muted. Repair that value
+        // once, while preserving an intentional Global Mute setting.
+        if (PlayerPrefs.GetInt("GlobalMute", 0) == 0 &&
+            PlayerPrefs.GetFloat("PrefMaster", 1f) <= 0.0001f)
         {
-            float savedVol = PlayerPrefs.GetFloat(prefKey, defaultVal);
-            slider.value = savedVol;
-            ApplyVolume(mixerParam, prefKey, savedVol, text);
+            PlayerPrefs.SetFloat("PrefMaster", 1f);
         }
+
+        PlayerPrefs.SetInt(AudioStartupMigrationKey, 1);
+        PlayerPrefs.Save();
     }
 }

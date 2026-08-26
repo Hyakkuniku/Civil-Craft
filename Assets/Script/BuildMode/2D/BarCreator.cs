@@ -68,7 +68,11 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
     [Header("Snapping Sensitivity")]
     public float deleteSnapRadiusPixels = 50f; 
+    [Min(0.01f)]
     public float nodeSnapRadiusWorld = 1.2f;
+    [Min(0f)]
+    [Tooltip("Prevents nodes from another bridge/build plane being selected when their X/Y positions overlap.")]
+    public float nodeSnapDepthTolerance = 1f;
 
     [Header("Visual Aids")]
     public LineRenderer radiusIndicator; 
@@ -1344,54 +1348,41 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         return result;
     }
 
-    // --- THE FIX: Generous Hitbox, but perfectly mathematical centering! ---
+    // Finds the nearest node center on the active bridge plane. This is independent
+    // of drag direction and does not depend on optional point colliders or list order.
     private bool CheckForExistingPoint(Vector2 screenPos, out Point closestPoint, out Vector3 snapPosition)
     {
         closestPoint = null;
         snapPosition = Vector3.zero;
 
-        // 1. Get the mathematically perfectly flat 2D mouse position (ignores camera tilt depth)
         Vector3 flatMousePos = GetWorldMousePosition(screenPos);
-        float minRayDist = nodeSnapRadiusWorld; 
-        bool found = false;
-
-        Camera cam = GetActiveCamera();
-        Ray ray = cam.ScreenPointToRay(screenPos);
+        float closestSqrDistance = nodeSnapRadiusWorld * nodeSnapRadiusWorld;
 
         foreach (Point p in Point.AllPoints)
         {
-            if (p == currentEndPoint || !p.gameObject.activeSelf) continue;
+            if (p == null
+                || p == currentStartPoint
+                || p == currentEndPoint
+                || !p.gameObject.activeInHierarchy)
+                continue;
 
-            Renderer r = p.GetComponentInChildren<Renderer>();
-            if (r != null)
-            {
-                // 2. We use 2D bounding boxes to prevent tilt-warping
-                Bounds b = r.bounds;
-                b.Expand(0.6f); // Generous hitbox so it's easy to click!
+            Vector3 nodePosition = p.transform.position;
+            if (Mathf.Abs(nodePosition.z - flatMousePos.z) > nodeSnapDepthTolerance)
+                continue;
 
-                bool inX = flatMousePos.x >= b.min.x && flatMousePos.x <= b.max.x;
-                bool inY = flatMousePos.y >= b.min.y && flatMousePos.y <= b.max.y;
+            Vector2 offset = new Vector2(
+                nodePosition.x - flatMousePos.x,
+                nodePosition.y - flatMousePos.y);
+            float sqrDistance = offset.sqrMagnitude;
+            if (sqrDistance > closestSqrDistance)
+                continue;
 
-                if ((inX && inY) || r.bounds.IntersectRay(ray, out float _))
-                {
-                    closestPoint = p;
-                    // ALWAYS vacuum to the exact mathematical center to guarantee perfectly straight lines!
-                    snapPosition = p.transform.position; 
-                    return true; 
-                }
-            }
-
-            // 3. Math fallback for tiny nodes if the mouse slightly missed the bounds
-            float dist = Vector2.Distance(new Vector2(flatMousePos.x, flatMousePos.y), new Vector2(p.transform.position.x, p.transform.position.y));
-            if (dist < minRayDist) 
-            { 
-                minRayDist = dist; 
-                closestPoint = p; 
-                snapPosition = p.transform.position; 
-                found = true;
-            }
+            closestSqrDistance = sqrDistance;
+            closestPoint = p;
+            snapPosition = nodePosition;
         }
-        return found;
+
+        return closestPoint != null;
     }
 
     public Vector3 GetWorldMousePosition(Vector2 screenPos)
@@ -1549,11 +1540,9 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
         if (activeMaterial != null && activeMaterial.isPier) { currentStartPoint.isAnchor = true; currentStartPoint.UpdateMaterial(); currentEndPoint.isAnchor = true; currentEndPoint.UpdateMaterial(); }
         
-        currentBar.UpdateCreatingBar(finalPosition);
         currentBar.startPoint = currentStartPoint;
         currentBar.endPoint = currentEndPoint;
-        
-        currentBar.EndPosition = finalPosition;
+        currentBar.NormalizeEndpointOrder();
         
         if (!currentStartPoint.ConnectedBars.Contains(currentBar)) currentStartPoint.ConnectedBars.Add(currentBar);
         if (!currentEndPoint.ConnectedBars.Contains(currentBar)) currentEndPoint.ConnectedBars.Add(currentBar);
@@ -1648,7 +1637,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (CommandManager.Instance != null) CommandManager.Instance.RecordAction(buildAction);
 
         if (AudioManager.Instance != null && !string.IsNullOrWhiteSpace(placeBarSfxId))
-            AudioManager.Instance.PlaySFXAtPosition(placeBarSfxId, currentBar.transform.position);
+            AudioManager.Instance.PlaySFX(placeBarSfxId);
 
         if (magnifyingGlass != null) magnifyingGlass.HideMagnifier();
 
