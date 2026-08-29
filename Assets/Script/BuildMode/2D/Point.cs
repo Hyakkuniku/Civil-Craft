@@ -19,6 +19,9 @@ public class Point : MonoBehaviour
     public List<Bar> ConnectedBars = new List<Bar>();
     public static readonly List<Point> AllPoints = new List<Point>();
 
+    [SerializeField, HideInInspector] private BuildLocation ownerLocation;
+    public BuildLocation OwnerLocation => ownerLocation;
+
     private Renderer pointRenderer;
 
     [HideInInspector] public Vector3 preSimPos;
@@ -29,11 +32,20 @@ public class Point : MonoBehaviour
     {
         pointRenderer = GetComponentInChildren<Renderer>();
 
+        if (Application.isPlaying && ownerLocation == null && GameManager.Instance != null)
+            ownerLocation = GameManager.Instance.ActiveBuildLocation;
+
         if (Application.isPlaying && !hasInitializedAnchor)
         {
             originalIsAnchor = isAnchor;
             hasInitializedAnchor = true;
         }
+    }
+
+    public void AssignOwner(BuildLocation location, bool overwriteExisting = false)
+    {
+        if (location != null && (ownerLocation == null || overwriteExisting))
+            ownerLocation = location;
     }
 
     private void OnEnable()

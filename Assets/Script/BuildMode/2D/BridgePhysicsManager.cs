@@ -222,16 +222,28 @@ public class BridgePhysicsManager : MonoBehaviour
         outPoints = new HashSet<Point>();
         outBars = new HashSet<Bar>();
 
+        BuildLocation activeLocation = GameManager.Instance != null
+            ? GameManager.Instance.ActiveBuildLocation
+            : null;
+
         foreach (Point p in Point.AllPoints)
         {
-            if (p != null && p.gameObject.activeSelf && p.enabled) outPoints.Add(p);
+            if (p != null && p.gameObject.activeSelf && p.enabled &&
+                (activeLocation == null || activeLocation.Owns(p)))
+            {
+                outPoints.Add(p);
+            }
         }
 
         foreach (Point p in outPoints)
         {
             foreach (Bar b in p.ConnectedBars)
             {
-                if (b != null && b.gameObject.activeSelf && b.enabled) outBars.Add(b);
+                if (b != null && b.gameObject.activeSelf && b.enabled &&
+                    (activeLocation == null || activeLocation.Owns(b)))
+                {
+                    outBars.Add(b);
+                }
             }
         }
 
@@ -479,7 +491,7 @@ public class BridgePhysicsManager : MonoBehaviour
         Physics.SyncTransforms();
     }
 
-    public void BakeBridge(ContractSO contract = null)
+    public bool BakeBridge(ContractSO contract = null)
     {
         HashSet<Point> bakePoints = new HashSet<Point>();
         HashSet<Bar> bakeBars = new HashSet<Bar>();
@@ -503,16 +515,21 @@ public class BridgePhysicsManager : MonoBehaviour
             targetLoc = GameManager.Instance.ActiveBuildLocation;
         }
 
-        if (targetLoc == null) return;
+        if (targetLoc == null)
+        {
+            Debug.LogError("[BridgePhysicsManager] Cannot bake: no matching build location was found.", this);
+            return false;
+        }
 
         foreach (Point p in Point.AllPoints)
         {
-            if (p != null && p.gameObject.activeSelf && p.enabled)
+            if (p != null && p.gameObject.activeSelf && p.enabled && targetLoc.Owns(p))
             {
                 bakePoints.Add(p);
                 foreach (Bar b in p.ConnectedBars)
                 {
-                    if (b != null && b.gameObject.activeSelf && b.enabled) bakeBars.Add(b);
+                    if (b != null && b.gameObject.activeSelf && b.enabled && targetLoc.Owns(b))
+                        bakeBars.Add(b);
                 }
             }
         }
@@ -534,11 +551,12 @@ public class BridgePhysicsManager : MonoBehaviour
                 Point current = queue.Dequeue();
                 foreach (Bar b in current.ConnectedBars)
                 {
-                    if (b != null && b.gameObject.activeSelf && !bakeBars.Contains(b))
+                    if (b != null && b.gameObject.activeSelf && targetLoc.Owns(b) &&
+                        !bakeBars.Contains(b))
                     {
                         bakeBars.Add(b);
                         Point neighbor = (b.startPoint == current) ? b.endPoint : b.startPoint;
-                        if (neighbor != null && !bakePoints.Contains(neighbor))
+                        if (neighbor != null && targetLoc.Owns(neighbor) && !bakePoints.Contains(neighbor))
                         {
                             bakePoints.Add(neighbor);
                             queue.Enqueue(neighbor);
@@ -550,6 +568,32 @@ public class BridgePhysicsManager : MonoBehaviour
 
         foreach(Bar b in targetLoc.bakedBars) { if (b != null) bakeBars.Add(b); }
         foreach(Point p in targetLoc.bakedPoints) { if (p != null) bakePoints.Add(p); }
+
+        if (bakePoints.Count < 2 || bakeBars.Count == 0)
+        {
+            Debug.LogError(
+                $"[BridgePhysicsManager] Refusing to bake '{targetLoc.name}': the captured bridge has " +
+                $"{bakePoints.Count} point(s) and {bakeBars.Count} bar(s).", this);
+            return false;
+        }
+
+        foreach (Bar bar in bakeBars)
+        {
+            if (bar == null || bar.startPoint == null || bar.endPoint == null ||
+                bar.materialData == null || !bakePoints.Contains(bar.startPoint) ||
+                !bakePoints.Contains(bar.endPoint))
+            {
+                Debug.LogError(
+                    $"[BridgePhysicsManager] Refusing to bake '{targetLoc.name}': a bar has invalid endpoints or material data.",
+                    this);
+                return false;
+            }
+        }
+
+        foreach (Point p in bakePoints)
+            if (p != null) p.AssignOwner(targetLoc, true);
+        foreach (Bar b in bakeBars)
+            if (b != null) b.AssignOwner(targetLoc, true);
 
         targetLoc.bakedPoints.Clear();
         targetLoc.bakedBars.Clear();
@@ -603,7 +647,8 @@ public class BridgePhysicsManager : MonoBehaviour
         if (DynamicNavMeshUpdater.Instance != null)
             DynamicNavMeshUpdater.Instance.UpdateWalkableNavMeshForLocation(targetLoc);
 
-        OnSimulationStopped?.Invoke(); 
+        OnSimulationStopped?.Invoke();
+        return true;
     }
 
     public float GetMaxBridgeStress()

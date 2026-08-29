@@ -168,7 +168,7 @@ public class AlmanacManager : MonoBehaviour
         PlayerData data = PlayerDataManager.Instance.CurrentData;
         bool changed = false;
 
-        if (!data.hasUnlockedContractsTab && data.completedContracts != null && data.completedContracts.Count > 0)
+        if (!data.hasUnlockedContractsTab && PlayerDataManager.Instance.HasAnyCompletedContract())
         {
             data.hasUnlockedContractsTab = true;
             changed = true;

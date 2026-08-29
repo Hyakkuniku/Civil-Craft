@@ -53,6 +53,11 @@ public class BuildLocation : Interactable
         if (locationCamera != null) locationCamera.enabled = false;
         if (cinematicCamera != null) cinematicCamera.enabled = false; 
         if (gridImage != null) gridImage.enabled = false; 
+
+        foreach (Point anchor in startingAnchors)
+            if (anchor != null) anchor.AssignOwner(this);
+        foreach (Point anchor in endingAnchors)
+            if (anchor != null) anchor.AssignOwner(this);
     }
 
     private void Start()
@@ -67,6 +72,8 @@ public class BuildLocation : Interactable
         {
             b.AutoRepairEndpoints();
         }
+
+        ClaimConnectedBridgeOwnership();
 
         LoadSavedBridge();
 
@@ -189,6 +196,9 @@ public class BuildLocation : Interactable
 
         BarCreator barCreator = FindObjectOfType<BarCreator>(true);
         if (gridImage != null) gridImage.enabled = (barCreator != null && barCreator.isGridSnappingEnabled);
+
+        MagnifyingGlassController magnifier = FindObjectOfType<MagnifyingGlassController>(true);
+        if (magnifier != null) magnifier.RefreshForActiveBuildLocation();
 
         SetBridgeScriptsActive(true);
         StartCoroutine(StartBuildTutorialAfterTransition());
@@ -344,6 +354,56 @@ public class BuildLocation : Interactable
 
     public void SetGridVisualActive(bool isActive) { if (gridImage != null) gridImage.enabled = isActive; }
 
+    public bool Owns(Point point)
+    {
+        return point != null &&
+               (point.OwnerLocation == this || bakedPoints.Contains(point) ||
+                startingAnchors.Contains(point) || endingAnchors.Contains(point));
+    }
+
+    public bool Owns(Bar bar)
+    {
+        return bar != null && (bar.OwnerLocation == this || bakedBars.Contains(bar));
+    }
+
+    private void ClaimConnectedBridgeOwnership()
+    {
+        HashSet<Point> visited = new HashSet<Point>();
+        Queue<Point> queue = new Queue<Point>();
+
+        foreach (Point anchor in startingAnchors)
+        {
+            if (anchor == null || !visited.Add(anchor)) continue;
+            anchor.AssignOwner(this);
+            queue.Enqueue(anchor);
+        }
+
+        foreach (Point anchor in endingAnchors)
+        {
+            if (anchor == null || !visited.Add(anchor)) continue;
+            anchor.AssignOwner(this);
+            queue.Enqueue(anchor);
+        }
+
+        while (queue.Count > 0)
+        {
+            Point point = queue.Dequeue();
+            foreach (Bar bar in point.ConnectedBars)
+            {
+                if (bar == null || (bar.OwnerLocation != null && bar.OwnerLocation != this))
+                    continue;
+
+                bar.AssignOwner(this);
+                Point neighbour = bar.startPoint == point ? bar.endPoint : bar.startPoint;
+                if (neighbour == null || (neighbour.OwnerLocation != null && neighbour.OwnerLocation != this))
+                    continue;
+
+                neighbour.AssignOwner(this);
+                if (visited.Add(neighbour)) queue.Enqueue(neighbour);
+            }
+        }
+    }
+
     private void SetBridgeScriptsActive(bool isActive)
     {
         HashSet<Point> bridgePoints = new HashSet<Point>();
@@ -357,11 +417,19 @@ public class BuildLocation : Interactable
             Point current = queue.Dequeue();
             foreach (Bar b in current.ConnectedBars)
             {
-                if (b != null)
+                if (b != null && (b.OwnerLocation == null || b.OwnerLocation == this))
                 {
+                    b.AssignOwner(this);
                     b.enabled = isActive;
                     Point neighbor = (b.startPoint == current) ? b.endPoint : b.startPoint;
-                    if (neighbor != null && !bridgePoints.Contains(neighbor)) { bridgePoints.Add(neighbor); queue.Enqueue(neighbor); }
+                    if (neighbor != null &&
+                        (neighbor.OwnerLocation == null || neighbor.OwnerLocation == this) &&
+                        !bridgePoints.Contains(neighbor))
+                    {
+                        neighbor.AssignOwner(this);
+                        bridgePoints.Add(neighbor);
+                        queue.Enqueue(neighbor);
+                    }
                 }
             }
         }
@@ -377,18 +445,57 @@ public class BuildLocation : Interactable
         return Quaternion.LookRotation(lookAt - GetDesiredCameraPosition());
     }
 
-    public void LoadSavedBridge()
+    public bool LoadSavedBridge()
     {
-        if (activeContract == null || PlayerDataManager.Instance == null) return;
-        if (bakedBars.Count > 0) return; 
+        if (activeContract == null || PlayerDataManager.Instance == null) return false;
+        if (bakedBars.Count > 0) return true;
         
         var savedBridge = PlayerDataManager.Instance.GetSavedBridge(activeContract.name);
-        if (savedBridge == null || savedBridge.points.Count == 0) return;
+        if (savedBridge == null) return false;
 
         BarCreator creator = FindObjectOfType<BarCreator>(true);
-        if (creator == null || creator.pointToInstantiate == null || creator.barToInstantiate == null) return;
+        if (creator == null || creator.pointToInstantiate == null || creator.barToInstantiate == null ||
+            creator.pointToInstantiate.GetComponent<Point>() == null ||
+            creator.barToInstantiate.GetComponent<Bar>() == null)
+        {
+            Debug.LogError(
+                $"[BuildLocation] Cannot reconstruct '{activeContract.name}': BarCreator or its Point/Bar prefabs are invalid.",
+                this);
+            return false;
+        }
 
         BridgeMaterialSO[] allMats = Resources.LoadAll<BridgeMaterialSO>("");
+        Dictionary<string, BridgeMaterialSO> materialsByName = new Dictionary<string, BridgeMaterialSO>();
+        foreach (BridgeMaterialSO material in allMats)
+            if (material != null && !materialsByName.ContainsKey(material.name))
+                materialsByName.Add(material.name, material);
+
+        // Contract references also work when the material asset is not located
+        // under a Resources folder.
+        if (activeContract.allowedMaterials != null)
+        {
+            foreach (MaterialAllowance allowance in activeContract.allowedMaterials)
+            {
+                BridgeMaterialSO material = allowance != null ? allowance.material : null;
+                if (material != null && !materialsByName.ContainsKey(material.name))
+                    materialsByName.Add(material.name, material);
+            }
+        }
+
+        // Resolve every dependency before instantiating anything. This prevents a
+        // missing/renamed material from leaving a half-reconstructed bridge behind.
+        foreach (SavedBarData barData in savedBridge.bars)
+        {
+            if (!materialsByName.ContainsKey(barData.materialName))
+            {
+                Debug.LogError(
+                    $"[BuildLocation] Cannot reconstruct '{activeContract.name}': material '{barData.materialName}' " +
+                    "was not found in Resources or the contract's Allowed Materials list.",
+                    this);
+                return false;
+            }
+        }
+
         Dictionary<int, Point> indexToPoint = new Dictionary<int, Point>();
 
         foreach (var ptData in savedBridge.points)
@@ -409,9 +516,11 @@ public class BuildLocation : Interactable
             {
                 GameObject newPtObj = Instantiate(creator.pointToInstantiate, pos, Quaternion.identity, creator.pointParent);
                 Point newPt = newPtObj.GetComponent<Point>();
+                newPt.AssignOwner(this, true);
                 newPt.isAnchor = ptData.isAnchor;
                 newPt.originalIsAnchor = ptData.originalIsAnchor;
                 newPt.enabled = false; 
+                LockReconstructedObject(newPtObj);
                 indexToPoint[ptData.index] = newPt;
                 bakedPoints.Add(newPt);
             }
@@ -419,13 +528,19 @@ public class BuildLocation : Interactable
 
         foreach (var barData in savedBridge.bars)
         {
-            if (!indexToPoint.ContainsKey(barData.startPointIndex) || !indexToPoint.ContainsKey(barData.endPointIndex)) continue;
+            if (!indexToPoint.ContainsKey(barData.startPointIndex) || !indexToPoint.ContainsKey(barData.endPointIndex))
+            {
+                Debug.LogError(
+                    $"[BuildLocation] Cannot reconstruct '{activeContract.name}': a saved bar references a missing node.",
+                    this);
+                return false;
+            }
 
-            BridgeMaterialSO mat = System.Array.Find(allMats, m => m.name == barData.materialName);
-            if (mat == null) continue;
+            BridgeMaterialSO mat = materialsByName[barData.materialName];
 
             GameObject newBarObj = Instantiate(creator.barToInstantiate, creator.barParent);
             Bar newBar = newBarObj.GetComponent<Bar>();
+            newBar.AssignOwner(this, true);
             
             newBar.Initialize(mat);
             newBar.startPoint = indexToPoint[barData.startPointIndex];
@@ -482,8 +597,16 @@ public class BuildLocation : Interactable
                 }
             }
 
+            LockReconstructedObject(newBarObj);
             newBar.enabled = false; 
             bakedBars.Add(newBar);
+        }
+
+        if (bakedBars.Count != savedBridge.bars.Count)
+        {
+            Debug.LogError(
+                $"[BuildLocation] Reconstruction count mismatch for '{activeContract.name}'.", this);
+            return false;
         }
 
         NPCContractGiver[] npcs = FindObjectsOfType<NPCContractGiver>();
@@ -496,5 +619,26 @@ public class BuildLocation : Interactable
 
         if (DynamicNavMeshUpdater.Instance != null)
             DynamicNavMeshUpdater.Instance.UpdateWalkableNavMeshForLocation(this);
+
+        return true;
+    }
+
+    private static void LockReconstructedObject(GameObject target)
+    {
+        if (target == null) return;
+
+        foreach (Joint joint in target.GetComponentsInChildren<Joint>(true))
+            if (joint != null) Destroy(joint);
+
+        foreach (Rigidbody body in target.GetComponentsInChildren<Rigidbody>(true))
+        {
+            if (body == null) continue;
+            body.velocity = Vector3.zero;
+            body.angularVelocity = Vector3.zero;
+            body.useGravity = false;
+            body.isKinematic = true;
+            body.Sleep();
+            Destroy(body);
+        }
     }
 }

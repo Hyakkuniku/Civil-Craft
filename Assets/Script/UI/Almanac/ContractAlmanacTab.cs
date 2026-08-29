@@ -71,11 +71,9 @@ public class ContractAlmanacTab : MonoBehaviour
         if (PlayerDataManager.Instance == null) return;
 
         completedContractsList.Clear();
-        List<string> completedNames = PlayerDataManager.Instance.CurrentData.completedContracts;
-
         foreach (ContractSO contract in allGameContracts)
         {
-            if (completedNames.Contains(contract.name))
+            if (contract != null && PlayerDataManager.Instance.IsContractCompleted(contract.name))
             {
                 completedContractsList.Add(contract);
             }

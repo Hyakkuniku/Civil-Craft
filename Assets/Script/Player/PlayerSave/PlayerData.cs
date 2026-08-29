@@ -29,12 +29,29 @@ public class SavedBarData
 [System.Serializable]
 public class SavedBridgeData 
 {
+    public int schemaVersion = 1;
     public string contractId; 
     public float totalSpent;
     public float maxStress;
     
     public List<SavedPointData> points = new List<SavedPointData>();
     public List<SavedBarData> bars = new List<SavedBarData>();
+}
+
+[System.Serializable]
+public class NPCProgressionSaveData
+{
+    [Tooltip("Stable ID of the NPC progression sequence that owns this record.")]
+    public string progressionId;
+
+    [Tooltip("Saved list index. The phase ID is preferred when phases are reordered.")]
+    public int currentPhaseIndex;
+
+    [Tooltip("Stable phase ID used to survive Inspector list reordering.")]
+    public string currentPhaseId;
+
+    [Tooltip("True when the game was saved after travel began but before arrival.")]
+    public bool wasTravelling;
 }
 
 [System.Serializable]
@@ -95,6 +112,7 @@ public class PlayerData
     public List<string> unlockedDoors = new List<string>();
 
     public List<SavedBridgeData> savedBridges = new List<SavedBridgeData>();
+    public List<NPCProgressionSaveData> npcProgressions = new List<NPCProgressionSaveData>();
 
     public string GetTitle()
     {

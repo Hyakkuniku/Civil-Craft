@@ -11,6 +11,9 @@ public class Bar : MonoBehaviour
     public Point startPoint;
     public Point endPoint;
 
+    [SerializeField, HideInInspector] private BuildLocation ownerLocation;
+    public BuildLocation OwnerLocation => ownerLocation;
+
     [HideInInspector] public Vector3 preSimPos;
     [HideInInspector] public Quaternion preSimRot;
     [HideInInspector] public Vector3 visualSize = new Vector3(1f, 0.2f, 0.2f);
@@ -30,6 +33,27 @@ public class Bar : MonoBehaviour
     private float capBottomOffset = 0f;
 
     private Dictionary<Renderer, Material> originalMats = new Dictionary<Renderer, Material>();
+
+    private void Awake()
+    {
+        if (Application.isPlaying && ownerLocation == null && GameManager.Instance != null)
+            ownerLocation = GameManager.Instance.ActiveBuildLocation;
+    }
+
+    public void AssignOwner(BuildLocation location, bool overwriteExisting = false)
+    {
+        if (location != null && (ownerLocation == null || overwriteExisting))
+            ownerLocation = location;
+    }
+
+    public void InferOwnerFromEndpoints()
+    {
+        if (ownerLocation != null) return;
+        if (startPoint != null && startPoint.OwnerLocation != null)
+            ownerLocation = startPoint.OwnerLocation;
+        else if (endPoint != null && endPoint.OwnerLocation != null)
+            ownerLocation = endPoint.OwnerLocation;
+    }
 
     // --- NEW: Re-knits the graph if this Bar was loaded from a Prefab and lost its scene references ---
     public void AutoRepairEndpoints()

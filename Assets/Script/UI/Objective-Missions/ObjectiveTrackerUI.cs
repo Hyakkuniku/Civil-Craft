@@ -207,7 +207,7 @@ public class ObjectiveTrackerUI : MonoBehaviour
 
         // Simulation can finish again while redesigning an already paid contract.
         // That is not new objective content and must not create another unread alert.
-        if (PlayerDataManager.Instance.CurrentData.completedContracts.Contains(contractName))
+        if (PlayerDataManager.Instance.IsContractCompleted(contractName))
             return;
 
         var activeTasks = PlayerDataManager.Instance.CurrentData.activeQuests;
@@ -281,14 +281,27 @@ public class ObjectiveTrackerUI : MonoBehaviour
                 // Tutorial tasks still need to persist contract completion so
                 // the contract behaves like a normal contract on future runs.
                 // They intentionally do not grant the normal contract payout.
-                if (!currentlySelectedTask.isTutorial)
-                {
-                    PlayerDataManager.Instance.AddGold(currentlySelectedTask.pendingGold);
-                    PlayerDataManager.Instance.AddExp(currentlySelectedTask.pendingExp);
-                    PlayerDataManager.Instance.AddBridgeBuilt();
-                }
+                int goldReward = currentlySelectedTask.isTutorial
+                    ? 0
+                    : currentlySelectedTask.pendingGold;
+                int expReward = currentlySelectedTask.isTutorial
+                    ? 0
+                    : currentlySelectedTask.pendingExp;
 
-                PlayerDataManager.Instance.CompleteContract(currentlySelectedTask.contractName);
+                bool completionSaved = PlayerDataManager.Instance.CompleteContract(
+                    currentlySelectedTask.contractName,
+                    goldReward,
+                    expReward,
+                    !currentlySelectedTask.isTutorial);
+
+                if (!completionSaved &&
+                    !PlayerDataManager.Instance.IsContractCompleted(currentlySelectedTask.contractName))
+                {
+                    Debug.LogError(
+                        $"[ObjectiveTrackerUI] Cannot turn in '{currentlySelectedTask.contractName}' because its saved bridge is missing or invalid.",
+                        this);
+                    return;
+                }
             }
 
             if (LevelCompleteManager.Instance != null)

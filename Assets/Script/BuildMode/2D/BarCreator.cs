@@ -585,16 +585,20 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         HashSet<Bar> preservedBars = new HashSet<Bar>();
         HashSet<Point> preservedPoints = new HashSet<Point>();
 
-        if (buildLocation != null)
+        // Every completed location shares the same runtime Bar/Point parents.
+        // Preserve all baked bridges, not only the location being restarted.
+        foreach (BuildLocation location in FindObjectsOfType<BuildLocation>(true))
         {
-            foreach (Bar bakedBar in buildLocation.bakedBars)
+            if (location == null) continue;
+
+            foreach (Bar bakedBar in location.bakedBars)
                 if (bakedBar != null) preservedBars.Add(bakedBar);
 
-            foreach (Point bakedPoint in buildLocation.bakedPoints)
+            foreach (Point bakedPoint in location.bakedPoints)
                 if (bakedPoint != null) preservedPoints.Add(bakedPoint);
-            foreach (Point anchor in buildLocation.startingAnchors)
+            foreach (Point anchor in location.startingAnchors)
                 if (anchor != null) preservedPoints.Add(anchor);
-            foreach (Point anchor in buildLocation.endingAnchors)
+            foreach (Point anchor in location.endingAnchors)
                 if (anchor != null) preservedPoints.Add(anchor);
         }
 
@@ -605,6 +609,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         foreach (Bar bar in bars)
         {
             if (bar == null || bar == ghostPierBar || preservedBars.Contains(bar)) continue;
+            if (buildLocation != null && bar.OwnerLocation != buildLocation) continue;
             bar.gameObject.SetActive(false);
             Destroy(bar.gameObject);
         }
@@ -616,6 +621,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         foreach (Point point in points)
         {
             if (point == null || preservedPoints.Contains(point) || !point.Runtime) continue;
+            if (buildLocation != null && point.OwnerLocation != buildLocation) continue;
             point.gameObject.SetActive(false);
             Destroy(point.gameObject);
         }

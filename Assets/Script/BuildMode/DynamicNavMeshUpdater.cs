@@ -28,6 +28,16 @@ public sealed class DynamicNavMeshUpdater : MonoBehaviour
     [SerializeField] private bool configureBakedBars = true;
     [Tooltip("Also update after saved baked bridges finish loading at scene start.")]
     [SerializeField] private bool updateSavedBridgesOnStart = true;
+    [Tooltip("Minimum thickness of the simple collider used as the NavMesh road surface.")]
+    [Min(0.02f)] [SerializeField] private float minimumRoadColliderThickness = 0.12f;
+    [Tooltip("Extra length added at both ends collectively so adjacent road bars overlap instead of forming voxel gaps.")]
+    [Min(0f)] [SerializeField] private float roadColliderSeamOverlap = 0.2f;
+    [Tooltip("Minimum walkable width. This should remain comfortably wider than twice the baked agent radius.")]
+    [Min(0.1f)] [SerializeField] private float minimumRoadColliderWidth = 2f;
+
+    [Header("Diagnostics")]
+    [SerializeField] private bool validateRoadCoverageAfterUpdate = true;
+    [Min(0.05f)] [SerializeField] private float roadProbeDistance = 0.5f;
 
     [Header("Update Scheduling")]
     [Tooltip("Small realtime delay coalesces several bake/delete requests into one update.")]
@@ -139,6 +149,7 @@ public sealed class DynamicNavMeshUpdater : MonoBehaviour
             if (!isWalkableRoad) continue;
 
             SetLayerRecursively(bar.transform, bridgeLayer);
+            EnsureContinuousRoadCollider(bar);
 
             if (bar.GetComponentInChildren<Collider>(true) == null)
             {
@@ -198,6 +209,7 @@ public sealed class DynamicNavMeshUpdater : MonoBehaviour
                     continue;
                 }
 
+                if (validateRoadCoverageAfterUpdate) ValidateRoadCoverage();
                 onNavMeshUpdateCompleted?.Invoke();
                 continue;
             }
@@ -215,6 +227,7 @@ public sealed class DynamicNavMeshUpdater : MonoBehaviour
 
             yield return operation;
             asyncUpdateInProgress = false;
+            if (validateRoadCoverageAfterUpdate) ValidateRoadCoverage();
             onNavMeshUpdateCompleted?.Invoke();
         }
 
@@ -233,5 +246,83 @@ public sealed class DynamicNavMeshUpdater : MonoBehaviour
         root.gameObject.layer = layer;
         for (int i = 0; i < root.childCount; i++)
             SetLayerRecursively(root.GetChild(i), layer);
+    }
+
+    private void EnsureContinuousRoadCollider(Bar bar)
+    {
+        if (bar == null || bar.startPoint == null || bar.endPoint == null) return;
+
+        BoxCollider[] colliders = bar.GetComponents<BoxCollider>();
+        BoxCollider surfaceCollider = colliders.Length > 0
+            ? colliders[0]
+            : bar.gameObject.AddComponent<BoxCollider>();
+
+        float length = Vector3.Distance(
+            bar.startPoint.transform.position,
+            bar.endPoint.transform.position);
+
+        Vector3 size = surfaceCollider.size;
+        Vector3 center = surfaceCollider.center;
+        float originalTop = center.y + size.y * 0.5f;
+        size.x = Mathf.Max(0.05f, length + roadColliderSeamOverlap);
+        size.y = Mathf.Max(size.y, minimumRoadColliderThickness);
+        size.z = Mathf.Max(size.z, minimumRoadColliderWidth);
+        surfaceCollider.size = size;
+
+        // Overlap both neighboring ends equally while preserving the original
+        // top surface height, so the generated NavMesh does not float upward.
+        center.x = 0f;
+        center.y = originalTop - size.y * 0.5f;
+        center.z = 0f;
+        surfaceCollider.center = center;
+        surfaceCollider.enabled = true;
+        surfaceCollider.isTrigger = false;
+    }
+
+    private void ValidateRoadCoverage()
+    {
+        int bridgeLayer = LayerMask.NameToLayer(walkableBridgeLayer);
+        int areaMask = NavMesh.AllAreas;
+        int failedProbeCount = 0;
+
+        BuildLocation[] locations = Resources.FindObjectsOfTypeAll<BuildLocation>();
+        foreach (BuildLocation location in locations)
+        {
+            if (!IsLoadedSceneObject(location) || location.bakedBars == null) continue;
+
+            foreach (Bar bar in location.bakedBars)
+            {
+                if (bar == null || bar.materialData == null || !bar.materialData.isRoad ||
+                    bar.startPoint == null || bar.endPoint == null) continue;
+
+                if (bridgeLayer >= 0 && bar.gameObject.layer != bridgeLayer) continue;
+
+                Vector3 start = bar.startPoint.transform.position;
+                Vector3 end = bar.endPoint.transform.position;
+                Vector3 midpoint = Vector3.Lerp(start, end, 0.5f);
+
+                if (!ProbeRoadPoint(start, areaMask) ||
+                    !ProbeRoadPoint(midpoint, areaMask) ||
+                    !ProbeRoadPoint(end, areaMask))
+                {
+                    failedProbeCount++;
+                    Debug.LogWarning(
+                        $"[DynamicNavMeshUpdater] NavMesh does not fully cover road bar '{bar.name}' at " +
+                        $"build location '{location.name}'. Check Surface volume, voxel size, slope, and layer mask.",
+                        bar);
+                }
+            }
+        }
+
+        if (failedProbeCount == 0)
+            Debug.Log("[DynamicNavMeshUpdater] Runtime bridge NavMesh coverage probes passed.", this);
+    }
+
+    private bool ProbeRoadPoint(Vector3 worldPoint, int areaMask)
+    {
+        if (!NavMesh.SamplePosition(worldPoint, out NavMeshHit hit, roadProbeDistance, areaMask))
+            return false;
+
+        return Mathf.Abs(hit.position.y - worldPoint.y) <= roadProbeDistance;
     }
 }

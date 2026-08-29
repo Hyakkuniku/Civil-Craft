@@ -237,7 +237,8 @@ public class LevelCompleteManager : MonoBehaviour
         if (string.IsNullOrEmpty(contractName)) return false;
         if (alreadyPaidContracts.Contains(contractName)) return true;
 
-        if (PlayerDataManager.Instance != null && PlayerDataManager.Instance.CurrentData.completedContracts.Contains(contractName))
+        if (PlayerDataManager.Instance != null &&
+            PlayerDataManager.Instance.IsContractCompleted(contractName))
         {
             return true;
         }
@@ -628,18 +629,55 @@ public class LevelCompleteManager : MonoBehaviour
             }
         }
 
-        if (LevelFailedManager.Instance != null) LevelFailedManager.Instance.ResetFailCount();
+        if (completedContract == null || completedLocation == null ||
+            cachedPhysicsManager == null || PlayerDataManager.Instance == null)
+        {
+            Debug.LogError(
+                "[LevelCompleteManager] Bridge finalization stopped because the contract, build location, " +
+                "physics manager, or player data manager is missing.", this);
+            return;
+        }
 
         // Capture this before any completion/reward mutation below. A redesign may
         // happen after reloading the game, so the persistent completed-contract list
         // is authoritative; the local alreadyPaidContracts cache is not enough.
-        bool wasContractAlreadyCompleted = activeContract != null &&
-                                           IsContractPaid(activeContract.name);
+        bool wasContractAlreadyCompleted = IsContractPaid(completedContract.name);
+
+        // Transaction order is important: capture -> validate -> persist geometry
+        // must succeed before contract completion, rewards, alerts, or NPC movement.
+        // Reset first so saved coordinates represent the player's original design,
+        // not the bridge's deformed pose at the end of the load test.
+        cachedPhysicsManager.StopPhysicsAndReset();
+
+        if (!cachedPhysicsManager.BakeBridge(completedContract))
+        {
+            Debug.LogError(
+                $"[LevelCompleteManager] '{completedContract.name}' was not completed because its bridge could not be baked.",
+                this);
+            return;
+        }
+
+        bool bridgeSaved = PlayerDataManager.Instance.SaveBridgeData(
+            completedContract.name,
+            completedLocation.bakedPoints,
+            completedLocation.bakedBars,
+            lastFinalCost,
+            lastPeakStress);
+
+        if (!bridgeSaved)
+        {
+            Debug.LogError(
+                $"[LevelCompleteManager] '{completedContract.name}' remains unfinished because bridge geometry could not be persisted. " +
+                "The baked objects remain in the scene so saving can be retried.", this);
+            return;
+        }
+
+        if (LevelFailedManager.Instance != null) LevelFailedManager.Instance.ResetFailCount();
 
         NPCContractGiver[] npcs = FindObjectsOfType<NPCContractGiver>();
         foreach (var npc in npcs)
         {
-            if (npc.contractToGive == activeContract) 
+            if (npc.contractToGive == completedContract)
             {
                 if (!wasContractAlreadyCompleted)
                 {
@@ -648,58 +686,43 @@ public class LevelCompleteManager : MonoBehaviour
             }
         }
 
-        if (activeContract != null && activeContract.autoCollectReward && !wasContractAlreadyCompleted)
+        if (completedContract.autoCollectReward && !wasContractAlreadyCompleted)
         {
-            int earnedGold = GetContractGold(activeContract.name);
-            int earnedExp = GetContractExp(activeContract.name);
+            int earnedGold = GetContractGold(completedContract.name);
+            int earnedExp = GetContractExp(completedContract.name);
 
-            if (PlayerDataManager.Instance != null)
+            bool completionSaved = PlayerDataManager.Instance.CompleteContract(
+                completedContract.name,
+                earnedGold,
+                earnedExp,
+                true);
+
+            if (!completionSaved &&
+                !PlayerDataManager.Instance.IsContractCompleted(completedContract.name))
             {
-                PlayerDataManager.Instance.AddGold(earnedGold);
-                PlayerDataManager.Instance.AddExp(earnedExp);
-                PlayerDataManager.Instance.AddBridgeBuilt();
-                PlayerDataManager.Instance.CompleteContract(activeContract.name);
+                Debug.LogError(
+                    $"[LevelCompleteManager] Bridge geometry was saved, but completion for '{completedContract.name}' could not be persisted.",
+                    this);
+                return;
             }
-            
-            MarkContractAsPaid(activeContract.name);
+
+            MarkContractAsPaid(completedContract.name);
             
             if (ObjectiveTrackerUI.Instance != null)
             {
-                ObjectiveTrackerUI.Instance.ClearObjective(activeContract);
-            }
-        }
-
-        if (cachedPhysicsManager != null) 
-        {
-            cachedPhysicsManager.BakeBridge(activeContract);
-            
-            // --- THE FIX: We must forcefully stop the physics engine from running here! ---
-            cachedPhysicsManager.StopPhysicsAndReset(); 
-        } 
-
-        if (PlayerDataManager.Instance != null && activeContract != null)
-        {
-            if (completedLocation != null)
-            {
-                PlayerDataManager.Instance.SaveBridgeData(
-                    activeContract.name,
-                    completedLocation.bakedPoints,
-                    completedLocation.bakedBars,
-                    lastFinalCost, 
-                    lastPeakStress
-                );
+                ObjectiveTrackerUI.Instance.ClearObjective(completedContract);
             }
         }
 
         // Persist the unread objective update before exiting Build Mode or changing scenes.
         // This does not depend on ObjectiveTrackerUI being present in the current scene.
-        if (PlayerDataManager.Instance != null && activeContract != null && !wasContractAlreadyCompleted)
+        if (!completedContract.autoCollectReward && !wasContractAlreadyCompleted)
             PlayerDataManager.Instance.MarkObjectiveAlertUnread();
 
-        if (ObjectiveTrackerUI.Instance != null && activeContract != null &&
-            !activeContract.autoCollectReward && !wasContractAlreadyCompleted)
+        if (ObjectiveTrackerUI.Instance != null &&
+            !completedContract.autoCollectReward && !wasContractAlreadyCompleted)
         {
-            ObjectiveTrackerUI.Instance.NotifyBridgeBuilt(activeContract.name);
+            ObjectiveTrackerUI.Instance.NotifyBridgeBuilt(completedContract.name);
         }
         
         if (CommandManager.Instance != null) CommandManager.Instance.ClearHistory();

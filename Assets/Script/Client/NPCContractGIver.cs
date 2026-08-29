@@ -49,19 +49,23 @@ public class NPCContractGiver : Interactable
 
         if (contractToGive != null && PlayerDataManager.Instance != null && !isLocked)
         {
-            bool isCompleted = PlayerDataManager.Instance.CurrentData.completedContracts.Contains(contractToGive.name);
+            bool isCompleted = PlayerDataManager.Instance.IsContractCompleted(contractToGive.name);
             bool hasSavedBridge = PlayerDataManager.Instance.GetSavedBridge(contractToGive.name) != null;
+            bool hasActiveQuest = PlayerDataManager.Instance.CurrentData.activeQuests != null &&
+                                  PlayerDataManager.Instance.CurrentData.activeQuests.Exists(task =>
+                                      task != null && task.contractName == contractToGive.name &&
+                                      !task.isCompleted);
 
-            if (isCompleted || hasSavedBridge)
+            if (isCompleted || hasSavedBridge || hasActiveQuest)
             {
                 if (isCompleted) isFullyTurnedIn = true;
                 hasGivenContract = true;
-                isContractCompleted = true;
+                isContractCompleted = isCompleted || hasSavedBridge;
                 
                 if (targetBuildLocation != null) 
                 {
                     targetBuildLocation.activeContract = contractToGive;
-                    targetBuildLocation.LoadSavedBridge();
+                    if (hasSavedBridge) targetBuildLocation.LoadSavedBridge();
                 }
             }
             
@@ -264,17 +268,22 @@ public class NPCContractGiver : Interactable
                            PlayerDataManager.Instance.IsContractCompleted(phaseContract.name);
         bool hasSavedBridge = PlayerDataManager.Instance != null &&
                               PlayerDataManager.Instance.GetSavedBridge(phaseContract.name) != null;
+        bool hasActiveQuest = PlayerDataManager.Instance != null &&
+                              PlayerDataManager.Instance.CurrentData.activeQuests != null &&
+                              PlayerDataManager.Instance.CurrentData.activeQuests.Exists(task =>
+                                  task != null && task.contractName == phaseContract.name &&
+                                  !task.isCompleted);
 
-        if (isCompleted || hasSavedBridge)
+        if (isCompleted || hasSavedBridge || hasActiveQuest)
         {
             hasGivenContract = true;
-            isContractCompleted = true;
+            isContractCompleted = isCompleted || hasSavedBridge;
             isFullyTurnedIn = isCompleted;
 
             if (targetBuildLocation != null)
             {
                 targetBuildLocation.activeContract = phaseContract;
-                targetBuildLocation.LoadSavedBridge();
+                if (hasSavedBridge) targetBuildLocation.LoadSavedBridge();
             }
         }
 

@@ -27,6 +27,7 @@ public class PlayerDataManager : MonoBehaviour
     
     private string saveFilePath;
     private bool isCheckingAchievements = false; // Prevents infinite loops!
+    private readonly HashSet<string> completionRecordsMissingBridge = new HashSet<string>();
     
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -64,25 +65,94 @@ public class PlayerDataManager : MonoBehaviour
 
     public void SaveGame()
     {
-        string json = JsonUtility.ToJson(CurrentData, true);
-        File.WriteAllText(saveFilePath, json);
+        TrySaveGame();
+    }
+
+    public bool TrySaveGame()
+    {
+        if (CurrentData == null || string.IsNullOrWhiteSpace(saveFilePath)) return false;
+
+        string temporaryPath = saveFilePath + ".tmp";
+        string backupPath = saveFilePath + ".bak";
+
+        try
+        {
+            string json = JsonUtility.ToJson(CurrentData, true);
+            File.WriteAllText(temporaryPath, json);
+
+            if (File.Exists(saveFilePath))
+            {
+                try
+                {
+                    File.Replace(temporaryPath, saveFilePath, backupPath);
+                }
+                catch (PlatformNotSupportedException)
+                {
+                    File.Copy(saveFilePath, backupPath, true);
+                    File.Copy(temporaryPath, saveFilePath, true);
+                    File.Delete(temporaryPath);
+                }
+                catch (IOException)
+                {
+                    File.Copy(saveFilePath, backupPath, true);
+                    File.Copy(temporaryPath, saveFilePath, true);
+                    File.Delete(temporaryPath);
+                }
+            }
+            else
+            {
+                File.Move(temporaryPath, saveFilePath);
+            }
+
+            return true;
+        }
+        catch (Exception exception)
+        {
+            Debug.LogError($"[PlayerDataManager] Failed to save player data: {exception.Message}", this);
+            try
+            {
+                if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
+            }
+            catch (Exception) { }
+            return false;
+        }
     }
 
     public void LoadGame()
     {
-        if (File.Exists(saveFilePath))
+        CurrentData = TryReadSaveFile(saveFilePath);
+        if (CurrentData == null)
         {
-            string json = File.ReadAllText(saveFilePath);
-            CurrentData = JsonUtility.FromJson<PlayerData>(json);
+            CurrentData = TryReadSaveFile(saveFilePath + ".bak");
+            if (CurrentData != null)
+                Debug.LogWarning("[PlayerDataManager] Recovered player data from the backup save.", this);
         }
-        else
-        {
-            CurrentData = new PlayerData();
-            CurrentData.playerName = PlayerPrefs.GetString("SavedPlayerName", "Guest"); 
-        }
+
+        if (CurrentData == null)
+            CurrentData = new PlayerData
+            {
+                playerName = PlayerPrefs.GetString("SavedPlayerName", "Guest")
+            };
 
         NormalizeLoadedData();
         SaveGame();
+    }
+
+    private PlayerData TryReadSaveFile(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return null;
+
+        try
+        {
+            string json = File.ReadAllText(path);
+            if (string.IsNullOrWhiteSpace(json)) return null;
+            return JsonUtility.FromJson<PlayerData>(json);
+        }
+        catch (Exception exception)
+        {
+            Debug.LogError($"[PlayerDataManager] Could not read '{path}': {exception.Message}", this);
+            return null;
+        }
     }
 
     // ────────────────────────────────────────────────
@@ -107,6 +177,7 @@ public class PlayerDataManager : MonoBehaviour
         PlayerPrefs.Save();
         CurrentData = new PlayerData();
         CurrentData.playerName = "Guest";
+        completionRecordsMissingBridge.Clear();
         SaveGame();
         OnCurrencyChanged?.Invoke();
     }
@@ -153,27 +224,72 @@ public class PlayerDataManager : MonoBehaviour
         CheckAllAchievements(); 
     }
 
-    public void CompleteContract(string contractName) 
+    /// <summary>
+    /// Completes and optionally rewards a bridge contract in one save operation.
+    /// Completion is rejected unless validated bridge geometry already exists.
+    /// Returns true only when a new completion was persisted successfully.
+    /// </summary>
+    public bool CompleteContract(
+        string contractName,
+        int goldReward = 0,
+        int expReward = 0,
+        bool countBridgeBuilt = false)
     {
-        if (CurrentData == null || string.IsNullOrWhiteSpace(contractName)) return;
+        if (CurrentData == null || string.IsNullOrWhiteSpace(contractName)) return false;
 
         // Older save files may not contain this list yet.
         if (CurrentData.completedContracts == null)
             CurrentData.completedContracts = new List<string>();
 
-        if (!IsContractCompleted(contractName))
-        { 
-            CurrentData.completedContracts.Add(contractName); 
-            CurrentData.lifetimeContractsCompleted++; 
-            CurrentData.hasUnlockedContractsTab = true;
-            CurrentData.hasUnreadContractsAlert = true;
-            CurrentData.hasUnreadObjectiveAlert = true;
-            SaveGame();
-            OnAlmanacAlertsChanged?.Invoke();
-            OnObjectiveAlertsChanged?.Invoke();
-            OnContractCompleted?.Invoke(contractName);
-            CheckAllAchievements(); 
-        } 
+        if (!HasValidSavedBridge(contractName))
+        {
+            Debug.LogError(
+                $"[PlayerDataManager] Refusing to complete '{contractName}' because no valid saved bridge geometry exists.",
+                this);
+            return false;
+        }
+
+        if (CurrentData.completedContracts.Contains(contractName)) return false;
+
+        int previousGold = CurrentData.gold;
+        int previousExp = CurrentData.exp;
+        int previousLifetimeGold = CurrentData.lifetimeGoldEarned;
+        int previousBridgeCount = CurrentData.lifetimeBridgesBuilt;
+        int previousContractCount = CurrentData.lifetimeContractsCompleted;
+        bool previousContractsTab = CurrentData.hasUnlockedContractsTab;
+        bool previousContractsAlert = CurrentData.hasUnreadContractsAlert;
+        bool previousObjectiveAlert = CurrentData.hasUnreadObjectiveAlert;
+
+        CurrentData.completedContracts.Add(contractName);
+        CurrentData.lifetimeContractsCompleted++;
+        CurrentData.gold += Mathf.Max(0, goldReward);
+        CurrentData.exp += Mathf.Max(0, expReward);
+        CurrentData.lifetimeGoldEarned += Mathf.Max(0, goldReward);
+        if (countBridgeBuilt) CurrentData.lifetimeBridgesBuilt++;
+        CurrentData.hasUnlockedContractsTab = true;
+        CurrentData.hasUnreadContractsAlert = true;
+        CurrentData.hasUnreadObjectiveAlert = true;
+
+        if (!TrySaveGame())
+        {
+            CurrentData.completedContracts.Remove(contractName);
+            CurrentData.gold = previousGold;
+            CurrentData.exp = previousExp;
+            CurrentData.lifetimeGoldEarned = previousLifetimeGold;
+            CurrentData.lifetimeBridgesBuilt = previousBridgeCount;
+            CurrentData.lifetimeContractsCompleted = previousContractCount;
+            CurrentData.hasUnlockedContractsTab = previousContractsTab;
+            CurrentData.hasUnreadContractsAlert = previousContractsAlert;
+            CurrentData.hasUnreadObjectiveAlert = previousObjectiveAlert;
+            return false;
+        }
+
+        if (goldReward > 0 || expReward > 0) OnCurrencyChanged?.Invoke();
+        OnAlmanacAlertsChanged?.Invoke();
+        OnObjectiveAlertsChanged?.Invoke();
+        OnContractCompleted?.Invoke(contractName);
+        CheckAllAchievements();
+        return true;
     }
 
     public bool IsContractCompleted(string contractName)
@@ -181,7 +297,14 @@ public class PlayerDataManager : MonoBehaviour
         return CurrentData != null &&
                CurrentData.completedContracts != null &&
                !string.IsNullOrWhiteSpace(contractName) &&
-               CurrentData.completedContracts.Contains(contractName);
+               CurrentData.completedContracts.Contains(contractName) &&
+               HasValidSavedBridge(contractName);
+    }
+
+    public bool HasAnyCompletedContract()
+    {
+        return CurrentData != null && CurrentData.completedContracts != null &&
+               CurrentData.completedContracts.Exists(IsContractCompleted);
     }
 
     public void MarkObjectiveAlertUnread()
@@ -329,7 +452,7 @@ public class PlayerDataManager : MonoBehaviour
 
         CurrentData.hasAlmanac = true;
         CurrentData.hasUnreadAlmanacUnlockAlert = true;
-        CurrentData.hasUnreadContractsAlert |= CurrentData.completedContracts.Count > 0;
+        CurrentData.hasUnreadContractsAlert |= HasAnyCompletedContract();
         SaveGame();
         OnAlmanacUnlocked?.Invoke();
         OnAlmanacAlertsChanged?.Invoke();
@@ -374,58 +497,236 @@ public class PlayerDataManager : MonoBehaviour
         if (CurrentData.unlockedContractMaterials == null) CurrentData.unlockedContractMaterials = new List<string>();
         if (CurrentData.unlockedDoors == null) CurrentData.unlockedDoors = new List<string>();
         if (CurrentData.savedBridges == null) CurrentData.savedBridges = new List<SavedBridgeData>();
+        if (CurrentData.npcProgressions == null) CurrentData.npcProgressions = new List<NPCProgressionSaveData>();
+
+        completionRecordsMissingBridge.Clear();
+        foreach (string contractName in CurrentData.completedContracts)
+        {
+            SavedBridgeData rawBridge = CurrentData.savedBridges.Find(bridge =>
+                bridge != null && bridge.contractId == contractName);
+            if (!IsBridgeDataValid(rawBridge, out _))
+                completionRecordsMissingBridge.Add(contractName);
+        }
+
+        if (completionRecordsMissingBridge.Count > 0)
+        {
+            Debug.LogWarning(
+                $"[PlayerDataManager] Found {completionRecordsMissingBridge.Count} completed contract record(s) " +
+                "without valid bridge geometry. They will remain incomplete until their bridges are rebuilt and saved.",
+                this);
+        }
 
         if (CurrentData.unlockedLessonIds.Count > 0)
             CurrentData.hasUnlockedLessonsTab = true;
     }
 
-    public void SaveBridgeData(string contractId, List<Point> points, List<Bar> bars, float totalSpent, float maxStress)
+    public bool SaveBridgeData(string contractId, List<Point> points, List<Bar> bars, float totalSpent, float maxStress)
     {
-        CurrentData.savedBridges.RemoveAll(b => b.contractId == contractId); 
+        if (CurrentData == null || string.IsNullOrWhiteSpace(contractId) ||
+            points == null || bars == null) return false;
 
         SavedBridgeData newSave = new SavedBridgeData { 
-            contractId = contractId,
+            schemaVersion = 1,
+            contractId = contractId.Trim(),
             totalSpent = totalSpent,
             maxStress = maxStress
         };
-        
-        Dictionary<Point, int> pointToIndex = new Dictionary<Point, int>();
-        
-        for(int i = 0; i < points.Count; i++)
+
+        List<Point> validPoints = new List<Point>();
+        HashSet<Point> uniquePoints = new HashSet<Point>();
+        foreach (Point point in points)
         {
-            pointToIndex[points[i]] = i;
+            if (point != null && uniquePoints.Add(point)) validPoints.Add(point);
+        }
+
+        Dictionary<Point, int> pointToIndex = new Dictionary<Point, int>();
+        for (int i = 0; i < validPoints.Count; i++)
+        {
+            Point point = validPoints[i];
+            pointToIndex[point] = i;
             newSave.points.Add(new SavedPointData {
                 index = i,
-                position = new SerializableVector3(points[i].transform.position),
-                isAnchor = points[i].isAnchor,
-                originalIsAnchor = points[i].originalIsAnchor
+                position = new SerializableVector3(point.transform.position),
+                isAnchor = point.isAnchor,
+                originalIsAnchor = point.originalIsAnchor
             });
         }
 
-        foreach(Bar b in bars)
+        HashSet<Bar> uniqueBars = new HashSet<Bar>();
+        foreach (Bar bar in bars)
         {
-            if(b.startPoint != null && b.endPoint != null && pointToIndex.ContainsKey(b.startPoint) && pointToIndex.ContainsKey(b.endPoint))
+            if (bar == null || !uniqueBars.Add(bar)) continue;
+            if (bar.startPoint == null || bar.endPoint == null || bar.materialData == null ||
+                !pointToIndex.TryGetValue(bar.startPoint, out int startIndex) ||
+                !pointToIndex.TryGetValue(bar.endPoint, out int endIndex))
             {
-                newSave.bars.Add(new SavedBarData {
-                    startPointIndex = pointToIndex[b.startPoint],
-                    endPointIndex = pointToIndex[b.endPoint],
-                    materialName = b.materialData.name
-                });
+                Debug.LogError(
+                    $"[PlayerDataManager] Bridge '{contractId}' contains a bar with missing endpoints, material, or point ownership.",
+                    this);
+                return false;
             }
+
+            newSave.bars.Add(new SavedBarData {
+                startPointIndex = startIndex,
+                endPointIndex = endIndex,
+                materialName = bar.materialData.name
+            });
         }
 
+        if (!IsBridgeDataValid(newSave, out string validationError))
+        {
+            Debug.LogError($"[PlayerDataManager] Bridge '{contractId}' was not saved: {validationError}", this);
+            return false;
+        }
+
+        List<SavedBridgeData> previousRecords = CurrentData.savedBridges.FindAll(entry =>
+            entry != null && entry.contractId == newSave.contractId);
+        CurrentData.savedBridges.RemoveAll(entry =>
+            entry != null && entry.contractId == newSave.contractId);
         CurrentData.savedBridges.Add(newSave);
-        SaveGame();
+
+        if (TrySaveGame())
+        {
+            // Repair legacy saves created by the old completion-before-geometry
+            // order. Rewards are not granted twice, but progression may resume.
+            if (completionRecordsMissingBridge.Remove(newSave.contractId))
+            {
+                Debug.LogWarning(
+                    $"[PlayerDataManager] Repaired missing bridge geometry for completed contract '{newSave.contractId}'.",
+                    this);
+                OnContractCompleted?.Invoke(newSave.contractId);
+            }
+            return true;
+        }
+
+        // Keep memory consistent with disk when persistence fails.
+        CurrentData.savedBridges.Remove(newSave);
+        CurrentData.savedBridges.AddRange(previousRecords);
+        return false;
     }
 
     public SavedBridgeData GetSavedBridge(string contractId)
     {
-        return CurrentData.savedBridges.Find(b => b.contractId == contractId);
+        if (CurrentData == null || CurrentData.savedBridges == null ||
+            string.IsNullOrWhiteSpace(contractId)) return null;
+
+        SavedBridgeData bridge = CurrentData.savedBridges.Find(entry =>
+            entry != null && entry.contractId == contractId);
+        return IsBridgeDataValid(bridge, out _) ? bridge : null;
+    }
+
+    public bool HasValidSavedBridge(string contractId)
+    {
+        return GetSavedBridge(contractId) != null;
+    }
+
+    public bool IsBridgeDataValid(SavedBridgeData bridge, out string error)
+    {
+        error = string.Empty;
+        if (bridge == null) { error = "The bridge record is null."; return false; }
+        if (string.IsNullOrWhiteSpace(bridge.contractId)) { error = "The contract ID is missing."; return false; }
+        if (!IsFinite(bridge.totalSpent) || !IsFinite(bridge.maxStress))
+        {
+            error = "The saved cost or stress value is invalid.";
+            return false;
+        }
+        if (bridge.points == null || bridge.points.Count < 2) { error = "At least two nodes are required."; return false; }
+        if (bridge.bars == null || bridge.bars.Count == 0) { error = "At least one bar is required."; return false; }
+
+        HashSet<int> pointIndices = new HashSet<int>();
+        foreach (SavedPointData point in bridge.points)
+        {
+            if (point == null || point.position == null)
+            {
+                error = "A node record or position is missing.";
+                return false;
+            }
+
+            if (!pointIndices.Add(point.index))
+            {
+                error = $"Node index {point.index} is duplicated.";
+                return false;
+            }
+
+            if (!IsFinite(point.position.x) || !IsFinite(point.position.y) || !IsFinite(point.position.z))
+            {
+                error = $"Node index {point.index} has an invalid position.";
+                return false;
+            }
+        }
+
+        foreach (SavedBarData bar in bridge.bars)
+        {
+            if (bar == null || string.IsNullOrWhiteSpace(bar.materialName))
+            {
+                error = "A bar record or material ID is missing.";
+                return false;
+            }
+
+            if (bar.startPointIndex == bar.endPointIndex ||
+                !pointIndices.Contains(bar.startPointIndex) ||
+                !pointIndices.Contains(bar.endPointIndex))
+            {
+                error = "A bar references invalid or identical endpoint indices.";
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsFinite(float value)
+    {
+        return !float.IsNaN(value) && !float.IsInfinity(value);
     }
 
     public void DeleteSavedBridge(string contractId)
     {
-        CurrentData.savedBridges.RemoveAll(b => b.contractId == contractId);
+        if (CurrentData == null || CurrentData.savedBridges == null) return;
+        CurrentData.savedBridges.RemoveAll(b => b != null && b.contractId == contractId);
+        SaveGame();
+    }
+
+    public bool TryGetNPCProgression(string progressionId, out NPCProgressionSaveData state)
+    {
+        state = null;
+        if (CurrentData == null || CurrentData.npcProgressions == null ||
+            string.IsNullOrWhiteSpace(progressionId)) return false;
+
+        state = CurrentData.npcProgressions.Find(entry =>
+            entry != null && string.Equals(entry.progressionId, progressionId.Trim(),
+                StringComparison.Ordinal));
+        return state != null;
+    }
+
+    /// <summary>
+    /// Persists the destination phase before travel and the settled phase after arrival.
+    /// Keeping both index and ID makes saves resilient to phase-list reordering.
+    /// </summary>
+    public void SaveNPCProgression(
+        string progressionId,
+        int currentPhaseIndex,
+        string currentPhaseId,
+        bool wasTravelling)
+    {
+        if (CurrentData == null || string.IsNullOrWhiteSpace(progressionId)) return;
+        if (CurrentData.npcProgressions == null)
+            CurrentData.npcProgressions = new List<NPCProgressionSaveData>();
+
+        string normalizedId = progressionId.Trim();
+        NPCProgressionSaveData state = CurrentData.npcProgressions.Find(entry =>
+            entry != null && string.Equals(entry.progressionId, normalizedId,
+                StringComparison.Ordinal));
+
+        if (state == null)
+        {
+            state = new NPCProgressionSaveData { progressionId = normalizedId };
+            CurrentData.npcProgressions.Add(state);
+        }
+
+        state.currentPhaseIndex = Mathf.Max(0, currentPhaseIndex);
+        state.currentPhaseId = currentPhaseId ?? string.Empty;
+        state.wasTravelling = wasTravelling;
         SaveGame();
     }
 }

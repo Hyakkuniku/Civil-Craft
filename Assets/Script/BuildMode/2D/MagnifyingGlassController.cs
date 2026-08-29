@@ -28,6 +28,8 @@ public sealed class MagnifyingGlassController : MonoBehaviour
     [SerializeField] private Canvas sourceGridCanvas;
     [Tooltip("Mirrors the existing visual GridCanvas into the magnifier camera.")]
     [SerializeField] private bool includeBlueprintGrid = true;
+    [Tooltip("Rebinds the mirrored grid whenever GameManager.ActiveBuildLocation changes.")]
+    [SerializeField] private bool followActiveBuildLocationGrid = true;
 
     [Header("Screen Positions")]
     [Tooltip("Empty RectTransform marking the center of the top-left magnifier position.")]
@@ -71,6 +73,7 @@ public sealed class MagnifyingGlassController : MonoBehaviour
     private Canvas magnifierGridCanvas;
     private Graphic[] sourceGridGraphics;
     private Graphic[] magnifierGridGraphics;
+    private BuildLocation boundGridLocation;
 
     public bool IsVisible => isVisible;
 
@@ -123,6 +126,8 @@ public sealed class MagnifyingGlassController : MonoBehaviour
     private void LateUpdate()
     {
         if (!isVisible) return;
+
+        RefreshGridSourceForActiveLocation();
 
         if (TryGetCurrentPointerPosition(out Vector2 pointerPosition))
             trackedScreenPosition = pointerPosition;
@@ -229,6 +234,7 @@ public sealed class MagnifyingGlassController : MonoBehaviour
         if (magnifierImage != null && magnifierImage.texture != magnifierCamera.targetTexture)
             magnifierImage.texture = magnifierCamera.targetTexture;
 
+        RefreshGridSourceForActiveLocation();
         EnsureBlueprintGridOverlay();
         isVisible = true;
         magnifierRoot.SetActive(true);
@@ -391,6 +397,41 @@ public sealed class MagnifyingGlassController : MonoBehaviour
         return null;
     }
 
+    /// <summary>
+    /// Rebuilds the magnifier-only grid from the currently active build site.
+    /// Safe to call from a BuildLocation UnityEvent; ShowMagnifier also calls it.
+    /// </summary>
+    public void RefreshForActiveBuildLocation()
+    {
+        InitializeReferences();
+        RefreshGridSourceForActiveLocation(true);
+    }
+
+    private void RefreshGridSourceForActiveLocation(bool force = false)
+    {
+        if (!includeBlueprintGrid || !followActiveBuildLocationGrid) return;
+
+        BuildLocation activeLocation = GameManager.Instance != null
+            ? GameManager.Instance.ActiveBuildLocation
+            : null;
+        Canvas activeGridCanvas = activeLocation != null && activeLocation.gridImage != null
+            ? activeLocation.gridImage.GetComponentInParent<Canvas>(true)
+            : null;
+
+        if (!force && activeLocation == boundGridLocation && activeGridCanvas == sourceGridCanvas)
+            return;
+
+        boundGridLocation = activeLocation;
+        if (activeGridCanvas == sourceGridCanvas && magnifierGridCanvas != null)
+            return;
+
+        ReleaseBlueprintGridOverlay();
+        sourceGridCanvas = activeGridCanvas;
+
+        if (sourceGridCanvas != null)
+            EnsureBlueprintGridOverlay();
+    }
+
     private void EnsureBlueprintGridOverlay()
     {
         if (!includeBlueprintGrid || magnifierGridCanvas != null || magnifierCamera == null)
@@ -488,10 +529,19 @@ public sealed class MagnifyingGlassController : MonoBehaviour
         }
     }
 
-    private void OnDestroy()
+    private void ReleaseBlueprintGridOverlay()
     {
         if (magnifierGridCanvas != null)
             Destroy(magnifierGridCanvas.gameObject);
+
+        magnifierGridCanvas = null;
+        sourceGridGraphics = null;
+        magnifierGridGraphics = null;
+    }
+
+    private void OnDestroy()
+    {
+        ReleaseBlueprintGridOverlay();
     }
 
     private void UpdateAvoidance(Vector2 pointerScreenPosition)

@@ -47,6 +47,12 @@ public class NPCProgressionManager : MonoBehaviour
 
     [Header("Progression")]
     [SerializeField] private List<NPCProgressionPhase> phases = new List<NPCProgressionPhase>();
+    [Tooltip("Stable, unique save key for this NPC sequence. Never change it after release.")]
+    [SerializeField] private string progressionSaveId = "MainContractNPC";
+    [Tooltip("Save the current/destination phase in PlayerData JSON.")]
+    [SerializeField] private bool persistProgression = true;
+    [Tooltip("Reconstruct valid bridges belonging to earlier phase locations when this scene loads.")]
+    [SerializeField] private bool restoreSavedPhaseBridgesOnStart = true;
     [Tooltip("Place the NPC at the save-resolved phase when this scene loads.")]
     [SerializeField] private bool placeAtResolvedPhaseOnStart = true;
     [Tooltip("Automatically listen for PlayerDataManager.CompleteContract calls.")]
@@ -116,12 +122,49 @@ public class NPCProgressionManager : MonoBehaviour
             return;
         }
 
-        currentPhaseIndex = ResolvePhaseIndexFromSave();
+        TryRestoreSavedProgression(
+            out currentPhaseIndex, out bool wasTravellingWhenSaved);
 
-        if (placeAtResolvedPhaseOnStart)
+        if (restoreSavedPhaseBridgesOnStart)
+            RestoreSavedPhaseBridges();
+
+        // A mid-travel save must always resolve at its committed destination,
+        // even if normal load-time placement was disabled for editor testing.
+        if (placeAtResolvedPhaseOnStart || wasTravellingWhenSaved)
             PlaceAtPhase(currentPhaseIndex);
 
+        // Activating settles a mid-travel save and writes wasTravelling = false.
         ActivatePhase(currentPhaseIndex, false);
+    }
+
+    private void RestoreSavedPhaseBridges()
+    {
+        if (PlayerDataManager.Instance == null) return;
+
+        HashSet<BuildLocation> restoredLocations = new HashSet<BuildLocation>();
+        for (int i = 0; i < phases.Count; i++)
+        {
+            NPCProgressionPhase phase = phases[i];
+            if (phase == null || phase.contract == null || phase.targetBuildLocation == null ||
+                !PlayerDataManager.Instance.HasValidSavedBridge(phase.contract.name)) continue;
+
+            if (!restoredLocations.Add(phase.targetBuildLocation))
+            {
+                Debug.LogWarning(
+                    $"[NPCProgressionManager] More than one saved phase points to build location " +
+                    $"'{phase.targetBuildLocation.name}'. Only one baked bridge can own that location at a time.",
+                    this);
+                continue;
+            }
+
+            phase.targetBuildLocation.activeContract = phase.contract;
+            if (!phase.targetBuildLocation.LoadSavedBridge())
+            {
+                Debug.LogError(
+                    $"[NPCProgressionManager] Saved bridge '{phase.contract.name}' could not be reconstructed at " +
+                    $"'{phase.targetBuildLocation.name}'.", this);
+            }
+        }
     }
 
     private void OnDisable()
@@ -171,6 +214,86 @@ public class NPCProgressionManager : MonoBehaviour
         return phases.Count - 1;
     }
 
+    private bool TryRestoreSavedProgression(
+        out int resolvedIndex,
+        out bool wasTravellingWhenSaved)
+    {
+        resolvedIndex = ResolvePhaseIndexFromSave();
+        wasTravellingWhenSaved = false;
+        if (!persistProgression || PlayerDataManager.Instance == null ||
+            string.IsNullOrWhiteSpace(progressionSaveId)) return false;
+
+        if (!PlayerDataManager.Instance.TryGetNPCProgression(
+                progressionSaveId, out NPCProgressionSaveData savedState))
+        {
+            // Migrate older saves that only tracked completed contracts.
+            SaveProgressionState(resolvedIndex, false);
+            return false;
+        }
+
+        wasTravellingWhenSaved = savedState.wasTravelling;
+
+        int idMatch = FindPhaseIndexById(savedState.currentPhaseId);
+        if (idMatch >= 0)
+        {
+            resolvedIndex = idMatch;
+        }
+        else
+        {
+            resolvedIndex = Mathf.Clamp(savedState.currentPhaseIndex, 0, phases.Count - 1);
+            if (!string.IsNullOrWhiteSpace(savedState.currentPhaseId))
+            {
+                Debug.LogWarning(
+                    $"[NPCProgressionManager] Saved phase '{savedState.currentPhaseId}' no longer exists. " +
+                    $"Falling back to phase index {resolvedIndex}.", this);
+            }
+        }
+
+        return true;
+    }
+
+    private int FindPhaseIndexById(string phaseId)
+    {
+        if (string.IsNullOrWhiteSpace(phaseId)) return -1;
+
+        int match = -1;
+        for (int i = 0; i < phases.Count; i++)
+        {
+            NPCProgressionPhase phase = phases[i];
+            if (phase != null && string.Equals(phase.phaseId, phaseId,
+                    System.StringComparison.Ordinal))
+            {
+                // Duplicate IDs are not stable enough for restoration. Falling
+                // back to the stored index preserves older Inspector setups.
+                if (match >= 0)
+                {
+                    Debug.LogWarning(
+                        $"[NPCProgressionManager] Phase ID '{phaseId}' is duplicated. " +
+                        "Using the saved phase index instead.", this);
+                    return -1;
+                }
+
+                match = i;
+            }
+        }
+
+        return match;
+    }
+
+    private void SaveProgressionState(int phaseIndex, bool wasTravelling)
+    {
+        if (!persistProgression || PlayerDataManager.Instance == null ||
+            string.IsNullOrWhiteSpace(progressionSaveId) ||
+            phaseIndex < 0 || phaseIndex >= phases.Count) return;
+
+        NPCProgressionPhase phase = phases[phaseIndex];
+        PlayerDataManager.Instance.SaveNPCProgression(
+            progressionSaveId,
+            phaseIndex,
+            phase != null ? phase.phaseId : string.Empty,
+            wasTravelling);
+    }
+
     private void HandleContractCompleted(string completedContractName)
     {
         NPCProgressionPhase phase = CurrentPhase;
@@ -208,6 +331,10 @@ public class NPCProgressionManager : MonoBehaviour
 
     private IEnumerator MoveToPhaseRoutine(int nextPhaseIndex)
     {
+        // Commit the destination before the first movement frame. If the game is
+        // closed anywhere during travel, the next load snaps to this safe phase.
+        SaveProgressionState(nextPhaseIndex, true);
+
         // Lock immediately, then yield once so StartCoroutine can safely assign
         // movementRoutine before any early failure path tries to clear it.
         if (contractGiver != null)
@@ -418,6 +545,8 @@ public class NPCProgressionManager : MonoBehaviour
                 phase.linkedCargo);
             contractGiver.SetProgressionInteractionLocked(false);
         }
+
+        SaveProgressionState(phaseIndex, false);
 
         if (invokeArrivalEvent) phase.onNPCArrived?.Invoke();
     }
