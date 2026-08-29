@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Truss
   m_EditorClassIdentifier: 
   lessonId: What is Truss
-  lessonTitle: Lesson Title
+  lessonTitle: What is Truss
   lessonImage: {fileID: 21300000, guid: c7ad14becd77b714a820300c6ed3a180, type: 3}
   lessonDescription: 'If you have ever seen a bridge that looks like it is made out
     of a giant metal web or scaffolding, you are looking at a Truss bridge!

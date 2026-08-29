@@ -22,6 +22,7 @@ public class Point : MonoBehaviour
     private Renderer pointRenderer;
 
     [HideInInspector] public Vector3 preSimPos;
+    [HideInInspector] public Quaternion preSimRot;
     [HideInInspector] public Transform preSimParent;
 
     private void Awake()

@@ -14,6 +14,18 @@ public class BridgePhysicsManager : MonoBehaviour
     public int physicsSolverIterations = 40; 
     public int settleFramesAmount = 60;
 
+    [Header("Stress Sampling")]
+    [Tooltip("Number of fixed-physics samples used by the current-stress display. This is a rolling average, never a stored maximum.")]
+    [Min(1)] public int stressSmoothingFrames = 10;
+    [Tooltip("Ignores tiny endpoint-length changes when deciding whether a bar is in tension or compression.")]
+    [Min(0f)] public float stressDirectionDeadZone = 0.0005f;
+    [Tooltip("Shows load added after the dead-load settling phase. Failure and peak-stress checks still use total structural stress.")]
+    public bool displayLiveLoadStressOnly = true;
+    [Tooltip("Snaps force readings back to their settled dead-load value inside this relative tolerance, removing PhysX resting jitter.")]
+    [Range(0f, 0.25f)] public float deadLoadReturnTolerance = 0.02f;
+    [Tooltip("Minimum force tolerance, in Newtons, used when returning to the settled dead-load value.")]
+    [Min(0f)] public float deadLoadReturnToleranceNewtons = 1f;
+
     [Header("Stress Visualizer Colors")]
     public bool enableVisualizer = true;
     public Color warningColor = Color.yellow;
@@ -37,6 +49,10 @@ public class BridgePhysicsManager : MonoBehaviour
     private int currentSettleFrame = 0;
 
     private PhysicMaterial sharedRoadPhysicsMat;
+    private bool deterministicPhysicsOverridesApplied;
+    private bool previousAutoSyncTransforms;
+    private int previousSolverIterations;
+    private int previousSolverVelocityIterations;
 
     // --- Deterministic Spatial Comparers ---
     private class SpatialPointComparer : IComparer<Point>
@@ -114,6 +130,8 @@ public class BridgePhysicsManager : MonoBehaviour
 
     private void OnDestroy()
     {
+        RestoreGlobalPhysicsSettings();
+
         if (GameManager.Instance != null)
         {
             GameManager.Instance.OnEnterBuildMode.RemoveListener(HandleEnterBuildMode);
@@ -135,7 +153,11 @@ public class BridgePhysicsManager : MonoBehaviour
                     if (bar != null && !bar.materialData.isPier)
                     {
                         Rigidbody rb = bar.GetComponent<Rigidbody>();
-                        if (rb != null) rb.isKinematic = false;
+                        if (rb != null)
+                        {
+                            rb.isKinematic = false;
+                            rb.WakeUp();
+                        }
                     }
                 }
 
@@ -144,7 +166,11 @@ public class BridgePhysicsManager : MonoBehaviour
                     if (p != null && !p.isAnchor)
                     {
                         Rigidbody rb = p.GetComponent<Rigidbody>();
-                        if (rb != null) rb.isKinematic = false;
+                        if (rb != null)
+                        {
+                            rb.isKinematic = false;
+                            rb.WakeUp();
+                        }
                     }
                 }
 
@@ -180,7 +206,8 @@ public class BridgePhysicsManager : MonoBehaviour
                 handler.EvaluateStress(); 
                 
                 if (handler.isBroken) currentMax = 1f;
-                else if (handler.currentStressPercent > currentMax) currentMax = handler.currentStressPercent;
+                else if (handler.currentStructuralStressPercent > currentMax)
+                    currentMax = handler.currentStructuralStressPercent;
             }
 
             if (currentMax > peakStressThisRun)
@@ -258,6 +285,7 @@ public class BridgePhysicsManager : MonoBehaviour
         foreach (Point p in deterministicPoints)
         {
             p.preSimPos = p.transform.position;
+            p.preSimRot = p.transform.rotation;
             p.preSimParent = p.transform.parent;
 
             Renderer r = p.GetComponentInChildren<Renderer>();
@@ -273,14 +301,13 @@ public class BridgePhysicsManager : MonoBehaviour
             b.preSimRot = b.transform.rotation;
         }
 
-        Physics.autoSyncTransforms = true;
-        Physics.defaultSolverIterations = physicsSolverIterations;
-        Physics.defaultSolverVelocityIterations = 20;
+        ApplyDeterministicPhysicsSettings();
         Physics.SyncTransforms();
 
         SetupBarsPhysics(deterministicBars);
         SetupDirectConnections(deterministicBars, deterministicPoints);
-        ResolveAdjacentCollisions(deterministicBars); 
+        ResolveAdjacentCollisions(deterministicBars);
+        ResetPhysicsState();
 
         needsPhysicsRelease = true;
         currentSettleFrame = 0;
@@ -323,7 +350,7 @@ public class BridgePhysicsManager : MonoBehaviour
 
             p.transform.SetParent(p.preSimParent);
             p.transform.position = p.preSimPos;
-            p.transform.rotation = Quaternion.identity; 
+            p.transform.rotation = p.preSimRot;
 
             Renderer r = p.GetComponentInChildren<Renderer>();
             if (r != null) r.enabled = isCurrentlyBuilding && p.gameObject.activeSelf;
@@ -381,6 +408,75 @@ public class BridgePhysicsManager : MonoBehaviour
         simBars.Clear();
         deterministicPoints.Clear();
         deterministicBars.Clear();
+
+        Physics.SyncTransforms();
+        RestoreGlobalPhysicsSettings();
+    }
+
+    private void ApplyDeterministicPhysicsSettings()
+    {
+        if (!deterministicPhysicsOverridesApplied)
+        {
+            previousAutoSyncTransforms = Physics.autoSyncTransforms;
+            previousSolverIterations = Physics.defaultSolverIterations;
+            previousSolverVelocityIterations = Physics.defaultSolverVelocityIterations;
+            deterministicPhysicsOverridesApplied = true;
+        }
+
+        // Setup transform changes are synchronized explicitly. Avoiding implicit
+        // sync points keeps physics setup independent from render-frame timing.
+        Physics.autoSyncTransforms = false;
+        Physics.defaultSolverIterations = Mathf.Max(1, physicsSolverIterations);
+        Physics.defaultSolverVelocityIterations = 20;
+    }
+
+    private void RestoreGlobalPhysicsSettings()
+    {
+        if (!deterministicPhysicsOverridesApplied) return;
+
+        Physics.autoSyncTransforms = previousAutoSyncTransforms;
+        Physics.defaultSolverIterations = previousSolverIterations;
+        Physics.defaultSolverVelocityIterations = previousSolverVelocityIterations;
+        deterministicPhysicsOverridesApplied = false;
+    }
+
+    /// <summary>
+    /// Clears dynamic state only from the bridge bodies participating in the
+    /// current simulation. Do not replace this with FindObjectsOfType<Rigidbody>:
+    /// that would also reset the player, NPCs, vehicles, and world props.
+    /// </summary>
+    public void ResetPhysicsState()
+    {
+        HashSet<Rigidbody> simulationBodies = new HashSet<Rigidbody>();
+
+        foreach (Bar bar in deterministicBars)
+        {
+            if (bar == null) continue;
+            foreach (Rigidbody body in bar.GetComponentsInChildren<Rigidbody>(true))
+                if (body != null) simulationBodies.Add(body);
+        }
+
+        foreach (Point point in deterministicPoints)
+        {
+            if (point == null) continue;
+            foreach (Rigidbody body in point.GetComponentsInChildren<Rigidbody>(true))
+                if (body != null) simulationBodies.Add(body);
+        }
+
+        foreach (Rigidbody body in simulationBodies)
+        {
+            // All bridge bodies are deliberately held kinematic until the first
+            // controlled fixed tick, so no force can leak into the new run.
+            body.isKinematic = true;
+            body.position = body.transform.position;
+            body.rotation = body.transform.rotation;
+            body.velocity = Vector3.zero;
+            body.angularVelocity = Vector3.zero;
+            body.ResetInertiaTensor();
+            body.Sleep();
+        }
+
+        Physics.SyncTransforms();
     }
 
     public void BakeBridge(ContractSO contract = null)
@@ -501,6 +597,8 @@ public class BridgePhysicsManager : MonoBehaviour
         simBars.Clear();
         deterministicPoints.Clear();
         deterministicBars.Clear();
+
+        RestoreGlobalPhysicsSettings();
 
         if (DynamicNavMeshUpdater.Instance != null)
             DynamicNavMeshUpdater.Instance.UpdateWalkableNavMeshForLocation(targetLoc);
@@ -818,13 +916,16 @@ public class BarStressHandler : MonoBehaviour
     private SpringJoint ropeJoint; 
     
     [HideInInspector] public bool isBroken = false;
-    [HideInInspector] public float currentStressPercent = 0f; 
+    [HideInInspector] public float currentStressPercent = 0f;
+    [HideInInspector] public float currentStructuralStressPercent = 0f;
     
     private float smoothedForce = 0f;
+    private float settledDeadLoadForce = 0f;
     private bool canTrackStress = false; 
+    private bool isCurrentlyInTension;
 
     private Queue<float> forceHistory = new Queue<float>();
-    private int smoothingFrames = 15; 
+    private int smoothingFrames = 10;
 
     private Renderer[] childRenderers;
     private Color[] originalColors;
@@ -836,8 +937,10 @@ public class BarStressHandler : MonoBehaviour
         p1 = point1;
         p2 = point2;
         myBar = GetComponent<Bar>();
+        smoothingFrames = manager != null ? Mathf.Max(1, manager.stressSmoothingFrames) : 10;
         
         restLength = Vector3.Distance(p1.transform.position, p2.transform.position);
+        isCurrentlyInTension = false;
 
         childRenderers = GetComponentsInChildren<Renderer>();
         originalColors = new Color[childRenderers.Length];
@@ -861,11 +964,19 @@ public class BarStressHandler : MonoBehaviour
     public void BeginTracking()
     {
         canTrackStress = true;
-        smoothedForce = 0f; 
+        CacheJointsIfNeeded();
+
+        // The bridge has already settled for BridgePhysicsManager.settleFramesAmount
+        // fixed steps. Capture that force separately so the UI can show only the
+        // vehicle's added live load while failure checks retain the total load.
+        settledDeadLoadForce = ReadCurrentForce();
+        smoothedForce = settledDeadLoadForce;
         currentStressPercent = 0f;
+        currentStructuralStressPercent = 0f;
         
         forceHistory.Clear();
-        for (int i = 0; i < smoothingFrames; i++) forceHistory.Enqueue(0f);
+        for (int i = 0; i < smoothingFrames; i++)
+            forceHistory.Enqueue(settledDeadLoadForce);
     }
 
     private void OnDestroy()
@@ -887,32 +998,23 @@ public class BarStressHandler : MonoBehaviour
             myBar.UpdateCreatingBar(p2.transform.position);
         }
 
-        if (!material.isRope && (joints == null || joints.Length == 0))
-        {
-            joints = GetComponents<Joint>();
-            if (joints == null || joints.Length == 0) return; 
-        }
+        CacheJointsIfNeeded();
+        if (!material.isRope && (joints == null || joints.Length == 0)) return;
 
         float currentLength = Vector3.Distance(p1.transform.position, p2.transform.position);
-        bool isTension = currentLength > restLength; 
-        float maxForceThisFrame = 0f;
+        float lengthDelta = currentLength - restLength;
+        float directionDeadZone = manager != null ? manager.stressDirectionDeadZone : 0.0005f;
+
+        // Retain the previous state inside the dead zone. Without hysteresis,
+        // microscopic solver jitter can swap dissimilar tension/compression limits.
+        if (lengthDelta > directionDeadZone) isCurrentlyInTension = true;
+        else if (lengthDelta < -directionDeadZone) isCurrentlyInTension = false;
+
+        bool isTension = isCurrentlyInTension;
+        float maxForceThisFrame = ReadCurrentForce();
         
         Joint breakingJoint = null;
         string breakCause = "";
-
-        if (material.isRope)
-        {
-            if (ropeJoint != null) maxForceThisFrame = ropeJoint.currentForce.magnitude;
-        }
-        else
-        {
-            foreach (Joint joint in joints)
-            {
-                if (joint == null) continue;
-                float forceMag = joint.currentForce.magnitude;
-                if (forceMag > maxForceThisFrame) maxForceThisFrame = forceMag;
-            }
-        }
 
         forceHistory.Enqueue(maxForceThisFrame);
         if (forceHistory.Count > smoothingFrames) forceHistory.Dequeue();
@@ -920,10 +1022,18 @@ public class BarStressHandler : MonoBehaviour
         float totalForce = 0f;
         foreach (float f in forceHistory) totalForce += f;
         
-        // --- THE FIX: Pure Smooth Averaging ---
-        // We calculate the clean mathematical average without applying harsh 10/50 rounding bounds.
         float averagedForce = totalForce / forceHistory.Count;
-        smoothedForce = averagedForce; 
+
+        float relativeTolerance = manager != null ? manager.deadLoadReturnTolerance : 0.02f;
+        float minimumTolerance = manager != null ? manager.deadLoadReturnToleranceNewtons : 1f;
+        float returnTolerance = Mathf.Max(minimumTolerance, settledDeadLoadForce * relativeTolerance);
+
+        // PhysX resting contacts can fluctuate slightly forever. Snap only values
+        // already within a narrow band of the calibrated dead load; real residual
+        // deformation or oscillation is deliberately not hidden.
+        smoothedForce = Mathf.Abs(averagedForce - settledDeadLoadForce) <= returnTolerance
+            ? settledDeadLoadForce
+            : averagedForce;
 
         if (material.isRope)
         {
@@ -950,13 +1060,20 @@ public class BarStressHandler : MonoBehaviour
         float stressLimit = isTension ? material.maxTension : material.maxCompression;
         if (stressLimit <= 0f) stressLimit = 1f; 
 
+        float totalStructuralForce = material.isRope && !isTension ? 0f : smoothedForce;
+        currentStructuralStressPercent =
+            Mathf.Round((totalStructuralForce / stressLimit) * 100f) / 100f;
+
         if (material.isRope && !isTension) 
         {
             currentStressPercent = 0f; 
         }
         else 
         {
-            float rawPercent = smoothedForce / stressLimit;
+            float displayedForce = manager != null && manager.displayLiveLoadStressOnly
+                ? Mathf.Max(0f, smoothedForce - settledDeadLoadForce)
+                : smoothedForce;
+            float rawPercent = displayedForce / stressLimit;
             currentStressPercent = Mathf.Round(rawPercent * 100f) / 100f;
         }
 
@@ -969,6 +1086,31 @@ public class BarStressHandler : MonoBehaviour
         {
             BreakBar(breakCause, smoothedForce, breakingJoint);
         }
+    }
+
+    private void CacheJointsIfNeeded()
+    {
+        if (material != null && !material.isRope && (joints == null || joints.Length == 0))
+            joints = GetComponents<Joint>();
+    }
+
+    private float ReadCurrentForce()
+    {
+        if (material == null) return 0f;
+
+        if (material.isRope)
+            return ropeJoint != null ? ropeJoint.currentForce.magnitude : 0f;
+
+        float maximumForce = 0f;
+        if (joints == null) return maximumForce;
+
+        foreach (Joint joint in joints)
+        {
+            if (joint == null) continue;
+            maximumForce = Mathf.Max(maximumForce, joint.currentForce.magnitude);
+        }
+
+        return maximumForce;
     }
 
     private void UpdateStressVisuals()
@@ -996,7 +1138,8 @@ public class BarStressHandler : MonoBehaviour
     {
         if (isBroken) return;
         isBroken = true;
-        currentStressPercent = 1f; 
+        currentStressPercent = 1f;
+        currentStructuralStressPercent = 1f;
 
         if (brokenJoint != null) Destroy(brokenJoint);
         

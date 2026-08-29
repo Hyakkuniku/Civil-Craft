@@ -326,7 +326,13 @@ public class LiveLoadVehicle : Interactable
         if (GameManager.Instance != null && assignedContract != null && GameManager.Instance.CurrentContract != assignedContract) return;
         
         rb.isKinematic = false;
-        foreach (var w in wheels) if (w.rb != null) w.rb.isKinematic = false;
+        rb.WakeUp();
+        foreach (var w in wheels)
+        {
+            if (w.rb == null) continue;
+            w.rb.isKinematic = false;
+            w.rb.WakeUp();
+        }
         
         isBrakingAtFinish = false;
         settledAtFinishTimer = 0f;
