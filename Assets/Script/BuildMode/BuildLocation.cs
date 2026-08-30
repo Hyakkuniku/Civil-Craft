@@ -582,17 +582,21 @@ public class BuildLocation : Interactable
                     for (int i = 0; i < spawnCount; i++)
                     {
                         BoxCollider col = newBar.gameObject.AddComponent<BoxCollider>();
-                        float thickness = mat.isRoad ? 0.05f : 0.2f; 
+                        float thickness = mat.isRoad ? 0.12f : 0.2f;
                         float depth = newBar.visualSize.z; 
 
-                        if (!mat.isDualBeam && depth < 2.0f) depth = 2.0f; 
+                        if (mat.isRoad && depth < 2.4f) depth = 2.4f;
+                        else if (!mat.isDualBeam && depth < 2.0f) depth = 2.0f;
                         else if (mat.isDualBeam && depth < 0.2f) depth = 0.2f;
 
                         float zOffsetValue = mat.isDualBeam ? ((i == 0) ? mat.zOffset : -mat.zOffset) : 0f;
-                        float physicsLength = length + 0.05f; 
+                        float physicsLength = length + (mat.isRoad ? 0.2f : 0.05f);
                         
                         col.size = new Vector3(physicsLength, thickness, depth);
-                        col.center = new Vector3(0, 0, zOffsetValue);
+                        col.center = new Vector3(
+                            0f,
+                            mat.isRoad ? 0.025f - thickness * 0.5f : 0f,
+                            zOffsetValue);
                     }
                 }
             }

@@ -10,6 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 4156907150165446014}
   - component: {fileID: 3664463398387174561}
+  - component: {fileID: 801256713450010001}
   m_Layer: 8
   m_Name: Point 1
   m_TagString: Untagged
@@ -57,6 +58,32 @@ MonoBehaviour:
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
+--- !u!114 &801256713450010001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2422477481410238689}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7c0e8b1d3f624a48a9f5c7612dbe4301, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  autoSnapWhenMoved: 0
+  configureDroppedInstanceAsAnchor: 1
+  surfaceLayers:
+    serializedVersion: 2
+    m_Bits: 3072
+  horizontalSearchRadius: 3
+  sampleSpacing: 0.1
+  minimumEdgeDrop: 0.75
+  edgeRefinementSteps: 10
+  rayStartHeight: 10
+  rayDistance: 50
+  edgeInsetOntoLand: 0.02
+  roadSurfaceAboveAnchor: 0.025
+  matchSiblingAnchorHeight: 1
 --- !u!1 &2698180583655231422
 GameObject:
   m_ObjectHideFlags: 0

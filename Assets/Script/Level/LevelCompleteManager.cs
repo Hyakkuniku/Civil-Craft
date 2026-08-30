@@ -238,7 +238,7 @@ public class LevelCompleteManager : MonoBehaviour
         if (alreadyPaidContracts.Contains(contractName)) return true;
 
         if (PlayerDataManager.Instance != null &&
-            PlayerDataManager.Instance.IsContractCompleted(contractName))
+            PlayerDataManager.Instance.HasContractCompletionRecord(contractName))
         {
             return true;
         }

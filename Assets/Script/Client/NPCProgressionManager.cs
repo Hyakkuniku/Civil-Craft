@@ -90,11 +90,67 @@ public class NPCProgressionManager : MonoBehaviour
     private bool savedAgentUpdateRotation;
 
     public int CurrentPhaseIndex => currentPhaseIndex;
+    public int PhaseCount => phases != null ? phases.Count : 0;
     public bool IsTravelling => movementRoutine != null;
     public NPCProgressionPhase CurrentPhase =>
         currentPhaseIndex >= 0 && currentPhaseIndex < phases.Count
             ? phases[currentPhaseIndex]
             : null;
+
+    public string GetPhaseDisplayName(int phaseIndex)
+    {
+        if (phases == null || phaseIndex < 0 || phaseIndex >= phases.Count)
+            return $"Phase {phaseIndex}";
+
+        NPCProgressionPhase phase = phases[phaseIndex];
+        if (phase == null) return $"Phase {phaseIndex}: Missing";
+
+        string label = string.IsNullOrWhiteSpace(phase.phaseId)
+            ? $"Phase {phaseIndex}"
+            : phase.phaseId;
+        string contractName = phase.contract != null ? phase.contract.name : "No Contract";
+        return $"{phaseIndex}: {label} - {contractName}";
+    }
+
+    /// <summary>
+    /// Developer-menu entry point. Stops travel, snaps to the phase target, and
+    /// configures the existing NPCContractGiver as though that phase was reached.
+    /// </summary>
+    public bool DebugWarpToPhase(int phaseIndex)
+    {
+        if (phases == null || phaseIndex < 0 || phaseIndex >= phases.Count ||
+            phases[phaseIndex] == null || phases[phaseIndex].targetLocation == null)
+        {
+            return false;
+        }
+
+        if (movementRoutine != null)
+        {
+            StopCoroutine(movementRoutine);
+            movementRoutine = null;
+        }
+
+        RestoreAgentAfterLinkTraversal(false);
+        if (navMeshAgent != null && navMeshAgent.enabled && navMeshAgent.isOnNavMesh)
+        {
+            navMeshAgent.isStopped = true;
+            navMeshAgent.ResetPath();
+        }
+
+        SetWalkingAnimation(false);
+        if (!PlaceAtPhase(phaseIndex)) return false;
+
+        ContractSO phaseContract = phases[phaseIndex].contract;
+        if (phaseContract != null)
+        {
+            PlayerPrefs.DeleteKey("LockedContract_" + phaseContract.name);
+            PlayerPrefs.Save();
+        }
+
+        invokedInteractionPhases.Remove(phaseIndex);
+        ActivatePhase(phaseIndex, true);
+        return true;
+    }
 
     private void Awake()
     {

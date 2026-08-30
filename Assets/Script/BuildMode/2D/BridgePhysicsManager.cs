@@ -5,6 +5,9 @@ using UnityEngine;
 [DefaultExecutionOrder(-50)] 
 public class BridgePhysicsManager : MonoBehaviour
 {
+    /// <summary>Development-menu override. Normal gameplay must leave this false.</summary>
+    public static bool DebugInvincibleBridge { get; set; }
+
     public event Action OnSettlePhaseStarted;
     public event Action OnSimulationStarted;
     public event Action OnSimulationStopped;
@@ -13,6 +16,16 @@ public class BridgePhysicsManager : MonoBehaviour
     public float barColliderThickness = 0.2f;
     public int physicsSolverIterations = 40; 
     public int settleFramesAmount = 60;
+
+    [Header("Finalized Road Collision")]
+    [Tooltip("Permanent physical thickness of a saved road. This collider supports CharacterControllers even if NavMesh rebuilding fails.")]
+    [Min(0.02f)] [SerializeField] private float bakedRoadColliderThickness = 0.12f;
+    [Tooltip("Permanent physical width of a saved road. Keep this wider than the player's CharacterController diameter.")]
+    [Min(0.1f)] [SerializeField] private float bakedRoadColliderWidth = 2.4f;
+    [Tooltip("Collective endpoint overlap used to prevent physical seams between neighboring saved road bars.")]
+    [Min(0f)] [SerializeField] private float bakedRoadColliderSeamOverlap = 0.2f;
+    [Tooltip("Local height of the road's visible top surface before the permanent collider is thickened.")]
+    [SerializeField] private float bakedRoadVisualTop = 0.025f;
 
     [Header("Stress Sampling")]
     [Tooltip("Number of fixed-physics samples used by the current-stress display. This is a rolling average, never a stored maximum.")]
@@ -630,6 +643,7 @@ public class BridgePhysicsManager : MonoBehaviour
             foreach (var j in b.GetComponentsInChildren<Joint>()) Destroy(j);
             foreach (var rb in b.GetComponentsInChildren<Rigidbody>()) Destroy(rb);
             if (b.GetComponent<BarStressHandler>() != null) Destroy(b.GetComponent<BarStressHandler>());
+            EnsurePermanentBakedRoadCollider(b);
             b.enabled = false; 
             targetLoc.bakedBars.Add(b); 
         }
@@ -643,12 +657,53 @@ public class BridgePhysicsManager : MonoBehaviour
         deterministicBars.Clear();
 
         RestoreGlobalPhysicsSettings();
+        Physics.SyncTransforms();
 
         if (DynamicNavMeshUpdater.Instance != null)
             DynamicNavMeshUpdater.Instance.UpdateWalkableNavMeshForLocation(targetLoc);
 
         OnSimulationStopped?.Invoke();
         return true;
+    }
+
+    private void EnsurePermanentBakedRoadCollider(Bar bar)
+    {
+        if (bar == null || bar.materialData == null || !bar.materialData.isRoad ||
+            bar.startPoint == null || bar.endPoint == null) return;
+
+        BoxCollider[] existingColliders = bar.GetComponents<BoxCollider>();
+        BoxCollider roadCollider = existingColliders.Length > 0
+            ? existingColliders[0]
+            : bar.gameObject.AddComponent<BoxCollider>();
+
+        // Remove redundant parent road colliders left by an earlier simulation.
+        for (int i = 1; i < existingColliders.Length; i++)
+        {
+            if (existingColliders[i] != null)
+            {
+                existingColliders[i].enabled = false;
+                Destroy(existingColliders[i]);
+            }
+        }
+
+        float length = Vector3.Distance(
+            bar.startPoint.transform.position,
+            bar.endPoint.transform.position);
+
+        roadCollider.size = new Vector3(
+            Mathf.Max(0.05f, length + bakedRoadColliderSeamOverlap),
+            bakedRoadColliderThickness,
+            Mathf.Max(bakedRoadColliderWidth, bar.visualSize.z));
+        roadCollider.center = new Vector3(
+            0f,
+            bakedRoadVisualTop - bakedRoadColliderThickness * 0.5f,
+            0f);
+        roadCollider.isTrigger = false;
+        roadCollider.enabled = true;
+        roadCollider.material = sharedRoadPhysicsMat;
+
+        int bridgeLayer = LayerMask.NameToLayer("Bridge");
+        if (bridgeLayer >= 0) bar.gameObject.layer = bridgeLayer;
     }
 
     public float GetMaxBridgeStress()
@@ -1127,7 +1182,7 @@ public class BarStressHandler : MonoBehaviour
             UpdateStressVisuals();
         }
 
-        if (breakingJoint != null && !isBroken)
+        if (breakingJoint != null && !isBroken && !BridgePhysicsManager.DebugInvincibleBridge)
         {
             BreakBar(breakCause, smoothedForce, breakingJoint);
         }

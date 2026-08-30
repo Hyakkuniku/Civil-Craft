@@ -52,7 +52,7 @@ public class ContractSO : ScriptableObject
     {
         return isTutorialContract &&
                PlayerDataManager.Instance != null &&
-               PlayerDataManager.Instance.IsContractCompleted(name);
+               PlayerDataManager.Instance.HasContractCompletionRecord(name);
     }
 
     [Header("NPC & Reward Settings")]

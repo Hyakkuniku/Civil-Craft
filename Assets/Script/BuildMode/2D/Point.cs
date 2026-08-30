@@ -83,6 +83,25 @@ public class Point : MonoBehaviour
 
     private void Update()
     {
+        AnchorEdgeSnap edgeSnap = GetComponent<AnchorEdgeSnap>();
+        if (transform.hasChanged && edgeSnap != null)
+        {
+            if (edgeSnap.ControlsEditorPlacement)
+            {
+                edgeSnap.HandleEditorTransformChanged();
+                return;
+            }
+
+            // A Point 1 prefab may contain the optional edge authoring helper.
+            // Existing tutorial anchors must not fall through to legacy integer
+            // snapping, because their baked ghost coordinates are exact.
+            if (edgeSnap.PreservesExistingAnchorPlacement)
+            {
+                transform.hasChanged = false;
+                return;
+            }
+        }
+
         if (!Runtime && transform.hasChanged)
         {
             transform.hasChanged = false;

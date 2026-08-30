@@ -301,6 +301,20 @@ public class PlayerDataManager : MonoBehaviour
                HasValidSavedBridge(contractName);
     }
 
+    /// <summary>
+    /// Returns whether this player has ever successfully completed the contract.
+    /// Unlike IsContractCompleted, this deliberately remains true while the
+    /// player deletes/replaces the saved bridge during a redesign. Progression
+    /// gates such as tutorial retirement must use this historical record.
+    /// </summary>
+    public bool HasContractCompletionRecord(string contractName)
+    {
+        return CurrentData != null &&
+               CurrentData.completedContracts != null &&
+               !string.IsNullOrWhiteSpace(contractName) &&
+               CurrentData.completedContracts.Contains(contractName.Trim());
+    }
+
     public bool HasAnyCompletedContract()
     {
         return CurrentData != null && CurrentData.completedContracts != null &&

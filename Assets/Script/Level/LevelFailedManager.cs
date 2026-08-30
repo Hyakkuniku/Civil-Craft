@@ -94,7 +94,8 @@ public class LevelFailedManager : MonoBehaviour
                 }
             }
 
-            if (physicsManager.peakStressThisRun >= stressThreshold)
+            if (!BridgePhysicsManager.DebugInvincibleBridge &&
+                physicsManager.peakStressThisRun >= stressThreshold)
             {
                 InitiateFailure(stressFailReason);
                 return; 
@@ -137,13 +138,18 @@ public class LevelFailedManager : MonoBehaviour
     private void ShowFailScreen(string failureReason)
     {
         bool isTutorial = false;
+        bool isCompletedContractRedesign = false;
         
         if (GameManager.Instance != null && GameManager.Instance.CurrentContract != null)
         {
-            isTutorial = GameManager.Instance.CurrentContract.IsTutorialForCurrentPlayer();
+            ContractSO contract = GameManager.Instance.CurrentContract;
+            isTutorial = contract.IsTutorialForCurrentPlayer();
+            isCompletedContractRedesign = PlayerDataManager.Instance != null &&
+                PlayerDataManager.Instance.HasContractCompletionRecord(contract.name);
         }
 
-        if (!isTutorial)
+        bool shouldApplyPenalty = !isTutorial && !isCompletedContractRedesign;
+        if (shouldApplyPenalty)
         {
             currentFailCount++;
         }
@@ -191,6 +197,10 @@ public class LevelFailedManager : MonoBehaviour
             if (isTutorial)
             {
                 penaltyText.text = ""; 
+            }
+            else if (isCompletedContractRedesign)
+            {
+                penaltyText.text = "<color=green>No penalty:</color> this contract was already completed.";
             }
             else
             {
