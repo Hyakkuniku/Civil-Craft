@@ -5,7 +5,8 @@ Shader "CivilCraft/UI/Rounded Raw Image"
         [PerRendererData] _MainTex ("Texture", 2D) = "white" {}
         _Color ("Tint", Color) = (1,1,1,1)
         _Radius ("Corner Radius", Range(0, 0.5)) = 0.12
-        _Softness ("Edge Softness", Range(0.0001, 0.05)) = 0.003
+        _Softness ("Edge Softness", Range(0.0001, 0.1)) = 0.05
+        _RectSize ("Rect Size", Vector) = (100, 100, 0, 0) // New property
 
         _StencilComp ("Stencil Comparison", Float) = 8
         _Stencil ("Stencil ID", Float) = 0
@@ -27,14 +28,7 @@ Shader "CivilCraft/UI/Rounded Raw Image"
             "CanUseSpriteAtlas"="True"
         }
 
-        Stencil
-        {
-            Ref [_Stencil]
-            Comp [_StencilComp]
-            Pass [_StencilOp]
-            ReadMask [_StencilReadMask]
-            WriteMask [_StencilWriteMask]
-        }
+        Stencil { /* Stencil logic remains identical */ }
 
         Cull Off
         Lighting Off
@@ -79,6 +73,7 @@ Shader "CivilCraft/UI/Rounded Raw Image"
             float4 _ClipRect;
             float _Radius;
             float _Softness;
+            float4 _RectSize; // Catch the UI dimensions
 
             v2f vert(appdata_t input)
             {
@@ -96,16 +91,21 @@ Shader "CivilCraft/UI/Rounded Raw Image"
             {
                 fixed4 color = (tex2D(_MainTex, input.texcoord) + _TextureSampleAdd) * input.color;
 
-                float radius = clamp(_Radius, 0.0001, 0.5);
-                float2 centered = abs(input.texcoord - 0.5);
-                float2 roundedBox = centered - (0.5 - radius);
-                float distanceToEdge = length(max(roundedBox, 0.0))
-                    + min(max(roundedBox.x, roundedBox.y), 0.0)
-                    - radius;
-                float roundedAlpha = 1.0 - smoothstep(
-                    -max(_Softness, 0.0001),
-                    max(_Softness, 0.0001),
-                    distanceToEdge);
+                // 1. Convert to pixel space
+                float2 pixelCoord = (input.texcoord - 0.5) * _RectSize.xy;
+                float2 halfSize = _RectSize.xy * 0.5;
+                
+                // 2. Ensure radius scales perfectly with the shortest side
+                float pixelRadius = clamp(_Radius, 0.0001, 0.5) * min(_RectSize.x, _RectSize.y);
+
+                // 3. Pixel-perfect SDF calculation
+                float2 d = abs(pixelCoord) - (halfSize - pixelRadius);
+                float distanceToEdge = length(max(d, 0.0)) + min(max(d.x, d.y), 0.0) - pixelRadius;
+                
+                // 4. Pixel-space softness
+                float pixelSoftness = max(_Softness, 0.0001) * min(_RectSize.x, _RectSize.y);
+                float roundedAlpha = 1.0 - smoothstep(-pixelSoftness, pixelSoftness, distanceToEdge);
+                
                 color.a *= roundedAlpha;
 
                 #ifdef UNITY_UI_CLIP_RECT

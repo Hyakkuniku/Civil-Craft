@@ -34,6 +34,24 @@ public class ContractSO : ScriptableObject
 {
     public enum WinCondition { FinishLine, Timer }
 
+    public enum ContractMap
+    {
+        [InspectorName("CANYON CROSSING")]
+        CanyonCrossing,
+        [InspectorName("TOWN RIVER")]
+        TownRiver,
+        [InspectorName("INDUSTRIAL ZONE")]
+        IndustrialZone
+    }
+
+    [Header("Map Progression")]
+    [Tooltip("The world map this contract belongs to. Used by map-completion achievements.")]
+    public ContractMap contractMap = ContractMap.CanyonCrossing;
+    [Tooltip("Turn this off for test, optional, or repeatable contracts that should not count toward finishing a map.")]
+    public bool countsTowardMapAchievements = true;
+    [Tooltip("Checked = Story Mode contract. Unchecked = Side contract.")]
+    public bool isStoryModeContract = true;
+
     [Header("Tutorial Settings")]
     [Tooltip("If checked, any materials NOT on the Allowed list will be completely hidden instead of grayed out.")]
     public bool isTutorialContract = false;

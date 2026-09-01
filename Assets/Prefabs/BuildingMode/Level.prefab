@@ -1611,6 +1611,10 @@ MonoBehaviour:
   diveDuration: 1.2
   lockPlayerToZone: 0
   activeContract: {fileID: 0}
+  completionAchievement: {fileID: 0}
+  hideWhenAnotherBuildLocationIsActive: 1
+  buildSiteVisualRoots: []
+  includeOwnedBridgeObjectsInIsolation: 1
   navigationTarget: {fileID: 7148531682003080033}
   advancesTutorial: 1
   onEnterBuildModeTutorial: {fileID: 0}

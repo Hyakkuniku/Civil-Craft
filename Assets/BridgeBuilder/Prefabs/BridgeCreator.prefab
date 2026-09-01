@@ -552,6 +552,9 @@ MonoBehaviour:
   pointToInstantiate: {fileID: 2422477481410238689, guid: f4ace0a8cb9406c4eaf0671f09ad3a39,
     type: 3}
   pointParent: {fileID: 4266503104923221931}
+  placeBarSfxId: PlaceBar
+  magnifyingGlass: {fileID: 0}
+  showMagnifierWhileDrawing: 1
   activeMaterial: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
   isGridSnappingEnabled: 1
   isDeleteMode: 0
@@ -566,6 +569,7 @@ MonoBehaviour:
   pierBaseY: -10
   deleteSnapRadiusPixels: 50
   nodeSnapRadiusWorld: 1.2
+  nodeSnapDepthTolerance: 1
   radiusIndicator: {fileID: 3266573539776685830}
   circleResolution: 50
   circleLineWidth: 0.05

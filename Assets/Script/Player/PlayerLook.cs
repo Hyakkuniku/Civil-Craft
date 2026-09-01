@@ -29,9 +29,12 @@ public class PlayerLook : MonoBehaviour
     private float yaw = 0f;
     private float pitch = 15f; // Start looking slightly down
     private float currentDistance;
+    private float sensitivityMultiplier = 1f;
+    private bool invertLookY;
 
     private void Start()
     {
+        ApplySavedCameraSettings();
         currentDistance = defaultDistance;
         
         // Fallback if target is missing
@@ -52,9 +55,16 @@ public class PlayerLook : MonoBehaviour
         float mouseY = input.y;
 
         // Calculate Orbit Angles
-        yaw += (mouseX * Time.deltaTime) * xSensitivity;
-        pitch -= (mouseY * Time.deltaTime) * ySensitivity;
+        yaw += (mouseX * Time.deltaTime) * xSensitivity * sensitivityMultiplier;
+        float verticalDirection = invertLookY ? 1f : -1f;
+        pitch += (mouseY * Time.deltaTime) * ySensitivity * sensitivityMultiplier * verticalDirection;
         pitch = Mathf.Clamp(pitch, minPitch, maxPitch);
+    }
+
+    public void ApplySavedCameraSettings()
+    {
+        sensitivityMultiplier = Mathf.Clamp(PlayerPrefs.GetFloat("CameraSensitivity", 1f), 0.5f, 2f);
+        invertLookY = PlayerPrefs.GetInt("InvertLookY", 0) == 1;
     }
 
     private void LateUpdate()

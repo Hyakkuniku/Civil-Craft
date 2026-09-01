@@ -78,6 +78,14 @@ public class LiveLoadVehicle : Interactable
     private float currentMotorSpeed = 0f;
     private PhysicMaterial wheelMat; 
     private bool isInspectionWindowOpen;
+    private bool inspectionUsesPanelCoordinator;
+    private static LiveLoadVehicle activeInspectionVehicle;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetInspectionSession()
+    {
+        activeInspectionVehicle = null;
+    }
 
     private class WheelData
     {
@@ -220,6 +228,9 @@ public class LiveLoadVehicle : Interactable
 
     private void OnDestroy()
     {
+        if (activeInspectionVehicle == this)
+            activeInspectionVehicle = null;
+
         if (physicsManager != null)
         {
             physicsManager.OnSettlePhaseStarted -= HandleSettlePhaseStarted;
@@ -360,19 +371,36 @@ public class LiveLoadVehicle : Interactable
 
         if (vehicleInfoPanel != null)
         {
+            // Multiple vehicles can intentionally share one inspection panel. The
+            // panel's serialized Close button may point at Vehicle 1, so remember
+            // which vehicle actually opened it and route Close to that instance.
+            activeInspectionVehicle = this;
+
             if (vehicleNameText != null) vehicleNameText.text = vehicleName;
             
             float displayWeight = assignedContract != null ? assignedContract.liveLoadWeight : vehicleMass;
             if (vehicleWeightText != null) vehicleWeightText.text = $"Weight: {displayWeight} kg";
             if (vehicleSpeedText != null) vehicleSpeedText.text = $"Top Speed: {maxSpeed} m/s";
 
+            inspectionUsesPanelCoordinator = UIPanelCoordinator.Instance != null;
             temporarilyHiddenPanels.Clear();
-            foreach (GameObject ui in uiElementsToHide)
+            if (inspectionUsesPanelCoordinator)
             {
-                if (ui != null && ui.activeSelf) { temporarilyHiddenPanels.Add(ui); ui.SetActive(false); }
+                UIPanelCoordinator.Instance.OpenPanel(vehicleInfoPanel);
             }
+            else
+            {
+                foreach (GameObject ui in uiElementsToHide)
+                {
+                    if (ui != null && ui.activeSelf)
+                    {
+                        temporarilyHiddenPanels.Add(ui);
+                        ui.SetActive(false);
+                    }
+                }
 
-            vehicleInfoPanel.SetActive(true);
+                vehicleInfoPanel.SetActive(true);
+            }
             isInspectionWindowOpen = true;
 
             InputManager inputObj = FindObjectOfType<InputManager>();
@@ -385,14 +413,42 @@ public class LiveLoadVehicle : Interactable
 
     public void CloseInfoPanel()
     {
+        // A shared panel can have one persistent UnityEvent target. Always close
+        // the vehicle that most recently opened the panel, regardless of which
+        // vehicle happens to be assigned to that serialized button event.
+        if (activeInspectionVehicle != null && activeInspectionVehicle != this)
+        {
+            activeInspectionVehicle.CloseInfoPanelInternal(true);
+            return;
+        }
+
+        CloseInfoPanelInternal(true);
+    }
+
+    private void CloseInfoPanelInternal(bool invokeCompletionEvents)
+    {
         bool wasInspectionOpen = isInspectionWindowOpen ||
                                  (vehicleInfoPanel != null && vehicleInfoPanel.activeSelf);
         isInspectionWindowOpen = false;
 
-        if (vehicleInfoPanel != null) vehicleInfoPanel.SetActive(false);
+        if (inspectionUsesPanelCoordinator && UIPanelCoordinator.Instance != null)
+        {
+            UIPanelCoordinator.Instance.ClosePanel(vehicleInfoPanel);
+        }
+        else
+        {
+            if (vehicleInfoPanel != null) vehicleInfoPanel.SetActive(false);
+            foreach (GameObject ui in temporarilyHiddenPanels)
+            {
+                if (ui != null) ui.SetActive(true);
+            }
+        }
 
-        foreach (GameObject ui in temporarilyHiddenPanels) if (ui != null) ui.SetActive(true);
+        inspectionUsesPanelCoordinator = false;
         temporarilyHiddenPanels.Clear();
+
+        if (activeInspectionVehicle == this)
+            activeInspectionVehicle = null;
 
         InputManager inputObj = FindObjectOfType<InputManager>();
         if (inputObj != null) { inputObj.SetPlayerInputEnable(true); inputObj.SetLookEnabled(true); }
@@ -401,14 +457,14 @@ public class LiveLoadVehicle : Interactable
         if (player != null) player.enabled = true;
 
         // --- THE FIX: Advance the tutorial exactly when the player finishes reading and closes the panel! ---
-        if (advancesTutorial && TutorialManager.Instance != null)
+        if (invokeCompletionEvents && wasInspectionOpen && advancesTutorial && TutorialManager.Instance != null)
         {
             TutorialManager.Instance.ShowNextStep();
         }
 
         // Keep this last: listeners may immediately open another modal window
         // (such as LessonUI), which should become the active UI state.
-        if (wasInspectionOpen)
+        if (invokeCompletionEvents && wasInspectionOpen)
         {
             onInspectionWindowClosed?.Invoke();
             InspectionWindowClosed?.Invoke();

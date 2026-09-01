@@ -165,7 +165,11 @@ public class MainMenuUIController : MonoBehaviour
             return;
         }
 
-        HideMenuPanel();
+        // Keep the dropdown's visible/input state intact. The centralized panel
+        // coordinator temporarily hides it while Achievements is open and then
+        // restores that exact state. Starting a separate hide animation here
+        // caused the coordinator to restore an active but transparent,
+        // non-interactable dropdown when the Achievement panel closed.
         achievementManager.OpenPanel();
     }
 

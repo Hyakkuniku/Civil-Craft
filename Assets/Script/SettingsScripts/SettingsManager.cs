@@ -6,6 +6,7 @@ using TMPro;
 public class SettingsManager : MonoBehaviour
 {
     private const string AudioStartupMigrationKey = "AudioSettingsStartupFixV1";
+    private static readonly int[] FrameRateCaps = { 30, 60, 90, 120 };
 
     [Header("UI Panel Visibility")]
     public GameObject settingsPanel;
@@ -32,10 +33,22 @@ public class SettingsManager : MonoBehaviour
     [Header("Graphics & Performance (Mobile)")]
     public TMP_Dropdown qualityDropdown;
     [Tooltip("Toggle real-time directional shadows on/off to save battery")]
-    public Toggle shadowsToggle; 
+    public Toggle shadowsToggle;
+    public TMP_Dropdown frameRateDropdown;
 
     [Header("Gameplay")]
     public Toggle hapticsToggle;
+    [Range(0.5f, 2f)] public float defaultCameraSensitivity = 1f;
+    public Slider cameraSensitivitySlider;
+    public TMP_Text cameraSensitivityText;
+    public Toggle invertLookYToggle;
+
+    [Header("Account")]
+    public PlayFabAuthManager authManager;
+    public TMP_Text accountStatusText;
+    public TMP_Text accountActionButtonText;
+    public Button accountActionButton;
+    public Button logoutButton;
 
     private void Start()
     {
@@ -65,9 +78,26 @@ public class SettingsManager : MonoBehaviour
             
         if (shadowsToggle != null) 
             shadowsToggle.onValueChanged.AddListener(SetShadows); 
-            
+
+        if (frameRateDropdown != null)
+            frameRateDropdown.onValueChanged.AddListener(SetFrameRateOption);
+
         if (hapticsToggle != null) 
             hapticsToggle.onValueChanged.AddListener(SetHaptics);
+
+        if (cameraSensitivitySlider != null)
+            cameraSensitivitySlider.onValueChanged.AddListener(SetCameraSensitivity);
+
+        if (invertLookYToggle != null)
+            invertLookYToggle.onValueChanged.AddListener(SetInvertLookY);
+
+        if (accountActionButton != null)
+            accountActionButton.onClick.AddListener(OpenAccountLogin);
+
+        if (logoutButton != null)
+            logoutButton.onClick.AddListener(LogoutAccount);
+
+        RefreshAccountUI();
     }
 
     // ────────────────────────────────────────────────
@@ -77,6 +107,8 @@ public class SettingsManager : MonoBehaviour
     public void OpenSettings()
     {
         if (settingsPanel == null) return;
+        LoadSettings();
+        RefreshAccountUI();
         if (UIPanelCoordinator.Instance != null) UIPanelCoordinator.Instance.OpenPanel(settingsPanel);
         else settingsPanel.SetActive(true);
     }
@@ -167,9 +199,21 @@ public class SettingsManager : MonoBehaviour
 
     public void SetQuality(int qualityIndex)
     {
-        QualitySettings.SetQualityLevel(qualityIndex);
-        PlayerPrefs.SetInt("QualityLevel", qualityIndex);
+        int clampedIndex = Mathf.Clamp(qualityIndex, 0, Mathf.Max(0, QualitySettings.names.Length - 1));
+        QualitySettings.SetQualityLevel(clampedIndex);
+        PlayerPrefs.SetInt("QualityLevel", clampedIndex);
         PlayerPrefs.Save();
+    }
+
+    public void SetFrameRateOption(int optionIndex)
+    {
+        int clampedIndex = Mathf.Clamp(optionIndex, 0, FrameRateCaps.Length - 1);
+        int cap = FrameRateCaps[clampedIndex];
+        PlayerPrefs.SetInt("FrameRateOption", clampedIndex);
+        PlayerPrefs.SetInt("FrameRateCap", cap);
+        PlayerPrefs.Save();
+        QualitySettings.vSyncCount = 0;
+        Application.targetFrameRate = cap;
     }
 
     // --- THE FIX: URP Compatible Shadow Toggle ---
@@ -207,6 +251,103 @@ public class SettingsManager : MonoBehaviour
         if (useHaptics) TriggerVibration();
     }
 
+    public void SetCameraSensitivity(float multiplier)
+    {
+        float clamped = Mathf.Clamp(multiplier, 0.5f, 2f);
+        PlayerPrefs.SetFloat("CameraSensitivity", clamped);
+        PlayerPrefs.Save();
+        if (cameraSensitivityText != null)
+            cameraSensitivityText.text = $"{clamped:0.0}x";
+
+        foreach (PlayerLook playerLook in FindObjectsOfType<PlayerLook>(true))
+            playerLook.ApplySavedCameraSettings();
+    }
+
+    public void SetInvertLookY(bool invert)
+    {
+        PlayerPrefs.SetInt("InvertLookY", invert ? 1 : 0);
+        PlayerPrefs.Save();
+        foreach (PlayerLook playerLook in FindObjectsOfType<PlayerLook>(true))
+            playerLook.ApplySavedCameraSettings();
+    }
+
+    public void ApplyAndClose()
+    {
+        PlayerPrefs.Save();
+        CloseSettings();
+    }
+
+    public void RestoreCozyDefaults()
+    {
+        PlayerPrefs.SetInt("GlobalMute", 0);
+        PlayerPrefs.SetFloat("PrefMaster", 1f);
+        PlayerPrefs.SetFloat("PrefMusic", 0.85f);
+        PlayerPrefs.SetFloat("PrefSFX", 0.9f);
+        PlayerPrefs.SetFloat("PrefAmbient", 0.85f);
+        PlayerPrefs.SetFloat("PrefUI", 0.9f);
+        PlayerPrefs.SetInt("QualityLevel", Mathf.Clamp(2, 0, Mathf.Max(0, QualitySettings.names.Length - 1)));
+        PlayerPrefs.SetInt("EnableShadows", 1);
+        PlayerPrefs.SetInt("FrameRateOption", 1);
+        PlayerPrefs.SetInt("FrameRateCap", 60);
+        PlayerPrefs.SetInt("UseHaptics", 1);
+        PlayerPrefs.SetFloat("CameraSensitivity", defaultCameraSensitivity);
+        PlayerPrefs.SetInt("InvertLookY", 0);
+        PlayerPrefs.Save();
+        LoadSettings();
+    }
+
+    public void OpenAccountLogin()
+    {
+        if (authManager == null) authManager = FindObjectOfType<PlayFabAuthManager>(true);
+        if (authManager == null)
+        {
+            Debug.LogError("SettingsManager: PlayFabAuthManager is not available.", this);
+            return;
+        }
+
+        CloseSettings();
+        authManager.OpenAuthCanvasForMainMenu();
+    }
+
+    public void LogoutAccount()
+    {
+        if (authManager == null) authManager = FindObjectOfType<PlayFabAuthManager>(true);
+        if (authManager != null) authManager.LogoutToSignedOutState();
+        RefreshAccountUI();
+    }
+
+    public void RefreshAccountUI()
+    {
+        if (authManager == null) authManager = FindObjectOfType<PlayFabAuthManager>(true);
+
+        int loginChoice = PlayerPrefs.GetInt("LoginChoice", 0);
+        string savedName = PlayerPrefs.GetString("SavedPlayerName", "Player");
+        bool accountControlsAvailable = authManager != null;
+        bool signedIn = accountControlsAvailable
+            ? authManager.IsPlayerLoggedIn
+            : loginChoice == 2;
+        bool guest = loginChoice == 1;
+
+        if (accountStatusText != null)
+        {
+            if (signedIn)
+                accountStatusText.text = $"Signed in as <b>{savedName}</b>\nOnline account and cloud-ready progression.";
+            else if (guest)
+                accountStatusText.text = "Playing as <b>Guest</b>\nProgress is stored locally on this device.";
+            else
+                accountStatusText.text = "Not signed in\nSign in to use your PlayFab account.";
+        }
+
+        if (accountActionButtonText != null)
+            accountActionButtonText.text = accountControlsAvailable
+                ? (signedIn ? "SWITCH ACCOUNT" : "SIGN IN")
+                : "MANAGE IN MAIN MENU";
+        if (accountActionButton != null)
+            accountActionButton.interactable = accountControlsAvailable;
+        if (logoutButton != null)
+            logoutButton.interactable = accountControlsAvailable && (signedIn || guest);
+    }
+
     public static void TriggerVibration()
     {
         if (PlayerPrefs.GetInt("UseHaptics", 1) == 1) Handheld.Vibrate();
@@ -236,22 +377,46 @@ public class SettingsManager : MonoBehaviour
         // 2. Load Graphics & Gameplay
         if (qualityDropdown != null)
         {
-            int savedQuality = PlayerPrefs.GetInt("QualityLevel", 1); 
-            qualityDropdown.value = savedQuality;
+            int savedQuality = Mathf.Clamp(
+                PlayerPrefs.GetInt("QualityLevel", Mathf.Clamp(2, 0, Mathf.Max(0, QualitySettings.names.Length - 1))),
+                0,
+                Mathf.Max(0, QualitySettings.names.Length - 1));
+            qualityDropdown.SetValueWithoutNotify(savedQuality);
+            qualityDropdown.RefreshShownValue();
             SetQuality(savedQuality);
         }
 
         if (shadowsToggle != null)
         {
             bool shadowsEnabled = PlayerPrefs.GetInt("EnableShadows", 1) == 1; // Default to ON
-            shadowsToggle.isOn = shadowsEnabled;
+            shadowsToggle.SetIsOnWithoutNotify(shadowsEnabled);
             SetShadows(shadowsEnabled);
         }
 
+        int frameRateOption = Mathf.Clamp(PlayerPrefs.GetInt("FrameRateOption", 1), 0, FrameRateCaps.Length - 1);
+        if (frameRateDropdown != null)
+        {
+            frameRateDropdown.SetValueWithoutNotify(frameRateOption);
+            frameRateDropdown.RefreshShownValue();
+        }
+        SetFrameRateOption(frameRateOption);
+
         if (hapticsToggle != null)
         {
-            hapticsToggle.isOn = PlayerPrefs.GetInt("UseHaptics", 1) == 1; 
+            hapticsToggle.SetIsOnWithoutNotify(PlayerPrefs.GetInt("UseHaptics", 1) == 1);
         }
+
+        float cameraSensitivity = PlayerPrefs.GetFloat("CameraSensitivity", defaultCameraSensitivity);
+        if (cameraSensitivitySlider != null)
+            cameraSensitivitySlider.SetValueWithoutNotify(cameraSensitivity);
+        SetCameraSensitivity(cameraSensitivity);
+
+        bool invertY = PlayerPrefs.GetInt("InvertLookY", 0) == 1;
+        if (invertLookYToggle != null)
+            invertLookYToggle.SetIsOnWithoutNotify(invertY);
+        SetInvertLookY(invertY);
+
+        RefreshAccountUI();
     }
 
     private void LoadSlider(Slider slider, TMP_Text text, string mixerParam, string prefKey, float defaultVal)

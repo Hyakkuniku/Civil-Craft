@@ -27,6 +27,12 @@ public class ContractAlmanacTab : MonoBehaviour
 
     private void OnEnable()
     {
+        if (PlayerDataManager.Instance != null)
+        {
+            PlayerDataManager.Instance.RegisterContracts(allGameContracts);
+            PlayerDataManager.Instance.CheckAllAchievements();
+        }
+
         // Listen to the Almanac Manager!
         if (AlmanacManager.Instance != null)
         {

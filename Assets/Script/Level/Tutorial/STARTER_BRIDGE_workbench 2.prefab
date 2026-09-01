@@ -101,6 +101,7 @@ MonoBehaviour:
   materialData: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
   startPoint: {fileID: 0}
   endPoint: {fileID: 0}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   visualSize: {x: 1, y: 0.2, z: 0.2}
@@ -162,7 +163,9 @@ MonoBehaviour:
   ConnectedBars:
   - {fileID: 3900115090940489654}
   - {fileID: 4375104573952861305}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
+  preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
 --- !u!1 &518268388761253417
 GameObject:
@@ -297,6 +300,7 @@ MonoBehaviour:
   materialData: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
   startPoint: {fileID: 8911112737773655877}
   endPoint: {fileID: 462618881956834605}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   visualSize: {x: 5.767121, y: 1.042395, z: 6.6667743}
@@ -602,6 +606,7 @@ MonoBehaviour:
   materialData: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
   startPoint: {fileID: 0}
   endPoint: {fileID: 1325492513961910132}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   visualSize: {x: 5.767121, y: 1.042395, z: 6.6667743}
@@ -875,6 +880,7 @@ MonoBehaviour:
   materialData: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
   startPoint: {fileID: 0}
   endPoint: {fileID: 0}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   visualSize: {x: 1, y: 0.2, z: 0.2}
@@ -932,6 +938,7 @@ MonoBehaviour:
   materialData: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
   startPoint: {fileID: 9021512654251782760}
   endPoint: {fileID: 1325492513961910132}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   visualSize: {x: 6.0313444, y: 0.6475206, z: 0.7850884}
@@ -1039,6 +1046,7 @@ MonoBehaviour:
   materialData: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
   startPoint: {fileID: 0}
   endPoint: {fileID: 0}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   visualSize: {x: 1, y: 0.2, z: 0.2}
@@ -1229,6 +1237,7 @@ MonoBehaviour:
   materialData: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
   startPoint: {fileID: 0}
   endPoint: {fileID: 0}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   visualSize: {x: 1, y: 0.2, z: 0.2}
@@ -1419,6 +1428,7 @@ MonoBehaviour:
   materialData: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
   startPoint: {fileID: 0}
   endPoint: {fileID: 0}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   visualSize: {x: 1, y: 0.2, z: 0.2}
@@ -1526,6 +1536,7 @@ MonoBehaviour:
   materialData: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
   startPoint: {fileID: 0}
   endPoint: {fileID: 0}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   visualSize: {x: 1, y: 0.2, z: 0.2}
@@ -1583,6 +1594,7 @@ MonoBehaviour:
   materialData: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
   startPoint: {fileID: 5279087364431630078}
   endPoint: {fileID: 3722274197796486180}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   visualSize: {x: 6.0313444, y: 0.6475206, z: 0.7850884}
@@ -1640,6 +1652,7 @@ MonoBehaviour:
   materialData: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
   startPoint: {fileID: 5279087364431630078}
   endPoint: {fileID: 7478792721366794870}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   visualSize: {x: 6.0313444, y: 0.6475206, z: 0.7850884}
@@ -1747,6 +1760,7 @@ MonoBehaviour:
   materialData: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
   startPoint: {fileID: 0}
   endPoint: {fileID: 0}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   visualSize: {x: 1, y: 0.2, z: 0.2}
@@ -1854,6 +1868,7 @@ MonoBehaviour:
   materialData: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
   startPoint: {fileID: 0}
   endPoint: {fileID: 0}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   visualSize: {x: 1, y: 0.2, z: 0.2}
@@ -2044,6 +2059,7 @@ MonoBehaviour:
   materialData: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
   startPoint: {fileID: 0}
   endPoint: {fileID: 0}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   visualSize: {x: 1, y: 0.2, z: 0.2}
@@ -2106,7 +2122,9 @@ MonoBehaviour:
   - {fileID: 5623003978676572383}
   - {fileID: 740899761152478245}
   - {fileID: 4375104573952861305}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
+  preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
 --- !u!1 &4530295240640527489
 GameObject:
@@ -2247,7 +2265,9 @@ MonoBehaviour:
   - {fileID: 6831078428330940870}
   - {fileID: 6080576006990917707}
   - {fileID: 3807838068698603647}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
+  preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
 --- !u!1 &4919308542636944608
 GameObject:
@@ -2304,7 +2324,9 @@ MonoBehaviour:
   ConnectedBars:
   - {fileID: 646199972184187332}
   - {fileID: 740899761152478245}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
+  preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
 --- !u!1 &5003429550847189548
 GameObject:
@@ -2439,6 +2461,7 @@ MonoBehaviour:
   materialData: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
   startPoint: {fileID: 1325492513961910132}
   endPoint: {fileID: 8911112737773655877}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   visualSize: {x: 5.767121, y: 1.042395, z: 6.6667743}
@@ -2585,7 +2608,9 @@ MonoBehaviour:
   - {fileID: 3807838068698603647}
   - {fileID: 3900115090940489654}
   - {fileID: 5623003978676572383}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
+  preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
 --- !u!1 &5559713874032553933
 GameObject:
@@ -2639,6 +2664,7 @@ MonoBehaviour:
   materialData: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
   startPoint: {fileID: 0}
   endPoint: {fileID: 0}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   visualSize: {x: 1, y: 0.2, z: 0.2}
@@ -2697,6 +2723,7 @@ MonoBehaviour:
   materialData: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
   startPoint: {fileID: 0}
   endPoint: {fileID: 0}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   visualSize: {x: 1, y: 0.2, z: 0.2}
@@ -2754,6 +2781,7 @@ MonoBehaviour:
   materialData: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
   startPoint: {fileID: 0}
   endPoint: {fileID: 9021512654251782760}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   visualSize: {x: 6.0313444, y: 0.6475206, z: 0.7850884}
@@ -2861,6 +2889,7 @@ MonoBehaviour:
   materialData: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
   startPoint: {fileID: 0}
   endPoint: {fileID: 0}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   visualSize: {x: 1, y: 0.2, z: 0.2}
@@ -2968,6 +2997,7 @@ MonoBehaviour:
   materialData: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
   startPoint: {fileID: 0}
   endPoint: {fileID: 0}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   visualSize: {x: 1, y: 0.2, z: 0.2}
@@ -3114,7 +3144,9 @@ MonoBehaviour:
   - {fileID: 3611125389671127344}
   - {fileID: 6080576006990917707}
   - {fileID: 2925465017705739720}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
+  preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
 --- !u!1 &6744499198541127156
 GameObject:
@@ -3300,6 +3332,7 @@ MonoBehaviour:
   materialData: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
   startPoint: {fileID: 0}
   endPoint: {fileID: 0}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   visualSize: {x: 1, y: 0.2, z: 0.2}
@@ -3407,6 +3440,7 @@ MonoBehaviour:
   materialData: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
   startPoint: {fileID: 0}
   endPoint: {fileID: 0}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   visualSize: {x: 1, y: 0.2, z: 0.2}
@@ -3514,6 +3548,7 @@ MonoBehaviour:
   materialData: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
   startPoint: {fileID: 0}
   endPoint: {fileID: 0}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   visualSize: {x: 1, y: 0.2, z: 0.2}
@@ -3621,6 +3656,7 @@ MonoBehaviour:
   materialData: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
   startPoint: {fileID: 0}
   endPoint: {fileID: 0}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   visualSize: {x: 1, y: 0.2, z: 0.2}
@@ -3678,6 +3714,7 @@ MonoBehaviour:
   materialData: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
   startPoint: {fileID: 9021512654251782760}
   endPoint: {fileID: 5279087364431630078}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   visualSize: {x: 6.0313444, y: 0.6475206, z: 0.7850884}
@@ -3739,7 +3776,9 @@ MonoBehaviour:
   ConnectedBars:
   - {fileID: 3611125389671127344}
   - {fileID: 646199972184187332}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
+  preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
 --- !u!1 &8213682802154374512
 GameObject:
@@ -3841,6 +3880,7 @@ MonoBehaviour:
   materialData: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
   startPoint: {fileID: 7478792721366794870}
   endPoint: {fileID: 462618881956834605}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   visualSize: {x: 6.0313444, y: 0.6475206, z: 0.7850884}
@@ -3948,6 +3988,7 @@ MonoBehaviour:
   materialData: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
   startPoint: {fileID: 0}
   endPoint: {fileID: 0}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   visualSize: {x: 1, y: 0.2, z: 0.2}
@@ -4005,6 +4046,7 @@ MonoBehaviour:
   materialData: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
   startPoint: {fileID: 5279087364431630078}
   endPoint: {fileID: 1325492513961910132}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   visualSize: {x: 6.0313444, y: 0.6475206, z: 0.7850884}
@@ -4062,6 +4104,7 @@ MonoBehaviour:
   materialData: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
   startPoint: {fileID: 7478792721366794870}
   endPoint: {fileID: 3722274197796486180}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   visualSize: {x: 6.0313444, y: 0.6475206, z: 0.7850884}
@@ -4203,6 +4246,7 @@ MonoBehaviour:
   materialData: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
   startPoint: {fileID: 0}
   endPoint: {fileID: 0}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   visualSize: {x: 1, y: 0.2, z: 0.2}

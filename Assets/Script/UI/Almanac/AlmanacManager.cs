@@ -37,6 +37,7 @@ public class AlmanacCategory
 public class AlmanacManager : MonoBehaviour
 {
     public static AlmanacManager Instance { get; private set; }
+    public GameObject Panel => almanacCanvas;
 
     [Header("HUD Integration")]
     public GameObject hudOpenButton; 
@@ -339,6 +340,10 @@ public class AlmanacManager : MonoBehaviour
         if (PlayerDataManager.Instance != null) PlayerDataManager.Instance.MarkAlmanacOpened();
         RefreshPersistentAlerts();
 
+        bool coordinatedAnimation = UIPanelCoordinator.Instance != null && animationPanel != null;
+        if (coordinatedAnimation)
+            UIPanelCoordinator.Instance.OpenPanel(animationPanel, false);
+
         // CanyonCrossing's animation panel lives under MainCanvas, which is also in
         // uiElementsToHide. Hide its siblings instead of disabling its parent canvas.
         HideUiElementsPreservingAnimation();
@@ -349,6 +354,8 @@ public class AlmanacManager : MonoBehaviour
             // Restore before taking the coordinator snapshot so it can accurately
             // restore the HUD after the Almanac closes.
             RestoreTemporarilyHiddenPanels();
+            if (coordinatedAnimation)
+                UIPanelCoordinator.Instance.ClosePanel(animationPanel);
             UIPanelCoordinator.Instance.OpenPanel(almanacCanvas, false);
         }
 
@@ -391,14 +398,18 @@ public class AlmanacManager : MonoBehaviour
 
         if (UIPanelCoordinator.Instance != null)
         {
-            // Restore the HUD first, then hide everything except the animation branch
-            // while the closing frames play.
+            // Swap directly from the Almanac frame to an animation frame. Both
+            // operations happen before rendering, preventing a one-frame HUD flash.
             UIPanelCoordinator.Instance.ClosePanel(almanacCanvas);
+            if (animationPanel != null)
+                UIPanelCoordinator.Instance.OpenPanel(animationPanel, false);
             HideUiElementsPreservingAnimation();
         }
 
         yield return PlayBookAnimation(false);
         RestoreTemporarilyHiddenPanels();
+        if (UIPanelCoordinator.Instance != null && animationPanel != null)
+            UIPanelCoordinator.Instance.ClosePanel(animationPanel);
         RestoreMenuInput();
 
         isAnimating = false;

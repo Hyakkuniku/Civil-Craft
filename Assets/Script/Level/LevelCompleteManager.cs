@@ -672,6 +672,14 @@ public class LevelCompleteManager : MonoBehaviour
             return;
         }
 
+        // A bridge-build achievement advances when a valid bridge successfully
+        // finishes the level and is persisted. Contract turn-in is tracked
+        // separately by CompleteContract as ContractsCompleted.
+        PlayerDataManager.Instance.AddBridgeBuilt();
+        PlayerDataManager.Instance.TryUnlockBuildLocationAchievement(
+            completedLocation.completionAchievement,
+            completedContract);
+
         if (LevelFailedManager.Instance != null) LevelFailedManager.Instance.ResetFailCount();
 
         NPCContractGiver[] npcs = FindObjectsOfType<NPCContractGiver>();
@@ -694,8 +702,7 @@ public class LevelCompleteManager : MonoBehaviour
             bool completionSaved = PlayerDataManager.Instance.CompleteContract(
                 completedContract.name,
                 earnedGold,
-                earnedExp,
-                true);
+                earnedExp);
 
             if (!completionSaved &&
                 !PlayerDataManager.Instance.IsContractCompleted(completedContract.name))

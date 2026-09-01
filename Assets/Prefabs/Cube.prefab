@@ -54,7 +54,9 @@ MonoBehaviour:
   selectedMaterial: {fileID: 2100000, guid: f93b0b02c4e3f9449bf6707a8d16354d, type: 2}
   ConnectedBars:
   - {fileID: 0}
+  ownerLocation: {fileID: 0}
   preSimPos: {x: 2, y: 33, z: -1}
+  preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
 --- !u!1 &6335497327061275697
 GameObject:

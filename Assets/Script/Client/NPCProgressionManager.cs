@@ -112,6 +112,21 @@ public class NPCProgressionManager : MonoBehaviour
         return $"{phaseIndex}: {label} - {contractName}";
     }
 
+    public bool TryGetContractForBuildLocation(BuildLocation location, out ContractSO contract)
+    {
+        contract = null;
+        if (location == null || phases == null) return false;
+
+        foreach (NPCProgressionPhase phase in phases)
+        {
+            if (phase == null || phase.targetBuildLocation != location || phase.contract == null) continue;
+            contract = phase.contract;
+            return true;
+        }
+
+        return false;
+    }
+
     /// <summary>
     /// Developer-menu entry point. Stops travel, snaps to the phase target, and
     /// configures the existing NPCContractGiver as though that phase was reached.
@@ -123,6 +138,17 @@ public class NPCProgressionManager : MonoBehaviour
         {
             return false;
         }
+
+        // Debug warping intentionally bypasses normal lesson/progression spawn
+        // gates. CanyonCrossing's NPCSpawnerCondition can disable this entire
+        // GameObject before the developer menu is opened.
+        NPCSpawnerCondition[] spawnConditions = GetComponentsInParent<NPCSpawnerCondition>(true);
+        foreach (NPCSpawnerCondition condition in spawnConditions)
+        {
+            if (condition != null) condition.enabled = false;
+        }
+
+        SetHierarchyActiveForDebug(transform);
 
         if (movementRoutine != null)
         {
@@ -572,17 +598,43 @@ public class NPCProgressionManager : MonoBehaviour
             phases[phaseIndex] == null || phases[phaseIndex].targetLocation == null) return false;
 
         Vector3 target = phases[phaseIndex].targetLocation.position;
-        if (navMeshAgent != null && navMeshAgent.enabled &&
+        if (navMeshAgent != null && navMeshAgent.isActiveAndEnabled &&
             NavMesh.SamplePosition(target, out NavMeshHit hit, navMeshSampleRadius,
                 navMeshAgent.areaMask))
         {
-            if (navMeshAgent.isOnNavMesh) return navMeshAgent.Warp(hit.position);
+            if (navMeshAgent.Warp(hit.position))
+            {
+                transform.rotation = phases[phaseIndex].targetLocation.rotation;
+                navMeshAgent.isStopped = true;
+                navMeshAgent.ResetPath();
+                return true;
+            }
+
             transform.position = hit.position;
+            transform.rotation = phases[phaseIndex].targetLocation.rotation;
             return true;
         }
 
-        transform.position = target;
+        transform.SetPositionAndRotation(target, phases[phaseIndex].targetLocation.rotation);
         return true;
+    }
+
+    private static void SetHierarchyActiveForDebug(Transform target)
+    {
+        if (target == null) return;
+
+        // Activate parents first so activating the NPC itself is effective even
+        // if it was grouped under a disabled progression container.
+        Stack<Transform> hierarchy = new Stack<Transform>();
+        Transform current = target;
+        while (current != null)
+        {
+            hierarchy.Push(current);
+            current = current.parent;
+        }
+
+        while (hierarchy.Count > 0)
+            hierarchy.Pop().gameObject.SetActive(true);
     }
 
     private void ActivatePhase(int phaseIndex, bool invokeArrivalEvent)

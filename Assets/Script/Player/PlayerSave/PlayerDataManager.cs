@@ -13,9 +13,14 @@ public class PlayerDataManager : MonoBehaviour
     [Tooltip("Drag ALL your AchievementSO files here so the game can automatically check them!")]
     public List<AchievementSO> allGameAchievements = new List<AchievementSO>();
 
+    [Header("Contracts Database")]
+    [Tooltip("All ContractSO assets used by map-completion achievements. This list is populated automatically in the Unity Editor.")]
+    public List<ContractSO> allGameContracts = new List<ContractSO>();
+
     public Action OnAlmanacUnlocked;
     public Action OnAlmanacAlertsChanged;
     public Action OnObjectiveAlertsChanged;
+    public Action OnMinimapUnlockChanged;
     public Action<AchievementSO> OnAchievementUnlocked; 
     /// <summary>Raised once when a contract is newly added to persistent completion data.</summary>
     public Action<string> OnContractCompleted;
@@ -24,6 +29,8 @@ public class PlayerDataManager : MonoBehaviour
     
     // Optional: Useful if you have a top-right Gold UI that needs to refresh immediately!
     public Action OnCurrencyChanged; 
+    /// <summary>Raised after a shop purchase has been saved successfully.</summary>
+    public Action<string> OnShopItemPurchased;
     
     private string saveFilePath;
     private bool isCheckingAchievements = false; // Prevents infinite loops!
@@ -55,6 +62,7 @@ public class PlayerDataManager : MonoBehaviour
 
         saveFilePath = Application.persistentDataPath + "/playerSaveData.json";
         LoadGame();
+        RegisterContracts(Resources.FindObjectsOfTypeAll<ContractSO>());
     }
 
     private void OnDestroy()
@@ -63,9 +71,82 @@ public class PlayerDataManager : MonoBehaviour
             Instance = null;
     }
 
+#if UNITY_EDITOR
+    private void OnValidate()
+    {
+        if (UnityEditor.EditorApplication.isPlayingOrWillChangePlaymode) return;
+
+        string[] achievementGuids = UnityEditor.AssetDatabase.FindAssets("t:AchievementSO");
+        List<AchievementSO> discoveredAchievements = new List<AchievementSO>();
+        foreach (string guid in achievementGuids)
+        {
+            string path = UnityEditor.AssetDatabase.GUIDToAssetPath(guid);
+            AchievementSO achievement = UnityEditor.AssetDatabase.LoadAssetAtPath<AchievementSO>(path);
+            if (achievement != null) discoveredAchievements.Add(achievement);
+        }
+        discoveredAchievements.Sort((left, right) =>
+            string.Compare(left.achievementID, right.achievementID, StringComparison.OrdinalIgnoreCase));
+        if (!ListsMatch(allGameAchievements, discoveredAchievements))
+        {
+            allGameAchievements = discoveredAchievements;
+            UnityEditor.EditorUtility.SetDirty(this);
+        }
+
+        string[] contractGuids = UnityEditor.AssetDatabase.FindAssets("t:ContractSO");
+        List<ContractSO> discoveredContracts = new List<ContractSO>();
+        foreach (string guid in contractGuids)
+        {
+            string path = UnityEditor.AssetDatabase.GUIDToAssetPath(guid);
+            ContractSO contract = UnityEditor.AssetDatabase.LoadAssetAtPath<ContractSO>(path);
+            if (contract != null) discoveredContracts.Add(contract);
+        }
+
+        discoveredContracts.Sort((left, right) =>
+            string.Compare(left.name, right.name, StringComparison.OrdinalIgnoreCase));
+
+        bool changed = allGameContracts == null || allGameContracts.Count != discoveredContracts.Count;
+        if (!changed)
+        {
+            for (int i = 0; i < discoveredContracts.Count; i++)
+            {
+                if (allGameContracts[i] == discoveredContracts[i]) continue;
+                changed = true;
+                break;
+            }
+        }
+
+        if (!changed) return;
+        allGameContracts = discoveredContracts;
+        UnityEditor.EditorUtility.SetDirty(this);
+    }
+
+    private static bool ListsMatch<T>(List<T> current, List<T> discovered) where T : UnityEngine.Object
+    {
+        if (current == null || current.Count != discovered.Count) return false;
+        for (int i = 0; i < discovered.Count; i++)
+        {
+            if (current[i] != discovered[i]) return false;
+        }
+        return true;
+    }
+#endif
+
     public void SaveGame()
     {
         TrySaveGame();
+    }
+
+    /// <summary>
+    /// Permanently unlocks the overworld minimap. This is safe to call from a
+    /// contract reward, tutorial UnityEvent, pickup, or debug control.
+    /// </summary>
+    public void UnlockMinimap()
+    {
+        if (CurrentData == null || CurrentData.hasUnlockedMinimap) return;
+
+        CurrentData.hasUnlockedMinimap = true;
+        SaveGame();
+        OnMinimapUnlockChanged?.Invoke();
     }
 
     public bool TrySaveGame()
@@ -212,6 +293,7 @@ public class PlayerDataManager : MonoBehaviour
     public void AddExp(int amount) 
     { 
         CurrentData.exp += amount; 
+        CurrentData.lifetimeExpEarned += Mathf.Max(0, amount);
         SaveGame(); 
         OnCurrencyChanged?.Invoke();
         CheckAllAchievements(); 
@@ -225,15 +307,16 @@ public class PlayerDataManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Completes and optionally rewards a bridge contract in one save operation.
+    /// Completes and optionally rewards a contract in one save operation.
+    /// Bridge-build progress is deliberately recorded by LevelCompleteManager,
+    /// because completing/turning in a contract is a different achievement type.
     /// Completion is rejected unless validated bridge geometry already exists.
     /// Returns true only when a new completion was persisted successfully.
     /// </summary>
     public bool CompleteContract(
         string contractName,
         int goldReward = 0,
-        int expReward = 0,
-        bool countBridgeBuilt = false)
+        int expReward = 0)
     {
         if (CurrentData == null || string.IsNullOrWhiteSpace(contractName)) return false;
 
@@ -254,7 +337,7 @@ public class PlayerDataManager : MonoBehaviour
         int previousGold = CurrentData.gold;
         int previousExp = CurrentData.exp;
         int previousLifetimeGold = CurrentData.lifetimeGoldEarned;
-        int previousBridgeCount = CurrentData.lifetimeBridgesBuilt;
+        int previousLifetimeExp = CurrentData.lifetimeExpEarned;
         int previousContractCount = CurrentData.lifetimeContractsCompleted;
         bool previousContractsTab = CurrentData.hasUnlockedContractsTab;
         bool previousContractsAlert = CurrentData.hasUnreadContractsAlert;
@@ -265,7 +348,7 @@ public class PlayerDataManager : MonoBehaviour
         CurrentData.gold += Mathf.Max(0, goldReward);
         CurrentData.exp += Mathf.Max(0, expReward);
         CurrentData.lifetimeGoldEarned += Mathf.Max(0, goldReward);
-        if (countBridgeBuilt) CurrentData.lifetimeBridgesBuilt++;
+        CurrentData.lifetimeExpEarned += Mathf.Max(0, expReward);
         CurrentData.hasUnlockedContractsTab = true;
         CurrentData.hasUnreadContractsAlert = true;
         CurrentData.hasUnreadObjectiveAlert = true;
@@ -276,7 +359,7 @@ public class PlayerDataManager : MonoBehaviour
             CurrentData.gold = previousGold;
             CurrentData.exp = previousExp;
             CurrentData.lifetimeGoldEarned = previousLifetimeGold;
-            CurrentData.lifetimeBridgesBuilt = previousBridgeCount;
+            CurrentData.lifetimeExpEarned = previousLifetimeExp;
             CurrentData.lifetimeContractsCompleted = previousContractCount;
             CurrentData.hasUnlockedContractsTab = previousContractsTab;
             CurrentData.hasUnreadContractsAlert = previousContractsAlert;
@@ -341,6 +424,218 @@ public class PlayerDataManager : MonoBehaviour
     // ACHIEVEMENT LOGIC
     // ────────────────────────────────────────────────
 
+    /// <summary>
+    /// Adds the achievement assets used by the active UI/scene to the database
+    /// that evaluates progress. This prevents the display list and unlock list
+    /// from silently drifting apart when achievements are replaced or renamed.
+    /// </summary>
+    public void RegisterAchievements(IEnumerable<AchievementSO> achievements)
+    {
+        if (achievements == null) return;
+        if (allGameAchievements == null)
+            allGameAchievements = new List<AchievementSO>();
+
+        allGameAchievements.RemoveAll(item => item == null);
+
+        foreach (AchievementSO achievement in achievements)
+        {
+            if (achievement == null || string.IsNullOrWhiteSpace(achievement.achievementID))
+                continue;
+
+            int existingIndex = allGameAchievements.FindIndex(item =>
+                item != null && item.achievementID == achievement.achievementID);
+
+            if (existingIndex >= 0)
+                allGameAchievements[existingIndex] = achievement;
+            else
+                allGameAchievements.Add(achievement);
+        }
+    }
+
+    /// <summary>
+    /// Supplements the serialized contract database from scene systems such as
+    /// the Almanac. Contract names are the persistent IDs used by existing saves.
+    /// </summary>
+    public void RegisterContracts(IEnumerable<ContractSO> contracts)
+    {
+        if (contracts == null) return;
+        if (allGameContracts == null)
+            allGameContracts = new List<ContractSO>();
+
+        allGameContracts.RemoveAll(item => item == null);
+        foreach (ContractSO contract in contracts)
+        {
+            if (contract == null) continue;
+
+            int existingIndex = allGameContracts.FindIndex(item =>
+                item != null && string.Equals(item.name, contract.name, StringComparison.Ordinal));
+
+            if (existingIndex >= 0)
+                allGameContracts[existingIndex] = contract;
+            else
+                allGameContracts.Add(contract);
+        }
+    }
+
+    public int GetCompletedContractCountForMap(
+        ContractSO.ContractMap map,
+        bool excludeTutorialContracts = false)
+    {
+        HashSet<string> completedContracts = new HashSet<string>(StringComparer.Ordinal);
+        if (CurrentData == null || CurrentData.completedContracts == null)
+            return 0;
+
+        foreach (string contractName in CurrentData.completedContracts)
+        {
+            if (!string.IsNullOrWhiteSpace(contractName))
+                completedContracts.Add(contractName.Trim());
+        }
+
+        int completed = 0;
+        HashSet<string> countedContracts = new HashSet<string>(StringComparer.Ordinal);
+        if (allGameContracts == null) return 0;
+
+        foreach (ContractSO contract in allGameContracts)
+        {
+            if (contract == null || !contract.countsTowardMapAchievements ||
+                (excludeTutorialContracts && contract.isTutorialContract) ||
+                contract.contractMap != map || !countedContracts.Add(contract.name))
+                continue;
+
+            if (completedContracts.Contains(contract.name)) completed++;
+        }
+
+        return completed;
+    }
+
+    public int GetTotalContractCountForMap(
+        ContractSO.ContractMap map,
+        bool excludeTutorialContracts = false)
+    {
+        if (allGameContracts == null) return 0;
+
+        HashSet<string> contracts = new HashSet<string>(StringComparer.Ordinal);
+        foreach (ContractSO contract in allGameContracts)
+        {
+            if (contract != null && contract.countsTowardMapAchievements &&
+                (!excludeTutorialContracts || !contract.isTutorialContract) &&
+                contract.contractMap == map)
+                contracts.Add(contract.name);
+        }
+
+        return contracts.Count;
+    }
+
+    public int GetCompletedMapCount(bool excludeTutorialContracts = false)
+    {
+        int completedMaps = 0;
+        foreach (ContractSO.ContractMap map in Enum.GetValues(typeof(ContractSO.ContractMap)))
+        {
+            int total = GetTotalContractCountForMap(map, excludeTutorialContracts);
+            if (total > 0 &&
+                GetCompletedContractCountForMap(map, excludeTutorialContracts) >= total)
+                completedMaps++;
+        }
+        return completedMaps;
+    }
+
+    public int GetCompletedStoryModeContractCount(bool excludeTutorialContracts = true)
+    {
+        if (CurrentData == null || CurrentData.completedContracts == null ||
+            allGameContracts == null) return 0;
+
+        HashSet<string> completedContracts = new HashSet<string>(
+            CurrentData.completedContracts, StringComparer.Ordinal);
+        HashSet<string> countedContracts = new HashSet<string>(StringComparer.Ordinal);
+        int completed = 0;
+
+        foreach (ContractSO contract in allGameContracts)
+        {
+            if (contract == null || !contract.isStoryModeContract ||
+                (excludeTutorialContracts && contract.isTutorialContract) ||
+                !countedContracts.Add(contract.name))
+                continue;
+
+            if (completedContracts.Contains(contract.name)) completed++;
+        }
+
+        return completed;
+    }
+
+    public int GetCompletedRegisteredContractCount(bool excludeTutorialContracts)
+    {
+        if (!excludeTutorialContracts)
+            return CurrentData != null ? CurrentData.lifetimeContractsCompleted : 0;
+        if (CurrentData == null || CurrentData.completedContracts == null ||
+            allGameContracts == null) return 0;
+
+        HashSet<string> completedContracts = new HashSet<string>(
+            CurrentData.completedContracts, StringComparer.Ordinal);
+        HashSet<string> countedContracts = new HashSet<string>(StringComparer.Ordinal);
+        int completed = 0;
+
+        foreach (ContractSO contract in allGameContracts)
+        {
+            if (contract == null || contract.isTutorialContract ||
+                !countedContracts.Add(contract.name))
+                continue;
+
+            if (completedContracts.Contains(contract.name)) completed++;
+        }
+
+        return completed;
+    }
+
+    public int GetAchievementProgress(AchievementSO achievement)
+    {
+        if (achievement == null || CurrentData == null) return 0;
+
+        switch (achievement.goalType)
+        {
+            case AchievementSO.GoalType.TotalBridgesBuilt:
+                return CurrentData.lifetimeBridgesBuilt;
+            case AchievementSO.GoalType.TotalGoldEarned:
+                return CurrentData.lifetimeGoldEarned;
+            case AchievementSO.GoalType.TotalGoldSpent:
+                return CurrentData.lifetimeGoldSpent;
+            case AchievementSO.GoalType.TotalExpEarned:
+                return CurrentData.lifetimeExpEarned;
+            case AchievementSO.GoalType.ContractsCompleted:
+                return GetCompletedRegisteredContractCount(achievement.excludeTutorialContracts);
+            case AchievementSO.GoalType.AllContractsInMapCompleted:
+                return GetCompletedContractCountForMap(
+                    achievement.targetContractMap,
+                    achievement.excludeTutorialContracts);
+            case AchievementSO.GoalType.AllContractsAcrossAllMapsCompleted:
+                return GetCompletedMapCount(achievement.excludeTutorialContracts);
+            case AchievementSO.GoalType.StoryModeContractsCompleted:
+                return GetCompletedStoryModeContractCount(achievement.excludeTutorialContracts);
+            case AchievementSO.GoalType.BuildLocationCompleted:
+                return CurrentData.unlockedAchievements.Contains(achievement.achievementID) ? 1 : 0;
+            default:
+                return 0;
+        }
+    }
+
+    public int GetAchievementTarget(AchievementSO achievement)
+    {
+        if (achievement == null) return 0;
+
+        switch (achievement.goalType)
+        {
+            case AchievementSO.GoalType.AllContractsInMapCompleted:
+                return GetTotalContractCountForMap(
+                    achievement.targetContractMap,
+                    achievement.excludeTutorialContracts);
+            case AchievementSO.GoalType.AllContractsAcrossAllMapsCompleted:
+                return Enum.GetValues(typeof(ContractSO.ContractMap)).Length;
+            case AchievementSO.GoalType.BuildLocationCompleted:
+                return 1;
+            default:
+                return Mathf.Max(0, achievement.targetAmount);
+        }
+    }
+
     public void CheckAllAchievements()
     {
         // 1. Prevent checking if the list is empty
@@ -367,40 +662,95 @@ public class PlayerDataManager : MonoBehaviour
         if (CurrentData.unlockedAchievements.Contains(achievement.achievementID)) return;
 
         bool isUnlocked = false;
+        int achievementTarget = GetAchievementTarget(achievement);
+        if (achievementTarget > 0)
+            isUnlocked = GetAchievementProgress(achievement) >= achievementTarget;
 
-        switch (achievement.goalType)
+        if (isUnlocked) UnlockAchievement(achievement);
+    }
+
+    public bool TryUnlockBuildLocationAchievement(
+        AchievementSO achievement,
+        ContractSO completedContract)
+    {
+        if (achievement == null ||
+            achievement.goalType != AchievementSO.GoalType.BuildLocationCompleted)
+            return false;
+
+        if (achievement.excludeTutorialContracts && completedContract != null &&
+            completedContract.isTutorialContract)
+            return false;
+
+        return UnlockAchievement(achievement);
+    }
+
+    /// <summary>Developer tooling only: force the normal unlock/reward/popup pipeline.</summary>
+    public bool DebugUnlockAchievement(AchievementSO achievement)
+    {
+        return UnlockAchievement(achievement);
+    }
+
+    private bool UnlockAchievement(AchievementSO achievement)
+    {
+        if (achievement == null || CurrentData == null ||
+            string.IsNullOrWhiteSpace(achievement.achievementID)) return false;
+        if (CurrentData.unlockedAchievements.Contains(achievement.achievementID)) return false;
+
+        CurrentData.unlockedAchievements.Add(achievement.achievementID);
+
+        // These methods also update the received-currency lifetime counters.
+        if (achievement.bonusGold > 0) AddGold(achievement.bonusGold);
+        if (achievement.bonusExp > 0) AddExp(achievement.bonusExp);
+
+        bool hasCosmeticReward = achievement.grantsCosmeticReward &&
+                                 !string.IsNullOrWhiteSpace(achievement.rewardCosmeticID);
+        if (hasCosmeticReward)
         {
-            case AchievementSO.GoalType.TotalBridgesBuilt:
-                if (CurrentData.lifetimeBridgesBuilt >= achievement.targetAmount) isUnlocked = true;
-                break;
-            case AchievementSO.GoalType.TotalGoldEarned:
-                if (CurrentData.lifetimeGoldEarned >= achievement.targetAmount) isUnlocked = true;
-                break;
-            case AchievementSO.GoalType.TotalGoldSpent:
-                if (CurrentData.lifetimeGoldSpent >= achievement.targetAmount) isUnlocked = true;
-                break;
-            case AchievementSO.GoalType.TotalExpEarned:
-                if (CurrentData.exp >= achievement.targetAmount) isUnlocked = true;
-                break;
-            case AchievementSO.GoalType.ContractsCompleted:
-                if (CurrentData.lifetimeContractsCompleted >= achievement.targetAmount) isUnlocked = true;
-                break;
+            if (CurrentData.unlockedCosmeticIDs == null)
+                CurrentData.unlockedCosmeticIDs = new List<string>();
+            if (!CurrentData.unlockedCosmeticIDs.Contains(achievement.rewardCosmeticID))
+                CurrentData.unlockedCosmeticIDs.Add(achievement.rewardCosmeticID);
         }
 
-        if (isUnlocked)
+        SaveGame();
+        OnAchievementUnlocked?.Invoke(achievement);
+        AchievementPopupNotification.NotifyAchievement(achievement);
+
+        if (hasCosmeticReward)
         {
-            CurrentData.unlockedAchievements.Add(achievement.achievementID);
-            
-            // Give the player their bonus rewards!
-            if (achievement.bonusGold > 0) AddGold(achievement.bonusGold);
-            if (achievement.bonusExp > 0) AddExp(achievement.bonusExp);
-            
-            SaveGame();
-            
-            // Tell the UI to show a popup!
-            OnAchievementUnlocked?.Invoke(achievement);
-            Debug.Log($"<color=green>ACHIEVEMENT UNLOCKED: {achievement.achievementName}!</color>");
+            if (ItemUnlockUI.Instance != null)
+            {
+                ItemUnlockUI.Instance.ShowReward(
+                    achievement.rewardDisplayName,
+                    achievement.rewardIcon,
+                    achievement.rewardCosmeticID,
+                    null);
+            }
+            else
+            {
+                UnlockCosmeticReward(achievement.rewardCosmeticID, true);
+            }
         }
+
+        Debug.Log($"<color=green>ACHIEVEMENT UNLOCKED: {achievement.achievementName}!</color>");
+        return true;
+    }
+
+    public void UnlockCosmeticReward(string cosmeticID, bool equipImmediately)
+    {
+        if (CurrentData == null || string.IsNullOrWhiteSpace(cosmeticID)) return;
+
+        string normalizedID = cosmeticID.Trim();
+        if (CurrentData.unlockedCosmeticIDs == null)
+            CurrentData.unlockedCosmeticIDs = new List<string>();
+        if (!CurrentData.unlockedCosmeticIDs.Contains(normalizedID))
+            CurrentData.unlockedCosmeticIDs.Add(normalizedID);
+        if (equipImmediately)
+            CurrentData.equippedHatID = normalizedID;
+
+        SaveGame();
+        if (equipImmediately && PlayerCosmetics.Instance != null)
+            PlayerCosmetics.Instance.RefreshCosmetics();
     }
 
     // ────────────────────────────────────────────────
@@ -506,12 +856,18 @@ public class PlayerDataManager : MonoBehaviour
         if (CurrentData.completedLessons == null) CurrentData.completedLessons = new List<string>();
         if (CurrentData.completedContracts == null) CurrentData.completedContracts = new List<string>();
         if (CurrentData.unlockedAchievements == null) CurrentData.unlockedAchievements = new List<string>();
+        if (CurrentData.unlockedCosmeticIDs == null) CurrentData.unlockedCosmeticIDs = new List<string>();
+        if (CurrentData.purchasedShopItemIds == null) CurrentData.purchasedShopItemIds = new List<string>();
         if (CurrentData.activeQuests == null) CurrentData.activeQuests = new List<TrackedTask>();
         if (CurrentData.unlockedLevels == null) CurrentData.unlockedLevels = new List<string>();
         if (CurrentData.unlockedContractMaterials == null) CurrentData.unlockedContractMaterials = new List<string>();
         if (CurrentData.unlockedDoors == null) CurrentData.unlockedDoors = new List<string>();
         if (CurrentData.savedBridges == null) CurrentData.savedBridges = new List<SavedBridgeData>();
         if (CurrentData.npcProgressions == null) CurrentData.npcProgressions = new List<NPCProgressionSaveData>();
+
+        // Older saves only stored current EXP. Until EXP becomes spendable this
+        // safely migrates it into the new lifetime "EXP Received" counter.
+        CurrentData.lifetimeExpEarned = Mathf.Max(CurrentData.lifetimeExpEarned, CurrentData.exp);
 
         completionRecordsMissingBridge.Clear();
         foreach (string contractName in CurrentData.completedContracts)
@@ -617,6 +973,58 @@ public class PlayerDataManager : MonoBehaviour
         CurrentData.savedBridges.Remove(newSave);
         CurrentData.savedBridges.AddRange(previousRecords);
         return false;
+    }
+
+    public bool OwnsShopItem(string itemId)
+    {
+        return CurrentData != null &&
+               CurrentData.purchasedShopItemIds != null &&
+               !string.IsNullOrWhiteSpace(itemId) &&
+               CurrentData.purchasedShopItemIds.Contains(itemId);
+    }
+
+    /// <summary>
+    /// Performs a shop purchase as one save transaction. Failed saves roll the
+    /// currency and ownership changes back so player data cannot desynchronize.
+    /// </summary>
+    public bool TryPurchaseShopItem(string itemId, int price, bool allowRepeatPurchase)
+    {
+        if (CurrentData == null || string.IsNullOrWhiteSpace(itemId) || price < 0)
+            return false;
+
+        if (CurrentData.purchasedShopItemIds == null)
+            CurrentData.purchasedShopItemIds = new List<string>();
+
+        bool alreadyOwned = CurrentData.purchasedShopItemIds.Contains(itemId);
+        if (alreadyOwned && !allowRepeatPurchase)
+            return false;
+        if (CurrentData.gold < price)
+            return false;
+
+        int previousGold = CurrentData.gold;
+        int previousLifetimeSpent = CurrentData.lifetimeGoldSpent;
+        bool addedOwnership = false;
+
+        CurrentData.gold -= price;
+        CurrentData.lifetimeGoldSpent += price;
+        if (!alreadyOwned)
+        {
+            CurrentData.purchasedShopItemIds.Add(itemId);
+            addedOwnership = true;
+        }
+
+        if (!TrySaveGame())
+        {
+            CurrentData.gold = previousGold;
+            CurrentData.lifetimeGoldSpent = previousLifetimeSpent;
+            if (addedOwnership) CurrentData.purchasedShopItemIds.Remove(itemId);
+            return false;
+        }
+
+        OnCurrencyChanged?.Invoke();
+        OnShopItemPurchased?.Invoke(itemId);
+        CheckAllAchievements();
+        return true;
     }
 
     public SavedBridgeData GetSavedBridge(string contractId)

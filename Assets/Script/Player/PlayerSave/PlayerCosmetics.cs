@@ -47,12 +47,7 @@ public class PlayerCosmetics : MonoBehaviour
     public void UnlockAndEquipHat(string hatID)
     {
         if (PlayerDataManager.Instance != null)
-        {
-            PlayerDataManager.Instance.CurrentData.equippedHatID = hatID;
-            
-            // Note: Ensure your PlayerDataManager saves the file after this is set!
-            // PlayerDataManager.Instance.SaveData(); 
-        }
+            PlayerDataManager.Instance.UnlockCosmeticReward(hatID, true);
 
         // Instantly update the visual on the character
         RefreshCosmetics();

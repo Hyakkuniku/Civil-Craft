@@ -10,14 +10,22 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 77a59d2f16524d54385416dc42494768, type: 3}
-  m_Name: First Bridge
+  m_Name: First Contract 1
   m_EditorClassIdentifier: 
-  achievementID: ACH_001
+  achievementID: ACH_003
   achievementName: First Bridge
-  description: Build 50 total bridges.
-  unlockedIcon: {fileID: 0}
-  lockedIcon: {fileID: 0}
+  description: 'Complete your Bridge contract.
+
+'
+  hideDetailsUntilUnlocked: 0
+  achievementIcon: {fileID: 0}
   goalType: 0
   targetAmount: 1
-  bonusGold: 1000
-  bonusExp: 500
+  targetContractMap: 0
+  excludeTutorialContracts: 0
+  bonusGold: 150
+  bonusExp: 100
+  grantsCosmeticReward: 0
+  rewardCosmeticID: 
+  rewardDisplayName: Achievement Reward
+  rewardIcon: {fileID: 0}

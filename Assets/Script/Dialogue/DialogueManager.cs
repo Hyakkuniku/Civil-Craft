@@ -10,6 +10,12 @@ public class DialogueManager : MonoBehaviour
     public TextMeshProUGUI dialogueText;
     public Animator animator;
 
+    [Header("Dialogue Window")]
+    [Tooltip("The complete DialogueBox root. It is kept inactive until dialogue starts.")]
+    [SerializeField] private GameObject dialogueBox;
+    [Tooltip("Time allowed for the closing animation before the box is fully disabled.")]
+    [Min(0f)] [SerializeField] private float closeHideDelay = 0.5f;
+
     [Header("Typewriter Settings")]
     public float typingSpeed = 0.03f; 
 
@@ -24,6 +30,7 @@ public class DialogueManager : MonoBehaviour
 
     private bool isTyping = false;
     private Coroutine typingCoroutine;
+    private Coroutine hideDialogueCoroutine;
     
     private WaitForSeconds cachedTypingWait;
 
@@ -31,6 +38,19 @@ public class DialogueManager : MonoBehaviour
     {
         playerInteract = FindObjectOfType<PlayerInteract>();
         playerUI = FindObjectOfType<PlayerUI>();
+        ResolveDialogueBox();
+
+        // The panel used to remain active below the screen. Tall/wide aspect
+        // ratios could expose its top edge, so keep it completely inactive.
+        if (dialogueBox != null)
+            dialogueBox.SetActive(false);
+    }
+
+    private void OnValidate()
+    {
+        ResolveDialogueBox();
+        if (!Application.isPlaying && dialogueBox != null && dialogueBox != gameObject)
+            dialogueBox.SetActive(false);
     }
 
     void Start()
@@ -41,6 +61,18 @@ public class DialogueManager : MonoBehaviour
 
     public void StartDialogue (Dialogue dialogue, Action onEnd = null)
     {
+        if (dialogue == null) return;
+
+        ResolveDialogueBox();
+        if (hideDialogueCoroutine != null)
+        {
+            StopCoroutine(hideDialogueCoroutine);
+            hideDialogueCoroutine = null;
+        }
+
+        if (dialogueBox != null)
+            dialogueBox.SetActive(true);
+
         onDialogueEndCallback = onEnd; 
         inputManager?.SetPlayerInputEnable(false);
         inputManager?.SetLookEnabled(false);
@@ -53,7 +85,8 @@ public class DialogueManager : MonoBehaviour
             if (obj != null) obj.SetActive(false);
         }
 
-        animator.SetBool("isOpen", true);
+        if (animator != null)
+            animator.SetBool("isOpen", true);
         nameText.text = dialogue.name;
         sentences.Clear();
 
@@ -117,7 +150,12 @@ public class DialogueManager : MonoBehaviour
         inputManager?.SetLookEnabled(true);
         if (playerInteract != null) playerInteract.enabled = true;
 
-        animator.SetBool("isOpen", false);
+        if (animator != null)
+            animator.SetBool("isOpen", false);
+
+        if (hideDialogueCoroutine != null)
+            StopCoroutine(hideDialogueCoroutine);
+        hideDialogueCoroutine = StartCoroutine(HideDialogueBoxAfterClose());
 
         foreach (GameObject obj in elementsToHide)
         {
@@ -126,5 +164,21 @@ public class DialogueManager : MonoBehaviour
 
         onDialogueEndCallback?.Invoke();
         onDialogueEndCallback = null; 
+    }
+
+    private IEnumerator HideDialogueBoxAfterClose()
+    {
+        if (closeHideDelay > 0f)
+            yield return new WaitForSecondsRealtime(closeHideDelay);
+
+        if (dialogueBox != null)
+            dialogueBox.SetActive(false);
+        hideDialogueCoroutine = null;
+    }
+
+    private void ResolveDialogueBox()
+    {
+        if (dialogueBox == null && animator != null)
+            dialogueBox = animator.gameObject;
     }
 }

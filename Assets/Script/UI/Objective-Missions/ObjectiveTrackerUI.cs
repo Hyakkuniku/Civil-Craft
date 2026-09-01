@@ -291,8 +291,7 @@ public class ObjectiveTrackerUI : MonoBehaviour
                 bool completionSaved = PlayerDataManager.Instance.CompleteContract(
                     currentlySelectedTask.contractName,
                     goldReward,
-                    expReward,
-                    !currentlySelectedTask.isTutorial);
+                    expReward);
 
                 if (!completionSaved &&
                     !PlayerDataManager.Instance.IsContractCompleted(currentlySelectedTask.contractName))

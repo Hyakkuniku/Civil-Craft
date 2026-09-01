@@ -3848,6 +3848,8 @@ MonoBehaviour:
   nameText: {fileID: 2679379060850676253}
   dialogueText: {fileID: 7828709446838457233}
   animator: {fileID: 2482352455532938614}
+  dialogueBox: {fileID: 5472799369633290338}
+  closeHideDelay: 0.5
   typingSpeed: 0.03
   elementsToHide: []
   inputManager: {fileID: 5642563023413880115}
@@ -8157,7 +8159,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fbe92ff9608ed654894f6ceb2d977492, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  allGameAchievements: []
+  allGameAchievements:
+  - {fileID: 11400000, guid: f852af96771df094cb31691c12e1abbd, type: 2}
+  - {fileID: 11400000, guid: b81a5659afed5c345a664a236864c4eb, type: 2}
+  - {fileID: 11400000, guid: 28ecc47b23cc40f419e47e54f61e2eb2, type: 2}
+  - {fileID: 11400000, guid: bb4f8db23d7b446ba99ff3a3a8c5e610, type: 2}
+  allGameContracts:
+  - {fileID: 11400000, guid: d58e962a84aed8944ad5741d6404b861, type: 2}
+  - {fileID: 11400000, guid: 5edc8d91db6f6014190820a7c01cea37, type: 2}
 --- !u!1 &1720876520320307134
 GameObject:
   m_ObjectHideFlags: 0
@@ -12850,6 +12859,15 @@ MonoBehaviour:
   barColliderThickness: 0.1
   physicsSolverIterations: 30
   settleFramesAmount: 60
+  bakedRoadColliderThickness: 0.12
+  bakedRoadColliderWidth: 2.4
+  bakedRoadColliderSeamOverlap: 0.2
+  bakedRoadVisualTop: 0.025
+  stressSmoothingFrames: 10
+  stressDirectionDeadZone: 0.0005
+  displayLiveLoadStressOnly: 1
+  deadLoadReturnTolerance: 0.02
+  deadLoadReturnToleranceNewtons: 1
   enableVisualizer: 1
   warningColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   criticalColor: {r: 1, g: 0, b: 0, a: 1}
@@ -15558,6 +15576,9 @@ MonoBehaviour:
   pointToInstantiate: {fileID: 2422477481410238689, guid: f4ace0a8cb9406c4eaf0671f09ad3a39,
     type: 3}
   pointParent: {fileID: 8987756508815367996}
+  placeBarSfxId: PlaceBar
+  magnifyingGlass: {fileID: 0}
+  showMagnifierWhileDrawing: 1
   activeMaterial: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
   isGridSnappingEnabled: 1
   isDeleteMode: 0
@@ -15572,6 +15593,7 @@ MonoBehaviour:
   pierBaseY: -10
   deleteSnapRadiusPixels: 50
   nodeSnapRadiusWorld: 1.2
+  nodeSnapDepthTolerance: 1
   radiusIndicator: {fileID: 6286476931875835570}
   circleResolution: 50
   circleLineWidth: 0.05
@@ -15591,6 +15613,8 @@ MonoBehaviour:
   dontShowAgainToggle: {fileID: 7584931643269214249}
   isPasteMode: 0
   isDraggingSelection: 0
+  pastePreviewTouchRadiusPixels: 45
+  placeBarSfxId: PlaceBar
 --- !u!1 &4137983299206900985
 GameObject:
   m_ObjectHideFlags: 0
@@ -20055,7 +20079,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &3141616991757442139
 RectTransform:
   m_ObjectHideFlags: 0
@@ -30736,6 +30760,7 @@ MonoBehaviour:
   logDisplayTime: 3
   barCreator: {fileID: 0}
   physicsManager: {fileID: 6021715051215011940}
+  buildButtonClickSfxId: Click
   useKeyboardShortcuts: 1
   simulateKey: 0
   restartKey: 0

@@ -43,6 +43,9 @@ public class GameManager : MonoBehaviour
 
     private BuildLocation pendingRedoLocation;
     private bool isTransitioning = false; 
+    private readonly Dictionary<GameObject, bool> uiStateBeforeBuildMode = new Dictionary<GameObject, bool>();
+    private readonly Dictionary<GameObject, bool> uiStateBeforeRedo = new Dictionary<GameObject, bool>();
+    private readonly Dictionary<GameObject, bool> buildLocationStateBeforeBuildMode = new Dictionary<GameObject, bool>();
 
     private void Awake()
     {
@@ -63,6 +66,7 @@ public class GameManager : MonoBehaviour
     private void OnDisable()
     {
         isTransitioning = false;
+        RestoreCapturedStates(buildLocationStateBeforeBuildMode);
         HideTransitionFader();
     }
 
@@ -84,8 +88,7 @@ public class GameManager : MonoBehaviour
         pendingRedoLocation = loc;
         if (redoConfirmPanel != null) redoConfirmPanel.SetActive(true);
         
-        foreach (GameObject uiElement in uiElementsToHide) 
-            if (uiElement != null) uiElement.SetActive(false);
+        CaptureAndHide(uiElementsToHide, uiStateBeforeRedo);
             
         foreach (GameObject uiElement in extraElementsToHideOnRedo) 
             if (uiElement != null) uiElement.SetActive(false);
@@ -101,6 +104,10 @@ public class GameManager : MonoBehaviour
     public void ConfirmRedo()
     {
         if (redoConfirmPanel != null) redoConfirmPanel.SetActive(false);
+
+        // Restore first so EnterBuildMode can capture the true overworld state.
+        // This occurs in the same frame and does not produce a visible flash.
+        RestoreCapturedStates(uiStateBeforeRedo);
         
         foreach (GameObject uiElement in extraElementsToHideOnRedo) 
             if (uiElement != null) uiElement.SetActive(true);
@@ -120,8 +127,7 @@ public class GameManager : MonoBehaviour
         if (redoConfirmPanel != null) redoConfirmPanel.SetActive(false);
         pendingRedoLocation = null;
         
-        foreach (GameObject uiElement in uiElementsToHide) 
-            if (uiElement != null) uiElement.SetActive(true);
+        RestoreCapturedStates(uiStateBeforeRedo);
             
         foreach (GameObject uiElement in extraElementsToHideOnRedo) 
             if (uiElement != null) uiElement.SetActive(true);
@@ -156,6 +162,7 @@ public class GameManager : MonoBehaviour
         CurrentState = GameState.Building;
         currentPlayerTransform = player;
         ActiveBuildLocation = location;
+        HideInactiveBuildLocations(location);
 
         if (LevelCompleteManager.Instance != null)
             LevelCompleteManager.Instance.ResetCompletionState();
@@ -177,7 +184,7 @@ public class GameManager : MonoBehaviour
         PlayerMotor motor = FindObjectOfType<PlayerMotor>();
         if (motor != null) motor.enabled = false;
 
-        foreach (GameObject uiElement in uiElementsToHide) if (uiElement != null) uiElement.SetActive(false);
+        CaptureAndHide(uiElementsToHide, uiStateBeforeBuildMode);
 
         // 2. Unparent and animate the Main Camera down to the blueprint
         if (mainCamera != null)
@@ -299,6 +306,10 @@ public class GameManager : MonoBehaviour
             transitionFader.alpha = 1f;
         }
 
+        // Restore the open world while the screen is black, before returning
+        // the camera to the player.
+        RestoreCapturedStates(buildLocationStateBeforeBuildMode);
+
         // 1. Hide Build Mode UI instantly
         foreach (GameObject uiElement in buildModeUIElements) if (uiElement != null) uiElement.SetActive(false);
 
@@ -365,7 +376,8 @@ public class GameManager : MonoBehaviour
         }
 
         // 4. Restore Overworld UI and Unfreeze Player
-        foreach (GameObject uiElement in uiElementsToHide) if (uiElement != null) uiElement.SetActive(true);
+        RestoreCapturedStates(uiStateBeforeBuildMode);
+        MinimapUnlockController.RefreshAll();
 
         InputManager inputObj = FindObjectOfType<InputManager>();
         if (inputObj != null)
@@ -417,5 +429,80 @@ public class GameManager : MonoBehaviour
         {
             Debug.LogException(exception);
         }
+    }
+
+    private static void CaptureAndHide(
+        List<GameObject> targets,
+        Dictionary<GameObject, bool> capturedStates)
+    {
+        capturedStates.Clear();
+        if (targets == null) return;
+
+        foreach (GameObject target in targets)
+        {
+            if (target == null || capturedStates.ContainsKey(target)) continue;
+            capturedStates.Add(target, target.activeSelf);
+            target.SetActive(false);
+        }
+    }
+
+    private static void RestoreCapturedStates(Dictionary<GameObject, bool> capturedStates)
+    {
+        foreach (KeyValuePair<GameObject, bool> state in capturedStates)
+        {
+            if (state.Key != null)
+                state.Key.SetActive(state.Value);
+        }
+
+        capturedStates.Clear();
+    }
+
+    private void HideInactiveBuildLocations(BuildLocation activeLocation)
+    {
+        RestoreCapturedStates(buildLocationStateBeforeBuildMode);
+        if (activeLocation == null) return;
+
+        List<GameObject> activeTargets = new List<GameObject>();
+        activeLocation.AppendBuildModeIsolationTargets(activeTargets);
+
+        BuildLocation[] locations = FindObjectsOfType<BuildLocation>(true);
+        foreach (BuildLocation location in locations)
+        {
+            if (location == null || location == activeLocation ||
+                !location.hideWhenAnotherBuildLocationIsActive ||
+                !location.gameObject.scene.IsValid() ||
+                !location.gameObject.scene.isLoaded ||
+                location.gameObject.scene != activeLocation.gameObject.scene)
+                continue;
+
+            List<GameObject> targets = new List<GameObject>();
+            location.AppendBuildModeIsolationTargets(targets);
+            foreach (GameObject target in targets)
+            {
+                if (target == null || buildLocationStateBeforeBuildMode.ContainsKey(target) ||
+                    OverlapsActiveSite(target, activeTargets))
+                    continue;
+
+                buildLocationStateBeforeBuildMode.Add(target, target.activeSelf);
+                target.SetActive(false);
+            }
+        }
+    }
+
+    private static bool OverlapsActiveSite(GameObject candidate, List<GameObject> activeTargets)
+    {
+        if (candidate == null || activeTargets == null) return false;
+
+        Transform candidateTransform = candidate.transform;
+        foreach (GameObject activeTarget in activeTargets)
+        {
+            if (activeTarget == null) continue;
+            Transform activeTransform = activeTarget.transform;
+            if (candidate == activeTarget || candidateTransform.IsChildOf(activeTransform) ||
+                activeTransform.IsChildOf(candidateTransform))
+                return true;
+        }
+
+        return false;
     }
 }

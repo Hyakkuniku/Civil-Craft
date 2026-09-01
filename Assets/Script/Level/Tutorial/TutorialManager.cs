@@ -94,6 +94,8 @@ public class TutorialManager : MonoBehaviour
 
     public int CurrentStepIndex => currentStepIndex;
     public string CurrentLessonName => currentSequence != null ? currentSequence.lessonName : string.Empty;
+    /// <summary>The sequence currently being shown, or null when no tutorial is active.</summary>
+    public TutorialSequence ActiveSequence => IsTutorialActive ? currentSequence : null;
     public TutorialStepAction CurrentStepAction
     {
         get
@@ -112,6 +114,11 @@ public class TutorialManager : MonoBehaviour
     {
         return IsTutorialActive && currentSequence != null &&
                string.Equals(currentSequence.lessonName, lessonName, System.StringComparison.Ordinal);
+    }
+
+    public bool IsPlayingSequence(TutorialSequence sequence)
+    {
+        return IsTutorialActive && sequence != null && currentSequence == sequence;
     }
     
     private UnityEngine.UI.Button trackedButton = null;
@@ -699,5 +706,33 @@ public class TutorialManager : MonoBehaviour
     public void SkipTutorial()
     {
         CompleteTutorial();
+    }
+
+    /// <summary>
+    /// Developer-menu cleanup after every scene tutorial has been recorded as
+    /// complete. Prevents auto-start chains and previously queued sequences from
+    /// opening again on the following frame.
+    /// </summary>
+    public void DebugCloseActiveTutorialAndClearQueue()
+    {
+        if (queuedSequenceCoroutine != null)
+        {
+            StopCoroutine(queuedSequenceCoroutine);
+            queuedSequenceCoroutine = null;
+        }
+
+        queuedSequences.Clear();
+
+        if (IsTutorialActive)
+            CompleteTutorial();
+
+        // CompleteTutorial can queue the sequence's configured next tutorial.
+        if (queuedSequenceCoroutine != null)
+        {
+            StopCoroutine(queuedSequenceCoroutine);
+            queuedSequenceCoroutine = null;
+        }
+
+        queuedSequences.Clear();
     }
 }

@@ -88,6 +88,7 @@ public class PlayerData
     public int lifetimeBridgesBuilt = 0;
     public int lifetimeGoldEarned = 0;
     public int lifetimeGoldSpent = 0;
+    public int lifetimeExpEarned = 0;
     public int lifetimeContractsCompleted = 0;
     
     public string lastSavedScene = "";
@@ -99,8 +100,11 @@ public class PlayerData
     public bool hasUnlockedContractsTab = false;
     public bool hasUnlockedLessonsTab = false;
     public bool hasUnlockedObjectiveTracker = false; 
+    public bool hasUnlockedMinimap = false;
 
     public List<string> unlockedAchievements = new List<string>();
+    public List<string> unlockedCosmeticIDs = new List<string>();
+    public List<string> purchasedShopItemIds = new List<string>();
     public List<TrackedTask> activeQuests = new List<TrackedTask>(); 
     public List<string> unlockedLevels = new List<string> { "Tutorial" };
     public List<string> completedContracts = new List<string>();

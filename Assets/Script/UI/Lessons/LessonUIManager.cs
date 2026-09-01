@@ -55,6 +55,7 @@ public sealed class LessonUIManager : MonoBehaviour
     private bool controlsAreLocked;
 
     public LessonData CurrentLesson { get; private set; }
+    public GameObject Panel => lessonPanel;
     public bool IsOpen => lessonPanel != null && lessonPanel.activeSelf;
 
     public event Action<LessonData> LessonOpened;
@@ -79,6 +80,7 @@ public sealed class LessonUIManager : MonoBehaviour
             if (lessonCanvas == null)
                 lessonCanvas = lessonPanel.GetComponentInParent<Canvas>();
 
+            RepairCollapsedLessonCanvas();
             lessonPanel.SetActive(false);
         }
     }
@@ -111,6 +113,8 @@ public sealed class LessonUIManager : MonoBehaviour
             Debug.LogError("[LessonUIManager] Required lesson UI references are missing.", this);
             return;
         }
+
+        RepairCollapsedLessonCanvas();
 
         // A lesson becomes part of the Almanac archive only once it has actually
         // been displayed successfully to the player.
@@ -220,6 +224,26 @@ public sealed class LessonUIManager : MonoBehaviour
             });
             canvas.enabled = false;
         }
+    }
+
+    private void RepairCollapsedLessonCanvas()
+    {
+        if (lessonCanvas == null)
+            return;
+
+        Transform canvasTransform = lessonCanvas.transform;
+        Vector3 scale = canvasTransform.localScale;
+        if (Mathf.Abs(scale.x) > 0.0001f &&
+            Mathf.Abs(scale.y) > 0.0001f &&
+            Mathf.Abs(scale.z) > 0.0001f)
+        {
+            return;
+        }
+
+        canvasTransform.localScale = Vector3.one;
+        Debug.LogWarning(
+            "[LessonUIManager] LessonCanvas had a zero scale and could not render. Its scale was restored to (1,1,1).",
+            lessonCanvas);
     }
 
     private bool IsPartOfLessonUI(Canvas canvas)

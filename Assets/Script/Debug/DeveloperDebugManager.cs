@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections;
 using System.IO;
 using TMPro;
 using UnityEngine;
@@ -34,6 +35,8 @@ public sealed class DeveloperDebugManager : MonoBehaviour
     [SerializeField] private TMP_Dropdown tutorialDropdown;
     [SerializeField] private TMP_Dropdown buildLocationDropdown;
     [SerializeField] private TMP_Dropdown npcPhaseDropdown;
+    [SerializeField] private TMP_Dropdown achievementDropdown;
+    [SerializeField] private TMP_Dropdown coinAmountDropdown;
 
     [Header("Runtime Tools")]
     [SerializeField] private Slider timeScaleSlider;
@@ -48,6 +51,8 @@ public sealed class DeveloperDebugManager : MonoBehaviour
     private readonly List<string> sceneNames = new List<string>();
     private readonly List<TutorialSequence> tutorials = new List<TutorialSequence>();
     private readonly List<BuildLocation> buildLocations = new List<BuildLocation>();
+    private readonly List<AchievementSO> achievements = new List<AchievementSO>();
+    private static readonly int[] DebugCoinAmounts = { 1000, 10000, 100000, 1000000 };
     private readonly Dictionary<Joint, JointBreakLimits> originalJointLimits =
         new Dictionary<Joint, JointBreakLimits>();
     private NPCProgressionManager npcProgression;
@@ -119,6 +124,7 @@ public sealed class DeveloperDebugManager : MonoBehaviour
 
         PopulateSceneDropdown();
         RefreshSceneObjects();
+        StartCoroutine(RefreshListsAfterSceneInitialization());
     }
 
     private void OnEnable()
@@ -167,8 +173,20 @@ public sealed class DeveloperDebugManager : MonoBehaviour
     {
         clearSaveConfirmationDeadline = -1f;
         PrepareCanvas();
-        RefreshSceneObjects();
+        StartCoroutine(RefreshListsAfterSceneInitialization());
         SetStatus($"Loaded scene: {scene.name}");
+    }
+
+    private IEnumerator RefreshListsAfterSceneInitialization()
+    {
+        // Persistent managers and scene objects do not all finish Awake/Start in
+        // the same frame. Refresh twice so direct-scene testing is reliable too.
+        yield return null;
+        PopulateSceneDropdown();
+        RefreshSceneObjects();
+        yield return new WaitForEndOfFrame();
+        PopulateSceneDropdown();
+        RefreshSceneObjects();
     }
 
     public void ToggleMenu()
@@ -205,7 +223,7 @@ public sealed class DeveloperDebugManager : MonoBehaviour
             previousCursorVisible = Cursor.visible;
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
-            RefreshSceneObjects();
+            RefreshDropdownValues();
             if (debugCanvas != null) debugCanvas.transform.SetAsLastSibling();
         }
         else
@@ -220,6 +238,35 @@ public sealed class DeveloperDebugManager : MonoBehaviour
         if (debugCanvas == null) return;
         debugCanvas.overrideSorting = true;
         debugCanvas.sortingOrder = debugCanvasSortOrder;
+        PrepareDropdown(sceneDropdown);
+        PrepareDropdown(tutorialDropdown);
+        PrepareDropdown(buildLocationDropdown);
+        PrepareDropdown(npcPhaseDropdown);
+        PrepareDropdown(achievementDropdown);
+        PrepareDropdown(coinAmountDropdown);
+    }
+
+    private void PrepareDropdown(TMP_Dropdown dropdown)
+    {
+        if (dropdown == null || dropdown.template == null) return;
+
+        // Dropdown popups are children of the debug ScrollView. Without their
+        // own canvas, its RectMask2D can clip the popup and make it appear as if
+        // the dropdown did nothing. Keep the cloned popup above that mask.
+        GameObject template = dropdown.template.gameObject;
+        Canvas popupCanvas = template.GetComponent<Canvas>();
+        if (popupCanvas == null) popupCanvas = template.AddComponent<Canvas>();
+        popupCanvas.overrideSorting = true;
+        popupCanvas.sortingOrder = debugCanvasSortOrder + 10;
+
+        if (template.GetComponent<GraphicRaycaster>() == null)
+            template.AddComponent<GraphicRaycaster>();
+
+        CanvasGroup group = template.GetComponent<CanvasGroup>();
+        if (group == null) group = template.AddComponent<CanvasGroup>();
+        group.alpha = 1f;
+        group.interactable = true;
+        group.blocksRaycasts = true;
     }
 
     public void RefreshSceneObjects()
@@ -232,6 +279,7 @@ public sealed class DeveloperDebugManager : MonoBehaviour
 
         tutorials.Sort((a, b) => string.Compare(GetTutorialLabel(a), GetTutorialLabel(b), StringComparison.OrdinalIgnoreCase));
         SetDropdownOptions(tutorialDropdown, tutorials.ConvertAll(GetTutorialLabel), "No tutorial sequences in this scene");
+        SelectActiveTutorialInDropdown();
 
         buildLocations.Clear();
         foreach (BuildLocation location in Resources.FindObjectsOfTypeAll<BuildLocation>())
@@ -251,7 +299,59 @@ public sealed class DeveloperDebugManager : MonoBehaviour
         }
 
         SetDropdownOptions(npcPhaseDropdown, phases, "No NPC progression phases in this scene");
+
+        PopulateAchievementDropdown();
         UpdateTimeScaleLabel();
+    }
+
+    public void RefreshDropdownValues()
+    {
+        PopulateSceneDropdown();
+        RefreshSceneObjects();
+        TutorialSequence activeTutorial = TutorialManager.Instance != null
+            ? TutorialManager.Instance.ActiveSequence
+            : null;
+        string activeTutorialLabel = activeTutorial != null
+            ? GetTutorialLabel(activeTutorial)
+            : "none";
+        SetStatus(
+            $"Lists refreshed: {sceneNames.Count} scenes, {tutorials.Count} tutorials, " +
+            $"{buildLocations.Count} build locations, " +
+            $"{(npcProgression != null ? npcProgression.PhaseCount : 0)} NPC phases, " +
+            $"{achievements.Count} achievements. " +
+            $"Active tutorial: {activeTutorialLabel}.");
+    }
+
+    private void PopulateAchievementDropdown()
+    {
+        achievements.Clear();
+        HashSet<string> achievementIDs = new HashSet<string>(StringComparer.Ordinal);
+
+        if (PlayerDataManager.Instance != null &&
+            PlayerDataManager.Instance.allGameAchievements != null)
+        {
+            foreach (AchievementSO achievement in PlayerDataManager.Instance.allGameAchievements)
+                AddAchievementIfUnique(achievement, achievementIDs);
+        }
+
+        foreach (AchievementSO achievement in Resources.FindObjectsOfTypeAll<AchievementSO>())
+            AddAchievementIfUnique(achievement, achievementIDs);
+
+        achievements.Sort((left, right) => string.Compare(
+            left.achievementID,
+            right.achievementID,
+            StringComparison.OrdinalIgnoreCase));
+        SetDropdownOptions(
+            achievementDropdown,
+            achievements.ConvertAll(GetAchievementLabel),
+            "No achievements registered");
+    }
+
+    private void AddAchievementIfUnique(AchievementSO achievement, HashSet<string> achievementIDs)
+    {
+        if (achievement == null || string.IsNullOrWhiteSpace(achievement.achievementID) ||
+            !achievementIDs.Add(achievement.achievementID)) return;
+        achievements.Add(achievement);
     }
 
     private static bool IsLoadedSceneObject(Component component)
@@ -274,7 +374,10 @@ public sealed class DeveloperDebugManager : MonoBehaviour
         int currentIndex = sceneNames.FindIndex(name =>
             string.Equals(name, SceneManager.GetActiveScene().name, StringComparison.OrdinalIgnoreCase));
         if (sceneDropdown != null && currentIndex >= 0)
+        {
             sceneDropdown.SetValueWithoutNotify(currentIndex);
+            sceneDropdown.RefreshShownValue();
+        }
     }
 
     public void LoadSelectedScene()
@@ -311,6 +414,89 @@ public sealed class DeveloperDebugManager : MonoBehaviour
         TutorialManager.Instance.RestartTutorial(sequence);
         SetStatus($"Force-started tutorial: {GetTutorialLabel(sequence)}");
         CloseMenu();
+    }
+
+    public void AutoCompleteSelectedTutorial()
+    {
+        TutorialManager tutorialManager = TutorialManager.Instance;
+        TutorialSequence sequence = tutorialManager != null
+            ? tutorialManager.ActiveSequence
+            : null;
+
+        if (sequence == null)
+        {
+            int index = tutorialDropdown != null ? tutorialDropdown.value : -1;
+            if (index >= 0 && index < tutorials.Count)
+                sequence = tutorials[index];
+        }
+
+        if (sequence == null)
+        {
+            SetStatus("No active or selected tutorial was found.");
+            return;
+        }
+
+        bool completedActiveTutorial = tutorialManager != null &&
+                                       tutorialManager.IsPlayingSequence(sequence);
+        if (completedActiveTutorial)
+        {
+            tutorialManager.SkipTutorial();
+        }
+        else if (PlayerDataManager.Instance != null && !string.IsNullOrWhiteSpace(sequence.lessonName))
+        {
+            PlayerDataManager.Instance.CompleteLesson(sequence.lessonName);
+        }
+        else
+        {
+            SetStatus("The selected tutorial has no Lesson Name and is not currently playing.");
+            return;
+        }
+
+        RefreshDropdownValues();
+        SetStatus($"Completed {(completedActiveTutorial ? "active" : "selected")} tutorial: {GetTutorialLabel(sequence)}");
+    }
+
+    public void CompleteAllTutorials()
+    {
+        // Refresh first so sequences enabled or created after scene startup are
+        // included in the operation.
+        RefreshSceneObjects();
+
+        if (tutorials.Count == 0)
+        {
+            SetStatus("No tutorial sequences were found in this scene.");
+            return;
+        }
+
+        if (PlayerDataManager.Instance == null)
+        {
+            SetStatus("PlayerDataManager is unavailable; tutorial completion could not be saved.");
+            return;
+        }
+
+        int completedCount = 0;
+        int unnamedCount = 0;
+        foreach (TutorialSequence sequence in tutorials)
+        {
+            if (sequence == null) continue;
+            if (string.IsNullOrWhiteSpace(sequence.lessonName))
+            {
+                unnamedCount++;
+                continue;
+            }
+
+            PlayerDataManager.Instance.CompleteLesson(sequence.lessonName);
+            completedCount++;
+        }
+
+        if (TutorialManager.Instance != null)
+            TutorialManager.Instance.DebugCloseActiveTutorialAndClearQueue();
+
+        RefreshSceneObjects();
+        string unnamedMessage = unnamedCount > 0
+            ? $" {unnamedCount} sequence(s) had no Lesson Name and could not be saved."
+            : string.Empty;
+        SetStatus($"Completed all {completedCount} named tutorials in this scene.{unnamedMessage}");
     }
 
     public void TeleportPlayerToSelectedBuildLocation()
@@ -357,6 +543,122 @@ public sealed class DeveloperDebugManager : MonoBehaviour
 
         SetStatus($"NPC moved and activated: {npcProgression.GetPhaseDisplayName(index)}");
         CloseMenu();
+    }
+
+    public void UnlockSelectedBuildLocationContract()
+    {
+        BuildLocation location = GetSelectedBuildLocation();
+        if (location == null)
+        {
+            SetStatus("Select a valid build location first.");
+            return;
+        }
+
+        ContractSO contract = location.activeContract;
+        NPCContractGiver matchingGiver = null;
+        foreach (NPCContractGiver giver in FindObjectsOfType<NPCContractGiver>(true))
+        {
+            if (giver == null || giver.targetBuildLocation != location) continue;
+            matchingGiver = giver;
+            if (contract == null) contract = giver.contractToGive;
+            break;
+        }
+
+        if (contract == null)
+        {
+            if (npcProgression == null)
+                npcProgression = FindObjectOfType<NPCProgressionManager>(true);
+            if (npcProgression != null)
+                npcProgression.TryGetContractForBuildLocation(location, out contract);
+        }
+
+        if (contract == null)
+        {
+            SetStatus($"No contract is associated with '{location.name}'. Check its NPC phase assignment.");
+            return;
+        }
+
+        PlayerPrefs.DeleteKey("LockedContract_" + contract.name);
+        PlayerPrefs.Save();
+        location.activeContract = contract;
+
+        if (matchingGiver != null)
+            matchingGiver.DebugUnlockAndAcceptContract();
+
+        if (ObjectiveTrackerUI.Instance != null)
+        {
+            string destination = location.navigationTarget != null
+                ? location.navigationTarget.name
+                : location.name;
+            ObjectiveTrackerUI.Instance.SetObjective(contract, destination);
+        }
+
+        SetStatus($"Unlocked '{contract.name}' at '{location.name}'. Build Mode is now accessible.");
+        RefreshDropdownValues();
+    }
+
+    public void UnlockSelectedAchievement()
+    {
+        if (PlayerDataManager.Instance == null)
+        {
+            SetStatus("PlayerDataManager is unavailable; the achievement could not be saved.");
+            return;
+        }
+
+        int index = achievementDropdown != null ? achievementDropdown.value : -1;
+        if (index < 0 || index >= achievements.Count || achievements[index] == null)
+        {
+            SetStatus("Select a valid achievement first.");
+            return;
+        }
+
+        AchievementSO achievement = achievements[index];
+        bool unlocked = PlayerDataManager.Instance.DebugUnlockAchievement(achievement);
+        PopulateAchievementDropdown();
+        SetStatus(unlocked
+            ? $"Unlocked achievement: {achievement.achievementName}"
+            : $"Achievement was already unlocked: {achievement.achievementName}");
+    }
+
+    public void UnlockAllAchievements()
+    {
+        if (PlayerDataManager.Instance == null)
+        {
+            SetStatus("PlayerDataManager is unavailable; achievements could not be saved.");
+            return;
+        }
+
+        PopulateAchievementDropdown();
+        if (achievements.Count == 0)
+        {
+            SetStatus("No registered achievements were found.");
+            return;
+        }
+
+        int previouslyUnlocked = PlayerDataManager.Instance.CurrentData.unlockedAchievements.Count;
+        foreach (AchievementSO achievement in achievements)
+            PlayerDataManager.Instance.DebugUnlockAchievement(achievement);
+
+        int totalUnlocked = PlayerDataManager.Instance.CurrentData.unlockedAchievements.Count;
+        int newlyUnlocked = Mathf.Max(0, totalUnlocked - previouslyUnlocked);
+        PopulateAchievementDropdown();
+        SetStatus($"Unlocked all achievements. {newlyUnlocked} new, {totalUnlocked} total unlocked.");
+    }
+
+    public void AddSelectedCoins()
+    {
+        if (PlayerDataManager.Instance == null || PlayerDataManager.Instance.CurrentData == null)
+        {
+            SetStatus("PlayerDataManager is unavailable; coins could not be added.");
+            return;
+        }
+
+        int index = coinAmountDropdown != null ? coinAmountDropdown.value : 1;
+        index = Mathf.Clamp(index, 0, DebugCoinAmounts.Length - 1);
+        int amount = DebugCoinAmounts[index];
+        PlayerDataManager.Instance.AddGold(amount);
+        int balance = PlayerDataManager.Instance.CurrentData.gold;
+        SetStatus($"Added ₱{amount:N0}. Current balance: ₱{balance:N0}.");
     }
 
     public void SetTimeScale(float value)
@@ -500,11 +802,36 @@ public sealed class DeveloperDebugManager : MonoBehaviour
             : $"{sequence.lessonName} ({sequence.name})";
     }
 
+    private void SelectActiveTutorialInDropdown()
+    {
+        if (tutorialDropdown == null || TutorialManager.Instance == null) return;
+
+        TutorialSequence activeSequence = TutorialManager.Instance.ActiveSequence;
+        if (activeSequence == null) return;
+
+        int index = tutorials.IndexOf(activeSequence);
+        if (index < 0) return;
+
+        tutorialDropdown.SetValueWithoutNotify(index);
+        tutorialDropdown.RefreshShownValue();
+    }
+
     private static string GetBuildLocationLabel(BuildLocation location)
     {
         if (location == null) return "Missing Location";
         string contractName = location.activeContract != null ? location.activeContract.name : "No Contract";
         return $"{location.name} - {contractName}";
+    }
+
+    private static string GetAchievementLabel(AchievementSO achievement)
+    {
+        if (achievement == null) return "Missing Achievement";
+        bool unlocked = PlayerDataManager.Instance != null &&
+                        PlayerDataManager.Instance.CurrentData != null &&
+                        PlayerDataManager.Instance.CurrentData.unlockedAchievements.Contains(
+                            achievement.achievementID);
+        return $"{achievement.achievementID} - {achievement.achievementName}" +
+               (unlocked ? " [Unlocked]" : string.Empty);
     }
 
     private static void SetDropdownOptions(TMP_Dropdown dropdown, List<string> options, string emptyLabel)

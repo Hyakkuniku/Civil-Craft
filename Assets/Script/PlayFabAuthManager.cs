@@ -189,6 +189,23 @@ public class PlayFabAuthManager : MonoBehaviour
         if (authCanvas != null) authCanvas.SetActive(false);
     }
 
+    /// <summary>Clears the current PlayFab/guest session without deleting game progress.</summary>
+    public void LogoutToSignedOutState()
+    {
+        CancelInvoke(nameof(LoadGameScene));
+        PlayFabClientAPI.ForgetAllCredentials();
+        returnToMainMenuAfterLogin = false;
+        isGuest = false;
+        loggedInPlayerName = string.Empty;
+
+        PlayerPrefs.SetInt("LoginChoice", 0);
+        PlayerPrefs.DeleteKey("SavedPlayerName");
+        PlayerPrefs.Save();
+
+        if (authCanvas != null) authCanvas.SetActive(false);
+        UpdatePlayerNameDisplay();
+    }
+
     public void OnPlayAsGuestClicked()
     {
         PlayFabClientAPI.ForgetAllCredentials();

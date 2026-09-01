@@ -27,6 +27,18 @@ public class BuildLocation : Interactable
     [Header("Active Contract")]
     public ContractSO activeContract; 
 
+    [Header("Completion Achievement")]
+    [Tooltip("Optional. Assign an AchievementSO whose Goal Type is Build Location Completed. It unlocks after a valid bridge is saved here.")]
+    public AchievementSO completionAchievement;
+
+    [Header("Build Mode Site Isolation")]
+    [Tooltip("When another Build Location is active, hide this location for a clean build view.")]
+    public bool hideWhenAnotherBuildLocationIsActive = true;
+    [Tooltip("Optional environment/ravine roots for this site. If empty, the whole Build Location GameObject is temporarily hidden. Prefer assigning child visual roots so this component remains enabled.")]
+    public List<GameObject> buildSiteVisualRoots = new List<GameObject>();
+    [Tooltip("Also hide this location's anchors and saved bridge pieces when another site is active.")]
+    public bool includeOwnedBridgeObjectsInIsolation = true;
+
     [Header("Navigation")]
     [Tooltip("Drag an Empty GameObject placed at the cliff edge here. The rock trail will lead to this exact spot!")]
     public GameObject navigationTarget;
@@ -364,6 +376,47 @@ public class BuildLocation : Interactable
     public bool Owns(Bar bar)
     {
         return bar != null && (bar.OwnerLocation == this || bakedBars.Contains(bar));
+    }
+
+    /// <summary>
+    /// Supplies the exact objects GameManager may temporarily hide while a
+    /// different site is being edited. State restoration is owned by GameManager.
+    /// </summary>
+    public void AppendBuildModeIsolationTargets(List<GameObject> targets)
+    {
+        if (targets == null) return;
+
+        bool hasExplicitVisualRoot = false;
+        if (buildSiteVisualRoots != null)
+        {
+            foreach (GameObject visualRoot in buildSiteVisualRoots)
+            {
+                if (visualRoot == null) continue;
+                hasExplicitVisualRoot = true;
+                AddUniqueTarget(targets, visualRoot);
+            }
+        }
+
+        // Makes the feature work immediately in scenes where each ravine is
+        // already grouped below its BuildLocation object.
+        if (!hasExplicitVisualRoot)
+            AddUniqueTarget(targets, gameObject);
+
+        if (!includeOwnedBridgeObjectsInIsolation) return;
+
+        foreach (Point point in startingAnchors)
+            if (point != null) AddUniqueTarget(targets, point.gameObject);
+        foreach (Point point in endingAnchors)
+            if (point != null) AddUniqueTarget(targets, point.gameObject);
+        foreach (Point point in bakedPoints)
+            if (point != null) AddUniqueTarget(targets, point.gameObject);
+        foreach (Bar bar in bakedBars)
+            if (bar != null) AddUniqueTarget(targets, bar.gameObject);
+    }
+
+    private static void AddUniqueTarget(List<GameObject> targets, GameObject target)
+    {
+        if (target != null && !targets.Contains(target)) targets.Add(target);
     }
 
     private void ClaimConnectedBridgeOwnership()

@@ -1,34 +1,20 @@
-using System.Collections;
-using System.Threading;
 using UnityEngine;
 
 public class FrameRateManager : MonoBehaviour
 {
     [Header("Frame Settings")]
-    int MaxRate = 9999;
-    public float TargetFrameRate = 60.0f;
-    float currentFrameTime;
+    [Tooltip("Used only when the player has not selected a frame-rate cap yet.")]
+    [Min(30)] public int defaultFrameRate = 60;
 
-    void Awake()
+    private void Awake()
     {
-        QualitySettings.vSyncCount = 0;
-        Application.targetFrameRate = MaxRate;
-        currentFrameTime = Time.realtimeSinceStartup;
-        StartCoroutine("WaitForNextFrame");
+        ApplySavedFrameRate(defaultFrameRate);
     }
 
-    IEnumerator WaitForNextFrame()
+    public static void ApplySavedFrameRate(int fallback = 60)
     {
-        while (true)
-        {
-            yield return new WaitForEndOfFrame();
-            currentFrameTime += 1.0f / TargetFrameRate;
-            var t = Time.realtimeSinceStartup;
-            var sleepTime = currentFrameTime - t - 0.01f;
-            if (sleepTime > 0)
-                Thread.Sleep((int)(sleepTime * 1000));
-            while (t < currentFrameTime)
-                t = Time.realtimeSinceStartup;
-        }
+        int savedCap = PlayerPrefs.GetInt("FrameRateCap", fallback);
+        QualitySettings.vSyncCount = 0;
+        Application.targetFrameRate = savedCap;
     }
 }

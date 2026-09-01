@@ -246,6 +246,20 @@ public class NPCContractGiver : Interactable
         if (!string.IsNullOrWhiteSpace(lockedPrompt)) progressionLockedPrompt = lockedPrompt;
     }
 
+    /// <summary>Developer-menu shortcut that unlocks and assigns this contract without dialogue.</summary>
+    public void DebugUnlockAndAcceptContract()
+    {
+        if (contractToGive == null || targetBuildLocation == null) return;
+
+        PlayerPrefs.DeleteKey("LockedContract_" + contractToGive.name);
+        PlayerPrefs.Save();
+        isLocked = false;
+        isProgressionInteractionLocked = false;
+        hasGivenContract = true;
+        targetBuildLocation.activeContract = contractToGive;
+        if (linkedCargo != null) linkedCargo.SetWeight(contractToGive.liveLoadWeight);
+    }
+
     /// <summary>Reuses this giver for a new phase and rebuilds its runtime state from the save.</summary>
     public void ConfigureProgressionPhase(
         ContractSO phaseContract,
