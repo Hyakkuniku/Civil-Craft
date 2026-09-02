@@ -11,6 +11,8 @@ public class AlmanacPickup : Interactable
     [Tooltip("The 2D picture of the book for the UI popup")]
     public Sprite rewardSprite; 
 
+    private bool collectionPending;
+
     private void Start()
     {
         // If the player already owns the Almanac, hide the 3D book in the world
@@ -20,8 +22,11 @@ public class AlmanacPickup : Interactable
 
     protected override void Intract() 
     {
+        if (collectionPending) return;
+
         if (PlayerDataManager.Instance != null)
         {
+            collectionPending = true;
             if (ItemUnlockUI.Instance != null)
             {
                 // We pass an empty string "" for the hatID because this is a book, not a hat!
@@ -41,8 +46,13 @@ public class AlmanacPickup : Interactable
 
     private void CompletePickup()
     {
+        collectionPending = false;
+
         // 1. Unlock it in the save file
+        bool wasAlreadyUnlocked = PlayerDataManager.Instance.CurrentData.hasAlmanac;
         PlayerDataManager.Instance.UnlockAlmanac();
+        if (!wasAlreadyUnlocked)
+            AchievementPopupNotification.NotifyFeatureUnlock(rewardDisplayName, rewardSprite);
         
         // 2. Advance the tutorial if this pickup is part of one
         if (advancesTutorial && TutorialManager.Instance != null)

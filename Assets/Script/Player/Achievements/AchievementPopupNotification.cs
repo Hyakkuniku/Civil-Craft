@@ -11,12 +11,19 @@ using UnityEngine.UI;
 [DisallowMultipleComponent]
 public sealed class AchievementPopupNotification : MonoBehaviour
 {
+    private enum PopupKind
+    {
+        Achievement,
+        Feature,
+        Cosmetic
+    }
+
     private sealed class PopupRequest
     {
         public string title;
         public string detail;
         public Sprite icon;
-        public bool isFeatureUnlock;
+        public PopupKind kind;
     }
 
     private const int AbsoluteSortingOrder = 32767;
@@ -42,6 +49,12 @@ public sealed class AchievementPopupNotification : MonoBehaviour
     [SerializeField] private Color featureAccentColor = new Color(0.27f, 0.84f, 0.72f, 1f);
     [SerializeField] private Color featurePrimaryTextColor = new Color(0.88f, 1f, 0.96f, 1f);
     [SerializeField] private Color featureSecondaryTextColor = new Color(0.67f, 0.91f, 0.85f, 1f);
+
+    [Header("Cosmetic Unlock Colors")]
+    [SerializeField] private Color cosmeticBackgroundColor = new Color(0.19f, 0.11f, 0.24f, 0.97f);
+    [SerializeField] private Color cosmeticAccentColor = new Color(0.79f, 0.52f, 0.96f, 1f);
+    [SerializeField] private Color cosmeticPrimaryTextColor = new Color(0.98f, 0.92f, 1f, 1f);
+    [SerializeField] private Color cosmeticSecondaryTextColor = new Color(0.86f, 0.75f, 0.92f, 1f);
 
     private readonly Queue<PopupRequest> pendingNotifications = new Queue<PopupRequest>();
     private Coroutine notificationRoutine;
@@ -137,7 +150,7 @@ public sealed class AchievementPopupNotification : MonoBehaviour
             title = achievement.achievementName,
             detail = BuildRewardText(achievement),
             icon = achievement.achievementIcon,
-            isFeatureUnlock = false
+            kind = PopupKind.Achievement
         };
 
         Dispatch(request);
@@ -156,10 +169,24 @@ public sealed class AchievementPopupNotification : MonoBehaviour
             title = featureName,
             detail = "Unlocked permanently",
             icon = icon,
-            isFeatureUnlock = true
+            kind = PopupKind.Feature
         };
 
         Dispatch(request);
+    }
+
+    /// <summary>Shows a cosmetic-specific follow-up after its Collect panel closes.</summary>
+    public static void NotifyCosmeticUnlock(string cosmeticName, Sprite icon = null)
+    {
+        if (string.IsNullOrWhiteSpace(cosmeticName)) cosmeticName = "New Cosmetic";
+
+        Dispatch(new PopupRequest
+        {
+            title = cosmeticName,
+            detail = "Added to your cosmetics",
+            icon = icon,
+            kind = PopupKind.Cosmetic
+        });
     }
 
     private static void Dispatch(PopupRequest request)
@@ -250,6 +277,11 @@ public sealed class AchievementPopupNotification : MonoBehaviour
         popupCanvas.sortingLayerID = topSortingLayerID;
         popupCanvas.sortingOrder = AbsoluteSortingOrder;
 
+        // Some scene instances were accidentally saved at scale zero. Because
+        // this canvas persists between scenes, one bad source scene would make
+        // every later notification run correctly but remain invisible.
+        transform.localScale = Vector3.one;
+
         if (popupGroup != null)
         {
             popupGroup.ignoreParentGroups = true;
@@ -279,7 +311,7 @@ public sealed class AchievementPopupNotification : MonoBehaviour
 
     private void Populate(PopupRequest request)
     {
-        ApplyStyle(request.isFeatureUnlock);
+        ApplyStyle(request.kind);
         achievementNameText.text = request.title;
         rewardText.text = request.detail;
 
@@ -292,19 +324,31 @@ public sealed class AchievementPopupNotification : MonoBehaviour
         }
     }
 
-    private void ApplyStyle(bool isFeatureUnlock)
+    private void ApplyStyle(PopupKind kind)
     {
-        Color selectedBackground = isFeatureUnlock ? featureBackgroundColor : backgroundColor;
-        Color selectedAccent = isFeatureUnlock ? featureAccentColor : accentColor;
-        Color selectedPrimary = isFeatureUnlock ? featurePrimaryTextColor : primaryTextColor;
-        Color selectedSecondary = isFeatureUnlock ? featureSecondaryTextColor : secondaryTextColor;
+        bool isFeatureUnlock = kind == PopupKind.Feature;
+        bool isCosmeticUnlock = kind == PopupKind.Cosmetic;
+        Color selectedBackground = isCosmeticUnlock
+            ? cosmeticBackgroundColor
+            : isFeatureUnlock ? featureBackgroundColor : backgroundColor;
+        Color selectedAccent = isCosmeticUnlock
+            ? cosmeticAccentColor
+            : isFeatureUnlock ? featureAccentColor : accentColor;
+        Color selectedPrimary = isCosmeticUnlock
+            ? cosmeticPrimaryTextColor
+            : isFeatureUnlock ? featurePrimaryTextColor : primaryTextColor;
+        Color selectedSecondary = isCosmeticUnlock
+            ? cosmeticSecondaryTextColor
+            : isFeatureUnlock ? featureSecondaryTextColor : secondaryTextColor;
 
         if (backgroundImage != null) backgroundImage.color = selectedBackground;
         if (accentImage != null) accentImage.color = selectedAccent;
         if (popupOutline != null) popupOutline.effectColor = selectedAccent;
         if (headingText != null)
         {
-            headingText.text = isFeatureUnlock ? "FEATURE UNLOCKED" : "ACHIEVEMENT UNLOCKED";
+            headingText.text = isCosmeticUnlock
+                ? "COSMETIC UNLOCKED"
+                : isFeatureUnlock ? "FEATURE UNLOCKED" : "ACHIEVEMENT UNLOCKED";
             headingText.color = selectedAccent;
         }
         if (achievementNameText != null) achievementNameText.color = selectedPrimary;

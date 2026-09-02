@@ -50,6 +50,22 @@ public class NPCProgressionPhase
     [Tooltip("Require the player to press Collect before granting the feature and showing its notification.")]
     public bool showFeatureCollectPopup = true;
 
+    [Header("Optional Material Introduction")]
+    [Tooltip("Optional single material retained for existing phases. It is shown before Additional Material Introductions.")]
+    public BridgeMaterialSO materialIntroduction;
+
+    [Tooltip("Additional materials shown sequentially after the dialogue. Pressing the button advances to the next material.")]
+    public List<BridgeMaterialSO> materialIntroductions = new List<BridgeMaterialSO>();
+
+    [Tooltip("Label used instead of COLLECT on a material introduction.")]
+    public string materialIntroductionButtonLabel = "GOT IT";
+
+    [Tooltip("Show this material introduction only once during this scene visit, even if the dialogue can repeat.")]
+    public bool introduceMaterialOnlyOnce = true;
+
+    [Tooltip("Invoked after the player dismisses the material introduction panel.")]
+    public UnityEvent onMaterialIntroductionClosed;
+
     [Tooltip("Invoked when the optional phase dialogue closes.")]
     public UnityEvent onDialogueFinished;
 
@@ -148,6 +164,7 @@ public class NPCProgressionManager : MonoBehaviour
 
     private readonly HashSet<int> invokedInteractionPhases = new HashSet<int>();
     private readonly HashSet<int> completedDialoguePhases = new HashSet<int>();
+    private readonly HashSet<int> introducedMaterialPhases = new HashSet<int>();
     private Coroutine movementRoutine;
     private int currentPhaseIndex = -1;
     private bool subscribedToCompletion;
@@ -263,7 +280,11 @@ public class NPCProgressionManager : MonoBehaviour
 
     private void OnEnable()
     {
-        if (contractGiver != null) contractGiver.OnNPCInteracted += HandleNPCInteracted;
+        if (contractGiver != null)
+        {
+            contractGiver.OnNPCInteracted += HandleNPCInteracted;
+            contractGiver.OnOfferDialogueCompleted += HandleOfferDialogueCompleted;
+        }
         TrySubscribeToContractCompletion();
     }
 
@@ -339,7 +360,11 @@ public class NPCProgressionManager : MonoBehaviour
 
     private void OnDisable()
     {
-        if (contractGiver != null) contractGiver.OnNPCInteracted -= HandleNPCInteracted;
+        if (contractGiver != null)
+        {
+            contractGiver.OnNPCInteracted -= HandleNPCInteracted;
+            contractGiver.OnOfferDialogueCompleted -= HandleOfferDialogueCompleted;
+        }
         UnsubscribeFromContractCompletion();
 
         if (movementRoutine != null)
@@ -1344,10 +1369,10 @@ public class NPCProgressionManager : MonoBehaviour
         if (!phase.repeatDialogue) completedDialoguePhases.Add(phaseIndex);
         dialogueManager.StartDialogue(
             phase.phaseDialogue,
-            () => HandlePhaseDialogueFinished(phase));
+            () => HandlePhaseDialogueFinished(phaseIndex, phase));
     }
 
-    private void HandlePhaseDialogueFinished(NPCProgressionPhase phase)
+    private void HandlePhaseDialogueFinished(int phaseIndex, NPCProgressionPhase phase)
     {
         if (phase == null) return;
 
@@ -1375,7 +1400,71 @@ public class NPCProgressionManager : MonoBehaviour
             }
         }
 
+        TryShowMaterialIntroduction(phaseIndex, phase);
+
         phase.onDialogueFinished?.Invoke();
+    }
+
+    private void HandleOfferDialogueCompleted(NPCContractGiver giver)
+    {
+        if (giver != contractGiver || currentPhaseIndex < 0 || currentPhaseIndex >= phases.Count)
+            return;
+
+        TryShowMaterialIntroduction(currentPhaseIndex, phases[currentPhaseIndex]);
+    }
+
+    private void TryShowMaterialIntroduction(int phaseIndex, NPCProgressionPhase phase)
+    {
+        if (phase == null) return;
+        if (phase.introduceMaterialOnlyOnce && introducedMaterialPhases.Contains(phaseIndex)) return;
+
+        List<BridgeMaterialSO> materialsToShow = GetPhaseMaterialIntroductions(phase);
+        if (materialsToShow.Count == 0) return;
+
+        if (phase.introduceMaterialOnlyOnce)
+            introducedMaterialPhases.Add(phaseIndex);
+
+        if (ItemUnlockUI.Instance != null)
+        {
+            for (int i = 0; i < materialsToShow.Count; i++)
+            {
+                bool isLastMaterial = i == materialsToShow.Count - 1;
+                System.Action onDismiss = null;
+                if (isLastMaterial)
+                    onDismiss = () => phase.onMaterialIntroductionClosed?.Invoke();
+
+                ItemUnlockUI.Instance.ShowMaterialIntroduction(
+                    materialsToShow[i],
+                    onDismiss,
+                    phase.materialIntroductionButtonLabel);
+            }
+        }
+        else
+        {
+            Debug.LogWarning(
+                $"[NPCProgressionManager] Cannot introduce {materialsToShow.Count} material(s) because ItemUnlockUI is unavailable.",
+                this);
+            phase.onMaterialIntroductionClosed?.Invoke();
+        }
+    }
+
+    private static List<BridgeMaterialSO> GetPhaseMaterialIntroductions(NPCProgressionPhase phase)
+    {
+        List<BridgeMaterialSO> result = new List<BridgeMaterialSO>();
+        if (phase == null) return result;
+
+        if (phase.materialIntroduction != null)
+            result.Add(phase.materialIntroduction);
+
+        if (phase.materialIntroductions == null) return result;
+
+        foreach (BridgeMaterialSO material in phase.materialIntroductions)
+        {
+            if (material != null && !result.Contains(material))
+                result.Add(material);
+        }
+
+        return result;
     }
 
     private void GrantPhaseDialogueFeature(NPCProgressionPhase phase)
@@ -1385,6 +1474,8 @@ public class NPCProgressionManager : MonoBehaviour
 
         if (PlayerDataManager.Instance != null)
         {
+            // Save the feature after Collect. UnlockFeature queues the compact
+            // follow-up notification above every other UI.
             PlayerDataManager.Instance.UnlockFeature(phase.unlockFeatureIdAfterDialogue);
         }
         else

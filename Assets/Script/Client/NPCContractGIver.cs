@@ -34,6 +34,12 @@ public class NPCContractGiver : Interactable
     /// </summary>
     public event Action<NPCContractGiver> OnNPCInteracted;
 
+    /// <summary>
+    /// Runtime notification fired after the contract offer dialogue closes.
+    /// NPCProgressionManager uses it for phase-specific follow-up panels.
+    /// </summary>
+    public event Action<NPCContractGiver> OnOfferDialogueCompleted;
+
     private void Awake()
     {
         GameObject player = GameObject.FindGameObjectWithTag("Player");
@@ -184,6 +190,7 @@ public class NPCContractGiver : Interactable
                     if (ObjectiveTrackerUI.Instance != null) ObjectiveTrackerUI.Instance.SetObjective(contractToGive, targetLocName);
                     TryAdvanceTutorial();
                     onOfferDialogueFinished?.Invoke();
+                    OnOfferDialogueCompleted?.Invoke(this);
                 });
             }
             else
@@ -191,6 +198,7 @@ public class NPCContractGiver : Interactable
                 if (ObjectiveTrackerUI.Instance != null) ObjectiveTrackerUI.Instance.SetObjective(contractToGive, targetLocName);
                 TryAdvanceTutorial();
                 onOfferDialogueFinished?.Invoke();
+                OnOfferDialogueCompleted?.Invoke(this);
             }
 
             hasGivenContract = true;

@@ -489,3 +489,5 @@ MonoBehaviour:
   useEvents: 0
   promptMessage: Almanac
   advancesTutorial: 0
+  rewardDisplayName: Engineering Almanac
+  rewardSprite: {fileID: 21300000, guid: d7dfd77bb895500428a32f00e6fc606f, type: 3}

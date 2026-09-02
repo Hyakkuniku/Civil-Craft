@@ -3,6 +3,14 @@ using UnityEngine;
 [CreateAssetMenu(fileName = "NewBridgeMaterial", menuName = "Bridge/Material")]
 public class BridgeMaterialSO : ScriptableObject
 {
+    [Header("Player-Facing Details")]
+    [Tooltip("Friendly name shown in material introduction panels. The asset name is used when left blank.")]
+    public string displayName;
+
+    [TextArea(3, 8)]
+    [Tooltip("Short explanation of what this material is and when the player should use it.")]
+    public string introductionDescription;
+
     [Header("Base Properties")]
     public float costPerMeter = 100f;
     public float massPerMeter = 2f;
@@ -39,4 +47,10 @@ public class BridgeMaterialSO : ScriptableObject
     public Color gizmoColor = Color.white;
     public bool isDualBeam = false;
     public float zOffset = 0.5f;
+
+    public string GetDisplayName()
+    {
+        if (!string.IsNullOrWhiteSpace(displayName)) return displayName.Trim();
+        return name.Replace("Material", string.Empty).Trim();
+    }
 }

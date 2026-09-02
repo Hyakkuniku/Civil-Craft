@@ -915,6 +915,17 @@ public class PlayerDataManager : MonoBehaviour
             PlayerCosmetics.Instance.RefreshCosmetics();
     }
 
+    public bool IsCosmeticUnlocked(string cosmeticID)
+    {
+        if (CurrentData == null || string.IsNullOrWhiteSpace(cosmeticID) ||
+            CurrentData.unlockedCosmeticIDs == null)
+            return false;
+
+        string normalizedID = cosmeticID.Trim();
+        return CurrentData.unlockedCosmeticIDs.Exists(savedID =>
+            string.Equals(savedID?.Trim(), normalizedID, StringComparison.Ordinal));
+    }
+
     // ────────────────────────────────────────────────
     // OTHER PROGRESSION LOGIC
     // ────────────────────────────────────────────────

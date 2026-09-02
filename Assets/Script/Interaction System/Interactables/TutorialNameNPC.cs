@@ -21,7 +21,7 @@ public class TutorialNameNPC : Interactable
 
     // --- NEW: UI Reward Integration ---
     [Header("Cosmetic Reward")]
-    public string rewardHatID = "EngineerHardHat";
+    public string rewardHatID = "EngineeringHardHat";
     [Tooltip("The name of the item shown on the UI popup")]
     public string rewardDisplayName = "Engineer's Hard Hat";
     [Tooltip("The 2D picture of the hat for the UI popup")]
@@ -119,18 +119,29 @@ public class TutorialNameNPC : Interactable
                     npcWalker.StartWalking();
                 }
 
-                if (ItemUnlockUI.Instance != null && !string.IsNullOrEmpty(rewardHatID))
+                bool alreadyOwnsReward = PlayerDataManager.Instance != null &&
+                                         PlayerDataManager.Instance.IsCosmeticUnlocked(rewardHatID);
+
+                if (ItemUnlockUI.Instance != null &&
+                    !string.IsNullOrEmpty(rewardHatID) &&
+                    !alreadyOwnsReward)
                 {
                     ItemUnlockUI.Instance.ShowReward(rewardDisplayName, rewardSprite, rewardHatID, () => 
                     {
+                        AchievementPopupNotification.NotifyCosmeticUnlock(rewardDisplayName, rewardSprite);
                         onFinalDialogueFinished?.Invoke();
                     });
                 }
                 else
                 {
-                    if (PlayerCosmetics.Instance != null && !string.IsNullOrEmpty(rewardHatID))
+                    if (!alreadyOwnsReward && !string.IsNullOrEmpty(rewardHatID))
                     {
-                        PlayerCosmetics.Instance.UnlockAndEquipHat(rewardHatID);
+                        if (PlayerCosmetics.Instance != null)
+                            PlayerCosmetics.Instance.UnlockAndEquipHat(rewardHatID);
+                        else if (PlayerDataManager.Instance != null)
+                            PlayerDataManager.Instance.UnlockCosmeticReward(rewardHatID, true);
+
+                        AchievementPopupNotification.NotifyCosmeticUnlock(rewardDisplayName, rewardSprite);
                     }
                     onFinalDialogueFinished?.Invoke();
                 }
