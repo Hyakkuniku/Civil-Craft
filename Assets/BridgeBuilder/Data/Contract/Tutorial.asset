@@ -17,6 +17,7 @@ MonoBehaviour:
   isStoryModeContract: 1
   isTutorialContract: 1
   autoCollectReward: 0
+  featureUnlockRewards: []
   clientName: Prof Bhan
   jobDescription: Truss Bridge
   budget: 50000

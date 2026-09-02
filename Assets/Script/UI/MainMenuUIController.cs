@@ -45,6 +45,16 @@ public class MainMenuUIController : MonoBehaviour
     [Tooltip("The existing authentication canvas in the Main Menu scene.")]
     [SerializeField] private GameObject authCanvas;
 
+    [Header("Persistent Feature Buttons")]
+    [Tooltip("The Store entry inside the dropdown. It is found automatically by name when left empty.")]
+    [SerializeField] private GameObject storeButton;
+    [SerializeField, Tooltip("Must match the feature ID granted by the contract reward.")]
+    private string storeFeatureId = "shop";
+    [Tooltip("The Achievements entry inside the dropdown. It is found automatically by name when left empty.")]
+    [SerializeField] private GameObject achievementsButton;
+    [SerializeField, Tooltip("Automatically granted when the player earns their first achievement.")]
+    private string achievementsFeatureId = "achievements";
+
     public bool IsPanelShown { get; private set; }
     public bool IsAnimating => slideCoroutine != null || buttonAnimationCoroutine != null;
 
@@ -55,6 +65,7 @@ public class MainMenuUIController : MonoBehaviour
     private readonly Dictionary<GameObject, bool> supportingUIStates =
         new Dictionary<GameObject, bool>();
     private bool waitingForAuthentication;
+    private bool featureUnlockSubscribed;
 
     private void Awake()
     {
@@ -67,6 +78,8 @@ public class MainMenuUIController : MonoBehaviour
 
         if (dropdownCanvasGroup == null && dropdownPanel != null)
             dropdownCanvasGroup = dropdownPanel.GetComponent<CanvasGroup>();
+
+        ResolveFeatureButtons();
     }
 
     private void Start()
@@ -78,6 +91,8 @@ public class MainMenuUIController : MonoBehaviour
             return;
         }
 
+        SubscribeToFeatureUnlocks();
+        RefreshUnlockableButtons();
         dropdownPanel.gameObject.SetActive(true);
         RefreshPanelLayout();
 
@@ -212,6 +227,61 @@ public class MainMenuUIController : MonoBehaviour
         RestoreButtonAnimationStates();
         if (authManager != null)
             authManager.MainMenuAuthenticationSucceeded -= HandleAuthenticationSucceeded;
+        if (featureUnlockSubscribed && PlayerDataManager.Instance != null)
+            PlayerDataManager.Instance.OnFeatureUnlocksChanged -= RefreshUnlockableButtons;
+        featureUnlockSubscribed = false;
+    }
+
+    /// <summary>
+    /// Keeps unlockable Main Menu entries synchronized with persistent player data.
+    /// </summary>
+    public void RefreshUnlockableButtons()
+    {
+        ResolveFeatureButtons();
+
+        bool storeUnlocked = PlayerDataManager.Instance != null &&
+                             PlayerDataManager.Instance.IsFeatureUnlocked(storeFeatureId);
+        if (storeButton != null && storeButton.activeSelf != storeUnlocked)
+            storeButton.SetActive(storeUnlocked);
+
+        bool achievementsUnlocked = PlayerDataManager.Instance != null &&
+                                    PlayerDataManager.Instance.IsFeatureUnlocked(
+                                        achievementsFeatureId);
+        if (achievementsButton != null && achievementsButton.activeSelf != achievementsUnlocked)
+            achievementsButton.SetActive(achievementsUnlocked);
+
+        if (dropdownPanel != null && dropdownPanel.gameObject.activeInHierarchy)
+            RefreshPanelLayout();
+    }
+
+    private void SubscribeToFeatureUnlocks()
+    {
+        if (featureUnlockSubscribed || PlayerDataManager.Instance == null) return;
+        PlayerDataManager.Instance.OnFeatureUnlocksChanged += RefreshUnlockableButtons;
+        featureUnlockSubscribed = true;
+    }
+
+    private void ResolveFeatureButtons()
+    {
+        if ((storeButton != null && achievementsButton != null) || dropdownPanel == null) return;
+
+        Button[] dropdownButtons = dropdownPanel.GetComponentsInChildren<Button>(true);
+        foreach (Button button in dropdownButtons)
+        {
+            if (button == null) continue;
+            string normalizedName = button.name.Replace(" ", string.Empty).ToLowerInvariant();
+            if (storeButton == null &&
+                (normalizedName == "storebutton" || normalizedName == "shopbutton" ||
+                 normalizedName == "storebtn" || normalizedName == "shopbtn"))
+                storeButton = button.gameObject;
+
+            if (achievementsButton == null &&
+                (normalizedName == "achievementbutton" ||
+                 normalizedName == "achievementsbutton" ||
+                 normalizedName == "achievementbtn" ||
+                 normalizedName == "achievementsbtn"))
+                achievementsButton = button.gameObject;
+        }
     }
 
     public void OnQuitClicked()

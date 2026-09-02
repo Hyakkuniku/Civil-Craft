@@ -7427,6 +7427,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 817a31fd72e98a94d83e69b571fbc1bc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  useProfileCardLayout: 0
+  expProgressFill: {fileID: 0}
+  expRemainingText: {fileID: 0}
+  achievementsSummaryText: {fileID: 0}
+  latestAchievementIcon: {fileID: 0}
   playerNameText: {fileID: 113526004462492056}
   titleText: {fileID: 6839477998022608614}
   goldText: {fileID: 326678090747180307}

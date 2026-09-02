@@ -12,7 +12,7 @@ using UnityEngine.UI;
 [InitializeOnLoad]
 public static class ShopSceneSetup
 {
-    private const string SessionKey = "CivilCraft.ShopSceneSetup.V2";
+    private const string SessionKey = "CivilCraft.ShopSceneSetup.V3";
     private const string CardPrefabPath = "Assets/Prefabs/UI/ShopItemCard.prefab";
     private const string FontPath = "Assets/TextMesh Pro/Resources/Fonts & Materials/Bekind Sans SDF.asset";
     private const string CoinPlusSpritePath = "Assets/Elements/UI/bm_ui/coin_plus (1).png";
@@ -31,10 +31,15 @@ public static class ShopSceneSetup
         EditorApplication.playModeStateChanged += HandlePlayModeChanged;
     }
 
-    [MenuItem("Tools/Civil Craft/Setup Canyon Crossing Shop")]
+    [MenuItem("Tools/Civil Craft/Setup Shop In Current Gameplay Scene")]
     public static void SetupFromMenu()
     {
         SetupActiveScene(true);
+    }
+
+    public static void SetupCurrentScene(bool saveScene = true)
+    {
+        SetupActiveScene(saveScene);
     }
 
     public static void SetupCanyonCrossingAsset()
@@ -45,9 +50,17 @@ public static class ShopSceneSetup
         SetupActiveScene(true);
     }
 
+    public static void SetupBhanHouseAsset()
+    {
+        Scene scene = EditorSceneManager.OpenScene(
+            "Assets/Scenes/BHAN HOUSE.unity",
+            OpenSceneMode.Single);
+        SetupActiveScene(true);
+    }
+
     private static void HandleSceneOpened(Scene scene, OpenSceneMode mode)
     {
-        if (scene.name == "CanyonCrossing")
+        if (IsSupportedGameplayScene(scene))
             EditorApplication.delayCall += TryAutoSetup;
     }
 
@@ -62,14 +75,15 @@ public static class ShopSceneSetup
         if (EditorApplication.isPlayingOrWillChangePlaymode) return;
 
         Scene scene = SceneManager.GetActiveScene();
-        if (!scene.IsValid() || !scene.isLoaded || scene.name != "CanyonCrossing") return;
+        if (!IsSupportedGameplayScene(scene)) return;
 
         bool alreadyRan = SessionState.GetBool(SessionKey, false);
         ShopManager existingManager = FindSceneComponent<ShopManager>(scene);
         bool isComplete = existingManager != null &&
                           FindSceneComponent<ShopButtonTrigger>(scene) != null &&
                           FindRecursive(existingManager.transform, "SecondaryCurrencyPill") != null &&
-                          FindRecursive(existingManager.transform, "PurchaseConfirmationPanel") != null;
+                          FindRecursive(existingManager.transform, "PurchaseConfirmationPanel") != null &&
+                          FindRecursive(existingManager.transform, "PurchaseFeedbackPanel") != null;
         if (alreadyRan && isComplete) return;
 
         SessionState.SetBool(SessionKey, true);
@@ -82,7 +96,7 @@ public static class ShopSceneSetup
         Scene scene = SceneManager.GetActiveScene();
         if (!scene.IsValid() || !scene.isLoaded)
         {
-            Debug.LogWarning("[ShopSetup] Open CanyonCrossing before running the setup.");
+            Debug.LogWarning("[ShopSetup] Open CanyonCrossing or BHAN HOUSE before running the setup.");
             return;
         }
 
@@ -118,6 +132,7 @@ public static class ShopSceneSetup
         if (shopPanel != null)
             UpgradeShopPanel(shopPanel, manager);
 
+        RemoveInvalidShopButtonTriggers(scene);
         Button shopButton = FindShopButton(scene);
         if (shopButton == null)
             shopButton = CreateShopAccessButton(mainCanvas.transform);
@@ -133,6 +148,12 @@ public static class ShopSceneSetup
 
         Selection.activeGameObject = shopSystem;
         Debug.Log("[ShopSetup] Shop panel, item-card prefab, tabs, scroll grid, and Shop button are ready.", shopSystem);
+    }
+
+    private static bool IsSupportedGameplayScene(Scene scene)
+    {
+        return scene.IsValid() && scene.isLoaded &&
+               (scene.name == "CanyonCrossing" || scene.name == "BHAN HOUSE");
     }
 
     private static GameObject CreateShopPanel(Transform parent, ShopManager manager)
@@ -399,6 +420,52 @@ public static class ShopSceneSetup
         TMP_Text priceText = GetChildComponent<TMP_Text>(confirmationPanel.transform, "ConfirmationPrice");
         Image iconImage = GetChildComponent<Image>(confirmationPanel.transform, "ConfirmationIcon");
 
+        GameObject feedbackPanel;
+        Transform existingFeedback = FindRecursive(panel.transform, "PurchaseFeedbackPanel");
+        if (existingFeedback == null)
+        {
+            feedbackPanel = CreateImage(panel.transform, "PurchaseFeedbackPanel", new Color(0f, 0f, 0f, 0.62f));
+            SetStretch(feedbackPanel.GetComponent<RectTransform>());
+            feedbackPanel.GetComponent<Image>().raycastTarget = true;
+
+            GameObject feedbackDialog = CreateImage(feedbackPanel.transform, "Dialog", CardColor);
+            SetAnchored(feedbackDialog.GetComponent<RectTransform>(), new Vector2(0.31f, 0.31f), new Vector2(0.69f, 0.69f));
+            Outline feedbackOutline = feedbackDialog.AddComponent<Outline>();
+            feedbackOutline.effectColor = Brown;
+            feedbackOutline.effectDistance = new Vector2(3f, -3f);
+
+            TMP_Text feedbackTitle = CreateText(
+                feedbackDialog.transform,
+                "FeedbackTitle",
+                "PURCHASE UNAVAILABLE",
+                38f,
+                FontStyles.Bold,
+                font);
+            feedbackTitle.color = Brown;
+            SetAnchored(feedbackTitle.rectTransform, new Vector2(0.08f, 0.69f), new Vector2(0.92f, 0.91f));
+
+            TMP_Text feedbackMessage = CreateText(
+                feedbackDialog.transform,
+                "FeedbackMessage",
+                "You do not have enough money for this item.",
+                27f,
+                FontStyles.Normal,
+                font);
+            feedbackMessage.enableWordWrapping = true;
+            SetAnchored(feedbackMessage.rectTransform, new Vector2(0.09f, 0.28f), new Vector2(0.91f, 0.68f));
+
+            Button okButton = CreateButton(feedbackDialog.transform, "OkayButton", "OK", 28f, font, Gold);
+            SetAnchored(okButton.GetComponent<RectTransform>(), new Vector2(0.30f, 0.07f), new Vector2(0.70f, 0.25f));
+            UnityEventTools.AddPersistentListener(okButton.onClick, manager.HidePurchaseFeedback);
+        }
+        else
+        {
+            feedbackPanel = existingFeedback.gameObject;
+        }
+
+        TMP_Text feedbackTitleText = GetChildComponent<TMP_Text>(feedbackPanel.transform, "FeedbackTitle");
+        TMP_Text feedbackMessageText = GetChildComponent<TMP_Text>(feedbackPanel.transform, "FeedbackMessage");
+
         SerializedObject managerData = new SerializedObject(manager);
         managerData.FindProperty("secondaryCurrencyText").objectReferenceValue = secondaryText;
         managerData.FindProperty("purchaseConfirmationPanel").objectReferenceValue = confirmationPanel;
@@ -406,10 +473,15 @@ public static class ShopSceneSetup
         managerData.FindProperty("confirmationDescriptionText").objectReferenceValue = descriptionText;
         managerData.FindProperty("confirmationPriceText").objectReferenceValue = priceText;
         managerData.FindProperty("confirmationIconImage").objectReferenceValue = iconImage;
+        managerData.FindProperty("purchaseFeedbackPanel").objectReferenceValue = feedbackPanel;
+        managerData.FindProperty("purchaseFeedbackTitleText").objectReferenceValue = feedbackTitleText;
+        managerData.FindProperty("purchaseFeedbackMessageText").objectReferenceValue = feedbackMessageText;
         managerData.ApplyModifiedPropertiesWithoutUndo();
 
         confirmationPanel.transform.SetAsLastSibling();
         confirmationPanel.SetActive(false);
+        feedbackPanel.transform.SetAsLastSibling();
+        feedbackPanel.SetActive(false);
     }
 
     private static ShopItemUI GetOrCreateCardPrefab(TMP_FontAsset font)
@@ -476,24 +548,51 @@ public static class ShopSceneSetup
     {
         foreach (Button button in FindSceneComponents<Button>(scene))
         {
-            string objectName = Normalize(button.name);
-            if (objectName.Contains("shop") || objectName.Contains("store")) return button;
-
-            foreach (TMP_Text label in button.GetComponentsInChildren<TMP_Text>(true))
-            {
-                string text = Normalize(label.text);
-                if (text.Contains("shop") || text.Contains("store")) return button;
-            }
-
-            Image image = button.targetGraphic as Image;
-            if (image != null && image.sprite != null)
-            {
-                string spritePath = Normalize(AssetDatabase.GetAssetPath(image.sprite));
-                if (spritePath.Contains("shop") || spritePath.Contains("store")) return button;
-            }
+            if (LooksLikeShopButton(button)) return button;
         }
 
         return null;
+    }
+
+    private static void RemoveInvalidShopButtonTriggers(Scene scene)
+    {
+        foreach (ShopButtonTrigger trigger in FindSceneComponents<ShopButtonTrigger>(scene))
+        {
+            Button button = trigger.GetComponent<Button>();
+            if (button != null && LooksLikeShopButton(button)) continue;
+            UnityEngine.Object.DestroyImmediate(trigger);
+        }
+    }
+
+    private static bool LooksLikeShopButton(Button button)
+    {
+        if (button == null) return false;
+
+        string objectName = Normalize(button.name);
+        if (objectName.Contains("shop") || IsStoreToken(objectName)) return true;
+
+        foreach (TMP_Text label in button.GetComponentsInChildren<TMP_Text>(true))
+        {
+            string text = Normalize(label.text);
+            if (text.Contains("shop") || IsStoreToken(text)) return true;
+        }
+
+        Image image = button.targetGraphic as Image;
+        if (image != null && image.sprite != null)
+        {
+            string spritePath = Normalize(AssetDatabase.GetAssetPath(image.sprite));
+            if (spritePath.Contains("shop") || IsStoreToken(spritePath)) return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsStoreToken(string value)
+    {
+        if (string.IsNullOrEmpty(value) || value.Contains("restore")) return false;
+        return value == "store" || value.StartsWith("storebutton") ||
+               value.StartsWith("storebtn") || value.EndsWith("storebutton") ||
+               value.EndsWith("storebtn");
     }
 
     private static Button CreateShopAccessButton(Transform mainCanvas)

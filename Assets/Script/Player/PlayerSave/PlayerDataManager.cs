@@ -6,6 +6,8 @@ using System.Collections.Generic;
 [DisallowMultipleComponent]
 public class PlayerDataManager : MonoBehaviour
 {
+    private const string AchievementsFeatureId = "achievements";
+
     public static PlayerDataManager Instance { get; private set; }
     public PlayerData CurrentData { get; private set; }
     
@@ -21,6 +23,8 @@ public class PlayerDataManager : MonoBehaviour
     public Action OnAlmanacAlertsChanged;
     public Action OnObjectiveAlertsChanged;
     public Action OnMinimapUnlockChanged;
+    /// <summary>Raised whenever the persistent feature-unlock collection changes.</summary>
+    public Action OnFeatureUnlocksChanged;
     public Action<AchievementSO> OnAchievementUnlocked; 
     /// <summary>Raised once when a contract is newly added to persistent completion data.</summary>
     public Action<string> OnContractCompleted;
@@ -63,6 +67,8 @@ public class PlayerDataManager : MonoBehaviour
         saveFilePath = Application.persistentDataPath + "/playerSaveData.json";
         LoadGame();
         RegisterContracts(Resources.FindObjectsOfTypeAll<ContractSO>());
+        MigrateCompletedContractFeatureUnlocks();
+        MigrateEarnedAchievementFeatureUnlock();
     }
 
     private void OnDestroy()
@@ -147,6 +153,40 @@ public class PlayerDataManager : MonoBehaviour
         CurrentData.hasUnlockedMinimap = true;
         SaveGame();
         OnMinimapUnlockChanged?.Invoke();
+    }
+
+    /// <summary>
+    /// Permanently unlocks a feature by stable ID. This can also be called directly
+    /// from a UnityEvent for non-contract rewards.
+    /// </summary>
+    public bool UnlockFeature(string featureId)
+    {
+        string normalizedId = NormalizeFeatureId(featureId);
+        if (CurrentData == null || string.IsNullOrEmpty(normalizedId)) return false;
+
+        EnsureFeatureUnlockList();
+        if (IsFeatureUnlocked(normalizedId)) return false;
+
+        CurrentData.unlockedFeatureIds.Add(normalizedId);
+        if (!TrySaveGame())
+        {
+            CurrentData.unlockedFeatureIds.Remove(normalizedId);
+            return false;
+        }
+
+        OnFeatureUnlocksChanged?.Invoke();
+        AchievementPopupNotification.NotifyFeatureUnlock(GetFeatureDisplayName(normalizedId));
+        return true;
+    }
+
+    public bool IsFeatureUnlocked(string featureId)
+    {
+        string normalizedId = NormalizeFeatureId(featureId);
+        return CurrentData != null && !string.IsNullOrEmpty(normalizedId) &&
+               CurrentData.unlockedFeatureIds != null &&
+               CurrentData.unlockedFeatureIds.Exists(savedId =>
+                   string.Equals(NormalizeFeatureId(savedId), normalizedId,
+                       StringComparison.Ordinal));
     }
 
     public bool TrySaveGame()
@@ -261,6 +301,7 @@ public class PlayerDataManager : MonoBehaviour
         completionRecordsMissingBridge.Clear();
         SaveGame();
         OnCurrencyChanged?.Invoke();
+        OnFeatureUnlocksChanged?.Invoke();
     }
 
     // ────────────────────────────────────────────────
@@ -342,6 +383,7 @@ public class PlayerDataManager : MonoBehaviour
         bool previousContractsTab = CurrentData.hasUnlockedContractsTab;
         bool previousContractsAlert = CurrentData.hasUnreadContractsAlert;
         bool previousObjectiveAlert = CurrentData.hasUnreadObjectiveAlert;
+        List<string> newlyUnlockedFeatureIds = AddContractFeatureUnlocks(contractName);
 
         CurrentData.completedContracts.Add(contractName);
         CurrentData.lifetimeContractsCompleted++;
@@ -364,12 +406,19 @@ public class PlayerDataManager : MonoBehaviour
             CurrentData.hasUnlockedContractsTab = previousContractsTab;
             CurrentData.hasUnreadContractsAlert = previousContractsAlert;
             CurrentData.hasUnreadObjectiveAlert = previousObjectiveAlert;
+            foreach (string featureId in newlyUnlockedFeatureIds)
+                CurrentData.unlockedFeatureIds.Remove(featureId);
             return false;
         }
 
         if (goldReward > 0 || expReward > 0) OnCurrencyChanged?.Invoke();
         OnAlmanacAlertsChanged?.Invoke();
         OnObjectiveAlertsChanged?.Invoke();
+        if (newlyUnlockedFeatureIds.Count > 0)
+        {
+            OnFeatureUnlocksChanged?.Invoke();
+            NotifyContractFeatureUnlocks(contractName, newlyUnlockedFeatureIds);
+        }
         OnContractCompleted?.Invoke(contractName);
         CheckAllAchievements();
         return true;
@@ -475,6 +524,114 @@ public class PlayerDataManager : MonoBehaviour
             else
                 allGameContracts.Add(contract);
         }
+    }
+
+    private List<string> AddContractFeatureUnlocks(string contractName)
+    {
+        List<string> addedIds = new List<string>();
+        if (CurrentData == null || string.IsNullOrWhiteSpace(contractName)) return addedIds;
+
+        EnsureFeatureUnlockList();
+        ContractSO contract = FindRegisteredContract(contractName);
+        if (contract == null || contract.featureUnlockRewards == null) return addedIds;
+
+        foreach (FeatureUnlockReward reward in contract.featureUnlockRewards)
+        {
+            string featureId = reward != null ? NormalizeFeatureId(reward.featureId) : string.Empty;
+            if (string.IsNullOrEmpty(featureId) || IsFeatureUnlocked(featureId)) continue;
+
+            CurrentData.unlockedFeatureIds.Add(featureId);
+            addedIds.Add(featureId);
+        }
+
+        return addedIds;
+    }
+
+    private ContractSO FindRegisteredContract(string contractName)
+    {
+        if (allGameContracts == null || string.IsNullOrWhiteSpace(contractName)) return null;
+        string normalizedName = contractName.Trim();
+        return allGameContracts.Find(contract =>
+            contract != null && string.Equals(contract.name, normalizedName, StringComparison.Ordinal));
+    }
+
+    private void NotifyContractFeatureUnlocks(string contractName, List<string> featureIds)
+    {
+        if (featureIds == null || featureIds.Count == 0) return;
+
+        ContractSO contract = FindRegisteredContract(contractName);
+        foreach (string featureId in featureIds)
+        {
+            FeatureUnlockReward matchingReward = contract != null && contract.featureUnlockRewards != null
+                ? contract.featureUnlockRewards.Find(reward =>
+                    reward != null && string.Equals(
+                        NormalizeFeatureId(reward.featureId),
+                        NormalizeFeatureId(featureId),
+                        StringComparison.Ordinal))
+                : null;
+
+            string displayName = matchingReward != null &&
+                                 !string.IsNullOrWhiteSpace(matchingReward.displayName)
+                ? matchingReward.displayName.Trim()
+                : GetFeatureDisplayName(featureId);
+
+            AchievementPopupNotification.NotifyFeatureUnlock(
+                displayName,
+                matchingReward != null ? matchingReward.icon : null);
+        }
+    }
+
+    private void MigrateCompletedContractFeatureUnlocks()
+    {
+        if (CurrentData == null || CurrentData.completedContracts == null) return;
+
+        EnsureFeatureUnlockList();
+        bool changed = false;
+        foreach (string completedContract in CurrentData.completedContracts)
+        {
+            if (!IsContractCompleted(completedContract)) continue;
+            changed |= AddContractFeatureUnlocks(completedContract).Count > 0;
+        }
+
+        if (changed) SaveGame();
+    }
+
+    private void MigrateEarnedAchievementFeatureUnlock()
+    {
+        if (CurrentData == null || CurrentData.unlockedAchievements == null ||
+            CurrentData.unlockedAchievements.Count == 0 ||
+            IsFeatureUnlocked(AchievementsFeatureId))
+        {
+            return;
+        }
+
+        // Preserve access for older saves without showing an out-of-context
+        // feature notification as soon as the save loads.
+        EnsureFeatureUnlockList();
+        CurrentData.unlockedFeatureIds.Add(AchievementsFeatureId);
+        SaveGame();
+    }
+
+    private void EnsureFeatureUnlockList()
+    {
+        if (CurrentData != null && CurrentData.unlockedFeatureIds == null)
+            CurrentData.unlockedFeatureIds = new List<string>();
+    }
+
+    private static string NormalizeFeatureId(string featureId)
+    {
+        return string.IsNullOrWhiteSpace(featureId)
+            ? string.Empty
+            : featureId.Trim().ToLowerInvariant();
+    }
+
+    private static string GetFeatureDisplayName(string featureId)
+    {
+        string normalized = NormalizeFeatureId(featureId);
+        if (string.IsNullOrEmpty(normalized)) return "New Feature";
+
+        string displayName = normalized.Replace('_', ' ').Replace('-', ' ');
+        return char.ToUpperInvariant(displayName[0]) + displayName.Substring(1);
     }
 
     public int GetCompletedContractCountForMap(
@@ -716,6 +873,11 @@ public class PlayerDataManager : MonoBehaviour
         OnAchievementUnlocked?.Invoke(achievement);
         AchievementPopupNotification.NotifyAchievement(achievement);
 
+        // The first achievement introduces and permanently unlocks the archive.
+        // This queues the feature notification after the achievement notification.
+        if (!IsFeatureUnlocked(AchievementsFeatureId))
+            UnlockFeature(AchievementsFeatureId);
+
         if (hasCosmeticReward)
         {
             if (ItemUnlockUI.Instance != null)
@@ -858,6 +1020,7 @@ public class PlayerDataManager : MonoBehaviour
         if (CurrentData.unlockedAchievements == null) CurrentData.unlockedAchievements = new List<string>();
         if (CurrentData.unlockedCosmeticIDs == null) CurrentData.unlockedCosmeticIDs = new List<string>();
         if (CurrentData.purchasedShopItemIds == null) CurrentData.purchasedShopItemIds = new List<string>();
+        if (CurrentData.unlockedFeatureIds == null) CurrentData.unlockedFeatureIds = new List<string>();
         if (CurrentData.activeQuests == null) CurrentData.activeQuests = new List<TrackedTask>();
         if (CurrentData.unlockedLevels == null) CurrentData.unlockedLevels = new List<string>();
         if (CurrentData.unlockedContractMaterials == null) CurrentData.unlockedContractMaterials = new List<string>();

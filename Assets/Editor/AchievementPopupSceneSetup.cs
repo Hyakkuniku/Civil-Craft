@@ -144,7 +144,11 @@ public static class AchievementPopupSceneSetup
         serializedController.FindProperty("popupRoot").objectReferenceValue = popup;
         serializedController.FindProperty("popupRect").objectReferenceValue = popupRect;
         serializedController.FindProperty("popupGroup").objectReferenceValue = group;
+        serializedController.FindProperty("backgroundImage").objectReferenceValue = background;
+        serializedController.FindProperty("accentImage").objectReferenceValue = accentImage;
+        serializedController.FindProperty("popupOutline").objectReferenceValue = outline;
         serializedController.FindProperty("iconImage").objectReferenceValue = icon;
+        serializedController.FindProperty("headingText").objectReferenceValue = heading;
         serializedController.FindProperty("achievementNameText").objectReferenceValue = achievementName;
         serializedController.FindProperty("rewardText").objectReferenceValue = reward;
         serializedController.ApplyModifiedPropertiesWithoutUndo();

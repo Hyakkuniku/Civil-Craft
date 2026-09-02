@@ -39,6 +39,13 @@ public class UIPanelCoordinator : MonoBehaviour
 
     private readonly Stack<PanelFrame> panelStack = new Stack<PanelFrame>();
 
+    /// <summary>
+    /// True while any full-screen/modal panel is being coordinated. Lightweight
+    /// overlays such as tutorial pointers use this to suspend their rendering
+    /// without discarding the guidance target they need to restore afterwards.
+    /// </summary>
+    public bool HasOpenPanel => panelStack.Count > 0;
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void EnsureCoordinatorExists()
     {

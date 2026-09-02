@@ -62,6 +62,10 @@ public class CinematicDirector : MonoBehaviour
     [Tooltip("Drag your HUD Canvas or Panels here so they vanish during the movie.")]
     public List<GameObject> hudElementsToHide = new List<GameObject>();
 
+    [Header("Cinematic UI Exclusivity")]
+    [Tooltip("The cinematic UI root that is allowed to remain visible. Leave empty to use Bridge Info Canvas. All other active UI is hidden and restored exactly when the cinematic ends.")]
+    public GameObject cinematicUIRoot;
+
     // --- NEW: Bridge Info UI System ---
     [Header("Bridge Info UI System")]
     [Tooltip("The contract containing the data you want to display on screen.")]
@@ -89,6 +93,10 @@ public class CinematicDirector : MonoBehaviour
     private bool isFloatParam = false;
     private bool isParamCached = false;
     private bool shotHasWalked = false;
+    private GameObject coordinatedCinematicPanel;
+    private GameObject generatedCoordinatorAnchor;
+    private bool cinematicPanelFrameOpen;
+    private readonly Dictionary<GameObject, bool> fallbackHudStates = new Dictionary<GameObject, bool>();
     
     private GameObject dynamicallySpawnedRockTrail;
 
@@ -120,6 +128,8 @@ public class CinematicDirector : MonoBehaviour
         isPlaying = true;
         OnCinematicStarted?.Invoke();
 
+        BeginCinematicUIIsolation();
+
         InputManager inputObj = FindObjectOfType<InputManager>();
         if (inputObj != null)
         {
@@ -129,11 +139,6 @@ public class CinematicDirector : MonoBehaviour
 
         PlayerMotor motor = FindObjectOfType<PlayerMotor>();
         if (motor != null) motor.enabled = false;
-
-        foreach (GameObject ui in hudElementsToHide)
-        {
-            if (ui != null) ui.SetActive(false);
-        }
 
         if (cinematicCamera == null) cinematicCamera = Camera.main;
         
@@ -165,13 +170,10 @@ public class CinematicDirector : MonoBehaviour
             inputObj.SetLookEnabled(true);
         }
 
-        foreach (GameObject ui in hudElementsToHide)
-        {
-            if (ui != null) ui.SetActive(true);
-        }
-
         // --- NEW: Guarantee the bridge info canvas turns off when the cinematic ends ---
         if (bridgeInfoCanvas != null) bridgeInfoCanvas.SetActive(false);
+
+        EndCinematicUIIsolation();
 
         if (dynamicallySpawnedRockTrail != null)
         {
@@ -202,6 +204,72 @@ public class CinematicDirector : MonoBehaviour
 
         isPlaying = false;
         OnCinematicFinished?.Invoke();
+    }
+
+    private void OnDisable()
+    {
+        // Coroutines stop immediately when this component is disabled. Never leave
+        // the HUD/canvases in their cinematic state if that happens mid-shot.
+        EndCinematicUIIsolation();
+        isPlaying = false;
+    }
+
+    private void BeginCinematicUIIsolation()
+    {
+        EndCinematicUIIsolation();
+
+        coordinatedCinematicPanel = cinematicUIRoot != null
+            ? cinematicUIRoot
+            : bridgeInfoCanvas;
+
+        if (UIPanelCoordinator.Instance != null)
+        {
+            // The panel is activated per shot below. Opening the coordinator frame
+            // with activatePanel=false still hides every unrelated HUD and Canvas.
+            GameObject coordinatorAnchor = coordinatedCinematicPanel;
+            if (coordinatorAnchor == null)
+            {
+                generatedCoordinatorAnchor = new GameObject("CinematicUIIsolationAnchor", typeof(RectTransform));
+                generatedCoordinatorAnchor.transform.SetParent(transform.parent, false);
+                coordinatorAnchor = generatedCoordinatorAnchor;
+            }
+            UIPanelCoordinator.Instance.OpenPanel(coordinatorAnchor, false);
+            coordinatedCinematicPanel = coordinatorAnchor;
+            cinematicPanelFrameOpen = true;
+            return;
+        }
+
+        fallbackHudStates.Clear();
+        foreach (GameObject ui in hudElementsToHide)
+        {
+            if (ui == null || fallbackHudStates.ContainsKey(ui)) continue;
+            fallbackHudStates.Add(ui, ui.activeSelf);
+            ui.SetActive(false);
+        }
+    }
+
+    private void EndCinematicUIIsolation()
+    {
+        if (cinematicPanelFrameOpen && coordinatedCinematicPanel != null &&
+            UIPanelCoordinator.Instance != null)
+        {
+            UIPanelCoordinator.Instance.ClosePanel(coordinatedCinematicPanel);
+        }
+
+        cinematicPanelFrameOpen = false;
+        coordinatedCinematicPanel = null;
+
+        if (generatedCoordinatorAnchor != null)
+        {
+            Destroy(generatedCoordinatorAnchor);
+            generatedCoordinatorAnchor = null;
+        }
+
+        foreach (KeyValuePair<GameObject, bool> state in fallbackHudStates)
+        {
+            if (state.Key != null) state.Key.SetActive(state.Value);
+        }
+        fallbackHudStates.Clear();
     }
 
     private IEnumerator PlayShot(CinematicShot shot)

@@ -92,7 +92,18 @@ public class AlmanacManager : MonoBehaviour
     private void Awake()
     {
         if (Instance == null) Instance = this;
-        else Destroy(gameObject);
+        else
+        {
+            Destroy(gameObject);
+            return;
+        }
+
+        // Scene UI must start closed regardless of saved-player state or script
+        // execution order. Doing this in Awake avoids an active Almanac being visible
+        // for a frame before Start, especially after clearing data and reloading.
+        if (almanacCanvas != null) almanacCanvas.SetActive(false);
+        if (animationPanel != null) animationPanel.SetActive(false);
+        if (newAlertIcon != null) newAlertIcon.SetActive(false);
 
         InitializeBook();
     }

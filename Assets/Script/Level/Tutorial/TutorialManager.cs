@@ -132,7 +132,18 @@ public class TutorialManager : MonoBehaviour
     private void Awake()
     {
         if (Instance == null) Instance = this;
-        else Destroy(gameObject);
+        else
+        {
+            Destroy(gameObject);
+            return;
+        }
+
+        // Scene-authored tutorial UI may be left active for easier editing. Runtime
+        // ownership starts here, so nothing is visible until PlayTutorial selects a
+        // real step and target.
+        if (centerPanel != null) centerPanel.SetActive(false);
+        if (leftPanel != null) leftPanel.SetActive(false);
+        if (bouncingArrow != null) bouncingArrow.Hide();
 
         trackedButtonAction = new UnityAction(OnTrackedButtonClicked);
     }

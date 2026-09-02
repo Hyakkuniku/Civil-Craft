@@ -11,9 +11,17 @@ using UnityEngine.UI;
 [DisallowMultipleComponent]
 public sealed class AchievementPopupNotification : MonoBehaviour
 {
+    private sealed class PopupRequest
+    {
+        public string title;
+        public string detail;
+        public Sprite icon;
+        public bool isFeatureUnlock;
+    }
+
     private const int AbsoluteSortingOrder = 32767;
     public static AchievementPopupNotification Instance { get; private set; }
-    private static readonly Queue<AchievementSO> deferredAchievements = new Queue<AchievementSO>();
+    private static readonly Queue<PopupRequest> deferredNotifications = new Queue<PopupRequest>();
 
     [Header("Timing")]
     [Min(0.05f)] [SerializeField] private float slideDuration = 0.35f;
@@ -23,13 +31,19 @@ public sealed class AchievementPopupNotification : MonoBehaviour
     [SerializeField] private Vector2 visiblePosition = new Vector2(0f, -36f);
     [SerializeField] private Vector2 hiddenPosition = new Vector2(0f, 190f);
 
-    [Header("Colors")]
+    [Header("Achievement Colors")]
     [SerializeField] private Color backgroundColor = new Color(0.18f, 0.12f, 0.10f, 0.97f);
     [SerializeField] private Color accentColor = new Color(0.93f, 0.66f, 0.24f, 1f);
     [SerializeField] private Color primaryTextColor = new Color(1f, 0.94f, 0.78f, 1f);
     [SerializeField] private Color secondaryTextColor = new Color(0.88f, 0.82f, 0.70f, 1f);
 
-    private readonly Queue<AchievementSO> pendingAchievements = new Queue<AchievementSO>();
+    [Header("Feature Unlock Colors")]
+    [SerializeField] private Color featureBackgroundColor = new Color(0.08f, 0.20f, 0.22f, 0.97f);
+    [SerializeField] private Color featureAccentColor = new Color(0.27f, 0.84f, 0.72f, 1f);
+    [SerializeField] private Color featurePrimaryTextColor = new Color(0.88f, 1f, 0.96f, 1f);
+    [SerializeField] private Color featureSecondaryTextColor = new Color(0.67f, 0.91f, 0.85f, 1f);
+
+    private readonly Queue<PopupRequest> pendingNotifications = new Queue<PopupRequest>();
     private Coroutine notificationRoutine;
     private Canvas popupCanvas;
     private int topSortingLayerID;
@@ -39,7 +53,11 @@ public sealed class AchievementPopupNotification : MonoBehaviour
     [SerializeField] private GameObject popupRoot;
     [SerializeField] private RectTransform popupRect;
     [SerializeField] private CanvasGroup popupGroup;
+    [SerializeField] private Image backgroundImage;
+    [SerializeField] private Image accentImage;
+    [SerializeField] private Outline popupOutline;
     [SerializeField] private Image iconImage;
+    [SerializeField] private TMP_Text headingText;
     [SerializeField] private TMP_Text achievementNameText;
     [SerializeField] private TMP_Text rewardText;
 
@@ -47,7 +65,7 @@ public sealed class AchievementPopupNotification : MonoBehaviour
     private static void ResetStaticState()
     {
         Instance = null;
-        deferredAchievements.Clear();
+        deferredNotifications.Clear();
     }
 
     private void Awake()
@@ -63,6 +81,7 @@ public sealed class AchievementPopupNotification : MonoBehaviour
         DontDestroyOnLoad(gameObject);
         popupCanvas = GetComponent<Canvas>();
         topSortingLayerID = FindTopSortingLayerID();
+        ResolveVisualReferences();
         ForceAbsoluteOverlay();
         if (!HasCompleteUIReferences())
         {
@@ -76,8 +95,8 @@ public sealed class AchievementPopupNotification : MonoBehaviour
         }
 
         popupRoot.SetActive(false);
-        while (deferredAchievements.Count > 0)
-            QueueAchievement(deferredAchievements.Dequeue());
+        while (deferredNotifications.Count > 0)
+            QueueNotification(deferredNotifications.Dequeue());
     }
 
     private void OnEnable()
@@ -113,21 +132,55 @@ public sealed class AchievementPopupNotification : MonoBehaviour
     {
         if (achievement == null) return;
 
+        PopupRequest request = new PopupRequest
+        {
+            title = achievement.achievementName,
+            detail = BuildRewardText(achievement),
+            icon = achievement.achievementIcon,
+            isFeatureUnlock = false
+        };
+
+        Dispatch(request);
+    }
+
+    /// <summary>
+    /// Reuses the guaranteed achievement overlay for permanent feature rewards,
+    /// while applying a distinct teal presentation and heading.
+    /// </summary>
+    public static void NotifyFeatureUnlock(string featureName, Sprite icon = null)
+    {
+        if (string.IsNullOrWhiteSpace(featureName)) featureName = "New Feature";
+
+        PopupRequest request = new PopupRequest
+        {
+            title = featureName,
+            detail = "Unlocked permanently",
+            icon = icon,
+            isFeatureUnlock = true
+        };
+
+        Dispatch(request);
+    }
+
+    private static void Dispatch(PopupRequest request)
+    {
+        if (request == null) return;
+
         if (Instance != null && Instance.isActiveAndEnabled && Instance.HasCompleteUIReferences())
         {
-            Instance.QueueAchievement(achievement);
+            Instance.QueueNotification(request);
         }
         else
         {
-            deferredAchievements.Enqueue(achievement);
+            deferredNotifications.Enqueue(request);
         }
     }
 
-    private void QueueAchievement(AchievementSO achievement)
+    private void QueueNotification(PopupRequest request)
     {
-        if (achievement == null) return;
+        if (request == null) return;
 
-        pendingAchievements.Enqueue(achievement);
+        pendingNotifications.Enqueue(request);
         if (notificationRoutine == null)
             notificationRoutine = StartCoroutine(PlayQueuedNotifications());
     }
@@ -140,10 +193,10 @@ public sealed class AchievementPopupNotification : MonoBehaviour
 
     private IEnumerator PlayQueuedNotifications()
     {
-        while (pendingAchievements.Count > 0)
+        while (pendingNotifications.Count > 0)
         {
-            AchievementSO achievement = pendingAchievements.Dequeue();
-            Populate(achievement);
+            PopupRequest request = pendingNotifications.Dequeue();
+            Populate(request);
             ForceAbsoluteOverlay();
             popupRoot.SetActive(true);
             popupRoot.transform.SetAsLastSibling();
@@ -224,17 +277,70 @@ public sealed class AchievementPopupNotification : MonoBehaviour
         return bestLayerID;
     }
 
-    private void Populate(AchievementSO achievement)
+    private void Populate(PopupRequest request)
     {
-        achievementNameText.text = achievement.achievementName;
-        rewardText.text = BuildRewardText(achievement);
+        ApplyStyle(request.isFeatureUnlock);
+        achievementNameText.text = request.title;
+        rewardText.text = request.detail;
 
         if (iconImage != null)
         {
-            iconImage.sprite = achievement.achievementIcon;
+            iconImage.sprite = request.icon;
             iconImage.enabled = iconImage.sprite != null;
             iconImage.preserveAspect = true;
+            iconImage.color = Color.white;
         }
+    }
+
+    private void ApplyStyle(bool isFeatureUnlock)
+    {
+        Color selectedBackground = isFeatureUnlock ? featureBackgroundColor : backgroundColor;
+        Color selectedAccent = isFeatureUnlock ? featureAccentColor : accentColor;
+        Color selectedPrimary = isFeatureUnlock ? featurePrimaryTextColor : primaryTextColor;
+        Color selectedSecondary = isFeatureUnlock ? featureSecondaryTextColor : secondaryTextColor;
+
+        if (backgroundImage != null) backgroundImage.color = selectedBackground;
+        if (accentImage != null) accentImage.color = selectedAccent;
+        if (popupOutline != null) popupOutline.effectColor = selectedAccent;
+        if (headingText != null)
+        {
+            headingText.text = isFeatureUnlock ? "FEATURE UNLOCKED" : "ACHIEVEMENT UNLOCKED";
+            headingText.color = selectedAccent;
+        }
+        if (achievementNameText != null) achievementNameText.color = selectedPrimary;
+        if (rewardText != null) rewardText.color = selectedSecondary;
+    }
+
+    private void ResolveVisualReferences()
+    {
+        if (popupRoot == null) return;
+
+        if (backgroundImage == null) backgroundImage = popupRoot.GetComponent<Image>();
+        if (popupOutline == null) popupOutline = popupRoot.GetComponent<Outline>();
+
+        if (accentImage == null)
+        {
+            Transform accent = FindDescendant(popupRoot.transform, "GoldAccent");
+            if (accent != null) accentImage = accent.GetComponent<Image>();
+        }
+
+        if (headingText == null)
+        {
+            Transform heading = FindDescendant(popupRoot.transform, "Heading");
+            if (heading != null) headingText = heading.GetComponent<TMP_Text>();
+        }
+    }
+
+    private static Transform FindDescendant(Transform parent, string objectName)
+    {
+        if (parent == null) return null;
+        foreach (Transform child in parent)
+        {
+            if (child.name == objectName) return child;
+            Transform nested = FindDescendant(child, objectName);
+            if (nested != null) return nested;
+        }
+        return null;
     }
 
     private static string BuildRewardText(AchievementSO achievement)

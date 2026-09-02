@@ -17,6 +17,9 @@ public class TutorialPointer : MonoBehaviour
     private RectTransform rectTransform;
     private Canvas pointerCanvas;
 
+    private bool IsSuppressedByModal =>
+        UIPanelCoordinator.Instance != null && UIPanelCoordinator.Instance.HasOpenPanel;
+
     public bool IsPointingAt(RectTransform candidate)
     {
         return candidate != null && target == candidate && gameObject.activeInHierarchy;
@@ -54,7 +57,10 @@ public class TutorialPointer : MonoBehaviour
         if (target == null)
         {
             gameObject.SetActive(false);
+            return;
         }
+
+        RefreshModalVisibility();
     }
 
     public void PointAt(RectTransform newTarget, Vector2 offset)
@@ -69,8 +75,9 @@ public class TutorialPointer : MonoBehaviour
         customOffset = offset;
 
         gameObject.SetActive(true);
+        RefreshModalVisibility();
         transform.SetAsLastSibling();
-        UpdatePosition();
+        if (!IsSuppressedByModal) UpdatePosition();
     }
 
     public void PointAt(RectTransform newTarget)
@@ -85,8 +92,9 @@ public class TutorialPointer : MonoBehaviour
         customOffset = Vector2.zero;
 
         gameObject.SetActive(true);
+        RefreshModalVisibility();
         transform.SetAsLastSibling();
-        UpdatePosition();
+        if (!IsSuppressedByModal) UpdatePosition();
     }
 
     public void Hide()
@@ -103,7 +111,20 @@ public class TutorialPointer : MonoBehaviour
             return;
         }
 
+        // TutorialManager intentionally refreshes its target every frame. Without
+        // this guard that refresh can make a high-sorting pointer appear over Pause,
+        // Almanac, Settings, or another modal panel. Keep the target, but suspend
+        // only the pointer's dedicated sorting Canvas until the modal closes.
+        RefreshModalVisibility();
+        if (IsSuppressedByModal) return;
+
         UpdatePosition();
+    }
+
+    private void RefreshModalVisibility()
+    {
+        if (pointerCanvas != null)
+            pointerCanvas.enabled = !IsSuppressedByModal;
     }
 
     private void UpdatePosition()

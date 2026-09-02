@@ -105,6 +105,8 @@ public class PlayerData
     public List<string> unlockedAchievements = new List<string>();
     public List<string> unlockedCosmeticIDs = new List<string>();
     public List<string> purchasedShopItemIds = new List<string>();
+    // Stable IDs for permanent systems/features earned through contract rewards.
+    public List<string> unlockedFeatureIds = new List<string>();
     public List<TrackedTask> activeQuests = new List<TrackedTask>(); 
     public List<string> unlockedLevels = new List<string> { "Tutorial" };
     public List<string> completedContracts = new List<string>();

@@ -29,6 +29,19 @@ public enum BuildModeTool
     Simulate
 }
 
+[System.Serializable]
+public class FeatureUnlockReward
+{
+    [Tooltip("Stable save ID shared by the contract reward and the gated feature, for example: shop or minimap.")]
+    public string featureId = "feature";
+
+    [Tooltip("Name shown in the feature-unlocked popup, for example: Shop.")]
+    public string displayName;
+
+    [Tooltip("Optional image shown in the feature-unlocked popup. Leave empty to show the text-only notification.")]
+    public Sprite icon;
+}
+
 [CreateAssetMenu(fileName = "NewContract", menuName = "Bridge/Contract")]
 public class ContractSO : ScriptableObject
 {
@@ -76,6 +89,10 @@ public class ContractSO : ScriptableObject
     [Header("NPC & Reward Settings")]
     [Tooltip("If TRUE, rewards are given automatically upon clicking Save & Bake (no NPC required).")]
     public bool autoCollectReward = false;
+
+    [Header("Persistent Feature Unlock Rewards")]
+    [Tooltip("Features permanently unlocked the first time this contract is completed. IDs must match a PersistentFeatureGate or feature-aware UI button.")]
+    public List<FeatureUnlockReward> featureUnlockRewards = new List<FeatureUnlockReward>();
 
     [Header("Contract Details")]
     public string clientName = "Mayor";

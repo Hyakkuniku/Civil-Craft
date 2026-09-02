@@ -17,6 +17,10 @@ MonoBehaviour:
   isStoryModeContract: 1
   isTutorialContract: 1
   autoCollectReward: 0
+  featureUnlockRewards:
+  - featureId: shop
+    displayName: Shop
+    icon: {fileID: 21300000, guid: 4a7ed3cbf0bba9341aa5484436ec0fe5, type: 3}
   clientName: Professor Bhan
   jobDescription: 'Beam Bridges
 

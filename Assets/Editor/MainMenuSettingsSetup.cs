@@ -323,6 +323,12 @@ public static class MainMenuSettingsSetup
             if (string.IsNullOrWhiteSpace(buildScene.path) || buildScene.path == ScenePath)
                 continue;
 
+            if (!System.IO.File.Exists(buildScene.path))
+            {
+                Debug.LogWarning($"Skipping missing build scene while integrating settings: {buildScene.path}");
+                continue;
+            }
+
             Scene targetScene = SceneManager.GetSceneByPath(buildScene.path);
             bool wasLoaded = targetScene.IsValid() && targetScene.isLoaded;
             bool wasDirty = wasLoaded && targetScene.isDirty;

@@ -39,6 +39,12 @@ public class ShopManager : MonoBehaviour
     [SerializeField] private TMP_Text confirmationPriceText;
     [SerializeField] private Image confirmationIconImage;
 
+    [Header("Purchase Feedback")]
+    [Tooltip("Shown for insufficient funds, already-owned items, and other rejected purchases.")]
+    [SerializeField] private GameObject purchaseFeedbackPanel;
+    [SerializeField] private TMP_Text purchaseFeedbackTitleText;
+    [SerializeField] private TMP_Text purchaseFeedbackMessageText;
+
     [Header("Catalog")]
     [Tooltip("Add ShopItemData assets here. No code changes are needed when the catalog grows.")]
     [SerializeField] private List<ShopItemData> allItems = new List<ShopItemData>();
@@ -121,6 +127,8 @@ public class ShopManager : MonoBehaviour
             shopPanel.SetActive(false);
         if (purchaseConfirmationPanel != null)
             purchaseConfirmationPanel.SetActive(false);
+        if (purchaseFeedbackPanel != null)
+            purchaseFeedbackPanel.SetActive(false);
     }
 
     private void Start()
@@ -162,6 +170,7 @@ public class ShopManager : MonoBehaviour
 
         shopPanel.transform.SetAsLastSibling();
         CancelPendingPurchase();
+        HidePurchaseFeedback();
         UpdateCurrencyDisplay();
         ShowCategory(currentCategory);
     }
@@ -171,6 +180,7 @@ public class ShopManager : MonoBehaviour
         if (shopPanel == null) return;
 
         CancelPendingPurchase();
+        HidePurchaseFeedback();
 
         if (UIPanelCoordinator.Instance != null)
             UIPanelCoordinator.Instance.ClosePanel(shopPanel);
@@ -287,6 +297,12 @@ public class ShopManager : MonoBehaviour
             purchaseConfirmationPanel.SetActive(false);
     }
 
+    public void HidePurchaseFeedback()
+    {
+        if (purchaseFeedbackPanel != null)
+            purchaseFeedbackPanel.SetActive(false);
+    }
+
     public void HandleAddCurrencyClicked()
     {
         Debug.Log("[ShopManager] Secondary currency purchase/reward flow is not configured yet.", this);
@@ -373,8 +389,25 @@ public class ShopManager : MonoBehaviour
     private bool RejectPurchase(string message)
     {
         Debug.LogWarning($"[ShopManager] {message}", this);
+        ShowPurchaseFeedback(message);
         onPurchaseRejected.Invoke(message);
         return false;
+    }
+
+    private void ShowPurchaseFeedback(string message)
+    {
+        CancelPendingPurchase();
+
+        if (purchaseFeedbackPanel == null)
+            return;
+
+        if (purchaseFeedbackTitleText != null)
+            purchaseFeedbackTitleText.text = "PURCHASE UNAVAILABLE";
+        if (purchaseFeedbackMessageText != null)
+            purchaseFeedbackMessageText.text = message;
+
+        purchaseFeedbackPanel.SetActive(true);
+        purchaseFeedbackPanel.transform.SetAsLastSibling();
     }
 
     private bool CanPurchase(ShopItemData item, out string rejection)
@@ -399,7 +432,9 @@ public class ShopManager : MonoBehaviour
 
         if (boundPlayerData.CurrentData.gold < item.price)
         {
-            rejection = $"Not enough currency for {item.itemName}.";
+            rejection = $"You do not have enough money for {item.itemName}.\n" +
+                        $"You have {FormatPrice(boundPlayerData.CurrentData.gold)}, " +
+                        $"but it costs {FormatPrice(item.price)}.";
             return false;
         }
 
