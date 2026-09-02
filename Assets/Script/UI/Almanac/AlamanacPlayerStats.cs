@@ -116,7 +116,26 @@ public class AlmanacPlayerStats : MonoBehaviour
 
     public void OpenAchievementPanel()
     {
-        AchievementUIManager achievementManager = FindObjectOfType<AchievementUIManager>(true);
+        // Prefer the manager belonging to this Almanac's scene. This avoids a
+        // persistent/additively-loaded scene manager opening a different panel.
+        AchievementUIManager achievementManager = null;
+        AchievementUIManager[] managers = Resources.FindObjectsOfTypeAll<AchievementUIManager>();
+        foreach (AchievementUIManager candidate in managers)
+        {
+            if (candidate == null || !candidate.gameObject.scene.IsValid() ||
+                !candidate.gameObject.scene.isLoaded ||
+                candidate.gameObject.scene != gameObject.scene)
+            {
+                continue;
+            }
+
+            achievementManager = candidate;
+            break;
+        }
+
+        if (achievementManager == null)
+            achievementManager = FindObjectOfType<AchievementUIManager>(true);
+
         if (achievementManager != null)
         {
             achievementManager.OpenPanel();

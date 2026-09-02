@@ -127,10 +127,14 @@ public class UIPanelCoordinator : MonoBehaviour
             if (CanHideObject(managedPanel, panel)) managedPanel.SetActive(false);
         }
 
-        // A parent modal (for example the Almanac) may already have disabled the
-        // Canvas that owns this nested panel. Activating only LessonPanel would then
-        // leave it invisible. Temporarily enable its Canvas chain and restore those
-        // exact enabled states when the nested panel closes.
+        // A previously opened modal may have disabled an intermediate wrapper such
+        // as MainCanvas/UtilityPanel. SetActive(true) on the requested child is not
+        // enough in that case, so temporarily enable its GameObject parent chain.
+        // The exact previous activeSelf values are restored when this panel closes.
+        EnableTargetParentChain(panel, frame, recorded);
+
+        // A parent modal may also have disabled the Canvas component that owns this
+        // nested panel. Restore that component independently from GameObject state.
         EnableTargetCanvases(panel, frame);
         HideSameCanvasSiblings(panel, frame, recorded);
         HideOtherCanvases(panel, frame);
@@ -325,6 +329,38 @@ public class UIPanelCoordinator : MonoBehaviour
                 wasEnabled = false
             });
             canvas.enabled = true;
+        }
+    }
+
+    private static void EnableTargetParentChain(
+        GameObject panel,
+        PanelFrame frame,
+        HashSet<GameObject> recorded)
+    {
+        Canvas owner = panel.GetComponentInParent<Canvas>(true);
+        Transform current = panel.transform.parent;
+
+        while (current != null)
+        {
+            GameObject parentObject = current.gameObject;
+            if (!parentObject.activeSelf)
+            {
+                if (recorded.Add(parentObject))
+                {
+                    frame.previousStates.Add(new ObjectState
+                    {
+                        target = parentObject,
+                        wasActive = false
+                    });
+                }
+
+                parentObject.SetActive(true);
+            }
+
+            if (owner != null && current == owner.transform)
+                break;
+
+            current = current.parent;
         }
     }
 
