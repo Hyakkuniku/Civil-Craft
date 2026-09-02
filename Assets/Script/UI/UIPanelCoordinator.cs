@@ -212,6 +212,9 @@ public class UIPanelCoordinator : MonoBehaviour
         foreach (ShopManager manager in FindObjectsOfType<ShopManager>(true))
             AddUnique(managedPanels, manager.Panel);
 
+        foreach (ObjectiveTrackerUI tracker in FindObjectsOfType<ObjectiveTrackerUI>(true))
+            AddUnique(managedPanels, tracker.trackerPanel);
+
         // Interaction prompts live on their own Canvas in CanyonCrossing, so
         // disabling only the regular HUD did not change the container's active
         // state. Treat it as HUD so modal panels (especially Lessons) suppress

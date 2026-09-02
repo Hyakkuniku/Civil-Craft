@@ -7432,6 +7432,10 @@ MonoBehaviour:
   expRemainingText: {fileID: 0}
   achievementsSummaryText: {fileID: 0}
   latestAchievementIcon: {fileID: 0}
+  secondaryCurrencyText: {fileID: 0}
+  achievementSectionRoot: {fileID: 0}
+  overviewCardRect: {fileID: 0}
+  achievementPanelButton: {fileID: 0}
   playerNameText: {fileID: 113526004462492056}
   titleText: {fileID: 6839477998022608614}
   goldText: {fileID: 326678090747180307}

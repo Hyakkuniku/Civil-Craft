@@ -11,6 +11,10 @@ public class AlmanacPlayerStats : MonoBehaviour
     public TextMeshProUGUI expRemainingText;
     public TextMeshProUGUI achievementsSummaryText;
     public Image latestAchievementIcon;
+    public TextMeshProUGUI secondaryCurrencyText;
+    public GameObject achievementSectionRoot;
+    public RectTransform overviewCardRect;
+    public Button achievementPanelButton;
 
     [Header("UI Text Fields")]
     public TextMeshProUGUI playerNameText;
@@ -26,11 +30,19 @@ public class AlmanacPlayerStats : MonoBehaviour
     private void OnEnable()
     {
         Subscribe();
+        ResolveProfileBindings();
+        if (achievementPanelButton != null)
+        {
+            achievementPanelButton.onClick.RemoveListener(OpenAchievementPanel);
+            achievementPanelButton.onClick.AddListener(OpenAchievementPanel);
+        }
         RefreshStats();
     }
 
     private void OnDisable()
     {
+        if (achievementPanelButton != null)
+            achievementPanelButton.onClick.RemoveListener(OpenAchievementPanel);
         Unsubscribe();
     }
 
@@ -71,17 +83,26 @@ public class AlmanacPlayerStats : MonoBehaviour
         if (bridgesBuiltText != null) bridgesBuiltText.text = data.lifetimeBridgesBuilt.ToString("N0");
         if (contractsCompletedText != null)
             contractsCompletedText.text = data.lifetimeContractsCompleted.ToString("N0");
+        if (secondaryCurrencyText != null) secondaryCurrencyText.text = "0";
         if (totalGoldEarnedText != null)
             totalGoldEarnedText.text = "₱" + data.lifetimeGoldEarned.ToString("N0");
 
         if (expProgressFill != null)
         {
-            expProgressFill.type = Image.Type.Filled;
-            expProgressFill.fillMethod = Image.FillMethod.Horizontal;
-            expProgressFill.fillOrigin = 0;
-            expProgressFill.fillAmount = isMaxRank
+            float progress = isMaxRank
                 ? 1f
                 : Mathf.Clamp01((float)data.exp / nextRankThreshold);
+
+            // A sprite-less Unity Image does not visually honour fillAmount.
+            // Drive the right anchor instead so this works with the simple
+            // coloured rectangle used by the Almanac design.
+            expProgressFill.type = Image.Type.Simple;
+            RectTransform fillRect = expProgressFill.rectTransform;
+            fillRect.anchorMin = Vector2.zero;
+            fillRect.anchorMax = new Vector2(Mathf.Clamp01(progress), 1f);
+            fillRect.offsetMin = Vector2.zero;
+            fillRect.offsetMax = Vector2.zero;
+            fillRect.pivot = new Vector2(0f, 0.5f);
         }
 
         if (expRemainingText != null)
@@ -93,12 +114,74 @@ public class AlmanacPlayerStats : MonoBehaviour
         PopulateAchievementSummary(data);
     }
 
+    public void OpenAchievementPanel()
+    {
+        AchievementUIManager achievementManager = FindObjectOfType<AchievementUIManager>(true);
+        if (achievementManager != null)
+        {
+            achievementManager.OpenPanel();
+            return;
+        }
+
+        Debug.LogWarning("The Almanac could not find an AchievementUIManager in this scene.", this);
+    }
+
+    private void ResolveProfileBindings()
+    {
+        Transform design = FindDescendant(transform, "ProfileStatsDesign");
+        if (design == null) design = transform;
+
+        Transform fill = FindDescendant(design, "ExpProgressFill");
+        if (fill != null)
+            expProgressFill = fill.GetComponent<Image>();
+
+        Transform achievementCard = FindDescendant(design, "AchievementSummaryCard");
+        if (achievementCard != null)
+        {
+            Image cardImage = achievementCard.GetComponent<Image>();
+            if (cardImage != null) cardImage.raycastTarget = true;
+
+            Button cardButton = achievementCard.GetComponent<Button>();
+            if (cardButton == null)
+                cardButton = achievementCard.gameObject.AddComponent<Button>();
+            if (cardImage != null) cardButton.targetGraphic = cardImage;
+            achievementPanelButton = cardButton;
+
+            Transform obsoleteButton = FindDescendant(achievementCard, "OpenAchievementsButton");
+            if (obsoleteButton != null && obsoleteButton != achievementCard)
+                obsoleteButton.gameObject.SetActive(false);
+        }
+    }
+
+    private static Transform FindDescendant(Transform parent, string objectName)
+    {
+        if (parent == null) return null;
+        foreach (Transform child in parent)
+        {
+            if (child.name == objectName) return child;
+            Transform found = FindDescendant(child, objectName);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
     private void PopulateAchievementSummary(PlayerData data)
     {
         int unlockedCount = data.unlockedAchievements != null
             ? data.unlockedAchievements.Count
             : 0;
         AchievementSO latestAchievement = null;
+
+        if (achievementSectionRoot != null)
+            achievementSectionRoot.SetActive(unlockedCount > 0);
+
+        if (overviewCardRect != null)
+        {
+            overviewCardRect.anchorMin = new Vector2(
+                overviewCardRect.anchorMin.x,
+                unlockedCount > 0 ? 0.42f : 0.10f);
+            overviewCardRect.offsetMin = Vector2.zero;
+        }
 
         if (unlockedCount > 0 && PlayerDataManager.Instance.allGameAchievements != null)
         {
@@ -166,4 +249,5 @@ public class AlmanacPlayerStats : MonoBehaviour
         if (exp < 1000) return 1000;
         return -1;
     }
+
 }

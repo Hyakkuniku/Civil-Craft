@@ -9,7 +9,7 @@ using UnityEngine.UI;
 [InitializeOnLoad]
 public static class AlmanacProfilePageSetup
 {
-    private const string SessionKey = "CivilCraft.AlmanacProfilePage.v1";
+    private const string SessionKey = "CivilCraft.AlmanacProfilePage.FinalWiring.v1";
     private const string LeftDesignName = "ProfilePageDesign";
     private const string RightDesignName = "ProfileStatsDesign";
 
@@ -41,13 +41,11 @@ public static class AlmanacProfilePageSetup
     {
         TMP_FontAsset font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(
             "Assets/TextMesh Pro/Resources/Fonts & Materials/Bekind Sans SDF.asset");
-        Sprite profileBorder = AssetDatabase.LoadAssetAtPath<Sprite>(
-            "Assets/Elements/UI/profile Border.png");
         Sprite star = AssetDatabase.LoadAssetAtPath<Sprite>(
             "Assets/Images/UI/Yellow/star.png");
 
         foreach (string scenePath in ScenePaths)
-            StyleScene(scenePath, font, profileBorder, star);
+            StyleScene(scenePath, font, star);
 
         AssetDatabase.SaveAssets();
         Debug.Log("[AlmanacProfilePageSetup] Engineer Profile pages are styled and wired.");
@@ -63,7 +61,7 @@ public static class AlmanacProfilePageSetup
         }
         if (EditorApplication.isPlayingOrWillChangePlaymode) return;
 
-        StyleAlmanacProfilePages();
+        FinalizeExistingProfileWiring();
         SessionState.SetBool(SessionKey, true);
     }
 
@@ -73,10 +71,72 @@ public static class AlmanacProfilePageSetup
             EditorApplication.delayCall += RunAutomaticSetupOnce;
     }
 
+    [MenuItem("Tools/Civil Craft/Finalize Existing Almanac Profile Wiring")]
+    public static void FinalizeExistingProfileWiring()
+    {
+        foreach (string scenePath in ScenePaths)
+            FinalizeSceneWiring(scenePath);
+
+        AssetDatabase.SaveAssets();
+        Debug.Log("[AlmanacProfilePageSetup] Existing Almanac layout preserved; final wiring repaired.");
+    }
+
+    private static void FinalizeSceneWiring(string scenePath)
+    {
+        Scene scene = SceneManager.GetSceneByPath(scenePath);
+        bool openedForSetup = !scene.IsValid() || !scene.isLoaded;
+        if (openedForSetup)
+            scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Additive);
+
+        AlmanacPlayerStats stats = FindStatsPage(scene);
+        if (stats == null)
+        {
+            if (openedForSetup) EditorSceneManager.CloseScene(scene, true);
+            return;
+        }
+
+        Transform design = FindDescendant(stats.transform, RightDesignName);
+        if (design == null) design = stats.transform;
+
+        Transform fillTransform = FindDescendant(design, "ExpProgressFill");
+        Image fill = fillTransform != null ? fillTransform.GetComponent<Image>() : null;
+        if (fill != null)
+        {
+            fill.type = Image.Type.Simple;
+            fill.raycastTarget = false;
+            fill.rectTransform.anchorMin = Vector2.zero;
+            fill.rectTransform.anchorMax = Vector2.one;
+            fill.rectTransform.offsetMin = Vector2.zero;
+            fill.rectTransform.offsetMax = Vector2.zero;
+            stats.expProgressFill = fill;
+        }
+
+        Transform cardTransform = FindDescendant(design, "AchievementSummaryCard");
+        if (cardTransform != null)
+        {
+            Image cardImage = cardTransform.GetComponent<Image>();
+            if (cardImage != null) cardImage.raycastTarget = true;
+
+            Button cardButton = cardTransform.GetComponent<Button>();
+            if (cardButton == null)
+                cardButton = cardTransform.gameObject.AddComponent<Button>();
+            if (cardImage != null) cardButton.targetGraphic = cardImage;
+            stats.achievementPanelButton = cardButton;
+
+            Transform obsoleteButton = FindDescendant(cardTransform, "OpenAchievementsButton");
+            if (obsoleteButton != null && obsoleteButton != cardTransform)
+                obsoleteButton.gameObject.SetActive(false);
+        }
+
+        EditorUtility.SetDirty(stats);
+        EditorSceneManager.MarkSceneDirty(scene);
+        EditorSceneManager.SaveScene(scene);
+        if (openedForSetup) EditorSceneManager.CloseScene(scene, true);
+    }
+
     private static void StyleScene(
         string scenePath,
         TMP_FontAsset font,
-        Sprite profileBorder,
         Sprite star)
     {
         Scene scene = SceneManager.GetSceneByPath(scenePath);
@@ -93,7 +153,9 @@ public static class AlmanacProfilePageSetup
             return;
         }
 
-        BuildLeftPage(modelPage, stats, font, profileBorder);
+        ConfigureBookAndProfilePages(stats, modelPage);
+        ConfigureTabsAndNavigation(scene);
+        BuildLeftPage(modelPage, stats, font);
         BuildRightPage(stats.transform, stats, font, star);
 
         EditorUtility.SetDirty(stats);
@@ -105,8 +167,7 @@ public static class AlmanacProfilePageSetup
     private static void BuildLeftPage(
         Transform page,
         AlmanacPlayerStats stats,
-        TMP_FontAsset font,
-        Sprite profileBorder)
+        TMP_FontAsset font)
     {
         RemoveGeneratedChild(page, LeftDesignName);
 
@@ -119,42 +180,44 @@ public static class AlmanacProfilePageSetup
             sourcePortrait.raycastTarget = false;
         }
 
+        // The old parent Image is the oversized wooden portrait frame. Keep its
+        // transform as a layout container, but do not render or raycast it.
+        Image oldPortraitFrame = page.parent != null ? page.parent.GetComponent<Image>() : null;
+        if (oldPortraitFrame != null)
+        {
+            oldPortraitFrame.enabled = false;
+            oldPortraitFrame.raycastTarget = false;
+        }
+
         RectTransform design = CreateRect(LeftDesignName, page);
         Stretch(design);
 
+        RectTransform header = CreateRect("ProfileHeader", design);
+        SetRect(header, new Vector2(0.10f, 0.84f), new Vector2(0.90f, 0.95f));
         TMP_Text title = CreateText(
-            design, "ProfileTitle", "ENGINEER PROFILE", font, 43f,
+            header, "ProfileTitle", "ENGINEER PROFILE", font, 34f,
             FontStyles.Bold, Ink, TextAlignmentOptions.Center);
-        SetRect(title.rectTransform, new Vector2(0.08f, 0.865f), new Vector2(0.92f, 0.97f));
+        Stretch(title.rectTransform);
 
-        Image divider = CreateImage(design, "TitleDivider", Line);
-        SetRect(divider.rectTransform, new Vector2(0.19f, 0.842f), new Vector2(0.81f, 0.847f));
+        Image divider = CreateImage(header, "TitleDivider", Line);
+        SetRect(divider.rectTransform, new Vector2(0.10f, 0.02f), new Vector2(0.90f, 0.06f));
         TMP_Text dividerStar = CreateText(
-            design, "DividerStar", "★", font, 23f, FontStyles.Normal,
+            header, "DividerStar", "*", font, 20f, FontStyles.Bold,
             Gold, TextAlignmentOptions.Center);
-        SetRect(dividerStar.rectTransform, new Vector2(0.46f, 0.818f), new Vector2(0.54f, 0.87f));
+        SetRect(dividerStar.rectTransform, new Vector2(0.46f, 0f), new Vector2(0.54f, 0.20f));
 
-        Image portraitCard = CreatePanel(design, "PortraitCard", CardLight, Line, 3f);
-        SetRect(portraitCard.rectTransform, new Vector2(0.14f, 0.20f), new Vector2(0.86f, 0.80f));
+        Image portraitCard = CreatePanel(design, "PortraitArea", CardLight, Line, 2f);
+        SetRect(portraitCard.rectTransform, new Vector2(0.14f, 0.21f), new Vector2(0.86f, 0.80f));
 
         RawImage portrait = CreateRawImage(portraitCard.transform, "EngineerPortrait", portraitTexture);
         portrait.uvRect = sourceUv;
         SetRect(portrait.rectTransform, new Vector2(0.05f, 0.04f), new Vector2(0.95f, 0.96f));
 
-        if (profileBorder != null)
-        {
-            Image border = CreateSpriteImage(portraitCard.transform, "PortraitBorder", profileBorder);
-            Stretch(border.rectTransform);
-            border.preserveAspect = false;
-            border.color = new Color(1f, 1f, 1f, 0.95f);
-            border.transform.SetAsLastSibling();
-        }
-
-        Image nameCard = CreatePanel(design, "EngineerNameCard", Paper, Line, 2f);
-        SetRect(nameCard.rectTransform, new Vector2(0.13f, 0.065f), new Vector2(0.87f, 0.165f));
+        Image nameCard = CreatePanel(design, "IdentityCard", Paper, Line, 2f);
+        SetRect(nameCard.rectTransform, new Vector2(0.14f, 0.075f), new Vector2(0.86f, 0.175f));
 
         TMP_Text helmetBadge = CreateText(
-            nameCard.transform, "EngineerBadge", "⌂", font, 35f,
+            nameCard.transform, "EngineerBadge", "E", font, 31f,
             FontStyles.Bold, Color.white, TextAlignmentOptions.Center);
         helmetBadge.rectTransform.anchorMin = new Vector2(0f, 0f);
         helmetBadge.rectTransform.anchorMax = new Vector2(0.18f, 1f);
@@ -191,7 +254,7 @@ public static class AlmanacProfilePageSetup
         Stretch(design);
 
         TMP_Text overviewBadge = CreateText(
-            design, "OverviewBadge", "◎", font, 39f, FontStyles.Bold,
+            design, "OverviewBadge", "O", font, 34f, FontStyles.Bold,
             Color.white, TextAlignmentOptions.Center);
         SetRect(overviewBadge.rectTransform, new Vector2(0.055f, 0.86f), new Vector2(0.16f, 0.96f));
         Image overviewBadgeBack = CreatePanel(design, "OverviewBadgeBackground", Brown, Brown, 0f);
@@ -206,9 +269,9 @@ public static class AlmanacProfilePageSetup
         SetRect(overviewLine.rectTransform, new Vector2(0.49f, 0.895f), new Vector2(0.94f, 0.9f));
 
         Image overviewCard = CreatePanel(design, "OverviewCard", Card, Line, 2f);
-        SetRect(overviewCard.rectTransform, new Vector2(0.055f, 0.39f), new Vector2(0.945f, 0.855f));
+        SetRect(overviewCard.rectTransform, new Vector2(0.055f, 0.42f), new Vector2(0.945f, 0.855f));
 
-        CreateLabel(overviewCard.transform, "RankLabel", "★   RANK", font,
+        CreateLabel(overviewCard.transform, "RankLabel", "RANK", font,
             new Vector2(0.04f, 0.80f), new Vector2(0.50f, 0.97f), 27f);
         TMP_Text rankValue = CreateText(
             overviewCard.transform, "RankValue", "Novice Builder", font, 28f,
@@ -220,21 +283,21 @@ public static class AlmanacProfilePageSetup
 
         Image goldCard = CreatePanel(overviewCard.transform, "GoldCard", CardLight, Line, 1f);
         SetRect(goldCard.rectTransform, new Vector2(0.035f, 0.53f), new Vector2(0.49f, 0.75f));
-        CreateLabel(goldCard.transform, "GoldLabel", "₱   GOLD", font,
+        CreateLabel(goldCard.transform, "GoldLabel", "COINS", font,
             new Vector2(0.05f, 0f), new Vector2(0.60f, 1f), 24f);
         TMP_Text goldValue = CreateText(
-            goldCard.transform, "GoldValue", "₱0", font, 28f,
+            goldCard.transform, "GoldValue", "0", font, 28f,
             FontStyles.Bold, Ink, TextAlignmentOptions.MidlineRight);
         SetRect(goldValue.rectTransform, new Vector2(0.56f, 0f), new Vector2(0.94f, 1f));
 
-        Image contractsCard = CreatePanel(overviewCard.transform, "ContractsCard", CardLight, Line, 1f);
-        SetRect(contractsCard.rectTransform, new Vector2(0.51f, 0.53f), new Vector2(0.965f, 0.75f));
-        CreateLabel(contractsCard.transform, "ContractsLabel", "✓   CONTRACTS", font,
-            new Vector2(0.05f, 0f), new Vector2(0.72f, 1f), 22f);
-        TMP_Text contractsValue = CreateText(
-            contractsCard.transform, "ContractsValue", "0", font, 28f,
+        Image secondaryCard = CreatePanel(overviewCard.transform, "SecondaryCurrencyCard", CardLight, Line, 1f);
+        SetRect(secondaryCard.rectTransform, new Vector2(0.51f, 0.53f), new Vector2(0.965f, 0.75f));
+        CreateLabel(secondaryCard.transform, "SecondaryCurrencyLabel", "GEMS", font,
+            new Vector2(0.05f, 0f), new Vector2(0.62f, 1f), 24f);
+        TMP_Text secondaryValue = CreateText(
+            secondaryCard.transform, "SecondaryCurrencyValue", "0", font, 28f,
             FontStyles.Bold, Ink, TextAlignmentOptions.MidlineRight);
-        SetRect(contractsValue.rectTransform, new Vector2(0.70f, 0f), new Vector2(0.94f, 1f));
+        SetRect(secondaryValue.rectTransform, new Vector2(0.60f, 0f), new Vector2(0.94f, 1f));
 
         CreateLabel(overviewCard.transform, "ExpLabel", "XP   EXP", font,
             new Vector2(0.04f, 0.35f), new Vector2(0.40f, 0.51f), 25f);
@@ -257,38 +320,53 @@ public static class AlmanacProfilePageSetup
             FontStyles.Normal, MutedInk, TextAlignmentOptions.Center);
         SetRect(remaining.rectTransform, new Vector2(0.18f, 0.13f), new Vector2(0.94f, 0.23f));
 
-        CreateLabel(overviewCard.transform, "BridgesLabel", "▰   BRIDGES BUILT", font,
-            new Vector2(0.04f, 0.0f), new Vector2(0.60f, 0.14f), 24f);
+        CreateLabel(overviewCard.transform, "BridgesLabel", "BRIDGES BUILT", font,
+            new Vector2(0.04f, 0.0f), new Vector2(0.34f, 0.14f), 22f);
         TMP_Text bridgesValue = CreateText(
             overviewCard.transform, "BridgesValue", "0", font, 28f,
             FontStyles.Bold, Ink, TextAlignmentOptions.MidlineRight);
-        SetRect(bridgesValue.rectTransform, new Vector2(0.70f, 0.0f), new Vector2(0.95f, 0.14f));
+        SetRect(bridgesValue.rectTransform, new Vector2(0.32f, 0.0f), new Vector2(0.46f, 0.14f));
 
-        Image achievementBadge = CreatePanel(design, "AchievementBadge", Green, Green, 0f);
-        SetRect(achievementBadge.rectTransform, new Vector2(0.065f, 0.285f), new Vector2(0.15f, 0.375f));
+        CreateLabel(overviewCard.transform, "ContractsLabel", "CONTRACTS", font,
+            new Vector2(0.52f, 0.0f), new Vector2(0.78f, 0.14f), 22f);
+        TMP_Text contractsValue = CreateText(
+            overviewCard.transform, "ContractsValue", "0", font, 28f,
+            FontStyles.Bold, Ink, TextAlignmentOptions.MidlineRight);
+        SetRect(contractsValue.rectTransform, new Vector2(0.78f, 0.0f), new Vector2(0.95f, 0.14f));
+
+        RectTransform achievementSection = CreateRect("AchievementSection", design);
+        SetRect(achievementSection, Vector2.zero, new Vector2(1f, 0.39f));
+
+        Image achievementBadge = CreatePanel(achievementSection, "AchievementBadge", Green, Green, 0f);
+        SetRect(achievementBadge.rectTransform, new Vector2(0.065f, 0.70f), new Vector2(0.15f, 0.94f));
         TMP_Text trophy = CreateText(
-            achievementBadge.transform, "Trophy", "★", font, 30f,
+            achievementBadge.transform, "Trophy", "A", font, 28f,
             FontStyles.Bold, Color.white, TextAlignmentOptions.Center);
         Stretch(trophy.rectTransform);
 
         TMP_Text achievementTitle = CreateText(
-            design, "AchievementTitle", "ACHIEVEMENTS", font, 34f,
+            achievementSection, "AchievementTitle", "ACHIEVEMENTS", font, 32f,
             FontStyles.Bold, Ink, TextAlignmentOptions.MidlineLeft);
-        SetRect(achievementTitle.rectTransform, new Vector2(0.17f, 0.285f), new Vector2(0.62f, 0.375f));
-        Image achievementLine = CreateImage(design, "AchievementLine", Line);
-        SetRect(achievementLine.rectTransform, new Vector2(0.55f, 0.32f), new Vector2(0.94f, 0.325f));
+        SetRect(achievementTitle.rectTransform, new Vector2(0.17f, 0.70f), new Vector2(0.62f, 0.94f));
+        Image achievementLine = CreateImage(achievementSection, "AchievementLine", Line);
+        SetRect(achievementLine.rectTransform, new Vector2(0.55f, 0.795f), new Vector2(0.94f, 0.81f));
 
-        Image achievementCard = CreatePanel(design, "AchievementSummaryCard", CardLight, Line, 2f);
-        SetRect(achievementCard.rectTransform, new Vector2(0.055f, 0.065f), new Vector2(0.945f, 0.275f));
+        Image achievementCard = CreatePanel(achievementSection, "AchievementSummaryCard", CardLight, Line, 2f);
+        SetRect(achievementCard.rectTransform, new Vector2(0.055f, 0.08f), new Vector2(0.945f, 0.67f));
         TMP_Text summary = CreateText(
             achievementCard.transform, "AchievementSummary",
             "No achievements yet.\nKeep building to earn your first achievement!",
             font, 22f, FontStyles.Normal, Ink, TextAlignmentOptions.Center);
-        SetRect(summary.rectTransform, new Vector2(0.06f, 0.10f), new Vector2(0.78f, 0.90f));
+        SetRect(summary.rectTransform, new Vector2(0.27f, 0.36f), new Vector2(0.72f, 0.90f));
 
         Image latestIcon = CreateSpriteImage(achievementCard.transform, "LatestAchievementIcon", star);
-        SetRect(latestIcon.rectTransform, new Vector2(0.80f, 0.16f), new Vector2(0.95f, 0.84f));
+        SetRect(latestIcon.rectTransform, new Vector2(0.04f, 0.12f), new Vector2(0.25f, 0.88f));
         latestIcon.color = new Color(1f, 1f, 1f, 0.35f);
+
+        Button viewAchievements = CreateButton(
+            achievementCard.transform, "OpenAchievementsButton", "VIEW ACHIEVEMENTS", font);
+        SetRect(viewAchievements.GetComponent<RectTransform>(),
+            new Vector2(0.72f, 0.20f), new Vector2(0.96f, 0.80f));
 
         stats.useProfileCardLayout = true;
         stats.titleText = rankValue as TextMeshProUGUI;
@@ -296,10 +374,121 @@ public static class AlmanacProfilePageSetup
         stats.expText = expValue as TextMeshProUGUI;
         stats.bridgesBuiltText = bridgesValue as TextMeshProUGUI;
         stats.contractsCompletedText = contractsValue as TextMeshProUGUI;
+        stats.secondaryCurrencyText = secondaryValue as TextMeshProUGUI;
         stats.expProgressFill = progressFill;
         stats.expRemainingText = remaining as TextMeshProUGUI;
         stats.achievementsSummaryText = summary as TextMeshProUGUI;
         stats.latestAchievementIcon = latestIcon;
+        stats.achievementSectionRoot = achievementSection.gameObject;
+        stats.overviewCardRect = overviewCard.rectTransform;
+        stats.achievementPanelButton = viewAchievements;
+    }
+
+    private static void ConfigureBookAndProfilePages(AlmanacPlayerStats stats, Transform modelPage)
+    {
+        Transform playerStats = stats.transform.parent != null ? stats.transform.parent.parent : null;
+        Transform bookContainer = playerStats != null ? playerStats.parent : null;
+        if (bookContainer == null || bookContainer.name != "Container") return;
+
+        RectTransform bookRect = bookContainer as RectTransform;
+        if (bookRect != null)
+        {
+            bookRect.anchorMin = Vector2.zero;
+            bookRect.anchorMax = Vector2.one;
+            bookRect.offsetMin = new Vector2(48f, 42f);
+            bookRect.offsetMax = new Vector2(-48f, -42f);
+            bookRect.localScale = Vector3.one;
+        }
+
+        RectTransform playerStatsRect = playerStats as RectTransform;
+        if (playerStatsRect != null)
+        {
+            playerStatsRect.anchorMin = new Vector2(0.035f, 0.07f);
+            playerStatsRect.anchorMax = new Vector2(0.965f, 0.92f);
+            playerStatsRect.offsetMin = Vector2.zero;
+            playerStatsRect.offsetMax = Vector2.zero;
+            playerStatsRect.localScale = Vector3.one;
+        }
+
+        RectTransform leftZone = FindDirectChild(playerStats, "LeftPageZone") as RectTransform;
+        RectTransform rightZone = FindDirectChild(playerStats, "RightPageZone") as RectTransform;
+        if (leftZone != null) SetRect(leftZone, Vector2.zero, new Vector2(0.5f, 1f));
+        if (rightZone != null) SetRect(rightZone, new Vector2(0.5f, 0f), Vector2.one);
+
+        if (leftZone != null)
+        {
+            foreach (RectTransform rect in leftZone.GetComponentsInChildren<RectTransform>(true))
+            {
+                if (rect == leftZone) continue;
+                if (rect == modelPage || rect.parent == leftZone || IsAncestorOf(rect, modelPage))
+                    Stretch(rect);
+            }
+        }
+
+        Stretch(stats.GetComponent<RectTransform>());
+    }
+
+    private static void ConfigureTabsAndNavigation(Scene scene)
+    {
+        AlmanacManager manager = null;
+        foreach (GameObject root in scene.GetRootGameObjects())
+        {
+            manager = root.GetComponentInChildren<AlmanacManager>(true);
+            if (manager != null) break;
+        }
+        if (manager == null) return;
+
+        manager.selectedTabUpOffset = 12f;
+        foreach (AlmanacCategory category in manager.categories)
+        {
+            if (category == null || category.tabButton == null) continue;
+            RectTransform tabRect = category.tabButton.GetComponent<RectTransform>();
+            if (tabRect == null) continue;
+
+            tabRect.anchorMin = new Vector2(0.5f, 1f);
+            tabRect.anchorMax = new Vector2(0.5f, 1f);
+            tabRect.anchoredPosition = new Vector2(tabRect.anchoredPosition.x, -12f);
+            tabRect.sizeDelta = new Vector2(160f, 90f);
+            tabRect.localScale = Vector3.one;
+        }
+
+        ConfigureNavigationButton(manager.prevButton, false);
+        ConfigureNavigationButton(manager.nextButton, true);
+        EditorUtility.SetDirty(manager);
+    }
+
+    private static void ConfigureNavigationButton(Button button, bool rightSide)
+    {
+        if (button == null) return;
+        RectTransform rect = button.GetComponent<RectTransform>();
+        if (rect == null) return;
+
+        rect.anchorMin = new Vector2(rightSide ? 1f : 0f, 0.5f);
+        rect.anchorMax = rect.anchorMin;
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = new Vector2(rightSide ? -72f : 72f, 0f);
+        rect.sizeDelta = new Vector2(92f, 92f);
+        rect.localScale = Vector3.one;
+        rect.SetAsLastSibling();
+    }
+
+    private static Transform FindDirectChild(Transform parent, string childName)
+    {
+        if (parent == null) return null;
+        foreach (Transform child in parent)
+            if (child.name == childName) return child;
+        return null;
+    }
+
+    private static bool IsAncestorOf(Transform possibleAncestor, Transform child)
+    {
+        Transform current = child != null ? child.parent : null;
+        while (current != null)
+        {
+            if (current == possibleAncestor) return true;
+            current = current.parent;
+        }
+        return false;
     }
 
     private static AlmanacPlayerStats FindStatsPage(Scene scene)
@@ -386,6 +575,31 @@ public static class AlmanacProfilePageSetup
         image.preserveAspect = true;
         image.enabled = sprite != null;
         return image;
+    }
+
+    private static Button CreateButton(
+        Transform parent,
+        string name,
+        string label,
+        TMP_FontAsset font)
+    {
+        Image background = CreatePanel(parent, name, Gold, Brown, 2f);
+        background.raycastTarget = true;
+
+        Button button = background.gameObject.AddComponent<Button>();
+        ColorBlock colors = button.colors;
+        colors.normalColor = Color.white;
+        colors.highlightedColor = Hex("FFE2A2");
+        colors.pressedColor = Hex("C47B25");
+        colors.selectedColor = colors.highlightedColor;
+        button.colors = colors;
+        button.targetGraphic = background;
+
+        TMP_Text buttonLabel = CreateText(
+            background.transform, "Label", label, font, 20f,
+            FontStyles.Bold, Ink, TextAlignmentOptions.Center);
+        Stretch(buttonLabel.rectTransform);
+        return button;
     }
 
     private static RawImage CreateRawImage(Transform parent, string name, Texture texture)

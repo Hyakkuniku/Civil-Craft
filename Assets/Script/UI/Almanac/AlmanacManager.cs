@@ -745,17 +745,31 @@ public class AlmanacManager : MonoBehaviour
     {
         if (useVirtualPagination)
         {
-            if (prevButton != null) prevButton.interactable = virtualHasPrev;
-            if (nextButton != null) nextButton.interactable = virtualHasNext;
+            SetPaginationButtonState(prevButton, virtualHasPrev);
+            SetPaginationButtonState(nextButton, virtualHasNext);
             return;
         }
 
-        if (categories == null || categories.Count == 0 || currentCategoryIndex < 0 || currentCategoryIndex >= categories.Count) return;
+        if (categories == null || categories.Count == 0 ||
+            currentCategoryIndex < 0 || currentCategoryIndex >= categories.Count)
+        {
+            SetPaginationButtonState(prevButton, false);
+            SetPaginationButtonState(nextButton, false);
+            return;
+        }
 
         AlmanacCategory currentCat = categories[currentCategoryIndex];
         int maxSpreads = Mathf.Max(currentCat.leftPages.Count, currentCat.rightPages.Count);
 
-        if (prevButton != null) prevButton.interactable = (currentSpreadIndex > 0);
-        if (nextButton != null) nextButton.interactable = (currentSpreadIndex < maxSpreads - 1);
+        SetPaginationButtonState(prevButton, currentSpreadIndex > 0);
+        SetPaginationButtonState(nextButton, currentSpreadIndex < maxSpreads - 1);
+    }
+
+    private static void SetPaginationButtonState(Button button, bool available)
+    {
+        if (button == null) return;
+        button.interactable = available;
+        if (button.gameObject.activeSelf != available)
+            button.gameObject.SetActive(available);
     }
 }
