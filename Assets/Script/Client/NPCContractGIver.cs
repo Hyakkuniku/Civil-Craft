@@ -25,6 +25,8 @@ public class NPCContractGiver : Interactable
     private bool isLocked = false;
     private bool isProgressionInteractionLocked;
     private string progressionLockedPrompt = "Moving to the next site...";
+    private bool usesProgressionPhase;
+    private string progressionIdlePrompt = string.Empty;
 
     /// <summary>
     /// Runtime notification used by NPCProgressionManager. It deliberately stays
@@ -81,7 +83,11 @@ public class NPCContractGiver : Interactable
             return;
         }
 
-        if (contractToGive == null) return;
+        if (contractToGive == null)
+        {
+            if (usesProgressionPhase) promptMessage = progressionIdlePrompt;
+            return;
+        }
 
         if (isLocked)
         {
@@ -264,8 +270,11 @@ public class NPCContractGiver : Interactable
     public void ConfigureProgressionPhase(
         ContractSO phaseContract,
         BuildLocation phaseBuildLocation,
-        CargoItem phaseCargo)
+        CargoItem phaseCargo,
+        string phaseInteractionPrompt = "")
     {
+        usesProgressionPhase = true;
+        progressionIdlePrompt = phaseInteractionPrompt ?? string.Empty;
         contractToGive = phaseContract;
         targetBuildLocation = phaseBuildLocation;
         linkedCargo = phaseCargo;

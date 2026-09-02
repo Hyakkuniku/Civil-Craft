@@ -1,10 +1,18 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
-using System.Collections.Generic; // --- NEW: Required for using Lists ---
+using System.Collections.Generic;
 
 public class ItemUnlockUI : MonoBehaviour
 {
+    private sealed class RewardRequest
+    {
+        public string itemName;
+        public Sprite itemIcon;
+        public string hatID;
+        public System.Action onCollect;
+    }
+
     public static ItemUnlockUI Instance { get; private set; }
 
     [Header("UI References")]
@@ -25,23 +33,47 @@ public class ItemUnlockUI : MonoBehaviour
 
     private string pendingHatID;
     private System.Action onCollectCallback;
+    private bool collectButtonBound;
+    private bool rewardVisible;
+    private readonly Queue<RewardRequest> pendingRewards = new Queue<RewardRequest>();
 
     private void Awake()
     {
         Instance = this;
         if (popupPanel != null) popupPanel.SetActive(false);
+        BindCollectButton();
+    }
 
-        // Automatically hook up the Collect button!
-        if (collectButton != null)
-        {
-            collectButton.onClick.AddListener(OnCollectClicked);
-        }
+    private void OnDestroy()
+    {
+        if (collectButtonBound && collectButton != null)
+            collectButton.onClick.RemoveListener(OnCollectClicked);
+        if (Instance == this) Instance = null;
+
     }
 
     public void ShowReward(string itemName, Sprite itemIcon, string hatID, System.Action onCollect)
     {
-        pendingHatID = hatID;
-        onCollectCallback = onCollect;
+        pendingRewards.Enqueue(new RewardRequest
+        {
+            itemName = itemName,
+            itemIcon = itemIcon,
+            hatID = hatID,
+            onCollect = onCollect
+        });
+
+        if (!rewardVisible)
+            ShowNextReward();
+    }
+
+    private void ShowNextReward()
+    {
+        if (pendingRewards.Count == 0) return;
+
+        RewardRequest request = pendingRewards.Dequeue();
+        pendingHatID = request.hatID;
+        onCollectCallback = request.onCollect;
+        rewardVisible = true;
 
         // --- NEW: Hide background UI ---
         temporarilyHiddenUI.Clear();
@@ -56,8 +88,13 @@ public class ItemUnlockUI : MonoBehaviour
         }
 
         // Set the visuals
-        if (itemNameText != null) itemNameText.text = "Unlocked:\n" + itemName;
-        if (itemIconImage != null && itemIcon != null) itemIconImage.sprite = itemIcon;
+        if (itemNameText != null) itemNameText.text = "Unlocked:\n" + request.itemName;
+        if (itemIconImage != null)
+        {
+            itemIconImage.sprite = request.itemIcon;
+            itemIconImage.enabled = request.itemIcon != null;
+            itemIconImage.preserveAspect = true;
+        }
 
         // Show the panel
         if (popupPanel != null) popupPanel.SetActive(true);
@@ -82,6 +119,24 @@ public class ItemUnlockUI : MonoBehaviour
         }
 
         // Trigger whatever was supposed to happen next (like fireworks or advancing the tutorial)
-        onCollectCallback?.Invoke();
+        System.Action callback = onCollectCallback;
+        onCollectCallback = null;
+        pendingHatID = string.Empty;
+        rewardVisible = false;
+
+        // The reward callback runs only after the panel is closed, so feature
+        // notifications triggered by it naturally appear after Collect.
+        callback?.Invoke();
+
+        if (pendingRewards.Count > 0)
+            ShowNextReward();
     }
+
+    private void BindCollectButton()
+    {
+        if (collectButtonBound || collectButton == null) return;
+        collectButton.onClick.AddListener(OnCollectClicked);
+        collectButtonBound = true;
+    }
+
 }

@@ -13,6 +13,9 @@ public class NPCProgressionPhase
     [Tooltip("World position where the NPC waits during this phase.")]
     public Transform targetLocation;
 
+    [Tooltip("Optional ordered walking points used before Target Location when Waypoint movement is selected.")]
+    public List<Transform> travelWaypoints = new List<Transform>();
+
     [Tooltip("Contract offered by the existing NPCContractGiver in this phase.")]
     public ContractSO contract;
 
@@ -22,6 +25,34 @@ public class NPCProgressionPhase
     [Tooltip("Optional cargo whose weight should match the phase contract.")]
     public CargoItem linkedCargo;
 
+    [Header("Optional Phase Dialogue")]
+    [Tooltip("Optional dialogue for this phase. This is especially useful for travel-only phases with no Contract or Tutorial.")]
+    public Dialogue phaseDialogue;
+
+    [Tooltip("Interaction prompt shown while this contract-free phase is active.")]
+    public string dialoguePrompt = "Talk";
+
+    [Tooltip("Play the phase dialogue automatically when the NPC arrives. When disabled, the player starts it by interacting with the NPC.")]
+    public bool playDialogueOnArrival;
+
+    [Tooltip("Allow the player to replay this phase dialogue after it has finished once.")]
+    public bool repeatDialogue = true;
+
+    [Tooltip("Optional permanent feature ID granted after this dialogue finishes. It defaults to minimap for this sequence; clear it for no unlock.")]
+    public string unlockFeatureIdAfterDialogue = "minimap";
+
+    [Tooltip("Name shown by the Collect Reward popup for the dialogue feature unlock.")]
+    public string featureUnlockDisplayName = "Minimap";
+
+    [Tooltip("Optional artwork shown inside the Collect Reward popup.")]
+    public Sprite featureUnlockIcon;
+
+    [Tooltip("Require the player to press Collect before granting the feature and showing its notification.")]
+    public bool showFeatureCollectPopup = true;
+
+    [Tooltip("Invoked when the optional phase dialogue closes.")]
+    public UnityEvent onDialogueFinished;
+
     [Tooltip("Invoked when the player interacts with the NPC during this phase.")]
     public UnityEvent onNPCInteracted;
 
@@ -30,6 +61,12 @@ public class NPCProgressionPhase
 
     [Tooltip("Invoked after the NPC arrives and this phase becomes active.")]
     public UnityEvent onNPCArrived;
+}
+
+public enum NPCProgressionMovementMode
+{
+    NavMesh,
+    Waypoints
 }
 
 /// <summary>
@@ -44,6 +81,7 @@ public class NPCProgressionManager : MonoBehaviour
     [SerializeField] private NPCContractGiver contractGiver;
     [SerializeField] private NavMeshAgent navMeshAgent;
     [SerializeField] private Animator animator;
+    [SerializeField] private DialogueManager dialogueManager;
 
     [Header("Progression")]
     [SerializeField] private List<NPCProgressionPhase> phases = new List<NPCProgressionPhase>();
@@ -59,11 +97,38 @@ public class NPCProgressionManager : MonoBehaviour
     [SerializeField] private bool automaticallyAdvanceOnContractCompletion = true;
 
     [Header("Movement")]
+    [Tooltip("Waypoints moves the NPC directly over walkable colliders and does not require a NavMesh path.")]
+    [SerializeField] private NPCProgressionMovementMode movementMode = NPCProgressionMovementMode.NavMesh;
     [Min(0.01f)] [SerializeField] private float arrivalPadding = 0.15f;
     [Min(0.1f)] [SerializeField] private float navMeshSampleRadius = 3f;
     [Min(1f)] [SerializeField] private float pathTimeout = 45f;
     [Tooltip("Prevents progression soft-locks if a target is outside the baked NavMesh.")]
     [SerializeField] private bool warpToTargetIfPathFails = true;
+    [Tooltip("Seconds without meaningful movement before the NPC recalculates its route.")]
+    [Min(0.25f)] [SerializeField] private float stalledRepathDelay = 1.5f;
+    [Tooltip("World-space movement that counts as forward progress.")]
+    [Min(0.001f)] [SerializeField] private float stalledMovementTolerance = 0.03f;
+    [Tooltip("Maximum automatic route recalculations before movement is reported as failed.")]
+    [Min(0)] [SerializeField] private int maximumRepathAttempts = 3;
+
+    [Header("Waypoint Movement (No NavMesh)")]
+    [Min(0.01f)] [SerializeField] private float waypointMovementSpeed = 2.5f;
+    [Min(1f)] [SerializeField] private float waypointTurnSpeed = 260f;
+    [Min(0.01f)] [SerializeField] private float waypointArrivalDistance = 0.1f;
+    [Tooltip("Ground, Environment, and Bridge by default. The NPC follows the top collider below each step.")]
+    [SerializeField] private LayerMask waypointGroundLayers = (1 << 9) | (1 << 10) | (1 << 11);
+    [Min(0.1f)] [SerializeField] private float waypointGroundProbeHeight = 2f;
+    [Min(0.1f)] [SerializeField] private float waypointGroundProbeDepth = 6f;
+    [SerializeField] private float waypointGroundOffset;
+    [Tooltip("Stops safely instead of walking through empty air if no bridge or ground exists below the route.")]
+    [SerializeField] private bool requireGroundForWaypointMovement = true;
+    [Min(0f)] [SerializeField] private float missingGroundGraceTime = 0.5f;
+    [Tooltip("Road nodes this close are treated as the same junction even when they are separate Point objects.")]
+    [Min(0f)] [SerializeField] private float waypointRoadNodeWeldDistance = 0.25f;
+    [Tooltip("Maximum walkable land gap that may connect separate road sections in one completed build site.")]
+    [Min(0f)] [SerializeField] private float waypointRoadGroundConnectionDistance = 20f;
+    [Tooltip("Spacing between downward ground checks while connecting separate road sections.")]
+    [Min(0.1f)] [SerializeField] private float waypointGroundConnectionSampleSpacing = 0.75f;
 
     [Header("Animation")]
     [SerializeField] private string walkingBoolParameter = "isWalking";
@@ -82,6 +147,7 @@ public class NPCProgressionManager : MonoBehaviour
     public UnityEvent onMovementFailed;
 
     private readonly HashSet<int> invokedInteractionPhases = new HashSet<int>();
+    private readonly HashSet<int> completedDialoguePhases = new HashSet<int>();
     private Coroutine movementRoutine;
     private int currentPhaseIndex = -1;
     private bool subscribedToCompletion;
@@ -183,8 +249,15 @@ public class NPCProgressionManager : MonoBehaviour
         if (contractGiver == null) contractGiver = GetComponent<NPCContractGiver>();
         if (navMeshAgent == null) navMeshAgent = GetComponent<NavMeshAgent>();
         if (animator == null) animator = GetComponentInChildren<Animator>();
+        if (dialogueManager == null) dialogueManager = FindObjectOfType<DialogueManager>();
 
-        if (navMeshAgent != null)
+        if (movementMode == NPCProgressionMovementMode.Waypoints && navMeshAgent != null)
+        {
+            // A live agent continually writes to the Transform, so it must not
+            // compete with the deterministic waypoint mover.
+            navMeshAgent.enabled = false;
+        }
+        else if (navMeshAgent != null)
             navMeshAgent.autoTraverseOffMeshLink = !manuallyTraverseNavMeshLinks;
     }
 
@@ -209,6 +282,21 @@ public class NPCProgressionManager : MonoBehaviour
 
         if (restoreSavedPhaseBridgesOnStart)
             RestoreSavedPhaseBridges();
+
+        // Waypoint travel can resume an interrupted transition without either
+        // teleporting the NPC or requiring the completion event to fire again.
+        // The saved index represents the destination phase.
+        if (wasTravellingWhenSaved &&
+            movementMode == NPCProgressionMovementMode.Waypoints &&
+            currentPhaseIndex > 0)
+        {
+            int destinationPhaseIndex = currentPhaseIndex;
+            int departurePhaseIndex = destinationPhaseIndex - 1;
+            PlaceAtPhase(departurePhaseIndex);
+            ActivatePhase(departurePhaseIndex, false);
+            movementRoutine = StartCoroutine(MoveToPhaseRoutine(destinationPhaseIndex));
+            return;
+        }
 
         // A mid-travel save must always resolve at its committed destination,
         // even if normal load-time placement was disabled for editor testing.
@@ -423,12 +511,6 @@ public class NPCProgressionManager : MonoBehaviour
             contractGiver.SetProgressionInteractionLocked(true, travellingPrompt);
         yield return null;
 
-        // Auto-collected contracts can complete in the same frame the bridge is
-        // finalized. Do not calculate the NPC path against the old NavMesh.
-        DynamicNavMeshUpdater navMeshUpdater = DynamicNavMeshUpdater.Instance;
-        while (navMeshUpdater != null && navMeshUpdater.HasPendingOrRunningUpdate)
-            yield return null;
-
         NPCProgressionPhase nextPhase = phases[nextPhaseIndex];
         if (nextPhase == null || nextPhase.targetLocation == null)
         {
@@ -436,6 +518,18 @@ public class NPCProgressionManager : MonoBehaviour
             HandleMovementFailure(nextPhaseIndex);
             yield break;
         }
+
+        if (movementMode == NPCProgressionMovementMode.Waypoints)
+        {
+            yield return MoveToPhaseByWaypoints(nextPhaseIndex, nextPhase);
+            yield break;
+        }
+
+        // Auto-collected contracts can complete in the same frame the bridge is
+        // finalized. Do not calculate the NPC path against the old NavMesh.
+        DynamicNavMeshUpdater navMeshUpdater = DynamicNavMeshUpdater.Instance;
+        while (navMeshUpdater != null && navMeshUpdater.HasPendingOrRunningUpdate)
+            yield return null;
 
         bool destinationSet = TrySetDestination(nextPhase.targetLocation.position);
         if (!destinationSet)
@@ -446,6 +540,9 @@ public class NPCProgressionManager : MonoBehaviour
 
         SetWalkingAnimation(true);
         float deadline = Time.time + pathTimeout;
+        float lastProgressTime = Time.time;
+        Vector3 lastProgressPosition = transform.position;
+        int repathAttempts = 0;
 
         yield return null;
         while (navMeshAgent.pathPending && Time.time < deadline)
@@ -458,6 +555,8 @@ public class NPCProgressionManager : MonoBehaviour
                 yield return TraverseCurrentNavMeshLink();
                 // A long bridge link should not consume the normal path timeout.
                 deadline = Time.time + pathTimeout;
+                lastProgressTime = Time.time;
+                lastProgressPosition = transform.position;
                 continue;
             }
 
@@ -472,10 +571,523 @@ public class NPCProgressionManager : MonoBehaviour
             if (!navMeshAgent.pathPending && navMeshAgent.pathStatus == NavMeshPathStatus.PathInvalid)
                 break;
 
+            float progressToleranceSquared =
+                stalledMovementTolerance * stalledMovementTolerance;
+            if ((transform.position - lastProgressPosition).sqrMagnitude >= progressToleranceSquared)
+            {
+                lastProgressPosition = transform.position;
+                lastProgressTime = Time.time;
+            }
+            else if (!navMeshAgent.pathPending && navMeshAgent.hasPath &&
+                     navMeshAgent.remainingDistance >
+                         navMeshAgent.stoppingDistance + arrivalPadding &&
+                     Time.time - lastProgressTime >= stalledRepathDelay)
+            {
+                repathAttempts++;
+                if (repathAttempts > maximumRepathAttempts ||
+                    !TrySetDestination(nextPhase.targetLocation.position))
+                {
+                    Debug.LogWarning(
+                        $"[NPCProgressionManager] NPC stalled while travelling to " +
+                        $"phase {nextPhaseIndex} after {repathAttempts} route attempts.",
+                        this);
+                    break;
+                }
+
+                lastProgressPosition = transform.position;
+                lastProgressTime = Time.time;
+                deadline = Time.time + pathTimeout;
+            }
+
             yield return null;
         }
 
         HandleMovementFailure(nextPhaseIndex);
+    }
+
+    private IEnumerator MoveToPhaseByWaypoints(
+        int nextPhaseIndex,
+        NPCProgressionPhase nextPhase)
+    {
+        SetWalkingAnimation(true);
+
+        List<Vector3> routePositions = new List<Vector3>();
+        bool hasInspectorRoute = nextPhase.travelWaypoints != null &&
+                                 nextPhase.travelWaypoints.Exists(point => point != null);
+
+        if (hasInspectorRoute)
+        {
+            foreach (Transform waypoint in nextPhase.travelWaypoints)
+                if (waypoint != null) routePositions.Add(waypoint.position);
+        }
+        else
+        {
+            // A completed bridge already contains the exact road-node graph the
+            // player created. Following that graph makes waypoint travel work for
+            // straight, sloped, and irregular bridges without hand-authored points.
+            NPCProgressionPhase departurePhase = CurrentPhase;
+            BuildLocation completedLocation = departurePhase != null
+                ? departurePhase.targetBuildLocation
+                : null;
+            TryAppendBakedRoadRoute(
+                completedLocation,
+                transform.position,
+                nextPhase.targetLocation.position,
+                routePositions);
+        }
+
+        // The phase target is always last. Inspector points are therefore a full
+        // route override, while an empty list automatically follows the baked road.
+        routePositions.Add(nextPhase.targetLocation.position);
+
+        foreach (Vector3 destination in routePositions)
+        {
+            if ((destination - transform.position).sqrMagnitude <=
+                waypointArrivalDistance * waypointArrivalDistance) continue;
+
+            float segmentDistance = Vector3.Distance(transform.position, destination);
+            float segmentTimeout = Mathf.Max(
+                pathTimeout,
+                segmentDistance / Mathf.Max(0.01f, waypointMovementSpeed) + 10f);
+            float deadline = Time.time + segmentTimeout;
+            float missingGroundSince = -1f;
+
+            while (Time.time < deadline)
+            {
+                Vector3 flatOffset = destination - transform.position;
+                flatOffset.y = 0f;
+                if (flatOffset.sqrMagnitude <=
+                    waypointArrivalDistance * waypointArrivalDistance)
+                {
+                    break;
+                }
+
+                Vector3 flatDirection = flatOffset.normalized;
+                float step = waypointMovementSpeed * Time.deltaTime;
+                Vector3 candidate = transform.position +
+                                    flatDirection * Mathf.Min(step, flatOffset.magnitude);
+
+                if (TryProjectWaypointToGround(candidate, out Vector3 groundedCandidate))
+                {
+                    candidate.y = groundedCandidate.y;
+                    missingGroundSince = -1f;
+                }
+                else
+                {
+                    if (missingGroundSince < 0f) missingGroundSince = Time.time;
+                    if (requireGroundForWaypointMovement &&
+                        Time.time - missingGroundSince > missingGroundGraceTime)
+                    {
+                        Debug.LogError(
+                            $"[NPCProgressionManager] Waypoint route to phase {nextPhaseIndex} has no " +
+                            $"Ground, Environment, or Bridge collider below {candidate}.",
+                            this);
+                        HandleMovementFailure(nextPhaseIndex);
+                        yield break;
+                    }
+
+                    // Preserve a smooth height transition across tiny collider
+                    // seams instead of snapping or accumulating vertical drift.
+                    candidate.y = Mathf.MoveTowards(
+                        transform.position.y,
+                        destination.y,
+                        waypointMovementSpeed * Time.deltaTime);
+                }
+
+                transform.position = candidate;
+                Quaternion desiredRotation = Quaternion.LookRotation(flatDirection, Vector3.up);
+                transform.rotation = Quaternion.RotateTowards(
+                    transform.rotation,
+                    desiredRotation,
+                    waypointTurnSpeed * Time.deltaTime);
+                yield return null;
+            }
+
+            Vector3 remaining = destination - transform.position;
+            remaining.y = 0f;
+            if (remaining.sqrMagnitude > waypointArrivalDistance * waypointArrivalDistance)
+            {
+                Debug.LogWarning(
+                    $"[NPCProgressionManager] Waypoint travel timed out before phase {nextPhaseIndex}.",
+                    this);
+                HandleMovementFailure(nextPhaseIndex);
+                yield break;
+            }
+        }
+
+        Vector3 finalPosition = nextPhase.targetLocation.position;
+        if (TryProjectWaypointToGround(finalPosition, out Vector3 groundedFinalPosition))
+            finalPosition.y = groundedFinalPosition.y;
+
+        transform.SetPositionAndRotation(finalPosition, nextPhase.targetLocation.rotation);
+        CompleteArrival(nextPhaseIndex);
+    }
+
+    private bool TryAppendBakedRoadRoute(
+        BuildLocation buildLocation,
+        Vector3 routeStart,
+        Vector3 routeEnd,
+        List<Vector3> routePositions)
+    {
+        if (buildLocation == null || buildLocation.bakedBars == null ||
+            routePositions == null) return false;
+
+        Dictionary<Point, List<Point>> adjacency =
+            new Dictionary<Point, List<Point>>();
+        int bridgeLayer = LayerMask.NameToLayer("Bridge");
+
+        foreach (Bar bar in buildLocation.bakedBars)
+        {
+            if (bar == null || !bar.gameObject.activeInHierarchy ||
+                bar.materialData == null || !bar.materialData.isRoad) continue;
+
+            if (bridgeLayer >= 0) SetLayerRecursively(bar.transform, bridgeLayer);
+
+            if (bar.startPoint == null || bar.endPoint == null)
+                bar.AutoRepairEndpoints();
+            if (bar.startPoint == null || bar.endPoint == null ||
+                bar.startPoint == bar.endPoint) continue;
+
+            AddRoadConnection(adjacency, bar.startPoint, bar.endPoint);
+            AddRoadConnection(adjacency, bar.endPoint, bar.startPoint);
+        }
+
+        if (adjacency.Count == 0) return false;
+
+        // A build location may contain multiple bridge spans separated by a
+        // solid island/platform. It may also contain visually snapped nodes that
+        // are different Point instances. Join both cases before pathfinding, but
+        // only join a larger gap when every sample has walkable ground beneath it.
+        int weldedNodeCount = ConnectCoincidentRoadNodes(adjacency);
+        Physics.SyncTransforms();
+        int groundedConnectionCount = ConnectRoadSectionsAcrossGround(adjacency);
+
+        Point entry = FindClosestRoadPoint(adjacency.Keys, routeStart);
+        Point exit = FindClosestRoadPoint(adjacency.Keys, routeEnd);
+        if (entry == null || exit == null) return false;
+
+        Dictionary<Point, float> distances = new Dictionary<Point, float>();
+        Dictionary<Point, Point> previous = new Dictionary<Point, Point>();
+        HashSet<Point> unvisited = new HashSet<Point>();
+        foreach (Point point in adjacency.Keys)
+        {
+            if (point == null) continue;
+            distances[point] = point == entry ? 0f : float.PositiveInfinity;
+            unvisited.Add(point);
+        }
+
+        while (unvisited.Count > 0)
+        {
+            Point current = null;
+            float currentDistance = float.PositiveInfinity;
+            foreach (Point candidate in unvisited)
+            {
+                float candidateDistance = distances[candidate];
+                if (candidateDistance >= currentDistance) continue;
+                current = candidate;
+                currentDistance = candidateDistance;
+            }
+
+            if (current == null || float.IsPositiveInfinity(currentDistance)) break;
+            unvisited.Remove(current);
+            if (current == exit) break;
+
+            foreach (Point neighbor in adjacency[current])
+            {
+                if (neighbor == null || !unvisited.Contains(neighbor)) continue;
+                float candidateDistance = currentDistance +
+                    Vector3.Distance(current.transform.position, neighbor.transform.position);
+                if (candidateDistance >= distances[neighbor]) continue;
+                distances[neighbor] = candidateDistance;
+                previous[neighbor] = current;
+            }
+        }
+
+        if (entry != exit && !previous.ContainsKey(exit))
+        {
+            int componentCount = CollectRoadComponents(adjacency).Count;
+            Debug.LogWarning(
+                $"[NPCProgressionManager] The baked road graph at '{buildLocation.name}' is disconnected. " +
+                $"{componentCount} road sections remain after safe ground checks. " +
+                "Falling back to the direct waypoint route.",
+                buildLocation);
+            return false;
+        }
+
+        List<Point> reversedPath = new List<Point>();
+        Point pathPoint = exit;
+        reversedPath.Add(pathPoint);
+        while (pathPoint != entry)
+        {
+            pathPoint = previous[pathPoint];
+            reversedPath.Add(pathPoint);
+        }
+        reversedPath.Reverse();
+
+        foreach (Point roadPoint in reversedPath)
+        {
+            if (roadPoint == null) continue;
+            Vector3 pointPosition = roadPoint.transform.position;
+            if (routePositions.Count > 0 &&
+                (routePositions[routePositions.Count - 1] - pointPosition).sqrMagnitude <= 0.0001f)
+                continue;
+            routePositions.Add(pointPosition);
+        }
+
+        Debug.Log(
+            $"[NPCProgressionManager] Following {reversedPath.Count} baked road waypoints " +
+            $"from '{buildLocation.name}' without NavMesh " +
+            $"({weldedNodeCount} snapped-node and {groundedConnectionCount} ground connection(s)).",
+            this);
+        return routePositions.Count > 0;
+    }
+
+    private int ConnectCoincidentRoadNodes(
+        Dictionary<Point, List<Point>> adjacency)
+    {
+        if (adjacency == null || waypointRoadNodeWeldDistance <= 0f) return 0;
+
+        List<Point> points = new List<Point>(adjacency.Keys);
+        float maximumDistanceSquared =
+            waypointRoadNodeWeldDistance * waypointRoadNodeWeldDistance;
+        int connectionCount = 0;
+
+        for (int firstIndex = 0; firstIndex < points.Count; firstIndex++)
+        {
+            Point first = points[firstIndex];
+            if (first == null) continue;
+
+            for (int secondIndex = firstIndex + 1; secondIndex < points.Count; secondIndex++)
+            {
+                Point second = points[secondIndex];
+                if (second == null || adjacency[first].Contains(second)) continue;
+                if ((first.transform.position - second.transform.position).sqrMagnitude >
+                    maximumDistanceSquared) continue;
+
+                AddRoadConnection(adjacency, first, second);
+                AddRoadConnection(adjacency, second, first);
+                connectionCount++;
+            }
+        }
+
+        return connectionCount;
+    }
+
+    private int ConnectRoadSectionsAcrossGround(
+        Dictionary<Point, List<Point>> adjacency)
+    {
+        if (adjacency == null || waypointRoadGroundConnectionDistance <= 0f) return 0;
+
+        int connectionCount = 0;
+        float maximumDistanceSquared = waypointRoadGroundConnectionDistance *
+                                       waypointRoadGroundConnectionDistance;
+
+        while (true)
+        {
+            List<List<Point>> components = CollectRoadComponents(adjacency);
+            if (components.Count <= 1) break;
+
+            List<RoadGroundConnectionCandidate> candidates =
+                new List<RoadGroundConnectionCandidate>();
+
+            for (int firstComponentIndex = 0;
+                 firstComponentIndex < components.Count;
+                 firstComponentIndex++)
+            {
+                for (int secondComponentIndex = firstComponentIndex + 1;
+                     secondComponentIndex < components.Count;
+                     secondComponentIndex++)
+                {
+                    foreach (Point first in components[firstComponentIndex])
+                    {
+                        if (first == null) continue;
+                        foreach (Point second in components[secondComponentIndex])
+                        {
+                            if (second == null) continue;
+
+                            Vector3 flatOffset = second.transform.position -
+                                                 first.transform.position;
+                            flatOffset.y = 0f;
+                            float distanceSquared = flatOffset.sqrMagnitude;
+                            if (distanceSquared > maximumDistanceSquared) continue;
+
+                            candidates.Add(new RoadGroundConnectionCandidate(
+                                first,
+                                second,
+                                distanceSquared));
+                        }
+                    }
+                }
+            }
+
+            candidates.Sort((left, right) =>
+                left.distanceSquared.CompareTo(right.distanceSquared));
+
+            bool connectedASection = false;
+            foreach (RoadGroundConnectionCandidate candidate in candidates)
+            {
+                if (!HasWalkableGroundConnection(
+                        candidate.first.transform.position,
+                        candidate.second.transform.position)) continue;
+
+                AddRoadConnection(adjacency, candidate.first, candidate.second);
+                AddRoadConnection(adjacency, candidate.second, candidate.first);
+                connectionCount++;
+                connectedASection = true;
+                break;
+            }
+
+            if (!connectedASection) break;
+        }
+
+        return connectionCount;
+    }
+
+    private bool HasWalkableGroundConnection(Vector3 start, Vector3 end)
+    {
+        Vector3 flatOffset = end - start;
+        flatOffset.y = 0f;
+        float distance = flatOffset.magnitude;
+        if (distance <= waypointRoadNodeWeldDistance) return true;
+
+        int segmentCount = Mathf.Max(
+            2,
+            Mathf.CeilToInt(distance /
+                            Mathf.Max(0.1f, waypointGroundConnectionSampleSpacing)));
+
+        // Endpoints already belong to baked road bars. Only the space between
+        // them needs to be proven safe; an empty ravine fails on its first
+        // unsupported sample while a solid middle platform succeeds.
+        for (int sampleIndex = 1; sampleIndex < segmentCount; sampleIndex++)
+        {
+            float progress = sampleIndex / (float)segmentCount;
+            Vector3 samplePosition = Vector3.Lerp(start, end, progress);
+            if (!TryProjectWaypointToGround(samplePosition, out _)) return false;
+        }
+
+        return true;
+    }
+
+    private static List<List<Point>> CollectRoadComponents(
+        Dictionary<Point, List<Point>> adjacency)
+    {
+        List<List<Point>> components = new List<List<Point>>();
+        if (adjacency == null || adjacency.Count == 0) return components;
+
+        HashSet<Point> unvisited = new HashSet<Point>(adjacency.Keys);
+        Queue<Point> pending = new Queue<Point>();
+
+        while (unvisited.Count > 0)
+        {
+            Point start = null;
+            foreach (Point candidate in unvisited)
+            {
+                start = candidate;
+                break;
+            }
+
+            if (start == null) break;
+
+            List<Point> component = new List<Point>();
+            unvisited.Remove(start);
+            pending.Enqueue(start);
+
+            while (pending.Count > 0)
+            {
+                Point current = pending.Dequeue();
+                component.Add(current);
+
+                if (!adjacency.TryGetValue(current, out List<Point> neighbours)) continue;
+                foreach (Point neighbour in neighbours)
+                {
+                    if (neighbour == null || !unvisited.Remove(neighbour)) continue;
+                    pending.Enqueue(neighbour);
+                }
+            }
+
+            components.Add(component);
+        }
+
+        return components;
+    }
+
+    private readonly struct RoadGroundConnectionCandidate
+    {
+        public readonly Point first;
+        public readonly Point second;
+        public readonly float distanceSquared;
+
+        public RoadGroundConnectionCandidate(
+            Point first,
+            Point second,
+            float distanceSquared)
+        {
+            this.first = first;
+            this.second = second;
+            this.distanceSquared = distanceSquared;
+        }
+    }
+
+    private static void AddRoadConnection(
+        Dictionary<Point, List<Point>> adjacency,
+        Point from,
+        Point to)
+    {
+        if (!adjacency.TryGetValue(from, out List<Point> neighbors))
+        {
+            neighbors = new List<Point>();
+            adjacency.Add(from, neighbors);
+        }
+
+        if (!neighbors.Contains(to)) neighbors.Add(to);
+        if (!adjacency.ContainsKey(to)) adjacency.Add(to, new List<Point>());
+    }
+
+    private static Point FindClosestRoadPoint(
+        Dictionary<Point, List<Point>>.KeyCollection points,
+        Vector3 position)
+    {
+        Point closest = null;
+        float closestDistance = float.PositiveInfinity;
+        foreach (Point point in points)
+        {
+            if (point == null) continue;
+            float distance = (point.transform.position - position).sqrMagnitude;
+            if (distance >= closestDistance) continue;
+            closestDistance = distance;
+            closest = point;
+        }
+
+        return closest;
+    }
+
+    private static void SetLayerRecursively(Transform root, int layer)
+    {
+        if (root == null) return;
+        root.gameObject.layer = layer;
+        for (int childIndex = 0; childIndex < root.childCount; childIndex++)
+            SetLayerRecursively(root.GetChild(childIndex), layer);
+    }
+
+    private bool TryProjectWaypointToGround(Vector3 position, out Vector3 groundedPosition)
+    {
+        Vector3 rayOrigin = position + Vector3.up * waypointGroundProbeHeight;
+        float rayDistance = waypointGroundProbeHeight + waypointGroundProbeDepth;
+        if (Physics.Raycast(
+                rayOrigin,
+                Vector3.down,
+                out RaycastHit hit,
+                rayDistance,
+                waypointGroundLayers,
+                QueryTriggerInteraction.Ignore))
+        {
+            groundedPosition = position;
+            groundedPosition.y = hit.point.y + waypointGroundOffset;
+            return true;
+        }
+
+        groundedPosition = position;
+        return false;
     }
 
     private IEnumerator TraverseCurrentNavMeshLink()
@@ -559,7 +1171,19 @@ public class NPCProgressionManager : MonoBehaviour
 
         navMeshAgent.isStopped = false;
         navMeshAgent.ResetPath();
-        return navMeshAgent.SetDestination(hit.position);
+
+        NavMeshPath path = new NavMeshPath();
+        bool calculated = navMeshAgent.CalculatePath(hit.position, path);
+        if (!calculated || path.status != NavMeshPathStatus.PathComplete)
+        {
+            Debug.LogWarning(
+                $"[NPCProgressionManager] No complete NavMesh route to '{hit.position}'. " +
+                $"Calculated={calculated}, Status={path.status}.",
+                this);
+            return false;
+        }
+
+        return navMeshAgent.SetPath(path);
     }
 
     private void CompleteArrival(int phaseIndex)
@@ -590,6 +1214,7 @@ public class NPCProgressionManager : MonoBehaviour
 
         movementRoutine = null;
         if (contractGiver != null) contractGiver.SetProgressionInteractionLocked(false);
+        if (currentPhaseIndex >= 0) SaveProgressionState(currentPhaseIndex, false);
     }
 
     private bool PlaceAtPhase(int phaseIndex)
@@ -598,6 +1223,17 @@ public class NPCProgressionManager : MonoBehaviour
             phases[phaseIndex] == null || phases[phaseIndex].targetLocation == null) return false;
 
         Vector3 target = phases[phaseIndex].targetLocation.position;
+        if (movementMode == NPCProgressionMovementMode.Waypoints)
+        {
+            if (TryProjectWaypointToGround(target, out Vector3 groundedTarget))
+                target.y = groundedTarget.y;
+
+            transform.SetPositionAndRotation(
+                target,
+                phases[phaseIndex].targetLocation.rotation);
+            return true;
+        }
+
         if (navMeshAgent != null && navMeshAgent.isActiveAndEnabled &&
             NavMesh.SamplePosition(target, out NavMeshHit hit, navMeshSampleRadius,
                 navMeshAgent.areaMask))
@@ -650,13 +1286,21 @@ public class NPCProgressionManager : MonoBehaviour
             contractGiver.ConfigureProgressionPhase(
                 phase.contract,
                 phase.targetBuildLocation,
-                phase.linkedCargo);
+                phase.linkedCargo,
+                phase.contract == null && phase.phaseDialogue != null
+                    ? phase.dialoguePrompt
+                    : string.Empty);
             contractGiver.SetProgressionInteractionLocked(false);
         }
 
         SaveProgressionState(phaseIndex, false);
 
-        if (invokeArrivalEvent) phase.onNPCArrived?.Invoke();
+        if (invokeArrivalEvent)
+        {
+            phase.onNPCArrived?.Invoke();
+            if (phase.playDialogueOnArrival)
+                TryStartPhaseDialogue(phaseIndex, phase);
+        }
     }
 
     private void HandleNPCInteracted(NPCContractGiver sender)
@@ -664,11 +1308,91 @@ public class NPCProgressionManager : MonoBehaviour
         NPCProgressionPhase phase = CurrentPhase;
         if (phase == null) return;
 
-        if (phase.invokeInteractionEventOnlyOnce &&
-            invokedInteractionPhases.Contains(currentPhaseIndex)) return;
+        bool shouldInvokeInteractionEvent =
+            !phase.invokeInteractionEventOnlyOnce ||
+            !invokedInteractionPhases.Contains(currentPhaseIndex);
 
-        invokedInteractionPhases.Add(currentPhaseIndex);
-        phase.onNPCInteracted?.Invoke();
+        if (shouldInvokeInteractionEvent)
+        {
+            invokedInteractionPhases.Add(currentPhaseIndex);
+            phase.onNPCInteracted?.Invoke();
+        }
+
+        // Contract phases already own their offer/reminder/completion dialogue.
+        // Optional phase dialogue is therefore reserved for contract-free phases
+        // so the two dialogue flows cannot open over each other.
+        if (phase.contract == null)
+            TryStartPhaseDialogue(currentPhaseIndex, phase);
+    }
+
+    private void TryStartPhaseDialogue(int phaseIndex, NPCProgressionPhase phase)
+    {
+        if (phase == null || phase.phaseDialogue == null) return;
+        if (!phase.repeatDialogue && completedDialoguePhases.Contains(phaseIndex)) return;
+
+        if (dialogueManager == null)
+            dialogueManager = FindObjectOfType<DialogueManager>();
+
+        if (dialogueManager == null)
+        {
+            Debug.LogWarning(
+                $"[NPCProgressionManager] Phase '{phase.phaseId}' has dialogue but no DialogueManager exists in the scene.",
+                this);
+            return;
+        }
+
+        if (!phase.repeatDialogue) completedDialoguePhases.Add(phaseIndex);
+        dialogueManager.StartDialogue(
+            phase.phaseDialogue,
+            () => HandlePhaseDialogueFinished(phase));
+    }
+
+    private void HandlePhaseDialogueFinished(NPCProgressionPhase phase)
+    {
+        if (phase == null) return;
+
+        bool featureAlreadyUnlocked = PlayerDataManager.Instance != null &&
+                                      PlayerDataManager.Instance.IsFeatureUnlocked(
+                                          phase.unlockFeatureIdAfterDialogue);
+        if (!string.IsNullOrWhiteSpace(phase.unlockFeatureIdAfterDialogue) &&
+            !featureAlreadyUnlocked)
+        {
+            if (phase.showFeatureCollectPopup && ItemUnlockUI.Instance != null)
+            {
+                string displayName = string.IsNullOrWhiteSpace(phase.featureUnlockDisplayName)
+                    ? phase.unlockFeatureIdAfterDialogue
+                    : phase.featureUnlockDisplayName;
+
+                ItemUnlockUI.Instance.ShowReward(
+                    displayName,
+                    phase.featureUnlockIcon,
+                    string.Empty,
+                    () => GrantPhaseDialogueFeature(phase));
+            }
+            else
+            {
+                GrantPhaseDialogueFeature(phase);
+            }
+        }
+
+        phase.onDialogueFinished?.Invoke();
+    }
+
+    private void GrantPhaseDialogueFeature(NPCProgressionPhase phase)
+    {
+        if (phase == null || string.IsNullOrWhiteSpace(phase.unlockFeatureIdAfterDialogue))
+            return;
+
+        if (PlayerDataManager.Instance != null)
+        {
+            PlayerDataManager.Instance.UnlockFeature(phase.unlockFeatureIdAfterDialogue);
+        }
+        else
+        {
+            Debug.LogWarning(
+                $"[NPCProgressionManager] Cannot unlock feature '{phase.unlockFeatureIdAfterDialogue}' because PlayerDataManager is unavailable.",
+                this);
+        }
     }
 
     private void SetWalkingAnimation(bool walking)
@@ -688,8 +1412,24 @@ public class NPCProgressionManager : MonoBehaviour
             if (phase == null || phase.targetLocation == null) continue;
 
             Gizmos.DrawWireSphere(phase.targetLocation.position, 0.35f);
-            if (i > 0 && phases[i - 1] != null && phases[i - 1].targetLocation != null)
-                Gizmos.DrawLine(phases[i - 1].targetLocation.position, phase.targetLocation.position);
+
+            Vector3 previousPoint = i > 0 && phases[i - 1] != null &&
+                                    phases[i - 1].targetLocation != null
+                ? phases[i - 1].targetLocation.position
+                : transform.position;
+
+            if (phase.travelWaypoints != null)
+            {
+                foreach (Transform waypoint in phase.travelWaypoints)
+                {
+                    if (waypoint == null) continue;
+                    Gizmos.DrawLine(previousPoint, waypoint.position);
+                    Gizmos.DrawWireSphere(waypoint.position, 0.2f);
+                    previousPoint = waypoint.position;
+                }
+            }
+
+            Gizmos.DrawLine(previousPoint, phase.targetLocation.position);
         }
     }
 }

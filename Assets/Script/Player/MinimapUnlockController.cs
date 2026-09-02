@@ -8,8 +8,12 @@ using UnityEngine.SceneManagement;
 [DisallowMultipleComponent]
 public sealed class MinimapUnlockController : MonoBehaviour
 {
+    private const string DefaultFeatureId = "minimap";
+
     [SerializeField] private GameObject minimapPanel;
     [SerializeField] private Camera minimapCamera;
+    [SerializeField, Tooltip("Persistent feature ID that reveals the minimap.")]
+    private string requiredFeatureId = DefaultFeatureId;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void RegisterSceneBootstrap()
@@ -56,7 +60,10 @@ public sealed class MinimapUnlockController : MonoBehaviour
     private void Start()
     {
         if (PlayerDataManager.Instance != null)
+        {
             PlayerDataManager.Instance.OnMinimapUnlockChanged += RefreshVisibility;
+            PlayerDataManager.Instance.OnFeatureUnlocksChanged += RefreshVisibility;
+        }
 
         RefreshVisibility();
     }
@@ -64,7 +71,10 @@ public sealed class MinimapUnlockController : MonoBehaviour
     private void OnDestroy()
     {
         if (PlayerDataManager.Instance != null)
+        {
             PlayerDataManager.Instance.OnMinimapUnlockChanged -= RefreshVisibility;
+            PlayerDataManager.Instance.OnFeatureUnlocksChanged -= RefreshVisibility;
+        }
     }
 
     /// <summary>Hook this to the reward/pickup that should grant the minimap.</summary>
@@ -76,15 +86,18 @@ public sealed class MinimapUnlockController : MonoBehaviour
             return;
         }
 
-        PlayerDataManager.Instance.UnlockMinimap();
+        PlayerDataManager.Instance.UnlockFeature(GetFeatureId());
         RefreshVisibility();
     }
 
     public void RefreshVisibility()
     {
+        // The feature-ID path matches Shop and every newer unlockable system.
+        // Keep the legacy boolean fallback so existing saves remain compatible.
         bool unlocked = PlayerDataManager.Instance != null &&
                         PlayerDataManager.Instance.CurrentData != null &&
-                        PlayerDataManager.Instance.CurrentData.hasUnlockedMinimap;
+                        (PlayerDataManager.Instance.IsFeatureUnlocked(GetFeatureId()) ||
+                         PlayerDataManager.Instance.CurrentData.hasUnlockedMinimap);
         bool overworldVisible = GameManager.Instance == null || !GameManager.Instance.IsInBuildMode();
         bool lessonClosed = LessonUIManager.Instance == null || !LessonUIManager.Instance.IsOpen;
         bool shouldShow = unlocked && overworldVisible && lessonClosed;
@@ -102,5 +115,12 @@ public sealed class MinimapUnlockController : MonoBehaviour
         {
             controller.RefreshVisibility();
         }
+    }
+
+    private string GetFeatureId()
+    {
+        return string.IsNullOrWhiteSpace(requiredFeatureId)
+            ? DefaultFeatureId
+            : requiredFeatureId;
     }
 }

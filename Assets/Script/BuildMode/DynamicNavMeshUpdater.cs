@@ -20,6 +20,8 @@ public sealed class DynamicNavMeshUpdater : MonoBehaviour
     [SerializeField] private bool buildSynchronouslyIfDataIsMissing;
     [Tooltip("Uses the bridge's simple BoxColliders instead of detailed render meshes, preventing holes and jagged decorative outlines.")]
     [SerializeField] private bool forcePhysicsColliderGeometry = true;
+    [Tooltip("Keeps the editor-baked world NavMesh untouched and creates a lightweight runtime Surface that scans only the Bridge layer.")]
+    [SerializeField] private bool isolateRuntimeBridgeSurface = true;
 
     [Header("Bridge Geometry")]
     [Tooltip("Layer included by the NavMeshSurface for finalized road bars.")]
@@ -51,6 +53,7 @@ public sealed class DynamicNavMeshUpdater : MonoBehaviour
     private Coroutine updateRoutine;
     private bool updateRequested;
     private bool asyncUpdateInProgress;
+    private bool ownsRuntimeBridgeSurface;
 
     public bool IsUpdating => asyncUpdateInProgress;
     public bool HasPendingOrRunningUpdate => updateRequested || updateRoutine != null || asyncUpdateInProgress;
@@ -66,6 +69,10 @@ public sealed class DynamicNavMeshUpdater : MonoBehaviour
 
         Instance = this;
         if (navMeshSurface == null) navMeshSurface = GetComponent<NavMeshSurface>();
+
+        if (isolateRuntimeBridgeSurface)
+            CreateRuntimeBridgeSurfaceIfNeeded();
+
         if (forcePhysicsColliderGeometry && navMeshSurface != null)
             navMeshSurface.useGeometry = NavMeshCollectGeometry.PhysicsColliders;
     }
@@ -95,6 +102,47 @@ public sealed class DynamicNavMeshUpdater : MonoBehaviour
     private void OnDestroy()
     {
         if (Instance == this) Instance = null;
+    }
+
+    private void CreateRuntimeBridgeSurfaceIfNeeded()
+    {
+        if (navMeshSurface == null) return;
+
+        int bridgeLayer = LayerMask.NameToLayer(walkableBridgeLayer);
+        if (bridgeLayer < 0)
+        {
+            Debug.LogError($"[DynamicNavMeshUpdater] Layer '{walkableBridgeLayer}' does not exist.", this);
+            return;
+        }
+
+        int bridgeMask = 1 << bridgeLayer;
+        bool alreadyBridgeOnly = navMeshSurface.layerMask.value == bridgeMask;
+        if (alreadyBridgeOnly) return;
+
+        // The serialized Surface contains the editor-baked world navigation.
+        // Updating that Surface at runtime rebuilds every rock, building, and
+        // terrain collider and can temporarily invalidate an NPC's current path.
+        // Leave it registered and create a second, bridge-only runtime Surface.
+        NavMeshSurface worldSurface = navMeshSurface;
+        GameObject runtimeSurfaceObject = new GameObject("Runtime Bridge NavMesh Surface");
+        runtimeSurfaceObject.transform.SetParent(transform, false);
+
+        NavMeshSurface bridgeSurface = runtimeSurfaceObject.AddComponent<NavMeshSurface>();
+        bridgeSurface.agentTypeID = worldSurface.agentTypeID;
+        bridgeSurface.collectObjects = CollectObjects.All;
+        bridgeSurface.layerMask = bridgeMask;
+        bridgeSurface.useGeometry = NavMeshCollectGeometry.PhysicsColliders;
+        bridgeSurface.defaultArea = worldSurface.defaultArea;
+        bridgeSurface.ignoreNavMeshAgent = true;
+        bridgeSurface.ignoreNavMeshObstacle = true;
+        bridgeSurface.overrideTileSize = worldSurface.overrideTileSize;
+        bridgeSurface.tileSize = worldSurface.tileSize;
+        bridgeSurface.overrideVoxelSize = worldSurface.overrideVoxelSize;
+        bridgeSurface.voxelSize = worldSurface.voxelSize;
+        bridgeSurface.buildHeightMesh = worldSurface.buildHeightMesh;
+
+        navMeshSurface = bridgeSurface;
+        ownsRuntimeBridgeSurface = true;
     }
 
     /// <summary>
@@ -191,7 +239,7 @@ public sealed class DynamicNavMeshUpdater : MonoBehaviour
 
             if (navMeshSurface.navMeshData == null)
             {
-                if (!buildSynchronouslyIfDataIsMissing)
+                if (!buildSynchronouslyIfDataIsMissing && !ownsRuntimeBridgeSurface)
                 {
                     Debug.LogError(
                         "[DynamicNavMeshUpdater] The NavMeshSurface has no baked data. " +
@@ -202,6 +250,8 @@ public sealed class DynamicNavMeshUpdater : MonoBehaviour
                 }
 
                 onNavMeshUpdateStarted?.Invoke();
+                // The generated Surface scans only the Bridge layer, so its first
+                // synchronous build is small and does not rebake the open world.
                 navMeshSurface.BuildNavMesh();
                 if (navMeshSurface.navMeshData == null)
                 {
