@@ -30,6 +30,8 @@ public class PlayerDataManager : MonoBehaviour
     public Action<string> OnContractCompleted;
     /// <summary>Raised once when a LessonData ID is newly added to the archive.</summary>
     public Action<string> OnLessonUnlocked;
+    /// <summary>Raised after a material is newly acknowledged and saved to the Almanac.</summary>
+    public Action<string> OnMaterialDiscovered;
     
     // Optional: Useful if you have a top-right Gold UI that needs to refresh immediately!
     public Action OnCurrencyChanged; 
@@ -973,6 +975,40 @@ public class PlayerDataManager : MonoBehaviour
         OnAlmanacAlertsChanged?.Invoke();
     }
 
+    public bool DiscoverMaterial(string materialId)
+    {
+        if (CurrentData == null || string.IsNullOrWhiteSpace(materialId)) return false;
+
+        string normalizedId = materialId.Trim();
+        if (CurrentData.discoveredMaterialIds == null)
+            CurrentData.discoveredMaterialIds = new List<string>();
+
+        if (CurrentData.discoveredMaterialIds.Contains(normalizedId)) return false;
+
+        CurrentData.discoveredMaterialIds.Add(normalizedId);
+        CurrentData.hasUnlockedMaterialsTab = true;
+        CurrentData.hasUnreadMaterialsAlert = true;
+        SaveGame();
+        OnMaterialDiscovered?.Invoke(normalizedId);
+        OnAlmanacAlertsChanged?.Invoke();
+        return true;
+    }
+
+    public bool IsMaterialDiscovered(string materialId)
+    {
+        return CurrentData != null && CurrentData.discoveredMaterialIds != null &&
+               !string.IsNullOrWhiteSpace(materialId) &&
+               CurrentData.discoveredMaterialIds.Contains(materialId.Trim());
+    }
+
+    public void MarkMaterialsAlmanacRead()
+    {
+        if (CurrentData == null || !CurrentData.hasUnreadMaterialsAlert) return;
+        CurrentData.hasUnreadMaterialsAlert = false;
+        SaveGame();
+        OnAlmanacAlertsChanged?.Invoke();
+    }
+
     public void ResetLessonProgress(string lessonName, bool saveImmediately = true)
     {
         if (CurrentData == null || CurrentData.completedLessons == null ||
@@ -1026,6 +1062,7 @@ public class PlayerDataManager : MonoBehaviour
     {
         if (CurrentData == null) CurrentData = new PlayerData();
         if (CurrentData.unlockedLessonIds == null) CurrentData.unlockedLessonIds = new List<string>();
+        if (CurrentData.discoveredMaterialIds == null) CurrentData.discoveredMaterialIds = new List<string>();
         if (CurrentData.completedLessons == null) CurrentData.completedLessons = new List<string>();
         if (CurrentData.completedContracts == null) CurrentData.completedContracts = new List<string>();
         if (CurrentData.unlockedAchievements == null) CurrentData.unlockedAchievements = new List<string>();
@@ -1062,6 +1099,8 @@ public class PlayerDataManager : MonoBehaviour
 
         if (CurrentData.unlockedLessonIds.Count > 0)
             CurrentData.hasUnlockedLessonsTab = true;
+        if (CurrentData.discoveredMaterialIds.Count > 0)
+            CurrentData.hasUnlockedMaterialsTab = true;
     }
 
     public bool SaveBridgeData(string contractId, List<Point> points, List<Bar> bars, float totalSpent, float maxStress)

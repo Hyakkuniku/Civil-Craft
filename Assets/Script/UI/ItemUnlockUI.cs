@@ -15,6 +15,7 @@ public class ItemUnlockUI : MonoBehaviour
         public string detailsText;
         public string buttonLabel;
         public bool useMaterialLayout;
+        public BridgeMaterialSO materialToDiscover;
     }
 
     public static ItemUnlockUI Instance { get; private set; }
@@ -37,6 +38,7 @@ public class ItemUnlockUI : MonoBehaviour
 
     private string pendingHatID;
     private System.Action onCollectCallback;
+    private BridgeMaterialSO pendingMaterialToDiscover;
     private bool collectButtonBound;
     private bool rewardVisible;
     private readonly Queue<RewardRequest> pendingRewards = new Queue<RewardRequest>();
@@ -94,8 +96,8 @@ public class ItemUnlockUI : MonoBehaviour
     }
 
     /// <summary>
-    /// Shows player-facing details for a bridge material. This is informational:
-    /// dismissing it does not add a collectible or spend currency.
+    /// Shows player-facing details for a bridge material. Acknowledging it records
+    /// the material in the Almanac; it does not spend currency or unlock build use.
     /// </summary>
     public void ShowMaterialIntroduction(
         BridgeMaterialSO material,
@@ -117,7 +119,8 @@ public class ItemUnlockUI : MonoBehaviour
             onCollect = onDismiss,
             detailsText = BuildMaterialDetails(material),
             buttonLabel = string.IsNullOrWhiteSpace(buttonLabel) ? "GOT IT" : buttonLabel.Trim().ToUpperInvariant(),
-            useMaterialLayout = true
+            useMaterialLayout = true,
+            materialToDiscover = material
         });
 
         if (!rewardVisible)
@@ -131,6 +134,7 @@ public class ItemUnlockUI : MonoBehaviour
         RewardRequest request = pendingRewards.Dequeue();
         pendingHatID = request.hatID;
         onCollectCallback = request.onCollect;
+        pendingMaterialToDiscover = request.materialToDiscover;
         rewardVisible = true;
 
         // --- NEW: Hide background UI ---
@@ -197,10 +201,16 @@ public class ItemUnlockUI : MonoBehaviour
                 PlayerDataManager.Instance.UnlockCosmeticReward(pendingHatID, true);
         }
 
+        // A material enters the Almanac only after the player acknowledges its
+        // introduction. This also works for every entry in a stacked queue.
+        if (pendingMaterialToDiscover != null)
+            MaterialDiscoverySaveManager.Discover(pendingMaterialToDiscover);
+
         // Trigger whatever was supposed to happen next (like fireworks or advancing the tutorial)
         System.Action callback = onCollectCallback;
         onCollectCallback = null;
         pendingHatID = string.Empty;
+        pendingMaterialToDiscover = null;
         rewardVisible = false;
 
         // The reward callback runs only after the panel is closed, so feature

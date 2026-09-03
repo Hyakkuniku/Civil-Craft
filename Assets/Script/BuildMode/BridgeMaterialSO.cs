@@ -4,6 +4,9 @@ using UnityEngine;
 public class BridgeMaterialSO : ScriptableObject
 {
     [Header("Player-Facing Details")]
+    [Tooltip("Permanent save ID. Existing materials safely fall back to the asset name when this is blank.")]
+    [SerializeField] private string materialId;
+
     [Tooltip("Friendly name shown in material introduction panels. The asset name is used when left blank.")]
     public string displayName;
 
@@ -47,6 +50,8 @@ public class BridgeMaterialSO : ScriptableObject
     public Color gizmoColor = Color.white;
     public bool isDualBeam = false;
     public float zOffset = 0.5f;
+
+    public string Id => string.IsNullOrWhiteSpace(materialId) ? name.Trim() : materialId.Trim();
 
     public string GetDisplayName()
     {

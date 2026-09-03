@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
-public enum AlmanacTabType { General, Contracts, Lessons }
+public enum AlmanacTabType { General, Contracts, Lessons, Materials }
 
 public enum TabVisibility { Normal, AlwaysHidden }
 
@@ -192,6 +192,13 @@ public class AlmanacManager : MonoBehaviour
             changed = true;
         }
 
+        if (!data.hasUnlockedMaterialsTab && data.discoveredMaterialIds != null &&
+            data.discoveredMaterialIds.Count > 0)
+        {
+            data.hasUnlockedMaterialsTab = true;
+            changed = true;
+        }
+
         if (changed) PlayerDataManager.Instance.SaveGame();
         RefreshTabVisibility(data);
     }
@@ -206,6 +213,9 @@ public class AlmanacManager : MonoBehaviour
                 
                 if (cat.tabType == AlmanacTabType.Contracts) shouldBeVisible = data.hasUnlockedContractsTab;
                 if (cat.tabType == AlmanacTabType.Lessons) shouldBeVisible = data.hasUnlockedLessonsTab;
+                // The archive tab itself is always available. Individual materials
+                // still appear only after their GOT IT acknowledgement is saved.
+                if (cat.tabType == AlmanacTabType.Materials) shouldBeVisible = true;
                 if (!IsSupportedCategory(cat)) shouldBeVisible = false;
 
                 if (cat.visibilityMode == TabVisibility.AlwaysHidden)
@@ -230,6 +240,11 @@ public class AlmanacManager : MonoBehaviour
             // a false alert through a generic UI call.
             RefreshPersistentAlerts();
         }
+        else if (targetType == AlmanacTabType.Materials)
+        {
+            // Discovery owns unread state, matching the Lessons archive.
+            RefreshPersistentAlerts();
+        }
     }
 
     public void RefreshPersistentAlerts()
@@ -239,7 +254,7 @@ public class AlmanacManager : MonoBehaviour
         bool bookIsOpen = almanacCanvas != null && almanacCanvas.activeSelf;
         bool hasGenuineUnreadContent = data != null &&
             (data.hasUnreadAlmanacUnlockAlert || data.hasUnreadContractsAlert ||
-             data.hasUnreadLessonsAlert);
+             data.hasUnreadLessonsAlert || data.hasUnreadMaterialsAlert);
 
         if (data != null)
             RefreshTabVisibility(data);
@@ -257,6 +272,8 @@ public class AlmanacManager : MonoBehaviour
                 unread = data.hasUnreadContractsAlert;
             else if (data != null && category.tabType == AlmanacTabType.Lessons)
                 unread = data.hasUnreadLessonsAlert;
+            else if (data != null && category.tabType == AlmanacTabType.Materials)
+                unread = data.hasUnreadMaterialsAlert;
 
             category.tabAlertIcon.SetActive(hasAlmanac && unread && IsSupportedCategory(category) &&
                 category.visibilityMode != TabVisibility.AlwaysHidden);
@@ -398,10 +415,20 @@ public class AlmanacManager : MonoBehaviour
     public void CloseAlmanac()
     {
         if (isAnimating) return;
-        StartCoroutine(CloseAlmanacRoutine());
+        StartCoroutine(CloseAlmanacRoutine(null));
     }
 
-    private IEnumerator CloseAlmanacRoutine()
+    /// <summary>
+    /// Closes the book and invokes the callback only after the closing animation,
+    /// HUD restoration, and input restoration have finished.
+    /// </summary>
+    public void CloseAlmanacThen(System.Action afterClosed)
+    {
+        if (isAnimating) return;
+        StartCoroutine(CloseAlmanacRoutine(afterClosed));
+    }
+
+    private IEnumerator CloseAlmanacRoutine(System.Action afterClosed)
     {
         isAnimating = true;
 
@@ -424,6 +451,7 @@ public class AlmanacManager : MonoBehaviour
         RestoreMenuInput();
 
         isAnimating = false;
+        afterClosed?.Invoke();
     }
 
     private void CaptureAndDisableMenuInput()
@@ -546,6 +574,8 @@ public class AlmanacManager : MonoBehaviour
                 PlayerDataManager.Instance.MarkContractsAlmanacRead();
             else if (selectedType == AlmanacTabType.Lessons)
                 PlayerDataManager.Instance.MarkLessonsAlmanacRead();
+            else if (selectedType == AlmanacTabType.Materials)
+                PlayerDataManager.Instance.MarkMaterialsAlmanacRead();
         }
 
         for (int i = 0; i < categories.Count; i++)
@@ -587,7 +617,8 @@ public class AlmanacManager : MonoBehaviour
         if (category == null) return false;
         return category.tabType == AlmanacTabType.General ||
                category.tabType == AlmanacTabType.Contracts ||
-               category.tabType == AlmanacTabType.Lessons;
+               category.tabType == AlmanacTabType.Lessons ||
+               category.tabType == AlmanacTabType.Materials;
     }
 
     private void TurnPage(bool goingForward)

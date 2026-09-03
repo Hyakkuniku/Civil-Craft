@@ -83,6 +83,7 @@ public class PlayerData
     public bool hasUnreadAlmanacUnlockAlert = false;
     public bool hasUnreadContractsAlert = false;
     public bool hasUnreadLessonsAlert = false;
+    public bool hasUnreadMaterialsAlert = false;
     public bool hasUnreadObjectiveAlert = false;
 
     public int lifetimeBridgesBuilt = 0;
@@ -99,6 +100,7 @@ public class PlayerData
     // --- NEW: UI Unlock Trackers ---
     public bool hasUnlockedContractsTab = false;
     public bool hasUnlockedLessonsTab = false;
+    public bool hasUnlockedMaterialsTab = false;
     public bool hasUnlockedObjectiveTracker = false; 
     public bool hasUnlockedMinimap = false;
 
@@ -113,6 +115,8 @@ public class PlayerData
     // LessonData archive IDs. This is intentionally separate from completedLessons,
     // which controls TutorialSequence prerequisites and replay behavior.
     public List<string> unlockedLessonIds = new List<string>();
+    // BridgeMaterialSO IDs acknowledged through a material introduction popup.
+    public List<string> discoveredMaterialIds = new List<string>();
     public List<string> completedLessons = new List<string>();
     public List<string> unlockedContractMaterials = new List<string>();
     public List<string> unlockedDoors = new List<string>();
