@@ -17,8 +17,15 @@ public class TutorialPointer : MonoBehaviour
     private RectTransform rectTransform;
     private Canvas pointerCanvas;
 
-    private bool IsSuppressedByModal =>
-        UIPanelCoordinator.Instance != null && UIPanelCoordinator.Instance.HasOpenPanel;
+    private bool IsSuppressedByModal
+    {
+        get
+        {
+            UIPanelCoordinator coordinator = UIPanelCoordinator.Instance;
+            return coordinator != null && coordinator.HasOpenPanel &&
+                   !coordinator.IsTargetInsideTopPanel(target);
+        }
+    }
 
     public bool IsPointingAt(RectTransform candidate)
     {
@@ -111,10 +118,9 @@ public class TutorialPointer : MonoBehaviour
             return;
         }
 
-        // TutorialManager intentionally refreshes its target every frame. Without
-        // this guard that refresh can make a high-sorting pointer appear over Pause,
-        // Almanac, Settings, or another modal panel. Keep the target, but suspend
-        // only the pointer's dedicated sorting Canvas until the modal closes.
+        // TutorialManager intentionally refreshes its target every frame. Keep the
+        // pointer hidden over unrelated modals, but allow it when the tutorial is
+        // explicitly pointing at a control inside the currently open modal.
         RefreshModalVisibility();
         if (IsSuppressedByModal) return;
 

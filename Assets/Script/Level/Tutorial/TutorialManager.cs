@@ -126,6 +126,13 @@ public class TutorialManager : MonoBehaviour
     
     private Coroutine currentAnimationCoroutine;
     private Coroutine leftTextIdleCoroutine; 
+
+    private const int ActiveTutorialSortingOrder = 31000;
+    private Canvas tutorialRootCanvas;
+    private bool hasSavedTutorialCanvasState;
+    private bool tutorialCanvasWasEnabled;
+    private bool tutorialCanvasOverrodeSorting;
+    private int tutorialCanvasSortingOrder;
     
     private TutorialPosition? lastScreenPosition = null;
 
@@ -145,6 +152,7 @@ public class TutorialManager : MonoBehaviour
         if (leftPanel != null) leftPanel.SetActive(false);
         if (bouncingArrow != null) bouncingArrow.Hide();
 
+        tutorialRootCanvas = FindTutorialRootCanvas();
         trackedButtonAction = new UnityAction(OnTrackedButtonClicked);
     }
 
@@ -227,6 +235,7 @@ public class TutorialManager : MonoBehaviour
         IsTutorialActive = true;
         lastScreenPosition = null; 
 
+        PrepareTutorialCanvas();
         ShowNextStep();
     }
 
@@ -577,6 +586,7 @@ public class TutorialManager : MonoBehaviour
         if (skipButton != null) skipButton.SetActive(false);
 
         if (bouncingArrow != null) bouncingArrow.Hide();
+        RestoreTutorialCanvas();
         
         if (completedSequence != null)
         {
@@ -611,6 +621,61 @@ public class TutorialManager : MonoBehaviour
             QueueTutorial(completedSequence.nextSequence);
 
         TryStartQueuedTutorialNextFrame();
+    }
+
+    private Canvas FindTutorialRootCanvas()
+    {
+        if (centerPanel != null)
+        {
+            Canvas canvas = centerPanel.GetComponentInParent<Canvas>(true);
+            if (canvas != null) return canvas.rootCanvas;
+        }
+
+        if (leftPanel != null)
+        {
+            Canvas canvas = leftPanel.GetComponentInParent<Canvas>(true);
+            if (canvas != null) return canvas.rootCanvas;
+        }
+
+        if (nextButton != null)
+        {
+            Canvas canvas = nextButton.GetComponentInParent<Canvas>(true);
+            if (canvas != null) return canvas.rootCanvas;
+        }
+
+        return null;
+    }
+
+    private void PrepareTutorialCanvas()
+    {
+        if (tutorialRootCanvas == null)
+            tutorialRootCanvas = FindTutorialRootCanvas();
+
+        if (tutorialRootCanvas == null) return;
+
+        if (!hasSavedTutorialCanvasState)
+        {
+            tutorialCanvasWasEnabled = tutorialRootCanvas.enabled;
+            tutorialCanvasOverrodeSorting = tutorialRootCanvas.overrideSorting;
+            tutorialCanvasSortingOrder = tutorialRootCanvas.sortingOrder;
+            hasSavedTutorialCanvasState = true;
+        }
+
+        // Modal panels intentionally disable other canvases. A tutorial launched by
+        // that modal must temporarily opt back in so its instructions are visible.
+        tutorialRootCanvas.enabled = true;
+        tutorialRootCanvas.overrideSorting = true;
+        tutorialRootCanvas.sortingOrder = ActiveTutorialSortingOrder;
+    }
+
+    private void RestoreTutorialCanvas()
+    {
+        if (!hasSavedTutorialCanvasState || tutorialRootCanvas == null) return;
+
+        tutorialRootCanvas.enabled = tutorialCanvasWasEnabled;
+        tutorialRootCanvas.overrideSorting = tutorialCanvasOverrodeSorting;
+        tutorialRootCanvas.sortingOrder = tutorialCanvasSortingOrder;
+        hasSavedTutorialCanvasState = false;
     }
 
     public void QueueTutorial(TutorialSequence sequence)

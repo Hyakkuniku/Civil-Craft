@@ -34,34 +34,39 @@ public sealed class AlmanacLessonButton : MonoBehaviour
             button.onClick.RemoveListener(HandleClicked);
     }
 
-    public void Configure(LessonData lesson, bool isUnlocked, Action<LessonData> onClicked)
+    public void Configure(
+        LessonData lesson,
+        bool isUnlocked,
+        Action<LessonData> onClicked,
+        bool allowLockedOpen = false)
     {
         configuredLesson = lesson;
         clickHandler = onClicked;
+        bool canOpen = isUnlocked || allowLockedOpen;
 
         if (button == null) button = GetComponent<Button>();
         if (button != null)
         {
             button.onClick.RemoveListener(HandleClicked);
-            button.interactable = isUnlocked;
-            if (isUnlocked) button.onClick.AddListener(HandleClicked);
+            button.interactable = canOpen;
+            if (canOpen) button.onClick.AddListener(HandleClicked);
         }
 
         if (titleText != null)
-            titleText.text = isUnlocked && lesson != null ? lesson.Title : "???";
+            titleText.text = canOpen && lesson != null ? lesson.Title : "???";
 
         if (thumbnailImage != null)
         {
-            thumbnailImage.sprite = isUnlocked && lesson != null ? lesson.Image : null;
+            thumbnailImage.sprite = canOpen && lesson != null ? lesson.Image : null;
             thumbnailImage.enabled = thumbnailImage.sprite != null;
-            thumbnailImage.color = isUnlocked ? Color.white : lockedColor;
+            thumbnailImage.color = canOpen ? Color.white : lockedColor;
         }
 
         if (backgroundImage != null)
-            backgroundImage.color = isUnlocked ? unlockedColor : lockedColor;
+            backgroundImage.color = canOpen ? unlockedColor : lockedColor;
 
-        if (lockedOverlay != null) lockedOverlay.SetActive(!isUnlocked);
-        if (lockedLabel != null) lockedLabel.text = isUnlocked ? string.Empty : "Locked";
+        if (lockedOverlay != null) lockedOverlay.SetActive(!canOpen);
+        if (lockedLabel != null) lockedLabel.text = canOpen ? string.Empty : "Locked";
     }
 
     private void HandleClicked()

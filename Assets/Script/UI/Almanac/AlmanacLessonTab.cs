@@ -14,6 +14,8 @@ public sealed class AlmanacLessonTab : MonoBehaviour
     [SerializeField] private AlmanacLessonButton lessonButtonPrefab;
     [SerializeField] private bool showLockedLessons = true;
     [SerializeField] private bool sortAlphabetically = true;
+    [Tooltip("Allows listed lessons to be opened before they have been discovered. Showing one still archives it through LessonUIManager.")]
+    [SerializeField] private bool allowOpeningLockedLessons;
 
     [Header("Empty State")]
     [SerializeField] private GameObject emptyStateRoot;
@@ -75,7 +77,7 @@ public sealed class AlmanacLessonTab : MonoBehaviour
         {
             bool unlocked = LessonSaveManager.IsUnlocked(lesson);
             AlmanacLessonButton entry = Instantiate(lessonButtonPrefab, buttonContainer, false);
-            entry.Configure(lesson, unlocked, OpenLesson);
+            entry.Configure(lesson, unlocked, OpenLesson, allowOpeningLockedLessons);
             // The scene may use an inactive styled template instead of a prefab asset.
             entry.gameObject.SetActive(true);
             spawnedButtons.Add(entry);
@@ -87,7 +89,7 @@ public sealed class AlmanacLessonTab : MonoBehaviour
 
     private void OpenLesson(LessonData lesson)
     {
-        if (!LessonSaveManager.IsUnlocked(lesson)) return;
+        if (!LessonSaveManager.IsUnlocked(lesson) && !allowOpeningLockedLessons) return;
 
         if (LessonUIManager.Instance == null)
         {

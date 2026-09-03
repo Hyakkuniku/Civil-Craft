@@ -2689,30 +2689,47 @@ MonoBehaviour:
   askNameDialogue:
     name: Professor Bhan
     sentences:
-    - 'Hi, Im Professor <b>Bhan</b>
-
-'
-    - Ah, a new face! What is your name?
+    - Ah, you must be the young civil engineer I've been expecting.
+    - You may already have some knowledge about engineering.
+    - But knowledge and experience are two different things.
+    - Arcadia will give you the chance to put what you've learned into practice
+    - Every project you complete will teach you something new.
+    - Before we begin, what should I call you?
   fetchAlmanacDialogue:
     name: Professor Bhan
     sentences:
-    - Nice to meet you {PlayerName}
-    - On the other side of this room there is a book
-    - the almanac, this hold the power of engineering
+    - '{PlayerName}...'
+    - A fitting name for someone beginning an engineering journey.
+    - You'll be working on real bridge projects soon.
+    - But first, there is something important you will need.
+    - There is a book called the Almanac.
+    - It will become your engineering record throughout your journey.
+    - It won't only record your achievements.
+    - It will also record the lessons, discoveries, and projects you encounter.
+    - Go to the other room and retrieve it.
   reminderAlmanacDialogue:
     name: Professor Bhan
     sentences:
     - Still looking for it? It should be right over there on the desk.
     - We can't start building without the Almanac, {PlayerName}!
+  rewardDialogue:
+    name: Professor Bhan
+    sentences:
+    - Good.
+    - Keep the Almanac with you.
+    - From now on, whenever you discover something important, check your Almanac.
+    - It will grow alongside your experience.
+    - 'Before we begin working, there is one thing you must never forget.
+
+'
+    - Safety.
   finalHouseDialogue:
     name: Professor Bhan
     sentences:
-    - Ah, you found it! Brush the dust off, that book is going to be your best friend
-      from now on.
-    - Now, there is just one last thing you need before you are officially ready
-      for a real construction site.
-    - Here, take my spare Engineer's Hard Hat. Safety first, as they say!
-    - Put that on and follow me outside. Let's see what you can build!
+    - Good.
+    - An engineer should always remember that construction is a responsibility.
+    - Now you're ready to begin.
+    - Let us go outside and let me show you how to build.
   advancesTutorial: 1
   npcWalker: {fileID: 60154312}
   rewardHatID: EngineeringHardHat
@@ -4998,7 +5015,7 @@ RectTransform:
   - {fileID: 589459369}
   - {fileID: 298444820}
   - {fileID: 764611873}
-  - {fileID: 1994395554}
+  - {fileID: 1764447640}
   m_Father: {fileID: 1135027110}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
@@ -10117,6 +10134,37 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 244190007}
   m_CullTransparentMesh: 1
+--- !u!1 &247270365
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 247270366}
+  m_Layer: 6
+  m_Name: wasp
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &247270366
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 247270365}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -0.6082761, y: 0.234, z: -8.631249}
+  m_LocalScale: {x: 0.58929, y: 0.58929, z: 0.58929}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &252977769
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -17190,12 +17238,6 @@ GameObject:
     type: 3}
   m_PrefabInstance: {fileID: 832208259}
   m_PrefabAsset: {fileID: 0}
---- !u!4 &429145950 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: 9147849661060862798, guid: bd0d441b8ac8b1041a72395228a59cd7,
-    type: 3}
-  m_PrefabInstance: {fileID: 832208259}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1 &432324731
 GameObject:
   m_ObjectHideFlags: 0
@@ -18945,7 +18987,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 0, y: -24.998047}
+  m_AnchoredPosition: {x: 0, y: -24.998108}
   m_SizeDelta: {x: 0, y: -50}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &475562928
@@ -46118,6 +46160,7 @@ MonoBehaviour:
   lessonButtonPrefab: {fileID: 217791548}
   showLockedLessons: 1
   sortAlphabetically: 1
+  allowOpeningLockedLessons: 0
   emptyStateRoot: {fileID: 0}
   emptyStateText: {fileID: 0}
 --- !u!114 &1208877174
@@ -62692,6 +62735,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 2010245064}
+  - {fileID: 1946445661}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1611524661
@@ -69176,6 +69220,145 @@ Transform:
   m_Children: []
   m_Father: {fileID: 861064549}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1001 &1764447639
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 112279875}
+    m_Modifications:
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_Pivot.x
+      value: 0.5
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_Pivot.y
+      value: 0.5
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_AnchorMax.x
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_AnchorMin.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_AnchorMin.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_SizeDelta.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_SizeDelta.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3349446779018328215, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: uiElementsToHide.Array.size
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 3349446779018328215, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: uiElementsToHide.Array.data[0]
+      value: 
+      objectReference: {fileID: 2119598351}
+    - target: {fileID: 3349446779018328215, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: uiElementsToHide.Array.data[1]
+      value: 
+      objectReference: {fileID: 1220840900}
+    - target: {fileID: 7252479680327597838, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_Name
+      value: CollectRewardSystem
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 19f751a4d64a06848a6260104d870eb6, type: 3}
+--- !u!224 &1764447640 stripped
+RectTransform:
+  m_CorrespondingSourceObject: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+    type: 3}
+  m_PrefabInstance: {fileID: 1764447639}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1767293260 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: 2151285882637a64b8b91b25a4e2d9e1,
@@ -72396,7 +72579,7 @@ MonoBehaviour:
   - {fileID: 21300000, guid: 0861e8a70c52c4f4da30f3e7eac0228f, type: 3}
   - {fileID: 21300000, guid: 162007c5301b4204a9aaea6378224268, type: 3}
   frameRate: 0.01
-  onFirstOpenTutorial: {fileID: 0}
+  onFirstOpenTutorial: {fileID: 1946445662}
   uiElementsToHide:
   - {fileID: 112279871}
   almanacCanvas: {fileID: 232865638}
@@ -74152,6 +74335,102 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1945358662}
   m_CullTransparentMesh: 1
+--- !u!1 &1946445660
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1946445661}
+  - component: {fileID: 1946445662}
+  m_Layer: 0
+  m_Name: Sequence_Alamnac
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1946445661
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1946445660}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1607045781}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1946445662
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1946445660}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 61a2c41d02260a248a74764d3b3b4d29, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  lessonName: Sequence_Alamnac
+  requiredPreviousLesson: Sequence_Movement
+  playOnStart: 0
+  nextSequence: {fileID: 0}
+  autoStartNextSequence: 0
+  tutorialSteps:
+  - message: This is your engineering record.
+    screenPosition: 0
+    showNextButton: 1
+    canSkip: 0
+    stepWaypoints: []
+    worldHighlightObject: {fileID: 0}
+    usePointer: 0
+    pointerTarget: {fileID: 0}
+    pointerOffset: {x: 0, y: 0}
+    pointerRotation: 0
+    advanceOnClick: 0
+    requiredAction: 0
+    OnStepStart:
+      m_PersistentCalls:
+        m_Calls: []
+  - message: New discoveries and completed projects will be added here throughout
+      your journey.
+    screenPosition: 0
+    showNextButton: 1
+    canSkip: 0
+    stepWaypoints: []
+    worldHighlightObject: {fileID: 0}
+    usePointer: 0
+    pointerTarget: {fileID: 0}
+    pointerOffset: {x: 0, y: 0}
+    pointerRotation: 0
+    advanceOnClick: 0
+    requiredAction: 0
+    OnStepStart:
+      m_PersistentCalls:
+        m_Calls: []
+  - message: Close the <b>ALMANAC</b>
+    screenPosition: 0
+    showNextButton: 1
+    canSkip: 0
+    stepWaypoints: []
+    worldHighlightObject: {fileID: 0}
+    usePointer: 1
+    pointerTarget: {fileID: 1420294995}
+    pointerOffset: {x: 0, y: 0}
+    pointerRotation: 0
+    advanceOnClick: 1
+    requiredAction: 0
+    OnStepStart:
+      m_PersistentCalls:
+        m_Calls: []
 --- !u!1 &1947204619
 GameObject:
   m_ObjectHideFlags: 0
@@ -75865,145 +76144,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1989424778}
   m_CullTransparentMesh: 1
---- !u!1001 &1994395553
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 112279875}
-    m_Modifications:
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_Pivot.x
-      value: 0.5
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_Pivot.y
-      value: 0.5
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_AnchorMax.x
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_AnchorMax.y
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_AnchorMin.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_AnchorMin.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_SizeDelta.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_SizeDelta.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_LocalPosition.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_LocalRotation.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_LocalRotation.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_LocalRotation.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_AnchoredPosition.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_AnchoredPosition.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 3349446779018328215, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: uiElementsToHide.Array.size
-      value: 2
-      objectReference: {fileID: 0}
-    - target: {fileID: 3349446779018328215, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: uiElementsToHide.Array.data[0]
-      value: 
-      objectReference: {fileID: 2119598351}
-    - target: {fileID: 3349446779018328215, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: uiElementsToHide.Array.data[1]
-      value: 
-      objectReference: {fileID: 1220840900}
-    - target: {fileID: 7252479680327597838, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_Name
-      value: CollectRewardSystem
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: 19f751a4d64a06848a6260104d870eb6, type: 3}
---- !u!224 &1994395554 stripped
-RectTransform:
-  m_CorrespondingSourceObject: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-    type: 3}
-  m_PrefabInstance: {fileID: 1994395553}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1995523120
 GameObject:
   m_ObjectHideFlags: 0
@@ -76801,8 +76941,8 @@ MonoBehaviour:
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
   tutorialSteps:
-  - message: Talk to the old guy
-    screenPosition: 3
+  - message: Approach Professor Bhan
+    screenPosition: 1
     showNextButton: 0
     canSkip: 0
     stepWaypoints:
@@ -76818,13 +76958,13 @@ MonoBehaviour:
     OnStepStart:
       m_PersistentCalls:
         m_Calls: []
-  - message: Get the almanac in the other room
-    screenPosition: 3
+  - message: Find the Almanac on the other side of the room
+    screenPosition: 1
     showNextButton: 0
     canSkip: 0
     stepWaypoints:
-    - target: {fileID: 429145950}
-      advancesTutorial: 0
+    - target: {fileID: 247270366}
+      advancesTutorial: 1
     worldHighlightObject: {fileID: 0}
     usePointer: 0
     pointerTarget: {fileID: 0}
@@ -76847,7 +76987,7 @@ MonoBehaviour:
             m_StringArgument: 
             m_BoolArgument: 1
           m_CallState: 2
-  - message: Go back to prof Bhan
+  - message: You found the Almanac
     screenPosition: 3
     showNextButton: 0
     canSkip: 0
@@ -76864,33 +77004,40 @@ MonoBehaviour:
     OnStepStart:
       m_PersistentCalls:
         m_Calls: []
-  - message: Follow Bhan Outside
-    screenPosition: 3
+  - message: Open the <b>ALMANAC</b>
+    screenPosition: 0
     showNextButton: 0
     canSkip: 0
-    stepWaypoints: []
+    stepWaypoints:
+    - target: {fileID: 60154305}
+      advancesTutorial: 0
     worldHighlightObject: {fileID: 0}
-    usePointer: 0
-    pointerTarget: {fileID: 0}
-    pointerOffset: {x: 0, y: 80}
-    pointerRotation: 180
-    advanceOnClick: 0
+    usePointer: 1
+    pointerTarget: {fileID: 1969540818}
+    pointerOffset: {x: 80, y: -80}
+    pointerRotation: 45
+    advanceOnClick: 1
     requiredAction: 0
     OnStepStart:
       m_PersistentCalls:
-        m_Calls:
-        - m_Target: {fileID: 1298933108}
-          m_TargetAssemblyTypeName: DoorTransition, Assembly-CSharp
-          m_MethodName: UnlockDoor
-          m_Mode: 1
-          m_Arguments:
-            m_ObjectArgument: {fileID: 0}
-            m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-            m_IntArgument: 0
-            m_FloatArgument: 0
-            m_StringArgument: 
-            m_BoolArgument: 0
-          m_CallState: 2
+        m_Calls: []
+  - message: Return the <b>ALMANAC</b> to Professor Bhan
+    screenPosition: 0
+    showNextButton: 0
+    canSkip: 0
+    stepWaypoints:
+    - target: {fileID: 60154305}
+      advancesTutorial: 0
+    worldHighlightObject: {fileID: 0}
+    usePointer: 1
+    pointerTarget: {fileID: 1969540818}
+    pointerOffset: {x: 80, y: -80}
+    pointerRotation: 45
+    advanceOnClick: 1
+    requiredAction: 0
+    OnStepStart:
+      m_PersistentCalls:
+        m_Calls: []
 --- !u!1 &2011092085
 GameObject:
   m_ObjectHideFlags: 0
@@ -81757,6 +81904,7 @@ SceneRoots:
   - {fileID: 1270956933}
   - {fileID: 1947204621}
   - {fileID: 350920759}
+  - {fileID: 247270366}
   - {fileID: 832208259}
   - {fileID: 821695855}
   - {fileID: 1555229187}

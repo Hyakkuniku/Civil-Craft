@@ -10,7 +10,8 @@ public class TutorialNameNPC : Interactable
     public Dialogue fetchAlmanacDialogue;
     public Dialogue reminderAlmanacDialogue;
 
-    [Header("Dialogues (Phase 3: Exit House)")]
+    [Header("Dialogues (Phase 3: Reward and Exit House)")]
+    public Dialogue rewardDialogue;
     public Dialogue finalHouseDialogue;
 
     [Header("Tutorial Settings")]
@@ -27,7 +28,7 @@ public class TutorialNameNPC : Interactable
     [Tooltip("The 2D picture of the hat for the UI popup")]
     public Sprite rewardSprite; 
     
-    [Tooltip("Fires AFTER the player clicks 'Collect' on the UI popup")]
+    [Tooltip("Fires after the final house dialogue finishes, immediately before the NPC walks away.")]
     public UnityEvent onFinalDialogueFinished;
 
     private DialogueManager dialogueManager;
@@ -35,6 +36,7 @@ public class TutorialNameNPC : Interactable
     private Transform playerTransform;
 
     private bool hasGivenFetchQuest = false;
+    private bool isCompletingHouseInteraction = false;
     private bool isWalkingAway = false; // --- NEW: Tracks if the NPC is leaving ---
 
     private void Awake()
@@ -49,7 +51,7 @@ public class TutorialNameNPC : Interactable
     private void Update()
     {
         // --- THE FIX: Stop updating the prompt once they start walking ---
-        if (isWalkingAway)
+        if (isCompletingHouseInteraction || isWalkingAway)
         {
             promptMessage = "";
             return;
@@ -60,7 +62,7 @@ public class TutorialNameNPC : Interactable
         bool hasName = PlayerDataManager.Instance.CurrentData.playerName != "Guest" && !string.IsNullOrEmpty(PlayerDataManager.Instance.CurrentData.playerName);
         bool hasBook = PlayerDataManager.Instance.CurrentData.hasAlmanac;
 
-        if (!hasName) promptMessage = "Talk to NPC";
+        if (!hasName) promptMessage = "Talk To Professor Bhan";
         else if (!hasBook) promptMessage = "Ask about the book";
         else promptMessage = "Show the Almanac";
     }
@@ -68,7 +70,7 @@ public class TutorialNameNPC : Interactable
     protected override void Intract()
     {
         // --- THE FIX: Block interaction if they are walking away ---
-        if (isWalkingAway) return;
+        if (isCompletingHouseInteraction || isWalkingAway) return;
 
         FacePlayer();
 
@@ -101,52 +103,69 @@ public class TutorialNameNPC : Interactable
         }
         else
         {
-            dialogueManager.StartDialogue(finalHouseDialogue, () => 
-            {
-                if (advancesTutorial && TutorialManager.Instance != null)
-                {
-                    TutorialManager.Instance.ShowNextStep();
-                }
+            isCompletingHouseInteraction = true;
+            promptMessage = "";
 
-                // --- THE FIX: Disable interactions and collider instantly ---
-                isWalkingAway = true;
-                promptMessage = "";
-                Collider myCollider = GetComponent<Collider>();
-                if (myCollider != null) myCollider.enabled = false;
-
-                if (npcWalker != null)
-                {
-                    npcWalker.StartWalking();
-                }
-
-                bool alreadyOwnsReward = PlayerDataManager.Instance != null &&
-                                         PlayerDataManager.Instance.IsCosmeticUnlocked(rewardHatID);
-
-                if (ItemUnlockUI.Instance != null &&
-                    !string.IsNullOrEmpty(rewardHatID) &&
-                    !alreadyOwnsReward)
-                {
-                    ItemUnlockUI.Instance.ShowReward(rewardDisplayName, rewardSprite, rewardHatID, () => 
-                    {
-                        AchievementPopupNotification.NotifyCosmeticUnlock(rewardDisplayName, rewardSprite);
-                        onFinalDialogueFinished?.Invoke();
-                    });
-                }
-                else
-                {
-                    if (!alreadyOwnsReward && !string.IsNullOrEmpty(rewardHatID))
-                    {
-                        if (PlayerCosmetics.Instance != null)
-                            PlayerCosmetics.Instance.UnlockAndEquipHat(rewardHatID);
-                        else if (PlayerDataManager.Instance != null)
-                            PlayerDataManager.Instance.UnlockCosmeticReward(rewardHatID, true);
-
-                        AchievementPopupNotification.NotifyCosmeticUnlock(rewardDisplayName, rewardSprite);
-                    }
-                    onFinalDialogueFinished?.Invoke();
-                }
-            });
+            if (rewardDialogue != null)
+                dialogueManager.StartDialogue(rewardDialogue, ShowRewardThenFinalDialogue);
+            else
+                ShowRewardThenFinalDialogue();
         }
+    }
+
+    private void ShowRewardThenFinalDialogue()
+    {
+        bool alreadyOwnsReward = PlayerDataManager.Instance != null &&
+                                 PlayerDataManager.Instance.IsCosmeticUnlocked(rewardHatID);
+
+        if (ItemUnlockUI.Instance != null &&
+            !string.IsNullOrEmpty(rewardHatID) &&
+            !alreadyOwnsReward)
+        {
+            ItemUnlockUI.Instance.ShowReward(rewardDisplayName, rewardSprite, rewardHatID, () =>
+            {
+                AchievementPopupNotification.NotifyCosmeticUnlock(rewardDisplayName, rewardSprite);
+                StartFinalHouseDialogue();
+            });
+            return;
+        }
+
+        if (!alreadyOwnsReward && !string.IsNullOrEmpty(rewardHatID))
+        {
+            if (PlayerCosmetics.Instance != null)
+                PlayerCosmetics.Instance.UnlockAndEquipHat(rewardHatID);
+            else if (PlayerDataManager.Instance != null)
+                PlayerDataManager.Instance.UnlockCosmeticReward(rewardHatID, true);
+
+            AchievementPopupNotification.NotifyCosmeticUnlock(rewardDisplayName, rewardSprite);
+        }
+
+        StartFinalHouseDialogue();
+    }
+
+    private void StartFinalHouseDialogue()
+    {
+        if (dialogueManager != null && finalHouseDialogue != null)
+            dialogueManager.StartDialogue(finalHouseDialogue, FinishHouseInteraction);
+        else
+            FinishHouseInteraction();
+    }
+
+    private void FinishHouseInteraction()
+    {
+        if (advancesTutorial && TutorialManager.Instance != null)
+            TutorialManager.Instance.ShowNextStep();
+
+        isWalkingAway = true;
+        promptMessage = "";
+
+        Collider myCollider = GetComponent<Collider>();
+        if (myCollider != null) myCollider.enabled = false;
+
+        onFinalDialogueFinished?.Invoke();
+
+        if (npcWalker != null)
+            npcWalker.StartWalking();
     }
 
     private void FacePlayer()

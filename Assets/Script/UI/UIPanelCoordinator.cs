@@ -93,6 +93,15 @@ public class UIPanelCoordinator : MonoBehaviour
         return panel != null && panelStack.Count > 0 && panelStack.Peek().panel == panel;
     }
 
+    public bool IsTargetInsideTopPanel(Transform target)
+    {
+        if (target == null || panelStack.Count == 0) return false;
+
+        GameObject topPanel = panelStack.Peek().panel;
+        return topPanel != null &&
+               (target == topPanel.transform || target.IsChildOf(topPanel.transform));
+    }
+
     public void OpenPanel(GameObject panel)
     {
         OpenPanel(panel, true);
