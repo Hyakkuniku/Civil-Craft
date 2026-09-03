@@ -98,7 +98,7 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
                 bool isUnlockedByPurchase = false;
                 if (PlayerDataManager.Instance != null)
                 {
-                    isUnlockedByPurchase = PlayerDataManager.Instance.IsMaterialUnlockedForContract(contract.name, buttonMaterial.name);
+                    isUnlockedByPurchase = PlayerDataManager.Instance.IsMaterialUnlockedForContract(contract.ContractID, buttonMaterial.name);
                 }
 
                 if (!isNaturallyAllowed && !isUnlockedByPurchase)

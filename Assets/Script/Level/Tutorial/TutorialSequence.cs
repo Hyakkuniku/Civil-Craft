@@ -48,6 +48,16 @@ public class TutorialSequence : MonoBehaviour
 
     public bool CanStartTutorial()
     {
+        return CanStartTutorialInternal(true);
+    }
+
+    public bool CanStartAsPriorityTutorial()
+    {
+        return CanStartTutorialInternal(false);
+    }
+
+    private bool CanStartTutorialInternal(bool requireIdleManager)
+    {
         if (PlayerDataManager.Instance != null)
         {
             var data = PlayerDataManager.Instance.CurrentData;
@@ -57,6 +67,7 @@ public class TutorialSequence : MonoBehaviour
             if (!string.IsNullOrEmpty(requiredPreviousLesson) && !data.completedLessons.Contains(requiredPreviousLesson)) return false;
         }
 
-        return TutorialManager.Instance != null && !TutorialManager.Instance.IsTutorialActive;
+        return TutorialManager.Instance != null &&
+               (!requireIdleManager || !TutorialManager.Instance.IsTutorialActive);
     }
 }

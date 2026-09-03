@@ -128,13 +128,13 @@ public class ObjectiveTrackerUI : MonoBehaviour
         if (contract == null || PlayerDataManager.Instance == null) return;
         
         var activeTasks = PlayerDataManager.Instance.CurrentData.activeQuests;
-        if (activeTasks.Exists(t => t.contractName == contract.name)) return;
+        if (activeTasks.Exists(t => contract.MatchesIdentifier(t.contractName))) return;
 
         TrackedTask newTask = new TrackedTask
         {
             title = contract.clientName + "'s Request",
             description = contract.jobDescription,
-            contractName = contract.name,
+            contractName = contract.ContractID,
             budget = contract.budget,
             weight = contract.liveLoadWeight,
             isTutorial = false,
@@ -220,7 +220,8 @@ public class ObjectiveTrackerUI : MonoBehaviour
             NPCContractGiver[] npcs = Resources.FindObjectsOfTypeAll<NPCContractGiver>();
             foreach (var npc in npcs)
             {
-                if (npc.gameObject.scene.name != null && npc.contractToGive != null && npc.contractToGive.name == contractName)
+                if (npc.gameObject.scene.name != null && npc.contractToGive != null &&
+                    npc.contractToGive.MatchesIdentifier(contractName))
                 {
                     task.targetWaypointName = npc.gameObject.name;
                     break;
@@ -246,7 +247,8 @@ public class ObjectiveTrackerUI : MonoBehaviour
         if (npc == null || npc.contractToGive == null || PlayerDataManager.Instance == null) return;
 
         var activeTasks = PlayerDataManager.Instance.CurrentData.activeQuests;
-        TrackedTask taskToComplete = activeTasks.Find(t => t.contractName == npc.contractToGive.name);
+        TrackedTask taskToComplete = activeTasks.Find(t =>
+            npc.contractToGive.MatchesIdentifier(t.contractName));
         
         if (taskToComplete != null && !taskToComplete.isCompleted)
         {
@@ -313,7 +315,8 @@ public class ObjectiveTrackerUI : MonoBehaviour
                 NPCContractGiver[] npcs = FindObjectsOfType<NPCContractGiver>();
                 foreach(var npc in npcs)
                 {
-                    if (npc.contractToGive != null && npc.contractToGive.name == currentlySelectedTask.contractName)
+                    if (npc.contractToGive != null &&
+                        npc.contractToGive.MatchesIdentifier(currentlySelectedTask.contractName))
                     {
                         npc.isFullyTurnedIn = true;
                     }
@@ -338,7 +341,8 @@ public class ObjectiveTrackerUI : MonoBehaviour
         if (specificContract != null && PlayerDataManager.Instance != null)
         {
             var activeTasks = PlayerDataManager.Instance.CurrentData.activeQuests;
-            var tasksToComplete = activeTasks.FindAll(t => t.contractName == specificContract.name);
+            var tasksToComplete = activeTasks.FindAll(t =>
+                specificContract.MatchesIdentifier(t.contractName));
             
             foreach(var t in tasksToComplete)
             {
@@ -351,7 +355,8 @@ public class ObjectiveTrackerUI : MonoBehaviour
             PlayerDataManager.Instance.SaveGame();
             RefreshQuestList();
             
-            if (currentlySelectedTask != null && currentlySelectedTask.contractName == specificContract.name)
+            if (currentlySelectedTask != null &&
+                specificContract.MatchesIdentifier(currentlySelectedTask.contractName))
             {
                 SelectTask(currentlySelectedTask); 
             }
@@ -377,7 +382,8 @@ public class ObjectiveTrackerUI : MonoBehaviour
                 NPCContractGiver[] npcs = Resources.FindObjectsOfTypeAll<NPCContractGiver>();
                 foreach (var npc in npcs)
                 {
-                    if (npc.gameObject.scene.name != null && npc.contractToGive != null && npc.contractToGive.name == currentlySelectedTask.contractName)
+                    if (npc.gameObject.scene.name != null && npc.contractToGive != null &&
+                        npc.contractToGive.MatchesIdentifier(currentlySelectedTask.contractName))
                     {
                         targetObj = npc.gameObject;
                         break;
@@ -389,7 +395,8 @@ public class ObjectiveTrackerUI : MonoBehaviour
                 BuildLocation[] allLocs = Resources.FindObjectsOfTypeAll<BuildLocation>();
                 foreach (var loc in allLocs)
                 {
-                    if (loc.gameObject.scene.name != null && loc.activeContract != null && loc.activeContract.name == currentlySelectedTask.contractName)
+                    if (loc.gameObject.scene.name != null && loc.activeContract != null &&
+                        loc.activeContract.MatchesIdentifier(currentlySelectedTask.contractName))
                     {
                         targetObj = loc.navigationTarget != null ? loc.navigationTarget : loc.gameObject;
                         break;
@@ -543,7 +550,8 @@ public class ObjectiveTrackerUI : MonoBehaviour
                         NPCContractGiver[] npcs = Resources.FindObjectsOfTypeAll<NPCContractGiver>();
                         foreach (var npc in npcs)
                         {
-                            if (npc.gameObject.scene.name != null && npc.contractToGive != null && npc.contractToGive.name == task.contractName)
+                            if (npc.gameObject.scene.name != null && npc.contractToGive != null &&
+                                npc.contractToGive.MatchesIdentifier(task.contractName))
                             {
                                 canNavigate = true;
                                 break;
@@ -555,7 +563,8 @@ public class ObjectiveTrackerUI : MonoBehaviour
                         BuildLocation[] allLocs = Resources.FindObjectsOfTypeAll<BuildLocation>();
                         foreach (var loc in allLocs)
                         {
-                            if (loc.gameObject.scene.name != null && loc.activeContract != null && loc.activeContract.name == task.contractName)
+                            if (loc.gameObject.scene.name != null && loc.activeContract != null &&
+                                loc.activeContract.MatchesIdentifier(task.contractName))
                             {
                                 canNavigate = true; 
                                 break;

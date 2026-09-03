@@ -57,6 +57,26 @@ public class ContractSO : ScriptableObject
         IndustrialZone
     }
 
+    [Header("Identity")]
+    [Tooltip("Permanent unique save ID, for example CONTRACT_CANYON_001. Never change this after release.")]
+    public string contractID;
+
+    /// <summary>
+    /// Stable identifier used by saves and runtime systems. The asset name is
+    /// retained as a fallback so newly created or legacy contracts keep working
+    /// until an explicit ID is assigned.
+    /// </summary>
+    public string ContractID => string.IsNullOrWhiteSpace(contractID) ? name : contractID.Trim();
+
+    /// <summary>Accepts both the stable ID and the former asset-name identifier.</summary>
+    public bool MatchesIdentifier(string identifier)
+    {
+        if (string.IsNullOrWhiteSpace(identifier)) return false;
+        string normalized = identifier.Trim();
+        return string.Equals(ContractID, normalized, System.StringComparison.Ordinal) ||
+               string.Equals(name, normalized, System.StringComparison.Ordinal);
+    }
+
     [Header("Map Progression")]
     [Tooltip("The world map this contract belongs to. Used by map-completion achievements.")]
     public ContractMap contractMap = ContractMap.CanyonCrossing;
@@ -83,7 +103,7 @@ public class ContractSO : ScriptableObject
     {
         return isTutorialContract &&
                PlayerDataManager.Instance != null &&
-               PlayerDataManager.Instance.HasContractCompletionRecord(name);
+               PlayerDataManager.Instance.HasContractCompletionRecord(ContractID);
     }
 
     [Header("NPC & Reward Settings")]

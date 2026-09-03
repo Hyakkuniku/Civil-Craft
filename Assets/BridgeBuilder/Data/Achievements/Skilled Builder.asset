@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 77a59d2f16524d54385416dc42494768, type: 3}
+  m_Name: Skilled Builder
+  m_EditorClassIdentifier: 
+  achievementID: ACH_008
+  achievementName: Skilled Builder
+  description: Build 10 bridges.
+  hideDetailsUntilUnlocked: 0
+  achievementIcon: {fileID: 0}
+  goalType: 0
+  targetAmount: 10
+  targetContractMap: 0
+  excludeTutorialContracts: 1
+  bonusGold: 500
+  bonusExp: 0
+  grantsCosmeticReward: 0
+  rewardCosmeticID: 
+  rewardDisplayName: Achievement Reward
+  rewardIcon: {fileID: 0}

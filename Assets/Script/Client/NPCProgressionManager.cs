@@ -252,7 +252,7 @@ public class NPCProgressionManager : MonoBehaviour
         ContractSO phaseContract = phases[phaseIndex].contract;
         if (phaseContract != null)
         {
-            PlayerPrefs.DeleteKey("LockedContract_" + phaseContract.name);
+            PlayerPrefs.DeleteKey("LockedContract_" + phaseContract.ContractID);
             PlayerPrefs.Save();
         }
 
@@ -337,7 +337,7 @@ public class NPCProgressionManager : MonoBehaviour
         {
             NPCProgressionPhase phase = phases[i];
             if (phase == null || phase.contract == null || phase.targetBuildLocation == null ||
-                !PlayerDataManager.Instance.HasValidSavedBridge(phase.contract.name)) continue;
+                !PlayerDataManager.Instance.HasValidSavedBridge(phase.contract.ContractID)) continue;
 
             if (!restoredLocations.Add(phase.targetBuildLocation))
             {
@@ -402,7 +402,7 @@ public class NPCProgressionManager : MonoBehaviour
         for (int i = 0; i < phases.Count; i++)
         {
             ContractSO contract = phases[i] != null ? phases[i].contract : null;
-            if (contract == null || !PlayerDataManager.Instance.IsContractCompleted(contract.name))
+            if (contract == null || !PlayerDataManager.Instance.IsContractCompleted(contract.ContractID))
                 return i;
         }
 
@@ -493,8 +493,7 @@ public class NPCProgressionManager : MonoBehaviour
     {
         NPCProgressionPhase phase = CurrentPhase;
         if (phase == null || phase.contract == null) return;
-        if (!string.Equals(phase.contract.name, completedContractName,
-                System.StringComparison.Ordinal)) return;
+        if (!phase.contract.MatchesIdentifier(completedContractName)) return;
 
         AdvanceToNextContract();
     }

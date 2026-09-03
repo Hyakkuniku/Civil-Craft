@@ -145,7 +145,7 @@ public class LevelFailedManager : MonoBehaviour
             ContractSO contract = GameManager.Instance.CurrentContract;
             isTutorial = contract.IsTutorialForCurrentPlayer();
             isCompletedContractRedesign = PlayerDataManager.Instance != null &&
-                PlayerDataManager.Instance.HasContractCompletionRecord(contract.name);
+                PlayerDataManager.Instance.HasContractCompletionRecord(contract.ContractID);
         }
 
         bool shouldApplyPenalty = !isTutorial && !isCompletedContractRedesign;

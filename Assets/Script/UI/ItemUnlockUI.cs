@@ -141,11 +141,18 @@ public class ItemUnlockUI : MonoBehaviour
         temporarilyHiddenUI.Clear();
         foreach (GameObject ui in uiElementsToHide)
         {
-            // Only remember and hide it if it was actually turned on!
-            if (ui != null && ui.activeSelf)
+            TrackAndHide(ui);
+        }
+
+        // Interaction prompts are scene-owned and cannot be assigned on this shared
+        // reward prefab. Hide every loaded prompt container while Collect is open.
+        foreach (Transform candidate in FindObjectsOfType<Transform>(true))
+        {
+            if (candidate != null &&
+                candidate.gameObject.scene.IsValid() &&
+                candidate.name == "InteractionButtonContainer")
             {
-                temporarilyHiddenUI.Add(ui);
-                ui.SetActive(false);
+                TrackAndHide(candidate.gameObject);
             }
         }
 
@@ -219,6 +226,16 @@ public class ItemUnlockUI : MonoBehaviour
 
         if (pendingRewards.Count > 0)
             ShowNextReward();
+    }
+
+    private void TrackAndHide(GameObject target)
+    {
+        // Only restore objects that were active before this popup hid them.
+        if (target == null || !target.activeSelf || temporarilyHiddenUI.Contains(target))
+            return;
+
+        temporarilyHiddenUI.Add(target);
+        target.SetActive(false);
     }
 
     private void BindCollectButton()

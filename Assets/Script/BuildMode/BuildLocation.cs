@@ -74,7 +74,7 @@ public class BuildLocation : Interactable
 
     private void Start()
     {
-        if (activeContract != null && PlayerPrefs.GetInt("LockedContract_" + activeContract.name, 0) == 1)
+        if (activeContract != null && PlayerPrefs.GetInt("LockedContract_" + activeContract.ContractID, 0) == 1)
         {
             activeContract = null; 
         }
@@ -128,7 +128,7 @@ public class BuildLocation : Interactable
                     
                     if (activeContract != null)
                     {
-                        PlayerPrefs.SetInt("LockedContract_" + activeContract.name, 1);
+                        PlayerPrefs.SetInt("LockedContract_" + activeContract.ContractID, 1);
                         PlayerPrefs.Save();
                         
                         if (LevelFailedManager.Instance != null) 
@@ -190,7 +190,7 @@ public class BuildLocation : Interactable
 
         if (PlayerDataManager.Instance != null && activeContract != null)
         {
-            PlayerDataManager.Instance.DeleteSavedBridge(activeContract.name);
+            PlayerDataManager.Instance.DeleteSavedBridge(activeContract.ContractID);
         }
 
         NPCContractGiver[] npcs = FindObjectsOfType<NPCContractGiver>();
@@ -503,7 +503,7 @@ public class BuildLocation : Interactable
         if (activeContract == null || PlayerDataManager.Instance == null) return false;
         if (bakedBars.Count > 0) return true;
         
-        var savedBridge = PlayerDataManager.Instance.GetSavedBridge(activeContract.name);
+        var savedBridge = PlayerDataManager.Instance.GetSavedBridge(activeContract.ContractID);
         if (savedBridge == null) return false;
 
         BarCreator creator = FindObjectOfType<BarCreator>(true);

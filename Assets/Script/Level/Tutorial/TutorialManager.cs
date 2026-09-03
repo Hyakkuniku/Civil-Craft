@@ -6,8 +6,10 @@ using System.Collections.Generic; // Required for List
 
 public enum TutorialPosition
 {
-    Center,
-    Left
+    Center = 0,
+    Left = 1,
+    // Value 2 is intentionally reserved so existing serialized enum values are never renumbered.
+    LowCenter = 3
 }
 
 public enum TutorialStepAction
@@ -57,6 +59,12 @@ public class TutorialStep
 
 public class TutorialManager : MonoBehaviour
 {
+    private sealed class SuspendedTutorialState
+    {
+        public TutorialSequence sequence;
+        public int stepIndex;
+    }
+
     public static TutorialManager Instance { get; private set; }
 
     [Header("Center Tutorial UI")]
@@ -78,6 +86,10 @@ public class TutorialManager : MonoBehaviour
     [Tooltip("Incoming offset used only when ReturnToStep forces the tutorial backwards.")]
     public Vector2 reverseStepOffset = new Vector2(-180f, 0f);
 
+    [Header("Low Center Position")]
+    [Tooltip("Offset from the authored Center panel position while a step uses LowCenter.")]
+    [SerializeField] private Vector2 lowCenterOffset = new Vector2(0f, -520f);
+
     [Header("Left Panel Attention Animation")]
     public float pulseSpeed = 4f;
     public float pulseAmount = 0.05f;
@@ -90,6 +102,7 @@ public class TutorialManager : MonoBehaviour
     private bool isAdvancingStep;
     private int lastAdvanceFrame = -1;
     private readonly List<TutorialSequence> queuedSequences = new List<TutorialSequence>();
+    private readonly Stack<SuspendedTutorialState> suspendedSequences = new Stack<SuspendedTutorialState>();
     private Coroutine queuedSequenceCoroutine;
 
     public int CurrentStepIndex => currentStepIndex;
@@ -133,6 +146,12 @@ public class TutorialManager : MonoBehaviour
     private bool tutorialCanvasWasEnabled;
     private bool tutorialCanvasOverrodeSorting;
     private int tutorialCanvasSortingOrder;
+    private RectTransform centerPanelRect;
+    private Vector2 centerPanelDefaultAnchoredPosition;
+    private bool hasCachedCenterPanelPosition;
+    private RectTransform leftPanelRect;
+    private Vector2 leftPanelDefaultAnchoredPosition;
+    private bool hasCachedLeftPanelPosition;
     
     private TutorialPosition? lastScreenPosition = null;
 
@@ -152,6 +171,7 @@ public class TutorialManager : MonoBehaviour
         if (leftPanel != null) leftPanel.SetActive(false);
         if (bouncingArrow != null) bouncingArrow.Hide();
 
+        CacheTutorialPanelPositions();
         tutorialRootCanvas = FindTutorialRootCanvas();
         trackedButtonAction = new UnityAction(OnTrackedButtonClicked);
     }
@@ -239,6 +259,33 @@ public class TutorialManager : MonoBehaviour
         ShowNextStep();
     }
 
+    /// <summary>
+    /// Temporarily suspends the active sequence, shows a modal-specific tutorial,
+    /// then resumes the suspended sequence at the exact step it was displaying.
+    /// Only one tutorial owns the shared UI at a time.
+    /// </summary>
+    public void PlayPriorityTutorial(TutorialSequence sequence)
+    {
+        if (sequence == null || sequence.tutorialSteps == null || sequence.tutorialSteps.Length == 0)
+            return;
+        if (IsPlayingSequence(sequence) || !sequence.CanStartAsPriorityTutorial())
+            return;
+
+        queuedSequences.Remove(sequence);
+
+        if (IsTutorialActive && currentSequence != null)
+        {
+            suspendedSequences.Push(new SuspendedTutorialState
+            {
+                sequence = currentSequence,
+                stepIndex = currentStepIndex
+            });
+            SuspendCurrentTutorial();
+        }
+
+        PlayTutorial(sequence);
+    }
+
     public void ShowNextStep()
     {
         if (currentSequence == null || !IsTutorialActive || isAdvancingStep) return;
@@ -307,6 +354,15 @@ public class TutorialManager : MonoBehaviour
 
     private void ShowTutorialStep(TutorialStep step, bool playReverseAnimation)
     {
+        // A rapidly advanced step can interrupt a slide before it reaches its target.
+        // Stop it before reading or restoring positions so the next transition starts
+        // from a stable, authored layout instead of inheriting an in-between position.
+        if (currentAnimationCoroutine != null)
+        {
+            StopCoroutine(currentAnimationCoroutine);
+            currentAnimationCoroutine = null;
+        }
+
         // A new step owns its own world indicator. Its OnStepStart event can show
         // the required indicator again after this cleanup.
         Tutorial3DIndicator.HideAll();
@@ -323,14 +379,23 @@ public class TutorialManager : MonoBehaviour
             if (s.worldHighlightObject != null) s.worldHighlightObject.SetActive(false);
         }
 
-        GameObject activePanel = step.screenPosition == TutorialPosition.Center ? centerPanel : leftPanel;
-        TextMeshProUGUI activeText = step.screenPosition == TutorialPosition.Center ? centerText : leftText;
+        GameObject activePanel = GetPanelForPosition(step.screenPosition);
+        TextMeshProUGUI activeText = GetTextForPosition(step.screenPosition);
         
         GameObject oldPanel = null;
+        Vector3 oldPanelWorldPosition = Vector3.zero;
+        bool hasOldPanelPosition = false;
         if (lastScreenPosition != null && lastScreenPosition != step.screenPosition)
         {
-            oldPanel = lastScreenPosition == TutorialPosition.Center ? centerPanel : leftPanel;
+            oldPanel = GetPanelForPosition(lastScreenPosition.Value);
+            if (oldPanel != null)
+            {
+                oldPanelWorldPosition = oldPanel.transform.position;
+                hasOldPanelPosition = true;
+            }
         }
+
+        ApplyPanelPosition(step.screenPosition);
 
         if (centerPanel != null) centerPanel.SetActive(false);
         if (leftPanel != null) leftPanel.SetActive(false);
@@ -347,9 +412,9 @@ public class TutorialManager : MonoBehaviour
                 AnimatePanelReverse(activePanel);
                 waitDelay = slideTransitionDuration;
             }
-            else if (oldPanel != null)
+            else if (hasOldPanelPosition)
             {
-                AnimatePanelSlide(activePanel, oldPanel.transform.position);
+                AnimatePanelSlide(activePanel, oldPanelWorldPosition);
                 waitDelay = slideTransitionDuration;
             }
             else
@@ -406,6 +471,72 @@ public class TutorialManager : MonoBehaviour
 
         lastScreenPosition = step.screenPosition;
         step.OnStepStart?.Invoke();
+    }
+
+    private GameObject GetPanelForPosition(TutorialPosition position)
+    {
+        switch (position)
+        {
+            case TutorialPosition.Center:
+            case TutorialPosition.LowCenter:
+                return centerPanel;
+            case TutorialPosition.Left:
+            default:
+                return leftPanel;
+        }
+    }
+
+    private TextMeshProUGUI GetTextForPosition(TutorialPosition position)
+    {
+        switch (position)
+        {
+            case TutorialPosition.Center:
+            case TutorialPosition.LowCenter:
+                return centerText;
+            case TutorialPosition.Left:
+            default:
+                return leftText;
+        }
+    }
+
+    private void CacheTutorialPanelPositions()
+    {
+        if (!hasCachedCenterPanelPosition)
+        {
+            centerPanelRect = centerPanel != null ? centerPanel.GetComponent<RectTransform>() : null;
+            if (centerPanelRect != null)
+            {
+                centerPanelDefaultAnchoredPosition = centerPanelRect.anchoredPosition;
+                hasCachedCenterPanelPosition = true;
+            }
+        }
+
+        if (!hasCachedLeftPanelPosition)
+        {
+            leftPanelRect = leftPanel != null ? leftPanel.GetComponent<RectTransform>() : null;
+            if (leftPanelRect != null)
+            {
+                leftPanelDefaultAnchoredPosition = leftPanelRect.anchoredPosition;
+                hasCachedLeftPanelPosition = true;
+            }
+        }
+    }
+
+    private void ApplyPanelPosition(TutorialPosition position)
+    {
+        CacheTutorialPanelPositions();
+
+        if (position != TutorialPosition.Center && position != TutorialPosition.LowCenter)
+        {
+            if (hasCachedLeftPanelPosition && leftPanelRect != null)
+                leftPanelRect.anchoredPosition = leftPanelDefaultAnchoredPosition;
+            return;
+        }
+
+        if (!hasCachedCenterPanelPosition || centerPanelRect == null) return;
+
+        centerPanelRect.anchoredPosition = centerPanelDefaultAnchoredPosition +
+            (position == TutorialPosition.LowCenter ? lowCenterOffset : Vector2.zero);
     }
 
     private void AnimatePanelIn(GameObject panel)
@@ -620,7 +751,92 @@ public class TutorialManager : MonoBehaviour
         if (completedSequence != null && completedSequence.autoStartNextSequence && completedSequence.nextSequence != null)
             QueueTutorial(completedSequence.nextSequence);
 
-        TryStartQueuedTutorialNextFrame();
+        if (!TryResumeSuspendedTutorial())
+            TryStartQueuedTutorialNextFrame();
+    }
+
+    private void SuspendCurrentTutorial()
+    {
+        ClearTrackedButton();
+        Tutorial3DIndicator.HideAll();
+
+        if (currentAnimationCoroutine != null)
+        {
+            StopCoroutine(currentAnimationCoroutine);
+            currentAnimationCoroutine = null;
+        }
+
+        if (leftTextIdleCoroutine != null)
+        {
+            StopCoroutine(leftTextIdleCoroutine);
+            leftTextIdleCoroutine = null;
+            if (leftText != null) leftText.transform.localScale = Vector3.one;
+        }
+
+        if (currentSequence != null && currentSequence.tutorialSteps != null)
+        {
+            foreach (TutorialStep step in currentSequence.tutorialSteps)
+            {
+                if (step != null && step.worldHighlightObject != null)
+                    step.worldHighlightObject.SetActive(false);
+            }
+        }
+
+        if (centerPanel != null) centerPanel.SetActive(false);
+        if (leftPanel != null) leftPanel.SetActive(false);
+        if (nextButton != null) nextButton.SetActive(false);
+        if (skipButton != null) skipButton.SetActive(false);
+        if (bouncingArrow != null) bouncingArrow.Hide();
+
+        if (PathGuider.Instance != null)
+            PathGuider.Instance.SetNewWaypoints(new List<GuiderWaypoint>());
+        if (BuildTutorialDirector.Instance != null)
+            BuildTutorialDirector.Instance.EndTutorial();
+
+        RestoreTutorialCanvas();
+        IsTutorialActive = false;
+        currentSequence = null;
+        currentStepIndex = -1;
+        lastAdvanceFrame = -1;
+        isAdvancingStep = false;
+        lastScreenPosition = null;
+    }
+
+    private bool TryResumeSuspendedTutorial()
+    {
+        while (suspendedSequences.Count > 0)
+        {
+            SuspendedTutorialState suspended = suspendedSequences.Pop();
+            if (suspended.sequence == null || suspended.sequence.tutorialSteps == null ||
+                suspended.sequence.tutorialSteps.Length == 0)
+            {
+                continue;
+            }
+
+            int resumeStep = Mathf.Clamp(
+                suspended.stepIndex,
+                0,
+                suspended.sequence.tutorialSteps.Length - 1);
+
+            currentSequence = suspended.sequence;
+            currentStepIndex = resumeStep;
+            lastAdvanceFrame = -1;
+            isAdvancingStep = false;
+            IsTutorialActive = true;
+            lastScreenPosition = null;
+
+            PrepareTutorialCanvas();
+            if (BuildTutorialDirector.Instance != null)
+            {
+                BuildTutorialDirector.Instance.BeginSequence();
+                BuildTutorialDirector.Instance.BeginStep(currentStepIndex);
+            }
+
+            ShowTutorialStep(currentSequence.tutorialSteps[currentStepIndex], false);
+            return true;
+        }
+
+        return false;
     }
 
     private Canvas FindTutorialRootCanvas()
@@ -798,6 +1014,7 @@ public class TutorialManager : MonoBehaviour
         }
 
         queuedSequences.Clear();
+        suspendedSequences.Clear();
 
         if (IsTutorialActive)
             CompleteTutorial();

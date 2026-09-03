@@ -578,7 +578,7 @@ public sealed class DeveloperDebugManager : MonoBehaviour
             return;
         }
 
-        PlayerPrefs.DeleteKey("LockedContract_" + contract.name);
+        PlayerPrefs.DeleteKey("LockedContract_" + contract.ContractID);
         PlayerPrefs.Save();
         location.activeContract = contract;
 

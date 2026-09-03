@@ -360,7 +360,7 @@ public class LevelCompleteManager : MonoBehaviour
             if (bridgePhotoDisplay != null) bridgePhotoDisplay.texture = currentBridgePhoto;
 
             byte[] imageBytes = currentBridgePhoto.EncodeToPNG();
-            string photoPath = Application.persistentDataPath + "/" + currentContract.name + "_photo.png";
+            string photoPath = Application.persistentDataPath + "/" + currentContract.ContractID + "_photo.png";
             File.WriteAllBytes(photoPath, imageBytes);
         }
 
@@ -497,7 +497,7 @@ public class LevelCompleteManager : MonoBehaviour
             if (bonusText != null) bonusText.text = "";
             if (penaltyText != null) penaltyText.text = "";
         }
-        else if (currentContract != null && IsContractPaid(currentContract.name))
+        else if (currentContract != null && IsContractPaid(currentContract.ContractID))
         {
             calculatedGold = 0;
             calculatedExp = 0;
@@ -554,8 +554,8 @@ public class LevelCompleteManager : MonoBehaviour
 
         if (currentContract != null)
         {
-            contractGoldRewards[currentContract.name] = calculatedGold;
-            contractExpRewards[currentContract.name] = calculatedExp;
+            contractGoldRewards[currentContract.ContractID] = calculatedGold;
+            contractExpRewards[currentContract.ContractID] = calculatedExp;
         }
 
         if (goldEarnedText != null) 
@@ -641,7 +641,7 @@ public class LevelCompleteManager : MonoBehaviour
         // Capture this before any completion/reward mutation below. A redesign may
         // happen after reloading the game, so the persistent completed-contract list
         // is authoritative; the local alreadyPaidContracts cache is not enough.
-        bool wasContractAlreadyCompleted = IsContractPaid(completedContract.name);
+        bool wasContractAlreadyCompleted = IsContractPaid(completedContract.ContractID);
 
         // Transaction order is important: capture -> validate -> persist geometry
         // must succeed before contract completion, rewards, alerts, or NPC movement.
@@ -658,7 +658,7 @@ public class LevelCompleteManager : MonoBehaviour
         }
 
         bool bridgeSaved = PlayerDataManager.Instance.SaveBridgeData(
-            completedContract.name,
+            completedContract.ContractID,
             completedLocation.bakedPoints,
             completedLocation.bakedBars,
             lastFinalCost,
@@ -696,16 +696,16 @@ public class LevelCompleteManager : MonoBehaviour
 
         if (completedContract.autoCollectReward && !wasContractAlreadyCompleted)
         {
-            int earnedGold = GetContractGold(completedContract.name);
-            int earnedExp = GetContractExp(completedContract.name);
+            int earnedGold = GetContractGold(completedContract.ContractID);
+            int earnedExp = GetContractExp(completedContract.ContractID);
 
             bool completionSaved = PlayerDataManager.Instance.CompleteContract(
-                completedContract.name,
+                completedContract.ContractID,
                 earnedGold,
                 earnedExp);
 
             if (!completionSaved &&
-                !PlayerDataManager.Instance.IsContractCompleted(completedContract.name))
+                !PlayerDataManager.Instance.IsContractCompleted(completedContract.ContractID))
             {
                 Debug.LogError(
                     $"[LevelCompleteManager] Bridge geometry was saved, but completion for '{completedContract.name}' could not be persisted.",
@@ -713,7 +713,7 @@ public class LevelCompleteManager : MonoBehaviour
                 return;
             }
 
-            MarkContractAsPaid(completedContract.name);
+            MarkContractAsPaid(completedContract.ContractID);
             
             if (ObjectiveTrackerUI.Instance != null)
             {
@@ -729,7 +729,7 @@ public class LevelCompleteManager : MonoBehaviour
         if (ObjectiveTrackerUI.Instance != null &&
             !completedContract.autoCollectReward && !wasContractAlreadyCompleted)
         {
-            ObjectiveTrackerUI.Instance.NotifyBridgeBuilt(completedContract.name);
+            ObjectiveTrackerUI.Instance.NotifyBridgeBuilt(completedContract.ContractID);
         }
         
         if (CommandManager.Instance != null) CommandManager.Instance.ClearHistory();

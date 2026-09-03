@@ -79,7 +79,7 @@ public class ContractAlmanacTab : MonoBehaviour
         completedContractsList.Clear();
         foreach (ContractSO contract in allGameContracts)
         {
-            if (contract != null && PlayerDataManager.Instance.IsContractCompleted(contract.name))
+            if (contract != null && PlayerDataManager.Instance.IsContractCompleted(contract.ContractID))
             {
                 completedContractsList.Add(contract);
             }
@@ -125,7 +125,12 @@ public class ContractAlmanacTab : MonoBehaviour
 
         if (snapshotImage != null)
         {
-            string photoPath = Application.persistentDataPath + "/" + contract.name + "_photo.png";
+            string photoPath = Application.persistentDataPath + "/" + contract.ContractID + "_photo.png";
+            if (!File.Exists(photoPath))
+            {
+                // Compatibility with bridge photos saved before stable contract IDs existed.
+                photoPath = Application.persistentDataPath + "/" + contract.name + "_photo.png";
+            }
             
             if (File.Exists(photoPath))
             {

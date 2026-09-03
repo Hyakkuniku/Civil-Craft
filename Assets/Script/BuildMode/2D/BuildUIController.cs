@@ -531,7 +531,9 @@ public class BuildUIController : MonoBehaviour
             if (PlayerDataManager.Instance != null && PlayerDataManager.Instance.CurrentData.gold >= cost)
             {
                 PlayerDataManager.Instance.SpendGold(cost);
-                PlayerDataManager.Instance.UnlockMaterialForContract(GameManager.Instance.CurrentContract.name, pendingUnlockButton.buttonMaterial.name);
+                PlayerDataManager.Instance.UnlockMaterialForContract(
+                    GameManager.Instance.CurrentContract.ContractID,
+                    pendingUnlockButton.buttonMaterial.name);
 
                 RefreshAllMaterialButtons(); 
 

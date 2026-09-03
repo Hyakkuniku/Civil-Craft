@@ -10,19 +10,19 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 77a59d2f16524d54385416dc42494768, type: 3}
-  m_Name: Story Mode Complete
+  m_Name: Engineering Master
   m_EditorClassIdentifier: 
-  achievementID: ACH_004
-  achievementName: Story Mode Complete
-  description: Complete all 10 Story Mode contracts.
-  hideDetailsUntilUnlocked: 1
+  achievementID: ACH_020
+  achievementName: Engineering Master
+  description: Gain 10,000 EXP.
+  hideDetailsUntilUnlocked: 0
   achievementIcon: {fileID: 0}
-  goalType: 7
-  targetAmount: 10
+  goalType: 3
+  targetAmount: 10000
   targetContractMap: 0
   excludeTutorialContracts: 0
-  bonusGold: 1000
-  bonusExp: 500
+  bonusGold: 2500
+  bonusExp: 0
   grantsCosmeticReward: 0
   rewardCosmeticID: 
   rewardDisplayName: Achievement Reward

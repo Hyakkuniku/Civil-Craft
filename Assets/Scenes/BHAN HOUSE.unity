@@ -2692,17 +2692,17 @@ MonoBehaviour:
     - Ah, you must be the young civil engineer I've been expecting.
     - You may already have some knowledge about engineering.
     - But knowledge and experience are two different things.
-    - Arcadia will give you the chance to put what you've learned into practice
+    - <b>Arcadia</b> will give you the chance to put what you've learned into practice
     - Every project you complete will teach you something new.
     - Before we begin, what should I call you?
   fetchAlmanacDialogue:
     name: Professor Bhan
     sentences:
-    - '{PlayerName}...'
+    - <b>{PlayerName}...</b>
     - A fitting name for someone beginning an engineering journey.
     - You'll be working on real bridge projects soon.
     - But first, there is something important you will need.
-    - There is a book called the Almanac.
+    - There is a book called the <b>Almanac.</b>
     - It will become your engineering record throughout your journey.
     - It won't only record your achievements.
     - It will also record the lessons, discoveries, and projects you encounter.
@@ -2716,8 +2716,8 @@ MonoBehaviour:
     name: Professor Bhan
     sentences:
     - Good.
-    - Keep the Almanac with you.
-    - From now on, whenever you discover something important, check your Almanac.
+    - Keep the <b>Almanac</b> with you.
+    - From now on, whenever you discover something important, check your <b>Almanac.</b>
     - It will grow alongside your experience.
     - 'Before we begin working, there is one thing you must never forget.
 
@@ -2728,7 +2728,7 @@ MonoBehaviour:
     sentences:
     - Good.
     - An engineer should always remember that construction is a responsibility.
-    - Now you're ready to begin.
+    - Now you're ready to <b>begin.</b>
     - Let us go outside and let me show you how to build.
   advancesTutorial: 1
   npcWalker: {fileID: 60154312}
@@ -2737,7 +2737,19 @@ MonoBehaviour:
   rewardSprite: {fileID: 21300000, guid: 7eb9485ad6d6bb044950b089ba81afcc, type: 3}
   onFinalDialogueFinished:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 1298933108}
+        m_TargetAssemblyTypeName: DoorTransition, Assembly-CSharp
+        m_MethodName: UnlockDoor
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &60154312
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5015,7 +5027,7 @@ RectTransform:
   - {fileID: 589459369}
   - {fileID: 298444820}
   - {fileID: 764611873}
-  - {fileID: 1764447640}
+  - {fileID: 857571794}
   m_Father: {fileID: 1135027110}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
@@ -15202,6 +15214,11 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 1181454247556583893, guid: 3eb78a2442fbb134aa68acf1a744996b,
+        type: 3}
+      propertyPath: visibleDuration
+      value: 1.5
+      objectReference: {fileID: 0}
     - target: {fileID: 1713149449010066236, guid: 3eb78a2442fbb134aa68acf1a744996b,
         type: 3}
       propertyPath: m_Name
@@ -18987,7 +19004,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 0, y: -24.998108}
+  m_AnchoredPosition: {x: 0, y: -24.99823}
   m_SizeDelta: {x: 0, y: -50}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &475562928
@@ -32441,6 +32458,145 @@ RectTransform:
   m_AnchoredPosition: {x: 310, y: 47}
   m_SizeDelta: {x: 222.1458, y: 47.0698}
   m_Pivot: {x: 0.5, y: 0.5}
+--- !u!1001 &857571793
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 112279875}
+    m_Modifications:
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_Pivot.x
+      value: 0.5
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_Pivot.y
+      value: 0.5
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_AnchorMax.x
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_AnchorMin.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_AnchorMin.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_SizeDelta.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_SizeDelta.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3349446779018328215, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: uiElementsToHide.Array.size
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 3349446779018328215, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: uiElementsToHide.Array.data[0]
+      value: 
+      objectReference: {fileID: 2119598351}
+    - target: {fileID: 3349446779018328215, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: uiElementsToHide.Array.data[1]
+      value: 
+      objectReference: {fileID: 1220840900}
+    - target: {fileID: 7252479680327597838, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_Name
+      value: CollectRewardSystem
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 19f751a4d64a06848a6260104d870eb6, type: 3}
+--- !u!224 &857571794 stripped
+RectTransform:
+  m_CorrespondingSourceObject: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
+    type: 3}
+  m_PrefabInstance: {fileID: 857571793}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &860990189
 GameObject:
   m_ObjectHideFlags: 0
@@ -48083,7 +48239,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 1}
   m_AnchorMax: {x: 0.5, y: 1}
-  m_AnchoredPosition: {x: 0, y: -236}
+  m_AnchoredPosition: {x: 0, y: -265}
   m_SizeDelta: {x: 978.2488, y: 133.1433}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1242459514
@@ -50136,7 +50292,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   useEvents: 1
-  promptMessage: Get Outside
+  promptMessage: Follow Professor Bhan Outside
 --- !u!1 &1300779847
 GameObject:
   m_ObjectHideFlags: 0
@@ -62719,6 +62875,7 @@ MonoBehaviour:
   transitionDuration: 0.25
   slideTransitionDuration: 0.6
   reverseStepOffset: {x: -180, y: 0}
+  lowCenterOffset: {x: 0, y: -520}
   pulseSpeed: 4
   pulseAmount: 0.05
 --- !u!4 &1607045781
@@ -69220,145 +69377,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 861064549}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1001 &1764447639
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 112279875}
-    m_Modifications:
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_Pivot.x
-      value: 0.5
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_Pivot.y
-      value: 0.5
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_AnchorMax.x
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_AnchorMax.y
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_AnchorMin.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_AnchorMin.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_SizeDelta.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_SizeDelta.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_LocalPosition.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_LocalRotation.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_LocalRotation.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_LocalRotation.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_AnchoredPosition.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_AnchoredPosition.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 3349446779018328215, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: uiElementsToHide.Array.size
-      value: 2
-      objectReference: {fileID: 0}
-    - target: {fileID: 3349446779018328215, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: uiElementsToHide.Array.data[0]
-      value: 
-      objectReference: {fileID: 2119598351}
-    - target: {fileID: 3349446779018328215, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: uiElementsToHide.Array.data[1]
-      value: 
-      objectReference: {fileID: 1220840900}
-    - target: {fileID: 7252479680327597838, guid: 19f751a4d64a06848a6260104d870eb6,
-        type: 3}
-      propertyPath: m_Name
-      value: CollectRewardSystem
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: 19f751a4d64a06848a6260104d870eb6, type: 3}
---- !u!224 &1764447640 stripped
-RectTransform:
-  m_CorrespondingSourceObject: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
-    type: 3}
-  m_PrefabInstance: {fileID: 1764447639}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1767293260 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: 2151285882637a64b8b91b25a4e2d9e1,
@@ -71464,7 +71482,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 0, y: -0.000061035156}
+  m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0.00012207031}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &1841554528
@@ -74385,7 +74403,7 @@ MonoBehaviour:
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
   tutorialSteps:
-  - message: This is your engineering record.
+  - message: This is your <b>ENGINEERING RECORD.</b>
     screenPosition: 0
     showNextButton: 1
     canSkip: 0
@@ -74400,7 +74418,7 @@ MonoBehaviour:
     OnStepStart:
       m_PersistentCalls:
         m_Calls: []
-  - message: New discoveries and completed projects will be added here throughout
+  - message: New <b>DISCOVERIES AND COMLETED PROJECTS</b> will be added here throughout
       your journey.
     screenPosition: 0
     showNextButton: 1
@@ -74424,7 +74442,7 @@ MonoBehaviour:
     worldHighlightObject: {fileID: 0}
     usePointer: 1
     pointerTarget: {fileID: 1420294995}
-    pointerOffset: {x: 0, y: 0}
+    pointerOffset: {x: 0, y: -50}
     pointerRotation: 0
     advanceOnClick: 1
     requiredAction: 0
@@ -76941,7 +76959,7 @@ MonoBehaviour:
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
   tutorialSteps:
-  - message: Approach Professor Bhan
+  - message: <b>APPROACH</b> Professor Bhan
     screenPosition: 1
     showNextButton: 0
     canSkip: 0
@@ -76958,7 +76976,7 @@ MonoBehaviour:
     OnStepStart:
       m_PersistentCalls:
         m_Calls: []
-  - message: Find the Almanac on the other side of the room
+  - message: Find the <b>ALMANAC</b> on the other side of the room
     screenPosition: 1
     showNextButton: 0
     canSkip: 0
@@ -76987,8 +77005,8 @@ MonoBehaviour:
             m_StringArgument: 
             m_BoolArgument: 1
           m_CallState: 2
-  - message: You found the Almanac
-    screenPosition: 3
+  - message: You found the <b>ALMANAC</b>
+    screenPosition: 1
     showNextButton: 0
     canSkip: 0
     stepWaypoints:
@@ -77022,18 +77040,18 @@ MonoBehaviour:
       m_PersistentCalls:
         m_Calls: []
   - message: Return the <b>ALMANAC</b> to Professor Bhan
-    screenPosition: 0
+    screenPosition: 1
     showNextButton: 0
     canSkip: 0
     stepWaypoints:
     - target: {fileID: 60154305}
       advancesTutorial: 0
     worldHighlightObject: {fileID: 0}
-    usePointer: 1
-    pointerTarget: {fileID: 1969540818}
+    usePointer: 0
+    pointerTarget: {fileID: 0}
     pointerOffset: {x: 80, y: -80}
     pointerRotation: 45
-    advanceOnClick: 1
+    advanceOnClick: 0
     requiredAction: 0
     OnStepStart:
       m_PersistentCalls:

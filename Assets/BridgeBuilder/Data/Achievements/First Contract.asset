@@ -14,9 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   achievementID: ACH_001
   achievementName: First Contract
-  description: 'Complete your first contract.
-
-'
+  description: Complete your first contract.
   hideDetailsUntilUnlocked: 0
   achievementIcon: {fileID: 0}
   goalType: 4

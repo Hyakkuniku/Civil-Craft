@@ -40,6 +40,7 @@ public class PlayerDataManager : MonoBehaviour
     
     private string saveFilePath;
     private bool isCheckingAchievements = false; // Prevents infinite loops!
+    private bool hasMigratedContractIdentifiers;
     private readonly HashSet<string> completionRecordsMissingBridge = new HashSet<string>();
     
 
@@ -110,7 +111,7 @@ public class PlayerDataManager : MonoBehaviour
         }
 
         discoveredContracts.Sort((left, right) =>
-            string.Compare(left.name, right.name, StringComparison.OrdinalIgnoreCase));
+            string.Compare(left.ContractID, right.ContractID, StringComparison.OrdinalIgnoreCase));
 
         bool changed = allGameContracts == null || allGameContracts.Count != discoveredContracts.Count;
         if (!changed)
@@ -362,20 +363,22 @@ public class PlayerDataManager : MonoBehaviour
         int expReward = 0)
     {
         if (CurrentData == null || string.IsNullOrWhiteSpace(contractName)) return false;
+        string contractId = NormalizeContractIdentifier(contractName);
 
         // Older save files may not contain this list yet.
         if (CurrentData.completedContracts == null)
             CurrentData.completedContracts = new List<string>();
 
-        if (!HasValidSavedBridge(contractName))
+        if (!HasValidSavedBridge(contractId))
         {
             Debug.LogError(
-                $"[PlayerDataManager] Refusing to complete '{contractName}' because no valid saved bridge geometry exists.",
+                $"[PlayerDataManager] Refusing to complete '{contractId}' because no valid saved bridge geometry exists.",
                 this);
             return false;
         }
 
-        if (CurrentData.completedContracts.Contains(contractName)) return false;
+        if (CurrentData.completedContracts.Exists(savedId =>
+                ContractIdentifiersMatch(savedId, contractId))) return false;
 
         int previousGold = CurrentData.gold;
         int previousExp = CurrentData.exp;
@@ -385,9 +388,9 @@ public class PlayerDataManager : MonoBehaviour
         bool previousContractsTab = CurrentData.hasUnlockedContractsTab;
         bool previousContractsAlert = CurrentData.hasUnreadContractsAlert;
         bool previousObjectiveAlert = CurrentData.hasUnreadObjectiveAlert;
-        List<string> newlyUnlockedFeatureIds = AddContractFeatureUnlocks(contractName);
+        List<string> newlyUnlockedFeatureIds = AddContractFeatureUnlocks(contractId);
 
-        CurrentData.completedContracts.Add(contractName);
+        CurrentData.completedContracts.Add(contractId);
         CurrentData.lifetimeContractsCompleted++;
         CurrentData.gold += Mathf.Max(0, goldReward);
         CurrentData.exp += Mathf.Max(0, expReward);
@@ -399,7 +402,7 @@ public class PlayerDataManager : MonoBehaviour
 
         if (!TrySaveGame())
         {
-            CurrentData.completedContracts.Remove(contractName);
+            CurrentData.completedContracts.Remove(contractId);
             CurrentData.gold = previousGold;
             CurrentData.exp = previousExp;
             CurrentData.lifetimeGoldEarned = previousLifetimeGold;
@@ -419,20 +422,22 @@ public class PlayerDataManager : MonoBehaviour
         if (newlyUnlockedFeatureIds.Count > 0)
         {
             OnFeatureUnlocksChanged?.Invoke();
-            NotifyContractFeatureUnlocks(contractName, newlyUnlockedFeatureIds);
+            NotifyContractFeatureUnlocks(contractId, newlyUnlockedFeatureIds);
         }
-        OnContractCompleted?.Invoke(contractName);
+        OnContractCompleted?.Invoke(contractId);
         CheckAllAchievements();
         return true;
     }
 
     public bool IsContractCompleted(string contractName)
     {
-        return CurrentData != null &&
-               CurrentData.completedContracts != null &&
-               !string.IsNullOrWhiteSpace(contractName) &&
-               CurrentData.completedContracts.Contains(contractName) &&
-               HasValidSavedBridge(contractName);
+        if (CurrentData == null || CurrentData.completedContracts == null ||
+            string.IsNullOrWhiteSpace(contractName)) return false;
+
+        string contractId = NormalizeContractIdentifier(contractName);
+        return CurrentData.completedContracts.Exists(savedId =>
+                   ContractIdentifiersMatch(savedId, contractId)) &&
+               HasValidSavedBridge(contractId);
     }
 
     /// <summary>
@@ -443,10 +448,12 @@ public class PlayerDataManager : MonoBehaviour
     /// </summary>
     public bool HasContractCompletionRecord(string contractName)
     {
-        return CurrentData != null &&
-               CurrentData.completedContracts != null &&
-               !string.IsNullOrWhiteSpace(contractName) &&
-               CurrentData.completedContracts.Contains(contractName.Trim());
+        if (CurrentData == null || CurrentData.completedContracts == null ||
+            string.IsNullOrWhiteSpace(contractName)) return false;
+
+        string contractId = NormalizeContractIdentifier(contractName);
+        return CurrentData.completedContracts.Exists(savedId =>
+            ContractIdentifiersMatch(savedId, contractId));
     }
 
     public bool HasAnyCompletedContract()
@@ -505,7 +512,8 @@ public class PlayerDataManager : MonoBehaviour
 
     /// <summary>
     /// Supplements the serialized contract database from scene systems such as
-    /// the Almanac. Contract names are the persistent IDs used by existing saves.
+    /// the Almanac. Stable contract IDs are used for new saves; asset names remain
+    /// accepted so existing saves can be migrated safely.
     /// </summary>
     public void RegisterContracts(IEnumerable<ContractSO> contracts)
     {
@@ -519,13 +527,17 @@ public class PlayerDataManager : MonoBehaviour
             if (contract == null) continue;
 
             int existingIndex = allGameContracts.FindIndex(item =>
-                item != null && string.Equals(item.name, contract.name, StringComparison.Ordinal));
+                item != null && string.Equals(
+                    item.ContractID, contract.ContractID, StringComparison.Ordinal));
 
             if (existingIndex >= 0)
                 allGameContracts[existingIndex] = contract;
             else
                 allGameContracts.Add(contract);
         }
+
+        if (CurrentData != null)
+            MigrateLegacyContractIdentifiers();
     }
 
     private List<string> AddContractFeatureUnlocks(string contractName)
@@ -554,7 +566,138 @@ public class PlayerDataManager : MonoBehaviour
         if (allGameContracts == null || string.IsNullOrWhiteSpace(contractName)) return null;
         string normalizedName = contractName.Trim();
         return allGameContracts.Find(contract =>
-            contract != null && string.Equals(contract.name, normalizedName, StringComparison.Ordinal));
+            contract != null && contract.MatchesIdentifier(normalizedName));
+    }
+
+    private string NormalizeContractIdentifier(string identifier)
+    {
+        if (string.IsNullOrWhiteSpace(identifier)) return string.Empty;
+        ContractSO contract = FindRegisteredContract(identifier);
+        return contract != null ? contract.ContractID : identifier.Trim();
+    }
+
+    private bool ContractIdentifiersMatch(string left, string right)
+    {
+        if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
+            return false;
+
+        return string.Equals(
+            NormalizeContractIdentifier(left),
+            NormalizeContractIdentifier(right),
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Converts save records and PlayerPrefs keys that used ContractSO asset names
+    /// into stable contract IDs. This is intentionally idempotent and keeps all
+    /// existing progress, bridge geometry, objectives, and material unlocks.
+    /// </summary>
+    private void MigrateLegacyContractIdentifiers()
+    {
+        if (CurrentData == null || allGameContracts == null) return;
+
+        Dictionary<string, ContractSO> contractsById =
+            new Dictionary<string, ContractSO>(StringComparer.Ordinal);
+        foreach (ContractSO contract in allGameContracts)
+        {
+            if (contract == null || string.IsNullOrWhiteSpace(contract.contractID)) continue;
+            if (contractsById.TryGetValue(contract.ContractID, out ContractSO duplicate))
+            {
+                if (duplicate == contract) continue;
+                Debug.LogError(
+                    $"[PlayerDataManager] Contract ID '{contract.ContractID}' is shared by " +
+                    $"'{duplicate.name}' and '{contract.name}'. Legacy save migration was cancelled.",
+                    this);
+                return;
+            }
+
+            contractsById.Add(contract.ContractID, contract);
+        }
+
+        bool saveChanged = false;
+        bool playerPrefsChanged = false;
+
+        if (CurrentData.completedContracts != null)
+        {
+            HashSet<string> seenIds = new HashSet<string>(StringComparer.Ordinal);
+            for (int i = 0; i < CurrentData.completedContracts.Count; i++)
+            {
+                string previous = CurrentData.completedContracts[i];
+                string migrated = NormalizeContractIdentifier(previous);
+                if (!string.Equals(previous, migrated, StringComparison.Ordinal))
+                {
+                    CurrentData.completedContracts[i] = migrated;
+                    saveChanged = true;
+                }
+
+                if (seenIds.Add(migrated)) continue;
+                CurrentData.completedContracts.RemoveAt(i--);
+                saveChanged = true;
+            }
+        }
+
+        if (CurrentData.activeQuests != null)
+        {
+            foreach (TrackedTask task in CurrentData.activeQuests)
+            {
+                if (task == null || string.IsNullOrWhiteSpace(task.contractName)) continue;
+                string migrated = NormalizeContractIdentifier(task.contractName);
+                if (string.Equals(task.contractName, migrated, StringComparison.Ordinal)) continue;
+                task.contractName = migrated;
+                saveChanged = true;
+            }
+        }
+
+        if (CurrentData.savedBridges != null)
+        {
+            foreach (SavedBridgeData bridge in CurrentData.savedBridges)
+            {
+                if (bridge == null || string.IsNullOrWhiteSpace(bridge.contractId)) continue;
+                string migrated = NormalizeContractIdentifier(bridge.contractId);
+                if (string.Equals(bridge.contractId, migrated, StringComparison.Ordinal)) continue;
+                bridge.contractId = migrated;
+                saveChanged = true;
+            }
+        }
+
+        if (CurrentData.unlockedContractMaterials != null)
+        {
+            for (int i = 0; i < CurrentData.unlockedContractMaterials.Count; i++)
+            {
+                string key = CurrentData.unlockedContractMaterials[i];
+                if (string.IsNullOrEmpty(key)) continue;
+
+                foreach (ContractSO contract in contractsById.Values)
+                {
+                    string legacyPrefix = contract.name + "_";
+                    if (!key.StartsWith(legacyPrefix, StringComparison.Ordinal)) continue;
+
+                    CurrentData.unlockedContractMaterials[i] =
+                        contract.ContractID + key.Substring(contract.name.Length);
+                    saveChanged = true;
+                    break;
+                }
+            }
+        }
+
+        foreach (ContractSO contract in contractsById.Values)
+        {
+            if (string.Equals(contract.name, contract.ContractID, StringComparison.Ordinal)) continue;
+
+            string legacyKey = "LockedContract_" + contract.name;
+            if (!PlayerPrefs.HasKey(legacyKey)) continue;
+
+            string stableKey = "LockedContract_" + contract.ContractID;
+            if (!PlayerPrefs.HasKey(stableKey))
+                PlayerPrefs.SetInt(stableKey, PlayerPrefs.GetInt(legacyKey));
+            PlayerPrefs.DeleteKey(legacyKey);
+            playerPrefsChanged = true;
+        }
+
+        if (playerPrefsChanged) PlayerPrefs.Save();
+        RebuildMissingBridgeCompletionRecords(!hasMigratedContractIdentifiers);
+        hasMigratedContractIdentifiers = true;
+        if (saveChanged) SaveGame();
     }
 
     private void NotifyContractFeatureUnlocks(string contractName, List<string> featureIds)
@@ -647,7 +790,7 @@ public class PlayerDataManager : MonoBehaviour
         foreach (string contractName in CurrentData.completedContracts)
         {
             if (!string.IsNullOrWhiteSpace(contractName))
-                completedContracts.Add(contractName.Trim());
+                completedContracts.Add(NormalizeContractIdentifier(contractName));
         }
 
         int completed = 0;
@@ -658,10 +801,10 @@ public class PlayerDataManager : MonoBehaviour
         {
             if (contract == null || !contract.countsTowardMapAchievements ||
                 (excludeTutorialContracts && contract.isTutorialContract) ||
-                contract.contractMap != map || !countedContracts.Add(contract.name))
+                contract.contractMap != map || !countedContracts.Add(contract.ContractID))
                 continue;
 
-            if (completedContracts.Contains(contract.name)) completed++;
+            if (completedContracts.Contains(contract.ContractID)) completed++;
         }
 
         return completed;
@@ -679,7 +822,7 @@ public class PlayerDataManager : MonoBehaviour
             if (contract != null && contract.countsTowardMapAchievements &&
                 (!excludeTutorialContracts || !contract.isTutorialContract) &&
                 contract.contractMap == map)
-                contracts.Add(contract.name);
+                contracts.Add(contract.ContractID);
         }
 
         return contracts.Count;
@@ -703,8 +846,9 @@ public class PlayerDataManager : MonoBehaviour
         if (CurrentData == null || CurrentData.completedContracts == null ||
             allGameContracts == null) return 0;
 
-        HashSet<string> completedContracts = new HashSet<string>(
-            CurrentData.completedContracts, StringComparer.Ordinal);
+        HashSet<string> completedContracts = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string contractId in CurrentData.completedContracts)
+            completedContracts.Add(NormalizeContractIdentifier(contractId));
         HashSet<string> countedContracts = new HashSet<string>(StringComparer.Ordinal);
         int completed = 0;
 
@@ -712,10 +856,10 @@ public class PlayerDataManager : MonoBehaviour
         {
             if (contract == null || !contract.isStoryModeContract ||
                 (excludeTutorialContracts && contract.isTutorialContract) ||
-                !countedContracts.Add(contract.name))
+                !countedContracts.Add(contract.ContractID))
                 continue;
 
-            if (completedContracts.Contains(contract.name)) completed++;
+            if (completedContracts.Contains(contract.ContractID)) completed++;
         }
 
         return completed;
@@ -728,18 +872,19 @@ public class PlayerDataManager : MonoBehaviour
         if (CurrentData == null || CurrentData.completedContracts == null ||
             allGameContracts == null) return 0;
 
-        HashSet<string> completedContracts = new HashSet<string>(
-            CurrentData.completedContracts, StringComparer.Ordinal);
+        HashSet<string> completedContracts = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string contractId in CurrentData.completedContracts)
+            completedContracts.Add(NormalizeContractIdentifier(contractId));
         HashSet<string> countedContracts = new HashSet<string>(StringComparer.Ordinal);
         int completed = 0;
 
         foreach (ContractSO contract in allGameContracts)
         {
             if (contract == null || contract.isTutorialContract ||
-                !countedContracts.Add(contract.name))
+                !countedContracts.Add(contract.ContractID))
                 continue;
 
-            if (completedContracts.Contains(contract.name)) completed++;
+            if (completedContracts.Contains(contract.ContractID)) completed++;
         }
 
         return completed;
@@ -1017,8 +1162,27 @@ public class PlayerDataManager : MonoBehaviour
         if (!CurrentData.completedLessons.Remove(lessonName)) return;
         if (saveImmediately) SaveGame();
     }
-    public void UnlockMaterialForContract(string contractName, string materialName) { string key = contractName + "_" + materialName; if (!CurrentData.unlockedContractMaterials.Contains(key)) { CurrentData.unlockedContractMaterials.Add(key); SaveGame(); } }
-    public bool IsMaterialUnlockedForContract(string contractName, string materialName) { string key = contractName + "_" + materialName; return CurrentData.unlockedContractMaterials.Contains(key); }
+    public void UnlockMaterialForContract(string contractName, string materialName)
+    {
+        string key = NormalizeContractIdentifier(contractName) + "_" + materialName;
+        if (!CurrentData.unlockedContractMaterials.Contains(key))
+        {
+            CurrentData.unlockedContractMaterials.Add(key);
+            SaveGame();
+        }
+    }
+
+    public bool IsMaterialUnlockedForContract(string contractName, string materialName)
+    {
+        string contractId = NormalizeContractIdentifier(contractName);
+        string key = contractId + "_" + materialName;
+        if (CurrentData.unlockedContractMaterials.Contains(key)) return true;
+
+        ContractSO contract = FindRegisteredContract(contractId);
+        string legacyKey = contract != null ? contract.name + "_" + materialName : string.Empty;
+        return !string.IsNullOrEmpty(legacyKey) &&
+               CurrentData.unlockedContractMaterials.Contains(legacyKey);
+    }
     public void UnlockAlmanac()
     {
         if (CurrentData.hasAlmanac) return;
@@ -1080,22 +1244,7 @@ public class PlayerDataManager : MonoBehaviour
         // safely migrates it into the new lifetime "EXP Received" counter.
         CurrentData.lifetimeExpEarned = Mathf.Max(CurrentData.lifetimeExpEarned, CurrentData.exp);
 
-        completionRecordsMissingBridge.Clear();
-        foreach (string contractName in CurrentData.completedContracts)
-        {
-            SavedBridgeData rawBridge = CurrentData.savedBridges.Find(bridge =>
-                bridge != null && bridge.contractId == contractName);
-            if (!IsBridgeDataValid(rawBridge, out _))
-                completionRecordsMissingBridge.Add(contractName);
-        }
-
-        if (completionRecordsMissingBridge.Count > 0)
-        {
-            Debug.LogWarning(
-                $"[PlayerDataManager] Found {completionRecordsMissingBridge.Count} completed contract record(s) " +
-                "without valid bridge geometry. They will remain incomplete until their bridges are rebuilt and saved.",
-                this);
-        }
+        RebuildMissingBridgeCompletionRecords(false);
 
         if (CurrentData.unlockedLessonIds.Count > 0)
             CurrentData.hasUnlockedLessonsTab = true;
@@ -1103,10 +1252,36 @@ public class PlayerDataManager : MonoBehaviour
             CurrentData.hasUnlockedMaterialsTab = true;
     }
 
+    private void RebuildMissingBridgeCompletionRecords(bool logWarning = true)
+    {
+        completionRecordsMissingBridge.Clear();
+        if (CurrentData == null || CurrentData.completedContracts == null ||
+            CurrentData.savedBridges == null) return;
+
+        foreach (string contractId in CurrentData.completedContracts)
+        {
+            string normalizedId = NormalizeContractIdentifier(contractId);
+            SavedBridgeData rawBridge = CurrentData.savedBridges.Find(bridge =>
+                bridge != null && ContractIdentifiersMatch(bridge.contractId, normalizedId));
+            if (!IsBridgeDataValid(rawBridge, out _))
+                completionRecordsMissingBridge.Add(normalizedId);
+        }
+
+        if (logWarning && completionRecordsMissingBridge.Count > 0)
+        {
+            Debug.LogWarning(
+                $"[PlayerDataManager] Found {completionRecordsMissingBridge.Count} completed contract record(s) " +
+                "without valid bridge geometry. They will remain incomplete until their bridges are rebuilt and saved.",
+                this);
+        }
+    }
+
     public bool SaveBridgeData(string contractId, List<Point> points, List<Bar> bars, float totalSpent, float maxStress)
     {
         if (CurrentData == null || string.IsNullOrWhiteSpace(contractId) ||
             points == null || bars == null) return false;
+
+        contractId = NormalizeContractIdentifier(contractId);
 
         SavedBridgeData newSave = new SavedBridgeData { 
             schemaVersion = 1,
@@ -1163,9 +1338,9 @@ public class PlayerDataManager : MonoBehaviour
         }
 
         List<SavedBridgeData> previousRecords = CurrentData.savedBridges.FindAll(entry =>
-            entry != null && entry.contractId == newSave.contractId);
+            entry != null && ContractIdentifiersMatch(entry.contractId, newSave.contractId));
         CurrentData.savedBridges.RemoveAll(entry =>
-            entry != null && entry.contractId == newSave.contractId);
+            entry != null && ContractIdentifiersMatch(entry.contractId, newSave.contractId));
         CurrentData.savedBridges.Add(newSave);
 
         if (TrySaveGame())
@@ -1246,7 +1421,7 @@ public class PlayerDataManager : MonoBehaviour
             string.IsNullOrWhiteSpace(contractId)) return null;
 
         SavedBridgeData bridge = CurrentData.savedBridges.Find(entry =>
-            entry != null && entry.contractId == contractId);
+            entry != null && ContractIdentifiersMatch(entry.contractId, contractId));
         return IsBridgeDataValid(bridge, out _) ? bridge : null;
     }
 
@@ -1318,7 +1493,8 @@ public class PlayerDataManager : MonoBehaviour
     public void DeleteSavedBridge(string contractId)
     {
         if (CurrentData == null || CurrentData.savedBridges == null) return;
-        CurrentData.savedBridges.RemoveAll(b => b != null && b.contractId == contractId);
+        CurrentData.savedBridges.RemoveAll(b =>
+            b != null && ContractIdentifiersMatch(b.contractId, contractId));
         SaveGame();
     }
 

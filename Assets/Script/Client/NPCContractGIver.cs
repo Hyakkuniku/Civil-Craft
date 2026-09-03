@@ -52,16 +52,16 @@ public class NPCContractGiver : Interactable
     {
         if (contractToGive != null)
         {
-            isLocked = PlayerPrefs.GetInt("LockedContract_" + contractToGive.name, 0) == 1;
+            isLocked = PlayerPrefs.GetInt("LockedContract_" + contractToGive.ContractID, 0) == 1;
         }
 
         if (contractToGive != null && PlayerDataManager.Instance != null && !isLocked)
         {
-            bool isCompleted = PlayerDataManager.Instance.IsContractCompleted(contractToGive.name);
-            bool hasSavedBridge = PlayerDataManager.Instance.GetSavedBridge(contractToGive.name) != null;
+            bool isCompleted = PlayerDataManager.Instance.IsContractCompleted(contractToGive.ContractID);
+            bool hasSavedBridge = PlayerDataManager.Instance.GetSavedBridge(contractToGive.ContractID) != null;
             bool hasActiveQuest = PlayerDataManager.Instance.CurrentData.activeQuests != null &&
                                   PlayerDataManager.Instance.CurrentData.activeQuests.Exists(task =>
-                                      task != null && task.contractName == contractToGive.name &&
+                                      task != null && contractToGive.MatchesIdentifier(task.contractName) &&
                                       !task.isCompleted);
 
             if (isCompleted || hasSavedBridge || hasActiveQuest)
@@ -101,7 +101,7 @@ public class NPCContractGiver : Interactable
             return;
         }
 
-        if (!isFullyTurnedIn && LevelCompleteManager.Instance != null && LevelCompleteManager.Instance.IsContractPaid(contractToGive.name))
+        if (!isFullyTurnedIn && LevelCompleteManager.Instance != null && LevelCompleteManager.Instance.IsContractPaid(contractToGive.ContractID))
         {
             isFullyTurnedIn = true;
         }
@@ -120,7 +120,10 @@ public class NPCContractGiver : Interactable
         }
         else
         {
-            promptMessage = "Accept Contract";
+            string npcName = string.IsNullOrWhiteSpace(contractToGive.clientName)
+                ? gameObject.name
+                : contractToGive.clientName;
+            promptMessage = "Talk to " + npcName;
         }
     }
 
@@ -140,7 +143,7 @@ public class NPCContractGiver : Interactable
             return;
         }
 
-        if (LevelCompleteManager.Instance != null && LevelCompleteManager.Instance.IsContractPaid(contractToGive.name))
+        if (LevelCompleteManager.Instance != null && LevelCompleteManager.Instance.IsContractPaid(contractToGive.ContractID))
         {
             isFullyTurnedIn = true;
         }
@@ -224,8 +227,8 @@ public class NPCContractGiver : Interactable
     {
         if (ObjectiveTrackerUI.Instance != null && LevelCompleteManager.Instance != null)
         {
-            int gold = LevelCompleteManager.Instance.GetContractGold(contractToGive.name);
-            int exp = LevelCompleteManager.Instance.GetContractExp(contractToGive.name);
+            int gold = LevelCompleteManager.Instance.GetContractGold(contractToGive.ContractID);
+            int exp = LevelCompleteManager.Instance.GetContractExp(contractToGive.ContractID);
             
             if (gold == 0 && exp == 0) 
             {
@@ -265,7 +268,7 @@ public class NPCContractGiver : Interactable
     {
         if (contractToGive == null || targetBuildLocation == null) return;
 
-        PlayerPrefs.DeleteKey("LockedContract_" + contractToGive.name);
+        PlayerPrefs.DeleteKey("LockedContract_" + contractToGive.ContractID);
         PlayerPrefs.Save();
         isLocked = false;
         isProgressionInteractionLocked = false;
@@ -291,18 +294,18 @@ public class NPCContractGiver : Interactable
         isContractCompleted = false;
         isFullyTurnedIn = false;
         isLocked = phaseContract != null &&
-                   PlayerPrefs.GetInt("LockedContract_" + phaseContract.name, 0) == 1;
+                   PlayerPrefs.GetInt("LockedContract_" + phaseContract.ContractID, 0) == 1;
 
         if (phaseContract == null) return;
 
         bool isCompleted = PlayerDataManager.Instance != null &&
-                           PlayerDataManager.Instance.IsContractCompleted(phaseContract.name);
+                           PlayerDataManager.Instance.IsContractCompleted(phaseContract.ContractID);
         bool hasSavedBridge = PlayerDataManager.Instance != null &&
-                              PlayerDataManager.Instance.GetSavedBridge(phaseContract.name) != null;
+                              PlayerDataManager.Instance.GetSavedBridge(phaseContract.ContractID) != null;
         bool hasActiveQuest = PlayerDataManager.Instance != null &&
                               PlayerDataManager.Instance.CurrentData.activeQuests != null &&
                               PlayerDataManager.Instance.CurrentData.activeQuests.Exists(task =>
-                                  task != null && task.contractName == phaseContract.name &&
+                                  task != null && phaseContract.MatchesIdentifier(task.contractName) &&
                                   !task.isCompleted);
 
         if (isCompleted || hasSavedBridge || hasActiveQuest)

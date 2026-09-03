@@ -204,8 +204,8 @@ public class LiveLoadVehicle : Interactable
 
         if (assignedContract != null && PlayerDataManager.Instance != null)
         {
-            if (PlayerDataManager.Instance.GetSavedBridge(assignedContract.name) != null || 
-                PlayerDataManager.Instance.IsContractCompleted(assignedContract.name))
+            if (PlayerDataManager.Instance.GetSavedBridge(assignedContract.ContractID) != null ||
+                PlayerDataManager.Instance.IsContractCompleted(assignedContract.ContractID))
             {
                 isParkedAtFinish = true;
                 

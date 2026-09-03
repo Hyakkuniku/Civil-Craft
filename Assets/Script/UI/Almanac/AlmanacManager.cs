@@ -213,9 +213,9 @@ public class AlmanacManager : MonoBehaviour
                 
                 if (cat.tabType == AlmanacTabType.Contracts) shouldBeVisible = data.hasUnlockedContractsTab;
                 if (cat.tabType == AlmanacTabType.Lessons) shouldBeVisible = data.hasUnlockedLessonsTab;
-                // The archive tab itself is always available. Individual materials
-                // still appear only after their GOT IT acknowledgement is saved.
-                if (cat.tabType == AlmanacTabType.Materials) shouldBeVisible = true;
+                if (cat.tabType == AlmanacTabType.Materials)
+                    shouldBeVisible = data.discoveredMaterialIds != null &&
+                                      data.discoveredMaterialIds.Count > 0;
                 if (!IsSupportedCategory(cat)) shouldBeVisible = false;
 
                 if (cat.visibilityMode == TabVisibility.AlwaysHidden)
@@ -393,7 +393,10 @@ public class AlmanacManager : MonoBehaviour
 
         if (onFirstOpenTutorial != null)
         {
-            onFirstOpenTutorial.TryStartTutorial();
+            if (TutorialManager.Instance != null)
+                TutorialManager.Instance.PlayPriorityTutorial(onFirstOpenTutorial);
+            else
+                onFirstOpenTutorial.TryStartTutorial();
         }
 
         isAnimating = false;

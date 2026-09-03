@@ -60,6 +60,7 @@ public class TrackedTask
     public string title;
     public string description;
     public bool isTutorial;
+    // Legacy field name retained for JSON compatibility; stores ContractSO.ContractID.
     public string contractName; 
     public float budget;
     public float weight;

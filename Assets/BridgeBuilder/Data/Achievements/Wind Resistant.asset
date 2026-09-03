@@ -10,19 +10,19 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 77a59d2f16524d54385416dc42494768, type: 3}
-  m_Name: Canyon Conqueror 1
+  m_Name: Wind Resistant
   m_EditorClassIdentifier: 
-  achievementID: ACH_002
-  achievementName: Canyon Conqueror
-  description: Complete all levels in Canyon Crossing.
+  achievementID: ACH_025
+  achievementName: Wind Resistant
+  description: Successfully complete a contract strong wind condition.
   hideDetailsUntilUnlocked: 0
   achievementIcon: {fileID: 0}
-  goalType: 5
+  goalType: 8
   targetAmount: 0
   targetContractMap: 0
-  excludeTutorialContracts: 0
-  bonusGold: 1000
-  bonusExp: 500
+  excludeTutorialContracts: 1
+  bonusGold: 400
+  bonusExp: 0
   grantsCosmeticReward: 0
   rewardCosmeticID: 
   rewardDisplayName: Achievement Reward
