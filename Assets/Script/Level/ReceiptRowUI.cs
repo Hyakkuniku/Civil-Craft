@@ -30,8 +30,8 @@ public class ReceiptRowUI : MonoBehaviour
         float rowTotal = billableLength * costPerUnit;
 
         // 4. Fill out the rest of the text
-        if (priceText != null) priceText.text = $"₱{costPerUnit}/m";
+        if (priceText != null) priceText.text = $"₱{costPerUnit:N0}/m";
         if (quantityText != null) quantityText.text = $"x {billableLength:F1}m";
-        if (totalText != null) totalText.text = $"= ₱{rowTotal:F0}";
+        if (totalText != null) totalText.text = $"= ₱{rowTotal:N0}";
     }
 }

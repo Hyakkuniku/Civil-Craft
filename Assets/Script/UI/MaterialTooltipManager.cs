@@ -47,14 +47,24 @@ public class MaterialTooltipManager : MonoBehaviour
         yield return new WaitForSeconds(hoverDelay);
 
         // Populate the UI with the exact data from your SO
-        if (materialNameText != null) materialNameText.text = material.name.Replace("Material", "").Trim();
-        if (costText != null) costText.text = $"Cost: ₱{material.costPerMeter}/m";
-        if (weightText != null) weightText.text = $"Mass: {material.massPerMeter}kg/m";
+        if (materialNameText != null) materialNameText.text = material.GetDisplayName();
+        if (costText != null) costText.text = $"Cost: ₱{material.costPerMeter:N0}/m";
+        if (weightText != null)
+        {
+            weightText.text = material.isDualBeam
+                ? $"Mass: {material.massPerMeter:0.###} kg/m each ({material.GetPlacedMassPerMeter():0.###} kg/m placed)"
+                : $"Mass: {material.massPerMeter:0.###} kg/m";
+        }
         if (lengthText != null) lengthText.text = $"Max Length: {material.maxLength}m";
 
-        // Display tension and compression limits cleanly
-        float weakestPoint = Mathf.Min(material.maxTension, material.maxCompression);
-        if (strengthText != null) strengthText.text = $"Strength Limit: {weakestPoint:F0} N";
+        // Tension-only materials do not have a meaningful compression capacity.
+        if (strengthText != null)
+        {
+            if (material.isRope)
+                strengthText.text = $"Tension Limit: {material.maxTension:N0} N";
+            else
+                strengthText.text = $"Weakest Axial Limit: {Mathf.Min(material.maxTension, material.maxCompression):N0} N";
+        }
 
         // Let the player know what type of material this is
         if (typeText != null)

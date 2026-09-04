@@ -12,11 +12,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d6617cda65e2ddd49ac84cabbc41a409, type: 3}
   m_Name: Pier
   m_EditorClassIdentifier: 
-  costPerMeter: 100
-  massPerMeter: 2
+  materialId: Pier
+  displayName: Reinforced Concrete Pier
+  introductionDescription: A vertical foundation support that transfers bridge loads toward the ground or riverbed. Place piers beneath the road where direct support is available.
+  costPerMeter: 500
+  massPerMeter: 182.5
   maxLength: 50
-  maxTension: 3000
-  maxCompression: 3000
+  maxTension: 119000
+  maxCompression: 1160000
   useSpring: 0
   spring: 5000
   damper: 50

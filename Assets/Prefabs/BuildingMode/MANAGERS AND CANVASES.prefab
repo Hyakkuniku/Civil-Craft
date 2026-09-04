@@ -8170,10 +8170,36 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   allGameAchievements:
-  - {fileID: 11400000, guid: f852af96771df094cb31691c12e1abbd, type: 2}
-  - {fileID: 11400000, guid: b81a5659afed5c345a664a236864c4eb, type: 2}
-  - {fileID: 11400000, guid: 28ecc47b23cc40f419e47e54f61e2eb2, type: 2}
-  - {fileID: 11400000, guid: bb4f8db23d7b446ba99ff3a3a8c5e610, type: 2}
+  - {fileID: 11400000, guid: f817425180a06344fa8406a8efc81457, type: 2}
+  - {fileID: 11400000, guid: c35a6a7c6a8dd9743a65e9d81a82c718, type: 2}
+  - {fileID: 11400000, guid: 8b60ccb94671b344b9aedb39f2d9f3fa, type: 2}
+  - {fileID: 11400000, guid: 3ea12e79ecca7f5478dbaa01e8eb0e6e, type: 2}
+  - {fileID: 11400000, guid: 805540df5c315d242845558c48690d1d, type: 2}
+  - {fileID: 11400000, guid: 1e87e84618a6e3842908236da8491b18, type: 2}
+  - {fileID: 11400000, guid: 86e39db87674ab24aa3ca66fdb51c869, type: 2}
+  - {fileID: 11400000, guid: 68ff5e1eb3debaa46bdef0c9b732f8a5, type: 2}
+  - {fileID: 11400000, guid: ce4d07b7ad8607d419e678c178e506db, type: 2}
+  - {fileID: 11400000, guid: cf507a973f4e9ef4ebe7b1ce8b2b962e, type: 2}
+  - {fileID: 11400000, guid: 589038b380ece0d4dbe7f1438de7952e, type: 2}
+  - {fileID: 11400000, guid: 22567de5d5fbda442841a073243d0dbb, type: 2}
+  - {fileID: 11400000, guid: 8e3d590b0c391654ba68c5e95fa10d86, type: 2}
+  - {fileID: 11400000, guid: 4ef05178c3fdb6f4883a33ec05dd0296, type: 2}
+  - {fileID: 11400000, guid: e3324f96bc3644045b2e6b62983077cf, type: 2}
+  - {fileID: 11400000, guid: 29c7bdeda58e34742b44e7f0ee396d84, type: 2}
+  - {fileID: 11400000, guid: 34d5a7d18b9e6f24392383776aa148e1, type: 2}
+  - {fileID: 11400000, guid: 3edbb96e292d2c94baa00e05e4e3b09f, type: 2}
+  - {fileID: 11400000, guid: 5d188b3c7d0dcaa4db217bf760168ae1, type: 2}
+  - {fileID: 11400000, guid: 41e2f48bac4848043ae4aa6d3c9693ca, type: 2}
+  - {fileID: 11400000, guid: ca009ffa1cdf72b46ad7cabae84c38a3, type: 2}
+  - {fileID: 11400000, guid: ec437af9f54dac643a25ac531ca3fd73, type: 2}
+  - {fileID: 11400000, guid: 069a3f6b937cae843a52366e06934bb9, type: 2}
+  - {fileID: 11400000, guid: d99b77fdd41faf041a22ba0cf6bf1390, type: 2}
+  - {fileID: 11400000, guid: bedadba731347ee478185fdf72dd738a, type: 2}
+  - {fileID: 11400000, guid: 5169873e9deed944db266e186013e5e7, type: 2}
+  - {fileID: 11400000, guid: 973b19eba0ea4694bb85d77f760fe531, type: 2}
+  - {fileID: 11400000, guid: 772d3498feb8e5346bc6b1ac38133def, type: 2}
+  - {fileID: 11400000, guid: 3a24221d5eb7c9c48826f40ddf2ad14b, type: 2}
+  - {fileID: 11400000, guid: 4e5484c806e8ce74cbbfeaca54408ded, type: 2}
   allGameContracts:
   - {fileID: 11400000, guid: d58e962a84aed8944ad5741d6404b861, type: 2}
   - {fileID: 11400000, guid: 5edc8d91db6f6014190820a7c01cea37, type: 2}

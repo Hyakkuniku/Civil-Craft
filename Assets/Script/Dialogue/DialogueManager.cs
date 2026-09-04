@@ -162,8 +162,12 @@ public class DialogueManager : MonoBehaviour
             if (obj != null) obj.SetActive(true);
         }
 
-        onDialogueEndCallback?.Invoke();
-        onDialogueEndCallback = null; 
+        // Clear the completed callback before invoking it. A callback is allowed
+        // to start the next dialogue immediately; clearing afterward would erase
+        // that new dialogue's completion callback and break ordered chains.
+        Action completedCallback = onDialogueEndCallback;
+        onDialogueEndCallback = null;
+        completedCallback?.Invoke();
     }
 
     private IEnumerator HideDialogueBoxAfterClose()

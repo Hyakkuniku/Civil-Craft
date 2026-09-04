@@ -26,7 +26,7 @@ MonoBehaviour:
   jobDescription: 'Beam Bridges
 
 '
-  budget: 15000
+  budget: 25
   liveLoadWeight: 700
   bridgeSpan: 30
   allowedMaterials:
@@ -47,26 +47,27 @@ MonoBehaviour:
   offerDialogue:
     name: Professor Bhan
     sentences:
-    - For your first job, you will construct a bridge over a 30m <color=#FFB347>span
-      using standard road decking and piers.
-    - The piers will serve as your deep <color=#FFB347>foundation, transferring the
-      downward compression safely into the riverbed.
-    - I am giving you a strict <color=#FFB347>budget of 15,000 to procure all necessary
-      materials.
-    - Before you draft your design at the <color=#FFB347>workbench, I want you to
-      go inspect the live <color=#FFB347>load vehicle we will be using to test its
-      structural integrity.
+    - Now you know what the project requires, what you'll be carrying across the
+      bridge, and which materials are available to you.
+    - "You've also learned the basic tools you'll need to construct and test your
+      bridge.\t"
+    - I think you're ready for your first contract.
+  continueOfferDialogue:
+    name: Professor Bhan
+    sentences:
+    - Your first contract will be a simple bridge construction project.
+    - The crossing ahead needs a safe and reliable connection between both sides
+      of the canyon.
+    - For this project, you'll be constructing a Beam Bridge.
+    - A beam bridge is a simple structure that uses horizontal members to carry the
+      load toward its supports.
+    - Your job is to construct the bridge and make sure it can safely make the cart.
+    - "Review the contract carefully, then decide how you'll approach the construction.\r"
   reminderDialogue:
     name: Professor Bhan
     sentences:
-    - 'Still here? The wood is ready. The design is simple: Road, and Piers'
-    - A beam bridge is the foundation of everything else. Build it, and we can move
-      forward
-    - Just add the piers below the road
+    - You can now go to the construction site whenever you are ready..
+    - Enter the Blueprint and begin construction.
   finishedContractDialogue:
     name: Professor Bhan
-    sentences:
-    - It held! My cart crossed without a problem. This crossing is connected again
-    - 'See you on the other side of the bridge
-
-'
+    sentences: []

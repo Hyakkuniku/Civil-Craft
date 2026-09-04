@@ -15,12 +15,19 @@ public class BridgeMaterialSO : ScriptableObject
     public string introductionDescription;
 
     [Header("Base Properties")]
+    [Tooltip("Material-only price in Philippine pesos (PHP) per meter. Dual materials are charged twice.")]
     public float costPerMeter = 100f;
+    [Min(0f)]
+    [Tooltip("Mass in kilograms per meter for one material member. Dual materials are multiplied by two when placed.")]
     public float massPerMeter = 2f;
     public float maxLength = 6f;
 
-    [Header("Stress Limits (Newtons)")]
+    [Header("Axial Force Limits (Newtons)")]
+    [Min(0f)]
+    [Tooltip("Approximate axial tensile failure load for one simulated member.")]
     public float maxTension = 3000f;
+    [Min(0f)]
+    [Tooltip("Approximate axial compressive failure load for one simulated member. Use zero for tension-only materials.")]
     public float maxCompression = 3000f;
 
     [Header("Spring Settings")]
@@ -52,6 +59,11 @@ public class BridgeMaterialSO : ScriptableObject
     public float zOffset = 0.5f;
 
     public string Id => string.IsNullOrWhiteSpace(materialId) ? name.Trim() : materialId.Trim();
+
+    public float GetPlacedMassPerMeter()
+    {
+        return massPerMeter * (isDualBeam ? 2f : 1f);
+    }
 
     public string GetDisplayName()
     {

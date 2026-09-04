@@ -12,11 +12,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d6617cda65e2ddd49ac84cabbc41a409, type: 3}
   m_Name: RopeMaterial
   m_EditorClassIdentifier: 
-  costPerMeter: 1
-  massPerMeter: 0.5
+  materialId: RopeMaterial
+  displayName: Support Rope
+  introductionDescription: A flexible support for suspension-style bridges that works best under tension. Rope cannot carry meaningful compression, so anchor it securely above a supported road deck.
+  costPerMeter: 85
+  massPerMeter: 0.216
   maxLength: Infinity
-  maxTension: 80000
-  maxCompression: 1
+  maxTension: 108000
+  maxCompression: 0
   useSpring: 1
   spring: 10000
   damper: 500

@@ -584,7 +584,7 @@ public class BuildUIController : MonoBehaviour
         {
             if (liveBeamStatsPanel != null && !liveBeamStatsPanel.activeSelf) liveBeamStatsPanel.SetActive(true);
             if (liveBeamLengthText != null) liveBeamLengthText.text = $"{targetBar.currentLength:F2}m";
-            if (liveBeamCostText != null) liveBeamCostText.text = $"₱{targetBar.GetCost():F0}";
+            if (liveBeamCostText != null) liveBeamCostText.text = $"₱{targetBar.GetCost():N0}";
             if (liveBeamAngleText != null) liveBeamAngleText.text = $"{targetBar.currentAngle:F1}°";
         }
         else
@@ -719,15 +719,27 @@ public class BuildUIController : MonoBehaviour
 
                 cachedBaseM += b.materialData.isDualBeam ? 2 : 1;
                 if (b.materialData.isRoad) cachedBaseRoadLength += b.currentLength;
-                cachedBaseDeadLoad += b.currentLength * b.materialData.massPerMeter;
+                cachedBaseDeadLoad += b.currentLength * b.materialData.GetPlacedMassPerMeter();
                 
-                if (b.materialData.maxCompression < cachedBaseWeakestStress) cachedBaseWeakestStress = b.materialData.maxCompression;
-                if (b.materialData.maxTension < cachedBaseWeakestStress) cachedBaseWeakestStress = b.materialData.maxTension;
+                float materialLimit = GetWeakestAxialForceLimit(b.materialData);
+                if (materialLimit < cachedBaseWeakestStress) cachedBaseWeakestStress = materialLimit;
             }
         }
         
         lastRoadLength = -1f; 
         lastDisplayM = -1;
+    }
+
+    private static float GetWeakestAxialForceLimit(BridgeMaterialSO material)
+    {
+        if (material == null) return Mathf.Infinity;
+
+        if (material.isRope)
+            return material.maxTension > 0f ? material.maxTension : Mathf.Infinity;
+
+        float tensionLimit = material.maxTension > 0f ? material.maxTension : Mathf.Infinity;
+        float compressionLimit = material.maxCompression > 0f ? material.maxCompression : Mathf.Infinity;
+        return Mathf.Min(tensionLimit, compressionLimit);
     }
 
     private void UpdateStatsUI()
@@ -743,16 +755,18 @@ public class BuildUIController : MonoBehaviour
             Bar preview = barCreator.currentBar;
             displayM += preview.materialData.isDualBeam ? 2 : 1;
             if (preview.materialData.isRoad) roadLength += preview.currentLength;
-            deadLoad += preview.currentLength * preview.materialData.massPerMeter;
+            deadLoad += preview.currentLength * preview.materialData.GetPlacedMassPerMeter();
             
-            if (preview.materialData.maxCompression < weakestStressLimit) weakestStressLimit = preview.materialData.maxCompression;
-            if (preview.materialData.maxTension < weakestStressLimit) weakestStressLimit = preview.materialData.maxTension;
+            float previewLimit = GetWeakestAxialForceLimit(preview.materialData);
+            if (previewLimit < weakestStressLimit) weakestStressLimit = previewLimit;
         }
 
         float theoreticalCapacityKg = 0f;
         if (weakestStressLimit != Mathf.Infinity && weakestStressLimit > 0)
         {
-            float safetyFactor = 0.2f; 
+            // Material limits are already conservative one-grid capacities. A 0.5
+            // utilization factor presents the conventional 2.0 target FoS in the UI.
+            float safetyFactor = 0.5f;
             theoreticalCapacityKg = ((weakestStressLimit / 9.81f) * safetyFactor) - (deadLoad * 0.5f);
             if (theoreticalCapacityKg < 0) theoreticalCapacityKg = 0;
         }
@@ -819,10 +833,10 @@ public class BuildUIController : MonoBehaviour
             lastProjectedCost = totalProjectedCost;
             if (usedBudgetText != null) 
             { 
-                usedBudgetText.text = $" ₱{totalProjectedCost}";
+                usedBudgetText.text = $" ₱{totalProjectedCost:N0}";
                 usedBudgetText.color = totalProjectedCost > maxBudget ? overBudgetTextColor : normalTextColor; 
             }
-            if (maxBudgetText != null) maxBudgetText.text = $" ₱{Mathf.RoundToInt(maxBudget)}";
+            if (maxBudgetText != null) maxBudgetText.text = $" ₱{Mathf.RoundToInt(maxBudget):N0}";
         }
     }
 

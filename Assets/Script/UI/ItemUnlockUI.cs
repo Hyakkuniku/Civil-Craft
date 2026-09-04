@@ -328,11 +328,17 @@ public class ItemUnlockUI : MonoBehaviour
             details.Append("\n\n").Append(material.introductionDescription.Trim());
 
         details.Append("\n\n<size=82%>")
-            .Append("<b>Cost:</b> ").Append(material.costPerMeter.ToString("N0")).Append(" / meter")
+            .Append("<b>Cost:</b> ₱").Append(material.costPerMeter.ToString("N0")).Append(" / meter")
+            .Append("\n<b>Mass:</b> ").Append(material.GetPlacedMassPerMeter().ToString("0.###")).Append(" kg / placed meter")
             .Append("\n<b>Maximum length:</b> ").Append(material.maxLength.ToString("0.##")).Append(" m")
-            .Append("\n<b>Tension limit:</b> ").Append(material.maxTension.ToString("N0")).Append(" N")
-            .Append("\n<b>Compression limit:</b> ").Append(material.maxCompression.ToString("N0")).Append(" N")
-            .Append("</size>");
+            .Append("\n<b>Tension limit:</b> ").Append(material.maxTension.ToString("N0")).Append(" N");
+
+        if (material.isRope)
+            details.Append("\n<b>Compression limit:</b> Not applicable (tension only)");
+        else
+            details.Append("\n<b>Compression limit:</b> ").Append(material.maxCompression.ToString("N0")).Append(" N");
+
+        details.Append("</size>");
 
         return details.ToString();
     }

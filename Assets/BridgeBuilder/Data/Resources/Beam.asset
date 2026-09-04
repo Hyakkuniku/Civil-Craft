@@ -12,11 +12,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d6617cda65e2ddd49ac84cabbc41a409, type: 3}
   m_Name: Beam
   m_EditorClassIdentifier: 
-  costPerMeter: 10
-  massPerMeter: 2
+  materialId: Beam
+  displayName: Timber Beam
+  introductionDescription: A low-cost structural member used to support road decks and form trusses. Timber beams resist both pulling and pushing forces and are placed as a matching pair across the bridge.
+  costPerMeter: 100
+  massPerMeter: 3
   maxLength: 10
-  maxTension: 800000
-  maxCompression: 80000
+  maxTension: 41500
+  maxCompression: 41000
   useSpring: 0
   spring: 1000
   damper: 50

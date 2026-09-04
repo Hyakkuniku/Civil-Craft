@@ -88,6 +88,8 @@ public class AlmanacManager : MonoBehaviour
 
     private Dictionary<RectTransform, float> originalTabYPositions = new Dictionary<RectTransform, float>();
     private Dictionary<RectTransform, float> targetTabYPositions = new Dictionary<RectTransform, float>();
+    private readonly Dictionary<GameObject, bool> archiveInteractionButtonStates =
+        new Dictionary<GameObject, bool>();
 
     private void Awake()
     {
@@ -148,6 +150,7 @@ public class AlmanacManager : MonoBehaviour
         }
 
         RestoreMenuInput();
+        RestoreArchiveInteractionButtonContainers();
     }
 
     private void ShowHudButton()
@@ -355,7 +358,8 @@ public class AlmanacManager : MonoBehaviour
     public void OpenAlmanac()
     {
         if (isAnimating) return; 
-        
+
+        CaptureArchiveInteractionButtonContainers();
         EvaluateTabUnlocks(); 
         StartCoroutine(OpenAlmanacRoutine());
     }
@@ -452,6 +456,7 @@ public class AlmanacManager : MonoBehaviour
         if (UIPanelCoordinator.Instance != null && animationPanel != null)
             UIPanelCoordinator.Instance.ClosePanel(animationPanel);
         RestoreMenuInput();
+        RestoreArchiveInteractionButtonContainers();
 
         isAnimating = false;
         afterClosed?.Invoke();
@@ -569,16 +574,23 @@ public class AlmanacManager : MonoBehaviour
 
         currentCategoryIndex = index;
         currentSpreadIndex = 0; 
+        AlmanacTabType selectedType = categories[currentCategoryIndex].tabType;
 
         if (PlayerDataManager.Instance != null)
         {
-            AlmanacTabType selectedType = categories[currentCategoryIndex].tabType;
             if (selectedType == AlmanacTabType.Contracts)
                 PlayerDataManager.Instance.MarkContractsAlmanacRead();
             else if (selectedType == AlmanacTabType.Lessons)
                 PlayerDataManager.Instance.MarkLessonsAlmanacRead();
             else if (selectedType == AlmanacTabType.Materials)
                 PlayerDataManager.Instance.MarkMaterialsAlmanacRead();
+
+        }
+
+        if (selectedType == AlmanacTabType.Lessons ||
+            selectedType == AlmanacTabType.Materials)
+        {
+            HideArchiveInteractionButtonContainers();
         }
 
         for (int i = 0; i < categories.Count; i++)
@@ -613,6 +625,36 @@ public class AlmanacManager : MonoBehaviour
         
         OnCategoryChanged?.Invoke(currentCategoryIndex);
         UpdatePaginationButtons();
+    }
+
+    private void CaptureArchiveInteractionButtonContainers()
+    {
+        archiveInteractionButtonStates.Clear();
+        foreach (Transform candidate in FindObjectsOfType<Transform>(true))
+        {
+            if (candidate == null || !candidate.gameObject.scene.IsValid() ||
+                candidate.name != "InteractionButtonContainer")
+                continue;
+
+            archiveInteractionButtonStates[candidate.gameObject] = candidate.gameObject.activeSelf;
+        }
+    }
+
+    private void HideArchiveInteractionButtonContainers()
+    {
+        foreach (GameObject container in archiveInteractionButtonStates.Keys)
+        {
+            if (container != null) container.SetActive(false);
+        }
+    }
+
+    private void RestoreArchiveInteractionButtonContainers()
+    {
+        foreach (KeyValuePair<GameObject, bool> state in archiveInteractionButtonStates)
+        {
+            if (state.Key != null) state.Key.SetActive(state.Value);
+        }
+        archiveInteractionButtonStates.Clear();
     }
 
     private static bool IsSupportedCategory(AlmanacCategory category)

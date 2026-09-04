@@ -171,6 +171,8 @@ public class ContractSO : ScriptableObject
 
     [Header("Dialogue Integration")]
     public Dialogue offerDialogue;
+    [Tooltip("Optional dialogue played only after the player reviews the contract details and presses Accept Contract.")]
+    public Dialogue continueOfferDialogue;
     public Dialogue reminderDialogue; 
     public Dialogue finishedContractDialogue; 
 }

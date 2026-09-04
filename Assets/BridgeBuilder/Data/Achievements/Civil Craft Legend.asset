@@ -14,14 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   achievementID: ACH_030
   achievementName: Civil Craft Legend
-  description: Successfully complete a contract strong wind condition.
+  description: Unlocked all achievements.
   hideDetailsUntilUnlocked: 0
   achievementIcon: {fileID: 0}
   goalType: 8
   targetAmount: 0
   targetContractMap: 0
   excludeTutorialContracts: 1
-  bonusGold: 400
+  bonusGold: 5000
   bonusExp: 0
   grantsCosmeticReward: 0
   rewardCosmeticID: 

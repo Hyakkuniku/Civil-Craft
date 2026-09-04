@@ -572,7 +572,7 @@ public class LevelCompleteManager : MonoBehaviour
 
         if (costText != null) 
         {
-            costText.text = $"Total Cost: ₱{Mathf.RoundToInt(finalCost)}";
+            costText.text = $"Total Cost: ₱{Mathf.RoundToInt(finalCost):N0}";
             costText.color = (finalCost > maxBudget) ? Color.red : Color.white;
         }
         
@@ -584,7 +584,7 @@ public class LevelCompleteManager : MonoBehaviour
         
         if (budgetText != null) 
         {
-            budgetText.text = $"Budget: ₱{Mathf.RoundToInt(maxBudget)}";
+            budgetText.text = $"Budget: ₱{Mathf.RoundToInt(maxBudget):N0}";
         }
 
         if (stressText != null)

@@ -5,6 +5,28 @@ using UnityEngine.AI;
 using UnityEngine.Events;
 
 [System.Serializable]
+public class NPCOptionalDialogueStep
+{
+    public enum StepType
+    {
+        Dialogue,
+        MaterialUnlock
+    }
+
+    [Tooltip("Choose whether this step opens dialogue or a material introduction/unlock panel.")]
+    public StepType stepType = StepType.Dialogue;
+
+    [Tooltip("Dialogue played for a Dialogue step.")]
+    public Dialogue dialogue;
+
+    [Tooltip("Material shown and recorded in the Almanac for a Material Unlock step.")]
+    public BridgeMaterialSO material;
+
+    [Tooltip("Button label for this material step. Leave empty to use the phase label.")]
+    public string materialButtonLabel;
+}
+
+[System.Serializable]
 public class NPCProgressionPhase
 {
     [Tooltip("Stable label used for debugging and Inspector organization.")]
@@ -28,6 +50,9 @@ public class NPCProgressionPhase
     [Header("Optional Phase Dialogue")]
     [Tooltip("Optional dialogue for this phase. This is especially useful for travel-only phases with no Contract or Tutorial.")]
     public Dialogue phaseDialogue;
+
+    [Tooltip("Optional ordered flow played after a contract offer is accepted, or on interaction for a contract-free phase. Add Dialogue and Material Unlock entries in any order. When this list has usable entries, it replaces the legacy Phase Dialogue and Material Introduction fields below.")]
+    public List<NPCOptionalDialogueStep> optionalDialogueSequence = new List<NPCOptionalDialogueStep>();
 
     [Tooltip("Interaction prompt shown while this contract-free phase is active.")]
     public string dialoguePrompt = "Talk";
@@ -165,6 +190,7 @@ public class NPCProgressionManager : MonoBehaviour
     private readonly HashSet<int> invokedInteractionPhases = new HashSet<int>();
     private readonly HashSet<int> completedDialoguePhases = new HashSet<int>();
     private readonly HashSet<int> introducedMaterialPhases = new HashSet<int>();
+    private readonly HashSet<int> runningOptionalSequencePhases = new HashSet<int>();
     private Coroutine movementRoutine;
     private int currentPhaseIndex = -1;
     private bool subscribedToCompletion;
@@ -1351,8 +1377,16 @@ public class NPCProgressionManager : MonoBehaviour
 
     private void TryStartPhaseDialogue(int phaseIndex, NPCProgressionPhase phase)
     {
-        if (phase == null || phase.phaseDialogue == null) return;
+        if (phase == null) return;
         if (!phase.repeatDialogue && completedDialoguePhases.Contains(phaseIndex)) return;
+
+        if (HasOrderedOptionalSequence(phase))
+        {
+            TryStartOrderedOptionalSequence(phaseIndex, phase);
+            return;
+        }
+
+        if (phase.phaseDialogue == null) return;
 
         if (dialogueManager == null)
             dialogueManager = FindObjectOfType<DialogueManager>();
@@ -1372,6 +1406,17 @@ public class NPCProgressionManager : MonoBehaviour
     }
 
     private void HandlePhaseDialogueFinished(int phaseIndex, NPCProgressionPhase phase)
+    {
+        if (phase == null) return;
+
+        GrantConfiguredPhaseFeature(phase);
+
+        TryShowMaterialIntroduction(phaseIndex, phase);
+
+        phase.onDialogueFinished?.Invoke();
+    }
+
+    private void GrantConfiguredPhaseFeature(NPCProgressionPhase phase)
     {
         if (phase == null) return;
 
@@ -1398,10 +1443,6 @@ public class NPCProgressionManager : MonoBehaviour
                 GrantPhaseDialogueFeature(phase);
             }
         }
-
-        TryShowMaterialIntroduction(phaseIndex, phase);
-
-        phase.onDialogueFinished?.Invoke();
     }
 
     private void HandleOfferDialogueCompleted(NPCContractGiver giver)
@@ -1409,7 +1450,163 @@ public class NPCProgressionManager : MonoBehaviour
         if (giver != contractGiver || currentPhaseIndex < 0 || currentPhaseIndex >= phases.Count)
             return;
 
-        TryShowMaterialIntroduction(currentPhaseIndex, phases[currentPhaseIndex]);
+        NPCProgressionPhase phase = phases[currentPhaseIndex];
+        if (HasOrderedOptionalSequence(phase))
+            TryStartOrderedOptionalSequence(currentPhaseIndex, phase);
+        else
+            TryShowMaterialIntroduction(currentPhaseIndex, phase);
+    }
+
+    private static bool HasOrderedOptionalSequence(NPCProgressionPhase phase)
+    {
+        if (phase == null || phase.optionalDialogueSequence == null) return false;
+
+        foreach (NPCOptionalDialogueStep step in phase.optionalDialogueSequence)
+        {
+            if (step == null) continue;
+            if (step.stepType == NPCOptionalDialogueStep.StepType.Dialogue && IsUsableDialogue(step.dialogue))
+                return true;
+            if (step.stepType == NPCOptionalDialogueStep.StepType.MaterialUnlock && step.material != null)
+                return true;
+        }
+
+        return false;
+    }
+
+    private void TryStartOrderedOptionalSequence(int phaseIndex, NPCProgressionPhase phase)
+    {
+        if (phase == null || !HasOrderedOptionalSequence(phase)) return;
+        if (!phase.repeatDialogue && completedDialoguePhases.Contains(phaseIndex)) return;
+        if (!runningOptionalSequencePhases.Add(phaseIndex)) return;
+
+        bool showMaterialSteps =
+            !phase.introduceMaterialOnlyOnce ||
+            !introducedMaterialPhases.Contains(phaseIndex);
+
+        if (showMaterialSteps && phase.introduceMaterialOnlyOnce)
+            introducedMaterialPhases.Add(phaseIndex);
+
+        PlayOrderedOptionalStep(phaseIndex, phase, 0, showMaterialSteps, false);
+    }
+
+    private void PlayOrderedOptionalStep(
+        int phaseIndex,
+        NPCProgressionPhase phase,
+        int stepIndex,
+        bool showMaterialSteps,
+        bool displayedMaterial)
+    {
+        if (phase == null || phase.optionalDialogueSequence == null)
+        {
+            FinishOrderedOptionalSequence(phaseIndex, phase, displayedMaterial);
+            return;
+        }
+
+        while (stepIndex < phase.optionalDialogueSequence.Count)
+        {
+            NPCOptionalDialogueStep step = phase.optionalDialogueSequence[stepIndex];
+            int nextStepIndex = stepIndex + 1;
+
+            if (step == null)
+            {
+                stepIndex = nextStepIndex;
+                continue;
+            }
+
+            if (step.stepType == NPCOptionalDialogueStep.StepType.Dialogue)
+            {
+                if (!IsUsableDialogue(step.dialogue))
+                {
+                    stepIndex = nextStepIndex;
+                    continue;
+                }
+
+                if (dialogueManager == null)
+                    dialogueManager = FindObjectOfType<DialogueManager>();
+
+                if (dialogueManager == null)
+                {
+                    Debug.LogWarning(
+                        $"[NPCProgressionManager] Phase '{phase.phaseId}' cannot play ordered dialogue step {stepIndex + 1} because no DialogueManager exists.",
+                        this);
+                    stepIndex = nextStepIndex;
+                    continue;
+                }
+
+                dialogueManager.StartDialogue(
+                    step.dialogue,
+                    () => PlayOrderedOptionalStep(
+                        phaseIndex,
+                        phase,
+                        nextStepIndex,
+                        showMaterialSteps,
+                        displayedMaterial));
+                return;
+            }
+
+            if (step.material == null || !showMaterialSteps)
+            {
+                stepIndex = nextStepIndex;
+                continue;
+            }
+
+            if (ItemUnlockUI.Instance == null)
+            {
+                Debug.LogWarning(
+                    $"[NPCProgressionManager] Phase '{phase.phaseId}' cannot show material step {stepIndex + 1} because ItemUnlockUI is unavailable.",
+                    this);
+                stepIndex = nextStepIndex;
+                continue;
+            }
+
+            string buttonLabel = string.IsNullOrWhiteSpace(step.materialButtonLabel)
+                ? phase.materialIntroductionButtonLabel
+                : step.materialButtonLabel;
+            ItemUnlockUI.Instance.ShowMaterialIntroduction(
+                step.material,
+                () => PlayOrderedOptionalStep(
+                    phaseIndex,
+                    phase,
+                    nextStepIndex,
+                    showMaterialSteps,
+                    true),
+                buttonLabel);
+            return;
+        }
+
+        FinishOrderedOptionalSequence(phaseIndex, phase, displayedMaterial);
+    }
+
+    private void FinishOrderedOptionalSequence(
+        int phaseIndex,
+        NPCProgressionPhase phase,
+        bool displayedMaterial)
+    {
+        runningOptionalSequencePhases.Remove(phaseIndex);
+        if (phase == null) return;
+
+        if (!phase.repeatDialogue)
+            completedDialoguePhases.Add(phaseIndex);
+
+        // Legacy contract phases never granted this optional phase feature after
+        // acceptance. Preserve that behavior so adding an ordered material flow
+        // cannot accidentally unlock a default feature such as the minimap.
+        if (phase.contract == null)
+            GrantConfiguredPhaseFeature(phase);
+
+        if (displayedMaterial)
+            phase.onMaterialIntroductionClosed?.Invoke();
+
+        // This is intentionally last: events that move the NPC or advance the
+        // phase now wait until the final authored dialogue/unlock step has closed.
+        phase.onDialogueFinished?.Invoke();
+    }
+
+    private static bool IsUsableDialogue(Dialogue dialogue)
+    {
+        return dialogue != null &&
+               dialogue.sentences != null &&
+               dialogue.sentences.Length > 0;
     }
 
     private void TryShowMaterialIntroduction(int phaseIndex, NPCProgressionPhase phase)

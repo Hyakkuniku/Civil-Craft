@@ -171,9 +171,27 @@ public class TutorialManager : MonoBehaviour
         if (leftPanel != null) leftPanel.SetActive(false);
         if (bouncingArrow != null) bouncingArrow.Hide();
 
+        ApplyReadableLeftTutorialStyle();
         CacheTutorialPanelPositions();
         tutorialRootCanvas = FindTutorialRootCanvas();
         trackedButtonAction = new UnityAction(OnTrackedButtonClicked);
+    }
+
+    private void ApplyReadableLeftTutorialStyle()
+    {
+        if (leftText == null) return;
+
+        leftText.fontSize = 30f;
+        leftText.enableAutoSizing = true;
+        leftText.fontSizeMin = 22f;
+        leftText.fontSizeMax = 30f;
+        leftText.fontStyle = FontStyles.Bold;
+        leftText.alignment = TextAlignmentOptions.MidlineLeft;
+        leftText.enableWordWrapping = true;
+        leftText.overflowMode = TextOverflowModes.Ellipsis;
+        leftText.characterSpacing = 0.5f;
+        leftText.lineSpacing = 3f;
+        leftText.margin = new Vector4(8f, 4f, 8f, 4f);
     }
 
     private void Start()

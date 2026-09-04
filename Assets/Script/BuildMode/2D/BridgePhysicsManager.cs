@@ -168,6 +168,7 @@ public class BridgePhysicsManager : MonoBehaviour
                         Rigidbody rb = bar.GetComponent<Rigidbody>();
                         if (rb != null)
                         {
+                            rb.useGravity = true;
                             rb.isKinematic = false;
                             rb.WakeUp();
                         }
@@ -181,6 +182,7 @@ public class BridgePhysicsManager : MonoBehaviour
                         Rigidbody rb = p.GetComponent<Rigidbody>();
                         if (rb != null)
                         {
+                            rb.useGravity = true;
                             rb.isKinematic = false;
                             rb.WakeUp();
                         }
@@ -331,6 +333,7 @@ public class BridgePhysicsManager : MonoBehaviour
 
         SetupBarsPhysics(deterministicBars);
         SetupDirectConnections(deterministicBars, deterministicPoints);
+        ReleaseUnsupportedRoadJoints(deterministicBars, deterministicPoints);
         ResolveAdjacentCollisions(deterministicBars);
         ResetPhysicsState();
 
@@ -492,11 +495,14 @@ public class BridgePhysicsManager : MonoBehaviour
         {
             // All bridge bodies are deliberately held kinematic until the first
             // controlled fixed tick, so no force can leak into the new run.
+            if (!body.isKinematic)
+            {
+                body.velocity = Vector3.zero;
+                body.angularVelocity = Vector3.zero;
+            }
             body.isKinematic = true;
             body.position = body.transform.position;
             body.rotation = body.transform.rotation;
-            body.velocity = Vector3.zero;
-            body.angularVelocity = Vector3.zero;
             body.ResetInertiaTensor();
             body.Sleep();
         }
@@ -745,9 +751,10 @@ public class BridgePhysicsManager : MonoBehaviour
             Rigidbody barRb = bar.GetComponent<Rigidbody>();
             if (barRb == null) barRb = bar.gameObject.AddComponent<Rigidbody>();
             
-            barRb.isKinematic = true; 
+            barRb.isKinematic = true;
+            barRb.useGravity = true;
             
-            barRb.mass = length * bar.materialData.massPerMeter; 
+            barRb.mass = length * bar.materialData.GetPlacedMassPerMeter();
             barRb.drag = 0.5f;
             barRb.angularDrag = 0.5f;
             barRb.interpolation = RigidbodyInterpolation.Interpolate;
@@ -845,6 +852,7 @@ public class BridgePhysicsManager : MonoBehaviour
             if (nodeRb == null) nodeRb = p.gameObject.AddComponent<Rigidbody>();
             
             nodeRb.isKinematic = true;
+            nodeRb.useGravity = !p.isAnchor;
             
             if (!p.isAnchor)
             {
@@ -856,7 +864,10 @@ public class BridgePhysicsManager : MonoBehaviour
                     if (bar == null || !bar.gameObject.activeSelf) continue; 
                     
                     float len = Vector3.Distance(bar.startPoint.transform.position, bar.endPoint.transform.position);
-                    calculatedMass += (len * bar.materialData.massPerMeter) * 0.5f;
+                    // Solid members already carry their own Rigidbody mass. Ropes have no
+                    // Rigidbody, so distribute only their mass equally to the endpoint nodes.
+                    if (bar.materialData.isRope)
+                        calculatedMass += (len * bar.materialData.GetPlacedMassPerMeter()) * 0.5f;
                 }
                 
                 nodeRb.mass = calculatedMass;
@@ -929,6 +940,79 @@ public class BridgePhysicsManager : MonoBehaviour
                 if (stressHandler != null) stressHandler.SetRopeJoint(ropeSpring);
             }
         } 
+    }
+
+    /// <summary>
+    /// Road pieces are the driving surface, not a replacement for the supporting
+    /// frame. A road joint may remain connected only when that point has a load
+    /// path to an anchor through a beam, rope, or pier. A single road piece can
+    /// still span between two genuine supports within its existing max length.
+    /// </summary>
+    private void ReleaseUnsupportedRoadJoints(List<Bar> activeBars, List<Point> activePoints)
+    {
+        HashSet<Bar> activeBarSet = new HashSet<Bar>(activeBars);
+        HashSet<Point> structurallySupportedPoints = new HashSet<Point>();
+        Queue<Point> searchQueue = new Queue<Point>();
+
+        foreach (Point point in activePoints)
+        {
+            if (point == null || !point.gameObject.activeSelf || !point.isAnchor) continue;
+            if (structurallySupportedPoints.Add(point)) searchQueue.Enqueue(point);
+        }
+
+        // Do not traverse road pieces: otherwise an unsupported road-only chain
+        // would incorrectly make every deck joint appear structurally supported.
+        while (searchQueue.Count > 0)
+        {
+            Point current = searchQueue.Dequeue();
+            foreach (Bar bar in current.ConnectedBars)
+            {
+                if (bar == null || !activeBarSet.Contains(bar) || !bar.gameObject.activeSelf ||
+                    bar.materialData == null || bar.materialData.isRoad)
+                    continue;
+
+                Point neighbor = null;
+                if (bar.startPoint == current) neighbor = bar.endPoint;
+                else if (bar.endPoint == current) neighbor = bar.startPoint;
+
+                if (neighbor != null && structurallySupportedPoints.Add(neighbor))
+                    searchQueue.Enqueue(neighbor);
+            }
+        }
+
+        int releasedJointCount = 0;
+        foreach (Point point in activePoints)
+        {
+            if (point == null || structurallySupportedPoints.Contains(point)) continue;
+
+            Rigidbody nodeBody = point.GetComponent<Rigidbody>();
+            if (nodeBody == null) continue;
+
+            foreach (Bar road in point.ConnectedBars)
+            {
+                if (road == null || !activeBarSet.Contains(road) || !road.gameObject.activeSelf ||
+                    road.materialData == null || !road.materialData.isRoad)
+                    continue;
+
+                foreach (Joint joint in road.GetComponents<Joint>())
+                {
+                    if (joint == null || joint.connectedBody != nodeBody) continue;
+
+                    // Disconnect immediately; Destroy removes the component safely
+                    // at the end of the frame before the controlled physics release.
+                    joint.connectedBody = null;
+                    Destroy(joint);
+                    releasedJointCount++;
+                }
+            }
+        }
+
+        if (releasedJointCount > 0)
+        {
+            Debug.Log(
+                $"[BridgePhysicsManager] Released {releasedJointCount} unsupported road joint(s). " +
+                "Road joints require a structural load path to an anchor.", this);
+        }
     }
 
     private void AttachJoint(GameObject barObj, Rigidbody targetRb, BridgeMaterialSO mat, Vector3 anchorWorldPosition)

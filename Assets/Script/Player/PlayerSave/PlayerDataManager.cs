@@ -540,6 +540,12 @@ public class PlayerDataManager : MonoBehaviour
             MigrateLegacyContractIdentifiers();
     }
 
+    /// <summary>Returns the contract asset represented by a stable or legacy saved identifier.</summary>
+    public ContractSO GetRegisteredContract(string contractIdentifier)
+    {
+        return FindRegisteredContract(contractIdentifier);
+    }
+
     private List<string> AddContractFeatureUnlocks(string contractName)
     {
         List<string> addedIds = new List<string>();

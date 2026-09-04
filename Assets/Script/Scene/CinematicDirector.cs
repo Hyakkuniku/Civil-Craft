@@ -298,7 +298,7 @@ public class CinematicDirector : MonoBehaviour
             bridgeInfoCanvas.SetActive(true);
             if (clientNameText != null) clientNameText.text = "Client: " + contractToDisplay.clientName;
             if (spanText != null) spanText.text = "Span: " + contractToDisplay.bridgeSpan + "m";
-            if (budgetText != null) budgetText.text = "Budget: ₱" + contractToDisplay.budget;
+            if (budgetText != null) budgetText.text = $"Budget: ₱{contractToDisplay.budget:N0}";
             if (loadText != null) loadText.text = "Live Load: " + contractToDisplay.liveLoadWeight + "kg";
         }
         else if (bridgeInfoCanvas != null)

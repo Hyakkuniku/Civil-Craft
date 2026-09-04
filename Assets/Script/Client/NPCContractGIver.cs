@@ -13,10 +13,11 @@ public class NPCContractGiver : Interactable
     public bool advancesTutorial = false; 
 
     [Header("Events")]
-    [Tooltip("Fires immediately after the offer dialogue finishes and the contract is accepted.")]
+    [Tooltip("Fires after the player accepts the contract and the optional continuation dialogue finishes.")]
     public UnityEvent onOfferDialogueFinished;
 
     private bool hasGivenContract = false;
+    private bool isAwaitingContractDecision;
     [HideInInspector] public bool isContractCompleted = false; 
     [HideInInspector] public bool isFullyTurnedIn = false; 
 
@@ -35,8 +36,8 @@ public class NPCContractGiver : Interactable
     public event Action<NPCContractGiver> OnNPCInteracted;
 
     /// <summary>
-    /// Runtime notification fired after the contract offer dialogue closes.
-    /// NPCProgressionManager uses it for phase-specific follow-up panels.
+    /// Runtime notification fired after acceptance and the optional continuation
+    /// dialogue. NPCProgressionManager uses it for phase-specific follow-up panels.
     /// </summary>
     public event Action<NPCContractGiver> OnOfferDialogueCompleted;
 
@@ -114,6 +115,10 @@ public class NPCContractGiver : Interactable
         {
             promptMessage = "Turn in Contract!";
         }
+        else if (isAwaitingContractDecision)
+        {
+            promptMessage = "Review Contract Offer";
+        }
         else if (hasGivenContract)
         {
             promptMessage = "Talk to " + contractToGive.clientName;
@@ -129,7 +134,7 @@ public class NPCContractGiver : Interactable
 
     protected override void Intract() 
     {
-        if (isProgressionInteractionLocked) return;
+        if (isProgressionInteractionLocked || isAwaitingContractDecision) return;
 
         FacePlayer(); 
 
@@ -171,40 +176,7 @@ public class NPCContractGiver : Interactable
         }
         else if (!hasGivenContract)
         {
-            if (targetBuildLocation != null) targetBuildLocation.activeContract = contractToGive;
-            if (linkedCargo != null) linkedCargo.SetWeight(contractToGive.liveLoadWeight);
-
-            string targetLocName = "";
-            if (targetBuildLocation != null)
-            {
-                targetLocName = targetBuildLocation.navigationTarget != null ? targetBuildLocation.navigationTarget.name : targetBuildLocation.gameObject.name;
-            }
-            else
-            {
-                targetLocName = gameObject.name; 
-            }
-
-            if (dialogueManager != null && contractToGive.offerDialogue != null)
-            {
-                contractToGive.offerDialogue.name = contractToGive.clientName;
-                
-                dialogueManager.StartDialogue(contractToGive.offerDialogue, () => 
-                {
-                    if (ObjectiveTrackerUI.Instance != null) ObjectiveTrackerUI.Instance.SetObjective(contractToGive, targetLocName);
-                    TryAdvanceTutorial();
-                    onOfferDialogueFinished?.Invoke();
-                    OnOfferDialogueCompleted?.Invoke(this);
-                });
-            }
-            else
-            {
-                if (ObjectiveTrackerUI.Instance != null) ObjectiveTrackerUI.Instance.SetObjective(contractToGive, targetLocName);
-                TryAdvanceTutorial();
-                onOfferDialogueFinished?.Invoke();
-                OnOfferDialogueCompleted?.Invoke(this);
-            }
-
-            hasGivenContract = true;
+            BeginContractOffer();
         }
         else
         {
@@ -221,6 +193,99 @@ public class NPCContractGiver : Interactable
                 TryAdvanceTutorial();
             }
         }
+    }
+
+    private void BeginContractOffer()
+    {
+        isAwaitingContractDecision = true;
+
+        string targetLocationName;
+        if (targetBuildLocation != null)
+        {
+            targetLocationName = targetBuildLocation.navigationTarget != null
+                ? targetBuildLocation.navigationTarget.name
+                : targetBuildLocation.gameObject.name;
+        }
+        else
+        {
+            targetLocationName = gameObject.name;
+        }
+
+        if (dialogueManager == null)
+            dialogueManager = FindObjectOfType<DialogueManager>();
+
+        if (dialogueManager != null && contractToGive.offerDialogue != null)
+        {
+            contractToGive.offerDialogue.name = contractToGive.clientName;
+            dialogueManager.StartDialogue(
+                contractToGive.offerDialogue,
+                () => PresentContractOffer(targetLocationName));
+        }
+        else
+        {
+            PresentContractOffer(targetLocationName);
+        }
+    }
+
+    private void PresentContractOffer(string targetLocationName)
+    {
+        if (ObjectiveTrackerUI.Instance != null &&
+            ObjectiveTrackerUI.Instance.ShowContractOffer(
+                contractToGive,
+                targetLocationName,
+                AcceptOfferedContract,
+                CancelOfferedContract))
+        {
+            return;
+        }
+
+        // Scenes without an Objective UI retain a usable fallback instead of
+        // leaving the NPC permanently stuck waiting for a decision.
+        AcceptOfferedContract();
+    }
+
+    private void AcceptOfferedContract()
+    {
+        if (contractToGive == null)
+        {
+            isAwaitingContractDecision = false;
+            return;
+        }
+
+        isAwaitingContractDecision = false;
+        hasGivenContract = true;
+
+        if (targetBuildLocation != null)
+            targetBuildLocation.activeContract = contractToGive;
+        if (linkedCargo != null)
+            linkedCargo.SetWeight(contractToGive.liveLoadWeight);
+
+        if (dialogueManager == null)
+            dialogueManager = FindObjectOfType<DialogueManager>();
+
+        if (dialogueManager != null && contractToGive.continueOfferDialogue != null)
+        {
+            contractToGive.continueOfferDialogue.name = contractToGive.clientName;
+            dialogueManager.StartDialogue(
+                contractToGive.continueOfferDialogue,
+                CompleteContractOfferFlow);
+        }
+        else
+        {
+            CompleteContractOfferFlow();
+        }
+    }
+
+    private void CancelOfferedContract()
+    {
+        isAwaitingContractDecision = false;
+    }
+
+    private void CompleteContractOfferFlow()
+    {
+        TryAdvanceTutorial();
+        onOfferDialogueFinished?.Invoke();
+        OnOfferDialogueCompleted?.Invoke(this);
     }
 
     private void ClaimReward()
@@ -272,6 +337,7 @@ public class NPCContractGiver : Interactable
         PlayerPrefs.Save();
         isLocked = false;
         isProgressionInteractionLocked = false;
+        isAwaitingContractDecision = false;
         hasGivenContract = true;
         targetBuildLocation.activeContract = contractToGive;
         if (linkedCargo != null) linkedCargo.SetWeight(contractToGive.liveLoadWeight);
@@ -291,6 +357,7 @@ public class NPCContractGiver : Interactable
         linkedCargo = phaseCargo;
 
         hasGivenContract = false;
+        isAwaitingContractDecision = false;
         isContractCompleted = false;
         isFullyTurnedIn = false;
         isLocked = phaseContract != null &&

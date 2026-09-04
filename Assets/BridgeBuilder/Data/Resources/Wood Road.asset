@@ -12,11 +12,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d6617cda65e2ddd49ac84cabbc41a409, type: 3}
   m_Name: Wood Road
   m_EditorClassIdentifier: 
-  costPerMeter: 180
-  massPerMeter: 4
+  materialId: Wood Road
+  displayName: Timber Road Deck
+  introductionDescription: An affordable driving surface that vehicles need to cross the bridge. Build a continuous deck between both sides and support it with beams or piers.
+  costPerMeter: 300
+  massPerMeter: 9
   maxLength: 10
-  maxTension: 80000
-  maxCompression: 70000
+  maxTension: 124500
+  maxCompression: 124000
   useSpring: 0
   spring: Infinity
   damper: Infinity
