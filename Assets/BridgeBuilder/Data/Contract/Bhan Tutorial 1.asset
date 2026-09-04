@@ -26,7 +26,7 @@ MonoBehaviour:
   jobDescription: 'Beam Bridges
 
 '
-  budget: 25
+  budget: 25000
   liveLoadWeight: 700
   bridgeSpan: 30
   allowedMaterials:
