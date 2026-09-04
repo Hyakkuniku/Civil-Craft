@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using Unity.AI.Navigation;
 using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.Events;
@@ -46,6 +47,10 @@ public class NPCProgressionPhase
 
     [Tooltip("Optional cargo whose weight should match the phase contract.")]
     public CargoItem linkedCargo;
+
+    [Header("Optional Phase Cinematic")]
+    [Tooltip("Optional cinematic played after this phase's contract-offer dialogue finishes. Leave empty for phases that do not introduce a contract.")]
+    public CinematicDirector cinematicAfterOffer;
 
     [Header("Optional Phase Dialogue")]
     [Tooltip("Optional dialogue for this phase. This is especially useful for travel-only phases with no Contract or Tutorial.")]
@@ -174,6 +179,8 @@ public class NPCProgressionManager : MonoBehaviour
     [Min(0f)] [SerializeField] private float waypointRoadGroundConnectionDistance = 20f;
     [Tooltip("Spacing between downward ground checks while connecting separate road sections.")]
     [Min(0.1f)] [SerializeField] private float waypointGroundConnectionSampleSpacing = 0.75f;
+    [Tooltip("Maximum sideways distance from a phase journey for scene NavMesh Links to become explicit waypoint fallback segments.")]
+    [Min(0.5f)] [SerializeField] private float waypointNavMeshLinkCorridorWidth = 35f;
 
     [Header("Animation")]
     [SerializeField] private string walkingBoolParameter = "isWalking";
@@ -187,6 +194,8 @@ public class NPCProgressionManager : MonoBehaviour
     [Min(0.01f)] [SerializeField] private float idleRoamingArrivalDistance = 0.08f;
 
     [Header("NavMesh Link Traversal")]
+    [Tooltip("When Movement Mode is Waypoints, first try a complete NavMesh route whenever compatible scene links exist. If that route is unavailable, the safe waypoint bridge route is used instead.")]
+    [SerializeField] private bool useSceneNavMeshLinksInWaypointMode = true;
     [Tooltip("Moves across NavMeshLink segments at the agent's normal Speed instead of Unity's automatic traversal speed.")]
     [SerializeField] private bool manuallyTraverseNavMeshLinks = true;
     [Tooltip("Rotate toward the link endpoint while crossing.")]
@@ -611,19 +620,45 @@ public class NPCProgressionManager : MonoBehaviour
             yield break;
         }
 
-        if (movementMode == NPCProgressionMovementMode.Waypoints)
-        {
-            yield return MoveToPhaseByWaypoints(nextPhaseIndex, nextPhase);
-            yield break;
-        }
-
         // Auto-collected contracts can complete in the same frame the bridge is
         // finalized. Do not calculate the NPC path against the old NavMesh.
         DynamicNavMeshUpdater navMeshUpdater = DynamicNavMeshUpdater.Instance;
         while (navMeshUpdater != null && navMeshUpdater.HasPendingOrRunningUpdate)
             yield return null;
 
-        bool destinationSet = TrySetDestination(nextPhase.targetLocation.position);
+        if (movementMode == NPCProgressionMovementMode.Waypoints)
+        {
+            if (useSceneNavMeshLinksInWaypointMode &&
+                HasCompatibleActiveNavMeshLink() &&
+                TryEnableAgentForLinkedRoute() &&
+                TrySetDestination(nextPhase.targetLocation.position))
+            {
+                Debug.Log(
+                    $"[NPCProgressionManager] Using the scene NavMesh Links for phase " +
+                    $"{nextPhaseIndex} ('{nextPhase.phaseId}').",
+                    this);
+                yield return MoveToPhaseByNavMesh(nextPhaseIndex, nextPhase, true);
+            }
+            else
+            {
+                DisableAgentForWaypointMovement();
+                yield return MoveToPhaseByWaypoints(nextPhaseIndex, nextPhase);
+            }
+
+            yield break;
+        }
+
+        yield return MoveToPhaseByNavMesh(nextPhaseIndex, nextPhase, false);
+    }
+
+    private IEnumerator MoveToPhaseByNavMesh(
+        int nextPhaseIndex,
+        NPCProgressionPhase nextPhase,
+        bool destinationAlreadySet)
+    {
+        bool destinationSet = destinationAlreadySet ||
+                              TrySetDestination(nextPhase.targetLocation.position);
+
         if (!destinationSet)
         {
             HandleMovementFailure(nextPhaseIndex);
@@ -694,7 +729,83 @@ public class NPCProgressionManager : MonoBehaviour
             yield return null;
         }
 
+        if (movementMode == NPCProgressionMovementMode.Waypoints &&
+            useSceneNavMeshLinksInWaypointMode)
+        {
+            Debug.LogWarning(
+                $"[NPCProgressionManager] The linked NavMesh route to phase {nextPhaseIndex} " +
+                "became invalid or stalled. Falling back to the baked-road waypoint route.",
+                this);
+            DisableAgentForWaypointMovement();
+            yield return MoveToPhaseByWaypoints(nextPhaseIndex, nextPhase);
+            yield break;
+        }
+
         HandleMovementFailure(nextPhaseIndex);
+    }
+
+    private bool HasCompatibleActiveNavMeshLink()
+    {
+        if (navMeshAgent == null) return false;
+
+        NavMeshLink[] links = FindObjectsOfType<NavMeshLink>();
+        bool foundCompatibleLink = false;
+        foreach (NavMeshLink link in links)
+        {
+            if (link != null && link.enabled && link.gameObject.activeInHierarchy &&
+                link.agentTypeID == navMeshAgent.agentTypeID)
+            {
+                // Runtime bridge baking can replace the NavMesh underneath an
+                // already-enabled link. Refresh its native link data immediately
+                // before path calculation so the agent sees the latest surfaces.
+                link.autoUpdate = true;
+                link.UpdateLink();
+                foundCompatibleLink = true;
+            }
+        }
+
+        return foundCompatibleLink;
+    }
+
+    private bool TryEnableAgentForLinkedRoute()
+    {
+        if (navMeshAgent == null) return false;
+
+        if (!navMeshAgent.enabled) navMeshAgent.enabled = true;
+        navMeshAgent.autoTraverseOffMeshLink = !manuallyTraverseNavMeshLinks;
+
+        if (navMeshAgent.isOnNavMesh) return true;
+
+        if (!NavMesh.SamplePosition(
+                transform.position,
+                out NavMeshHit hit,
+                navMeshSampleRadius,
+                navMeshAgent.areaMask))
+        {
+            Debug.LogWarning(
+                "[NPCProgressionManager] Scene links exist, but the NPC is not close enough to a compatible NavMesh. Falling back to waypoints.",
+                this);
+            DisableAgentForWaypointMovement();
+            return false;
+        }
+
+        bool warped = navMeshAgent.Warp(hit.position);
+        if (!warped) DisableAgentForWaypointMovement();
+        return warped;
+    }
+
+    private void DisableAgentForWaypointMovement()
+    {
+        if (navMeshAgent == null || !navMeshAgent.enabled) return;
+
+        RestoreAgentAfterLinkTraversal(true);
+        if (navMeshAgent.isOnNavMesh)
+        {
+            navMeshAgent.isStopped = true;
+            navMeshAgent.ResetPath();
+        }
+
+        navMeshAgent.enabled = false;
     }
 
     private IEnumerator MoveToPhaseByWaypoints(
@@ -703,38 +814,51 @@ public class NPCProgressionManager : MonoBehaviour
     {
         SetWalkingAnimation(true);
 
-        List<Vector3> routePositions = new List<Vector3>();
+        List<WaypointRouteStep> routeSteps = new List<WaypointRouteStep>();
         bool hasInspectorRoute = nextPhase.travelWaypoints != null &&
                                  nextPhase.travelWaypoints.Exists(point => point != null);
 
         if (hasInspectorRoute)
         {
             foreach (Transform waypoint in nextPhase.travelWaypoints)
-                if (waypoint != null) routePositions.Add(waypoint.position);
+                if (waypoint != null)
+                    routeSteps.Add(new WaypointRouteStep(waypoint.position, false));
         }
         else
         {
-            // A completed bridge already contains the exact road-node graph the
-            // player created. Following that graph makes waypoint travel work for
-            // straight, sloped, and irregular bridges without hand-authored points.
-            NPCProgressionPhase departurePhase = CurrentPhase;
-            BuildLocation completedLocation = departurePhase != null
-                ? departurePhase.targetBuildLocation
-                : null;
-            TryAppendBakedRoadRoute(
-                completedLocation,
+            bool appendedSceneLinks = TryAppendNearbySceneLinkRoute(
                 transform.position,
                 nextPhase.targetLocation.position,
-                routePositions);
+                routeSteps);
+
+            if (!appendedSceneLinks)
+            {
+                // A completed bridge already contains the exact road-node graph
+                // the player created. Dialogue-only phases do not necessarily own
+                // a BuildLocation, so search backwards for the latest built road.
+                List<Vector3> bakedRoadPositions = new List<Vector3>();
+                BuildLocation completedLocation = FindMostRecentBuiltRouteLocation();
+                TryAppendBakedRoadRoute(
+                    completedLocation,
+                    transform.position,
+                    nextPhase.targetLocation.position,
+                    bakedRoadPositions);
+
+                foreach (Vector3 position in bakedRoadPositions)
+                    routeSteps.Add(new WaypointRouteStep(position, false));
+            }
         }
 
         // The phase target is always last. Inspector points are therefore a full
         // route override, while an empty list automatically follows the baked road.
-        routePositions.Add(nextPhase.targetLocation.position);
+        routeSteps.Add(new WaypointRouteStep(nextPhase.targetLocation.position, false));
 
-        foreach (Vector3 destination in routePositions)
+        foreach (WaypointRouteStep routeStep in routeSteps)
         {
-            if ((destination - transform.position).sqrMagnitude <=
+            Vector3 destination = routeStep.destination;
+            Vector3 initialOffset = destination - transform.position;
+            if (!routeStep.crossesNavMeshLink) initialOffset.y = 0f;
+            if (initialOffset.sqrMagnitude <=
                 waypointArrivalDistance * waypointArrivalDistance) continue;
 
             float segmentDistance = Vector3.Distance(transform.position, destination);
@@ -746,20 +870,31 @@ public class NPCProgressionManager : MonoBehaviour
 
             while (Time.time < deadline)
             {
-                Vector3 flatOffset = destination - transform.position;
-                flatOffset.y = 0f;
-                if (flatOffset.sqrMagnitude <=
+                Vector3 movementOffset = destination - transform.position;
+                if (!routeStep.crossesNavMeshLink) movementOffset.y = 0f;
+                if (movementOffset.sqrMagnitude <=
                     waypointArrivalDistance * waypointArrivalDistance)
                 {
                     break;
                 }
 
-                Vector3 flatDirection = flatOffset.normalized;
+                Vector3 movementDirection = movementOffset.normalized;
+                Vector3 flatDirection = Vector3.ProjectOnPlane(
+                    movementDirection,
+                    Vector3.up).normalized;
                 float step = waypointMovementSpeed * Time.deltaTime;
-                Vector3 candidate = transform.position +
-                                    flatDirection * Mathf.Min(step, flatOffset.magnitude);
+                Vector3 candidate = routeStep.crossesNavMeshLink
+                    ? Vector3.MoveTowards(transform.position, destination, step)
+                    : transform.position + flatDirection *
+                      Mathf.Min(step, movementOffset.magnitude);
 
-                if (TryProjectWaypointToGround(candidate, out Vector3 groundedCandidate))
+                if (routeStep.crossesNavMeshLink)
+                {
+                    // A link explicitly certifies this unsupported gap. Preserve
+                    // its authored height instead of applying the ground guard.
+                    missingGroundSince = -1f;
+                }
+                else if (TryProjectWaypointToGround(candidate, out Vector3 groundedCandidate))
                 {
                     candidate.y = groundedCandidate.y;
                     missingGroundSince = -1f;
@@ -787,16 +922,19 @@ public class NPCProgressionManager : MonoBehaviour
                 }
 
                 transform.position = candidate;
-                Quaternion desiredRotation = Quaternion.LookRotation(flatDirection, Vector3.up);
-                transform.rotation = Quaternion.RotateTowards(
-                    transform.rotation,
-                    desiredRotation,
-                    waypointTurnSpeed * Time.deltaTime);
+                if (flatDirection.sqrMagnitude > 0.0001f)
+                {
+                    Quaternion desiredRotation = Quaternion.LookRotation(flatDirection, Vector3.up);
+                    transform.rotation = Quaternion.RotateTowards(
+                        transform.rotation,
+                        desiredRotation,
+                        waypointTurnSpeed * Time.deltaTime);
+                }
                 yield return null;
             }
 
             Vector3 remaining = destination - transform.position;
-            remaining.y = 0f;
+            if (!routeStep.crossesNavMeshLink) remaining.y = 0f;
             if (remaining.sqrMagnitude > waypointArrivalDistance * waypointArrivalDistance)
             {
                 Debug.LogWarning(
@@ -813,6 +951,103 @@ public class NPCProgressionManager : MonoBehaviour
 
         transform.SetPositionAndRotation(finalPosition, nextPhase.targetLocation.rotation);
         CompleteArrival(nextPhaseIndex);
+    }
+
+    private bool TryAppendNearbySceneLinkRoute(
+        Vector3 routeStart,
+        Vector3 routeEnd,
+        List<WaypointRouteStep> routeSteps)
+    {
+        if (routeSteps == null || navMeshAgent == null) return false;
+
+        Vector3 journey = routeEnd - routeStart;
+        journey.y = 0f;
+        float journeyLengthSquared = journey.sqrMagnitude;
+        if (journeyLengthSquared <= 0.01f) return false;
+
+        List<WaypointLinkCandidate> candidates = new List<WaypointLinkCandidate>();
+        foreach (NavMeshLink link in FindObjectsOfType<NavMeshLink>())
+        {
+            if (link == null || !link.enabled || !link.gameObject.activeInHierarchy ||
+                link.agentTypeID != navMeshAgent.agentTypeID) continue;
+
+            Vector3 firstEndpoint = link.transform.TransformPoint(link.startPoint);
+            Vector3 secondEndpoint = link.transform.TransformPoint(link.endPoint);
+            Vector3 center = Vector3.Lerp(firstEndpoint, secondEndpoint, 0.5f);
+            Vector3 centerOffset = center - routeStart;
+            centerOffset.y = 0f;
+            float journeyProgress = Vector3.Dot(centerOffset, journey) /
+                                    journeyLengthSquared;
+            if (journeyProgress <= 0.01f || journeyProgress >= 0.99f) continue;
+
+            Vector3 nearestJourneyPoint = routeStart + journey * journeyProgress;
+            Vector3 sidewaysOffset = center - nearestJourneyPoint;
+            sidewaysOffset.y = 0f;
+            float corridorWidth = waypointNavMeshLinkCorridorWidth > 0.5f
+                ? waypointNavMeshLinkCorridorWidth
+                : 35f;
+            if (sidewaysOffset.magnitude > corridorWidth) continue;
+
+            candidates.Add(new WaypointLinkCandidate(
+                link,
+                firstEndpoint,
+                secondEndpoint,
+                journeyProgress));
+        }
+
+        if (candidates.Count == 0) return false;
+        candidates.Sort((left, right) => left.journeyProgress.CompareTo(right.journeyProgress));
+
+        Vector3 routeCursor = routeStart;
+        List<string> linkNames = new List<string>();
+        foreach (WaypointLinkCandidate candidate in candidates)
+        {
+            bool firstIsEntry =
+                (candidate.firstEndpoint - routeCursor).sqrMagnitude <=
+                (candidate.secondEndpoint - routeCursor).sqrMagnitude;
+            Vector3 entry = firstIsEntry
+                ? candidate.firstEndpoint
+                : candidate.secondEndpoint;
+            Vector3 exit = firstIsEntry
+                ? candidate.secondEndpoint
+                : candidate.firstEndpoint;
+
+            routeSteps.Add(new WaypointRouteStep(entry, false));
+            routeSteps.Add(new WaypointRouteStep(exit, true));
+            routeCursor = exit;
+            linkNames.Add(candidate.link.name);
+        }
+
+        Debug.Log(
+            $"[NPCProgressionManager] Waypoint fallback will explicitly traverse " +
+            $"{string.Join(", ", linkNames)}.",
+            this);
+        return true;
+    }
+
+    private BuildLocation FindMostRecentBuiltRouteLocation()
+    {
+        if (phases == null || phases.Count == 0) return null;
+
+        int startIndex = Mathf.Clamp(currentPhaseIndex, 0, phases.Count - 1);
+        for (int phaseIndex = startIndex; phaseIndex >= 0; phaseIndex--)
+        {
+            NPCProgressionPhase phase = phases[phaseIndex];
+            BuildLocation buildLocation = phase != null
+                ? phase.targetBuildLocation
+                : null;
+            if (buildLocation == null || buildLocation.bakedBars == null) continue;
+
+            foreach (Bar bar in buildLocation.bakedBars)
+            {
+                if (bar == null || !bar.gameObject.activeInHierarchy ||
+                    bar.materialData == null || !bar.materialData.isRoad) continue;
+
+                return buildLocation;
+            }
+        }
+
+        return null;
     }
 
     private bool TryAppendBakedRoadRoute(
@@ -1120,6 +1355,38 @@ public class NPCProgressionManager : MonoBehaviour
         }
     }
 
+    private readonly struct WaypointRouteStep
+    {
+        public readonly Vector3 destination;
+        public readonly bool crossesNavMeshLink;
+
+        public WaypointRouteStep(Vector3 destination, bool crossesNavMeshLink)
+        {
+            this.destination = destination;
+            this.crossesNavMeshLink = crossesNavMeshLink;
+        }
+    }
+
+    private readonly struct WaypointLinkCandidate
+    {
+        public readonly NavMeshLink link;
+        public readonly Vector3 firstEndpoint;
+        public readonly Vector3 secondEndpoint;
+        public readonly float journeyProgress;
+
+        public WaypointLinkCandidate(
+            NavMeshLink link,
+            Vector3 firstEndpoint,
+            Vector3 secondEndpoint,
+            float journeyProgress)
+        {
+            this.link = link;
+            this.firstEndpoint = firstEndpoint;
+            this.secondEndpoint = secondEndpoint;
+            this.journeyProgress = journeyProgress;
+        }
+    }
+
     private static void AddRoadConnection(
         Dictionary<Point, List<Point>> adjacency,
         Point from,
@@ -1285,6 +1552,9 @@ public class NPCProgressionManager : MonoBehaviour
             navMeshAgent.isStopped = true;
             navMeshAgent.ResetPath();
         }
+
+        if (movementMode == NPCProgressionMovementMode.Waypoints)
+            DisableAgentForWaypointMovement();
 
         SetWalkingAnimation(false);
         movementRoutine = null;
@@ -1504,6 +1774,13 @@ public class NPCProgressionManager : MonoBehaviour
             return;
 
         NPCProgressionPhase phase = phases[currentPhaseIndex];
+
+        // The NPCContractGiver is reused by every progression phase. Keeping the
+        // cinematic on the phase prevents a later offer from replaying whichever
+        // scene cinematic happened to be wired to the giver's global UnityEvent.
+        if (phase != null && phase.cinematicAfterOffer != null)
+            phase.cinematicAfterOffer.PlayCinematic();
+
         if (HasOrderedOptionalSequence(phase))
             TryStartOrderedOptionalSequence(currentPhaseIndex, phase);
         else
@@ -1771,8 +2048,6 @@ public class NPCProgressionManager : MonoBehaviour
 
     private IEnumerator IdleRoamingLoop()
     {
-        int patrolSide = 1;
-
         while (IsIdleRoamingEnabledForCurrentPhase() && isActiveAndEnabled)
         {
             NPCProgressionPhase phase = CurrentPhase;
@@ -1786,19 +2061,10 @@ public class NPCProgressionManager : MonoBehaviour
                 continue;
             }
 
-            Vector3 patrolAxis = Vector3.ProjectOnPlane(
-                phase.targetLocation.right,
-                Vector3.up).normalized;
-            if (patrolAxis.sqrMagnitude < 0.001f) patrolAxis = Vector3.right;
-
-            Vector3 destination = phase.targetLocation.position +
-                                  patrolAxis * idleRoamingRadius * patrolSide;
-            patrolSide *= -1;
-
-            if (!TryProjectWaypointToGround(destination, out destination))
+            if (!TryChooseRandomIdleDestination(phase, out Vector3 destination))
             {
-                // Do not let automatic roaming walk the NPC over a ledge. Try the
-                // opposite side after a normal idle pause instead.
+                // Stay put when every random candidate is over a ledge or cannot
+                // be connected by continuously walkable ground.
                 if (!IsTravelling) SetWalkingAnimation(false);
                 yield return WaitForIdleRoamingPause();
                 continue;
@@ -1813,6 +2079,47 @@ public class NPCProgressionManager : MonoBehaviour
         StopIdleAgentPath();
         if (!IsTravelling) SetWalkingAnimation(false);
         idleRoamingRoutine = null;
+    }
+
+    private bool TryChooseRandomIdleDestination(
+        NPCProgressionPhase phase,
+        out Vector3 destination)
+    {
+        destination = transform.position;
+        if (phase == null || phase.targetLocation == null || idleRoamingRadius <= 0f)
+            return false;
+
+        Vector3 center = phase.targetLocation.position;
+        float minimumDistance = Mathf.Max(
+            idleRoamingArrivalDistance * 2f,
+            idleRoamingRadius * 0.3f);
+        const int maximumAttempts = 12;
+
+        for (int attempt = 0; attempt < maximumAttempts; attempt++)
+        {
+            Vector2 randomDirection = Random.insideUnitCircle;
+            if (randomDirection.sqrMagnitude < 0.01f) continue;
+            randomDirection.Normalize();
+
+            float distance = Random.Range(minimumDistance, idleRoamingRadius);
+            Vector3 candidate = center +
+                new Vector3(randomDirection.x, 0f, randomDirection.y) * distance;
+
+            if (!TryProjectWaypointToGround(candidate, out Vector3 groundedCandidate))
+                continue;
+            if (!HasWalkableGroundConnection(transform.position, groundedCandidate))
+                continue;
+
+            Vector3 flatOffset = groundedCandidate - transform.position;
+            flatOffset.y = 0f;
+            if (flatOffset.sqrMagnitude <=
+                idleRoamingArrivalDistance * idleRoamingArrivalDistance) continue;
+
+            destination = groundedCandidate;
+            return true;
+        }
+
+        return false;
     }
 
     private IEnumerator MoveToIdleRoamingPoint(Vector3 destination)

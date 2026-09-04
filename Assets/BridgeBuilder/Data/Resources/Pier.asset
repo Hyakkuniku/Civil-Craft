@@ -13,8 +13,10 @@ MonoBehaviour:
   m_Name: Pier
   m_EditorClassIdentifier: 
   materialId: Pier
-  displayName: Reinforced Concrete Pier
-  introductionDescription: A vertical foundation support that transfers bridge loads toward the ground or riverbed. Place piers beneath the road where direct support is available.
+  displayName: Timber Pier
+  introductionDescription: A vertical foundation support that transfers bridge loads
+    toward the ground or riverbed. Place piers beneath the road where direct support
+    is available.
   costPerMeter: 500
   massPerMeter: 182.5
   maxLength: 50

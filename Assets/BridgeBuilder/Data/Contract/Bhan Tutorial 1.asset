@@ -18,10 +18,7 @@ MonoBehaviour:
   isStoryModeContract: 1
   isTutorialContract: 1
   autoCollectReward: 0
-  featureUnlockRewards:
-  - featureId: shop
-    displayName: Shop
-    icon: {fileID: 21300000, guid: 4a7ed3cbf0bba9341aa5484436ec0fe5, type: 3}
+  featureUnlockRewards: []
   clientName: Professor Bhan
   jobDescription: 'Beam Bridges
 
@@ -71,7 +68,7 @@ MonoBehaviour:
   finishedContractDialogue:
     name: Professor Bhan
     sentences:
-    - Good work, {Player Name}.
+    - Good work, {PlayerName}.
     - Your first training bridge has passed its test.
     - You now know how to accept a contract, use the blueprint, build a bridge, and
       test your design.

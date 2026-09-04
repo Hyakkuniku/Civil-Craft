@@ -15,7 +15,8 @@ public sealed class AchievementPopupNotification : MonoBehaviour
     {
         Achievement,
         Feature,
-        Cosmetic
+        Cosmetic,
+        Almanac
     }
 
     private sealed class PopupRequest
@@ -55,6 +56,12 @@ public sealed class AchievementPopupNotification : MonoBehaviour
     [SerializeField] private Color cosmeticAccentColor = new Color(0.79f, 0.52f, 0.96f, 1f);
     [SerializeField] private Color cosmeticPrimaryTextColor = new Color(0.98f, 0.92f, 1f, 1f);
     [SerializeField] private Color cosmeticSecondaryTextColor = new Color(0.86f, 0.75f, 0.92f, 1f);
+
+    [Header("Almanac Update Colors")]
+    [SerializeField] private Color almanacBackgroundColor = new Color(0.20f, 0.14f, 0.08f, 0.97f);
+    [SerializeField] private Color almanacAccentColor = new Color(0.88f, 0.61f, 0.25f, 1f);
+    [SerializeField] private Color almanacPrimaryTextColor = new Color(1f, 0.95f, 0.82f, 1f);
+    [SerializeField] private Color almanacSecondaryTextColor = new Color(0.91f, 0.82f, 0.65f, 1f);
 
     private readonly Queue<PopupRequest> pendingNotifications = new Queue<PopupRequest>();
     private Coroutine notificationRoutine;
@@ -186,6 +193,24 @@ public sealed class AchievementPopupNotification : MonoBehaviour
             detail = "Added to your cosmetics",
             icon = icon,
             kind = PopupKind.Cosmetic
+        });
+    }
+
+    /// <summary>Shows a guaranteed top-most toast for newly saved Almanac content.</summary>
+    public static void NotifyAlmanacEntry(
+        string entryName,
+        string entryType,
+        Sprite icon = null)
+    {
+        if (string.IsNullOrWhiteSpace(entryName)) entryName = "New Entry";
+        if (string.IsNullOrWhiteSpace(entryType)) entryType = "Entry";
+
+        Dispatch(new PopupRequest
+        {
+            title = entryName.Trim(),
+            detail = $"{entryType.Trim()} added to Almanac",
+            icon = icon,
+            kind = PopupKind.Almanac
         });
     }
 
@@ -328,16 +353,25 @@ public sealed class AchievementPopupNotification : MonoBehaviour
     {
         bool isFeatureUnlock = kind == PopupKind.Feature;
         bool isCosmeticUnlock = kind == PopupKind.Cosmetic;
-        Color selectedBackground = isCosmeticUnlock
+        bool isAlmanacUpdate = kind == PopupKind.Almanac;
+        Color selectedBackground = isAlmanacUpdate
+            ? almanacBackgroundColor
+            : isCosmeticUnlock
             ? cosmeticBackgroundColor
             : isFeatureUnlock ? featureBackgroundColor : backgroundColor;
-        Color selectedAccent = isCosmeticUnlock
+        Color selectedAccent = isAlmanacUpdate
+            ? almanacAccentColor
+            : isCosmeticUnlock
             ? cosmeticAccentColor
             : isFeatureUnlock ? featureAccentColor : accentColor;
-        Color selectedPrimary = isCosmeticUnlock
+        Color selectedPrimary = isAlmanacUpdate
+            ? almanacPrimaryTextColor
+            : isCosmeticUnlock
             ? cosmeticPrimaryTextColor
             : isFeatureUnlock ? featurePrimaryTextColor : primaryTextColor;
-        Color selectedSecondary = isCosmeticUnlock
+        Color selectedSecondary = isAlmanacUpdate
+            ? almanacSecondaryTextColor
+            : isCosmeticUnlock
             ? cosmeticSecondaryTextColor
             : isFeatureUnlock ? featureSecondaryTextColor : secondaryTextColor;
 
@@ -346,7 +380,9 @@ public sealed class AchievementPopupNotification : MonoBehaviour
         if (popupOutline != null) popupOutline.effectColor = selectedAccent;
         if (headingText != null)
         {
-            headingText.text = isCosmeticUnlock
+            headingText.text = isAlmanacUpdate
+                ? "ALMANAC UPDATED"
+                : isCosmeticUnlock
                 ? "COSMETIC UNLOCKED"
                 : isFeatureUnlock ? "FEATURE UNLOCKED" : "ACHIEVEMENT UNLOCKED";
             headingText.color = selectedAccent;

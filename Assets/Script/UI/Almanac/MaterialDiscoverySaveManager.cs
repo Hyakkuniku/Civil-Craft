@@ -8,8 +8,16 @@ public static class MaterialDiscoverySaveManager
 {
     public static bool Discover(BridgeMaterialSO material)
     {
-        return material != null && PlayerDataManager.Instance != null &&
-               PlayerDataManager.Instance.DiscoverMaterial(material.Id);
+        if (material == null || PlayerDataManager.Instance == null) return false;
+
+        bool discovered = PlayerDataManager.Instance.DiscoverMaterial(material.Id);
+        if (discovered)
+            AchievementPopupNotification.NotifyAlmanacEntry(
+                material.GetDisplayName(),
+                "Material",
+                material.materialIcon);
+
+        return discovered;
     }
 
     public static bool IsDiscovered(BridgeMaterialSO material)

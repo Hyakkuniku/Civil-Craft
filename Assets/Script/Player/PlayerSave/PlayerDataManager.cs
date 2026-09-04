@@ -425,6 +425,10 @@ public class PlayerDataManager : MonoBehaviour
             NotifyContractFeatureUnlocks(contractId, newlyUnlockedFeatureIds);
         }
         OnContractCompleted?.Invoke(contractId);
+        ContractSO completedContract = FindRegisteredContract(contractId);
+        AchievementPopupNotification.NotifyAlmanacEntry(
+            completedContract != null ? completedContract.name : contractId,
+            "Contract");
         CheckAllAchievements();
         return true;
     }
@@ -1102,10 +1106,18 @@ public class PlayerDataManager : MonoBehaviour
 
         if (CurrentData.unlockedLessonIds.Contains(normalizedId)) return false;
 
+        bool previousLessonsTab = CurrentData.hasUnlockedLessonsTab;
+        bool previousLessonsAlert = CurrentData.hasUnreadLessonsAlert;
         CurrentData.unlockedLessonIds.Add(normalizedId);
         CurrentData.hasUnlockedLessonsTab = true;
         CurrentData.hasUnreadLessonsAlert = true;
-        SaveGame();
+        if (!TrySaveGame())
+        {
+            CurrentData.unlockedLessonIds.Remove(normalizedId);
+            CurrentData.hasUnlockedLessonsTab = previousLessonsTab;
+            CurrentData.hasUnreadLessonsAlert = previousLessonsAlert;
+            return false;
+        }
         OnLessonUnlocked?.Invoke(normalizedId);
         OnAlmanacAlertsChanged?.Invoke();
         return true;
@@ -1136,10 +1148,18 @@ public class PlayerDataManager : MonoBehaviour
 
         if (CurrentData.discoveredMaterialIds.Contains(normalizedId)) return false;
 
+        bool previousMaterialsTab = CurrentData.hasUnlockedMaterialsTab;
+        bool previousMaterialsAlert = CurrentData.hasUnreadMaterialsAlert;
         CurrentData.discoveredMaterialIds.Add(normalizedId);
         CurrentData.hasUnlockedMaterialsTab = true;
         CurrentData.hasUnreadMaterialsAlert = true;
-        SaveGame();
+        if (!TrySaveGame())
+        {
+            CurrentData.discoveredMaterialIds.Remove(normalizedId);
+            CurrentData.hasUnlockedMaterialsTab = previousMaterialsTab;
+            CurrentData.hasUnreadMaterialsAlert = previousMaterialsAlert;
+            return false;
+        }
         OnMaterialDiscovered?.Invoke(normalizedId);
         OnAlmanacAlertsChanged?.Invoke();
         return true;

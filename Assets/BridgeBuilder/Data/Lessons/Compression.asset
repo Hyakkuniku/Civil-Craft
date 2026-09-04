@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a4da58d2dc2409c459ef20449bf92a90, type: 3}
+  m_Name: Compression
+  m_EditorClassIdentifier: 
+  lessonId: What is Compression
+  lessonTitle: What is Compression
+  lessonImage: {fileID: 0}
+  lessonDescription: 'Compression is a pushing force that squeezes or shortens a
+    structural member.
+
+    When a member is under compression, forces push toward
+    each other from opposite ends. If the compression becomes too great, the member
+    may crush, bend, or buckle.
+
+    Columns, piers, and bridge supports commonly
+    resist compression.
+
+    Bridge Example:
+
+    Bridge piers experience compression
+    as they carry the weight of the bridge and transfer it to the ground.'

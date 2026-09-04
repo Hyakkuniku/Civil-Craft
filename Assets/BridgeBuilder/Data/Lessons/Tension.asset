@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a4da58d2dc2409c459ef20449bf92a90, type: 3}
+  m_Name: Tension
+  m_EditorClassIdentifier: 
+  lessonId: What is Tension
+  lessonTitle: What is Tension
+  lessonImage: {fileID: 0}
+  lessonDescription: "Tension is a pulling force that stretches a structural member.\nWhen
+    a member is under tension, forces pull away from each other at opposite ends.
+    The member becomes slightly longer as it carries the load. If the tension becomes
+    greater than the material\u2019s strength, the member may stretch excessively
+    or break.\nCables, ropes, and the lower portions of some bridge components commonly
+    resist tension.\nBridge Example:\nThe main cables of a suspension bridge are
+    placed under tension as they support the bridge deck."

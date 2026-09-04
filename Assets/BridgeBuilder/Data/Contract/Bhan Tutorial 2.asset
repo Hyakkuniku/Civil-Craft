@@ -19,7 +19,7 @@ MonoBehaviour:
   isTutorialContract: 1
   autoCollectReward: 0
   featureUnlockRewards: []
-  clientName: Prof Bhan
+  clientName: Professor Bhan
   jobDescription: Truss Bridge
   budget: 50000
   liveLoadWeight: 500
@@ -40,17 +40,34 @@ MonoBehaviour:
   goldReward: 500
   expReward: 1000
   offerDialogue:
-    name: Prof Bhan
+    name: Professor Bhan
     sentences:
-    - Now im going to teach you about truss bridges
     - Enter the Build location so we can start
+  continueOfferDialogue:
+    name: Professor Bhan
+    sentences:
+    - The bridge must safely carry several pedestrians crossing one after another.
+    - This time, the road alone will not be enough.
+    - You'll reinforce it using the Wood Beams you just learned about.
+    - When a truss carries a load, its members can experience different types of
+      forces.
+    - Some members are pulled apart. This is called tension.
+    - Other members are pushed together. This is called compression.
+    - These forces act within the truss as the members work together to support the
+      load.
+    - To keep the structure stable, the forces acting on it must remain balanced.
+    - This condition is called equilibrium.
+    - Pay attention to how the members respond when the pedestrians cross the bridge.
+    - Now that you've accepted the contract, follow the path to the Blueprint.
   reminderDialogue:
-    name: Prof Bhan
+    name: Professor Bhan
     sentences:
     - What are you waiting for?
   finishedContractDialogue:
-    name: Prof Bhan
+    name: Professor Bhan
     sentences:
-    - 'Done?
-
-'
+    - Excellent work, Engineer.
+    - You've now built your first truss bridge.
+    - You also learned how to select, copy, and paste structural components.
+    - Those tools will become useful when your designs become more complicated.
+    - But before you move on, there's one more building tool I want you to learn.

@@ -8,8 +8,16 @@ public static class LessonSaveManager
 {
     public static bool Unlock(LessonData lesson)
     {
-        return lesson != null && PlayerDataManager.Instance != null &&
-               PlayerDataManager.Instance.UnlockLesson(lesson.Id);
+        if (lesson == null || PlayerDataManager.Instance == null) return false;
+
+        bool unlocked = PlayerDataManager.Instance.UnlockLesson(lesson.Id);
+        if (unlocked)
+            AchievementPopupNotification.NotifyAlmanacEntry(
+                lesson.Title,
+                "Lesson",
+                lesson.Image);
+
+        return unlocked;
     }
 
     public static bool IsUnlocked(LessonData lesson)
