@@ -529,7 +529,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
                 if (isGridSnappingEnabled && hoveredNode == null)
                 {
-                    targetPos = new Vector3(Mathf.RoundToInt(targetPos.x), Mathf.RoundToInt(targetPos.y), targetPos.z);
+                    targetPos = SnapToGridFromOrigin(targetPos, startPos);
                     if (activeMaterial != null && activeMaterial.isPier) targetPos.x = startPos.x;
                     if (Vector3.Distance(startPos, targetPos) > maxLen) targetPos = startPos + (direction * maxLen); 
                 }
@@ -1334,8 +1334,15 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         
         if (isGridSnappingEnabled)
         {
-            result.x = Mathf.Round(result.x);
-            result.y = Mathf.Round(result.y);
+            // Build locations are not guaranteed to sit on whole-number world
+            // coordinates. Snapping to the global origin shortened the first
+            // 10 m segment at those sites (for example 232.4727 -> 242.0), so
+            // five roads could not cover a measured 50 m span. Use the current
+            // node as the grid origin to preserve exact material lengths.
+            Vector3 gridOrigin = currentStartPoint != null
+                ? currentStartPoint.transform.position
+                : Vector3.zero;
+            result = SnapToGridFromOrigin(result, gridOrigin);
         }
 
         // Horizontal & Vertical Straight-Line Assist!
@@ -1352,6 +1359,14 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         }
 
         return result;
+    }
+
+    private static Vector3 SnapToGridFromOrigin(Vector3 position, Vector3 origin)
+    {
+        return new Vector3(
+            origin.x + Mathf.Round(position.x - origin.x),
+            origin.y + Mathf.Round(position.y - origin.y),
+            position.z);
     }
 
     // Finds the nearest node center on the active bridge plane. This is independent
@@ -1474,7 +1489,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             finalPosition = startPos + (direction * limit);
             if (isGridSnappingEnabled && existingEndPoint == null)
             {
-                finalPosition = new Vector3(Mathf.RoundToInt(finalPosition.x), Mathf.RoundToInt(finalPosition.y), finalPosition.z);
+                finalPosition = SnapToGridFromOrigin(finalPosition, startPos);
                 if (activeMaterial != null && activeMaterial.isPier) finalPosition.x = startPos.x;
                 if (Vector3.Distance(startPos, finalPosition) > limit) finalPosition = startPos + (direction * limit); 
             }

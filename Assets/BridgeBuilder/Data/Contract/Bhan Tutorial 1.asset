@@ -26,7 +26,7 @@ MonoBehaviour:
   jobDescription: 'Beam Bridges
 
 '
-  budget: 25000
+  budget: 55000
   liveLoadWeight: 700
   bridgeSpan: 30
   allowedMaterials:
@@ -70,4 +70,11 @@ MonoBehaviour:
     - Enter the Blueprint and begin construction.
   finishedContractDialogue:
     name: Professor Bhan
-    sentences: []
+    sentences:
+    - Good work, {Player Name}.
+    - Your first training bridge has passed its test.
+    - You now know how to accept a contract, use the blueprint, build a bridge, and
+      test your design.
+    - But your work is not finished yet.
+    - an engineer should inspect the structure after construction.
+    - Open your Almanac and review your first entry

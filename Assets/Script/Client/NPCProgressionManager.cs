@@ -63,6 +63,10 @@ public class NPCProgressionPhase
     [Tooltip("Allow the player to replay this phase dialogue after it has finished once.")]
     public bool repeatDialogue = true;
 
+    [Header("Idle Roaming")]
+    [Tooltip("When enabled, the NPC walks and pauses in a small loop while waiting at this phase.")]
+    public bool enableIdleRoaming;
+
     [Tooltip("Optional permanent feature ID granted after this dialogue finishes. It defaults to minimap for this sequence; clear it for no unlock.")]
     public string unlockFeatureIdAfterDialogue = "minimap";
 
@@ -173,6 +177,14 @@ public class NPCProgressionManager : MonoBehaviour
 
     [Header("Animation")]
     [SerializeField] private string walkingBoolParameter = "isWalking";
+    [SerializeField] private string talkingBoolParameter = "isTalking";
+
+    [Header("Idle Roaming")]
+    [Tooltip("Shared distance used by every phase that has Enable Idle Roaming checked.")]
+    [Min(0.1f)] [SerializeField] private float idleRoamingRadius = 1.5f;
+    [Min(0.01f)] [SerializeField] private float idleRoamingSpeed = 1.2f;
+    [Min(0f)] [SerializeField] private float idlePauseDuration = 2f;
+    [Min(0.01f)] [SerializeField] private float idleRoamingArrivalDistance = 0.08f;
 
     [Header("NavMesh Link Traversal")]
     [Tooltip("Moves across NavMeshLink segments at the agent's normal Speed instead of Unity's automatic traversal speed.")]
@@ -192,6 +204,8 @@ public class NPCProgressionManager : MonoBehaviour
     private readonly HashSet<int> introducedMaterialPhases = new HashSet<int>();
     private readonly HashSet<int> runningOptionalSequencePhases = new HashSet<int>();
     private Coroutine movementRoutine;
+    private Coroutine idleRoamingRoutine;
+    private bool isInvokingPhaseDialogueFinished;
     private int currentPhaseIndex = -1;
     private bool subscribedToCompletion;
     private bool manualLinkTraversalActive;
@@ -399,6 +413,8 @@ public class NPCProgressionManager : MonoBehaviour
             movementRoutine = null;
         }
 
+        StopIdleRoaming();
+
         SetWalkingAnimation(false);
         RestoreAgentAfterLinkTraversal(false);
         if (contractGiver != null) contractGiver.SetProgressionInteractionLocked(false);
@@ -545,12 +561,38 @@ public class NPCProgressionManager : MonoBehaviour
     /// <summary>Useful for testing a phase from a UnityEvent or custom debug button.</summary>
     public void MoveToPhase(int phaseIndex)
     {
+        // Inspector UnityEvents store phase indices as plain integers, making it
+        // easy to accidentally point a phase-complete event back at itself. A
+        // self-target issued specifically while that phase's dialogue-finished
+        // event is running would otherwise make the NPC walk to the same marker
+        // and leave progression permanently parked there.
+        if (isInvokingPhaseDialogueFinished && phaseIndex == currentPhaseIndex)
+        {
+            int nextPhaseIndex = currentPhaseIndex + 1;
+            if (nextPhaseIndex >= phases.Count)
+            {
+                Debug.LogWarning(
+                    $"[NPCProgressionManager] Phase '{CurrentPhase?.phaseId}' points back to itself and has no next phase.",
+                    this);
+                onProgressionFinished?.Invoke();
+                return;
+            }
+
+            Debug.LogWarning(
+                $"[NPCProgressionManager] Phase '{CurrentPhase?.phaseId}' tried to move to itself. " +
+                $"Continuing to phase {nextPhaseIndex} ('{phases[nextPhaseIndex]?.phaseId}') instead.",
+                this);
+            phaseIndex = nextPhaseIndex;
+        }
+
         if (IsTravelling || phaseIndex < 0 || phaseIndex >= phases.Count) return;
         movementRoutine = StartCoroutine(MoveToPhaseRoutine(phaseIndex));
     }
 
     private IEnumerator MoveToPhaseRoutine(int nextPhaseIndex)
     {
+        StopIdleRoaming();
+
         // Commit the destination before the first movement frame. If the game is
         // closed anywhere during travel, the next load snaps to this safe phase.
         SaveProgressionState(nextPhaseIndex, true);
@@ -1351,6 +1393,8 @@ public class NPCProgressionManager : MonoBehaviour
             if (phase.playDialogueOnArrival)
                 TryStartPhaseDialogue(phaseIndex, phase);
         }
+
+        StartIdleRoaming();
     }
 
     private void HandleNPCInteracted(NPCContractGiver sender)
@@ -1402,7 +1446,8 @@ public class NPCProgressionManager : MonoBehaviour
         if (!phase.repeatDialogue) completedDialoguePhases.Add(phaseIndex);
         dialogueManager.StartDialogue(
             phase.phaseDialogue,
-            () => HandlePhaseDialogueFinished(phaseIndex, phase));
+            () => HandlePhaseDialogueFinished(phaseIndex, phase),
+            animator);
     }
 
     private void HandlePhaseDialogueFinished(int phaseIndex, NPCProgressionPhase phase)
@@ -1413,7 +1458,15 @@ public class NPCProgressionManager : MonoBehaviour
 
         TryShowMaterialIntroduction(phaseIndex, phase);
 
-        phase.onDialogueFinished?.Invoke();
+        isInvokingPhaseDialogueFinished = true;
+        try
+        {
+            phase.onDialogueFinished?.Invoke();
+        }
+        finally
+        {
+            isInvokingPhaseDialogueFinished = false;
+        }
     }
 
     private void GrantConfiguredPhaseFeature(NPCProgressionPhase phase)
@@ -1540,7 +1593,8 @@ public class NPCProgressionManager : MonoBehaviour
                         phase,
                         nextStepIndex,
                         showMaterialSteps,
-                        displayedMaterial));
+                        displayedMaterial),
+                    animator);
                 return;
             }
 
@@ -1680,6 +1734,193 @@ public class NPCProgressionManager : MonoBehaviour
                 $"[NPCProgressionManager] Cannot unlock feature '{phase.unlockFeatureIdAfterDialogue}' because PlayerDataManager is unavailable.",
                 this);
         }
+    }
+
+    /// <summary>Runtime/UI entry point matching the Idle Roaming Inspector checkbox.</summary>
+    public void SetIdleRoamingEnabled(bool enabled)
+    {
+        if (CurrentPhase == null) return;
+
+        CurrentPhase.enableIdleRoaming = enabled;
+        if (enabled)
+            StartIdleRoaming();
+        else
+            StopIdleRoaming();
+    }
+
+    private void StartIdleRoaming()
+    {
+        StopIdleRoaming();
+        if (!IsIdleRoamingEnabledForCurrentPhase() || !isActiveAndEnabled ||
+            CurrentPhase == null || CurrentPhase.targetLocation == null) return;
+
+        idleRoamingRoutine = StartCoroutine(IdleRoamingLoop());
+    }
+
+    private void StopIdleRoaming()
+    {
+        if (idleRoamingRoutine != null)
+        {
+            StopCoroutine(idleRoamingRoutine);
+            idleRoamingRoutine = null;
+        }
+
+        StopIdleAgentPath();
+        if (!IsTravelling) SetWalkingAnimation(false);
+    }
+
+    private IEnumerator IdleRoamingLoop()
+    {
+        int patrolSide = 1;
+
+        while (IsIdleRoamingEnabledForCurrentPhase() && isActiveAndEnabled)
+        {
+            NPCProgressionPhase phase = CurrentPhase;
+            if (phase == null || phase.targetLocation == null) break;
+
+            if (IsIdleRoamingBlocked())
+            {
+                StopIdleAgentPath();
+                if (!IsTravelling) SetWalkingAnimation(false);
+                yield return null;
+                continue;
+            }
+
+            Vector3 patrolAxis = Vector3.ProjectOnPlane(
+                phase.targetLocation.right,
+                Vector3.up).normalized;
+            if (patrolAxis.sqrMagnitude < 0.001f) patrolAxis = Vector3.right;
+
+            Vector3 destination = phase.targetLocation.position +
+                                  patrolAxis * idleRoamingRadius * patrolSide;
+            patrolSide *= -1;
+
+            if (!TryProjectWaypointToGround(destination, out destination))
+            {
+                // Do not let automatic roaming walk the NPC over a ledge. Try the
+                // opposite side after a normal idle pause instead.
+                if (!IsTravelling) SetWalkingAnimation(false);
+                yield return WaitForIdleRoamingPause();
+                continue;
+            }
+
+            yield return MoveToIdleRoamingPoint(destination);
+
+            if (!IsTravelling) SetWalkingAnimation(false);
+            yield return WaitForIdleRoamingPause();
+        }
+
+        StopIdleAgentPath();
+        if (!IsTravelling) SetWalkingAnimation(false);
+        idleRoamingRoutine = null;
+    }
+
+    private IEnumerator MoveToIdleRoamingPoint(Vector3 destination)
+    {
+        if (movementMode == NPCProgressionMovementMode.NavMesh &&
+            navMeshAgent != null && navMeshAgent.enabled && navMeshAgent.isOnNavMesh &&
+            NavMesh.SamplePosition(destination, out NavMeshHit hit,
+                navMeshSampleRadius, navMeshAgent.areaMask))
+        {
+            NavMeshPath idlePath = new NavMeshPath();
+            if (!navMeshAgent.CalculatePath(hit.position, idlePath) ||
+                idlePath.status != NavMeshPathStatus.PathComplete)
+            {
+                yield break;
+            }
+
+            navMeshAgent.isStopped = false;
+            navMeshAgent.SetPath(idlePath);
+            SetWalkingAnimation(true);
+
+            while (!IsIdleRoamingBlocked() && navMeshAgent.pathPending)
+                yield return null;
+
+            while (!IsIdleRoamingBlocked() && navMeshAgent.hasPath &&
+                   navMeshAgent.remainingDistance >
+                       navMeshAgent.stoppingDistance + idleRoamingArrivalDistance)
+            {
+                yield return null;
+            }
+
+            StopIdleAgentPath();
+            yield break;
+        }
+
+        SetWalkingAnimation(true);
+        float arrivalDistanceSquared =
+            idleRoamingArrivalDistance * idleRoamingArrivalDistance;
+
+        while (!IsIdleRoamingBlocked())
+        {
+            Vector3 flatOffset = destination - transform.position;
+            flatOffset.y = 0f;
+            if (flatOffset.sqrMagnitude <= arrivalDistanceSquared) break;
+
+            Vector3 flatDirection = flatOffset.normalized;
+            float step = idleRoamingSpeed * Time.deltaTime;
+            Vector3 candidate = transform.position +
+                                flatDirection * Mathf.Min(step, flatOffset.magnitude);
+
+            if (!TryProjectWaypointToGround(candidate, out Vector3 groundedCandidate))
+                break;
+
+            candidate.y = groundedCandidate.y;
+            transform.position = candidate;
+            transform.rotation = Quaternion.RotateTowards(
+                transform.rotation,
+                Quaternion.LookRotation(flatDirection, Vector3.up),
+                waypointTurnSpeed * Time.deltaTime);
+            yield return null;
+        }
+    }
+
+    private IEnumerator WaitForIdleRoamingPause()
+    {
+        float remaining = idlePauseDuration;
+        while (remaining > 0f && IsIdleRoamingEnabledForCurrentPhase() && isActiveAndEnabled)
+        {
+            if (!IsIdleRoamingBlocked()) remaining -= Time.deltaTime;
+            yield return null;
+        }
+    }
+
+    private bool IsIdleRoamingBlocked()
+    {
+        return IsTravelling || IsAnimatorTalking();
+    }
+
+    private bool IsIdleRoamingEnabledForCurrentPhase()
+    {
+        return CurrentPhase != null && CurrentPhase.enableIdleRoaming;
+    }
+
+    private bool IsAnimatorTalking()
+    {
+        if (animator == null || string.IsNullOrWhiteSpace(talkingBoolParameter)) return false;
+
+        AnimatorControllerParameter[] parameters = animator.parameters;
+        for (int i = 0; i < parameters.Length; i++)
+        {
+            if (parameters[i].type == AnimatorControllerParameterType.Bool &&
+                parameters[i].name == talkingBoolParameter)
+            {
+                return animator.GetBool(talkingBoolParameter);
+            }
+        }
+
+        return false;
+    }
+
+    private void StopIdleAgentPath()
+    {
+        // Never erase a real phase-travel path when the idle loop notices that
+        // progression has started.
+        if (IsTravelling || navMeshAgent == null || !navMeshAgent.enabled ||
+            !navMeshAgent.isOnNavMesh) return;
+
+        navMeshAgent.isStopped = true;
+        navMeshAgent.ResetPath();
     }
 
     private void SetWalkingAnimation(bool walking)

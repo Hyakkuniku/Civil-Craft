@@ -23,6 +23,7 @@ public class NPCContractGiver : Interactable
 
     private Transform playerTransform;
     private DialogueManager dialogueManager;
+    private Animator npcAnimator;
     private bool isLocked = false;
     private bool isProgressionInteractionLocked;
     private string progressionLockedPrompt = "Moving to the next site...";
@@ -47,6 +48,7 @@ public class NPCContractGiver : Interactable
         if (player != null) playerTransform = player.transform;
         
         dialogueManager = FindObjectOfType<DialogueManager>();
+        npcAnimator = GetComponentInChildren<Animator>();
     }
 
     private void Start()
@@ -167,7 +169,7 @@ public class NPCContractGiver : Interactable
                 dialogueManager.StartDialogue(contractToGive.finishedContractDialogue, () => 
                 {
                     ClaimReward();
-                });
+                }, npcAnimator);
             }
             else
             {
@@ -186,7 +188,7 @@ public class NPCContractGiver : Interactable
                 dialogueManager.StartDialogue(contractToGive.reminderDialogue, () => 
                 {
                     TryAdvanceTutorial();
-                });
+                }, npcAnimator);
             }
             else
             {
@@ -219,7 +221,8 @@ public class NPCContractGiver : Interactable
             contractToGive.offerDialogue.name = contractToGive.clientName;
             dialogueManager.StartDialogue(
                 contractToGive.offerDialogue,
-                () => PresentContractOffer(targetLocationName));
+                () => PresentContractOffer(targetLocationName),
+                npcAnimator);
         }
         else
         {
@@ -268,7 +271,8 @@ public class NPCContractGiver : Interactable
             contractToGive.continueOfferDialogue.name = contractToGive.clientName;
             dialogueManager.StartDialogue(
                 contractToGive.continueOfferDialogue,
-                CompleteContractOfferFlow);
+                CompleteContractOfferFlow,
+                npcAnimator);
         }
         else
         {

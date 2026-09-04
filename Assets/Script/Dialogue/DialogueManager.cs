@@ -19,6 +19,12 @@ public class DialogueManager : MonoBehaviour
     [Header("Typewriter Settings")]
     public float typingSpeed = 0.03f; 
 
+    [Header("NPC Animation")]
+    [Tooltip("Bool parameter used by the speaking NPC's Animator while this dialogue is open.")]
+    [SerializeField] private string speakerTalkingBoolParameter = "isTalking";
+    [Tooltip("Walking is stopped before the talking animation begins when this bool exists on the NPC Animator.")]
+    [SerializeField] private string speakerWalkingBoolParameter = "isWalking";
+
     [Header("UI Management")]
     public List<GameObject> elementsToHide = new List<GameObject>();
 
@@ -27,6 +33,7 @@ public class DialogueManager : MonoBehaviour
     private PlayerInteract playerInteract;
     private PlayerUI playerUI;
     private Action onDialogueEndCallback; 
+    private Animator activeSpeakerAnimator;
 
     private bool isTyping = false;
     private Coroutine typingCoroutine;
@@ -59,9 +66,11 @@ public class DialogueManager : MonoBehaviour
         cachedTypingWait = new WaitForSeconds(typingSpeed); 
     }
 
-    public void StartDialogue (Dialogue dialogue, Action onEnd = null)
+    public void StartDialogue(Dialogue dialogue, Action onEnd = null, Animator speakerAnimator = null)
     {
         if (dialogue == null) return;
+
+        SetActiveSpeaker(speakerAnimator);
 
         ResolveDialogueBox();
         if (hideDialogueCoroutine != null)
@@ -146,6 +155,8 @@ public class DialogueManager : MonoBehaviour
 
     void EndDialogue()
     {
+        StopActiveSpeakerTalking();
+
         inputManager?.SetPlayerInputEnable(true);
         inputManager?.SetLookEnabled(true);
         if (playerInteract != null) playerInteract.enabled = true;
@@ -168,6 +179,53 @@ public class DialogueManager : MonoBehaviour
         Action completedCallback = onDialogueEndCallback;
         onDialogueEndCallback = null;
         completedCallback?.Invoke();
+    }
+
+    private void OnDisable()
+    {
+        StopActiveSpeakerTalking();
+    }
+
+    private void SetActiveSpeaker(Animator speakerAnimator)
+    {
+        StopActiveSpeakerTalking();
+        activeSpeakerAnimator = speakerAnimator;
+
+        if (activeSpeakerAnimator == null) return;
+
+        if (HasBoolParameter(activeSpeakerAnimator, speakerWalkingBoolParameter))
+            activeSpeakerAnimator.SetBool(speakerWalkingBoolParameter, false);
+
+        if (HasBoolParameter(activeSpeakerAnimator, speakerTalkingBoolParameter))
+            activeSpeakerAnimator.SetBool(speakerTalkingBoolParameter, true);
+    }
+
+    private void StopActiveSpeakerTalking()
+    {
+        if (activeSpeakerAnimator != null &&
+            HasBoolParameter(activeSpeakerAnimator, speakerTalkingBoolParameter))
+        {
+            activeSpeakerAnimator.SetBool(speakerTalkingBoolParameter, false);
+        }
+
+        activeSpeakerAnimator = null;
+    }
+
+    private static bool HasBoolParameter(Animator targetAnimator, string parameterName)
+    {
+        if (targetAnimator == null || string.IsNullOrWhiteSpace(parameterName)) return false;
+
+        AnimatorControllerParameter[] parameters = targetAnimator.parameters;
+        for (int i = 0; i < parameters.Length; i++)
+        {
+            if (parameters[i].type == AnimatorControllerParameterType.Bool &&
+                parameters[i].name == parameterName)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private IEnumerator HideDialogueBoxAfterClose()

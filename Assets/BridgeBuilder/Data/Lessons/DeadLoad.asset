@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a4da58d2dc2409c459ef20449bf92a90, type: 3}
+  m_Name: DeadLoad
+  m_EditorClassIdentifier: 
+  lessonId: deadload
+  lessonTitle: Dead Load
+  lessonImage: {fileID: 21300000, guid: 8097286e569a66a4d9e5bfc046b02263, type: 3}
+  lessonDescription: "In bridge engineering, dead load is the permanent, static weight
+    that a bridge must support throughout its service life. It includes the bridge\u2019s
+    own structural components\u2014such as the deck, beams, girders, trusses, cables,
+    piers, and foundations\u2014as well as permanently attached features like barriers,
+    railings, utilities, and pavement. Unlike moving loads from vehicles, pedestrians,
+    or wind, dead load remains relatively constant and is a fundamental consideration
+    when designing the bridge\u2019s strength, stability, and foundations."

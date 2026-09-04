@@ -32,6 +32,7 @@ public class TutorialNameNPC : Interactable
     public UnityEvent onFinalDialogueFinished;
 
     private DialogueManager dialogueManager;
+    private Animator npcAnimator;
     private NameRegistrationUI nameUI;
     private Transform playerTransform;
 
@@ -42,6 +43,7 @@ public class TutorialNameNPC : Interactable
     private void Awake()
     {
         dialogueManager = FindObjectOfType<DialogueManager>();
+        npcAnimator = GetComponentInChildren<Animator>();
         nameUI = FindObjectOfType<NameRegistrationUI>(true); 
         
         GameObject player = GameObject.FindGameObjectWithTag("Player");
@@ -84,7 +86,7 @@ public class TutorialNameNPC : Interactable
             dialogueManager.StartDialogue(askNameDialogue, () => 
             {
                 if (nameUI != null) nameUI.ShowNamePrompt();
-            });
+            }, npcAnimator);
         }
         else if (!hasBook)
         {
@@ -94,11 +96,11 @@ public class TutorialNameNPC : Interactable
                 {
                     hasGivenFetchQuest = true;
                     if (advancesTutorial && TutorialManager.Instance != null) TutorialManager.Instance.ShowNextStep();
-                });
+                }, npcAnimator);
             }
             else
             {
-                dialogueManager.StartDialogue(reminderAlmanacDialogue, null);
+                dialogueManager.StartDialogue(reminderAlmanacDialogue, null, npcAnimator);
             }
         }
         else
@@ -107,7 +109,7 @@ public class TutorialNameNPC : Interactable
             promptMessage = "";
 
             if (rewardDialogue != null)
-                dialogueManager.StartDialogue(rewardDialogue, ShowRewardThenFinalDialogue);
+                dialogueManager.StartDialogue(rewardDialogue, ShowRewardThenFinalDialogue, npcAnimator);
             else
                 ShowRewardThenFinalDialogue();
         }
@@ -146,7 +148,7 @@ public class TutorialNameNPC : Interactable
     private void StartFinalHouseDialogue()
     {
         if (dialogueManager != null && finalHouseDialogue != null)
-            dialogueManager.StartDialogue(finalHouseDialogue, FinishHouseInteraction);
+            dialogueManager.StartDialogue(finalHouseDialogue, FinishHouseInteraction, npcAnimator);
         else
             FinishHouseInteraction();
     }
@@ -190,7 +192,7 @@ public class TutorialNameNPC : Interactable
                 {
                     TutorialManager.Instance.ShowNextStep();
                 }
-            });
+            }, npcAnimator);
         }
     }
 }

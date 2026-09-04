@@ -7,6 +7,10 @@ public class DialogueTrigger : MonoBehaviour
     [Tooltip("Check this if talking to this NPC should advance the tutorial!")]
     public bool advancesTutorial = false;
 
+    [Header("Speaker Animation")]
+    [Tooltip("Animator belonging to the NPC speaking this dialogue. Auto-detected from this object when empty.")]
+    [SerializeField] private Animator speakerAnimator;
+
     [Header("Post-Dialogue Events")]
     [Tooltip("Fires exactly when this specific dialogue box closes.")]
     public UnityEvent onDialogueFinished; // --- NEW: Allows us to chain the UI panel! ---
@@ -20,6 +24,7 @@ public class DialogueTrigger : MonoBehaviour
         if (player != null) playerTransform = player.transform;
         
         dialogueManager = FindObjectOfType<DialogueManager>();
+        if (speakerAnimator == null) speakerAnimator = GetComponentInChildren<Animator>();
     }
 
     public void TriggerDialogue()
@@ -37,7 +42,7 @@ public class DialogueTrigger : MonoBehaviour
             }
             
             onDialogueFinished?.Invoke(); 
-        });
+        }, speakerAnimator);
     }
 
     private void FacePlayer()
