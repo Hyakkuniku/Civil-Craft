@@ -42,6 +42,8 @@ public class BuildLocation : Interactable
     [Header("Navigation")]
     [Tooltip("Drag an Empty GameObject placed at the cliff edge here. The rock trail will lead to this exact spot!")]
     public GameObject navigationTarget;
+    [Tooltip("Optional safe landing point used by the expanded map's Fast Travel button. If empty, Navigation Target is used with a small upward offset.")]
+    public Transform fastTravelTarget;
 
     [Header("Tutorial Settings")]
     public bool advancesTutorial = false; 

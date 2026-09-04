@@ -50,6 +50,11 @@ public sealed class ExpandedMinimapController : MonoBehaviour
     [SerializeField] private Color completedLocationColor = new Color(0.28f, 0.72f, 0.34f, 1f);
     [SerializeField] private Color lockedLocationColor = new Color(0.62f, 0.58f, 0.50f, 1f);
     [SerializeField] private Color activeLocationColor = new Color(1f, 0.82f, 0.12f, 1f);
+    [SerializeField] private Color navigationLocationColor = new Color(0.15f, 0.72f, 0.92f, 1f);
+
+    [Header("Location Actions")]
+    [Tooltip("Applied only when a Build Location does not have an explicit Fast Travel Target.")]
+    [SerializeField] private Vector3 fallbackFastTravelOffset = new Vector3(0f, 1f, 0f);
 
     private readonly List<MarkerView> markers = new List<MarkerView>();
     private RectTransform markerLayer;
@@ -57,6 +62,12 @@ public sealed class ExpandedMinimapController : MonoBehaviour
     private CanvasGroup controlsCanvasGroup;
     private Canvas owningCanvas;
     private TMP_FontAsset uiFont;
+    private RectTransform locationActionRoot;
+    private TMP_Text selectedLocationLabel;
+    private TMP_Text locationActionLabel;
+    private Button locationActionButton;
+    private BuildLocation selectedLocation;
+    private BuildLocation navigationDestination;
 
     private Vector2 compactAnchorMin;
     private Vector2 compactAnchorMax;
@@ -366,6 +377,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         CreateControlButton("ZoomIn", "+", new Vector2(1f, 0f), new Vector2(-48f, 108f), ZoomIn);
         CreateControlButton("ZoomOut", "−", new Vector2(1f, 0f), new Vector2(-48f, 48f), ZoomOut);
         CreateControlButton("CenterPlayer", "◎", new Vector2(0f, 0f), new Vector2(48f, 48f), CenterOnPlayer);
+        CreateLocationActionPanel(rootRect);
 
         GameObject titleObject = new GameObject("MapInstructions", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
         titleObject.layer = minimapPanel.gameObject.layer;
@@ -388,6 +400,101 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         if (uiFont != null) title.font = uiFont;
 
         controlsRoot.transform.SetAsLastSibling();
+    }
+
+    private void CreateLocationActionPanel(RectTransform parent)
+    {
+        GameObject panelObject = new GameObject(
+            "LocationActionPanel",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image),
+            typeof(Outline));
+        panelObject.layer = minimapPanel.gameObject.layer;
+        locationActionRoot = panelObject.GetComponent<RectTransform>();
+        locationActionRoot.SetParent(parent, false);
+        locationActionRoot.anchorMin = locationActionRoot.anchorMax = new Vector2(0.5f, 0f);
+        locationActionRoot.pivot = new Vector2(0.5f, 0f);
+        locationActionRoot.anchoredPosition = new Vector2(0f, 18f);
+        locationActionRoot.sizeDelta = new Vector2(560f, 92f);
+
+        Image background = panelObject.GetComponent<Image>();
+        background.color = new Color(0.98f, 0.92f, 0.78f, 0.98f);
+        Outline outline = panelObject.GetComponent<Outline>();
+        outline.effectColor = new Color(0.34f, 0.19f, 0.10f, 1f);
+        outline.effectDistance = new Vector2(3f, -3f);
+
+        GameObject selectedObject = new GameObject(
+            "SelectedLocation",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(TextMeshProUGUI));
+        selectedObject.layer = minimapPanel.gameObject.layer;
+        RectTransform selectedRect = selectedObject.GetComponent<RectTransform>();
+        selectedRect.SetParent(locationActionRoot, false);
+        selectedRect.anchorMin = new Vector2(0f, 0f);
+        selectedRect.anchorMax = new Vector2(0.62f, 1f);
+        selectedRect.offsetMin = new Vector2(18f, 10f);
+        selectedRect.offsetMax = new Vector2(-12f, -10f);
+
+        selectedLocationLabel = selectedObject.GetComponent<TextMeshProUGUI>();
+        selectedLocationLabel.text = "Select a build location";
+        selectedLocationLabel.alignment = TextAlignmentOptions.MidlineLeft;
+        selectedLocationLabel.color = new Color(0.22f, 0.12f, 0.07f, 1f);
+        selectedLocationLabel.fontStyle = FontStyles.Bold;
+        selectedLocationLabel.enableAutoSizing = true;
+        selectedLocationLabel.fontSizeMin = 13f;
+        selectedLocationLabel.fontSizeMax = 26f;
+        selectedLocationLabel.raycastTarget = false;
+        if (uiFont != null) selectedLocationLabel.font = uiFont;
+
+        GameObject buttonObject = new GameObject(
+            "LocationActionButton",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image),
+            typeof(Button),
+            typeof(Outline));
+        buttonObject.layer = minimapPanel.gameObject.layer;
+        RectTransform buttonRect = buttonObject.GetComponent<RectTransform>();
+        buttonRect.SetParent(locationActionRoot, false);
+        buttonRect.anchorMin = new Vector2(0.62f, 0f);
+        buttonRect.anchorMax = new Vector2(1f, 1f);
+        buttonRect.offsetMin = new Vector2(4f, 12f);
+        buttonRect.offsetMax = new Vector2(-12f, -12f);
+
+        Image buttonBackground = buttonObject.GetComponent<Image>();
+        buttonBackground.color = availableLocationColor;
+        Outline buttonOutline = buttonObject.GetComponent<Outline>();
+        buttonOutline.effectColor = new Color(0.34f, 0.19f, 0.10f, 1f);
+        buttonOutline.effectDistance = new Vector2(2f, -2f);
+
+        locationActionButton = buttonObject.GetComponent<Button>();
+        locationActionButton.targetGraphic = buttonBackground;
+        locationActionButton.onClick.AddListener(PerformSelectedLocationAction);
+
+        GameObject labelObject = new GameObject(
+            "Label",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(TextMeshProUGUI));
+        labelObject.layer = minimapPanel.gameObject.layer;
+        RectTransform labelRect = labelObject.GetComponent<RectTransform>();
+        labelRect.SetParent(buttonRect, false);
+        Stretch(labelRect, new Vector2(8f, 4f), new Vector2(-8f, -4f));
+
+        locationActionLabel = labelObject.GetComponent<TextMeshProUGUI>();
+        locationActionLabel.text = "SELECT";
+        locationActionLabel.alignment = TextAlignmentOptions.Center;
+        locationActionLabel.color = Color.white;
+        locationActionLabel.fontStyle = FontStyles.Bold;
+        locationActionLabel.enableAutoSizing = true;
+        locationActionLabel.fontSizeMin = 12f;
+        locationActionLabel.fontSizeMax = 24f;
+        locationActionLabel.raycastTarget = false;
+        if (uiFont != null) locationActionLabel.font = uiFont;
+
+        UpdateLocationActionPanel();
     }
 
     private void CreateControlButton(string objectName, string text, Vector2 anchor, Vector2 position, UnityEngine.Events.UnityAction action)
@@ -439,6 +546,11 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         }
         markers.Clear();
 
+        if (selectedLocation != null && selectedLocation.gameObject.scene != gameObject.scene)
+            selectedLocation = null;
+        if (navigationDestination != null && navigationDestination.gameObject.scene != gameObject.scene)
+            navigationDestination = null;
+
         foreach (BuildLocation location in Resources.FindObjectsOfTypeAll<BuildLocation>())
         {
             if (location == null || location.gameObject.scene != gameObject.scene) continue;
@@ -475,7 +587,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
         Button button = rootObject.GetComponent<Button>();
         button.targetGraphic = image;
-        button.onClick.AddListener(() => FocusLocation(location));
+        button.onClick.AddListener(() => SelectLocation(location));
 
         GameObject labelObject = new GameObject("LocationName", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
         labelObject.layer = markerLayer.gameObject.layer;
@@ -530,18 +642,133 @@ public sealed class ExpandedMinimapController : MonoBehaviour
                 (viewport.y - 0.5f) * rect.height);
             marker.image.color = GetMarkerColor(marker.location);
             marker.label.text = GetLocationLabel(marker.location);
-            marker.label.gameObject.SetActive(isExpanded);
+            bool isNavigationDestination = marker.location == navigationDestination;
+            marker.label.gameObject.SetActive(isExpanded || isNavigationDestination);
             marker.button.interactable = isExpanded;
-            marker.diamond.localScale = Vector3.one * (isExpanded ? pulse : 0.78f);
+            bool shouldPulse = isExpanded || isNavigationDestination;
+            marker.diamond.localScale = Vector3.one * (shouldPulse ? pulse : 0.78f);
         }
+
+        UpdateLocationActionPanel();
     }
 
-    private void FocusLocation(BuildLocation location)
+    private void SelectLocation(BuildLocation location)
     {
         if (!isExpanded || location == null) return;
+        selectedLocation = location;
         Vector3 center = GetLocationWorldPosition(location);
         center.y = minimapCamera.transform.position.y;
         SetCameraCenterClamped(center);
+        UpdateLocationActionPanel();
+    }
+
+    private void UpdateLocationActionPanel()
+    {
+        if (locationActionButton == null || selectedLocationLabel == null || locationActionLabel == null)
+            return;
+
+        bool hasSelection = selectedLocation != null;
+        locationActionButton.interactable = hasSelection;
+
+        Image background = locationActionButton.targetGraphic as Image;
+        if (!hasSelection)
+        {
+            selectedLocationLabel.text = "Select a build location";
+            locationActionLabel.text = "SELECT";
+            if (background != null) background.color = lockedLocationColor;
+            return;
+        }
+
+        bool completed = IsLocationCompleted(selectedLocation);
+        selectedLocationLabel.text = GetLocationLabel(selectedLocation) +
+                                     (completed ? "\n<color=#4B9E55>COMPLETED</color>" : "\n<color=#C47922>NOT COMPLETED</color>");
+        locationActionLabel.text = completed ? "FAST TRAVEL" : "NAVIGATE";
+        if (background != null)
+            background.color = completed ? completedLocationColor : availableLocationColor;
+    }
+
+    private void PerformSelectedLocationAction()
+    {
+        if (selectedLocation == null) return;
+
+        if (IsLocationCompleted(selectedLocation))
+            FastTravelToLocation(selectedLocation);
+        else
+            NavigateToLocation(selectedLocation);
+    }
+
+    private void NavigateToLocation(BuildLocation location)
+    {
+        if (location == null) return;
+
+        Transform target = location.navigationTarget != null
+            ? location.navigationTarget.transform
+            : location.transform;
+
+        if (PathGuider.Instance == null)
+        {
+            Debug.LogWarning("[ExpandedMinimap] No PathGuider is active, so a route could not be created.", this);
+            return;
+        }
+
+        navigationDestination = location;
+        PathGuider.Instance.RouteToSingleTarget(target);
+        UpdateMarkerPositions();
+        CloseExpandedMap();
+    }
+
+    private void FastTravelToLocation(BuildLocation location)
+    {
+        if (location == null) return;
+
+        Transform player = minimapFollow != null ? minimapFollow.player : null;
+        if (player == null)
+        {
+            PlayerMotor motor = FindObjectOfType<PlayerMotor>(true);
+            if (motor != null) player = motor.transform;
+        }
+
+        if (player == null)
+        {
+            Debug.LogWarning("[ExpandedMinimap] Fast Travel could not find the player.", this);
+            return;
+        }
+
+        Transform target = location.fastTravelTarget != null
+            ? location.fastTravelTarget
+            : location.navigationTarget != null
+                ? location.navigationTarget.transform
+                : location.transform;
+        Vector3 destination = target.position;
+        if (location.fastTravelTarget == null)
+            destination += fallbackFastTravelOffset;
+
+        CharacterController characterController = player.GetComponent<CharacterController>();
+        bool restoreCharacterController = characterController != null && characterController.enabled;
+        if (restoreCharacterController) characterController.enabled = false;
+
+        Rigidbody body = player.GetComponent<Rigidbody>();
+        if (body != null)
+        {
+            if (!body.isKinematic)
+            {
+                body.velocity = Vector3.zero;
+                body.angularVelocity = Vector3.zero;
+            }
+            body.position = destination;
+            body.rotation = target.rotation;
+        }
+
+        player.SetPositionAndRotation(destination, target.rotation);
+        Physics.SyncTransforms();
+
+        if (restoreCharacterController) characterController.enabled = true;
+
+        navigationDestination = null;
+        if (PathGuider.Instance != null)
+            PathGuider.Instance.SetNewWaypoints(new List<GuiderWaypoint>());
+
+        CloseExpandedMap();
     }
 
     private void BuildWorldBoundsAndFraming()
@@ -899,13 +1126,28 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
     private Color GetMarkerColor(BuildLocation location)
     {
+        if (location == navigationDestination)
+            return navigationLocationColor;
         if (GameManager.Instance != null && GameManager.Instance.ActiveBuildLocation == location)
             return activeLocationColor;
-        if (location.bakedBars != null && location.bakedBars.Count > 0)
+        if (IsLocationCompleted(location))
             return completedLocationColor;
         if (location.activeContract != null)
             return availableLocationColor;
         return lockedLocationColor;
+    }
+
+    private static bool IsLocationCompleted(BuildLocation location)
+    {
+        if (location == null) return false;
+
+        if (location.activeContract != null && PlayerDataManager.Instance != null &&
+            PlayerDataManager.Instance.HasContractCompletionRecord(location.activeContract.ContractID))
+        {
+            return true;
+        }
+
+        return location.bakedBars != null && location.bakedBars.Count > 0;
     }
 
     private static string GetLocationLabel(BuildLocation location)
