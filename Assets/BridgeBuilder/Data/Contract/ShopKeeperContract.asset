@@ -16,13 +16,13 @@ MonoBehaviour:
   contractMap: 0
   countsTowardMapAchievements: 1
   isStoryModeContract: 1
-  isTutorialContract: 0
+  isTutorialContract: 1
   autoCollectReward: 0
   featureUnlockRewards: []
   clientName: Professor Bhan
   jobDescription: A local shopkeeper has asked for our help.
-  budget: 70000
-  liveLoadWeight: 3000
+  budget: 75000
+  liveLoadWeight: 2000
   bridgeSpan: 50
   allowedMaterials:
   - material: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}

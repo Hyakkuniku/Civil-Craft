@@ -1616,6 +1616,7 @@ MonoBehaviour:
   buildSiteVisualRoots: []
   includeOwnedBridgeObjectsInIsolation: 1
   navigationTarget: {fileID: 7148531682003080033}
+  fastTravelTarget: {fileID: 0}
   advancesTutorial: 1
   onEnterBuildModeTutorial: {fileID: 0}
   startingAnchors:
