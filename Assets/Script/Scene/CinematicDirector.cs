@@ -49,7 +49,7 @@ public class CinematicDirector : MonoBehaviour
     public Camera cinematicCamera;
     public Transform playerActor;
     public Animator playerAnimator;
-    
+
     [Tooltip("The exact name of the parameter in your Animator that makes the player walk.")]
     public string animatorWalkParameter = "Speed";
     [Tooltip("The value to set the parameter to (e.g., 1 for walking, 0 for idle).")]
@@ -72,7 +72,7 @@ public class CinematicDirector : MonoBehaviour
     public ContractSO contractToDisplay;
     [Tooltip("The parent UI panel/canvas holding the bridge info.")]
     public GameObject bridgeInfoCanvas;
-    
+
     public TMPro.TextMeshProUGUI clientNameText;
     public TMPro.TextMeshProUGUI spanText;
     public TMPro.TextMeshProUGUI budgetText;
@@ -97,7 +97,8 @@ public class CinematicDirector : MonoBehaviour
     private GameObject generatedCoordinatorAnchor;
     private bool cinematicPanelFrameOpen;
     private readonly Dictionary<GameObject, bool> fallbackHudStates = new Dictionary<GameObject, bool>();
-    
+    private readonly Dictionary<Canvas, bool> fallbackCanvasStates = new Dictionary<Canvas, bool>();
+
     private GameObject dynamicallySpawnedRockTrail;
 
     private void Start()
@@ -141,7 +142,7 @@ public class CinematicDirector : MonoBehaviour
         if (motor != null) motor.enabled = false;
 
         if (cinematicCamera == null) cinematicCamera = Camera.main;
-        
+
         if (cinematicCamera != null)
         {
             originalCamParent = cinematicCamera.transform.parent;
@@ -163,7 +164,7 @@ public class CinematicDirector : MonoBehaviour
         }
 
         if (motor != null) motor.enabled = true;
-        
+
         if (inputObj != null)
         {
             inputObj.SetPlayerInputEnable(true);
@@ -218,38 +219,68 @@ public class CinematicDirector : MonoBehaviour
     {
         EndCinematicUIIsolation();
 
+        // Save the ORIGINAL states before UIPanelCoordinator changes anything.
+        fallbackHudStates.Clear();
+        fallbackCanvasStates.Clear();
+
+        foreach (GameObject ui in hudElementsToHide)
+        {
+            if (ui == null || fallbackHudStates.ContainsKey(ui)) continue;
+
+            // Remember whether the root object itself was active.
+            fallbackHudStates.Add(ui, ui.activeSelf);
+
+            // Also remember every Canvas.enabled state under this UI root.
+            // This protects against coordinators that disable Canvas components
+            // instead of only deactivating GameObjects.
+            Canvas[] canvases = ui.GetComponentsInChildren<Canvas>(true);
+            foreach (Canvas canvas in canvases)
+            {
+                if (canvas != null && !fallbackCanvasStates.ContainsKey(canvas))
+                {
+                    fallbackCanvasStates.Add(canvas, canvas.enabled);
+                }
+            }
+        }
+
         coordinatedCinematicPanel = cinematicUIRoot != null
             ? cinematicUIRoot
             : bridgeInfoCanvas;
 
+        // Let the coordinator see/capture the ORIGINAL UI state first.
         if (UIPanelCoordinator.Instance != null)
         {
-            // The panel is activated per shot below. Opening the coordinator frame
-            // with activatePanel=false still hides every unrelated HUD and Canvas.
             GameObject coordinatorAnchor = coordinatedCinematicPanel;
+
             if (coordinatorAnchor == null)
             {
-                generatedCoordinatorAnchor = new GameObject("CinematicUIIsolationAnchor", typeof(RectTransform));
+                generatedCoordinatorAnchor =
+                    new GameObject("CinematicUIIsolationAnchor", typeof(RectTransform));
+
                 generatedCoordinatorAnchor.transform.SetParent(transform.parent, false);
                 coordinatorAnchor = generatedCoordinatorAnchor;
             }
+
             UIPanelCoordinator.Instance.OpenPanel(coordinatorAnchor, false);
+
             coordinatedCinematicPanel = coordinatorAnchor;
             cinematicPanelFrameOpen = true;
-            return;
         }
 
-        fallbackHudStates.Clear();
-        foreach (GameObject ui in hudElementsToHide)
+        // Explicitly hide everything assigned in UI To Hide AFTER the coordinator
+        // has captured the original scene state.
+        foreach (KeyValuePair<GameObject, bool> state in fallbackHudStates)
         {
-            if (ui == null || fallbackHudStates.ContainsKey(ui)) continue;
-            fallbackHudStates.Add(ui, ui.activeSelf);
-            ui.SetActive(false);
+            if (state.Key != null)
+            {
+                state.Key.SetActive(false);
+            }
         }
     }
 
     private void EndCinematicUIIsolation()
     {
+        // Close the coordinator first so our saved state is the FINAL state applied.
         if (cinematicPanelFrameOpen && coordinatedCinematicPanel != null &&
             UIPanelCoordinator.Instance != null)
         {
@@ -265,11 +296,26 @@ public class CinematicDirector : MonoBehaviour
             generatedCoordinatorAnchor = null;
         }
 
+        // Restore GameObjects first.
         foreach (KeyValuePair<GameObject, bool> state in fallbackHudStates)
         {
-            if (state.Key != null) state.Key.SetActive(state.Value);
+            if (state.Key != null)
+            {
+                state.Key.SetActive(state.Value);
+            }
         }
+
+        // Then restore Canvas.enabled so a reactivated Tutorial Canvas actually renders.
+        foreach (KeyValuePair<Canvas, bool> state in fallbackCanvasStates)
+        {
+            if (state.Key != null)
+            {
+                state.Key.enabled = state.Value;
+            }
+        }
+
         fallbackHudStates.Clear();
+        fallbackCanvasStates.Clear();
     }
 
     private IEnumerator PlayShot(CinematicShot shot)
@@ -278,15 +324,15 @@ public class CinematicDirector : MonoBehaviour
 
         Vector3 camStartPos = shot.cameraStartPoint != null ? shot.cameraStartPoint.position : cinematicCamera.transform.position;
         Quaternion camStartRot = shot.cameraStartPoint != null ? shot.cameraStartPoint.rotation : cinematicCamera.transform.rotation;
-        
+
         Vector3 camEndPos = shot.cameraEndPoint != null ? shot.cameraEndPoint.position : camStartPos;
         Quaternion camEndRot = shot.cameraEndPoint != null ? shot.cameraEndPoint.rotation : camStartRot;
 
         Vector3 playerStartPos = shot.playerStartPoint != null ? shot.playerStartPoint.position : playerActor.position;
         Vector3 playerEndPos = shot.playerWalkTarget != null ? shot.playerWalkTarget.position : playerStartPos;
 
-        float fixedPlayerHeight = playerStartPos.y; 
-        
+        float fixedPlayerHeight = playerStartPos.y;
+
         if (shot.playerStartPoint != null) playerActor.position = playerStartPos;
 
         bool needsWalking = shot.playWalkAnimation && playerAnimator != null && shot.playerWalkTarget != null;
@@ -329,11 +375,11 @@ public class CinematicDirector : MonoBehaviour
             if (playerActor != null && shot.playerWalkTarget != null)
             {
                 Vector3 newPos = Vector3.Lerp(playerStartPos, playerEndPos, t);
-                newPos.y = fixedPlayerHeight; 
+                newPos.y = fixedPlayerHeight;
                 playerActor.position = newPos;
 
                 Vector3 moveDir = (playerEndPos - playerStartPos).normalized;
-                moveDir.y = 0; 
+                moveDir.y = 0;
                 if (moveDir != Vector3.zero)
                 {
                     Quaternion targetRot = Quaternion.LookRotation(moveDir);
@@ -358,7 +404,7 @@ public class CinematicDirector : MonoBehaviour
             cinematicCamera.transform.position = camEndPos;
             cinematicCamera.transform.rotation = camEndRot;
         }
-        
+
         if (playerActor != null && shot.playerWalkTarget != null)
         {
             Vector3 finalPos = playerEndPos;
