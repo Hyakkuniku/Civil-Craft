@@ -422,7 +422,32 @@ public class AlmanacManager : MonoBehaviour
     public void CloseAlmanac()
     {
         if (isAnimating) return;
+
+        // The first Almanac walkthrough is a required part of the Bhan house
+        // quest. Closing on its first two pages would leave the house tutorial
+        // suspended with no reliable completion path. The final walkthrough
+        // step explicitly asks the player to close the book, so closing is
+        // permitted once that step is reached.
+        if (IsRequiredFirstOpenTutorialBlockingClose())
+        {
+            Debug.Log("[Almanac] Finish the Almanac introduction before closing the book.");
+            return;
+        }
+
         StartCoroutine(CloseAlmanacRoutine(null));
+    }
+
+    private bool IsRequiredFirstOpenTutorialBlockingClose()
+    {
+        if (onFirstOpenTutorial == null || onFirstOpenTutorial.tutorialSteps == null ||
+            onFirstOpenTutorial.tutorialSteps.Length == 0 || TutorialManager.Instance == null ||
+            !TutorialManager.Instance.IsPlayingSequence(onFirstOpenTutorial))
+        {
+            return false;
+        }
+
+        int finalStepIndex = onFirstOpenTutorial.tutorialSteps.Length - 1;
+        return TutorialManager.Instance.CurrentStepIndex < finalStepIndex;
     }
 
     /// <summary>
@@ -432,6 +457,11 @@ public class AlmanacManager : MonoBehaviour
     public void CloseAlmanacThen(System.Action afterClosed)
     {
         if (isAnimating) return;
+        if (IsRequiredFirstOpenTutorialBlockingClose())
+        {
+            Debug.Log("[Almanac] Finish the Almanac introduction before opening another archive panel.");
+            return;
+        }
         StartCoroutine(CloseAlmanacRoutine(afterClosed));
     }
 

@@ -17,6 +17,15 @@ public class TutorialNameNPC : Interactable
     [Header("Tutorial Settings")]
     public bool advancesTutorial = false;
 
+    [Tooltip("Tutorial that must be completed before the Almanac can be returned to Professor Bhan.")]
+    [SerializeField] private string requiredAlmanacTutorialId = "Sequence_Alamnac";
+
+    [Tooltip("House tutorial saved when Professor Bhan's final dialogue finishes.")]
+    [SerializeField] private string houseTutorialId = "Sequence_House";
+
+    [Tooltip("Optional reminder used when the player owns the Almanac but has not reviewed it yet.")]
+    [SerializeField] private Dialogue reviewAlmanacDialogue;
+
     [Header("Movement")]
     public NPCWalker npcWalker;
 
@@ -39,6 +48,7 @@ public class TutorialNameNPC : Interactable
     private bool hasGivenFetchQuest = false;
     private bool isCompletingHouseInteraction = false;
     private bool isWalkingAway = false; // --- NEW: Tracks if the NPC is leaving ---
+    private Dialogue fallbackReviewAlmanacDialogue;
 
     private void Awake()
     {
@@ -66,6 +76,7 @@ public class TutorialNameNPC : Interactable
 
         if (!hasName) promptMessage = "Talk To Professor Bhan";
         else if (!hasBook) promptMessage = "Ask about the book";
+        else if (!HasCompletedRequiredAlmanacTutorial()) promptMessage = "Review the Almanac";
         else promptMessage = "Show the Almanac";
     }
 
@@ -105,6 +116,18 @@ public class TutorialNameNPC : Interactable
         }
         else
         {
+            // Owning the book is not enough: reviewing it is a required quest
+            // action. Keep Bhan available and reopen the Almanac after the
+            // reminder instead of allowing the reward/exit flow to run early.
+            if (!HasCompletedRequiredAlmanacTutorial())
+            {
+                dialogueManager.StartDialogue(
+                    GetReviewAlmanacDialogue(),
+                    OpenAlmanacForRequiredReview,
+                    npcAnimator);
+                return;
+            }
+
             isCompletingHouseInteraction = true;
             promptMessage = "";
 
@@ -155,8 +178,7 @@ public class TutorialNameNPC : Interactable
 
     private void FinishHouseInteraction()
     {
-        if (advancesTutorial && TutorialManager.Instance != null)
-            TutorialManager.Instance.ShowNextStep();
+        CompleteHouseTutorialSafely();
 
         isWalkingAway = true;
         promptMessage = "";
@@ -168,6 +190,79 @@ public class TutorialNameNPC : Interactable
 
         if (npcWalker != null)
             npcWalker.StartWalking();
+    }
+
+    private bool HasCompletedRequiredAlmanacTutorial()
+    {
+        if (PlayerDataManager.Instance == null ||
+            string.IsNullOrWhiteSpace(requiredAlmanacTutorialId))
+        {
+            // Test scenes without save data should not become permanently gated.
+            return true;
+        }
+
+        return PlayerDataManager.Instance.CurrentData.completedLessons.Contains(
+            requiredAlmanacTutorialId);
+    }
+
+    private Dialogue GetReviewAlmanacDialogue()
+    {
+        if (reviewAlmanacDialogue != null && reviewAlmanacDialogue.sentences != null &&
+            reviewAlmanacDialogue.sentences.Length > 0)
+        {
+            return reviewAlmanacDialogue;
+        }
+
+        if (fallbackReviewAlmanacDialogue == null)
+        {
+            fallbackReviewAlmanacDialogue = new Dialogue
+            {
+                name = "Professor Bhan",
+                sentences = new[]
+                {
+                    "Before we continue, open the Almanac and review it.",
+                    "It will serve as your engineering record throughout your journey."
+                }
+            };
+        }
+
+        return fallbackReviewAlmanacDialogue;
+    }
+
+    private void OpenAlmanacForRequiredReview()
+    {
+        if (AlmanacManager.Instance != null)
+        {
+            // A normal HUD-button click advances Sequence_House through the
+            // TutorialManager's tracked-button listener. Bhan opens the book
+            // directly, so perform the equivalent quest synchronization first.
+            // Using the final instruction also repairs reloads that restarted
+            // Sequence_House at an earlier step after the book was collected.
+            if (TutorialManager.Instance != null)
+                TutorialManager.Instance.ShowFinalStepIfPlaying(houseTutorialId);
+
+            AlmanacManager.Instance.OpenAlmanac();
+            return;
+        }
+
+        Debug.LogWarning(
+            "[TutorialNameNPC] The Almanac is required, but no AlmanacManager is available.",
+            this);
+    }
+
+    private void CompleteHouseTutorialSafely()
+    {
+        if (!advancesTutorial || string.IsNullOrWhiteSpace(houseTutorialId)) return;
+
+        bool completedActiveSequence = TutorialManager.Instance != null &&
+                                       TutorialManager.Instance.CompleteTutorialIfPlaying(houseTutorialId);
+
+        // A reload can restart the house sequence at an earlier instruction.
+        // The completed mandatory Almanac review plus Bhan's final dialogue is
+        // authoritative, so persist the house result even if that sequence was
+        // not the currently displayed tutorial.
+        if (!completedActiveSequence && PlayerDataManager.Instance != null)
+            PlayerDataManager.Instance.CompleteLesson(houseTutorialId);
     }
 
     private void FacePlayer()

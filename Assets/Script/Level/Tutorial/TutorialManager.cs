@@ -133,6 +133,48 @@ public class TutorialManager : MonoBehaviour
     {
         return IsTutorialActive && sequence != null && currentSequence == sequence;
     }
+
+    /// <summary>
+    /// Completes and cleans up the active tutorial only when it matches the
+    /// requested lesson ID. This lets quest logic finalize its own tutorial
+    /// without accidentally advancing or closing a different sequence.
+    /// </summary>
+    public bool CompleteTutorialIfPlaying(string lessonName)
+    {
+        if (string.IsNullOrWhiteSpace(lessonName) || !IsPlayingLesson(lessonName))
+            return false;
+
+        CompleteTutorial();
+        return true;
+    }
+
+    /// <summary>
+    /// Synchronizes an active quest tutorial to its final instruction. This is
+    /// used when gameplay performs a required button action programmatically, so
+    /// the tutorial does not remain stuck waiting for the physical button click.
+    /// </summary>
+    public bool ShowFinalStepIfPlaying(string lessonName)
+    {
+        if (string.IsNullOrWhiteSpace(lessonName) || !IsPlayingLesson(lessonName) ||
+            currentSequence.tutorialSteps == null || currentSequence.tutorialSteps.Length == 0)
+        {
+            return false;
+        }
+
+        int finalStepIndex = currentSequence.tutorialSteps.Length - 1;
+        if (currentStepIndex == finalStepIndex) return true;
+
+        ClearTrackedButton();
+        currentStepIndex = finalStepIndex;
+        lastAdvanceFrame = -1;
+        lastScreenPosition = null;
+
+        if (BuildTutorialDirector.Instance != null)
+            BuildTutorialDirector.Instance.BeginStep(currentStepIndex);
+
+        ShowTutorialStep(currentSequence.tutorialSteps[currentStepIndex], false);
+        return true;
+    }
     
     private UnityEngine.UI.Button trackedButton = null;
     private UnityAction trackedButtonAction = null;
