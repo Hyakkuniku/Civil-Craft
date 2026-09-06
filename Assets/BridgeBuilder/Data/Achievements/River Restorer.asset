@@ -16,7 +16,7 @@ MonoBehaviour:
   achievementName: River Restorer
   description: ' Complete all contracts in Town River.'
   hideDetailsUntilUnlocked: 0
-  achievementIcon: {fileID: 0}
+  achievementIcon: {fileID: 21300000, guid: 31707b1deb17f4d4e80ab8758520b6ba, type: 3}
   goalType: 5
   targetAmount: 0
   targetContractMap: 1

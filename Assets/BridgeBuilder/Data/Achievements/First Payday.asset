@@ -16,7 +16,7 @@ MonoBehaviour:
   achievementName: First Payday
   description: Earn 500 Coins.
   hideDetailsUntilUnlocked: 0
-  achievementIcon: {fileID: 0}
+  achievementIcon: {fileID: 21300000, guid: c67355417f6bba148822347d2022c215, type: 3}
   goalType: 1
   targetAmount: 500
   targetContractMap: 0

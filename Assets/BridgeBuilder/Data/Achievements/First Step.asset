@@ -16,7 +16,7 @@ MonoBehaviour:
   achievementName: First Step
   description: Build your first bridge.
   hideDetailsUntilUnlocked: 0
-  achievementIcon: {fileID: 0}
+  achievementIcon: {fileID: 21300000, guid: bb25acc6c53f9944e9255e0c2077dac2, type: 3}
   goalType: 0
   targetAmount: 1
   targetContractMap: 0

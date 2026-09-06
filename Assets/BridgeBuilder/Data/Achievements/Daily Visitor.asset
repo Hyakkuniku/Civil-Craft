@@ -16,7 +16,7 @@ MonoBehaviour:
   achievementName: Daily Visitor
   description: Claim daily attendance rewards for 7 days.
   hideDetailsUntilUnlocked: 0
-  achievementIcon: {fileID: 0}
+  achievementIcon: {fileID: 21300000, guid: 9fc90d63a59feab408957f157cf6562c, type: 3}
   goalType: 8
   targetAmount: 7
   targetContractMap: 0

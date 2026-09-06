@@ -16,7 +16,7 @@ MonoBehaviour:
   achievementName: Budget Manager
   description: Earn 5,000 Coins.
   hideDetailsUntilUnlocked: 0
-  achievementIcon: {fileID: 0}
+  achievementIcon: {fileID: 21300000, guid: 9b5e9c9bd0b4516479e4782e0bcf565e, type: 3}
   goalType: 1
   targetAmount: 5000
   targetContractMap: 0

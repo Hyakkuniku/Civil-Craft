@@ -16,7 +16,7 @@ MonoBehaviour:
   achievementName: Skilled Builder
   description: Build 10 bridges.
   hideDetailsUntilUnlocked: 0
-  achievementIcon: {fileID: 0}
+  achievementIcon: {fileID: 21300000, guid: b1be99fc9e234b242abf58fd1aa30b0a, type: 3}
   goalType: 0
   targetAmount: 10
   targetContractMap: 0

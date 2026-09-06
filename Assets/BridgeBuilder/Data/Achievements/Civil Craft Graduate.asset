@@ -16,7 +16,7 @@ MonoBehaviour:
   achievementName: Civil Craft Graduate
   description: Finish Story Mode.
   hideDetailsUntilUnlocked: 0
-  achievementIcon: {fileID: 0}
+  achievementIcon: {fileID: 21300000, guid: 2aa2ed08ef2b90447b82760098a9dc9a, type: 3}
   goalType: 7
   targetAmount: 30
   targetContractMap: 0

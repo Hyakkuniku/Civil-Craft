@@ -16,7 +16,7 @@ MonoBehaviour:
   achievementName: Civil Craft Legend
   description: Unlocked all achievements.
   hideDetailsUntilUnlocked: 0
-  achievementIcon: {fileID: 0}
+  achievementIcon: {fileID: 21300000, guid: 5e25eafb7c1115a4ba3c47f60204e853, type: 3}
   goalType: 8
   targetAmount: 0
   targetContractMap: 0

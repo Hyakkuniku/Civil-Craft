@@ -16,7 +16,7 @@ MonoBehaviour:
   achievementName: Learning the Mechanics
   description: Gain 500 EXP.
   hideDetailsUntilUnlocked: 0
-  achievementIcon: {fileID: 0}
+  achievementIcon: {fileID: 21300000, guid: 749e126ec5bfdcd4ebe95e138acecf2d, type: 3}
   goalType: 3
   targetAmount: 500
   targetContractMap: 0

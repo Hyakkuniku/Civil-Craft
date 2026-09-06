@@ -16,7 +16,7 @@ MonoBehaviour:
   achievementName: Trusted Engineer
   description: Complete 10 contracts.
   hideDetailsUntilUnlocked: 0
-  achievementIcon: {fileID: 0}
+  achievementIcon: {fileID: 21300000, guid: 9ba96d2499c60744ead0c0773eaf92c3, type: 3}
   goalType: 4
   targetAmount: 10
   targetContractMap: 0

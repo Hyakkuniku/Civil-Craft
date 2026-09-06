@@ -16,7 +16,7 @@ MonoBehaviour:
   achievementName: Big Spender
   description: Spend 5,000 Coins in the shop.
   hideDetailsUntilUnlocked: 0
-  achievementIcon: {fileID: 0}
+  achievementIcon: {fileID: 21300000, guid: b9cdf81ece75ebd49a52f53bac6cd7a4, type: 3}
   goalType: 2
   targetAmount: 5000
   targetContractMap: 0

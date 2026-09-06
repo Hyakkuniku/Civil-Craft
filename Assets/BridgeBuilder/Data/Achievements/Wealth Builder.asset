@@ -16,7 +16,7 @@ MonoBehaviour:
   achievementName: Wealth Builder
   description: Prove your skills and earn 10,000 Coins.
   hideDetailsUntilUnlocked: 0
-  achievementIcon: {fileID: 0}
+  achievementIcon: {fileID: 21300000, guid: 4945427bb888a9b43b469418505594ee, type: 3}
   goalType: 1
   targetAmount: 10000
   targetContractMap: 0

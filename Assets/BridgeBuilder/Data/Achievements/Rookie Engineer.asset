@@ -16,7 +16,7 @@ MonoBehaviour:
   achievementName: Rookie Engineer
   description: Build 5 bridges.
   hideDetailsUntilUnlocked: 0
-  achievementIcon: {fileID: 0}
+  achievementIcon: {fileID: 21300000, guid: d82b137e45b672f4ba58a388a1ec876c, type: 3}
   goalType: 0
   targetAmount: 5
   targetContractMap: 0

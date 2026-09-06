@@ -16,7 +16,7 @@ MonoBehaviour:
   achievementName: Industrial Champion
   description: ' Complete all contracts in Industrial Zone.'
   hideDetailsUntilUnlocked: 0
-  achievementIcon: {fileID: 0}
+  achievementIcon: {fileID: 21300000, guid: 52b4b11af7afebf408ab453c711f61ff, type: 3}
   goalType: 5
   targetAmount: 0
   targetContractMap: 2

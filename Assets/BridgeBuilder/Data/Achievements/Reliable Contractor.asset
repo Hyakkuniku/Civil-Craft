@@ -16,7 +16,7 @@ MonoBehaviour:
   achievementName: Reliable Contractor
   description: Complete 5 contracts.
   hideDetailsUntilUnlocked: 0
-  achievementIcon: {fileID: 0}
+  achievementIcon: {fileID: 21300000, guid: cc336c0bc84585e43b351a688b4dca97, type: 3}
   goalType: 4
   targetAmount: 5
   targetContractMap: 0

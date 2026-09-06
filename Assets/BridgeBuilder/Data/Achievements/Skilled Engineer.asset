@@ -16,7 +16,7 @@ MonoBehaviour:
   achievementName: Skilled Engineer
   description: Gain 2,000 EXP.
   hideDetailsUntilUnlocked: 0
-  achievementIcon: {fileID: 0}
+  achievementIcon: {fileID: 21300000, guid: 241c44a1d4b9543448deffa898c9f6b3, type: 3}
   goalType: 3
   targetAmount: 2000
   targetContractMap: 0

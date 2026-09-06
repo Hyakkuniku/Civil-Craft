@@ -16,7 +16,7 @@ MonoBehaviour:
   achievementName: Infrastructure Expert
   description: 
   hideDetailsUntilUnlocked: 0
-  achievementIcon: {fileID: 0}
+  achievementIcon: {fileID: 21300000, guid: 10e2d486a5c5bd540b64e982877cd0c1, type: 3}
   goalType: 1
   targetAmount: 10000
   targetContractMap: 0

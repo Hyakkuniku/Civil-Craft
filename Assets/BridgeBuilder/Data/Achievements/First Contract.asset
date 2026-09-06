@@ -16,7 +16,7 @@ MonoBehaviour:
   achievementName: First Contract
   description: Complete your first contract.
   hideDetailsUntilUnlocked: 0
-  achievementIcon: {fileID: 0}
+  achievementIcon: {fileID: 21300000, guid: 07ae66a9bde917c4990539aa8e4a8ee9, type: 3}
   goalType: 4
   targetAmount: 1
   targetContractMap: 0

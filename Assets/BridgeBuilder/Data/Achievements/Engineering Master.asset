@@ -16,7 +16,7 @@ MonoBehaviour:
   achievementName: Engineering Master
   description: Gain 10,000 EXP.
   hideDetailsUntilUnlocked: 0
-  achievementIcon: {fileID: 0}
+  achievementIcon: {fileID: 21300000, guid: 2683b7f92ed645646a694a843b43f34a, type: 3}
   goalType: 3
   targetAmount: 10000
   targetContractMap: 0

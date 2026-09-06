@@ -16,7 +16,7 @@ MonoBehaviour:
   achievementName: Master Builder
   description: Build 30 bridges.
   hideDetailsUntilUnlocked: 0
-  achievementIcon: {fileID: 0}
+  achievementIcon: {fileID: 21300000, guid: 10349c56ebe4bd74895b0962b01e8e02, type: 3}
   goalType: 0
   targetAmount: 30
   targetContractMap: 0

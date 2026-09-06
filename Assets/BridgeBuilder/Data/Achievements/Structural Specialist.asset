@@ -16,7 +16,7 @@ MonoBehaviour:
   achievementName: Structural Specialist
   description: Build 20 bridges.
   hideDetailsUntilUnlocked: 0
-  achievementIcon: {fileID: 0}
+  achievementIcon: {fileID: 21300000, guid: b1f35bee2c22a6a4f96356b2ec2e3b22, type: 3}
   goalType: 0
   targetAmount: 20
   targetContractMap: 0

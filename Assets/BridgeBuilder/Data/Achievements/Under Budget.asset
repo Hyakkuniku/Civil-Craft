@@ -16,7 +16,7 @@ MonoBehaviour:
   achievementName: Under Budget
   description: 
   hideDetailsUntilUnlocked: 0
-  achievementIcon: {fileID: 0}
+  achievementIcon: {fileID: 21300000, guid: 61556f6b720f78d4680de1b39d5b1ab8, type: 3}
   goalType: 1
   targetAmount: 10000
   targetContractMap: 0

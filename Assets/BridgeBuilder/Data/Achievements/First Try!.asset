@@ -16,7 +16,7 @@ MonoBehaviour:
   achievementName: First Try!
   description: 
   hideDetailsUntilUnlocked: 0
-  achievementIcon: {fileID: 0}
+  achievementIcon: {fileID: 21300000, guid: fccaf7a6f7df1a6408af89487db2a18a, type: 3}
   goalType: 3
   targetAmount: 10000
   targetContractMap: 0
