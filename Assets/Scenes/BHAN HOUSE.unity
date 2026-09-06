@@ -52500,6 +52500,8 @@ MonoBehaviour:
   budgetText: {fileID: 1978387135}
   stressText: {fileID: 364677604}
   receiptContentParent: {fileID: 504961082}
+  receiptSourceFont: {fileID: 12800000, guid: 469ee5b8a39d66c4eb415a1fb0bc683d, type: 3}
+  receiptBackground: {fileID: 21300000, guid: b97472b858c036f4b9d131c693ae28e1, type: 3}
   receiptRowPrefab: {fileID: 57992146011034018, guid: 1184363f0986e454191181012f996ef0,
     type: 3}
   baseRewardText: {fileID: 1418845884}

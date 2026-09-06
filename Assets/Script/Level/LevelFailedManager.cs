@@ -258,6 +258,8 @@ public class LevelFailedManager : MonoBehaviour
         }
 
         if (levelFailedPanel != null) levelFailedPanel.SetActive(true);
+        if (AudioManager.Instance != null)
+            AudioManager.Instance.PlaySFX("Level_Fail");
 
         // --- NEW: Turn off the Retry button if the contract is locked! ---
         if (retryButton != null) retryButton.SetActive(!hideRetryButtonThisFail);
