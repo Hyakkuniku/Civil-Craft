@@ -10,7 +10,7 @@ using UnityEngine.UI;
 [InitializeOnLoad]
 public static class DeveloperDebugSystemSetup
 {
-    private const string AutoSetupSessionKey = "CivilCraft.DeveloperDebugSystemSetup.V7";
+    private const string AutoSetupSessionKey = "CivilCraft.DeveloperDebugSystemSetup.V8";
 
     static DeveloperDebugSystemSetup()
     {
@@ -70,6 +70,8 @@ public static class DeveloperDebugSystemSetup
                 FindRecursive(existingManager.transform, "UnlockAchievementButton") != null &&
                 FindRecursive(existingManager.transform, "UnlockAllAchievementsButton") != null &&
                 FindRecursive(existingManager.transform, "AddCoinsButton") != null &&
+                FindRecursive(existingManager.transform, "SaveStateButton") != null &&
+                FindRecursive(existingManager.transform, "LoadStateButton") != null &&
                 DropdownTemplatesAreConfigured(existingManager))
                 return;
         }
@@ -238,6 +240,15 @@ public static class DeveloperDebugSystemSetup
         AddLayout(coinAmountDropdown.gameObject, 520f, 54f, 1f);
         Button addCoins = GetOrCreateButton(coinsRow, "AddCoinsButton", "ADD COINS", 220f);
 
+        RectTransform saveStateRow = EnsureRow(content, "SaveStateRow", 64f);
+        TextMeshProUGUI saveStateLabel = GetOrCreateText(
+            saveStateRow, "Label", "Player Save State", 24f, FontStyles.Bold);
+        AddLayout(saveStateLabel.gameObject, 190f, 54f, 0f);
+        Button saveState = GetOrCreateButton(
+            saveStateRow, "SaveStateButton", "SAVE STATE", 365f);
+        Button loadState = GetOrCreateButton(
+            saveStateRow, "LoadStateButton", "LOAD STATE", 365f);
+
         RectTransform timeRow = EnsureRow(content, "TimeScaleRow", 64f);
         TextMeshProUGUI timeLabel = GetOrCreateText(timeRow, "TimeScaleText", "Time Scale: 1.00x", 24f, FontStyles.Bold);
         AddLayout(timeLabel.gameObject, 220f, 54f, 0f);
@@ -260,7 +271,7 @@ public static class DeveloperDebugSystemSetup
         Button clearSave = GetOrCreateButton(actionRow, "ClearSaveButton", "CLEAR SAVE DATA", 300f, true);
 
         TextMeshProUGUI hint = GetOrCreateText(content, "SafetyHint",
-            "Clear Save requires two clicks within four seconds. Auto-complete still uses the normal bridge save validation.",
+            "Save State keeps one separate checkpoint. Clear Save preserves it. Load State restores it and reloads the saved scene.",
             19f, FontStyles.Italic);
         hint.alignment = TextAlignmentOptions.Center;
         hint.color = new Color(0.72f, 0.76f, 0.82f, 1f);
@@ -282,6 +293,8 @@ public static class DeveloperDebugSystemSetup
         WireButton(unlockAllAchievements, manager.UnlockAllAchievements);
         WireButton(teleportNpc, manager.TeleportNPCToSelectedPhase);
         WireButton(addCoins, manager.AddSelectedCoins);
+        WireButton(saveState, manager.SaveState);
+        WireButton(loadState, manager.LoadState);
         WireButton(resetTime, manager.ResetTimeScale);
         WireButton(autoComplete, manager.AutoCompleteCurrentContract);
         WireButton(refreshLists, manager.RefreshDropdownValues);

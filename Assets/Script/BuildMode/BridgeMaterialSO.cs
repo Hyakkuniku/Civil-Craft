@@ -40,6 +40,17 @@ public class BridgeMaterialSO : ScriptableObject
     public bool isRoad = false; 
     public bool isPier = false; 
 
+    [Header("Pier Buckling")]
+    [Min(0.01f)]
+    [Tooltip("Pier height that retains the full compression limit. Taller piers lose compression strength according to the buckling exponent.")]
+    public float pierBucklingReferenceLength = 10f;
+    [Min(0f)]
+    [Tooltip("Controls how quickly a tall pier loses compression strength. 2 approximates Euler buckling; 0 disables height scaling.")]
+    public float pierBucklingExponent = 2f;
+    [Range(0.01f, 1f)]
+    [Tooltip("Lowest fraction of max compression retained by very tall piers.")]
+    public float pierMinimumCompressionMultiplier = 0.15f;
+
     // --- NEW: Unlock System ---
     [Header("Unlock System")]
     [Tooltip("How much Gold it costs to unlock this material if a contract restricts it.")]
@@ -63,6 +74,18 @@ public class BridgeMaterialSO : ScriptableObject
     public float GetPlacedMassPerMeter()
     {
         return massPerMeter * (isDualBeam ? 2f : 1f);
+    }
+
+    public float GetCompressionLimit(float memberLength)
+    {
+        if (!isPier || pierBucklingExponent <= 0f)
+            return maxCompression;
+
+        float safeReferenceLength = Mathf.Max(0.01f, pierBucklingReferenceLength);
+        float heightRatio = Mathf.Max(1f, memberLength / safeReferenceLength);
+        float multiplier = 1f / Mathf.Pow(heightRatio, pierBucklingExponent);
+        multiplier = Mathf.Clamp(multiplier, pierMinimumCompressionMultiplier, 1f);
+        return maxCompression * multiplier;
     }
 
     public string GetDisplayName()

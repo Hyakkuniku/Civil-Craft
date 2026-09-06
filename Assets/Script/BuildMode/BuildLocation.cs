@@ -57,6 +57,12 @@ public class BuildLocation : Interactable
     [HideInInspector] public List<Bar> bakedBars = new List<Bar>();
     [HideInInspector] public List<Point> bakedPoints = new List<Point>();
 
+    private readonly List<Bar> committedBarsBeforeRedesign = new List<Bar>();
+    private readonly List<Point> committedPointsBeforeRedesign = new List<Point>();
+    private bool isRedesigningBridge;
+
+    public bool IsRedesigningBridge => isRedesigningBridge;
+
     private Transform originalPlayerParent;
 
     private float timeAttackTimer;
@@ -101,7 +107,7 @@ public class BuildLocation : Interactable
     {
         if (IsOverworldTutorialBlockingBuild()) promptMessage = "Finish the current tutorial first.";
         else if (activeContract == null) promptMessage = "Requires Contract! Talk to the client.";
-        else if (bakedBars.Count > 0) promptMessage = "Redo Bridge (Deletes Old)"; 
+        else if (bakedBars.Count > 0) promptMessage = "Redesign Bridge";
         else promptMessage = "Enter Build Mode";
 
         if (isTimeAttackActive)
@@ -202,11 +208,106 @@ public class BuildLocation : Interactable
             DynamicNavMeshUpdater.Instance.UpdateWalkableNavMesh();
     }
 
-    public void ActivateBuildMode(Transform player)
+    /// <summary>
+    /// Starts a transactional redesign. The committed bridge and its save remain
+    /// untouched while a separate working bridge is built. Committed objects are
+    /// hidden and detached from the active build graph until commit or rollback.
+    /// </summary>
+    public bool BeginBridgeRedesign()
     {
-        if (GameManager.Instance == null || activeContract == null || IsOverworldTutorialBlockingBuild()) return;
+        if (isRedesigningBridge || bakedBars.Count == 0) return false;
 
-        if (!GameManager.Instance.EnterBuildMode(this, player)) return;
+        committedBarsBeforeRedesign.Clear();
+        committedPointsBeforeRedesign.Clear();
+        committedBarsBeforeRedesign.AddRange(bakedBars);
+        committedPointsBeforeRedesign.AddRange(bakedPoints);
+
+        foreach (Bar bar in committedBarsBeforeRedesign)
+            if (bar != null) bar.gameObject.SetActive(false);
+
+        foreach (Point point in committedPointsBeforeRedesign)
+        {
+            if (point == null || startingAnchors.Contains(point) || endingAnchors.Contains(point))
+                continue;
+            point.gameObject.SetActive(false);
+        }
+
+        // The baked lists now describe only the redesign candidate. Keeping the
+        // committed objects in separate lists prevents BakeBridge from combining
+        // the old and new structures.
+        bakedBars.Clear();
+        bakedPoints.Clear();
+        isRedesigningBridge = true;
+        return true;
+    }
+
+    /// <summary>
+    /// Finalizes a successfully persisted redesign and removes the old scene copy.
+    /// The saved bridge is replaced atomically by PlayerDataManager before this runs.
+    /// </summary>
+    public void CommitBridgeRedesign()
+    {
+        if (!isRedesigningBridge) return;
+
+        foreach (Bar bar in committedBarsBeforeRedesign)
+        {
+            if (bar != null) Destroy(bar.gameObject);
+        }
+
+        foreach (Point point in committedPointsBeforeRedesign)
+        {
+            if (point == null || startingAnchors.Contains(point) || endingAnchors.Contains(point) ||
+                bakedPoints.Contains(point))
+                continue;
+            Destroy(point.gameObject);
+        }
+
+        committedBarsBeforeRedesign.Clear();
+        committedPointsBeforeRedesign.Clear();
+        isRedesigningBridge = false;
+    }
+
+    /// <summary>
+    /// Discards an unfinished redesign and restores the last committed bridge.
+    /// The persistent bridge record is never removed by this operation.
+    /// </summary>
+    public void CancelBridgeRedesign()
+    {
+        if (!isRedesigningBridge) return;
+
+        // Make the old bridge the protected baked bridge again before clearing
+        // working objects, otherwise the shared Bar/Point parents would allow the
+        // cleanup pass to mistake the hidden committed bridge for temporary work.
+        bakedBars.Clear();
+        bakedPoints.Clear();
+        foreach (Bar bar in committedBarsBeforeRedesign)
+            if (bar != null && !bakedBars.Contains(bar)) bakedBars.Add(bar);
+        foreach (Point point in committedPointsBeforeRedesign)
+            if (point != null && !bakedPoints.Contains(point)) bakedPoints.Add(point);
+
+        BarCreator creator = FindObjectOfType<BarCreator>(true);
+        if (creator != null) creator.ClearPlayerPlacedBridge(this);
+
+        foreach (Point point in bakedPoints)
+            if (point != null) point.gameObject.SetActive(true);
+        foreach (Bar bar in bakedBars)
+            if (bar != null) bar.gameObject.SetActive(true);
+
+        committedBarsBeforeRedesign.Clear();
+        committedPointsBeforeRedesign.Clear();
+        isRedesigningBridge = false;
+
+        SetBridgeScriptsActive(false);
+
+        if (DynamicNavMeshUpdater.Instance != null)
+            DynamicNavMeshUpdater.Instance.UpdateWalkableNavMeshForLocation(this);
+    }
+
+    public bool ActivateBuildMode(Transform player)
+    {
+        if (GameManager.Instance == null || activeContract == null || IsOverworldTutorialBlockingBuild()) return false;
+
+        if (!GameManager.Instance.EnterBuildMode(this, player)) return false;
 
         BarCreator barCreator = FindObjectOfType<BarCreator>(true);
         if (gridImage != null) gridImage.enabled = (barCreator != null && barCreator.isGridSnappingEnabled);
@@ -227,6 +328,8 @@ public class BuildLocation : Interactable
         {
             ResetTimeAttack();
         }
+
+        return true;
     }
 
     private bool IsOverworldTutorialBlockingBuild()
@@ -332,6 +435,8 @@ public class BuildLocation : Interactable
             Debug.LogWarning("Tutorial is active! Exit blocked.");
             return;
         }
+
+        if (isRedesigningBridge) CancelBridgeRedesign();
 
         if (gridImage != null) gridImage.enabled = false;
         if (bakedBars.Count == 0) SetBridgeScriptsActive(false);

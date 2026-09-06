@@ -41,6 +41,7 @@ public class PlayerDataManager : MonoBehaviour
     private string saveFilePath;
     private bool isCheckingAchievements = false; // Prevents infinite loops!
     private bool hasMigratedContractIdentifiers;
+    private bool suppressAutomaticPositionSave;
     private readonly HashSet<string> completionRecordsMissingBridge = new HashSet<string>();
     
 
@@ -262,6 +263,69 @@ public class PlayerDataManager : MonoBehaviour
         SaveGame();
     }
 
+    /// <summary>
+    /// Replaces the live player data with a debugger snapshot and commits it
+    /// through the same atomic JSON save path as normal gameplay. Scene-bound
+    /// systems should reload the active scene after this returns successfully.
+    /// </summary>
+    public bool TryRestoreDebugState(PlayerData snapshotData, out string error)
+    {
+        error = string.Empty;
+        if (snapshotData == null)
+        {
+            error = "The debug state contains no player data.";
+            return false;
+        }
+
+        PlayerData previousData = CurrentData;
+
+        try
+        {
+            // Clone the deserialized object so the snapshot container cannot
+            // retain a mutable reference to the live save after restoration.
+            string snapshotJson = JsonUtility.ToJson(snapshotData);
+            PlayerData restoredData = JsonUtility.FromJson<PlayerData>(snapshotJson);
+            if (restoredData == null)
+            {
+                error = "The debug player data could not be deserialized.";
+                return false;
+            }
+
+            CurrentData = restoredData;
+            NormalizeLoadedData();
+
+            if (!TrySaveGame())
+            {
+                CurrentData = previousData;
+                error = "The restored state could not be written to the normal save file.";
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception exception)
+        {
+            CurrentData = previousData;
+            error = exception.Message;
+            Debug.LogError($"[PlayerDataManager] Failed to restore debug state: {exception.Message}", this);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Prevents the outgoing scene's PlayerSpawnManager.OnDestroy from replacing
+    /// the position that was just restored from a debugger snapshot.
+    /// </summary>
+    public void SuppressAutomaticPositionSaveForSceneReload()
+    {
+        suppressAutomaticPositionSave = true;
+    }
+
+    public void ResumeAutomaticPositionSaving()
+    {
+        suppressAutomaticPositionSave = false;
+    }
+
     private PlayerData TryReadSaveFile(string path)
     {
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return null;
@@ -285,6 +349,8 @@ public class PlayerDataManager : MonoBehaviour
     
     public void SavePlayerPosition(string sceneName, Vector3 position)
     {
+        if (suppressAutomaticPositionSave) return;
+
         if (CurrentData != null)
         {
             CurrentData.lastSavedScene = sceneName;
@@ -446,9 +512,9 @@ public class PlayerDataManager : MonoBehaviour
 
     /// <summary>
     /// Returns whether this player has ever successfully completed the contract.
-    /// Unlike IsContractCompleted, this deliberately remains true while the
-    /// player deletes/replaces the saved bridge during a redesign. Progression
-    /// gates such as tutorial retirement must use this historical record.
+    /// Unlike IsContractCompleted, this historical record remains independent
+    /// from bridge replacement. Progression gates such as tutorial retirement
+    /// must use it even while a redesign session is in progress.
     /// </summary>
     public bool HasContractCompletionRecord(string contractName)
     {

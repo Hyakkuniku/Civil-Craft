@@ -3,6 +3,7 @@ using UnityEngine.Events;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine.InputSystem;
+using TMPro;
 
 [DefaultExecutionOrder(-100)]
 public class GameManager : MonoBehaviour
@@ -60,6 +61,8 @@ public class GameManager : MonoBehaviour
 
         if (redoConfirmPanel != null) redoConfirmPanel.SetActive(false);
 
+        RefreshRedoConfirmationCopy();
+
         HideTransitionFader();
     }
 
@@ -114,10 +117,16 @@ public class GameManager : MonoBehaviour
 
         if (pendingRedoLocation != null)
         {
-            pendingRedoLocation.DeleteBakedBridge(); 
-            
+            BuildLocation redesignLocation = pendingRedoLocation;
             PlayerMotor player = FindObjectOfType<PlayerMotor>();
-            if (player != null) pendingRedoLocation.ActivateBuildMode(player.transform);
+            bool redesignStarted = redesignLocation.BeginBridgeRedesign();
+            bool enteredBuildMode = redesignStarted && player != null &&
+                                    redesignLocation.ActivateBuildMode(player.transform);
+
+            // Entering build mode can still be rejected by a tutorial or another
+            // transition. Never leave the committed bridge hidden in that case.
+            if (redesignStarted && !enteredBuildMode)
+                redesignLocation.CancelBridgeRedesign();
         }
         pendingRedoLocation = null;
     }
@@ -408,6 +417,17 @@ public class GameManager : MonoBehaviour
     }
 
     public bool IsInBuildMode() => CurrentState == GameState.Building;
+
+    private void RefreshRedoConfirmationCopy()
+    {
+        if (redoConfirmPanel == null) return;
+
+        foreach (TMP_Text label in redoConfirmPanel.GetComponentsInChildren<TMP_Text>(true))
+        {
+            if (label != null && label.text.Contains("remove your current structure"))
+                label.text = "Your current bridge will stay until the redesign is completed";
+        }
+    }
 
     private void HideTransitionFader()
     {

@@ -1559,7 +1559,18 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (existingEndPoint != null) { Destroy(currentEndPoint.gameObject); currentEndPoint = existingEndPoint; }
         else { currentEndPoint.name = "Point"; currentEndPoint.transform.position = finalPosition; }
 
-        if (activeMaterial != null && activeMaterial.isPier) { currentStartPoint.isAnchor = true; currentStartPoint.UpdateMaterial(); currentEndPoint.isAnchor = true; currentEndPoint.UpdateMaterial(); }
+        if (activeMaterial != null && activeMaterial.isPier)
+        {
+            // Pier placement always starts at the configured foundation height.
+            // Only that foot is terrain-fixed; the cap remains a normal dynamic
+            // bridge node so the pier can carry load and eventually buckle.
+            currentStartPoint.originalIsAnchor = true;
+            currentStartPoint.isAnchor = true;
+            currentStartPoint.UpdateMaterial();
+
+            currentEndPoint.isAnchor = currentEndPoint.originalIsAnchor;
+            currentEndPoint.UpdateMaterial();
+        }
         
         currentBar.startPoint = currentStartPoint;
         currentBar.endPoint = currentEndPoint;

@@ -163,7 +163,7 @@ public class BridgePhysicsManager : MonoBehaviour
 
                 foreach (Bar bar in deterministicBars)
                 {
-                    if (bar != null && !bar.materialData.isPier)
+                    if (bar != null)
                     {
                         Rigidbody rb = bar.GetComponent<Rigidbody>();
                         if (rb != null)
@@ -330,6 +330,14 @@ public class BridgePhysicsManager : MonoBehaviour
 
         ApplyDeterministicPhysicsSettings();
         Physics.SyncTransforms();
+
+        // Re-evaluate from the permanent foundation flag before building the
+        // physics graph. This also repairs legacy saves whose pier caps were
+        // serialized as temporary anchors by the old pier implementation.
+        foreach (Point point in deterministicPoints)
+        {
+            if (point != null) point.EvaluateAnchorState();
+        }
 
         SetupBarsPhysics(deterministicBars);
         SetupDirectConnections(deterministicBars, deterministicPoints);
@@ -1219,9 +1227,12 @@ public class BarStressHandler : MonoBehaviour
             ? settledDeadLoadForce
             : averagedForce;
 
+        float tensionLimit = material.maxTension;
+        float compressionLimit = material.GetCompressionLimit(restLength);
+
         if (material.isRope)
         {
-            if (smoothedForce > material.maxTension)
+            if (smoothedForce > tensionLimit)
             {
                 breakingJoint = ropeJoint;
                 breakCause = "Tension (Rope Snapped)";
@@ -1229,19 +1240,21 @@ public class BarStressHandler : MonoBehaviour
         }
         else
         {
-            if (isTension && smoothedForce > material.maxTension)
+            if (isTension && smoothedForce > tensionLimit)
             {
                 breakingJoint = joints[0]; 
                 breakCause = "Tension (Pulled apart)";
             }
-            else if (!isTension && smoothedForce > material.maxCompression)
+            else if (!isTension && smoothedForce > compressionLimit)
             {
                 breakingJoint = joints[0];
-                breakCause = "Compression (Buckled)";
+                breakCause = material.isPier
+                    ? "Compression (Pier Buckled)"
+                    : "Compression (Buckled)";
             }
         }
 
-        float stressLimit = isTension ? material.maxTension : material.maxCompression;
+        float stressLimit = isTension ? tensionLimit : compressionLimit;
         if (stressLimit <= 0f) stressLimit = 1f; 
 
         float totalStructuralForce = material.isRope && !isTension ? 0f : smoothedForce;

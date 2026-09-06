@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
   m_Name: ShopKeeperContract
   m_EditorClassIdentifier: 
-  contractID: Shop Keeper
+  contractID: ShopKeeper
   contractMap: 0
   countsTowardMapAchievements: 1
   isStoryModeContract: 1

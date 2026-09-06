@@ -17,6 +17,9 @@ using UnityEngine.UI;
 [DisallowMultipleComponent]
 public sealed class DeveloperDebugManager : MonoBehaviour
 {
+    private const int DebugStateVersion = 1;
+    private const string DebugStateFileName = "developerDebugState.json";
+
     public static DeveloperDebugManager Instance { get; private set; }
 
     [Header("Availability")]
@@ -61,6 +64,23 @@ public sealed class DeveloperDebugManager : MonoBehaviour
     private bool previousCursorVisible;
     private bool menuOpen;
     private float nextJointScanTime;
+
+    [Serializable]
+    private sealed class DebugStateSnapshot
+    {
+        public int version = DebugStateVersion;
+        public string savedAtUtc;
+        public string sceneName;
+        public PlayerData playerData;
+        public List<SavedIntPreference> integerPreferences = new List<SavedIntPreference>();
+    }
+
+    [Serializable]
+    private sealed class SavedIntPreference
+    {
+        public string key;
+        public int value;
+    }
 
     private struct JointBreakLimits
     {
@@ -108,6 +128,7 @@ public sealed class DeveloperDebugManager : MonoBehaviour
         }
 
         PrepareCanvas();
+        EnsureSaveStateControls();
         SetMenuVisible(false, false);
 
         if (timeScaleSlider != null)
@@ -171,6 +192,9 @@ public sealed class DeveloperDebugManager : MonoBehaviour
 
     private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
     {
+        if (PlayerDataManager.Instance != null)
+            PlayerDataManager.Instance.ResumeAutomaticPositionSaving();
+
         clearSaveConfirmationDeadline = -1f;
         PrepareCanvas();
         StartCoroutine(RefreshListsAfterSceneInitialization());
@@ -244,6 +268,165 @@ public sealed class DeveloperDebugManager : MonoBehaviour
         PrepareDropdown(npcPhaseDropdown);
         PrepareDropdown(achievementDropdown);
         PrepareDropdown(coinAmountDropdown);
+    }
+
+    /// <summary>
+    /// Keeps existing scenes usable before the editor setup pass has serialized
+    /// the new row. Once Setup Developer Debug Menu runs, the saved controls are
+    /// found here and no runtime objects are created.
+    /// </summary>
+    private void EnsureSaveStateControls()
+    {
+        if (debugWindow == null) return;
+
+        Transform existingSave = FindDescendantByName(debugWindow.transform, "SaveStateButton");
+        Transform existingLoad = FindDescendantByName(debugWindow.transform, "LoadStateButton");
+        if (existingSave != null && existingLoad != null) return;
+
+        Transform content = debugWindow.transform.Find("ScreenBlocker/DebugPanel/ScrollView/Viewport/Content");
+        if (content == null) return;
+
+        Transform coinsRow = FindDirectChildByName(content, "CoinsRow");
+        if (coinsRow == null) return;
+
+        RectTransform row = new GameObject(
+            "SaveStateRow",
+            typeof(RectTransform),
+            typeof(HorizontalLayoutGroup),
+            typeof(LayoutElement)).GetComponent<RectTransform>();
+        row.SetParent(content, false);
+        row.SetSiblingIndex(coinsRow.GetSiblingIndex() + 1);
+
+        HorizontalLayoutGroup sourceLayout = coinsRow.GetComponent<HorizontalLayoutGroup>();
+        HorizontalLayoutGroup rowLayout = row.GetComponent<HorizontalLayoutGroup>();
+        if (sourceLayout != null)
+        {
+            rowLayout.padding = new RectOffset(
+                sourceLayout.padding.left,
+                sourceLayout.padding.right,
+                sourceLayout.padding.top,
+                sourceLayout.padding.bottom);
+            rowLayout.spacing = sourceLayout.spacing;
+            rowLayout.childAlignment = sourceLayout.childAlignment;
+            rowLayout.childControlWidth = sourceLayout.childControlWidth;
+            rowLayout.childControlHeight = sourceLayout.childControlHeight;
+            rowLayout.childForceExpandWidth = sourceLayout.childForceExpandWidth;
+            rowLayout.childForceExpandHeight = sourceLayout.childForceExpandHeight;
+        }
+
+        LayoutElement sourceRowLayout = coinsRow.GetComponent<LayoutElement>();
+        LayoutElement rowElement = row.GetComponent<LayoutElement>();
+        rowElement.preferredHeight = sourceRowLayout != null ? sourceRowLayout.preferredHeight : 64f;
+        rowElement.flexibleWidth = 1f;
+
+        TMP_Text sourceLabel = FindDirectChildByName(coinsRow, "Label")?.GetComponent<TMP_Text>();
+        TextMeshProUGUI label = CreateRuntimeText(row, "Label", "Player Save State", sourceLabel);
+        LayoutElement labelLayout = label.gameObject.AddComponent<LayoutElement>();
+        labelLayout.preferredWidth = 190f;
+        labelLayout.preferredHeight = 54f;
+
+        Button sourceButton = FindDescendantByName(coinsRow, "AddCoinsButton")?.GetComponent<Button>();
+        CreateRuntimeDebugButton(row, "SaveStateButton", "SAVE STATE", sourceButton, SaveState);
+        CreateRuntimeDebugButton(row, "LoadStateButton", "LOAD STATE", sourceButton, LoadState);
+    }
+
+    private static Button CreateRuntimeDebugButton(
+        Transform parent,
+        string objectName,
+        string labelText,
+        Button visualSource,
+        UnityEngine.Events.UnityAction action)
+    {
+        GameObject root = new GameObject(
+            objectName,
+            typeof(RectTransform),
+            typeof(Image),
+            typeof(Button),
+            typeof(LayoutElement));
+        RectTransform rect = root.GetComponent<RectTransform>();
+        rect.SetParent(parent, false);
+
+        Image image = root.GetComponent<Image>();
+        Button button = root.GetComponent<Button>();
+        if (visualSource != null)
+        {
+            Image sourceImage = visualSource.targetGraphic as Image;
+            if (sourceImage != null)
+            {
+                image.sprite = sourceImage.sprite;
+                image.type = sourceImage.type;
+                image.color = sourceImage.color;
+            }
+
+            button.transition = visualSource.transition;
+            button.colors = visualSource.colors;
+            button.navigation = visualSource.navigation;
+        }
+
+        button.targetGraphic = image;
+        button.onClick.AddListener(action);
+
+        TMP_Text sourceText = visualSource != null
+            ? visualSource.GetComponentInChildren<TMP_Text>(true)
+            : null;
+        TextMeshProUGUI text = CreateRuntimeText(rect, "Text", labelText, sourceText);
+        RectTransform textRect = text.rectTransform;
+        textRect.anchorMin = Vector2.zero;
+        textRect.anchorMax = Vector2.one;
+        textRect.offsetMin = new Vector2(8f, 4f);
+        textRect.offsetMax = new Vector2(-8f, -4f);
+        text.alignment = TextAlignmentOptions.Center;
+
+        LayoutElement layout = root.GetComponent<LayoutElement>();
+        layout.preferredWidth = 365f;
+        layout.preferredHeight = 52f;
+        return button;
+    }
+
+    private static TextMeshProUGUI CreateRuntimeText(
+        Transform parent,
+        string objectName,
+        string value,
+        TMP_Text visualSource)
+    {
+        GameObject textObject = new GameObject(objectName, typeof(RectTransform), typeof(TextMeshProUGUI));
+        RectTransform rect = textObject.GetComponent<RectTransform>();
+        rect.SetParent(parent, false);
+        TextMeshProUGUI text = textObject.GetComponent<TextMeshProUGUI>();
+        text.text = value;
+        text.raycastTarget = false;
+        text.enableWordWrapping = true;
+        text.color = visualSource != null ? visualSource.color : Color.white;
+        text.font = visualSource != null ? visualSource.font : TMP_Settings.defaultFontAsset;
+        text.fontSize = visualSource != null ? visualSource.fontSize : 20f;
+        text.fontStyle = visualSource != null ? visualSource.fontStyle : FontStyles.Bold;
+        text.alignment = visualSource != null ? visualSource.alignment : TextAlignmentOptions.MidlineLeft;
+        return text;
+    }
+
+    private static Transform FindDirectChildByName(Transform parent, string objectName)
+    {
+        if (parent == null) return null;
+        for (int i = 0; i < parent.childCount; i++)
+        {
+            Transform child = parent.GetChild(i);
+            if (string.Equals(child.name, objectName, StringComparison.Ordinal)) return child;
+        }
+
+        return null;
+    }
+
+    private static Transform FindDescendantByName(Transform parent, string objectName)
+    {
+        if (parent == null) return null;
+        if (string.Equals(parent.name, objectName, StringComparison.Ordinal)) return parent;
+        for (int i = 0; i < parent.childCount; i++)
+        {
+            Transform match = FindDescendantByName(parent.GetChild(i), objectName);
+            if (match != null) return match;
+        }
+
+        return null;
     }
 
     private void PrepareDropdown(TMP_Dropdown dropdown)
@@ -661,6 +844,143 @@ public sealed class DeveloperDebugManager : MonoBehaviour
         SetStatus($"Added ₱{amount:N0}. Current balance: ₱{balance:N0}.");
     }
 
+    /// <summary>
+    /// Captures one persistent debugger checkpoint. This is separate from the
+    /// normal playerSaveData.json, so Clear Save can be tested and then undone
+    /// with Load State.
+    /// </summary>
+    public void SaveState()
+    {
+        PlayerDataManager playerDataManager = PlayerDataManager.Instance;
+        if (playerDataManager == null || playerDataManager.CurrentData == null)
+        {
+            SetStatus("PlayerDataManager is unavailable; state was not saved.");
+            return;
+        }
+
+        PlayerData dataCopy;
+        try
+        {
+            string playerJson = JsonUtility.ToJson(playerDataManager.CurrentData);
+            dataCopy = JsonUtility.FromJson<PlayerData>(playerJson);
+        }
+        catch (Exception exception)
+        {
+            SetStatus($"Could not copy the current player state: {exception.Message}");
+            return;
+        }
+
+        if (dataCopy == null)
+        {
+            SetStatus("Could not copy the current player state.");
+            return;
+        }
+
+        Scene activeScene = SceneManager.GetActiveScene();
+        dataCopy.lastSavedScene = activeScene.name;
+
+        PlayerMotor player = FindObjectOfType<PlayerMotor>(true);
+        if (player != null)
+            dataCopy.lastSavedPosition = new SerializableVector3(player.transform.position);
+
+        DebugStateSnapshot snapshot = new DebugStateSnapshot
+        {
+            savedAtUtc = DateTime.UtcNow.ToString("O"),
+            sceneName = activeScene.name,
+            playerData = dataCopy,
+            integerPreferences = CaptureContractLockPreferences(playerDataManager)
+        };
+
+        string path = GetDebugStatePath();
+        string temporaryPath = path + ".tmp";
+
+        try
+        {
+            File.WriteAllText(temporaryPath, JsonUtility.ToJson(snapshot, true));
+            if (File.Exists(path))
+            {
+                File.Copy(temporaryPath, path, true);
+                File.Delete(temporaryPath);
+            }
+            else
+            {
+                File.Move(temporaryPath, path);
+            }
+
+            SetStatus($"State saved: {activeScene.name} at {DateTime.Now:HH:mm:ss}. Load State can restore it after Clear Save.");
+        }
+        catch (Exception exception)
+        {
+            DeleteIfPresent(temporaryPath);
+            SetStatus($"State save failed: {exception.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Restores the debugger checkpoint into the normal save slot, then reloads
+    /// its scene so bridges, NPC phases, UI unlocks, and the player position all
+    /// initialize from the restored data in a consistent order.
+    /// </summary>
+    public void LoadState()
+    {
+        string path = GetDebugStatePath();
+        if (!File.Exists(path))
+        {
+            SetStatus("No debug state exists yet. Press Save State first.");
+            return;
+        }
+
+        DebugStateSnapshot snapshot;
+        try
+        {
+            snapshot = JsonUtility.FromJson<DebugStateSnapshot>(File.ReadAllText(path));
+        }
+        catch (Exception exception)
+        {
+            SetStatus($"State load failed: {exception.Message}");
+            return;
+        }
+
+        if (snapshot == null || snapshot.playerData == null)
+        {
+            SetStatus("The debug state file is empty or invalid.");
+            return;
+        }
+
+        if (snapshot.version > DebugStateVersion)
+        {
+            SetStatus($"This state uses unsupported version {snapshot.version}.");
+            return;
+        }
+
+        PlayerDataManager playerDataManager = PlayerDataManager.Instance;
+        if (playerDataManager == null)
+        {
+            SetStatus("PlayerDataManager is unavailable; state was not loaded.");
+            return;
+        }
+
+        string targetScene = SceneExistsInBuildSettings(snapshot.sceneName)
+            ? snapshot.sceneName
+            : SceneManager.GetActiveScene().name;
+        snapshot.playerData.lastSavedScene = targetScene;
+
+        if (!playerDataManager.TryRestoreDebugState(snapshot.playerData, out string error))
+        {
+            SetStatus($"State load failed: {error}");
+            return;
+        }
+
+        RestoreContractLockPreferences(playerDataManager, snapshot.integerPreferences);
+
+        Time.timeScale = 1f;
+        SetInvincibleBridge(false);
+        SetStatus($"State restored. Reloading {targetScene}...");
+        SetMenuVisible(false, true);
+        playerDataManager.SuppressAutomaticPositionSaveForSceneReload();
+        SceneManager.LoadScene(targetScene);
+    }
+
     public void SetTimeScale(float value)
     {
         Time.timeScale = Mathf.Clamp(value, 0f, 10f);
@@ -773,7 +1093,92 @@ public sealed class DeveloperDebugManager : MonoBehaviour
             DeleteIfPresent(Path.Combine(Application.persistentDataPath, "playerSaveData.json.bak"));
         }
 
-        SetStatus("Local PlayerPrefs and player JSON save data were cleared. Reload the scene for a clean start.");
+        SetStatus("Local PlayerPrefs and player JSON save data were cleared. The separate debug state was preserved for Load State.");
+    }
+
+    private static string GetDebugStatePath()
+    {
+        return Path.Combine(Application.persistentDataPath, DebugStateFileName);
+    }
+
+    private static List<SavedIntPreference> CaptureContractLockPreferences(PlayerDataManager manager)
+    {
+        List<SavedIntPreference> savedPreferences = new List<SavedIntPreference>();
+        foreach (string key in GetKnownContractLockKeys(manager))
+        {
+            if (!PlayerPrefs.HasKey(key)) continue;
+            savedPreferences.Add(new SavedIntPreference
+            {
+                key = key,
+                value = PlayerPrefs.GetInt(key)
+            });
+        }
+
+        return savedPreferences;
+    }
+
+    private static void RestoreContractLockPreferences(
+        PlayerDataManager manager,
+        List<SavedIntPreference> savedPreferences)
+    {
+        HashSet<string> keysToClear = GetKnownContractLockKeys(manager);
+        if (savedPreferences != null)
+        {
+            foreach (SavedIntPreference preference in savedPreferences)
+            {
+                if (preference == null || string.IsNullOrWhiteSpace(preference.key)) continue;
+                keysToClear.Add(preference.key);
+            }
+        }
+
+        foreach (string key in keysToClear)
+            PlayerPrefs.DeleteKey(key);
+
+        if (savedPreferences != null)
+        {
+            foreach (SavedIntPreference preference in savedPreferences)
+            {
+                if (preference == null || string.IsNullOrWhiteSpace(preference.key)) continue;
+                PlayerPrefs.SetInt(preference.key, preference.value);
+            }
+        }
+
+        PlayerPrefs.Save();
+    }
+
+    private static HashSet<string> GetKnownContractLockKeys(PlayerDataManager manager)
+    {
+        HashSet<string> keys = new HashSet<string>(StringComparer.Ordinal);
+        if (manager != null && manager.allGameContracts != null)
+        {
+            foreach (ContractSO contract in manager.allGameContracts)
+                AddContractLockKey(contract, keys);
+        }
+
+        foreach (ContractSO contract in Resources.FindObjectsOfTypeAll<ContractSO>())
+            AddContractLockKey(contract, keys);
+
+        return keys;
+    }
+
+    private static void AddContractLockKey(ContractSO contract, HashSet<string> keys)
+    {
+        if (contract == null || string.IsNullOrWhiteSpace(contract.ContractID)) return;
+        keys.Add("LockedContract_" + contract.ContractID);
+    }
+
+    private static bool SceneExistsInBuildSettings(string sceneName)
+    {
+        if (string.IsNullOrWhiteSpace(sceneName)) return false;
+        for (int i = 0; i < SceneManager.sceneCountInBuildSettings; i++)
+        {
+            string path = SceneUtility.GetScenePathByBuildIndex(i);
+            if (string.Equals(Path.GetFileNameWithoutExtension(path), sceneName,
+                    StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
     }
 
     private static void DeleteIfPresent(string path)

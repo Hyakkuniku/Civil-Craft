@@ -672,6 +672,10 @@ public class LevelCompleteManager : MonoBehaviour
             return;
         }
 
+        // The new geometry is now safely persisted. Only at this point may the
+        // previous scene bridge be permanently removed.
+        completedLocation.CommitBridgeRedesign();
+
         // A bridge-build achievement advances when a valid bridge successfully
         // finishes the level and is persisted. Contract turn-in is tracked
         // separately by CompleteContract as ContractsCompleted.

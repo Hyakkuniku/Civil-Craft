@@ -140,17 +140,10 @@ public class Point : MonoBehaviour
             hasInitializedAnchor = true;
         }
 
-        bool hasActivePier = false;
-        foreach (Bar b in ConnectedBars)
-        {
-            if (b != null && b.gameObject.activeSelf && b.materialData != null && b.materialData.isPier)
-            {
-                hasActivePier = true;
-                break; 
-            }
-        }
-
-        isAnchor = originalIsAnchor || hasActivePier;
+        // Only scene/foundation anchors are immovable. A pier transfers load from
+        // its dynamic top node to its anchored foot; merely touching a pier must
+        // never turn a bridge node into an indestructible anchor.
+        isAnchor = originalIsAnchor;
         UpdateMaterial();
     }
 
