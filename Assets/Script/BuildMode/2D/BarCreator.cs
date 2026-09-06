@@ -47,6 +47,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
     [Header("References")]
     public Bar currentBar;
+    [Tooltip("Required bridge-part prefab used for construction. Keep assigned; this does not select a material.")]
     public GameObject barToInstantiate;
     public Transform barParent;
     public Point currentStartPoint;
@@ -71,6 +72,8 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     [SerializeField, Min(0.1f)] private float autoDrawLoadingSeconds = 0.65f;
     [SerializeField, Min(0.05f)] private float autoDrawSecondsPerPiece = 0.24f;
     [SerializeField] private Color autoDrawRingColor = new Color(1f, 0.68f, 0.2f);
+    [Tooltip("Outer radius of the hollow hold-to-confirm ring, in Canvas reference pixels. Does not change node snapping distance.")]
+    [SerializeField, Min(8f)] private float autoDrawRingRadius = 60f;
     public bool IsAutoDrawing => autoDrawRoutine != null;
     private Coroutine autoDrawRoutine;
     private HistoryAction pendingAutoDraw;
@@ -89,8 +92,11 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     public bool isDeleteMode = false;
     
     [Header("Selection Visuals")]
-    [Tooltip("Drag the same highlight material used by Point here!")]
+    [Tooltip("Legacy material reference. Selection now uses Outline Color and Outline Width below.")]
     public Material selectedBarMaterial; 
+    [Tooltip("Outline color for selected bridge parts and nodes. Their surface materials stay unchanged.")]
+    public Color selectionOutlineColor = Color.white;
+    [Range(2f, 8f)] public float selectionOutlineWidth = 4f;
 
     [Header("Selection & Move Tools")]
     public bool isSelectMode = false;
@@ -145,6 +151,12 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     private List<Bar> cachedBarsToTransfer = new List<Bar>();
     private List<Bar> cachedBarsToCollapse = new List<Bar>();
 
+    private void Awake()
+    {
+        // Inspector defaults are not a player selection. Keep the construction prefab intact.
+        activeMaterial = null;
+    }
+
     private void OnEnable() { EnhancedTouchSupport.Enable(); }
     private void OnDisable()
     {
@@ -183,7 +195,13 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         }
     }
 
-    private void HandleEnterBuildMode() { isSimulating = false; }
+    private void HandleEnterBuildMode()
+    {
+        isSimulating = false;
+        CancelAllModes();
+        previousNonPierMaterial = null;
+        SetActiveMaterial(null);
+    }
     private void HandleExitBuildMode() 
     { 
         CancelAllModes();
@@ -1790,6 +1808,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         autoDrawConfirmationElapsed += Time.unscaledDeltaTime;
         float progress = Mathf.Clamp01(autoDrawConfirmationElapsed / Mathf.Max(0.1f, autoDrawLoadingSeconds));
         RectTransform ringRect = autoDrawConfirmationRing.rectTransform;
+        ringRect.sizeDelta = Vector2.one * (Mathf.Max(8f, autoDrawRingRadius) * 2f);
         PlaceAutoDrawRing(ringRect, destination.transform.position);
         autoDrawConfirmationRing.Progress = progress;
         ringRect.localRotation = Quaternion.Euler(0f, 0f, -autoDrawConfirmationElapsed * 180f);
@@ -1931,7 +1950,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         var ringObject = new GameObject("Hollow Loading Ring", typeof(RectTransform), typeof(CanvasRenderer));
         ringObject.transform.SetParent(autoDrawOverlay.transform, false);
         var ringRect = (RectTransform)ringObject.transform;
-        ringRect.sizeDelta = new Vector2(72f, 72f);
+        ringRect.sizeDelta = Vector2.one * (Mathf.Max(8f, autoDrawRingRadius) * 2f);
         var ring = ringObject.AddComponent<AnchorAutoDrawRing>();
         ring.color = autoDrawRingColor;
         ring.maskable = false;

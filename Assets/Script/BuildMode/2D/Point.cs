@@ -23,6 +23,7 @@ public class Point : MonoBehaviour
     public BuildLocation OwnerLocation => ownerLocation;
 
     private Renderer pointRenderer;
+    private BridgeSelectionOutline selectionOutline;
 
     [HideInInspector] public Vector3 preSimPos;
     [HideInInspector] public Quaternion preSimRot;
@@ -78,6 +79,7 @@ public class Point : MonoBehaviour
 
     private void OnDestroy()
     {
+        selectionOutline?.Dispose();
         AllPoints.Remove(this);
     }
 
@@ -121,13 +123,23 @@ public class Point : MonoBehaviour
         
         if (pointRenderer != null)
         {
-            if (isSelected && selectedMaterial != null)
-                pointRenderer.sharedMaterial = selectedMaterial;
-            else if (isAnchor && anchorMaterial != null)
+            if (isAnchor && anchorMaterial != null)
                 pointRenderer.sharedMaterial = anchorMaterial;
             else if (!isAnchor && defaultMaterial != null)
                 pointRenderer.sharedMaterial = defaultMaterial;
         }
+    }
+
+    private void LateUpdate()
+    {
+        if (!Application.isPlaying || !isSelected) return;
+        PrepareSelectionOutline();
+    }
+
+    internal void PrepareSelectionOutline()
+    {
+        if (selectionOutline == null) selectionOutline = new BridgeSelectionOutline(transform);
+        selectionOutline.Draw();
     }
 
     public void EvaluateAnchorState()
