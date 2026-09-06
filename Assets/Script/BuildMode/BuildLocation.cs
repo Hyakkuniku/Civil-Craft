@@ -62,6 +62,10 @@ public class BuildLocation : Interactable
     private bool isRedesigningBridge;
 
     public bool IsRedesigningBridge => isRedesigningBridge;
+    public bool IsRedesignBlockedByNPCTravel =>
+        bakedBars.Count > 0 && NPCProgressionManager.IsAnyNPCTravelling;
+    public override bool IsInteractionAvailable =>
+        base.IsInteractionAvailable && !IsRedesignBlockedByNPCTravel;
 
     private Transform originalPlayerParent;
 
@@ -105,7 +109,8 @@ public class BuildLocation : Interactable
 
     private void Update()
     {
-        if (IsOverworldTutorialBlockingBuild()) promptMessage = "Finish the current tutorial first.";
+        if (IsRedesignBlockedByNPCTravel) promptMessage = "";
+        else if (IsOverworldTutorialBlockingBuild()) promptMessage = "Finish the current tutorial first.";
         else if (activeContract == null) promptMessage = "Requires Contract! Talk to the client.";
         else if (bakedBars.Count > 0) promptMessage = "Redesign Bridge";
         else promptMessage = "Enter Build Mode";
@@ -158,6 +163,12 @@ public class BuildLocation : Interactable
 
     public void TryEnterBuildMode()
     {
+        if (IsRedesignBlockedByNPCTravel)
+        {
+            Debug.LogWarning("Bridge redesign is unavailable while an NPC is travelling between phases.");
+            return;
+        }
+
         if (IsOverworldTutorialBlockingBuild())
         {
             Debug.LogWarning("Build Mode is locked while an overworld tutorial is active.");
@@ -215,7 +226,8 @@ public class BuildLocation : Interactable
     /// </summary>
     public bool BeginBridgeRedesign()
     {
-        if (isRedesigningBridge || bakedBars.Count == 0) return false;
+        if (isRedesigningBridge || bakedBars.Count == 0 || IsRedesignBlockedByNPCTravel)
+            return false;
 
         committedBarsBeforeRedesign.Clear();
         committedPointsBeforeRedesign.Clear();

@@ -30,6 +30,9 @@ public class LevelFailedManager : MonoBehaviour
     [Header("Failure Settings")]
     [Tooltip("The Y-axis height at which the vehicle is considered fallen/destroyed.")]
     public float deathThreshold = -15f;
+
+    [Tooltip("The vehicle also fails after falling this far below its own start point. This keeps fall detection reliable in scenes that use different world heights.")]
+    [Min(1f)] public float maximumVehicleFallDistance = 6f;
     
     [Tooltip("How long to wait before showing the fail screen (lets the player watch the destruction).")]
     public float delayBeforeFailScreen = 2.0f; 
@@ -43,6 +46,9 @@ public class LevelFailedManager : MonoBehaviour
     private BridgePhysicsManager physicsManager;
     private Coroutine failDelayCoroutine;
     private BuildLocation tutorialLocationToRestart;
+    private float activeVehicleStartY;
+    private bool hasVehicleStartHeight;
+    private bool vehicleWasPresentForSimulation;
     
     [HideInInspector] public bool isFailed = false;
 
@@ -63,6 +69,7 @@ public class LevelFailedManager : MonoBehaviour
         
         if (physicsManager != null)
         {
+            physicsManager.OnSimulationStarted += HandleSimulationStarted;
             physicsManager.OnSimulationStopped += HandleSimulationStopped;
         }
     }
@@ -71,6 +78,7 @@ public class LevelFailedManager : MonoBehaviour
     {
         if (physicsManager != null)
         {
+            physicsManager.OnSimulationStarted -= HandleSimulationStarted;
             physicsManager.OnSimulationStopped -= HandleSimulationStopped;
         }
     }
@@ -101,16 +109,93 @@ public class LevelFailedManager : MonoBehaviour
                 return; 
             }
 
-            if (activeVehicle == null) activeVehicle = FindObjectOfType<LiveLoadVehicle>();
+            if (!IsVehicleForCurrentContract(activeVehicle))
+                CaptureActiveVehicle(FindVehicleForCurrentContract());
 
-            if (activeVehicle != null && activeVehicle.gameObject.activeInHierarchy)
+            if (activeVehicle != null)
             {
-                if (activeVehicle.transform.position.y < deathThreshold)
+                if (!activeVehicle.gameObject.activeInHierarchy)
                 {
                     InitiateFailure("Vehicle Destroyed!");
+                    return;
+                }
+
+                float relativeDeathThreshold = hasVehicleStartHeight
+                    ? activeVehicleStartY - Mathf.Max(1f, maximumVehicleFallDistance)
+                    : float.NegativeInfinity;
+                float effectiveDeathThreshold = Mathf.Max(deathThreshold, relativeDeathThreshold);
+
+                if (activeVehicle.transform.position.y < effectiveDeathThreshold)
+                {
+                    InitiateFailure("Vehicle Fell Into the Ravine!");
+                    return;
                 }
             }
+            else if (vehicleWasPresentForSimulation)
+            {
+                // A destroyed GameObject compares equal to null in Unity. Once a
+                // test vehicle was registered, losing it is itself a failed test.
+                InitiateFailure("Vehicle Destroyed!");
+            }
         }
+    }
+
+    private void HandleSimulationStarted()
+    {
+        activeVehicle = null;
+        hasVehicleStartHeight = false;
+        vehicleWasPresentForSimulation = false;
+        CaptureActiveVehicle(FindVehicleForCurrentContract());
+    }
+
+    private void CaptureActiveVehicle(LiveLoadVehicle vehicle)
+    {
+        activeVehicle = vehicle;
+        if (activeVehicle == null) return;
+
+        vehicleWasPresentForSimulation = true;
+        activeVehicleStartY = activeVehicle.startPoint != null
+            ? activeVehicle.startPoint.position.y
+            : activeVehicle.transform.position.y;
+        hasVehicleStartHeight = true;
+    }
+
+    private static bool IsVehicleForCurrentContract(LiveLoadVehicle vehicle)
+    {
+        if (vehicle == null) return false;
+
+        ContractSO currentContract = GameManager.Instance != null
+            ? GameManager.Instance.CurrentContract
+            : null;
+
+        return currentContract == null ||
+               vehicle.assignedContract == null ||
+               vehicle.assignedContract == currentContract;
+    }
+
+    private static LiveLoadVehicle FindVehicleForCurrentContract()
+    {
+        LiveLoadVehicle fallback = null;
+        ContractSO currentContract = GameManager.Instance != null
+            ? GameManager.Instance.CurrentContract
+            : null;
+
+        foreach (LiveLoadVehicle vehicle in FindObjectsOfType<LiveLoadVehicle>(true))
+        {
+            if (vehicle == null || !vehicle.gameObject.scene.IsValid()) continue;
+
+            if (currentContract != null && vehicle.assignedContract == currentContract)
+                return vehicle;
+
+            if (fallback == null &&
+                vehicle.gameObject.activeInHierarchy &&
+                (currentContract == null || vehicle.assignedContract == null))
+            {
+                fallback = vehicle;
+            }
+        }
+
+        return fallback;
     }
 
     private void InitiateFailure(string reason)
@@ -158,7 +243,8 @@ public class LevelFailedManager : MonoBehaviour
             ? GameManager.Instance.ActiveBuildLocation
             : null;
 
-        if (activeVehicle == null) activeVehicle = FindObjectOfType<LiveLoadVehicle>();
+        if (!IsVehicleForCurrentContract(activeVehicle))
+            activeVehicle = FindVehicleForCurrentContract();
         if (activeVehicle != null) activeVehicle.EmergencyStop();
 
         temporarilyHiddenPanels.Clear();
@@ -285,6 +371,9 @@ public class LevelFailedManager : MonoBehaviour
         if (failDelayCoroutine != null) StopCoroutine(failDelayCoroutine); 
         
         isFailed = false;
+        activeVehicle = null;
+        hasVehicleStartHeight = false;
+        vehicleWasPresentForSimulation = false;
         tutorialLocationToRestart = null;
         RestoreHiddenUI(); 
         if (levelFailedPanel != null) levelFailedPanel.SetActive(false);

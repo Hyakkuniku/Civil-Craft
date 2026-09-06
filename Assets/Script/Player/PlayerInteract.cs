@@ -82,7 +82,7 @@ public class PlayerInteract : MonoBehaviour
             for (int i = 0; i < numColliders; i++)
             {
                 Interactable interactable = hitColliders[i].GetComponent<Interactable>();
-                if (interactable != null)
+                if (interactable != null && interactable.IsInteractionAvailable)
                 {
                     nearbyInteractables.Add(interactable);
                 }

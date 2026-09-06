@@ -47,6 +47,7 @@ public class BridgePhysicsManager : MonoBehaviour
 
     [HideInInspector] public bool isSimulating = false;
     [HideInInspector] public bool lockStressTracking = false; 
+    public bool IsSimulationActive => isSimulating || pendingSimulationStart;
     
     [HideInInspector] public List<BarStressHandler> activeStressHandlers = new List<BarStressHandler>();
     [Tooltip("Peak of the same dead-load-adjusted value shown by the stress visualizer. Used by the result screen.")]

@@ -21,7 +21,7 @@ public class PlayerUI : MonoBehaviour
         foreach (Interactable interactable in nearbyInteractables)
         {
             // --- THE FIX: If the component is turned off (locked door), ignore it completely! ---
-            if (!interactable.isActiveAndEnabled) continue;
+            if (!interactable.IsInteractionAvailable) continue;
 
             if (!activeButtons.ContainsKey(interactable))
             {
@@ -44,7 +44,7 @@ public class PlayerUI : MonoBehaviour
         foreach (var kvp in activeButtons)
         {
             // --- THE FIX: Destroy the button if the player walks away OR if the script gets turned off! ---
-            if (!nearbyInteractables.Contains(kvp.Key) || !kvp.Key.isActiveAndEnabled)
+            if (!nearbyInteractables.Contains(kvp.Key) || !kvp.Key.IsInteractionAvailable)
             {
                 toRemove.Add(kvp.Key);
             }

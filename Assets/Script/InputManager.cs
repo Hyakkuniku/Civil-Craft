@@ -31,7 +31,7 @@ public class InputManager : MonoBehaviour
         look = GetComponent<PlayerLook>();
 
         // Automatically detect if we are building for a mobile device
-        #if UNITY_ANDROID || UNITY_IOS
+        #if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
             useMobileTouchControls = true;
         #endif
     }

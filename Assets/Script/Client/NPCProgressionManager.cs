@@ -127,6 +127,9 @@ public enum NPCProgressionMovementMode
 [RequireComponent(typeof(NavMeshAgent))]
 public class NPCProgressionManager : MonoBehaviour
 {
+    private static readonly HashSet<NPCProgressionManager> ActiveManagers =
+        new HashSet<NPCProgressionManager>();
+
     [Header("Required References")]
     [SerializeField] private NPCContractGiver contractGiver;
     [SerializeField] private NavMeshAgent navMeshAgent;
@@ -224,6 +227,20 @@ public class NPCProgressionManager : MonoBehaviour
     public int CurrentPhaseIndex => currentPhaseIndex;
     public int PhaseCount => phases != null ? phases.Count : 0;
     public bool IsTravelling => movementRoutine != null;
+    public static bool IsAnyNPCTravelling
+    {
+        get
+        {
+            ActiveManagers.RemoveWhere(manager => manager == null);
+            foreach (NPCProgressionManager manager in ActiveManagers)
+            {
+                if (manager.isActiveAndEnabled && manager.IsTravelling)
+                    return true;
+            }
+
+            return false;
+        }
+    }
     public NPCProgressionPhase CurrentPhase =>
         currentPhaseIndex >= 0 && currentPhaseIndex < phases.Count
             ? phases[currentPhaseIndex]
@@ -329,6 +346,7 @@ public class NPCProgressionManager : MonoBehaviour
 
     private void OnEnable()
     {
+        ActiveManagers.Add(this);
         if (contractGiver != null)
         {
             contractGiver.OnNPCInteracted += HandleNPCInteracted;
@@ -409,6 +427,7 @@ public class NPCProgressionManager : MonoBehaviour
 
     private void OnDisable()
     {
+        ActiveManagers.Remove(this);
         if (contractGiver != null)
         {
             contractGiver.OnNPCInteracted -= HandleNPCInteracted;
@@ -1717,7 +1736,8 @@ public class NPCProgressionManager : MonoBehaviour
         dialogueManager.StartDialogue(
             phase.phaseDialogue,
             () => HandlePhaseDialogueFinished(phaseIndex, phase),
-            animator);
+            animator,
+            transform);
     }
 
     private void HandlePhaseDialogueFinished(int phaseIndex, NPCProgressionPhase phase)
@@ -1871,7 +1891,8 @@ public class NPCProgressionManager : MonoBehaviour
                         nextStepIndex,
                         showMaterialSteps,
                         displayedMaterial),
-                    animator);
+                    animator,
+                    transform);
                 return;
             }
 

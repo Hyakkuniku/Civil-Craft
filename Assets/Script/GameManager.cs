@@ -86,7 +86,7 @@ public class GameManager : MonoBehaviour
 
     public void ShowRedoConfirmPanel(BuildLocation loc)
     {
-        if (isTransitioning) return;
+        if (isTransitioning || loc == null || loc.IsRedesignBlockedByNPCTravel) return;
 
         pendingRedoLocation = loc;
         if (redoConfirmPanel != null) redoConfirmPanel.SetActive(true);
@@ -106,6 +106,13 @@ public class GameManager : MonoBehaviour
 
     public void ConfirmRedo()
     {
+        if (pendingRedoLocation != null && pendingRedoLocation.IsRedesignBlockedByNPCTravel)
+        {
+            Debug.LogWarning("Bridge redesign was cancelled because an NPC phase transition is in progress.");
+            CancelRedo();
+            return;
+        }
+
         if (redoConfirmPanel != null) redoConfirmPanel.SetActive(false);
 
         // Restore first so EnterBuildMode can capture the true overworld state.
@@ -282,6 +289,13 @@ public class GameManager : MonoBehaviour
 
     public void ExitBuildMode()
     {
+        BridgePhysicsManager physicsManager = FindObjectOfType<BridgePhysicsManager>();
+        if (physicsManager != null && physicsManager.IsSimulationActive)
+        {
+            Debug.LogWarning("Build Mode exit is locked while bridge simulation is running.");
+            return;
+        }
+
         if (BuildTutorialDirector.Instance != null && BuildTutorialDirector.Instance.isTutorialRunning)
         {
             Debug.LogWarning("Build Mode exit blocked while the build tutorial is active.");

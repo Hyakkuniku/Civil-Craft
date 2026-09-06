@@ -133,6 +133,8 @@ public class BuildUIController : MonoBehaviour
     [Header("Simulation UI Hiding")]
     public List<GameObject> hideDuringSimulation = new List<GameObject>();
     public RectTransform layoutPanelToRebuild; 
+    [Tooltip("Optional outer wrapper for the mobile Back/Exit button. It is found automatically when empty.")]
+    [SerializeField] private GameObject exitBuildModeButtonObject;
 
     private List<GameObject> temporarilyHiddenSimUI = new List<GameObject>();
     private bool simulationInProgressForUI;
@@ -220,6 +222,8 @@ public class BuildUIController : MonoBehaviour
                 ui.SetActive(false);
             }
         }
+
+        HideExitBuildModeButtonDuringSimulation();
         
         if (layoutPanelToRebuild != null)
         {
@@ -248,6 +252,49 @@ public class BuildUIController : MonoBehaviour
         BuildCameraController cam = FindObjectOfType<BuildCameraController>();
         if (cam != null) cam.ReturnToBuildView();
         RefreshSimulationButtonLock();
+    }
+
+    private void HideExitBuildModeButtonDuringSimulation()
+    {
+        ResolveExitBuildModeButton();
+        if (exitBuildModeButtonObject == null || !exitBuildModeButtonObject.activeSelf)
+            return;
+
+        if (!temporarilyHiddenSimUI.Contains(exitBuildModeButtonObject))
+            temporarilyHiddenSimUI.Add(exitBuildModeButtonObject);
+        exitBuildModeButtonObject.SetActive(false);
+    }
+
+    private void ResolveExitBuildModeButton()
+    {
+        if (exitBuildModeButtonObject != null) return;
+
+        GameObject inactiveFallback = null;
+        foreach (Button button in FindObjectsOfType<Button>(true))
+        {
+            if (button == null || !button.gameObject.scene.IsValid()) continue;
+
+            for (int i = 0; i < button.onClick.GetPersistentEventCount(); i++)
+            {
+                string method = button.onClick.GetPersistentMethodName(i);
+                if (method != nameof(GameManager.ExitBuildMode) &&
+                    method != nameof(OnExitBuildModeButtonClicked))
+                {
+                    continue;
+                }
+
+                if (button.gameObject.activeInHierarchy)
+                {
+                    exitBuildModeButtonObject = button.gameObject;
+                    return;
+                }
+
+                if (inactiveFallback == null)
+                    inactiveFallback = button.gameObject;
+            }
+        }
+
+        exitBuildModeButtonObject = inactiveFallback;
     }
 
     public void RefreshAllMaterialButtons()
@@ -850,7 +897,11 @@ public class BuildUIController : MonoBehaviour
     {
         if (physicsManager != null && physicsManager.isSimulating)
         {
-            float maxStress = physicsManager.GetMaxBridgeStress();
+            // Hold the displayed peak for the complete test. Physics can execute
+            // several fixed steps between mobile render frames, so displaying only
+            // the latest sample could hide a real spike that the result screen
+            // correctly reports as peak stress.
+            float maxStress = physicsManager.GetPeakDisplayedBridgeStress();
             int stressPercent = Mathf.RoundToInt(maxStress * 100f);
 
             Color currentStressColor = maxStress <= 0.5f ? 

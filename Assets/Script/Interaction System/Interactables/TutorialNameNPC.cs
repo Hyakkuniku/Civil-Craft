@@ -43,7 +43,6 @@ public class TutorialNameNPC : Interactable
     private DialogueManager dialogueManager;
     private Animator npcAnimator;
     private NameRegistrationUI nameUI;
-    private Transform playerTransform;
 
     private bool hasGivenFetchQuest = false;
     private bool isCompletingHouseInteraction = false;
@@ -55,9 +54,6 @@ public class TutorialNameNPC : Interactable
         dialogueManager = FindObjectOfType<DialogueManager>();
         npcAnimator = GetComponentInChildren<Animator>();
         nameUI = FindObjectOfType<NameRegistrationUI>(true); 
-        
-        GameObject player = GameObject.FindGameObjectWithTag("Player");
-        if (player != null) playerTransform = player.transform;
     }
 
     private void Update()
@@ -85,8 +81,6 @@ public class TutorialNameNPC : Interactable
         // --- THE FIX: Block interaction if they are walking away ---
         if (isCompletingHouseInteraction || isWalkingAway) return;
 
-        FacePlayer();
-
         if (dialogueManager == null) return;
 
         string currentName = PlayerDataManager.Instance != null ? PlayerDataManager.Instance.CurrentData.playerName : "Guest";
@@ -97,7 +91,7 @@ public class TutorialNameNPC : Interactable
             dialogueManager.StartDialogue(askNameDialogue, () => 
             {
                 if (nameUI != null) nameUI.ShowNamePrompt();
-            }, npcAnimator);
+            }, npcAnimator, transform);
         }
         else if (!hasBook)
         {
@@ -107,11 +101,11 @@ public class TutorialNameNPC : Interactable
                 {
                     hasGivenFetchQuest = true;
                     if (advancesTutorial && TutorialManager.Instance != null) TutorialManager.Instance.ShowNextStep();
-                }, npcAnimator);
+                }, npcAnimator, transform);
             }
             else
             {
-                dialogueManager.StartDialogue(reminderAlmanacDialogue, null, npcAnimator);
+                dialogueManager.StartDialogue(reminderAlmanacDialogue, null, npcAnimator, transform);
             }
         }
         else
@@ -124,7 +118,8 @@ public class TutorialNameNPC : Interactable
                 dialogueManager.StartDialogue(
                     GetReviewAlmanacDialogue(),
                     OpenAlmanacForRequiredReview,
-                    npcAnimator);
+                    npcAnimator,
+                    transform);
                 return;
             }
 
@@ -132,7 +127,11 @@ public class TutorialNameNPC : Interactable
             promptMessage = "";
 
             if (rewardDialogue != null)
-                dialogueManager.StartDialogue(rewardDialogue, ShowRewardThenFinalDialogue, npcAnimator);
+                dialogueManager.StartDialogue(
+                    rewardDialogue,
+                    ShowRewardThenFinalDialogue,
+                    npcAnimator,
+                    transform);
             else
                 ShowRewardThenFinalDialogue();
         }
@@ -171,7 +170,11 @@ public class TutorialNameNPC : Interactable
     private void StartFinalHouseDialogue()
     {
         if (dialogueManager != null && finalHouseDialogue != null)
-            dialogueManager.StartDialogue(finalHouseDialogue, FinishHouseInteraction, npcAnimator);
+            dialogueManager.StartDialogue(
+                finalHouseDialogue,
+                FinishHouseInteraction,
+                npcAnimator,
+                transform);
         else
             FinishHouseInteraction();
     }
@@ -265,16 +268,6 @@ public class TutorialNameNPC : Interactable
             PlayerDataManager.Instance.CompleteLesson(houseTutorialId);
     }
 
-    private void FacePlayer()
-    {
-        if (playerTransform != null)
-        {
-            Vector3 targetPosition = playerTransform.position;
-            targetPosition.y = transform.position.y;
-            transform.LookAt(targetPosition);
-        }
-    }
-
     public void OnNameRegistered()
     {
         if (dialogueManager != null)
@@ -287,7 +280,7 @@ public class TutorialNameNPC : Interactable
                 {
                     TutorialManager.Instance.ShowNextStep();
                 }
-            }, npcAnimator);
+            }, npcAnimator, transform);
         }
     }
 }

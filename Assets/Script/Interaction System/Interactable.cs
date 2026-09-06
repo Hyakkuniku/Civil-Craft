@@ -12,9 +12,17 @@ public abstract class Interactable : MonoBehaviour
     [SerializeField]
     public string promptMessage;
 
+    /// <summary>
+    /// Allows an interactable to disappear from the generated mobile interaction
+    /// buttons without disabling the component and its unrelated update logic.
+    /// </summary>
+    public virtual bool IsInteractionAvailable => isActiveAndEnabled;
+
     //this finction will be called from out player
     public void BaseInteract()
     {
+        if (!IsInteractionAvailable) return;
+
         if (useEvents)
         {
             GetComponent<InteractionEvent>().OnInteract.Invoke();

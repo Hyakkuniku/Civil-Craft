@@ -27,6 +27,14 @@ public class DialogueManager : MonoBehaviour
     [Tooltip("Walking is stopped before the talking animation begins when this bool exists on the NPC Animator.")]
     [SerializeField] private string speakerWalkingBoolParameter = "isWalking";
 
+    [Header("Conversation Facing")]
+    [Tooltip("Turn the player horizontally toward the character speaking when dialogue begins.")]
+    [SerializeField] private bool turnPlayerTowardSpeaker = true;
+    [Tooltip("Turn the speaking NPC horizontally toward the player when dialogue begins.")]
+    [SerializeField] private bool turnSpeakerTowardPlayer = true;
+    [Tooltip("Seconds used for both characters' automatic turn. Set to 0 for an immediate snap.")]
+    [Min(0f)] [SerializeField] private float playerTurnDuration = 0.2f;
+
     [Header("UI Management")]
     public List<GameObject> elementsToHide = new List<GameObject>();
 
@@ -36,6 +44,9 @@ public class DialogueManager : MonoBehaviour
     private PlayerUI playerUI;
     private Action onDialogueEndCallback; 
     private Animator activeSpeakerAnimator;
+    private Transform playerTransform;
+    private Coroutine playerFacingCoroutine;
+    private Coroutine speakerFacingCoroutine;
 
     private bool isTyping = false;
     private Coroutine typingCoroutine;
@@ -90,11 +101,17 @@ public class DialogueManager : MonoBehaviour
         cachedTypingWait = new WaitForSeconds(typingSpeed); 
     }
 
-    public void StartDialogue(Dialogue dialogue, Action onEnd = null, Animator speakerAnimator = null)
+    public void StartDialogue(
+        Dialogue dialogue,
+        Action onEnd = null,
+        Animator speakerAnimator = null,
+        Transform speakerTransform = null)
     {
         if (dialogue == null) return;
 
         SetActiveSpeaker(speakerAnimator);
+        TurnParticipantsTowardEachOther(
+            ResolveSpeakerTransform(speakerAnimator, speakerTransform));
 
         ResolveDialogueBox();
         if (hideDialogueCoroutine != null)
@@ -207,7 +224,128 @@ public class DialogueManager : MonoBehaviour
 
     private void OnDisable()
     {
+        if (playerFacingCoroutine != null)
+        {
+            StopCoroutine(playerFacingCoroutine);
+            playerFacingCoroutine = null;
+        }
+
+        if (speakerFacingCoroutine != null)
+        {
+            StopCoroutine(speakerFacingCoroutine);
+            speakerFacingCoroutine = null;
+        }
+
         StopActiveSpeakerTalking();
+    }
+
+    private void TurnParticipantsTowardEachOther(Transform speakerTransform)
+    {
+        if (speakerTransform == null) return;
+
+        ResolvePlayerTransform();
+        if (playerTransform == null || playerTransform == speakerTransform) return;
+
+        Vector3 playerDirection = speakerTransform.position - playerTransform.position;
+        playerDirection.y = 0f;
+        if (playerDirection.sqrMagnitude < 0.0001f) return;
+
+        if (turnPlayerTowardSpeaker)
+        {
+            if (playerFacingCoroutine != null)
+                StopCoroutine(playerFacingCoroutine);
+            playerFacingCoroutine = StartCoroutine(RotateParticipantToward(
+                playerTransform,
+                Quaternion.LookRotation(playerDirection.normalized),
+                true));
+        }
+
+        if (turnSpeakerTowardPlayer)
+        {
+            Vector3 speakerDirection = -playerDirection;
+            if (speakerFacingCoroutine != null)
+                StopCoroutine(speakerFacingCoroutine);
+            speakerFacingCoroutine = StartCoroutine(RotateParticipantToward(
+                speakerTransform,
+                Quaternion.LookRotation(speakerDirection.normalized),
+                false));
+        }
+    }
+
+    private IEnumerator RotateParticipantToward(
+        Transform participant,
+        Quaternion targetRotation,
+        bool isPlayer)
+    {
+        if (participant == null) yield break;
+
+        Quaternion startRotation = participant.rotation;
+        float duration = Mathf.Max(0f, playerTurnDuration);
+
+        if (duration <= 0f)
+        {
+            participant.rotation = targetRotation;
+            ClearFacingCoroutine(isPlayer);
+            yield break;
+        }
+
+        float elapsed = 0f;
+        while (elapsed < duration && participant != null)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            float progress = Mathf.Clamp01(elapsed / duration);
+            float easedProgress = progress * progress * (3f - (2f * progress));
+            participant.rotation = Quaternion.Slerp(
+                startRotation,
+                targetRotation,
+                easedProgress);
+            yield return null;
+        }
+
+        if (participant != null)
+            participant.rotation = targetRotation;
+        ClearFacingCoroutine(isPlayer);
+    }
+
+    private void ClearFacingCoroutine(bool isPlayer)
+    {
+        if (isPlayer) playerFacingCoroutine = null;
+        else speakerFacingCoroutine = null;
+    }
+
+    private void ResolvePlayerTransform()
+    {
+        if (playerTransform != null) return;
+
+        if (playerInteract == null)
+            playerInteract = FindObjectOfType<PlayerInteract>();
+        if (playerInteract != null)
+        {
+            playerTransform = playerInteract.transform;
+            return;
+        }
+
+        if (inputManager == null)
+            inputManager = FindObjectOfType<InputManager>();
+        if (inputManager != null)
+            playerTransform = inputManager.transform;
+    }
+
+    private static Transform ResolveSpeakerTransform(
+        Animator speakerAnimator,
+        Transform explicitSpeakerTransform)
+    {
+        if (explicitSpeakerTransform != null) return explicitSpeakerTransform;
+        if (speakerAnimator == null) return null;
+
+        // Animators commonly live on a nested model object. Prefer the gameplay
+        // interactable root so model offsets do not skew the facing direction.
+        Interactable interactable = speakerAnimator.GetComponentInParent<Interactable>();
+        if (interactable != null) return interactable.transform;
+
+        NPCProgressionManager progression =
+            speakerAnimator.GetComponentInParent<NPCProgressionManager>();
+        return progression != null ? progression.transform : speakerAnimator.transform;
     }
 
     private void SetActiveSpeaker(Animator speakerAnimator)

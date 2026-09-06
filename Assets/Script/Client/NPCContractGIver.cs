@@ -21,7 +21,6 @@ public class NPCContractGiver : Interactable
     [HideInInspector] public bool isContractCompleted = false; 
     [HideInInspector] public bool isFullyTurnedIn = false; 
 
-    private Transform playerTransform;
     private DialogueManager dialogueManager;
     private Animator npcAnimator;
     private bool isLocked = false;
@@ -44,9 +43,6 @@ public class NPCContractGiver : Interactable
 
     private void Awake()
     {
-        GameObject player = GameObject.FindGameObjectWithTag("Player");
-        if (player != null) playerTransform = player.transform;
-        
         dialogueManager = FindObjectOfType<DialogueManager>();
         npcAnimator = GetComponentInChildren<Animator>();
     }
@@ -138,8 +134,6 @@ public class NPCContractGiver : Interactable
     {
         if (isProgressionInteractionLocked || isAwaitingContractDecision) return;
 
-        FacePlayer(); 
-
         OnNPCInteracted?.Invoke(this);
 
         if (contractToGive == null) return;
@@ -169,7 +163,7 @@ public class NPCContractGiver : Interactable
                 dialogueManager.StartDialogue(contractToGive.finishedContractDialogue, () => 
                 {
                     ClaimReward();
-                }, npcAnimator);
+                }, npcAnimator, transform);
             }
             else
             {
@@ -188,7 +182,7 @@ public class NPCContractGiver : Interactable
                 dialogueManager.StartDialogue(contractToGive.reminderDialogue, () => 
                 {
                     TryAdvanceTutorial();
-                }, npcAnimator);
+                }, npcAnimator, transform);
             }
             else
             {
@@ -222,7 +216,8 @@ public class NPCContractGiver : Interactable
             dialogueManager.StartDialogue(
                 contractToGive.offerDialogue,
                 () => PresentContractOffer(targetLocationName),
-                npcAnimator);
+                npcAnimator,
+                transform);
         }
         else
         {
@@ -272,7 +267,8 @@ public class NPCContractGiver : Interactable
             dialogueManager.StartDialogue(
                 contractToGive.continueOfferDialogue,
                 CompleteContractOfferFlow,
-                npcAnimator);
+                npcAnimator,
+                transform);
         }
         else
         {
@@ -313,16 +309,6 @@ public class NPCContractGiver : Interactable
     private void TryAdvanceTutorial()
     {
         if (advancesTutorial && TutorialManager.Instance != null) TutorialManager.Instance.ShowNextStep();
-    }
-
-    private void FacePlayer()
-    {
-        if (playerTransform != null)
-        {
-            Vector3 targetPosition = playerTransform.position;
-            targetPosition.y = transform.position.y;
-            transform.LookAt(targetPosition);
-        }
     }
 
     /// <summary>Locks only progression-driven interaction without changing failure locks.</summary>
