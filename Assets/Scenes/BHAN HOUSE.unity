@@ -81829,108 +81829,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2138306120}
   m_CullTransparentMesh: 1
---- !u!1 &2139000101
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 2139000102}
-  - component: {fileID: 2139000103}
-  m_Layer: 0
-  m_Name: AudioManager
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &2139000102
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2139000101}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &2139000103
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2139000101}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d1de3053a00448b390b4d393c4958505, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  persistAcrossScenes: 1
-  musicOutput: {fileID: -2573065413995798265, guid: 842026f4aa4a40c45a58164f3ab562be,
-    type: 2}
-  sfxOutput: {fileID: -1157879735568590382, guid: 842026f4aa4a40c45a58164f3ab562be,
-    type: 2}
-  musicTracks:
-  - id: BGM
-    clip: {fileID: 8300000, guid: a6a833712f1dcaf429d7234eac51747d, type: 3}
-    volume: 0.4
-    pitch: 1
-    randomPitchRange: 0
-  soundEffects:
-  - id: Walk
-    clip: {fileID: 8300000, guid: f5f7ddf680784d248921d058aa9ae6ab, type: 3}
-    volume: 0.5
-    pitch: 1
-    randomPitchRange: 0.05
-  - id: KnockDoor
-    clip: {fileID: 8300000, guid: cbfba2866471bfe4da2cca88158a56e6, type: 3}
-    volume: 0.7
-    pitch: 1
-    randomPitchRange: 0
-  - id: Click
-    clip: {fileID: 8300000, guid: cc173080757b509429f82d23ed5a69c8, type: 3}
-    volume: 0.8
-    pitch: 1
-    randomPitchRange: 0.3
-  - id: PlaceBar
-    clip: {fileID: 8300000, guid: 7c29dddaff5425a489f0205d34cd6d46, type: 3}
-    volume: 1
-    pitch: 1
-    randomPitchRange: 0.05
-  - id: Undo
-    clip: {fileID: 8300000, guid: 5b92474e79c5e4d40ba922bdfa2c4fbb, type: 3}
-    volume: 1
-    pitch: 1
-    randomPitchRange: 0.06
-  - id: Redo
-    clip: {fileID: 8300000, guid: 7c29dddaff5425a489f0205d34cd6d46, type: 3}
-    volume: 1
-    pitch: 1
-    randomPitchRange: 0.06
-  playMusicOnStart: 1
-  startingMusicId: BGM
-  defaultMusicFadeDuration: 0.75
-  sceneMusicRules:
-  - sceneName: Main Menu
-    musicId: BGM
-    fadeDuration: 0.75
-  - sceneName: CanyonCrossing
-    musicId: BGM
-    fadeDuration: 0.75
-  - sceneName: BHAN HOUSE
-    musicId: BGM
-    fadeDuration: 0.75
-  initialSfxVoices: 12
-  maximumSfxVoices: 32
-  sfxIgnoreListenerPause: 1
 --- !u!1 &2143314126
 GameObject:
   m_ObjectHideFlags: 0
@@ -81994,11 +81892,45 @@ Transform:
   - {fileID: 97994928}
   m_Father: {fileID: 292550639}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1001 &2147000800
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications: []
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: a1633b57c3ad40c9a3592bdfe86ba910, type: 3}
+--- !u!1 &2139000101 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 100001000, guid: a1633b57c3ad40c9a3592bdfe86ba910, type: 3}
+  m_PrefabInstance: {fileID: 2147000800}
+  m_PrefabAsset: {fileID: 0}
+--- !u!4 &2139000102 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 400000, guid: a1633b57c3ad40c9a3592bdfe86ba910, type: 3}
+  m_PrefabInstance: {fileID: 2147000800}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &2139000103 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 11400000, guid: a1633b57c3ad40c9a3592bdfe86ba910, type: 3}
+  m_PrefabInstance: {fileID: 2147000800}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2139000101}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d1de3053a00448b390b4d393c4958505, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
-  - {fileID: 2139000102}
+  - {fileID: 2147000800}
   - {fileID: 1828230144}
   - {fileID: 1607045781}
   - {fileID: 1270956933}

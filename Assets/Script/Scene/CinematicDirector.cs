@@ -89,6 +89,7 @@ public class CinematicDirector : MonoBehaviour
     private Vector3 originalCamLocalPos;
     private Quaternion originalCamLocalRot;
     private bool isPlaying = false;
+    public bool IsPlaying => isPlaying;
 
     private bool isFloatParam = false;
     private bool isParamCached = false;
@@ -121,6 +122,19 @@ public class CinematicDirector : MonoBehaviour
             return;
         }
 
+        StartCoroutine(CinematicRoutine());
+    }
+
+    // A newly accepted offer explicitly requests its presentation, including
+    // when replaying a contract after a save reset. Keep startup one-shot rules.
+    public void PlayContractOfferCinematic()
+    {
+        if (isPlaying) return;
+        if (!gameObject.activeInHierarchy)
+        {
+            Debug.LogWarning("Contract cinematic cannot play under an inactive hierarchy.", this);
+            return;
+        }
         StartCoroutine(CinematicRoutine());
     }
 

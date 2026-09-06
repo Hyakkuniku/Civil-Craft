@@ -283,9 +283,34 @@ public class NPCContractGiver : Interactable
 
     private void CompleteContractOfferFlow()
     {
+        // Capture the accepted phase's location before events can change phases.
+        BuildLocation acceptedLocation = targetBuildLocation;
         TryAdvanceTutorial();
         onOfferDialogueFinished?.Invoke();
         OnOfferDialogueCompleted?.Invoke(this);
+        if (acceptedLocation != null)
+            StartCoroutine(ShowContractGuideAfterPresentation(acceptedLocation));
+    }
+
+    private System.Collections.IEnumerator ShowContractGuideAfterPresentation(BuildLocation location)
+    {
+        // Offer events can open a cinematic/material popup and restore the old
+        // canvas state on close. Start navigation only after that restoration.
+        yield return null;
+        var cinematics = FindObjectsOfType<CinematicDirector>(true);
+        while (location != null)
+        {
+            bool presentationOpen = UIPanelCoordinator.Instance != null &&
+                UIPanelCoordinator.Instance.HasOpenPanel;
+            foreach (var cinematic in cinematics)
+                if (cinematic != null && cinematic.IsPlaying) presentationOpen = true;
+            if (dialogueManager != null && dialogueManager.animator != null &&
+                dialogueManager.animator.GetBool("isOpen")) presentationOpen = true;
+            if (!presentationOpen) break;
+            yield return null;
+        }
+        if (location != null && TutorialManager.Instance != null)
+            TutorialManager.Instance.GuideToContractLocation(location);
     }
 
     private void ClaimReward()

@@ -1000,10 +1000,12 @@ public class LevelCompleteManager : MonoBehaviour
         if (LevelFailedManager.Instance != null) LevelFailedManager.Instance.ResetFailCount();
 
         NPCContractGiver[] npcs = FindObjectsOfType<NPCContractGiver>();
+        NPCContractGiver returnGiver = null;
         foreach (var npc in npcs)
         {
             if (npc.contractToGive == completedContract)
             {
+                returnGiver = npc;
                 if (!wasContractAlreadyCompleted)
                 {
                     npc.isContractCompleted = true;
@@ -1062,6 +1064,20 @@ public class LevelCompleteManager : MonoBehaviour
 
         if (completedContract != null)
             BridgeSavedAtLocation?.Invoke(completedContract, completedLocation);
+        if (!completedContract.autoCollectReward && !wasContractAlreadyCompleted && returnGiver != null)
+            StartCoroutine(ShowTurnInGuideAfterExit(returnGiver, completedContract));
+    }
+
+    private IEnumerator ShowTurnInGuideAfterExit(NPCContractGiver giver, ContractSO contract)
+    {
+        // Let the exit transition and reward popups restore the overworld UI first.
+        yield return null;
+        while ((GameManager.Instance != null && GameManager.Instance.IsInBuildMode()) ||
+               (UIPanelCoordinator.Instance != null && UIPanelCoordinator.Instance.HasOpenPanel))
+            yield return null;
+        if (giver != null && TutorialManager.Instance != null &&
+            PlayerDataManager.Instance != null && !PlayerDataManager.Instance.IsContractCompleted(contract.ContractID))
+            TutorialManager.Instance.GuideToContractGiver(giver, contract);
     }
 
     public void ClosePanel()

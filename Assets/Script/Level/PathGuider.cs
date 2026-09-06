@@ -39,6 +39,11 @@ public class PathGuider : MonoBehaviour
     [Header("Dynamic Recalculation")]
     public float offPathTolerance = 4.0f;
     public float offPathCheckInterval = 0.5f;
+    [Tooltip("Distance from the existing trail before new connecting markers are added. Existing markers stay until arrival.")]
+    [Min(1f)] public float trailExtensionDistance = 6f;
+    [Tooltip("Seconds for newly spawned markers to smoothly grow into view.")]
+    [Min(0.05f)] public float markerRevealDuration = 0.4f;
+    private bool wasAwayFromTrail;
     [Tooltip("Allows the guide to lead toward the reachable edge of a disconnected area. Cached routes prevent partial paths from flickering at NavMesh seams.")]
     [SerializeField] private bool allowPartialNavMeshPaths = true;
     [Tooltip("First radius used to project the player and target onto navigation.")]
@@ -78,6 +83,8 @@ public class PathGuider : MonoBehaviour
     {
         public GameObject obj;
         public Vector3 baseScale;
+        public float spawnedAt;
+        public int waveIndex;
     }
     private List<TrackedRock> activeRocks = new List<TrackedRock>(); 
     private GameObject rockContainer; 
@@ -115,6 +122,12 @@ public class PathGuider : MonoBehaviour
             return;
         }
 
+        if (waypoints[currentWaypointIndex] == null || waypoints[currentWaypointIndex].target == null)
+        {
+            currentWaypointIndex++;
+            currentlyTargetedWaypoint = null;
+            return;
+        }
         Transform currentTarget = waypoints[currentWaypointIndex].target;
         if (currentTarget == null) return;
 
@@ -141,12 +154,15 @@ public class PathGuider : MonoBehaviour
         }
         else
         {
-            offPathTimer += Time.deltaTime;
-            if (offPathTimer >= offPathCheckInterval)
+            bool awayFromTrail = IsAwayFromVisibleTrail();
+            bool justLeftTrail = awayFromTrail && !wasAwayFromTrail;
+            wasAwayFromTrail = awayFromTrail;
+            offPathTimer += Time.unscaledDeltaTime;
+            if (justLeftTrail || offPathTimer >= offPathCheckInterval)
             {
                 offPathTimer = 0f;
                 if (Time.unscaledTime >= nextAllowedRecalculationTime &&
-                    IsPlayerOffPath(currentTarget))
+                    (activeRocks.Count == 0 || awayFromTrail))
                 {
                     GeneratePathBackToTrail(currentTarget);
                 }
@@ -173,20 +189,38 @@ public class PathGuider : MonoBehaviour
                 // A sine wave is continuous at the loop boundary. The previous
                 // fractional sawtooth jumped from full size to minimum size and
                 // looked like the entire guide was flickering.
-                float phase = (timeVal - (i * waveStep)) * Mathf.PI * 2f;
+                float phase = (timeVal - (activeRocks[i].waveIndex * waveStep)) * Mathf.PI * 2f;
                 float wave01 = 0.5f + (0.5f * Mathf.Sin(phase));
-                float scaleMult = Mathf.Lerp(minWaveScale, 1f, wave01);
+                float scaleMult = Mathf.Lerp(Mathf.Max(0.7f, minWaveScale), 1f, wave01);
                 Vector3 targetScale = activeRocks[i].baseScale * scaleMult;
                 
                 // Smooth Lerp towards the target completely kills any jitter/shake
-                activeRocks[i].obj.transform.localScale = Vector3.Lerp(activeRocks[i].obj.transform.localScale, targetScale, Time.deltaTime * 15f);
+                float reveal = Mathf.SmoothStep(0f, 1f,
+                    (Time.unscaledTime - activeRocks[i].spawnedAt) / Mathf.Max(0.05f, markerRevealDuration));
+                activeRocks[i].obj.transform.localScale = targetScale * reveal;
             }
             else
             {
                 // Standard smooth pop-in if the wave is turned off
-                activeRocks[i].obj.transform.localScale = Vector3.Lerp(activeRocks[i].obj.transform.localScale, activeRocks[i].baseScale, Time.deltaTime * 10f);
+                float reveal = Mathf.SmoothStep(0f, 1f,
+                    (Time.unscaledTime - activeRocks[i].spawnedAt) / Mathf.Max(0.05f, markerRevealDuration));
+                activeRocks[i].obj.transform.localScale = activeRocks[i].baseScale * reveal;
             }
         }
+    }
+
+    private bool IsAwayFromVisibleTrail()
+    {
+        float radius = Mathf.Max(rockSpacing * 2f, trailExtensionDistance);
+        Vector2 playerXZ = new Vector2(player.position.x, player.position.z);
+        foreach (var rock in activeRocks)
+        {
+            if (rock.obj == null) continue;
+            Vector3 position = rock.obj.transform.position;
+            if ((playerXZ - new Vector2(position.x, position.z)).sqrMagnitude <= radius * radius)
+                return false;
+        }
+        return true;
     }
 
     private bool IsPlayerOffPath(Transform target)
@@ -240,7 +274,7 @@ public class PathGuider : MonoBehaviour
         // Calculating against the old world data while a newly completed bridge
         // is still baking produces a cached partial route that ends at the ravine.
         // The completion callback below retries automatically on fresh data.
-        if (DynamicNavMeshUpdater.Instance != null &&
+        if (currentRoutePoints.Count > 0 && DynamicNavMeshUpdater.Instance != null &&
             DynamicNavMeshUpdater.Instance.HasPendingOrRunningUpdate)
         {
             return;
@@ -248,12 +282,11 @@ public class PathGuider : MonoBehaviour
 
         nextAllowedRecalculationTime = Time.unscaledTime + recalculationCooldown;
 
-        if (!TrySampleNavMeshPosition(player.position, out Vector3 safeStart) ||
-            !TrySampleNavMeshPosition(target.position, out Vector3 safeTarget))
-            return;
-
+        if (path == null) path = new NavMeshPath();
         List<Vector3> points = null;
-        if (NavMesh.CalculatePath(safeStart, safeTarget, NavMesh.AllAreas, path))
+        if (TrySampleNavMeshPosition(player.position, out Vector3 safeStart) &&
+            TrySampleNavMeshPosition(target.position, out Vector3 safeTarget) &&
+            NavMesh.CalculatePath(safeStart, safeTarget, NavMesh.AllAreas, path))
         {
             if (path.status == NavMeshPathStatus.PathComplete ||
                 (allowPartialNavMeshPaths && path.status == NavMeshPathStatus.PathPartial))
@@ -283,6 +316,9 @@ public class PathGuider : MonoBehaviour
         ClearRocks();
         currentRoutePoints.AddRange(points);
         SpawnRocksAlongPath(points, false);
+        // A partial route may still be far away; do not treat that as a fresh
+        // departure every frame and repeatedly destroy/recreate its markers.
+        wasAwayFromTrail = IsAwayFromVisibleTrail();
     }
 
     private static float GetRouteLength(List<Vector3> points)
@@ -358,10 +394,38 @@ public class PathGuider : MonoBehaviour
 
     private void GeneratePathBackToTrail(Transform targetDestination)
     {
-        // Replacing the route is deterministic across world/bridge NavMesh seams.
-        // The previous splice logic could preserve an old suffix and repeatedly
-        // prepend new branches, creating the scattered/circling guide pattern.
-        GenerateRockPath(targetDestination);
+        // Ordinary movement must not destroy and respawn the existing guide.
+        // Add only a connector back to its nearest remaining visible marker.
+        Transform nearestMarker = null;
+        float nearestDistance = float.PositiveInfinity;
+        foreach (var rock in activeRocks)
+        {
+            if (rock.obj == null) continue;
+            float distance = (rock.obj.transform.position - player.position).sqrMagnitude;
+            if (distance >= nearestDistance) continue;
+            nearestDistance = distance;
+            nearestMarker = rock.obj.transform;
+        }
+        if (nearestMarker == null)
+        {
+            GenerateRockPath(targetDestination);
+            return;
+        }
+
+        nextAllowedRecalculationTime = Time.unscaledTime + recalculationCooldown;
+        if (DynamicNavMeshUpdater.Instance != null &&
+            DynamicNavMeshUpdater.Instance.HasPendingOrRunningUpdate) return;
+        if (!TrySampleNavMeshPosition(player.position, out Vector3 start) ||
+            !TrySampleNavMeshPosition(nearestMarker.position, out Vector3 end)) return;
+        if (path == null) path = new NavMeshPath();
+        if (!NavMesh.CalculatePath(start, end, NavMesh.AllAreas, path) ||
+            path.status != NavMeshPathStatus.PathComplete) return;
+
+        var connector = GenerateSmoothTerrainPath(path.corners);
+        PrependPlayerConnector(connector, start);
+        // The spawn routine skips positions already occupied by trail markers.
+        SpawnRocksAlongPath(connector, false);
+        wasAwayFromTrail = IsAwayFromVisibleTrail();
     }
 
     private List<Vector3> GenerateSmoothTerrainPath(Vector3[] corners)
@@ -463,7 +527,11 @@ public class PathGuider : MonoBehaviour
                 newRock.transform.SetParent(rockContainer.transform);
 
                 // Bundle it up with its scale target and track it!
-                TrackedRock tr = new TrackedRock { obj = newRock, baseScale = desiredScale };
+                TrackedRock tr = new TrackedRock
+                {
+                    obj = newRock, baseScale = desiredScale, spawnedAt = Time.unscaledTime,
+                    waveIndex = activeRocks.Count + newlySpawnedRocks.Count
+                };
                 newlySpawnedRocks.Add(tr);
 
                 distanceSinceLastRock = 0f;
@@ -483,24 +551,12 @@ public class PathGuider : MonoBehaviour
 
     private void HandleRockPickup()
     {
-        int highestTouchedIndex = -1;
-
-        for (int i = 0; i < activeRocks.Count; i++)
+        for (int i = activeRocks.Count - 1; i >= 0; i--)
         {
             GameObject rock = activeRocks[i].obj;
-            if (rock == null) continue;
-
-            if (Vector3.Distance(player.position, rock.transform.position) <= rockPickupDistance)
+            if (rock == null || Vector3.Distance(player.position, rock.transform.position) <= rockPickupDistance)
             {
-                highestTouchedIndex = i;
-            }
-        }
-
-        if (highestTouchedIndex != -1)
-        {
-            for (int i = highestTouchedIndex; i >= 0; i--)
-            {
-                if (activeRocks[i].obj != null) Destroy(activeRocks[i].obj);
+                if (rock != null) Destroy(rock);
                 activeRocks.RemoveAt(i);
             }
         }
@@ -637,11 +693,11 @@ public class PathGuider : MonoBehaviour
 
     private void HandleBridgeNavMeshUpdated()
     {
-        // Force the active route to be calculated again. This catches both a
-        // newly completed bridge and a reconstructed bridge loaded from a save.
-        currentlyTargetedWaypoint = null;
+        // A bake must not erase visible markers. Future extensions use the new
+        // NavMesh; retry initial generation only when no guide exists yet.
+        if (activeRocks.Count == 0) currentlyTargetedWaypoint = null;
         offPathTimer = 0f;
-        ClearRocks();
+        nextAllowedRecalculationTime = 0f;
     }
 
     private void OnDestroy()
@@ -654,9 +710,30 @@ public class PathGuider : MonoBehaviour
         if (Instance == this) Instance = null;
     }
     
+    // Rebuild the current tutorial guide without replaying reached waypoints.
+    public void RecallTutorialGuide(List<GuiderWaypoint> tutorialWaypoints)
+    {
+        if (tutorialWaypoints == null || tutorialWaypoints.Count == 0) return;
+        if (waypoints != tutorialWaypoints)
+            SetNewWaypoints(tutorialWaypoints);
+        else
+        {
+            // A completed non-advancing guide can be recalled after walking away.
+            if (currentWaypointIndex >= tutorialWaypoints.Count)
+                currentWaypointIndex = tutorialWaypoints.Count - 1;
+            currentlyTargetedWaypoint = null;
+            ClearRocks();
+        }
+        offPathTimer = 0f;
+        nextAllowedRecalculationTime = 0f;
+    }
+
     public void SetNewWaypoints(List<GuiderWaypoint> newWaypoints)
     {
         waypoints = newWaypoints;
+        wasAwayFromTrail = false;
+        offPathTimer = 0f;
+        nextAllowedRecalculationTime = 0f;
         currentWaypointIndex = 0; 
         currentlyTargetedWaypoint = null;
         ClearRocks();

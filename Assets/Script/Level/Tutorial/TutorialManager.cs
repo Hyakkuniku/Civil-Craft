@@ -80,6 +80,38 @@ public class TutorialManager : MonoBehaviour
     [SerializeField] private GameObject skipButton;
     [SerializeField] private TutorialPointer bouncingArrow;
 
+    [SerializeField] private UnityEngine.UI.Button recallGuideButton;
+    private float nextGuideRecallTime;
+    private TutorialStep[] contractNavigationSteps;
+    private bool contractGuideVisible;
+    private ContractSO turnInGuideContract;
+
+    public void GuideToContractLocation(BuildLocation location)
+    {
+        if (location == null) return;
+        turnInGuideContract = null;
+        Transform destination = location.navigationTarget != null
+            ? location.navigationTarget.transform : location.transform;
+        contractGuideVisible = false;
+        contractNavigationSteps = new[]
+        {
+            new TutorialStep
+            {
+                message = "Follow the trail of rocks to the <b>build location</b>.",
+                screenPosition = TutorialPosition.Left,
+                showNextButton = false,
+                canSkip = false,
+                stepWaypoints = new List<GuiderWaypoint>
+                {
+                    new GuiderWaypoint { target = destination, advancesTutorial = false }
+                }
+            }
+        };
+        UpdateContractGuide();
+        if (PlayerDataManager.Instance != null)
+            PlayerDataManager.Instance.MarkObjectiveAlertUnread();
+    }
+
     [Header("Transition Settings")]
     public float transitionDuration = 0.25f;
     public float slideTransitionDuration = 0.6f;
@@ -214,9 +246,128 @@ public class TutorialManager : MonoBehaviour
         if (bouncingArrow != null) bouncingArrow.Hide();
 
         ApplyReadableLeftTutorialStyle();
+        BindRecallGuideButton();
+        if (leftPanel != null)
+        {
+            var panelButton = leftPanel.GetComponent<UnityEngine.UI.Button>();
+            if (panelButton == null) panelButton = leftPanel.AddComponent<UnityEngine.UI.Button>();
+            var panelImage = leftPanel.GetComponent<UnityEngine.UI.Image>();
+            if (panelImage != null)
+            {
+                panelImage.raycastTarget = true;
+                panelButton.targetGraphic = panelImage;
+            }
+            panelButton.onClick.AddListener(RecallCurrentTutorialGuide);
+        }
         CacheTutorialPanelPositions();
         tutorialRootCanvas = FindTutorialRootCanvas();
         trackedButtonAction = new UnityAction(OnTrackedButtonClicked);
+    }
+
+    private void BindRecallGuideButton()
+    {
+        // Preserve the scene-authored button's appearance and transform.
+        if (recallGuideButton == null)
+        {
+            foreach (var button in FindObjectsOfType<UnityEngine.UI.Button>(true))
+            {
+                if (button.gameObject.scene == gameObject.scene && button.name == "RecallWasp")
+                {
+                    recallGuideButton = button;
+                    break;
+                }
+            }
+        }
+        if (recallGuideButton == null) return;
+        recallGuideButton.onClick.AddListener(RecallCurrentTutorialGuide);
+        recallGuideButton.gameObject.SetActive(false);
+    }
+
+    public void GuideToContractGiver(NPCContractGiver giver, ContractSO contract)
+    {
+        if (giver == null || contract == null) return;
+        turnInGuideContract = contract;
+        contractGuideVisible = false;
+        string giverName = string.IsNullOrWhiteSpace(contract.clientName)
+            ? giver.gameObject.name : contract.clientName;
+        contractNavigationSteps = new[]
+        {
+            new TutorialStep
+            {
+                message = $"Turn in your contract with <b>{giverName}</b>.",
+                screenPosition = TutorialPosition.Left,
+                showNextButton = false,
+                canSkip = false,
+                stepWaypoints = new List<GuiderWaypoint>
+                {
+                    new GuiderWaypoint { target = giver.transform, advancesTutorial = false }
+                }
+            }
+        };
+        UpdateContractGuide();
+    }
+
+    private void UpdateContractGuide()
+    {
+        if (contractNavigationSteps == null) return;
+        bool turnedIn = turnInGuideContract != null && PlayerDataManager.Instance != null &&
+            PlayerDataManager.Instance.IsContractCompleted(turnInGuideContract.ContractID);
+        if (turnedIn || (GameManager.Instance != null && GameManager.Instance.IsInBuildMode()) ||
+            contractNavigationSteps[0].stepWaypoints[0].target == null)
+        {
+            if (PathGuider.Instance != null &&
+                PathGuider.Instance.waypoints == contractNavigationSteps[0].stepWaypoints)
+                PathGuider.Instance.SetNewWaypoints(new List<GuiderWaypoint>());
+            contractNavigationSteps = null;
+            turnInGuideContract = null;
+            if (contractGuideVisible && !IsTutorialActive)
+            {
+                if (leftPanel != null) leftPanel.SetActive(false);
+                RestoreTutorialCanvas();
+            }
+            contractGuideVisible = false;
+            return;
+        }
+        // Real tutorials keep ownership of the shared panel. Navigation never
+        // starts a sequence, sets IsTutorialActive, or locks build controls.
+        if (IsTutorialActive)
+        {
+            contractGuideVisible = false;
+            return;
+        }
+        if (contractGuideVisible) return;
+        PrepareTutorialCanvas();
+        ApplyPanelPosition(TutorialPosition.Left);
+        if (leftPanel != null) leftPanel.SetActive(true);
+        if (leftText != null) leftText.text = contractNavigationSteps[0].message;
+        if (nextButton != null) nextButton.SetActive(false);
+        if (skipButton != null) skipButton.SetActive(false);
+        if (PathGuider.Instance != null)
+            PathGuider.Instance.SetNewWaypoints(contractNavigationSteps[0].stepWaypoints);
+        contractGuideVisible = true;
+    }
+
+    private TutorialStep GetRecallableStep()
+    {
+        if (!IsTutorialActive && contractGuideVisible && contractNavigationSteps != null)
+            return contractNavigationSteps[0];
+        if (!IsTutorialActive || currentSequence == null || currentSequence.tutorialSteps == null ||
+            currentStepIndex < 0 || currentStepIndex >= currentSequence.tutorialSteps.Length)
+            return null;
+        var step = currentSequence.tutorialSteps[currentStepIndex];
+        if (step == null || step.stepWaypoints == null)
+            return null;
+        foreach (var waypoint in step.stepWaypoints)
+            if (waypoint != null && waypoint.target != null) return step;
+        return null;
+    }
+
+    public void RecallCurrentTutorialGuide()
+    {
+        var step = GetRecallableStep();
+        if (step == null || PathGuider.Instance == null || Time.unscaledTime < nextGuideRecallTime) return;
+        nextGuideRecallTime = Time.unscaledTime + 0.75f;
+        PathGuider.Instance.RecallTutorialGuide(step.stepWaypoints);
     }
 
     private void ApplyReadableLeftTutorialStyle()
@@ -260,6 +411,12 @@ public class TutorialManager : MonoBehaviour
 
     private void Update()
     {
+        UpdateContractGuide();
+        if (recallGuideButton != null)
+        {
+            recallGuideButton.gameObject.SetActive(GetRecallableStep() != null && PathGuider.Instance != null);
+            recallGuideButton.interactable = Time.unscaledTime >= nextGuideRecallTime;
+        }
         if (BuildTutorialDirector.Instance != null && BuildTutorialDirector.Instance.isTracingStep)
         {
             return;

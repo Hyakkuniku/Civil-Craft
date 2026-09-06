@@ -5,8 +5,13 @@ Shader "CivilCraft/Bridge Selection Outline"
     {
         Tags { "RenderPipeline"="UniversalPipeline" }
         Cull Off ZWrite Off ZTest Always
-        CGINCLUDE
-        #include "UnityCG.cginc"
+        HLSLINCLUDE
+        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+        struct v2f_img
+        {
+            float4 pos : SV_POSITION;
+            float2 uv : TEXCOORD0;
+        };
         sampler2D _BridgeMaskSource;
         float4 _BridgeMaskTexelSize;
         float4x4 _BridgeMaskMVP;
@@ -19,15 +24,13 @@ Shader "CivilCraft/Bridge Selection Outline"
         v2f_img OutlineFullscreenVertex(uint id : SV_VertexID)
         {
             v2f_img output;
-            float2 uv = float2((id << 1) & 2, id & 2);
-            output.pos = float4(uv * 2 - 1, 0, 1);
-            #if UNITY_UV_STARTS_AT_TOP
-                uv.y = 1 - uv.y;
-            #endif
-            output.uv = uv;
+            // URP handles Vulkan's landscape display pre-rotation here. A raw
+            // clip-space triangle can rotate the mask relative to the scene.
+            output.pos = GetFullScreenTriangleVertexPosition(id);
+            output.uv = GetFullScreenTriangleTexCoord(id);
             return output;
         }
-        fixed4 MaskFragment() : SV_Target { return 1; }
+        half4 MaskFragment() : SV_Target { return 1; }
 
         float Expand(float2 uv, float2 direction)
         {
@@ -43,15 +46,15 @@ Shader "CivilCraft/Bridge Selection Outline"
                 result = min(result, tex2D(_BridgeMaskSource, uv + direction * i * _BridgeClosingStep).r);
             return result;
         }
-        fixed4 ExpandX(v2f_img input) : SV_Target { return Expand(input.uv, float2(_BridgeMaskTexelSize.x, 0)); }
-        fixed4 ExpandY(v2f_img input) : SV_Target { return Expand(input.uv, float2(0, _BridgeMaskTexelSize.y)); }
-        fixed4 ContractX(v2f_img input) : SV_Target { return Contract(input.uv, float2(_BridgeMaskTexelSize.x, 0)); }
-        fixed4 ContractY(v2f_img input) : SV_Target { return Contract(input.uv, float2(0, _BridgeMaskTexelSize.y)); }
+        half4 ExpandX(v2f_img input) : SV_Target { return Expand(input.uv, float2(_BridgeMaskTexelSize.x, 0)); }
+        half4 ExpandY(v2f_img input) : SV_Target { return Expand(input.uv, float2(0, _BridgeMaskTexelSize.y)); }
+        half4 ContractX(v2f_img input) : SV_Target { return Contract(input.uv, float2(_BridgeMaskTexelSize.x, 0)); }
+        half4 ContractY(v2f_img input) : SV_Target { return Contract(input.uv, float2(0, _BridgeMaskTexelSize.y)); }
         float Silhouette(float2 uv)
         {
             return max(tex2D(_BridgeMaskSource, uv).r, tex2D(_BridgeOriginalMask, uv).r);
         }
-        fixed4 Composite(v2f_img input) : SV_Target
+        half4 Composite(v2f_img input) : SV_Target
         {
             float center = Silhouette(input.uv);
             float expanded = center;
@@ -61,63 +64,63 @@ Shader "CivilCraft/Bridge Selection Outline"
                 float2 offset = float2(cos(angle), sin(angle)) * _BridgeMaskTexelSize.xy * _BridgeOutlinePixels;
                 expanded = max(expanded, Silhouette(input.uv + offset));
             }
-            return fixed4(_BridgeOutlineColor.rgb, saturate(expanded - center));
+            return half4(_BridgeOutlineColor.rgb, saturate(expanded - center));
         }
-        ENDCG
+        ENDHLSL
         Pass
         {
             Name "MeshMask"
-            CGPROGRAM
+            HLSLPROGRAM
             #pragma vertex MaskVertex
             #pragma fragment MaskFragment
             #pragma target 3.5
-            ENDCG
+            ENDHLSL
         }
         Pass
         {
             Name "CloseExpandX"
-            CGPROGRAM
+            HLSLPROGRAM
             #pragma vertex OutlineFullscreenVertex
             #pragma fragment ExpandX
             #pragma target 3.5
-            ENDCG
+            ENDHLSL
         }
         Pass
         {
             Name "CloseExpandY"
-            CGPROGRAM
+            HLSLPROGRAM
             #pragma vertex OutlineFullscreenVertex
             #pragma fragment ExpandY
             #pragma target 3.5
-            ENDCG
+            ENDHLSL
         }
         Pass
         {
             Name "CloseContractX"
-            CGPROGRAM
+            HLSLPROGRAM
             #pragma vertex OutlineFullscreenVertex
             #pragma fragment ContractX
             #pragma target 3.5
-            ENDCG
+            ENDHLSL
         }
         Pass
         {
             Name "CloseContractY"
-            CGPROGRAM
+            HLSLPROGRAM
             #pragma vertex OutlineFullscreenVertex
             #pragma fragment ContractY
             #pragma target 3.5
-            ENDCG
+            ENDHLSL
         }
         Pass
         {
             Name "WhiteOuterBorder"
             Blend SrcAlpha OneMinusSrcAlpha
-            CGPROGRAM
+            HLSLPROGRAM
             #pragma vertex OutlineFullscreenVertex
             #pragma fragment Composite
             #pragma target 3.5
-            ENDCG
+            ENDHLSL
         }
     }
 }

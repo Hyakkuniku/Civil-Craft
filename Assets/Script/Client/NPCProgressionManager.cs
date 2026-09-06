@@ -1799,7 +1799,7 @@ public class NPCProgressionManager : MonoBehaviour
         // cinematic on the phase prevents a later offer from replaying whichever
         // scene cinematic happened to be wired to the giver's global UnityEvent.
         if (phase != null && phase.cinematicAfterOffer != null)
-            phase.cinematicAfterOffer.PlayCinematic();
+            phase.cinematicAfterOffer.PlayContractOfferCinematic();
 
         if (HasOrderedOptionalSequence(phase))
             TryStartOrderedOptionalSequence(currentPhaseIndex, phase);
