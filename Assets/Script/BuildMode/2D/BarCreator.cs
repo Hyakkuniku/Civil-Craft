@@ -475,11 +475,14 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 
                 float snapThreshold = 1.5f; 
                 float alignedX = worldPos.x;
-                float bridgeZ = Point.AllPoints.Count > 0 ? Point.AllPoints[0].transform.position.z : 0f;
+                float bridgeZ = GetBuildPlaneZ();
 
                 foreach (Point p in Point.AllPoints)
                 {
-                    if (p.gameObject.activeSelf)
+                    if (p != null && p.gameObject.activeInHierarchy &&
+                        Mathf.Abs(p.transform.position.z - bridgeZ) <= nodeSnapDepthTolerance &&
+                        (GameManager.Instance == null || GameManager.Instance.ActiveBuildLocation == null ||
+                         p.OwnerLocation == null || p.OwnerLocation == GameManager.Instance.ActiveBuildLocation))
                     {
                         float xDiff = Mathf.Abs(p.transform.position.x - worldPos.x);
                         if (xDiff < snapThreshold)
@@ -1443,10 +1446,17 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     // of drag direction and does not depend on optional point colliders or list order.
     private bool CheckForExistingPoint(Vector2 screenPos, out Point closestPoint, out Vector3 snapPosition)
     {
+        return FindPointNearPosition(GetWorldMousePosition(screenPos), out closestPoint, out snapPosition);
+    }
+
+    private bool FindPointNearPosition(Vector3 position, out Point closestPoint, out Vector3 snapPosition,
+        float maxLength = float.PositiveInfinity)
+    {
         closestPoint = null;
         snapPosition = Vector3.zero;
 
-        Vector3 flatMousePos = GetWorldMousePosition(screenPos);
+        Vector3 flatMousePos = position;
+        BuildLocation location = GameManager.Instance != null ? GameManager.Instance.ActiveBuildLocation : null;
         float closestSqrDistance = nodeSnapRadiusWorld * nodeSnapRadiusWorld;
 
         foreach (Point p in Point.AllPoints)
@@ -1458,8 +1468,16 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 continue;
 
             Vector3 nodePosition = p.transform.position;
+            if (location != null && p.OwnerLocation != null && p.OwnerLocation != location) continue;
             if (Mathf.Abs(nodePosition.z - flatMousePos.z) > nodeSnapDepthTolerance)
                 continue;
+            if (!float.IsPositiveInfinity(maxLength) && currentStartPoint != null)
+            {
+                Vector3 start = currentStartPoint.transform.position;
+                if (Vector3.Distance(start, nodePosition) > maxLength + 0.001f) continue;
+                if (activeMaterial != null && activeMaterial.isPier && Mathf.Abs(nodePosition.x - start.x) > 0.001f) continue;
+                if (Vector3.Distance(ClampToEnvironment(start, nodePosition), nodePosition) > 0.05f) continue;
+            }
 
             Vector2 offset = new Vector2(
                 nodePosition.x - flatMousePos.x,
@@ -1476,14 +1494,29 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         return closestPoint != null;
     }
 
+    private float GetBuildPlaneZ()
+    {
+        if (currentStartPoint != null) return currentStartPoint.transform.position.z;
+        BuildLocation location = GameManager.Instance != null ? GameManager.Instance.ActiveBuildLocation : null;
+        if (location != null)
+        {
+            foreach (Point anchor in location.startingAnchors)
+                if (anchor != null) return anchor.transform.position.z;
+            foreach (Point anchor in location.endingAnchors)
+                if (anchor != null) return anchor.transform.position.z;
+        }
+        foreach (Point point in Point.AllPoints)
+            if (point != null && point.gameObject.activeInHierarchy &&
+                (location == null || point.OwnerLocation == location)) return point.transform.position.z;
+        return location != null ? location.transform.position.z : 0f;
+    }
+
     public Vector3 GetWorldMousePosition(Vector2 screenPos)
     {
         Camera cam = GetActiveCamera();
         
         // Lock the building to the exact Z depth of the bridge
-        float bridgeZ = 0f;
-        if (currentStartPoint != null) bridgeZ = currentStartPoint.transform.position.z;
-        else if (Point.AllPoints.Count > 0) bridgeZ = Point.AllPoints[0].transform.position.z;
+        float bridgeZ = GetBuildPlaneZ();
 
         // A perfectly flat 2D plane facing the Z-axis, regardless of camera tilt
         Plane flatWorldPlane = new Plane(Vector3.back, new Vector3(0, 0, bridgeZ));
@@ -1568,6 +1601,10 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
         Vector3 preClampPos = finalPosition;
         finalPosition = ClampToEnvironment(startPos, finalPosition);
+        // A retained node reference must agree with the position we actually build to.
+        if (existingEndPoint != null &&
+            Vector3.Distance(existingEndPoint.transform.position, finalPosition) > 0.01f)
+            existingEndPoint = null;
 
         if (Vector3.Distance(preClampPos, finalPosition) > 0.05f && BuildUIController.Instance != null)
         {
@@ -1576,8 +1613,8 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
         if (existingEndPoint == null)
         {
-            Vector2 screenPos = GetPointerPosition();
-            if (CheckForExistingPoint(screenPos, out Point secondCheckNode, out Vector3 secondCheckSnapPos))
+            // Snap the constrained endpoint, not the finger (which can be far beyond max length).
+            if (FindPointNearPosition(finalPosition, out Point secondCheckNode, out Vector3 secondCheckSnapPos, limit))
             {
                 if (Vector3.Distance(startPos, secondCheckSnapPos) <= limit + 0.05f)
                 {
