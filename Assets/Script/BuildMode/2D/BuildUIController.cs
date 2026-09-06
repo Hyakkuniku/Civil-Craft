@@ -1021,6 +1021,7 @@ public class BuildUIController : MonoBehaviour
     
     public void OnSimulateButtonClicked() 
     { 
+        if (barCreator != null && barCreator.IsAutoDrawing) return;
         PlayBuildButtonClickSfx();
         if (!IsToolAllowed()) return;
 

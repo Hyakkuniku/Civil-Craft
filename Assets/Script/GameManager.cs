@@ -331,6 +331,8 @@ public class GameManager : MonoBehaviour
 
         // Restore the open world while the screen is black, before returning
         // the camera to the player.
+        if (ActiveBuildLocation != null && ActiveBuildLocation.IsRedesigningBridge)
+            ActiveBuildLocation.CancelBridgeRedesign();
         RestoreCapturedStates(buildLocationStateBeforeBuildMode);
 
         // 1. Hide Build Mode UI instantly

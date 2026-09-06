@@ -62,6 +62,17 @@ public class BuildLocation : Interactable
     private bool isRedesigningBridge;
 
     public bool IsRedesigningBridge => isRedesigningBridge;
+
+    // The committed bridge remains protected even while baked lists hold a replacement.
+    public void AddProtectedBridgeObjects(HashSet<Bar> bars, HashSet<Point> points)
+    {
+        foreach (Bar bar in bakedBars) if (bar != null) bars.Add(bar);
+        foreach (Point point in bakedPoints) if (point != null) points.Add(point);
+        foreach (Bar bar in committedBarsBeforeRedesign) if (bar != null) bars.Add(bar);
+        foreach (Point point in committedPointsBeforeRedesign) if (point != null) points.Add(point);
+        foreach (Point point in startingAnchors) if (point != null) points.Add(point);
+        foreach (Point point in endingAnchors) if (point != null) points.Add(point);
+    }
     public bool IsRedesignBlockedByNPCTravel =>
         bakedBars.Count > 0 && NPCProgressionManager.IsAnyNPCTravelling;
     public override bool IsInteractionAvailable =>
@@ -235,7 +246,14 @@ public class BuildLocation : Interactable
         committedPointsBeforeRedesign.AddRange(bakedPoints);
 
         foreach (Bar bar in committedBarsBeforeRedesign)
-            if (bar != null) bar.gameObject.SetActive(false);
+        {
+            if (bar == null) continue;
+            // Baked Bar components are disabled, so OnDisable cannot be relied on
+            // to detach them when their GameObjects are hidden.
+            if (bar.startPoint != null) bar.startPoint.ConnectedBars.Remove(bar);
+            if (bar.endPoint != null) bar.endPoint.ConnectedBars.Remove(bar);
+            bar.gameObject.SetActive(false);
+        }
 
         foreach (Point point in committedPointsBeforeRedesign)
         {
@@ -303,7 +321,14 @@ public class BuildLocation : Interactable
         foreach (Point point in bakedPoints)
             if (point != null) point.gameObject.SetActive(true);
         foreach (Bar bar in bakedBars)
-            if (bar != null) bar.gameObject.SetActive(true);
+        {
+            if (bar == null) continue;
+            bar.gameObject.SetActive(true);
+            if (bar.startPoint != null && !bar.startPoint.ConnectedBars.Contains(bar))
+                bar.startPoint.ConnectedBars.Add(bar);
+            if (bar.endPoint != null && !bar.endPoint.ConnectedBars.Contains(bar))
+                bar.endPoint.ConnectedBars.Add(bar);
+        }
 
         committedBarsBeforeRedesign.Clear();
         committedPointsBeforeRedesign.Clear();

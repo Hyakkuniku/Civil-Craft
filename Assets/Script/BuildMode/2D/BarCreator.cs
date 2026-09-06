@@ -1,10 +1,45 @@
 using System;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using System.Collections.Generic;
 using UnityEngine.InputSystem.EnhancedTouch;
 using Touch = UnityEngine.InputSystem.EnhancedTouch.Touch;
+
+// UI mesh keeps the center transparent and needs no imported sprite or shader.
+[RequireComponent(typeof(CanvasRenderer))]
+public class AnchorAutoDrawRing : MaskableGraphic
+{
+    public float Progress;
+
+    protected override void OnPopulateMesh(VertexHelper vh)
+    {
+        vh.Clear();
+        AddArc(vh, 1f, new Color(color.r, color.g, color.b, 0.2f));
+        AddArc(vh, Mathf.Clamp01(Progress), color);
+    }
+
+    private void AddArc(VertexHelper vh, float fraction, Color tint)
+    {
+        const int resolution = 64;
+        float outer = Mathf.Min(rectTransform.rect.width, rectTransform.rect.height) * 0.5f;
+        float inner = outer * 0.82f;
+        Vector2 center = rectTransform.rect.center;
+        int offset = vh.currentVertCount;
+        for (int i = 0; i <= resolution; i++)
+        {
+            float angle = Mathf.PI * 2f * fraction * i / resolution;
+            Vector2 direction = new Vector2(Mathf.Sin(angle), Mathf.Cos(angle));
+            vh.AddVert(center + direction * outer, tint, Vector2.zero);
+            vh.AddVert(center + direction * inner, tint, Vector2.zero);
+            if (i == 0) continue;
+            int v = offset + i * 2;
+            vh.AddTriangle(v - 2, v - 1, v);
+            vh.AddTriangle(v, v - 1, v + 1);
+        }
+    }
+}
 
 public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IDragHandler 
 {
@@ -26,6 +61,24 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     [Header("Mobile Build Magnifier")]
     [SerializeField] private MagnifyingGlassController magnifyingGlass;
     [SerializeField] private bool showMagnifierWhileDrawing = true;
+
+    [Header("Node Auto Draw")]
+    [Tooltip("Hold on another existing bridge node to confirm auto draw. Supports anchors and regular nodes.")]
+    [SerializeField] private bool enableAnchorAutoDraw = true;
+    [Tooltip("Delay on the destination node before showing the confirmation ring. Quick drag-and-release places a normal piece.")]
+    [SerializeField, Min(0f)] private float autoDrawHoldDelay = 0.45f;
+    [Tooltip("Keep holding on the destination node for this duration to confirm auto draw. Moving away resets the ring.")]
+    [SerializeField, Min(0.1f)] private float autoDrawLoadingSeconds = 0.65f;
+    [SerializeField, Min(0.05f)] private float autoDrawSecondsPerPiece = 0.24f;
+    [SerializeField] private Color autoDrawRingColor = new Color(1f, 0.68f, 0.2f);
+    public bool IsAutoDrawing => autoDrawRoutine != null;
+    private Coroutine autoDrawRoutine;
+    private HistoryAction pendingAutoDraw;
+    private GameObject autoDrawOverlay;
+    private Point autoDrawConfirmationTarget;
+    private AnchorAutoDrawRing autoDrawConfirmationRing;
+    private float autoDrawConfirmationElapsed;
+    private float autoDrawHoverElapsed;
 
     [Header("3D Material Data")]
     public BridgeMaterialSO activeMaterial;
@@ -56,7 +109,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
     [HideInInspector] public bool isSimulating = false; 
 
-    public bool IsCreating => barCreationStarted;
+    public bool IsCreating => barCreationStarted || IsAutoDrawing;
     public bool IsErasing => isDeleteMode && currentSwipeDeleteAction != null;
     public bool IsSelecting => isSelectMode; 
     public bool IsMoving => isMoveMode; 
@@ -95,6 +148,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     private void OnEnable() { EnhancedTouchSupport.Enable(); }
     private void OnDisable()
     {
+        CancelCreation();
         EnhancedTouchSupport.Disable();
         if (magnifyingGlass != null) magnifyingGlass.HideMagnifier();
     }
@@ -219,6 +273,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
     private void Update()
     {
+        if (IsAutoDrawing) return;
         if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building) return;
         if (isSimulating) return;
 
@@ -453,6 +508,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         {
             Vector2 screenPos = GetPointerPosition();
             CheckForExistingPoint(screenPos, out Point hoveredNode, out Vector3 snapPos);
+            if (UpdateAutoDrawConfirmation(hoveredNode)) return;
             Vector3 worldMousePos = GetWorldMousePosition(screenPos);
             
             Vector3 targetPos = CalculateTargetPosition(worldMousePos, hoveredNode, snapPos);
@@ -591,15 +647,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         {
             if (location == null) continue;
 
-            foreach (Bar bakedBar in location.bakedBars)
-                if (bakedBar != null) preservedBars.Add(bakedBar);
-
-            foreach (Point bakedPoint in location.bakedPoints)
-                if (bakedPoint != null) preservedPoints.Add(bakedPoint);
-            foreach (Point anchor in location.startingAnchors)
-                if (anchor != null) preservedPoints.Add(anchor);
-            foreach (Point anchor in location.endingAnchors)
-                if (anchor != null) preservedPoints.Add(anchor);
+            location.AddProtectedBridgeObjects(preservedBars, preservedPoints);
         }
 
         Bar[] bars = barParent != null
@@ -642,7 +690,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         {
             BuildUIController.Instance.SetSelectionPanelActive(false);
             BuildUIController.Instance.MarkBridgeDirty();
-            BuildUIController.Instance.LogAction("Tutorial restarted: bridge and budget reset");
+            BuildUIController.Instance.LogAction("Unfinished bridge cleared; completed bridges preserved");
         }
     }
 
@@ -656,6 +704,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
     public void OnPointerDown(PointerEventData eventData)
     {
+        if (IsAutoDrawing) return;
         if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building) return;
         if (isSimulating || Touch.activeTouches.Count > 1) return;
         if (BuildTutorialDirector.Instance != null && !BuildTutorialDirector.Instance.CanPlaceMaterials) return;
@@ -796,6 +845,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
     public void OnPointerUp(PointerEventData eventData)
     {
+        if (IsAutoDrawing) return;
         if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building) return;
         if (isSimulating) return; 
 
@@ -900,10 +950,12 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
         if (barCreationStarted && activeMaterial != null && eventData.button == PointerEventData.InputButton.Left && !isDeleteMode && !isSelectMode && !isMoveMode && !IsPasting)
         {
-            Vector2 screenPos = GetPointerPosition();
+            Vector2 screenPos = eventData.position;
             CheckForExistingPoint(screenPos, out Point hoveredNode, out Vector3 exactSnapPos);
             Vector3 worldPos = GetWorldMousePosition(screenPos);
             
+            // Only a completed hold starts auto draw. An ordinary release still places one piece.
+            ResetAutoDrawConfirmation();
             FinishBarCreation(worldPos, hoveredNode, exactSnapPos);
         }
         else
@@ -1687,6 +1739,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
     public void CancelCreation()
     {
+        CancelAutoDraw();
         if (magnifyingGlass != null) magnifyingGlass.HideMagnifier();
 
         barCreationStarted = false;
@@ -1694,10 +1747,312 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (currentEndPoint != null) Destroy(currentEndPoint.gameObject);
         if (createdStartPoint && currentStartPoint != null) Destroy(currentStartPoint.gameObject);
         createdStartPoint = false;
+        currentBar = null;
         currentStartPoint = null;
         currentEndPoint = null;
         if (radiusIndicator != null) radiusIndicator.enabled = false;
         if (BuildUIController.Instance != null) BuildUIController.Instance.MarkBridgeDirty();
+    }
+
+    private bool IsAutoDrawNodePair(Point destination)
+    {
+        return enableAnchorAutoDraw && activeMaterial != null && !activeMaterial.isPier &&
+            currentStartPoint != null && destination != null && destination != currentStartPoint &&
+            destination != currentEndPoint && currentStartPoint.gameObject.activeInHierarchy &&
+            destination.gameObject.activeInHierarchy;
+    }
+
+    private bool UpdateAutoDrawConfirmation(Point destination)
+    {
+        bool held = Touch.activeTouches.Count > 0
+            ? Touch.activeTouches[0].phase != UnityEngine.InputSystem.TouchPhase.Ended &&
+              Touch.activeTouches[0].phase != UnityEngine.InputSystem.TouchPhase.Canceled
+            : UnityEngine.InputSystem.Mouse.current != null && UnityEngine.InputSystem.Mouse.current.leftButton.isPressed;
+        if (!held || !IsAutoDrawNodePair(destination))
+        {
+            ResetAutoDrawConfirmation();
+            return false;
+        }
+        if (autoDrawConfirmationTarget != destination)
+        {
+            ResetAutoDrawConfirmation();
+            autoDrawConfirmationTarget = destination;
+        }
+        autoDrawHoverElapsed += Time.unscaledDeltaTime;
+        if (autoDrawHoverElapsed < Mathf.Max(0f, autoDrawHoldDelay)) return false;
+        if (autoDrawConfirmationRing == null)
+        {
+            autoDrawConfirmationRing = CreateAutoDrawOverlay(false);
+            if (magnifyingGlass != null) magnifyingGlass.HideMagnifier();
+        }
+        // Let the fully filled ring render for a frame before starting construction.
+        bool confirmed = autoDrawConfirmationElapsed >= Mathf.Max(0.1f, autoDrawLoadingSeconds);
+        autoDrawConfirmationElapsed += Time.unscaledDeltaTime;
+        float progress = Mathf.Clamp01(autoDrawConfirmationElapsed / Mathf.Max(0.1f, autoDrawLoadingSeconds));
+        RectTransform ringRect = autoDrawConfirmationRing.rectTransform;
+        PlaceAutoDrawRing(ringRect, destination.transform.position);
+        autoDrawConfirmationRing.Progress = progress;
+        ringRect.localRotation = Quaternion.Euler(0f, 0f, -autoDrawConfirmationElapsed * 180f);
+        ringRect.localScale = Vector3.one * (1f + 0.04f * Mathf.Sin(autoDrawConfirmationElapsed * 9f));
+        autoDrawConfirmationRing.SetVerticesDirty();
+        if (confirmed) return TryStartNodeAutoDraw(destination);
+        return false;
+    }
+
+    private void ResetAutoDrawConfirmation()
+    {
+        autoDrawConfirmationTarget = null;
+        autoDrawConfirmationElapsed = 0f;
+        autoDrawHoverElapsed = 0f;
+        autoDrawConfirmationRing = null;
+        if (!IsAutoDrawing && autoDrawOverlay != null)
+        {
+            autoDrawOverlay.SetActive(false);
+            Destroy(autoDrawOverlay);
+            autoDrawOverlay = null;
+        }
+    }
+
+    // Plan the entire gesture first; no partial bridge is committed if it is canceled.
+    private bool TryStartNodeAutoDraw(Point destination)
+    {
+        if (!IsAutoDrawNodePair(destination)) return false;
+
+        Point origin = currentStartPoint;
+        BridgeMaterialSO material = activeMaterial;
+        Vector3 start = origin.transform.position;
+        Vector3 end = destination.transform.position;
+        var location = GameManager.Instance != null ? GameManager.Instance.ActiveBuildLocation : null;
+        string error = null;
+        float length = Vector3.Distance(start, end);
+        if (length < 0.1f || material.maxLength < 0.1f ||
+            Mathf.Abs(start.z - end.z) > nodeSnapDepthTolerance ||
+            (origin.OwnerLocation != null && origin.OwnerLocation != location) ||
+            (destination.OwnerLocation != null && destination.OwnerLocation != location))
+            error = "Auto draw needs two nodes on the current bridge plane.";
+
+        var positions = new List<Vector3> { start };
+        var nodes = new List<Point> { origin };
+        // Preserve existing nodes on the span so the result stays connected to supports.
+        var stops = new List<Point>();
+        foreach (Point p in Point.AllPoints)
+        {
+            if (p == null || p == origin || p == destination || p == currentEndPoint ||
+                !p.gameObject.activeInHierarchy ||
+                (p.OwnerLocation != null && p.OwnerLocation != location)) continue;
+            Vector3 projected = GetClosestPointOnLineSegment(p.transform.position, start, end);
+            if (Vector3.Distance(projected, p.transform.position) < 0.01f &&
+                Vector3.Distance(projected, start) > 0.05f && Vector3.Distance(projected, end) > 0.05f)
+                stops.Add(p);
+        }
+        stops.Sort((a, b) => (a.transform.position - start).sqrMagnitude.CompareTo((b.transform.position - start).sqrMagnitude));
+        stops.Add(destination);
+        foreach (Point stop in stops)
+        {
+            Vector3 from = positions[positions.Count - 1];
+            float distance = Vector3.Distance(from, stop.transform.position);
+            int count = Mathf.CeilToInt(distance / Mathf.Max(0.1f, material.maxLength));
+            if (positions.Count + count > 129) { error = "Auto draw is limited to 128 pieces per gesture."; break; }
+            for (int i = 1; i <= count; i++)
+            {
+                positions.Add(Vector3.Lerp(from, stop.transform.position, (float)i / count));
+                nodes.Add(i == count ? stop : null);
+            }
+        }
+
+        // Reject overlap, including an existing long beam spanning multiple planned pieces.
+        var checkedBars = new HashSet<Bar>();
+        foreach (Point p in Point.AllPoints)
+        {
+            if (p == null || !p.gameObject.activeInHierarchy) continue;
+            foreach (Bar b in p.ConnectedBars)
+            {
+                if (b == null || b == currentBar || !b.gameObject.activeInHierarchy ||
+                    b.startPoint == null || b.endPoint == null || !checkedBars.Add(b)) continue;
+                Vector3 a = b.startPoint.transform.position;
+                Vector3 z = b.endPoint.transform.position;
+                Vector3 axis = (end - start).normalized;
+                float t0 = Vector3.Dot(a - start, axis);
+                float t1 = Vector3.Dot(z - start, axis);
+                if (Vector3.Distance(a, start + axis * t0) < 0.02f &&
+                    Vector3.Distance(z, start + axis * t1) < 0.02f &&
+                    Mathf.Min(length, Mathf.Max(t0, t1)) - Mathf.Max(0f, Mathf.Min(t0, t1)) > 0.05f)
+                    error = "This span already contains material. Remove it before auto drawing.";
+            }
+        }
+        for (int i = 1; i < positions.Count; i++)
+            if (Vector3.Distance(ClampToEnvironment(positions[i - 1], positions[i]), positions[i]) > 0.05f)
+                error = "Auto draw is blocked by terrain.";
+
+        float cost = length * material.costPerMeter * (material.isDualBeam ? 2f : 1f);
+        if (BuildUIController.Instance != null &&
+            cost > BuildUIController.Instance.maxBudget - BuildUIController.Instance.GetTotalCost() + 0.01f)
+            error = "Not enough bridge budget for this span.";
+        var director = BuildTutorialDirector.Instance;
+        if (director != null && !director.CanAutoDrawSegments(material, positions))
+            error = "Follow the tutorial's individual guide segments for this span.";
+
+        CancelCreation();
+        if (error != null)
+        {
+            if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction(error);
+            return true;
+        }
+        pendingAutoDraw = new HistoryAction { isBuildEvent = true };
+        autoDrawRoutine = StartCoroutine(AnimateAnchorSpan(material, positions, nodes, location));
+        return true;
+    }
+
+    private AnchorAutoDrawRing CreateAutoDrawOverlay(bool blockInput)
+    {
+        autoDrawOverlay = new GameObject("Auto Draw Loading", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+        // Overlay canvases must not inherit the build world's position, scale or masks.
+        UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(autoDrawOverlay, gameObject.scene);
+        Canvas canvas = autoDrawOverlay.GetComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.overrideSorting = true;
+        canvas.sortingOrder = 30000;
+        Camera buildCamera = GetActiveCamera();
+        if (buildCamera != null) canvas.targetDisplay = buildCamera.targetDisplay;
+        CanvasScaler scaler = autoDrawOverlay.GetComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920, 1080);
+        scaler.matchWidthOrHeight = 0.5f;
+        // Prevent material changes and simulation commands during the short transaction.
+        var blocker = new GameObject("Input Shield", typeof(RectTransform), typeof(Image));
+        blocker.transform.SetParent(autoDrawOverlay.transform, false);
+        var shieldRect = (RectTransform)blocker.transform;
+        shieldRect.anchorMin = Vector2.zero; shieldRect.anchorMax = Vector2.one;
+        shieldRect.offsetMin = shieldRect.offsetMax = Vector2.zero;
+        blocker.GetComponent<Image>().color = Color.clear;
+        blocker.GetComponent<Image>().raycastTarget = blockInput;
+        // Construction only needs the invisible input shield; the ring is for confirmation.
+        if (blockInput) return null;
+        var ringObject = new GameObject("Hollow Loading Ring", typeof(RectTransform), typeof(CanvasRenderer));
+        ringObject.transform.SetParent(autoDrawOverlay.transform, false);
+        var ringRect = (RectTransform)ringObject.transform;
+        ringRect.sizeDelta = new Vector2(72f, 72f);
+        var ring = ringObject.AddComponent<AnchorAutoDrawRing>();
+        ring.color = autoDrawRingColor;
+        ring.maskable = false;
+        ring.raycastTarget = false;
+        Canvas.ForceUpdateCanvases();
+        return ring;
+    }
+
+    private IEnumerator AnimateAnchorSpan(BridgeMaterialSO material, List<Vector3> positions, List<Point> nodes, BuildLocation location)
+    {
+        CreateAutoDrawOverlay(true);
+        // Confirmation is already complete. Start growing the material immediately.
+        float elapsed;
+        for (int i = 1; i < positions.Count; i++)
+        {
+            if (!CanContinueAutoDraw(material, nodes, location)) { CancelCreation(); yield break; }
+            if (nodes[i] == null)
+            {
+                GameObject pointObject = Instantiate(pointToInstantiate, positions[i], Quaternion.identity, pointParent);
+                pointObject.name = "Point";
+                pendingAutoDraw.affectedObjects.Add(pointObject);
+                nodes[i] = pointObject.GetComponent<Point>();
+                nodes[i].Runtime = true;
+                nodes[i].originalIsAnchor = nodes[i].isAnchor = false;
+                nodes[i].AssignOwner(location);
+                pointObject.transform.localScale = Vector3.zero;
+            }
+            GameObject barObject = Instantiate(barToInstantiate, barParent);
+            barObject.name = "Bar";
+            pendingAutoDraw.affectedObjects.Add(barObject);
+            Bar bar = barObject.GetComponent<Bar>();
+            bar.AssignOwner(location);
+            bar.Initialize(material);
+            bar.StartPosition = positions[i - 1];
+            bar.UpdateCreatingBar(positions[i - 1]);
+            elapsed = 0f;
+            float duration = Mathf.Max(0.05f, autoDrawSecondsPerPiece);
+            while (elapsed < duration)
+            {
+                if (!CanContinueAutoDraw(material, nodes, location)) { CancelCreation(); yield break; }
+                elapsed += Time.unscaledDeltaTime;
+                float t = Mathf.SmoothStep(0f, 1f, elapsed / duration);
+                Vector3 tip = Vector3.Lerp(positions[i - 1], positions[i], t);
+                bar.UpdateCreatingBar(tip);
+                yield return null;
+            }
+            bar.startPoint = nodes[i - 1]; bar.endPoint = nodes[i];
+            bar.NormalizeEndpointOrder();
+            bar.StartPosition = bar.startPoint.transform.position;
+            bar.UpdateCreatingBar(bar.endPoint.transform.position);
+            bar.startPoint.ConnectedBars.Add(bar); bar.endPoint.ConnectedBars.Add(bar);
+            // New joints emerge at the drawing tip instead of appearing ahead of it.
+            if (pendingAutoDraw.affectedObjects.Contains(nodes[i].gameObject))
+            {
+                Vector3 size = pointToInstantiate.transform.localScale;
+                for (float t = 0; t < 1f; t += Time.unscaledDeltaTime / 0.1f)
+                {
+                    if (!CanContinueAutoDraw(material, nodes, location)) { CancelCreation(); yield break; }
+                    nodes[i].transform.localScale = size * Mathf.SmoothStep(0f, 1f, t);
+                    yield return null;
+                }
+                nodes[i].transform.localScale = size;
+            }
+            bar.startPoint.EvaluateAnchorState(); bar.endPoint.EvaluateAnchorState();
+            if (AudioManager.Instance != null && !string.IsNullOrWhiteSpace(placeBarSfxId))
+                AudioManager.Instance.PlaySFX(placeBarSfxId);
+        }
+        HistoryAction completed = pendingAutoDraw;
+        pendingAutoDraw = null;
+        autoDrawRoutine = null;
+        Destroy(autoDrawOverlay); autoDrawOverlay = null;
+        if (CommandManager.Instance != null) CommandManager.Instance.RecordAction(completed);
+        if (BuildUIController.Instance != null)
+        {
+            BuildUIController.Instance.MarkBridgeDirty();
+            BuildUIController.Instance.LogAction($"Auto drew {positions.Count - 1} pieces");
+        }
+        if (BuildTutorialDirector.Instance != null) BuildTutorialDirector.Instance.OnBuildActionCompleted(completed);
+    }
+
+    private bool CanContinueAutoDraw(BridgeMaterialSO material, List<Point> nodes, BuildLocation location)
+    {
+        return !isSimulating && activeMaterial == material && nodes[0] != null &&
+            nodes[nodes.Count - 1] != null && nodes[0].gameObject.activeInHierarchy &&
+            nodes[nodes.Count - 1].gameObject.activeInHierarchy &&
+            (GameManager.Instance == null || (GameManager.Instance.CurrentState == GameManager.GameState.Building &&
+                GameManager.Instance.ActiveBuildLocation == location)) &&
+            (BuildTutorialDirector.Instance == null || BuildTutorialDirector.Instance.CanPlaceMaterials);
+    }
+
+    private void PlaceAutoDrawRing(RectTransform ring, Vector3 position)
+    {
+        Camera camera = GetActiveCamera();
+        if (camera == null || autoDrawOverlay == null) return;
+        Vector3 screen = camera.WorldToScreenPoint(position);
+        RectTransform canvasRect = (RectTransform)autoDrawOverlay.transform;
+        // WorldToScreenPoint.z is distance from the build camera, not UI depth.
+        // Convert only X/Y to the scaled canvas and keep the graphic at local Z = 0.
+        if (RectTransformUtility.ScreenPointToLocalPointInRectangle(
+            canvasRect, new Vector2(screen.x, screen.y), null, out Vector2 local))
+        {
+            Vector2 half = ring.sizeDelta * 0.5f + new Vector2(8f, 8f);
+            local.x = Mathf.Clamp(local.x, canvasRect.rect.xMin + half.x, canvasRect.rect.xMax - half.x);
+            local.y = Mathf.Clamp(local.y, canvasRect.rect.yMin + half.y, canvasRect.rect.yMax - half.y);
+            ring.localPosition = new Vector3(local.x, local.y, 0f);
+        }
+    }
+
+    private void CancelAutoDraw()
+    {
+        if (autoDrawRoutine != null) StopCoroutine(autoDrawRoutine);
+        autoDrawRoutine = null;
+        ResetAutoDrawConfirmation();
+        if (pendingAutoDraw != null)
+        {
+            foreach (GameObject obj in pendingAutoDraw.affectedObjects)
+                if (obj != null) { obj.SetActive(false); Destroy(obj); }
+            pendingAutoDraw = null;
+        }
+        if (autoDrawOverlay != null) { autoDrawOverlay.SetActive(false); Destroy(autoDrawOverlay); }
+        autoDrawOverlay = null;
     }
 
     private void DrawRadiusVisual()

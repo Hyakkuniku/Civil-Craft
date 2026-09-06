@@ -127,6 +127,7 @@ public class BuildTutorialDirector : MonoBehaviour
             : null;
 
         if (barCreator == null) return;
+        if (barCreator.IsAutoDrawing) return;
 
         if (!barCreator.IsCreating)
         {
@@ -730,6 +731,26 @@ public class BuildTutorialDirector : MonoBehaviour
     /// uses the real endpoints, so release-frame ordering, snapping, limits, and terrain clamps
     /// cannot desynchronize the tutorial.
     /// </summary>
+    public bool CanAutoDrawSegments(BridgeMaterialSO material, List<Vector3> positions)
+    {
+        if (!CanPlaceMaterials) return false;
+        if (!isTracingStep) return true;
+        if (activeGhosts == null || IsAwaitingInvalidBarUndo) return false;
+        var matched = new HashSet<GhostSegment>();
+        for (int i = 1; i < positions.Count; i++)
+        {
+            GhostSegment match = null;
+            foreach (GhostSegment ghost in activeGhosts)
+            {
+                if (!matched.Contains(ghost) && IsPlacementValid(material, positions[i - 1], positions[i], ghost))
+                { match = ghost; break; }
+            }
+            if (match == null) return false;
+            matched.Add(match);
+        }
+        return true;
+    }
+
     public void OnBuildActionCompleted(HistoryAction buildAction)
     {
         if (!isTracingStep || IsAwaitingInvalidBarUndo || buildAction == null) return;
