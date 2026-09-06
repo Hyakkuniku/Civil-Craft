@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using Unity.AI.Navigation;
 using UnityEngine;
 using UnityEngine.AI;
@@ -37,6 +38,18 @@ public sealed class DynamicNavMeshUpdater : MonoBehaviour
     [Tooltip("Minimum walkable width. This should remain comfortably wider than twice the baked agent radius.")]
     [Min(0.1f)] [SerializeField] private float minimumRoadColliderWidth = 2f;
 
+    [Header("Bridge End Connections")]
+    [Tooltip("Creates short runtime links between each completed bridge end and the terrain NavMesh.")]
+    [SerializeField] private bool createBridgeEndLinks = true;
+    [Tooltip("Distance from a terminal point toward the bridge used for the bridge-side link endpoint.")]
+    [Min(0.1f)] [SerializeField] private float bridgeLinkInset = 0.75f;
+    [Tooltip("Distance from a terminal point toward land used for the terrain-side link endpoint.")]
+    [Min(0.1f)] [SerializeField] private float bridgeLinkLandReach = 1.5f;
+    [Tooltip("Radius used to place generated link endpoints on their nearest NavMesh.")]
+    [Min(0.1f)] [SerializeField] private float bridgeLinkSampleRadius = 1f;
+    [Tooltip("Width of automatically generated bridge-end links.")]
+    [Min(0f)] [SerializeField] private float bridgeLinkWidth = 1.2f;
+
     [Header("Diagnostics")]
     [SerializeField] private bool validateRoadCoverageAfterUpdate = true;
     [Min(0.05f)] [SerializeField] private float roadProbeDistance = 0.5f;
@@ -54,6 +67,7 @@ public sealed class DynamicNavMeshUpdater : MonoBehaviour
     private bool updateRequested;
     private bool asyncUpdateInProgress;
     private bool ownsRuntimeBridgeSurface;
+    private Transform generatedBridgeLinksRoot;
 
     public bool IsUpdating => asyncUpdateInProgress;
     public bool HasPendingOrRunningUpdate => updateRequested || updateRoutine != null || asyncUpdateInProgress;
@@ -259,6 +273,7 @@ public sealed class DynamicNavMeshUpdater : MonoBehaviour
                     continue;
                 }
 
+                RebuildBridgeEndLinks();
                 if (validateRoadCoverageAfterUpdate) ValidateRoadCoverage();
                 onNavMeshUpdateCompleted?.Invoke();
                 continue;
@@ -277,6 +292,7 @@ public sealed class DynamicNavMeshUpdater : MonoBehaviour
 
             yield return operation;
             asyncUpdateInProgress = false;
+            RebuildBridgeEndLinks();
             if (validateRoadCoverageAfterUpdate) ValidateRoadCoverage();
             onNavMeshUpdateCompleted?.Invoke();
         }
@@ -327,6 +343,115 @@ public sealed class DynamicNavMeshUpdater : MonoBehaviour
         surfaceCollider.center = center;
         surfaceCollider.enabled = true;
         surfaceCollider.isTrigger = false;
+    }
+
+    private void RebuildBridgeEndLinks()
+    {
+        ClearGeneratedBridgeEndLinks();
+        if (!createBridgeEndLinks || navMeshSurface == null) return;
+
+        GameObject rootObject = new GameObject("Generated Bridge End Links");
+        rootObject.transform.SetParent(transform, false);
+        generatedBridgeLinksRoot = rootObject.transform;
+
+        int createdCount = 0;
+        foreach (BuildLocation location in Resources.FindObjectsOfTypeAll<BuildLocation>())
+        {
+            if (!IsLoadedSceneObject(location) || location.bakedBars == null) continue;
+
+            Dictionary<Point, List<Point>> roadConnections = new Dictionary<Point, List<Point>>();
+            foreach (Bar bar in location.bakedBars)
+            {
+                if (bar == null || bar.materialData == null || !bar.materialData.isRoad ||
+                    bar.startPoint == null || bar.endPoint == null) continue;
+
+                AddRoadConnection(roadConnections, bar.startPoint, bar.endPoint);
+                AddRoadConnection(roadConnections, bar.endPoint, bar.startPoint);
+            }
+
+            foreach (KeyValuePair<Point, List<Point>> pair in roadConnections)
+            {
+                // A road-chain terminal has exactly one road neighbour. Internal
+                // road joints must not receive links or agents may skip sections.
+                if (pair.Key == null || pair.Value == null || pair.Value.Count != 1 ||
+                    pair.Value[0] == null) continue;
+
+                Vector3 terminal = pair.Key.transform.position;
+                Vector3 neighbour = pair.Value[0].transform.position;
+                Vector3 inwardDirection = neighbour - terminal;
+                if (inwardDirection.sqrMagnitude <= 0.0001f) continue;
+                inwardDirection.Normalize();
+
+                Vector3 bridgeCandidate = terminal + inwardDirection * bridgeLinkInset;
+                Vector3 landCandidate = terminal - inwardDirection * bridgeLinkLandReach;
+
+                if (!NavMesh.SamplePosition(
+                        bridgeCandidate,
+                        out NavMeshHit bridgeHit,
+                        bridgeLinkSampleRadius,
+                        NavMesh.AllAreas) ||
+                    !NavMesh.SamplePosition(
+                        landCandidate,
+                        out NavMeshHit landHit,
+                        bridgeLinkSampleRadius,
+                        NavMesh.AllAreas))
+                    continue;
+
+                if ((bridgeHit.position - landHit.position).sqrMagnitude < 0.04f)
+                    continue;
+
+                GameObject linkObject = new GameObject($"Bridge End Link {createdCount + 1}");
+                linkObject.transform.SetParent(generatedBridgeLinksRoot, false);
+                linkObject.transform.position = terminal;
+
+                NavMeshLink link = linkObject.AddComponent<NavMeshLink>();
+                link.enabled = false;
+                link.agentTypeID = navMeshSurface.agentTypeID;
+                link.startPoint = linkObject.transform.InverseTransformPoint(bridgeHit.position);
+                link.endPoint = linkObject.transform.InverseTransformPoint(landHit.position);
+                link.width = bridgeLinkWidth;
+                link.costModifier = -1;
+                link.bidirectional = true;
+                link.autoUpdate = true;
+                link.area = 0;
+                link.enabled = true;
+                createdCount++;
+            }
+        }
+
+        if (createdCount == 0)
+        {
+            Destroy(rootObject);
+            generatedBridgeLinksRoot = null;
+        }
+        else
+        {
+            Debug.Log($"[DynamicNavMeshUpdater] Created {createdCount} bridge-end NavMesh links.", this);
+        }
+    }
+
+    private static void AddRoadConnection(
+        Dictionary<Point, List<Point>> connections,
+        Point point,
+        Point neighbour)
+    {
+        if (point == null || neighbour == null) return;
+
+        if (!connections.TryGetValue(point, out List<Point> neighbours))
+        {
+            neighbours = new List<Point>();
+            connections.Add(point, neighbours);
+        }
+
+        if (!neighbours.Contains(neighbour)) neighbours.Add(neighbour);
+    }
+
+    private void ClearGeneratedBridgeEndLinks()
+    {
+        if (generatedBridgeLinksRoot == null) return;
+
+        Destroy(generatedBridgeLinksRoot.gameObject);
+        generatedBridgeLinksRoot = null;
     }
 
     private void ValidateRoadCoverage()
