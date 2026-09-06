@@ -472,7 +472,8 @@ public class LevelCompleteManager : MonoBehaviour
         }
 
         float peakStress = 0f;
-        if (cachedPhysicsManager != null) peakStress = cachedPhysicsManager.peakStressThisRun * 100f; 
+        if (cachedPhysicsManager != null)
+            peakStress = cachedPhysicsManager.GetPeakDisplayedBridgeStress() * 100f;
 
         lastPeakStress = peakStress;
 

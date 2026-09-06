@@ -5,6 +5,8 @@ using UnityEngine.UI;
 
 public class PauseManager : MonoBehaviour
 {
+    private const string MobilePauseButtonResource = "UI/MobilePauseButton";
+
     public static PauseManager Instance { get; private set; }
 
     [Header("UI References")]
@@ -181,8 +183,15 @@ public class PauseManager : MonoBehaviour
 
     public void RefreshPauseAvailability()
     {
+        bool resolvedButton = false;
         if (pauseButton == null)
+        {
             pauseButton = FindPauseButton();
+            resolvedButton = pauseButton != null;
+        }
+
+        if (resolvedButton)
+            GameplayMobileUILayout.Apply();
 
         bool pauseAllowed = !IsPauseBlocked();
         if (pauseButton != null) pauseButton.SetActive(pauseAllowed);
@@ -222,7 +231,50 @@ public class PauseManager : MonoBehaviour
             }
         }
 
-        return null;
+        return CreateMobilePauseButton();
+    }
+
+    private GameObject CreateMobilePauseButton()
+    {
+        RectTransform accessButtons = null;
+        foreach (RectTransform candidate in FindObjectsOfType<RectTransform>(true))
+        {
+            if (candidate != null &&
+                candidate.gameObject.scene.IsValid() &&
+                candidate.name == "AccessButtons")
+            {
+                accessButtons = candidate;
+                break;
+            }
+        }
+
+        if (accessButtons == null) return null;
+
+        accessButtons.anchorMin = Vector2.zero;
+        accessButtons.anchorMax = Vector2.one;
+        accessButtons.pivot = new Vector2(0.5f, 0.5f);
+        accessButtons.anchoredPosition = Vector2.zero;
+        accessButtons.sizeDelta = Vector2.zero;
+        accessButtons.localScale = Vector3.one;
+
+        GameObject prefab = Resources.Load<GameObject>(MobilePauseButtonResource);
+        if (prefab == null)
+        {
+            Debug.LogWarning(
+                $"[PauseManager] Missing Resources/{MobilePauseButtonResource}.prefab; " +
+                "the scene has no mobile Pause button.",
+                this);
+            return null;
+        }
+
+        GameObject created = Instantiate(prefab, accessButtons, false);
+        created.name = "pause_btn";
+
+        Button button = created.GetComponent<Button>();
+        if (button != null)
+            button.onClick.AddListener(TogglePause);
+
+        return created;
     }
 
     public void ReturnToModeSelection()

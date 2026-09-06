@@ -1078,11 +1078,17 @@ public sealed class DeveloperDebugManager : MonoBehaviour
         }
 
         clearSaveConfirmationDeadline = -1f;
-        if (PlayerDataManager.Instance != null)
+        PlayerDataManager playerDataManager = PlayerDataManager.Instance;
+        if (playerDataManager != null)
         {
-            PlayerDataManager.Instance.DeleteSaveData();
+            playerDataManager.DeleteSaveData();
             DeleteIfPresent(Path.Combine(Application.persistentDataPath, "playerSaveData.json.tmp"));
             DeleteIfPresent(Path.Combine(Application.persistentDataPath, "playerSaveData.json.bak"));
+
+            // PlayerSpawnManager normally records its current position from
+            // OnDestroy. Suppress that write while this cleared scene unloads,
+            // otherwise it immediately recreates the location we just removed.
+            playerDataManager.SuppressAutomaticPositionSaveForSceneReload();
         }
         else
         {
@@ -1093,7 +1099,17 @@ public sealed class DeveloperDebugManager : MonoBehaviour
             DeleteIfPresent(Path.Combine(Application.persistentDataPath, "playerSaveData.json.bak"));
         }
 
-        SetStatus("Local PlayerPrefs and player JSON save data were cleared. The separate debug state was preserved for Load State.");
+        PlayerSpawnManager.targetSpawnPointName = string.Empty;
+        Scene activeScene = SceneManager.GetActiveScene();
+        Time.timeScale = 1f;
+        SetInvincibleBridge(false);
+        SetStatus("Save data cleared. Reloading at the scene's default player spawn; the separate debug state was preserved.");
+        SetMenuVisible(false, true);
+
+        if (activeScene.buildIndex >= 0)
+            SceneManager.LoadScene(activeScene.buildIndex);
+        else
+            SceneManager.LoadScene(activeScene.name);
     }
 
     private static string GetDebugStatePath()

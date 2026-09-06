@@ -49,6 +49,9 @@ public class BridgePhysicsManager : MonoBehaviour
     [HideInInspector] public bool lockStressTracking = false; 
     
     [HideInInspector] public List<BarStressHandler> activeStressHandlers = new List<BarStressHandler>();
+    [Tooltip("Peak of the same dead-load-adjusted value shown by the stress visualizer. Used by the result screen.")]
+    [HideInInspector] public float peakDisplayedStressThisRun = 0f;
+    [Tooltip("Peak total structural stress, including dead load. Used for failure and contract limits.")]
     [HideInInspector] public float peakStressThisRun = 0f;
 
     private HashSet<Point> simPoints = new HashSet<Point>();
@@ -198,6 +201,7 @@ public class BridgePhysicsManager : MonoBehaviour
             {
                 pendingSimulationStart = false;
                 isSimulating = true;
+                peakDisplayedStressThisRun = 0f;
                 peakStressThisRun = 0f;
                 lockStressTracking = false;
                 
@@ -213,22 +217,34 @@ public class BridgePhysicsManager : MonoBehaviour
 
         if (isSimulating && !lockStressTracking)
         {
-            float currentMax = 0f;
+            float currentStructuralMax = 0f;
+            float currentDisplayedMax = 0f;
             foreach (var handler in activeStressHandlers)
             {
                 if (handler == null) continue;
                 
                 handler.EvaluateStress(); 
                 
-                if (handler.isBroken) currentMax = 1f;
-                else if (handler.currentStructuralStressPercent > currentMax)
-                    currentMax = handler.currentStructuralStressPercent;
+                if (handler.isBroken)
+                {
+                    currentStructuralMax = Mathf.Max(currentStructuralMax, 1f);
+                    currentDisplayedMax = Mathf.Max(currentDisplayedMax, 1f);
+                }
+                else
+                {
+                    currentStructuralMax = Mathf.Max(
+                        currentStructuralMax,
+                        handler.currentStructuralStressPercent);
+                    currentDisplayedMax = Mathf.Max(
+                        currentDisplayedMax,
+                        handler.currentStressPercent);
+                }
             }
 
-            if (currentMax > peakStressThisRun)
-            {
-                peakStressThisRun = currentMax;
-            }
+            peakStressThisRun = Mathf.Max(peakStressThisRun, currentStructuralMax);
+            peakDisplayedStressThisRun = Mathf.Max(
+                peakDisplayedStressThisRun,
+                Mathf.Clamp01(currentDisplayedMax));
         }
     }
 
@@ -298,6 +314,7 @@ public class BridgePhysicsManager : MonoBehaviour
         if (isSimulating || pendingSimulationStart) return;
         
         activeStressHandlers.Clear(); 
+        peakDisplayedStressThisRun = 0f;
         peakStressThisRun = 0f;
         lockStressTracking = false;
 
@@ -734,6 +751,16 @@ public class BridgePhysicsManager : MonoBehaviour
             }
         }
         return Mathf.Clamp01(maxStress); 
+    }
+
+    /// <summary>
+    /// Returns the highest value produced by GetMaxBridgeStress during this run.
+    /// This deliberately follows the visualizer's dead-load display setting;
+    /// peakStressThisRun remains the total structural value used for failure.
+    /// </summary>
+    public float GetPeakDisplayedBridgeStress()
+    {
+        return Mathf.Clamp01(peakDisplayedStressThisRun);
     }
 
     private void SetupBarsPhysics(List<Bar> activeBars)

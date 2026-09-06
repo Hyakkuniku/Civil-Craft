@@ -271,7 +271,7 @@ public static class DeveloperDebugSystemSetup
         Button clearSave = GetOrCreateButton(actionRow, "ClearSaveButton", "CLEAR SAVE DATA", 300f, true);
 
         TextMeshProUGUI hint = GetOrCreateText(content, "SafetyHint",
-            "Save State keeps one separate checkpoint. Clear Save preserves it. Load State restores it and reloads the saved scene.",
+            "Save State keeps one separate checkpoint. Clear Save preserves it and reloads at the default spawn. Load State restores the checkpoint.",
             19f, FontStyles.Italic);
         hint.alignment = TextAlignmentOptions.Center;
         hint.color = new Color(0.72f, 0.76f, 0.82f, 1f);

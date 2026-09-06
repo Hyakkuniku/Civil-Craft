@@ -15,6 +15,8 @@ public class DialogueManager : MonoBehaviour
     [SerializeField] private GameObject dialogueBox;
     [Tooltip("Time allowed for the closing animation before the box is fully disabled.")]
     [Min(0f)] [SerializeField] private float closeHideDelay = 0.5f;
+    [Tooltip("Keeps the dialogue readable without covering most of a landscape mobile screen.")]
+    [Range(0.65f, 1f)] [SerializeField] private float landscapeMobileScale = 0.84f;
 
     [Header("Typewriter Settings")]
     public float typingSpeed = 0.03f; 
@@ -46,6 +48,7 @@ public class DialogueManager : MonoBehaviour
         playerInteract = FindObjectOfType<PlayerInteract>();
         playerUI = FindObjectOfType<PlayerUI>();
         ResolveDialogueBox();
+        ApplyLandscapeMobileLayout();
 
         // The panel used to remain active below the screen. Tall/wide aspect
         // ratios could expose its top edge, so keep it completely inactive.
@@ -56,8 +59,29 @@ public class DialogueManager : MonoBehaviour
     private void OnValidate()
     {
         ResolveDialogueBox();
+        ApplyLandscapeMobileLayout();
         if (!Application.isPlaying && dialogueBox != null && dialogueBox != gameObject)
             dialogueBox.SetActive(false);
+    }
+
+    /// <summary>
+    /// Applies the same compact dialogue presentation in every gameplay scene.
+    /// Scaling the complete root preserves all authored text/image spacing and the
+    /// existing open/close animation, which only animates anchored Y position.
+    /// </summary>
+    public void ApplyLandscapeMobileLayout()
+    {
+        if (dialogueBox == null) return;
+
+        RectTransform dialogueRect = dialogueBox.transform as RectTransform;
+        if (dialogueRect == null) return;
+
+        float scale = Mathf.Clamp(landscapeMobileScale, 0.65f, 1f);
+        dialogueRect.localScale = new Vector3(scale, scale, 1f);
+
+        Vector2 position = dialogueRect.anchoredPosition;
+        position.x = 0f;
+        dialogueRect.anchoredPosition = position;
     }
 
     void Start()

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 /// <summary>
 /// Coordinates full-screen/modal UI without requiring the panels to share a prefab.
@@ -38,6 +39,9 @@ public class UIPanelCoordinator : MonoBehaviour
     public List<GameObject> managedPanels = new List<GameObject>();
 
     private readonly Stack<PanelFrame> panelStack = new Stack<PanelFrame>();
+    private int lastScreenWidth = -1;
+    private int lastScreenHeight = -1;
+    private Rect lastSafeArea;
 
     /// <summary>
     /// True while any full-screen/modal panel is being coordinated. Lightweight
@@ -69,6 +73,7 @@ public class UIPanelCoordinator : MonoBehaviour
         DontDestroyOnLoad(gameObject);
         SceneManager.sceneLoaded += HandleSceneLoaded;
         RefreshManagedPanels();
+        ApplyGameplayMobileLayout();
     }
 
     private void OnDestroy()
@@ -86,6 +91,29 @@ public class UIPanelCoordinator : MonoBehaviour
         hudObjects.RemoveAll(item => item == null);
         managedPanels.RemoveAll(item => item == null);
         RefreshManagedPanels();
+        ApplyGameplayMobileLayout();
+    }
+
+    private void LateUpdate()
+    {
+        // Reapply only after an orientation/resolution/safe-area change. This keeps
+        // the controls clear of notches without doing layout work every frame.
+        if (lastScreenWidth == Screen.width &&
+            lastScreenHeight == Screen.height &&
+            lastSafeArea == Screen.safeArea)
+        {
+            return;
+        }
+
+        ApplyGameplayMobileLayout();
+    }
+
+    private void ApplyGameplayMobileLayout()
+    {
+        GameplayMobileUILayout.Apply();
+        lastScreenWidth = Screen.width;
+        lastScreenHeight = Screen.height;
+        lastSafeArea = Screen.safeArea;
     }
 
     public bool IsOpen(GameObject panel)
@@ -406,5 +434,142 @@ public class UIPanelCoordinator : MonoBehaviour
             if (state.target != null)
                 state.target.enabled = state.wasEnabled;
         }
+    }
+}
+
+/// <summary>
+/// Normalizes gameplay access controls that were authored under different parent
+/// RectTransforms. Canyon Crossing and Bhan House therefore use the same mobile-
+/// safe placement, and new gameplay scenes inherit it automatically.
+/// </summary>
+internal static class GameplayMobileUILayout
+{
+    private const float ButtonSize = 120f;
+    private const float EdgeMargin = 32f;
+    private const float ButtonGap = 16f;
+
+    public static void Apply()
+    {
+        PauseManager[] pauseManagers = Object.FindObjectsOfType<PauseManager>(true);
+        DialogueManager[] dialogueManagers = Object.FindObjectsOfType<DialogueManager>(true);
+
+        // Main menu and other non-gameplay scenes should retain their authored UI.
+        if (pauseManagers.Length == 0 && dialogueManagers.Length == 0)
+            return;
+
+        foreach (CanvasScaler scaler in Object.FindObjectsOfType<CanvasScaler>(true))
+        {
+            if (scaler == null || !scaler.gameObject.scene.IsValid()) continue;
+            Canvas canvas = scaler.GetComponent<Canvas>();
+            if (canvas == null || canvas.renderMode == RenderMode.WorldSpace) continue;
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920f, 1080f);
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+            scaler.matchWidthOrHeight = 0.5f;
+        }
+
+        foreach (PauseManager manager in pauseManagers)
+        {
+            if (manager == null) continue;
+            RectTransform pauseRect = GetRect(manager.pauseButton);
+            if (pauseRect == null)
+                pauseRect = FindNamedRect("pause_btn", "PauseButton", "Pause Button");
+            PlaceTopCenter(pauseRect);
+        }
+
+        foreach (AlmanacManager manager in Object.FindObjectsOfType<AlmanacManager>(true))
+            PlaceTopLeft(manager != null ? GetRect(manager.hudOpenButton) : null, 0);
+
+        foreach (ObjectiveTrackerUI tracker in Object.FindObjectsOfType<ObjectiveTrackerUI>(true))
+            PlaceTopLeft(tracker != null ? GetRect(tracker.openTrackerButton) : null, 1);
+
+        PlaceTopLeft(FindNamedRect("Shop_btn", "ShopButton", "Shop Button"), 2);
+
+        foreach (DialogueManager manager in dialogueManagers)
+        {
+            if (manager != null) manager.ApplyLandscapeMobileLayout();
+        }
+    }
+
+    private static void PlaceTopLeft(RectTransform rect, int row)
+    {
+        if (rect == null) return;
+        NormalizeAccessButtonContainer(rect);
+
+        GetSafeInsets(rect, out float left, out float top, out _);
+        float half = ButtonSize * 0.5f;
+        rect.anchorMin = new Vector2(0f, 1f);
+        rect.anchorMax = new Vector2(0f, 1f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.sizeDelta = new Vector2(ButtonSize, ButtonSize);
+        rect.localScale = Vector3.one;
+        rect.anchoredPosition = new Vector2(
+            left + EdgeMargin + half,
+            -(top + EdgeMargin + half + row * (ButtonSize + ButtonGap)));
+    }
+
+    private static void PlaceTopCenter(RectTransform rect)
+    {
+        if (rect == null) return;
+        NormalizeAccessButtonContainer(rect);
+
+        GetSafeInsets(rect, out _, out float top, out float safeCenterOffset);
+        float half = ButtonSize * 0.5f;
+        rect.anchorMin = new Vector2(0.5f, 1f);
+        rect.anchorMax = new Vector2(0.5f, 1f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.sizeDelta = new Vector2(ButtonSize, ButtonSize);
+        rect.localScale = Vector3.one;
+        rect.anchoredPosition = new Vector2(
+            safeCenterOffset,
+            -(top + EdgeMargin + half));
+    }
+
+    private static void NormalizeAccessButtonContainer(RectTransform button)
+    {
+        RectTransform container = button.parent as RectTransform;
+        if (container == null || container.name != "AccessButtons") return;
+
+        container.anchorMin = Vector2.zero;
+        container.anchorMax = Vector2.one;
+        container.pivot = new Vector2(0.5f, 0.5f);
+        container.anchoredPosition = Vector2.zero;
+        container.sizeDelta = Vector2.zero;
+        container.localScale = Vector3.one;
+    }
+
+    private static void GetSafeInsets(
+        RectTransform rect,
+        out float left,
+        out float top,
+        out float safeCenterOffset)
+    {
+        Canvas canvas = rect.GetComponentInParent<Canvas>(true);
+        float scale = canvas != null ? Mathf.Max(0.001f, canvas.scaleFactor) : 1f;
+        Rect safe = Screen.safeArea;
+
+        left = safe.xMin / scale;
+        top = (Screen.height - safe.yMax) / scale;
+        safeCenterOffset = (safe.center.x - Screen.width * 0.5f) / scale;
+    }
+
+    private static RectTransform GetRect(GameObject target)
+    {
+        return target != null ? target.transform as RectTransform : null;
+    }
+
+    private static RectTransform FindNamedRect(params string[] names)
+    {
+        foreach (RectTransform rect in Object.FindObjectsOfType<RectTransform>(true))
+        {
+            if (rect == null || !rect.gameObject.scene.IsValid()) continue;
+            foreach (string candidate in names)
+            {
+                if (string.Equals(rect.name, candidate, System.StringComparison.OrdinalIgnoreCase))
+                    return rect;
+            }
+        }
+
+        return null;
     }
 }
