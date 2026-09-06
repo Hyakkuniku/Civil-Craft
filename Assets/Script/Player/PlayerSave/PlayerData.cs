@@ -77,6 +77,7 @@ public class TrackedTask
 [System.Serializable]
 public class PlayerData
 {
+    public DailyRewardProgress dailyRewards = new DailyRewardProgress();
     public string playerName = "Guest";
     public int gold = 0;
     public int exp = 0;

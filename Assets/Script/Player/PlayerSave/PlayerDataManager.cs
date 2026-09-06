@@ -146,6 +146,53 @@ public class PlayerDataManager : MonoBehaviour
         TrySaveGame();
     }
 
+    /// <summary>Commit the gift and UTC claim marker in one existing save transaction.</summary>
+    public bool TryClaimDailyReward(DailyRewardSchedule schedule, out DailyRewardEntry reward, out string error)
+    {
+        reward = null;
+        error = "Player data is unavailable.";
+        if (CurrentData == null || schedule == null) return false;
+        if (!string.IsNullOrWhiteSpace(schedule.requiredFeatureId) && !IsFeatureUnlocked(schedule.requiredFeatureId))
+        { error = "Daily rewards are locked."; return false; }
+        DateTime now = DateTime.UtcNow;
+        DailyRewardProgress previous = CurrentData.dailyRewards;
+        if (!schedule.TryGetReward(previous, now, out int index, out error)) return false;
+        reward = schedule.rewards[index];
+        string cosmetic = (reward.cosmeticId ?? "").Trim();
+        bool addCosmetic = cosmetic.Length > 0 && !IsCosmeticUnlocked(cosmetic);
+        long gold = (long)reward.gold + (cosmetic.Length > 0 && !addCosmetic ? reward.ownedCosmeticGold : 0);
+        if ((long)CurrentData.gold + gold > int.MaxValue || (long)CurrentData.lifetimeGoldEarned + gold > int.MaxValue ||
+            (long)CurrentData.exp + reward.exp > int.MaxValue || (long)CurrentData.lifetimeExpEarned + reward.exp > int.MaxValue)
+        { error = "Currency limit reached."; return false; }
+        int oldGold = CurrentData.gold, oldExp = CurrentData.exp;
+        int oldLifetimeGold = CurrentData.lifetimeGoldEarned, oldLifetimeExp = CurrentData.lifetimeExpEarned;
+        CurrentData.gold += (int)gold;
+        CurrentData.exp += reward.exp;
+        CurrentData.lifetimeGoldEarned += (int)gold;
+        CurrentData.lifetimeExpEarned += reward.exp;
+        if (CurrentData.unlockedCosmeticIDs == null) CurrentData.unlockedCosmeticIDs = new List<string>();
+        if (addCosmetic) CurrentData.unlockedCosmeticIDs.Add(cosmetic);
+        CurrentData.dailyRewards = new DailyRewardProgress
+        {
+            lastClaimUtcDate = now.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+            claims = index + 1L
+        };
+        if (!TrySaveGame())
+        {
+            CurrentData.gold = oldGold; CurrentData.exp = oldExp;
+            CurrentData.lifetimeGoldEarned = oldLifetimeGold; CurrentData.lifetimeExpEarned = oldLifetimeExp;
+            CurrentData.dailyRewards = previous;
+            if (addCosmetic) CurrentData.unlockedCosmeticIDs.Remove(cosmetic);
+            error = "Could not save your gift. Please try again.";
+            reward = null;
+            return false;
+        }
+        OnCurrencyChanged?.Invoke();
+        CheckAllAchievements();
+        error = "";
+        return true;
+    }
+
     /// <summary>
     /// Permanently unlocks the overworld minimap. This is safe to call from a
     /// contract reward, tutorial UnityEvent, pickup, or debug control.
