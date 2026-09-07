@@ -50,6 +50,12 @@ public class CinematicDirector : MonoBehaviour
     public Transform playerActor;
     public Animator playerAnimator;
 
+    [Header("Camera Transitions")]
+    [Tooltip("Smoothly move from the current view into each shot. Set to zero for a cut.")]
+    [Min(0f)] public float cameraTransitionDuration = 0.85f;
+    [Tooltip("Smoothly return to the gameplay camera position before restoring control.")]
+    [Min(0f)] public float cameraReturnDuration = 0.65f;
+
     [Tooltip("The exact name of the parameter in your Animator that makes the player walk.")]
     public string animatorWalkParameter = "Speed";
     [Tooltip("The value to set the parameter to (e.g., 1 for walking, 0 for idle).")]
@@ -167,11 +173,18 @@ public class CinematicDirector : MonoBehaviour
 
         foreach (CinematicShot shot in shots)
         {
-            yield return StartCoroutine(PlayShot(shot));
+            if (shot != null) yield return StartCoroutine(PlayShot(shot));
         }
 
         if (cinematicCamera != null)
         {
+            Vector3 returnPosition = originalCamParent != null
+                ? originalCamParent.TransformPoint(originalCamLocalPos) : originalCamLocalPos;
+            Quaternion returnRotation = originalCamParent != null
+                ? originalCamParent.rotation * originalCamLocalRot : originalCamLocalRot;
+            if (bridgeInfoCanvas != null) bridgeInfoCanvas.SetActive(false);
+            if (playerAnimator != null && shotHasWalked) SetWalkAnimation(false);
+            yield return BlendCamera(returnPosition, returnRotation, cameraReturnDuration);
             cinematicCamera.transform.SetParent(originalCamParent);
             cinematicCamera.transform.localPosition = originalCamLocalPos;
             cinematicCamera.transform.localRotation = originalCamLocalRot;
@@ -334,6 +347,7 @@ public class CinematicDirector : MonoBehaviour
 
     private IEnumerator PlayShot(CinematicShot shot)
     {
+        if (cinematicCamera == null) yield break;
         float elapsed = 0f;
 
         Vector3 camStartPos = shot.cameraStartPoint != null ? shot.cameraStartPoint.position : cinematicCamera.transform.position;
@@ -342,12 +356,19 @@ public class CinematicDirector : MonoBehaviour
         Vector3 camEndPos = shot.cameraEndPoint != null ? shot.cameraEndPoint.position : camStartPos;
         Quaternion camEndRot = shot.cameraEndPoint != null ? shot.cameraEndPoint.rotation : camStartRot;
 
-        Vector3 playerStartPos = shot.playerStartPoint != null ? shot.playerStartPoint.position : playerActor.position;
+        Vector3 playerStartPos = shot.playerStartPoint != null ? shot.playerStartPoint.position
+            : playerActor != null ? playerActor.position : Vector3.zero;
         Vector3 playerEndPos = shot.playerWalkTarget != null ? shot.playerWalkTarget.position : playerStartPos;
 
         float fixedPlayerHeight = playerStartPos.y;
 
-        if (shot.playerStartPoint != null) playerActor.position = playerStartPos;
+        // Transition time is separate from the shot, so the authored movement
+        // still gets its full duration and the info panel does not flash early.
+        if (bridgeInfoCanvas != null) bridgeInfoCanvas.SetActive(false);
+        if (playerAnimator != null) SetWalkAnimation(false);
+        yield return BlendCamera(camStartPos, camStartRot, cameraTransitionDuration);
+
+        if (shot.playerStartPoint != null && playerActor != null) playerActor.position = playerStartPos;
 
         bool needsWalking = shot.playWalkAnimation && playerAnimator != null && shot.playerWalkTarget != null;
         if (needsWalking) shotHasWalked = true;
@@ -430,6 +451,30 @@ public class CinematicDirector : MonoBehaviour
         {
             yield return new WaitForSeconds(shot.postShotDelay);
         }
+    }
+
+    private IEnumerator BlendCamera(Vector3 destination, Quaternion rotation, float duration)
+    {
+        if (cinematicCamera == null) yield break;
+        Transform cameraTransform = cinematicCamera.transform;
+        Vector3 start = cameraTransform.position;
+        Quaternion startRotation = cameraTransform.rotation;
+        if (Vector3.SqrMagnitude(start - destination) > 0.000001f ||
+            Quaternion.Angle(startRotation, rotation) > 0.01f)
+        {
+            float elapsed = 0f;
+            while (elapsed < duration && cinematicCamera != null)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float t = Mathf.Clamp01(elapsed / duration);
+                t = t * t * (3f - 2f * t);
+                cameraTransform.SetPositionAndRotation(
+                    Vector3.Lerp(start, destination, t),
+                    Quaternion.Slerp(startRotation, rotation, t));
+                yield return null;
+            }
+        }
+        if (cinematicCamera != null) cameraTransform.SetPositionAndRotation(destination, rotation);
     }
 
     private void SetWalkAnimation(bool isWalking)

@@ -13,6 +13,7 @@ using UnityEngine.UI;
 /// MinimapPanel and MinimapCamera receives the same behaviour.
 /// </summary>
 [DisallowMultipleComponent]
+[DefaultExecutionOrder(100)] // Project markers after MinimapFollow moves the camera.
 public sealed class ExpandedMinimapController : MonoBehaviour
 {
     private sealed class MarkerView
@@ -55,6 +56,14 @@ public sealed class ExpandedMinimapController : MonoBehaviour
     [Header("Location Actions")]
     [Tooltip("Applied only when a Build Location does not have an explicit Fast Travel Target.")]
     [SerializeField] private Vector3 fallbackFastTravelOffset = new Vector3(0f, 1f, 0f);
+
+    [Header("Fast Travel Motion")]
+    [SerializeField, Min(0.05f)] private float fastTravelFocusDuration = 0.25f;
+    [SerializeField, Min(0.05f)] private float fastTravelMinimizeDuration = 0.65f;
+    private Image worldTravelFade;
+    private bool isFastTraveling;
+    private Coroutine fastTravelRoutine;
+    private PlayerLook fastTravelPlayerLook;
 
     private readonly List<MarkerView> markers = new List<MarkerView>();
     private RectTransform markerLayer;
@@ -151,6 +160,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
     private void OnDestroy()
     {
+        ClearWorldTravelFade();
         if (enlargeButton != null)
             enlargeButton.onClick.RemoveListener(ToggleExpanded);
 
@@ -158,6 +168,18 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         if (minimapFollow != null)
             minimapFollow.SetManualView(false);
         RestoreCompactRenderTexture();
+    }
+
+    private void OnDisable()
+    {
+        ClearWorldTravelFade();
+        if (!isFastTraveling) return;
+        if (fastTravelRoutine != null) StopCoroutine(fastTravelRoutine);
+        isFastTraveling = false;
+        fastTravelRoutine = null;
+        fastTravelPlayerLook = null;
+        RestorePlayerInput();
+        if (minimapFollow != null) minimapFollow.SetManualView(false);
     }
 
     private void Update()
@@ -173,7 +195,13 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (!isExpanded || isAnimating) return;
+        // Gravity and the follow target can keep moving while input is locked.
+        // Maintain the normal orbit pose throughout arrival, not just once at teleport.
+        if (isFastTraveling && fastTravelPlayerLook != null)
+            fastTravelPlayerLook.SnapToFollowTarget();
+        // Compact markers must track world positions too, especially after a
+        // teleport. Otherwise the last projected position follows the HUD.
+        if (isAnimating) return;
         UpdateMarkerPositions();
     }
 
@@ -185,6 +213,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
     public void OpenExpandedMap()
     {
+        if (isFastTraveling) return;
         ResolveReferencesAndBuildUI();
         if (isExpanded || isAnimating || minimapPanel == null ||
             mapImage == null || minimapCamera == null ||
@@ -215,6 +244,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
     public void CloseExpandedMap()
     {
+        if (isFastTraveling) return;
         if (!isExpanded || isAnimating) return;
         StartMapAnimation(false);
     }
@@ -689,7 +719,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
     private void PerformSelectedLocationAction()
     {
-        if (selectedLocation == null) return;
+        if (selectedLocation == null || isFastTraveling || isAnimating) return;
 
         if (IsLocationCompleted(selectedLocation))
             FastTravelToLocation(selectedLocation);
@@ -718,6 +748,96 @@ public sealed class ExpandedMinimapController : MonoBehaviour
     }
 
     private void FastTravelToLocation(BuildLocation location)
+    {
+        if (location == null || isFastTraveling) return;
+        fastTravelRoutine = StartCoroutine(AnimateFastTravel(location));
+    }
+
+    private IEnumerator AnimateFastTravel(BuildLocation location)
+    {
+        isFastTraveling = true;
+        CaptureAndDisablePlayerInput();
+        CreateWorldTravelFade();
+        // Focus the destination while the map is still large. Teleport before
+        // minimizing so there is no world/camera jump after the map settles.
+        if (isExpanded && location != null)
+        {
+            Transform target = location.fastTravelTarget != null ? location.fastTravelTarget
+                : location.navigationTarget != null ? location.navigationTarget.transform : location.transform;
+            Vector3 start = minimapCamera.transform.position;
+            Vector3 destination = target.position;
+            destination.y = start.y;
+            float elapsed = 0f;
+            while (elapsed < fastTravelFocusDuration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float t = SmoothTravelTime(elapsed / fastTravelFocusDuration);
+                SetWorldTravelFade(t);
+                minimapCamera.transform.position = Vector3.Lerp(start, destination, t);
+                UpdateMarkerPositions();
+                yield return null;
+            }
+        }
+        SetWorldTravelFade(1f);
+        // Give the fully covered world a rendered frame before moving the player.
+        yield return null;
+        TeleportToLocation(location);
+        // Keep the cover opaque for a frame with the destination camera ready.
+        yield return null;
+        if (minimapFollow != null && minimapFollow.player != null)
+        {
+            compactCameraPosition = minimapFollow.player.position;
+            compactCameraPosition.y = minimapFollow.mapHeight;
+            compactCameraRotation = Quaternion.Euler(90f,
+                minimapFollow.rotateWithPlayer ? minimapFollow.player.eulerAngles.y : 0f, 0f);
+        }
+        if (isExpanded)
+        {
+            StartMapAnimation(false);
+            while (isAnimating) yield return null;
+        }
+        if (minimapFollow != null) minimapFollow.SnapToPlayer();
+        UpdateMarkerPositions();
+        yield return null;
+        ClearWorldTravelFade();
+        isFastTraveling = false;
+        fastTravelRoutine = null;
+        RestorePlayerInput();
+        fastTravelPlayerLook = null;
+    }
+
+    private void CreateWorldTravelFade()
+    {
+        ClearWorldTravelFade();
+        if (owningCanvas == null) return;
+        // Within the HUD canvas, behind every UI child: covers the world but
+        // never covers the minimap, including while its rect is animating.
+        Transform root = owningCanvas.rootCanvas.transform;
+        GameObject cover = new GameObject("FastTravelWorldFade", typeof(RectTransform), typeof(Image));
+        cover.layer = root.gameObject.layer;
+        cover.transform.SetParent(root, false);
+        cover.transform.SetAsFirstSibling();
+        Stretch(cover.GetComponent<RectTransform>(), Vector2.zero, Vector2.zero);
+        worldTravelFade = cover.GetComponent<Image>();
+        worldTravelFade.raycastTarget = false;
+        SetWorldTravelFade(0f);
+    }
+
+    private void SetWorldTravelFade(float alpha)
+    {
+        if (worldTravelFade != null)
+            worldTravelFade.color = new Color(0f, 0f, 0f, Mathf.Clamp01(alpha));
+    }
+
+    private void ClearWorldTravelFade()
+    {
+        if (worldTravelFade == null) return;
+        worldTravelFade.gameObject.SetActive(false);
+        Destroy(worldTravelFade.gameObject);
+        worldTravelFade = null;
+    }
+
+    private void TeleportToLocation(BuildLocation location)
     {
         if (location == null) return;
 
@@ -762,13 +882,20 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         player.SetPositionAndRotation(destination, target.rotation);
         Physics.SyncTransforms();
 
+        // Look input remains locked throughout travel, which also suspends the
+        // normal camera LateUpdate. Refresh it explicitly before revealing the world.
+        PlayerLook playerLook = player.GetComponent<PlayerLook>();
+        if (playerLook == null && inputManager != null)
+            playerLook = inputManager.GetComponent<PlayerLook>();
+        fastTravelPlayerLook = playerLook;
+        if (playerLook != null) playerLook.SnapToFollowTarget();
+
         if (restoreCharacterController) characterController.enabled = true;
 
         navigationDestination = null;
         if (PathGuider.Instance != null)
             PathGuider.Instance.SetNewWaypoints(new List<GuiderWaypoint>());
 
-        CloseExpandedMap();
     }
 
     private void BuildWorldBoundsAndFraming()
@@ -1018,12 +1145,15 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         Quaternion toCameraRotation = opening ? Quaternion.Euler(90f, 0f, 0f) : compactCameraRotation;
         float toCameraSize = opening ? framedSize : compactOrthographicSize;
 
+        bool travelMinimize = isFastTraveling && !opening;
+        float duration = travelMinimize ? fastTravelMinimizeDuration : animationDuration;
         float elapsed = 0f;
-        while (elapsed < animationDuration)
+        while (elapsed < duration)
         {
             elapsed += Time.unscaledDeltaTime;
-            float normalized = Mathf.Clamp01(elapsed / animationDuration);
-            float t = animationCurve.Evaluate(normalized);
+            float normalized = Mathf.Clamp01(elapsed / duration);
+            float t = travelMinimize ? SmoothTravelTime(normalized) : animationCurve.Evaluate(normalized);
+            if (travelMinimize) SetWorldTravelFade(1f - t);
 
             minimapPanel.anchorMin = Vector2.LerpUnclamped(fromAnchorMin, toAnchorMin, t);
             minimapPanel.anchorMax = Vector2.LerpUnclamped(fromAnchorMax, toAnchorMax, t);
@@ -1058,6 +1188,13 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         FinishClosingMap();
     }
 
+    private static float SmoothTravelTime(float t)
+    {
+        t = Mathf.Clamp01(t);
+        // Zero velocity and acceleration at both ends for a gentle settle.
+        return t * t * t * (t * (6f * t - 15f) + 10f);
+    }
+
     private void FinishClosingMap()
     {
         isExpanded = false;
@@ -1086,6 +1223,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
     private void CaptureAndDisablePlayerInput()
     {
+        if (inputCaptured) return;
         inputManager = FindObjectOfType<InputManager>();
         if (inputManager == null) return;
 
@@ -1098,6 +1236,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
     private void RestorePlayerInput()
     {
+        if (isFastTraveling) return;
         if (!inputCaptured) return;
         if (inputManager != null)
         {

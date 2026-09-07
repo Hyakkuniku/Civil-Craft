@@ -72,6 +72,15 @@ public class PlayerLook : MonoBehaviour
         // DO NOT move the camera if Build Mode is active and took control!
         if (!canLook || cam == null || followTarget == null) return;
 
+        SnapToFollowTarget();
+    }
+
+    /// <summary>Refresh the orbit camera after teleporting, even while input is locked.</summary>
+    public void SnapToFollowTarget()
+    {
+        if (cam == null) return;
+        if (followTarget == null) followTarget = transform;
+
         // 1. Calculate desired rotation
         Quaternion rotation = Quaternion.Euler(pitch, yaw, 0);
 
