@@ -196,7 +196,8 @@ public class AchievementRowUI : MonoBehaviour
             rewardText.color = new Color(0.30f, 0.22f, 0.14f, 1f);
         }
 
-        Transform divider = transform.Find("GameObject");
+        // Keep the legacy name as a fallback for scenes/prefabs not yet renamed.
+        Transform divider = transform.Find("RowDivider") ?? transform.Find("GameObject");
         if (divider != null)
         {
             ConfigureRect(divider as RectTransform,
