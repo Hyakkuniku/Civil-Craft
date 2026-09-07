@@ -129,6 +129,8 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     public float deleteSnapRadiusPixels = 50f; 
     [Min(0.01f)]
     public float nodeSnapRadiusWorld = 1.2f;
+    [Tooltip("Auto-draw reuses existing nodes this close to its span, instead of making nearly overlapping disconnected joints.")]
+    [Min(0.01f)] public float autoDrawNodeSnapTolerance = 0.15f;
     [Min(0f)]
     [Tooltip("Prevents nodes from another bridge/build plane being selected when their X/Y positions overlap.")]
     public float nodeSnapDepthTolerance = 1f;
@@ -1897,11 +1899,14 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 !p.gameObject.activeInHierarchy ||
                 (p.OwnerLocation != null && p.OwnerLocation != location)) continue;
             Vector3 projected = GetClosestPointOnLineSegment(p.transform.position, start, end);
-            if (Vector3.Distance(projected, p.transform.position) < 0.01f &&
+            if (Vector3.Distance(projected, p.transform.position) <= Mathf.Max(0.01f, autoDrawNodeSnapTolerance) &&
+                Mathf.Abs(projected.z - p.transform.position.z) <= nodeSnapDepthTolerance &&
                 Vector3.Distance(projected, start) > 0.05f && Vector3.Distance(projected, end) > 0.05f)
                 stops.Add(p);
         }
-        stops.Sort((a, b) => (a.transform.position - start).sqrMagnitude.CompareTo((b.transform.position - start).sqrMagnitude));
+        Vector3 spanDirection = (end - start).normalized;
+        stops.Sort((a, b) => Vector3.Dot(a.transform.position - start, spanDirection)
+            .CompareTo(Vector3.Dot(b.transform.position - start, spanDirection)));
         stops.Add(destination);
         foreach (Point stop in stops)
         {
@@ -1940,7 +1945,10 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             if (Vector3.Distance(ClampToEnvironment(positions[i - 1], positions[i]), positions[i]) > 0.05f)
                 error = "Auto draw is blocked by terrain.";
 
-        float cost = length * material.costPerMeter * (material.isDualBeam ? 2f : 1f);
+        float plannedLength = 0f;
+        for (int i = 1; i < positions.Count; i++)
+            plannedLength += Vector3.Distance(positions[i - 1], positions[i]);
+        float cost = plannedLength * material.costPerMeter * (material.isDualBeam ? 2f : 1f);
         if (BuildUIController.Instance != null &&
             cost > BuildUIController.Instance.maxBudget - BuildUIController.Instance.GetTotalCost() + 0.01f)
             error = "Not enough bridge budget for this span.";
@@ -1948,6 +1956,11 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (director != null && !director.CanAutoDrawSegments(material, positions))
             error = "Follow the tutorial's individual guide segments for this span.";
 
+        // CancelCreation owns the temporary start node. Transfer it into the
+        // auto-draw transaction before clearing the preview, or Destroy removes
+        // our first joint on the next frame while the animation is running.
+        bool ownsOrigin = error == null && createdStartPoint;
+        if (ownsOrigin) createdStartPoint = false;
         CancelCreation();
         if (error != null)
         {
@@ -1955,6 +1968,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             return true;
         }
         pendingAutoDraw = new HistoryAction { isBuildEvent = true };
+        if (ownsOrigin) pendingAutoDraw.affectedObjects.Add(origin.gameObject);
         autoDrawRoutine = StartCoroutine(AnimateAnchorSpan(material, positions, nodes, location));
         return true;
     }

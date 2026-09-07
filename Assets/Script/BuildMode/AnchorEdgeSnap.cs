@@ -149,6 +149,34 @@ public sealed class AnchorEdgeSnap : MonoBehaviour
         }
     }
 
+    /// <summary>Measure an edge without changing the anchor or its Point flags.</summary>
+    public bool TryPreviewEdge(out Vector3 position, out Collider edgeSurface, out string report)
+    {
+        edgeSurface = null;
+        position = transform.position;
+        if (Application.isPlaying || !gameObject.scene.IsValid())
+        {
+            report = "Edge layout is only available for scene objects outside Play Mode.";
+            return false;
+        }
+        if (!TryFindClosestEdge(position, out EdgeResult edge))
+        {
+            report = $"No edge near {name}. Move the anchor nearer the cliff or increase its Horizontal Search Radius.";
+            return false;
+        }
+        float sampleX = edge.edgeX + edge.landDirectionX * Mathf.Max(edgeInsetOntoLand, sampleSpacing * 0.5f);
+        if (!TrySampleSurface(sampleX, position.z, position.y, out SurfaceSample surface))
+        {
+            report = $"Could not measure the land surface for {name}.";
+            return false;
+        }
+        position.x = edge.edgeX + edge.landDirectionX * edgeInsetOntoLand;
+        position.y = surface.height - roadSurfaceAboveAnchor;
+        edgeSurface = surface.collider;
+        report = "Measured collider edge including the anchor's land inset.";
+        return true;
+    }
+
     private bool TryFindClosestEdge(Vector3 origin, out EdgeResult closestEdge)
     {
         closestEdge = default;
@@ -231,7 +259,7 @@ public sealed class AnchorEdgeSnap : MonoBehaviour
             if (hit.collider.transform == transform || hit.collider.transform.IsChildOf(transform)) continue;
             if (hit.collider.GetComponentInParent<Bar>() != null) continue;
 
-            sample = new SurfaceSample { valid = true, x = x, height = hit.point.y };
+            sample = new SurfaceSample { valid = true, x = x, height = hit.point.y, collider = hit.collider };
             return true;
         }
 
@@ -276,6 +304,7 @@ public sealed class AnchorEdgeSnap : MonoBehaviour
 
     private struct SurfaceSample
     {
+        public Collider collider;
         public bool valid;
         public float x;
         public float height;

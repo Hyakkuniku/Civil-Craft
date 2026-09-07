@@ -12,6 +12,7 @@ public class ReceiptRowUI : MonoBehaviour
 
     public void Setup(BridgeMaterialSO mat, float billableLength)
     {
+        if (mat == null) return;
         if (transform.parent != null && transform.parent.name == "Receipt Items")
         {
             SetupPaperRow(mat, billableLength);
@@ -23,11 +24,10 @@ public class ReceiptRowUI : MonoBehaviour
             iconImage.sprite = mat.materialIcon;
         }
         
-        // 2. Set the Name (and clean up the string so it looks nice!)
+        // Use the same player-facing name as the material UI and almanac.
         if (materialNameText != null) 
         {
-            string cleanName = mat.name.Replace("Material", "").Replace("SO", "").Trim();
-            materialNameText.text = cleanName;
+            materialNameText.text = mat.GetDisplayName();
         }
 
         // 3. Do the Math
@@ -54,7 +54,7 @@ public class ReceiptRowUI : MonoBehaviour
         var element = GetComponent<LayoutElement>();
         if (element == null) element = gameObject.AddComponent<LayoutElement>();
         element.ignoreLayout = false; element.minHeight = 96; element.preferredHeight = 96; element.flexibleHeight = 0;
-        string title = mat.name.Replace("Material", "").Replace("SO", "").Trim();
+        string title = mat.GetDisplayName();
         CompletionReceiptLayout.Label(transform,"Item",title,0,.49f,.62f,1,28,font);
         CompletionReceiptLayout.Label(transform,"Amount",$"₱{length * mat.costPerMeter:N0}",.63f,.49f,1,1,28,font,TextAlignmentOptions.MidlineRight);
         CompletionReceiptLayout.Label(transform,"Quantity and rate",$"{length:F1} m × ₱{mat.costPerMeter:N0}/m",0,.12f,1,.48f,23,font);
