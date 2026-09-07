@@ -12597,6 +12597,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3311f20eb2c4ee449ace8becae8cf8c7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  earnedStarSprite: {fileID: 21300000, guid: d84bf842b76e99c45abe79162e61c381, type: 3}
+  unearnedStarSprite: {fileID: 21300000, guid: 91df24aafd1b17947afc922622f41840, type: 3}
   levelCompletePanel: {fileID: 6079639294584877257}
   feedbackText: {fileID: 7462857800497887646}
   costText: {fileID: 8324127656390653244}

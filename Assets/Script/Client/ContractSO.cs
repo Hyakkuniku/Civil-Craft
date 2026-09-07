@@ -77,6 +77,12 @@ public class ContractSO : ScriptableObject
                string.Equals(name, normalized, System.StringComparison.Ordinal);
     }
 
+    [Header("Bridge Star Grading")]
+    [Tooltip("Maximum fraction of the budget used to earn the efficiency star.")]
+    [Range(0f, 1f)] public float efficiencyStarBudgetRatio = 0.85f;
+    [Tooltip("Maximum displayed peak stress percentage for the strength star. No parts may break.")]
+    [Range(0f, 100f)] public float strengthStarMaxStress = 60f;
+
     [Header("Map Progression")]
     [Tooltip("The world map this contract belongs to. Used by map-completion achievements.")]
     public ContractMap contractMap = ContractMap.CanyonCrossing;

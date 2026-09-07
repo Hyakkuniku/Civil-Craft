@@ -209,6 +209,26 @@ internal sealed class CompletionReceiptPaper : MaskableGraphic
 }
 
 [DefaultExecutionOrder(-30)] 
+// Vector stars do not depend on a font containing the star glyph on Android.
+internal sealed class CompletionStarGraphic : MaskableGraphic
+{
+    protected override void OnPopulateMesh(VertexHelper vh)
+    {
+        vh.Clear();
+        Rect rect = GetPixelAdjustedRect();
+        Vector2 center = rect.center;
+        float radius = Mathf.Min(rect.width, rect.height) * 0.48f;
+        vh.AddVert(center, color, Vector2.zero);
+        for (int i = 0; i < 10; i++)
+        {
+            float angle = (90f - i * 36f) * Mathf.Deg2Rad;
+            float r = radius * (i % 2 == 0 ? 1f : 0.45f);
+            vh.AddVert(center + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * r, color, Vector2.zero);
+        }
+        for (int i = 0; i < 10; i++) vh.AddTriangle(0, i + 1, (i + 1) % 10 + 1);
+    }
+}
+
 public class LevelCompleteManager : MonoBehaviour
 {
     public static LevelCompleteManager Instance { get; private set; }
@@ -231,6 +251,9 @@ public class LevelCompleteManager : MonoBehaviour
     [Tooltip("Source font used to create the receipt's dynamic TextMeshPro font.")]
     public Font receiptSourceFont;
     public Sprite receiptBackground;
+    [Header("Star Artwork")]
+    public Sprite earnedStarSprite;
+    public Sprite unearnedStarSprite;
     public TMP_FontAsset ReceiptFont { get; private set; }
     public Transform receiptContentParent; 
     public GameObject receiptRowPrefab;    
@@ -265,6 +288,11 @@ public class LevelCompleteManager : MonoBehaviour
 
     private float lastFinalCost = 0f;
     private float lastPeakStress = 0f;
+    private ContractStarResult lastStarResult;
+    private readonly Graphic[] starIcons = new Graphic[3];
+    private readonly TextMeshProUGUI[] starLabels = new TextMeshProUGUI[3];
+    private Coroutine starAnimation;
+    private TextMeshProUGUI rewardStatusText;
     private TextMeshProUGUI receiptBalanceText;
     private TextMeshProUGUI receiptStampText;
 
@@ -462,6 +490,9 @@ public class LevelCompleteManager : MonoBehaviour
 
     public void ResetCompletionState()
     {
+        lastStarResult = null;
+        if (starAnimation != null) StopCoroutine(starAnimation);
+        starAnimation = null;
         levelAlreadyCompleted = false;
         currentSimulationFrames = 0;
     }
@@ -692,6 +723,12 @@ public class LevelCompleteManager : MonoBehaviour
             peakStress = cachedPhysicsManager.GetPeakDisplayedBridgeStress() * 100f;
 
         lastPeakStress = peakStress;
+        lastStarResult = ContractStarResult.Grade(true, finalCost, maxBudget,
+            currentContract != null ? currentContract.efficiencyStarBudgetRatio : 0.85f,
+            peakStress, currentContract != null ? currentContract.strengthStarMaxStress : 60f,
+            cachedPhysicsManager != null && cachedPhysicsManager.HadBrokenPartsThisRun,
+            cachedPhysicsManager != null);
+        ShowStarResults(currentContract);
 
         int calculatedGold = 0;
         int calculatedExp = 0;
@@ -819,9 +856,66 @@ public class LevelCompleteManager : MonoBehaviour
             receiptStampText.color = finalCost > maxBudget ? new Color32(164, 62, 45, 255) : new Color32(76, 110, 47, 255);
         }
         // Legacy reward messages contain bright rich-text colors intended for black panels.
+        bool tutorialResult = currentContract != null && currentContract.IsTutorialForCurrentPlayer();
+        bool paidResult = currentContract != null && IsContractPaid(currentContract.ContractID);
+        if (rewardStatusText != null)
+            rewardStatusText.text = tutorialResult ? "TUTORIAL" : paidResult ? "ALREADY CLAIMED" : "PENDING CLAIM";
+        bool earnsRewards = !tutorialResult && !paidResult;
+        if (baseRewardText != null) baseRewardText.text = $"BASE\n{(earnsRewards ? baseGoldReward : 0):N0}";
+        if (bonusText != null) bonusText.text = $"BONUS\n+{(earnsRewards ? bonusGold : 0):N0}";
+        if (penaltyText != null) penaltyText.text = $"DEDUCTIONS\n-{(earnsRewards ? budgetPenalty + failPenalty : 0):N0}";
+        if (goldEarnedText != null) goldEarnedText.text = $"TOTAL  {calculatedGold:N0} Gold";
+        if (expEarnedText != null) expEarnedText.text = $"+{calculatedExp:N0} EXP";
+        if (feedbackText != null && paidResult) feedbackText.text = "Redesign complete. Best stars kept.";
+        if (feedbackText != null && tutorialResult) feedbackText.text = "Tutorial complete. Great job!";
         foreach (var label in new[] { feedbackText, baseRewardText, bonusText, penaltyText, goldEarnedText, expEarnedText })
             if (label != null) label.text = label.text.Replace("<color=green>", "<color=#4C6E2F>")
                 .Replace("<color=yellow>", "<color=#9B631B>").Replace("<color=red>", "<color=#A43E2D>");
+    }
+
+    private void ShowStarResults(ContractSO contract)
+    {
+        if (lastStarResult == null || starIcons[0] == null) return;
+        int best = contract != null && PlayerDataManager.Instance != null
+            ? PlayerDataManager.Instance.GetContractStars(contract.ContractID) : 0;
+        starLabels[0].text = $"<b>{lastStarResult.Stars}/3 earned</b>\nSaved best: {best}/3";
+        starLabels[1].text = $"<b>₱{lastStarResult.totalCost:N0}</b>\nGoal: ≤ ₱{lastStarResult.costTarget:N0}";
+        starLabels[2].text = $"<b>{lastStarResult.peakStress:0.#}% peak</b>\nGoal: ≤ {lastStarResult.stressTarget:0.#}%\n{(lastStarResult.hadBrokenParts ? "Parts broken" : "No broken parts")}";
+        if (starAnimation != null) StopCoroutine(starAnimation);
+        starAnimation = StartCoroutine(RevealStars(lastStarResult));
+    }
+
+    private IEnumerator RevealStars(ContractStarResult result)
+    {
+        Color muted = new Color32(155,143,119,255);
+        Color earned = new Color32(225,154,31,255);
+        foreach (var star in starIcons)
+        {
+            if (star is Image image) image.sprite = unearnedStarSprite;
+            star.color = star is Image ? Color.white : muted;
+            star.rectTransform.localScale = Vector3.one;
+        }
+        yield return new WaitForSecondsRealtime(0.25f);
+        bool[] awarded = { result.completed, result.efficient, result.strong };
+        for (int i = 0; i < starIcons.Length; i++)
+        {
+            if (!awarded[i]) continue;
+            bool usesArtwork = starIcons[i] is Image;
+            if (starIcons[i] is Image image) image.sprite = earnedStarSprite;
+            float elapsed = 0f;
+            while (elapsed < 0.28f)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float t = Mathf.Clamp01(elapsed / 0.28f);
+                starIcons[i].color = usesArtwork ? Color.white : Color.Lerp(muted, earned, t);
+                starIcons[i].rectTransform.localScale = Vector3.one * (1f + Mathf.Sin(t * Mathf.PI) * 0.24f);
+                yield return null;
+            }
+            starIcons[i].rectTransform.localScale = Vector3.one;
+            starIcons[i].color = usesArtwork ? Color.white : earned;
+            yield return new WaitForSecondsRealtime(0.08f);
+        }
+        starAnimation = null;
     }
 
     private void BuildReceiptLayout()
@@ -848,9 +942,33 @@ public class LevelCompleteManager : MonoBehaviour
         safe.gameObject.AddComponent<CompletionSafeArea>();
         var frame = CompletionReceiptLayout.Panel(safe, "Wood Frame", .04f,.045f,.96f,.955f, new Color32(90,55,31,255));
         var paper = CompletionReceiptLayout.Panel(frame, "Cream Panel", .004f,.007f,.996f,.993f, new Color32(248,233,204,255));
-        CompletionReceiptLayout.Label(paper,"Title","BRIDGE COMPLETE",.025f,.855f,.59f,.975f,60,font,TextAlignmentOptions.Center);
-        CompletionReceiptLayout.Label(paper,"Subtitle","Bridge held successfully",.025f,.807f,.59f,.86f,28,font,TextAlignmentOptions.Center);
-        var photoSlot = CompletionReceiptLayout.Box(paper,"Bridge Photo Slot",.025f,.32f,.59f,.805f);
+        CompletionReceiptLayout.Label(paper,"Title","BRIDGE COMPLETE",.025f,.905f,.59f,.985f,54,font,TextAlignmentOptions.Center);
+        var starRow = CompletionReceiptLayout.Box(paper,"Contract Stars",.025f,.74f,.59f,.90f);
+        string[] criteria = { "COMPLETION", "EFFICIENCY", "STRENGTH" };
+        for (int i = 0; i < 3; i++)
+        {
+            var column = CompletionReceiptLayout.Panel(starRow,"Star Criterion " + (i + 1),
+                i/3f+.006f,0,(i+1)/3f-.006f,1,new Color32(239,220,184,255));
+            var icon = CompletionReceiptLayout.Box(column,"Star",.14f,.79f,.14f,.79f);
+            icon.sizeDelta = new Vector2(44f,44f);
+            CompletionReceiptLayout.Label(column,"Criterion",criteria[i],.26f,.66f,.97f,.94f,22,font);
+            var rule = CompletionReceiptLayout.Box(column,"Divider",.07f,.62f,.93f,.62f);
+            rule.sizeDelta = new Vector2(0,1.5f);
+            rule.gameObject.AddComponent<Image>().color = new Color32(161,126,82,110);
+            if (earnedStarSprite != null && unearnedStarSprite != null)
+            {
+                Image starImage = icon.gameObject.AddComponent<Image>();
+                starImage.sprite = unearnedStarSprite;
+                starImage.preserveAspect = true;
+                starImage.color = Color.white;
+                starIcons[i] = starImage;
+            }
+            else starIcons[i] = icon.gameObject.AddComponent<CompletionStarGraphic>();
+            starIcons[i].raycastTarget = false;
+            starLabels[i] = CompletionReceiptLayout.Label(column,"Requirement","",.05f,.035f,.95f,.60f,24,font,TextAlignmentOptions.Center);
+            starLabels[i].fontSizeMin = 22f;
+        }
+        var photoSlot = CompletionReceiptLayout.Box(paper,"Bridge Photo Slot",.025f,.365f,.59f,.725f);
         var photoFrame = CompletionReceiptLayout.Panel(photoSlot,"Bridge Photo Frame",0,0,1,1, new Color32(131,105,78,255));
         // Fit the entire frame, not the image inside it: no thick pillarbox sidebars.
         var aspect = photoFrame.gameObject.AddComponent<AspectRatioFitter>();
@@ -863,14 +981,18 @@ public class LevelCompleteManager : MonoBehaviour
         var photo = CompletionReceiptLayout.Box(photoClip,"Bridge Photo",0,0,1,1);
         bridgePhotoDisplay = photo.gameObject.AddComponent<RawImage>();
         bridgePhotoDisplay.raycastTarget = false;
-        var stress = CompletionReceiptLayout.Panel(paper,"Peak Stress Card",.025f,.225f,.59f,.303f,new Color32(229,232,204,255));
-        stressText = CompletionReceiptLayout.Label(stress,"Peak Stress","Peak Bridge Stress: 0%",.035f,.08f,.965f,.92f,36,font,TextAlignmentOptions.Center);
-        var rewards = CompletionReceiptLayout.Box(paper,"Reward Summary",.03f,.132f,.59f,.212f);
-        baseRewardText = CompletionReceiptLayout.Label(rewards,"Base Reward","",0,.52f,.32f,1,21,font);
-        bonusText = CompletionReceiptLayout.Label(rewards,"Bonus","",.33f,.52f,.66f,1,21,font);
-        penaltyText = CompletionReceiptLayout.Label(rewards,"Penalty","",.67f,.52f,1,1,21,font);
-        goldEarnedText = CompletionReceiptLayout.Label(rewards,"Gold Earnings","",0,0,.66f,.5f,23,font);
-        expEarnedText = CompletionReceiptLayout.Label(rewards,"EXP Earnings","",.67f,0,1,.5f,23,font);
+        var stress = CompletionReceiptLayout.Panel(paper,"Peak Stress Card",.025f,.315f,.59f,.358f,new Color32(229,232,204,255));
+        stressText = CompletionReceiptLayout.Label(stress,"Peak Stress","Peak Bridge Stress: 0%",.035f,0,.965f,1,28,font,TextAlignmentOptions.Center);
+        var rewards = CompletionReceiptLayout.Panel(paper,"Reward Summary",.025f,.13f,.59f,.30f,new Color32(243,226,195,255));
+        CompletionReceiptLayout.Label(rewards,"Heading","REWARDS",.035f,.77f,.43f,.98f,24,font);
+        rewardStatusText = CompletionReceiptLayout.Label(rewards,"Claim Status","",.44f,.77f,.965f,.98f,22,font,TextAlignmentOptions.MidlineRight);
+        CompletionReceiptLayout.Divider(rewards,"Rewards Header Divider",.035f,.73f,.965f);
+        baseRewardText = CompletionReceiptLayout.Label(rewards,"Base Reward","",.03f,.29f,.32f,.70f,26,font,TextAlignmentOptions.Center);
+        bonusText = CompletionReceiptLayout.Label(rewards,"Bonus","",.34f,.29f,.65f,.70f,26,font,TextAlignmentOptions.Center);
+        penaltyText = CompletionReceiptLayout.Label(rewards,"Penalty","",.67f,.29f,.97f,.70f,26,font,TextAlignmentOptions.Center);
+        CompletionReceiptLayout.Divider(rewards,"Rewards Total Divider",.035f,.25f,.965f);
+        goldEarnedText = CompletionReceiptLayout.Label(rewards,"Gold Earnings","",.035f,.015f,.69f,.235f,28,font);
+        expEarnedText = CompletionReceiptLayout.Label(rewards,"EXP Earnings","",.70f,.015f,.965f,.235f,28,font,TextAlignmentOptions.MidlineRight);
         var receipt = CompletionReceiptLayout.Box(paper,"Material Receipt",.62f,.12f,.98f,.975f);
         if (receiptBackground != null)
         {
@@ -924,6 +1046,7 @@ public class LevelCompleteManager : MonoBehaviour
 
     public void SaveAndBakeBridge()
     {
+        if (!levelAlreadyCompleted || lastStarResult == null || !lastStarResult.completed) return;
         ContractSO completedContract = activeContract;
         BuildLocation completedLocation = GameManager.Instance != null
             ? GameManager.Instance.ActiveBuildLocation
@@ -975,7 +1098,8 @@ public class LevelCompleteManager : MonoBehaviour
             completedLocation.bakedPoints,
             completedLocation.bakedBars,
             lastFinalCost,
-            lastPeakStress);
+            lastPeakStress,
+            lastStarResult);
 
         if (!bridgeSaved)
         {

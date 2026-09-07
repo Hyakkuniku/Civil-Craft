@@ -1368,7 +1368,22 @@ public class PlayerDataManager : MonoBehaviour
         }
     }
 
-    public bool SaveBridgeData(string contractId, List<Point> points, List<Bar> bars, float totalSpent, float maxStress)
+    public int GetContractStars(string contractId)
+    {
+        int best = 0;
+        if (CurrentData?.savedBridges == null || string.IsNullOrWhiteSpace(contractId)) return best;
+        foreach (SavedBridgeData bridge in CurrentData.savedBridges)
+        {
+            if (bridge == null || !ContractIdentifiersMatch(bridge.contractId, contractId)) continue;
+            // Existing saved bridges prove completion, but not the other historical criteria.
+            best = Mathf.Max(best, bridge.bestStarResult != null ? bridge.bestStarResult.Stars
+                : IsBridgeDataValid(bridge, out _) ? 1 : 0);
+        }
+        return best;
+    }
+
+    public bool SaveBridgeData(string contractId, List<Point> points, List<Bar> bars, float totalSpent, float maxStress,
+        ContractStarResult starResult = null)
     {
         if (CurrentData == null || string.IsNullOrWhiteSpace(contractId) ||
             points == null || bars == null) return false;
@@ -1431,6 +1446,17 @@ public class PlayerDataManager : MonoBehaviour
 
         List<SavedBridgeData> previousRecords = CurrentData.savedBridges.FindAll(entry =>
             entry != null && ContractIdentifiersMatch(entry.contractId, newSave.contractId));
+        newSave.latestStarResult = starResult;
+        newSave.bestStarResult = starResult;
+        foreach (SavedBridgeData previous in previousRecords)
+        {
+            ContractStarResult previousBest = previous.bestStarResult;
+            if (previousBest == null && IsBridgeDataValid(previous, out _))
+                previousBest = new ContractStarResult { completed = true };
+            newSave.bestStarResult = ContractStarResult.KeepBest(previousBest, newSave.bestStarResult);
+        }
+        newSave.starsEarned = newSave.latestStarResult?.Stars ?? 0;
+        newSave.bestStars = newSave.bestStarResult?.Stars ?? 0;
         CurrentData.savedBridges.RemoveAll(entry =>
             entry != null && ContractIdentifiersMatch(entry.contractId, newSave.contractId));
         CurrentData.savedBridges.Add(newSave);

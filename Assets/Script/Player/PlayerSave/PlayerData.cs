@@ -27,12 +27,50 @@ public class SavedBarData
 }
 
 [System.Serializable]
+public class ContractStarResult
+{
+    public bool completed;
+    public bool efficient;
+    public bool strong;
+    public float totalCost;
+    public float peakStress;
+    public float costTarget;
+    public float stressTarget;
+    public bool hadBrokenParts;
+    public int Stars => completed ? 1 + (efficient ? 1 : 0) + (strong ? 1 : 0) : 0;
+
+    public static ContractStarResult KeepBest(ContractStarResult previous, ContractStarResult latest)
+    {
+        return previous != null && (latest == null || previous.Stars >= latest.Stars) ? previous : latest;
+    }
+
+    public static ContractStarResult Grade(bool success, float cost, float budget,
+        float budgetRatio, float stress, float stressLimit, bool broken, bool stressAvailable)
+    {
+        bool validCost = !float.IsNaN(cost) && !float.IsInfinity(cost) && cost >= 0f;
+        bool validStress = stressAvailable && !float.IsNaN(stress) && !float.IsInfinity(stress) && stress >= 0f;
+        float target = budget * Mathf.Clamp01(budgetRatio);
+        return new ContractStarResult {
+            completed = success, efficient = success && validCost && budget > 0f && cost <= target,
+            strong = success && validStress && !broken && stress <= Mathf.Clamp(stressLimit, 0f, 100f),
+            totalCost = cost, peakStress = stress, costTarget = target,
+            stressTarget = Mathf.Clamp(stressLimit, 0f, 100f), hadBrokenParts = broken
+        };
+    }
+}
+
+[System.Serializable]
 public class SavedBridgeData 
 {
     public int schemaVersion = 1;
     public string contractId; 
     public float totalSpent;
     public float maxStress;
+    // Whole attempts, never merged flags from different designs. Legacy saves have null results.
+    public ContractStarResult latestStarResult;
+    public ContractStarResult bestStarResult;
+    public int starsEarned;
+    public int bestStars;
     
     public List<SavedPointData> points = new List<SavedPointData>();
     public List<SavedBarData> bars = new List<SavedBarData>();

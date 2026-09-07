@@ -54,6 +54,8 @@ public class BridgePhysicsManager : MonoBehaviour
     [HideInInspector] public float peakDisplayedStressThisRun = 0f;
     [Tooltip("Peak total structural stress, including dead load. Used for failure and contract limits.")]
     [HideInInspector] public float peakStressThisRun = 0f;
+    public bool HadBrokenPartsThisRun { get; private set; }
+    public void RecordBrokenPart() { HadBrokenPartsThisRun = true; }
 
     private HashSet<Point> simPoints = new HashSet<Point>();
     private HashSet<Bar> simBars = new HashSet<Bar>();
@@ -313,6 +315,7 @@ public class BridgePhysicsManager : MonoBehaviour
     public void ActivatePhysics()
     {
         if (isSimulating || pendingSimulationStart) return;
+        HadBrokenPartsThisRun = false;
         
         activeStressHandlers.Clear(); 
         peakDisplayedStressThisRun = 0f;
@@ -1363,6 +1366,7 @@ public class BarStressHandler : MonoBehaviour
     {
         if (isBroken) return;
         isBroken = true;
+        if (manager != null) manager.RecordBrokenPart();
         currentStressPercent = 1f;
         currentStructuralStressPercent = 1f;
 
