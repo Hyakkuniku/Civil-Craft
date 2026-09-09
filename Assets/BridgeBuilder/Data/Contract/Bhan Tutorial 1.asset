@@ -13,6 +13,8 @@ MonoBehaviour:
   m_Name: Bhan Tutorial 1
   m_EditorClassIdentifier: 
   contractID: TUT_CONTRACT1
+  efficiencyStarBudgetRatio: 0.85
+  strengthStarMaxStress: 60
   contractMap: 0
   countsTowardMapAchievements: 1
   isStoryModeContract: 1
@@ -23,7 +25,7 @@ MonoBehaviour:
   jobDescription: 'Beam Bridges
 
 '
-  budget: 55000
+  budget: 75000
   liveLoadWeight: 700
   bridgeSpan: 30
   allowedMaterials:

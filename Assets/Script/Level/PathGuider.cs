@@ -286,12 +286,12 @@ public class PathGuider : MonoBehaviour
         List<Vector3> points = null;
         if (TrySampleNavMeshPosition(player.position, out Vector3 safeStart) &&
             TrySampleNavMeshPosition(target.position, out Vector3 safeTarget) &&
-            NavMesh.CalculatePath(safeStart, safeTarget, NavMesh.AllAreas, path))
+            PreferredRoadNavigation.Calculate(safeStart, safeTarget, out path))
         {
             if (path.status == NavMeshPathStatus.PathComplete ||
                 (allowPartialNavMeshPaths && path.status == NavMeshPathStatus.PathPartial))
             {
-                points = GenerateSmoothTerrainPath(path.corners);
+                points = GenerateSmoothTerrainPath(PreferredRoadNavigation.GetGuideCorners(path));
                 if (GetRouteLength(points) >= Mathf.Max(rockSpacing, pathResolution))
                     PrependPlayerConnector(points, safeStart);
             }
@@ -418,10 +418,10 @@ public class PathGuider : MonoBehaviour
         if (!TrySampleNavMeshPosition(player.position, out Vector3 start) ||
             !TrySampleNavMeshPosition(nearestMarker.position, out Vector3 end)) return;
         if (path == null) path = new NavMeshPath();
-        if (!NavMesh.CalculatePath(start, end, NavMesh.AllAreas, path) ||
+        if (!PreferredRoadNavigation.Calculate(start, end, out path) ||
             path.status != NavMeshPathStatus.PathComplete) return;
 
-        var connector = GenerateSmoothTerrainPath(path.corners);
+        var connector = GenerateSmoothTerrainPath(PreferredRoadNavigation.GetGuideCorners(path));
         PrependPlayerConnector(connector, start);
         // The spawn routine skips positions already occupied by trail markers.
         SpawnRocksAlongPath(connector, false);

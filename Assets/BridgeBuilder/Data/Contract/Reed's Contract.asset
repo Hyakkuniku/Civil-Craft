@@ -21,11 +21,11 @@ MonoBehaviour:
   isTutorialContract: 0
   autoCollectReward: 0
   featureUnlockRewards: []
-  clientName: Mayor
+  clientName: Reed
   jobDescription: We need a bridge across this ravine!
-  budget: 2000
-  liveLoadWeight: 50
-  bridgeSpan: 30
+  budget: 100000
+  liveLoadWeight: 3500
+  bridgeSpan: 80
   allowedMaterials: []
   hiddenTools: 
   hiddenMaterials: []
@@ -56,3 +56,4 @@ MonoBehaviour:
     sentences:
     - That new crossing should make getting around the canyon a lot easier.
     - Nice work, engineer.
+    - Until we meet again.

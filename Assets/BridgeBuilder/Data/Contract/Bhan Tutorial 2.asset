@@ -13,6 +13,8 @@ MonoBehaviour:
   m_Name: Bhan Tutorial 2
   m_EditorClassIdentifier: 
   contractID: TUT_CONTRACT2
+  efficiencyStarBudgetRatio: 0.85
+  strengthStarMaxStress: 60
   contractMap: 0
   countsTowardMapAchievements: 1
   isStoryModeContract: 1
@@ -21,7 +23,7 @@ MonoBehaviour:
   featureUnlockRewards: []
   clientName: Professor Bhan
   jobDescription: Truss Bridge
-  budget: 50000
+  budget: 75000
   liveLoadWeight: 500
   bridgeSpan: 50
   allowedMaterials:

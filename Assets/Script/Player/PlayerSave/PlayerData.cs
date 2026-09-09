@@ -93,6 +93,13 @@ public class NPCProgressionSaveData
 }
 
 [System.Serializable]
+public class NPCVisibilitySaveData
+{
+    public string visibilityId;
+    public bool visible;
+}
+
+[System.Serializable]
 public class TrackedTask
 {
     public string title;
@@ -162,6 +169,7 @@ public class PlayerData
 
     public List<SavedBridgeData> savedBridges = new List<SavedBridgeData>();
     public List<NPCProgressionSaveData> npcProgressions = new List<NPCProgressionSaveData>();
+    public List<NPCVisibilitySaveData> npcVisibility = new List<NPCVisibilitySaveData>();
 
     public string GetTitle()
     {

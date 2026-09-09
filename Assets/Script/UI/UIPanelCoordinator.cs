@@ -468,6 +468,12 @@ internal static class GameplayMobileUILayout
             scaler.matchWidthOrHeight = 0.5f;
         }
 
+        // Shop placement is authored in the scene. AccessButtons may be expanded
+        // from a centered container below, so preserve the rendered position too,
+        // not just anchoredPosition (whose origin changes with that container).
+        RectTransform shopRect = FindNamedRect("Shop_btn", "ShopButton", "Shop Button");
+        Vector3 authoredShopPosition = shopRect != null ? shopRect.position : Vector3.zero;
+
         foreach (PauseManager manager in pauseManagers)
         {
             if (manager == null) continue;
@@ -483,7 +489,8 @@ internal static class GameplayMobileUILayout
         foreach (ObjectiveTrackerUI tracker in Object.FindObjectsOfType<ObjectiveTrackerUI>(true))
             PlaceTopLeft(tracker != null ? GetRect(tracker.openTrackerButton) : null, 1);
 
-        PlaceTopLeft(FindNamedRect("Shop_btn", "ShopButton", "Shop Button"), 2);
+        if (shopRect != null)
+            shopRect.position = authoredShopPosition;
 
         foreach (DialogueManager manager in dialogueManagers)
         {

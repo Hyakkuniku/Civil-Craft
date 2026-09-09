@@ -13,6 +13,8 @@ MonoBehaviour:
   m_Name: ShopKeeperContract
   m_EditorClassIdentifier: 
   contractID: ShopKeeper
+  efficiencyStarBudgetRatio: 0.85
+  strengthStarMaxStress: 60
   contractMap: 0
   countsTowardMapAchievements: 1
   isStoryModeContract: 1

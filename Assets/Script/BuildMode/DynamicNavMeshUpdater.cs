@@ -414,7 +414,8 @@ public sealed class DynamicNavMeshUpdater : MonoBehaviour
                 link.costModifier = -1;
                 link.bidirectional = true;
                 link.autoUpdate = true;
-                link.area = 0;
+                int traversalArea = NavMesh.GetAreaFromName(PreferredRoadNavigation.LinkAreaName);
+                link.area = traversalArea >= 0 ? traversalArea : 0;
                 createdCount++;
             }
         }

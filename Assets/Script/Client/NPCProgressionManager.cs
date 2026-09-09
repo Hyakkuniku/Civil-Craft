@@ -133,6 +133,7 @@ public class NPCProgressionManager : MonoBehaviour
     [Header("Required References")]
     [SerializeField] private NPCContractGiver contractGiver;
     [SerializeField] private NavMeshAgent navMeshAgent;
+    private int configuredNavigationAreaMask = NavMesh.AllAreas;
     [SerializeField] private Animator animator;
     [SerializeField] private DialogueManager dialogueManager;
 
@@ -157,6 +158,8 @@ public class NPCProgressionManager : MonoBehaviour
     [Min(1f)] [SerializeField] private float pathTimeout = 45f;
     [Tooltip("Prevents progression soft-locks if a target is outside the baked NavMesh.")]
     [SerializeField] private bool warpToTargetIfPathFails = true;
+    [Tooltip("Reattach an agent displaced by a NavMesh rebuild before phase travel. Only a small correction at its current feet is allowed; never moves to the destination.")]
+    [SerializeField] private bool rebindNearbyNavMeshBeforeTravel;
     [Tooltip("Seconds without meaningful movement before the NPC recalculates its route.")]
     [Min(0.25f)] [SerializeField] private float stalledRepathDelay = 1.5f;
     [Tooltip("World-space movement that counts as forward progress.")]
@@ -331,6 +334,7 @@ public class NPCProgressionManager : MonoBehaviour
     {
         if (contractGiver == null) contractGiver = GetComponent<NPCContractGiver>();
         if (navMeshAgent == null) navMeshAgent = GetComponent<NavMeshAgent>();
+        if (navMeshAgent != null) configuredNavigationAreaMask = navMeshAgent.areaMask;
         if (animator == null) animator = GetComponentInChildren<Animator>();
         if (dialogueManager == null) dialogueManager = FindObjectOfType<DialogueManager>();
 
@@ -427,6 +431,7 @@ public class NPCProgressionManager : MonoBehaviour
 
     private void OnDisable()
     {
+        if (navMeshAgent != null) navMeshAgent.areaMask = configuredNavigationAreaMask;
         ActiveManagers.Remove(this);
         if (contractGiver != null)
         {
@@ -689,6 +694,7 @@ public class NPCProgressionManager : MonoBehaviour
         float lastProgressTime = Time.time;
         Vector3 lastProgressPosition = transform.position;
         int repathAttempts = 0;
+        float nextApproachCheck = 0f;
 
         yield return null;
         while (navMeshAgent.pathPending && Time.time < deadline)
@@ -696,6 +702,11 @@ public class NPCProgressionManager : MonoBehaviour
 
         while (Time.time < deadline)
         {
+            if (Time.time >= nextApproachCheck)
+            {
+                PreferredRoadNavigation.RefineFinalApproach(navMeshAgent);
+                nextApproachCheck = Time.time + .5f;
+            }
             if (manuallyTraverseNavMeshLinks && navMeshAgent.isOnOffMeshLink)
             {
                 yield return TraverseCurrentNavMeshLink();
@@ -1536,14 +1547,19 @@ public class NPCProgressionManager : MonoBehaviour
 
     private bool TrySetDestination(Vector3 targetPosition)
     {
+        if (rebindNearbyNavMeshBeforeTravel && navMeshAgent != null &&
+            navMeshAgent.enabled && !navMeshAgent.isOnNavMesh)
+            TryRebindAtCurrentPosition();
+
         if (navMeshAgent == null || !navMeshAgent.enabled || !navMeshAgent.isOnNavMesh)
         {
-            Debug.LogError("[NPCProgressionManager] NPC is not standing on a baked NavMesh.", this);
+            Debug.LogError($"[NPCProgressionManager] '{name}' is not standing on a baked NavMesh. Check the world bake at the NPC's current position.", this);
             return false;
         }
 
         if (!NavMesh.SamplePosition(targetPosition, out NavMeshHit hit,
-                navMeshSampleRadius, navMeshAgent.areaMask))
+                navMeshSampleRadius, new NavMeshQueryFilter
+                { agentTypeID = navMeshAgent.agentTypeID, areaMask = configuredNavigationAreaMask }))
         {
             Debug.LogError("[NPCProgressionManager] Target is outside the NPC's NavMesh area.", this);
             return false;
@@ -1552,22 +1568,39 @@ public class NPCProgressionManager : MonoBehaviour
         navMeshAgent.isStopped = false;
         navMeshAgent.ResetPath();
 
-        NavMeshPath path = new NavMeshPath();
-        bool calculated = navMeshAgent.CalculatePath(hit.position, path);
-        if (!calculated || path.status != NavMeshPathStatus.PathComplete)
+        if (!PreferredRoadNavigation.SetDestination(navMeshAgent, hit.position, configuredNavigationAreaMask))
         {
             Debug.LogWarning(
-                $"[NPCProgressionManager] No complete NavMesh route to '{hit.position}'. " +
-                $"Calculated={calculated}, Status={path.status}.",
+                $"[NPCProgressionManager] No complete NavMesh route to '{hit.position}', with or without ravine links.",
                 this);
             return false;
         }
 
-        return navMeshAgent.SetPath(path);
+        return true;
+    }
+
+    private bool TryRebindAtCurrentPosition()
+    {
+        // A native agent can lose its binding when runtime bridge/world data is
+        // replaced. Only repair that binding locally, not by jumping to a phase.
+        Vector3 current = transform.position;
+        var filter = new NavMeshQueryFilter
+        { agentTypeID = navMeshAgent.agentTypeID, areaMask = configuredNavigationAreaMask };
+        if (!NavMesh.SamplePosition(current, out NavMeshHit hit, navMeshSampleRadius, filter))
+            return false;
+        Vector3 delta = hit.position - current;
+        if (new Vector2(delta.x, delta.z).sqrMagnitude > 0.25f * 0.25f ||
+            Mathf.Abs(delta.y) > 1f)
+            return false;
+        if (!navMeshAgent.Warp(hit.position) || !navMeshAgent.isOnNavMesh) return false;
+        navMeshAgent.isStopped = true;
+        navMeshAgent.ResetPath();
+        return true;
     }
 
     private void CompleteArrival(int phaseIndex)
     {
+        if (navMeshAgent != null) navMeshAgent.areaMask = configuredNavigationAreaMask;
         if (navMeshAgent != null && navMeshAgent.enabled && navMeshAgent.isOnNavMesh)
         {
             navMeshAgent.isStopped = true;
@@ -1584,12 +1617,13 @@ public class NPCProgressionManager : MonoBehaviour
 
     private void HandleMovementFailure(int phaseIndex)
     {
+        if (navMeshAgent != null) navMeshAgent.areaMask = configuredNavigationAreaMask;
         SetWalkingAnimation(false);
         onMovementFailed?.Invoke();
 
         if (warpToTargetIfPathFails && PlaceAtPhase(phaseIndex))
         {
-            Debug.LogWarning("[NPCProgressionManager] Path failed; NPC was moved to the phase target to prevent a progression lock.", this);
+            Debug.LogWarning($"[NPCProgressionManager] '{name}': path failed; NPC was moved to phase {phaseIndex} to prevent a progression lock.", this);
             movementRoutine = null;
             ActivatePhase(phaseIndex, true);
             return;
@@ -2157,15 +2191,12 @@ public class NPCProgressionManager : MonoBehaviour
             NavMesh.SamplePosition(destination, out NavMeshHit hit,
                 navMeshSampleRadius, navMeshAgent.areaMask))
         {
-            NavMeshPath idlePath = new NavMeshPath();
-            if (!navMeshAgent.CalculatePath(hit.position, idlePath) ||
-                idlePath.status != NavMeshPathStatus.PathComplete)
+            if (!PreferredRoadNavigation.SetDestination(navMeshAgent, hit.position, configuredNavigationAreaMask))
             {
                 yield break;
             }
 
             navMeshAgent.isStopped = false;
-            navMeshAgent.SetPath(idlePath);
             SetWalkingAnimation(true);
 
             while (!IsIdleRoamingBlocked() && navMeshAgent.pathPending)
@@ -2173,10 +2204,16 @@ public class NPCProgressionManager : MonoBehaviour
 
             float idleLastProgressTime = Time.time;
             Vector3 idleLastProgressPosition = transform.position;
+            float nextIdleApproachCheck = 0f;
             while (!IsIdleRoamingBlocked() && navMeshAgent.hasPath &&
                    navMeshAgent.remainingDistance >
                        navMeshAgent.stoppingDistance + idleRoamingArrivalDistance)
             {
+                if (Time.time >= nextIdleApproachCheck)
+                {
+                    PreferredRoadNavigation.RefineFinalApproach(navMeshAgent);
+                    nextIdleApproachCheck = Time.time + .5f;
+                }
                 if (manuallyTraverseNavMeshLinks && navMeshAgent.isOnOffMeshLink)
                 {
                     yield return TraverseCurrentNavMeshLink();

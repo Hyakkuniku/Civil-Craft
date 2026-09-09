@@ -58,6 +58,8 @@ public sealed class RavineNavMeshLinks : MonoBehaviour
         link.startPoint = inverse * (start - link.transform.position);
         link.endPoint = inverse * (end - link.transform.position);
         link.bidirectional = true;
+        int traversalArea = NavMesh.GetAreaFromName(PreferredRoadNavigation.LinkAreaName);
+        if (traversalArea >= 0) link.area = traversalArea;
         link.UpdateLink();
     }
 }
