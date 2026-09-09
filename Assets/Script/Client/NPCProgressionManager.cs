@@ -723,6 +723,8 @@ public class NPCProgressionManager : MonoBehaviour
             {
                 lastProgressPosition = transform.position;
                 lastProgressTime = Time.time;
+                // Timeout measures lack of progress, not the total trip length.
+                deadline = Time.time + pathTimeout;
             }
             else if (!navMeshAgent.pathPending && navMeshAgent.hasPath &&
                      navMeshAgent.remainingDistance >
@@ -2145,6 +2147,11 @@ public class NPCProgressionManager : MonoBehaviour
 
     private IEnumerator MoveToIdleRoamingPoint(Vector3 destination)
     {
+        // NavMesh mode must never silently fall through to direct Transform movement.
+        if (movementMode == NPCProgressionMovementMode.NavMesh &&
+            (navMeshAgent == null || !navMeshAgent.enabled || !navMeshAgent.isOnNavMesh ||
+             !NavMesh.SamplePosition(destination, out _, navMeshSampleRadius, navMeshAgent.areaMask)))
+            yield break;
         if (movementMode == NPCProgressionMovementMode.NavMesh &&
             navMeshAgent != null && navMeshAgent.enabled && navMeshAgent.isOnNavMesh &&
             NavMesh.SamplePosition(destination, out NavMeshHit hit,
@@ -2164,10 +2171,26 @@ public class NPCProgressionManager : MonoBehaviour
             while (!IsIdleRoamingBlocked() && navMeshAgent.pathPending)
                 yield return null;
 
+            float idleLastProgressTime = Time.time;
+            Vector3 idleLastProgressPosition = transform.position;
             while (!IsIdleRoamingBlocked() && navMeshAgent.hasPath &&
                    navMeshAgent.remainingDistance >
                        navMeshAgent.stoppingDistance + idleRoamingArrivalDistance)
             {
+                if (manuallyTraverseNavMeshLinks && navMeshAgent.isOnOffMeshLink)
+                {
+                    yield return TraverseCurrentNavMeshLink();
+                    idleLastProgressTime = Time.time;
+                    idleLastProgressPosition = transform.position;
+                }
+                if ((transform.position - idleLastProgressPosition).sqrMagnitude >=
+                    stalledMovementTolerance * stalledMovementTolerance)
+                {
+                    idleLastProgressTime = Time.time;
+                    idleLastProgressPosition = transform.position;
+                }
+                else if (Time.time - idleLastProgressTime >= stalledRepathDelay)
+                    break;
                 yield return null;
             }
 

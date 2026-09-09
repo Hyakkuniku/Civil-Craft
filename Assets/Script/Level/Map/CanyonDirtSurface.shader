@@ -37,9 +37,11 @@ Shader "Civil Craft/Canyon Dirt Surface"
             Varyings Vert(Attributes v)
             {
                 Varyings o;
-                o.positionWS = TransformObjectToWorld(v.positionOS.xyz);
-                o.positionCS = TransformWorldToHClip(o.positionWS);
                 o.normalWS = TransformObjectToWorldNormal(v.normalOS);
+                o.positionWS = TransformObjectToWorld(v.positionOS.xyz);
+                // Separate only the visual overlay from the canyon depth surface.
+                // World-space units keep this consistent on scaled canyon meshes.
+                o.positionCS = TransformWorldToHClip(o.positionWS + normalize(o.normalWS) * .015);
                 return o;
             }
             float Hash(float2 p) { return frac(sin(dot(p, float2(127.1,311.7))) * 43758.5453); }

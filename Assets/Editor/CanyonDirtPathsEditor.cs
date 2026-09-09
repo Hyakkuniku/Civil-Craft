@@ -1,5 +1,34 @@
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
+
+// Independent of inspector selection: Ctrl+S must restore every enabled overlay.
+[InitializeOnLoad]
+internal static class CanyonDirtPathsSaveRefresh
+{
+    static CanyonDirtPathsSaveRefresh()
+    {
+        EditorSceneManager.sceneSaved += OnSceneSaved;
+    }
+
+    private static void OnSceneSaved(Scene scene)
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode) return;
+        // Never create/destroy generated objects inside scene serialization.
+        EditorApplication.delayCall += () =>
+        {
+            if (EditorApplication.isPlayingOrWillChangePlaymode ||
+                !scene.IsValid() || !scene.isLoaded) return;
+            foreach (GameObject root in scene.GetRootGameObjects())
+                foreach (CanyonDirtPaths paths in root.GetComponentsInChildren<CanyonDirtPaths>(true))
+                    if (paths != null && paths.isActiveAndEnabled)
+                        paths.RebuildGeneratedSurface();
+            EditorApplication.QueuePlayerLoopUpdate();
+            SceneView.RepaintAll();
+        };
+    }
+}
 
 [CustomEditor(typeof(CanyonDirtPaths))]
 public sealed class CanyonDirtPathsEditor : Editor

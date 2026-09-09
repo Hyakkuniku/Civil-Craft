@@ -66,6 +66,7 @@ public sealed class DeveloperDebugManager : MonoBehaviour
     private float nextJointScanTime;
     private Vector2 debugLayoutScreenSize;
     private Rect debugLayoutSafeArea;
+    private Coroutine pendingLayoutRefresh;
 
     [Serializable]
     private sealed class DebugStateSnapshot
@@ -244,6 +245,8 @@ public sealed class DeveloperDebugManager : MonoBehaviour
 
         menuOpen = visible;
         if (visible) RefreshDebugLayout();
+        if (pendingLayoutRefresh != null) StopCoroutine(pendingLayoutRefresh);
+        pendingLayoutRefresh = visible ? StartCoroutine(RefreshLayoutAfterOpen()) : null;
 
         if (!manageCursor) return;
 
@@ -276,6 +279,19 @@ public sealed class DeveloperDebugManager : MonoBehaviour
         PrepareDropdown(coinAmountDropdown);
     }
 
+    private IEnumerator RefreshLayoutAfterOpen()
+    {
+        yield return null; // CanvasScaler/layout groups settle after activation.
+        if (menuOpen)
+        {
+            RefreshDebugLayout();
+            Canvas.ForceUpdateCanvases();
+            foreach (TMP_Text text in debugWindow.GetComponentsInChildren<TMP_Text>())
+                text.ForceMeshUpdate();
+        }
+        pendingLayoutRefresh = null;
+    }
+
     private void LateUpdate()
     {
         // TMP's first Show() resets its popup canvas to 30000, below this menu
@@ -291,6 +307,7 @@ public sealed class DeveloperDebugManager : MonoBehaviour
         RectTransform content = panel != null ? panel.Find("ScrollView/Viewport/Content") as RectTransform : null;
         if (panel == null || content == null) return;
         RestoreAchievementActionRow(content);
+        EnsureResetProgressControl(content);
         Canvas.ForceUpdateCanvases();
         float scale = Mathf.Max(.01f, debugCanvas.scaleFactor);
         Rect safe = Screen.safeArea;
@@ -332,6 +349,7 @@ public sealed class DeveloperDebugManager : MonoBehaviour
         {
             RectTransform row = child as RectTransform;
             if (row == null) continue;
+            row.localScale = Vector3.one;
             HorizontalLayoutGroup horizontal = row.GetComponent<HorizontalLayoutGroup>();
             if (horizontal == null)
             {
@@ -385,8 +403,13 @@ public sealed class DeveloperDebugManager : MonoBehaviour
                 if (controls[i].GetComponent<Button>() != null)
                 {
                     TMP_Text caption = controls[i].GetComponentInChildren<TMP_Text>(true);
+                    if (caption == null)
+                        caption = CreateRuntimeText(controls[i], "Text", "", statusText);
                     if (caption != null)
                     {
+                        if (string.IsNullOrWhiteSpace(caption.text))
+                            caption.text = System.Text.RegularExpressions.Regex.Replace(
+                                controls[i].name.Replace("Button", ""), "(?<=[a-z])([A-Z])", " $1").ToUpperInvariant();
                         caption.gameObject.SetActive(true);
                         caption.enabled = true;
                         caption.rectTransform.anchorMin = Vector2.zero;
@@ -394,13 +417,28 @@ public sealed class DeveloperDebugManager : MonoBehaviour
                         caption.rectTransform.offsetMin = new Vector2(12, 6);
                         caption.rectTransform.offsetMax = new Vector2(-12, -6);
                         caption.rectTransform.localScale = Vector3.one;
+                        caption.rectTransform.localRotation = Quaternion.identity;
+                        caption.margin = Vector4.zero;
                         caption.color = Color.white;
                         caption.alignment = TextAlignmentOptions.Center;
                         caption.enableAutoSizing = true;
                         caption.fontSizeMin = 18;
                         caption.fontSizeMax = 24;
                         caption.enableWordWrapping = true;
+                        caption.overflowMode = TextOverflowModes.Overflow;
+                        caption.raycastTarget = false;
                     }
+                }
+            }
+            if (!narrow && row.name == "TimeScaleRow")
+            {
+                RectTransform slider = row.Find("TimeScaleSlider") as RectTransform;
+                RectTransform reset = row.Find("ResetTimeButton") as RectTransform;
+                if (slider != null && reset != null)
+                {
+                    reset.gameObject.SetActive(true);
+                    DebugRect(slider, 16, top, rowWidth - 204, 64);
+                    DebugRect(reset, rowWidth - 176, top, 160, 64);
                 }
             }
             LayoutElement element = row.GetComponent<LayoutElement>();
@@ -439,6 +477,44 @@ public sealed class DeveloperDebugManager : MonoBehaviour
             CreateRuntimeText(row, "Label", "Achievement Actions", statusText);
         }
         if (button.parent != row) button.SetParent(row, false);
+    }
+
+    private void EnsureResetProgressControl(RectTransform content)
+    {
+        Transform row = FindDirectChildByName(content, "ResetProgressRow");
+        if (row == null)
+        {
+            row = new GameObject("ResetProgressRow", typeof(RectTransform),
+                typeof(HorizontalLayoutGroup), typeof(LayoutElement)).transform;
+            row.SetParent(content, false);
+            CreateRuntimeText(row, "Label", "Reset Local Progress (confirmation required)", statusText);
+        }
+        // Keep it directly after the save checkpoint controls, not in a crowded actions row.
+        Transform saveRow = FindDirectChildByName(content, "SaveStateRow");
+        if (saveRow != null)
+        {
+            row.SetAsLastSibling();
+            row.SetSiblingIndex(saveRow.GetSiblingIndex() + 1);
+        }
+        row.gameObject.SetActive(true);
+        Transform existing = FindDescendantByName(debugWindow.transform, "ClearSaveButton");
+        Button button = existing != null ? existing.GetComponent<Button>() : null;
+        if (button == null)
+        {
+            Button source = FindDescendantByName(debugWindow.transform, "SaveStateButton")?.GetComponent<Button>();
+            button = CreateRuntimeDebugButton(row, "ClearSaveButton", "RESET PROGRESS", source, ClearAllLocalSaveData);
+        }
+        button.transform.SetParent(row, false);
+        button.gameObject.SetActive(true);
+        button.interactable = true;
+        // This dedicated button has exactly one action, including repaired scene instances.
+        button.onClick = new Button.ButtonClickedEvent();
+        button.onClick.AddListener(ClearAllLocalSaveData);
+        if (button.targetGraphic is Image background)
+            background.color = new Color(.6f, .16f, .13f, 1);
+        TMP_Text caption = button.GetComponentInChildren<TMP_Text>(true);
+        if (caption == null) caption = CreateRuntimeText(button.transform, "Text", "RESET PROGRESS", statusText);
+        caption.text = "RESET PROGRESS";
     }
 
     /// <summary>
@@ -1262,7 +1338,7 @@ public sealed class DeveloperDebugManager : MonoBehaviour
         if (Time.unscaledTime > clearSaveConfirmationDeadline)
         {
             clearSaveConfirmationDeadline = Time.unscaledTime + clearSaveConfirmationSeconds;
-            SetStatus($"Press Clear Save again within {clearSaveConfirmationSeconds:0} seconds to confirm.");
+            SetStatus($"Press RESET PROGRESS again within {clearSaveConfirmationSeconds:0} seconds to confirm clearing local progress. Debug Save State is kept.");
             return;
         }
 

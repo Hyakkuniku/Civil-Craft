@@ -42,6 +42,7 @@ public sealed class CanyonDirtPaths : MonoBehaviour
     private readonly Vector4[] segmentWidths = new Vector4[16];
     private Matrix4x4 lastMatrix;
     private bool dirty = true;
+    private bool surfaceCreatedForPlay;
 
     public Bounds SurfaceBounds => sourceRenderer != null ? sourceRenderer.bounds :
         canyon != null && canyon.TryGetComponent(out MeshRenderer r) ? r.bounds : new Bounds(transform.position, Vector3.one);
@@ -50,6 +51,16 @@ public sealed class CanyonDirtPaths : MonoBehaviour
     private void OnValidate() { dirty = true; } // Unity may invoke this off the main thread.
     public void Refresh() { dirty = true; }
 
+    // Called after editor save serialization has finished. Recreate transient
+    // objects and shader arrays without modifying any authored street settings.
+    public void RebuildGeneratedSurface()
+    {
+        if (!isActiveAndEnabled) return;
+        Release();
+        dirty = true;
+        LateUpdate();
+    }
+
     private void LateUpdate()
     {
         if (canyon == null || surfaceShader == null)
@@ -57,14 +68,23 @@ public sealed class CanyonDirtPaths : MonoBehaviour
             if (surface != null) Release();
             return;
         }
-        if (sourceFilter == null || sourceFilter.transform != canyon || material == null || material.shader != surfaceShader)
+        bool playing = Application.IsPlaying(gameObject);
+        if (surface == null || surfaceRenderer == null || sourceRenderer == null ||
+            surfaceCreatedForPlay != playing ||
+            sourceFilter == null || sourceFilter.transform != canyon || material == null || material.shader != surfaceShader)
         {
             Release();
             sourceFilter = canyon.GetComponent<MeshFilter>();
             sourceRenderer = canyon.GetComponent<MeshRenderer>();
             if (sourceFilter == null || sourceFilter.sharedMesh == null || sourceRenderer == null) return;
             material = new Material(surfaceShader) { name = "Main City Dirt (instance only)", hideFlags = HideFlags.HideAndDontSave };
-            surface = new GameObject("Dirt Surface (generated, no collider)") { hideFlags = HideFlags.HideAndDontSave };
+            // Game cameras need a normal scene renderer, not an editor preview.
+            // Also rebuild on mode changes when domain/scene reload is disabled.
+            surfaceCreatedForPlay = playing;
+            surface = new GameObject("Dirt Surface (generated, no collider)")
+            {
+                hideFlags = playing ? HideFlags.None : HideFlags.HideAndDontSave
+            };
             surface.transform.SetParent(canyon, false);
             surface.AddComponent<MeshFilter>().sharedMesh = sourceFilter.sharedMesh;
             surfaceRenderer = surface.AddComponent<MeshRenderer>();
@@ -108,6 +128,8 @@ public sealed class CanyonDirtPaths : MonoBehaviour
     private void OnDestroy() { Release(); }
     private void Release()
     {
+        // Runtime destruction is deferred; hide the old overlay immediately.
+        if (surfaceRenderer != null) surfaceRenderer.enabled = false;
         Dispose(surface);
         Dispose(material);
         surface = null;

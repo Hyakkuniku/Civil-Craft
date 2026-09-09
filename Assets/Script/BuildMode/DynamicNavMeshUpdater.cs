@@ -405,7 +405,8 @@ public sealed class DynamicNavMeshUpdater : MonoBehaviour
                 linkObject.transform.position = terminal;
 
                 NavMeshLink link = linkObject.AddComponent<NavMeshLink>();
-                link.enabled = false;
+                // Navigation 1.1.7 setters register links even while disabled.
+                // Keep enabled to avoid a second registration in OnEnable.
                 link.agentTypeID = navMeshSurface.agentTypeID;
                 link.startPoint = linkObject.transform.InverseTransformPoint(bridgeHit.position);
                 link.endPoint = linkObject.transform.InverseTransformPoint(landHit.position);
@@ -414,7 +415,6 @@ public sealed class DynamicNavMeshUpdater : MonoBehaviour
                 link.bidirectional = true;
                 link.autoUpdate = true;
                 link.area = 0;
-                link.enabled = true;
                 createdCount++;
             }
         }
@@ -450,6 +450,8 @@ public sealed class DynamicNavMeshUpdater : MonoBehaviour
     {
         if (generatedBridgeLinksRoot == null) return;
 
+        // Destroy is deferred; unregister old links before creating replacements.
+        generatedBridgeLinksRoot.gameObject.SetActive(false);
         Destroy(generatedBridgeLinksRoot.gameObject);
         generatedBridgeLinksRoot = null;
     }
