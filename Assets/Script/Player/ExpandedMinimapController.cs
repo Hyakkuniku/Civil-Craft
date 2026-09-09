@@ -40,8 +40,10 @@ public sealed class ExpandedMinimapController : MonoBehaviour
     [SerializeField] private AnimationCurve animationCurve = null;
 
     [Header("Map Navigation")]
-    [SerializeField, Min(1f)] private float minimumZoom = 6f;
-    [SerializeField, Min(2f)] private float maximumZoom = 90f;
+    [SerializeField, Min(1f)] private float minimumZoom = 3f;
+    [SerializeField, Min(2f)] private float maximumZoom = 180f;
+    [Tooltip("Optional legacy restriction. Off allows exploring beyond build-location markers.")]
+    [SerializeField] private bool constrainPanToLocations = false;
     [SerializeField, Min(0f)] private float boundsPadding = 12f;
     [SerializeField] private bool frameBuildLocationsWhenOpened = true;
     [SerializeField, Range(768, 2048)] private int expandedTextureLongEdge = 1280;
@@ -74,6 +76,10 @@ public sealed class ExpandedMinimapController : MonoBehaviour
     private RectTransform locationActionRoot;
     private TMP_Text selectedLocationLabel;
     private TMP_Text locationActionLabel;
+    private TMP_Text completedLocationDetails;
+    private RectTransform completedLocationDivider;
+    private BuildLocation detailsLocation;
+    private float nextDetailsRefresh;
     private Button locationActionButton;
     private BuildLocation selectedLocation;
     private BuildLocation navigationDestination;
@@ -524,6 +530,34 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         locationActionLabel.raycastTarget = false;
         if (uiFont != null) locationActionLabel.font = uiFont;
 
+        GameObject divider = new GameObject("CompletedDetailsDivider", typeof(RectTransform), typeof(Image));
+        divider.layer = minimapPanel.gameObject.layer;
+        completedLocationDivider = divider.GetComponent<RectTransform>();
+        completedLocationDivider.SetParent(locationActionRoot, false);
+        completedLocationDivider.anchorMin = new Vector2(0f, 1f);
+        completedLocationDivider.anchorMax = new Vector2(1f, 1f);
+        completedLocationDivider.offsetMin = new Vector2(18f, -94f);
+        completedLocationDivider.offsetMax = new Vector2(-18f, -92f);
+        divider.GetComponent<Image>().color = new Color(0.34f, 0.19f, 0.10f, 0.25f);
+        divider.GetComponent<Image>().raycastTarget = false;
+
+        GameObject details = new GameObject("CompletedDetails", typeof(RectTransform), typeof(TextMeshProUGUI));
+        details.layer = minimapPanel.gameObject.layer;
+        RectTransform detailsRect = details.GetComponent<RectTransform>();
+        detailsRect.SetParent(locationActionRoot, false);
+        Stretch(detailsRect, new Vector2(18f, 12f), new Vector2(-18f, -104f));
+        completedLocationDetails = details.GetComponent<TextMeshProUGUI>();
+        if (uiFont != null) completedLocationDetails.font = uiFont;
+        completedLocationDetails.fontSize = 20f;
+        completedLocationDetails.enableAutoSizing = true;
+        completedLocationDetails.fontSizeMin = 17f;
+        completedLocationDetails.fontSizeMax = 22f;
+        completedLocationDetails.alignment = TextAlignmentOptions.TopLeft;
+        completedLocationDetails.color = selectedLocationLabel.color;
+        completedLocationDetails.raycastTarget = false;
+        completedLocationDetails.enableWordWrapping = true;
+        completedLocationDetails.overflowMode = TextOverflowModes.Ellipsis;
+
         UpdateLocationActionPanel();
     }
 
@@ -699,6 +733,8 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
         bool hasSelection = selectedLocation != null;
         locationActionButton.interactable = hasSelection;
+        bool completed = hasSelection && IsLocationCompleted(selectedLocation);
+        UpdateCompletedLocationDetails(completed);
 
         Image background = locationActionButton.targetGraphic as Image;
         if (!hasSelection)
@@ -709,12 +745,60 @@ public sealed class ExpandedMinimapController : MonoBehaviour
             return;
         }
 
-        bool completed = IsLocationCompleted(selectedLocation);
         selectedLocationLabel.text = GetLocationLabel(selectedLocation) +
                                      (completed ? "\n<color=#4B9E55>COMPLETED</color>" : "\n<color=#C47922>NOT COMPLETED</color>");
         locationActionLabel.text = completed ? "FAST TRAVEL" : "NAVIGATE";
         if (background != null)
             background.color = completed ? completedLocationColor : availableLocationColor;
+    }
+
+    private void UpdateCompletedLocationDetails(bool completed)
+    {
+        if (completedLocationDetails == null) return;
+        completedLocationDetails.gameObject.SetActive(completed);
+        completedLocationDivider.gameObject.SetActive(completed);
+
+        // Preserve the original compact panel for unfinished/locked selections.
+        float panelWidth = completed
+            ? Mathf.Min(640f, Mathf.Max(1f, ((RectTransform)locationActionRoot.parent).rect.width - 36f))
+            : 560f;
+        locationActionRoot.sizeDelta = new Vector2(panelWidth, completed ? 252f : 92f);
+        RectTransform title = selectedLocationLabel.rectTransform;
+        RectTransform action = (RectTransform)locationActionButton.transform;
+        title.anchorMin = new Vector2(0f, completed ? 1f : 0f);
+        title.anchorMax = new Vector2(0.62f, 1f);
+        title.offsetMin = new Vector2(18f, completed ? -82f : 10f);
+        title.offsetMax = new Vector2(-12f, -10f);
+        action.anchorMin = new Vector2(0.62f, completed ? 1f : 0f);
+        action.anchorMax = new Vector2(1f, 1f);
+        action.offsetMin = new Vector2(4f, completed ? -80f : 12f);
+        action.offsetMax = new Vector2(-12f, -12f);
+        if (!completed)
+        {
+            detailsLocation = null;
+            return;
+        }
+        // Marker positions update every frame; saved-bridge validation need not.
+        if (detailsLocation == selectedLocation && Time.unscaledTime < nextDetailsRefresh) return;
+        detailsLocation = selectedLocation;
+        nextDetailsRefresh = Time.unscaledTime + 0.5f;
+
+        ContractSO contract = selectedLocation.activeContract;
+        PlayerDataManager data = PlayerDataManager.Instance;
+        SavedBridgeData saved = contract != null && data != null
+            ? data.GetSavedBridge(contract.ContractID) : null;
+        string client = contract != null && !string.IsNullOrWhiteSpace(contract.clientName)
+            ? contract.clientName.Replace("<", "").Replace(">", "") : "Not specified";
+        string specification = contract != null
+            ? $"Span: {contract.bridgeSpan:0.#} m   |   Budget: ₱{contract.budget:N0}"
+            : "Contract details unavailable";
+        string results = saved != null
+            ? $"Saved cost: ₱{saved.totalSpent:N0}   |   Peak stress: {saved.maxStress:0.#}%"
+            : "Saved bridge results unavailable";
+        string stars = saved != null
+            ? $"Best stars: {data.GetContractStars(contract.ContractID)}/3"
+            : "Best stars: Not recorded";
+        completedLocationDetails.text = $"Client: {client}\n{specification}\n{results}\n<color=#386E36><b>{stars}</b></color>";
     }
 
     private void PerformSelectedLocationAction()
@@ -944,7 +1028,9 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         float aspect = GetMapAspect();
         float halfWidth = (maxWorldX - minWorldX) * 0.5f;
         float halfHeight = (maxWorldZ - minWorldZ) * 0.5f;
-        framedSize = Mathf.Clamp(Mathf.Max(halfHeight, halfWidth / Mathf.Max(0.1f, aspect)), minimumZoom, maximumZoom);
+        // Fit the authored locations even when the scene is larger than the
+        // default zoom range; the player can then zoom farther out for context.
+        framedSize = Mathf.Max(minimumZoom, halfHeight, halfWidth / Mathf.Max(0.1f, aspect));
 
         if (!frameBuildLocationsWhenOpened)
         {
@@ -1005,7 +1091,12 @@ public sealed class ExpandedMinimapController : MonoBehaviour
     private void SetZoom(float size)
     {
         if (!isExpanded || minimapCamera == null) return;
-        minimapCamera.orthographicSize = Mathf.Clamp(size, minimumZoom, maximumZoom);
+        float overviewSize = hasWorldBounds
+            ? Mathf.Max((maxWorldZ - minWorldZ) * 0.5f,
+                (maxWorldX - minWorldX) * 0.5f / Mathf.Max(0.1f, GetMapAspect()))
+            : maximumZoom;
+        float zoomLimit = Mathf.Max(minimumZoom, maximumZoom, overviewSize * 1.5f);
+        minimapCamera.orthographicSize = Mathf.Clamp(size, minimumZoom, zoomLimit);
         SetCameraCenterClamped(minimapCamera.transform.position);
         UpdateMarkerPositions();
     }
@@ -1015,7 +1106,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         if (minimapCamera == null) return;
         center.y = minimapCamera.transform.position.y;
 
-        if (hasWorldBounds)
+        if (hasWorldBounds && constrainPanToLocations)
         {
             float halfHeight = minimapCamera.orthographicSize;
             float halfWidth = halfHeight * GetMapAspect();
