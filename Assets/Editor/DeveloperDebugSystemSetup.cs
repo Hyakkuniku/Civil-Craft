@@ -531,6 +531,9 @@ public static class DeveloperDebugSystemSetup
         float preferredWidth,
         bool danger = false)
     {
+        // Recover a displaced control rather than leaving a zero-sized orphan behind.
+        Transform existing = FindRecursive(parent.root, name);
+        if (existing != null && existing.parent != parent) existing.SetParent(parent, false);
         RectTransform root = GetOrCreateRect(parent, name);
         Image image = GetOrAdd<Image>(root.gameObject);
         image.sprite = BuiltinSprite("UI/Skin/UISprite.psd");

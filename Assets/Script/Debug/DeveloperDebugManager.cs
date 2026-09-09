@@ -276,6 +276,13 @@ public sealed class DeveloperDebugManager : MonoBehaviour
         PrepareDropdown(coinAmountDropdown);
     }
 
+    private void LateUpdate()
+    {
+        // TMP's first Show() resets its popup canvas to 30000, below this menu
+        // (32000). Repair the instantiated popup after UI input, before rendering.
+        if (menuOpen) PrepareCanvas();
+    }
+
     [ContextMenu("Refresh Debug Layout")]
     public void RefreshDebugLayout()
     {
@@ -283,6 +290,7 @@ public sealed class DeveloperDebugManager : MonoBehaviour
         RectTransform panel = debugWindow.transform.Find("ScreenBlocker/DebugPanel") as RectTransform;
         RectTransform content = panel != null ? panel.Find("ScrollView/Viewport/Content") as RectTransform : null;
         if (panel == null || content == null) return;
+        RestoreAchievementActionRow(content);
         Canvas.ForceUpdateCanvases();
         float scale = Mathf.Max(.01f, debugCanvas.scaleFactor);
         Rect safe = Screen.safeArea;
@@ -374,6 +382,26 @@ public sealed class DeveloperDebugManager : MonoBehaviour
                     text.overflowMode = TextOverflowModes.Ellipsis;
                     text.raycastTarget = false;
                 }
+                if (controls[i].GetComponent<Button>() != null)
+                {
+                    TMP_Text caption = controls[i].GetComponentInChildren<TMP_Text>(true);
+                    if (caption != null)
+                    {
+                        caption.gameObject.SetActive(true);
+                        caption.enabled = true;
+                        caption.rectTransform.anchorMin = Vector2.zero;
+                        caption.rectTransform.anchorMax = Vector2.one;
+                        caption.rectTransform.offsetMin = new Vector2(12, 6);
+                        caption.rectTransform.offsetMax = new Vector2(-12, -6);
+                        caption.rectTransform.localScale = Vector3.one;
+                        caption.color = Color.white;
+                        caption.alignment = TextAlignmentOptions.Center;
+                        caption.enableAutoSizing = true;
+                        caption.fontSizeMin = 18;
+                        caption.fontSizeMax = 24;
+                        caption.enableWordWrapping = true;
+                    }
+                }
             }
             LayoutElement element = row.GetComponent<LayoutElement>();
             if (element != null)
@@ -390,9 +418,27 @@ public sealed class DeveloperDebugManager : MonoBehaviour
 
     private static void DebugRect(RectTransform rect, float x, float y, float width, float height)
     {
+        rect.localScale = Vector3.one;
         rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0, 1);
         rect.anchoredPosition = new Vector2(x, -y);
         rect.sizeDelta = new Vector2(width, height);
+    }
+
+    private void RestoreAchievementActionRow(RectTransform content)
+    {
+        Transform button = FindDescendantByName(debugWindow.transform, "UnlockAllAchievementsButton");
+        if (button == null) return;
+        Transform row = FindDirectChildByName(content, "AchievementActionsRow");
+        if (row == null)
+        {
+            row = new GameObject("AchievementActionsRow", typeof(RectTransform),
+                typeof(HorizontalLayoutGroup), typeof(LayoutElement)).transform;
+            row.SetParent(content, false);
+            Transform selector = FindDirectChildByName(content, "AchievementRow");
+            if (selector != null) row.SetSiblingIndex(selector.GetSiblingIndex() + 1);
+            CreateRuntimeText(row, "Label", "Achievement Actions", statusText);
+        }
+        if (button.parent != row) button.SetParent(row, false);
     }
 
     /// <summary>
@@ -575,6 +621,24 @@ public sealed class DeveloperDebugManager : MonoBehaviour
         group.alpha = 1f;
         group.interactable = true;
         group.blocksRaycasts = true;
+        if (dropdown.IsExpanded)
+        {
+            Transform list = dropdown.transform.Find("Dropdown List");
+            Canvas liveCanvas = list != null ? list.GetComponent<Canvas>() : null;
+            if (liveCanvas != null)
+            {
+                liveCanvas.overrideSorting = true;
+                liveCanvas.sortingOrder = debugCanvasSortOrder + 10;
+                liveCanvas.sortingLayerID = debugCanvas.sortingLayerID;
+                Transform blocker = debugCanvas.rootCanvas.transform.Find("Blocker");
+                Canvas blockerCanvas = blocker != null ? blocker.GetComponent<Canvas>() : null;
+                if (blockerCanvas != null)
+                {
+                    blockerCanvas.sortingOrder = debugCanvasSortOrder + 9;
+                    blockerCanvas.sortingLayerID = liveCanvas.sortingLayerID;
+                }
+            }
+        }
     }
 
     public void RefreshSceneObjects()
@@ -1383,9 +1447,12 @@ public sealed class DeveloperDebugManager : MonoBehaviour
     private static void SetDropdownOptions(TMP_Dropdown dropdown, List<string> options, string emptyLabel)
     {
         if (dropdown == null) return;
+        string previous = dropdown.value >= 0 && dropdown.value < dropdown.options.Count
+            ? dropdown.options[dropdown.value].text : null;
         dropdown.ClearOptions();
         dropdown.AddOptions(options.Count > 0 ? options : new List<string> { emptyLabel });
-        dropdown.SetValueWithoutNotify(0);
+        int selected = previous != null ? options.IndexOf(previous) : -1;
+        dropdown.SetValueWithoutNotify(Mathf.Max(0, selected));
         dropdown.RefreshShownValue();
         dropdown.interactable = options.Count > 0;
     }
