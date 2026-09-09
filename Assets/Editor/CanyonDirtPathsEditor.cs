@@ -27,7 +27,9 @@ public sealed class CanyonDirtPathsEditor : Editor
             z = Handles.PositionHandle(z,Quaternion.identity);
             if (!EditorGUI.EndChangeCheck()) continue;
             Undo.RecordObject(paths,"Move Dirt Street");
-            paths.streets[i] = new CanyonDirtPaths.Street(Normalized(a,b),Normalized(z,b));
+            street.from = Normalized(a,b);
+            street.to = Normalized(z,b);
+            paths.streets[i] = street;
             EditorUtility.SetDirty(paths);
             paths.Refresh();
         }

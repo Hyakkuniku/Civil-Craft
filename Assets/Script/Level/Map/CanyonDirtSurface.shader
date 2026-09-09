@@ -28,6 +28,7 @@ Shader "Civil Craft/Canyon Dirt Surface"
                 float4 _DirtTint;
                 float4 _PathBounds;
                 float4 _Segments[16];
+                float4 _SegmentWidths[16];
                 float _Strength, _Width, _Softness;
                 int _SegmentCount;
             CBUFFER_END
@@ -58,7 +59,7 @@ Shader "Civil Craft/Canyon Dirt Surface"
                 {
                     float2 a = _Segments[n].xy, ab = _Segments[n].zw-a;
                     float t = saturate(dot(p-a,ab)/max(dot(ab,ab), .000001));
-                    d = min(d, length(p-a-ab*t));
+                    d = min(d, length(p-a-ab*t) / max(.1, _SegmentWidths[n].x));
                 }
                 float radius = _Width*.5;
                 float roughness = (Noise(p*90)-.5)*radius*.18;

@@ -11,7 +11,9 @@ public sealed class CanyonDirtPaths : MonoBehaviour
     {
         public Vector2 from;
         public Vector2 to;
-        public Street(Vector2 a, Vector2 b) { from = a; to = b; }
+        [Tooltip("0 keeps standard width; use smaller values for side lanes.")]
+        [Range(0, 2)] public float widthMultiplier;
+        public Street(Vector2 a, Vector2 b) { from = a; to = b; widthMultiplier = 1; }
     }
 
     public Transform canyon;
@@ -37,6 +39,7 @@ public sealed class CanyonDirtPaths : MonoBehaviour
     private MeshFilter sourceFilter;
     private Material material;
     private readonly Vector4[] segments = new Vector4[16];
+    private readonly Vector4[] segmentWidths = new Vector4[16];
     private Matrix4x4 lastMatrix;
     private bool dirty = true;
 
@@ -89,9 +92,11 @@ public sealed class CanyonDirtPaths : MonoBehaviour
             Vector2 a = streets[i].from, z = streets[i].to;
             segments[i] = new Vector4(a.x * b.size.x / size, a.y * b.size.z / size,
                 z.x * b.size.x / size, z.y * b.size.z / size);
+            segmentWidths[i] = new Vector4(streets[i].widthMultiplier > 0 ? Mathf.Clamp(streets[i].widthMultiplier, .1f, 2) : 1, 0, 0, 0);
         }
         material.SetVector("_PathBounds", new Vector4(b.min.x, b.min.z, 1 / size, 0));
         material.SetVectorArray("_Segments", segments);
+        material.SetVectorArray("_SegmentWidths", segmentWidths);
         material.SetInt("_SegmentCount", count);
         material.SetFloat("_Width", Mathf.Clamp(width, .01f, .2f));
         material.SetFloat("_Softness", Mathf.Clamp(edgeSoftness, .05f, .8f));
