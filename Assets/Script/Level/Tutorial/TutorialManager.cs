@@ -32,6 +32,12 @@ public class TutorialStep
     public bool showNextButton = true;
     public bool canSkip = false;
 
+    [Header("Player Control Locks")]
+    [Tooltip("Block player-controlled camera rotation for this step only.")]
+    public bool lockLook;
+    [Tooltip("Block jumping from keyboard, gamepad and mobile buttons for this step only.")]
+    public bool lockJump;
+
     // --- NEW: Step-Specific Wasp Waypoints! ---
     [Header("Wasp Guide Settings")]
     [Tooltip("Waypoints for the wasp to guide the player during THIS specific step.")]
@@ -141,6 +147,12 @@ public class TutorialManager : MonoBehaviour
     public string CurrentLessonName => currentSequence != null ? currentSequence.lessonName : string.Empty;
     /// <summary>The sequence currently being shown, or null when no tutorial is active.</summary>
     public TutorialSequence ActiveSequence => IsTutorialActive ? currentSequence : null;
+    private TutorialStep ActiveControlStep => isActiveAndEnabled && IsTutorialActive &&
+        currentSequence != null && currentSequence.tutorialSteps != null &&
+        currentStepIndex >= 0 && currentStepIndex < currentSequence.tutorialSteps.Length
+            ? currentSequence.tutorialSteps[currentStepIndex] : null;
+    public bool IsLookLocked => ActiveControlStep != null && ActiveControlStep.lockLook;
+    public bool IsJumpLocked => ActiveControlStep != null && ActiveControlStep.lockJump;
     public TutorialStepAction CurrentStepAction
     {
         get

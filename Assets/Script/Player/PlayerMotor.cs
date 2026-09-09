@@ -116,6 +116,7 @@ public class PlayerMotor : MonoBehaviour
 
     public void Jump()
     {
+        if (TutorialManager.Instance != null && TutorialManager.Instance.IsJumpLocked) return;
         if (isGrounded)
         {
             playerVelocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);

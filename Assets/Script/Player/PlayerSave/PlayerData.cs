@@ -170,6 +170,8 @@ public class PlayerData
     public List<SavedBridgeData> savedBridges = new List<SavedBridgeData>();
     public List<NPCProgressionSaveData> npcProgressions = new List<NPCProgressionSaveData>();
     public List<NPCVisibilitySaveData> npcVisibility = new List<NPCVisibilitySaveData>();
+    public List<string> completedLessonCloseActions = new List<string>();
+    public List<string> armedLessonCloseActions = new List<string>();
 
     public string GetTitle()
     {

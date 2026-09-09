@@ -49,7 +49,10 @@ public class PlayerLook : MonoBehaviour
 
     public void ProcessLook(Vector2 input)
     {
-        if (!canLook || cam == null || followTarget == null) return;
+        // Lock orbit input only. Do not accumulate hidden yaw/pitch that would
+        // suddenly rotate the camera when the tutorial unlocks looking.
+        if (!canLook || cam == null || followTarget == null ||
+            (TutorialManager.Instance != null && TutorialManager.Instance.IsLookLocked)) return;
 
         float mouseX = input.x;
         float mouseY = input.y;
@@ -72,6 +75,8 @@ public class PlayerLook : MonoBehaviour
         // DO NOT move the camera if Build Mode is active and took control!
         if (!canLook || cam == null || followTarget == null) return;
 
+        // Tutorial look locks must not freeze follow movement. The player can
+        // still walk while the camera follows at the unchanged orbit angle.
         SnapToFollowTarget();
     }
 
