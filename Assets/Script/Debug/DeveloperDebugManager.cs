@@ -64,6 +64,8 @@ public sealed class DeveloperDebugManager : MonoBehaviour
     private bool previousCursorVisible;
     private bool menuOpen;
     private float nextJointScanTime;
+    private Vector2 debugLayoutScreenSize;
+    private Rect debugLayoutSafeArea;
 
     [Serializable]
     private sealed class DebugStateSnapshot
@@ -175,6 +177,9 @@ public sealed class DeveloperDebugManager : MonoBehaviour
 
     private void Update()
     {
+        if (menuOpen && (debugLayoutScreenSize != new Vector2(Screen.width, Screen.height) ||
+                         debugLayoutSafeArea != Screen.safeArea))
+            RefreshDebugLayout();
         // Physics joints are created when simulation begins, which may happen
         // after the toggle was enabled. Keep newly-created joints protected too.
         if (IsBridgeInvincible && Time.unscaledTime >= nextJointScanTime)
@@ -238,6 +243,7 @@ public sealed class DeveloperDebugManager : MonoBehaviour
             debugCanvas.gameObject.SetActive(visible);
 
         menuOpen = visible;
+        if (visible) RefreshDebugLayout();
 
         if (!manageCursor) return;
 
@@ -268,6 +274,125 @@ public sealed class DeveloperDebugManager : MonoBehaviour
         PrepareDropdown(npcPhaseDropdown);
         PrepareDropdown(achievementDropdown);
         PrepareDropdown(coinAmountDropdown);
+    }
+
+    [ContextMenu("Refresh Debug Layout")]
+    public void RefreshDebugLayout()
+    {
+        if (debugCanvas == null || debugWindow == null) return;
+        RectTransform panel = debugWindow.transform.Find("ScreenBlocker/DebugPanel") as RectTransform;
+        RectTransform content = panel != null ? panel.Find("ScrollView/Viewport/Content") as RectTransform : null;
+        if (panel == null || content == null) return;
+        Canvas.ForceUpdateCanvases();
+        float scale = Mathf.Max(.01f, debugCanvas.scaleFactor);
+        Rect safe = Screen.safeArea;
+        if (safe.width <= 0 || safe.height <= 0) safe = new Rect(0, 0, Screen.width, Screen.height);
+        float width = Mathf.Min(1200, safe.width / scale - 32);
+        float height = Mathf.Min(1000, safe.height / scale - 32);
+        if (width <= 0 || height <= 0) return;
+        panel.anchorMin = panel.anchorMax = panel.pivot = new Vector2(.5f, .5f);
+        panel.anchoredPosition = (safe.center - new Vector2(Screen.width, Screen.height) * .5f) / scale;
+        panel.sizeDelta = new Vector2(width, height);
+        panel.localScale = Vector3.one;
+        bool narrow = width < 800;
+        TMP_Text title = panel.Find("TitleText")?.GetComponent<TMP_Text>();
+        if (title != null)
+        {
+            DebugRect(title.rectTransform, 24, 12, width - 48, 56);
+            title.fontSize = narrow ? 30 : 36;
+            title.enableAutoSizing = false;
+            title.text = "DEVELOPER TOOLS";
+        }
+        RectTransform scroll = panel.Find("ScrollView") as RectTransform;
+        scroll.anchorMin = Vector2.zero;
+        scroll.anchorMax = Vector2.one;
+        scroll.offsetMin = new Vector2(20, 102);
+        scroll.offsetMax = new Vector2(-20, -80);
+        if (statusText != null)
+        {
+            DebugRect(statusText.rectTransform, 24, height - 88, width - 224, 72);
+            statusText.fontSize = 22;
+            statusText.enableWordWrapping = true;
+            statusText.overflowMode = TextOverflowModes.Ellipsis;
+        }
+        RectTransform close = panel.Find("CloseButton") as RectTransform;
+        if (close != null) DebugRect(close, width - 180, height - 80, 156, 60);
+        VerticalLayoutGroup vertical = content.GetComponent<VerticalLayoutGroup>();
+        if (vertical != null) vertical.spacing = 14;
+        float rowWidth = width - 60 - (vertical != null ? vertical.padding.horizontal : 0);
+        foreach (Transform child in content)
+        {
+            RectTransform row = child as RectTransform;
+            if (row == null) continue;
+            HorizontalLayoutGroup horizontal = row.GetComponent<HorizontalLayoutGroup>();
+            if (horizontal == null)
+            {
+                TMP_Text hint = row.GetComponent<TMP_Text>();
+                LayoutElement hintLayout = row.GetComponent<LayoutElement>();
+                if (hint != null && hintLayout != null)
+                {
+                    hint.fontSize = 22;
+                    hintLayout.preferredHeight = hint.GetPreferredValues(hint.text, rowWidth, 0).y + 20;
+                }
+                continue;
+            }
+            // Keep every existing control and its events; only replace row positioning.
+            horizontal.enabled = false;
+            Image card = row.GetComponent<Image>();
+            if (card == null) card = row.gameObject.AddComponent<Image>();
+            card.color = new Color(.085f, .115f, .165f, 1);
+            card.raycastTarget = false;
+            var controls = new List<RectTransform>();
+            TMP_Text label = null;
+            foreach (Transform item in row)
+            {
+                if (!item.gameObject.activeSelf) continue;
+                TMP_Text directText = item.GetComponent<TMP_Text>();
+                if (directText != null && label == null) label = directText;
+                else if (item is RectTransform rect) controls.Add(rect);
+            }
+            float top = label != null ? 46 : 12;
+            if (label != null)
+            {
+                DebugRect(label.rectTransform, 16, 10, rowWidth - 32, 30);
+                label.fontSize = 24;
+                label.enableAutoSizing = false;
+                label.alignment = TextAlignmentOptions.MidlineLeft;
+                label.color = new Color(.6f, .85f, 1);
+                label.raycastTarget = false;
+            }
+            int columns = narrow ? 1 : Mathf.Min(3, Mathf.Max(1, controls.Count));
+            float controlWidth = (rowWidth - 32 - (columns - 1) * 12) / columns;
+            for (int i = 0; i < controls.Count; i++)
+            {
+                DebugRect(controls[i], 16 + (i % columns) * (controlWidth + 12),
+                    top + (i / columns) * 76, controlWidth, 64);
+                foreach (TMP_Text text in controls[i].GetComponentsInChildren<TMP_Text>(true))
+                {
+                    text.fontSize = 24;
+                    text.enableAutoSizing = false;
+                    text.overflowMode = TextOverflowModes.Ellipsis;
+                    text.raycastTarget = false;
+                }
+            }
+            LayoutElement element = row.GetComponent<LayoutElement>();
+            if (element != null)
+            {
+                float rowHeight = top + Mathf.CeilToInt((float)controls.Count / columns) * 76;
+                element.minHeight = element.preferredHeight = rowHeight;
+                element.flexibleHeight = 0;
+            }
+        }
+        LayoutRebuilder.ForceRebuildLayoutImmediate(content);
+        debugLayoutScreenSize = new Vector2(Screen.width, Screen.height);
+        debugLayoutSafeArea = Screen.safeArea;
+    }
+
+    private static void DebugRect(RectTransform rect, float x, float y, float width, float height)
+    {
+        rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0, 1);
+        rect.anchoredPosition = new Vector2(x, -y);
+        rect.sizeDelta = new Vector2(width, height);
     }
 
     /// <summary>

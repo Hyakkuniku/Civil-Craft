@@ -319,6 +319,7 @@ public static class DeveloperDebugSystemSetup
         int uiLayer = LayerMask.NameToLayer("UI");
         if (uiLayer >= 0) SetLayerRecursively(canvasRect.gameObject, uiLayer);
         window.gameObject.SetActive(true);
+        manager.RefreshDebugLayout();
         EditorUtility.SetDirty(manager);
         EditorSceneManager.MarkSceneDirty(scene);
         if (saveScene) EditorSceneManager.SaveScene(scene);
