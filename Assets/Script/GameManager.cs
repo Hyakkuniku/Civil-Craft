@@ -30,6 +30,11 @@ public class GameManager : MonoBehaviour
     [SerializeField] private List<GameObject> uiElementsToHide = new List<GameObject>();
     [SerializeField] private List<GameObject> buildModeUIElements = new List<GameObject>();
 
+    [Header("Build Mode - Decorative Canyon Visibility")]
+    [Tooltip("Hide the renderers on these decorative map objects and their children while building. Colliders and scripts remain active. Assign scenery only, not build-location roots, anchors, or bridges.")]
+    [SerializeField] private List<GameObject> decorativeCanyonsToHide = new List<GameObject>();
+    private readonly Dictionary<Renderer, bool> canyonRenderingStateBeforeBuildMode = new Dictionary<Renderer, bool>();
+
     [Header("Open World UI")]
     public GameObject redoConfirmPanel;
     [Tooltip("Add things here that you want hidden ONLY when the Redo Panel is open (Optional)")]
@@ -69,6 +74,7 @@ public class GameManager : MonoBehaviour
     private void OnDisable()
     {
         isTransitioning = false;
+        RestoreDecorativeCanyons();
         RestoreCapturedStates(buildLocationStateBeforeBuildMode);
         HideTransitionFader();
     }
@@ -258,6 +264,7 @@ public class GameManager : MonoBehaviour
         }
 
         // 4. Show Build Mode UI while the screen is black
+        HideDecorativeCanyons();
         foreach (GameObject uiElement in buildModeUIElements) if (uiElement != null) uiElement.SetActive(true);
         InvokeEventSafely(OnEnterBuildMode);
 
@@ -336,6 +343,7 @@ public class GameManager : MonoBehaviour
         RestoreCapturedStates(buildLocationStateBeforeBuildMode);
 
         // 1. Hide Build Mode UI instantly
+        RestoreDecorativeCanyons();
         foreach (GameObject uiElement in buildModeUIElements) if (uiElement != null) uiElement.SetActive(false);
 
         // 2. Prepare the camera swap behind the black screen
@@ -433,6 +441,33 @@ public class GameManager : MonoBehaviour
     }
 
     public bool IsInBuildMode() => CurrentState == GameState.Building;
+
+    private void HideDecorativeCanyons()
+    {
+        RestoreDecorativeCanyons();
+        if (decorativeCanyonsToHide == null) return;
+
+        foreach (GameObject canyon in decorativeCanyonsToHide)
+        {
+            if (canyon == null) continue;
+            foreach (Renderer visual in canyon.GetComponentsInChildren<Renderer>(true))
+            {
+                // Overlapping parent/child entries must not overwrite the original state.
+                if (visual == null || canyonRenderingStateBeforeBuildMode.ContainsKey(visual)) continue;
+                canyonRenderingStateBeforeBuildMode.Add(visual, visual.forceRenderingOff);
+                visual.forceRenderingOff = true;
+            }
+        }
+    }
+
+    private void RestoreDecorativeCanyons()
+    {
+        foreach (KeyValuePair<Renderer, bool> state in canyonRenderingStateBeforeBuildMode)
+        {
+            if (state.Key != null) state.Key.forceRenderingOff = state.Value;
+        }
+        canyonRenderingStateBeforeBuildMode.Clear();
+    }
 
     private void RefreshRedoConfirmationCopy()
     {

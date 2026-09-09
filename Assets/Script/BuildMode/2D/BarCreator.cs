@@ -140,6 +140,16 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     public int circleResolution = 50;    
     public float circleLineWidth = 0.05f;
 
+    [Header("Node Drag Axis Guides")]
+    [SerializeField] private bool showNodeDragGuides = true;
+    [SerializeField] private Color horizontalGuideColor = new Color(1f, 0.65f, 0.25f, 0.75f);
+    [SerializeField] private Color verticalGuideColor = new Color(0.35f, 0.9f, 1f, 0.75f);
+    [Tooltip("Line thickness at 1080p. Scales with screen height, with a one-pixel minimum.")]
+    [SerializeField, Range(1f, 6f)] private float nodeDragGuideThickness = 2f;
+    private GameObject nodeDragGuideOverlay;
+    private Image horizontalDragGuide;
+    private Image verticalDragGuide;
+
     private bool barCreationStarted = false;
     private bool createdStartPoint = false; 
 
@@ -162,6 +172,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     private void OnEnable() { EnhancedTouchSupport.Enable(); }
     private void OnDisable()
     {
+        HideNodeDragGuides();
         CancelCreation();
         EnhancedTouchSupport.Disable();
         if (magnifyingGlass != null) magnifyingGlass.HideMagnifier();
@@ -190,6 +201,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
     private void OnDestroy()
     {
+        if (nodeDragGuideOverlay != null) Destroy(nodeDragGuideOverlay);
         if (GameManager.Instance != null)
         {
             GameManager.Instance.OnEnterBuildMode.RemoveListener(HandleEnterBuildMode);
@@ -233,6 +245,83 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (Touch.activeTouches.Count > 0) return Touch.activeTouches[0].screenPosition;
         if (UnityEngine.InputSystem.Pointer.current != null) return UnityEngine.InputSystem.Pointer.current.position.ReadValue();
         return Vector2.zero;
+    }
+
+    private void LateUpdate()
+    {
+        bool pointerHeld = Touch.activeTouches.Count == 1 ||
+            (Touch.activeTouches.Count == 0 && UnityEngine.InputSystem.Pointer.current != null &&
+             UnityEngine.InputSystem.Pointer.current.press.isPressed);
+        if (!showNodeDragGuides || !pointerHeld || isSimulating || IsAutoDrawing ||
+            (GameManager.Instance != null && (GameManager.Instance.CurrentState != GameManager.GameState.Building ||
+                                             GameManager.Instance.IsTransitioning)))
+        {
+            HideNodeDragGuides();
+            return;
+        }
+
+        Point node = null;
+        if (isMoveMode && isDraggingSelection && selectedPoints.Count > 0)
+            node = selectedPoints[0];
+        else if (barCreationStarted && !isDeleteMode && !isSelectMode && !isMoveMode && !IsPasting)
+            node = currentEndPoint;
+
+        Camera camera = GetActiveCamera();
+        if (node == null || !node.gameObject.activeInHierarchy || camera == null)
+        {
+            HideNodeDragGuides();
+            return;
+        }
+        Vector3 screen = camera.WorldToScreenPoint(node.transform.position);
+        Rect viewport = camera.pixelRect;
+        if (screen.z <= 0f || !viewport.Contains(new Vector2(screen.x, screen.y)))
+        {
+            HideNodeDragGuides();
+            return;
+        }
+        if (nodeDragGuideOverlay == null)
+        {
+            nodeDragGuideOverlay = new GameObject("Node Drag Axis Guides", typeof(Canvas));
+            Canvas canvas = nodeDragGuideOverlay.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            // Render over the world but below the normal build HUD. No raycaster/input interception.
+            canvas.sortingOrder = -10;
+            horizontalDragGuide = CreateNodeDragGuide("X Guide");
+            verticalDragGuide = CreateNodeDragGuide("Y Guide");
+        }
+        nodeDragGuideOverlay.SetActive(true);
+        float width = Mathf.Max(1f, nodeDragGuideThickness * Screen.height / 1080f);
+        SetNodeDragGuide(horizontalDragGuide,
+            new Vector2(viewport.xMin / Screen.width, screen.y / Screen.height),
+            new Vector2(viewport.xMax / Screen.width, screen.y / Screen.height),
+            new Vector2(0f, width), horizontalGuideColor);
+        SetNodeDragGuide(verticalDragGuide,
+            new Vector2(screen.x / Screen.width, viewport.yMin / Screen.height),
+            new Vector2(screen.x / Screen.width, viewport.yMax / Screen.height),
+            new Vector2(width, 0f), verticalGuideColor);
+    }
+
+    private Image CreateNodeDragGuide(string label)
+    {
+        GameObject line = new GameObject(label, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        line.transform.SetParent(nodeDragGuideOverlay.transform, false);
+        Image graphic = line.GetComponent<Image>();
+        graphic.raycastTarget = false;
+        return graphic;
+    }
+
+    private static void SetNodeDragGuide(Image line, Vector2 min, Vector2 max, Vector2 size, Color tint)
+    {
+        line.rectTransform.anchorMin = min;
+        line.rectTransform.anchorMax = max;
+        line.rectTransform.anchoredPosition = Vector2.zero;
+        line.rectTransform.sizeDelta = size;
+        line.color = tint;
+    }
+
+    private void HideNodeDragGuides()
+    {
+        if (nodeDragGuideOverlay != null) nodeDragGuideOverlay.SetActive(false);
     }
 
     private bool IsPointerOverUI()

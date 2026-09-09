@@ -802,6 +802,7 @@ MonoBehaviour:
   nextButton: {fileID: 8576043186519041273}
   skipButton: {fileID: 6081865980345199539}
   bouncingArrow: {fileID: 0}
+  recallGuideButton: {fileID: 0}
   transitionDuration: 0.25
   slideTransitionDuration: 0.6
   reverseStepOffset: {x: -180, y: 0}
@@ -3851,7 +3852,13 @@ MonoBehaviour:
   animator: {fileID: 2482352455532938614}
   dialogueBox: {fileID: 5472799369633290338}
   closeHideDelay: 0.5
+  landscapeMobileScale: 0.84
   typingSpeed: 0.03
+  speakerTalkingBoolParameter: isTalking
+  speakerWalkingBoolParameter: isWalking
+  turnPlayerTowardSpeaker: 1
+  turnSpeakerTowardPlayer: 1
+  playerTurnDuration: 0.2
   elementsToHide: []
   inputManager: {fileID: 5642563023413880115}
 --- !u!1 &704127370946914269
@@ -8201,6 +8208,8 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 3a24221d5eb7c9c48826f40ddf2ad14b, type: 2}
   - {fileID: 11400000, guid: 4e5484c806e8ce74cbbfeaca54408ded, type: 2}
   allGameContracts:
+  - {fileID: 11400000, guid: d16ef45202a457f43bc02f4d7e730647, type: 2}
+  - {fileID: 11400000, guid: b2c3c504e3cdd4043b4bfad718fccd86, type: 2}
   - {fileID: 11400000, guid: d58e962a84aed8944ad5741d6404b861, type: 2}
   - {fileID: 11400000, guid: 5edc8d91db6f6014190820a7c01cea37, type: 2}
 --- !u!1 &1720876520320307134
@@ -12597,14 +12606,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3311f20eb2c4ee449ace8becae8cf8c7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  earnedStarSprite: {fileID: 21300000, guid: d84bf842b76e99c45abe79162e61c381, type: 3}
-  unearnedStarSprite: {fileID: 21300000, guid: 91df24aafd1b17947afc922622f41840, type: 3}
   levelCompletePanel: {fileID: 6079639294584877257}
   feedbackText: {fileID: 7462857800497887646}
   costText: {fileID: 8324127656390653244}
   costPercentageText: {fileID: 0}
   budgetText: {fileID: 3526134621030590408}
   stressText: {fileID: 8337552864788404477}
+  receiptSourceFont: {fileID: 0}
+  receiptBackground: {fileID: 0}
+  earnedStarSprite: {fileID: 21300000, guid: d84bf842b76e99c45abe79162e61c381, type: 3}
+  unearnedStarSprite: {fileID: 21300000, guid: 91df24aafd1b17947afc922622f41840, type: 3}
   receiptContentParent: {fileID: 8647065282940281222}
   receiptRowPrefab: {fileID: 57992146011034018, guid: 1184363f0986e454191181012f996ef0,
     type: 3}
@@ -12913,6 +12924,7 @@ MonoBehaviour:
   isSimulating: 0
   lockStressTracking: 0
   activeStressHandlers: []
+  peakDisplayedStressThisRun: 0
   peakStressThisRun: 0
 --- !u!114 &5137540186646988140
 MonoBehaviour:
@@ -13482,6 +13494,7 @@ MonoBehaviour:
   retryButton: {fileID: 0}
   uiElementsToHide: []
   deathThreshold: -50
+  maximumVehicleFallDistance: 6
   delayBeforeFailScreen: 2
   goldPenaltyPerFail: 25
   currentFailCount: 0
@@ -14655,6 +14668,7 @@ MonoBehaviour:
   otherUIElements:
   - {fileID: 447446388950678387}
   - {fileID: 6908251185629912755}
+  roundedPanelSprite: {fileID: 0}
 --- !u!1 &3819993756714898470
 GameObject:
   m_ObjectHideFlags: 0
@@ -15617,10 +15631,18 @@ MonoBehaviour:
   placeBarSfxId: PlaceBar
   magnifyingGlass: {fileID: 0}
   showMagnifierWhileDrawing: 1
+  enableAnchorAutoDraw: 1
+  autoDrawHoldDelay: 0.45
+  autoDrawLoadingSeconds: 0.65
+  autoDrawSecondsPerPiece: 0.24
+  autoDrawRingColor: {r: 1, g: 0.68, b: 0.2, a: 1}
+  autoDrawRingRadius: 60
   activeMaterial: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
   isGridSnappingEnabled: 1
   isDeleteMode: 0
   selectedBarMaterial: {fileID: 2100000, guid: f93b0b02c4e3f9449bf6707a8d16354d, type: 2}
+  selectionOutlineColor: {r: 1, g: 1, b: 1, a: 1}
+  selectionOutlineWidth: 4
   isSelectMode: 0
   isMoveMode: 0
   selectionBoxUI: {fileID: 405153980854488615}
@@ -15631,10 +15653,15 @@ MonoBehaviour:
   pierBaseY: -10
   deleteSnapRadiusPixels: 50
   nodeSnapRadiusWorld: 1.2
+  autoDrawNodeSnapTolerance: 0.15
   nodeSnapDepthTolerance: 1
   radiusIndicator: {fileID: 6286476931875835570}
   circleResolution: 50
   circleLineWidth: 0.05
+  showNodeDragGuides: 1
+  horizontalGuideColor: {r: 1, g: 0.65, b: 0.25, a: 0.75}
+  verticalGuideColor: {r: 0.35, g: 0.9, b: 1, a: 0.75}
+  nodeDragGuideThickness: 2
 --- !u!114 &4525628620034062266
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -18128,6 +18155,13 @@ MonoBehaviour:
   minWaveScale: 0.2
   offPathTolerance: 4
   offPathCheckInterval: 0.5
+  trailExtensionDistance: 6
+  markerRevealDuration: 0.4
+  allowPartialNavMeshPaths: 1
+  navMeshSampleRadius: 2
+  maxNavMeshSampleRadius: 12
+  useGlobalNavMeshFallback: 1
+  recalculationCooldown: 1.5
   waypoints:
   - target: {fileID: 0}
     advancesTutorial: 1
@@ -18144,6 +18178,11 @@ MonoBehaviour:
   groundLayer:
     serializedVersion: 2
     m_Bits: 0
+  walkableBridgeLayer: Bridge
+  markerSurfaceClearance: 0.03
+  bridgeMarkerExtraHeight: 0.15
+  surfaceProbeHeight: 25
+  maxSurfaceHeightDifference: 4
 --- !u!1 &4857821650618582962
 GameObject:
   m_ObjectHideFlags: 0
@@ -20127,7 +20166,7 @@ RectTransform:
   m_GameObject: {fileID: 5472799369633290338}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0.84, y: 0.84, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 5394280091850411697}
@@ -26000,6 +26039,7 @@ MonoBehaviour:
   - {fileID: 4000465654145945648}
   buildModeUIElements:
   - {fileID: 4000465654145945648}
+  decorativeCanyonsToHide: []
   redoConfirmPanel: {fileID: 958456519141442972}
   extraElementsToHideOnRedo: []
   transitionFader: {fileID: 0}
@@ -30853,6 +30893,7 @@ MonoBehaviour:
   toolsPanelExtraPadding: {x: 0, y: 0}
   hideDuringSimulation: []
   layoutPanelToRebuild: {fileID: 0}
+  exitBuildModeButtonObject: {fileID: 0}
 --- !u!114 &3523040666602494126
 MonoBehaviour:
   m_ObjectHideFlags: 0

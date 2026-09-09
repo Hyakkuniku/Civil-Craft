@@ -23,8 +23,8 @@ MonoBehaviour:
   featureUnlockRewards: []
   clientName: Mayor
   jobDescription: We need a bridge across this ravine!
-  budget: 2000
-  liveLoadWeight: 50
+  budget: 2e+14
+  liveLoadWeight: 2500
   bridgeSpan: 30
   allowedMaterials: []
   hiddenTools: 
