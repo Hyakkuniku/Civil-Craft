@@ -20,6 +20,7 @@ public static class WorldNavigationBake
             foreach (var candidate in root.GetComponentsInChildren<NavMeshSurface>(true))
                 if (candidate.name == "Runtimie Navigation") surface = candidate;
         if (surface == null) { Debug.LogError("World NavMesh Surface was not found."); return; }
+        if (!DirtPathNavigationBake.Generate(scene)) return;
         Undo.RecordObject(surface, "Configure full world navigation bake");
         surface.collectObjects = CollectObjects.All;
         surface.useGeometry = UnityEngine.AI.NavMeshCollectGeometry.PhysicsColliders;
