@@ -499,6 +499,16 @@ public class LevelCompleteManager : MonoBehaviour
 
     public void CompleteLevel(ContractSO currentContract)
     {
+        CompleteLevelForVehicle(currentContract, null);
+    }
+
+    /// <summary>
+    /// Completes a live-load test using the exact vehicle that entered its finish
+    /// trigger. This prevents another inactive cart in the shared scene from being
+    /// selected by FindObjectOfType and stopped instead.
+    /// </summary>
+    public void CompleteLevelForVehicle(ContractSO currentContract, LiveLoadVehicle finishingVehicle)
+    {
         if (levelAlreadyCompleted) return;
         
         levelAlreadyCompleted = true;
@@ -509,18 +519,33 @@ public class LevelCompleteManager : MonoBehaviour
             cachedPhysicsManager.lockStressTracking = true;
         }
 
-        LiveLoadVehicle vehicle = FindObjectOfType<LiveLoadVehicle>();
-        if (vehicle != null)
+        if (finishingVehicle == null)
+            finishingVehicle = FindVehicleForContract(currentContract);
+
+        if (finishingVehicle != null)
         {
-            vehicle.StopAndFreezeForWin();
+            finishingVehicle.StopAndFreezeForWin();
         }
 
-        StartCoroutine(TakeSnapshotAndShowUIRoutine(currentContract));
+        StartCoroutine(TakeSnapshotAndShowUIRoutine(currentContract, finishingVehicle));
     }
 
-    private IEnumerator TakeSnapshotAndShowUIRoutine(ContractSO currentContract)
+    private static LiveLoadVehicle FindVehicleForContract(ContractSO currentContract)
     {
-        LiveLoadVehicle finishingVehicle = FindObjectOfType<LiveLoadVehicle>();
+        LiveLoadVehicle fallback = null;
+        foreach (LiveLoadVehicle vehicle in FindObjectsOfType<LiveLoadVehicle>())
+        {
+            if (fallback == null) fallback = vehicle;
+            if (currentContract != null && vehicle.assignedContract == currentContract)
+                return vehicle;
+        }
+        return fallback;
+    }
+
+    private IEnumerator TakeSnapshotAndShowUIRoutine(
+        ContractSO currentContract,
+        LiveLoadVehicle finishingVehicle)
+    {
         while (finishingVehicle != null && finishingVehicle.IsFinishBraking)
             yield return new WaitForFixedUpdate();
 

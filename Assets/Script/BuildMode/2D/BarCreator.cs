@@ -887,11 +887,14 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 Vector3 worldPos = GetWorldMousePosition(screenPos);
                 float alignedX = worldPos.x;
                 float snapThreshold = 1.5f; 
-                float bridgeZ = Point.AllPoints.Count > 0 ? Point.AllPoints[0].transform.position.z : 0f;
+                float bridgeZ = GetBuildPlaneZ();
 
                 foreach (Point p in Point.AllPoints)
                 {
-                    if (p.gameObject.activeSelf)
+                    if (p != null && p.gameObject.activeInHierarchy &&
+                        Mathf.Abs(p.transform.position.z - bridgeZ) <= nodeSnapDepthTolerance &&
+                        (GameManager.Instance == null || GameManager.Instance.ActiveBuildLocation == null ||
+                         p.OwnerLocation == null || p.OwnerLocation == GameManager.Instance.ActiveBuildLocation))
                     {
                         float xDiff = Mathf.Abs(p.transform.position.x - worldPos.x);
                         if (xDiff < snapThreshold)

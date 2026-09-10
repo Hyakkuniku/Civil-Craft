@@ -104,7 +104,8 @@ public class LiveLoadVehicle : Interactable
         rb.mass = vehicleMass;
         rb.isKinematic = true; 
         rb.useGravity = true; 
-        rb.collisionDetectionMode = CollisionDetectionMode.Discrete; 
+        rb.interpolation = RigidbodyInterpolation.Interpolate;
+        rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
 
         rb.centerOfMass = new Vector3(0, centerOfMassOffset, 0);
         rb.constraints = RigidbodyConstraints.FreezeRotationY | RigidbodyConstraints.FreezePositionZ;
@@ -250,7 +251,8 @@ public class LiveLoadVehicle : Interactable
                 w.rb = w.physObj.AddComponent<Rigidbody>();
                 w.rb.mass = wheelMass; 
                 w.rb.isKinematic = true; 
-                w.rb.collisionDetectionMode = CollisionDetectionMode.Discrete; 
+                w.rb.interpolation = RigidbodyInterpolation.Interpolate;
+                w.rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
                 w.rb.sleepThreshold = 0f; 
                 w.rb.maxDepenetrationVelocity = 10f; 
             }

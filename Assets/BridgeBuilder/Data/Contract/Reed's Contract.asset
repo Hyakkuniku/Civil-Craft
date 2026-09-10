@@ -24,7 +24,7 @@ MonoBehaviour:
   clientName: Reed
   jobDescription: We need a bridge across this ravine!
   budget: 100000
-  liveLoadWeight: 3500
+  liveLoadWeight: 700
   bridgeSpan: 80
   allowedMaterials: []
   hiddenTools: 

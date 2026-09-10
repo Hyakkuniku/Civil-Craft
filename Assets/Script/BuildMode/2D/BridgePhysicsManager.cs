@@ -17,13 +17,15 @@ public class BridgePhysicsManager : MonoBehaviour
     public int physicsSolverIterations = 40; 
     public int settleFramesAmount = 60;
 
-    [Header("Finalized Road Collision")]
-    [Tooltip("Permanent physical thickness of a saved road. This collider supports CharacterControllers even if NavMesh rebuilding fails.")]
+    [Header("Road Collision")]
+    [Tooltip("Physical thickness shared by simulated and finalized roads. This keeps wheel support continuous while the bridge flexes.")]
     [Min(0.02f)] [SerializeField] private float bakedRoadColliderThickness = 0.12f;
     [Tooltip("Permanent physical width of a saved road. Keep this wider than the player's CharacterController diameter.")]
     [Min(0.1f)] [SerializeField] private float bakedRoadColliderWidth = 2.4f;
-    [Tooltip("Collective endpoint overlap used to prevent physical seams between neighboring saved road bars.")]
+    [Tooltip("Total overlap between adjacent road colliders. Without overlap, flexing road joints expose a lip that can stop or flip live-load vehicles.")]
     [Min(0f)] [SerializeField] private float bakedRoadColliderSeamOverlap = 0.2f;
+    [Tooltip("Overlap used while the bridge is flexing under a live load. This should exceed the distance a fast wheel travels in one physics step.")]
+    [Min(0f)] [SerializeField] private float simulatedRoadColliderSeamOverlap = 0.6f;
     [Tooltip("Local height of the road's visible top surface before the permanent collider is thickened.")]
     [SerializeField] private float bakedRoadVisualTop = 0.025f;
 
@@ -316,6 +318,23 @@ public class BridgePhysicsManager : MonoBehaviour
     {
         if (isSimulating || pendingSimulationStart) return;
         HadBrokenPartsThisRun = false;
+
+        // Build locations may be activated after scene Awake. Refresh the
+        // invisible driving ramps now, immediately before the vehicle and bridge
+        // are released, so a wheel cannot meet the raw vertical canyon lip.
+        BridgeAbutmentAligner activeAbutmentAligner = null;
+        if (GameManager.Instance != null && GameManager.Instance.ActiveBuildLocation != null)
+        {
+            activeAbutmentAligner =
+                GameManager.Instance.ActiveBuildLocation.GetComponent<BridgeAbutmentAligner>();
+            if (activeAbutmentAligner != null &&
+                !activeAbutmentAligner.RefreshRuntimeApproaches(out string approachReport))
+            {
+                Debug.LogWarning(
+                    $"[BridgePhysicsManager] Could not refresh the active bridge approaches: {approachReport}",
+                    activeAbutmentAligner);
+            }
+        }
         
         activeStressHandlers.Clear(); 
         peakDisplayedStressThisRun = 0f;
@@ -364,11 +383,31 @@ public class BridgePhysicsManager : MonoBehaviour
         SetupDirectConnections(deterministicBars, deterministicPoints);
         ReleaseUnsupportedRoadJoints(deterministicBars, deterministicPoints);
         ResolveAdjacentCollisions(deterministicBars);
+        if (activeAbutmentAligner != null)
+            activeAbutmentAligner.IgnoreCollisionsWithBridge(CollectStructuralColliders());
         ResetPhysicsState();
 
         needsPhysicsRelease = true;
         currentSettleFrame = 0;
         pendingSimulationStart = true;
+    }
+
+    private List<Collider> CollectStructuralColliders()
+    {
+        List<Collider> colliders = new List<Collider>();
+        foreach (Bar bar in deterministicBars)
+        {
+            if (bar != null)
+                colliders.AddRange(bar.GetComponentsInChildren<Collider>(true));
+        }
+
+        foreach (Point point in deterministicPoints)
+        {
+            if (point != null)
+                colliders.AddRange(point.GetComponentsInChildren<Collider>(true));
+        }
+
+        return colliders;
     }
 
     public void StopPhysicsAndReset()
@@ -837,17 +876,31 @@ public class BridgePhysicsManager : MonoBehaviour
                 {
                     BoxCollider col = bar.gameObject.AddComponent<BoxCollider>();
                     
-                    float thickness = bar.materialData.isRoad ? 0.05f : barColliderThickness;
+                    float thickness = bar.materialData.isRoad
+                        ? Mathf.Max(0.05f, bakedRoadColliderThickness)
+                        : barColliderThickness;
                     float depth = bar.visualSize.z; 
 
                     if (!bar.materialData.isDualBeam && depth < 2.0f) depth = 2.0f; 
                     else if (bar.materialData.isDualBeam && depth < 0.2f) depth = 0.2f;
 
                     float zOffsetValue = bar.materialData.isDualBeam ? ((i == 0) ? bar.materialData.zOffset : -bar.materialData.zOffset) : 0f;
-                    float physicsLength = length - 0.02f; 
+                    // Dynamic road bars rotate independently as the bridge flexes.
+                    // Shortening their colliders exposes a vertical lip at every
+                    // joint; a driven wheel can catch that lip and pitch the cart
+                    // upward. Adjacent bridge colliders ignore each other below,
+                    // so a small road overlap is stable and keeps the lane continuous.
+                    float physicsLength = bar.materialData.isRoad
+                        ? length + Mathf.Max(
+                            bakedRoadColliderSeamOverlap,
+                            simulatedRoadColliderSeamOverlap)
+                        : length - 0.02f;
                     
                     col.size = new Vector3(physicsLength, thickness, depth);
-                    col.center = new Vector3(0, 0, zOffsetValue);
+                    float centerY = bar.materialData.isRoad
+                        ? bakedRoadVisualTop - thickness * 0.5f
+                        : 0f;
+                    col.center = new Vector3(0, centerY, zOffsetValue);
                     
                     if (bar.materialData.isRoad) col.material = sharedRoadPhysicsMat;
                 }
@@ -921,34 +974,17 @@ public class BridgePhysicsManager : MonoBehaviour
             nodeRb.velocity = Vector3.zero;
             nodeRb.angularVelocity = Vector3.zero;
 
-            bool isRoadNode = false;
-            float maxZDepth = 2.0f;
-            
             // USE THE SORTED LIST
             foreach (Bar bar in sortedConnectedBars)
             {
                 if (bar == null || !bar.gameObject.activeSelf) continue; 
-                
-                if (bar.materialData != null && bar.materialData.isRoad)
-                {
-                    isRoadNode = true;
-                    float barZ = bar.materialData.isDualBeam ? bar.visualSize.z + (bar.materialData.zOffset * 2f) : bar.visualSize.z;
-                    if (barZ > maxZDepth) maxZDepth = barZ;
-                }
-                
+
                 if (!bar.materialData.isRope) AttachJoint(bar.gameObject, nodeRb, bar.materialData, p.transform.position);
             }
 
-            if (isRoadNode)
-            {
-                CapsuleCollider groutCylinder = p.gameObject.AddComponent<CapsuleCollider>();
-                groutCylinder.radius = 0.025f; 
-                groutCylinder.height = maxZDepth; 
-                groutCylinder.direction = 2; 
-                p.gameObject.layer = LayerMask.NameToLayer("Bridge"); 
-                
-                groutCylinder.material = sharedRoadPhysicsMat;
-            }
+            // Road bars overlap at their endpoints, so a separate node collider
+            // is unnecessary. The former cross-lane capsule stayed fixed at an
+            // anchor while the deck flexed and became a small wheel ridge.
         }
 
         foreach (Bar rope in activeBars)

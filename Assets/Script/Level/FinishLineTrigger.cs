@@ -50,7 +50,7 @@ public class FinishLineTrigger : MonoBehaviour
         
         if (LevelCompleteManager.Instance != null)
         {
-            LevelCompleteManager.Instance.CompleteLevel(assignedContract);
+            LevelCompleteManager.Instance.CompleteLevelForVehicle(assignedContract, car);
         }
     }
 }

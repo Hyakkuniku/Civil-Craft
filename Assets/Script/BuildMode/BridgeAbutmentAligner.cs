@@ -265,6 +265,47 @@ public sealed class BridgeAbutmentAligner : MonoBehaviour
         return GenerateSmoothApproachesInternal(out report);
     }
 
+    /// <summary>
+    /// Rebuilds the physical bridge-to-land transitions from the colliders that
+    /// are active for the current test. Awake normally creates these surfaces,
+    /// but build locations can be enabled after scene startup and their terrain
+    /// or anchors may have changed by the time simulation begins.
+    /// </summary>
+    public bool RefreshRuntimeApproaches(out string report)
+    {
+        if (!Application.isPlaying)
+        {
+            report = "Runtime approaches can only be refreshed in Play Mode.";
+            return false;
+        }
+
+        return GenerateSmoothApproachesInternal(out report);
+    }
+
+    /// <summary>
+    /// The approach intentionally overlaps the final road section. It supports
+    /// the vehicle, but must not push the simulated bridge out of place where
+    /// the two colliders occupy the same space.
+    /// </summary>
+    public void IgnoreCollisionsWithBridge(IEnumerable<Collider> bridgeColliders)
+    {
+        if (bridgeColliders == null) return;
+
+        Transform root = transform.Find(GeneratedRootName);
+        if (root == null) return;
+
+        Collider[] approachColliders = root.GetComponentsInChildren<Collider>(true);
+        foreach (Collider approach in approachColliders)
+        {
+            if (approach == null || !approach.enabled || approach.isTrigger) continue;
+            foreach (Collider bridge in bridgeColliders)
+            {
+                if (bridge == null || !bridge.enabled || bridge.isTrigger || bridge == approach) continue;
+                Physics.IgnoreCollision(approach, bridge, true);
+            }
+        }
+    }
+
     public bool AlignAnchorsToTutorialGhostEndpoints(out string report)
     {
         BuildLocation location = Location;

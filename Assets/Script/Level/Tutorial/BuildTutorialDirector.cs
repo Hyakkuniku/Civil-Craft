@@ -58,9 +58,12 @@ public class BuildTutorialDirector : MonoBehaviour
     public List<ToolUIMapping> toolMappings = new List<ToolUIMapping>();
 
     [Header("Ghost Matching Tolerances")]
-    [Min(0.01f)] public float endpointTolerance = 0.8f;
-    [Min(0.01f)] public float pierXTolerance = 0.8f;
-    [Min(0.01f)] public float snapTolerance = 1.2f;
+    [Tooltip("Maximum world-space error at BOTH ends of a traced bar, including pier feet and caps.")]
+    [Min(0.01f)] public float endpointTolerance = 0.2f;
+    [Tooltip("Additional horizontal limit for both pier endpoints. Height and depth must also match.")]
+    [Min(0.01f)] public float pierXTolerance = 0.2f;
+    [Tooltip("Release snap distance for the free endpoint. The starting endpoint must already match.")]
+    [Min(0.01f)] public float snapTolerance = 0.5f;
 
     [Header("Selection / Copy-Paste Tutorial")]
     [SerializeField] private string selectionTutorialLesson = "Sequence_Build2";
@@ -682,8 +685,8 @@ public class BuildTutorialDirector : MonoBehaviour
     }
 
     /// <summary>
-    /// Snaps a near-correct road/steel endpoint exactly onto its matching ghost endpoint.
-    /// Piers intentionally are not endpoint-snapped because only their X coordinate matters.
+    /// Helps finish a near-correct trace without accepting an incorrectly placed start.
+    /// Piers may snap their cap height, but keep their fixed foot and vertical axis.
     /// </summary>
     public bool TryGetSnappedEndPosition(
         BridgeMaterialSO material,
@@ -700,22 +703,30 @@ public class BuildTutorialDirector : MonoBehaviour
 
             if (material.isPier)
             {
-                if (Mathf.Abs(startPosition.x - ghost.startPos.x) <= snapTolerance)
+                Vector3 foot = ghost.startPos.y <= ghost.endPos.y ? ghost.startPos : ghost.endPos;
+                Vector3 cap = ghost.startPos.y <= ghost.endPos.y ? ghost.endPos : ghost.startPos;
+                if (Vector3.Distance(startPosition, foot) <= endpointTolerance &&
+                    Mathf.Abs(startPosition.x - foot.x) <= pierXTolerance &&
+                    Vector3.Distance(candidateEndPosition, cap) <= snapTolerance)
                 {
-                    snappedEndPosition.x = ghost.startPos.x;
-                    return true;
+                    Vector3 snappedCap = new Vector3(startPosition.x, cap.y, startPosition.z);
+                    if (DoesPlacementMatchGhost(material, startPosition, snappedCap, ghost))
+                    {
+                        snappedEndPosition = snappedCap;
+                        return true;
+                    }
                 }
                 continue;
             }
 
-            if (Vector3.Distance(startPosition, ghost.startPos) <= snapTolerance &&
+            if (Vector3.Distance(startPosition, ghost.startPos) <= endpointTolerance &&
                 Vector3.Distance(candidateEndPosition, ghost.endPos) <= snapTolerance)
             {
                 snappedEndPosition = ghost.endPos;
                 return true;
             }
 
-            if (Vector3.Distance(startPosition, ghost.endPos) <= snapTolerance &&
+            if (Vector3.Distance(startPosition, ghost.endPos) <= endpointTolerance &&
                 Vector3.Distance(candidateEndPosition, ghost.startPos) <= snapTolerance)
             {
                 snappedEndPosition = ghost.startPos;
@@ -832,16 +843,19 @@ public class BuildTutorialDirector : MonoBehaviour
     {
         if (material == null || ghost == null || ghost.requiredMaterial != material) return false;
 
-        if (material.isPier)
-        {
-            // Piers intentionally match only the blueprint's X axis.
-            return Mathf.Abs(start.x - ghost.startPos.x) <= pierXTolerance;
-        }
-
         bool forwardMatch = Vector3.Distance(start, ghost.startPos) <= endpointTolerance &&
                             Vector3.Distance(end, ghost.endPos) <= endpointTolerance;
         bool reverseMatch = Vector3.Distance(start, ghost.endPos) <= endpointTolerance &&
                             Vector3.Distance(end, ghost.startPos) <= endpointTolerance;
+        if (material.isPier)
+        {
+            // A matching X alone is not a traced pier: its foot, cap height and build
+            // plane must all match. Endpoint order can differ after normalization.
+            forwardMatch &= Mathf.Abs(start.x - ghost.startPos.x) <= pierXTolerance &&
+                            Mathf.Abs(end.x - ghost.endPos.x) <= pierXTolerance;
+            reverseMatch &= Mathf.Abs(start.x - ghost.endPos.x) <= pierXTolerance &&
+                            Mathf.Abs(end.x - ghost.startPos.x) <= pierXTolerance;
+        }
         return forwardMatch || reverseMatch;
     }
 
