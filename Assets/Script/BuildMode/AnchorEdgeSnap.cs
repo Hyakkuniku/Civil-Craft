@@ -152,6 +152,20 @@ public sealed class AnchorEdgeSnap : MonoBehaviour
     /// <summary>Measure an edge without changing the anchor or its Point flags.</summary>
     public bool TryPreviewEdge(out Vector3 position, out Collider edgeSurface, out string report)
     {
+        return TryPreviewEdge(edgeInsetOntoLand, out position, out edgeSurface, out report);
+    }
+
+    /// <summary>
+    /// Measure an edge using an explicit land inset. Layout tools use this to
+    /// place both endpoints far enough onto stable bank geometry for vehicle
+    /// wheels, without changing the component until the layout is applied.
+    /// </summary>
+    public bool TryPreviewEdge(
+        float landInset,
+        out Vector3 position,
+        out Collider edgeSurface,
+        out string report)
+    {
         edgeSurface = null;
         position = transform.position;
         if (Application.isPlaying || !gameObject.scene.IsValid())
@@ -164,16 +178,17 @@ public sealed class AnchorEdgeSnap : MonoBehaviour
             report = $"No edge near {name}. Move the anchor nearer the cliff or increase its Horizontal Search Radius.";
             return false;
         }
-        float sampleX = edge.edgeX + edge.landDirectionX * Mathf.Max(edgeInsetOntoLand, sampleSpacing * 0.5f);
+        float safeLandInset = Mathf.Max(0f, landInset);
+        float sampleX = edge.edgeX + edge.landDirectionX * Mathf.Max(safeLandInset, sampleSpacing * 0.5f);
         if (!TrySampleSurface(sampleX, position.z, position.y, out SurfaceSample surface))
         {
             report = $"Could not measure the land surface for {name}.";
             return false;
         }
-        position.x = edge.edgeX + edge.landDirectionX * edgeInsetOntoLand;
+        position.x = edge.edgeX + edge.landDirectionX * safeLandInset;
         position.y = surface.height - roadSurfaceAboveAnchor;
         edgeSurface = surface.collider;
-        report = "Measured collider edge including the anchor's land inset.";
+        report = $"Measured collider edge with {safeLandInset:F3} units of anchor overlap onto the bank.";
         return true;
     }
 

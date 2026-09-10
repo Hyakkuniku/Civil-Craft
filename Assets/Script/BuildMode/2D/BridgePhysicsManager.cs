@@ -319,9 +319,8 @@ public class BridgePhysicsManager : MonoBehaviour
         if (isSimulating || pendingSimulationStart) return;
         HadBrokenPartsThisRun = false;
 
-        // Build locations may be activated after scene Awake. Refresh the
-        // invisible driving ramps now, immediately before the vehicle and bridge
-        // are released, so a wheel cannot meet the raw vertical canyon lip.
+        // Build locations may contain endpoint ramps saved by older revisions.
+        // Clear those legacy invisible colliders before releasing the bridge.
         BridgeAbutmentAligner activeAbutmentAligner = null;
         if (GameManager.Instance != null && GameManager.Instance.ActiveBuildLocation != null)
         {

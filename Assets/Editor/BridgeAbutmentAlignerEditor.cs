@@ -19,18 +19,9 @@ public sealed class BridgeAbutmentAlignerEditor : Editor
             if (GUILayout.Button("Align Anchors And Approach Surfaces"))
                 AlignWithUndo(aligner);
 
-            if (GUILayout.Button("Auto Create / Refresh Smooth Approaches"))
+            if (GUILayout.Button("Remove Legacy Endpoint Colliders"))
             {
-                Undo.RegisterFullObjectHierarchyUndo(aligner.gameObject, "Generate Smooth Bridge Approaches");
-                bool generated = aligner.GenerateSmoothApproaches(out string report);
-                EditorUtility.SetDirty(aligner.gameObject);
-                if (generated) Debug.Log($"[BridgeAbutmentAligner] {report}", aligner);
-                else Debug.LogWarning($"[BridgeAbutmentAligner] {report}", aligner);
-            }
-
-            if (GUILayout.Button("Remove Generated Smooth Approaches"))
-            {
-                Undo.RegisterFullObjectHierarchyUndo(aligner.gameObject, "Remove Smooth Bridge Approaches");
+                Undo.RegisterFullObjectHierarchyUndo(aligner.gameObject, "Remove Legacy Endpoint Colliders");
                 aligner.RemoveGeneratedApproaches();
                 EditorUtility.SetDirty(aligner.gameObject);
             }
@@ -44,9 +35,8 @@ public sealed class BridgeAbutmentAlignerEditor : Editor
         }
 
         EditorGUILayout.HelpBox(
-            "For the least manual setup, assign Build Location and click Auto Create / Refresh. " +
             "Sync Anchors To Tutorial Ghosts repairs blueprint alignment after an anchor was accidentally moved. " +
-            "The smooth approach tool then measures the Environment/Ground surface and creates invisible transition colliders.",
+            "Automatic endpoint colliders are disabled. Use Remove Legacy Endpoint Colliders if this scene contains old GeneratedSmoothApproaches objects.",
             MessageType.Info);
     }
 

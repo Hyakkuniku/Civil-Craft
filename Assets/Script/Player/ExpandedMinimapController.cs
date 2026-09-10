@@ -664,7 +664,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         labelRect.sizeDelta = new Vector2(260f, 44f);
 
         TextMeshProUGUI label = labelObject.GetComponent<TextMeshProUGUI>();
-        label.text = GetLocationLabel(location);
+        label.text = GetMarkerLabel(location);
         label.alignment = TextAlignmentOptions.Left;
         label.color = new Color(0.16f, 0.09f, 0.04f, 1f);
         label.fontStyle = FontStyles.Bold;
@@ -705,9 +705,11 @@ public sealed class ExpandedMinimapController : MonoBehaviour
                 (viewport.x - 0.5f) * rect.width,
                 (viewport.y - 0.5f) * rect.height);
             marker.image.color = GetMarkerColor(marker.location);
-            marker.label.text = GetLocationLabel(marker.location);
+            marker.label.text = GetMarkerLabel(marker.location);
             bool isNavigationDestination = marker.location == navigationDestination;
-            marker.label.gameObject.SetActive(isExpanded || isNavigationDestination);
+            marker.label.gameObject.SetActive(
+                !string.IsNullOrEmpty(marker.label.text) &&
+                (isExpanded || isNavigationDestination));
             marker.button.interactable = isExpanded;
             bool shouldPulse = isExpanded || isNavigationDestination;
             marker.diamond.localScale = Vector3.one * (shouldPulse ? pulse : 0.78f);
@@ -1385,6 +1387,17 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         if (location == null) return "Build Location";
         string label = location.activeContract != null ? location.activeContract.name : location.name;
         return string.IsNullOrWhiteSpace(label) ? "Build Location" : label.Replace('_', ' ');
+    }
+
+    private static string GetMarkerLabel(BuildLocation location)
+    {
+        // A location without an available contract is still represented by its
+        // locked diamond, but its internal scene-object name (usually
+        // "workbench") is not player-facing information.
+        if (location == null || (location.activeContract == null && !IsLocationCompleted(location)))
+            return string.Empty;
+
+        return GetLocationLabel(location);
     }
 
     private static Vector3 GetLocationWorldPosition(BuildLocation location)

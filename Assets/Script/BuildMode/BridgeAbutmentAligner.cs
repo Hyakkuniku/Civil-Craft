@@ -60,9 +60,6 @@ public sealed class BridgeAbutmentAligner : MonoBehaviour
     [Tooltip("Tiny separation from the terrain. Large values create a new physical step, so runtime generation clamps this value.")]
     [Min(0f)] [SerializeField] private float surfaceClearance = 0.002f;
     [SerializeField] private PhysicMaterial automaticApproachMaterial;
-    [Tooltip("Rebuilds approaches from the actual loaded colliders. This also upgrades short approaches already saved in older scenes.")]
-    [SerializeField] private bool refreshApproachesOnSceneStart = true;
-
     [Header("Tutorial Blueprint Compatibility")]
     [Tooltip("Keeps permanent anchors on the exact endpoints stored by nearby baked GhostSegments. This prevents authoring tools from desynchronizing tutorial blueprints.")]
     [SerializeField] private bool alignAnchorsToTutorialGhosts = true;
@@ -90,10 +87,10 @@ public sealed class BridgeAbutmentAligner : MonoBehaviour
         if (alignAnchorsToTutorialGhosts)
             AlignAnchorsToTutorialGhostEndpoints(out _);
 
-        if (!refreshApproachesOnSceneStart) return;
-
-        if (!GenerateSmoothApproachesInternal(out string report))
-            Debug.LogWarning($"[BridgeAbutmentAligner] Runtime approach refresh failed: {report}", this);
+        // Endpoint ramps were removed from the runtime design. Clear legacy
+        // scene-saved copies immediately so they cannot behave as invisible
+        // floors or walls at either end of the bridge.
+        RemoveGeneratedApproaches();
     }
 
     private void Reset()
@@ -262,14 +259,14 @@ public sealed class BridgeAbutmentAligner : MonoBehaviour
             return false;
         }
 
-        return GenerateSmoothApproachesInternal(out report);
+        RemoveGeneratedApproaches();
+        report = "Automatic endpoint colliders are disabled. Removed any legacy generated approaches.";
+        return true;
     }
 
     /// <summary>
-    /// Rebuilds the physical bridge-to-land transitions from the colliders that
-    /// are active for the current test. Awake normally creates these surfaces,
-    /// but build locations can be enabled after scene startup and their terrain
-    /// or anchors may have changed by the time simulation begins.
+    /// Compatibility hook used by the physics manager. Automatic endpoint
+    /// colliders are disabled, so this now only removes legacy generated copies.
     /// </summary>
     public bool RefreshRuntimeApproaches(out string report)
     {
@@ -279,7 +276,9 @@ public sealed class BridgeAbutmentAligner : MonoBehaviour
             return false;
         }
 
-        return GenerateSmoothApproachesInternal(out report);
+        RemoveGeneratedApproaches();
+        report = "Automatic endpoint colliders are disabled; no approach colliders were created.";
+        return true;
     }
 
     /// <summary>
@@ -385,13 +384,11 @@ public sealed class BridgeAbutmentAligner : MonoBehaviour
         if (referenceAnchor == null)
             referenceAnchor = anchors[0];
 
-        float commonAnchorY = referenceAnchor.transform.position.y;
-        foreach (Point anchor in anchors)
-        {
-            Vector3 position = anchor.transform.position;
-            position.y = commonAnchorY;
-            anchor.transform.position = position;
-        }
+        // Do not mutate endpoint height while generating runtime approaches.
+        // The layout helper owns bank/anchor alignment, and changing it again here
+        // can bury an endpoint in terrain or recreate a hard vehicle bump.
+        // The explicit AlignAll editor action remains available when a designer
+        // truly wants every endpoint on one horizontal plane.
 
         RemoveGeneratedApproaches();
         Physics.SyncTransforms();
@@ -533,6 +530,7 @@ public sealed class BridgeAbutmentAligner : MonoBehaviour
         collider.size = new Vector3(length, automaticApproachThickness, automaticApproachWidth);
         collider.isTrigger = false;
         collider.material = automaticApproachMaterial;
+
     }
 
     private static List<Point> CollectLocationAnchors(BuildLocation location)
