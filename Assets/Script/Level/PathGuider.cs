@@ -169,7 +169,7 @@ public class PathGuider : MonoBehaviour
             }
         }
 
-        HandleRockPickup();
+        TrimTraversedTrail();
         
         // --- NEW: Call the perfectly synced animation every frame ---
         AnimateRocks();
@@ -423,8 +423,10 @@ public class PathGuider : MonoBehaviour
 
         var connector = GenerateSmoothTerrainPath(PreferredRoadNavigation.GetGuideCorners(path));
         PrependPlayerConnector(connector, start);
+        // The connector begins at the player and joins the existing trail, so
+        // it belongs before the remaining destination markers in traversal order.
         // The spawn routine skips positions already occupied by trail markers.
-        SpawnRocksAlongPath(connector, false);
+        SpawnRocksAlongPath(connector, true);
         wasAwayFromTrail = IsAwayFromVisibleTrail();
     }
 
@@ -547,19 +549,87 @@ public class PathGuider : MonoBehaviour
         {
             activeRocks.AddRange(newlySpawnedRocks);
         }
+
+        // Connector paths can be inserted ahead of an existing trail. Keep the
+        // wave direction synchronized with the resulting traversal order.
+        for (int i = 0; i < activeRocks.Count; i++)
+            activeRocks[i].waveIndex = i;
     }
 
-    private void HandleRockPickup()
+    private void TrimTraversedTrail()
     {
+        // Remove destroyed entries first so list order remains meaningful.
         for (int i = activeRocks.Count - 1; i >= 0; i--)
         {
-            GameObject rock = activeRocks[i].obj;
-            if (rock == null || Vector3.Distance(player.position, rock.transform.position) <= rockPickupDistance)
-            {
-                if (rock != null) Destroy(rock);
+            if (activeRocks[i].obj == null)
                 activeRocks.RemoveAt(i);
-            }
         }
+
+        TrimCachedRouteBehindPlayer();
+        if (activeRocks.Count == 0) return;
+
+        int nearestIndex = -1;
+        float nearestSqrDistance = float.PositiveInfinity;
+        for (int i = 0; i < activeRocks.Count; i++)
+        {
+            float sqrDistance =
+                (activeRocks[i].obj.transform.position - player.position).sqrMagnitude;
+            if (sqrDistance >= nearestSqrDistance) continue;
+
+            nearestSqrDistance = sqrDistance;
+            nearestIndex = i;
+        }
+
+        // Only advance the cut while the player is actually following or
+        // intentionally cutting across the current trail. This avoids erasing
+        // the route when the player is far away and needs a connector.
+        float trimRadius = Mathf.Max(rockPickupDistance, offPathTolerance);
+        if (nearestIndex < 0 || nearestSqrDistance > trimRadius * trimRadius) return;
+
+        int lastTraversedIndex = nearestIndex - 1;
+        if (nearestSqrDistance <= rockPickupDistance * rockPickupDistance)
+            lastTraversedIndex = nearestIndex;
+
+        for (int i = lastTraversedIndex; i >= 0; i--)
+        {
+            if (activeRocks[i].obj != null) Destroy(activeRocks[i].obj);
+            activeRocks.RemoveAt(i);
+        }
+    }
+
+    private void TrimCachedRouteBehindPlayer()
+    {
+        if (currentRoutePoints.Count < 3) return;
+
+        Vector2 playerXZ = new Vector2(player.position.x, player.position.z);
+        int closestSegment = -1;
+        float closestProgress = 0f;
+        float closestSqrDistance = float.PositiveInfinity;
+
+        for (int i = 0; i < currentRoutePoints.Count - 1; i++)
+        {
+            Vector2 start = new Vector2(currentRoutePoints[i].x, currentRoutePoints[i].z);
+            Vector2 end = new Vector2(currentRoutePoints[i + 1].x, currentRoutePoints[i + 1].z);
+            Vector2 segment = end - start;
+            float segmentLengthSqr = segment.sqrMagnitude;
+            float progress = segmentLengthSqr > Mathf.Epsilon
+                ? Mathf.Clamp01(Vector2.Dot(playerXZ - start, segment) / segmentLengthSqr)
+                : 0f;
+            float sqrDistance = (playerXZ - (start + segment * progress)).sqrMagnitude;
+            if (sqrDistance >= closestSqrDistance) continue;
+
+            closestSqrDistance = sqrDistance;
+            closestSegment = i;
+            closestProgress = progress;
+        }
+
+        float trimRadius = Mathf.Max(rockPickupDistance, offPathTolerance);
+        if (closestSegment < 0 || closestSqrDistance > trimRadius * trimRadius) return;
+
+        int pointsToRemove = closestSegment + (closestProgress >= 0.5f ? 1 : 0);
+        pointsToRemove = Mathf.Clamp(pointsToRemove, 0, currentRoutePoints.Count - 1);
+        if (pointsToRemove > 0)
+            currentRoutePoints.RemoveRange(0, pointsToRemove);
     }
 
     private void ClearRocks()
@@ -726,6 +796,20 @@ public class PathGuider : MonoBehaviour
         }
         offPathTimer = 0f;
         nextAllowedRecalculationTime = 0f;
+    }
+
+    /// <summary>
+    /// Discards route data created at the player's previous position without
+    /// changing the active destination or replaying completed waypoints. The
+    /// next Update rebuilds the guide from the player's new position.
+    /// </summary>
+    public void RefreshFromPlayerPosition()
+    {
+        wasAwayFromTrail = false;
+        offPathTimer = 0f;
+        nextAllowedRecalculationTime = 0f;
+        currentlyTargetedWaypoint = null;
+        ClearRocks();
     }
 
     public void SetNewWaypoints(List<GuiderWaypoint> newWaypoints)

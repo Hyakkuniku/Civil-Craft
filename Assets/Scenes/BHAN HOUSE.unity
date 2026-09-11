@@ -2689,23 +2689,29 @@ MonoBehaviour:
   askNameDialogue:
     name: Professor Bhan
     sentences:
-    - Ah, you must be the young civil engineer I've been expecting.
+    - Ah, you must be the young <b><#E09500>civil engineer</color></b> I've been
+      expecting.
     - You may already have some knowledge about engineering.
     - But knowledge and experience are two different things.
-    - <b>Arcadia</b> will give you the chance to put what you've learned into practice
-    - Every project you complete will teach you something new.
-    - Before we begin, what should I call you?
+    - But <b><#E09500>knowledge</color></b> and <b><#E09500>experience</color></b>
+      are two different things.
+    - <b><#E09500>Arcadia</color></b> will give you the chance to put what you've
+      learned into practice
+    - Every <b><#E09500>project<#E09500></b> you complete will teach you something
+      new.
   fetchAlmanacDialogue:
     name: Professor Bhan
     sentences:
-    - <b>{PlayerName}...</b>
+    - <b><#E09500>{PlayerName}...</color></b>
     - A fitting name for someone beginning an engineering journey.
     - You'll be working on real bridge projects soon.
     - But first, there is something important you will need.
-    - There is a book called the <b>Almanac.</b>
-    - It will become your engineering record throughout your journey.
+    - There is a book called the <b><#E09500>Almanac</color></b>.
+    - It will become your <b><#E09500>engineering record</color></b> throughout your
+      journey.
     - It won't only record your achievements.
-    - It will also record the lessons, discoveries, and projects you encounter.
+    - It will also record the <b><#E09500>lessons</color></b>, <b><#E09500>discoveries</color></b>,
+      and <b><#E09500>projects</color></b> you encounter.
     - Go to the other room and retrieve it.
   reminderAlmanacDialogue:
     name: Professor Bhan
@@ -2716,20 +2722,18 @@ MonoBehaviour:
     name: Professor Bhan
     sentences:
     - Good.
-    - Keep the <b>Almanac</b> with you.
-    - From now on, whenever you discover something important, check your <b>Almanac.</b>
+    - Keep the <b><#E09500>Almanac</color></b> with you.
+    - From now on, whenever you discover something important, check your <b><#E09500>Almanac</color></b>.
     - It will grow alongside your experience.
-    - 'Before we begin working, there is one thing you must never forget.
-
-'
-    - Safety.
+    - Before we begin working, there is one thing you must never forget.
+    - <b><#E09500>Safety</color></b>.
   finalHouseDialogue:
     name: Professor Bhan
     sentences:
     - Good.
-    - An engineer should always remember that construction is a responsibility.
-    - Now you're ready to <b>begin.</b>
-    - Let us go outside and let me show you how to build.
+    - An engineer should always remember that construction is a <b><#E09500>responsibility</color></b>.
+    - Now you're ready to begin.
+    - Let us go outside and let me show you how to <b><#E09500>BUILD</color></b>.
   advancesTutorial: 1
   requiredAlmanacTutorialId: Sequence_Alamnac
   houseTutorialId: Sequence_House
@@ -74396,7 +74400,7 @@ MonoBehaviour:
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
   tutorialSteps:
-  - message: This is your <b>ENGINEERING RECORD.</b>
+  - message: This is your <b><#E09500>ENGINEERING RECORD</color></b>.
     screenPosition: 0
     showNextButton: 1
     canSkip: 0
@@ -74413,8 +74417,8 @@ MonoBehaviour:
     OnStepStart:
       m_PersistentCalls:
         m_Calls: []
-  - message: New <b>DISCOVERIES AND COMLETED PROJECTS</b> will be added here throughout
-      your journey.
+  - message: New <b><#E09500>DISCOVERIES</color></b> and completed <b><#E09500>PROJECTS</color></b>
+      will be added here throughout your journey.
     screenPosition: 0
     showNextButton: 1
     canSkip: 0
@@ -74431,7 +74435,7 @@ MonoBehaviour:
     OnStepStart:
       m_PersistentCalls:
         m_Calls: []
-  - message: Close the <b>ALMANAC</b>
+  - message: Close the <#E09500><b>ALMANAC</b>
     screenPosition: 0
     showNextButton: 1
     canSkip: 0
@@ -77053,7 +77057,7 @@ MonoBehaviour:
     OnStepStart:
       m_PersistentCalls:
         m_Calls: []
-  - message: Find the <b>ALMANAC</b> on the other side of the room
+  - message: Find the <b><#E09500>ALMANAC</color></b> on the other side of the room
     screenPosition: 1
     showNextButton: 0
     canSkip: 0
@@ -77084,7 +77088,7 @@ MonoBehaviour:
             m_StringArgument: 
             m_BoolArgument: 1
           m_CallState: 2
-  - message: You found the <b>ALMANAC</b>
+  - message: You found the <b><#E09500>ALMANAC</color></b>.
     screenPosition: 1
     showNextButton: 0
     canSkip: 0

@@ -101,5 +101,11 @@ public class LevelResetManager : MonoBehaviour
             // Turn CharacterController back on
             if (obj.cc != null) obj.cc.enabled = true;
         }
+
+        // The guide's cached path begins at the position where the player fell.
+        // Preserve its destination/progress, but rebuild it from the respawned
+        // player position on the next frame.
+        if (PathGuider.Instance != null)
+            PathGuider.Instance.RefreshFromPlayerPosition();
     }
 }
