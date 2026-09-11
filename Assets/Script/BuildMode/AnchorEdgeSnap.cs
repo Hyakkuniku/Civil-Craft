@@ -119,9 +119,9 @@ public sealed class AnchorEdgeSnap : MonoBehaviour
                 return false;
             }
 
-            float landSampleX = edge.edgeX + edge.landDirectionX *
-                                Mathf.Max(edgeInsetOntoLand, sampleSpacing * 0.5f);
-            if (!TrySampleSurface(landSampleX, original.z, original.y, out SurfaceSample landSurface))
+            Vector3 landSamplePosition = edge.edgePoint + edge.landDirection *
+                                         Mathf.Max(edgeInsetOntoLand, sampleSpacing * 0.5f);
+            if (!TrySampleSurface(landSamplePosition, original.y, null, out SurfaceSample landSurface))
             {
                 report = "The edge was found, but its upper land surface could not be measured.";
                 transform.hasChanged = false;
@@ -129,7 +129,9 @@ public sealed class AnchorEdgeSnap : MonoBehaviour
             }
 
             Vector3 snapped = original;
-            snapped.x = edge.edgeX + edge.landDirectionX * edgeInsetOntoLand;
+            Vector3 snappedHorizontal = edge.edgePoint + edge.landDirection * edgeInsetOntoLand;
+            snapped.x = snappedHorizontal.x;
+            snapped.z = snappedHorizontal.z;
 
             Point siblingReference = matchSiblingAnchorHeight ? FindSiblingHeightReference() : null;
             snapped.y = siblingReference != null
@@ -139,8 +141,8 @@ public sealed class AnchorEdgeSnap : MonoBehaviour
             transform.position = snapped;
             transform.hasChanged = false;
             report = siblingReference != null
-                ? $"Snapped to edge X {snapped.x:F4} and matched '{siblingReference.name}' at Y {snapped.y:F4}."
-                : $"Snapped to edge X {snapped.x:F4}; road surface matches terrain Y {landSurface.height:F4}.";
+                ? $"Snapped to edge {snappedHorizontal.ToString("F4")} and matched '{siblingReference.name}' at Y {snapped.y:F4}."
+                : $"Snapped to edge {snappedHorizontal.ToString("F4")}; road surface matches terrain Y {landSurface.height:F4}.";
             return true;
         }
         finally
@@ -166,6 +168,22 @@ public sealed class AnchorEdgeSnap : MonoBehaviour
         out Collider edgeSurface,
         out string report)
     {
+        return TryPreviewEdge(landInset, null, Vector3.right, out position, out edgeSurface, out report);
+    }
+
+    /// <summary>
+    /// Measure an edge along a specific horizontal route and only accept surfaces
+    /// belonging to the assigned bank. This prevents nearby Environment colliders
+    /// from changing the result of the build-location layout helper.
+    /// </summary>
+    public bool TryPreviewEdge(
+        float landInset,
+        Transform expectedSurfaceRoot,
+        Vector3 searchDirection,
+        out Vector3 position,
+        out Collider edgeSurface,
+        out string report)
+    {
         edgeSurface = null;
         position = transform.position;
         if (Application.isPlaying || !gameObject.scene.IsValid())
@@ -173,46 +191,77 @@ public sealed class AnchorEdgeSnap : MonoBehaviour
             report = "Edge layout is only available for scene objects outside Play Mode.";
             return false;
         }
-        if (!TryFindClosestEdge(position, out EdgeResult edge))
+        if (!TryFindClosestEdge(position, searchDirection, expectedSurfaceRoot, out EdgeResult edge))
         {
             report = $"No edge near {name}. Move the anchor nearer the cliff or increase its Horizontal Search Radius.";
             return false;
         }
         float safeLandInset = Mathf.Max(0f, landInset);
-        float sampleX = edge.edgeX + edge.landDirectionX * Mathf.Max(safeLandInset, sampleSpacing * 0.5f);
-        if (!TrySampleSurface(sampleX, position.z, position.y, out SurfaceSample surface))
+        Vector3 samplePosition = edge.edgePoint + edge.landDirection *
+                                 Mathf.Max(safeLandInset, sampleSpacing * 0.5f);
+        if (!TrySampleSurface(samplePosition, position.y, expectedSurfaceRoot, out SurfaceSample surface))
         {
             report = $"Could not measure the land surface for {name}.";
             return false;
         }
-        position.x = edge.edgeX + edge.landDirectionX * safeLandInset;
+        Vector3 edgePosition = edge.edgePoint + edge.landDirection * safeLandInset;
+        position.x = edgePosition.x;
+        position.z = edgePosition.z;
         position.y = surface.height - roadSurfaceAboveAnchor;
         edgeSurface = surface.collider;
-        report = $"Measured collider edge with {safeLandInset:F3} units of anchor overlap onto the bank.";
+        report = $"Measured '{surface.collider.name}' with {safeLandInset:F3} units of anchor overlap onto the bank.";
         return true;
     }
 
     private bool TryFindClosestEdge(Vector3 origin, out EdgeResult closestEdge)
     {
+        return TryFindClosestEdge(origin, Vector3.right, null, out closestEdge);
+    }
+
+    private bool TryFindClosestEdge(
+        Vector3 origin,
+        Vector3 searchDirection,
+        Transform expectedSurfaceRoot,
+        out EdgeResult closestEdge)
+    {
         closestEdge = default;
+        searchDirection.y = 0f;
+        if (searchDirection.sqrMagnitude < 0.000001f) return false;
+        searchDirection.Normalize();
+
         bool found = false;
         float bestDistance = float.MaxValue;
         int sampleCount = Mathf.CeilToInt(horizontalSearchRadius * 2f / sampleSpacing);
-        float startX = origin.x - horizontalSearchRadius;
+        float startDistance = -horizontalSearchRadius;
 
-        bool previousValid = TrySampleSurface(startX, origin.z, origin.y, out SurfaceSample previous);
+        bool previousValid = TrySampleSurface(
+            origin + searchDirection * startDistance,
+            origin.y,
+            expectedSurfaceRoot,
+            out SurfaceSample previous);
+        previous.distanceAlongSearch = startDistance;
         for (int i = 1; i <= sampleCount; i++)
         {
-            float currentX = Mathf.Min(origin.x + horizontalSearchRadius, startX + i * sampleSpacing);
-            bool currentValid = TrySampleSurface(currentX, origin.z, origin.y, out SurfaceSample current);
+            float currentDistance = Mathf.Min(horizontalSearchRadius, startDistance + i * sampleSpacing);
+            bool currentValid = TrySampleSurface(
+                origin + searchDirection * currentDistance,
+                origin.y,
+                expectedSurfaceRoot,
+                out SurfaceSample current);
+            current.distanceAlongSearch = currentDistance;
 
             bool hasDrop = previousValid != currentValid ||
                            (previousValid && currentValid &&
                             Mathf.Abs(previous.height - current.height) >= minimumEdgeDrop);
             if (hasDrop)
             {
-                EdgeResult refined = RefineEdge(previous, current, origin.z, origin.y);
-                float distance = Mathf.Abs(refined.edgeX - origin.x);
+                EdgeResult refined = RefineEdge(
+                    previous,
+                    current,
+                    origin.y,
+                    expectedSurfaceRoot,
+                    searchDirection);
+                float distance = Mathf.Abs(refined.distanceAlongSearch);
                 if (distance < bestDistance)
                 {
                     bestDistance = distance;
@@ -231,8 +280,9 @@ public sealed class AnchorEdgeSnap : MonoBehaviour
     private EdgeResult RefineEdge(
         SurfaceSample left,
         SurfaceSample right,
-        float z,
-        float referenceY)
+        float referenceY,
+        Transform expectedSurfaceRoot,
+        Vector3 searchDirection)
     {
         SurfaceSample upper = ChooseUpperSurface(left, right);
         bool upperIsLeft = ApproximatelySameSurface(upper, left);
@@ -242,8 +292,10 @@ public sealed class AnchorEdgeSnap : MonoBehaviour
 
         for (int i = 0; i < edgeRefinementSteps; i++)
         {
-            float middleX = (left.x + right.x) * 0.5f;
-            TrySampleSurface(middleX, z, referenceY, out SurfaceSample middle);
+            float middleDistance = (left.distanceAlongSearch + right.distanceAlongSearch) * 0.5f;
+            Vector3 middlePosition = Vector3.Lerp(left.horizontalPosition, right.horizontalPosition, 0.5f);
+            TrySampleSurface(middlePosition, referenceY, expectedSurfaceRoot, out SurfaceSample middle);
+            middle.distanceAlongSearch = middleDistance;
             bool middleIsUpper = middle.valid && middle.height >= splitHeight;
 
             if (middleIsUpper == upperIsLeft) left = middle;
@@ -252,14 +304,22 @@ public sealed class AnchorEdgeSnap : MonoBehaviour
 
         return new EdgeResult
         {
-            edgeX = (left.x + right.x) * 0.5f,
-            landDirectionX = upperIsLeft ? -1f : 1f
+            edgePoint = Vector3.Lerp(left.horizontalPosition, right.horizontalPosition, 0.5f),
+            landDirection = searchDirection * (upperIsLeft ? -1f : 1f),
+            distanceAlongSearch = (left.distanceAlongSearch + right.distanceAlongSearch) * 0.5f
         };
     }
 
-    private bool TrySampleSurface(float x, float z, float referenceY, out SurfaceSample sample)
+    private bool TrySampleSurface(
+        Vector3 horizontalPosition,
+        float referenceY,
+        Transform expectedSurfaceRoot,
+        out SurfaceSample sample)
     {
-        Vector3 origin = new Vector3(x, referenceY + rayStartHeight, z);
+        Vector3 origin = new Vector3(
+            horizontalPosition.x,
+            referenceY + rayStartHeight,
+            horizontalPosition.z);
         RaycastHit[] hits = Physics.RaycastAll(
             origin,
             Vector3.down,
@@ -273,12 +333,26 @@ public sealed class AnchorEdgeSnap : MonoBehaviour
             if (hit.collider == null) continue;
             if (hit.collider.transform == transform || hit.collider.transform.IsChildOf(transform)) continue;
             if (hit.collider.GetComponentInParent<Bar>() != null) continue;
+            if (expectedSurfaceRoot != null &&
+                hit.collider.transform != expectedSurfaceRoot &&
+                !hit.collider.transform.IsChildOf(expectedSurfaceRoot)) continue;
 
-            sample = new SurfaceSample { valid = true, x = x, height = hit.point.y, collider = hit.collider };
+            sample = new SurfaceSample
+            {
+                valid = true,
+                horizontalPosition = horizontalPosition,
+                height = hit.point.y,
+                collider = hit.collider
+            };
             return true;
         }
 
-        sample = new SurfaceSample { valid = false, x = x, height = float.NegativeInfinity };
+        sample = new SurfaceSample
+        {
+            valid = false,
+            horizontalPosition = horizontalPosition,
+            height = float.NegativeInfinity
+        };
         return false;
     }
 
@@ -314,21 +388,23 @@ public sealed class AnchorEdgeSnap : MonoBehaviour
 
     private static bool ApproximatelySameSurface(SurfaceSample a, SurfaceSample b)
     {
-        return Mathf.Approximately(a.x, b.x) && a.valid == b.valid;
+        return Mathf.Approximately(a.distanceAlongSearch, b.distanceAlongSearch) && a.valid == b.valid;
     }
 
     private struct SurfaceSample
     {
         public Collider collider;
         public bool valid;
-        public float x;
+        public Vector3 horizontalPosition;
+        public float distanceAlongSearch;
         public float height;
     }
 
     private struct EdgeResult
     {
-        public float edgeX;
-        public float landDirectionX;
+        public Vector3 edgePoint;
+        public Vector3 landDirection;
+        public float distanceAlongSearch;
     }
 
     private void OnDrawGizmosSelected()

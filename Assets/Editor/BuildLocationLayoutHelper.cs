@@ -8,6 +8,8 @@ public sealed class BuildLocationLayoutHelper : EditorWindow
     private Point leftAnchor, rightAnchor;
     private Transform leftBank;
     private Transform movingBank;
+    private Transform deckHeightReference;
+    private float deckHeightOffset;
     private BridgeMaterialSO road;
     private float segmentLength = 10f;
     private int segments = 5;
@@ -16,7 +18,7 @@ public sealed class BuildLocationLayoutHelper : EditorWindow
     private float leftBankExtraDrop = 0.05f;
     private float rightBankExtraDrop = 0.05f;
     private bool preview;
-    private Vector3 leftPosition, rightPosition, leftBankDelta, rightBankDelta;
+    private Vector3 leftPosition, rightPosition, leftBankDelta, rightBankDelta, routeDirection;
     private string report = "Assign the location, two anchors, and both ravine banks.";
 
     [MenuItem("Tools/Civil Craft/Build Location Builder")]
@@ -27,13 +29,15 @@ public sealed class BuildLocationLayoutHelper : EditorWindow
 
     private void OnGUI()
     {
-        EditorGUILayout.HelpBox("Creates a straight, vehicle-ready road route. Both anchors stay perfectly level. The assigned left and right banks move beneath their anchors so neither end of the road is buried.", MessageType.Info);
+        EditorGUILayout.HelpBox("Creates a straight, vehicle-ready road route. Edge detection is restricted to the assigned bank roots, and the route follows the actual anchor-to-anchor direction. Both banks move beneath one repeatable deck-height reference.", MessageType.Info);
         EditorGUI.BeginChangeCheck();
         location = (BuildLocation)EditorGUILayout.ObjectField("Build Location", location, typeof(BuildLocation), true);
         leftAnchor = (Point)EditorGUILayout.ObjectField("Left Anchor", leftAnchor, typeof(Point), true);
         rightAnchor = (Point)EditorGUILayout.ObjectField("Right Anchor", rightAnchor, typeof(Point), true);
         leftBank = (Transform)EditorGUILayout.ObjectField("Left Bank Root", leftBank, typeof(Transform), true);
         movingBank = (Transform)EditorGUILayout.ObjectField("Right Bank Root", movingBank, typeof(Transform), true);
+        deckHeightReference = (Transform)EditorGUILayout.ObjectField("Deck Height Reference", deckHeightReference, typeof(Transform), true);
+        deckHeightOffset = EditorGUILayout.FloatField("Deck Height Offset", deckHeightOffset);
         road = (BridgeMaterialSO)EditorGUILayout.ObjectField("Road Material (optional)", road, typeof(BridgeMaterialSO), false);
         using (new EditorGUI.DisabledScope(road != null))
             segmentLength = EditorGUILayout.FloatField("Road Segment Length", road != null ? road.maxLength : segmentLength);
@@ -50,6 +54,8 @@ public sealed class BuildLocationLayoutHelper : EditorWindow
             {
                 leftAnchor = location.startingAnchors.Count > 0 ? location.startingAnchors[0] : null;
                 rightAnchor = location.endingAnchors.Count > 0 ? location.endingAnchors[0] : null;
+                if (deckHeightReference == null && leftAnchor != null)
+                    deckHeightReference = leftAnchor.transform;
                 preview = false;
             }
             if (GUILayout.Button("Add Missing Edge Snap Components"))
@@ -64,6 +70,7 @@ public sealed class BuildLocationLayoutHelper : EditorWindow
                 if (GUILayout.Button("Apply Vehicle-Safe Alignment (Undo supported)")) Apply();
         }
         EditorGUILayout.HelpBox(report, MessageType.Info);
+        EditorGUILayout.HelpBox("For repeatable results, assign a Deck Height Reference that is not a child of either moving bank. Leaving it empty uses the current left-anchor height for backward compatibility.", MessageType.None);
         EditorGUILayout.HelpBox("After applying, do not individually snap these anchors again. Reuse this helper to change the span. Re-bake navigation after moving terrain; update any existing bridge ghosts and cinematics separately.", MessageType.Warning);
     }
 
@@ -86,14 +93,23 @@ public sealed class BuildLocationLayoutHelper : EditorWindow
                  !float.IsFinite(rightBankExtraDrop) || rightBankExtraDrop < 0f || rightBankExtraDrop > 2f)
             reason = "Road length and piece count must be positive and finite. Bank overlaps and extra drops must be from 0 to 2 units.";
         else if (road != null && !road.isRoad) reason = "Choose a road material.";
-        else if (leftAnchor.transform.position.x >= rightAnchor.transform.position.x ||
-            Mathf.Abs(leftAnchor.transform.position.z - rightAnchor.transform.position.z) > 0.02f)
-            reason = "Place left/right anchors in increasing world X, with the same world Z (build plane).";
+        else if ((new Vector3(
+                     rightAnchor.transform.position.x - leftAnchor.transform.position.x,
+                     0f,
+                     rightAnchor.transform.position.z - leftAnchor.transform.position.z)).sqrMagnitude < 0.0001f)
+            reason = "The two anchors need different horizontal positions.";
         else if (!IsSafeBankRoot(leftBank) || !IsSafeBankRoot(movingBank) ||
             leftBank.IsChildOf(movingBank) || movingBank.IsChildOf(leftBank))
             reason = "Choose the two separate terrain-bank roots, not the whole level, build location, an anchor, or nested roots.";
         else if (leftBank.GetComponentInChildren<Collider>() == null || movingBank.GetComponentInChildren<Collider>() == null)
             reason = "Each selected bank must contain an active collider to align.";
+        else if (deckHeightReference != null &&
+                 (!deckHeightReference.gameObject.scene.IsValid() ||
+                  deckHeightReference.gameObject.scene != location.gameObject.scene ||
+                  Contains(leftBank, deckHeightReference) || Contains(movingBank, deckHeightReference)))
+            reason = "The Deck Height Reference must be from the same scene and cannot be inside either moving bank.";
+        else if (!float.IsFinite(deckHeightOffset))
+            reason = "The Deck Height Offset must be finite.";
         else if (location.bakedBars.Count > 0 || leftAnchor.Runtime || rightAnchor.Runtime)
             reason = "Use permanent anchors on an unbuilt location. Existing baked bridges need a separate migration.";
         return reason.Length == 0;
@@ -120,8 +136,13 @@ public sealed class BuildLocationLayoutHelper : EditorWindow
         var rightSnap = rightAnchor.GetComponent<AnchorEdgeSnap>();
         if (leftSnap == null || rightSnap == null) { report = "Add the missing edge snap components first."; return false; }
         Physics.SyncTransforms();
-        if (!leftSnap.TryPreviewEdge(leftLandInset, out Vector3 measuredLeft, out Collider leftSurface, out report) ||
-            !rightSnap.TryPreviewEdge(rightLandInset, out Vector3 measuredRight, out Collider rightSurface, out report)) return false;
+        routeDirection = rightAnchor.transform.position - leftAnchor.transform.position;
+        routeDirection.y = 0f;
+        routeDirection.Normalize();
+        if (!leftSnap.TryPreviewEdge(leftLandInset, leftBank, routeDirection,
+                out Vector3 measuredLeft, out Collider leftSurface, out report) ||
+            !rightSnap.TryPreviewEdge(rightLandInset, movingBank, routeDirection,
+                out Vector3 measuredRight, out Collider rightSurface, out report)) return false;
         if (leftSurface == null || rightSurface == null ||
             !Contains(leftBank, leftSurface.transform) || !Contains(movingBank, rightSurface.transform) ||
             Contains(leftBank, rightSurface.transform) || Contains(movingBank, leftSurface.transform))
@@ -129,12 +150,17 @@ public sealed class BuildLocationLayoutHelper : EditorWindow
             report = "Each Bank Root must contain only its matching detected edge collider. Select the correct left and right terrain roots.";
             return false;
         }
-        if (measuredRight.x <= measuredLeft.x) { report = "Detected edges are reversed. Check the anchor pair."; return false; }
+        if (Vector3.Dot(measuredRight - measuredLeft, routeDirection) <= 0f)
+        {
+            report = "Detected edges are reversed relative to the selected left-to-right anchor direction. Check the anchor pair.";
+            return false;
+        }
 
         float exactRouteLength = Length * segments;
-        float commonAnchorY = leftAnchor.transform.position.y;
+        Transform heightReference = deckHeightReference != null ? deckHeightReference : leftAnchor.transform;
+        float commonAnchorY = heightReference.position.y + deckHeightOffset;
         leftPosition = new Vector3(measuredLeft.x, commonAnchorY, measuredLeft.z);
-        rightPosition = leftPosition + Vector3.right * exactRouteLength;
+        rightPosition = leftPosition + routeDirection * exactRouteLength;
 
         // The anchors own the level road plane. Move each bank relative to that
         // plane and leave a small clearance so the road is not buried in either lip.
@@ -142,7 +168,7 @@ public sealed class BuildLocationLayoutHelper : EditorWindow
         leftBankDelta = leftPosition - measuredLeft + Vector3.down * leftBankExtraDrop;
         rightBankDelta = rightPosition - measuredRight + Vector3.down * rightBankExtraDrop;
         preview = true;
-        report = $"Current measured route: {Vector3.Distance(measuredLeft, measuredRight):0.###}. Exact level route: {exactRouteLength:0.###}.\nLeft bank movement: {leftBankDelta.ToString("F3")}; extra drop: {leftBankExtraDrop:0.###}.\nRight bank movement: {rightBankDelta.ToString("F3")}; extra drop: {rightBankExtraDrop:0.###}.\nLeft/right bank overlap: {leftLandInset:0.###} / {rightLandInset:0.###}. Both anchors remain at Y {commonAnchorY:0.###}.";
+        report = $"Detected banks: '{leftSurface.name}' / '{rightSurface.name}'. Route direction: {routeDirection.ToString("F3")}.\nCurrent measured route: {Vector3.Distance(measuredLeft, measuredRight):0.###}. Exact level route: {exactRouteLength:0.###}.\nLeft bank movement: {leftBankDelta.ToString("F3")}; extra drop: {leftBankExtraDrop:0.###}.\nRight bank movement: {rightBankDelta.ToString("F3")}; extra drop: {rightBankExtraDrop:0.###}.\nLeft/right bank overlap: {leftLandInset:0.###} / {rightLandInset:0.###}. Deck height: {commonAnchorY:0.###} from '{heightReference.name}' plus {deckHeightOffset:0.###}.";
         SceneView.RepaintAll();
         return true;
     }
@@ -214,7 +240,7 @@ public sealed class BuildLocationLayoutHelper : EditorWindow
         for (int i = 0; i <= Mathf.Min(segments, 200); i++)
         {
             Vector3 point = Vector3.Lerp(leftPosition, rightPosition, (float)i / segments);
-            Handles.DrawWireDisc(point, Vector3.forward, HandleUtility.GetHandleSize(point) * 0.045f);
+            Handles.DrawWireDisc(point, Vector3.up, HandleUtility.GetHandleSize(point) * 0.045f);
         }
     }
 }
