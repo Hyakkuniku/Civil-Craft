@@ -19,6 +19,12 @@ public class Point : MonoBehaviour
     public List<Bar> ConnectedBars = new List<Bar>();
     public static readonly List<Point> AllPoints = new List<Point>();
 
+    /// <summary>
+    /// A scene anchor is permanent. A pier-supported node is anchored only while
+    /// at least one active pier remains connected to it.
+    /// </summary>
+    public bool IsPermanentAnchor => originalIsAnchor || HasActivePierSupport();
+
     [SerializeField, HideInInspector] private BuildLocation ownerLocation;
     public BuildLocation OwnerLocation => ownerLocation;
 
@@ -152,11 +158,34 @@ public class Point : MonoBehaviour
             hasInitializedAnchor = true;
         }
 
-        // Only scene/foundation anchors are immovable. A pier transfers load from
-        // its dynamic top node to its anchored foot; merely touching a pier must
-        // never turn a bridge node into an indestructible anchor.
-        isAnchor = originalIsAnchor;
+        RefreshAnchorState();
+    }
+
+    public void RefreshAnchorState()
+    {
+        isAnchor = IsPermanentAnchor;
         UpdateMaterial();
+    }
+
+    private bool HasActivePierSupport()
+    {
+        for (int i = ConnectedBars.Count - 1; i >= 0; i--)
+        {
+            Bar bar = ConnectedBars[i];
+            if (bar == null)
+            {
+                ConnectedBars.RemoveAt(i);
+                continue;
+            }
+
+            if (!bar.gameObject.activeInHierarchy || bar.materialData == null || !bar.materialData.isPier)
+                continue;
+
+            if (bar.startPoint == this || bar.endPoint == this)
+                return true;
+        }
+
+        return false;
     }
 
     private void OnDrawGizmos()

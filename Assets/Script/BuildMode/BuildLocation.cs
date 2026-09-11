@@ -821,9 +821,7 @@ public class BuildLocation : Interactable
             newBar.Initialize(mat);
             newBar.startPoint = indexToPoint[barData.startPointIndex];
             newBar.endPoint = indexToPoint[barData.endPointIndex];
-
-            newBar.StartPosition = newBar.startPoint.transform.position;
-            newBar.UpdateCreatingBar(newBar.endPoint.transform.position);
+            newBar.NormalizeEndpointOrder();
 
             if (!newBar.startPoint.ConnectedBars.Contains(newBar)) newBar.startPoint.ConnectedBars.Add(newBar);
             if (!newBar.endPoint.ConnectedBars.Contains(newBar)) newBar.endPoint.ConnectedBars.Add(newBar);
@@ -834,12 +832,7 @@ public class BuildLocation : Interactable
             {
                 if (mat.isPier)
                 {
-                    Transform cap = newBar.transform.Find("PierCap");
-                    if (cap != null)
-                    {
-                        Renderer capRend = cap.GetComponentInChildren<Renderer>();
-                        if (capRend != null && capRend.gameObject.GetComponent<Collider>() == null) capRend.gameObject.AddComponent<BoxCollider>();
-                    }
+                    newBar.RemovePierCapColliders();
 
                     foreach (Transform child in newBar.transform)
                     {

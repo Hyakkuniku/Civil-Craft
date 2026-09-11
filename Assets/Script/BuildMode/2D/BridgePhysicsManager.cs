@@ -370,9 +370,8 @@ public class BridgePhysicsManager : MonoBehaviour
         ApplyDeterministicPhysicsSettings();
         Physics.SyncTransforms();
 
-        // Re-evaluate from the permanent foundation flag before building the
-        // physics graph. This also repairs legacy saves whose pier caps were
-        // serialized as temporary anchors by the old pier implementation.
+        // Re-evaluate scene-authored and active-pier support before building the
+        // physics graph.
         foreach (Point point in deterministicPoints)
         {
             if (point != null) point.EvaluateAnchorState();
@@ -457,16 +456,7 @@ public class BridgePhysicsManager : MonoBehaviour
             
             if (bar.materialData != null && bar.materialData.isPier)
             {
-                Transform cap = bar.transform.Find("PierCap");
-                if (cap != null)
-                {
-                    Renderer capRend = cap.GetComponentInChildren<Renderer>();
-                    if (capRend != null)
-                    {
-                        BoxCollider bc = capRend.GetComponent<BoxCollider>();
-                        if (bc != null) { bc.enabled = false; DestroyImmediate(bc); }
-                    }
-                }
+                bar.RemovePierCapColliders();
 
                 foreach (Transform child in bar.transform)
                 {
@@ -846,15 +836,7 @@ public class BridgePhysicsManager : MonoBehaviour
 
             if (bar.materialData.isPier)
             {
-                Transform cap = bar.transform.Find("PierCap");
-                if (cap != null)
-                {
-                    Renderer capRend = cap.GetComponentInChildren<Renderer>();
-                    if (capRend != null && capRend.gameObject.GetComponent<Collider>() == null)
-                    {
-                        capRend.gameObject.AddComponent<BoxCollider>();
-                    }
-                }
+                bar.RemovePierCapColliders();
 
                 foreach (Transform child in bar.transform)
                 {
@@ -906,7 +888,7 @@ public class BridgePhysicsManager : MonoBehaviour
             }
         }
 
-        bool isConnectedToTerrainAnchor = p1.originalIsAnchor || p2.originalIsAnchor;
+        bool isConnectedToTerrainAnchor = p1.IsPermanentAnchor || p2.IsPermanentAnchor;
 
         if (isConnectedToTerrainAnchor)
         {

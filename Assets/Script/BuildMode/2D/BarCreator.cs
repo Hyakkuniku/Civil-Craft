@@ -418,14 +418,14 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 bool constraintHit = false;
                 foreach (Point p in selectedPoints)
                 {
-                    if (p.originalIsAnchor) continue; 
+                    if (p.IsPermanentAnchor) continue;
                     
                     foreach (Bar b in p.ConnectedBars)
                     {
                         if (b == null || !b.gameObject.activeSelf || b.materialData.isPier || b.startPoint == null || b.endPoint == null) continue;
                         
                         Point otherPoint = (b.startPoint == p) ? b.endPoint : b.startPoint;
-                        if (selectedPoints.Contains(otherPoint) && !otherPoint.originalIsAnchor) continue; 
+                        if (selectedPoints.Contains(otherPoint) && !otherPoint.IsPermanentAnchor) continue;
                         
                         float maxLen = b.materialData.maxLength;
                         Vector3 movingNodeOriginalPos = currentMoveAction.originalPositions[p];
@@ -456,7 +456,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
             foreach (Point p in selectedPoints)
             {
-                if (p.originalIsAnchor) continue;
+                if (p.IsPermanentAnchor) continue;
 
                 Vector3 proposedPos = currentMoveAction.originalPositions[p] + finalDelta;
 
@@ -470,7 +470,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 {
                     if (b == null || !b.gameObject.activeSelf || b.materialData.isPier || b.startPoint == null || b.endPoint == null) continue; 
                     Point otherPoint = (b.startPoint == p) ? b.endPoint : b.startPoint;
-                    if (selectedPoints.Contains(otherPoint) && !otherPoint.originalIsAnchor) continue; 
+                    if (selectedPoints.Contains(otherPoint) && !otherPoint.IsPermanentAnchor) continue;
                     
                     if (Vector3.Distance(otherPoint.transform.position, proposedPos) > b.materialData.maxLength + 0.05f) 
                     {
@@ -514,7 +514,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
             foreach (Point p in selectedPoints)
             {
-                if (!p.originalIsAnchor) p.transform.position = currentMoveAction.originalPositions[p] + finalDelta;
+                if (!p.IsPermanentAnchor) p.transform.position = currentMoveAction.originalPositions[p] + finalDelta;
             }
             
             foreach (Point p in selectedPoints)
@@ -911,7 +911,9 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 GameObject startObj = Instantiate(pointToInstantiate, startPos, Quaternion.identity, pointParent);
                 startObj.name = "PierTip";
                 currentStartPoint = startObj.GetComponent<Point>();
-                currentStartPoint.originalIsAnchor = true; 
+                // This is a temporary foundation supplied by the pier itself,
+                // not a permanent scene-authored anchor.
+                currentStartPoint.originalIsAnchor = false;
                 currentStartPoint.isAnchor = true; 
                 currentStartPoint.UpdateMaterial();
                 
@@ -1763,14 +1765,18 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (activeMaterial != null && activeMaterial.isPier)
         {
             // Pier placement always starts at the configured foundation height.
-            // Only that foot is terrain-fixed; the cap remains a normal dynamic
-            // bridge node so the pier can carry load and eventually buckle.
-            currentStartPoint.originalIsAnchor = true;
+            // Both endpoints become anchored through the active pier connection;
+            // neither is promoted to a permanent scene anchor.
+            currentStartPoint.originalIsAnchor = false;
             currentStartPoint.isAnchor = true;
             currentStartPoint.UpdateMaterial();
 
-            currentEndPoint.isAnchor = currentEndPoint.originalIsAnchor;
-            currentEndPoint.UpdateMaterial();
+            if (createdNewEndPoint)
+            {
+                currentEndPoint.originalIsAnchor = false;
+                currentEndPoint.isAnchor = true;
+                currentEndPoint.UpdateMaterial();
+            }
         }
         
         currentBar.startPoint = currentStartPoint;
@@ -2144,7 +2150,8 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             bar.NormalizeEndpointOrder();
             bar.StartPosition = bar.startPoint.transform.position;
             bar.UpdateCreatingBar(bar.endPoint.transform.position);
-            bar.startPoint.ConnectedBars.Add(bar); bar.endPoint.ConnectedBars.Add(bar);
+            if (!bar.startPoint.ConnectedBars.Contains(bar)) bar.startPoint.ConnectedBars.Add(bar);
+            if (!bar.endPoint.ConnectedBars.Contains(bar)) bar.endPoint.ConnectedBars.Add(bar);
             // New joints emerge at the drawing tip instead of appearing ahead of it.
             if (pendingAutoDraw.affectedObjects.Contains(nodes[i].gameObject))
             {

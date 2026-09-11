@@ -457,9 +457,10 @@ public class ClipboardManager : MonoBehaviour
             newBar.UpdateCreatingBar(p2.transform.position);
             newBar.startPoint = p1;
             newBar.endPoint = p2;
+            newBar.NormalizeEndpointOrder();
             
-            p1.ConnectedBars.Add(newBar);
-            p2.ConnectedBars.Add(newBar);
+            if (!p1.ConnectedBars.Contains(newBar)) p1.ConnectedBars.Add(newBar);
+            if (!p2.ConnectedBars.Contains(newBar)) p2.ConnectedBars.Add(newBar);
             
             pasteAction.affectedObjects.Add(bObj);
             placedAnyBar = true;
@@ -597,7 +598,7 @@ public class ClipboardManager : MonoBehaviour
                 bool isSnappingToAnchor = false;
                 foreach (Point existingP in Point.AllPoints)
                 {
-                    if (existingP.gameObject.activeSelf && existingP.originalIsAnchor && Vector3.Distance(gp.transform.position, existingP.transform.position) < 0.2f)
+                    if (existingP.gameObject.activeSelf && existingP.IsPermanentAnchor && Vector3.Distance(gp.transform.position, existingP.transform.position) < 0.2f)
                     {
                         isSnappingToAnchor = true;
                         break;
@@ -628,7 +629,7 @@ public class ClipboardManager : MonoBehaviour
                 // Check if either end of the bar is snapping to a permanent anchor
                 foreach (Point existingP in Point.AllPoints)
                 {
-                    if (existingP.gameObject.activeSelf && existingP.originalIsAnchor)
+                    if (existingP.gameObject.activeSelf && existingP.IsPermanentAnchor)
                     {
                         if (Vector3.Distance(p1, existingP.transform.position) < 0.2f) p1IsAnchor = true;
                         if (Vector3.Distance(p2, existingP.transform.position) < 0.2f) p2IsAnchor = true;
