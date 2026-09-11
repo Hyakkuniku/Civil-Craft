@@ -23,7 +23,7 @@ MonoBehaviour:
   featureUnlockRewards: []
   clientName: Silas
   jobDescription: We need a bridge across this ravine!
-  budget: 2000
+  budget: 600000
   liveLoadWeight: 50
   bridgeSpan: 30
   allowedMaterials: []
@@ -40,22 +40,32 @@ MonoBehaviour:
   offerDialogue:
     name: Silas
     sentences:
-    - When that vehicle crosses, pay attention to how the bridge handles its weight.
-    - Think about how the whole structure can work together to carry it.
-    - Study the span carefully and decide how you want to approach it.
-    - If you're ready, I'll give you the contract.
+    - "There\u2019s a community on the other side of the canyon."
+    - 'They can already reach Central Canyonville, but the current route takes them
+      a long way around.
+
+'
+    - "The crossings you\u2019ve built have brought access much closer."
+    - A bridge here would make that connection much easier for them.
+    - "This is a wider crossing than the ones you\u2019ve handled before."
+    - <b><#E09500>Pay attention to how the bridge responds as the vehicle moves across<#E09500></b>.
+    - <b><#E09500>Watch the whole structure during the test<#E09500></b>.
+    - "If you\u2019re ready, take the contract."
   continueOfferDialogue:
     name: Silas
     sentences: []
   reminderDialogue:
     name: Silas
     sentences:
-    - Don't rush the design.
-    - Watch what happens across the whole bridge when the vehicle moves over it.
-    - The test will tell you what you need to know.
+    - "Don\u2019t rush the design."
+    - Keep an eye on how the whole bridge responds when the vehicle crosses.
   finishedContractDialogue:
     name: Silas
     sentences:
-    - The crossing is in place.
-    - That was a bigger span than your previous projects.
-    - 
+    - The community has a direct connection to the route now.
+    - "They won\u2019t have to take the long way around anymore."
+    - 'That was a wider crossing than your earlier projects.
+
+'
+    - You handled it well.
+    - "I\u2019ve got a feeling this won\u2019t be the last project we handle together. "
