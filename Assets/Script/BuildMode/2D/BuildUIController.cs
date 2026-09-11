@@ -151,6 +151,7 @@ public class BuildUIController : MonoBehaviour
 
     private int lastStressPercent = -1;
     private int lastProjectedCost = -1;
+    private int lastDisplayedMaxBudget = -1;
     private float lastRoadLength = -1f;
     private int lastDisplayM = -1;
     private int lastDisplayJ = -1;
@@ -359,6 +360,10 @@ public class BuildUIController : MonoBehaviour
     {
         ContractSO contract = GameManager.Instance != null ? GameManager.Instance.CurrentContract : null;
 
+        // A newly selected build location can have the same spent cost as the
+        // previous one. Force the contract-specific values to refresh anyway.
+        lastDisplayedMaxBudget = -1;
+
         foreach (GameObject previouslyHiddenObject in contractHiddenToolObjects)
         {
             if (previouslyHiddenObject != null) previouslyHiddenObject.SetActive(true);
@@ -377,6 +382,7 @@ public class BuildUIController : MonoBehaviour
         }
 
         RefreshAllMaterialButtons();
+        UpdateContractUI();
         if (layoutPanelToRebuild != null)
             LayoutRebuilder.ForceRebuildLayoutImmediate(layoutPanelToRebuild);
         ScheduleToolsPanelResize();
@@ -862,6 +868,13 @@ public class BuildUIController : MonoBehaviour
     {
         ContractSO currentContract = GameManager.Instance != null ? GameManager.Instance.CurrentContract : null;
         maxBudget = currentContract != null ? currentContract.budget : fallbackMaxBudget;
+        int displayedMaxBudget = Mathf.RoundToInt(maxBudget);
+
+        if (displayedMaxBudget != lastDisplayedMaxBudget)
+        {
+            lastDisplayedMaxBudget = displayedMaxBudget;
+            if (maxBudgetText != null) maxBudgetText.text = $" ₱{displayedMaxBudget:N0}";
+        }
 
         float baseCost = GetTotalCost();
         float previewCost = 0f;
@@ -883,7 +896,6 @@ public class BuildUIController : MonoBehaviour
                 usedBudgetText.text = $" ₱{totalProjectedCost:N0}";
                 usedBudgetText.color = totalProjectedCost > maxBudget ? overBudgetTextColor : normalTextColor; 
             }
-            if (maxBudgetText != null) maxBudgetText.text = $" ₱{Mathf.RoundToInt(maxBudget):N0}";
         }
     }
 

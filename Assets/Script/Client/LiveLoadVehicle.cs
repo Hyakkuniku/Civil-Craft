@@ -37,6 +37,8 @@ public class LiveLoadVehicle : Interactable
     [Header("Path Settings")]
     public Transform startPoint;
     public Transform endPoint;
+    [Tooltip("When enabled, bridge testing teleports the cart to Start. Disable this when the cart's authored scene position is already the intended starting pose.")]
+    [SerializeField] private bool resetToStartPointBeforeSimulation = true;
 
     [Header("Engine & Chassis")]
     public float maxSpeed = 5f;
@@ -80,6 +82,8 @@ public class LiveLoadVehicle : Interactable
     private bool isInspectionWindowOpen;
     private bool inspectionUsesPanelCoordinator;
     private static LiveLoadVehicle activeInspectionVehicle;
+    private Vector3 authoredStartPosition;
+    private Quaternion authoredStartRotation;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetInspectionSession()
@@ -100,6 +104,8 @@ public class LiveLoadVehicle : Interactable
     private void Awake()
     {
         rb = GetComponent<Rigidbody>();
+        authoredStartPosition = transform.position;
+        authoredStartRotation = transform.rotation;
         
         rb.mass = vehicleMass;
         rb.isKinematic = true; 
@@ -300,19 +306,7 @@ public class LiveLoadVehicle : Interactable
 
         rb.isKinematic = true;
 
-        if (startPoint != null)
-        {
-            rb.position = startPoint.position;
-            rb.rotation = startPoint.rotation;
-            transform.position = startPoint.position;
-            transform.rotation = startPoint.rotation;
-
-            foreach (var w in wheels)
-            {
-                w.physObj.transform.localPosition = w.originalLocalPos;
-                w.physObj.transform.localRotation = w.originalLocalRot;
-            }
-        }
+        ResetToSimulationStartPose();
 
         BuildWheelPhysics(); 
 
@@ -507,23 +501,35 @@ public class LiveLoadVehicle : Interactable
         rb.centerOfMass = new Vector3(0, centerOfMassOffset, 0);
         rb.ResetInertiaTensor();
 
-        if (!isParkedAtFinish && startPoint != null)
-        {
-            rb.position = startPoint.position;
-            rb.rotation = startPoint.rotation;
-            transform.position = startPoint.position;
-            transform.rotation = startPoint.rotation;
-
-            foreach (var w in wheels)
-            {
-                w.physObj.transform.localPosition = w.originalLocalPos;
-                w.physObj.transform.localRotation = w.originalLocalRot;
-            }
-        }
+        if (!isParkedAtFinish)
+            ResetToSimulationStartPose();
 
         StripWheelPhysics(); 
 
         rb.Sleep(); 
+    }
+
+    private void ResetToSimulationStartPose()
+    {
+        Vector3 targetPosition = authoredStartPosition;
+        Quaternion targetRotation = authoredStartRotation;
+
+        if (resetToStartPointBeforeSimulation && startPoint != null)
+        {
+            targetPosition = startPoint.position;
+            targetRotation = startPoint.rotation;
+        }
+
+        rb.position = targetPosition;
+        rb.rotation = targetRotation;
+        transform.position = targetPosition;
+        transform.rotation = targetRotation;
+
+        foreach (var wheel in wheels)
+        {
+            wheel.physObj.transform.localPosition = wheel.originalLocalPos;
+            wheel.physObj.transform.localRotation = wheel.originalLocalRot;
+        }
     }
 
     public void EmergencyStop()

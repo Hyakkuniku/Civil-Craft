@@ -59,7 +59,10 @@ public class BuildLocation : Interactable
 
     private readonly List<Bar> committedBarsBeforeRedesign = new List<Bar>();
     private readonly List<Point> committedPointsBeforeRedesign = new List<Point>();
+    private readonly List<Bar> hiddenUnfinishedBars = new List<Bar>();
+    private readonly List<Point> hiddenUnfinishedPoints = new List<Point>();
     private bool isRedesigningBridge;
+    private bool isUnfinishedDraftHidden;
 
     public bool IsRedesigningBridge => isRedesigningBridge;
 
@@ -346,6 +349,8 @@ public class BuildLocation : Interactable
 
         if (!GameManager.Instance.EnterBuildMode(this, player)) return false;
 
+        RestoreUnfinishedBridgeDraft();
+
         BarCreator barCreator = FindObjectOfType<BarCreator>(true);
         if (gridImage != null) gridImage.enabled = (barCreator != null && barCreator.isGridSnappingEnabled);
 
@@ -476,7 +481,11 @@ public class BuildLocation : Interactable
         if (isRedesigningBridge) CancelBridgeRedesign();
 
         if (gridImage != null) gridImage.enabled = false;
-        if (bakedBars.Count == 0) SetBridgeScriptsActive(false);
+        if (bakedBars.Count == 0)
+        {
+            HideUnfinishedBridgeDraft();
+            SetBridgeScriptsActive(false);
+        }
 
         if (lockPlayerToZone && originalPlayerParent != null && player != null)
         {
@@ -491,6 +500,76 @@ public class BuildLocation : Interactable
         {
             BuildTutorialDirector.Instance.EndTutorial();
         }
+    }
+
+    /// <summary>
+    /// Keeps an unfinished bridge in memory without presenting it as a usable
+    /// bridge in the overworld. Only objects that are currently visible are
+    /// recorded, so pieces disabled by Undo/Delete stay disabled when resumed.
+    /// </summary>
+    public void HideUnfinishedBridgeDraft()
+    {
+        if (isUnfinishedDraftHidden || isRedesigningBridge || bakedBars.Count > 0) return;
+
+        hiddenUnfinishedBars.Clear();
+        hiddenUnfinishedPoints.Clear();
+
+        foreach (Bar bar in FindObjectsOfType<Bar>(true))
+        {
+            if (bar == null || !bar.gameObject.activeInHierarchy || bakedBars.Contains(bar)) continue;
+
+            bar.InferOwnerFromEndpoints();
+            if (bar.OwnerLocation != this) continue;
+
+            hiddenUnfinishedBars.Add(bar);
+            AddDraftPointIfVisible(bar.startPoint);
+            AddDraftPointIfVisible(bar.endPoint);
+        }
+
+        foreach (Point point in FindObjectsOfType<Point>(true))
+        {
+            if (point != null && point.OwnerLocation == this)
+                AddDraftPointIfVisible(point);
+        }
+
+        // Bars go first so their graph connections are cleanly removed while the
+        // endpoint objects are still active. Restoring uses the opposite order.
+        foreach (Bar bar in hiddenUnfinishedBars)
+            if (bar != null) bar.gameObject.SetActive(false);
+        foreach (Point point in hiddenUnfinishedPoints)
+            if (point != null) point.gameObject.SetActive(false);
+
+        isUnfinishedDraftHidden = hiddenUnfinishedBars.Count > 0 || hiddenUnfinishedPoints.Count > 0;
+    }
+
+    /// <summary>Restores this location's in-memory draft when its build mode opens again.</summary>
+    public void RestoreUnfinishedBridgeDraft()
+    {
+        if (!isUnfinishedDraftHidden) return;
+
+        foreach (Point point in hiddenUnfinishedPoints)
+            if (point != null) point.gameObject.SetActive(true);
+        foreach (Bar bar in hiddenUnfinishedBars)
+            if (bar != null) bar.gameObject.SetActive(true);
+
+        hiddenUnfinishedPoints.Clear();
+        hiddenUnfinishedBars.Clear();
+        isUnfinishedDraftHidden = false;
+
+        if (BuildUIController.Instance != null)
+            BuildUIController.Instance.MarkBridgeDirty();
+    }
+
+    private void AddDraftPointIfVisible(Point point)
+    {
+        if (point == null || !point.gameObject.activeInHierarchy || bakedPoints.Contains(point) ||
+            startingAnchors.Contains(point) || endingAnchors.Contains(point) ||
+            hiddenUnfinishedPoints.Contains(point))
+        {
+            return;
+        }
+
+        hiddenUnfinishedPoints.Add(point);
     }
 
     public void ResetTimeAttack()

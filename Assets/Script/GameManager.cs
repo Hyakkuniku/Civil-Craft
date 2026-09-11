@@ -340,6 +340,8 @@ public class GameManager : MonoBehaviour
         // the camera to the player.
         if (ActiveBuildLocation != null && ActiveBuildLocation.IsRedesigningBridge)
             ActiveBuildLocation.CancelBridgeRedesign();
+        if (ActiveBuildLocation != null)
+            ActiveBuildLocation.HideUnfinishedBridgeDraft();
         RestoreCapturedStates(buildLocationStateBeforeBuildMode);
 
         // 1. Hide Build Mode UI instantly
