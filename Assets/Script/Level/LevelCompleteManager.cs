@@ -60,7 +60,7 @@ internal static class CompletionReceiptLayout
         text.alignment = alignment; text.raycastTarget = false;
         return text;
     }
-    internal static void Button(Transform parent,string title,float x0,float y0,float x1,float y1,Color color,
+    internal static Button Button(Transform parent,string title,float x0,float y0,float x1,float y1,Color color,
         TMP_FontAsset font,UnityEngine.Events.UnityAction action)
     {
         var rect = Panel(parent,title,x0,y0,x1,y1,color);
@@ -69,6 +69,7 @@ internal static class CompletionReceiptLayout
         button.onClick.AddListener(action);
         rect.gameObject.AddComponent<CompletionButtonMotion>();
         Label(rect,"Label",title,.04f,.08f,.96f,.92f,32,font,TextAlignmentOptions.Center);
+        return button;
     }
     internal static void Divider(Transform parent,string name,float x0,float y,float x1)
     {
@@ -254,6 +255,12 @@ public class LevelCompleteManager : MonoBehaviour
     [Header("Star Artwork")]
     public Sprite earnedStarSprite;
     public Sprite unearnedStarSprite;
+
+    [Header("First Completion Tutorial")]
+    [SerializeField, Tooltip("Tutorial shown on the player's first successful bridge completion. Its Lesson Name makes it run only once per save.")]
+    private TutorialSequence firstCompletionTutorial;
+    [SerializeField] private bool showFirstCompletionTutorial = true;
+
     public TMP_FontAsset ReceiptFont { get; private set; }
     public Transform receiptContentParent; 
     public GameObject receiptRowPrefab;    
@@ -295,6 +302,10 @@ public class LevelCompleteManager : MonoBehaviour
     private TextMeshProUGUI rewardStatusText;
     private TextMeshProUGUI receiptBalanceText;
     private TextMeshProUGUI receiptStampText;
+    private RectTransform completionTitleTutorialTarget;
+    private RectTransform completionStarsTutorialTarget;
+    private RectTransform completionReceiptTutorialTarget;
+    private RectTransform completionSaveTutorialTarget;
 
     private void Awake()
     {
@@ -302,6 +313,7 @@ public class LevelCompleteManager : MonoBehaviour
         else { Destroy(gameObject); return; }
 
         BuildReceiptLayout();
+        EnsureFirstCompletionTutorialDraft();
         if (levelCompletePanel != null) levelCompletePanel.SetActive(false); 
     }
 
@@ -896,6 +908,8 @@ public class LevelCompleteManager : MonoBehaviour
         foreach (var label in new[] { feedbackText, baseRewardText, bonusText, penaltyText, goldEarnedText, expEarnedText })
             if (label != null) label.text = label.text.Replace("<color=green>", "<color=#4C6E2F>")
                 .Replace("<color=yellow>", "<color=#9B631B>").Replace("<color=red>", "<color=#A43E2D>");
+
+        TryStartFirstCompletionTutorial(currentContract);
     }
 
     private void ShowStarResults(ContractSO contract)
@@ -967,8 +981,10 @@ public class LevelCompleteManager : MonoBehaviour
         safe.gameObject.AddComponent<CompletionSafeArea>();
         var frame = CompletionReceiptLayout.Panel(safe, "Wood Frame", .04f,.045f,.96f,.955f, new Color32(90,55,31,255));
         var paper = CompletionReceiptLayout.Panel(frame, "Cream Panel", .004f,.007f,.996f,.993f, new Color32(248,233,204,255));
-        CompletionReceiptLayout.Label(paper,"Title","BRIDGE COMPLETE",.025f,.905f,.59f,.985f,54,font,TextAlignmentOptions.Center);
+        completionTitleTutorialTarget = CompletionReceiptLayout.Label(
+            paper,"Title","BRIDGE COMPLETE",.025f,.905f,.59f,.985f,54,font,TextAlignmentOptions.Center).rectTransform;
         var starRow = CompletionReceiptLayout.Box(paper,"Contract Stars",.025f,.74f,.59f,.90f);
+        completionStarsTutorialTarget = starRow;
         string[] criteria = { "COMPLETION", "EFFICIENCY", "STRENGTH" };
         for (int i = 0; i < 3; i++)
         {
@@ -1019,6 +1035,7 @@ public class LevelCompleteManager : MonoBehaviour
         goldEarnedText = CompletionReceiptLayout.Label(rewards,"Gold Earnings","",.035f,.015f,.69f,.235f,28,font);
         expEarnedText = CompletionReceiptLayout.Label(rewards,"EXP Earnings","",.70f,.015f,.965f,.235f,28,font,TextAlignmentOptions.MidlineRight);
         var receipt = CompletionReceiptLayout.Box(paper,"Material Receipt",.62f,.12f,.98f,.975f);
+        completionReceiptTutorialTarget = receipt;
         if (receiptBackground != null)
         {
             var image = receipt.gameObject.AddComponent<Image>();
@@ -1053,12 +1070,17 @@ public class LevelCompleteManager : MonoBehaviour
         costPercentageText = null; // No unexplained percentage or stress progress bar.
         feedbackText = CompletionReceiptLayout.Label(paper,"Feedback","",.025f,.028f,.47f,.11f,26,font);
         CompletionReceiptLayout.Button(paper,"Retry",.49f,.025f,.69f,.11f,new Color32(239,214,170,255),font,RetrySimulation);
-        CompletionReceiptLayout.Button(paper,"Save & Continue",.71f,.025f,.975f,.11f,new Color32(228,157,44,255),font,SaveAndBakeBridge);
+        Button saveButton = CompletionReceiptLayout.Button(
+            paper,"Save & Continue",.71f,.025f,.975f,.11f,new Color32(228,157,44,255),font,SaveAndBakeBridge);
+        completionSaveTutorialTarget = saveButton.transform as RectTransform;
         safe.gameObject.AddComponent<CompletionEntranceMotion>().Configure(frame,receipt,photoFrame);
     }
 
     public void RetrySimulation()
     {
+        if (IsFirstCompletionTutorialBlockingActions()) return;
+        CompleteFirstCompletionTutorialIfActive();
+
         ResetCompletionState();
 
         if (cachedPhysicsManager != null) cachedPhysicsManager.StopPhysicsAndReset();
@@ -1072,6 +1094,9 @@ public class LevelCompleteManager : MonoBehaviour
     public void SaveAndBakeBridge()
     {
         if (!levelAlreadyCompleted || lastStarResult == null || !lastStarResult.completed) return;
+        if (IsFirstCompletionTutorialBlockingActions()) return;
+        CompleteFirstCompletionTutorialIfActive();
+
         ContractSO completedContract = activeContract;
         BuildLocation completedLocation = GameManager.Instance != null
             ? GameManager.Instance.ActiveBuildLocation
@@ -1227,6 +1252,124 @@ public class LevelCompleteManager : MonoBehaviour
         if (giver != null && TutorialManager.Instance != null &&
             PlayerDataManager.Instance != null && !PlayerDataManager.Instance.IsContractCompleted(contract.ContractID))
             TutorialManager.Instance.GuideToContractGiver(giver, contract);
+    }
+
+    private void TryStartFirstCompletionTutorial(ContractSO completedContract)
+    {
+        if (!showFirstCompletionTutorial || firstCompletionTutorial == null ||
+            completedContract == null || TutorialManager.Instance == null ||
+            PlayerDataManager.Instance == null || PlayerDataManager.Instance.CurrentData == null ||
+            PlayerDataManager.Instance.CurrentData.lifetimeBridgesBuilt > 0)
+        {
+            return;
+        }
+
+        BindFirstCompletionTutorialTargets();
+        Canvas.ForceUpdateCanvases();
+        TutorialManager.Instance.PlayPriorityTutorial(firstCompletionTutorial);
+    }
+
+    private void EnsureFirstCompletionTutorialDraft()
+    {
+        if (firstCompletionTutorial == null)
+        {
+            GameObject sequenceObject = new GameObject("Sequence_FirstLevelCompletion");
+            sequenceObject.transform.SetParent(transform, false);
+            firstCompletionTutorial = sequenceObject.AddComponent<TutorialSequence>();
+        }
+
+        if (firstCompletionTutorial.tutorialSteps != null &&
+            firstCompletionTutorial.tutorialSteps.Length > 0)
+        {
+            return;
+        }
+
+        firstCompletionTutorial.lessonName = "Sequence_FirstLevelCompletion";
+        firstCompletionTutorial.requiredPreviousLesson = string.Empty;
+        firstCompletionTutorial.playOnStart = false;
+        firstCompletionTutorial.nextSequence = null;
+        firstCompletionTutorial.autoStartNextSequence = false;
+        firstCompletionTutorial.tutorialSteps = new[]
+        {
+            CreateFirstCompletionStep(
+                "<b><#E09500>BRIDGE COMPLETE!</color></b> This report summarizes how your bridge performed."),
+            CreateFirstCompletionStep(
+                "The three result cards show <b><#E09500>COMPLETION</color></b>, <b><#E09500>EFFICIENCY</color></b>, and <b><#E09500>STRENGTH</color></b>. Your best star result is saved."),
+            CreateFirstCompletionStep(
+                "Review the <b><#E09500>MATERIAL RECEIPT</color></b> to compare your total cost with the contract budget. You can also check the bridge's peak stress."),
+            CreateFirstCompletionStep(
+                "Choose <b><#E09500>RETRY</color></b> to improve the design, or <b><#E09500>SAVE & CONTINUE</color></b> to keep the bridge and finish this build location.",
+                false)
+        };
+    }
+
+    private static TutorialStep CreateFirstCompletionStep(string message, bool showNextButton = true)
+    {
+        return new TutorialStep
+        {
+            message = message,
+            screenPosition = TutorialPosition.Center,
+            showNextButton = showNextButton,
+            canSkip = true,
+            lockLook = false,
+            lockJump = false,
+            stepWaypoints = new List<GuiderWaypoint>(),
+            worldHighlightObject = null,
+            usePointer = false,
+            pointerTarget = null,
+            pointerOffset = new Vector2(0f, 80f),
+            pointerRotation = 180f,
+            advanceOnClick = false,
+            requiredAction = TutorialStepAction.None
+        };
+    }
+
+    private void BindFirstCompletionTutorialTargets()
+    {
+        TutorialStep[] steps = firstCompletionTutorial != null
+            ? firstCompletionTutorial.tutorialSteps
+            : null;
+        if (steps == null) return;
+
+        BindTutorialPointer(steps, 0, completionTitleTutorialTarget);
+        BindTutorialPointer(steps, 1, completionStarsTutorialTarget);
+        BindTutorialPointer(steps, 2, completionReceiptTutorialTarget);
+        BindTutorialPointer(steps, 3, completionSaveTutorialTarget);
+    }
+
+    private static void BindTutorialPointer(TutorialStep[] steps, int index, RectTransform target)
+    {
+        if (index < 0 || index >= steps.Length || steps[index] == null) return;
+        steps[index].pointerTarget = target;
+        steps[index].usePointer = target != null;
+    }
+
+    private bool IsFirstCompletionTutorialBlockingActions()
+    {
+        if (firstCompletionTutorial == null || firstCompletionTutorial.tutorialSteps == null ||
+            firstCompletionTutorial.tutorialSteps.Length == 0 || TutorialManager.Instance == null ||
+            !TutorialManager.Instance.IsPlayingSequence(firstCompletionTutorial))
+        {
+            return false;
+        }
+
+        int finalStepIndex = firstCompletionTutorial.tutorialSteps.Length - 1;
+        if (TutorialManager.Instance.CurrentStepIndex >= finalStepIndex) return false;
+
+        Debug.Log("[LevelCompleteManager] Finish the completion-screen introduction before choosing an action.", this);
+        return true;
+    }
+
+    private void CompleteFirstCompletionTutorialIfActive()
+    {
+        if (firstCompletionTutorial == null || TutorialManager.Instance == null ||
+            !TutorialManager.Instance.IsPlayingSequence(firstCompletionTutorial))
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(firstCompletionTutorial.lessonName))
+            TutorialManager.Instance.CompleteTutorialIfPlaying(firstCompletionTutorial.lessonName);
     }
 
     public void ClosePanel()
