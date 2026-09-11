@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
   m_Name: SilasContract
   m_EditorClassIdentifier: 
-  contractID: 
+  contractID: SilasMainContract
   efficiencyStarBudgetRatio: 0.85
   strengthStarMaxStress: 60
   contractMap: 0
@@ -21,7 +21,7 @@ MonoBehaviour:
   isTutorialContract: 0
   autoCollectReward: 0
   featureUnlockRewards: []
-  clientName: Mayor
+  clientName: Silas
   jobDescription: We need a bridge across this ravine!
   budget: 2000
   liveLoadWeight: 50
@@ -38,14 +38,24 @@ MonoBehaviour:
   goldReward: 500
   expReward: 100
   offerDialogue:
-    name: 
-    sentences: []
+    name: Silas
+    sentences:
+    - When that vehicle crosses, pay attention to how the bridge handles its weight.
+    - Think about how the whole structure can work together to carry it.
+    - Study the span carefully and decide how you want to approach it.
+    - If you're ready, I'll give you the contract.
   continueOfferDialogue:
-    name: 
+    name: Silas
     sentences: []
   reminderDialogue:
-    name: 
-    sentences: []
+    name: Silas
+    sentences:
+    - Don't rush the design.
+    - Watch what happens across the whole bridge when the vehicle moves over it.
+    - The test will tell you what you need to know.
   finishedContractDialogue:
-    name: 
-    sentences: []
+    name: Silas
+    sentences:
+    - The crossing is in place.
+    - That was a bigger span than your previous projects.
+    - 

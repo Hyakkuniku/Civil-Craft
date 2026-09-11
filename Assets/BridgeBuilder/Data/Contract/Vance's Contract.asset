@@ -40,25 +40,31 @@ MonoBehaviour:
   offerDialogue:
     name: Vance
     sentences:
-    - People can already get between them, but the current route takes them all the
-      way around.
-    - A direct crossing here would create a better connection between the two areas.
-    - This crossing is a little different from the last one you worked on.
-    - As weight moves across the bridge, its different parts will have to work together
-      to carry it.
-    - Keep an eye on how those parts respond when you test your design.
-    - If you're interested, I can give you the contract.
+    - Vehicles from the factory can already reach the other side.
+    - The issue is that the road takes them all the way around the canyon.
+    - 'They end up traveling much farther than they need to. '
+    - A bridge here would give them a much more direct route.
+    - "This crossing will carry a heavier vehicle than the ones you\u2019ve handled
+      before."
+    - <b><#E09500>As that weight moves across, different parts of the bridge may
+      respond in different ways<#E09500></b>.
+    - <b><#E09500>Pay attention to how the structural members behave during the test<#E09500></b>.
+    - Watch how they work together as the vehicle crosses.
+    - "If you\u2019re ready, I can give you the contract."
   continueOfferDialogue:
     name: Vance
     sentences: []
   reminderDialogue:
     name: Vance
     sentences:
-    - Take your time with the design.
-    - Pay attention to how the different parts of the bridge respond when it's under
-      load.
+    - 'Take your time with the design.
+
+'
+    - Keep an eye on how the different parts of the bridge respond during the test.
   finishedContractDialogue:
     name: Vance
     sentences:
-    - That should make traveling between the two areas much easier.
-    - It's good to finally have a direct connection between them.
+    - "Now that\u2019s a shortcut."
+    - Vehicles from the factory can head straight through instead of taking the long
+      way around the canyon.
+    - That should save everyone using this route a lot of travel time.

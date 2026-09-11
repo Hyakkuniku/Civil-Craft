@@ -40,19 +40,29 @@ MonoBehaviour:
   offerDialogue:
     name: Reed
     sentences:
-    - Vehicles need to get across that canyon, but right now there's no direct route.
-    - You'll want a bridge that can handle the weight as vehicles move across it.
-    - If you're interested, I've got the contract.
+    - "That\u2019s one of the supply facilities serving Canyon Crossing."
+    - 'A lot of the materials that are used around here come through that facility. '
+    - 'The problem is getting them into Central Canyonville. '
+    - "The factory isn\u2019t actually far from the city, but the canyon separates
+      the two roads. "
+    - It makes supplying Central Canyonville harder than it should be.
+    - A direct crossing here would solve that.
+    - "But keep in mind, those carts can get pretty heavy when they\u2019re loaded."
+    - So don't just think about getting the cart from one side to the other.
+    - <b><#E09500>Pay attention to how the bridge responds under that weight<#E09500></b>.
+    - <b><#E09500>Watch the structure closely when you run the test<#E09500></b>.
+    - 'If you''re interested, I''ve got the contract. '
   continueOfferDialogue:
     name: Reed
     sentences: []
   reminderDialogue:
     name: Reed
     sentences:
-    - The crossing's yours, engineer.
-    - Remember what I told you. Watch how the structure responds to the load.
+    - "The crossing\u2019s yours, {PlayerName}."
+    - Keep an eye on how the bridge responds when you run the test.
   finishedContractDialogue:
     name: Reed
     sentences:
-    - That new crossing should make getting around the canyon a lot easier.
-    - Nice work, engineer.
+    - "That\u2019s exactly what the crossing needed."
+    - The factory finally has a direct connection to Central Canyonville.
+    - Getting supplies into the city should be much easier now.

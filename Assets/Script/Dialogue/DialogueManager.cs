@@ -82,6 +82,7 @@ public class DialogueManager : MonoBehaviour
     /// </summary>
     public void ApplyLandscapeMobileLayout()
     {
+        ApplyReadableDialogueStyle();
         if (dialogueBox == null) return;
 
         RectTransform dialogueRect = dialogueBox.transform as RectTransform;
@@ -93,6 +94,28 @@ public class DialogueManager : MonoBehaviour
         Vector2 position = dialogueRect.anchoredPosition;
         position.x = 0f;
         dialogueRect.anchoredPosition = position;
+    }
+
+    /// <summary>
+    /// Adapts the proven Left Tutorial text treatment to the much larger
+    /// parchment dialogue panel. Dialogue boxes use authored negative TMP
+    /// margins to define their writing area, so those margins stay untouched.
+    /// </summary>
+    private void ApplyReadableDialogueStyle()
+    {
+        if (dialogueText == null) return;
+
+        dialogueText.fontSize = 48f;
+        dialogueText.enableAutoSizing = true;
+        dialogueText.fontSizeMin = 34f;
+        dialogueText.fontSizeMax = 48f;
+        dialogueText.fontStyle = FontStyles.Bold;
+        dialogueText.alignment = TextAlignmentOptions.MidlineLeft;
+        dialogueText.enableWordWrapping = true;
+        dialogueText.overflowMode = TextOverflowModes.Ellipsis;
+        dialogueText.characterSpacing = 0.25f;
+        dialogueText.lineSpacing = 6f;
+        dialogueText.paragraphSpacing = 4f;
     }
 
     void Start()
@@ -114,6 +137,7 @@ public class DialogueManager : MonoBehaviour
             ResolveSpeakerTransform(speakerAnimator, speakerTransform));
 
         ResolveDialogueBox();
+        ApplyReadableDialogueStyle();
         if (hideDialogueCoroutine != null)
         {
             StopCoroutine(hideDialogueCoroutine);
