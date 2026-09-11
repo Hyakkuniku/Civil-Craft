@@ -23,8 +23,8 @@ MonoBehaviour:
   featureUnlockRewards: []
   clientName: Silas
   jobDescription: We need a bridge across this ravine!
-  budget: 600000
-  liveLoadWeight: 50
+  budget: 200000
+  liveLoadWeight: 1000
   bridgeSpan: 30
   allowedMaterials: []
   hiddenTools: 

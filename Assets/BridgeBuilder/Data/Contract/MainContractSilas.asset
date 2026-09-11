@@ -1,0 +1,73 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
+  m_Name: MainContractSilas
+  m_EditorClassIdentifier: 
+  contractID: MainContractSilas
+  efficiencyStarBudgetRatio: 0.85
+  strengthStarMaxStress: 60
+  contractMap: 0
+  countsTowardMapAchievements: 1
+  isStoryModeContract: 1
+  isTutorialContract: 0
+  autoCollectReward: 0
+  featureUnlockRewards: []
+  clientName: Silas
+  jobDescription: We need a bridge across this ravine!
+  budget: 200000
+  liveLoadWeight: 1000
+  bridgeSpan: 30
+  allowedMaterials: []
+  hiddenTools: 
+  hiddenMaterials: []
+  enforceMaxStress: 0
+  maxAllowedStress: 100
+  isTimeAttack: 0
+  timeAttackDuration: 60
+  winCondition: 0
+  requiredIntactTime: 5
+  goldReward: 500
+  expReward: 100
+  offerDialogue:
+    name: Silas
+    sentences:
+    - That road leads out of <b><#E09500>Canyon Crossing</color></b>.
+    - The <b><#E09500>Town River</color></b> is beyond it.
+    - "There\u2019s already another way there, but this would give the region a much
+      more direct connection."
+    - "Finish this crossing, and the route you\u2019ve built will finally lead beyond
+      the canyon."
+    - This crossing will carry a heavier vehicle than the ones before it.
+    - This time, pay attention to more than just where the vehicle is.
+    - <b><#E09500>Watch how the rest of the structure responds as the load moves
+      across</color></b>.
+    - <b><#E09500>Keep an eye on how the different parts behave during the test</color></b>.
+    - "If you\u2019re ready, take the contract.\r\n"
+  continueOfferDialogue:
+    name: Silas
+    sentences:
+    - "Don\u2019t focus on just one part of the bridge."
+    - 'Watch how the whole structure responds as the vehicle moves across. '
+  reminderDialogue:
+    name: Silas
+    sentences: []
+  finishedContractDialogue:
+    name: Silas
+    sentences:
+    - "That\u2019s it."
+    - The eastern passage is open.
+    - 'You started by connecting Central Canyonville to the factory.
+
+'
+    - Then you improved the route through the canyon and brought it all the way to
+      the community.
+    - Now that route leads toward the <b><#E09500>Town River</color></b>.
