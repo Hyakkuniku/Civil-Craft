@@ -6,6 +6,21 @@ using UnityEngine.UI;
 [DisallowMultipleComponent]
 public sealed class AlmanacLessonTab : MonoBehaviour
 {
+    public IReadOnlyList<LessonData> Lessons => allLessons;
+
+    public List<LessonData> GetAllLessons()
+    {
+        List<LessonData> lessons = new List<LessonData>();
+        HashSet<string> seenIds = new HashSet<string>();
+
+        AddUniqueLessons(allLessons, lessons, seenIds);
+
+        // Scene references normally provide the archive. This fallback also covers
+        // lessons loaded by triggers when the Almanac layout is rebuilt at runtime.
+        AddUniqueLessons(Resources.FindObjectsOfTypeAll<LessonData>(), lessons, seenIds);
+        return lessons;
+    }
+
     [Header("Lesson Database")]
     [Tooltip("Assign every LessonData asset that can appear in the Almanac.")]
     [SerializeField] private List<LessonData> allLessons = new List<LessonData>();
@@ -166,6 +181,20 @@ public sealed class AlmanacLessonTab : MonoBehaviour
     {
         if (emptyStateRoot != null) emptyStateRoot.SetActive(visible);
         if (emptyStateText != null) emptyStateText.text = message;
+    }
+
+    private static void AddUniqueLessons(
+        IEnumerable<LessonData> source,
+        ICollection<LessonData> destination,
+        ISet<string> seenIds)
+    {
+        if (source == null) return;
+        foreach (LessonData lesson in source)
+        {
+            if (lesson == null || string.IsNullOrWhiteSpace(lesson.Id) || !seenIds.Add(lesson.Id))
+                continue;
+            destination.Add(lesson);
+        }
     }
 
     private void EnsureTwoPageLayout()

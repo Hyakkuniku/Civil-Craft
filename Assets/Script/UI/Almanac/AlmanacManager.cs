@@ -65,6 +65,8 @@ public class AlmanacManager : MonoBehaviour
     public List<AlmanacCategory> categories = new List<AlmanacCategory>();
     public float selectedTabUpOffset = 15f; 
     public float tabTransitionSpeed = 10f;
+    [Min(0.1f)] public float tabSwitchDuration = 0.28f;
+    [Min(0f)] public float tabSwitchSlide = 26f;
 
     [Header("Pagination & Animation")]
     public Button prevButton;
@@ -81,6 +83,7 @@ public class AlmanacManager : MonoBehaviour
     private int currentCategoryIndex = 0;
     private int currentSpreadIndex = 0; 
     private bool isFlipping = false;
+    private bool isSwitchingCategory;
     private InputManager menuInputManager;
     private bool restoreMovementAfterClose;
     private bool restoreLookAfterClose;
@@ -90,6 +93,17 @@ public class AlmanacManager : MonoBehaviour
     private Dictionary<RectTransform, float> targetTabYPositions = new Dictionary<RectTransform, float>();
     private readonly Dictionary<GameObject, bool> archiveInteractionButtonStates =
         new Dictionary<GameObject, bool>();
+    private readonly List<AlmanacLearningHub> learningHubs = new List<AlmanacLearningHub>();
+
+    private sealed class TabPageVisual
+    {
+        public RectTransform rect;
+        public CanvasGroup group;
+        public Vector2 position;
+        public Vector3 scale;
+        public float alpha;
+        public float direction;
+    }
 
     private void Awake()
     {
@@ -287,6 +301,8 @@ public class AlmanacManager : MonoBehaviour
 
     private void InitializeBook()
     {
+        InitializeLearningHubs();
+
         for (int i = 0; i < categories.Count; i++)
         {
             int index = i; 
@@ -304,7 +320,7 @@ public class AlmanacManager : MonoBehaviour
                 RectTransform rect = cat.tabButton.GetComponent<RectTransform>();
                 originalTabYPositions[rect] = rect.anchoredPosition.y;
                 targetTabYPositions[rect] = rect.anchoredPosition.y;
-                cat.tabButton.onClick.AddListener(() => SelectCategory(index));
+                cat.tabButton.onClick.AddListener(() => RequestCategory(index));
             }
 
             if (cat.leftPageZone != null)
@@ -334,6 +350,47 @@ public class AlmanacManager : MonoBehaviour
 
         if (prevButton != null) prevButton.onClick.AddListener(() => TurnPage(false));
         if (nextButton != null) nextButton.onClick.AddListener(() => TurnPage(true));
+    }
+
+    private void InitializeLearningHubs()
+    {
+        if (almanacCanvas == null || categories == null) return;
+
+        AlmanacLessonTab lessonTab = almanacCanvas.GetComponentInChildren<AlmanacLessonTab>(true);
+        AlmanacMaterialTab materialTab = almanacCanvas.GetComponentInChildren<AlmanacMaterialTab>(true);
+        if (lessonTab == null) lessonTab = FindObjectOfType<AlmanacLessonTab>(true);
+        if (materialTab == null) materialTab = FindObjectOfType<AlmanacMaterialTab>(true);
+
+        CreateLearningHub(AlmanacTabType.Lessons, AlmanacLearningContent.Lessons,
+            lessonTab, materialTab);
+        CreateLearningHub(AlmanacTabType.Materials, AlmanacLearningContent.Materials,
+            lessonTab, materialTab);
+    }
+
+    private void CreateLearningHub(
+        AlmanacTabType tabType,
+        AlmanacLearningContent content,
+        AlmanacLessonTab lessonTab,
+        AlmanacMaterialTab materialTab)
+    {
+        AlmanacCategory category = categories.Find(candidate =>
+            candidate != null && candidate.tabType == tabType);
+        if (category == null || category.leftPageZone == null || category.rightPageZone == null)
+        {
+            Debug.LogWarning($"[Almanac] {tabType} page zones are missing; its learning spread could not be created.", this);
+            return;
+        }
+
+        // Some legacy tabs (notably Lessons) serialized their right page zone as
+        // inactive because the old reader enabled it dynamically. The new spread
+        // owns both halves, so both page zones must be available to the manager.
+        category.leftPageZone.gameObject.SetActive(true);
+        category.rightPageZone.gameObject.SetActive(true);
+
+        AlmanacLearningHub hub = almanacCanvas.AddComponent<AlmanacLearningHub>();
+        hub.Build(this, categories.IndexOf(category), content, category.leftPageZone,
+            category.rightPageZone, lessonTab, materialTab);
+        learningHubs.Add(hub);
     }
 
     public void TriggerAlert()
@@ -392,7 +449,11 @@ public class AlmanacManager : MonoBehaviour
         }
 
         if (almanacCanvas != null) almanacCanvas.SetActive(true);
-        
+
+        foreach (AlmanacLearningHub hub in learningHubs)
+        {
+            if (hub != null) hub.ResetToHome();
+        }
         SelectFirstVisibleCategory();
 
         if (onFirstOpenTutorial != null)
@@ -421,7 +482,7 @@ public class AlmanacManager : MonoBehaviour
 
     public void CloseAlmanac()
     {
-        if (isAnimating) return;
+        if (isAnimating || isSwitchingCategory) return;
 
         // The first Almanac walkthrough is a required part of the Bhan house
         // quest. Closing on its first two pages would leave the house tutorial
@@ -593,7 +654,120 @@ public class AlmanacManager : MonoBehaviour
         temporarilyHiddenPanels.Clear();
     }
 
+    private void RequestCategory(int index)
+    {
+        if (index < 0 || index >= categories.Count || index == currentCategoryIndex ||
+            isSwitchingCategory || isFlipping || isAnimating ||
+            !IsSupportedCategory(categories[index]))
+            return;
+
+        StartCoroutine(SwitchCategoryRoutine(index));
+    }
+
+    private IEnumerator SwitchCategoryRoutine(int index)
+    {
+        isSwitchingCategory = true;
+
+        AlmanacCategory outgoingCategory = categories[currentCategoryIndex];
+        List<TabPageVisual> outgoing = CaptureSpreadVisuals(outgoingCategory, currentSpreadIndex);
+        float outgoingDuration = Mathf.Max(0.04f, tabSwitchDuration * 0.42f);
+        float incomingDuration = Mathf.Max(0.06f, tabSwitchDuration * 0.58f);
+
+        yield return AnimateSpreadVisuals(outgoing, 0f, 1f, outgoingDuration);
+        ApplyCategorySelection(index);
+        ResetSpreadVisuals(outgoing);
+
+        AlmanacCategory incomingCategory = categories[currentCategoryIndex];
+        List<TabPageVisual> incoming = CaptureSpreadVisuals(incomingCategory, currentSpreadIndex);
+        SetSpreadVisualProgress(incoming, 1f);
+        yield return AnimateSpreadVisuals(incoming, 1f, 0f, incomingDuration);
+        ResetSpreadVisuals(incoming);
+
+        isSwitchingCategory = false;
+    }
+
+    private List<TabPageVisual> CaptureSpreadVisuals(AlmanacCategory category, int spreadIndex)
+    {
+        List<TabPageVisual> visuals = new List<TabPageVisual>();
+        if (category == null) return visuals;
+
+        CapturePageVisual(GetClampedPage(category.leftPages, spreadIndex), 1f, visuals);
+        CapturePageVisual(GetClampedPage(category.rightPages, spreadIndex), -1f, visuals);
+        return visuals;
+    }
+
+    private static void CapturePageVisual(
+        GameObject page,
+        float direction,
+        ICollection<TabPageVisual> visuals)
+    {
+        if (page == null) return;
+        RectTransform rect = page.transform as RectTransform;
+        if (rect == null) return;
+
+        CanvasGroup group = page.GetComponent<CanvasGroup>();
+        if (group == null) group = page.AddComponent<CanvasGroup>();
+        visuals.Add(new TabPageVisual
+        {
+            rect = rect,
+            group = group,
+            position = rect.anchoredPosition,
+            scale = rect.localScale,
+            alpha = group.alpha,
+            direction = direction
+        });
+    }
+
+    private IEnumerator AnimateSpreadVisuals(
+        List<TabPageVisual> visuals,
+        float from,
+        float to,
+        float duration)
+    {
+        float elapsed = 0f;
+        while (elapsed < duration)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            float normalized = Mathf.Clamp01(elapsed / duration);
+            float eased = Mathf.SmoothStep(0f, 1f, normalized);
+            SetSpreadVisualProgress(visuals, Mathf.Lerp(from, to, eased));
+            yield return null;
+        }
+        SetSpreadVisualProgress(visuals, to);
+    }
+
+    private void SetSpreadVisualProgress(List<TabPageVisual> visuals, float progress)
+    {
+        foreach (TabPageVisual visual in visuals)
+        {
+            if (visual == null || visual.rect == null || visual.group == null) continue;
+            visual.group.alpha = Mathf.Lerp(visual.alpha, 0f, progress);
+            visual.rect.anchoredPosition = visual.position +
+                new Vector2(visual.direction * tabSwitchSlide * progress, 0f);
+            visual.rect.localScale = Vector3.Scale(visual.scale,
+                new Vector3(Mathf.Lerp(1f, 0.975f, progress),
+                    Mathf.Lerp(1f, 0.99f, progress), 1f));
+        }
+    }
+
+    private static void ResetSpreadVisuals(List<TabPageVisual> visuals)
+    {
+        foreach (TabPageVisual visual in visuals)
+        {
+            if (visual == null || visual.rect == null || visual.group == null) continue;
+            visual.group.alpha = visual.alpha;
+            visual.rect.anchoredPosition = visual.position;
+            visual.rect.localScale = visual.scale;
+        }
+    }
+
     public void SelectCategory(int index)
+    {
+        if (isSwitchingCategory) return;
+        ApplyCategorySelection(index);
+    }
+
+    private void ApplyCategorySelection(int index)
     {
         if (index < 0 || index >= categories.Count || isFlipping || !IsSupportedCategory(categories[index])) return;
 
@@ -698,6 +872,8 @@ public class AlmanacManager : MonoBehaviour
 
     private void TurnPage(bool goingForward)
     {
+        if (isSwitchingCategory) return;
+
         if (useVirtualPagination)
         {
             OnVirtualPageTurn?.Invoke(goingForward);

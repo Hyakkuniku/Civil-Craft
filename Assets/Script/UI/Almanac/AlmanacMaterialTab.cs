@@ -5,6 +5,11 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public sealed class AlmanacMaterialTab : MonoBehaviour
 {
+    public List<BridgeMaterialSO> GetAllMaterials()
+    {
+        return BuildDatabase();
+    }
+
     [Header("Material Database")]
     [Tooltip("Optional manual list. If empty, all BridgeMaterialSO assets in Resources are found automatically.")]
     [SerializeField] private List<BridgeMaterialSO> allMaterials = new List<BridgeMaterialSO>();
