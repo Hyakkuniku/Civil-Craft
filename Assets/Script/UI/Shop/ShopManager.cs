@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
@@ -60,6 +61,12 @@ public class ShopManager : MonoBehaviour
     [Header("Category Tabs")]
     [SerializeField] private List<ShopCategoryTab> categoryTabs = new List<ShopCategoryTab>();
 
+    [Header("Tutorial Integration")]
+    [SerializeField, Tooltip("Optional tutorial shown after the shop UI has finished opening. Give the sequence a unique Lesson Name to show it only once per save.")]
+    private TutorialSequence onOpenTutorial;
+    [SerializeField, Tooltip("Prevents the player from closing the shop before the assigned shop tutorial reaches its final step.")]
+    private bool blockClosingUntilFinalTutorialStep = true;
+
     [Header("Purchase Events")]
     public ShopItemEvent onItemPurchased = new ShopItemEvent();
     public ShopMessageEvent onPurchaseRejected = new ShopMessageEvent();
@@ -70,6 +77,7 @@ public class ShopManager : MonoBehaviour
     private ShopCategory currentCategory;
     private PlayerDataManager boundPlayerData;
     private ShopItemData pendingPurchase;
+    private Coroutine openTutorialCoroutine;
     private bool initialized;
 
     public GameObject Panel => shopPanel;
@@ -173,11 +181,27 @@ public class ShopManager : MonoBehaviour
         HidePurchaseFeedback();
         UpdateCurrencyDisplay();
         ShowCategory(currentCategory);
+
+        if (openTutorialCoroutine != null)
+            StopCoroutine(openTutorialCoroutine);
+        openTutorialCoroutine = StartCoroutine(StartOpenTutorialWhenReady());
     }
 
     public void CloseShop()
     {
         if (shopPanel == null) return;
+
+        if (IsOpenTutorialBlockingClose())
+        {
+            Debug.Log("[ShopManager] Finish the shop introduction before closing the shop.", this);
+            return;
+        }
+
+        if (openTutorialCoroutine != null)
+        {
+            StopCoroutine(openTutorialCoroutine);
+            openTutorialCoroutine = null;
+        }
 
         CancelPendingPurchase();
         HidePurchaseFeedback();
@@ -186,6 +210,38 @@ public class ShopManager : MonoBehaviour
             UIPanelCoordinator.Instance.ClosePanel(shopPanel);
         else
             shopPanel.SetActive(false);
+    }
+
+    private IEnumerator StartOpenTutorialWhenReady()
+    {
+        // Let the panel, generated item cards, and layout groups settle before a
+        // tutorial pointer reads their final screen positions.
+        yield return new WaitForEndOfFrame();
+        openTutorialCoroutine = null;
+
+        if (onOpenTutorial == null || shopPanel == null || !shopPanel.activeInHierarchy)
+            yield break;
+
+        Canvas.ForceUpdateCanvases();
+
+        if (TutorialManager.Instance != null)
+            TutorialManager.Instance.PlayPriorityTutorial(onOpenTutorial);
+        else
+            onOpenTutorial.TryStartTutorial();
+    }
+
+    private bool IsOpenTutorialBlockingClose()
+    {
+        if (!blockClosingUntilFinalTutorialStep || onOpenTutorial == null ||
+            onOpenTutorial.tutorialSteps == null || onOpenTutorial.tutorialSteps.Length == 0 ||
+            TutorialManager.Instance == null ||
+            !TutorialManager.Instance.IsPlayingSequence(onOpenTutorial))
+        {
+            return false;
+        }
+
+        int finalStepIndex = onOpenTutorial.tutorialSteps.Length - 1;
+        return TutorialManager.Instance.CurrentStepIndex < finalStepIndex;
     }
 
     public void ShowCategory(ShopCategory category)
