@@ -248,6 +248,40 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         StartMapAnimation(true);
     }
 
+    /// <summary>
+    /// Opens the expanded map and selects the build location owned by the
+    /// supplied contract. Used by archive and objective UI that already knows
+    /// the contract but not the scene's BuildLocation component.
+    /// </summary>
+    public bool OpenAtContract(ContractSO contract)
+    {
+        if (contract == null || isFastTraveling || isAnimating) return false;
+
+        BuildLocation location = FindBuildLocationForContract(contract);
+        if (location == null)
+        {
+            Debug.LogWarning(
+                $"[ExpandedMinimap] No build location in this scene is assigned to '{contract.name}'.",
+                this);
+            return false;
+        }
+
+        MinimapUnlockController.RefreshAll();
+        ResolveReferencesAndBuildUI();
+        if (minimapPanel == null || mapImage == null || minimapCamera == null ||
+            !minimapPanel.gameObject.activeInHierarchy)
+        {
+            return false;
+        }
+
+        if (!isExpanded)
+            OpenExpandedMap();
+
+        if (!isExpanded) return false;
+        StartCoroutine(FocusContractLocationAfterOpen(location, contract));
+        return true;
+    }
+
     public void CloseExpandedMap()
     {
         if (isFastTraveling) return;
@@ -726,6 +760,41 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         center.y = minimapCamera.transform.position.y;
         SetCameraCenterClamped(center);
         UpdateLocationActionPanel();
+    }
+
+    private IEnumerator FocusContractLocationAfterOpen(BuildLocation location, ContractSO contract)
+    {
+        while (isAnimating) yield return null;
+        if (!isExpanded || location == null) yield break;
+
+        // Bring a large overview closer without forcing an already-close map
+        // farther away. The location remains centered and selected afterward.
+        float focusSize = Mathf.Clamp(contract != null ? contract.bridgeSpan * 1.15f : 24f,
+            12f, 38f);
+        SetZoom(Mathf.Min(minimapCamera.orthographicSize, focusSize));
+        SelectLocation(location);
+    }
+
+    private BuildLocation FindBuildLocationForContract(ContractSO contract)
+    {
+        if (contract == null) return null;
+
+        foreach (BuildLocation location in Resources.FindObjectsOfTypeAll<BuildLocation>())
+        {
+            if (location == null || location.gameObject.scene != gameObject.scene ||
+                location.activeContract == null)
+            {
+                continue;
+            }
+
+            if (location.activeContract == contract ||
+                location.activeContract.MatchesIdentifier(contract.ContractID))
+            {
+                return location;
+            }
+        }
+
+        return null;
     }
 
     private void UpdateLocationActionPanel()

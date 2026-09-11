@@ -1,6 +1,5 @@
 using System.Collections;
 using System.Collections.Generic;
-using System.Text;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -12,7 +11,6 @@ public sealed class AlmanacLearningHub : MonoBehaviour
     private static readonly Color Ink = new Color(0.25f, 0.16f, 0.10f, 1f);
     private static readonly Color MutedInk = new Color(0.47f, 0.35f, 0.25f, 1f);
     private static readonly Color Accent = new Color(0.66f, 0.36f, 0.13f, 1f);
-    private static readonly Color PaperTint = new Color(0.96f, 0.91f, 0.82f, 0.98f);
     private static readonly Color CardTint = new Color(0.91f, 0.84f, 0.72f, 0.72f);
     private static readonly Color LockedTint = new Color(0.63f, 0.58f, 0.52f, 0.62f);
 
@@ -27,13 +25,6 @@ public sealed class AlmanacLearningHub : MonoBehaviour
     private GameObject rightHome;
     private GameObject leftDetail;
     private GameObject rightDetail;
-    private GameObject leftSearch;
-    private GameObject rightSearch;
-    private TMP_Text searchChapterText;
-    private TMP_Text searchTitleText;
-    private TMP_Text searchBodyText;
-    private TMP_Text searchProgressText;
-    private TMP_Text searchIndexText;
     private TMP_Text detailTypeText;
     private TMP_Text detailTitleText;
     private TMP_Text detailDescriptionText;
@@ -43,12 +34,9 @@ public sealed class AlmanacLearningHub : MonoBehaviour
     private ScrollRect detailScroll;
     private TMP_Text fontSource;
     private RectTransform indexContent;
-    private readonly List<GameObject> activeFlipSheets = new List<GameObject>();
     private bool built;
     private bool showingDetail;
     private bool isTransitioning;
-    private LessonData pendingLesson;
-    private BridgeMaterialSO pendingMaterial;
 
     public void Build(
         AlmanacManager owner,
@@ -82,7 +70,6 @@ public sealed class AlmanacLearningHub : MonoBehaviour
 
         BuildHomeSpread();
         BuildDetailSpread();
-        BuildSearchSpread();
         SetDetailVisible(false);
 
         manager.OnCategoryChanged += HandleCategoryChanged;
@@ -115,7 +102,6 @@ public sealed class AlmanacLearningHub : MonoBehaviour
 
         StopAllCoroutines();
         isTransitioning = false;
-        ClearFlipSheets();
         ShowHomeImmediate();
     }
 
@@ -340,110 +326,6 @@ public sealed class AlmanacLearningHub : MonoBehaviour
             : new List<BridgeMaterialSO>();
     }
 
-    private void UpdateSearchPreview(int pageIndex, int pageCount, bool returning)
-    {
-        int displayPage = Mathf.Clamp(pageIndex + 1, 1, Mathf.Max(1, pageCount));
-        searchProgressText.text = displayPage.ToString("00") + "  /  " + Mathf.Max(1, pageCount).ToString("00");
-
-        if (contentType == AlmanacLearningContent.Lessons)
-        {
-            List<LessonData> lessons = GetLessonDatabase();
-            List<LessonData> candidates = new List<LessonData>();
-            foreach (LessonData lesson in lessons)
-            {
-                if (lesson != null && lesson != pendingLesson) candidates.Add(lesson);
-            }
-
-            LessonData preview = candidates.Count > 0 ? candidates[pageIndex % candidates.Count] : null;
-            bool unlocked = preview != null && LessonSaveManager.IsUnlocked(preview);
-            searchChapterText.text = returning ? "RETURNING  /  LESSON ARCHIVE" : "CHAPTER  " + displayPage.ToString("00");
-            searchTitleText.text = preview == null
-                ? "Engineering field notes"
-                : unlocked ? preview.Title : "Sealed lesson notes";
-            searchBodyText.text = preview == null
-                ? "Turning through the lesson archive and restoring the main register."
-                : unlocked
-                    ? Shorten(preview.Description, 430)
-                    : "This lesson has not been discovered yet. Its notes will be added after the related engineering activity is completed.";
-            searchIndexText.text = BuildLessonRegister(lessons, preview);
-            return;
-        }
-
-        List<BridgeMaterialSO> materials = GetMaterialDatabase();
-        materials.Sort((a, b) => string.Compare(a.GetDisplayName(), b.GetDisplayName(),
-            System.StringComparison.OrdinalIgnoreCase));
-        List<BridgeMaterialSO> materialCandidates = new List<BridgeMaterialSO>();
-        foreach (BridgeMaterialSO material in materials)
-        {
-            if (material != null && material != pendingMaterial) materialCandidates.Add(material);
-        }
-
-        BridgeMaterialSO materialPreview = materialCandidates.Count > 0
-            ? materialCandidates[pageIndex % materialCandidates.Count]
-            : null;
-        bool discovered = materialPreview != null && MaterialDiscoverySaveManager.IsDiscovered(materialPreview);
-        searchChapterText.text = returning ? "RETURNING  /  MATERIAL ARCHIVE" : "SPECIMEN  " + displayPage.ToString("00");
-        searchTitleText.text = materialPreview == null
-            ? "Builder's field catalogue"
-            : discovered ? materialPreview.GetDisplayName() : "Undiscovered material";
-        searchBodyText.text = materialPreview == null
-            ? "Turning through the material archive and restoring the main register."
-            : discovered
-                ? Shorten(string.IsNullOrWhiteSpace(materialPreview.introductionDescription)
-                    ? "A recorded construction material with properties ready for comparison."
-                    : materialPreview.introductionDescription, 430)
-                : "This material record remains sealed until the material is discovered in the world.";
-        searchIndexText.text = BuildMaterialRegister(materials, materialPreview);
-    }
-
-    private static string BuildLessonRegister(List<LessonData> lessons, LessonData selected)
-    {
-        if (lessons.Count == 0) return "No lesson records are currently available.";
-
-        StringBuilder register = new StringBuilder();
-        int selectedIndex = Mathf.Max(0, lessons.IndexOf(selected));
-        int lineCount = Mathf.Min(6, lessons.Count);
-        for (int offset = 0; offset < lineCount; offset++)
-        {
-            int index = (selectedIndex + offset) % lessons.Count;
-            LessonData lesson = lessons[index];
-            bool unlocked = lesson != null && LessonSaveManager.IsUnlocked(lesson);
-            register.Append(index == selectedIndex ? ">  " : "   ");
-            register.Append("PAGE ").Append((index + 1).ToString("00")).Append("     ");
-            register.Append(unlocked ? lesson.Title : "UNDISCOVERED LESSON");
-            if (offset < lineCount - 1) register.Append('\n');
-        }
-        return register.ToString();
-    }
-
-    private static string BuildMaterialRegister(List<BridgeMaterialSO> materials, BridgeMaterialSO selected)
-    {
-        if (materials.Count == 0) return "No material records are currently available.";
-
-        StringBuilder register = new StringBuilder();
-        int selectedIndex = Mathf.Max(0, materials.IndexOf(selected));
-        int lineCount = Mathf.Min(6, materials.Count);
-        for (int offset = 0; offset < lineCount; offset++)
-        {
-            int index = (selectedIndex + offset) % materials.Count;
-            BridgeMaterialSO material = materials[index];
-            bool discovered = material != null && MaterialDiscoverySaveManager.IsDiscovered(material);
-            register.Append(index == selectedIndex ? ">  " : "   ");
-            register.Append("M").Append((index + 1).ToString("00")).Append("          ");
-            register.Append(discovered ? material.GetDisplayName() : "UNDISCOVERED MATERIAL");
-            if (offset < lineCount - 1) register.Append('\n');
-        }
-        return register.ToString();
-    }
-
-    private static string Shorten(string value, int maxCharacters)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return "Archive notes are available for this entry.";
-        string trimmed = value.Trim();
-        if (trimmed.Length <= maxCharacters) return trimmed;
-        return trimmed.Substring(0, maxCharacters).TrimEnd() + "...";
-    }
-
     private void CreateSectionLabel(RectTransform parent, string label, int count)
     {
         TMP_Text section = CreateText(label + "_Section", parent,
@@ -579,79 +461,6 @@ public sealed class AlmanacLearningHub : MonoBehaviour
         CreateDetailScroll(right, 116f);
     }
 
-    private void BuildSearchSpread()
-    {
-        leftSearch = CreateRect("SearchLeft", leftPage).gameObject;
-        rightSearch = CreateRect("SearchRight", rightPage).gameObject;
-        CenterInPage(leftSearch.transform as RectTransform, 70f, 52f, 700f);
-        CenterInPage(rightSearch.transform as RectTransform, 42f, 62f, 700f);
-
-        RectTransform left = leftSearch.transform as RectTransform;
-        Image chapterBanner = CreateImage("ChapterBanner", left, CardTint);
-        SetTop(chapterBanner.rectTransform, 0f, 64f);
-        RectTransform marker = CreateImage("Marker", chapterBanner.rectTransform, Accent).rectTransform;
-        marker.anchorMin = Vector2.zero;
-        marker.anchorMax = new Vector2(0f, 1f);
-        marker.pivot = new Vector2(0f, 0.5f);
-        marker.anchoredPosition = Vector2.zero;
-        marker.sizeDelta = new Vector2(54f, 0f);
-
-        searchChapterText = CreateText("Chapter", chapterBanner.rectTransform, string.Empty, 16f,
-            FontStyles.Bold, Ink, TextAlignmentOptions.MidlineLeft);
-        Stretch(searchChapterText.rectTransform, 72f, 18f, 8f, 8f);
-
-        searchTitleText = CreateText("Title", left, string.Empty, 38f,
-            FontStyles.Bold, Ink, TextAlignmentOptions.TopLeft);
-        searchTitleText.enableAutoSizing = true;
-        searchTitleText.fontSizeMin = 27f;
-        searchTitleText.fontSizeMax = 38f;
-        SetTop(searchTitleText.rectTransform, 94f, 132f);
-
-        RectTransform leftRule = CreateImage("Rule", left, Accent).rectTransform;
-        SetTop(leftRule, 238f, 3f);
-
-        searchBodyText = CreateText("Body", left, string.Empty, 21f,
-            FontStyles.Normal, Ink, TextAlignmentOptions.TopLeft);
-        searchBodyText.enableWordWrapping = true;
-        searchBodyText.lineSpacing = 9f;
-        SetTop(searchBodyText.rectTransform, 266f, 300f);
-
-        TMP_Text leafNote = CreateText("LeafNote", left, "TURNING THROUGH ARCHIVE PAGES", 14f,
-            FontStyles.Italic, MutedInk, TextAlignmentOptions.BottomLeft);
-        leafNote.rectTransform.anchorMin = Vector2.zero;
-        leafNote.rectTransform.anchorMax = new Vector2(0.7f, 0f);
-        leafNote.rectTransform.pivot = new Vector2(0f, 0f);
-        leafNote.rectTransform.anchoredPosition = Vector2.zero;
-        leafNote.rectTransform.sizeDelta = new Vector2(0f, 32f);
-
-        RectTransform right = rightSearch.transform as RectTransform;
-        Image progressBanner = CreateImage("ProgressBanner", right, CardTint);
-        SetTop(progressBanner.rectTransform, 0f, 64f);
-        TMP_Text searchLabel = CreateText("Label", progressBanner.rectTransform, "SEARCHING", 17f,
-            FontStyles.Bold, Ink, TextAlignmentOptions.MidlineLeft);
-        Stretch(searchLabel.rectTransform, 22f, 170f, 8f, 8f);
-        searchProgressText = CreateText("Progress", progressBanner.rectTransform, string.Empty, 15f,
-            FontStyles.Bold, Accent, TextAlignmentOptions.MidlineRight);
-        Stretch(searchProgressText.rectTransform, 250f, 22f, 8f, 8f);
-
-        TMP_Text indexHeading = CreateText("Heading", right,
-            contentType == AlmanacLearningContent.Lessons ? "Lesson register" : "Material register",
-            30f, FontStyles.Bold, Ink, TextAlignmentOptions.MidlineLeft);
-        SetTop(indexHeading.rectTransform, 88f, 56f);
-
-        RectTransform rightRule = CreateImage("Rule", right, Accent).rectTransform;
-        SetTop(rightRule, 154f, 2f);
-
-        searchIndexText = CreateText("Index", right, string.Empty, 19f,
-            FontStyles.Normal, Ink, TextAlignmentOptions.TopLeft);
-        searchIndexText.enableWordWrapping = true;
-        searchIndexText.lineSpacing = 13f;
-        SetTop(searchIndexText.rectTransform, 184f, 430f);
-
-        leftSearch.SetActive(false);
-        rightSearch.SetActive(false);
-    }
-
     private void CreateDetailScroll(RectTransform parent, float top)
     {
         RectTransform scrollRoot = CreateRect("DetailScroll", parent);
@@ -689,8 +498,6 @@ public sealed class AlmanacLearningHub : MonoBehaviour
     private void OpenLesson(LessonData lesson)
     {
         if (lesson == null || !LessonSaveManager.IsUnlocked(lesson) || isTransitioning) return;
-        pendingLesson = lesson;
-        pendingMaterial = null;
         PopulateDetail("ENGINEERING LESSON", lesson.Title, lesson.Image, lesson.Description,
             "Review the principle, then look for it in your next structure.");
         StartCoroutine(TransitionToDetail());
@@ -699,9 +506,6 @@ public sealed class AlmanacLearningHub : MonoBehaviour
     private void OpenMaterial(BridgeMaterialSO material)
     {
         if (material == null || !MaterialDiscoverySaveManager.IsDiscovered(material) || isTransitioning) return;
-        pendingMaterial = material;
-        pendingLesson = null;
-
         string description = string.IsNullOrWhiteSpace(material.introductionDescription)
             ? "Study this material's properties and consider where its strengths best fit your design."
             : material.introductionDescription;
@@ -738,7 +542,7 @@ public sealed class AlmanacLearningHub : MonoBehaviour
         manager.EnableVirtualPagination(HandleVirtualPage);
         manager.ForceUpdatePaginationUI();
 
-        yield return PlayPageSearch(true, 5, "SEARCHING THE ALMANAC");
+        yield return AnimateSpreadSwap(leftHome, rightHome, leftDetail, rightDetail);
         SetDetailVisible(true);
         showingDetail = true;
         isTransitioning = false;
@@ -753,72 +557,80 @@ public sealed class AlmanacLearningHub : MonoBehaviour
     private IEnumerator TransitionHome()
     {
         isTransitioning = true;
-        yield return PlayPageSearch(false, 3, "RETURNING TO THE INDEX");
+        yield return AnimateSpreadSwap(leftDetail, rightDetail, leftHome, rightHome);
         ShowHomeImmediate();
         isTransitioning = false;
     }
 
-    private IEnumerator PlayPageSearch(bool forward, int pageCount, string status)
+    private IEnumerator AnimateSpreadSwap(
+        GameObject outgoingLeft,
+        GameObject outgoingRight,
+        GameObject incomingLeft,
+        GameObject incomingRight)
     {
-        ShowSearchImmediate();
-        UpdateSearchPreview(0, pageCount, !forward);
+        GameObject[] outgoing = { outgoingLeft, outgoingRight };
+        GameObject[] incoming = { incomingLeft, incomingRight };
 
-        for (int pageIndex = 0; pageIndex < pageCount; pageIndex++)
+        foreach (GameObject page in incoming)
         {
-            RectTransform parent = forward ? rightPage : leftPage;
-            RectTransform sheet = CreateRect("TurningPage_" + pageIndex, parent);
-            sheet.anchorMin = Vector2.zero;
-            sheet.anchorMax = Vector2.one;
-            sheet.offsetMin = new Vector2(forward ? 3f : -3f, 4f);
-            sheet.offsetMax = new Vector2(forward ? -3f : 3f, -4f);
-            sheet.pivot = new Vector2(forward ? 0f : 1f, 0.5f);
-            sheet.SetAsLastSibling();
-            activeFlipSheets.Add(sheet.gameObject);
-
-            Canvas canvas = sheet.gameObject.AddComponent<Canvas>();
-            canvas.overrideSorting = true;
-            canvas.sortingOrder = 80 + pageIndex;
-            CanvasGroup group = sheet.gameObject.AddComponent<CanvasGroup>();
-            Image paper = sheet.gameObject.AddComponent<Image>();
-            float variation = pageIndex * 0.012f;
-            paper.color = new Color(PaperTint.r - variation, PaperTint.g - variation,
-                PaperTint.b - variation, PaperTint.a);
-            paper.raycastTarget = true;
-
-            Shadow shadow = sheet.gameObject.AddComponent<Shadow>();
-            shadow.effectColor = new Color(0.18f, 0.10f, 0.05f, 0.28f);
-            shadow.effectDistance = new Vector2(forward ? -10f : 10f, -2f);
-
-            TMP_Text searching = CreateText("Searching", sheet, status + "   " + (pageIndex + 1) + " / " + pageCount,
-                14f, FontStyles.Bold, MutedInk, TextAlignmentOptions.Bottom);
-            Stretch(searching.rectTransform, 30f, 30f, 30f, 24f);
-
-            float duration = 0.13f;
-            float elapsed = 0f;
-            bool revealedNextPage = false;
-            while (elapsed < duration)
-            {
-                elapsed += Time.unscaledDeltaTime;
-                float t = Mathf.Clamp01(elapsed / duration);
-                float eased = Mathf.SmoothStep(0f, 1f, t);
-                float angle = Mathf.Lerp(0f, forward ? -180f : 180f, eased);
-                sheet.localRotation = Quaternion.Euler(0f, angle, 0f);
-                sheet.localScale = new Vector3(1f, 1f + Mathf.Sin(t * Mathf.PI) * 0.018f, 1f);
-                if (!revealedNextPage && t >= 0.48f)
-                {
-                    revealedNextPage = true;
-                    UpdateSearchPreview(pageIndex + 1, pageCount, !forward);
-                }
-                if (t > 0.72f) group.alpha = 1f - ((t - 0.72f) / 0.28f);
-                yield return null;
-            }
-
-            activeFlipSheets.Remove(sheet.gameObject);
-            Destroy(sheet.gameObject);
-            yield return new WaitForSecondsRealtime(0.09f);
+            if (page == null) continue;
+            page.SetActive(true);
+            CanvasGroup group = GetOrAddCanvasGroup(page);
+            group.alpha = 0f;
+            page.transform.localScale = new Vector3(0.985f, 0.992f, 1f);
         }
 
-        yield return new WaitForSecondsRealtime(0.08f);
+        const float duration = 0.24f;
+        float elapsed = 0f;
+        while (elapsed < duration)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            float t = Mathf.Clamp01(elapsed / duration);
+            float eased = 1f - Mathf.Pow(1f - t, 3f);
+
+            foreach (GameObject page in outgoing)
+            {
+                if (page == null) continue;
+                CanvasGroup group = GetOrAddCanvasGroup(page);
+                group.alpha = 1f - eased;
+                page.transform.localScale = new Vector3(
+                    Mathf.Lerp(1f, 0.985f, eased),
+                    Mathf.Lerp(1f, 0.992f, eased), 1f);
+            }
+
+            foreach (GameObject page in incoming)
+            {
+                if (page == null) continue;
+                CanvasGroup group = GetOrAddCanvasGroup(page);
+                group.alpha = eased;
+                page.transform.localScale = new Vector3(
+                    Mathf.Lerp(0.985f, 1f, eased),
+                    Mathf.Lerp(0.992f, 1f, eased), 1f);
+            }
+
+            yield return null;
+        }
+
+        foreach (GameObject page in outgoing)
+        {
+            ResetTransitionVisual(page);
+            if (page != null) page.SetActive(false);
+        }
+        foreach (GameObject page in incoming) ResetTransitionVisual(page);
+    }
+
+    private static CanvasGroup GetOrAddCanvasGroup(GameObject page)
+    {
+        CanvasGroup group = page.GetComponent<CanvasGroup>();
+        return group != null ? group : page.AddComponent<CanvasGroup>();
+    }
+
+    private static void ResetTransitionVisual(GameObject page)
+    {
+        if (page == null) return;
+        CanvasGroup group = page.GetComponent<CanvasGroup>();
+        if (group != null) group.alpha = 1f;
+        page.transform.localScale = Vector3.one;
     }
 
     private void HandleVirtualPage(bool forward)
@@ -828,20 +640,13 @@ public sealed class AlmanacLearningHub : MonoBehaviour
 
     private void ShowHomeImmediate()
     {
+        ResetTransitionVisual(leftHome);
+        ResetTransitionVisual(rightHome);
+        ResetTransitionVisual(leftDetail);
+        ResetTransitionVisual(rightDetail);
         SetDetailVisible(false);
         showingDetail = false;
         if (manager != null) manager.DisableVirtualPagination(HandleVirtualPage);
-        ClearFlipSheets();
-    }
-
-    private void ShowSearchImmediate()
-    {
-        if (leftHome != null) leftHome.SetActive(false);
-        if (rightHome != null) rightHome.SetActive(false);
-        if (leftDetail != null) leftDetail.SetActive(false);
-        if (rightDetail != null) rightDetail.SetActive(false);
-        if (leftSearch != null) leftSearch.SetActive(true);
-        if (rightSearch != null) rightSearch.SetActive(true);
     }
 
     private void SetDetailVisible(bool visible)
@@ -850,17 +655,6 @@ public sealed class AlmanacLearningHub : MonoBehaviour
         if (rightHome != null) rightHome.SetActive(!visible);
         if (leftDetail != null) leftDetail.SetActive(visible);
         if (rightDetail != null) rightDetail.SetActive(visible);
-        if (leftSearch != null) leftSearch.SetActive(false);
-        if (rightSearch != null) rightSearch.SetActive(false);
-    }
-
-    private void ClearFlipSheets()
-    {
-        foreach (GameObject sheet in activeFlipSheets)
-        {
-            if (sheet != null) Destroy(sheet);
-        }
-        activeFlipSheets.Clear();
     }
 
     private void CreateGuideRow(RectTransform parent, float top, string number, string heading, string body)
