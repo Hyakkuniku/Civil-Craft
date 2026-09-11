@@ -134,6 +134,7 @@ public class TutorialManager : MonoBehaviour
 
     public bool IsTutorialActive { get; private set; } = false;
     public TutorialPointer SharedPointer => bouncingArrow;
+    public event System.Action<TutorialSequence> OnTutorialCompleted;
 
     private TutorialSequence currentSequence;
     private int currentStepIndex = -1;
@@ -142,6 +143,7 @@ public class TutorialManager : MonoBehaviour
     private readonly List<TutorialSequence> queuedSequences = new List<TutorialSequence>();
     private readonly Stack<SuspendedTutorialState> suspendedSequences = new Stack<SuspendedTutorialState>();
     private Coroutine queuedSequenceCoroutine;
+    private int suspendedTutorialResumeHoldCount;
 
     public int CurrentStepIndex => currentStepIndex;
     public string CurrentLessonName => currentSequence != null ? currentSequence.lessonName : string.Empty;
@@ -513,6 +515,27 @@ public class TutorialManager : MonoBehaviour
         }
 
         PlayTutorial(sequence);
+    }
+
+    /// <summary>
+    /// Keeps a tutorial displaced by a priority/modal tutorial suspended until
+    /// the modal owner is fully closed. Calls may be nested as long as each owner
+    /// releases its hold.
+    /// </summary>
+    public void BeginSuspendedTutorialResumeHold()
+    {
+        suspendedTutorialResumeHoldCount++;
+    }
+
+    public void EndSuspendedTutorialResumeHold()
+    {
+        if (suspendedTutorialResumeHoldCount <= 0) return;
+
+        suspendedTutorialResumeHoldCount--;
+        if (suspendedTutorialResumeHoldCount > 0 || IsTutorialActive) return;
+
+        if (!TryResumeSuspendedTutorial())
+            TryStartQueuedTutorialNextFrame();
     }
 
     public void ShowNextStep()
@@ -977,10 +1000,12 @@ public class TutorialManager : MonoBehaviour
         lastAdvanceFrame = -1;
         isAdvancingStep = false;
 
+        OnTutorialCompleted?.Invoke(completedSequence);
+
         if (completedSequence != null && completedSequence.autoStartNextSequence && completedSequence.nextSequence != null)
             QueueTutorial(completedSequence.nextSequence);
 
-        if (!TryResumeSuspendedTutorial())
+        if (suspendedTutorialResumeHoldCount == 0 && !TryResumeSuspendedTutorial())
             TryStartQueuedTutorialNextFrame();
     }
 

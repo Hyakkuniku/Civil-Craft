@@ -91,6 +91,8 @@ public class AlmanacManager : MonoBehaviour
     private bool restoreMovementAfterClose;
     private bool restoreLookAfterClose;
     private bool hasCapturedMenuInput;
+    private bool isHoldingSuspendedTutorialResume;
+    private Coroutine pendingTabTutorialCoroutine;
 
     private Dictionary<RectTransform, float> originalTabYPositions = new Dictionary<RectTransform, float>();
     private Dictionary<RectTransform, float> targetTabYPositions = new Dictionary<RectTransform, float>();
@@ -155,6 +157,9 @@ public class AlmanacManager : MonoBehaviour
             PlayerDataManager.Instance.OnAlmanacAlertsChanged += HandleAlmanacAlertsChanged;
         }
 
+        if (TutorialManager.Instance != null)
+            TutorialManager.Instance.OnTutorialCompleted += HandleTutorialCompleted;
+
         EvaluateTabUnlocks();
         RefreshPersistentAlerts();
     }
@@ -167,8 +172,12 @@ public class AlmanacManager : MonoBehaviour
             PlayerDataManager.Instance.OnAlmanacAlertsChanged -= HandleAlmanacAlertsChanged;
         }
 
+        if (TutorialManager.Instance != null)
+            TutorialManager.Instance.OnTutorialCompleted -= HandleTutorialCompleted;
+
         RestoreMenuInput();
         RestoreArchiveInteractionButtonContainers();
+        ReleaseSuspendedTutorialResume();
     }
 
     private void ShowHudButton()
@@ -180,6 +189,34 @@ public class AlmanacManager : MonoBehaviour
     private void HandleAlmanacAlertsChanged()
     {
         RefreshPersistentAlerts();
+    }
+
+    private void HandleTutorialCompleted(TutorialSequence completedSequence)
+    {
+        if (!isHoldingSuspendedTutorialResume ||
+            !IsTabUnlockTutorialSequence(completedSequence) ||
+            almanacCanvas == null || !almanacCanvas.activeInHierarchy ||
+            pendingTabTutorialCoroutine != null)
+        {
+            return;
+        }
+
+        pendingTabTutorialCoroutine = StartCoroutine(StartNextPendingTabTutorialRoutine());
+    }
+
+    private IEnumerator StartNextPendingTabTutorialRoutine()
+    {
+        // TutorialManager finishes clearing the previous sequence this frame.
+        yield return null;
+        pendingTabTutorialCoroutine = null;
+
+        if (isAnimating || almanacCanvas == null || !almanacCanvas.activeInHierarchy ||
+            TutorialManager.Instance == null || TutorialManager.Instance.IsTutorialActive)
+        {
+            yield break;
+        }
+
+        TryStartPendingTabUnlockTutorial();
     }
 
     private void Update()
@@ -567,6 +604,7 @@ public class AlmanacManager : MonoBehaviour
         if (sequence == null || sequence.tutorialSteps == null ||
             sequence.tutorialSteps.Length == 0 ||
             TutorialManager.Instance.IsPlayingSequence(sequence) ||
+            IsAnyTabUnlockTutorialPlaying() ||
             !sequence.CanStartAsPriorityTutorial())
         {
             return;
@@ -577,8 +615,13 @@ public class AlmanacManager : MonoBehaviour
 
     private IEnumerator StartSelectedTabUnlockTutorialRoutine(TutorialSequence sequence)
     {
+        bool acquiredResumeHold = HoldSuspendedTutorialResume();
         TutorialManager.Instance.PlayPriorityTutorial(sequence);
-        if (!TutorialManager.Instance.IsPlayingSequence(sequence)) yield break;
+        if (!TutorialManager.Instance.IsPlayingSequence(sequence))
+        {
+            if (acquiredResumeHold) ReleaseSuspendedTutorialResume();
+            yield break;
+        }
 
         // The player already performed the highlighted-tab click that normally
         // advances step zero, so go directly to that tab's explanation.
@@ -621,17 +664,43 @@ public class AlmanacManager : MonoBehaviour
 
         if (TutorialManager.Instance.IsTutorialActive)
         {
-            // Queue only behind another tab-unlock walkthrough. An unrelated
-            // tutorial may outlive the open book and would leave pointers hidden.
-            if (!IsAnyTabUnlockTutorialPlaying()) return false;
-            TutorialManager.Instance.QueueTutorial(sequence);
+            if (IsAnyTabUnlockTutorialPlaying())
+            {
+                // Finish the visible tab guide before beginning another one.
+                // Queuing it would allow its UI pointer to appear after the
+                // Almanac has already closed.
+                return true;
+            }
         }
-        else
+
+        bool acquiredResumeHold = HoldSuspendedTutorialResume();
+        TutorialManager.Instance.PlayPriorityTutorial(sequence);
+        if (!TutorialManager.Instance.IsPlayingSequence(sequence))
         {
-            TutorialManager.Instance.PlayPriorityTutorial(sequence);
+            if (acquiredResumeHold) ReleaseSuspendedTutorialResume();
+            return false;
         }
 
         return true;
+    }
+
+    private bool HoldSuspendedTutorialResume()
+    {
+        if (isHoldingSuspendedTutorialResume || TutorialManager.Instance == null)
+            return false;
+
+        TutorialManager.Instance.BeginSuspendedTutorialResumeHold();
+        isHoldingSuspendedTutorialResume = true;
+        return true;
+    }
+
+    private void ReleaseSuspendedTutorialResume()
+    {
+        if (!isHoldingSuspendedTutorialResume) return;
+
+        isHoldingSuspendedTutorialResume = false;
+        if (TutorialManager.Instance != null)
+            TutorialManager.Instance.EndSuspendedTutorialResumeHold();
     }
 
     private bool IsAnyTabUnlockTutorialPlaying()
@@ -640,6 +709,14 @@ public class AlmanacManager : MonoBehaviour
         return TutorialManager.Instance.IsPlayingSequence(onContractsTabUnlockedTutorial) ||
                TutorialManager.Instance.IsPlayingSequence(onLessonsTabUnlockedTutorial) ||
                TutorialManager.Instance.IsPlayingSequence(onMaterialsTabUnlockedTutorial);
+    }
+
+    private bool IsTabUnlockTutorialSequence(TutorialSequence sequence)
+    {
+        return sequence != null &&
+               (sequence == onContractsTabUnlockedTutorial ||
+                sequence == onLessonsTabUnlockedTutorial ||
+                sequence == onMaterialsTabUnlockedTutorial);
     }
 
     private bool IsTabUnlockTutorialBlockingClose()
@@ -774,6 +851,7 @@ public class AlmanacManager : MonoBehaviour
             UIPanelCoordinator.Instance.ClosePanel(animationPanel);
         RestoreMenuInput();
         RestoreArchiveInteractionButtonContainers();
+        ReleaseSuspendedTutorialResume();
 
         isAnimating = false;
         afterClosed?.Invoke();
