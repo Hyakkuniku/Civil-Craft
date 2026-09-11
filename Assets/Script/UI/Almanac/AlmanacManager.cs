@@ -53,6 +53,9 @@ public class AlmanacManager : MonoBehaviour
 
     [Header("Tutorial Integration")]
     public TutorialSequence onFirstOpenTutorial;
+    [SerializeField] private TutorialSequence onContractsTabUnlockedTutorial;
+    [SerializeField] private TutorialSequence onLessonsTabUnlockedTutorial;
+    [SerializeField] private TutorialSequence onMaterialsTabUnlockedTutorial;
 
     [Header("UI Management")]
     public List<GameObject> uiElementsToHide = new List<GameObject>();
@@ -122,6 +125,7 @@ public class AlmanacManager : MonoBehaviour
         if (newAlertIcon != null) newAlertIcon.SetActive(false);
 
         InitializeBook();
+        EnsureTabUnlockTutorialDrafts();
     }
 
     private void Start()
@@ -148,7 +152,7 @@ public class AlmanacManager : MonoBehaviour
             if (hudOpenButton != null) hudOpenButton.SetActive(playerHasAlmanac);
 
             PlayerDataManager.Instance.OnAlmanacUnlocked += ShowHudButton;
-            PlayerDataManager.Instance.OnAlmanacAlertsChanged += RefreshPersistentAlerts;
+            PlayerDataManager.Instance.OnAlmanacAlertsChanged += HandleAlmanacAlertsChanged;
         }
 
         EvaluateTabUnlocks();
@@ -160,7 +164,7 @@ public class AlmanacManager : MonoBehaviour
         if (PlayerDataManager.Instance != null)
         {
             PlayerDataManager.Instance.OnAlmanacUnlocked -= ShowHudButton;
-            PlayerDataManager.Instance.OnAlmanacAlertsChanged -= RefreshPersistentAlerts;
+            PlayerDataManager.Instance.OnAlmanacAlertsChanged -= HandleAlmanacAlertsChanged;
         }
 
         RestoreMenuInput();
@@ -170,6 +174,11 @@ public class AlmanacManager : MonoBehaviour
     private void ShowHudButton()
     {
         if (hudOpenButton != null) hudOpenButton.SetActive(true);
+        RefreshPersistentAlerts();
+    }
+
+    private void HandleAlmanacAlertsChanged()
+    {
         RefreshPersistentAlerts();
     }
 
@@ -456,13 +465,22 @@ public class AlmanacManager : MonoBehaviour
         }
         SelectFirstVisibleCategory();
 
+        bool startedFirstOpenTutorial = false;
         if (onFirstOpenTutorial != null)
         {
             if (TutorialManager.Instance != null)
+            {
                 TutorialManager.Instance.PlayPriorityTutorial(onFirstOpenTutorial);
+                startedFirstOpenTutorial = TutorialManager.Instance.IsPlayingSequence(onFirstOpenTutorial);
+            }
             else
                 onFirstOpenTutorial.TryStartTutorial();
         }
+
+        // The first-open walkthrough owns this visit. Newly unlocked tab guides
+        // begin on the next open so their pointers never compete for the book UI.
+        if (!startedFirstOpenTutorial)
+            TryStartPendingTabUnlockTutorial();
 
         isAnimating = false;
     }
@@ -489,9 +507,9 @@ public class AlmanacManager : MonoBehaviour
         // suspended with no reliable completion path. The final walkthrough
         // step explicitly asks the player to close the book, so closing is
         // permitted once that step is reached.
-        if (IsRequiredFirstOpenTutorialBlockingClose())
+        if (IsRequiredFirstOpenTutorialBlockingClose() || IsTabUnlockTutorialBlockingClose())
         {
-            Debug.Log("[Almanac] Finish the Almanac introduction before closing the book.");
+            Debug.Log("[Almanac] Finish the active Almanac introduction before closing the book.");
             return;
         }
 
@@ -511,6 +529,214 @@ public class AlmanacManager : MonoBehaviour
         return TutorialManager.Instance.CurrentStepIndex < finalStepIndex;
     }
 
+    private void TryStartPendingTabUnlockTutorial()
+    {
+        if (almanacCanvas == null || !almanacCanvas.activeInHierarchy ||
+            PlayerDataManager.Instance == null || TutorialManager.Instance == null)
+        {
+            return;
+        }
+
+        PlayerData data = PlayerDataManager.Instance.CurrentData;
+        if (data == null) return;
+
+        if (TryStartTabUnlockTutorial(
+                onContractsTabUnlockedTutorial,
+                IsTabUnlocked(data, AlmanacTabType.Contracts)))
+            return;
+
+        if (TryStartTabUnlockTutorial(
+                onLessonsTabUnlockedTutorial,
+                IsTabUnlocked(data, AlmanacTabType.Lessons)))
+            return;
+
+        TryStartTabUnlockTutorial(
+            onMaterialsTabUnlockedTutorial,
+            IsTabUnlocked(data, AlmanacTabType.Materials));
+    }
+
+    private void TryStartSelectedTabUnlockTutorial(AlmanacTabType selectedType)
+    {
+        if (PlayerDataManager.Instance == null || TutorialManager.Instance == null ||
+            !IsTabUnlocked(PlayerDataManager.Instance.CurrentData, selectedType))
+        {
+            return;
+        }
+
+        TutorialSequence sequence = GetTabUnlockTutorial(selectedType);
+        if (sequence == null || sequence.tutorialSteps == null ||
+            sequence.tutorialSteps.Length == 0 ||
+            TutorialManager.Instance.IsPlayingSequence(sequence) ||
+            !sequence.CanStartAsPriorityTutorial())
+        {
+            return;
+        }
+
+        StartCoroutine(StartSelectedTabUnlockTutorialRoutine(sequence));
+    }
+
+    private IEnumerator StartSelectedTabUnlockTutorialRoutine(TutorialSequence sequence)
+    {
+        TutorialManager.Instance.PlayPriorityTutorial(sequence);
+        if (!TutorialManager.Instance.IsPlayingSequence(sequence)) yield break;
+
+        // The player already performed the highlighted-tab click that normally
+        // advances step zero, so go directly to that tab's explanation.
+        yield return null;
+        if (TutorialManager.Instance != null &&
+            TutorialManager.Instance.IsPlayingSequence(sequence) &&
+            TutorialManager.Instance.CurrentStepIndex == 0)
+        {
+            TutorialManager.Instance.ShowNextStep();
+        }
+    }
+
+    private TutorialSequence GetTabUnlockTutorial(AlmanacTabType tabType)
+    {
+        if (tabType == AlmanacTabType.Contracts) return onContractsTabUnlockedTutorial;
+        if (tabType == AlmanacTabType.Lessons) return onLessonsTabUnlockedTutorial;
+        if (tabType == AlmanacTabType.Materials) return onMaterialsTabUnlockedTutorial;
+        return null;
+    }
+
+    private static bool IsTabUnlocked(PlayerData data, AlmanacTabType tabType)
+    {
+        if (data == null) return false;
+        if (tabType == AlmanacTabType.Contracts) return data.hasUnlockedContractsTab;
+        if (tabType == AlmanacTabType.Lessons) return data.hasUnlockedLessonsTab;
+        if (tabType == AlmanacTabType.Materials) return data.hasUnlockedMaterialsTab;
+        return false;
+    }
+
+    private bool TryStartTabUnlockTutorial(TutorialSequence sequence, bool isUnlocked)
+    {
+        if (!isUnlocked || sequence == null || sequence.tutorialSteps == null ||
+            sequence.tutorialSteps.Length == 0 || TutorialManager.Instance == null)
+        {
+            return false;
+        }
+
+        if (TutorialManager.Instance.IsPlayingSequence(sequence)) return true;
+        if (!sequence.CanStartAsPriorityTutorial()) return false;
+
+        if (TutorialManager.Instance.IsTutorialActive)
+        {
+            // Queue only behind another tab-unlock walkthrough. An unrelated
+            // tutorial may outlive the open book and would leave pointers hidden.
+            if (!IsAnyTabUnlockTutorialPlaying()) return false;
+            TutorialManager.Instance.QueueTutorial(sequence);
+        }
+        else
+        {
+            TutorialManager.Instance.PlayPriorityTutorial(sequence);
+        }
+
+        return true;
+    }
+
+    private bool IsAnyTabUnlockTutorialPlaying()
+    {
+        if (TutorialManager.Instance == null) return false;
+        return TutorialManager.Instance.IsPlayingSequence(onContractsTabUnlockedTutorial) ||
+               TutorialManager.Instance.IsPlayingSequence(onLessonsTabUnlockedTutorial) ||
+               TutorialManager.Instance.IsPlayingSequence(onMaterialsTabUnlockedTutorial);
+    }
+
+    private bool IsTabUnlockTutorialBlockingClose()
+    {
+        return IsAnyTabUnlockTutorialPlaying();
+    }
+
+    private void EnsureTabUnlockTutorialDrafts()
+    {
+        onContractsTabUnlockedTutorial = EnsureTabUnlockTutorialDraft(
+            onContractsTabUnlockedTutorial,
+            AlmanacTabType.Contracts,
+            "Sequence_AlmanacContractsUnlocked",
+            "A new <b><#E09500>CONTRACTS TAB</color></b> is available. Select it to review your completed jobs.",
+            "Completed contracts are recorded here with their client, rewards, and saved bridge photo.");
+
+        onLessonsTabUnlockedTutorial = EnsureTabUnlockTutorialDraft(
+            onLessonsTabUnlockedTutorial,
+            AlmanacTabType.Lessons,
+            "Sequence_AlmanacLessonsUnlocked",
+            "A new <b><#E09500>LESSONS TAB</color></b> is available. Select it to review what you have learned.",
+            "New engineering lessons are added here as you complete activities and discover new concepts.");
+
+        onMaterialsTabUnlockedTutorial = EnsureTabUnlockTutorialDraft(
+            onMaterialsTabUnlockedTutorial,
+            AlmanacTabType.Materials,
+            "Sequence_AlmanacMaterialsUnlocked",
+            "A new <b><#E09500>MATERIALS TAB</color></b> is available. Select it to inspect your discovered materials.",
+            "The material archive records useful properties and grows whenever you discover a new construction material.");
+    }
+
+    private TutorialSequence EnsureTabUnlockTutorialDraft(
+        TutorialSequence sequence,
+        AlmanacTabType tabType,
+        string lessonName,
+        string unlockMessage,
+        string contentsMessage)
+    {
+        if (sequence == null)
+        {
+            GameObject sequenceObject = new GameObject(lessonName);
+            sequenceObject.transform.SetParent(transform, false);
+            sequence = sequenceObject.AddComponent<TutorialSequence>();
+        }
+
+        if (sequence.tutorialSteps != null && sequence.tutorialSteps.Length > 0)
+            return sequence;
+
+        AlmanacCategory category = categories.Find(candidate =>
+            candidate != null && candidate.tabType == tabType);
+        RectTransform tabTarget = category != null && category.tabButton != null
+            ? category.tabButton.transform as RectTransform
+            : null;
+
+        sequence.lessonName = lessonName;
+        sequence.requiredPreviousLesson = string.Empty;
+        sequence.playOnStart = false;
+        sequence.nextSequence = null;
+        sequence.autoStartNextSequence = false;
+        sequence.tutorialSteps = new[]
+        {
+            CreateTabUnlockTutorialStep(
+                unlockMessage,
+                tabTarget,
+                tabTarget != null,
+                tabTarget == null),
+            CreateTabUnlockTutorialStep(contentsMessage, null, false, true)
+        };
+
+        return sequence;
+    }
+
+    private static TutorialStep CreateTabUnlockTutorialStep(
+        string message,
+        RectTransform pointerTarget,
+        bool advanceOnClick,
+        bool showNextButton)
+    {
+        return new TutorialStep
+        {
+            message = message,
+            screenPosition = TutorialPosition.Center,
+            showNextButton = showNextButton,
+            canSkip = true,
+            lockLook = false,
+            lockJump = false,
+            stepWaypoints = new List<GuiderWaypoint>(),
+            worldHighlightObject = null,
+            usePointer = pointerTarget != null,
+            pointerTarget = pointerTarget,
+            pointerOffset = new Vector2(0f, 80f),
+            pointerRotation = 180f,
+            advanceOnClick = advanceOnClick,
+            requiredAction = TutorialStepAction.None
+        };
+    }
+
     /// <summary>
     /// Closes the book and invokes the callback only after the closing animation,
     /// HUD restoration, and input restoration have finished.
@@ -518,9 +744,9 @@ public class AlmanacManager : MonoBehaviour
     public void CloseAlmanacThen(System.Action afterClosed)
     {
         if (isAnimating) return;
-        if (IsRequiredFirstOpenTutorialBlockingClose())
+        if (IsRequiredFirstOpenTutorialBlockingClose() || IsTabUnlockTutorialBlockingClose())
         {
-            Debug.Log("[Almanac] Finish the Almanac introduction before opening another archive panel.");
+            Debug.Log("[Almanac] Finish the active Almanac introduction before opening another archive panel.");
             return;
         }
         StartCoroutine(CloseAlmanacRoutine(afterClosed));
@@ -684,6 +910,7 @@ public class AlmanacManager : MonoBehaviour
         ResetSpreadVisuals(incoming);
 
         isSwitchingCategory = false;
+        TryStartSelectedTabUnlockTutorial(categories[index].tabType);
     }
 
     private List<TabPageVisual> CaptureSpreadVisuals(AlmanacCategory category, int spreadIndex)
