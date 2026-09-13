@@ -31,6 +31,9 @@ public class ClipboardManager : MonoBehaviour
     [Tooltip("Extra screen-space hit area around copied bars and points. This makes the preview easy to grab without making empty-screen touches drag it.")]
     [Min(1f)] public float pastePreviewTouchRadiusPixels = 45f;
 
+    [Tooltip("Offset of the remaining copy preview after stamping. Placed bridge pieces do not move. Pier copies keep their base height.")]
+    public Vector2 repeatPastePreviewOffset = new Vector2(2f, 2f);
+
     [Header("Paste Audio")]
     [Tooltip("SFX ID configured in AudioManager. Played once when pasted bars are created.")]
     [SerializeField] private string placeBarSfxId = "PlaceBar";
@@ -503,6 +506,20 @@ public class ClipboardManager : MonoBehaviour
         {
             CancelPasteMode();
             if (BuildUIController.Instance != null) BuildUIController.Instance.SetSelectionPanelActive(false);
+        }
+        else if (isPasteMode)
+        {
+            // Separate the still-held copy from the committed bridge. Only move
+            // ghosts: moving real nodes here could move shared anchors as well.
+            Vector3 offset = new Vector3(repeatPastePreviewOffset.x, repeatPastePreviewOffset.y, 0f);
+            if (copiedBars.Exists(bar => bar.mat != null && bar.mat.isPier))
+                offset.y = 0f;
+            if (offset.sqrMagnitude < 0.01f) offset = Vector3.right * 2f;
+            Vector3 nextRoot = pasteRootPos + offset;
+            if (barCreator.isGridSnappingEnabled)
+                nextRoot = new Vector3(Mathf.Round(nextRoot.x), Mathf.Round(nextRoot.y), nextRoot.z);
+            isDraggingSelection = false;
+            UpdatePasteGhostsWorldPosition(nextRoot);
         }
     }
 
