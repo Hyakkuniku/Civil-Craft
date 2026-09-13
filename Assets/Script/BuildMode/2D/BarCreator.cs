@@ -106,6 +106,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     
     [HideInInspector] public List<Point> selectedPoints = new List<Point>();
     [HideInInspector] public List<Bar> selectedBars = new List<Bar>(); 
+    private readonly HashSet<Point> highlightedSceneAnchors = new HashSet<Point>();
     
     public bool isDraggingSelection = false;
     private bool isDraggingSelectionBox = false; 
@@ -345,6 +346,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             if (b.startPoint != null) allSelected.Add(b.startPoint);
             if (b.endPoint != null) allSelected.Add(b.endPoint);
         }
+        allSelected.RemoveWhere(p => p == null || p.IsScenePlacedAnchor);
         return new List<Point>(allSelected);
     }
     
@@ -836,6 +838,12 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             CheckForExistingPoint(screenPos, out Point hoveredNode, out _);
             if (hoveredNode != null)
             {
+                if (hoveredNode.IsScenePlacedAnchor)
+                {
+                    ClearSelection();
+                    HighlightSceneAnchor(hoveredNode, true);
+                    return;
+                }
                 if (!selectedPoints.Contains(hoveredNode))
                 {
                     ClearSelection();
@@ -1147,6 +1155,12 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
     private void TogglePointSelection(Point p)
     {
+        if (p == null) return;
+        if (p.IsScenePlacedAnchor)
+        {
+            HighlightSceneAnchor(p, !highlightedSceneAnchors.Contains(p));
+            return;
+        }
         if (selectedPoints.Contains(p))
         {
             p.isSelected = false;
@@ -1161,6 +1175,15 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         }
         UpdateBarHighlights(); 
         if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction(p.isSelected ? "Node Selected" : "Node Deselected");
+    }
+
+    private void HighlightSceneAnchor(Point point, bool highlighted)
+    {
+        point.isSelected = false;
+        selectedPoints.Remove(point);
+        point.isAnchorHighlighted = highlighted;
+        if (highlighted) highlightedSceneAnchors.Add(point);
+        else highlightedSceneAnchors.Remove(point);
     }
 
     private void ToggleBarSelection(Bar bar)
@@ -1293,6 +1316,9 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
     private void ClearSelection()
     {
+        foreach (Point anchor in highlightedSceneAnchors)
+            if (anchor != null) anchor.isAnchorHighlighted = false;
+        highlightedSceneAnchors.Clear();
         foreach (Point p in selectedPoints) if (p != null) { p.isSelected = false; p.UpdateMaterial(); }
         selectedPoints.Clear();
 
@@ -1341,9 +1367,14 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 Vector2 screenPos = cam.WorldToScreenPoint(p.transform.position);
                 if (selectionRect.Contains(screenPos)) 
                 { 
-                    p.isSelected = true; 
-                    p.UpdateMaterial(); 
-                    selectedPoints.Add(p); 
+                    if (p.IsScenePlacedAnchor)
+                        HighlightSceneAnchor(p, true);
+                    else
+                    {
+                        p.isSelected = true;
+                        p.UpdateMaterial();
+                        selectedPoints.Add(p);
+                    }
                 }
                 
                 foreach (Bar b in p.ConnectedBars)

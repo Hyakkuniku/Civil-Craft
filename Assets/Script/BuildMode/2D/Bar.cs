@@ -121,7 +121,7 @@ public sealed class BridgeSelectionOutline
             // Only fixed anchors are excluded in the tilted view.
             if (point.isAnchor &&
                 Mathf.Abs(Vector3.Dot(camera.transform.forward, Vector3.forward)) < 0.996f) return false;
-            bool selected = point.isSelected;
+            bool selected = point.isSelected || point.isAnchorHighlighted;
             if (!selected)
                 foreach (Bar connected in point.ConnectedBars)
                     if (connected != null && connected.isHighlighted && connected.gameObject.activeInHierarchy)

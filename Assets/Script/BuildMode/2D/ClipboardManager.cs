@@ -87,6 +87,8 @@ public class ClipboardManager : MonoBehaviour
 
     public void CopySelected(List<Point> ignoredPointsParam)
     {
+        // Also protect against callers populating the public selection directly.
+        barCreator.selectedPoints.RemoveAll(p => p == null || p.IsScenePlacedAnchor);
         if (barCreator.selectedPoints.Count == 0 && barCreator.selectedBars.Count == 0) return;
         
         HashSet<Point> expandedPoints = new HashSet<Point>(barCreator.selectedPoints);
@@ -173,6 +175,7 @@ public class ClipboardManager : MonoBehaviour
     
     public void CutSelected(List<Point> ignoredPointsParam)
     {
+        barCreator.selectedPoints.RemoveAll(p => p == null || p.IsScenePlacedAnchor);
         if (barCreator.selectedPoints.Count == 0 && barCreator.selectedBars.Count == 0) return;
         
         HashSet<Point> expandedPoints = new HashSet<Point>(barCreator.selectedPoints);
@@ -244,7 +247,7 @@ public class ClipboardManager : MonoBehaviour
                 if (b.gameObject.activeSelf) hasActiveNeighbors = true;
             }
 
-            if (!hasActiveNeighbors && p.Runtime && p.gameObject.activeSelf)
+            if (!hasActiveNeighbors && !p.IsScenePlacedAnchor && p.Runtime && p.gameObject.activeSelf)
             {
                 cutAction.affectedObjects.Add(p.gameObject);
                 p.gameObject.SetActive(false);
@@ -419,6 +422,14 @@ public class ClipboardManager : MonoBehaviour
             {
                 GameObject pObj = Instantiate(barCreator.pointToInstantiate, targetPos, Quaternion.identity, barCreator.pointParent);
                 mappedPoint = pObj.GetComponent<Point>();
+                // Copy beam geometry, never the fixed status of an authored anchor
+                // or an anchor flag accidentally enabled on the point prefab.
+                mappedPoint.Runtime = true;
+                mappedPoint.originalIsAnchor = false;
+                mappedPoint.isAnchor = false;
+                mappedPoint.isSelected = false;
+                mappedPoint.isAnchorHighlighted = false;
+                mappedPoint.UpdateMaterial();
                 pasteAction.affectedObjects.Add(pObj);
             }
             newRealPoints.Add(mappedPoint);

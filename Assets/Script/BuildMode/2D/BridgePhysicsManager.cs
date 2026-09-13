@@ -200,6 +200,19 @@ public class BridgePhysicsManager : MonoBehaviour
                 OnSettlePhaseStarted?.Invoke(); 
             }
 
+            // Joint.currentForce can jitter slightly even after a bridge has
+            // visually settled. Keep the final rolling window instead of using
+            // one arbitrary fixed tick as the dead-load baseline for the entire
+            // run. Skip the release tick because PhysX has not simulated the
+            // newly dynamic bridge yet.
+            if (currentSettleFrame > 0)
+            {
+                foreach (var handler in activeStressHandlers)
+                {
+                    if (handler != null) handler.SampleSettlingForce();
+                }
+            }
+
             currentSettleFrame++;
             
             if (currentSettleFrame >= settleFramesAmount)
@@ -1165,6 +1178,7 @@ public class BarStressHandler : MonoBehaviour
     private bool isCurrentlyInTension;
 
     private Queue<float> forceHistory = new Queue<float>();
+    private Queue<float> settlingForceHistory = new Queue<float>();
     private int smoothingFrames = 10;
 
     private Renderer[] childRenderers;
@@ -1181,6 +1195,7 @@ public class BarStressHandler : MonoBehaviour
         
         restLength = Vector3.Distance(p1.transform.position, p2.transform.position);
         isCurrentlyInTension = false;
+        settlingForceHistory.Clear();
 
         childRenderers = GetComponentsInChildren<Renderer>();
         originalColors = new Color[childRenderers.Length];
@@ -1207,9 +1222,12 @@ public class BarStressHandler : MonoBehaviour
         CacheJointsIfNeeded();
 
         // The bridge has already settled for BridgePhysicsManager.settleFramesAmount
-        // fixed steps. Capture that force separately so the UI can show only the
-        // vehicle's added live load while failure checks retain the total load.
-        settledDeadLoadForce = ReadCurrentForce();
+        // fixed steps. Average the final settling samples so one arbitrary PhysX
+        // resting impulse cannot shift the live-load-only result for the whole run.
+        // Fall back to a direct read when tracking is started without a settle phase.
+        settledDeadLoadForce = settlingForceHistory.Count > 0
+            ? AverageSamples(settlingForceHistory)
+            : ReadCurrentForce();
         smoothedForce = settledDeadLoadForce;
         currentStressPercent = 0f;
         currentStructuralStressPercent = 0f;
@@ -1217,6 +1235,31 @@ public class BarStressHandler : MonoBehaviour
         forceHistory.Clear();
         for (int i = 0; i < smoothingFrames; i++)
             forceHistory.Enqueue(settledDeadLoadForce);
+    }
+
+    public void SampleSettlingForce()
+    {
+        if (isBroken || p1 == null || p2 == null || material == null) return;
+
+        CacheJointsIfNeeded();
+        if (!material.isRope && (joints == null || joints.Length == 0)) return;
+
+        settlingForceHistory.Enqueue(ReadCurrentForce());
+        while (settlingForceHistory.Count > smoothingFrames)
+            settlingForceHistory.Dequeue();
+    }
+
+    private static float AverageSamples(IEnumerable<float> samples)
+    {
+        float total = 0f;
+        int count = 0;
+        foreach (float sample in samples)
+        {
+            total += sample;
+            count++;
+        }
+
+        return count > 0 ? total / count : 0f;
     }
 
     private void OnDestroy()
@@ -1259,10 +1302,7 @@ public class BarStressHandler : MonoBehaviour
         forceHistory.Enqueue(maxForceThisFrame);
         if (forceHistory.Count > smoothingFrames) forceHistory.Dequeue();
 
-        float totalForce = 0f;
-        foreach (float f in forceHistory) totalForce += f;
-        
-        float averagedForce = totalForce / forceHistory.Count;
+        float averagedForce = AverageSamples(forceHistory);
 
         float relativeTolerance = manager != null ? manager.deadLoadReturnTolerance : 0.02f;
         float minimumTolerance = manager != null ? manager.deadLoadReturnToleranceNewtons : 1f;

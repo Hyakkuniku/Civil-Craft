@@ -103,6 +103,9 @@ public sealed class ExpandedMinimapController : MonoBehaviour
     private bool isExpanded;
     private bool isAnimating;
     private Coroutine animationRoutine;
+    private UIPanelCoordinator mapCoordinator;
+    private bool mapSessionActive;
+    private bool closingMap;
 
     private Vector3 framedCenter;
     private float framedSize;
@@ -166,6 +169,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
     private void OnDestroy()
     {
+        CancelMapSession();
         ClearWorldTravelFade();
         if (enlargeButton != null)
             enlargeButton.onClick.RemoveListener(ToggleExpanded);
@@ -178,14 +182,17 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
     private void OnDisable()
     {
-        ClearWorldTravelFade();
-        if (!isFastTraveling) return;
-        if (fastTravelRoutine != null) StopCoroutine(fastTravelRoutine);
-        isFastTraveling = false;
+        CancelMapSession();
+    }
+
+    private void CancelMapSession()
+    {
+        if (closingMap || !mapSessionActive) return;
+        StopAllCoroutines();
+        animationRoutine = null;
         fastTravelRoutine = null;
-        fastTravelPlayerLook = null;
-        RestorePlayerInput();
-        if (minimapFollow != null) minimapFollow.SetManualView(false);
+        isAnimating = false;
+        FinishClosingMap();
     }
 
     private void Update()
@@ -201,6 +208,16 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
     private void LateUpdate()
     {
+        // Closing all modals, hiding the map, or disabling its owner must not
+        // leave the expanded session's input lock behind.
+        if (mapSessionActive && !closingMap &&
+            (minimapPanel == null ||
+             (mapCoordinator != null && !mapCoordinator.ContainsPanel(minimapPanel.gameObject)) ||
+             (!minimapPanel.gameObject.activeInHierarchy &&
+              (mapCoordinator == null || mapCoordinator.IsOpen(minimapPanel.gameObject)))))
+        {
+            CancelMapSession();
+        }
         // Gravity and the follow target can keep moving while input is locked.
         // Maintain the normal orbit pose throughout arrival, not just once at teleport.
         if (isFastTraveling && fastTravelPlayerLook != null)
@@ -219,7 +236,10 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
     public void OpenExpandedMap()
     {
-        if (isFastTraveling) return;
+        if (!isActiveAndEnabled || isFastTraveling || isExpanded || isAnimating || closingMap) return;
+        // Opening over another modal would capture its hidden HUD as the state
+        // to restore. Almanac's See in Map already waits for its close to finish.
+        if (UIPanelCoordinator.Instance != null && UIPanelCoordinator.Instance.HasOpenPanel) return;
         ResolveReferencesAndBuildUI();
         if (isExpanded || isAnimating || minimapPanel == null ||
             mapImage == null || minimapCamera == null ||
@@ -227,10 +247,12 @@ public sealed class ExpandedMinimapController : MonoBehaviour
             return;
 
         CaptureCompactState();
+        mapSessionActive = true;
         CaptureAndDisablePlayerInput();
 
-        if (UIPanelCoordinator.Instance != null)
-            UIPanelCoordinator.Instance.OpenPanel(minimapPanel.gameObject, false);
+        mapCoordinator = UIPanelCoordinator.Instance;
+        if (mapCoordinator != null)
+            mapCoordinator.OpenPanel(minimapPanel.gameObject, false);
 
         minimapPanel.SetAsLastSibling();
         if (minimapFollow != null)
@@ -285,7 +307,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
     public void CloseExpandedMap()
     {
         if (isFastTraveling) return;
-        if (!isExpanded || isAnimating) return;
+        if (!isExpanded) return;
         StartMapAnimation(false);
     }
 
@@ -397,7 +419,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
         EnsureMarkerLayer();
         EnsureControls();
-        SetExpandedControlsVisible(false);
+        if (!mapSessionActive) SetExpandedControlsVisible(false);
     }
 
     private Button CreateInvisibleExpandButton()
@@ -904,7 +926,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
     private void FastTravelToLocation(BuildLocation location)
     {
-        if (location == null || isFastTraveling) return;
+        if (location == null || isFastTraveling || isAnimating || !isExpanded) return;
         fastTravelRoutine = StartCoroutine(AnimateFastTravel(location));
     }
 
@@ -951,14 +973,9 @@ public sealed class ExpandedMinimapController : MonoBehaviour
             StartMapAnimation(false);
             while (isAnimating) yield return null;
         }
-        if (minimapFollow != null) minimapFollow.SnapToPlayer();
-        UpdateMarkerPositions();
-        yield return null;
-        ClearWorldTravelFade();
-        isFastTraveling = false;
+        // FinishClosingMap releases both HUD and input together. Do not restore
+        // input again a frame later, after another dialogue/tutorial can open.
         fastTravelRoutine = null;
-        RestorePlayerInput();
-        fastTravelPlayerLook = null;
     }
 
     private void CreateWorldTravelFade()
@@ -1359,8 +1376,28 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
     private void FinishClosingMap()
     {
+        if (closingMap || !mapSessionActive) return;
+        closingMap = true;
+        mapSessionActive = false;
         isExpanded = false;
+        isAnimating = false;
+        isFastTraveling = false;
+        fastTravelPlayerLook = null;
         pinchActive = false;
+        ClearWorldTravelFade();
+        if (minimapPanel != null)
+        {
+            minimapPanel.anchorMin = compactAnchorMin;
+            minimapPanel.anchorMax = compactAnchorMax;
+            minimapPanel.anchoredPosition = compactAnchoredPosition;
+            minimapPanel.sizeDelta = compactSizeDelta;
+            minimapPanel.pivot = compactPivot;
+        }
+        if (minimapCamera != null)
+        {
+            minimapCamera.transform.SetPositionAndRotation(compactCameraPosition, compactCameraRotation);
+            minimapCamera.orthographicSize = compactOrthographicSize;
+        }
         SetExpandedControlsVisible(false);
 
         if (minimapFollow != null)
@@ -1371,16 +1408,24 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
         RestoreCompactRenderTexture();
 
-        if (UIPanelCoordinator.Instance != null)
-            UIPanelCoordinator.Instance.ClosePanel(minimapPanel.gameObject);
-
-        // ClosePanel deactivates managed panels. The minimap returns to its compact
-        // HUD state immediately, then the unlock controller applies its saved gate.
-        minimapPanel.gameObject.SetActive(true);
-        MinimapUnlockController.RefreshAll();
-        SetExpandButtonVisible(minimapPanel.gameObject.activeInHierarchy);
+        // Release our input before HUD OnEnable callbacks run, so any newly
+        // opened tutorial/dialogue can apply its own lock without being overridden.
         RestorePlayerInput();
+        if (mapCoordinator != null && minimapPanel != null &&
+            mapCoordinator.ContainsPanel(minimapPanel.gameObject))
+            mapCoordinator.ClosePanel(minimapPanel.gameObject, false);
+        mapCoordinator = null;
+
+        // Keep the compact minimap in the HUD, respecting the unlock/build-mode
+        // gate. Do not reveal it over another modal that still owns the screen.
+        if (minimapPanel != null)
+        {
+            if (UIPanelCoordinator.Instance == null || !UIPanelCoordinator.Instance.HasOpenPanel)
+                MinimapUnlockController.RefreshAll();
+            SetExpandButtonVisible(minimapPanel.gameObject.activeInHierarchy);
+        }
         UpdateMarkerPositions();
+        closingMap = false;
     }
 
     private void CaptureAndDisablePlayerInput()

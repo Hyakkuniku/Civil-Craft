@@ -8,6 +8,9 @@ public class Point : MonoBehaviour
     public bool isAnchor = false;
     
     [HideInInspector] public bool isSelected = false; 
+    // Scene anchors can show selection feedback without becoming editable.
+    [System.NonSerialized] public bool isAnchorHighlighted;
+    public bool IsScenePlacedAnchor => originalIsAnchor;
     
     [HideInInspector] public bool originalIsAnchor = false;
     private bool hasInitializedAnchor = false;
@@ -138,7 +141,7 @@ public class Point : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (!Application.isPlaying || !isSelected) return;
+        if (!Application.isPlaying || (!isSelected && !isAnchorHighlighted)) return;
         PrepareSelectionOutline();
     }
 

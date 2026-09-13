@@ -183,11 +183,18 @@ public class UIPanelCoordinator : MonoBehaviour
 
     public void ClosePanel(GameObject panel)
     {
+        ClosePanel(panel, true);
+    }
+
+    // The expanded minimap returns to a compact HUD view; it does not need an
+    // inactive/active cycle, which can interrupt UI behaviours during restoration.
+    public void ClosePanel(GameObject panel, bool deactivatePanel)
+    {
         if (panel == null) return;
 
         if (!ContainsPanel(panel))
         {
-            panel.SetActive(false);
+            if (deactivatePanel) panel.SetActive(false);
             return;
         }
 
@@ -196,17 +203,18 @@ public class UIPanelCoordinator : MonoBehaviour
         while (panelStack.Count > 0)
         {
             PanelFrame frame = panelStack.Pop();
-            if (frame.panel != null) frame.panel.SetActive(false);
+            if (frame.panel != null && (frame.panel != panel || deactivatePanel))
+                frame.panel.SetActive(false);
             RestoreCanvasStates(frame.previousCanvasStates);
             RestoreStates(frame.previousStates);
 
             if (frame.panel == panel) return;
         }
 
-        panel.SetActive(false);
+        if (deactivatePanel) panel.SetActive(false);
     }
 
-    private bool ContainsPanel(GameObject panel)
+    public bool ContainsPanel(GameObject panel)
     {
         foreach (PanelFrame frame in panelStack)
         {
