@@ -9,7 +9,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 5804577824629726973}
-  - component: {fileID: 2587167508635367132}
   - component: {fileID: 7389297545749281069}
   m_Layer: 0
   m_Name: BuildGridPrefab
@@ -33,34 +32,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &2587167508635367132
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3076163424761793527}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 598eb354ef0ddb7488b6e45f53dd8160, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  gridSize: 1
-  gridWidth: 20
-  gridDepth: 20
-  gridHeight: 0.01
-  gridMaterial: {fileID: -876546973899608171, guid: efe0feacb16ba134da9cf3d74ccaf03f,
-    type: 3}
-  gridColor: {r: 1, g: 1, b: 1, a: 1}
-  lineWidth: 0.05
-  snapToGrid: 1
-  gridLayer:
-    serializedVersion: 2
-    m_Bits: 1
-  distanceFromCamera: 100
-  verticalOffset: 0.1
-  smoothMovement: 1
-  smoothSpeed: 15
 --- !u!23 &7389297545749281069
 MeshRenderer:
   m_ObjectHideFlags: 0

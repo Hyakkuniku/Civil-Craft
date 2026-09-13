@@ -432,7 +432,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 8869851675745782562}
-  - component: {fileID: 292075915800584746}
   m_Layer: 0
   m_Name: Ghost_Wood Road
   m_TagString: Untagged
@@ -458,37 +457,6 @@ Transform:
   - {fileID: 7421417074208911177}
   m_Father: {fileID: 2235529440509932018}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &292075915800584746
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3480833316329901955}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4b142f26c13edf54b849714c62b05dfb, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  startPoint: {fileID: 3860810855997047662}
-  endPoint: {fileID: 4897029541094712079}
-  requiredMaterial: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
-  transparentMaterial: {fileID: -1239440591573710385, guid: 1960e86a1753cd04c892eb6abb94b552,
-    type: 3}
-  zOffsetForGhosts: 0.5
-  isCompletelyCovered: 0
-  segments:
-  - startPos: {x: 2.5713463, y: 32.53778, z: -0.5491543}
-    endPos: {x: 12.571346, y: 32.53778, z: -0.5491543}
-    isCovered: 0
-  - startPos: {x: 17.62, y: 32.15, z: -15.7}
-    endPos: {x: 27.62, y: 32.15, z: -15.7}
-    isCovered: 0
-  validNodes:
-  - {x: 2.5713463, y: 32.53778, z: -0.5491543}
-  - {x: 12.571346, y: 32.53778, z: -0.5491543}
-  - {x: 17.62, y: 32.15, z: -15.7}
-  - {x: 27.62, y: 32.15, z: -15.7}
 --- !u!1 &4152883702686954735
 GameObject:
   m_ObjectHideFlags: 0
@@ -786,7 +754,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 482078694058072833}
-  - component: {fileID: 1497365909385156229}
   m_Layer: 0
   m_Name: Ghost_Wood Road
   m_TagString: Untagged
@@ -812,37 +779,6 @@ Transform:
   - {fileID: 1261274930093109093}
   m_Father: {fileID: 2235529440509932018}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1497365909385156229
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5034485795172999273}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4b142f26c13edf54b849714c62b05dfb, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  startPoint: {fileID: 1209573624664617711}
-  endPoint: {fileID: 5053647796770565188}
-  requiredMaterial: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
-  transparentMaterial: {fileID: -1239440591573710385, guid: 1960e86a1753cd04c892eb6abb94b552,
-    type: 3}
-  zOffsetForGhosts: 0.5
-  isCompletelyCovered: 0
-  segments:
-  - startPos: {x: 2.5713463, y: 32.53778, z: -0.5491543}
-    endPos: {x: 12.571346, y: 32.53778, z: -0.5491543}
-    isCovered: 0
-  - startPos: {x: 17.62, y: 32.15, z: -15.7}
-    endPos: {x: 27.62, y: 32.15, z: -15.7}
-    isCovered: 0
-  validNodes:
-  - {x: 2.5713463, y: 32.53778, z: -0.5491543}
-  - {x: 12.571346, y: 32.53778, z: -0.5491543}
-  - {x: 17.62, y: 32.15, z: -15.7}
-  - {x: 27.62, y: 32.15, z: -15.7}
 --- !u!1 &5641434184600952783
 GameObject:
   m_ObjectHideFlags: 0
@@ -1049,7 +985,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1343408934223118673}
-  - component: {fileID: 3214755305968374898}
   m_Layer: 0
   m_Name: Ghost_Wood Road
   m_TagString: Untagged
@@ -1075,37 +1010,6 @@ Transform:
   - {fileID: 2898194977879857552}
   m_Father: {fileID: 2235529440509932018}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &3214755305968374898
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5959622582742082216}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4b142f26c13edf54b849714c62b05dfb, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  startPoint: {fileID: 1975381505709629336}
-  endPoint: {fileID: 6071882409865180142}
-  requiredMaterial: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
-  transparentMaterial: {fileID: -1239440591573710385, guid: 1960e86a1753cd04c892eb6abb94b552,
-    type: 3}
-  zOffsetForGhosts: 0.5
-  isCompletelyCovered: 0
-  segments:
-  - startPos: {x: 2.5713463, y: 32.53778, z: -0.5491543}
-    endPos: {x: 12.571346, y: 32.53778, z: -0.5491543}
-    isCovered: 0
-  - startPos: {x: 17.62, y: 32.15, z: -15.7}
-    endPos: {x: 27.62, y: 32.15, z: -15.7}
-    isCovered: 0
-  validNodes:
-  - {x: 2.5713463, y: 32.53778, z: -0.5491543}
-  - {x: 12.571346, y: 32.53778, z: -0.5491543}
-  - {x: 17.62, y: 32.15, z: -15.7}
-  - {x: 27.62, y: 32.15, z: -15.7}
 --- !u!1 &6140550444494478485
 GameObject:
   m_ObjectHideFlags: 0
