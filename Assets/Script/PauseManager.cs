@@ -66,6 +66,7 @@ public class PauseManager : MonoBehaviour
 
     private void Update()
     {
+        DiagnosePauseTaps();
         // Toggle pause with the Escape key
         bool pausePressed = (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame) ||
                             (Gamepad.current != null && Gamepad.current.startButton.wasPressedThisFrame);
@@ -85,6 +86,7 @@ public class PauseManager : MonoBehaviour
 
     public void TogglePause()
     {
+        DiagnosePauseInvocation();
         // If the settings panel is open, pressing Escape should just close settings, not unpause the whole game yet.
         if (isPaused && settingsPanel != null && settingsPanel.activeSelf)
         {
@@ -286,5 +288,107 @@ public class PauseManager : MonoBehaviour
         isPaused = false; 
 
         SceneManager.LoadScene(modeSelectionSceneName); 
+    }
+
+    // Temporary, read-only diagnostics. Calls are omitted from release builds.
+    [System.Diagnostics.Conditional("UNITY_EDITOR")]
+    [System.Diagnostics.Conditional("DEVELOPMENT_BUILD")]
+    private void DiagnosePauseInvocation()
+    {
+        Debug.Log($"[PauseTap] TogglePause RECEIVED frame={Time.frameCount}, " +
+            $"paused={isPaused}, blockedByBuildMode={IsPauseBlocked()}, " +
+            $"pausePanelActive={pausePanel != null && pausePanel.activeInHierarchy}, " +
+            $"settingsActive={settingsPanel != null && settingsPanel.activeSelf}", this);
+    }
+
+    [System.Diagnostics.Conditional("UNITY_EDITOR")]
+    [System.Diagnostics.Conditional("DEVELOPMENT_BUILD")]
+    private void DiagnosePauseTaps()
+    {
+        if (Mouse.current != null)
+        {
+            if (Mouse.current.leftButton.wasPressedThisFrame)
+                DiagnosePausePointer(Mouse.current.position.ReadValue(), "mouse DOWN");
+            if (Mouse.current.leftButton.wasReleasedThisFrame)
+                DiagnosePausePointer(Mouse.current.position.ReadValue(), "mouse UP");
+        }
+        if (Touchscreen.current == null) return;
+        foreach (var touch in Touchscreen.current.touches)
+        {
+            if (touch.press.wasPressedThisFrame)
+                DiagnosePausePointer(touch.position.ReadValue(), $"touch {touch.touchId.ReadValue()} DOWN");
+            if (touch.press.wasReleasedThisFrame)
+                DiagnosePausePointer(touch.position.ReadValue(), $"touch {touch.touchId.ReadValue()} UP");
+        }
+    }
+
+    private void DiagnosePausePointer(Vector2 position, string phase)
+    {
+        RectTransform rect = pauseButton != null ? pauseButton.transform as RectTransform : null;
+        if (rect == null) return;
+        Canvas canvas = rect.GetComponentInParent<Canvas>(true);
+        Camera eventCamera = canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay
+            ? canvas.worldCamera : null;
+        Vector3[] corners = new Vector3[4];
+        rect.GetWorldCorners(corners);
+        Vector2 minimum = RectTransformUtility.WorldToScreenPoint(eventCamera, corners[0]);
+        Vector2 maximum = minimum;
+        for (int i = 1; i < corners.Length; i++)
+        {
+            Vector2 corner = RectTransformUtility.WorldToScreenPoint(eventCamera, corners[i]);
+            minimum = Vector2.Min(minimum, corner);
+            maximum = Vector2.Max(maximum, corner);
+        }
+        // Include a small margin to reveal mismatches around the visible button.
+        if (!Rect.MinMaxRect(minimum.x - 24f, minimum.y - 24f,
+            maximum.x + 24f, maximum.y + 24f).Contains(position)) return;
+
+        var system = UnityEngine.EventSystems.EventSystem.current;
+        var button = pauseButton.GetComponent<Button>();
+        var report = new System.Text.StringBuilder();
+        report.AppendLine($"[PauseTap] {phase} frame={Time.frameCount} position={position} " +
+            $"screen={Screen.width}x{Screen.height} fullscreen={Screen.fullScreen} " +
+            $"mode={Screen.fullScreenMode} focused={Application.isFocused} cursor={Cursor.lockState}");
+        report.AppendLine($"Pause bounds={minimum}..{maximum}, active={pauseButton.activeInHierarchy}, " +
+            $"buttonEnabled={button != null && button.enabled}, interactable={button != null && button.IsInteractable()}, " +
+            $"paused={isPaused}, blockedByBuildMode={IsPauseBlocked()}, timeScale={Time.timeScale}");
+        report.AppendLine($"EventSystem={system}, active={system != null && system.isActiveAndEnabled}, " +
+            $"module={(system != null ? system.currentInputModule : null)}");
+        foreach (Canvas parentCanvas in rect.GetComponentsInParent<Canvas>(true))
+            report.AppendLine($"Canvas {PauseDiagnosticPath(parentCanvas.transform)}: " +
+                $"enabled={parentCanvas.enabled}, mode={parentCanvas.renderMode}, " +
+                $"sort={parentCanvas.sortingOrder}, scale={parentCanvas.scaleFactor}");
+        foreach (CanvasGroup group in rect.GetComponentsInParent<CanvasGroup>(true))
+            report.AppendLine($"CanvasGroup {PauseDiagnosticPath(group.transform)}: " +
+                $"alpha={group.alpha}, interactable={group.interactable}, " +
+                $"blocksRaycasts={group.blocksRaycasts}, ignoreParents={group.ignoreParentGroups}");
+        if (system != null)
+        {
+            var hits = new System.Collections.Generic.List<UnityEngine.EventSystems.RaycastResult>();
+            system.RaycastAll(new UnityEngine.EventSystems.PointerEventData(system) { position = position }, hits);
+            report.AppendLine($"Raycast hits={hits.Count} (FIRST is the topmost receiver):");
+            for (int i = 0; i < Mathf.Min(hits.Count, 8); i++)
+            {
+                GameObject target = hits[i].gameObject;
+                var graphic = target.GetComponent<Graphic>();
+                GameObject clickHandler = UnityEngine.EventSystems.ExecuteEvents
+                    .GetEventHandler<UnityEngine.EventSystems.IPointerClickHandler>(target);
+                report.AppendLine($"  {i}: {PauseDiagnosticPath(target.transform)}, " +
+                    $"graphicAlpha={(graphic != null ? graphic.color.a.ToString() : "n/a")}, " +
+                    $"clickHandler={(clickHandler != null ? PauseDiagnosticPath(clickHandler.transform) : "NONE")}");
+            }
+        }
+        Debug.Log(report.ToString(), this);
+    }
+
+    private static string PauseDiagnosticPath(Transform target)
+    {
+        string path = target.name;
+        while (target.parent != null)
+        {
+            target = target.parent;
+            path = target.name + "/" + path;
+        }
+        return path;
     }
 }
