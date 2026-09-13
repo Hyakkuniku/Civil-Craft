@@ -223,10 +223,17 @@ public sealed class BridgeSelectionOutline
                 Mathf.Clamp(creator != null ? creator.selectionOutlineWidth : 4f, 2f, 8f) * zoomScale));
             cmd.SetGlobalTexture("_BridgeOriginalMask", Mask);
             // Composite into URP's live color target before its final screen blit.
-            RenderTargetIdentifier target = renderingData.cameraData.renderer.cameraColorTargetHandle.nameID;
+            var colorTarget = renderingData.cameraData.renderer.cameraColorTargetHandle;
+            // The mask is always a texture. Performant can render straight to
+            // the backbuffer, whose Y orientation differs on D3D/Vulkan.
+            bool flipComposite = SystemInfo.graphicsUVStartsAtTop &&
+                !renderingData.cameraData.IsHandleYFlipped(colorTarget);
+            cmd.SetGlobalFloat("_BridgeCompositeFlipY", flipComposite ? 1f : 0f);
+            RenderTargetIdentifier target = colorTarget.nameID;
             DrawFullscreen(cmd, TempB, target,
                 renderingData.cameraData.cameraTargetDescriptor.width,
                 renderingData.cameraData.cameraTargetDescriptor.height, 5);
+            cmd.SetGlobalFloat("_BridgeCompositeFlipY", 0f);
             cmd.SetViewport(camera.pixelRect);
             cmd.ReleaseTemporaryRT(Mask); cmd.ReleaseTemporaryRT(TempA); cmd.ReleaseTemporaryRT(TempB);
             context.ExecuteCommandBuffer(cmd);

@@ -299,9 +299,8 @@ public class LiveLoadVehicle : Interactable
 
             if (w.rb != null)
             {
+                ClearDynamicVelocity(w.rb);
                 w.rb.isKinematic = true;
-                w.rb.velocity = Vector3.zero;
-                w.rb.angularVelocity = Vector3.zero;
                 DestroyImmediate(w.rb);
                 w.rb = null;
             }
@@ -322,6 +321,7 @@ public class LiveLoadVehicle : Interactable
 
         StripWheelPhysics(); 
 
+        ClearDynamicVelocity(rb);
         rb.isKinematic = true;
         ApplySimulationSolverSettings(rb);
 
@@ -329,8 +329,6 @@ public class LiveLoadVehicle : Interactable
 
         BuildWheelPhysics(); 
 
-        rb.velocity = Vector3.zero;
-        rb.angularVelocity = Vector3.zero; 
         
         rb.ResetCenterOfMass();
         rb.centerOfMass = new Vector3(0, centerOfMassOffset, 0);
@@ -338,8 +336,7 @@ public class LiveLoadVehicle : Interactable
         
         foreach (var w in wheels)
         {
-            w.rb.velocity = Vector3.zero;
-            w.rb.angularVelocity = Vector3.zero; 
+            ClearDynamicVelocity(w.rb);
             w.rb.ResetCenterOfMass();
             w.rb.ResetInertiaTensor();
         }
@@ -364,11 +361,13 @@ public class LiveLoadVehicle : Interactable
         if (GameManager.Instance != null && assignedContract != null && GameManager.Instance.CurrentContract != assignedContract) return;
         
         rb.isKinematic = false;
+        ClearDynamicVelocity(rb);
         rb.WakeUp();
         foreach (var w in wheels)
         {
             if (w.rb == null) continue;
             w.rb.isKinematic = false;
+            ClearDynamicVelocity(w.rb);
             w.rb.WakeUp();
         }
         
@@ -524,9 +523,9 @@ public class LiveLoadVehicle : Interactable
         settledAtFinishTimer = 0f;
         currentMotorSpeed = 0f;
 
+        if (rb == null) return;
+        ClearDynamicVelocity(rb);
         rb.isKinematic = true;
-        rb.velocity = Vector3.zero;
-        rb.angularVelocity = Vector3.zero;
         
         rb.ResetCenterOfMass();
         rb.centerOfMass = new Vector3(0, centerOfMassOffset, 0);
@@ -538,6 +537,13 @@ public class LiveLoadVehicle : Interactable
         StripWheelPhysics(); 
 
         rb.Sleep(); 
+    }
+
+    private static void ClearDynamicVelocity(Rigidbody body)
+    {
+        if (body == null || body.isKinematic) return;
+        body.velocity = Vector3.zero;
+        body.angularVelocity = Vector3.zero;
     }
 
     private void ResetToSimulationStartPose()

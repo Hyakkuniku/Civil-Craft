@@ -324,13 +324,17 @@ public class TutorialManager : MonoBehaviour
     private void UpdateContractGuide()
     {
         if (contractNavigationSteps == null) return;
+        TutorialStep guideStep = contractNavigationSteps.Length > 0 ? contractNavigationSteps[0] : null;
+        var guideWaypoints = guideStep != null ? guideStep.stepWaypoints : null;
+        bool missingTarget = guideWaypoints == null || guideWaypoints.Count == 0 ||
+            guideWaypoints[0] == null || guideWaypoints[0].target == null;
         bool turnedIn = turnInGuideContract != null && PlayerDataManager.Instance != null &&
             PlayerDataManager.Instance.IsContractCompleted(turnInGuideContract.ContractID);
         if (turnedIn || (GameManager.Instance != null && GameManager.Instance.IsInBuildMode()) ||
-            contractNavigationSteps[0].stepWaypoints[0].target == null)
+            missingTarget)
         {
             if (PathGuider.Instance != null &&
-                PathGuider.Instance.waypoints == contractNavigationSteps[0].stepWaypoints)
+                guideWaypoints != null && PathGuider.Instance.waypoints == guideWaypoints)
                 PathGuider.Instance.SetNewWaypoints(new List<GuiderWaypoint>());
             contractNavigationSteps = null;
             turnInGuideContract = null;

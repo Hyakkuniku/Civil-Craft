@@ -20,13 +20,12 @@ public class InputManager : MonoBehaviour
     public bool useMobileTouchControls = false;
 
     public bool IsUsingMobileControls => Application.isMobilePlatform || useMobileTouchControls;
-    public bool IsPlayerInputEnabled => onFoot.enabled;
+    public bool IsPlayerInputEnabled => playerInput != null && onFoot.enabled;
     public bool IsLookInputEnabled => look != null && look.canLook;
 
     void Awake()
     {
-        playerInput = new PlayerInput();
-        onFoot = playerInput.onFoot;
+        EnsureInputInitialized();
         motor = GetComponent<PlayerMotor>();
         look = GetComponent<PlayerLook>();
 
@@ -46,8 +45,18 @@ public class InputManager : MonoBehaviour
         }
     }
 
+    private void EnsureInputInitialized()
+    {
+        if (playerInput == null) playerInput = new PlayerInput();
+        onFoot = playerInput.onFoot;
+        if (motor == null) motor = GetComponent<PlayerMotor>();
+        if (look == null) look = GetComponent<PlayerLook>();
+    }
+
     void OnDestroy()
     {
+        playerInput?.Dispose();
+        playerInput = null;
         if (GameManager.Instance != null)
         {
             GameManager.Instance.OnEnterBuildMode.RemoveListener(HandleEnterBuildMode);
@@ -70,7 +79,7 @@ public class InputManager : MonoBehaviour
     void FixedUpdate()
     {
         // Movement is still handled here (your on-screen joystick will feed into this perfectly)
-        motor.ProcessMove(ReadMovementInput());
+        if (motor != null) motor.ProcessMove(ReadMovementInput());
     }
 
     private void LateUpdate()
@@ -96,11 +105,12 @@ public class InputManager : MonoBehaviour
 
     public Vector2 ReadMovementInput()
     {
-        return onFoot.Movement.ReadValue<Vector2>();
+        return IsPlayerInputEnabled ? onFoot.Movement.ReadValue<Vector2>() : Vector2.zero;
     }
 
     public Vector2 ReadLookInput()
     {
+        if (!IsPlayerInputEnabled) return Vector2.zero;
         Vector2 lookInput = Vector2.zero;
 
         // TouchLookInput owns mobile swipes. On desktop, only sample the Look action's
@@ -124,13 +134,15 @@ public class InputManager : MonoBehaviour
 
     private void OnEnable() 
     {
+        // Awake is not rerun when Unity reloads scripts during Play Mode.
+        EnsureInputInitialized();
         onFoot.Enable();
         ApplyCursorState();
     }
 
     private void OnDisable()
     {
-        onFoot.Disable();
+        if (playerInput != null) onFoot.Disable();
         ReleaseCursor();
     }
 
@@ -142,6 +154,7 @@ public class InputManager : MonoBehaviour
 
     public void SetPlayerInputEnable(bool enabled)
     {
+        EnsureInputInitialized();
         if (enabled)
             onFoot.Enable();
         else

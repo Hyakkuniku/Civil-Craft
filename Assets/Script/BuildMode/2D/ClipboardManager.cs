@@ -543,9 +543,15 @@ public class ClipboardManager : MonoBehaviour
         {
             GameObject gp = Instantiate(barCreator.pointToInstantiate, barCreator.pointParent);
             gp.name = "GhostPastePoint";
-            Destroy(gp.GetComponent<Collider>());
-            
-            Destroy(gp.GetComponent<Point>()); 
+            // Keep the prefab's RequireComponent dependency intact. Disabling
+            // Point immediately unregisters the ghost from AllPoints, while its
+            // renderer is enabled/tinted by UpdatePasteGhostsWorldPosition.
+            AnchorEdgeSnap edgeSnap = gp.GetComponent<AnchorEdgeSnap>();
+            if (edgeSnap != null) edgeSnap.enabled = false;
+            Point previewPoint = gp.GetComponent<Point>();
+            if (previewPoint != null) previewPoint.enabled = false;
+            foreach (Collider collider in gp.GetComponentsInChildren<Collider>(true))
+                collider.enabled = false;
             ghostPastePoints.Add(gp);
         }
         

@@ -19,6 +19,7 @@ Shader "CivilCraft/Bridge Selection Outline"
         float4 _BridgeOutlineColor;
         float _BridgeOutlinePixels;
         float _BridgeClosingStep;
+        float _BridgeCompositeFlipY;
 
         float4 MaskVertex(float4 vertex : POSITION) : SV_POSITION { return mul(_BridgeMaskMVP, vertex); }
         v2f_img OutlineFullscreenVertex(uint id : SV_VertexID)
@@ -56,6 +57,7 @@ Shader "CivilCraft/Bridge Selection Outline"
         }
         half4 Composite(v2f_img input) : SV_Target
         {
+            if (_BridgeCompositeFlipY > 0.5) input.uv.y = 1.0 - input.uv.y;
             float center = Silhouette(input.uv);
             float expanded = center;
             [unroll] for (int i = 0; i < 16; i++)

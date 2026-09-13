@@ -4,6 +4,9 @@
     "m_ObjectId": "7d37c07ea9b14f058522608c451d83af",
     "m_Properties": [
         {
+            "m_Id": "cfec8b6b16754f54b98efa6bb548621d"
+        },
+        {
             "m_Id": "7adad39910234c1881b10cc84962bece"
         }
     ],
@@ -1012,6 +1015,22 @@
 }
 
 {
+    "m_SGVersion": 0,
+    "m_Type": "UnityEditor.ShaderGraph.Internal.Texture2DShaderProperty",
+    "m_ObjectId": "cfec8b6b16754f54b98efa6bb548621d",
+    "m_Guid": { "m_GuidSerialized": "5a8f54f2-9631-41ab-a7bc-4757b9f0d513" },
+    "m_Name": "UI Main Texture",
+    "m_DefaultReferenceName": "_MainTex",
+    "m_OverrideReferenceName": "_MainTex",
+    "m_GeneratePropertyBlock": true,
+    "m_Hidden": true,
+    "isMainTexture": true,
+    "useTilingAndOffset": false,
+    "m_Modifiable": true,
+    "m_DefaultType": 0
+}
+
+{
     "m_SGVersion": 1,
     "m_Type": "UnityEditor.ShaderGraph.Internal.Vector1ShaderProperty",
     "m_ObjectId": "7adad39910234c1881b10cc84962bece",
@@ -1182,6 +1201,9 @@
     "m_ObjectId": "8bd4102363b8447f8de6d5c54fb9d92b",
     "m_Name": "",
     "m_ChildObjectList": [
+        {
+            "m_Id": "cfec8b6b16754f54b98efa6bb548621d"
+        },
         {
             "m_Id": "7adad39910234c1881b10cc84962bece"
         }
