@@ -263,6 +263,8 @@ public class LiveLoadVehicle : Interactable
                 w.rb.maxDepenetrationVelocity = 10f; 
             }
 
+            ApplySimulationSolverSettings(w.rb);
+
             if (w.hinge == null)
             {
                 w.hinge = w.physObj.AddComponent<HingeJoint>();
@@ -285,8 +287,24 @@ public class LiveLoadVehicle : Interactable
     {
         foreach (var w in wheels)
         {
-            if (w.hinge != null) { Destroy(w.hinge); w.hinge = null; }
-            if (w.rb != null) { Destroy(w.rb); w.rb = null; }
+            // The replacement wheel rig is built immediately after this method.
+            // Deferred Destroy can leave the old and new physics components in the
+            // same simulation step, making repeat tests depend on render timing.
+            if (w.hinge != null)
+            {
+                w.hinge.connectedBody = null;
+                DestroyImmediate(w.hinge);
+                w.hinge = null;
+            }
+
+            if (w.rb != null)
+            {
+                w.rb.isKinematic = true;
+                w.rb.velocity = Vector3.zero;
+                w.rb.angularVelocity = Vector3.zero;
+                DestroyImmediate(w.rb);
+                w.rb = null;
+            }
         }
     }
 
@@ -305,6 +323,7 @@ public class LiveLoadVehicle : Interactable
         StripWheelPhysics(); 
 
         rb.isKinematic = true;
+        ApplySimulationSolverSettings(rb);
 
         ResetToSimulationStartPose();
 
@@ -326,6 +345,18 @@ public class LiveLoadVehicle : Interactable
         }
 
         Physics.SyncTransforms(); 
+    }
+
+    private void ApplySimulationSolverSettings(Rigidbody body)
+    {
+        if (body == null) return;
+
+        int positionIterations = physicsManager != null
+            ? Mathf.Max(1, physicsManager.physicsSolverIterations)
+            : Mathf.Max(1, Physics.defaultSolverIterations);
+
+        body.solverIterations = positionIterations;
+        body.solverVelocityIterations = Mathf.Max(1, Physics.defaultSolverVelocityIterations);
     }
 
     private void HandleSimulationStarted()

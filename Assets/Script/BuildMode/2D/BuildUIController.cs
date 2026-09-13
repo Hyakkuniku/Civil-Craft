@@ -149,7 +149,7 @@ public class BuildUIController : MonoBehaviour
     private HashSet<Bar> uniqueBars = new HashSet<Bar>();
     private HashSet<Point> activePoints = new HashSet<Point>();
 
-    private int lastStressPercent = -1;
+    private float lastStressPercent = -1f;
     private int lastProjectedCost = -1;
     private int lastDisplayedMaxBudget = -1;
     private float lastRoadLength = -1f;
@@ -909,39 +909,38 @@ public class BuildUIController : MonoBehaviour
     {
         if (physicsManager != null && physicsManager.isSimulating)
         {
-            // Hold the displayed peak for the complete test. Physics can execute
-            // several fixed steps between mobile render frames, so displaying only
-            // the latest sample could hide a real spike that the result screen
-            // correctly reports as peak stress.
-            float maxStress = physicsManager.GetPeakDisplayedBridgeStress();
-            int stressPercent = Mathf.RoundToInt(maxStress * 100f);
+            // The in-test visualizer follows the current smoothed load so players
+            // can see stress rise and fall as the vehicle crosses the bridge. The
+            // manager still records the run peak separately for result scoring.
+            float currentStress = physicsManager.GetMaxBridgeStress();
+            float stressPercent = currentStress * 100f;
 
-            Color currentStressColor = maxStress <= 0.5f ? 
-                Color.Lerp(safeStressColor, warningStressColor, maxStress * 2f) : 
-                Color.Lerp(warningStressColor, criticalStressColor, (maxStress - 0.5f) * 2f);
+            Color currentStressColor = currentStress <= 0.5f ?
+                Color.Lerp(safeStressColor, warningStressColor, currentStress * 2f) :
+                Color.Lerp(warningStressColor, criticalStressColor, (currentStress - 0.5f) * 2f);
 
             if (stressFillBar != null) 
             { 
-                stressFillBar.fillAmount = maxStress; 
+                stressFillBar.fillAmount = currentStress;
                 stressFillBar.color = currentStressColor; 
             }
 
-            if (stressPercent != lastStressPercent)
+            if (!Mathf.Approximately(stressPercent, lastStressPercent))
             {
                 lastStressPercent = stressPercent;
                 if (stressText != null) 
                 { 
-                    stressText.text = $"{stressPercent}%"; 
+                    stressText.text = $"{stressPercent:0.0}%";
                     stressText.color = currentStressColor; 
                 }
             }
         }
         else
         {
-            if (lastStressPercent != 0)
+            if (!Mathf.Approximately(lastStressPercent, 0f))
             {
-                lastStressPercent = 0;
-                if (stressText != null) { stressText.text = "0%"; stressText.color = safeStressColor; }
+                lastStressPercent = 0f;
+                if (stressText != null) { stressText.text = "0.0%"; stressText.color = safeStressColor; }
             }
             if (stressFillBar != null) { stressFillBar.fillAmount = 0f; stressFillBar.color = safeStressColor; }
         }

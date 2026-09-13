@@ -880,7 +880,7 @@ public class LevelCompleteManager : MonoBehaviour
 
         if (stressText != null)
         {
-            stressText.text = $"Peak Bridge Stress: {Mathf.RoundToInt(peakStress)}%";
+            stressText.text = $"Peak Bridge Stress: {peakStress:0.0}%";
             
             stressText.color = peakStress >= 100f ? new Color32(164, 62, 45, 255) :
                 peakStress >= 50f ? new Color32(155, 99, 27, 255) : new Color32(76, 110, 47, 255);

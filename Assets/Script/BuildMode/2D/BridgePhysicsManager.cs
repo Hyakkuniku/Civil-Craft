@@ -41,6 +41,12 @@ public class BridgePhysicsManager : MonoBehaviour
     [Tooltip("Minimum force tolerance, in Newtons, used when returning to the settled dead-load value.")]
     [Min(0f)] public float deadLoadReturnToleranceNewtons = 1f;
 
+    [Header("Deterministic Stress Analysis")]
+    [Tooltip("Uses a quantized quasi-static truss solver for stress display, scoring, and failure. PhysX remains visual only.")]
+    public bool useDeterministicStressAnalysis = true;
+    [Tooltip("Fixed vehicle positions evaluated across the road. More samples improve peak accuracy without changing repeatability.")]
+    [Range(11, 201)] public int deterministicLoadSamples = 101;
+
     [Header("Stress Visualizer Colors")]
     public bool enableVisualizer = true;
     public Color warningColor = Color.yellow;
@@ -74,6 +80,9 @@ public class BridgePhysicsManager : MonoBehaviour
     private bool previousAutoSyncTransforms;
     private int previousSolverIterations;
     private int previousSolverVelocityIterations;
+    private DeterministicBridgeStressSolver.Result deterministicStressResult;
+    private int deterministicStressStep;
+    private int deterministicCrossingSteps = 1;
 
     // --- Deterministic Spatial Comparers ---
     private class SpatialPointComparer : IComparer<Point>
@@ -219,8 +228,14 @@ public class BridgePhysicsManager : MonoBehaviour
             {
                 pendingSimulationStart = false;
                 isSimulating = true;
-                peakDisplayedStressThisRun = 0f;
+                bool hasDeterministicStress = deterministicStressResult != null && deterministicStressResult.IsValid;
+                peakDisplayedStressThisRun = hasDeterministicStress
+                    ? deterministicStressResult.PeakDisplayedStress
+                    : 0f;
+                // Structural failure follows the deterministic load position over
+                // time; do not fail immediately because a later sample is unsafe.
                 peakStressThisRun = 0f;
+                deterministicStressStep = 0;
                 lockStressTracking = false;
                 
                 foreach (var handler in activeStressHandlers)
@@ -235,13 +250,28 @@ public class BridgePhysicsManager : MonoBehaviour
 
         if (isSimulating && !lockStressTracking)
         {
+            bool hasDeterministicStress = deterministicStressResult != null && deterministicStressResult.IsValid;
+            int deterministicSampleIndex = hasDeterministicStress
+                ? GetDeterministicSampleIndex()
+                : 0;
             float currentStructuralMax = 0f;
             float currentDisplayedMax = 0f;
             foreach (var handler in activeStressHandlers)
             {
                 if (handler == null) continue;
                 
-                handler.EvaluateStress(); 
+                // In deterministic mode PhysX is still evaluated for motion, but
+                // it is not allowed to decide gameplay stress or break timing.
+                handler.EvaluateStress(!hasDeterministicStress);
+                if (hasDeterministicStress && deterministicStressResult.TryGetStress(
+                        handler.Bar,
+                        deterministicSampleIndex,
+                        out float displayedStress,
+                        out float structuralStress,
+                        out bool isTension))
+                {
+                    handler.ApplyDeterministicStress(displayedStress, structuralStress, isTension);
+                }
                 
                 if (handler.isBroken)
                 {
@@ -260,9 +290,14 @@ public class BridgePhysicsManager : MonoBehaviour
             }
 
             peakStressThisRun = Mathf.Max(peakStressThisRun, currentStructuralMax);
-            peakDisplayedStressThisRun = Mathf.Max(
-                peakDisplayedStressThisRun,
-                Mathf.Clamp01(currentDisplayedMax));
+            if (!hasDeterministicStress)
+            {
+                peakDisplayedStressThisRun = Mathf.Max(
+                    peakDisplayedStressThisRun,
+                    Mathf.Clamp01(currentDisplayedMax));
+            }
+
+            deterministicStressStep++;
         }
     }
 
@@ -397,6 +432,7 @@ public class BridgePhysicsManager : MonoBehaviour
         if (activeAbutmentAligner != null)
             activeAbutmentAligner.IgnoreCollisionsWithBridge(CollectStructuralColliders());
         ResetPhysicsState();
+        PrepareDeterministicStressAnalysis();
 
         needsPhysicsRelease = true;
         currentSettleFrame = 0;
@@ -506,6 +542,9 @@ public class BridgePhysicsManager : MonoBehaviour
         simBars.Clear();
         deterministicPoints.Clear();
         deterministicBars.Clear();
+        deterministicStressResult = null;
+        deterministicStressStep = 0;
+        deterministicCrossingSteps = 1;
 
         Physics.SyncTransforms();
         RestoreGlobalPhysicsSettings();
@@ -578,6 +617,68 @@ public class BridgePhysicsManager : MonoBehaviour
         }
 
         Physics.SyncTransforms();
+    }
+
+    private void PrepareDeterministicStressAnalysis()
+    {
+        deterministicStressResult = null;
+        deterministicStressStep = 0;
+        deterministicCrossingSteps = 1;
+        if (!useDeterministicStressAnalysis) return;
+
+        ContractSO contract = GameManager.Instance != null ? GameManager.Instance.CurrentContract : null;
+        float liveLoadKg = contract != null ? contract.liveLoadWeight : 1000f;
+        deterministicStressResult = DeterministicBridgeStressSolver.Analyze(
+            deterministicPoints,
+            deterministicBars,
+            liveLoadKg,
+            displayLiveLoadStressOnly,
+            deterministicLoadSamples);
+
+        if (deterministicStressResult == null || !deterministicStressResult.IsValid)
+        {
+            Debug.LogWarning(
+                "[BridgePhysicsManager] Deterministic stress analysis could not solve this bridge; " +
+                "falling back to PhysX stress readings for this run.", this);
+            deterministicStressResult = null;
+            return;
+        }
+
+        float crossingDistance = 0f;
+        float crossingSpeed = 5f;
+        LiveLoadVehicle[] vehicles = FindObjectsOfType<LiveLoadVehicle>();
+        foreach (LiveLoadVehicle vehicle in vehicles)
+        {
+            if (vehicle == null || (contract != null && vehicle.assignedContract != contract)) continue;
+            crossingSpeed = Mathf.Max(0.01f, vehicle.maxSpeed);
+            if (vehicle.startPoint != null && vehicle.endPoint != null)
+                crossingDistance = Mathf.Abs(vehicle.endPoint.position.x - vehicle.startPoint.position.x);
+            break;
+        }
+
+        if (crossingDistance <= 0f)
+        {
+            foreach (Bar bar in deterministicBars)
+            {
+                if (bar == null || bar.materialData == null || !bar.materialData.isRoad) continue;
+                crossingDistance += Mathf.Abs(bar.endPoint.transform.position.x - bar.startPoint.transform.position.x);
+            }
+        }
+
+        // The wheel motor reaches full speed in 0.5 seconds. Include its average
+        // acceleration distance so the deterministic visualization tracks the cart.
+        float crossingSeconds = crossingDistance / crossingSpeed + 0.25f;
+        deterministicCrossingSteps = Mathf.Max(1, Mathf.RoundToInt(crossingSeconds / Time.fixedDeltaTime));
+    }
+
+    private int GetDeterministicSampleIndex()
+    {
+        if (deterministicStressResult == null || deterministicStressResult.Samples.Length == 0) return 0;
+        float progress = Mathf.Clamp01(deterministicStressStep / (float)deterministicCrossingSteps);
+        return Mathf.Clamp(
+            Mathf.RoundToInt(progress * (deterministicStressResult.Samples.Length - 1)),
+            0,
+            deterministicStressResult.Samples.Length - 1);
     }
 
     public bool BakeBridge(ContractSO contract = null)
@@ -1067,10 +1168,10 @@ public class BridgePhysicsManager : MonoBehaviour
                 {
                     if (joint == null || joint.connectedBody != nodeBody) continue;
 
-                    // Disconnect immediately; Destroy removes the component safely
-                    // at the end of the frame before the controlled physics release.
+                    // Remove this before the controlled release. Deferred destruction
+                    // can survive into a batched fixed step and change the solver graph.
                     joint.connectedBody = null;
-                    Destroy(joint);
+                    DestroyImmediate(joint);
                     releasedJointCount++;
                 }
             }
@@ -1183,6 +1284,7 @@ public class BarStressHandler : MonoBehaviour
 
     private Renderer[] childRenderers;
     private Color[] originalColors;
+    public Bar Bar => myBar;
 
     public void Setup(BridgeMaterialSO mat, Point point1, Point point2)
     {
@@ -1271,7 +1373,7 @@ public class BarStressHandler : MonoBehaviour
         }
     }
 
-    public void EvaluateStress()
+    public void EvaluateStress(bool allowBreaking = true)
     {
         if (!canTrackStress || isBroken || p1 == null || p2 == null) return;
 
@@ -1347,7 +1449,7 @@ public class BarStressHandler : MonoBehaviour
 
         float totalStructuralForce = material.isRope && !isTension ? 0f : smoothedForce;
         currentStructuralStressPercent =
-            Mathf.Round((totalStructuralForce / stressLimit) * 100f) / 100f;
+            Mathf.Round((totalStructuralForce / stressLimit) * 1000f) / 1000f;
 
         if (material.isRope && !isTension) 
         {
@@ -1359,7 +1461,7 @@ public class BarStressHandler : MonoBehaviour
                 ? Mathf.Max(0f, smoothedForce - settledDeadLoadForce)
                 : smoothedForce;
             float rawPercent = displayedForce / stressLimit;
-            currentStressPercent = Mathf.Round(rawPercent * 100f) / 100f;
+            currentStressPercent = Mathf.Round(rawPercent * 1000f) / 1000f;
         }
 
         if (manager != null && manager.enableVisualizer)
@@ -1367,10 +1469,36 @@ public class BarStressHandler : MonoBehaviour
             UpdateStressVisuals();
         }
 
-        if (breakingJoint != null && !isBroken && !BridgePhysicsManager.DebugInvincibleBridge)
+        if (allowBreaking && breakingJoint != null && !isBroken && !BridgePhysicsManager.DebugInvincibleBridge)
         {
             BreakBar(breakCause, smoothedForce, breakingJoint);
         }
+    }
+
+    public void ApplyDeterministicStress(float displayedRatio, float structuralRatio, bool isTension)
+    {
+        if (!canTrackStress || isBroken || material == null) return;
+
+        isCurrentlyInTension = isTension;
+        currentStressPercent = Mathf.Max(0f, displayedRatio);
+        currentStructuralStressPercent = Mathf.Max(0f, structuralRatio);
+
+        if (manager != null && manager.enableVisualizer) UpdateStressVisuals();
+        if (currentStructuralStressPercent <= 1f || BridgePhysicsManager.DebugInvincibleBridge) return;
+
+        CacheJointsIfNeeded();
+        Joint breakingJoint = material.isRope
+            ? ropeJoint
+            : joints != null && joints.Length > 0 ? joints[0] : null;
+        if (breakingJoint == null) return;
+
+        float limit = isTension ? material.maxTension : material.GetCompressionLimit(restLength);
+        string cause = material.isRope
+            ? "Tension (Rope Snapped)"
+            : isTension
+                ? "Tension (Pulled apart)"
+                : material.isPier ? "Compression (Pier Buckled)" : "Compression (Buckled)";
+        BreakBar(cause, Mathf.Max(0f, limit) * currentStructuralStressPercent, breakingJoint);
     }
 
     private void CacheJointsIfNeeded()
