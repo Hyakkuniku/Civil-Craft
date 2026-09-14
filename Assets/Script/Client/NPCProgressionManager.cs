@@ -99,18 +99,46 @@ public class NPCProgressionPhase
 
     [Tooltip("Invoked after the player dismisses the material introduction panel.")]
     public UnityEvent onMaterialIntroductionClosed;
+    public NPCPhaseCall onMaterialIntroductionClosedPhaseMove = new NPCPhaseCall();
+
+    public void InvokeMaterialIntroductionClosed()
+    {
+        onMaterialIntroductionClosed?.Invoke();
+        onMaterialIntroductionClosedPhaseMove?.Invoke();
+    }
 
     [Tooltip("Invoked when the optional phase dialogue closes.")]
     public UnityEvent onDialogueFinished;
+    public NPCPhaseCall onDialogueFinishedPhaseMove = new NPCPhaseCall();
+
+    public void InvokeDialogueFinished()
+    {
+        onDialogueFinished?.Invoke();
+        onDialogueFinishedPhaseMove?.Invoke();
+    }
 
     [Tooltip("Invoked when the player interacts with the NPC during this phase.")]
     public UnityEvent onNPCInteracted;
+    public NPCPhaseCall onNPCInteractedPhaseMove = new NPCPhaseCall();
+
+    public void InvokeNPCInteracted()
+    {
+        onNPCInteracted?.Invoke();
+        onNPCInteractedPhaseMove?.Invoke();
+    }
 
     [Tooltip("Prevents repeat interactions from restarting the same tutorial/event during this scene visit.")]
     public bool invokeInteractionEventOnlyOnce = true;
 
     [Tooltip("Invoked after the NPC arrives and this phase becomes active.")]
     public UnityEvent onNPCArrived;
+    public NPCPhaseCall onNPCArrivedPhaseMove = new NPCPhaseCall();
+
+    public void InvokeNPCArrived()
+    {
+        onNPCArrived?.Invoke();
+        onNPCArrivedPhaseMove?.Invoke();
+    }
 }
 
 public enum NPCProgressionMovementMode
@@ -1751,7 +1779,7 @@ public class NPCProgressionManager : MonoBehaviour
 
         if (invokeArrivalEvent)
         {
-            phase.onNPCArrived?.Invoke();
+            phase.InvokeNPCArrived();
             if (phase.playDialogueOnArrival)
                 TryStartPhaseDialogue(phaseIndex, phase);
         }
@@ -1771,7 +1799,7 @@ public class NPCProgressionManager : MonoBehaviour
         if (shouldInvokeInteractionEvent)
         {
             invokedInteractionPhases.Add(currentPhaseIndex);
-            phase.onNPCInteracted?.Invoke();
+            phase.InvokeNPCInteracted();
         }
 
         // Contract phases already own their offer/reminder/completion dialogue.
@@ -1824,7 +1852,7 @@ public class NPCProgressionManager : MonoBehaviour
         isInvokingPhaseDialogueFinished = true;
         try
         {
-            phase.onDialogueFinished?.Invoke();
+            phase.InvokeDialogueFinished();
         }
         finally
         {
@@ -2020,11 +2048,11 @@ public class NPCProgressionManager : MonoBehaviour
             GrantConfiguredPhaseFeature(phase);
 
         if (displayedMaterial)
-            phase.onMaterialIntroductionClosed?.Invoke();
+            phase.InvokeMaterialIntroductionClosed();
 
         // This is intentionally last: events that move the NPC or advance the
         // phase now wait until the final authored dialogue/unlock step has closed.
-        phase.onDialogueFinished?.Invoke();
+        phase.InvokeDialogueFinished();
     }
 
     private static bool IsUsableDialogue(Dialogue dialogue)
@@ -2052,7 +2080,7 @@ public class NPCProgressionManager : MonoBehaviour
                 bool isLastMaterial = i == materialsToShow.Count - 1;
                 System.Action onDismiss = null;
                 if (isLastMaterial)
-                    onDismiss = () => phase.onMaterialIntroductionClosed?.Invoke();
+                    onDismiss = () => phase.InvokeMaterialIntroductionClosed();
 
                 ItemUnlockUI.Instance.ShowMaterialIntroduction(
                     materialsToShow[i],
@@ -2065,7 +2093,7 @@ public class NPCProgressionManager : MonoBehaviour
             Debug.LogWarning(
                 $"[NPCProgressionManager] Cannot introduce {materialsToShow.Count} material(s) because ItemUnlockUI is unavailable.",
                 this);
-            phase.onMaterialIntroductionClosed?.Invoke();
+            phase.InvokeMaterialIntroductionClosed();
         }
     }
 
