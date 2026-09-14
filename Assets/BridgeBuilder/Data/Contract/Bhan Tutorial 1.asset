@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   liveLoadMode: 1
   allowVehicleCargo: 0
-  minimumLoadedCargo: 0
+  minimumLoadedCargo: 1
   contractID: TUT_CONTRACT1
   efficiencyStarBudgetRatio: 0.85
   strengthStarMaxStress: 60
@@ -25,7 +25,8 @@ MonoBehaviour:
   autoCollectReward: 0
   featureUnlockRewards: []
   clientName: Professor Bhan
-  jobDescription: Build the first crossing and carry Grandma Susan's supply crate safely to the next checkpoint.
+  jobDescription: Build the first crossing and carry Grandma Susan's supply crate
+    safely to the next checkpoint.
   budget: 75000
   liveLoadWeight: 700
   bridgeSpan: 30
@@ -47,23 +48,31 @@ MonoBehaviour:
   offerDialogue:
     name: Professor Bhan
     sentences:
-    - The old delivery road is gone, but Grandma Susan is still waiting for this crate.
-    - Our first obstacle is a short canyon. Build a beam bridge, then carry the crate across yourself.
+    - The old delivery road is gone, but Grandma Susan is still waiting for this
+      crate.
+    - Our first obstacle is a short canyon. Build a beam bridge, then carry the crate
+      across yourself.
     - A drawing can look safe. The delivery test will prove whether it really is.
   continueOfferDialogue:
     name: Professor Bhan
     sentences:
-    - A beam bridge carries the load along its road and into the supports on both banks.
-    - Keep the route continuous. You will be walking every step of it with the cargo in your hands.
-    - When the bridge is ready, press Simulate, pick up the crate, and place it at the marked handoff point across the canyon.
+    - A beam bridge carries the load along its road and into the supports on both
+      banks.
+    - Keep the route continuous. You will be walking every step of it with the cargo
+      in your hands.
+    - When the bridge is ready, press Simulate, pick up the crate, and place it at
+      the marked handoff point across the canyon.
   reminderDialogue:
     name: Professor Bhan
     sentences:
     - Grandma Susan's crate is still on this side of the canyon.
-    - Enter the Blueprint, finish the bridge, then press Simulate and deliver it to the marked handoff point.
+    - Enter the Blueprint, finish the bridge, then press Simulate and deliver it
+      to the marked handoff point.
   finishedContractDialogue:
     name: Professor Bhan
     sentences:
     - First crossing complete. More importantly, the crate made it across intact.
-    - Good work, {PlayerName}. Grandma Susan is one bridge closer to receiving her supplies.
-    - Take a moment to review the bridge in your Almanac, then we will continue the delivery.
+    - Good work, {PlayerName}. Grandma Susan is one bridge closer to receiving her
+      supplies.
+    - Take a moment to review the bridge in your Almanac, then we will continue the
+      delivery.

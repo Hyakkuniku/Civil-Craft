@@ -26,6 +26,8 @@ public class DialogueManager : MonoBehaviour
     [SerializeField] private string speakerTalkingBoolParameter = "isTalking";
     [Tooltip("Walking is stopped before the talking animation begins when this bool exists on the NPC Animator.")]
     [SerializeField] private string speakerWalkingBoolParameter = "isWalking";
+    [Tooltip("Running is stopped before the talking animation begins when this bool exists on the NPC Animator.")]
+    [SerializeField] private string speakerRunningBoolParameter = "isRunning";
 
     [Header("Conversation Facing")]
     [Tooltip("Turn the player horizontally toward the character speaking when dialogue begins.")]
@@ -381,6 +383,8 @@ public class DialogueManager : MonoBehaviour
 
         if (HasBoolParameter(activeSpeakerAnimator, speakerWalkingBoolParameter))
             activeSpeakerAnimator.SetBool(speakerWalkingBoolParameter, false);
+        if (HasBoolParameter(activeSpeakerAnimator, speakerRunningBoolParameter))
+            activeSpeakerAnimator.SetBool(speakerRunningBoolParameter, false);
 
         if (HasBoolParameter(activeSpeakerAnimator, speakerTalkingBoolParameter))
             activeSpeakerAnimator.SetBool(speakerTalkingBoolParameter, true);

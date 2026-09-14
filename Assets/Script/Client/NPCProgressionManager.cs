@@ -39,6 +39,9 @@ public class NPCProgressionPhase
     [Tooltip("Optional ordered walking points used before Target Location when Waypoint movement is selected.")]
     public List<Transform> travelWaypoints = new List<Transform>();
 
+    [Tooltip("Use the NPC sprint animation instead of walking while travelling into this phase and while idle roaming in this phase.")]
+    public bool running;
+
     [Tooltip("Contract offered by the existing NPCContractGiver in this phase.")]
     public ContractSO contract;
 
@@ -218,6 +221,7 @@ public class NPCProgressionManager : MonoBehaviour
 
     [Header("Animation")]
     [SerializeField] private string walkingBoolParameter = "isWalking";
+    [SerializeField] private string runningBoolParameter = "isRunning";
     [SerializeField] private string talkingBoolParameter = "isTalking";
 
     [Header("Idle Roaming")]
@@ -841,7 +845,7 @@ public class NPCProgressionManager : MonoBehaviour
             yield break;
         }
 
-        SetWalkingAnimation(true);
+        SetMovementAnimation(true, nextPhase.running);
         float deadline = Time.time + pathTimeout;
         float lastProgressTime = Time.time;
         Vector3 lastProgressPosition = transform.position;
@@ -996,7 +1000,7 @@ public class NPCProgressionManager : MonoBehaviour
         int nextPhaseIndex,
         NPCProgressionPhase nextPhase)
     {
-        SetWalkingAnimation(true);
+        SetMovementAnimation(true, nextPhase.running);
 
         List<WaypointRouteStep> routeSteps = new List<WaypointRouteStep>();
         bool hasInspectorRoute = nextPhase.travelWaypoints != null &&
@@ -2465,8 +2469,38 @@ public class NPCProgressionManager : MonoBehaviour
 
     private void SetWalkingAnimation(bool walking)
     {
-        if (animator != null && !string.IsNullOrWhiteSpace(walkingBoolParameter))
-            animator.SetBool(walkingBoolParameter, walking);
+        bool runInCurrentPhase = walking && CurrentPhase != null && CurrentPhase.running;
+        SetMovementAnimation(walking, runInCurrentPhase);
+    }
+
+    private void SetMovementAnimation(bool moving, bool running)
+    {
+        if (animator == null) return;
+
+        bool hasRunningParameter = HasBoolParameter(runningBoolParameter);
+        bool useRunning = moving && running && hasRunningParameter;
+
+        if (HasBoolParameter(walkingBoolParameter))
+            animator.SetBool(walkingBoolParameter, moving && !useRunning);
+        if (hasRunningParameter)
+            animator.SetBool(runningBoolParameter, useRunning);
+    }
+
+    private bool HasBoolParameter(string parameterName)
+    {
+        if (animator == null || string.IsNullOrWhiteSpace(parameterName)) return false;
+
+        AnimatorControllerParameter[] parameters = animator.parameters;
+        for (int i = 0; i < parameters.Length; i++)
+        {
+            if (parameters[i].type == AnimatorControllerParameterType.Bool &&
+                parameters[i].name == parameterName)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void OnDrawGizmosSelected()

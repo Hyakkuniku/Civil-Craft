@@ -73,7 +73,6 @@ GameObject:
   - component: {fileID: 978365976124630837}
   - component: {fileID: 2558167023464668648}
   - component: {fileID: 3922368601465291137}
-  - component: {fileID: 10766881497585690}
   m_Layer: 6
   m_Name: End
   m_TagString: Untagged
@@ -135,26 +134,6 @@ MonoBehaviour:
   - Vehicle
   assignedContract: {fileID: 11400000, guid: d58e962a84aed8944ad5741d6404b861, type: 2}
   OnLevelCompleted:
-    m_PersistentCalls:
-      m_Calls: []
---- !u!114 &10766881497585690
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4448899140598782552}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8f0588273bd93d64b8e1d0d3595bdc7b, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  useEvents: 0
-  promptMessage: Place Cargo
-  assignedContract: {fileID: 11400000, guid: d58e962a84aed8944ad5741d6404b861, type: 2}
-  persistentDropLocationId: 7f2ee4d9d8a4434892524410e294bd92
-  dropSocket: {fileID: 5723339949191394019}
-  onCargoPlaced:
     m_PersistentCalls:
       m_Calls: []
 --- !u!1 &4932661673107669733
