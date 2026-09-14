@@ -113,6 +113,7 @@ public class BuildLocation : Interactable
 
         ClaimConnectedBridgeOwnership();
 
+        ResolveSavedBridgeContract();
         LoadSavedBridge();
 
         if (bakedBars.Count == 0) 
@@ -719,6 +720,41 @@ public class BuildLocation : Interactable
     {
         Vector3 lookAt = transform.position + cameraLookAtOffset;
         return Quaternion.LookRotation(lookAt - GetDesiredCameraPosition());
+    }
+
+    private void ResolveSavedBridgeContract()
+    {
+        PlayerDataManager data = PlayerDataManager.Instance;
+        if (data == null || (activeContract != null && data.HasValidSavedBridge(activeContract.ContractID)))
+            return;
+
+        // NPCs can be despawned before Start. Read their authored assignments
+        // without activating them or advancing their progression.
+        ContractSO savedContract = null;
+        foreach (NPCProgressionManager npc in FindObjectsOfType<NPCProgressionManager>(true))
+        {
+            if (!npc.TryGetContractForBuildLocation(this, out ContractSO candidate, true)) continue;
+            if (!AcceptSavedBridgeContract(ref savedContract, candidate)) return;
+        }
+        foreach (NPCContractGiver npc in FindObjectsOfType<NPCContractGiver>(true))
+        {
+            if (npc.targetBuildLocation != this || npc.contractToGive == null ||
+                !data.HasValidSavedBridge(npc.contractToGive.ContractID)) continue;
+            if (!AcceptSavedBridgeContract(ref savedContract, npc.contractToGive)) return;
+        }
+        if (savedContract != null) activeContract = savedContract;
+    }
+
+    private bool AcceptSavedBridgeContract(ref ContractSO selected, ContractSO candidate)
+    {
+        if (selected != null && selected.ContractID != candidate.ContractID)
+        {
+            Debug.LogError($"[BuildLocation] Multiple saved contracts reference '{name}'. " +
+                "Assign its intended active contract explicitly. Saved designs have not been deleted.", this);
+            return false;
+        }
+        selected = candidate;
+        return true;
     }
 
     public bool LoadSavedBridge()

@@ -1,5 +1,6 @@
 using System.Collections;
 using UnityEngine;
+using TMPro;
 
 [System.Serializable]
 public class BridgePartData
@@ -13,6 +14,7 @@ public class BridgePartData
 public class ModeData
 {
     public string modeName; 
+    [TextArea(2, 4)] public string description;
     public GameObject uiButton;
     public Transform cameraTarget;
     public BridgePartData[] bridgeParts; 
@@ -33,9 +35,14 @@ public class ModeSelectionManager : MonoBehaviour
 
     private int currentIndex = 0;
     private Coroutine cameraCoroutine;
+    [Header("Scene Presentation References")]
+    [SerializeField] private TMP_Text modeHeading, modeDescription, modeCounter;
+    [SerializeField] private CanvasGroup descriptionGroup;
+    private Coroutine presentationCoroutine;
 
     void Start()
     {
+        if (modes == null || modes.Length == 0) return;
         // Instantly snap all bridges to their correct starting states
         for (int i = 0; i < modes.Length; i++)
         {
@@ -53,6 +60,7 @@ public class ModeSelectionManager : MonoBehaviour
 
     private void ChangeMode(int direction)
     {
+        if (modes == null || modes.Length == 0) return;
         int previousIndex = currentIndex;
 
         currentIndex += direction;
@@ -95,10 +103,36 @@ public class ModeSelectionManager : MonoBehaviour
         // Hide/Show Next and Previous buttons based on the current index limits
         if (previousButton != null) previousButton.SetActive(currentIndex > 0);
         if (nextButton != null) nextButton.SetActive(currentIndex < modes.Length - 1);
+        if (modeHeading != null)
+        {
+            ModeData mode = modes[currentIndex];
+            bool multiplayer = mode.modeName.ToLowerInvariant().Contains("multi");
+            modeHeading.text = mode.modeName.ToUpperInvariant();
+            modeDescription.text = !string.IsNullOrWhiteSpace(mode.description) ? mode.description :
+                multiplayer ? "Bring your friends along. Choose multiplayer to begin your next building adventure together." :
+                "Explore the canyon, meet its people and take on bridge-building contracts. Learn, build and connect the community at your own pace.";
+            modeCounter.text = $"{currentIndex + 1:00}  /  {modes.Length:00}";
+            if (presentationCoroutine != null) StopCoroutine(presentationCoroutine);
+            if (descriptionGroup != null) presentationCoroutine = StartCoroutine(RevealDescription());
+        }
+    }
+
+    private IEnumerator RevealDescription()
+    {
+        float elapsed = 0f;
+        while (elapsed < .22f)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            descriptionGroup.alpha = Mathf.Lerp(.4f, 1f, Mathf.SmoothStep(0f, 1f, elapsed / .22f));
+            yield return null;
+        }
+        descriptionGroup.alpha = 1f;
+        presentationCoroutine = null;
     }
 
     private void SetModeBridges(ModeData mode, bool isAttached, bool snapInstantly)
     {
+        if (mode == null || mode.bridgeParts == null) return;
         foreach (BridgePartData partData in mode.bridgeParts)
         {
             if (partData.bridgePart == null) continue;

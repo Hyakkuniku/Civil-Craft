@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+[DefaultExecutionOrder(-50)]
 public class PlayerMotor : MonoBehaviour
 {
     private CharacterController controller;
@@ -15,6 +16,54 @@ public class PlayerMotor : MonoBehaviour
 
     [Header("Movement")]
     public float speed = 5f;
+    [Header("Joystick Sprint")]
+    [Range(0.1f, 1f)] public float sprintStartThreshold = 0.85f;
+    [Range(0f, 1f)] public float sprintStopThreshold = 0.7f;
+    [Min(1f)] public float sprintSpeedMultiplier = 1.5f;
+    [Tooltip("Maximum walking speed while carrying cargo, even at full joystick input.")]
+    [Min(0f)] public float carryingWalkSpeed = 4f;
+    private CargoItem carriedItem;
+    private Transform carryingHips;
+    private Vector3 carryingHipOrigin;
+    public void SetCarriedItem(CargoItem item)
+    {
+        carriedItem = item;
+        if (item == null) return;
+        if (playerAnimator != null)
+        {
+            if (playerAnimator.isHuman)
+                carryingHips = playerAnimator.GetBoneTransform(HumanBodyBones.Hips);
+            else
+                foreach (Transform bone in playerAnimator.GetComponentsInChildren<Transform>(true))
+                    if (bone.name == "mixamorig:Hips" || bone.name == "Hips")
+                    { carryingHips = bone; break; }
+            if (carryingHips != null) carryingHipOrigin = carryingHips.localPosition;
+        }
+        isSprinting = false;
+        if (playerAnimator != null) playerAnimator.SetBool(SprintParameter, false);
+    }
+
+    private void LateUpdate()
+    {
+        if (carriedItem == null || carryingHips == null) return;
+        // Generic clips animate hip translation even with Apply Root Motion off.
+        // The CharacterController owns travel; keep the model over that body.
+        // Run before CargoItem/PlayerLook LateUpdate so hands and camera agree.
+        Vector3 pose = carryingHips.localPosition;
+        pose.x = carryingHipOrigin.x;
+        pose.z = carryingHipOrigin.z;
+        carryingHips.localPosition = pose;
+    }
+
+    private bool IsCarryingCargo()
+    {
+        if (carriedItem != null || CargoItem.IsCarriedBy(transform)) return true;
+        // Retain the restriction if scripts reload while an item is held.
+        int layer = playerAnimator != null ? playerAnimator.GetLayerIndex("Carry Pose") : -1;
+        return layer >= 0 && playerAnimator.GetLayerWeight(layer) > 0.5f;
+    }
+    private bool isSprinting;
+    private static readonly int SprintParameter = Animator.StringToHash("IsSprinting");
     public float gravity = -9.8f;
     [Tooltip("How fast the character spins around to face the direction they are walking.")]
     public float rotationSpeed = 12f;
@@ -75,6 +124,21 @@ public class PlayerMotor : MonoBehaviour
 
     public void ProcessMove(Vector2 input)
     {
+        if (!isActiveAndEnabled || controller == null || !controller.enabled) return;
+        input = Vector2.ClampMagnitude(input, 1f);
+        float moveAmount = input.magnitude;
+        float startThreshold = Mathf.Clamp(sprintStartThreshold, 0.1f, 1f);
+        float stopThreshold = Mathf.Clamp(sprintStopThreshold, 0f, startThreshold);
+        bool carrying = IsCarryingCargo();
+        // Match Carry Hold -> Carry Walk's threshold: do not slide while the
+        // Animator is still in its standing pose during a light joystick touch.
+        if (carrying && moveAmount <= 0.1f)
+        {
+            input = Vector2.zero;
+            moveAmount = 0f;
+        }
+        isSprinting = !carrying && moveAmount > 0.1f && (isSprinting
+            ? moveAmount > stopThreshold : moveAmount >= startThreshold);
         Vector3 moveDirection = Vector3.zero;
 
         if (cameraTransform != null && (input.x != 0 || input.y != 0))
@@ -97,7 +161,10 @@ public class PlayerMotor : MonoBehaviour
             transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.deltaTime);
         }
         
-        float currentSpeed = isGrounded ? speed : (speed * airSpeedMultiplier);
+        float currentSpeed = carrying
+            ? Mathf.Min(speed, carryingWalkSpeed) * moveAmount
+            : speed * moveAmount * (isSprinting ? sprintSpeedMultiplier : 1f);
+        if (!isGrounded) currentSpeed *= airSpeedMultiplier;
         controller.Move(moveDirection * currentSpeed * Time.deltaTime);
         
         playerVelocity.y += gravity * Time.deltaTime;
@@ -109,8 +176,18 @@ public class PlayerMotor : MonoBehaviour
 
         if (playerAnimator != null)
         {
-            float moveAmount = Mathf.Clamp01(Mathf.Abs(input.x) + Mathf.Abs(input.y));
             playerAnimator.SetFloat("Speed", moveAmount);
+            playerAnimator.SetBool(SprintParameter, isSprinting);
+        }
+    }
+
+    private void OnDisable()
+    {
+        isSprinting = false;
+        if (playerAnimator != null)
+        {
+            playerAnimator.SetFloat("Speed", 0f);
+            playerAnimator.SetBool(SprintParameter, false);
         }
     }
 

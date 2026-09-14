@@ -113,6 +113,8 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     private Vector3 dragStartMouseWorld;
     private Vector3 dragLastValidDelta;
     private HistoryAction currentMoveAction;
+    private readonly Dictionary<Point, Vector3> moveRollbackPositions = new Dictionary<Point, Vector3>();
+    private bool moveBudgetWarningShown;
 
     [HideInInspector] public bool isSimulating = false; 
 
@@ -399,6 +401,12 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (isMoveMode && isDraggingSelection && selectedPoints.Count > 0)
         {
             Vector3 worldMousePos = GetWorldMousePosition(GetPointerPosition());
+            Vector3 previousValidDelta = dragLastValidDelta;
+            BuildUIController moveUI = BuildUIController.Instance;
+            float previousCost = moveUI != null ? moveUI.GetTotalCost() : 0f;
+            moveRollbackPositions.Clear();
+            foreach (Point point in currentMoveAction.originalPositions.Keys)
+                if (point != null) moveRollbackPositions[point] = point.transform.position;
             Vector3 mouseDelta = worldMousePos - dragStartMouseWorld;
             
             Point primaryNode = selectedPoints[0];
@@ -546,6 +554,21 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             }
 
             UpdateBarsForSelectedPoints();
+
+            // Recalculate AFTER snapping and pier constraints, which can also
+            // move unselected nodes. Roll back the whole candidate atomically.
+            if (moveUI != null && moveUI.GetTotalCost() > Mathf.Max(moveUI.maxBudget, previousCost) + 0.01f)
+            {
+                foreach (var entry in moveRollbackPositions)
+                    if (entry.Key != null) entry.Key.transform.position = entry.Value;
+                dragLastValidDelta = previousValidDelta;
+                UpdateBarsForSelectedPoints();
+                if (!moveBudgetWarningShown)
+                {
+                    moveUI.LogAction("Move blocked: not enough bridge budget.");
+                    moveBudgetWarningShown = true;
+                }
+            }
 
             if (constraintCenter != null) DrawMoveRadius(constraintCenter.transform.position, constraintRadius, constraintColor);
             else if (radiusIndicator != null) radiusIndicator.enabled = false;
@@ -864,6 +887,8 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 dragLastValidDelta = Vector3.zero; 
                 
                 currentMoveAction = new HistoryAction { isMoveEvent = true };
+                moveBudgetWarningShown = false;
+                if (BuildUIController.Instance != null) BuildUIController.Instance.MarkBridgeDirty();
                 foreach (Point p in Point.AllPoints) 
                 {
                     if (p.gameObject.activeSelf) currentMoveAction.originalPositions[p] = p.transform.position;
@@ -1017,13 +1042,20 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
                 if (!didMerge && currentMoveAction != null)
                 {
+                    bool positionChanged = false;
                     foreach (Point p in Point.AllPoints) 
                     {
-                        if (p.gameObject.activeSelf) currentMoveAction.newPositions[p] = p.transform.position;
+                        if (!p.gameObject.activeSelf) continue;
+                        currentMoveAction.newPositions[p] = p.transform.position;
+                        if (currentMoveAction.originalPositions.TryGetValue(p, out Vector3 original) &&
+                            (p.transform.position - original).sqrMagnitude > 0.000001f) positionChanged = true;
                     }
 
-                    if (CommandManager.Instance != null) CommandManager.Instance.RecordAction(currentMoveAction);
-                    if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("Selection Moved");
+                    if (positionChanged)
+                    {
+                        if (CommandManager.Instance != null) CommandManager.Instance.RecordAction(currentMoveAction);
+                        if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("Selection Moved");
+                    }
                 }
 
                 currentMoveAction = null;

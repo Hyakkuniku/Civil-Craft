@@ -7,6 +7,8 @@ public class SettingsManager : MonoBehaviour
 {
     private const string AudioStartupMigrationKey = "AudioSettingsStartupFixV1";
     private static readonly int[] FrameRateCaps = { 30, 60, 90, 120 };
+    private static int DefaultQualityIndex => Mathf.Clamp(Application.isMobilePlatform ? 1 : 2,
+        0, Mathf.Max(0, QualitySettings.names.Length - 1));
 
     [Header("UI Panel Visibility")]
     public GameObject settingsPanel;
@@ -201,6 +203,10 @@ public class SettingsManager : MonoBehaviour
     {
         int clampedIndex = Mathf.Clamp(qualityIndex, 0, Mathf.Max(0, QualitySettings.names.Length - 1));
         QualitySettings.SetQualityLevel(clampedIndex);
+        // Presets can restore vSync; keep the player's explicit frame cap.
+        QualitySettings.vSyncCount = 0;
+        Application.targetFrameRate = FrameRateCaps[Mathf.Clamp(
+            PlayerPrefs.GetInt("FrameRateOption", 1), 0, FrameRateCaps.Length - 1)];
         PlayerPrefs.SetInt("QualityLevel", clampedIndex);
         PlayerPrefs.Save();
     }
@@ -285,7 +291,7 @@ public class SettingsManager : MonoBehaviour
         PlayerPrefs.SetFloat("PrefSFX", 0.9f);
         PlayerPrefs.SetFloat("PrefAmbient", 0.85f);
         PlayerPrefs.SetFloat("PrefUI", 0.9f);
-        PlayerPrefs.SetInt("QualityLevel", Mathf.Clamp(2, 0, Mathf.Max(0, QualitySettings.names.Length - 1)));
+        PlayerPrefs.SetInt("QualityLevel", DefaultQualityIndex);
         PlayerPrefs.SetInt("EnableShadows", 1);
         PlayerPrefs.SetInt("FrameRateOption", 1);
         PlayerPrefs.SetInt("FrameRateCap", 60);
@@ -375,16 +381,16 @@ public class SettingsManager : MonoBehaviour
         ApplyMuteState(isMuted);
 
         // 2. Load Graphics & Gameplay
-        if (qualityDropdown != null)
-        {
-            int savedQuality = Mathf.Clamp(
-                PlayerPrefs.GetInt("QualityLevel", Mathf.Clamp(2, 0, Mathf.Max(0, QualitySettings.names.Length - 1))),
+        int savedQuality = Mathf.Clamp(
+                PlayerPrefs.GetInt("QualityLevel", DefaultQualityIndex),
                 0,
                 Mathf.Max(0, QualitySettings.names.Length - 1));
+        if (qualityDropdown != null)
+        {
             qualityDropdown.SetValueWithoutNotify(savedQuality);
             qualityDropdown.RefreshShownValue();
-            SetQuality(savedQuality);
         }
+        SetQuality(savedQuality);
 
         if (shadowsToggle != null)
         {

@@ -16,6 +16,13 @@ public class PathGuider : MonoBehaviour
     public float rockPickupDistance = 2.0f;
     [Tooltip("Randomize rock rotation so they look natural?")]
     public bool randomizeRotation = true;
+    [Tooltip("Face directional markers along the route. Preserves the prefab rotation and overrides random rotation.")]
+    public bool facePathDirection;
+
+    [Header("Footprint Trail")]
+    [Tooltip("Footprints face the destination and appear in walking order, then stay still. Disable for the original rock effect.")]
+    public bool footprintTrail = true;
+    [Min(0.02f)] public float footprintStepDelay = 0.14f;
 
     [Header("Visual Effects")]
     [Tooltip("Uncheck this to turn off the sparkle effects completely.")]
@@ -184,7 +191,14 @@ public class PathGuider : MonoBehaviour
         {
             if (activeRocks[i].obj == null) continue;
 
-            if (animateWave)
+            if (footprintTrail)
+            {
+                // One planted step after another, not rocks breathing in place.
+                float reveal = Mathf.SmoothStep(0f, 1f,
+                    (Time.unscaledTime - activeRocks[i].spawnedAt) / 0.16f);
+                activeRocks[i].obj.transform.localScale = activeRocks[i].baseScale * reveal;
+            }
+            else if (animateWave)
             {
                 // A sine wave is continuous at the loop boundary. The previous
                 // fractional sawtooth jumped from full size to minimum size and
@@ -470,8 +484,9 @@ public class PathGuider : MonoBehaviour
 
         List<TrackedRock> newlySpawnedRocks = new List<TrackedRock>();
 
-        foreach (Vector3 point in pathPoints)
+        for (int pointIndex = 0; pointIndex < pathPoints.Count; pointIndex++)
         {
+            Vector3 point = pathPoints[pointIndex];
             float dist = Vector3.Distance(lastPos, point);
             distanceSinceLastRock += dist;
 
@@ -505,16 +520,54 @@ public class PathGuider : MonoBehaviour
                     ? Quaternion.FromToRotation(Vector3.up, hit.normal)
                     : Quaternion.identity;
 
-                if (randomizeRotation)
+                if (footprintTrail || facePathDirection)
+                {
+                    Vector3 normal = foundSurface ? hit.normal : Vector3.up;
+                    Vector3 direction = point - lastPos;
+                    // Look ahead around corners instead of pointing along the
+                    // segment the player has already traversed.
+                    for (int next = pointIndex + 1; next < pathPoints.Count; next++)
+                    {
+                        Vector3 ahead = pathPoints[next] - point;
+                        if (ahead.sqrMagnitude < 0.0001f) continue;
+                        direction = ahead;
+                        break;
+                    }
+                    if (direction.sqrMagnitude < 0.0001f && pathPoints.Count > 1)
+                        direction = pathPoints[1] - pathPoints[0];
+                    Vector3 forward = Vector3.ProjectOnPlane(direction, normal);
+                    if (forward.sqrMagnitude > 0.0001f)
+                        slopeRotation = Quaternion.LookRotation(forward.normalized, normal);
+                }
+                else if (randomizeRotation)
                 {
                     slopeRotation *= Quaternion.Euler(0, Random.Range(0f, 360f), 0);
                 }
 
                 GameObject randomPrefab = rockPrefabs[Random.Range(0, rockPrefabs.Count)];
-                GameObject newRock = Instantiate(randomPrefab, spawnPos, slopeRotation);
+                if (randomPrefab == null) continue;
+                // Preserve the authored correction that lays flat marker meshes
+                // onto the ground instead of spawning them upright.
+                GameObject markerVisual = Instantiate(randomPrefab, spawnPos,
+                    slopeRotation * randomPrefab.transform.localRotation);
 
-                Vector3 desiredScale = newRock.transform.localScale * rockScaleMultiplier;
-                newRock.transform.localScale = desiredScale;
+                markerVisual.transform.localScale *= rockScaleMultiplier;
+                // Animate a ground-level pivot, not an imported mesh origin.
+                // An offset FBX pivot otherwise pulls the print underground
+                // during the reveal, even when its full-size bounds were lifted.
+                GameObject newRock = new GameObject("Trail Marker");
+                newRock.transform.position = spawnPos;
+                markerVisual.transform.SetParent(newRock.transform, true);
+                Renderer[] markerRenderers = markerVisual.GetComponentsInChildren<Renderer>();
+                if (markerRenderers.Length > 0)
+                {
+                    Bounds bounds = markerRenderers[0].bounds;
+                    for (int r = 1; r < markerRenderers.Length; r++)
+                        bounds.Encapsulate(markerRenderers[r].bounds);
+                    Vector3 bottomCenter = new Vector3(bounds.center.x, bounds.min.y, bounds.center.z);
+                    markerVisual.transform.position += spawnPos - bottomCenter;
+                }
+                Vector3 desiredScale = Vector3.one;
                 if (foundSurface)
                     LiftMarkerAboveSurface(newRock, hit);
                 else
@@ -531,7 +584,9 @@ public class PathGuider : MonoBehaviour
                 // Bundle it up with its scale target and track it!
                 TrackedRock tr = new TrackedRock
                 {
-                    obj = newRock, baseScale = desiredScale, spawnedAt = Time.unscaledTime,
+                    obj = newRock, baseScale = desiredScale,
+                    spawnedAt = Time.unscaledTime + (footprintTrail
+                        ? newlySpawnedRocks.Count * Mathf.Max(0.02f, footprintStepDelay) : 0f),
                     waveIndex = activeRocks.Count + newlySpawnedRocks.Count
                 };
                 newlySpawnedRocks.Add(tr);
@@ -686,6 +741,9 @@ public class PathGuider : MonoBehaviour
     private int GetGuideSurfaceMask()
     {
         int mask = groundLayer.value;
+        // The scene uses both Ground and Environment for its walking surfaces.
+        int terrainLayer = LayerMask.NameToLayer("Ground");
+        if (terrainLayer >= 0) mask |= 1 << terrainLayer;
         int bridgeLayer = LayerMask.NameToLayer(walkableBridgeLayer);
         if (bridgeLayer >= 0) mask |= 1 << bridgeLayer;
 

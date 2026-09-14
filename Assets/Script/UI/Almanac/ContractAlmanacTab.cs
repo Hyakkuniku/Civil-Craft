@@ -297,6 +297,21 @@ public class ContractAlmanacTab : MonoBehaviour
         RectTransform leftRoot = snapshotCaptionText.transform.parent as RectTransform;
         RectTransform rightRoot = titleText.transform.parent as RectTransform;
 
+        // Scene-authored page zones used different sizing rules: the photo's
+        // zone filled the whole book while the details had a fixed pixel width.
+        // Normalize both against the shared contract panel before laying out
+        // their children, leaving a gutter around the book spine.
+        RectTransform leftPage = leftRoot != null ? leftRoot.parent as RectTransform : null;
+        RectTransform rightPage = rightRoot != null ? rightRoot.parent as RectTransform : null;
+        if (leftPage != null && rightPage != null && leftPage != rightPage &&
+            leftPage.parent == rightPage.parent)
+        {
+            SetNormalizedRect(leftPage, new Vector2(0.025f, 0.04f), new Vector2(0.49f, 0.96f));
+            SetNormalizedRect(rightPage, new Vector2(0.51f, 0.04f), new Vector2(0.975f, 0.90f));
+            SetNormalizedRect(leftRoot, Vector2.zero, Vector2.one);
+            SetNormalizedRect(rightRoot, Vector2.zero, Vector2.one);
+        }
+
         if (photoFrame != null)
         {
             SetNormalizedRect(photoFrame, new Vector2(0.10f, 0.31f), new Vector2(0.90f, 0.76f));
@@ -310,6 +325,9 @@ public class ContractAlmanacTab : MonoBehaviour
         }
 
         RectTransform snapshotRect = snapshotImage.rectTransform;
+        AspectRatioFitter photoAspect = snapshotImage.GetComponent<AspectRatioFitter>();
+        if (photoAspect != null) photoAspect.enabled = false;
+        snapshotRect.pivot = new Vector2(0.5f, 0.5f);
         Stretch(snapshotRect, 14f, 14f, 14f, 14f);
         snapshotImage.raycastTarget = false;
 
@@ -365,6 +383,29 @@ public class ContractAlmanacTab : MonoBehaviour
 
         UpdateStarDisplay(displayedContract);
         UpdateSeeInMapVisibility();
+    }
+
+    private void LateUpdate()
+    {
+        if (snapshotImage == null || !snapshotImage.isActiveAndEnabled || snapshotImage.texture == null) return;
+        // Fill the inset rectangle without stretching the photograph. UV cropping
+        // leaves a uniform border and avoids a fitter overriding the authored pivot.
+        Rect rect = snapshotImage.rectTransform.rect;
+        if (rect.width <= 0f || rect.height <= 0f) return;
+        float imageAspect = (float)snapshotImage.texture.width / Mathf.Max(1, snapshotImage.texture.height);
+        float frameAspect = rect.width / rect.height;
+        Rect crop = new Rect(0f, 0f, 1f, 1f);
+        if (imageAspect > frameAspect)
+        {
+            crop.width = frameAspect / imageAspect;
+            crop.x = (1f - crop.width) * 0.5f;
+        }
+        else
+        {
+            crop.height = imageAspect / frameAspect;
+            crop.y = (1f - crop.height) * 0.5f;
+        }
+        if (snapshotImage.uvRect != crop) snapshotImage.uvRect = crop;
     }
 
     private void BuildLeftDecor(RectTransform parent, TMP_Text fontTemplate)

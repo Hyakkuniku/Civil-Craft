@@ -68,6 +68,7 @@ public sealed class DynamicNavMeshUpdater : MonoBehaviour
     private bool asyncUpdateInProgress;
     private bool ownsRuntimeBridgeSurface;
     private Transform generatedBridgeLinksRoot;
+    private readonly Dictionary<Point, NavMeshLink> generatedTerminalLinks = new Dictionary<Point, NavMeshLink>();
 
     public bool IsUpdating => asyncUpdateInProgress;
     public bool HasPendingOrRunningUpdate => updateRequested || updateRoutine != null || asyncUpdateInProgress;
@@ -355,6 +356,11 @@ public sealed class DynamicNavMeshUpdater : MonoBehaviour
         generatedBridgeLinksRoot = rootObject.transform;
 
         int createdCount = 0;
+        NavMeshQueryFilter filter = new NavMeshQueryFilter
+        {
+            agentTypeID = navMeshSurface.agentTypeID,
+            areaMask = NavMesh.AllAreas
+        };
         foreach (BuildLocation location in Resources.FindObjectsOfTypeAll<BuildLocation>())
         {
             if (!IsLoadedSceneObject(location) || location.bakedBars == null) continue;
@@ -365,6 +371,7 @@ public sealed class DynamicNavMeshUpdater : MonoBehaviour
                 if (bar == null || bar.materialData == null || !bar.materialData.isRoad ||
                     bar.startPoint == null || bar.endPoint == null) continue;
 
+                if (!bar.gameObject.activeInHierarchy) continue;
                 AddRoadConnection(roadConnections, bar.startPoint, bar.endPoint);
                 AddRoadConnection(roadConnections, bar.endPoint, bar.startPoint);
             }
@@ -389,12 +396,12 @@ public sealed class DynamicNavMeshUpdater : MonoBehaviour
                         bridgeCandidate,
                         out NavMeshHit bridgeHit,
                         bridgeLinkSampleRadius,
-                        NavMesh.AllAreas) ||
+                        filter) ||
                     !NavMesh.SamplePosition(
                         landCandidate,
                         out NavMeshHit landHit,
                         bridgeLinkSampleRadius,
-                        NavMesh.AllAreas))
+                        filter))
                     continue;
 
                 if ((bridgeHit.position - landHit.position).sqrMagnitude < 0.04f)
@@ -416,6 +423,7 @@ public sealed class DynamicNavMeshUpdater : MonoBehaviour
                 link.autoUpdate = true;
                 int traversalArea = NavMesh.GetAreaFromName(PreferredRoadNavigation.LinkAreaName);
                 link.area = traversalArea >= 0 ? traversalArea : 0;
+                generatedTerminalLinks[pair.Key] = link;
                 createdCount++;
             }
         }
@@ -449,6 +457,7 @@ public sealed class DynamicNavMeshUpdater : MonoBehaviour
 
     private void ClearGeneratedBridgeEndLinks()
     {
+        generatedTerminalLinks.Clear();
         if (generatedBridgeLinksRoot == null) return;
 
         // Destroy is deferred; unregister old links before creating replacements.
@@ -460,7 +469,12 @@ public sealed class DynamicNavMeshUpdater : MonoBehaviour
     private void ValidateRoadCoverage()
     {
         int bridgeLayer = LayerMask.NameToLayer(walkableBridgeLayer);
-        int areaMask = NavMesh.AllAreas;
+        if (navMeshSurface == null) return;
+        NavMeshQueryFilter filter = new NavMeshQueryFilter
+        {
+            agentTypeID = navMeshSurface.agentTypeID,
+            areaMask = NavMesh.AllAreas
+        };
         int failedProbeCount = 0;
 
         BuildLocation[] locations = Resources.FindObjectsOfTypeAll<BuildLocation>();
@@ -473,20 +487,27 @@ public sealed class DynamicNavMeshUpdater : MonoBehaviour
                 if (bar == null || bar.materialData == null || !bar.materialData.isRoad ||
                     bar.startPoint == null || bar.endPoint == null) continue;
 
-                if (bridgeLayer >= 0 && bar.gameObject.layer != bridgeLayer) continue;
+                // Hidden build-mode geometry is intentionally absent from navigation.
+                if (!bar.gameObject.activeInHierarchy ||
+                    (bridgeLayer >= 0 && bar.gameObject.layer != bridgeLayer)) continue;
 
                 Vector3 start = bar.startPoint.transform.position;
                 Vector3 end = bar.endPoint.transform.position;
                 Vector3 midpoint = Vector3.Lerp(start, end, 0.5f);
 
-                if (!ProbeRoadPoint(start, areaMask) ||
-                    !ProbeRoadPoint(midpoint, areaMask) ||
-                    !ProbeRoadPoint(end, areaMask))
+                bool startCovered = ProbeRoadPoint(start, filter) ||
+                    HasTraversableTerminalLink(bar.startPoint, midpoint, filter);
+                bool middleCovered = ProbeRoadPoint(midpoint, filter);
+                bool endCovered = ProbeRoadPoint(end, filter) ||
+                    HasTraversableTerminalLink(bar.endPoint, midpoint, filter);
+                if (!startCovered || !middleCovered || !endCovered)
                 {
                     failedProbeCount++;
                     Debug.LogWarning(
                         $"[DynamicNavMeshUpdater] NavMesh does not fully cover road bar '{bar.name}' at " +
-                        $"build location '{location.name}'. Check Surface volume, voxel size, slope, and layer mask.",
+                        $"build location '{location.name}' (start={startCovered}, middle={middleCovered}, end={endCovered}, " +
+                        $"agent={filter.agentTypeID}). Check Surface volume, voxel size, slope, and layer mask. " +
+                        "This navigation warning does not remove saved contracts or bridge designs.",
                         bar);
                 }
             }
@@ -496,11 +517,37 @@ public sealed class DynamicNavMeshUpdater : MonoBehaviour
             Debug.Log("[DynamicNavMeshUpdater] Runtime bridge NavMesh coverage probes passed.", this);
     }
 
-    private bool ProbeRoadPoint(Vector3 worldPoint, int areaMask)
+    private bool ProbeRoadPoint(Vector3 worldPoint, NavMeshQueryFilter filter)
     {
-        if (!NavMesh.SamplePosition(worldPoint, out NavMeshHit hit, roadProbeDistance, areaMask))
+        if (!NavMesh.SamplePosition(worldPoint, out NavMeshHit hit, roadProbeDistance, filter))
             return false;
 
         return Mathf.Abs(hit.position.y - worldPoint.y) <= roadProbeDistance;
+    }
+
+    private bool HasTraversableTerminalLink(Point terminal, Vector3 roadMiddle, NavMeshQueryFilter filter)
+    {
+        // Agent-radius erosion keeps the mesh back from a road-chain edge.
+        // Only an actual terminal link can replace endpoint coverage; never
+        // relax the probes at internal road joints or across unconnected gaps.
+        if (!generatedTerminalLinks.TryGetValue(terminal, out NavMeshLink link) ||
+            link == null || !link.isActiveAndEnabled) return false;
+
+        Vector3 bridgeEnd = link.transform.TransformPoint(link.startPoint);
+        Vector3 landEnd = link.transform.TransformPoint(link.endPoint);
+        if (!NavMesh.SamplePosition(roadMiddle, out NavMeshHit middleHit, roadProbeDistance, filter) ||
+            NavMesh.Raycast(middleHit.position, bridgeEnd, out _, filter)) return false;
+
+        NavMeshPath path = new NavMeshPath();
+        if (!NavMesh.CalculatePath(bridgeEnd, landEnd, filter, path) ||
+            path.status != NavMeshPathStatus.PathComplete) return false;
+
+        // A distant detour through another ravine does not validate this link.
+        Vector3[] corners = path.corners;
+        float pathLength = 0f;
+        for (int i = 1; i < corners.Length; i++)
+            pathLength += Vector3.Distance(corners[i - 1], corners[i]);
+        return corners.Length >= 2 && pathLength <=
+            bridgeLinkInset + bridgeLinkLandReach + 2f * bridgeLinkSampleRadius;
     }
 }

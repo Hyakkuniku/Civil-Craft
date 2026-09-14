@@ -264,7 +264,7 @@ public class NPCProgressionManager : MonoBehaviour
         return $"{phaseIndex}: {label} - {contractName}";
     }
 
-    public bool TryGetContractForBuildLocation(BuildLocation location, out ContractSO contract)
+    public bool TryGetContractForBuildLocation(BuildLocation location, out ContractSO contract, bool savedOnly = false)
     {
         contract = null;
         if (location == null || phases == null) return false;
@@ -272,6 +272,8 @@ public class NPCProgressionManager : MonoBehaviour
         foreach (NPCProgressionPhase phase in phases)
         {
             if (phase == null || phase.targetBuildLocation != location || phase.contract == null) continue;
+            if (savedOnly && (PlayerDataManager.Instance == null ||
+                !PlayerDataManager.Instance.HasValidSavedBridge(phase.contract.ContractID))) continue;
             contract = phase.contract;
             return true;
         }

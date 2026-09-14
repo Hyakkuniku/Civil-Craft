@@ -80,6 +80,8 @@ public sealed class ExpandedMinimapController : MonoBehaviour
     private RectTransform completedLocationDivider;
     private BuildLocation detailsLocation;
     private float nextDetailsRefresh;
+    private float nextMarkerMetadataRefresh;
+    private float nextActionPanelRefresh;
     private Button locationActionButton;
     private BuildLocation selectedLocation;
     private BuildLocation navigationDestination;
@@ -200,7 +202,6 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         if (!isExpanded || isAnimating) return;
 
         HandlePinchZoom();
-        UpdateMarkerPositions();
 
         if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
             CloseExpandedMap();
@@ -744,6 +745,12 @@ public sealed class ExpandedMinimapController : MonoBehaviour
     private void UpdateMarkerPositions()
     {
         if (markerLayer == null || minimapCamera == null) return;
+        if (!markerLayer.gameObject.activeInHierarchy) return;
+
+        // Projection and pulsing stay smooth; contract lookup and label strings
+        // only need a low-frequency refresh, not one allocation per marker/frame.
+        bool refreshMetadata = Time.unscaledTime >= nextMarkerMetadataRefresh;
+        if (refreshMetadata) nextMarkerMetadataRefresh = Time.unscaledTime + 0.2f;
 
         Rect rect = markerLayer.rect;
         float pulse = 1f + Mathf.Sin(Time.unscaledTime * 4.5f) * 0.12f;
@@ -760,8 +767,11 @@ public sealed class ExpandedMinimapController : MonoBehaviour
             marker.root.anchoredPosition = new Vector2(
                 (viewport.x - 0.5f) * rect.width,
                 (viewport.y - 0.5f) * rect.height);
-            marker.image.color = GetMarkerColor(marker.location);
-            marker.label.text = GetMarkerLabel(marker.location);
+            if (refreshMetadata)
+            {
+                marker.image.color = GetMarkerColor(marker.location);
+                marker.label.text = GetMarkerLabel(marker.location);
+            }
             bool isNavigationDestination = marker.location == navigationDestination;
             marker.label.gameObject.SetActive(
                 !string.IsNullOrEmpty(marker.label.text) &&
@@ -778,6 +788,8 @@ public sealed class ExpandedMinimapController : MonoBehaviour
     {
         if (!isExpanded || location == null) return;
         selectedLocation = location;
+        nextActionPanelRefresh = 0f;
+        nextMarkerMetadataRefresh = 0f;
         Vector3 center = GetLocationWorldPosition(location);
         center.y = minimapCamera.transform.position.y;
         SetCameraCenterClamped(center);
@@ -821,6 +833,9 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
     private void UpdateLocationActionPanel()
     {
+        if (!isExpanded || controlsRoot == null || !controlsRoot.activeInHierarchy) return;
+        if (Time.unscaledTime < nextActionPanelRefresh) return;
+        nextActionPanelRefresh = Time.unscaledTime + 0.2f;
         if (locationActionButton == null || selectedLocationLabel == null || locationActionLabel == null)
             return;
 
