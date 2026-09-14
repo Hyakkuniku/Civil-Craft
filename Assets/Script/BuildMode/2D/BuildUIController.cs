@@ -825,7 +825,7 @@ public class BuildUIController : MonoBehaviour
         }
 
         ContractSO currentContract = GameManager.Instance != null ? GameManager.Instance.CurrentContract : null;
-        float liveLoad = currentContract != null ? currentContract.liveLoadWeight : 1000f;
+        float liveLoad = LiveLoadVehicle.GetContractTestWeight(currentContract);
         
         float estimatedFoS = 0f;
         if (liveLoad > 0) estimatedFoS = theoreticalCapacityKg / liveLoad;
@@ -1046,6 +1046,29 @@ public class BuildUIController : MonoBehaviour
 
         if (physicsManager != null && !physicsManager.isSimulating) 
         { 
+            ContractSO testContract = GameManager.Instance != null ? GameManager.Instance.CurrentContract : null;
+            if (testContract != null && testContract.liveLoadMode == ContractSO.LiveLoadMode.Vehicle &&
+                testContract.allowVehicleCargo && testContract.minimumLoadedCargo > 0)
+            {
+                LiveLoadVehicle vehicle = LiveLoadVehicle.FindActiveForContract(testContract);
+                int loaded = vehicle != null ? vehicle.LoadedCargoCount : 0;
+                if (loaded < testContract.minimumLoadedCargo)
+                {
+                    LogAction($"Load cargo into the vehicle before testing ({loaded}/{testContract.minimumLoadedCargo}).");
+                    return;
+                }
+            }
+            if (GameManager.Instance != null && GameManager.Instance.CurrentContract != null &&
+                GameManager.Instance.CurrentContract.liveLoadMode == ContractSO.LiveLoadMode.PlayerCarriedCargo)
+            {
+                if (GameManager.Instance.TryBeginCargoTest(physicsManager))
+                {
+                    if (barCreator != null) { barCreator.CancelAllModes(); barCreator.isSimulating = true; }
+                    SetSelectionPanelActive(false);
+                    LogAction("Cargo crossing test started. Carry the assigned cargo to its drop location and tap Place Cargo.");
+                }
+                return;
+            }
             if (barCreator != null) { barCreator.CancelAllModes(); barCreator.isSimulating = true; } 
             SetSelectionPanelActive(false);
             physicsManager.ActivatePhysics(); 
@@ -1055,6 +1078,8 @@ public class BuildUIController : MonoBehaviour
     
     public void OnRestartButtonClicked() 
     { 
+        if (GameManager.Instance != null && GameManager.Instance.IsCargoTestActive)
+        { GameManager.Instance.CancelCargoTest(); return; }
         PlayBuildButtonClickSfx();
         if (IsTutorialContractActive())
         {

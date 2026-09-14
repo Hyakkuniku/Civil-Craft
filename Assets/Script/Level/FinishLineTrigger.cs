@@ -11,8 +11,21 @@ public class FinishLineTrigger : MonoBehaviour
     [Header("Events")]
     public UnityEvent OnLevelCompleted;
 
+    private void Reset() { GetComponent<BoxCollider>().isTrigger = true; }
+
     private void OnTriggerEnter(Collider other)
     {
+        // A scene can contain finish zones for several contracts. Only the active
+        // contract may react, including legacy vehicle zones during a cargo test.
+        if (GameManager.Instance != null && GameManager.Instance.CurrentContract != null &&
+            assignedContract != GameManager.Instance.CurrentContract) return;
+        if (assignedContract != null && assignedContract.liveLoadMode == ContractSO.LiveLoadMode.PlayerCarriedCargo)
+        {
+            // Player cargo tests finish through an explicit Place Cargo interaction.
+            // Merely crossing this vehicle finish trigger must not complete delivery.
+            return;
+        }
+        if (GameManager.Instance != null && GameManager.Instance.IsCargoTestActive) return;
         if (assignedContract != null && assignedContract.winCondition == ContractSO.WinCondition.Timer)
         {
             return;

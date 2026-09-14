@@ -22,6 +22,57 @@ public class LiveLoadVehicle : Interactable
 
     [Header("Open World Settings")]
     public ContractSO assignedContract; 
+    private readonly List<VehicleCargoSlot> cargoSlots = new List<VehicleCargoSlot>();
+    public bool AllowsCargo => assignedContract != null &&
+        assignedContract.liveLoadMode == ContractSO.LiveLoadMode.Vehicle && assignedContract.allowVehicleCargo;
+    public bool CanChangeCargo => isActiveAndEnabled && AllowsCargo && !isDriving &&
+        (physicsManager == null || !physicsManager.IsSimulationActive) &&
+        (GameManager.Instance == null || GameManager.Instance.CurrentState == GameManager.GameState.Normal);
+    public int LoadedCargoCount
+    {
+        get
+        {
+            int count = 0;
+            foreach (var slot in cargoSlots)
+                if (slot != null && slot.LoadedCargo != null && slot.LoadedCargo.gameObject.activeInHierarchy) count++;
+            return count;
+        }
+    }
+    public float PayloadWeight
+    {
+        get
+        {
+            if (!AllowsCargo) return 0f;
+            float total = 0f;
+            foreach (var slot in cargoSlots) if (slot != null) total += slot.LoadedWeight;
+            return total;
+        }
+    }
+    public float TotalTestWeight => Mathf.Max(0.01f,
+        (assignedContract != null ? assignedContract.liveLoadWeight : vehicleMass) + PayloadWeight);
+    public void RegisterCargoSlot(VehicleCargoSlot slot)
+    {
+        if (slot != null && !cargoSlots.Contains(slot)) cargoSlots.Add(slot);
+    }
+    public void RefreshCargoMass()
+    {
+        if (rb != null) rb.mass = TotalTestWeight;
+    }
+    public static LiveLoadVehicle FindActiveForContract(ContractSO contract)
+    {
+        if (contract == null) return null;
+        foreach (var vehicle in FindObjectsOfType<LiveLoadVehicle>())
+            if (vehicle.isActiveAndEnabled && vehicle.assignedContract == contract) return vehicle;
+        return null;
+    }
+    public static float GetContractTestWeight(ContractSO contract)
+    {
+        if (contract == null) return 1000f;
+        if (contract.liveLoadMode != ContractSO.LiveLoadMode.Vehicle || !contract.allowVehicleCargo)
+            return contract.liveLoadWeight;
+        LiveLoadVehicle vehicle = FindActiveForContract(contract);
+        return vehicle != null ? vehicle.TotalTestWeight : contract.liveLoadWeight;
+    }
 
     // --- NEW: Tutorial Integration ---
     [Header("Tutorial Settings")]
@@ -39,6 +90,8 @@ public class LiveLoadVehicle : Interactable
     public Transform endPoint;
     [Tooltip("When enabled, bridge testing teleports the cart to Start. Disable this when the cart's authored scene position is already the intended starting pose.")]
     [SerializeField] private bool resetToStartPointBeforeSimulation = true;
+    [Tooltip("Use marker rotations when resetting or loading a parked vehicle. Disable to preserve the scene-authored facing.")]
+    [SerializeField] private bool useWaypointRotation = true;
 
     [Header("Engine & Chassis")]
     public float maxSpeed = 5f;
@@ -219,9 +272,9 @@ public class LiveLoadVehicle : Interactable
                 if (endPoint != null)
                 {
                     rb.position = endPoint.position;
-                    rb.rotation = endPoint.rotation;
+                    rb.rotation = useWaypointRotation ? endPoint.rotation : authoredStartRotation;
                     transform.position = endPoint.position;
-                    transform.rotation = endPoint.rotation;
+                    transform.rotation = useWaypointRotation ? endPoint.rotation : authoredStartRotation;
 
                     foreach (var w in wheels)
                     {
@@ -309,6 +362,7 @@ public class LiveLoadVehicle : Interactable
 
     private void HandleSettlePhaseStarted()
     {
+        if (IsPlayerCargoContract()) return;
         if (GameManager.Instance != null && assignedContract != null && GameManager.Instance.CurrentContract != assignedContract) return;
 
         hasReachedEnd = false; 
@@ -317,7 +371,7 @@ public class LiveLoadVehicle : Interactable
         settledAtFinishTimer = 0f;
         currentMotorSpeed = 0f; 
 
-        if (assignedContract != null) { vehicleMass = assignedContract.liveLoadWeight; if (rb != null) rb.mass = vehicleMass; }
+        RefreshCargoMass();
 
         StripWheelPhysics(); 
 
@@ -358,6 +412,7 @@ public class LiveLoadVehicle : Interactable
 
     private void HandleSimulationStarted()
     {
+        if (IsPlayerCargoContract()) return;
         if (GameManager.Instance != null && assignedContract != null && GameManager.Instance.CurrentContract != assignedContract) return;
         
         rb.isKinematic = false;
@@ -378,7 +433,14 @@ public class LiveLoadVehicle : Interactable
 
     private void HandleSimulationStopped()
     {
+        if (IsPlayerCargoContract()) return;
         StopAndReset();
+    }
+
+    private static bool IsPlayerCargoContract()
+    {
+        return GameManager.Instance != null && GameManager.Instance.CurrentContract != null &&
+            GameManager.Instance.CurrentContract.liveLoadMode == ContractSO.LiveLoadMode.PlayerCarriedCargo;
     }
 
     private void Update()
@@ -404,8 +466,10 @@ public class LiveLoadVehicle : Interactable
 
             if (vehicleNameText != null) vehicleNameText.text = vehicleName;
             
-            float displayWeight = assignedContract != null ? assignedContract.liveLoadWeight : vehicleMass;
-            if (vehicleWeightText != null) vehicleWeightText.text = $"Weight: {displayWeight} kg";
+            float displayWeight = TotalTestWeight;
+            if (vehicleWeightText != null) vehicleWeightText.text = AllowsCargo
+                ? $"Weight: {displayWeight} kg (cargo: {PayloadWeight} kg)"
+                : $"Weight: {displayWeight} kg";
             if (vehicleSpeedText != null) vehicleSpeedText.text = $"Top Speed: {maxSpeed} m/s";
 
             inspectionUsesPanelCoordinator = UIPanelCoordinator.Instance != null;
@@ -554,7 +618,7 @@ public class LiveLoadVehicle : Interactable
         if (resetToStartPointBeforeSimulation && startPoint != null)
         {
             targetPosition = startPoint.position;
-            targetRotation = startPoint.rotation;
+            if (useWaypointRotation) targetRotation = startPoint.rotation;
         }
 
         rb.position = targetPosition;

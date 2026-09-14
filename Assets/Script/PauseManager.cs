@@ -75,7 +75,7 @@ public class PauseManager : MonoBehaviour
         {
             // If the player is building, the GameManager uses Escape to exit build mode. 
             // We don't want to pause the game at the same time!
-            if (GameManager.Instance != null && GameManager.Instance.CurrentState == GameManager.GameState.Building)
+            if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Normal)
             {
                 return; 
             }

@@ -941,6 +941,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
     private void FastTravelToLocation(BuildLocation location)
     {
+        if (GameManager.Instance != null && GameManager.Instance.IsCargoTestActive) return;
         if (location == null || isFastTraveling || isAnimating || !isExpanded) return;
         fastTravelRoutine = StartCoroutine(AnimateFastTravel(location));
     }
@@ -1026,6 +1027,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
     private void TeleportToLocation(BuildLocation location)
     {
+        if (GameManager.Instance != null && GameManager.Instance.IsCargoTestActive) return;
         if (location == null) return;
 
         Transform player = minimapFollow != null ? minimapFollow.player : null;

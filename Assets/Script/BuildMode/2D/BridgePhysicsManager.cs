@@ -627,7 +627,7 @@ public class BridgePhysicsManager : MonoBehaviour
         if (!useDeterministicStressAnalysis) return;
 
         ContractSO contract = GameManager.Instance != null ? GameManager.Instance.CurrentContract : null;
-        float liveLoadKg = contract != null ? contract.liveLoadWeight : 1000f;
+        float liveLoadKg = LiveLoadVehicle.GetContractTestWeight(contract);
         deterministicStressResult = DeterministicBridgeStressSolver.Analyze(
             deterministicPoints,
             deterministicBars,

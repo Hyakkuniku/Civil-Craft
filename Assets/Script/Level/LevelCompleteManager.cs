@@ -531,7 +531,8 @@ public class LevelCompleteManager : MonoBehaviour
             cachedPhysicsManager.lockStressTracking = true;
         }
 
-        if (finishingVehicle == null)
+        if (finishingVehicle == null && (currentContract == null ||
+            currentContract.liveLoadMode != ContractSO.LiveLoadMode.PlayerCarriedCargo))
             finishingVehicle = FindVehicleForContract(currentContract);
 
         if (finishingVehicle != null)

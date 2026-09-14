@@ -109,6 +109,7 @@ public class LevelFailedManager : MonoBehaviour
                 return; 
             }
 
+            if (GameManager.Instance != null && GameManager.Instance.IsCargoTestActive) return;
             if (!IsVehicleForCurrentContract(activeVehicle))
                 CaptureActiveVehicle(FindVehicleForCurrentContract());
 
@@ -145,6 +146,7 @@ public class LevelFailedManager : MonoBehaviour
         activeVehicle = null;
         hasVehicleStartHeight = false;
         vehicleWasPresentForSimulation = false;
+        if (GameManager.Instance != null && GameManager.Instance.IsCargoTestActive) return;
         CaptureActiveVehicle(FindVehicleForCurrentContract());
     }
 
@@ -200,6 +202,11 @@ public class LevelFailedManager : MonoBehaviour
 
     private void InitiateFailure(string reason)
     {
+        if (GameManager.Instance != null && GameManager.Instance.IsCargoTestActive)
+        {
+            GameManager.Instance.CancelCargoTest();
+            return;
+        }
         if (isFailed) return;
         isFailed = true; 
 

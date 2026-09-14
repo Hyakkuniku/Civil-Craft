@@ -10,7 +10,211 @@ public class GameManager : MonoBehaviour
 {
     public static GameManager Instance { get; private set; }
 
-    public enum GameState { Normal, Building }
+    public enum GameState { Normal, Building, CargoTesting }
+    public bool IsCargoTestActive => cargoTestPhysics != null;
+    private BridgePhysicsManager cargoTestPhysics;
+    private CargoItem.TestSnapshot cargoSnapshot;
+    private Vector3 cargoTestPlayerPosition;
+    private Quaternion cargoTestPlayerRotation;
+    private bool cargoTestDeterministic, cargoTestVisualizer;
+    private readonly Dictionary<Behaviour, bool> cargoBuildUI = new Dictionary<Behaviour, bool>();
+    private bool cargoViewEntered;
+    private bool cargoGridVisible;
+    private UnityEngine.UI.Button cargoCancelButton;
+
+    private bool RejectCargoTest(string message)
+    {
+        Debug.LogWarning("[CargoTest] " + message, this);
+        if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction(message);
+        return false;
+    }
+
+    public bool TryBeginCargoTest(BridgePhysicsManager physics)
+    {
+        if (CurrentState != GameState.Building || isTransitioning || IsCargoTestActive ||
+            physics == null || currentPlayerTransform == null || ActiveBuildLocation == null) return false;
+        CargoItem cargo = ActiveBuildLocation.testCargo;
+        if (cargo == null)
+            return RejectCargoTest("No cargo assigned to " + ActiveBuildLocation.name + ". Assign Linked Cargo on the NPC contract phase or Test Cargo on this workbench.");
+        if (!cargo.gameObject.activeInHierarchy)
+            return RejectCargoTest("Test cargo '" + cargo.name + "' is inactive. Enable it and its parents before testing.");
+        if (cargo.IsPermanentlyLoaded)
+            return RejectCargoTest("This cargo is permanently loaded in a vehicle. Assign a different item for a player-carried crossing test.");
+        if (CurrentContract == null || CurrentContract.liveLoadMode != ContractSO.LiveLoadMode.PlayerCarriedCargo ||
+            CurrentContract.winCondition != ContractSO.WinCondition.FinishLine)
+            return RejectCargoTest("Cargo contracts must use PlayerCarriedCargo and the FinishLine win condition.");
+        bool hasFinish = false;
+        foreach (CargoDropLocation finish in FindObjectsOfType<CargoDropLocation>())
+        {
+            BoxCollider zone = finish.GetComponent<BoxCollider>();
+            if (finish.isActiveAndEnabled && finish.assignedContract == CurrentContract &&
+                zone != null && zone.enabled && zone.isTrigger) hasFinish = true;
+        }
+        if (!hasFinish || LevelCompleteManager.Instance == null)
+        {
+            return RejectCargoTest("Assign an active Cargo Drop Location with Is Trigger enabled to this exact contract, and a completion manager.");
+        }
+        cargoCancelButton = ActiveBuildLocation.cargoTestCancelButton != null
+            ? ActiveBuildLocation.cargoTestCancelButton.GetComponent<UnityEngine.UI.Button>() : null;
+        foreach (GameObject ui in buildModeUIElements)
+        {
+            if (ui != null && cargoCancelButton != null && cargoCancelButton.transform.IsChildOf(ui.transform))
+            {
+                return RejectCargoTest("Place the cancel button on the overworld Canvas, not inside the hidden BuildCanvas.");
+            }
+        }
+        if (CargoItem.IsCarriedBy(currentPlayerTransform) && !cargo.IsHeldBy(currentPlayerTransform))
+        {
+            Debug.LogWarning("[CargoTest] Put down the other cargo before starting this contract's test.", this);
+            return false;
+        }
+        // Capture the previous drop location AND its pickup lock before unlocking reuse.
+        cargoSnapshot = cargo.CaptureTestState();
+        cargoGridVisible = ActiveBuildLocation.IsGridVisualActive;
+        if (cargoCancelButton != null) cargoCancelButton.onClick.AddListener(CancelCargoTest);
+        cargo.SetWeight(CurrentContract.liveLoadWeight);
+        cargoTestPlayerPosition = currentPlayerTransform.position;
+        cargoTestPlayerRotation = currentPlayerTransform.rotation;
+        cargoTestPhysics = physics;
+        cargoTestDeterministic = physics.useDeterministicStressAnalysis;
+        cargoTestVisualizer = physics.enableVisualizer;
+        if (!cargo.BeginPlayerCargoTest(CurrentContract))
+        {
+            CancelCargoTest();
+            return RejectCargoTest("Could not unlock the assigned cargo for this crossing test.");
+        }
+        physics.useDeterministicStressAnalysis = false;
+        physics.enableVisualizer = true;
+        physics.ActivatePhysics();
+        StartCoroutine(EnterCargoTestView());
+        return true;
+    }
+
+    private IEnumerator EnterCargoTestView()
+    {
+        while (cargoTestPhysics != null && !cargoTestPhysics.isSimulating && cargoTestPhysics.IsSimulationActive)
+            yield return null;
+        if (cargoTestPhysics == null) yield break;
+        if (!cargoTestPhysics.isSimulating) { CancelCargoTest(); yield break; }
+        CurrentState = GameState.CargoTesting;
+        cargoViewEntered = true;
+        // Keep simulation scripts alive even when they live beneath BuildCanvas.
+        cargoBuildUI.Clear();
+        foreach (GameObject ui in buildModeUIElements)
+        {
+            if (ui == null) continue;
+            foreach (Canvas canvas in ui.GetComponentsInChildren<Canvas>(true))
+            { if (!cargoBuildUI.ContainsKey(canvas)) cargoBuildUI.Add(canvas, canvas.enabled); canvas.enabled = false; }
+            foreach (UnityEngine.UI.GraphicRaycaster raycaster in ui.GetComponentsInChildren<UnityEngine.UI.GraphicRaycaster>(true))
+            { if (!cargoBuildUI.ContainsKey(raycaster)) cargoBuildUI.Add(raycaster, raycaster.enabled); raycaster.enabled = false; }
+        }
+        RestoreDecorativeCanyons();
+        ActiveBuildLocation.SetGridVisualActive(false);
+        if (ActiveBuildLocation.locationCamera != null) ActiveBuildLocation.locationCamera.enabled = false;
+        if (mainCamera != null)
+        {
+            mainCamera.transform.SetParent(mainCamParent, false);
+            mainCamera.transform.localPosition = mainCamLocalPos;
+            mainCamera.transform.localRotation = mainCamLocalRot;
+            mainCamera.enabled = true;
+        }
+        // Do not invoke OnExitBuildMode: that would discard the simulation/draft.
+        foreach (var entry in uiStateBeforeBuildMode) if (entry.Key != null) entry.Key.SetActive(entry.Value);
+        SetCargoPlayerControl(true);
+        if (ActiveBuildLocation.cargoTestCancelButton != null) ActiveBuildLocation.cargoTestCancelButton.SetActive(true);
+        while (cargoTestPhysics != null && CurrentState == GameState.CargoTesting)
+        {
+            if (currentPlayerTransform == null || ActiveBuildLocation.testCargo == null ||
+                currentPlayerTransform.position.y < cargoTestPlayerPosition.y - 8f ||
+                ActiveBuildLocation.testCargo.transform.position.y < cargoSnapshot.position.y - 8f ||
+                cargoTestPhysics.HadBrokenPartsThisRun || !cargoTestPhysics.IsSimulationActive)
+            { CancelCargoTest(); yield break; }
+            if ((Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame) ||
+                (Gamepad.current != null && Gamepad.current.buttonEast.wasPressedThisFrame))
+            { CancelCargoTest(); yield break; }
+            yield return null;
+        }
+    }
+
+    private void SetCargoPlayerControl(bool enabled)
+    {
+        InputManager input = FindObjectOfType<InputManager>();
+        if (input != null) { input.SetPlayerInputEnable(enabled); input.SetLookEnabled(enabled); }
+        if (currentPlayerTransform == null) return;
+        PlayerMotor motor = currentPlayerTransform.GetComponent<PlayerMotor>();
+        if (motor != null) motor.enabled = enabled;
+        PlayerInteract interaction = currentPlayerTransform.GetComponent<PlayerInteract>();
+        if (interaction != null) interaction.enabled = enabled;
+    }
+
+    private void RestoreCargoBuildView()
+    {
+        if (!cargoViewEntered) return;
+        cargoViewEntered = false;
+        CurrentState = GameState.Building;
+        SetCargoPlayerControl(false);
+        foreach (var entry in uiStateBeforeBuildMode) if (entry.Key != null) entry.Key.SetActive(false);
+        foreach (var entry in cargoBuildUI) if (entry.Key != null) entry.Key.enabled = entry.Value;
+        cargoBuildUI.Clear();
+        HideDecorativeCanyons();
+        if (mainCamera != null) mainCamera.enabled = false;
+        if (ActiveBuildLocation.locationCamera != null) ActiveBuildLocation.locationCamera.enabled = true;
+        ActiveBuildLocation.SetGridVisualActive(cargoGridVisible);
+        if (ActiveBuildLocation.cargoTestCancelButton != null) ActiveBuildLocation.cargoTestCancelButton.SetActive(false);
+    }
+
+    public void CancelCargoTest()
+    {
+        if (!IsCargoTestActive) return;
+        BridgePhysicsManager physics = cargoTestPhysics;
+        cargoTestPhysics = null;
+        if (cargoCancelButton != null) cargoCancelButton.onClick.RemoveListener(CancelCargoTest);
+        RestoreCargoBuildView();
+        physics.StopPhysicsAndReset();
+        physics.useDeterministicStressAnalysis = cargoTestDeterministic;
+        physics.enableVisualizer = cargoTestVisualizer;
+        if (currentPlayerTransform != null)
+        {
+            CharacterController cc = currentPlayerTransform.GetComponent<CharacterController>();
+            bool wasEnabled = cc != null && cc.enabled;
+            if (cc != null) cc.enabled = false;
+            currentPlayerTransform.SetPositionAndRotation(cargoTestPlayerPosition, cargoTestPlayerRotation);
+            PlayerMotor motor = currentPlayerTransform.GetComponent<PlayerMotor>();
+            if (motor != null) motor.ResetTestMotion();
+            if (cc != null) cc.enabled = wasEnabled;
+        }
+        if (ActiveBuildLocation.testCargo != null) ActiveBuildLocation.testCargo.RestoreTestState(cargoSnapshot);
+        BarCreator creator = FindObjectOfType<BarCreator>(true);
+        if (creator != null) creator.isSimulating = false;
+        Physics.SyncTransforms();
+    }
+
+    public bool TryCompleteCargoTest(ContractSO contract, Collider entrant, CargoDropLocation dropLocation = null)
+    {
+        if (CurrentState != GameState.CargoTesting || !IsCargoTestActive || contract == null ||
+            contract != CurrentContract || !cargoTestPhysics.isSimulating || cargoTestPhysics.HadBrokenPartsThisRun ||
+            ActiveBuildLocation == null || ActiveBuildLocation.testCargo == null || entrant == null ||
+            LevelCompleteManager.Instance == null ||
+            (LevelFailedManager.Instance != null && LevelFailedManager.Instance.isFailed) ||
+            entrant.GetComponentInParent<PlayerMotor>() == null ||
+            entrant.GetComponentInParent<PlayerMotor>().transform != currentPlayerTransform ||
+            !ActiveBuildLocation.testCargo.IsHeldBy(currentPlayerTransform) ||
+            Vector3.Distance(currentPlayerTransform.position, cargoTestPlayerPosition) < 2f) return false;
+        float stressLimit = contract.enforceMaxStress ? contract.maxAllowedStress / 100f : 1f;
+        if (!BridgePhysicsManager.DebugInvincibleBridge && cargoTestPhysics.peakStressThisRun >= stressLimit)
+            return false;
+        if (dropLocation == null || dropLocation.assignedContract != contract ||
+            !ActiveBuildLocation.testCargo.PlaceAtDropLocation(dropLocation)) return false;
+        BridgePhysicsManager physics = cargoTestPhysics;
+        cargoTestPhysics = null;
+        if (cargoCancelButton != null) cargoCancelButton.onClick.RemoveListener(CancelCargoTest);
+        RestoreCargoBuildView();
+        physics.useDeterministicStressAnalysis = cargoTestDeterministic;
+        physics.enableVisualizer = cargoTestVisualizer;
+        physics.lockStressTracking = true;
+        LevelCompleteManager.Instance.CompleteLevel(contract);
+        return true;
+    }
     public GameState CurrentState { get; private set; } = GameState.Normal;
     public bool IsTransitioning => isTransitioning;
 
@@ -170,7 +374,7 @@ public class GameManager : MonoBehaviour
             return false;
         }
 
-        if (CurrentState == GameState.Building || isTransitioning) return false;
+        if (CurrentState != GameState.Normal || isTransitioning) return false;
         
         StartCoroutine(EnterBuildModeRoutine(location, player));
         return true;
@@ -296,6 +500,7 @@ public class GameManager : MonoBehaviour
 
     public void ExitBuildMode()
     {
+        if (IsCargoTestActive) { CancelCargoTest(); return; }
         BridgePhysicsManager physicsManager = FindObjectOfType<BridgePhysicsManager>();
         if (physicsManager != null && physicsManager.IsSimulationActive)
         {

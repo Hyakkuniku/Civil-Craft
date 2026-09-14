@@ -146,6 +146,33 @@ public class PlayerDataManager : MonoBehaviour
         TrySaveGame();
     }
 
+    public LoadedVehicleCargoData GetLoadedVehicleCargo(string slotId)
+    {
+        if (string.IsNullOrWhiteSpace(slotId)) return null;
+        return CurrentData?.loadedVehicleCargo?.Find(record => record != null && record.slotId == slotId);
+    }
+
+    public bool IsCargoPermanentlyLoaded(string cargoId)
+    {
+        return !string.IsNullOrWhiteSpace(cargoId) && CurrentData?.loadedVehicleCargo != null &&
+            CurrentData.loadedVehicleCargo.Exists(record => record != null && record.cargoId == cargoId);
+    }
+
+    public bool TrySaveVehicleCargo(string slotId, string cargoId, float weight)
+    {
+        if (CurrentData == null || string.IsNullOrWhiteSpace(slotId) || string.IsNullOrWhiteSpace(cargoId) ||
+            float.IsNaN(weight) || float.IsInfinity(weight) || weight < 0f) return false;
+        if (CurrentData.loadedVehicleCargo == null)
+            CurrentData.loadedVehicleCargo = new List<LoadedVehicleCargoData>();
+        // Never move an already committed item to another slot, or overwrite an occupied slot.
+        if (GetLoadedVehicleCargo(slotId) != null || IsCargoPermanentlyLoaded(cargoId)) return false;
+        var record = new LoadedVehicleCargoData { slotId = slotId, cargoId = cargoId, weight = weight };
+        CurrentData.loadedVehicleCargo.Add(record);
+        if (TrySaveGame()) return true;
+        CurrentData.loadedVehicleCargo.Remove(record);
+        return false;
+    }
+
     /// <summary>
     /// Permanently unlocks the overworld minimap. This is safe to call from a
     /// contract reward, tutorial UnityEvent, pickup, or debug control.

@@ -1602,6 +1602,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   useEvents: 0
   promptMessage: Enter Build Mode
+  testCargo: {fileID: 0}
+  cargoTestCancelButton: {fileID: 0}
   gridImage: {fileID: 1858308817438456208}
   locationCamera: {fileID: 4849225994406273344}
   cinematicCamera: {fileID: 4265431975180261544}

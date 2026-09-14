@@ -6,6 +6,7 @@ public class PlayerMotor : MonoBehaviour
 {
     private CharacterController controller;
     private Vector3 playerVelocity;
+    public void ResetTestMotion() { playerVelocity = Vector3.zero; }
     private bool isGrounded;
     
     [Header("References")]

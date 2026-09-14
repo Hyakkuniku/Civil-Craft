@@ -46,6 +46,14 @@ public class FeatureUnlockReward
 public class ContractSO : ScriptableObject
 {
     public enum WinCondition { FinishLine, Timer }
+    public enum LiveLoadMode { Vehicle, PlayerCarriedCargo }
+    [Header("Live Load Test")]
+    public LiveLoadMode liveLoadMode = LiveLoadMode.Vehicle;
+    [Header("Optional Vehicle Cargo")]
+    [Tooltip("Vehicle contracts only: allow the player to load cargo into the truck. Live Load Weight is the empty vehicle weight; loaded Cargo Item weights are added.")]
+    public bool allowVehicleCargo;
+    [Min(0), Tooltip("0 makes loading optional. A higher count requires that many loaded cargo items before Simulate.")]
+    public int minimumLoadedCargo;
 
     public enum ContractMap
     {

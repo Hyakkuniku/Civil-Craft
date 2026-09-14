@@ -12,6 +12,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
   m_Name: Bhan Tutorial 1
   m_EditorClassIdentifier: 
+  liveLoadMode: 0
+  allowVehicleCargo: 1
+  minimumLoadedCargo: 2
   contractID: TUT_CONTRACT1
   efficiencyStarBudgetRatio: 0.85
   strengthStarMaxStress: 60

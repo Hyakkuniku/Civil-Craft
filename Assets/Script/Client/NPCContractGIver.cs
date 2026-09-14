@@ -47,6 +47,21 @@ public class NPCContractGiver : Interactable
         npcAnimator = GetComponentInChildren<Animator>();
     }
 
+    private void ApplyLinkedCargo()
+    {
+        if (contractToGive == null || linkedCargo == null) return;
+        linkedCargo.playerCargoContract = contractToGive.liveLoadMode == ContractSO.LiveLoadMode.PlayerCarriedCargo
+            ? contractToGive : null;
+        // Loaded vehicle cargo retains its own mass; the contract weight is the empty truck.
+        if (contractToGive.liveLoadMode != ContractSO.LiveLoadMode.Vehicle || !contractToGive.allowVehicleCargo)
+            linkedCargo.SetWeight(contractToGive.liveLoadWeight);
+        if (targetBuildLocation != null &&
+            contractToGive.liveLoadMode == ContractSO.LiveLoadMode.PlayerCarriedCargo)
+        {
+            targetBuildLocation.testCargo = linkedCargo;
+        }
+    }
+
     private void Start()
     {
         if (contractToGive != null)
@@ -76,7 +91,7 @@ public class NPCContractGiver : Interactable
                 }
             }
             
-            if (linkedCargo != null) linkedCargo.SetWeight(contractToGive.liveLoadWeight);
+            ApplyLinkedCargo();
         }
     }
 
@@ -255,8 +270,7 @@ public class NPCContractGiver : Interactable
 
         if (targetBuildLocation != null)
             targetBuildLocation.activeContract = contractToGive;
-        if (linkedCargo != null)
-            linkedCargo.SetWeight(contractToGive.liveLoadWeight);
+        ApplyLinkedCargo();
 
         if (dialogueManager == null)
             dialogueManager = FindObjectOfType<DialogueManager>();
@@ -355,7 +369,7 @@ public class NPCContractGiver : Interactable
         isAwaitingContractDecision = false;
         hasGivenContract = true;
         targetBuildLocation.activeContract = contractToGive;
-        if (linkedCargo != null) linkedCargo.SetWeight(contractToGive.liveLoadWeight);
+        ApplyLinkedCargo();
     }
 
     /// <summary>Reuses this giver for a new phase and rebuilds its runtime state from the save.</summary>
@@ -403,6 +417,6 @@ public class NPCContractGiver : Interactable
             }
         }
 
-        if (linkedCargo != null) linkedCargo.SetWeight(phaseContract.liveLoadWeight);
+        ApplyLinkedCargo();
     }
 }

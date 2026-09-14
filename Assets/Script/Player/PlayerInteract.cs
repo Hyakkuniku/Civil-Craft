@@ -81,8 +81,9 @@ public class PlayerInteract : MonoBehaviour
             // 3. Only loop through the ones we actually hit
             for (int i = 0; i < numColliders; i++)
             {
-                Interactable interactable = hitColliders[i].GetComponent<Interactable>();
-                if (interactable != null && interactable.IsInteractionAvailable)
+                Interactable interactable = hitColliders[i].GetComponentInParent<Interactable>();
+                if (interactable != null && interactable.isActiveAndEnabled &&
+                    interactable.IsInteractionAvailable && !nearbyInteractables.Contains(interactable))
                 {
                     nearbyInteractables.Add(interactable);
                 }

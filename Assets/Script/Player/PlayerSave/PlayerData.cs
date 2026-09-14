@@ -122,6 +122,7 @@ public class TrackedTask
 [System.Serializable]
 public class PlayerData
 {
+    public List<LoadedVehicleCargoData> loadedVehicleCargo = new List<LoadedVehicleCargoData>();
     public string playerName = "Guest";
     public int gold = 0;
     public int exp = 0;
@@ -181,4 +182,12 @@ public class PlayerData
         if (exp < 1000) return "Master Architect";
         return "Legendary Engineer";
     }
+}
+
+[System.Serializable]
+public class LoadedVehicleCargoData
+{
+    public string slotId;
+    public string cargoId;
+    public float weight;
 }

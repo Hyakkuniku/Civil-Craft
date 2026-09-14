@@ -5,8 +5,13 @@ using System.Collections.Generic;
 
 public class BuildLocation : Interactable 
 {
+    [Header("Player-Carried Live Load")]
+    [Tooltip("Exact scene cargo required for this location's player-carried contract test.")]
+    public CargoItem testCargo;
+    [Tooltip("Optional return-to-editing Button shown during a cargo crossing. Place on the overworld Canvas, outside BuildCanvas. Cancel is wired automatically. Without it, interact with this workbench again to cancel.")]
+    public GameObject cargoTestCancelButton;
     [Header("UI / Grid")]
-    public Image gridImage; 
+    public Image gridImage;
 
     [Header("Camera")]
     public Camera locationCamera;  
@@ -178,6 +183,11 @@ public class BuildLocation : Interactable
 
     public void TryEnterBuildMode()
     {
+        if (GameManager.Instance != null && GameManager.Instance.IsCargoTestActive)
+        {
+            if (GameManager.Instance.ActiveBuildLocation == this) GameManager.Instance.CancelCargoTest();
+            return;
+        }
         if (IsRedesignBlockedByNPCTravel)
         {
             Debug.LogWarning("Bridge redesign is unavailable while an NPC is travelling between phases.");
@@ -588,6 +598,7 @@ public class BuildLocation : Interactable
         }
     }
 
+    public bool IsGridVisualActive => gridImage != null && gridImage.enabled;
     public void SetGridVisualActive(bool isActive) { if (gridImage != null) gridImage.enabled = isActive; }
 
     public bool Owns(Point point)
