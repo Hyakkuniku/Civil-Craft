@@ -594,6 +594,41 @@ public class NPCProgressionManager : MonoBehaviour
     }
 
     /// <summary>Useful for testing a phase from a UnityEvent or custom debug button.</summary>
+    /// <summary>UnityEvent-friendly lookup that remains valid after phase reordering.</summary>
+    public void MoveToPhaseById(string phaseId)
+    {
+        if (string.IsNullOrWhiteSpace(phaseId) || phases == null)
+        {
+            Debug.LogWarning("[NPCProgressionManager] Assign a non-empty Phase ID before moving.", this);
+            return;
+        }
+        int index = -1;
+        for (int i = 0; i < phases.Count; i++)
+        {
+            if (phases[i] == null || !string.Equals(phases[i].phaseId, phaseId, System.StringComparison.Ordinal)) continue;
+            if (index >= 0)
+            {
+                Debug.LogWarning($"[NPCProgressionManager] Phase ID '{phaseId}' is duplicated. Move cancelled; give each phase a unique ID.", this);
+                return;
+            }
+            index = i;
+        }
+        if (index < 0)
+        {
+            Debug.LogWarning($"[NPCProgressionManager] No phase has ID '{phaseId}'. Move cancelled.", this);
+            return;
+        }
+        if (!isActiveAndEnabled)
+        {
+            Debug.LogWarning("[NPCProgressionManager] Spawn/enable this NPC before requesting a phase move.", this);
+            return;
+        }
+        // An explicit ID must never redirect to the next phase as legacy
+        // index calls can during a dialogue-finished callback.
+        if (index == currentPhaseIndex) return;
+        MoveToPhase(index);
+    }
+
     public void MoveToPhase(int phaseIndex)
     {
         // Inspector UnityEvents store phase indices as plain integers, making it
