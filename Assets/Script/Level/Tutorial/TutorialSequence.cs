@@ -46,6 +46,30 @@ public class TutorialSequence : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Advances this tutorial when it is the sequence currently being played.
+    /// Kept on TutorialSequence so scene objects can call it directly from a UnityEvent.
+    /// </summary>
+    public void Next()
+    {
+        TutorialManager manager = TutorialManager.Instance;
+        if (manager == null || !manager.IsPlayingSequence(this)) return;
+
+        manager.ShowNextStep();
+    }
+
+    /// <summary>
+    /// Skips this tutorial when it is the sequence currently being played.
+    /// Kept on TutorialSequence so scene objects can call it directly from a UnityEvent.
+    /// </summary>
+    public void Skip()
+    {
+        TutorialManager manager = TutorialManager.Instance;
+        if (manager == null || !manager.IsPlayingSequence(this)) return;
+
+        manager.SkipTutorial();
+    }
+
     public bool CanStartTutorial()
     {
         return CanStartTutorialInternal(true);

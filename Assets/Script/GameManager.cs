@@ -40,6 +40,8 @@ public class GameManager : MonoBehaviour
             return RejectCargoTest("Test cargo '" + cargo.name + "' is inactive. Enable it and its parents before testing.");
         if (cargo.IsPermanentlyLoaded)
             return RejectCargoTest("This cargo is permanently loaded in a vehicle. Assign a different item for a player-carried crossing test.");
+        if (cargo.DeliveryRestorePending)
+            return RejectCargoTest("Cargo delivery restoration is pending. Check the Console for a missing saved drop location.");
         if (CurrentContract == null || CurrentContract.liveLoadMode != ContractSO.LiveLoadMode.PlayerCarriedCargo ||
             CurrentContract.winCondition != ContractSO.WinCondition.FinishLine)
             return RejectCargoTest("Cargo contracts must use PlayerCarriedCargo and the FinishLine win condition.");
@@ -109,6 +111,7 @@ public class GameManager : MonoBehaviour
             { if (!cargoBuildUI.ContainsKey(raycaster)) cargoBuildUI.Add(raycaster, raycaster.enabled); raycaster.enabled = false; }
         }
         RestoreDecorativeCanyons();
+        SetOtherBuildLocationsVisibleForCargoTest(true);
         ActiveBuildLocation.SetGridVisualActive(false);
         if (ActiveBuildLocation.locationCamera != null) ActiveBuildLocation.locationCamera.enabled = false;
         if (mainCamera != null)
@@ -156,6 +159,7 @@ public class GameManager : MonoBehaviour
         foreach (var entry in uiStateBeforeBuildMode) if (entry.Key != null) entry.Key.SetActive(false);
         foreach (var entry in cargoBuildUI) if (entry.Key != null) entry.Key.enabled = entry.Value;
         cargoBuildUI.Clear();
+        SetOtherBuildLocationsVisibleForCargoTest(false);
         HideDecorativeCanyons();
         if (mainCamera != null) mainCamera.enabled = false;
         if (ActiveBuildLocation.locationCamera != null) ActiveBuildLocation.locationCamera.enabled = true;
@@ -674,6 +678,35 @@ public class GameManager : MonoBehaviour
             if (state.Key != null) state.Key.forceRenderingOff = state.Value;
         }
         canyonRenderingStateBeforeBuildMode.Clear();
+    }
+
+    /// <summary>
+    /// Build Mode isolates the active site by disabling the other Build Locations.
+    /// A player-carried test takes place in the real world, so temporarily restore
+    /// those captured environment states without clearing them. If the test is
+    /// cancelled, the same objects can be hidden again for continued editing.
+    /// </summary>
+    private void SetOtherBuildLocationsVisibleForCargoTest(bool visible)
+    {
+        foreach (KeyValuePair<GameObject, bool> state in buildLocationStateBeforeBuildMode)
+        {
+            if (state.Key != null)
+                state.Key.SetActive(visible ? state.Value : false);
+        }
+
+        if (!visible) return;
+
+        // Restore the surrounding terrain and completed bridges, but preserve the
+        // rule that unfinished work at unrelated sites is invisible in 3D space.
+        foreach (BuildLocation location in FindObjectsOfType<BuildLocation>(true))
+        {
+            if (location != null && location != ActiveBuildLocation &&
+                location.gameObject.scene.IsValid() && ActiveBuildLocation != null &&
+                location.gameObject.scene == ActiveBuildLocation.gameObject.scene)
+            {
+                location.HideUnfinishedBridgeDraft();
+            }
+        }
     }
 
     private void RefreshRedoConfirmationCopy()

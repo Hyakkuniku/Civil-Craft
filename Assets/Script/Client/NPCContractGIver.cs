@@ -9,6 +9,10 @@ public class NPCContractGiver : Interactable
     public BuildLocation targetBuildLocation;
     public CargoItem linkedCargo; 
 
+    [Header("Optional Interaction Gate")]
+    [Tooltip("When assigned, this NPC cannot be interacted with until player-carried cargo has been placed and saved for this contract.")]
+    public ContractSO requiredCargoDeliveryBeforeInteraction;
+
     [Header("Tutorial Settings")]
     public bool advancesTutorial = false; 
 
@@ -40,6 +44,18 @@ public class NPCContractGiver : Interactable
     /// dialogue. NPCProgressionManager uses it for phase-specific follow-up panels.
     /// </summary>
     public event Action<NPCContractGiver> OnOfferDialogueCompleted;
+
+    public override bool IsInteractionAvailable
+    {
+        get
+        {
+            if (!base.IsInteractionAvailable) return false;
+            if (requiredCargoDeliveryBeforeInteraction == null) return true;
+            return PlayerDataManager.Instance != null &&
+                PlayerDataManager.Instance.HasPlayerCargoDeliveryForContract(
+                    requiredCargoDeliveryBeforeInteraction.ContractID);
+        }
+    }
 
     private void Awake()
     {

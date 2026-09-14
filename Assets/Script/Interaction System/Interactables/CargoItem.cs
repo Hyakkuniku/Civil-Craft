@@ -16,17 +16,25 @@ public class CargoItem : Interactable
     public static CargoItem HeldCargo => heldCargo;
     [Tooltip("Player-carried contract owning this item. NPC contract assignment fills this automatically. Its cargo may only be delivered at that contract's drop location.")]
     public ContractSO playerCargoContract;
+    [Tooltip("Story cargo can be carried during normal gameplay but may only be placed at an assigned story or contract drop location.")]
+    public bool storyCargo;
+    public bool IsStoryCargo => storyCargo;
     public Transform Holder => isHeld ? playerTransform : null;
     private bool deliveredToLocation;
-    public bool RestrictsFreeDrop => playerCargoContract != null &&
-        playerCargoContract.liveLoadMode == ContractSO.LiveLoadMode.PlayerCarriedCargo;
+    private bool deliveryRestorePending = true;
+    public bool DeliveryRestorePending => deliveryRestorePending;
+    public bool RestrictsFreeDrop => storyCargo || (playerCargoContract != null &&
+        playerCargoContract.liveLoadMode == ContractSO.LiveLoadMode.PlayerCarriedCargo);
     [SerializeField, HideInInspector] private string persistentCargoId;
     public string PersistentCargoId => persistentCargoId;
     public bool IsPermanentlyLoaded => loadedSlot != null ||
         (PlayerDataManager.Instance != null && PlayerDataManager.Instance.IsCargoPermanentlyLoaded(persistentCargoId));
     private VehicleCargoSlot loadedSlot;
+    private CargoDropLocation deliveredLocation;
+    public CargoDropLocation DeliveredLocation => deliveredLocation;
     public override bool IsInteractionAvailable => base.IsInteractionAvailable && !IsPermanentlyLoaded &&
-        !deliveredToLocation && !(isHeld && RestrictsFreeDrop);
+        !deliveryRestorePending && (!deliveredToLocation || HasAvailableStoryDestination()) &&
+        !(isHeld && RestrictsFreeDrop);
 
     public bool MountInVehicle(VehicleCargoSlot slot, Transform socket)
     {
@@ -75,6 +83,7 @@ public class CargoItem : Interactable
         internal Quaternion rotation;
         internal Transform parent;
         internal bool held, gravity, kinematic, delivered;
+        internal CargoDropLocation deliveredLocation;
         internal ContractSO playerContract;
         internal float weight;
     }
@@ -83,7 +92,8 @@ public class CargoItem : Interactable
         return new TestSnapshot { position = transform.position, rotation = transform.rotation,
             scale = isHeld ? pickupScale : transform.localScale,
             parent = isHeld ? pickupParent : transform.parent, held = isHeld, weight = cargoWeight,
-            delivered = deliveredToLocation, playerContract = playerCargoContract,
+            delivered = deliveredToLocation, deliveredLocation = deliveredLocation,
+            playerContract = playerCargoContract,
             gravity = rb.useGravity, kinematic = rb.isKinematic,
             velocity = rb.isKinematic ? Vector3.zero : rb.velocity,
             angularVelocity = rb.isKinematic ? Vector3.zero : rb.angularVelocity };
@@ -94,6 +104,7 @@ public class CargoItem : Interactable
         SetWeight(state.weight);
         if (isHeld) ReleaseHeldCargo();
         deliveredToLocation = state.delivered;
+        deliveredLocation = state.deliveredLocation;
         playerCargoContract = state.playerContract;
         transform.SetParent(state.parent, false);
         transform.SetPositionAndRotation(state.position, state.rotation);
@@ -114,6 +125,7 @@ public class CargoItem : Interactable
             game.ActiveBuildLocation == null || game.ActiveBuildLocation.testCargo != this) return false;
         playerCargoContract = contract;
         deliveredToLocation = false;
+        deliveredLocation = null;
         promptMessage = isHeld ? "Drop Cargo" : "Pick up Cargo";
         return true;
     }
@@ -156,6 +168,46 @@ public class CargoItem : Interactable
         if (rb != null) rb.mass = cargoWeight;
     }
 
+    private System.Collections.IEnumerator Start()
+    {
+        while (PlayerDataManager.Instance == null || PlayerDataManager.Instance.CurrentData == null)
+            yield return null;
+        var record = PlayerDataManager.Instance.GetPlayerCargoDelivery(persistentCargoId);
+        if (record == null || IsPermanentlyLoaded)
+        {
+            deliveryRestorePending = false;
+            yield break;
+        }
+        CargoDropLocation destination = null;
+        bool ambiguous = false;
+        foreach (CargoDropLocation drop in Resources.FindObjectsOfTypeAll<CargoDropLocation>())
+        {
+            if (!drop.gameObject.scene.IsValid() || drop.PersistentDropLocationId != record.dropLocationId) continue;
+            if (destination != null) { ambiguous = true; break; }
+            destination = drop;
+        }
+        int matches = 0;
+        foreach (CargoItem cargo in Resources.FindObjectsOfTypeAll<CargoItem>())
+            if (cargo.gameObject.scene.IsValid() && cargo.PersistentCargoId == persistentCargoId) matches++;
+        bool validContractDestination = destination != null && destination.assignedContract != null &&
+            destination.assignedContract.ContractID == record.contractId;
+        bool validStoryDestination = destination != null && destination.assignedContract == null &&
+            destination.allowStoryDeliveryWithoutContract && destination.acceptedStoryCargo == this &&
+            destination.StorySaveKey == record.contractId;
+        if (ambiguous || matches != 1 || destination == null ||
+            (!validContractDestination && !validStoryDestination))
+        {
+            Debug.LogWarning("[Cargo Delivery] Saved destination is missing, duplicated, or belongs to another contract. Cargo remains locked and its saved record is preserved.", this);
+            yield break;
+        }
+        Transform socket = destination.dropSocket != null ? destination.dropSocket : destination.transform;
+        playerCargoContract = destination.assignedContract;
+        if (validStoryDestination) storyCargo = true;
+        SetWeight(record.weight);
+        SetDeliveredPose(socket, destination);
+        deliveryRestorePending = false;
+    }
+
     protected override void Intract()
     {
         if (!isHeld)
@@ -170,7 +222,14 @@ public class CargoItem : Interactable
 
     public void PickUp()
     {
-        if (deliveredToLocation) return;
+        if (deliveryRestorePending) return;
+        if (deliveredToLocation)
+        {
+            if (!HasAvailableStoryDestination()) return;
+            deliveredToLocation = false;
+            deliveredLocation = null;
+            playerCargoContract = null;
+        }
         if (heldCargo != null && heldCargo != this && heldCargo.RestrictsFreeDrop) return;
         if (isHeld) return;
         // Loading is one-way, including calls from Inspector events or other scripts.
@@ -270,14 +329,58 @@ public class CargoItem : Interactable
     public bool PlaceAtDropLocation(CargoDropLocation location)
     {
         if (!isHeld || location == null || !location.CanReceive(this)) return false;
+        if (PlayerDataManager.Instance == null || !PlayerDataManager.Instance.TrySavePlayerCargoDelivery(
+            persistentCargoId, location.PersistentDropLocationId, location.assignedContract.ContractID, cargoWeight))
+        {
+            const string message = "Could not save delivery. Cargo stays held. Check save errors and save the scene's cargo/drop-location IDs.";
+            Debug.LogWarning("[Cargo Delivery] " + message, this);
+            if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction(message);
+            return false;
+        }
         ReleaseHeldCargo();
-        transform.SetParent(location.dropSocket, true);
+        SetDeliveredPose(location.dropSocket, location);
+        return true;
+    }
+
+    public bool PlaceAtStoryDropLocation(CargoDropLocation location)
+    {
+        if (!isHeld || !storyCargo || location == null || location.assignedContract != null ||
+            !location.allowStoryDeliveryWithoutContract || location.acceptedStoryCargo != this ||
+            !location.CanReceive(this)) return false;
+        if (PlayerDataManager.Instance == null || !PlayerDataManager.Instance.TrySavePlayerCargoDelivery(
+            persistentCargoId, location.PersistentDropLocationId, location.StorySaveKey, cargoWeight))
+        {
+            Debug.LogWarning("[Story Cargo] Could not save this handoff. Cargo stays held. Assign persistent cargo/drop IDs and save the scene.", this);
+            return false;
+        }
+
+        playerCargoContract = null;
+        ReleaseHeldCargo();
+        SetDeliveredPose(location.dropSocket, location);
+        return true;
+    }
+
+    private void SetDeliveredPose(Transform socket, CargoDropLocation location = null)
+    {
+        transform.SetParent(socket, true);
         transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
         if (!rb.isKinematic) { rb.velocity = Vector3.zero; rb.angularVelocity = Vector3.zero; }
         rb.isKinematic = true;
         rb.useGravity = false;
         deliveredToLocation = true;
-        return true;
+        deliveredLocation = location;
+    }
+
+    private bool HasAvailableStoryDestination()
+    {
+        if (!storyCargo || isHeld || (GameManager.Instance != null && GameManager.Instance.IsCargoTestActive))
+            return false;
+        foreach (CargoDropLocation location in Resources.FindObjectsOfTypeAll<CargoDropLocation>())
+        {
+            if (location != null && location.gameObject.scene.IsValid() &&
+                location.IsAvailableStoryDestinationFor(this)) return true;
+        }
+        return false;
     }
 
     private void ReleaseHeldCargo()

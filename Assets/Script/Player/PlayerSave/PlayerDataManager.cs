@@ -152,6 +152,37 @@ public class PlayerDataManager : MonoBehaviour
         return CurrentData?.loadedVehicleCargo?.Find(record => record != null && record.slotId == slotId);
     }
 
+    public PlayerCargoDeliveryData GetPlayerCargoDelivery(string cargoId)
+    {
+        if (string.IsNullOrWhiteSpace(cargoId)) return null;
+        return CurrentData?.playerCargoDeliveries?.Find(record => record != null && record.cargoId == cargoId);
+    }
+
+    public bool HasPlayerCargoDeliveryForContract(string contractId)
+    {
+        if (string.IsNullOrWhiteSpace(contractId) || CurrentData?.playerCargoDeliveries == null) return false;
+        return CurrentData.playerCargoDeliveries.Exists(record => record != null &&
+            string.Equals(record.contractId, contractId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    public bool TrySavePlayerCargoDelivery(string cargoId, string dropId, string contractId, float weight)
+    {
+        if (CurrentData == null || string.IsNullOrWhiteSpace(cargoId) || string.IsNullOrWhiteSpace(dropId) ||
+            string.IsNullOrWhiteSpace(contractId) || float.IsNaN(weight) || float.IsInfinity(weight) || weight < 0f ||
+            IsCargoPermanentlyLoaded(cargoId)) return false;
+        if (CurrentData.playerCargoDeliveries == null)
+            CurrentData.playerCargoDeliveries = new List<PlayerCargoDeliveryData>();
+        var records = CurrentData.playerCargoDeliveries;
+        int index = records.FindIndex(record => record != null && record.cargoId == cargoId);
+        var previous = index >= 0 ? records[index] : null;
+        var next = new PlayerCargoDeliveryData { cargoId = cargoId, dropLocationId = dropId,
+            contractId = contractId, weight = weight };
+        if (index >= 0) records[index] = next; else records.Add(next);
+        if (TrySaveGame()) return true;
+        if (index >= 0) records[index] = previous; else records.Remove(next);
+        return false;
+    }
+
     public bool IsCargoPermanentlyLoaded(string cargoId)
     {
         return !string.IsNullOrWhiteSpace(cargoId) && CurrentData?.loadedVehicleCargo != null &&

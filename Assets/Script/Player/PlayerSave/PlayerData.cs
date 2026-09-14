@@ -123,6 +123,7 @@ public class TrackedTask
 public class PlayerData
 {
     public List<LoadedVehicleCargoData> loadedVehicleCargo = new List<LoadedVehicleCargoData>();
+    public List<PlayerCargoDeliveryData> playerCargoDeliveries = new List<PlayerCargoDeliveryData>();
     public string playerName = "Guest";
     public int gold = 0;
     public int exp = 0;

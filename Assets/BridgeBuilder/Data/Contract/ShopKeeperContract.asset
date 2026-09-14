@@ -12,6 +12,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
   m_Name: ShopKeeperContract
   m_EditorClassIdentifier: 
+  liveLoadMode: 1
+  allowVehicleCargo: 0
+  minimumLoadedCargo: 0
   contractID: ShopKeeper
   efficiencyStarBudgetRatio: 0.85
   strengthStarMaxStress: 60
@@ -22,7 +25,7 @@ MonoBehaviour:
   autoCollectReward: 0
   featureUnlockRewards: []
   clientName: Professor Bhan
-  jobDescription: A local shopkeeper has asked for our help.
+  jobDescription: Complete the final connection to Grandma Susan's shop and deliver her supply crate.
   budget: 75000
   liveLoadWeight: 2000
   bridgeSpan: 50
@@ -46,27 +49,21 @@ MonoBehaviour:
   offerDialogue:
     name: Professor Bhan
     sentences:
-    - A local shopkeeper has asked for our help.
-    - Her shop is separated from Canyonreach, making it difficult for her to transport
-      supplies and reach customers in the city.
-    - She needs a bridge that will safely connect her shop to Canyonreach.
-    - The shopkeeper will meet us once the bridge is complete.
-    - Are you ready to take on this contract, Engineer?
+    - There it is: Grandma Susan's shop. We brought her crate all this way, but one final canyon blocks the door.
+    - Finish the connection to Canyonreach, carry the supplies across, and place them at her delivery point.
+    - This is no longer a practice crossing. Someone is counting on your bridge.
+    - Ready to finish what we started, Engineer?
   continueOfferDialogue:
     name: Professor Bhan
     sentences:
-    - The shopkeeper is depending on us to reconnect her shop with Canyonreach.
-    - Are you ready to accept the contract?
+    - Grandma Susan is waiting on the other side, and this crate belongs in her shop.
+    - Build the final bridge and complete the delivery.
   reminderDialogue:
     name: Professor Bhan
     sentences:
-    - The bridge connecting the shop to Canyonreach still needs to be completed.
-    - Review the contract and begin construction when you are ready.
+    - We are one bridge away. Complete the shop crossing, then carry the crate to Grandma Susan's delivery point.
   finishedContractDialogue:
     name: Professor Bhan
     sentences:
-    - Well done, Engineer. The bridge is complete.
-    - The shopkeeper can now safely transport her supplies and welcome customers
-      from Canyonreach.
-    - She has arrived to see your work.
-    - Go and speak with her. She will give you access to the shop.
+    - Delivery complete. The bridge held, the crate is safe, and the shop is connected to Canyonreach again.
+    - Well done, {PlayerName}. Go speak with Grandma Susan; she has been waiting to meet the engineer who brought her supplies home.

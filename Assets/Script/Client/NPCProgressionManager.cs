@@ -386,6 +386,7 @@ public class NPCProgressionManager : MonoBehaviour
             contractGiver.OnNPCInteracted += HandleNPCInteracted;
             contractGiver.OnOfferDialogueCompleted += HandleOfferDialogueCompleted;
         }
+        LevelCompleteManager.BridgeSavedAtLocation += HandleBridgeSavedAtLocation;
         TrySubscribeToContractCompletion();
     }
 
@@ -468,6 +469,7 @@ public class NPCProgressionManager : MonoBehaviour
             contractGiver.OnNPCInteracted -= HandleNPCInteracted;
             contractGiver.OnOfferDialogueCompleted -= HandleOfferDialogueCompleted;
         }
+        LevelCompleteManager.BridgeSavedAtLocation -= HandleBridgeSavedAtLocation;
         UnsubscribeFromContractCompletion();
 
         if (movementRoutine != null)
@@ -600,7 +602,92 @@ public class NPCProgressionManager : MonoBehaviour
         if (phase == null || phase.contract == null) return;
         if (!phase.contract.MatchesIdentifier(completedContractName)) return;
 
+        if (phase.contract.liveLoadMode == ContractSO.LiveLoadMode.PlayerCarriedCargo)
+        {
+            AdvanceFromCargoTurnIn();
+            return;
+        }
+
         AdvanceToNextContract();
+    }
+
+    private void HandleBridgeSavedAtLocation(ContractSO savedContract, BuildLocation savedLocation)
+    {
+        NPCProgressionPhase phase = CurrentPhase;
+        if (phase == null || phase.contract == null || savedContract == null ||
+            phase.contract.liveLoadMode != ContractSO.LiveLoadMode.PlayerCarriedCargo ||
+            !phase.contract.MatchesIdentifier(savedContract.ContractID) || IsTravelling)
+        {
+            return;
+        }
+
+        int destinationPhaseIndex = currentPhaseIndex + 1;
+        if (destinationPhaseIndex >= phases.Count || phases[destinationPhaseIndex] == null ||
+            phases[destinationPhaseIndex].targetLocation == null) return;
+
+        if (contractGiver != null)
+            contractGiver.SetProgressionInteractionLocked(true, "Meet Professor Bhan at the delivery point...");
+        movementRoutine = StartCoroutine(RepositionForCargoTurnIn(destinationPhaseIndex));
+    }
+
+    private IEnumerator RepositionForCargoTurnIn(int destinationPhaseIndex)
+    {
+        // ExitBuildMode runs asynchronously after Save & Continue. Keep Bhan hidden
+        // behind that transition, then place him beside the delivered cargo while
+        // retaining the current contract phase so the player can turn it in.
+        yield return null;
+        while (GameManager.Instance != null &&
+               GameManager.Instance.CurrentState != GameManager.GameState.Normal)
+        {
+            yield return null;
+        }
+
+        StopIdleRoaming();
+        PlaceAtPhase(destinationPhaseIndex);
+        SetWalkingAnimation(false);
+        RestoreAgentAfterLinkTraversal(false);
+        movementRoutine = null;
+        if (contractGiver != null)
+            contractGiver.SetProgressionInteractionLocked(false);
+    }
+
+    private void AdvanceFromCargoTurnIn()
+    {
+        if (IsTravelling || phases == null || phases.Count == 0) return;
+        int nextPhaseIndex = currentPhaseIndex + 1;
+        if (nextPhaseIndex >= phases.Count)
+        {
+            onProgressionFinished?.Invoke();
+            return;
+        }
+
+        // Bhan is already standing at this phase's destination because the cargo
+        // hand-in repositioned him there. Commit the next phase immediately, but
+        // wait for the reward/task panel to close before opening arrival dialogue.
+        SaveProgressionState(nextPhaseIndex, true);
+        PlaceAtPhase(nextPhaseIndex);
+        if (contractGiver != null)
+            contractGiver.SetProgressionInteractionLocked(true, "Finishing contract...");
+        movementRoutine = StartCoroutine(FinishCargoTurnInAdvance(nextPhaseIndex));
+    }
+
+    private IEnumerator FinishCargoTurnInAdvance(int nextPhaseIndex)
+    {
+        yield return null;
+        while ((GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Normal) ||
+               (UIPanelCoordinator.Instance != null && UIPanelCoordinator.Instance.HasOpenPanel))
+        {
+            yield return null;
+        }
+
+        movementRoutine = null;
+        ActivatePhase(nextPhaseIndex, true);
+        NPCProgressionPhase destinationPhase = CurrentPhase;
+        if (destinationPhase != null && !destinationPhase.playDialogueOnArrival &&
+            destinationPhase.contract == null)
+        {
+            TryStartPhaseDialogue(nextPhaseIndex, destinationPhase);
+        }
     }
 
     /// <summary>

@@ -515,8 +515,17 @@ public class LiveLoadVehicle : Interactable
         CloseInfoPanelInternal(true);
     }
 
+    public static void CloseActiveInspectionPanel(GameObject panel)
+    {
+        // Scope by panel so a stale/double click cannot close a different modal.
+        LiveLoadVehicle owner = activeInspectionVehicle;
+        if (owner == null || owner.vehicleInfoPanel != panel || !owner.isInspectionWindowOpen) return;
+        owner.CloseInfoPanelInternal(true);
+    }
+
     private void CloseInfoPanelInternal(bool invokeCompletionEvents)
     {
+        if (!isInspectionWindowOpen) return;
         bool wasInspectionOpen = isInspectionWindowOpen ||
                                  (vehicleInfoPanel != null && vehicleInfoPanel.activeSelf);
         isInspectionWindowOpen = false;

@@ -28,11 +28,13 @@ public static class VehicleCargoPersistenceIds
     }
 
     [MenuItem("Tools/Civil Craft/Assign Vehicle Cargo Save IDs")]
+    [MenuItem("Tools/Civil Craft/Assign All Cargo Save IDs")]
     private static void AssignIds()
     {
         scheduled = false;
         if (EditorApplication.isPlayingOrWillChangePlaymode) return;
-        int changed = Assign<CargoItem>("persistentCargoId") + Assign<VehicleCargoSlot>("persistentSlotId");
+        int changed = Assign<CargoItem>("persistentCargoId") + Assign<VehicleCargoSlot>("persistentSlotId") +
+            Assign<CargoDropLocation>("persistentDropLocationId");
         if (changed > 0)
             Debug.Log($"[Vehicle Cargo] Assigned {changed} persistent cargo/slot IDs. Save the scene before testing permanent loading.");
     }

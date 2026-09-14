@@ -12,7 +12,17 @@ Press Simulate, pick up the assigned box, enter the destination zone and tap Pla
 
 The optional On Cargo Placed event runs after successful delivery. If you previously used a finish trigger's On Level Completed event for this cargo contract, migrate the intended callbacks to this event.
 
-Cancelling/failing still restores the cargo and player snapshot; cleanup is not blocked by the manual-drop restriction. Ordinary unassigned cargo and vehicle cargo loading keep their existing behavior. This change does not add persistent destination placement for delivered player cargo.
+Cancelling/failing still restores the cargo and player snapshot; cleanup is not blocked by the manual-drop restriction. Ordinary unassigned cargo and vehicle cargo loading keep their existing behavior.
+
+## Saving deliveries
+
+In Edit Mode choose Tools > Civil Craft > Assign All Cargo Save IDs, then save the scene. ID assignment also runs automatically for scene cargo and drop locations. Keep those objects in the authored scene; restoration moves the original box rather than spawning a replacement.
+
+Place Cargo saves the latest destination ID, contract ID and weight immediately, before releasing the box. Save failure leaves the box held and the previous record unchanged. This stores delivery, not contract rewards: the normal completion/save-bridge flow is still required for those.
+
+After reopening, the box is positioned at that destination's socket, kept kinematic and pickup-locked. Starting the next contract's Simulate unlocks it only in memory. Cancelling/failing or quitting before the next delivery leaves the previous saved destination intact. Placing at the next location replaces the saved destination. New Game clears the record with player progress. Older saves without delivery records use the authored starting position; previously unsaved deliveries cannot be reconstructed.
+
+Missing or ambiguous scene IDs keep the record and leave pickup blocked with a warning. Fix the scene reference rather than deleting the save. Verify a full quit/reopen after both deliveries and a quit midway through the second test.
 
 ## Reusing one box for a second contract
 
