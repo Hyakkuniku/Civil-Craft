@@ -39,6 +39,9 @@ public class NPCProgressionPhase
     [Tooltip("Optional ordered walking points used before Target Location when Waypoint movement is selected.")]
     public List<Transform> travelWaypoints = new List<Transform>();
 
+    [Tooltip("Walk directly over grounded colliders instead of taking a NavMesh detour into this phase. Optional Travel Waypoints still override the direct route.")]
+    public bool useGroundedWaypoints;
+
     [Tooltip("Use the NPC sprint animation instead of walking while travelling into this phase and while idle roaming in this phase.")]
     public bool running;
 
@@ -167,6 +170,8 @@ public class NPCProgressionManager : MonoBehaviour
     private int configuredNavigationAreaMask = NavMesh.AllAreas;
     [SerializeField] private Animator animator;
     [SerializeField] private DialogueManager dialogueManager;
+    [Tooltip("Optional fixed scene marker for phases with no Target Location. Set this for an NPC whose NavMeshAgent can shift its Transform before Awake.")]
+    [SerializeField] private Transform authoredSpawnLocation;
 
     [Header("Progression")]
     [SerializeField] private List<NPCProgressionPhase> phases = new List<NPCProgressionPhase>();
@@ -258,6 +263,9 @@ public class NPCProgressionManager : MonoBehaviour
     private bool manualLinkTraversalActive;
     private bool savedAgentUpdatePosition;
     private bool savedAgentUpdateRotation;
+    private Vector3 authoredStartPosition;
+    private Quaternion authoredStartRotation;
+    private bool needsNavMeshRebindWhenLeavingPhase;
 
     public int CurrentPhaseIndex => currentPhaseIndex;
     public int PhaseCount => phases != null ? phases.Count : 0;
@@ -320,7 +328,7 @@ public class NPCProgressionManager : MonoBehaviour
     public bool DebugWarpToPhase(int phaseIndex)
     {
         if (phases == null || phaseIndex < 0 || phaseIndex >= phases.Count ||
-            phases[phaseIndex] == null || phases[phaseIndex].targetLocation == null)
+            phases[phaseIndex] == null)
         {
             return false;
         }
@@ -366,6 +374,10 @@ public class NPCProgressionManager : MonoBehaviour
 
     private void Awake()
     {
+        authoredStartPosition = authoredSpawnLocation != null
+            ? authoredSpawnLocation.position : transform.position;
+        authoredStartRotation = authoredSpawnLocation != null
+            ? authoredSpawnLocation.rotation : transform.rotation;
         if (contractGiver == null) contractGiver = GetComponent<NPCContractGiver>();
         if (navMeshAgent == null) navMeshAgent = GetComponent<NavMeshAgent>();
         if (navMeshAgent != null) configuredNavigationAreaMask = navMeshAgent.areaMask;
@@ -429,6 +441,14 @@ public class NPCProgressionManager : MonoBehaviour
         // even if normal load-time placement was disabled for editor testing.
         if (placeAtResolvedPhaseOnStart || wasTravellingWhenSaved)
             PlaceAtPhase(currentPhaseIndex);
+
+        if (string.Equals(progressionSaveId, "MainContractNPC", System.StringComparison.Ordinal))
+            Debug.Log(
+                $"[BhanPlacement] phase={CurrentPhase?.phaseId ?? "<none>"} " +
+                $"authored={authoredStartPosition} marker=" +
+                $"{(authoredSpawnLocation != null ? authoredSpawnLocation.name : "<none>")} " +
+                $"actual={transform.position} agentEnabled={navMeshAgent != null && navMeshAgent.enabled}",
+                this);
 
         // Activating settles a mid-travel save and writes wasTravelling = false.
         ActivatePhase(currentPhaseIndex, false);
@@ -793,10 +813,23 @@ public class NPCProgressionManager : MonoBehaviour
         yield return null;
 
         NPCProgressionPhase nextPhase = phases[nextPhaseIndex];
-        if (nextPhase == null || nextPhase.targetLocation == null)
+        if (nextPhase == null)
         {
-            Debug.LogError($"[NPCProgressionManager] Phase {nextPhaseIndex} has no target location.", this);
+            Debug.LogError($"[NPCProgressionManager] Phase {nextPhaseIndex} is missing.", this);
             HandleMovementFailure(nextPhaseIndex);
+            yield break;
+        }
+
+        if (nextPhase.targetLocation == null)
+        {
+            if (!PlaceAtPhase(nextPhaseIndex))
+            {
+                HandleMovementFailure(nextPhaseIndex);
+                yield break;
+            }
+
+            movementRoutine = null;
+            ActivatePhase(nextPhaseIndex, true);
             yield break;
         }
 
@@ -806,9 +839,24 @@ public class NPCProgressionManager : MonoBehaviour
         while (navMeshUpdater != null && navMeshUpdater.HasPendingOrRunningUpdate)
             yield return null;
 
-        if (movementMode == NPCProgressionMovementMode.Waypoints)
+        if (nextPhase.useGroundedWaypoints)
         {
-            if (useSceneNavMeshLinksInWaypointMode &&
+            DisableAgentForWaypointMovement();
+            yield return MoveToPhaseByWaypoints(nextPhaseIndex, nextPhase);
+            yield break;
+        }
+
+        bool currentPhaseUsesAuthoredPosition =
+            currentPhaseIndex >= 0 && currentPhaseIndex < phases.Count &&
+            phases[currentPhaseIndex] != null &&
+            phases[currentPhaseIndex].targetLocation == null;
+        bool mustLeaveExactMarkerByWaypoints =
+            needsNavMeshRebindWhenLeavingPhase || currentPhaseUsesAuthoredPosition;
+        if (movementMode == NPCProgressionMovementMode.Waypoints ||
+            mustLeaveExactMarkerByWaypoints)
+        {
+            if (!mustLeaveExactMarkerByWaypoints &&
+                useSceneNavMeshLinksInWaypointMode &&
                 HasCompatibleActiveNavMeshLink() &&
                 TryEnableAgentForLinkedRoute() &&
                 TrySetDestination(nextPhase.targetLocation.position))
@@ -841,7 +889,13 @@ public class NPCProgressionManager : MonoBehaviour
 
         if (!destinationSet)
         {
-            HandleMovementFailure(nextPhaseIndex);
+            // A phase route can begin outside the baked NavMesh (Bhan's authored
+            // Greetings position is one example). Restore the departure pose and
+            // continue with the grounded mover instead of teleporting to a bind
+            // point and leaving progression stuck.
+            PlaceAtPhase(currentPhaseIndex);
+            DisableAgentForWaypointMovement();
+            yield return MoveToPhaseByWaypoints(nextPhaseIndex, nextPhase);
             yield break;
         }
 
@@ -904,7 +958,8 @@ public class NPCProgressionManager : MonoBehaviour
                 {
                     Debug.LogWarning(
                         $"[NPCProgressionManager] NPC stalled while travelling to " +
-                        $"phase {nextPhaseIndex} after {repathAttempts} route attempts.",
+                        $"phase {nextPhaseIndex} after {repathAttempts} route attempts " +
+                        $"at {transform.position}; trying grounded waypoint fallback.",
                         this);
                     break;
                 }
@@ -917,12 +972,13 @@ public class NPCProgressionManager : MonoBehaviour
             yield return null;
         }
 
-        if (movementMode == NPCProgressionMovementMode.Waypoints &&
-            useSceneNavMeshLinksInWaypointMode)
+        if (movementMode == NPCProgressionMovementMode.NavMesh ||
+            (movementMode == NPCProgressionMovementMode.Waypoints &&
+             useSceneNavMeshLinksInWaypointMode))
         {
             Debug.LogWarning(
-                $"[NPCProgressionManager] The linked NavMesh route to phase {nextPhaseIndex} " +
-                "became invalid or stalled. Falling back to the baked-road waypoint route.",
+                $"[NPCProgressionManager] The NavMesh route to phase {nextPhaseIndex} " +
+                "became invalid or stalled. Falling back to the grounded waypoint route.",
                 this);
             DisableAgentForWaypointMovement();
             yield return MoveToPhaseByWaypoints(nextPhaseIndex, nextPhase);
@@ -959,16 +1015,9 @@ public class NPCProgressionManager : MonoBehaviour
     {
         if (navMeshAgent == null) return false;
 
-        if (!navMeshAgent.enabled) navMeshAgent.enabled = true;
-        navMeshAgent.autoTraverseOffMeshLink = !manuallyTraverseNavMeshLinks;
+        if (navMeshAgent.enabled && navMeshAgent.isOnNavMesh) return true;
 
-        if (navMeshAgent.isOnNavMesh) return true;
-
-        if (!NavMesh.SamplePosition(
-                transform.position,
-                out NavMeshHit hit,
-                navMeshSampleRadius,
-                navMeshAgent.areaMask))
+        if (!TrySampleLocalNavMesh(transform.position, out NavMeshHit hit))
         {
             Debug.LogWarning(
                 "[NPCProgressionManager] Scene links exist, but the NPC is not close enough to a compatible NavMesh. Falling back to waypoints.",
@@ -977,6 +1026,8 @@ public class NPCProgressionManager : MonoBehaviour
             return false;
         }
 
+        if (!navMeshAgent.enabled) navMeshAgent.enabled = true;
+        navMeshAgent.autoTraverseOffMeshLink = !manuallyTraverseNavMeshLinks;
         bool warped = navMeshAgent.Warp(hit.position);
         if (!warped) DisableAgentForWaypointMovement();
         return warped;
@@ -1012,7 +1063,7 @@ public class NPCProgressionManager : MonoBehaviour
                 if (waypoint != null)
                     routeSteps.Add(new WaypointRouteStep(waypoint.position, false));
         }
-        else
+        else if (!nextPhase.useGroundedWaypoints)
         {
             bool appendedSceneLinks = TryAppendNearbySceneLinkRoute(
                 transform.position,
@@ -1703,6 +1754,28 @@ public class NPCProgressionManager : MonoBehaviour
 
     private bool TrySetDestination(Vector3 targetPosition)
     {
+        if (navMeshAgent != null &&
+            (needsNavMeshRebindWhenLeavingPhase || !navMeshAgent.enabled || !navMeshAgent.isOnNavMesh))
+        {
+            if (!TrySampleLocalNavMesh(transform.position, out NavMeshHit rebindHit))
+            {
+                Debug.LogWarning(
+                    $"[NPCProgressionManager] '{name}' has no NavMesh directly under its phase marker; using waypoint travel instead of snapping to an edge.",
+                    this);
+                return false;
+            }
+            if (!navMeshAgent.enabled) navMeshAgent.enabled = true;
+            if (!navMeshAgent.Warp(rebindHit.position))
+            {
+                Debug.LogError(
+                    $"[NPCProgressionManager] '{name}' could not join the NavMesh when leaving its exact phase marker.",
+                    this);
+                return false;
+            }
+
+            needsNavMeshRebindWhenLeavingPhase = false;
+        }
+
         if (rebindNearbyNavMeshBeforeTravel && navMeshAgent != null &&
             navMeshAgent.enabled && !navMeshAgent.isOnNavMesh)
             TryRebindAtCurrentPosition();
@@ -1726,8 +1799,8 @@ public class NPCProgressionManager : MonoBehaviour
 
         if (!PreferredRoadNavigation.SetDestination(navMeshAgent, hit.position, configuredNavigationAreaMask))
         {
-            Debug.LogWarning(
-                $"[NPCProgressionManager] No complete NavMesh route to '{hit.position}', with or without ravine links.",
+            Debug.Log(
+                $"[NPCProgressionManager] No complete NavMesh route to '{hit.position}'; using grounded waypoint fallback when available.",
                 this);
             return false;
         }
@@ -1740,14 +1813,7 @@ public class NPCProgressionManager : MonoBehaviour
         // A native agent can lose its binding when runtime bridge/world data is
         // replaced. Only repair that binding locally, not by jumping to a phase.
         Vector3 current = transform.position;
-        var filter = new NavMeshQueryFilter
-        { agentTypeID = navMeshAgent.agentTypeID, areaMask = configuredNavigationAreaMask };
-        if (!NavMesh.SamplePosition(current, out NavMeshHit hit, navMeshSampleRadius, filter))
-            return false;
-        Vector3 delta = hit.position - current;
-        if (new Vector2(delta.x, delta.z).sqrMagnitude > 0.25f * 0.25f ||
-            Mathf.Abs(delta.y) > 1f)
-            return false;
+        if (!TrySampleLocalNavMesh(current, out NavMeshHit hit)) return false;
         if (!navMeshAgent.Warp(hit.position) || !navMeshAgent.isOnNavMesh) return false;
         navMeshAgent.isStopped = true;
         navMeshAgent.ResetPath();
@@ -1787,15 +1853,58 @@ public class NPCProgressionManager : MonoBehaviour
 
         movementRoutine = null;
         if (contractGiver != null) contractGiver.SetProgressionInteractionLocked(false);
-        if (currentPhaseIndex >= 0) SaveProgressionState(currentPhaseIndex, false);
+        if (currentPhaseIndex >= 0)
+        {
+            // Without the optional destination warp, a failed path previously
+            // left the NPC stranded at its last NavMesh corner. Restore the
+            // departure phase instead, matching the progression we save.
+            PlaceAtPhase(currentPhaseIndex);
+            SaveProgressionState(currentPhaseIndex, false);
+        }
     }
 
     private bool PlaceAtPhase(int phaseIndex)
     {
-        if (phaseIndex < 0 || phaseIndex >= phases.Count ||
-            phases[phaseIndex] == null || phases[phaseIndex].targetLocation == null) return false;
+        if (phaseIndex < 0 || phaseIndex >= phases.Count || phases[phaseIndex] == null)
+            return false;
 
-        Vector3 target = phases[phaseIndex].targetLocation.position;
+        Transform phaseTarget = phases[phaseIndex].targetLocation;
+        if (phaseTarget == null)
+        {
+            // The first targetless phase starts where the NPC was authored.
+            // Later targetless phases mean "stay at the last phase location";
+            // otherwise a reload would send them back to their original spawn.
+            Vector3 posePosition = authoredStartPosition;
+            Quaternion poseRotation = authoredStartRotation;
+            for (int previous = phaseIndex - 1; previous >= 0; previous--)
+            {
+                Transform previousTarget = phases[previous]?.targetLocation;
+                if (previousTarget == null) continue;
+                if (previousTarget != transform)
+                {
+                    posePosition = previousTarget.position;
+                    poseRotation = previousTarget.rotation;
+                }
+                break;
+            }
+
+            if (navMeshAgent != null && navMeshAgent.enabled)
+                navMeshAgent.enabled = false;
+            if (movementMode == NPCProgressionMovementMode.NavMesh &&
+                TrySampleLocalNavMesh(posePosition, out NavMeshHit groundedPose))
+                posePosition.y = groundedPose.position.y;
+            needsNavMeshRebindWhenLeavingPhase =
+                movementMode == NPCProgressionMovementMode.NavMesh;
+            transform.SetPositionAndRotation(posePosition, poseRotation);
+            return true;
+        }
+
+        // Older scene setups sometimes used the NPC itself as the first phase
+        // marker. Once the NPC moved, that destination moved with it. Preserve
+        // the authored scene pose so returning to that phase remains stable.
+        bool usesSelfAsTarget = phaseTarget == transform;
+        Vector3 target = usesSelfAsTarget ? authoredStartPosition : phaseTarget.position;
+        Quaternion targetRotation = usesSelfAsTarget ? authoredStartRotation : phaseTarget.rotation;
         if (movementMode == NPCProgressionMovementMode.Waypoints)
         {
             if (TryProjectWaypointToGround(target, out Vector3 groundedTarget))
@@ -1803,29 +1912,37 @@ public class NPCProgressionManager : MonoBehaviour
 
             transform.SetPositionAndRotation(
                 target,
-                phases[phaseIndex].targetLocation.rotation);
+                targetRotation);
             return true;
         }
 
-        if (navMeshAgent != null && navMeshAgent.isActiveAndEnabled &&
-            NavMesh.SamplePosition(target, out NavMeshHit hit, navMeshSampleRadius,
-                navMeshAgent.areaMask))
+        if (navMeshAgent != null)
         {
-            if (navMeshAgent.Warp(hit.position))
-            {
-                transform.rotation = phases[phaseIndex].targetLocation.rotation;
-                navMeshAgent.isStopped = true;
-                navMeshAgent.ResetPath();
-                return true;
-            }
-
-            transform.position = hit.position;
-            transform.rotation = phases[phaseIndex].targetLocation.rotation;
-            return true;
+            if (navMeshAgent.enabled) navMeshAgent.enabled = false;
+            // An enabled idle agent may be rebound by Unity when saved bridge
+            // NavMesh data loads. Keep the phase pose independent of that data;
+            // bind locally only when travel or idle roaming actually begins.
+            bool hasLocalNavMesh = TrySampleLocalNavMesh(target, out NavMeshHit hit);
+            needsNavMeshRebindWhenLeavingPhase = !hasLocalNavMesh;
+            if (hasLocalNavMesh) target.y = hit.position.y;
         }
-
-        transform.SetPositionAndRotation(target, phases[phaseIndex].targetLocation.rotation);
+        transform.SetPositionAndRotation(target, targetRotation);
         return true;
+    }
+
+    private bool TrySampleLocalNavMesh(Vector3 position, out NavMeshHit hit)
+    {
+        hit = default;
+        if (navMeshAgent == null) return false;
+
+        var filter = new NavMeshQueryFilter
+        { agentTypeID = navMeshAgent.agentTypeID, areaMask = configuredNavigationAreaMask };
+        if (!NavMesh.SamplePosition(position, out hit, navMeshSampleRadius, filter))
+            return false;
+
+        Vector3 delta = hit.position - position;
+        return new Vector2(delta.x, delta.z).sqrMagnitude <= 0.25f * 0.25f &&
+               Mathf.Abs(delta.y) <= 1f;
     }
 
     private static void SetHierarchyActiveForDebug(Transform target)
@@ -2243,6 +2360,19 @@ public class NPCProgressionManager : MonoBehaviour
         StopIdleRoaming();
         if (!IsIdleRoamingEnabledForCurrentPhase() || !isActiveAndEnabled ||
             CurrentPhase == null || CurrentPhase.targetLocation == null) return;
+
+        if (movementMode == NPCProgressionMovementMode.NavMesh && navMeshAgent != null &&
+            (!navMeshAgent.enabled || !navMeshAgent.isOnNavMesh))
+        {
+            if (!TrySampleLocalNavMesh(transform.position, out NavMeshHit hit)) return;
+            if (!navMeshAgent.enabled) navMeshAgent.enabled = true;
+            if (!navMeshAgent.Warp(hit.position))
+            {
+                navMeshAgent.enabled = false;
+                return;
+            }
+            needsNavMeshRebindWhenLeavingPhase = false;
+        }
 
         idleRoamingRoutine = StartCoroutine(IdleRoamingLoop());
     }

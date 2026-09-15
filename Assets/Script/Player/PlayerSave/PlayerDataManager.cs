@@ -189,6 +189,24 @@ public class PlayerDataManager : MonoBehaviour
             CurrentData.loadedVehicleCargo.Exists(record => record != null && record.cargoId == cargoId);
     }
 
+    // Roll back only this test's delivery, preserving all other cargo and saving atomically.
+    public bool TryRestorePlayerCargoDelivery(string cargoId, PlayerCargoDeliveryData previous)
+    {
+        if (CurrentData == null || string.IsNullOrWhiteSpace(cargoId) || IsCargoPermanentlyLoaded(cargoId) ||
+            (previous != null && previous.cargoId != cargoId)) return false;
+        if (CurrentData.playerCargoDeliveries == null)
+            CurrentData.playerCargoDeliveries = new List<PlayerCargoDeliveryData>();
+        var records = CurrentData.playerCargoDeliveries;
+        int index = records.FindIndex(record => record != null && record.cargoId == cargoId);
+        var current = index >= 0 ? records[index] : null;
+        if (index >= 0) records.RemoveAt(index);
+        if (previous != null) records.Insert(index >= 0 ? index : records.Count, previous);
+        if (TrySaveGame()) return true;
+        if (previous != null) records.Remove(previous);
+        if (current != null) records.Insert(index, current);
+        return false;
+    }
+
     public bool TrySaveVehicleCargo(string slotId, string cargoId, float weight)
     {
         if (CurrentData == null || string.IsNullOrWhiteSpace(slotId) || string.IsNullOrWhiteSpace(cargoId) ||

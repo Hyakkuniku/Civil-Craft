@@ -32,7 +32,7 @@ public class NPCWalker : MonoBehaviour
     private void Awake()
     {
         agent = GetComponent<NavMeshAgent>();
-        if (agent != null)
+        if (agent != null && agent.isActiveAndEnabled && agent.isOnNavMesh)
         {
             agent.isStopped = true; 
         }
@@ -46,9 +46,9 @@ public class NPCWalker : MonoBehaviour
             return;
         }
 
-        if (agent == null || !agent.isActiveAndEnabled)
+        if (agent == null)
         {
-            Debug.LogError($"[NPCWalker] {gameObject.name} has no active NavMeshAgent.", this);
+            Debug.LogError($"[NPCWalker] {gameObject.name} has no NavMeshAgent.", this);
             return;
         }
 
@@ -123,16 +123,18 @@ public class NPCWalker : MonoBehaviour
 
     private bool TrySetCompletePath()
     {
-        if (!agent.isOnNavMesh)
+        if (!agent.enabled || !agent.isOnNavMesh)
         {
-            if (!NavMesh.SamplePosition(transform.position, out NavMeshHit startHit,
-                    navMeshSampleRadius, agent.areaMask) || !agent.Warp(startHit.position))
+            if (!TrySampleLocalNavMesh(transform.position, out NavMeshHit startHit))
             {
                 Debug.LogError(
-                    $"[NPCWalker] {gameObject.name} is not close enough to a baked NavMesh.",
+                    $"[NPCWalker] {gameObject.name} has no NavMesh directly under its authored position; it will not snap to a distant edge.",
                     this);
                 return false;
             }
+
+            if (!agent.enabled) agent.enabled = true;
+            if (!agent.Warp(startHit.position)) return false;
         }
 
         if (!NavMesh.SamplePosition(targetDestination.position, out NavMeshHit targetHit,
@@ -158,6 +160,20 @@ public class NPCWalker : MonoBehaviour
         agent.isStopped = false;
         agent.ResetPath();
         return agent.SetPath(path);
+    }
+
+    private bool TrySampleLocalNavMesh(Vector3 position, out NavMeshHit hit)
+    {
+        hit = default;
+        if (agent == null) return false;
+        var filter = new NavMeshQueryFilter
+        { agentTypeID = agent.agentTypeID, areaMask = agent.areaMask };
+        if (!NavMesh.SamplePosition(position, out hit, navMeshSampleRadius, filter))
+            return false;
+
+        Vector3 delta = hit.position - position;
+        return new Vector2(delta.x, delta.z).sqrMagnitude <= 0.25f * 0.25f &&
+               Mathf.Abs(delta.y) <= 1f;
     }
 
     private void FinishWalk(bool arrived)

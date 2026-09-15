@@ -1,0 +1,617 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &5632999238159490817
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2169803894153869135}
+  - component: {fileID: 7654565268824052255}
+  - component: {fileID: 1559040874140444702}
+  - component: {fileID: 874624342069587333}
+  - component: {fileID: 562114264847448909}
+  - component: {fileID: 111993500126408527}
+  - component: {fileID: 6283257255523334039}
+  - component: {fileID: 7328941553201151981}
+  - component: {fileID: 7007395836778559324}
+  m_Layer: 6
+  m_Name: Reed
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2169803894153869135
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5632999238159490817}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0.736527, z: -0, w: 0.6764082}
+  m_LocalPosition: {x: 265.63, y: 30.28, z: 12.9299965}
+  m_LocalScale: {x: 0.17000002, y: 0.17, z: 0.17000002}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 6115586131444740076}
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: -94.873, z: 0}
+--- !u!65 &7654565268824052255
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5632999238159490817}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 8.13, y: 18.4, z: 6.69}
+  m_Center: {x: 0, y: 6.8, z: 0}
+--- !u!195 &1559040874140444702
+NavMeshAgent:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5632999238159490817}
+  m_Enabled: 1
+  m_AgentTypeID: 0
+  m_Radius: 0.5
+  m_Speed: 2.5
+  m_Acceleration: 8
+  avoidancePriority: 50
+  m_AngularSpeed: 260
+  m_StoppingDistance: 0.2
+  m_AutoTraverseOffMeshLink: 0
+  m_AutoBraking: 1
+  m_AutoRepath: 1
+  m_Height: 2
+  m_BaseOffset: 0
+  m_WalkableMask: 4294967295
+  m_ObstacleAvoidanceType: 4
+--- !u!114 &874624342069587333
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5632999238159490817}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7ae77ef4070496040b71d894b0cc67bf, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  useEvents: 0
+  promptMessage: 
+  contractToGive: {fileID: 0}
+  targetBuildLocation: {fileID: 0}
+  linkedCargo: {fileID: 0}
+  requiredCargoDeliveryBeforeInteraction: {fileID: 0}
+  advancesTutorial: 1
+  onOfferDialogueFinished:
+    m_PersistentCalls:
+      m_Calls: []
+  isContractCompleted: 0
+  isFullyTurnedIn: 0
+--- !u!114 &562114264847448909
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5632999238159490817}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a1f34bc1e3214d1bab7180c2f9e260bb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  contractGiver: {fileID: 874624342069587333}
+  navMeshAgent: {fileID: 1559040874140444702}
+  animator: {fileID: 698257042841912769}
+  dialogueManager: {fileID: 0}
+  phases:
+  - phaseId: MeetingReed
+    targetLocation: {fileID: 0}
+    travelWaypoints: []
+    running: 0
+    contract: {fileID: 0}
+    targetBuildLocation: {fileID: 0}
+    linkedCargo: {fileID: 0}
+    cinematicAfterOffer: {fileID: 0}
+    phaseDialogue:
+      name: Reed
+      sentences:
+      - You must be the Engineer that Professor Bhan mentioned.
+      - "I\u2019m <b><#E09500>Reed<#E09500></b>."
+      - I heard you finished your first project back in <b><#E09500>Central Canyonville<#E09500></b>.
+      - "Good timing. There\u2019s a crossing nearby that could use your help."
+      - "Come with me. I\u2019ll show you."
+    optionalDialogueSequence: []
+    dialoguePrompt: Talk To Reed
+    playDialogueOnArrival: 0
+    repeatDialogue: 0
+    enableIdleRoaming: 0
+    unlockFeatureIdAfterDialogue: 
+    featureUnlockDisplayName: 
+    featureUnlockIcon: {fileID: 0}
+    showFeatureCollectPopup: 0
+    materialIntroduction: {fileID: 0}
+    materialIntroductions: []
+    materialIntroductionButtonLabel: 
+    introduceMaterialOnlyOnce: 0
+    onMaterialIntroductionClosed:
+      m_PersistentCalls:
+        m_Calls: []
+    onMaterialIntroductionClosedPhaseMove:
+      npc: {fileID: 0}
+      phaseId: 
+    onDialogueFinished:
+      m_PersistentCalls:
+        m_Calls:
+        - m_Target: {fileID: 0}
+          m_TargetAssemblyTypeName: NPCSpawnerCondition, Assembly-CSharp
+          m_MethodName: DespawnNPC
+          m_Mode: 1
+          m_Arguments:
+            m_ObjectArgument: {fileID: 0}
+            m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+            m_IntArgument: 0
+            m_FloatArgument: 0
+            m_StringArgument: 
+            m_BoolArgument: 0
+          m_CallState: 2
+        - m_Target: {fileID: 7328941553201151981}
+          m_TargetAssemblyTypeName: NPCPhaseAction, Assembly-CSharp
+          m_MethodName: MoveToSelectedPhase
+          m_Mode: 1
+          m_Arguments:
+            m_ObjectArgument: {fileID: 0}
+            m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+            m_IntArgument: 0
+            m_FloatArgument: 0
+            m_StringArgument: 
+            m_BoolArgument: 0
+          m_CallState: 2
+    onDialogueFinishedPhaseMove:
+      npc: {fileID: 0}
+      phaseId: 
+    onNPCInteracted:
+      m_PersistentCalls:
+        m_Calls: []
+    onNPCInteractedPhaseMove:
+      npc: {fileID: 0}
+      phaseId: 
+    invokeInteractionEventOnlyOnce: 0
+    onNPCArrived:
+      m_PersistentCalls:
+        m_Calls: []
+    onNPCArrivedPhaseMove:
+      npc: {fileID: 0}
+      phaseId: 
+  - phaseId: ExplainSituation
+    targetLocation: {fileID: 0}
+    travelWaypoints: []
+    running: 0
+    contract: {fileID: 0}
+    targetBuildLocation: {fileID: 0}
+    linkedCargo: {fileID: 0}
+    cinematicAfterOffer: {fileID: 0}
+    phaseDialogue:
+      name: Reed
+      sentences:
+      - There it is. Right now, vehicles traveling through this part of Canyon Crossing
+        have to take the long way around.
+    optionalDialogueSequence: []
+    dialoguePrompt: Talk To Reed
+    playDialogueOnArrival: 0
+    repeatDialogue: 0
+    enableIdleRoaming: 0
+    unlockFeatureIdAfterDialogue: 
+    featureUnlockDisplayName: 
+    featureUnlockIcon: {fileID: 0}
+    showFeatureCollectPopup: 0
+    materialIntroduction: {fileID: 0}
+    materialIntroductions: []
+    materialIntroductionButtonLabel: 
+    introduceMaterialOnlyOnce: 0
+    onMaterialIntroductionClosed:
+      m_PersistentCalls:
+        m_Calls: []
+    onMaterialIntroductionClosedPhaseMove:
+      npc: {fileID: 0}
+      phaseId: 
+    onDialogueFinished:
+      m_PersistentCalls:
+        m_Calls:
+        - m_Target: {fileID: 0}
+          m_TargetAssemblyTypeName: CinematicDirector, Assembly-CSharp
+          m_MethodName: PlayCinematic
+          m_Mode: 1
+          m_Arguments:
+            m_ObjectArgument: {fileID: 0}
+            m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+            m_IntArgument: 0
+            m_FloatArgument: 0
+            m_StringArgument: 
+            m_BoolArgument: 0
+          m_CallState: 2
+        - m_Target: {fileID: 7007395836778559324}
+          m_TargetAssemblyTypeName: NPCPhaseAction, Assembly-CSharp
+          m_MethodName: MoveToSelectedPhase
+          m_Mode: 1
+          m_Arguments:
+            m_ObjectArgument: {fileID: 0}
+            m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+            m_IntArgument: 0
+            m_FloatArgument: 0
+            m_StringArgument: 
+            m_BoolArgument: 0
+          m_CallState: 2
+    onDialogueFinishedPhaseMove:
+      npc: {fileID: 0}
+      phaseId: 
+    onNPCInteracted:
+      m_PersistentCalls:
+        m_Calls: []
+    onNPCInteractedPhaseMove:
+      npc: {fileID: 0}
+      phaseId: 
+    invokeInteractionEventOnlyOnce: 0
+    onNPCArrived:
+      m_PersistentCalls:
+        m_Calls: []
+    onNPCArrivedPhaseMove:
+      npc: {fileID: 0}
+      phaseId: 
+  - phaseId: Reed Contract Give
+    targetLocation: {fileID: 0}
+    travelWaypoints: []
+    running: 0
+    contract: {fileID: 11400000, guid: 1f93c961d5b0ced468282419d064a7d3, type: 2}
+    targetBuildLocation: {fileID: 0}
+    linkedCargo: {fileID: 0}
+    cinematicAfterOffer: {fileID: 0}
+    phaseDialogue:
+      name: Reed
+      sentences: []
+    optionalDialogueSequence: []
+    dialoguePrompt: Talk To Reed
+    playDialogueOnArrival: 0
+    repeatDialogue: 0
+    enableIdleRoaming: 0
+    unlockFeatureIdAfterDialogue: 
+    featureUnlockDisplayName: 
+    featureUnlockIcon: {fileID: 0}
+    showFeatureCollectPopup: 0
+    materialIntroduction: {fileID: 0}
+    materialIntroductions: []
+    materialIntroductionButtonLabel: 
+    introduceMaterialOnlyOnce: 0
+    onMaterialIntroductionClosed:
+      m_PersistentCalls:
+        m_Calls: []
+    onMaterialIntroductionClosedPhaseMove:
+      npc: {fileID: 0}
+      phaseId: 
+    onDialogueFinished:
+      m_PersistentCalls:
+        m_Calls: []
+    onDialogueFinishedPhaseMove:
+      npc: {fileID: 0}
+      phaseId: 
+    onNPCInteracted:
+      m_PersistentCalls:
+        m_Calls: []
+    onNPCInteractedPhaseMove:
+      npc: {fileID: 0}
+      phaseId: 
+    invokeInteractionEventOnlyOnce: 0
+    onNPCArrived:
+      m_PersistentCalls:
+        m_Calls: []
+    onNPCArrivedPhaseMove:
+      npc: {fileID: 0}
+      phaseId: 
+  - phaseId: ReedFareWell
+    targetLocation: {fileID: 0}
+    travelWaypoints: []
+    running: 0
+    contract: {fileID: 0}
+    targetBuildLocation: {fileID: 0}
+    linkedCargo: {fileID: 0}
+    cinematicAfterOffer: {fileID: 0}
+    phaseDialogue:
+      name: Reed
+      sentences:
+      - You handled your first project out here well.
+      - Nice work, {PlayerName}.
+      - "I\u2019m sure we\u2019ll meet again some other time "
+    optionalDialogueSequence: []
+    dialoguePrompt: Talk To Reed
+    playDialogueOnArrival: 1
+    repeatDialogue: 0
+    enableIdleRoaming: 0
+    unlockFeatureIdAfterDialogue: 
+    featureUnlockDisplayName: 
+    featureUnlockIcon: {fileID: 0}
+    showFeatureCollectPopup: 0
+    materialIntroduction: {fileID: 0}
+    materialIntroductions: []
+    materialIntroductionButtonLabel: 
+    introduceMaterialOnlyOnce: 0
+    onMaterialIntroductionClosed:
+      m_PersistentCalls:
+        m_Calls: []
+    onMaterialIntroductionClosedPhaseMove:
+      npc: {fileID: 0}
+      phaseId: 
+    onDialogueFinished:
+      m_PersistentCalls:
+        m_Calls:
+        - m_Target: {fileID: 0}
+          m_TargetAssemblyTypeName: NPCSpawnerCondition, Assembly-CSharp
+          m_MethodName: SpawnNPC
+          m_Mode: 1
+          m_Arguments:
+            m_ObjectArgument: {fileID: 0}
+            m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+            m_IntArgument: 0
+            m_FloatArgument: 0
+            m_StringArgument: 
+            m_BoolArgument: 0
+          m_CallState: 2
+    onDialogueFinishedPhaseMove:
+      npc: {fileID: 0}
+      phaseId: 
+    onNPCInteracted:
+      m_PersistentCalls:
+        m_Calls: []
+    onNPCInteractedPhaseMove:
+      npc: {fileID: 0}
+      phaseId: 
+    invokeInteractionEventOnlyOnce: 0
+    onNPCArrived:
+      m_PersistentCalls:
+        m_Calls: []
+    onNPCArrivedPhaseMove:
+      npc: {fileID: 0}
+      phaseId: 
+  progressionSaveId: ReedNPC
+  persistProgression: 1
+  restoreSavedPhaseBridgesOnStart: 1
+  placeAtResolvedPhaseOnStart: 1
+  automaticallyAdvanceOnContractCompletion: 1
+  movementMode: 0
+  arrivalPadding: 0.15
+  navMeshSampleRadius: 3
+  pathTimeout: 45
+  warpToTargetIfPathFails: 1
+  rebindNearbyNavMeshBeforeTravel: 0
+  stalledRepathDelay: 1.5
+  stalledMovementTolerance: 0.03
+  maximumRepathAttempts: 3
+  waypointMovementSpeed: 2.5
+  waypointTurnSpeed: 260
+  waypointArrivalDistance: 0.1
+  waypointGroundLayers:
+    serializedVersion: 2
+    m_Bits: 3584
+  waypointGroundProbeHeight: 2
+  waypointGroundProbeDepth: 6
+  waypointGroundOffset: 0
+  requireGroundForWaypointMovement: 1
+  missingGroundGraceTime: 0.5
+  waypointRoadNodeWeldDistance: 0.25
+  waypointRoadGroundConnectionDistance: 20
+  waypointGroundConnectionSampleSpacing: 0.75
+  waypointNavMeshLinkCorridorWidth: 35
+  walkingBoolParameter: isWalking
+  runningBoolParameter: isRunning
+  talkingBoolParameter: isTalking
+  idleRoamingRadius: 1.5
+  idleRoamingSpeed: 1.2
+  idlePauseDuration: 2
+  idleRoamingArrivalDistance: 0.08
+  useSceneNavMeshLinksInWaypointMode: 1
+  manuallyTraverseNavMeshLinks: 1
+  rotateWhileTraversingLinks: 1
+  travellingPrompt: Moving to the next site...
+  onProgressionFinished:
+    m_PersistentCalls:
+      m_Calls: []
+  onMovementFailed:
+    m_PersistentCalls:
+      m_Calls: []
+--- !u!114 &111993500126408527
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5632999238159490817}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 80f23063fbb6cd54db99bf723e4b13c7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  requiredLessonName: 
+  appearAfterLesson: 0
+  useMultipleConditions: 1
+  matchMode: 0
+  conditions: []
+  hideWhenMatched: 0
+  updateAutomatically: 1
+  waitForManualSpawn: 1
+  persistManualOverride: 1
+  visibilitySaveId: ReedNPC
+  useDespawnConditions: 0
+  despawnMatchMode: 1
+  despawnConditions: []
+  npcRoot: {fileID: 5632999238159490817}
+  onShown:
+    m_PersistentCalls:
+      m_Calls: []
+  onHidden:
+    m_PersistentCalls:
+      m_Calls: []
+--- !u!114 &6283257255523334039
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5632999238159490817}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ce9902453e034c90aeb431d222bff030, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  npc: {fileID: 562114264847448909}
+  phaseId: 
+--- !u!114 &7328941553201151981
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5632999238159490817}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ce9902453e034c90aeb431d222bff030, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  npc: {fileID: 562114264847448909}
+  phaseId: ExplainSituation
+--- !u!114 &7007395836778559324
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5632999238159490817}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ce9902453e034c90aeb431d222bff030, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  npc: {fileID: 562114264847448909}
+  phaseId: Reed Contract Give
+--- !u!1001 &6004516915172395015
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 2169803894153869135}
+    m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: 01341076645087d4eadca8c4d726b2c4,
+        type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 01341076645087d4eadca8c4d726b2c4,
+        type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 01341076645087d4eadca8c4d726b2c4,
+        type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 01341076645087d4eadca8c4d726b2c4,
+        type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 01341076645087d4eadca8c4d726b2c4,
+        type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 01341076645087d4eadca8c4d726b2c4,
+        type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 01341076645087d4eadca8c4d726b2c4,
+        type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 01341076645087d4eadca8c4d726b2c4,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 01341076645087d4eadca8c4d726b2c4,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: 01341076645087d4eadca8c4d726b2c4,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: 01341076645087d4eadca8c4d726b2c4,
+        type: 3}
+      propertyPath: m_Name
+      value: Char_Boy_SemiKal1
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 01341076645087d4eadca8c4d726b2c4,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 698257042841912769}
+  m_SourcePrefab: {fileID: 100100000, guid: 01341076645087d4eadca8c4d726b2c4, type: 3}
+--- !u!4 &6115586131444740076 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 01341076645087d4eadca8c4d726b2c4,
+    type: 3}
+  m_PrefabInstance: {fileID: 6004516915172395015}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &6887478841550435670 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: 01341076645087d4eadca8c4d726b2c4,
+    type: 3}
+  m_PrefabInstance: {fileID: 6004516915172395015}
+  m_PrefabAsset: {fileID: 0}
+--- !u!95 &698257042841912769
+Animator:
+  serializedVersion: 5
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6887478841550435670}
+  m_Enabled: 1
+  m_Avatar: {fileID: 0}
+  m_Controller: {fileID: 9100000, guid: 74fb5354a38980147b9c246154616d9f, type: 2}
+  m_CullingMode: 0
+  m_UpdateMode: 0
+  m_ApplyRootMotion: 0
+  m_LinearVelocityBlending: 0
+  m_StabilizeFeet: 0
+  m_WarningMessage: 
+  m_HasTransformHierarchy: 1
+  m_AllowConstantClipSamplingOptimization: 1
+  m_KeepAnimatorStateOnDisable: 0
+  m_WriteDefaultValuesOnDisable: 0

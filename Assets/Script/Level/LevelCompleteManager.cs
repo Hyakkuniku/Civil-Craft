@@ -1080,6 +1080,7 @@ public class LevelCompleteManager : MonoBehaviour
     public void RetrySimulation()
     {
         if (IsFirstCompletionTutorialBlockingActions()) return;
+        if (GameManager.Instance != null && !GameManager.Instance.RestoreCompletedCargoTestForRetry()) return;
         CompleteFirstCompletionTutorialIfActive();
 
         ResetCompletionState();

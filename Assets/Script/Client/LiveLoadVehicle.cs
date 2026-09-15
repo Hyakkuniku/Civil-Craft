@@ -171,7 +171,8 @@ public class LiveLoadVehicle : Interactable
         rb.sleepThreshold = 0f;
         rb.maxDepenetrationVelocity = 10f; 
 
-        Collider chassisCol = GetComponent<Collider>();
+        // Imported vehicle models often put their chassis collider on a child mesh.
+        Collider chassisCol = GetComponent<Collider>() ?? GetComponentInChildren<Collider>();
         if (chassisCol != null)
         {
             PhysicMaterial slipMat = new PhysicMaterial("ChassisSlip");
@@ -301,7 +302,7 @@ public class LiveLoadVehicle : Interactable
 
     private void BuildWheelPhysics()
     {
-        Collider chassisCol = GetComponent<Collider>();
+        Collider chassisCol = GetComponent<Collider>() ?? GetComponentInChildren<Collider>();
 
         foreach (var w in wheels)
         {

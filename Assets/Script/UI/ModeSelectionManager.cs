@@ -36,7 +36,7 @@ public class ModeSelectionManager : MonoBehaviour
     private int currentIndex = 0;
     private Coroutine cameraCoroutine;
     [Header("Scene Presentation References")]
-    [SerializeField] private TMP_Text modeHeading, modeDescription, modeCounter;
+    [SerializeField] private TMP_Text modeHeading, modeDescription;
     [SerializeField] private CanvasGroup descriptionGroup;
     private Coroutine presentationCoroutine;
 
@@ -103,17 +103,25 @@ public class ModeSelectionManager : MonoBehaviour
         // Hide/Show Next and Previous buttons based on the current index limits
         if (previousButton != null) previousButton.SetActive(currentIndex > 0);
         if (nextButton != null) nextButton.SetActive(currentIndex < modes.Length - 1);
-        if (modeHeading != null)
+        ModeData mode = modes[currentIndex];
+        bool multiplayer = mode.modeName.ToLowerInvariant().Contains("multi");
+        if (modeHeading != null) modeHeading.text = mode.modeName.ToUpperInvariant();
+        if (modeDescription != null)
         {
-            ModeData mode = modes[currentIndex];
-            bool multiplayer = mode.modeName.ToLowerInvariant().Contains("multi");
-            modeHeading.text = mode.modeName.ToUpperInvariant();
             modeDescription.text = !string.IsNullOrWhiteSpace(mode.description) ? mode.description :
                 multiplayer ? "Bring your friends along. Choose multiplayer to begin your next building adventure together." :
                 "Explore the canyon, meet its people and take on bridge-building contracts. Learn, build and connect the community at your own pace.";
-            modeCounter.text = $"{currentIndex + 1:00}  /  {modes.Length:00}";
+        }
+        if (descriptionGroup != null)
+        {
+            // Occupy the inactive navigation side: Story left, Multiplayer right.
+            RectTransform card = (RectTransform)descriptionGroup.transform;
+            card.anchorMin = new Vector2(multiplayer ? .69f : .04f, .32f);
+            card.anchorMax = new Vector2(multiplayer ? .96f : .31f, .75f);
+            card.anchoredPosition = Vector2.zero;
+            card.sizeDelta = Vector2.zero;
             if (presentationCoroutine != null) StopCoroutine(presentationCoroutine);
-            if (descriptionGroup != null) presentationCoroutine = StartCoroutine(RevealDescription());
+            presentationCoroutine = StartCoroutine(RevealDescription());
         }
     }
 

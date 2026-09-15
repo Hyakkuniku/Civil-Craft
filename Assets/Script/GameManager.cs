@@ -14,6 +14,9 @@ public class GameManager : MonoBehaviour
     public bool IsCargoTestActive => cargoTestPhysics != null;
     private BridgePhysicsManager cargoTestPhysics;
     private CargoItem.TestSnapshot cargoSnapshot;
+    private CargoItem completedTestCargo;
+    private BuildLocation completedCargoLocation;
+    private PlayerCargoDeliveryData cargoDeliveryBeforeTest;
     private Vector3 cargoTestPlayerPosition;
     private Quaternion cargoTestPlayerRotation;
     private bool cargoTestDeterministic, cargoTestVisualizer;
@@ -72,6 +75,10 @@ public class GameManager : MonoBehaviour
         }
         // Capture the previous drop location AND its pickup lock before unlocking reuse.
         cargoSnapshot = cargo.CaptureTestState();
+        cargoDeliveryBeforeTest = PlayerDataManager.Instance != null
+            ? PlayerDataManager.Instance.GetPlayerCargoDelivery(cargo.PersistentCargoId) : null;
+        completedTestCargo = null;
+        completedCargoLocation = null;
         cargoGridVisible = ActiveBuildLocation.IsGridVisualActive;
         if (cargoCancelButton != null) cargoCancelButton.onClick.AddListener(CancelCargoTest);
         cargo.SetWeight(CurrentContract.liveLoadWeight);
@@ -209,6 +216,8 @@ public class GameManager : MonoBehaviour
             return false;
         if (dropLocation == null || dropLocation.assignedContract != contract ||
             !ActiveBuildLocation.testCargo.PlaceAtDropLocation(dropLocation)) return false;
+        completedTestCargo = ActiveBuildLocation.testCargo;
+        completedCargoLocation = ActiveBuildLocation;
         BridgePhysicsManager physics = cargoTestPhysics;
         cargoTestPhysics = null;
         if (cargoCancelButton != null) cargoCancelButton.onClick.RemoveListener(CancelCargoTest);
@@ -217,6 +226,29 @@ public class GameManager : MonoBehaviour
         physics.enableVisualizer = cargoTestVisualizer;
         physics.lockStressTracking = true;
         LevelCompleteManager.Instance.CompleteLevel(contract);
+        return true;
+    }
+
+    public bool RestoreCompletedCargoTestForRetry()
+    {
+        if (completedTestCargo == null || completedCargoLocation != ActiveBuildLocation) return true;
+        if (CurrentState != GameState.Building || currentPlayerTransform == null || cargoSnapshot == null)
+            return false;
+        if (PlayerDataManager.Instance == null || !PlayerDataManager.Instance.TryRestorePlayerCargoDelivery(
+            completedTestCargo.PersistentCargoId, cargoDeliveryBeforeTest))
+            return RejectCargoTest("Could not save the cargo retry reset. Please retry after resolving the save error.");
+
+        CharacterController controller = currentPlayerTransform.GetComponent<CharacterController>();
+        bool wasEnabled = controller != null && controller.enabled;
+        if (controller != null) controller.enabled = false;
+        currentPlayerTransform.SetPositionAndRotation(cargoTestPlayerPosition, cargoTestPlayerRotation);
+        PlayerMotor motor = currentPlayerTransform.GetComponent<PlayerMotor>();
+        if (motor != null) motor.ResetTestMotion();
+        if (controller != null) controller.enabled = wasEnabled;
+        completedTestCargo.RestoreTestState(cargoSnapshot);
+        completedTestCargo = null;
+        completedCargoLocation = null;
+        Physics.SyncTransforms();
         return true;
     }
     public GameState CurrentState { get; private set; } = GameState.Normal;
@@ -392,6 +424,8 @@ public class GameManager : MonoBehaviour
         CurrentState = GameState.Building;
         currentPlayerTransform = player;
         ActiveBuildLocation = location;
+        completedTestCargo = null;
+        completedCargoLocation = null;
         HideInactiveBuildLocations(location);
 
         if (LevelCompleteManager.Instance != null)

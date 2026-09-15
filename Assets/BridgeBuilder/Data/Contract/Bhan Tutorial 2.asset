@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
   m_Name: Bhan Tutorial 2
   m_EditorClassIdentifier: 
-  liveLoadMode: 1
+  liveLoadMode: 0
   allowVehicleCargo: 0
   minimumLoadedCargo: 0
   contractID: TUT_CONTRACT2
@@ -25,7 +25,7 @@ MonoBehaviour:
   autoCollectReward: 0
   featureUnlockRewards: []
   clientName: Professor Bhan
-  jobDescription: Reinforce the second crossing, then carry Grandma Susan's supply crate to the Canyonreach checkpoint.
+  jobDescription: Construct a truss bridge that safely carries several pedestrians.
   budget: 75000
   liveLoadWeight: 500
   bridgeSpan: 50
@@ -47,12 +47,13 @@ MonoBehaviour:
   offerDialogue:
     name: Professor Bhan
     sentences:
-    - The crate is safe, but the next span is wider and the road alone will not hold it.
-    - Build a truss bridge for the second leg of Grandma Susan's delivery.
+    - Enter the Build location so we can start
   continueOfferDialogue:
     name: Professor Bhan
     sentences:
-    - This time, the road alone will not be enough. Reinforce it with the Wood Beams you just learned about.
+    - The bridge must safely carry several pedestrians crossing one after another.
+    - This time, the road alone will not be enough.
+    - You'll reinforce it using the Wood Beams you just learned about.
     - When a truss carries a load, its members can experience different types of
       forces.
     - Some members are pulled apart. This is called tension.
@@ -61,15 +62,17 @@ MonoBehaviour:
       load.
     - To keep the structure stable, the forces acting on it must remain balanced.
     - This condition is called equilibrium.
-    - Pay attention to how the members respond while you carry the crate across.
-    - Build carefully, press Simulate, and move the same crate to the marked checkpoint on the far side.
+    - Pay attention to how the members respond when the pedestrians cross the bridge.
+    - Now that you've accepted the contract, follow the path to the Blueprint.
   reminderDialogue:
     name: Professor Bhan
     sentences:
-    - The second crossing and Grandma Susan's delivery are waiting. Enter the Blueprint when you are ready.
+    - What are you waiting for?
   finishedContractDialogue:
     name: Professor Bhan
     sentences:
-    - Excellent work, Engineer. Your first truss bridge carried both you and the delivery safely.
-    - The crate has reached Canyonreach. Grandma Susan's shop is close now.
-    - You also learned how to select, copy, and paste structural components. Those tools will matter on the final span.
+    - Excellent work, Engineer.
+    - You've now built your first truss bridge.
+    - You also learned how to select, copy, and paste structural components.
+    - Those tools will become useful when your designs become more complicated.
+    - But before you move on, there's one more building tool I want you to learn.

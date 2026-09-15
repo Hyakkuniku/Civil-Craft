@@ -12,9 +12,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
   m_Name: Bhan Tutorial 1
   m_EditorClassIdentifier: 
-  liveLoadMode: 1
+  liveLoadMode: 0
   allowVehicleCargo: 0
-  minimumLoadedCargo: 1
+  minimumLoadedCargo: 0
   contractID: TUT_CONTRACT1
   efficiencyStarBudgetRatio: 0.85
   strengthStarMaxStress: 60
@@ -25,8 +25,8 @@ MonoBehaviour:
   autoCollectReward: 0
   featureUnlockRewards: []
   clientName: Professor Bhan
-  jobDescription: Build the first crossing and carry Grandma Susan's supply crate
-    safely to the next checkpoint.
+  jobDescription: Build the first crossing and make sure it can safely carry the
+    cart.
   budget: 75000
   liveLoadWeight: 700
   bridgeSpan: 30
@@ -48,31 +48,34 @@ MonoBehaviour:
   offerDialogue:
     name: Professor Bhan
     sentences:
-    - The old delivery road is gone, but Grandma Susan is still waiting for this
-      crate.
-    - Our first obstacle is a short canyon. Build a beam bridge, then carry the crate
-      across yourself.
-    - A drawing can look safe. The delivery test will prove whether it really is.
+    - Now you know what the project requires, what you'll be carrying across the
+      bridge, and which materials are available to you.
+    - You've also learned the basic tools you'll need to construct and test your
+      bridge.
+    - I think you're ready for your first contract.
   continueOfferDialogue:
     name: Professor Bhan
     sentences:
-    - A beam bridge carries the load along its road and into the supports on both
-      banks.
-    - Keep the route continuous. You will be walking every step of it with the cargo
-      in your hands.
-    - When the bridge is ready, press Simulate, pick up the crate, and place it at
-      the marked handoff point across the canyon.
+    - Your first contract will be a simple bridge construction project.
+    - The crossing ahead needs a safe and reliable connection between both sides
+      of the canyon.
+    - For this project, you'll be constructing a Beam Bridge.
+    - A beam bridge is a simple structure that uses horizontal members to carry the
+      load toward its supports.
+    - Your job is to construct the bridge and make sure it can safely make the cart.
+    - Review the contract carefully, then decide how you'll approach the construction.
   reminderDialogue:
     name: Professor Bhan
     sentences:
-    - Grandma Susan's crate is still on this side of the canyon.
-    - Enter the Blueprint, finish the bridge, then press Simulate and deliver it
-      to the marked handoff point.
+    - You can now go to the construction site whenever you are ready..
+    - Enter the Blueprint and begin construction.
   finishedContractDialogue:
     name: Professor Bhan
     sentences:
-    - First crossing complete. More importantly, the crate made it across intact.
-    - Good work, {PlayerName}. Grandma Susan is one bridge closer to receiving her
-      supplies.
-    - Take a moment to review the bridge in your Almanac, then we will continue the
-      delivery.
+    - Good work, {PlayerName}.
+    - Your first training bridge has passed its test.
+    - You now know how to accept a contract, use the blueprint, build a bridge, and
+      test your design.
+    - But your work is not finished yet.
+    - an engineer should inspect the structure after construction.
+    - Open your Almanac and review your first entry

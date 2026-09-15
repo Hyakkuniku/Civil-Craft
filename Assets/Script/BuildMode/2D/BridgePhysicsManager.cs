@@ -793,7 +793,9 @@ public class BridgePhysicsManager : MonoBehaviour
             if (p == null) continue;
             foreach (Rigidbody rb in p.GetComponentsInChildren<Rigidbody>())
             {
-                rb.isKinematic = true; rb.useGravity = false; rb.velocity = Vector3.zero;
+                ClearDynamicVelocity(rb);
+                rb.isKinematic = true;
+                rb.useGravity = false;
             }
         }
         foreach (Bar b in bakeBars)
@@ -801,7 +803,9 @@ public class BridgePhysicsManager : MonoBehaviour
             if (b == null) continue;
             foreach (Rigidbody rb in b.GetComponentsInChildren<Rigidbody>())
             {
-                rb.isKinematic = true; rb.useGravity = false; rb.velocity = Vector3.zero;
+                ClearDynamicVelocity(rb);
+                rb.isKinematic = true;
+                rb.useGravity = false;
             }
         }
 
@@ -917,6 +921,14 @@ public class BridgePhysicsManager : MonoBehaviour
         }
     }
 
+    private static void ClearDynamicVelocity(Rigidbody body)
+    {
+        // Kinematic bodies reject velocity writes. Reset moving bodies before freezing them.
+        if (body == null || body.isKinematic) return;
+        body.velocity = Vector3.zero;
+        body.angularVelocity = Vector3.zero;
+    }
+
     private void ApplyPhysicsToBar(Bar bar)
     {
         bar.NormalizeEndpointOrder();
@@ -932,6 +944,7 @@ public class BridgePhysicsManager : MonoBehaviour
             Rigidbody barRb = bar.GetComponent<Rigidbody>();
             if (barRb == null) barRb = bar.gameObject.AddComponent<Rigidbody>();
             
+            ClearDynamicVelocity(barRb);
             barRb.isKinematic = true;
             barRb.useGravity = true;
             
@@ -942,8 +955,6 @@ public class BridgePhysicsManager : MonoBehaviour
             barRb.collisionDetectionMode = CollisionDetectionMode.Discrete;
             barRb.sleepThreshold = 0f;
             barRb.maxDepenetrationVelocity = 2f;
-            barRb.velocity = Vector3.zero;
-            barRb.angularVelocity = Vector3.zero;
 
             BoxCollider[] oldCols = bar.GetComponents<BoxCollider>();
             foreach(var c in oldCols) { c.enabled = false; DestroyImmediate(c); }
@@ -1038,6 +1049,7 @@ public class BridgePhysicsManager : MonoBehaviour
             Rigidbody nodeRb = p.GetComponent<Rigidbody>();
             if (nodeRb == null) nodeRb = p.gameObject.AddComponent<Rigidbody>();
             
+            ClearDynamicVelocity(nodeRb);
             nodeRb.isKinematic = true;
             nodeRb.useGravity = !p.isAnchor;
             
@@ -1066,8 +1078,6 @@ public class BridgePhysicsManager : MonoBehaviour
                 nodeRb.maxDepenetrationVelocity = 2f;
             }
 
-            nodeRb.velocity = Vector3.zero;
-            nodeRb.angularVelocity = Vector3.zero;
 
             // USE THE SORTED LIST
             foreach (Bar bar in sortedConnectedBars)

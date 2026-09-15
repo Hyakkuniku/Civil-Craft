@@ -10,7 +10,7 @@ public class NPCContractGiver : Interactable
     public CargoItem linkedCargo; 
 
     [Header("Optional Interaction Gate")]
-    [Tooltip("When assigned, this NPC cannot be interacted with until player-carried cargo has been placed and saved for this contract.")]
+    [Tooltip("When assigned, this NPC stays unavailable until the required contract's crossing is complete. Cargo contracts require a saved cargo delivery; vehicle contracts require a saved bridge or completed contract.")]
     public ContractSO requiredCargoDeliveryBeforeInteraction;
 
     [Header("Tutorial Settings")]
@@ -51,9 +51,17 @@ public class NPCContractGiver : Interactable
         {
             if (!base.IsInteractionAvailable) return false;
             if (requiredCargoDeliveryBeforeInteraction == null) return true;
-            return PlayerDataManager.Instance != null &&
-                PlayerDataManager.Instance.HasPlayerCargoDeliveryForContract(
+            if (PlayerDataManager.Instance == null) return false;
+            if (requiredCargoDeliveryBeforeInteraction.liveLoadMode == ContractSO.LiveLoadMode.PlayerCarriedCargo)
+            {
+                return PlayerDataManager.Instance.HasPlayerCargoDeliveryForContract(
                     requiredCargoDeliveryBeforeInteraction.ContractID);
+            }
+
+            return PlayerDataManager.Instance.IsContractCompleted(
+                       requiredCargoDeliveryBeforeInteraction.ContractID) ||
+                   PlayerDataManager.Instance.GetSavedBridge(
+                       requiredCargoDeliveryBeforeInteraction.ContractID) != null;
         }
     }
 

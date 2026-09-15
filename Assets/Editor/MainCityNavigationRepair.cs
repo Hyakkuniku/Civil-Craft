@@ -69,7 +69,6 @@ public static class MainCityNavigationRepair
             PrefabUtility.RecordPrefabInstancePropertyModifications(filter.gameObject);
             count++;
         }
-        int footprints = 0;
         foreach (Transform building in buildings)
         {
             Transform oldFootprint = building.Find("Navigation Footprint (Not Walkable)");
