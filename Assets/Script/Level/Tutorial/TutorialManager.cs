@@ -37,6 +37,8 @@ public class TutorialStep
     public bool lockLook;
     [Tooltip("Block jumping from keyboard, gamepad and mobile buttons for this step only.")]
     public bool lockJump;
+    [Tooltip("Block sprinting and disable the Run toggle for this step only.")]
+    public bool lockRun;
 
     // --- NEW: Step-Specific Wasp Waypoints! ---
     [Header("Wasp Guide Settings")]
@@ -103,7 +105,7 @@ public class TutorialManager : MonoBehaviour
         {
             new TutorialStep
             {
-                message = "Follow the trail of rocks to the <b>build location</b>.",
+                message = "Follow the trail to the <b>build location</b>.",
                 screenPosition = TutorialPosition.Left,
                 showNextButton = false,
                 canSkip = false,
@@ -141,6 +143,7 @@ public class TutorialManager : MonoBehaviour
     private bool isAdvancingStep;
     private int lastAdvanceFrame = -1;
     private readonly List<TutorialSequence> queuedSequences = new List<TutorialSequence>();
+    private readonly HashSet<TutorialSequence> forcedQueuedSequences = new HashSet<TutorialSequence>();
     private readonly Stack<SuspendedTutorialState> suspendedSequences = new Stack<SuspendedTutorialState>();
     private Coroutine queuedSequenceCoroutine;
     private int suspendedTutorialResumeHoldCount;
@@ -155,6 +158,7 @@ public class TutorialManager : MonoBehaviour
             ? currentSequence.tutorialSteps[currentStepIndex] : null;
     public bool IsLookLocked => ActiveControlStep != null && ActiveControlStep.lockLook;
     public bool IsJumpLocked => ActiveControlStep != null && ActiveControlStep.lockJump;
+    public bool IsRunLocked => ActiveControlStep != null && ActiveControlStep.lockRun;
     public TutorialStepAction CurrentStepAction
     {
         get
@@ -1152,10 +1156,11 @@ public class TutorialManager : MonoBehaviour
         hasSavedTutorialCanvasState = false;
     }
 
-    public void QueueTutorial(TutorialSequence sequence)
+    public void QueueTutorial(TutorialSequence sequence, bool ignoreEligibility = false)
     {
-        if (sequence == null || queuedSequences.Contains(sequence)) return;
-        queuedSequences.Add(sequence);
+        if (sequence == null) return;
+        if (ignoreEligibility) forcedQueuedSequences.Add(sequence);
+        if (!queuedSequences.Contains(sequence)) queuedSequences.Add(sequence);
         if (!IsTutorialActive) TryStartQueuedTutorialNextFrame();
     }
 
@@ -1191,6 +1196,7 @@ public class TutorialManager : MonoBehaviour
         }
 
         queuedSequences.Clear();
+        forcedQueuedSequences.Clear();
 
         if (currentSequence != null && currentSequence.tutorialSteps != null)
         {
@@ -1241,13 +1247,16 @@ public class TutorialManager : MonoBehaviour
             TutorialSequence candidate = queuedSequences[i];
             if (candidate == null)
             {
+                forcedQueuedSequences.Remove(candidate);
                 queuedSequences.RemoveAt(i--);
                 continue;
             }
 
-            if (!candidate.CanStartTutorial()) continue;
+            bool ignoreEligibility = forcedQueuedSequences.Contains(candidate);
+            if (!ignoreEligibility && !candidate.CanStartTutorial()) continue;
 
             queuedSequences.RemoveAt(i);
+            forcedQueuedSequences.Remove(candidate);
             PlayTutorial(candidate);
             yield break;
         }
@@ -1272,6 +1281,7 @@ public class TutorialManager : MonoBehaviour
         }
 
         queuedSequences.Clear();
+        forcedQueuedSequences.Clear();
         suspendedSequences.Clear();
 
         if (IsTutorialActive)
@@ -1285,5 +1295,6 @@ public class TutorialManager : MonoBehaviour
         }
 
         queuedSequences.Clear();
+        forcedQueuedSequences.Clear();
     }
 }

@@ -14,7 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   materialId: Beam
   displayName: Timber Beam
-  introductionDescription: A low-cost structural member used to support road decks and form trusses. Timber beams resist both pulling and pushing forces and are placed as a matching pair across the bridge.
+  introductionDescription: A low-cost structural member used to support road decks
+    and form trusses. Timber beams resist both pulling and pushing forces and are
+    placed as a matching pair across the bridge.
   costPerMeter: 100
   massPerMeter: 3
   maxLength: 10
@@ -26,6 +28,9 @@ MonoBehaviour:
   isRope: 0
   isRoad: 0
   isPier: 0
+  pierBucklingReferenceLength: 10
+  pierBucklingExponent: 2
+  pierMinimumCompressionMultiplier: 0.15
   unlockCost: 500
   materialIcon: {fileID: 21300000, guid: 999161720269b2c43881339b86f9c2b6, type: 3}
   segmentPrefab: {fileID: 4806764515897639862, guid: 75c2a0cd61ea5ed409c4bfcde0ac4aa9,

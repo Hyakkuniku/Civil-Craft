@@ -68,7 +68,7 @@ public class NPCProgressionPhase
     [Tooltip("Interaction prompt shown while this contract-free phase is active.")]
     public string dialoguePrompt = "Talk";
 
-    [Tooltip("Play the phase dialogue automatically when the NPC arrives. When disabled, the player starts it by interacting with the NPC.")]
+    [Tooltip("Start dialogue when the NPC arrives. Contract phases use the contract's offer, reminder, or turn-in dialogue; other phases use their optional dialogue. The player still accepts the contract normally. Does not auto-play when restoring an already-arrived phase from a save.")]
     public bool playDialogueOnArrival;
 
     [Tooltip("Allow the player to replay this phase dialogue after it has finished once.")]
@@ -257,6 +257,7 @@ public class NPCProgressionManager : MonoBehaviour
     private readonly HashSet<int> runningOptionalSequencePhases = new HashSet<int>();
     private Coroutine movementRoutine;
     private Coroutine idleRoamingRoutine;
+    private int arrivalDialogueVersion;
     private bool isInvokingPhaseDialogueFinished;
     private int currentPhaseIndex = -1;
     private bool subscribedToCompletion;
@@ -486,6 +487,7 @@ public class NPCProgressionManager : MonoBehaviour
 
     private void OnDisable()
     {
+        arrivalDialogueVersion++;
         if (navMeshAgent != null) navMeshAgent.areaMask = configuredNavigationAreaMask;
         ActiveManagers.Remove(this);
         if (contractGiver != null)
@@ -800,6 +802,7 @@ public class NPCProgressionManager : MonoBehaviour
 
     private IEnumerator MoveToPhaseRoutine(int nextPhaseIndex)
     {
+        arrivalDialogueVersion++;
         StopIdleRoaming();
 
         // Commit the destination before the first movement frame. If the game is
@@ -1967,6 +1970,7 @@ public class NPCProgressionManager : MonoBehaviour
     {
         if (phaseIndex < 0 || phaseIndex >= phases.Count) return;
 
+        int arrivalVersion = ++arrivalDialogueVersion;
         currentPhaseIndex = phaseIndex;
         NPCProgressionPhase phase = phases[phaseIndex];
         if (phase == null) return;
@@ -1988,15 +1992,53 @@ public class NPCProgressionManager : MonoBehaviour
         if (invokeArrivalEvent)
         {
             phase.InvokeNPCArrived();
-            if (phase.playDialogueOnArrival)
-                TryStartPhaseDialogue(phaseIndex, phase);
+            if (phase.playDialogueOnArrival && arrivalVersion == arrivalDialogueVersion &&
+                currentPhaseIndex == phaseIndex && CurrentPhase == phase && !IsTravelling)
+            {
+                if (phase.contract != null)
+                    StartCoroutine(StartContractDialogueAfterArrival(phaseIndex, phase, arrivalVersion));
+                else
+                    TryStartPhaseDialogue(phaseIndex, phase);
+            }
         }
 
         StartIdleRoaming();
     }
 
+    private IEnumerator StartContractDialogueAfterArrival(
+        int phaseIndex, NPCProgressionPhase phase, int arrivalVersion)
+    {
+        ContractSO expectedContract = phase.contract;
+        // Let arrival UnityEvents open their cinematic/panel before testing UI state.
+        yield return null;
+        while (isActiveAndEnabled && arrivalVersion == arrivalDialogueVersion &&
+               currentPhaseIndex == phaseIndex && CurrentPhase == phase && !IsTravelling &&
+               contractGiver != null && phase.contract == expectedContract &&
+               contractGiver.contractToGive == expectedContract)
+        {
+            if (dialogueManager == null)
+                dialogueManager = FindObjectOfType<DialogueManager>();
+
+            bool dialogueOpen = dialogueManager != null && dialogueManager.animator != null &&
+                                dialogueManager.animator.GetBool("isOpen");
+            bool panelOpen = UIPanelCoordinator.Instance != null && UIPanelCoordinator.Instance.HasOpenPanel;
+            bool inBuildMode = GameManager.Instance != null &&
+                               GameManager.Instance.CurrentState != GameManager.GameState.Normal;
+            if (!dialogueOpen && !panelOpen && !inBuildMode && Time.timeScale > 0f)
+            {
+                contractGiver.StartContractDialogueOnArrival(expectedContract);
+                yield break;
+            }
+
+            yield return null;
+        }
+    }
+
     private void HandleNPCInteracted(NPCContractGiver sender)
     {
+        // A manual interaction already satisfies this arrival. Cancel any
+        // deferred automatic conversation so it cannot open again on close.
+        arrivalDialogueVersion++;
         NPCProgressionPhase phase = CurrentPhase;
         if (phase == null) return;
 

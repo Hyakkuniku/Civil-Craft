@@ -25,17 +25,20 @@ MonoBehaviour:
   autoCollectReward: 0
   featureUnlockRewards: []
   clientName: Professor Bhan
-  jobDescription: Construct a truss bridge that safely carries several pedestrians.
+  jobDescription: Construct a truss bridge that safely carries a vehicle.
   budget: 75000
-  liveLoadWeight: 500
-  bridgeSpan: 50
+  liveLoadWeight: 1400
+  bridgeSpan: 60
   allowedMaterials:
   - material: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
     maxPieces: 0
   - material: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
     maxPieces: 0
-  hiddenTools: 
-  hiddenMaterials: []
+  hiddenTools: 01000000
+  hiddenMaterials:
+  - {fileID: 11400000, guid: 57a46c6632dd61b4094902963cf1c5be, type: 2}
+  - {fileID: 11400000, guid: b98aa9ba752ac28449feebc76f256bf2, type: 2}
+  - {fileID: 11400000, guid: 4524a3fc876c6b640a735e6808fe1271, type: 2}
   enforceMaxStress: 0
   maxAllowedStress: 100
   isTimeAttack: 0
@@ -47,23 +50,24 @@ MonoBehaviour:
   offerDialogue:
     name: Professor Bhan
     sentences:
-    - Enter the Build location so we can start
+    - Now that you've seen the new material, let's look at today's <b><#E09500>contract</color></b>.
   continueOfferDialogue:
     name: Professor Bhan
     sentences:
-    - The bridge must safely carry several pedestrians crossing one after another.
+    - The bridge must safely carry the <b><#E09500>Vehicle</color></b> crossing one
+      after another.
     - This time, the road alone will not be enough.
-    - You'll reinforce it using the Wood Beams you just learned about.
-    - When a truss carries a load, its members can experience different types of
-      forces.
-    - Some members are pulled apart. This is called tension.
-    - Other members are pushed together. This is called compression.
-    - These forces act within the truss as the members work together to support the
-      load.
-    - To keep the structure stable, the forces acting on it must remain balanced.
-    - This condition is called equilibrium.
+    - You'll reinforce it using the <b><#E09500>Wood Beams</color></b> you just learned
+      about.
+    - A <b><#E09500>truss</color></b> is made of connected structural members that
+      work together to support the load.
+    - For the structure to remain stable, those members need to work together as
+      forces act on the bridge.
+    - During the simulation, pay attention to how the connected members respond while
+      the Vehicle cross.
     - Pay attention to how the members respond when the pedestrians cross the bridge.
-    - Now that you've accepted the contract, follow the path to the Blueprint.
+    - Now that you've accepted the contract, follow the path to the <b><#E09500>Build
+      Mode</color></b>.
   reminderDialogue:
     name: Professor Bhan
     sentences:
@@ -73,6 +77,5 @@ MonoBehaviour:
     sentences:
     - Excellent work, Engineer.
     - You've now built your first truss bridge.
-    - You also learned how to select, copy, and paste structural components.
+    - You also learned how to erase. select, copy, and paste structural components.
     - Those tools will become useful when your designs become more complicated.
-    - But before you move on, there's one more building tool I want you to learn.

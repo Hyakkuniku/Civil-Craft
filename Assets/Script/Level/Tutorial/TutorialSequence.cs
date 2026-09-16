@@ -47,6 +47,29 @@ public class TutorialSequence : MonoBehaviour
     }
 
     /// <summary>
+    /// Explicitly starts this sequence, even if its lesson was completed before.
+    /// If another tutorial is active, this sequence waits in the forced queue.
+    /// Use TryStartTutorial when progression and completion checks should apply.
+    /// </summary>
+    public void StartTutorial()
+    {
+        TutorialManager manager = TutorialManager.Instance;
+        if (manager == null)
+        {
+            Debug.LogWarning($"[TutorialSequence] Cannot start '{name}' because no TutorialManager is active.", this);
+            return;
+        }
+
+        if (manager.IsTutorialActive)
+        {
+            manager.QueueTutorial(this, true);
+            return;
+        }
+
+        manager.PlayTutorial(this);
+    }
+
+    /// <summary>
     /// Advances this tutorial when it is the sequence currently being played.
     /// Kept on TutorialSequence so scene objects can call it directly from a UnityEvent.
     /// </summary>

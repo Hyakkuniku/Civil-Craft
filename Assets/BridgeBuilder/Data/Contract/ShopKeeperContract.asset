@@ -49,27 +49,48 @@ MonoBehaviour:
   offerDialogue:
     name: Professor Bhan
     sentences:
-    - A local shopkeeper has asked for our help.
-    - Her shop is separated from Canyonreach, making it difficult for her to transport
-      supplies and reach customers in the city.
-    - She needs a bridge that will safely connect her shop to Canyonreach.
-    - The shopkeeper will meet us once the bridge is complete.
-    - Are you ready to take on this contract, Engineer?
+    - The road ends here because the canyon separates the settlement from the land
+      on the other side.
+    - That shop belongs to one of the <b><#E09500>local merchants</color></b>.
+    - Right now, people have to take a long route around the canyon just to reach
+      it.
+    - 'The <b><#E09500>Shopkeeper</color></b> commissioned a bridge to create a direct
+      connection to Central Canyonville.
+
+'
+    - 'This will be your <b><#E09500>first real project</color></b>.
+
+'
+    - Remember what you've learned.
+    - Consider the <b><#E09500>structure<#E09500></b>, the <b><#E09500>loads<#E09500></b>
+      it will carry, and how your design will support them.
+    - During training, I showed you exactly what to build.
+    - This time, the <b><#E09500>decision is yours<#E09500></b>.
+    - You may use a <b><#E09500>beam<#E09500></b> or <b><#E09500>truss design<#E09500></b>.
+    - Study the site, review the <b><#E09500>required load<#E09500></b>, and choose
+      the structure you believe is appropriate.
   continueOfferDialogue:
     name: Professor Bhan
-    sentences:
-    - The shopkeeper is depending on us to reconnect her shop with Canyonreach.
-    - Are you ready to accept the contract?
+    sentences: []
   reminderDialogue:
     name: Professor Bhan
     sentences:
-    - The bridge connecting the shop to Canyonreach still needs to be completed.
-    - Review the contract and begin construction when you are ready.
+    - This is your <b><#E09500>first real contract</color></b>, {PlayerName}.
+    - You already know the basics from your training.
+    - Now it's time to <b><#E09500>apply what you've learned</color></b>.
+    - You may choose the <b><#E09500>bridge design</color></b> you believe is most
+      suitable for the site.
+    - Just make sure your bridge connects both sides and meets the <b><#E09500>contract
+      requirements</color></b>.
+    - The <b><#E09500>construction site</color></b> is just ahead.
+    - Once you're ready, head to the <b><#E09500>Blueprint</color></b>.
+    - That's where you'll begin construction.
   finishedContractDialogue:
     name: Professor Bhan
     sentences:
-    - Well done, Engineer. The bridge is complete.
-    - The shopkeeper can now safely transport her supplies and welcome customers
-      from Canyonreach.
-    - She has arrived to see your work.
-    - Go and speak with her. She will give you access to the shop.
+    - Well done.
+    - You successfully connected the shop to Central Canyonville.
+    - More importantly, you <b><#E09500>made the decision yourself<#E09500></b>.
+    - 'You chose your approach, built the structure, and tested your design.
+
+'

@@ -12,6 +12,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
   m_Name: Reed's Contract
   m_EditorClassIdentifier: 
+  liveLoadMode: 0
+  allowVehicleCargo: 0
+  minimumLoadedCargo: 0
   contractID: ReedsContract
   efficiencyStarBudgetRatio: 0.85
   strengthStarMaxStress: 60
@@ -24,7 +27,7 @@ MonoBehaviour:
   clientName: Reed
   jobDescription: We need a bridge across this ravine!
   budget: 100000
-  liveLoadWeight: 700
+  liveLoadWeight: 5000
   bridgeSpan: 80
   allowedMaterials: []
   hiddenTools: 
@@ -49,8 +52,8 @@ MonoBehaviour:
     - A direct crossing here would solve that.
     - "But keep in mind, those carts can get pretty heavy when they\u2019re loaded."
     - So don't just think about getting the cart from one side to the other.
-    - <b><#E09500>Pay attention to how the bridge responds under that weight<#E09500></b>.
-    - <b><#E09500>Watch the structure closely when you run the test<#E09500></b>.
+    - <b><#E09500>Pay attention to how the bridge responds under that weight</color></b>.
+    - <b><#E09500>Watch the structure closely when you run the test</color></b>.
     - 'If you''re interested, I''ve got the contract. '
   continueOfferDialogue:
     name: Reed

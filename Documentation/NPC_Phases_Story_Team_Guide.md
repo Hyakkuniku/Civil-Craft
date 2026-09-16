@@ -56,7 +56,7 @@ The NPC Progression Manager controls one NPC's ordered phase list. The NPC Contr
 | Target Build Location | Site associated with the contract | Assign the correct Build Location component. |
 | Linked Cargo | Optional cargo tied to the contract | Its weight follows the contract's live load. |
 | Dialogue Prompt | Contract-free interaction prompt | Write a short action such as “Talk to Professor Bhan.” |
-| Play Dialogue On Arrival | Starts optional dialogue when the NPC arrives | Otherwise, the player starts it by interacting. Use cautiously on contract phases. |
+| Play Dialogue On Arrival | Starts the phase's conversation when the NPC arrives | Contract phases use their offer, reminder, or turn-in dialogue; other phases use optional dialogue. An already-arrived phase restored from a save does not auto-play. |
 | Repeat Dialogue | Allows replay of optional dialogue | Disable for a one-time scene-visit conversation. See saving rules below. |
 | Enable Idle Roaming | Enables local wandering in this phase | Use for waiting phases away from cliff edges. |
 
@@ -117,7 +117,9 @@ The normal offer flow is:
 
 If the player cancels the offer, they can return later. Do not design essential acceptance rewards around the initial interaction event, which happens before acceptance.
 
-Contract phases normally use the giver's offer, reminder, and completion dialogue instead of ordinary Phase Dialogue on interaction. An **Optional Dialogue Sequence** can run after acceptance. Avoid using **Play Dialogue On Arrival** to introduce a second dialogue flow while offering a contract.
+Contract phases use the giver's offer, reminder, and completion dialogue. Enable **Play Dialogue On Arrival** to start this same conversation automatically after the NPC reaches that phase. An unaccepted contract opens its offer and normal Accept/Cancel flow; an accepted unfinished contract uses its reminder; a finished contract awaiting turn-in uses its completion dialogue. Paid/locked contracts are not reopened. The arrival conversation waits while dialogue, another coordinated panel, pause, or build mode is active. Interacting manually or leaving the phase cancels the pending automatic start. Restoring an already-arrived phase from a save does not replay arrival dialogue.
+
+An **Optional Dialogue Sequence** on a contract phase still runs after acceptance. It is not opened separately on arrival. Arrival starts the same NPC interaction event as a manual contract conversation, so **On NPC Interacted** actions also run.
 
 ### What advances a contract phase
 

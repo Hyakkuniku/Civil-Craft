@@ -52,30 +52,32 @@ MonoBehaviour:
       bridge, and which materials are available to you.
     - You've also learned the basic tools you'll need to construct and test your
       bridge.
-    - I think you're ready for your first contract.
+    - I think you're ready for your first <b><#E09500>contract</color></b>.
   continueOfferDialogue:
     name: Professor Bhan
     sentences:
     - Your first contract will be a simple bridge construction project.
     - The crossing ahead needs a safe and reliable connection between both sides
       of the canyon.
-    - For this project, you'll be constructing a Beam Bridge.
-    - A beam bridge is a simple structure that uses horizontal members to carry the
-      load toward its supports.
-    - Your job is to construct the bridge and make sure it can safely make the cart.
-    - Review the contract carefully, then decide how you'll approach the construction.
+    - For this project, you'll be constructing a <b><#E09500>Beam Bridge</color></b>.
+    - A <b><#E09500>beam bridge</color></b> is a simple structure that uses horizontal
+      members to carry the load toward its supports.
+    - Your job is to construct the bridge and make sure it can safely make the <b><#E09500>Vehicle</color></b>.
+    - Review the <b><#E09500>contract</color></b> carefully, then decide how you'll
+      approach the construction.
   reminderDialogue:
     name: Professor Bhan
     sentences:
-    - You can now go to the construction site whenever you are ready..
-    - Enter the Blueprint and begin construction.
+    - You can now go to the <b><#E09500>construction site</color></b> whenever you
+      are ready..
+    - Enter <b><#E09500>Build Mode</color></b> and begin construction.
   finishedContractDialogue:
     name: Professor Bhan
     sentences:
     - Good work, {PlayerName}.
     - Your first training bridge has passed its test.
-    - You now know how to accept a contract, use the blueprint, build a bridge, and
-      test your design.
+    - You now know how to accept a <b><#E09500>contract<#E09500></b>, use the <b><#E09500>blueprint<#E09500></b>,
+      build a bridge, and test your design.
     - But your work is not finished yet.
-    - an engineer should inspect the structure after construction.
-    - Open your Almanac and review your first entry
+    - An engineer should inspect the structure after construction.
+    - Open your <b><#E09500>Almanac<#E09500></b> and review your first entry.

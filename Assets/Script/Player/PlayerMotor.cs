@@ -64,7 +64,15 @@ public class PlayerMotor : MonoBehaviour
         return layer >= 0 && playerAnimator.GetLayerWeight(layer) > 0.5f;
     }
     private bool isSprinting;
+    [SerializeField] private bool runEnabled = true;
     private static readonly int SprintParameter = Animator.StringToHash("IsSprinting");
+    public void SetRunEnabled(bool enabled)
+    {
+        runEnabled = enabled;
+        if (enabled) return;
+        isSprinting = false;
+        if (playerAnimator != null) playerAnimator.SetBool(SprintParameter, false);
+    }
     public float gravity = -9.8f;
     [Tooltip("How fast the character spins around to face the direction they are walking.")]
     public float rotationSpeed = 12f;
@@ -138,7 +146,8 @@ public class PlayerMotor : MonoBehaviour
             input = Vector2.zero;
             moveAmount = 0f;
         }
-        isSprinting = !carrying && moveAmount > 0.1f && (isSprinting
+        bool runLocked = TutorialManager.Instance != null && TutorialManager.Instance.IsRunLocked;
+        isSprinting = runEnabled && !runLocked && !carrying && moveAmount > 0.1f && (isSprinting
             ? moveAmount > stopThreshold : moveAmount >= startThreshold);
         Vector3 moveDirection = Vector3.zero;
 

@@ -169,12 +169,28 @@ public class NPCContractGiver : Interactable
         }
     }
 
+    /// <summary>Uses the normal contract conversation without requiring a player tap.</summary>
+    public void StartContractDialogueOnArrival(ContractSO expectedContract)
+    {
+        if (expectedContract == null || contractToGive != expectedContract ||
+            !IsInteractionAvailable || isLocked || isFullyTurnedIn ||
+            isProgressionInteractionLocked || isAwaitingContractDecision) return;
+
+        if (dialogueManager == null)
+            dialogueManager = FindObjectOfType<DialogueManager>();
+        Intract();
+    }
+
     protected override void Intract() 
     {
         if (isProgressionInteractionLocked || isAwaitingContractDecision) return;
 
+        ContractSO interactionContract = contractToGive;
         OnNPCInteracted?.Invoke(this);
 
+        // Interaction events may move this NPC to another phase. Do not start
+        // a conversation for the newly assigned contract during the old call.
+        if (contractToGive != interactionContract || isProgressionInteractionLocked) return;
         if (contractToGive == null) return;
 
         if (isLocked)
