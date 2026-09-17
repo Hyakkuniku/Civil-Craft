@@ -1402,6 +1402,7 @@ public class PlayerDataManager : MonoBehaviour
         if (CurrentData.purchasedShopItemIds == null) CurrentData.purchasedShopItemIds = new List<string>();
         if (CurrentData.unlockedFeatureIds == null) CurrentData.unlockedFeatureIds = new List<string>();
         if (CurrentData.activeQuests == null) CurrentData.activeQuests = new List<TrackedTask>();
+        if (CurrentData.activeObjectiveKey == null) CurrentData.activeObjectiveKey = string.Empty;
         if (CurrentData.unlockedLevels == null) CurrentData.unlockedLevels = new List<string>();
         if (CurrentData.unlockedContractMaterials == null) CurrentData.unlockedContractMaterials = new List<string>();
         if (CurrentData.unlockedDoors == null) CurrentData.unlockedDoors = new List<string>();

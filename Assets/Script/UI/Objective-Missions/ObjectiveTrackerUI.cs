@@ -49,6 +49,7 @@ public class ObjectiveTrackerUI : MonoBehaviour
     private string pendingContractTargetName = string.Empty;
     private System.Action pendingContractAccepted;
     private System.Action pendingContractCancelled;
+    private GameObject objectiveListBackButton;
 
     private GameObject contractOfferLayout;
     private ScrollRect offerMaterialsScrollRect;
@@ -165,6 +166,8 @@ public class ObjectiveTrackerUI : MonoBehaviour
 
         activeTasks.Add(newTask);
 
+        SetActiveObjective(newTask, false);
+
         UnlockAndShowTracker();
         PlayerDataManager.Instance.SaveGame();
 
@@ -249,6 +252,8 @@ public class ObjectiveTrackerUI : MonoBehaviour
         };
 
         activeTasks.Add(newTask);
+
+        SetActiveObjective(newTask, false);
         
         UnlockAndShowTracker(); 
         PlayerDataManager.Instance.SaveGame();
@@ -266,16 +271,17 @@ public class ObjectiveTrackerUI : MonoBehaviour
         
         if (taskToComplete != null && !taskToComplete.isCompleted)
         {
+            bool wasShowingCompletedTask = ReferenceEquals(currentlySelectedTask, taskToComplete);
             taskToComplete.isCompleted = true;
             taskToComplete.isReadyToTurnIn = false;
+
+            SelectNextActiveObjective(taskToComplete, false);
             
             PlayerDataManager.Instance.SaveGame();
             RefreshQuestList();
 
-            if (currentlySelectedTask == taskToComplete)
-            {
-                SelectTask(taskToComplete);
-            }
+            if (wasShowingCompletedTask && trackerPanel != null && trackerPanel.activeSelf)
+                ShowActiveObjectiveOrList(false);
             
             Debug.Log($"<color=green>Generic Task Completed: {taskTitle}</color>");
         }
@@ -406,6 +412,8 @@ public class ObjectiveTrackerUI : MonoBehaviour
 
         currentlySelectedTask.isCompleted = true;
         currentlySelectedTask.isReadyToTurnIn = false;
+
+        SelectNextActiveObjective(currentlySelectedTask, false);
         
         if (PathGuider.Instance != null) PathGuider.Instance.SetNewWaypoints(new List<GuiderWaypoint>());
         
@@ -428,23 +436,26 @@ public class ObjectiveTrackerUI : MonoBehaviour
             var activeTasks = PlayerDataManager.Instance.CurrentData.activeQuests;
             var tasksToComplete = activeTasks.FindAll(t =>
                 specificContract.MatchesIdentifier(t.contractName));
+            bool wasShowingClearedTask = currentlySelectedTask != null &&
+                tasksToComplete.Contains(currentlySelectedTask);
             
             foreach(var t in tasksToComplete)
             {
                 t.isCompleted = true;
                 t.isReadyToTurnIn = false;
             }
+
+            // More than one objective can be cleared at once. Re-resolve from the
+            // saved key so an active task among this group cannot remain selected.
+            ResolveActiveObjective(false);
             
             if (PathGuider.Instance != null) PathGuider.Instance.SetNewWaypoints(new List<GuiderWaypoint>());
             
             PlayerDataManager.Instance.SaveGame();
             RefreshQuestList();
             
-            if (currentlySelectedTask != null &&
-                specificContract.MatchesIdentifier(currentlySelectedTask.contractName))
-            {
-                SelectTask(currentlySelectedTask); 
-            }
+            if (wasShowingClearedTask && trackerPanel != null && trackerPanel.activeSelf)
+                ShowActiveObjectiveOrList(false);
         }
         else
         {
@@ -541,11 +552,9 @@ public class ObjectiveTrackerUI : MonoBehaviour
         if (openTrackerButton != null) openTrackerButton.SetActive(false);
         ClearAlert();
 
-        currentlySelectedTask = null;
-        if (detailsPanel != null) detailsPanel.SetActive(false);
-        if (listPanel != null) listPanel.SetActive(true);
-
         RefreshQuestList();
+
+        ShowActiveObjectiveOrList(true);
     }
 
     public void OnBackButtonClicked()
@@ -560,6 +569,8 @@ public class ObjectiveTrackerUI : MonoBehaviour
         
         if (detailsPanel != null) detailsPanel.SetActive(false);
         if (listPanel != null) listPanel.SetActive(true);
+
+        SetObjectiveBackButtonVisible(false);
         
         ClearAlert();
         RefreshQuestList();
@@ -666,10 +677,14 @@ public class ObjectiveTrackerUI : MonoBehaviour
         bool isContractOfferPreview =
             pendingContractOffer != null && ReferenceEquals(task, pendingContractPreview);
 
+        if (!isContractOfferPreview && !task.isCompleted)
+            SetActiveObjective(task, true);
+
         ClearAlert();
 
         if (listPanel != null) listPanel.SetActive(false);
         if (detailsPanel != null) detailsPanel.SetActive(true);
+        SetObjectiveBackButtonVisible(!isContractOfferPreview);
 
         if (isContractOfferPreview)
         {
@@ -1486,6 +1501,8 @@ public class ObjectiveTrackerUI : MonoBehaviour
 
     private void ConfigureDetailsLayout()
     {
+        EnsureObjectiveListBackButton();
+
         ConfigureText(titleText, 40f, PrimaryTextColor, FontStyles.Bold, TextAlignmentOptions.Center);
         SetCenteredRect(titleText != null ? titleText.rectTransform : null,
             new Vector2(900f, 78f), new Vector2(0f, 275f));
@@ -1537,6 +1554,166 @@ public class ObjectiveTrackerUI : MonoBehaviour
             new Vector2(420f, 72f), new Vector2(0f, -305f));
         SetCenteredRect(completeButton != null ? completeButton.GetComponent<RectTransform>() : null,
             new Vector2(360f, 72f), new Vector2(0f, -55f));
+    }
+
+    private void EnsureObjectiveListBackButton()
+    {
+        if (detailsPanel == null || objectiveListBackButton != null) return;
+
+        Transform existing = detailsPanel.transform.Find("Back to Objective List");
+        if (existing != null)
+        {
+            objectiveListBackButton = existing.gameObject;
+        }
+        else
+        {
+            objectiveListBackButton = new GameObject(
+                "Back to Objective List",
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(Image),
+                typeof(Button));
+            objectiveListBackButton.transform.SetParent(detailsPanel.transform, false);
+
+            GameObject labelObject = new GameObject(
+                "Label",
+                typeof(RectTransform),
+                typeof(CanvasRenderer));
+            labelObject.transform.SetParent(objectiveListBackButton.transform, false);
+            TextMeshProUGUI label = labelObject.AddComponent<TextMeshProUGUI>();
+            if (titleText != null) label.font = titleText.font;
+            label.text = "BACK TO LIST";
+            label.color = LightTextColor;
+            label.fontSize = 24f;
+            label.enableAutoSizing = true;
+            label.fontSizeMin = 16f;
+            label.fontSizeMax = 24f;
+            label.fontStyle = FontStyles.Bold;
+            label.alignment = TextAlignmentOptions.Center;
+            label.raycastTarget = false;
+            StretchRect(label.rectTransform, new Vector2(10f, 6f), new Vector2(-10f, -6f));
+        }
+
+        Image image = objectiveListBackButton.GetComponent<Image>();
+        if (image != null)
+        {
+            if (roundedPanelSprite != null) image.sprite = roundedPanelSprite;
+            image.type = Image.Type.Sliced;
+            image.color = ClipFaceColor;
+        }
+
+        Button button = objectiveListBackButton.GetComponent<Button>();
+        if (button != null)
+        {
+            button.onClick.RemoveListener(OnBackButtonClicked);
+            button.onClick.AddListener(OnBackButtonClicked);
+        }
+
+        SetCenteredRect(
+            objectiveListBackButton.GetComponent<RectTransform>(),
+            new Vector2(210f, 72f),
+            new Vector2(-395f, -305f));
+        objectiveListBackButton.SetActive(false);
+    }
+
+    private void SetObjectiveBackButtonVisible(bool visible)
+    {
+        EnsureObjectiveListBackButton();
+        if (objectiveListBackButton == null) return;
+
+        objectiveListBackButton.SetActive(visible);
+        if (visible) objectiveListBackButton.transform.SetAsLastSibling();
+    }
+
+    private static string GetObjectiveKey(TrackedTask task)
+    {
+        if (task == null) return string.Empty;
+
+        if (!string.IsNullOrWhiteSpace(task.contractName))
+            return "contract:" + task.contractName.Trim();
+
+        return string.IsNullOrWhiteSpace(task.title)
+            ? string.Empty
+            : "task:" + task.title.Trim();
+    }
+
+    private void SetActiveObjective(TrackedTask task, bool saveImmediately)
+    {
+        if (task == null || task.isCompleted || PlayerDataManager.Instance == null ||
+            PlayerDataManager.Instance.CurrentData == null)
+            return;
+
+        string key = GetObjectiveKey(task);
+        if (string.IsNullOrEmpty(key) ||
+            PlayerDataManager.Instance.CurrentData.activeObjectiveKey == key)
+            return;
+
+        PlayerDataManager.Instance.CurrentData.activeObjectiveKey = key;
+        if (saveImmediately) PlayerDataManager.Instance.SaveGame();
+    }
+
+    private TrackedTask ResolveActiveObjective(bool saveFallback)
+    {
+        if (PlayerDataManager.Instance == null || PlayerDataManager.Instance.CurrentData == null)
+            return null;
+
+        PlayerData data = PlayerDataManager.Instance.CurrentData;
+        List<TrackedTask> tasks = data.activeQuests;
+        if (tasks == null || tasks.Count == 0)
+        {
+            if (!string.IsNullOrEmpty(data.activeObjectiveKey))
+            {
+                data.activeObjectiveKey = string.Empty;
+                if (saveFallback) PlayerDataManager.Instance.SaveGame();
+            }
+            return null;
+        }
+
+        TrackedTask active = tasks.FirstOrDefault(task =>
+            task != null && !task.isCompleted && GetObjectiveKey(task) == data.activeObjectiveKey);
+
+        if (active == null)
+        {
+            active = tasks.LastOrDefault(task => task != null && !task.isCompleted && task.isReadyToTurnIn)
+                ?? tasks.LastOrDefault(task => task != null && !task.isCompleted);
+
+            string fallbackKey = GetObjectiveKey(active);
+            if (data.activeObjectiveKey != fallbackKey)
+            {
+                data.activeObjectiveKey = fallbackKey;
+                if (saveFallback) PlayerDataManager.Instance.SaveGame();
+            }
+        }
+
+        return active;
+    }
+
+    private void ShowActiveObjectiveOrList(bool saveFallback)
+    {
+        TrackedTask activeTask = ResolveActiveObjective(saveFallback);
+        if (activeTask != null)
+        {
+            SelectTask(activeTask);
+            return;
+        }
+
+        currentlySelectedTask = null;
+        if (detailsPanel != null) detailsPanel.SetActive(false);
+        if (listPanel != null) listPanel.SetActive(true);
+        SetObjectiveBackButtonVisible(false);
+    }
+
+    private void SelectNextActiveObjective(TrackedTask completedTask, bool saveImmediately)
+    {
+        if (PlayerDataManager.Instance == null || PlayerDataManager.Instance.CurrentData == null)
+            return;
+
+        PlayerData data = PlayerDataManager.Instance.CurrentData;
+        if (completedTask != null && data.activeObjectiveKey != GetObjectiveKey(completedTask))
+            return;
+
+        data.activeObjectiveKey = string.Empty;
+        ResolveActiveObjective(saveImmediately);
     }
 
     private void ConfigurePanel(GameObject target, Color color)

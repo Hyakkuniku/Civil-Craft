@@ -76670,6 +76670,7 @@ GameObject:
   - component: {fileID: 1995523121}
   - component: {fileID: 1995523123}
   - component: {fileID: 1995523122}
+  - component: {fileID: 1995523124}
   m_Layer: 0
   m_Name: EngineerPortrait
   m_TagString: Untagged
@@ -76677,6 +76678,23 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
+--- !u!114 &1995523124
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1995523120}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 386d7e4be2844e63a270443b6947a4a0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  rotationTarget: {fileID: 1040667009}
+  cameraToKeepFixed: {fileID: 1581439987}
+  degreesPerScreenWidth: 180
+  maximumYaw: 70
+  returnDuration: 0.25
 --- !u!224 &1995523121
 RectTransform:
   m_ObjectHideFlags: 0

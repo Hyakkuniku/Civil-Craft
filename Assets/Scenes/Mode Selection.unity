@@ -16425,8 +16425,8 @@ MonoBehaviour:
       m_Calls:
       - m_Target: {fileID: 412972556}
         m_TargetAssemblyTypeName: SceneController, Assembly-CSharp
-        m_MethodName: LoadScene
-        m_Mode: 5
+        m_MethodName: LoadLastSavedScene
+        m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
           m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
@@ -18921,7 +18921,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4282202153
   m_fontColor: {r: 0.16, g: 0.22, b: 0.24, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3

@@ -11,6 +11,7 @@ public class SceneController : MonoBehaviour
     private const string SCENE_MAIN_MENU      = "Main Menu";
     private const string SCENE_MODE_SELECTION = "Mode Selection";
     private const string SCENE_Tutorial = "Tutorial";
+    private const string SCENE_STORY_FALLBACK = "CanyonCrossing";
 
     private void Start()
     {
@@ -34,6 +35,32 @@ public class SceneController : MonoBehaviour
     public void LoadTutorial()
     {
         LoadScene(SCENE_Tutorial);
+    }
+
+    /// <summary>
+    /// Resumes Story Mode in the last gameplay scene saved for the player.
+    /// New, missing, or invalid saves safely begin in CanyonCrossing.
+    /// </summary>
+    public void LoadLastSavedScene()
+    {
+        string sceneToLoad = SCENE_STORY_FALLBACK;
+
+        if (PlayerDataManager.Instance != null &&
+            PlayerDataManager.Instance.CurrentData != null)
+        {
+            string savedScene = PlayerDataManager.Instance.CurrentData.lastSavedScene;
+            if (IsValidSavedGameplayScene(savedScene))
+            {
+                sceneToLoad = savedScene;
+            }
+            else if (!string.IsNullOrWhiteSpace(savedScene))
+            {
+                Debug.LogWarning(
+                    $"Saved scene '{savedScene}' cannot be resumed. Loading '{SCENE_STORY_FALLBACK}' instead.");
+            }
+        }
+
+        LoadScene(sceneToLoad);
     }
 
     // --- NEW: Helper method to load levels by their ID dynamically ---
@@ -83,6 +110,21 @@ public class SceneController : MonoBehaviour
                 return true;
         }
         return false;
+    }
+
+    private bool IsValidSavedGameplayScene(string sceneName)
+    {
+        if (string.IsNullOrWhiteSpace(sceneName)) return false;
+
+        // Never route the Story Play button back into a front-end screen.
+        if (string.Equals(sceneName, SCENE_MAIN_MENU, System.StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(sceneName, SCENE_MODE_SELECTION, System.StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(sceneName, "Level Selection", System.StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return SceneExists(sceneName);
     }
 
     // ==========================================

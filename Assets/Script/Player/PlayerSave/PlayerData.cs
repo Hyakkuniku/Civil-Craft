@@ -158,6 +158,9 @@ public class PlayerData
     // Stable IDs for permanent systems/features earned through contract rewards.
     public List<string> unlockedFeatureIds = new List<string>();
     public List<TrackedTask> activeQuests = new List<TrackedTask>(); 
+    // Stable key for the unfinished objective shown when the objective panel opens.
+    // Contracts use their ContractID; generic objectives use their unique title.
+    public string activeObjectiveKey = "";
     public List<string> unlockedLevels = new List<string> { "Tutorial" };
     public List<string> completedContracts = new List<string>();
     // LessonData archive IDs. This is intentionally separate from completedLessons,
