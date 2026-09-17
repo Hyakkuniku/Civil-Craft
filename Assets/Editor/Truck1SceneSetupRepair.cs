@@ -3,21 +3,13 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using TMPro;
 
-// Targeted migration: no runtime UI creation or changes to other vehicles.
-[InitializeOnLoad]
+// Targeted, manual migration: no runtime UI creation or changes to other vehicles.
+// This used to run after every script reload, scene open, and Play Mode exit.
+// The Truck1 scene setup has already been migrated, so repeatedly scanning all
+// loaded objects only stalls the Editor and can dirty the scene unexpectedly.
 public static class Truck1SceneSetupRepair
 {
     private const string ScenePath = "Assets/Scenes/CanyonCrossing.unity";
-
-    static Truck1SceneSetupRepair()
-    {
-        EditorApplication.delayCall += Repair;
-        EditorSceneManager.sceneOpened += (scene, mode) => Repair();
-        EditorApplication.playModeStateChanged += state =>
-        {
-            if (state == PlayModeStateChange.EnteredEditMode) EditorApplication.delayCall += Repair;
-        };
-    }
 
     [MenuItem("Tools/Civil Craft/Repair Truck1 Setup")]
     private static void Repair()

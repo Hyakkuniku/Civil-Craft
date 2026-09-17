@@ -106,25 +106,27 @@ public sealed class AlmanacMaterialTab : MonoBehaviour
     private void OpenMaterial(BridgeMaterialSO material)
     {
         if (!MaterialDiscoverySaveManager.IsDiscovered(material)) return;
-        ItemUnlockUI materialPopup = ItemUnlockUI.Instance;
-        if (materialPopup == null)
+        LessonUIManager reader = LessonUIManager.Instance;
+        if (reader == null)
         {
-            Debug.LogWarning("[AlmanacMaterialTab] ItemUnlockUI is not available.", this);
+            Debug.LogWarning("[AlmanacMaterialTab] The scrollable reference reader (LessonUIManager) is not available.", this);
             return;
         }
 
-        // The material detail window uses a separate high-priority popup canvas.
+        // The full reference uses the existing scrollable lesson canvas.
         // Close the Almanac first so the book cannot cover or compete with it.
         if (AlmanacManager.Instance != null &&
             AlmanacManager.Instance.Panel != null &&
             AlmanacManager.Instance.Panel.activeInHierarchy)
         {
             AlmanacManager.Instance.CloseAlmanacThen(
-                () => materialPopup.ShowMaterialIntroduction(material, null, "CLOSE"));
+                () => reader.ShowReference(material.GetDisplayName(), material.AlmanacImage,
+                    ItemUnlockUI.BuildMaterialReferenceDetails(material)));
             return;
         }
 
-        materialPopup.ShowMaterialIntroduction(material, null, "CLOSE");
+        reader.ShowReference(material.GetDisplayName(), material.AlmanacImage,
+            ItemUnlockUI.BuildMaterialReferenceDetails(material));
     }
 
     private void HandleMaterialDiscovered(string materialId)

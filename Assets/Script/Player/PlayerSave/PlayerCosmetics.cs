@@ -1,4 +1,5 @@
 using UnityEngine;
+using System;
 using System.Collections.Generic;
 
 [System.Serializable]
@@ -13,6 +14,7 @@ public class CosmeticItem
 public class PlayerCosmetics : MonoBehaviour
 {
     public static PlayerCosmetics Instance { get; private set; }
+    public static event Action<string> EquippedHatChanged;
 
     [Header("Cosmetic Library")]
     public List<CosmeticItem> hats = new List<CosmeticItem>();
@@ -28,20 +30,35 @@ public class PlayerCosmetics : MonoBehaviour
         RefreshCosmetics();
     }
 
+    private void OnDestroy()
+    {
+        if (Instance == this)
+            Instance = null;
+    }
+
     public void RefreshCosmetics()
     {
-        if (PlayerDataManager.Instance == null) return;
+        if (PlayerDataManager.Instance == null ||
+            PlayerDataManager.Instance.CurrentData == null)
+        {
+            return;
+        }
 
-        string savedHat = PlayerDataManager.Instance.CurrentData.equippedHatID;
+        string savedHat = PlayerDataManager.Instance.CurrentData.equippedHatID ?? string.Empty;
 
         // Loop through all hats. If the ID matches, turn it ON. Otherwise, OFF.
         foreach (var hat in hats)
         {
             if (hat.cosmeticModel != null)
             {
-                hat.cosmeticModel.SetActive(hat.cosmeticID == savedHat);
+                hat.cosmeticModel.SetActive(
+                    string.Equals(hat.cosmeticID, savedHat, StringComparison.Ordinal));
             }
         }
+
+        // Portraits and any future cosmetic displays listen to this instead of
+        // running their own polling loop every frame.
+        EquippedHatChanged?.Invoke(savedHat);
     }
 
     public void UnlockAndEquipHat(string hatID)

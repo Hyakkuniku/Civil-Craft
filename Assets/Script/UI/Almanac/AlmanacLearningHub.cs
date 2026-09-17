@@ -284,7 +284,7 @@ public sealed class AlmanacLearningHub : MonoBehaviour
                 bool unlocked = LessonSaveManager.IsUnlocked(lesson);
                 LessonData captured = lesson;
                 CreateIndexButton(indexContent, (i + 1).ToString("00"), lesson.Title,
-                    lesson.Image, unlocked, () => OpenLesson(captured));
+                    lesson.AlmanacImage, unlocked, () => OpenLesson(captured));
             }
             return;
         }
@@ -300,7 +300,7 @@ public sealed class AlmanacLearningHub : MonoBehaviour
             bool unlocked = MaterialDiscoverySaveManager.IsDiscovered(material);
             BridgeMaterialSO captured = material;
             CreateIndexButton(indexContent, "M" + (i + 1).ToString("00"), material.GetDisplayName(),
-                material.materialIcon, unlocked, () => OpenMaterial(captured));
+                material.AlmanacImage, unlocked, () => OpenMaterial(captured));
         }
     }
 
@@ -498,7 +498,7 @@ public sealed class AlmanacLearningHub : MonoBehaviour
     private void OpenLesson(LessonData lesson)
     {
         if (lesson == null || !LessonSaveManager.IsUnlocked(lesson) || isTransitioning) return;
-        PopulateDetail("ENGINEERING LESSON", lesson.Title, lesson.Image, lesson.Description,
+        PopulateDetail("ENGINEERING LESSON", lesson.Title, lesson.AlmanacImage, lesson.AlmanacDescription,
             "Review the principle, then look for it in your next structure.");
         StartCoroutine(TransitionToDetail());
     }
@@ -506,16 +506,14 @@ public sealed class AlmanacLearningHub : MonoBehaviour
     private void OpenMaterial(BridgeMaterialSO material)
     {
         if (material == null || !MaterialDiscoverySaveManager.IsDiscovered(material) || isTransitioning) return;
-        string description = string.IsNullOrWhiteSpace(material.introductionDescription)
-            ? "Study this material's properties and consider where its strengths best fit your design."
-            : material.introductionDescription;
+        string description = material.AlmanacDescription;
         string facts =
             "COST / METER    P" + material.costPerMeter.ToString("0") + "\n" +
             "MASS / METER    " + material.GetPlacedMassPerMeter().ToString("0.##") + " kg\n" +
             "MAX LENGTH      " + material.maxLength.ToString("0.##") + " m\n" +
             "TENSION LIMIT   " + material.maxTension.ToString("N0") + " N\n" +
-            "COMPRESSION     " + material.maxCompression.ToString("N0") + " N";
-        PopulateDetail("BUILDING MATERIAL", material.GetDisplayName(), material.materialIcon,
+            "COMPRESSION     " + (material.isRope ? "Tension only" : material.maxCompression.ToString("N0") + " N");
+        PopulateDetail("BUILDING MATERIAL", material.GetDisplayName(), material.AlmanacImage,
             description, facts);
         StartCoroutine(TransitionToDetail());
     }

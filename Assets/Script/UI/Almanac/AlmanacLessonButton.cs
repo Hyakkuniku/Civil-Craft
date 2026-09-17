@@ -65,7 +65,7 @@ public sealed class AlmanacLessonButton : MonoBehaviour
 
         if (thumbnailImage != null)
         {
-            thumbnailImage.sprite = canOpen && lesson != null ? lesson.Image : null;
+            thumbnailImage.sprite = canOpen && lesson != null ? lesson.AlmanacImage : null;
             thumbnailImage.enabled = thumbnailImage.sprite != null;
             thumbnailImage.color = canOpen ? Color.white : lockedColor;
         }

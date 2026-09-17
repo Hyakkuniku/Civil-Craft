@@ -114,10 +114,10 @@ public class ItemUnlockUI : MonoBehaviour
         pendingRewards.Enqueue(new RewardRequest
         {
             itemName = material.GetDisplayName(),
-            itemIcon = material.materialIcon,
+            itemIcon = material.PopupImage,
             hatID = string.Empty,
             onCollect = onDismiss,
-            detailsText = BuildMaterialDetails(material),
+            detailsText = "<size=115%><b>" + material.GetDisplayName() + "</b></size>\n\n" + material.PopupDescription,
             buttonLabel = string.IsNullOrWhiteSpace(buttonLabel) ? "GOT IT" : buttonLabel.Trim().ToUpperInvariant(),
             useMaterialLayout = true,
             materialToDiscover = material
@@ -319,13 +319,10 @@ public class ItemUnlockUI : MonoBehaviour
         itemNameText.fontSizeMax = defaultFontSizeMax;
     }
 
-    private static string BuildMaterialDetails(BridgeMaterialSO material)
+    public static string BuildMaterialReferenceDetails(BridgeMaterialSO material)
     {
         StringBuilder details = new StringBuilder();
-        details.Append("<size=115%><b>").Append(material.GetDisplayName()).Append("</b></size>");
-
-        if (!string.IsNullOrWhiteSpace(material.introductionDescription))
-            details.Append("\n\n").Append(material.introductionDescription.Trim());
+        details.Append(material.AlmanacDescription);
 
         details.Append("\n\n<size=82%>")
             .Append("<b>Cost:</b> ₱").Append(material.costPerMeter.ToString("N0")).Append(" / meter")

@@ -10,9 +10,27 @@ public class BridgeMaterialSO : ScriptableObject
     [Tooltip("Friendly name shown in material introduction panels. The asset name is used when left blank.")]
     public string displayName;
 
+    [Header("Popup")]
     [TextArea(3, 8)]
     [Tooltip("Short explanation of what this material is and when the player should use it.")]
     public string introductionDescription;
+
+    [Tooltip("Optional introduction photo. Leave empty to use Material Icon.")]
+    public Sprite introductionImage;
+
+    [Header("Almanac")]
+    [TextArea(8, 30)]
+    [Tooltip("Full explanation, uses and limitations. Leave blank to reuse Introduction Description.")]
+    public string almanacDescription;
+    [Tooltip("Optional reference photo/diagram. Leave empty to reuse the popup image.")]
+    public Sprite almanacImage;
+
+    public Sprite PopupImage => introductionImage != null ? introductionImage : materialIcon;
+    public Sprite AlmanacImage => almanacImage != null ? almanacImage : PopupImage;
+    public string PopupDescription => !string.IsNullOrWhiteSpace(introductionDescription)
+        ? introductionDescription : "Discover this material and review its properties in the Almanac.";
+    public string AlmanacDescription => !string.IsNullOrWhiteSpace(almanacDescription)
+        ? almanacDescription : PopupDescription;
 
     [Header("Base Properties")]
     [Tooltip("Material-only price in Philippine pesos (PHP) per meter. Dual materials are charged twice.")]

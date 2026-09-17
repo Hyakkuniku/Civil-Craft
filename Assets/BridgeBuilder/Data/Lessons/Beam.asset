@@ -15,6 +15,8 @@ MonoBehaviour:
   lessonId: beam-bridge
   lessonTitle: What is a Beam Bridge?
   lessonImage: {fileID: 21300000, guid: 6aedd357aa978324690d88ed82a19beb, type: 3}
+  popupDescription: hi
+  almanacImage: {fileID: 0}
   lessonDescription: 'The Beam Bridge is the oldest, simplest, and most common type
     of bridge in the world. If you have ever walked across a wooden plank laid over
     a small creek, you have used a beam bridge!

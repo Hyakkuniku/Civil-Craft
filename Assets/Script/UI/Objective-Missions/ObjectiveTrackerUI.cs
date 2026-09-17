@@ -414,6 +414,11 @@ public class ObjectiveTrackerUI : MonoBehaviour
         ClearAlert();
         SelectTask(currentlySelectedTask);
         RefreshQuestList();
+
+        // Reward collection is the end of the turn-in flow. Close the clipboard
+        // only after completion has been saved successfully, restoring the HUD
+        // and player controls through the same path as the normal close button.
+        CloseTrackerPanel(false);
     }
 
     public void ClearObjective(ContractSO specificContract = null)

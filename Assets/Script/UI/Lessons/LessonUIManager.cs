@@ -108,28 +108,47 @@ public sealed class LessonUIManager : MonoBehaviour
             return;
         }
 
+        if (!ShowContent(lesson.Title, lesson.Image, lesson.PopupDescription)) return;
+
+        // Only an introduction unlocks the entry and participates in story callbacks.
+        CurrentLesson = lesson;
+        LessonSaveManager.Unlock(lesson);
+        LessonOpened?.Invoke(lesson);
+    }
+
+    public void ShowLessonReference(LessonData lesson)
+    {
+        if (lesson != null)
+            ShowReference(lesson.Title, lesson.AlmanacImage, lesson.AlmanacDescription);
+    }
+
+    // The legacy Almanac tabs reuse this existing scrollable reader without
+    // discovering entries or replaying introduction/story events.
+    public void ShowReference(string title, Sprite image, string description)
+    {
+        ShowContent(title, image, description);
+    }
+
+    private bool ShowContent(string title, Sprite image, string description)
+    {
         if (lessonPanel == null || lessonTitleText == null || lessonDescriptionText == null)
         {
             Debug.LogError("[LessonUIManager] Required lesson UI references are missing.", this);
-            return;
+            return false;
         }
 
         RepairCollapsedLessonCanvas();
 
-        // A lesson becomes part of the Almanac archive only once it has actually
-        // been displayed successfully to the player.
-        LessonSaveManager.Unlock(lesson);
-
         bool wasAlreadyOpen = IsOpen;
-        CurrentLesson = lesson;
-        lessonTitleText.text = lesson.Title;
-        lessonDescriptionText.text = lesson.Description;
+        CurrentLesson = null;
+        lessonTitleText.text = title;
+        lessonDescriptionText.text = description;
 
         if (lessonImage != null)
         {
-            lessonImage.sprite = lesson.Image;
+            lessonImage.sprite = image;
             lessonImage.preserveAspect = true;
-            lessonImage.gameObject.SetActive(lesson.Image != null || !hideImageWhenMissing);
+            lessonImage.gameObject.SetActive(image != null || !hideImageWhenMissing);
         }
 
         if (usePanelCoordinator && UIPanelCoordinator.Instance != null)
@@ -149,7 +168,7 @@ public sealed class LessonUIManager : MonoBehaviour
             StopCoroutine(resetScrollRoutine);
         resetScrollRoutine = StartCoroutine(ResetScrollToTopNextFrame());
 
-        LessonOpened?.Invoke(lesson);
+        return true;
     }
 
     public void CloseLesson()
@@ -177,7 +196,7 @@ public sealed class LessonUIManager : MonoBehaviour
         CurrentLesson = null;
         RestoreHiddenCanvases();
         RestorePlayerControls();
-        LessonClosed?.Invoke(closedLesson);
+        if (closedLesson != null) LessonClosed?.Invoke(closedLesson);
     }
 
     private IEnumerator ResetScrollToTopNextFrame()

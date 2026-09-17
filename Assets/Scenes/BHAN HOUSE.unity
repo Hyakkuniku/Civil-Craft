@@ -2749,7 +2749,7 @@ MonoBehaviour:
   onFinalDialogueFinished:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 0}
+      - m_Target: {fileID: 1298933108}
         m_TargetAssemblyTypeName: DoorTransition, Assembly-CSharp
         m_MethodName: UnlockDoor
         m_Mode: 1
@@ -31278,7 +31278,7 @@ MonoBehaviour:
   sprintStopThreshold: 0.7
   sprintSpeedMultiplier: 1.5
   carryingWalkSpeed: 4
-  runEnabled: 1
+  runEnabled: 0
   gravity: -9.8
   rotationSpeed: 12
   jumpHeight: 1.5
@@ -39441,6 +39441,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1040667009}
   - component: {fileID: 1040667010}
+  - component: {fileID: 1040667011}
   m_Layer: 0
   m_Name: Character_w_Clothes_v4 (1)
   m_TagString: Untagged
@@ -39496,6 +39497,21 @@ Animator:
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorStateOnDisable: 0
   m_WriteDefaultValuesOnDisable: 0
+--- !u!114 &1040667011
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1040667008}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9af84040a8c24ffca3ac5db492d31696, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  hats:
+  - cosmeticID: EngineeringHardHat
+    cosmeticModel: {fileID: 556802822}
 --- !u!1 &1041790219
 GameObject:
   m_ObjectHideFlags: 0

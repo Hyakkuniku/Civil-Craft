@@ -51,7 +51,7 @@ public sealed class AlmanacMaterialButton : MonoBehaviour
 
         if (thumbnailImage != null)
         {
-            thumbnailImage.sprite = isDiscovered && material != null ? material.materialIcon : null;
+            thumbnailImage.sprite = isDiscovered && material != null ? material.AlmanacImage : null;
             thumbnailImage.enabled = thumbnailImage.sprite != null;
             thumbnailImage.preserveAspect = true;
             thumbnailImage.color = isDiscovered ? Color.white : lockedColor;

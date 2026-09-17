@@ -137,6 +137,9 @@ public class LiveLoadVehicle : Interactable
     private static LiveLoadVehicle activeInspectionVehicle;
     private Vector3 authoredStartPosition;
     private Quaternion authoredStartRotation;
+    private Vector3 authoredStartPointLocalPosition;
+    private Quaternion authoredStartPointLocalRotation = Quaternion.identity;
+    private bool hasAuthoredStartPointPose;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetInspectionSession()
@@ -159,6 +162,7 @@ public class LiveLoadVehicle : Interactable
         rb = GetComponent<Rigidbody>();
         authoredStartPosition = transform.position;
         authoredStartRotation = transform.rotation;
+        CaptureAuthoredStartPointPose();
         
         rb.mass = vehicleMass;
         rb.isKinematic = true; 
@@ -272,16 +276,8 @@ public class LiveLoadVehicle : Interactable
                 
                 if (endPoint != null)
                 {
-                    rb.position = endPoint.position;
-                    rb.rotation = useWaypointRotation ? endPoint.rotation : authoredStartRotation;
-                    transform.position = endPoint.position;
-                    transform.rotation = useWaypointRotation ? endPoint.rotation : authoredStartRotation;
-
-                    foreach (var w in wheels)
-                    {
-                        w.physObj.transform.localPosition = w.originalLocalPos;
-                        w.physObj.transform.localRotation = w.originalLocalRot;
-                    }
+                    GetWaypointPose(endPoint, out Vector3 parkedPosition, out Quaternion parkedRotation);
+                    ApplyVehiclePose(parkedPosition, parkedRotation);
                 }
             }
         }
@@ -626,17 +622,52 @@ public class LiveLoadVehicle : Interactable
         Quaternion targetRotation = authoredStartRotation;
 
         if (resetToStartPointBeforeSimulation && startPoint != null)
+            GetWaypointPose(startPoint, out targetPosition, out targetRotation);
+
+        ApplyVehiclePose(targetPosition, targetRotation);
+    }
+
+    private void CaptureAuthoredStartPointPose()
+    {
+        if (startPoint == null)
         {
-            targetPosition = startPoint.position;
-            if (useWaypointRotation) targetRotation = startPoint.rotation;
+            hasAuthoredStartPointPose = false;
+            return;
         }
 
-        rb.position = targetPosition;
-        rb.rotation = targetRotation;
-        transform.position = targetPosition;
-        transform.rotation = targetRotation;
+        // Start/End markers describe the route, while imported vehicle roots are
+        // rarely located at the wheel contact point. Preserve the scene-authored
+        // root offset so waypoint resets cannot make a vehicle float or shift.
+        // Markers are sometimes scaled to make their Scene gizmos easier to see.
+        // Ignore that visual scale when calculating the vehicle root offset.
+        authoredStartPointLocalPosition = Quaternion.Inverse(startPoint.rotation) *
+                                          (authoredStartPosition - startPoint.position);
+        authoredStartPointLocalRotation = Quaternion.Inverse(startPoint.rotation) * authoredStartRotation;
+        hasAuthoredStartPointPose = true;
+    }
 
-        foreach (var wheel in wheels)
+    private void GetWaypointPose(Transform waypoint, out Vector3 position, out Quaternion rotation)
+    {
+        if (waypoint == null || !hasAuthoredStartPointPose)
+        {
+            position = authoredStartPosition;
+            rotation = authoredStartRotation;
+            return;
+        }
+
+        position = waypoint.position + waypoint.rotation * authoredStartPointLocalPosition;
+        rotation = useWaypointRotation
+            ? waypoint.rotation * authoredStartPointLocalRotation
+            : authoredStartRotation;
+    }
+
+    private void ApplyVehiclePose(Vector3 position, Quaternion rotation)
+    {
+        rb.position = position;
+        rb.rotation = rotation;
+        transform.SetPositionAndRotation(position, rotation);
+
+        foreach (WheelData wheel in wheels)
         {
             wheel.physObj.transform.localPosition = wheel.originalLocalPos;
             wheel.physObj.transform.localRotation = wheel.originalLocalRot;
@@ -694,9 +725,11 @@ public class LiveLoadVehicle : Interactable
             return;
         }
 
-        float driveDirectionX = Mathf.Sign(endPoint.position.x - startPoint.position.x);
-        bool reachedEnd = (driveDirectionX > 0 && transform.position.x >= endPoint.position.x) || 
-                          (driveDirectionX < 0 && transform.position.x <= endPoint.position.x);
+        GetWaypointPose(startPoint, out Vector3 alignedStartPosition, out _);
+        GetWaypointPose(endPoint, out Vector3 alignedEndPosition, out _);
+        float driveDirectionX = Mathf.Sign(alignedEndPosition.x - alignedStartPosition.x);
+        bool reachedEnd = (driveDirectionX > 0 && transform.position.x >= alignedEndPosition.x) ||
+                          (driveDirectionX < 0 && transform.position.x <= alignedEndPosition.x);
 
         if (reachedEnd)
         {
@@ -707,7 +740,7 @@ public class LiveLoadVehicle : Interactable
             return; 
         }
 
-        float directionX = Mathf.Sign(endPoint.position.x - transform.position.x);
+        float directionX = Mathf.Sign(alignedEndPosition.x - transform.position.x);
         float targetSpeedDegPerSec = (maxSpeed / wheelRadius) * Mathf.Rad2Deg;
 
         float accelerationRate = targetSpeedDegPerSec * 2f * Time.fixedDeltaTime; 

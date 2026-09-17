@@ -159,7 +159,7 @@ public sealed class AlmanacLessonTab : MonoBehaviour
             return;
         }
 
-        LessonUIManager.Instance.ShowLesson(lesson);
+        LessonUIManager.Instance.ShowLessonReference(lesson);
     }
 
     private void HandleLessonUnlocked(string lessonId)
@@ -400,12 +400,12 @@ public sealed class AlmanacLessonTab : MonoBehaviour
 
         readerKickerText.text = "LESSON " + (index > 0 ? index.ToString("00") : string.Empty);
         readerTitleText.text = lesson.Title;
-        readerDescriptionText.text = lesson.Description;
+        readerDescriptionText.text = lesson.AlmanacDescription;
         readerPageText.text = index > 0 ? index + " / " + spawnedButtons.Count : string.Empty;
 
-        bool hasImage = lesson.Image != null;
+        bool hasImage = lesson.AlmanacImage != null;
         readerImageFrame.SetActive(hasImage);
-        readerImage.sprite = lesson.Image;
+        readerImage.sprite = lesson.AlmanacImage;
         readerScrollRect.transform.GetComponent<RectTransform>().offsetMax =
             new Vector2(0f, hasImage ? -316f : -110f);
 

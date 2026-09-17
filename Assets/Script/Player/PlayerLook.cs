@@ -23,6 +23,20 @@ public class PlayerLook : MonoBehaviour
     [Header("Obstacle Avoidance")]
     [Tooltip("Which layers should the camera collide with? (e.g., Environment, Ground)")]
     public LayerMask collisionMask;
+    [Min(0.05f)]
+    [Tooltip("Minimum probe radius around the camera. The near clip plane can automatically make this larger.")]
+    [SerializeField] private float collisionRadius = 0.25f;
+    [Min(0f)]
+    [Tooltip("Extra space kept between the camera probe and an obstacle.")]
+    [SerializeField] private float collisionPadding = 0.08f;
+    [Tooltip("Uses the camera near-clip rectangle to prevent walls from clipping through screen corners.")]
+    [SerializeField] private bool protectNearClipPlane = true;
+    [Min(0.01f)]
+    [Tooltip("How smoothly the camera returns to its normal distance after an obstacle clears.")]
+    [SerializeField] private float obstacleReleaseSmoothTime = 0.18f;
+    [Min(0.1f)]
+    [Tooltip("Target movement beyond this distance is treated as a teleport and snaps the camera into place.")]
+    [SerializeField] private float teleportSnapDistance = 2.5f;
 
     [HideInInspector] public bool canLook = true;
 
@@ -31,6 +45,11 @@ public class PlayerLook : MonoBehaviour
     private float currentDistance;
     private float sensitivityMultiplier = 1f;
     private bool invertLookY;
+    private float distanceSmoothVelocity;
+    private Vector3 previousFollowPosition;
+    private bool hasCameraPose;
+    private readonly RaycastHit[] sphereCastHits = new RaycastHit[24];
+    private readonly RaycastHit[] raycastHits = new RaycastHit[24];
 
     private void Start()
     {
@@ -39,6 +58,7 @@ public class PlayerLook : MonoBehaviour
         
         // Fallback if target is missing
         if (followTarget == null) followTarget = transform; 
+        previousFollowPosition = followTarget.position;
 
         // Detach the camera from the player so it can orbit freely
         if (cam != null && cam.transform.parent == transform)
@@ -77,35 +97,142 @@ public class PlayerLook : MonoBehaviour
 
         // Tutorial look locks must not freeze follow movement. The player can
         // still walk while the camera follows at the unchanged orbit angle.
-        SnapToFollowTarget();
+        UpdateCameraPosition(false);
     }
 
     /// <summary>Refresh the orbit camera after teleporting, even while input is locked.</summary>
     public void SnapToFollowTarget()
     {
+        UpdateCameraPosition(true);
+    }
+
+    private void UpdateCameraPosition(bool forceSnap)
+    {
         if (cam == null) return;
         if (followTarget == null) followTarget = transform;
 
-        // 1. Calculate desired rotation
         Quaternion rotation = Quaternion.Euler(pitch, yaw, 0);
+        Vector3 pivot = followTarget.position;
+        Vector3 backward = rotation * Vector3.back;
+        float desiredDistance = Mathf.Clamp(defaultDistance,
+            Mathf.Max(0.01f, minDistance), Mathf.Max(minDistance, maxDistance));
+        float collisionLimitedDistance = FindCollisionLimitedDistance(pivot, backward, desiredDistance);
 
-        // 2. Calculate ideal position
-        Vector3 direction = new Vector3(0, 0, -defaultDistance);
-        Vector3 desiredPosition = followTarget.position + rotation * direction;
-
-        // 3. Simple SphereCast for Wall Avoidance
-        currentDistance = defaultDistance;
-        Vector3 rayDir = (desiredPosition - followTarget.position).normalized;
-        
-        if (Physics.SphereCast(followTarget.position, 0.25f, rayDir, out RaycastHit hit, defaultDistance, collisionMask))
+        bool targetTeleported = hasCameraPose &&
+            (pivot - previousFollowPosition).sqrMagnitude >
+            Mathf.Max(0.1f, teleportSnapDistance) * Mathf.Max(0.1f, teleportSnapDistance);
+        if (forceSnap || !hasCameraPose || targetTeleported)
         {
-            // Push the camera in if a wall is in the way
-            currentDistance = Mathf.Clamp(hit.distance, minDistance, defaultDistance);
+            currentDistance = collisionLimitedDistance;
+            distanceSmoothVelocity = 0f;
+        }
+        else if (collisionLimitedDistance < currentDistance)
+        {
+            // Pull in immediately. Smoothing toward a newly discovered wall lets
+            // the camera spend several frames inside it, which causes clipping.
+            currentDistance = collisionLimitedDistance;
+            distanceSmoothVelocity = 0f;
+        }
+        else
+        {
+            // Move back out gently so wall edges and narrow doorways do not make
+            // the camera pop between near and far positions.
+            currentDistance = Mathf.SmoothDamp(
+                currentDistance,
+                collisionLimitedDistance,
+                ref distanceSmoothVelocity,
+                Mathf.Max(0.01f, obstacleReleaseSmoothTime),
+                Mathf.Infinity,
+                Time.unscaledDeltaTime);
         }
 
-        // 4. Apply Final Position & Rotation
-        Vector3 finalPosition = followTarget.position + rotation * new Vector3(0, 0, -currentDistance);
-        cam.transform.position = finalPosition;
-        cam.transform.rotation = rotation;
+        cam.transform.SetPositionAndRotation(pivot + backward * currentDistance, rotation);
+        previousFollowPosition = pivot;
+        hasCameraPose = true;
+    }
+
+    private float FindCollisionLimitedDistance(Vector3 origin, Vector3 direction, float desiredDistance)
+    {
+        if (collisionMask.value == 0 || desiredDistance <= 0f) return desiredDistance;
+
+        float probeRadius = GetCameraProbeRadius();
+        float nearestDistance = desiredDistance;
+
+        int sphereHitCount = Physics.SphereCastNonAlloc(
+            origin,
+            probeRadius,
+            direction,
+            sphereCastHits,
+            desiredDistance,
+            collisionMask,
+            QueryTriggerInteraction.Ignore);
+        nearestDistance = FindNearestValidDistance(sphereCastHits, sphereHitCount, nearestDistance);
+
+        // The centre ray catches very thin geometry that a swept sphere can miss
+        // when the cast begins close to, or partly overlapping, a surface.
+        int rayHitCount = Physics.RaycastNonAlloc(
+            origin,
+            direction,
+            raycastHits,
+            desiredDistance,
+            collisionMask,
+            QueryTriggerInteraction.Ignore);
+        nearestDistance = FindNearestValidDistance(raycastHits, rayHitCount, nearestDistance);
+
+        if (nearestDistance >= desiredDistance) return desiredDistance;
+
+        // Obstacles are allowed to override Min Distance. Keeping the old six-unit
+        // minimum in Canyon Crossing forced the camera through any closer wall.
+        float emergencyMinimum = Mathf.Max(0.03f, cam.nearClipPlane * 0.2f);
+        return Mathf.Clamp(nearestDistance - collisionPadding, emergencyMinimum, desiredDistance);
+    }
+
+    private float FindNearestValidDistance(RaycastHit[] hits, int count, float currentNearest)
+    {
+        int safeCount = Mathf.Min(count, hits.Length);
+        for (int i = 0; i < safeCount; i++)
+        {
+            RaycastHit hit = hits[i];
+            if (hit.collider == null || IsSelfCollider(hit.collider)) continue;
+            if (hit.distance < currentNearest) currentNearest = hit.distance;
+        }
+
+        return currentNearest;
+    }
+
+    private bool IsSelfCollider(Collider candidate)
+    {
+        Transform candidateTransform = candidate.transform;
+        if (candidateTransform == transform || candidateTransform.IsChildOf(transform)) return true;
+
+        // PlayerLook can also live on a manager while its target belongs to the
+        // player hierarchy, so filter the target root independently.
+        if (followTarget != null)
+        {
+            Transform targetRoot = followTarget.root;
+            if (candidateTransform == targetRoot || candidateTransform.IsChildOf(targetRoot)) return true;
+        }
+
+        return cam != null &&
+               (candidateTransform == cam.transform || candidateTransform.IsChildOf(cam.transform));
+    }
+
+    private float GetCameraProbeRadius()
+    {
+        float radius = Mathf.Max(0.05f, collisionRadius);
+        if (!protectNearClipPlane || cam == null) return radius;
+
+        float near = Mathf.Max(0.01f, cam.nearClipPlane);
+        if (cam.orthographic)
+        {
+            float halfHeight = cam.orthographicSize;
+            float halfWidth = halfHeight * cam.aspect;
+            return Mathf.Max(radius, Mathf.Sqrt(halfWidth * halfWidth + halfHeight * halfHeight));
+        }
+
+        float nearHalfHeight = Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) * near;
+        float nearHalfWidth = nearHalfHeight * cam.aspect;
+        return Mathf.Max(radius,
+            Mathf.Sqrt(nearHalfWidth * nearHalfWidth + nearHalfHeight * nearHalfHeight));
     }
 }
