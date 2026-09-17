@@ -472,7 +472,19 @@ public sealed class LoadingScreenManager : MonoBehaviour
                 candidate.runtimeAnimatorController != null &&
                 candidate.runtimeAnimatorController.name == "PlayerAnimator");
 
-        return animator != null ? animator.gameObject : null;
+        if (animator == null) return null;
+
+        // Generic animation requires the Animator to live on Base_Rig, but the
+        // visible model, clothing categories, and cosmetic objects are siblings
+        // higher in the hierarchy. Clone the complete visual that is directly
+        // below Player instead of cloning only the skeleton.
+        Transform visualRoot = animator.transform;
+        while (visualRoot.parent != null && visualRoot.parent != player.transform)
+            visualRoot = visualRoot.parent;
+
+        return visualRoot.parent == player.transform
+            ? visualRoot.gameObject
+            : animator.gameObject;
     }
 
     private static void StripGameplayComponents(GameObject clone)
