@@ -143,7 +143,10 @@ public class PlayerData
     public string lastSavedScene = "";
     public SerializableVector3 lastSavedPosition;
 
-    public string equippedHatID = ""; 
+    public string equippedHatID = "";
+    // Full wardrobe state. Older saves are migrated from equippedHatID.
+    public CosmeticLoadoutData cosmeticLoadout = new CosmeticLoadoutData();
+    public int cosmeticLoadoutVersion = 0;
 
     // --- NEW: UI Unlock Trackers ---
     public bool hasUnlockedContractsTab = false;

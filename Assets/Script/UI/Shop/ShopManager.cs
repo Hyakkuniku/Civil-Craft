@@ -512,6 +512,12 @@ public class ShopManager : MonoBehaviour
             return RejectPurchase($"Could not purchase {item.itemName}.");
         }
 
+        if (item.cosmeticDefinition != null &&
+            !string.IsNullOrWhiteSpace(item.cosmeticDefinition.PermanentID))
+        {
+            boundPlayerData.UnlockCosmeticReward(item.cosmeticDefinition.PermanentID, false);
+        }
+
         Debug.Log($"[ShopManager] Purchased '{item.itemName}' for {FormatPrice(item.price)}.", item);
         onItemPurchased.Invoke(item);
         RefreshVisibleCards();

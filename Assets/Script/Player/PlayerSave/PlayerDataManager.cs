@@ -1207,7 +1207,11 @@ public class PlayerDataManager : MonoBehaviour
         if (!CurrentData.unlockedCosmeticIDs.Contains(normalizedID))
             CurrentData.unlockedCosmeticIDs.Add(normalizedID);
         if (equipImmediately)
+        {
             CurrentData.equippedHatID = normalizedID;
+            EnsureCosmeticLoadout();
+            CurrentData.cosmeticLoadout.SetID(CosmeticCategory.Accessories, normalizedID);
+        }
 
         SaveGame();
         if (equipImmediately && PlayerCosmetics.Instance != null)
@@ -1223,6 +1227,61 @@ public class PlayerDataManager : MonoBehaviour
         string normalizedID = cosmeticID.Trim();
         return CurrentData.unlockedCosmeticIDs.Exists(savedID =>
             string.Equals(savedID?.Trim(), normalizedID, StringComparison.Ordinal));
+    }
+
+    public CosmeticLoadoutData GetCosmeticLoadoutCopy()
+    {
+        EnsureCosmeticLoadout();
+        return CurrentData != null && CurrentData.cosmeticLoadout != null
+            ? CurrentData.cosmeticLoadout.Clone()
+            : new CosmeticLoadoutData();
+    }
+
+    /// <summary>Saves all five wardrobe categories in one persistent write.</summary>
+    public bool SaveCosmeticLoadout(CosmeticLoadoutData loadout)
+    {
+        if (CurrentData == null || loadout == null) return false;
+
+        CosmeticLoadoutData previousLoadout = CurrentData.cosmeticLoadout;
+        string previousHatID = CurrentData.equippedHatID;
+        CurrentData.cosmeticLoadout = loadout.Clone();
+        CurrentData.equippedHatID = CurrentData.cosmeticLoadout.accessoriesID ?? string.Empty;
+        if (!TrySaveGame())
+        {
+            CurrentData.cosmeticLoadout = previousLoadout;
+            CurrentData.equippedHatID = previousHatID;
+            return false;
+        }
+
+        if (PlayerCosmetics.Instance != null)
+            PlayerCosmetics.Instance.RefreshCosmetics();
+        return true;
+    }
+
+    private void EnsureCosmeticLoadout()
+    {
+        if (CurrentData == null) return;
+        if (CurrentData.cosmeticLoadout == null)
+            CurrentData.cosmeticLoadout = new CosmeticLoadoutData();
+
+        // Version 0 was the first wardrobe build. It stored white as the
+        // default, which replaced the character's authored material colors.
+        // Migrate once to the alpha-zero "no override" sentinel.
+        if (CurrentData.cosmeticLoadoutVersion < 1)
+        {
+            CurrentData.cosmeticLoadout.accessoriesColor = Color.clear;
+            CurrentData.cosmeticLoadout.hairColor = Color.clear;
+            CurrentData.cosmeticLoadout.shirtColor = Color.clear;
+            CurrentData.cosmeticLoadout.pantsColor = Color.clear;
+            CurrentData.cosmeticLoadout.shoesColor = Color.clear;
+            CurrentData.cosmeticLoadoutVersion = 1;
+        }
+
+        if (string.IsNullOrWhiteSpace(CurrentData.cosmeticLoadout.accessoriesID) &&
+            !string.IsNullOrWhiteSpace(CurrentData.equippedHatID))
+        {
+            CurrentData.cosmeticLoadout.accessoriesID = CurrentData.equippedHatID.Trim();
+        }
     }
 
     // ────────────────────────────────────────────────
@@ -1399,6 +1458,7 @@ public class PlayerDataManager : MonoBehaviour
         if (CurrentData.completedContracts == null) CurrentData.completedContracts = new List<string>();
         if (CurrentData.unlockedAchievements == null) CurrentData.unlockedAchievements = new List<string>();
         if (CurrentData.unlockedCosmeticIDs == null) CurrentData.unlockedCosmeticIDs = new List<string>();
+        EnsureCosmeticLoadout();
         if (CurrentData.purchasedShopItemIds == null) CurrentData.purchasedShopItemIds = new List<string>();
         if (CurrentData.unlockedFeatureIds == null) CurrentData.unlockedFeatureIds = new List<string>();
         if (CurrentData.activeQuests == null) CurrentData.activeQuests = new List<TrackedTask>();

@@ -18,6 +18,8 @@ public sealed class AlmanacPortraitRotator : MonoBehaviour,
     [SerializeField] private Transform rotationTarget;
     [SerializeField] private Transform cameraToKeepFixed;
 
+    public Transform RotationTarget => rotationTarget;
+
     [Header("Interaction")]
     [SerializeField, Min(1f)] private float degreesPerScreenWidth = 180f;
     [SerializeField, Range(1f, 180f)] private float maximumYaw = 70f;

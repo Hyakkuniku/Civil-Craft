@@ -637,6 +637,142 @@ MonoBehaviour:
   hats:
   - cosmeticID: EngineeringHardHat
     cosmeticModel: {fileID: 4098385309691827629}
+  cosmeticBindings:
+  - cosmeticID: Accessory_None
+    category: 0
+    models: []
+    defaultWhenEmpty: 1
+  - cosmeticID: EngineeringHardHat
+    category: 0
+    models:
+    - {fileID: 4098385309691827629}
+    defaultWhenEmpty: 0
+  - cosmeticID: Accessory_SmallCap
+    category: 0
+    models:
+    - {fileID: 7409409405447343358}
+    defaultWhenEmpty: 0
+  - cosmeticID: Accessory_LargeCap
+    category: 0
+    models:
+    - {fileID: 8426649997939960945}
+    defaultWhenEmpty: 0
+  - cosmeticID: Accessory_SafetyVest
+    category: 0
+    models:
+    - {fileID: 4808333137132013794}
+    defaultWhenEmpty: 0
+  - cosmeticID: Hair_Base
+    category: 1
+    models:
+    - {fileID: 2870503809759447405}
+    - {fileID: 7320408065837492270}
+    defaultWhenEmpty: 1
+  - cosmeticID: Hair_1
+    category: 1
+    models:
+    - {fileID: 8295037395897246263}
+    defaultWhenEmpty: 0
+  - cosmeticID: Hair_2
+    category: 1
+    models:
+    - {fileID: 8704077066250454504}
+    defaultWhenEmpty: 0
+  - cosmeticID: Hair_4
+    category: 1
+    models:
+    - {fileID: 8394546641665776820}
+    defaultWhenEmpty: 0
+  - cosmeticID: Hair_5
+    category: 1
+    models:
+    - {fileID: 6833962768263774604}
+    defaultWhenEmpty: 0
+  - cosmeticID: Hair_6
+    category: 1
+    models:
+    - {fileID: 7670732949205929548}
+    defaultWhenEmpty: 0
+  - cosmeticID: Hair_8
+    category: 1
+    models:
+    - {fileID: 8992912054441196695}
+    defaultWhenEmpty: 0
+  - cosmeticID: Shirt_Base
+    category: 2
+    models:
+    - {fileID: 4905074150160887444}
+    defaultWhenEmpty: 1
+  - cosmeticID: Shirt_Blouse
+    category: 2
+    models:
+    - {fileID: 3725337153930273745}
+    defaultWhenEmpty: 0
+  - cosmeticID: Shirt_Polo
+    category: 2
+    models:
+    - {fileID: 509854354911537517}
+    defaultWhenEmpty: 0
+  - cosmeticID: Shirt_Tee1
+    category: 2
+    models:
+    - {fileID: 4436329560787757510}
+    defaultWhenEmpty: 0
+  - cosmeticID: Shirt_Tee2
+    category: 2
+    models:
+    - {fileID: 9074340233035693205}
+    defaultWhenEmpty: 0
+  - cosmeticID: Pants_Base
+    category: 3
+    models:
+    - {fileID: 1282842031683302853}
+    defaultWhenEmpty: 1
+  - cosmeticID: Pants_Straight
+    category: 3
+    models:
+    - {fileID: 7238472993791977423}
+    defaultWhenEmpty: 0
+  - cosmeticID: Pants_Cargo
+    category: 3
+    models:
+    - {fileID: 7158500026271284690}
+    defaultWhenEmpty: 0
+  - cosmeticID: Pants_Rolled
+    category: 3
+    models:
+    - {fileID: 5509951917329974502}
+    defaultWhenEmpty: 0
+  - cosmeticID: Pants_Skirt
+    category: 3
+    models:
+    - {fileID: 7504818496910517833}
+    defaultWhenEmpty: 0
+  - cosmeticID: Shoes_Base
+    category: 4
+    models:
+    - {fileID: 6437156159716705613}
+    defaultWhenEmpty: 1
+  - cosmeticID: Shoes_Sandals
+    category: 4
+    models:
+    - {fileID: 7708110165411548708}
+    defaultWhenEmpty: 0
+  - cosmeticID: Shoes_Boots1
+    category: 4
+    models:
+    - {fileID: 2752010135468216516}
+    defaultWhenEmpty: 0
+  - cosmeticID: Shoes_Boots2
+    category: 4
+    models:
+    - {fileID: 6109238691868814132}
+    defaultWhenEmpty: 0
+  - cosmeticID: Shoes_Black
+    category: 4
+    models:
+    - {fileID: 4028458414418549718}
+    defaultWhenEmpty: 0
 --- !u!1 &1900957552438554622
 GameObject:
   m_ObjectHideFlags: 0

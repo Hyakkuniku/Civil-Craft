@@ -27,6 +27,10 @@ public class ShopItemData : ScriptableObject
     public Sprite icon;
     public ShopCategory category = ShopCategory.Builder;
 
+    [Header("Optional Wardrobe Unlock")]
+    [Tooltip("When assigned, purchasing this item unlocks the linked wardrobe cosmetic.")]
+    public CosmeticDefinition cosmeticDefinition;
+
     [Header("Purchase")]
     [Min(0)] public int price = 100;
 
