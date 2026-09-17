@@ -802,6 +802,9 @@ MonoBehaviour:
   nextButton: {fileID: 8576043186519041273}
   skipButton: {fileID: 6081865980345199539}
   bouncingArrow: {fileID: 0}
+  skipButtonSize: {x: 190, y: 76}
+  skipButtonMargin: {x: 36, y: 28}
+  holdToSkipDuration: 0.9
   recallGuideButton: {fileID: 0}
   transitionDuration: 0.25
   slideTransitionDuration: 0.6
@@ -3854,6 +3857,10 @@ MonoBehaviour:
   closeHideDelay: 0.5
   landscapeMobileScale: 0.84
   typingSpeed: 0.03
+  skipDialogueButton: {fileID: 0}
+  skipButtonSize: {x: 190, y: 76}
+  skipButtonMargin: {x: 36, y: 28}
+  holdToSkipDuration: 0.9
   speakerTalkingBoolParameter: isTalking
   speakerWalkingBoolParameter: isWalking
   speakerRunningBoolParameter: isRunning
@@ -30894,6 +30901,15 @@ MonoBehaviour:
   maxBudgetText: {fileID: 5888955262292439966}
   normalTextColor: {r: 1, g: 1, b: 1, a: 1}
   overBudgetTextColor: {r: 1, g: 0, b: 0, a: 1}
+  safeBudgetColor: {r: 0.3137255, g: 0.6509804, b: 0.4117647, a: 1}
+  warningBudgetColor: {r: 0.88235295, g: 0.68235296, b: 0.25490198, a: 1}
+  criticalBudgetColor: {r: 0.85490197, g: 0.46666667, b: 0.21176471, a: 1}
+  emptyBudgetColor: {r: 0.74509805, g: 0.28235295, b: 0.24313726, a: 1}
+  budgetWarningThreshold: 0.5
+  budgetCriticalThreshold: 0.25
+  budgetFillHorizontalInset: 7
+  budgetFillHeight: 30
+  budgetFillAnimationSpeed: 5
   stressText: {fileID: 7904609893987538893}
   stressFillBar: {fileID: 340158393289009576}
   safeStressColor: {r: 0, g: 1, b: 0, a: 1}
