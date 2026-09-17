@@ -3,6 +3,8 @@ using UnityEngine.Events;
 using TMPro;
 using System.Collections; 
 using System.Collections.Generic; // Required for List
+using UnityEngine.UI;
+using UnityEngine.EventSystems;
 
 public enum TutorialPosition
 {
@@ -88,6 +90,13 @@ public class TutorialManager : MonoBehaviour
     [SerializeField] private GameObject skipButton;
     [SerializeField] private TutorialPointer bouncingArrow;
 
+    [Header("Tutorial Skip Button")]
+    [SerializeField] private Vector2 skipButtonSize = new Vector2(190f, 76f);
+    [Tooltip("Distance from the device safe area's top-right corner, in Canvas units.")]
+    [SerializeField] private Vector2 skipButtonMargin = new Vector2(36f, 28f);
+    [Tooltip("How long the player must continuously hold SKIP before the tutorial closes.")]
+    [Min(0.25f)] [SerializeField] private float holdToSkipDuration = 0.9f;
+
     [SerializeField] private UnityEngine.UI.Button recallGuideButton;
     private float nextGuideRecallTime;
     private TutorialStep[] contractNavigationSteps;
@@ -147,6 +156,10 @@ public class TutorialManager : MonoBehaviour
     private readonly Stack<SuspendedTutorialState> suspendedSequences = new Stack<SuspendedTutorialState>();
     private Coroutine queuedSequenceCoroutine;
     private int suspendedTutorialResumeHoldCount;
+    private RectTransform skipButtonRect;
+    private Canvas skipButtonCanvas;
+    private Rect lastSkipSafeArea;
+    private Vector2Int lastSkipScreenSize;
 
     public int CurrentStepIndex => currentStepIndex;
     public string CurrentLessonName => currentSequence != null ? currentSequence.lessonName : string.Empty;
@@ -279,6 +292,7 @@ public class TutorialManager : MonoBehaviour
         }
         CacheTutorialPanelPositions();
         tutorialRootCanvas = FindTutorialRootCanvas();
+        EnsureTutorialSkipButton();
         trackedButtonAction = new UnityAction(OnTrackedButtonClicked);
     }
 
@@ -424,7 +438,10 @@ public class TutorialManager : MonoBehaviour
             if (btn != null) btn.onClick.AddListener(ShowNextStep);
         }
 
-        if (skipButton != null)
+        // The generated tutorial skip control owns its hold gesture directly.
+        // Keep the legacy click binding only as a fallback if no hold control
+        // could be created because the scene has no usable Canvas.
+        if (skipButton != null && skipButton.GetComponent<TutorialHoldToSkip>() == null)
         {
             var btn = skipButton.GetComponent<UnityEngine.UI.Button>();
             if (btn != null) btn.onClick.AddListener(SkipTutorial);
@@ -433,6 +450,14 @@ public class TutorialManager : MonoBehaviour
 
     private void Update()
     {
+        if (skipButton != null && skipButton.activeInHierarchy)
+        {
+            Rect safeArea = Screen.safeArea;
+            Vector2Int screenSize = new Vector2Int(Screen.width, Screen.height);
+            if (safeArea != lastSkipSafeArea || screenSize != lastSkipScreenSize)
+                PositionTutorialSkipButton();
+        }
+
         UpdateContractGuide();
         if (recallGuideButton != null)
         {
@@ -690,7 +715,15 @@ public class TutorialManager : MonoBehaviour
         }
 
         if (nextButton != null) nextButton.SetActive(step.showNextButton);
-        if (skipButton != null) skipButton.SetActive(step.canSkip);
+        if (skipButton != null)
+        {
+            skipButton.SetActive(step.canSkip);
+            if (step.canSkip)
+            {
+                skipButton.transform.SetAsLastSibling();
+                PositionTutorialSkipButton();
+            }
+        }
 
         if (!step.usePointer || step.pointerTarget == null)
         {
@@ -1264,7 +1297,132 @@ public class TutorialManager : MonoBehaviour
 
     public void SkipTutorial()
     {
+        if (!IsTutorialActive) return;
         CompleteTutorial();
+    }
+
+    private void EnsureTutorialSkipButton()
+    {
+        if (tutorialRootCanvas == null)
+            tutorialRootCanvas = FindTutorialRootCanvas();
+        if (tutorialRootCanvas == null) return;
+
+        // Scene-authored tutorial buttons may contain persistent one-tap events.
+        // Retire that object and create the shared hold-to-skip presentation so
+        // releasing early can never invoke the legacy SkipTutorial callback.
+        GameObject authoredButton = skipButton;
+        if (authoredButton != null)
+            authoredButton.SetActive(false);
+
+        GameObject buttonObject = new GameObject(
+            "Tutorial Skip Button",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image),
+            typeof(Button),
+            typeof(Shadow));
+        buttonObject.layer = 5;
+        buttonObject.transform.SetParent(tutorialRootCanvas.transform, false);
+
+        skipButton = buttonObject;
+        skipButtonCanvas = tutorialRootCanvas.rootCanvas;
+        skipButtonRect = buttonObject.GetComponent<RectTransform>();
+        skipButtonRect.anchorMin = Vector2.one;
+        skipButtonRect.anchorMax = Vector2.one;
+        skipButtonRect.pivot = Vector2.one;
+        skipButtonRect.sizeDelta = skipButtonSize;
+
+        Image background = buttonObject.GetComponent<Image>();
+        background.sprite = DialogueManager.GetSkipRoundedSprite();
+        background.type = Image.Type.Sliced;
+        background.color = new Color32(145, 84, 48, 255);
+
+        Shadow shadow = buttonObject.GetComponent<Shadow>();
+        shadow.effectColor = new Color32(103, 58, 35, 180);
+        shadow.effectDistance = new Vector2(0f, -5f);
+
+        Button button = buttonObject.GetComponent<Button>();
+        button.targetGraphic = background;
+        ColorBlock colors = button.colors;
+        colors.normalColor = Color.white;
+        colors.highlightedColor = new Color32(255, 245, 220, 255);
+        colors.pressedColor = new Color32(229, 202, 151, 255);
+        colors.selectedColor = colors.highlightedColor;
+        colors.disabledColor = new Color(1f, 1f, 1f, 0.45f);
+        colors.fadeDuration = 0.08f;
+        button.colors = colors;
+
+        Image face = DialogueManager.CreateSkipButtonLayer(
+            buttonObject.transform,
+            "Cream Face",
+            new Vector2(5f, 8f),
+            new Vector2(-5f, -5f),
+            new Color32(239, 216, 167, 255));
+        face.raycastTarget = false;
+
+        Image holdFill = DialogueManager.CreateSkipButtonLayer(
+            buttonObject.transform,
+            "Hold Fill",
+            new Vector2(5f, 8f),
+            new Vector2(-5f, -5f),
+            new Color32(207, 145, 74, 255));
+        holdFill.type = Image.Type.Filled;
+        holdFill.fillMethod = Image.FillMethod.Horizontal;
+        holdFill.fillOrigin = (int)Image.OriginHorizontal.Left;
+        holdFill.fillAmount = 0f;
+        holdFill.enabled = false;
+        holdFill.raycastTarget = false;
+
+        GameObject labelObject = new GameObject(
+            "Label", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+        labelObject.layer = 5;
+        labelObject.transform.SetParent(buttonObject.transform, false);
+        RectTransform labelRect = labelObject.GetComponent<RectTransform>();
+        labelRect.anchorMin = Vector2.zero;
+        labelRect.anchorMax = Vector2.one;
+        labelRect.offsetMin = Vector2.zero;
+        labelRect.offsetMax = Vector2.zero;
+
+        TextMeshProUGUI label = labelObject.GetComponent<TextMeshProUGUI>();
+        label.text = "SKIP";
+        label.font = centerText != null && centerText.font != null
+            ? centerText.font
+            : leftText != null ? leftText.font : null;
+        label.fontSize = 32f;
+        label.enableAutoSizing = true;
+        label.fontSizeMin = 22f;
+        label.fontSizeMax = 32f;
+        label.fontStyle = FontStyles.Bold;
+        label.alignment = TextAlignmentOptions.Center;
+        label.color = new Color32(132, 74, 43, 255);
+        label.raycastTarget = false;
+
+        TutorialHoldToSkip hold = buttonObject.AddComponent<TutorialHoldToSkip>();
+        hold.Configure(this, button, holdFill, holdToSkipDuration);
+
+        PositionTutorialSkipButton();
+        buttonObject.SetActive(false);
+    }
+
+    private void PositionTutorialSkipButton()
+    {
+        if (skipButtonRect == null || skipButtonCanvas == null) return;
+
+        Rect safeArea = Screen.safeArea;
+        float scaleFactor = Mathf.Max(0.01f, skipButtonCanvas.scaleFactor);
+        float rightInset = Mathf.Max(0f, Screen.width - safeArea.xMax) / scaleFactor;
+        float topInset = Mathf.Max(0f, Screen.height - safeArea.yMax) / scaleFactor;
+
+        skipButtonRect.anchorMin = Vector2.one;
+        skipButtonRect.anchorMax = Vector2.one;
+        skipButtonRect.pivot = Vector2.one;
+        skipButtonRect.sizeDelta = skipButtonSize;
+        skipButtonRect.anchoredPosition = new Vector2(
+            -(rightInset + skipButtonMargin.x),
+            -(topInset + skipButtonMargin.y));
+
+        lastSkipSafeArea = safeArea;
+        lastSkipScreenSize = new Vector2Int(Screen.width, Screen.height);
     }
 
     /// <summary>
@@ -1296,5 +1454,91 @@ public class TutorialManager : MonoBehaviour
 
         queuedSequences.Clear();
         forcedQueuedSequences.Clear();
+    }
+}
+
+/// <summary>Requires an uninterrupted mobile press before skipping a tutorial.</summary>
+public sealed class TutorialHoldToSkip : MonoBehaviour,
+    IPointerDownHandler, IPointerUpHandler, IPointerExitHandler
+{
+    private TutorialManager tutorialManager;
+    private Button button;
+    private Image fillImage;
+    private float holdDuration = 0.9f;
+    private float heldTime;
+    private bool holding;
+    private bool completed;
+
+    public void Configure(
+        TutorialManager manager,
+        Button targetButton,
+        Image progressFill,
+        float duration)
+    {
+        tutorialManager = manager;
+        button = targetButton;
+        fillImage = progressFill;
+        holdDuration = Mathf.Max(0.25f, duration);
+        ResetHold();
+    }
+
+    private void Update()
+    {
+        if (!holding || completed || button == null || !button.IsInteractable()) return;
+
+        heldTime += Time.unscaledDeltaTime;
+        float progress = Mathf.Clamp01(heldTime / holdDuration);
+        if (fillImage != null)
+        {
+            fillImage.enabled = true;
+            fillImage.fillAmount = progress;
+        }
+        if (progress < 1f) return;
+
+        completed = true;
+        holding = false;
+        tutorialManager?.SkipTutorial();
+    }
+
+    public void OnPointerDown(PointerEventData eventData)
+    {
+        if (eventData.button != PointerEventData.InputButton.Left ||
+            button == null || !button.IsInteractable()) return;
+
+        heldTime = 0f;
+        completed = false;
+        holding = true;
+        if (fillImage != null)
+        {
+            fillImage.fillAmount = 0f;
+            fillImage.enabled = true;
+        }
+    }
+
+    public void OnPointerUp(PointerEventData eventData)
+    {
+        if (!completed) ResetHold();
+    }
+
+    public void OnPointerExit(PointerEventData eventData)
+    {
+        if (!completed) ResetHold();
+    }
+
+    private void OnDisable()
+    {
+        ResetHold();
+    }
+
+    private void ResetHold()
+    {
+        holding = false;
+        completed = false;
+        heldTime = 0f;
+        if (fillImage != null)
+        {
+            fillImage.fillAmount = 0f;
+            fillImage.enabled = false;
+        }
     }
 }

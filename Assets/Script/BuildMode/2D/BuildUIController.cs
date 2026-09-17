@@ -68,6 +68,24 @@ public class BuildUIController : MonoBehaviour
     public Color normalTextColor = Color.white;
     public Color overBudgetTextColor = Color.red;
 
+    [Header("Budget Remaining Colors")]
+    [Tooltip("Used while more than half of the contract budget remains.")]
+    public Color safeBudgetColor = new Color32(80, 166, 105, 255);
+    [Tooltip("Used while 25% to 50% of the contract budget remains.")]
+    public Color warningBudgetColor = new Color32(225, 174, 65, 255);
+    [Tooltip("Used while less than 25% of the contract budget remains.")]
+    public Color criticalBudgetColor = new Color32(218, 119, 54, 255);
+    [Tooltip("Used when no budget remains or the bridge is over budget.")]
+    public Color emptyBudgetColor = new Color32(190, 72, 62, 255);
+    [Range(0f, 1f)] public float budgetWarningThreshold = 0.5f;
+    [Range(0f, 1f)] public float budgetCriticalThreshold = 0.25f;
+    [Tooltip("Horizontal space between the colored fill and its background track.")]
+    [Min(0f)] public float budgetFillHorizontalInset = 7f;
+    [Tooltip("Height of the colored fill inside the background track.")]
+    [Min(8f)] public float budgetFillHeight = 30f;
+    [Tooltip("How quickly the remaining-budget bar catches up to cost changes.")]
+    [Min(0.1f)] public float budgetFillAnimationSpeed = 5f;
+
     [Header("Stress Visualization")]
     public TextMeshProUGUI stressText;
     public Image stressFillBar;
@@ -160,6 +178,12 @@ public class BuildUIController : MonoBehaviour
     private float lastEstimatedFoS = -1f;
     private int lastDisplayM = -1;
     private int lastDisplayJ = -1;
+    private RectTransform budgetFillRect;
+    private float targetBudgetRemainingRatio = 1f;
+    private float displayedBudgetRemainingRatio = 1f;
+    private Color targetBudgetBarColor;
+    private Color displayedBudgetBarColor;
+    private bool budgetBarVisualInitialized;
 
     private Dictionary<BridgeMaterialSO, int> materialUsageCount = new Dictionary<BridgeMaterialSO, int>();
 
@@ -181,6 +205,29 @@ public class BuildUIController : MonoBehaviour
         if (liveBeamStatsPanel != null) liveBeamStatsPanel.SetActive(false);
         if (timerPanel != null) timerPanel.SetActive(false); 
         if (unlockMaterialPanel != null) unlockMaterialPanel.SetActive(false); 
+
+        if (budgetFillBar != null)
+        {
+            // The authored fill used a 3D White material, which ignores UI vertex
+            // tinting. Use the default UI material so budget state colors render.
+            budgetFillBar.material = null;
+            budgetFillBar.type = Image.Type.Sliced;
+            budgetFillBar.pixelsPerUnitMultiplier = 2f;
+            budgetFillBar.raycastTarget = false;
+
+            // Width-driven slicing preserves the sprite's rounded corners. Unity's
+            // Filled mode ignores nine-slice borders and produced the pointed oval.
+            budgetFillRect = budgetFillBar.rectTransform;
+            budgetFillRect.anchorMin = new Vector2(0f, 0.5f);
+            budgetFillRect.anchorMax = new Vector2(0f, 0.5f);
+            budgetFillRect.pivot = new Vector2(0f, 0.5f);
+
+            Shadow fillShadow = budgetFillBar.GetComponent<Shadow>();
+            if (fillShadow == null) fillShadow = budgetFillBar.gameObject.AddComponent<Shadow>();
+            fillShadow.effectColor = new Color(0.08f, 0.10f, 0.20f, 0.25f);
+            fillShadow.effectDistance = new Vector2(0f, -2f);
+            fillShadow.useGraphicAlpha = true;
+        }
 
         if (actionLogText != null) actionLogText.text = ""; 
 
@@ -352,6 +399,7 @@ public class BuildUIController : MonoBehaviour
         
         UpdateLiveBeamStatsUI();
         UpdatePlayPauseButtonUI();
+        UpdateBudgetBarVisual();
         
         UpdateToolHighlights();
     }
@@ -890,21 +938,97 @@ public class BuildUIController : MonoBehaviour
         
         int totalProjectedCost = Mathf.RoundToInt(baseCost + previewCost);
 
-        if (budgetFillBar != null) 
-        { 
-            budgetFillBar.fillAmount = totalProjectedCost / maxBudget; 
-            budgetFillBar.color = totalProjectedCost > maxBudget ? overBudgetTextColor : normalTextColor; 
-        }
+        bool overBudget = maxBudget <= 0f || totalProjectedCost > maxBudget;
+        float remainingRatio = maxBudget > 0f
+            ? Mathf.Clamp01((maxBudget - totalProjectedCost) / maxBudget)
+            : 0f;
+        Color budgetStateColor = GetBudgetRemainingColor(remainingRatio, overBudget);
 
-        if (totalProjectedCost != lastProjectedCost)
+        if (budgetFillBar != null)
         {
-            lastProjectedCost = totalProjectedCost;
-            if (usedBudgetText != null) 
-            { 
-                usedBudgetText.text = $" ₱{totalProjectedCost:N0}";
-                usedBudgetText.color = totalProjectedCost > maxBudget ? overBudgetTextColor : normalTextColor; 
+            targetBudgetRemainingRatio = remainingRatio;
+            targetBudgetBarColor = budgetStateColor;
+
+            if (!budgetBarVisualInitialized)
+            {
+                displayedBudgetRemainingRatio = targetBudgetRemainingRatio;
+                displayedBudgetBarColor = targetBudgetBarColor;
+                budgetBarVisualInitialized = true;
+                ApplyBudgetBarVisual();
             }
         }
+
+        if (usedBudgetText != null)
+        {
+            if (totalProjectedCost != lastProjectedCost)
+            {
+                lastProjectedCost = totalProjectedCost;
+                usedBudgetText.text = $" ₱{totalProjectedCost:N0}";
+            }
+
+            // Budget status is communicated by the bar; keep the number legible
+            // and visually consistent with the other build-mode text.
+            usedBudgetText.color = normalTextColor;
+        }
+    }
+
+    private Color GetBudgetRemainingColor(float remainingRatio, bool overBudget)
+    {
+        if (overBudget || remainingRatio <= 0f)
+            return emptyBudgetColor;
+
+        float warningThreshold = Mathf.Clamp01(budgetWarningThreshold);
+        float criticalThreshold = Mathf.Clamp(budgetCriticalThreshold, 0f, warningThreshold);
+
+        if (remainingRatio <= criticalThreshold)
+            return criticalBudgetColor;
+        if (remainingRatio <= warningThreshold)
+            return warningBudgetColor;
+        return safeBudgetColor;
+    }
+
+    private void UpdateBudgetBarVisual()
+    {
+        if (!budgetBarVisualInitialized || budgetFillBar == null) return;
+
+        float speed = Mathf.Max(0.1f, budgetFillAnimationSpeed);
+        displayedBudgetRemainingRatio = Mathf.MoveTowards(
+            displayedBudgetRemainingRatio,
+            targetBudgetRemainingRatio,
+            speed * Time.unscaledDeltaTime);
+
+        float colorBlend = 1f - Mathf.Exp(-speed * 2f * Time.unscaledDeltaTime);
+        displayedBudgetBarColor = Color.Lerp(
+            displayedBudgetBarColor,
+            targetBudgetBarColor,
+            colorBlend);
+        ApplyBudgetBarVisual();
+    }
+
+    private void ApplyBudgetBarVisual()
+    {
+        if (budgetFillBar == null) return;
+        if (budgetFillRect == null) budgetFillRect = budgetFillBar.rectTransform;
+
+        RectTransform trackRect = budgetFillRect.parent as RectTransform;
+        float trackWidth = trackRect != null ? trackRect.rect.width : 0f;
+        float trackHeight = trackRect != null ? trackRect.rect.height : budgetFillHeight;
+        float inset = Mathf.Max(0f, budgetFillHorizontalInset);
+        float availableWidth = Mathf.Max(0f, trackWidth - inset * 2f);
+        float fillWidth = availableWidth * Mathf.Clamp01(displayedBudgetRemainingRatio);
+        float fillHeight = Mathf.Min(
+            Mathf.Max(8f, budgetFillHeight),
+            Mathf.Max(8f, trackHeight - 8f));
+
+        budgetFillRect.anchorMin = new Vector2(0f, 0.5f);
+        budgetFillRect.anchorMax = new Vector2(0f, 0.5f);
+        budgetFillRect.pivot = new Vector2(0f, 0.5f);
+        budgetFillRect.anchoredPosition = new Vector2(inset, 0f);
+        budgetFillRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, fillWidth);
+        budgetFillRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, fillHeight);
+
+        budgetFillBar.enabled = fillWidth > 0.5f;
+        budgetFillBar.color = displayedBudgetBarColor;
     }
 
     private void UpdatePlayPauseButtonUI()

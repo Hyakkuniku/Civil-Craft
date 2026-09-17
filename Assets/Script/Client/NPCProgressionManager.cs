@@ -36,6 +36,9 @@ public class NPCProgressionPhase
     [Tooltip("World position where the NPC waits during this phase.")]
     public Transform targetLocation;
 
+    [Tooltip("Skip walking and instantly place the NPC at this phase's Target Location. Normal arrival events, dialogue, contract setup, idle roaming, and saving still run.")]
+    public bool teleportToTargetLocation;
+
     [Tooltip("Optional ordered walking points used before Target Location when Waypoint movement is selected.")]
     public List<Transform> travelWaypoints = new List<Transform>();
 
@@ -202,6 +205,14 @@ public class NPCProgressionManager : MonoBehaviour
     [Min(0.001f)] [SerializeField] private float stalledMovementTolerance = 0.03f;
     [Tooltip("Maximum automatic route recalculations before movement is reported as failed.")]
     [Min(0)] [SerializeField] private int maximumRepathAttempts = 3;
+
+    [Header("Teleport Dissolve")]
+    [Tooltip("Seconds used to dissolve out and again to dissolve in for phases with Teleport To Target Location enabled.")]
+    [Min(0.05f)] [SerializeField] private float teleportDissolveDuration = 0.35f;
+    [Tooltip("Glowing edge shown while the NPC dissolves.")]
+    [SerializeField] private Color teleportDissolveEdgeColor = new Color(1f, 0.55f, 0.12f, 1f);
+    [Range(2f, 40f)] [SerializeField] private float teleportDissolveNoiseScale = 14f;
+    [Range(0.01f, 0.25f)] [SerializeField] private float teleportDissolveEdgeWidth = 0.08f;
 
     [Header("Waypoint Movement (No NavMesh)")]
     [Min(0.01f)] [SerializeField] private float waypointMovementSpeed = 2.5f;
@@ -823,6 +834,23 @@ public class NPCProgressionManager : MonoBehaviour
             yield break;
         }
 
+        if (nextPhase.teleportToTargetLocation)
+        {
+            // Move between rendered frames instead of disabling the NPC object.
+            // Disabling the object here would stop this coroutine and skip the
+            // destination phase's arrival events and progression save.
+            RestoreAgentAfterLinkTraversal(true);
+            if (navMeshAgent != null && navMeshAgent.enabled && navMeshAgent.isOnNavMesh)
+            {
+                navMeshAgent.isStopped = true;
+                navMeshAgent.ResetPath();
+            }
+
+            SetWalkingAnimation(false);
+            yield return TeleportToPhaseWithDissolve(nextPhaseIndex, nextPhase);
+            yield break;
+        }
+
         if (nextPhase.targetLocation == null)
         {
             if (!PlaceAtPhase(nextPhaseIndex))
@@ -880,6 +908,45 @@ public class NPCProgressionManager : MonoBehaviour
         }
 
         yield return MoveToPhaseByNavMesh(nextPhaseIndex, nextPhase, false);
+    }
+
+    private IEnumerator TeleportToPhaseWithDissolve(
+        int nextPhaseIndex,
+        NPCProgressionPhase nextPhase)
+    {
+        NPCTeleportDissolve dissolve = GetComponent<NPCTeleportDissolve>();
+        if (dissolve == null) dissolve = gameObject.AddComponent<NPCTeleportDissolve>();
+
+        Transform visualRoot = animator != null ? animator.transform : transform;
+        bool canDissolve = dissolve.Prepare(
+            visualRoot,
+            teleportDissolveEdgeColor,
+            teleportDissolveNoiseScale,
+            teleportDissolveEdgeWidth);
+
+        if (canDissolve)
+            yield return dissolve.DissolveOut(teleportDissolveDuration);
+
+        if (!PlaceAtPhase(nextPhaseIndex))
+        {
+            if (canDissolve)
+                yield return dissolve.DissolveIn(teleportDissolveDuration);
+
+            Debug.LogError(
+                $"[NPCProgressionManager] Could not teleport '{name}' to phase " +
+                $"{nextPhaseIndex} ('{nextPhase.phaseId}').",
+                this);
+            HandleMovementFailure(nextPhaseIndex);
+            yield break;
+        }
+
+        // Keep the relocation itself between rendered frames while fully dissolved.
+        yield return null;
+
+        if (canDissolve)
+            yield return dissolve.DissolveIn(teleportDissolveDuration);
+
+        CompleteArrival(nextPhaseIndex);
     }
 
     private IEnumerator MoveToPhaseByNavMesh(

@@ -12,9 +12,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a4da58d2dc2409c459ef20449bf92a90, type: 3}
   m_Name: LiveLoadLesson
   m_EditorClassIdentifier: 
-  lessonId: live-load
+  lessonId: LESSON001
   lessonTitle: Live Load
   lessonImage: {fileID: 21300000, guid: 2db204386ad37a845b49016eb72888b4, type: 3}
+  popupDescription: 
+  almanacImage: {fileID: 0}
   lessonDescription: "Imagine a bridge standing perfectly still. The permanent weight
     of the steel, concrete, cables, and asphalt makes up what engineers call the
     \"Dead Load.\" But bridges aren't built to just stand empty\u2014they are built
