@@ -144,7 +144,7 @@ public class BuildUIController : MonoBehaviour
     private int cachedBaseM = 0;
     private int cachedBaseJ = 0;
     private float cachedBaseRoadLength = 0f;
-    private float cachedBaseWeakestStress = Mathf.Infinity;
+    private float cachedEstimatedCapacityKg = 0f;
 
     private HashSet<Bar> uniqueBars = new HashSet<Bar>();
     private HashSet<Point> activePoints = new HashSet<Point>();
@@ -153,6 +153,11 @@ public class BuildUIController : MonoBehaviour
     private int lastProjectedCost = -1;
     private int lastDisplayedMaxBudget = -1;
     private float lastRoadLength = -1f;
+    private float lastDeadLoad = -1f;
+    private float lastLiveLoad = -1f;
+    private float lastEstimatedCapacity = -1f;
+    private float lastEfficiencyRatio = -1f;
+    private float lastEstimatedFoS = -1f;
     private int lastDisplayM = -1;
     private int lastDisplayJ = -1;
 
@@ -381,8 +386,9 @@ public class BuildUIController : MonoBehaviour
             if (shouldHide) contractHiddenToolObjects.Add(toolObject);
         }
 
-        RefreshAllMaterialButtons();
-        UpdateContractUI();
+        // Rebuild against the location that GameManager has just activated.
+        // The controller may have started earlier while no location was active.
+        MarkBridgeDirty();
         if (layoutPanelToRebuild != null)
             LayoutRebuilder.ForceRebuildLayoutImmediate(layoutPanelToRebuild);
         ScheduleToolsPanelResize();
@@ -678,85 +684,36 @@ public class BuildUIController : MonoBehaviour
         activePoints.Clear();
         materialUsageCount.Clear(); 
 
-        foreach (Point p in Point.AllPoints)
+        BuildLocation targetLocation = GameManager.Instance != null
+            ? GameManager.Instance.ActiveBuildLocation
+            : null;
+
+        // Bar ownership is authoritative. Walking Point.ConnectedBars could use
+        // stale links left by a disabled/saved bridge or include another ravine.
+        foreach (Bar bar in FindObjectsOfType<Bar>(true))
         {
-            if (!p.gameObject.activeSelf || !p.enabled) continue;
-            bool hasActiveBar = false;
-            foreach (Bar b in p.ConnectedBars)
+            if (bar == null || !bar.gameObject.activeInHierarchy || !bar.enabled ||
+                bar.materialData == null ||
+                (barCreator != null && barCreator.IsCreating && barCreator.currentBar == bar) ||
+                (targetLocation != null && !targetLocation.Owns(bar)))
             {
-                if (b != null && b.gameObject.activeSelf) 
-                {
-                    uniqueBars.Add(b);
-                    hasActiveBar = true;
-                }
+                continue;
             }
-            if (hasActiveBar) activePoints.Add(p);
+
+            uniqueBars.Add(bar);
+            if (bar.startPoint != null && bar.startPoint.gameObject.activeInHierarchy)
+                activePoints.Add(bar.startPoint);
+            if (bar.endPoint != null && bar.endPoint.gameObject.activeInHierarchy)
+                activePoints.Add(bar.endPoint);
         }
 
-        ContractSO activeContract = GameManager.Instance != null ? GameManager.Instance.CurrentContract : null;
-        if (activeContract != null)
-        {
-            BuildLocation targetLoc = null;
-            BuildLocation[] allLocs = Resources.FindObjectsOfTypeAll<BuildLocation>();
-            foreach (var loc in allLocs)
-            {
-                if (loc.gameObject.scene.name != null && loc.activeContract == activeContract)
-                {
-                    targetLoc = loc;
-                    break;
-                }
-            }
-
-            if (targetLoc != null)
-            {
-                foreach (Bar b in targetLoc.bakedBars)
-                {
-                    if (b != null && b.gameObject.activeSelf)
-                    {
-                        uniqueBars.Add(b);
-                        if (b.startPoint != null) activePoints.Add(b.startPoint);
-                        if (b.endPoint != null) activePoints.Add(b.endPoint);
-                    }
-                }
-
-                HashSet<Point> visitedPoints = new HashSet<Point>();
-                Queue<Point> queue = new Queue<Point>();
-
-                foreach (Point anchor in targetLoc.startingAnchors)
-                {
-                    if (anchor != null) { visitedPoints.Add(anchor); queue.Enqueue(anchor); activePoints.Add(anchor); }
-                }
-                foreach (Point anchor in targetLoc.endingAnchors)
-                {
-                    if (anchor != null && !visitedPoints.Contains(anchor)) { visitedPoints.Add(anchor); queue.Enqueue(anchor); activePoints.Add(anchor); }
-                }
-
-                while (queue.Count > 0)
-                {
-                    Point current = queue.Dequeue();
-                    foreach (Bar b in current.ConnectedBars)
-                    {
-                        if (b != null && b.gameObject.activeSelf)
-                        {
-                            uniqueBars.Add(b);
-                            Point neighbor = (b.startPoint == current) ? b.endPoint : b.startPoint;
-                            if (neighbor != null && !visitedPoints.Contains(neighbor))
-                            {
-                                visitedPoints.Add(neighbor);
-                                queue.Enqueue(neighbor);
-                                activePoints.Add(neighbor);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        cachedBaseJ = activePoints.Count * 2; 
+        // M and J describe the planar engineering model. A dual visual/physical
+        // beam still represents one model member and one joint at each endpoint;
+        // its doubled mass and strength are handled by the material/solver.
+        cachedBaseJ = activePoints.Count;
         cachedBaseM = 0;
         cachedBaseRoadLength = 0f;
         cachedBaseDeadLoad = 0f;
-        cachedBaseWeakestStress = Mathf.Infinity;
         cachedBaseCost = 0f;
 
         foreach (Bar b in uniqueBars)
@@ -770,29 +727,80 @@ public class BuildUIController : MonoBehaviour
                 if (!materialUsageCount.ContainsKey(b.materialData)) materialUsageCount[b.materialData] = 0;
                 materialUsageCount[b.materialData]++;
 
-                cachedBaseM += b.materialData.isDualBeam ? 2 : 1;
-                if (b.materialData.isRoad) cachedBaseRoadLength += b.currentLength;
-                cachedBaseDeadLoad += b.currentLength * b.materialData.GetPlacedMassPerMeter();
-                
-                float materialLimit = GetWeakestAxialForceLimit(b.materialData);
-                if (materialLimit < cachedBaseWeakestStress) cachedBaseWeakestStress = materialLimit;
+                float length = GetStructuralLength(b);
+                cachedBaseM++;
+                if (b.materialData.isRoad) cachedBaseRoadLength += length;
+                cachedBaseDeadLoad += length * b.materialData.GetPlacedMassPerMeter();
             }
         }
+
+        cachedEstimatedCapacityKg = EstimateBridgeCapacityKg();
         
         lastRoadLength = -1f; 
         lastDisplayM = -1;
     }
 
-    private static float GetWeakestAxialForceLimit(BridgeMaterialSO material)
+    private static float GetStructuralLength(Bar bar)
     {
-        if (material == null) return Mathf.Infinity;
+        if (bar == null) return 0f;
 
-        if (material.isRope)
-            return material.maxTension > 0f ? material.maxTension : Mathf.Infinity;
+        Vector3 start = bar.startPoint != null ? bar.startPoint.transform.position : bar.StartPosition;
+        Vector3 end = bar.endPoint != null ? bar.endPoint.transform.position : bar.EndPosition;
+        start.z = 0f;
+        end.z = 0f;
+        float endpointLength = Vector3.Distance(start, end);
+        return endpointLength > 0.001f ? endpointLength : Mathf.Max(0f, bar.currentLength);
+    }
 
-        float tensionLimit = material.maxTension > 0f ? material.maxTension : Mathf.Infinity;
-        float compressionLimit = material.maxCompression > 0f ? material.maxCompression : Mathf.Infinity;
-        return Mathf.Min(tensionLimit, compressionLimit);
+    private float EstimateBridgeCapacityKg()
+    {
+        if (uniqueBars.Count == 0 || activePoints.Count < 2 || cachedBaseRoadLength <= 0.001f)
+            return 0f;
+
+        List<Bar> bars = new List<Bar>(uniqueBars);
+        List<Point> points = new List<Point>(activePoints);
+        const int samples = 9;
+
+        DeterministicBridgeStressSolver.Result unloaded =
+            DeterministicBridgeStressSolver.Analyze(points, bars, 0f, false, samples);
+        if (unloaded == null || !unloaded.IsValid || unloaded.PeakStructuralStress >= 1f)
+            return 0f;
+
+        ContractSO contract = GameManager.Instance != null ? GameManager.Instance.CurrentContract : null;
+        float high = Mathf.Max(100f, LiveLoadVehicle.GetContractTestWeight(contract) * 2f);
+        float low = 0f;
+        bool foundFailure = false;
+
+        // Establish a failing upper bound, then locate the first-failure load.
+        for (int i = 0; i < 8; i++)
+        {
+            DeterministicBridgeStressSolver.Result result =
+                DeterministicBridgeStressSolver.Analyze(points, bars, high, false, samples);
+            if (result == null || !result.IsValid) return 0f;
+            if (result.PeakStructuralStress >= 1f)
+            {
+                foundFailure = true;
+                break;
+            }
+
+            low = high;
+            high *= 2f;
+        }
+
+        if (!foundFailure) return high;
+
+        for (int i = 0; i < 10; i++)
+        {
+            float candidate = (low + high) * 0.5f;
+            DeterministicBridgeStressSolver.Result result =
+                DeterministicBridgeStressSolver.Analyze(points, bars, candidate, false, samples);
+            if (result == null || !result.IsValid) return 0f;
+
+            if (result.PeakStructuralStress >= 1f) high = candidate;
+            else low = candidate;
+        }
+
+        return low;
     }
 
     private void UpdateStatsUI()
@@ -801,28 +809,17 @@ public class BuildUIController : MonoBehaviour
         int displayM = cachedBaseM;
         float roadLength = cachedBaseRoadLength;
         float deadLoad = cachedBaseDeadLoad;
-        float weakestStressLimit = cachedBaseWeakestStress;
 
         if (barCreator != null && barCreator.IsCreating && barCreator.currentBar != null && barCreator.currentBar.materialData != null)
         {
             Bar preview = barCreator.currentBar;
-            displayM += preview.materialData.isDualBeam ? 2 : 1;
-            if (preview.materialData.isRoad) roadLength += preview.currentLength;
-            deadLoad += preview.currentLength * preview.materialData.GetPlacedMassPerMeter();
-            
-            float previewLimit = GetWeakestAxialForceLimit(preview.materialData);
-            if (previewLimit < weakestStressLimit) weakestStressLimit = previewLimit;
+            float previewLength = GetStructuralLength(preview);
+            displayM++;
+            if (preview.materialData.isRoad) roadLength += previewLength;
+            deadLoad += previewLength * preview.materialData.GetPlacedMassPerMeter();
         }
 
-        float theoreticalCapacityKg = 0f;
-        if (weakestStressLimit != Mathf.Infinity && weakestStressLimit > 0)
-        {
-            // Material limits are already conservative one-grid capacities. A 0.5
-            // utilization factor presents the conventional 2.0 target FoS in the UI.
-            float safetyFactor = 0.5f;
-            theoreticalCapacityKg = ((weakestStressLimit / 9.81f) * safetyFactor) - (deadLoad * 0.5f);
-            if (theoreticalCapacityKg < 0) theoreticalCapacityKg = 0;
-        }
+        float theoreticalCapacityKg = cachedEstimatedCapacityKg;
 
         ContractSO currentContract = GameManager.Instance != null ? GameManager.Instance.CurrentContract : null;
         float liveLoad = LiveLoadVehicle.GetContractTestWeight(currentContract);
@@ -833,9 +830,20 @@ public class BuildUIController : MonoBehaviour
         float efficiencyRatio = 0f;
         if (deadLoad > 0) efficiencyRatio = theoreticalCapacityKg / deadLoad;
 
-        if (Mathf.Abs(lastRoadLength - roadLength) > 0.05f)
+        bool statsChanged = Mathf.Abs(lastRoadLength - roadLength) > 0.05f ||
+                            Mathf.Abs(lastDeadLoad - deadLoad) > 0.05f ||
+                            Mathf.Abs(lastLiveLoad - liveLoad) > 0.05f ||
+                            Mathf.Abs(lastEstimatedCapacity - theoreticalCapacityKg) > 0.05f ||
+                            Mathf.Abs(lastEfficiencyRatio - efficiencyRatio) > 0.005f ||
+                            Mathf.Abs(lastEstimatedFoS - estimatedFoS) > 0.005f;
+        if (statsChanged)
         {
             lastRoadLength = roadLength;
+            lastDeadLoad = deadLoad;
+            lastLiveLoad = liveLoad;
+            lastEstimatedCapacity = theoreticalCapacityKg;
+            lastEfficiencyRatio = efficiencyRatio;
+            lastEstimatedFoS = estimatedFoS;
             if (totalLengthText != null) totalLengthText.text = $"Road Length: {roadLength:F1}m";
             if (deadLoadText != null) deadLoadText.text = $"Dead Load: {deadLoad:F1}kg";
             
@@ -990,7 +998,13 @@ public class BuildUIController : MonoBehaviour
     public void OnCancelDrawingButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed()) return; if (barCreator != null) barCreator.CancelCreation(); }
     public void OnExitBuildModeButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed()) return; if (GameManager.Instance != null) GameManager.Instance.ExitBuildMode(); }
     public void OnResetCameraButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed()) return; BuildCameraController camCtrl = FindObjectOfType<BuildCameraController>(); if (camCtrl != null) camCtrl.ResetCameraRotation(); }
-    public void OnToggleStatsButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed()) return; if (statsPanel != null) statsPanel.SetActive(!statsPanel.activeSelf); }
+    public void OnToggleStatsButtonClicked()
+    {
+        PlayBuildButtonClickSfx();
+        if (!IsToolAllowed()) return;
+        MarkBridgeDirty();
+        if (statsPanel != null) statsPanel.SetActive(!statsPanel.activeSelf);
+    }
     public void OnCutSelectedButtonClicked()
     {
         PlayBuildButtonClickSfx();

@@ -53,7 +53,7 @@ public class MapUIManager : MonoBehaviour
     {
         if (!string.IsNullOrEmpty(selectedSceneName))
         {
-            UnityEngine.SceneManagement.SceneManager.LoadScene(selectedSceneName);
+            LoadingScreenManager.LoadScene(selectedSceneName);
         }
         else
         {

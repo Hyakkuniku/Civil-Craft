@@ -1,4 +1,3 @@
-using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -86,18 +85,7 @@ public class SceneController : MonoBehaviour
         }
 
         Debug.Log($"Starting background load for scene: {sceneName}");
-        
-        StartCoroutine(LoadSceneAsyncCoroutine(sceneName));
-    }
-
-    private IEnumerator LoadSceneAsyncCoroutine(string sceneName)
-    {
-        AsyncOperation asyncLoad = SceneManager.LoadSceneAsync(sceneName);
-
-        while (!asyncLoad.isDone)
-        {
-            yield return null; 
-        }
+        LoadingScreenManager.LoadScene(sceneName);
     }
 
     private bool SceneExists(string sceneName)

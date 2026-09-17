@@ -287,7 +287,7 @@ public class PauseManager : MonoBehaviour
         // Ensure the game isn't trying to carry over a paused state
         isPaused = false; 
 
-        SceneManager.LoadScene(modeSelectionSceneName); 
+        LoadingScreenManager.LoadScene(modeSelectionSceneName);
     }
 
     // Temporary, read-only diagnostics. Calls are omitted from release builds.

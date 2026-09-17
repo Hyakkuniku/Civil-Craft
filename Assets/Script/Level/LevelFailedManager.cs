@@ -372,7 +372,9 @@ public class LevelFailedManager : MonoBehaviour
         ResetFailCount(); 
         hideRetryButtonThisFail = false; 
         tutorialLocationToRestart = null;
-        SceneManager.LoadScene("Level Selection"); 
+        // The project uses Mode Selection as its level-selection screen; there is
+        // no separate "Level Selection" scene in Build Settings.
+        LoadingScreenManager.LoadScene("Mode Selection");
     }
 
     private void HandleSimulationStopped()

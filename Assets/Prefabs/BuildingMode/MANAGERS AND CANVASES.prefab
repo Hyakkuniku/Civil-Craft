@@ -10098,6 +10098,7 @@ MonoBehaviour:
   sprintStopThreshold: 0.7
   sprintSpeedMultiplier: 1.5
   carryingWalkSpeed: 4
+  runEnabled: 1
   gravity: -9.8
   rotationSpeed: 12
   jumpHeight: 1.5
@@ -10127,6 +10128,11 @@ MonoBehaviour:
   collisionMask:
     serializedVersion: 2
     m_Bits: 0
+  collisionRadius: 0.25
+  collisionPadding: 0.08
+  protectNearClipPlane: 1
+  obstacleReleaseSmoothTime: 0.18
+  teleportSnapDistance: 2.5
   canLook: 1
 --- !u!114 &3451788173708025455
 MonoBehaviour:
@@ -26422,6 +26428,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   playerTransform: {fileID: 4274415236340906572}
   deathThreshold: -50
+  useLastSafePlayerPosition: 1
+  safePositionSampleInterval: 0.2
+  respawnHeightOffset: 0.15
+  safeHeightAboveDeathThreshold: 2
   objectsToReset:
   - objectTransform: {fileID: 4274415236340906572}
     startPos: {x: 0, y: 0, z: 0}

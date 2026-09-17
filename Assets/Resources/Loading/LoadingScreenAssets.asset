@@ -1,0 +1,18 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4fc7dfd9128a4c4bb1adf9ac7b85c201, type: 3}
+  m_Name: LoadingScreenAssets
+  m_EditorClassIdentifier: 
+  fallbackPlayerPrefab: {fileID: 5722051407855611949, guid: 7ad70cb550f445859f0e7d369ba6f75e,
+    type: 3}
+  playerAnimatorController: {fileID: 9100000, guid: e5767e2c7e11353478f549d71bc86baa,
+    type: 2}

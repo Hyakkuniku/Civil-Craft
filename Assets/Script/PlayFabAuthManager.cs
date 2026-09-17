@@ -155,7 +155,7 @@ public class PlayFabAuthManager : MonoBehaviour
     private void LoadGameScene()
     {
         Debug.Log("Loading Scene: " + sceneToLoad);
-        SceneManager.LoadScene(sceneToLoad);
+        LoadingScreenManager.LoadScene(sceneToLoad);
     }
 
     // ────────────────────────────────────────────────
