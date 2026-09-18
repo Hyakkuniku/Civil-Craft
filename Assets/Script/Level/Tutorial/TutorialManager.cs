@@ -651,6 +651,7 @@ public class TutorialManager : MonoBehaviour
         // A new step owns its own world indicator. Its OnStepStart event can show
         // the required indicator again after this cleanup.
         Tutorial3DIndicator.HideAll();
+        TutorialAnchorHighlighter.ClearAll();
 
         if (leftTextIdleCoroutine != null)
         {
@@ -987,6 +988,7 @@ public class TutorialManager : MonoBehaviour
         TutorialSequence completedSequence = currentSequence;
         ClearTrackedButton(); 
         Tutorial3DIndicator.HideAll();
+        TutorialAnchorHighlighter.ClearAll();
         
         IsTutorialActive = false;
         lastScreenPosition = null;
@@ -1054,6 +1056,7 @@ public class TutorialManager : MonoBehaviour
     {
         ClearTrackedButton();
         Tutorial3DIndicator.HideAll();
+        TutorialAnchorHighlighter.ClearAll();
 
         if (currentAnimationCoroutine != null)
         {
@@ -1208,6 +1211,7 @@ public class TutorialManager : MonoBehaviour
             return;
 
         ClearTrackedButton();
+        TutorialAnchorHighlighter.ClearAll();
 
         if (currentAnimationCoroutine != null)
         {
@@ -1454,6 +1458,11 @@ public class TutorialManager : MonoBehaviour
 
         queuedSequences.Clear();
         forcedQueuedSequences.Clear();
+    }
+
+    private void OnDisable()
+    {
+        TutorialAnchorHighlighter.ClearAll();
     }
 }
 

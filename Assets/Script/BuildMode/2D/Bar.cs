@@ -119,9 +119,9 @@ public sealed class BridgeSelectionOutline
             if (!point.gameObject.activeInHierarchy) return false;
             // Merge regular joints into the same silhouette as their selected beams.
             // Only fixed anchors are excluded in the tilted view.
-            if (point.isAnchor &&
+            if (point.isAnchor && !point.IsTutorialHighlighted &&
                 Mathf.Abs(Vector3.Dot(camera.transform.forward, Vector3.forward)) < 0.996f) return false;
-            bool selected = point.isSelected || point.isAnchorHighlighted;
+            bool selected = point.isSelected || point.isAnchorHighlighted || point.IsTutorialHighlighted;
             if (!selected)
                 foreach (Bar connected in point.ConnectedBars)
                     if (connected != null && connected.isHighlighted && connected.gameObject.activeInHierarchy)
