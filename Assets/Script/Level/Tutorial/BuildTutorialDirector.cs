@@ -178,9 +178,9 @@ public class BuildTutorialDirector : MonoBehaviour
         activeGhosts = null;
         activeGhostPoints = null;
         activeTraceState = null;
-        pasteTargetReachedThisStep = false;
         if (!enteringPasteButtonStep)
         {
+            pasteTargetReachedThisStep = false;
             pasteTargetGhosts = null;
             pasteTargetParent = null;
         }
@@ -637,21 +637,42 @@ public class BuildTutorialDirector : MonoBehaviour
         if (TutorialManager.Instance != null) TutorialManager.Instance.SetNextButtonActive(false);
     }
 
-    public void NotifyPastePreviewUpdated(IReadOnlyList<Bar> previewBars)
+    public bool NotifyPastePreviewUpdated(IReadOnlyList<Bar> previewBars)
     {
         TutorialManager tutorial = TutorialManager.Instance;
-        if (pasteTargetReachedThisStep || previewBars == null ||
-            pasteTargetGhosts == null || pasteTargetGhosts.Length == 0 || tutorial == null ||
-            !tutorial.IsPlayingLesson(selectionTutorialLesson) ||
-            tutorial.CurrentStepAction != TutorialStepAction.PositionPastePreview)
+        if (tutorial == null || !tutorial.IsPlayingLesson(selectionTutorialLesson))
+            return true;
+
+        TutorialStepAction action = tutorial.CurrentStepAction;
+        if (action != TutorialStepAction.PositionPastePreview &&
+            action != TutorialStepAction.PasteSelection)
+            return true;
+
+        if (previewBars == null || pasteTargetGhosts == null || pasteTargetGhosts.Length == 0)
         {
-            return;
+            pasteTargetReachedThisStep = false;
+            return false;
         }
 
+        bool wasAtTarget = pasteTargetReachedThisStep;
+        pasteTargetReachedThisStep = DoesPastePreviewMatchTargets(previewBars);
+        if (action == TutorialStepAction.PositionPastePreview &&
+            pasteTargetReachedThisStep && !wasAtTarget)
+        {
+            tutorial.ShowNextStep();
+        }
+
+        return pasteTargetReachedThisStep;
+    }
+
+    private bool DoesPastePreviewMatchTargets(IReadOnlyList<Bar> previewBars)
+    {
         HashSet<Bar> usedPreviewBars = new HashSet<Bar>();
+        int requiredGhostCount = 0;
         foreach (GhostSegment ghost in pasteTargetGhosts)
         {
             if (ghost == null) continue;
+            requiredGhostCount++;
 
             Bar matchingPreview = null;
             foreach (Bar previewBar in previewBars)
@@ -670,19 +691,39 @@ public class BuildTutorialDirector : MonoBehaviour
                 }
             }
 
-            if (matchingPreview == null) return;
+            if (matchingPreview == null) return false;
             usedPreviewBars.Add(matchingPreview);
         }
 
-        pasteTargetReachedThisStep = true;
-        tutorial.ShowNextStep();
+        return requiredGhostCount > 0 && usedPreviewBars.Count == previewBars.Count;
+    }
+
+    public bool CanConfirmTutorialPaste()
+    {
+        TutorialManager tutorial = TutorialManager.Instance;
+        if (tutorial == null || !tutorial.IsPlayingLesson(selectionTutorialLesson))
+            return true;
+
+        TutorialStepAction action = tutorial.CurrentStepAction;
+        if (action == TutorialStepAction.PositionPastePreview)
+            return false;
+        if (action == TutorialStepAction.PasteSelection)
+            return pasteTargetReachedThisStep;
+        return true;
+    }
+
+    public void NotifyPasteConfirmationBlocked()
+    {
+        if (BuildUIController.Instance != null)
+            BuildUIController.Instance.LogAction("Move the copied bridge onto the highlighted ghost before pasting.");
     }
 
     public bool NotifyPasteSucceeded()
     {
         TutorialManager tutorial = TutorialManager.Instance;
         if (tutorial == null || !tutorial.IsPlayingLesson(selectionTutorialLesson) ||
-            tutorial.CurrentStepAction != TutorialStepAction.PasteSelection)
+            tutorial.CurrentStepAction != TutorialStepAction.PasteSelection ||
+            !pasteTargetReachedThisStep)
         {
             return false;
         }

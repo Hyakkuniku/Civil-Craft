@@ -314,6 +314,13 @@ public class ClipboardManager : MonoBehaviour
     {
         if (!isPasteMode) return;
 
+        BuildTutorialDirector tutorialDirector = BuildTutorialDirector.Instance;
+        if (tutorialDirector != null && !tutorialDirector.CanConfirmTutorialPaste())
+        {
+            tutorialDirector.NotifyPasteConfirmationBlocked();
+            return;
+        }
+
         if (!isValidPaste) 
         {
             if (!CanAffordPaste() && BuildUIController.Instance != null)
@@ -378,6 +385,14 @@ public class ClipboardManager : MonoBehaviour
 
     public void ConfirmOverride()
     {
+        BuildTutorialDirector tutorialDirector = BuildTutorialDirector.Instance;
+        if (tutorialDirector != null && !tutorialDirector.CanConfirmTutorialPaste())
+        {
+            if (overrideConfirmPanel != null) overrideConfirmPanel.SetActive(false);
+            tutorialDirector.NotifyPasteConfirmationBlocked();
+            return;
+        }
+
         if (dontShowAgainToggle != null) 
         {
             skipOverrideConfirm = dontShowAgainToggle.isOn; 
@@ -703,6 +718,12 @@ public class ClipboardManager : MonoBehaviour
             isValidPaste = false;
         }
 
+        if (BuildTutorialDirector.Instance != null &&
+            !BuildTutorialDirector.Instance.NotifyPastePreviewUpdated(ghostPasteBars))
+        {
+            isValidPaste = false;
+        }
+
         Color tintColor = isValidPaste ? new Color(0.2f, 1f, 0.2f, 0.6f) : new Color(1f, 0.2f, 0.2f, 0.6f);
         
         foreach (GameObject gp in ghostPastePoints)
@@ -728,8 +749,6 @@ public class ClipboardManager : MonoBehaviour
             }
         }
 
-        if (BuildTutorialDirector.Instance != null)
-            BuildTutorialDirector.Instance.NotifyPastePreviewUpdated(ghostPasteBars);
     }
 
     public void DestroyPasteGhosts()

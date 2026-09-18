@@ -13,7 +13,10 @@ using UnityEngine.UI;
 
 public static class CharacterCustomizationSetup
 {
-    private const string DefinitionFolder = "Assets/Resources/Cosmetics";
+    // Keep the wardrobe source of truth beside the shop data.  The previous
+    // Resources path no longer exists after the shop/category migration and
+    // caused a setup rerun to create a second, disconnected set of assets.
+    private const string DefinitionFolder = "Assets/BridgeBuilder/Data/Cosmetics";
     private const string PanelPrefabPath = "Assets/Prefabs/UI/CharacterCustomizationPanel.prefab";
     private const string PreviewPrefabPath = "Assets/Resources/Loading/NewCharacterPreview.prefab";
     private const string ManagersPrefabPath = "Assets/Prefabs/BuildingMode/MANAGERS AND CANVASES.prefab";
@@ -61,7 +64,7 @@ public static class CharacterCustomizationSetup
         new Spec { id="Pants_Rolled", label="Rolled Pants", category=CosmeticCategory.Pants, modelNames=new[]{"Bottom_RolledUp_Pants"} },
         new Spec { id="Pants_Skirt", label="Work Skirt", category=CosmeticCategory.Pants, modelNames=new[]{"Bottom_Skirt"} },
 
-        new Spec { id="Shoes_Base", label="Builder Shoes", category=CosmeticCategory.Shoes, modelNames=new[]{"Base_SHOE", " Base_SHOE"}, defaultUnlocked=true, defaultWhenEmpty=true },
+        new Spec { id="Shoes_Base", label="Builder Shoes", category=CosmeticCategory.Shoes, modelNames=new[]{"Base_SHOE"}, defaultUnlocked=true, defaultWhenEmpty=true },
         new Spec { id="Shoes_Sandals", label="Sandals", category=CosmeticCategory.Shoes, modelNames=new[]{"Shoes_Sandals"} },
         new Spec { id="Shoes_Boots1", label="Work Boots", category=CosmeticCategory.Shoes, modelNames=new[]{"Shoes_Boots_1"} },
         new Spec { id="Shoes_Boots2", label="Heavy Boots", category=CosmeticCategory.Shoes, modelNames=new[]{"Shoes_Boots_2"} },
@@ -89,7 +92,7 @@ public static class CharacterCustomizationSetup
         Debug.Log("[CharacterCustomizationSetup] Wardrobe data, prefab, Almanac panels, player bindings, and preview bindings are ready.");
     }
 
-    private static List<CosmeticDefinition> EnsureDefinitions()
+    public static List<CosmeticDefinition> EnsureDefinitions()
     {
         Color[] cloth = { Color.clear, new Color32(75, 55, 44, 255), new Color32(48, 73, 107, 255), new Color32(188, 74, 50, 255), new Color32(232, 159, 40, 255), new Color32(92, 128, 83, 255) };
         Color[] hair = { Color.clear, new Color32(65, 43, 34, 255), new Color32(102, 59, 32, 255), new Color32(40, 33, 31, 255), new Color32(160, 94, 50, 255), new Color32(229, 186, 90, 255) };
@@ -438,19 +441,19 @@ public static class CharacterCustomizationSetup
         return button;
     }
 
-    private static void ConfigureBindings(PlayerCosmetics target, Transform root)
+    public static void ConfigureBindings(PlayerCosmetics target, Transform root)
     {
         target.cosmeticBindings = BuildBindings(root);
         EditorUtility.SetDirty(target);
     }
 
-    private static void ConfigureBindings(PlayerCosmeticMirror target, Transform root)
+    public static void ConfigureBindings(PlayerCosmeticMirror target, Transform root)
     {
         target.cosmeticBindings = BuildBindings(root);
         EditorUtility.SetDirty(target);
     }
 
-    private static List<CosmeticModelBinding> BuildBindings(Transform root)
+    public static List<CosmeticModelBinding> BuildBindings(Transform root)
     {
         List<CosmeticModelBinding> bindings = new List<CosmeticModelBinding>();
         foreach (Spec spec in Specs)

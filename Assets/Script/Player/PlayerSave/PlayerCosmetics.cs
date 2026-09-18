@@ -23,26 +23,81 @@ public static class CosmeticBindingUtility
     private static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
     private static readonly int ColorProperty = Shader.PropertyToID("_Color");
 
+    // These accessories occupy the same volume as the full hair meshes.  Until
+    // dedicated "under hat" hair variants exist, hiding hair is the only
+    // deterministic way to prevent it from cutting through the headwear.
+    private static readonly HashSet<string> HeadwearIDs = new HashSet<string>(
+        StringComparer.OrdinalIgnoreCase)
+    {
+        "EngineeringHardHat",
+        "Accessory_SmallCap",
+        "Accessory_LargeCap"
+    };
+
     public static void Apply(IList<CosmeticModelBinding> bindings, CosmeticLoadoutData loadout)
     {
         if (bindings == null || loadout == null) return;
 
+        // Resolve one binding per category before changing any GameObjects.
+        // The previous single-pass implementation could leave authored/default
+        // objects visible when a binding was missing or duplicated.
+        Dictionary<CosmeticCategory, CosmeticModelBinding> selected =
+            new Dictionary<CosmeticCategory, CosmeticModelBinding>();
+        foreach (CosmeticCategory category in Enum.GetValues(typeof(CosmeticCategory)))
+        {
+            string selectedID = loadout.GetID(category)?.Trim();
+            CosmeticModelBinding exact = null;
+            CosmeticModelBinding fallback = null;
+
+            for (int i = 0; i < bindings.Count; i++)
+            {
+                CosmeticModelBinding binding = bindings[i];
+                if (binding == null || binding.category != category) continue;
+                if (fallback == null && binding.defaultWhenEmpty) fallback = binding;
+                if (!string.IsNullOrWhiteSpace(selectedID) &&
+                    string.Equals(binding.cosmeticID?.Trim(), selectedID,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    exact = binding;
+                    break;
+                }
+            }
+
+            selected[category] = exact ?? fallback;
+        }
+
+        // Always clear the whole wardrobe first.  This also fixes prefabs whose
+        // FBX authored several hair, shirt, or pants variants as active.
         for (int i = 0; i < bindings.Count; i++)
         {
             CosmeticModelBinding binding = bindings[i];
-            if (binding == null) continue;
-
-            string selectedID = loadout.GetID(binding.category);
-            bool visible = string.IsNullOrWhiteSpace(selectedID)
-                ? binding.defaultWhenEmpty
-                : string.Equals(binding.cosmeticID?.Trim(), selectedID.Trim(), StringComparison.Ordinal);
-
-            if (binding.models == null) continue;
+            if (binding == null || binding.models == null) continue;
             foreach (GameObject model in binding.models)
             {
                 if (model == null) continue;
-                model.SetActive(visible);
-                if (visible) ApplyColor(model, loadout.GetColor(binding.category));
+                model.SetActive(false);
+            }
+        }
+
+        string accessoryID = selected.TryGetValue(CosmeticCategory.Accessories,
+            out CosmeticModelBinding accessory)
+            ? accessory?.cosmeticID?.Trim()
+            : loadout.accessoriesID?.Trim();
+        bool hideHairForHeadwear = !string.IsNullOrWhiteSpace(accessoryID) &&
+                                   HeadwearIDs.Contains(accessoryID);
+
+        foreach (KeyValuePair<CosmeticCategory, CosmeticModelBinding> choice in selected)
+        {
+            CosmeticModelBinding binding = choice.Value;
+            if (binding == null || binding.models == null) continue;
+            if (choice.Key == CosmeticCategory.Hair && hideHairForHeadwear) continue;
+
+            Color color = loadout.GetColor(choice.Key);
+            foreach (GameObject model in binding.models)
+            {
+                if (model == null) continue;
+                model.SetActive(true);
+                ApplyColor(model, color);
             }
         }
     }

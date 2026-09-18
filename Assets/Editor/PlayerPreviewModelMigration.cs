@@ -51,7 +51,13 @@ public static class PlayerPreviewModelMigration
             return;
         }
 
-        GameObject previewPrefab = BuildSharedPreviewPrefab();
+        // The shared preview is now authored from the already repaired gameplay
+        // NewCharacterModel.  Run that migration first and keep the existing
+        // prefab GUID/root IDs instead of recreating the old Character_Cosmetics
+        // FBX preview and losing the generated skinning/bindings.
+        NewCharacterModelWiring.WireOpenScenes();
+        GameObject previewPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(PreviewPrefabPath);
+        if (previewPrefab == null) previewPrefab = BuildSharedPreviewPrefab();
         if (previewPrefab == null) return;
 
         AssignLoadingFallback(previewPrefab);

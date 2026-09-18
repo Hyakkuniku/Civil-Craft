@@ -199,6 +199,9 @@ public static class PlayerCharacterModelMigration
             EditorUtility.SetDirty(newHardHat);
         }
 
+        if (cosmetics != null)
+            CharacterCustomizationSetup.ConfigureBindings(cosmetics, newVisual);
+
         Undo.RecordObject(newVisual.gameObject, "Rename new player visual");
         newVisual.gameObject.name = "NewCharacterModel";
         EditorUtility.SetDirty(newVisual.gameObject);

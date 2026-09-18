@@ -16,7 +16,7 @@ MonoBehaviour:
   displayName: Builder Shoes
   icon: {fileID: 0}
   category: 4
-  modelID: Base_SHOE| Base_SHOE
+  modelID: Base_SHOE
   availableColors:
   - {r: 0, g: 0, b: 0, a: 0}
   - {r: 0.29411766, g: 0.21568628, b: 0.17254902, a: 1}
