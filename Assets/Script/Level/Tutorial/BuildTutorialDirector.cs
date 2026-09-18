@@ -75,7 +75,8 @@ public class BuildTutorialDirector : MonoBehaviour
     [HideInInspector] public bool isTutorialRunning;
 
     public bool IsAwaitingInvalidBarUndo { get; private set; }
-    public bool CanPlaceMaterials => !IsAwaitingInvalidBarUndo;
+    public bool IsBuildingLockedByTutorial => isTutorialRunning && !placementAllowedForCurrentStep;
+    public bool CanPlaceMaterials => !IsAwaitingInvalidBarUndo && !IsBuildingLockedByTutorial;
     public bool CanStartSimulation => !isTutorialRunning || simulationUnlockedForTutorial;
 
     private GhostSegment[] activeGhosts;
@@ -92,6 +93,7 @@ public class BuildTutorialDirector : MonoBehaviour
     private UnityAction trackedToolButtonAction;
     private Coroutine undoPointerCoroutine;
     private bool simulationUnlockedForTutorial;
+    private bool placementAllowedForCurrentStep = true;
     private int selectToolStepIndex = -1;
     private int selectBridgeStepIndex = -1;
     private bool copiedSelectionThisSection;
@@ -167,6 +169,7 @@ public class BuildTutorialDirector : MonoBehaviour
                                        tutorial.CurrentStepAction == TutorialStepAction.PasteSelection;
 
         activeStepIndex = stepIndex;
+        LockBuilding();
         isTracingStep = false;
         isCurrentDragValid = true;
         hasAdvancedFromRequiredClickThisStep = false;
@@ -232,6 +235,7 @@ public class BuildTutorialDirector : MonoBehaviour
         EndTutorial();
         ClearTraceStepStates();
         isTutorialRunning = isBuildSequence;
+        placementAllowedForCurrentStep = !isBuildSequence;
         simulationUnlockedForTutorial = false;
         ResetSelectionSectionState();
         if (BuildUIController.Instance != null)
@@ -255,6 +259,35 @@ public class BuildTutorialDirector : MonoBehaviour
 
         if (bouncingArrow != null) bouncingArrow.Hide();
         if (exitBuildModeButton != null) exitBuildModeButton.SetActive(false);
+    }
+
+    /// <summary>
+    /// Prevents mouse, touch, and automatic material placement while tutorial text or
+    /// material-selection instructions are being shown. Other tutorial UI remains usable.
+    /// </summary>
+    public void LockBuilding()
+    {
+        placementAllowedForCurrentStep = false;
+        BarCreator creator = BuildUIController.Instance != null
+            ? BuildUIController.Instance.barCreator
+            : null;
+        if (creator != null && creator.IsCreating)
+            creator.CancelCreation();
+    }
+
+    /// <summary>Allows construction during the current tutorial step.</summary>
+    public void UnlockBuilding()
+    {
+        placementAllowedForCurrentStep = true;
+    }
+
+    public void NotifyBlockedBuildAttempt()
+    {
+        if (BuildUIController.Instance == null) return;
+        if (IsAwaitingInvalidBarUndo)
+            BuildUIController.Instance.LogAction("Undo the invalid bar before building again.");
+        else if (IsBuildingLockedByTutorial)
+            BuildUIController.Instance.LogAction("Continue the tutorial before building.");
     }
 
     /// <summary>
@@ -345,6 +378,7 @@ public class BuildTutorialDirector : MonoBehaviour
     private void BeginTracingStep(GameObject ghostContainer)
     {
         LockAllUI();
+        UnlockBuilding();
         ClearTrackedToolButton();
         isTracingStep = true;
         isCurrentDragValid = true;
@@ -1408,6 +1442,7 @@ public class BuildTutorialDirector : MonoBehaviour
         ResetAllTrackedGhostVisuals();
 
         isTutorialRunning = false;
+        placementAllowedForCurrentStep = true;
         simulationUnlockedForTutorial = false;
         ResetSelectionSectionState();
         activeStepIndex = -1;

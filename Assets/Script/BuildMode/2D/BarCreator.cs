@@ -844,7 +844,12 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (IsAutoDrawing) return;
         if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building) return;
         if (isSimulating || Touch.activeTouches.Count > 1) return;
-        if (BuildTutorialDirector.Instance != null && !BuildTutorialDirector.Instance.CanPlaceMaterials) return;
+        BuildTutorialDirector tutorialDirector = BuildTutorialDirector.Instance;
+        if (tutorialDirector != null && tutorialDirector.IsAwaitingInvalidBarUndo)
+        {
+            tutorialDirector.NotifyBlockedBuildAttempt();
+            return;
+        }
 
         if (eventData.button != PointerEventData.InputButton.Left) return;
 
@@ -909,6 +914,14 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             currentSwipeDeleteAction = new HistoryAction { isBuildEvent = false };
             PerformSwipeDelete(screenPos);
             return; 
+        }
+
+        // The tutorial placement gate must not consume Select, Move, Delete, or Paste
+        // input. It only prevents starting a new road/pier construction action.
+        if (tutorialDirector != null && !tutorialDirector.CanPlaceMaterials)
+        {
+            tutorialDirector.NotifyBlockedBuildAttempt();
+            return;
         }
 
         CheckForExistingPoint(screenPos, out Point existingNode, out Vector3 exactSnapPos);

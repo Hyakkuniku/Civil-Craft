@@ -71,6 +71,8 @@ public class DialogueManager : MonoBehaviour
     private bool isDialogueActive;
     private Rect lastSafeArea;
     private Vector2Int lastScreenSize;
+    private readonly Dictionary<GameObject, bool> elementVisibilityBeforeDialogue =
+        new Dictionary<GameObject, bool>();
     
     private WaitForSeconds cachedTypingWait;
 
@@ -164,6 +166,7 @@ public class DialogueManager : MonoBehaviour
         Transform speakerTransform = null)
     {
         if (dialogue == null) return;
+        bool wasAlreadyActive = isDialogueActive;
 
         SetActiveSpeaker(speakerAnimator);
         TurnParticipantsTowardEachOther(
@@ -191,10 +194,7 @@ public class DialogueManager : MonoBehaviour
         if (playerInteract != null) playerInteract.enabled = false;
         if (playerUI != null) playerUI.UpdateButtons(new List<Interactable>());
 
-        foreach (GameObject obj in elementsToHide)
-        {
-            if (obj != null) obj.SetActive(false);
-        }
+        HideDialogueElements(!wasAlreadyActive);
 
         if (animator != null)
             animator.SetBool("isOpen", true);
@@ -273,10 +273,7 @@ public class DialogueManager : MonoBehaviour
             StopCoroutine(hideDialogueCoroutine);
         hideDialogueCoroutine = StartCoroutine(HideDialogueBoxAfterClose());
 
-        foreach (GameObject obj in elementsToHide)
-        {
-            if (obj != null) obj.SetActive(true);
-        }
+        RestoreDialogueElements();
 
         // Clear the completed callback before invoking it. A callback is allowed
         // to start the next dialogue immediately; clearing afterward would erase
@@ -309,6 +306,7 @@ public class DialogueManager : MonoBehaviour
     {
         isDialogueActive = false;
         SetSkipButtonVisible(false);
+        RestoreDialogueElements();
         if (playerFacingCoroutine != null)
         {
             StopCoroutine(playerFacingCoroutine);
@@ -322,6 +320,27 @@ public class DialogueManager : MonoBehaviour
         }
 
         StopActiveSpeakerTalking();
+    }
+
+    private void HideDialogueElements(bool captureCurrentState)
+    {
+        if (captureCurrentState)
+            elementVisibilityBeforeDialogue.Clear();
+
+        foreach (GameObject obj in elementsToHide)
+        {
+            if (obj == null) continue;
+            if (!elementVisibilityBeforeDialogue.ContainsKey(obj))
+                elementVisibilityBeforeDialogue.Add(obj, obj.activeSelf);
+            obj.SetActive(false);
+        }
+    }
+
+    private void RestoreDialogueElements()
+    {
+        foreach (KeyValuePair<GameObject, bool> state in elementVisibilityBeforeDialogue)
+            if (state.Key != null) state.Key.SetActive(state.Value);
+        elementVisibilityBeforeDialogue.Clear();
     }
 
     private void TurnParticipantsTowardEachOther(Transform speakerTransform)
