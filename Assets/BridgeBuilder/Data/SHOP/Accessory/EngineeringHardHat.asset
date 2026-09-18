@@ -15,7 +15,7 @@ MonoBehaviour:
   itemId: shop_cosmetic_EngineeringHardHat
   itemName: Engineering Hard Hat
   description: Unlock the Engineering Hard Hat accessory for your builder.
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: 7eb9485ad6d6bb044950b089ba81afcc, type: 3}
   category: 0
   cosmeticDefinition: {fileID: 11400000, guid: 1b04bd0b5ebfedb45ace9b5a7e6e7d2c, type: 2}
   price: 100

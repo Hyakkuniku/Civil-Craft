@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   permanentID: EngineeringHardHat
   displayName: Engineering Hard Hat
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: 7eb9485ad6d6bb044950b089ba81afcc, type: 3}
   category: 0
   modelID: Base_Hard Hat
   availableColors:
