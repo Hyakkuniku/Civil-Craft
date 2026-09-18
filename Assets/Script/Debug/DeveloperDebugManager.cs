@@ -307,6 +307,7 @@ public sealed class DeveloperDebugManager : MonoBehaviour
         RectTransform content = panel != null ? panel.Find("ScrollView/Viewport/Content") as RectTransform : null;
         if (panel == null || content == null) return;
         RestoreAchievementActionRow(content);
+        EnsureUnlockAllItemsControl(content);
         EnsureResetProgressControl(content);
         Canvas.ForceUpdateCanvases();
         float scale = Mathf.Max(.01f, debugCanvas.scaleFactor);
@@ -477,6 +478,19 @@ public sealed class DeveloperDebugManager : MonoBehaviour
             CreateRuntimeText(row, "Label", "Achievement Actions", statusText);
         }
         if (button.parent != row) button.SetParent(row, false);
+    }
+
+    private void EnsureUnlockAllItemsControl(RectTransform content)
+    {
+        if (FindDescendantByName(debugWindow.transform, "UnlockAllItemsButton") != null) return;
+        Transform row = new GameObject("ItemsRow", typeof(RectTransform),
+            typeof(HorizontalLayoutGroup), typeof(LayoutElement)).transform;
+        row.SetParent(content, false);
+        Transform coins = FindDirectChildByName(content, "CoinsRow");
+        if (coins != null) row.SetSiblingIndex(coins.GetSiblingIndex() + 1);
+        CreateRuntimeText(row, "Label", "Shop & Wardrobe", statusText);
+        Button source = FindDescendantByName(debugWindow.transform, "AddCoinsButton")?.GetComponent<Button>();
+        CreateRuntimeDebugButton(row, "UnlockAllItemsButton", "UNLOCK ALL ITEMS", source, UnlockAllItems);
     }
 
     private void EnsureResetProgressControl(RectTransform content)
@@ -1091,6 +1105,31 @@ public sealed class DeveloperDebugManager : MonoBehaviour
         int newlyUnlocked = Mathf.Max(0, totalUnlocked - previouslyUnlocked);
         PopulateAchievementDropdown();
         SetStatus($"Unlocked all achievements. {newlyUnlocked} new, {totalUnlocked} total unlocked.");
+    }
+
+    public void UnlockAllItems()
+    {
+        if (!IsAvailable) return;
+        PlayerDataManager data = PlayerDataManager.Instance;
+        if (data == null || data.CurrentData == null)
+        {
+            SetStatus("PlayerDataManager is unavailable; no items were unlocked.");
+            return;
+        }
+        DeveloperItemCatalog catalog = DeveloperItemCatalog.Load();
+        if (catalog == null || catalog.shopItemIDs.Count + catalog.cosmeticIDs.Count == 0)
+        {
+            SetStatus("No item catalog found. Run Tools/Civil Craft/Refresh Developer Item Catalog.");
+            return;
+        }
+        if (!data.DebugUnlockItems(catalog.shopItemIDs, catalog.cosmeticIDs, out int shops, out int cosmetics))
+        {
+            SetStatus("Could not save item unlocks; previous ownership was restored.");
+            return;
+        }
+        foreach (CharacterCustomizationController wardrobe in FindObjectsOfType<CharacterCustomizationController>(true))
+            wardrobe.RefreshItemOwnership();
+        SetStatus($"All items unlocked and saved: {shops} new shop items, {cosmetics} new cosmetics. Outfit unchanged.");
     }
 
     public void AddSelectedCoins()

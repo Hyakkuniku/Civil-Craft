@@ -37,6 +37,7 @@ public class PlayerDataManager : MonoBehaviour
     public Action OnCurrencyChanged; 
     /// <summary>Raised after a shop purchase has been saved successfully.</summary>
     public Action<string> OnShopItemPurchased;
+    public Action OnItemOwnershipChanged;
     
     private string saveFilePath;
     private bool isCheckingAchievements = false; // Prevents infinite loops!
@@ -1616,6 +1617,48 @@ public class PlayerDataManager : MonoBehaviour
         CurrentData.savedBridges.Remove(newSave);
         CurrentData.savedBridges.AddRange(previousRecords);
         return false;
+    }
+
+    /// <summary>Developer grant: one save, no spending, equipping, or purchase rewards.</summary>
+    public bool DebugUnlockItems(IEnumerable<string> shopIDs, IEnumerable<string> cosmeticIDs,
+        out int newShopItems, out int newCosmetics)
+    {
+        newShopItems = newCosmetics = 0;
+        if (CurrentData == null || DeveloperDebugManager.Instance == null ||
+            !DeveloperDebugManager.Instance.IsAvailable) return false;
+
+        List<string> previousShop = CurrentData.purchasedShopItemIds;
+        List<string> previousCosmetics = CurrentData.unlockedCosmeticIDs;
+        var shops = previousShop != null ? new List<string>(previousShop) : new List<string>();
+        var cosmetics = previousCosmetics != null ? new List<string>(previousCosmetics) : new List<string>();
+        newShopItems = AddMissingItemIDs(shops, shopIDs);
+        newCosmetics = AddMissingItemIDs(cosmetics, cosmeticIDs);
+        CurrentData.purchasedShopItemIds = shops;
+        CurrentData.unlockedCosmeticIDs = cosmetics;
+        if (!TrySaveGame())
+        {
+            CurrentData.purchasedShopItemIds = previousShop;
+            CurrentData.unlockedCosmeticIDs = previousCosmetics;
+            newShopItems = newCosmetics = 0;
+            return false;
+        }
+        OnItemOwnershipChanged?.Invoke();
+        return true;
+    }
+
+    private static int AddMissingItemIDs(List<string> owned, IEnumerable<string> incoming)
+    {
+        int added = 0;
+        if (incoming == null) return added;
+        foreach (string raw in incoming)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) continue;
+            string id = raw.Trim();
+            if (owned.Exists(existing => string.Equals(existing?.Trim(), id, StringComparison.Ordinal))) continue;
+            owned.Add(id);
+            added++;
+        }
+        return added;
     }
 
     public bool OwnsShopItem(string itemId)

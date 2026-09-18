@@ -51,7 +51,7 @@ public class ShopManager : MonoBehaviour
     [SerializeField] private List<ShopItemData> allItems = new List<ShopItemData>();
     [SerializeField, Tooltip("Automatically includes every ShopItemData asset in the project while editing.")]
     private bool autoPopulateCatalogFromProject = true;
-    [SerializeField] private ShopCategory defaultCategory = ShopCategory.Builder;
+    [SerializeField] private ShopCategory defaultCategory = ShopCategory.Accessory;
     [SerializeField] private bool sortItemsByPrice;
 
     [Header("Grid")]
@@ -95,7 +95,7 @@ public class ShopManager : MonoBehaviour
         {
             string path = UnityEditor.AssetDatabase.GUIDToAssetPath(guid);
             ShopItemData item = UnityEditor.AssetDatabase.LoadAssetAtPath<ShopItemData>(path);
-            if (item != null) discovered.Add(item);
+            if (item != null && item.cosmeticDefinition != null) discovered.Add(item);
         }
 
         discovered.Sort((left, right) => string.Compare(
@@ -254,7 +254,8 @@ public class ShopManager : MonoBehaviour
 
         foreach (ShopItemData item in allItems)
         {
-            if (item == null || item.category != category || string.IsNullOrWhiteSpace(item.ItemId))
+            if (item == null || item.cosmeticDefinition == null ||
+                item.category != category || string.IsNullOrWhiteSpace(item.ItemId))
                 continue;
 
             if (!seenIds.Add(item.ItemId))
@@ -306,12 +307,11 @@ public class ShopManager : MonoBehaviour
             ShowCategory((ShopCategory)categoryIndex);
     }
 
-    public void ShowBuilder() => ShowCategory(ShopCategory.Builder);
-    public void ShowMaterials() => ShowCategory(ShopCategory.Materials);
-    public void ShowTools() => ShowCategory(ShopCategory.Tools);
-    public void ShowDecorations() => ShowCategory(ShopCategory.Decorations);
-    public void ShowVehicles() => ShowCategory(ShopCategory.Vehicles);
-    public void ShowBundles() => ShowCategory(ShopCategory.Bundles);
+    public void ShowAccessories() => ShowCategory(ShopCategory.Accessory);
+    public void ShowHairstyles() => ShowCategory(ShopCategory.Hairstyle);
+    public void ShowShirts() => ShowCategory(ShopCategory.Shirt);
+    public void ShowPants() => ShowCategory(ShopCategory.Pants);
+    public void ShowShoes() => ShowCategory(ShopCategory.Shoes);
 
     public bool TryPurchase(ShopItemData item)
     {
@@ -395,10 +395,21 @@ public class ShopManager : MonoBehaviour
         initialized = true;
         currentCategory = defaultCategory;
 
-        foreach (ShopCategoryTab tab in categoryTabs)
+        string[] categoryLabels = { "ACCESSORY", "HAIRSTYLE", "SHIRT", "PANTS", "SHOES" };
+
+        for (int i = 0; i < categoryTabs.Count; i++)
         {
+            ShopCategoryTab tab = categoryTabs[i];
             if (tab == null || tab.button == null || tabListeners.ContainsKey(tab.button))
                 continue;
+
+            bool validCategory = i < categoryLabels.Length &&
+                                 Enum.IsDefined(typeof(ShopCategory), tab.category);
+            tab.button.gameObject.SetActive(validCategory);
+            if (!validCategory) continue;
+
+            TMP_Text label = tab.button.GetComponentInChildren<TMP_Text>(true);
+            if (label != null) label.text = categoryLabels[(int)tab.category];
 
             ShopCategory capturedCategory = tab.category;
             UnityAction action = () => ShowCategory(capturedCategory);
@@ -535,10 +546,13 @@ public class ShopManager : MonoBehaviour
             confirmationPriceText.text = FormatPrice(item.price);
         if (confirmationIconImage != null)
         {
-            confirmationIconImage.sprite = item.icon;
+            Sprite displayIcon = item.icon != null
+                ? item.icon
+                : item.cosmeticDefinition != null ? item.cosmeticDefinition.icon : null;
+            confirmationIconImage.sprite = displayIcon;
             confirmationIconImage.color = Color.white;
             confirmationIconImage.preserveAspect = true;
-            confirmationIconImage.enabled = item.icon != null;
+            confirmationIconImage.enabled = displayIcon != null;
         }
     }
 
@@ -550,13 +564,19 @@ public class ShopManager : MonoBehaviour
         UnbindPlayerData();
         boundPlayerData = current;
         if (boundPlayerData != null)
+        {
             boundPlayerData.OnCurrencyChanged += HandleCurrencyChanged;
+            boundPlayerData.OnItemOwnershipChanged += RefreshVisibleCards;
+        }
     }
 
     private void UnbindPlayerData()
     {
         if (boundPlayerData != null)
+        {
             boundPlayerData.OnCurrencyChanged -= HandleCurrencyChanged;
+            boundPlayerData.OnItemOwnershipChanged -= RefreshVisibleCards;
+        }
         boundPlayerData = null;
     }
 

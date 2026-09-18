@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 908041bb0339ee243af2d11ef9f58a91, type: 3}
+  m_Name: Accessory_SafetyVest
+  m_EditorClassIdentifier: 
+  itemId: shop_cosmetic_Accessory_SafetyVest
+  itemName: Safety Vest
+  description: Unlock the Safety Vest accessory for your builder.
+  icon: {fileID: 0}
+  category: 0
+  cosmeticDefinition: {fileID: 11400000, guid: a3ef68c70f1243a409630f5a87da038a, type: 2}
+  price: 100
+  canPurchaseMultipleTimes: 0

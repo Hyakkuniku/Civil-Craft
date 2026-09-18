@@ -240,6 +240,12 @@ public static class DeveloperDebugSystemSetup
         AddLayout(coinAmountDropdown.gameObject, 520f, 54f, 1f);
         Button addCoins = GetOrCreateButton(coinsRow, "AddCoinsButton", "ADD COINS", 220f);
 
+        RectTransform itemsRow = EnsureRow(content, "ItemsRow", 64f);
+        TextMeshProUGUI itemsLabel = GetOrCreateText(itemsRow, "Label", "Shop & Wardrobe", 24f, FontStyles.Bold);
+        AddLayout(itemsLabel.gameObject, 190f, 54f, 0f);
+        Button unlockAllItems = GetOrCreateButton(itemsRow, "UnlockAllItemsButton", "UNLOCK ALL ITEMS", 742f);
+        WireButton(unlockAllItems, manager.UnlockAllItems);
+
         RectTransform saveStateRow = EnsureRow(content, "SaveStateRow", 64f);
         TextMeshProUGUI saveStateLabel = GetOrCreateText(
             saveStateRow, "Label", "Player Save State", 24f, FontStyles.Bold);

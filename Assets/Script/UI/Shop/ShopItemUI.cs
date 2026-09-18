@@ -42,7 +42,9 @@ public class ShopItemUI : MonoBehaviour
 
         if (iconImage != null)
         {
-            iconImage.sprite = item != null ? item.icon : null;
+            iconImage.sprite = item != null
+                ? item.icon != null ? item.icon : item.cosmeticDefinition != null ? item.cosmeticDefinition.icon : null
+                : null;
             // The setup prefab uses an empty Image before an item is bound.
             // Always restore an opaque tint when a real catalog icon is assigned.
             iconImage.color = Color.white;

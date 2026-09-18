@@ -3,12 +3,11 @@ using UnityEngine;
 
 public enum ShopCategory
 {
-    Builder,
-    Materials,
-    Tools,
-    Decorations,
-    Vehicles,
-    Bundles
+    Accessory,
+    Hairstyle,
+    Shirt,
+    Pants,
+    Shoes
 }
 
 [CreateAssetMenu(fileName = "NewShopItem", menuName = "Civil Craft/Shop Item")]
@@ -25,7 +24,7 @@ public class ShopItemData : ScriptableObject
 
     [Header("Presentation")]
     public Sprite icon;
-    public ShopCategory category = ShopCategory.Builder;
+    public ShopCategory category = ShopCategory.Accessory;
 
     [Header("Optional Wardrobe Unlock")]
     [Tooltip("When assigned, purchasing this item unlocks the linked wardrobe cosmetic.")]

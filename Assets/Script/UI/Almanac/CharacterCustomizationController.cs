@@ -184,6 +184,11 @@ public sealed class CharacterCustomizationController : MonoBehaviour
 
     public void ShowCategory(int category) => ShowCategory((CosmeticCategory)category);
 
+    public void RefreshItemOwnership()
+    {
+        if (isCustomizationOpen) ShowCategory(currentCategory);
+    }
+
     public void ShowCategory(CosmeticCategory category)
     {
         currentCategory = category;

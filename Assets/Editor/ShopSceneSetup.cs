@@ -12,7 +12,7 @@ using UnityEngine.UI;
 [InitializeOnLoad]
 public static class ShopSceneSetup
 {
-    private const string SessionKey = "CivilCraft.ShopSceneSetup.V3";
+    private const string SessionKey = "CivilCraft.ShopSceneSetup.V4";
     private const string CardPrefabPath = "Assets/Prefabs/UI/ShopItemCard.prefab";
     private const string FontPath = "Assets/TextMesh Pro/Resources/Fonts & Materials/Bekind Sans SDF.asset";
     private const string CoinPlusSpritePath = "Assets/Elements/UI/bm_ui/coin_plus (1).png";
@@ -202,9 +202,9 @@ public static class ShopSceneSetup
         tabsLayout.childForceExpandWidth = true;
         tabsLayout.childForceExpandHeight = true;
 
-        Button[] tabButtons = new Button[6];
-        GameObject[] selectedVisuals = new GameObject[6];
-        string[] names = { "Builder", "Materials", "Tools", "Decorations", "Vehicles", "Bundles" };
+        Button[] tabButtons = new Button[5];
+        GameObject[] selectedVisuals = new GameObject[5];
+        string[] names = { "Accessory", "Hairstyle", "Shirt", "Pants", "Shoes" };
         for (int i = 0; i < names.Length; i++)
         {
             tabButtons[i] = CreateButton(tabs.transform, names[i] + "Tab", names[i].ToUpperInvariant(), 27f, font, TabColor);
@@ -273,8 +273,8 @@ public static class ShopSceneSetup
         managerData.FindProperty("itemCardPrefab").objectReferenceValue = cardPrefab;
 
         SerializedProperty tabArray = managerData.FindProperty("categoryTabs");
-        tabArray.arraySize = 6;
-        for (int i = 0; i < 6; i++)
+        tabArray.arraySize = 5;
+        for (int i = 0; i < 5; i++)
         {
             SerializedProperty tab = tabArray.GetArrayElementAtIndex(i);
             tab.FindPropertyRelative("category").enumValueIndex = i;
@@ -290,6 +290,7 @@ public static class ShopSceneSetup
     private static void UpgradeShopPanel(GameObject panel, ShopManager manager)
     {
         TMP_FontAsset font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(FontPath);
+        UpgradeWardrobeTabs(panel, manager);
 
         Transform primaryPill = FindRecursive(panel.transform, "CurrencyPill");
         if (primaryPill is RectTransform primaryRect)
@@ -482,6 +483,44 @@ public static class ShopSceneSetup
         confirmationPanel.SetActive(false);
         feedbackPanel.transform.SetAsLastSibling();
         feedbackPanel.SetActive(false);
+    }
+
+    private static void UpgradeWardrobeTabs(GameObject panel, ShopManager manager)
+    {
+        Transform tabsRoot = FindRecursive(panel.transform, "CategoryTabs");
+        if (tabsRoot == null) return;
+
+        string[] names = { "Accessory", "Hairstyle", "Shirt", "Pants", "Shoes" };
+        var buttons = new System.Collections.Generic.List<Button>();
+        foreach (Transform child in tabsRoot)
+        {
+            Button button = child.GetComponent<Button>();
+            if (button != null) buttons.Add(button);
+        }
+
+        for (int i = 0; i < buttons.Count; i++)
+        {
+            bool active = i < names.Length;
+            buttons[i].gameObject.SetActive(active);
+            if (!active) continue;
+            buttons[i].gameObject.name = names[i] + "Tab";
+            TMP_Text label = buttons[i].GetComponentInChildren<TMP_Text>(true);
+            if (label != null) label.text = names[i].ToUpperInvariant();
+        }
+
+        SerializedObject managerData = new SerializedObject(manager);
+        SerializedProperty tabArray = managerData.FindProperty("categoryTabs");
+        tabArray.arraySize = Mathf.Min(names.Length, buttons.Count);
+        for (int i = 0; i < tabArray.arraySize; i++)
+        {
+            SerializedProperty tab = tabArray.GetArrayElementAtIndex(i);
+            tab.FindPropertyRelative("category").enumValueIndex = i;
+            tab.FindPropertyRelative("button").objectReferenceValue = buttons[i];
+            Transform selected = buttons[i].transform.Find("Selected");
+            tab.FindPropertyRelative("selectedVisual").objectReferenceValue =
+                selected != null ? selected.gameObject : null;
+        }
+        managerData.ApplyModifiedPropertiesWithoutUndo();
     }
 
     private static ShopItemUI GetOrCreateCardPrefab(TMP_FontAsset font)
