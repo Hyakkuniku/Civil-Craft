@@ -171,6 +171,8 @@ public class NPCProgressionManager : MonoBehaviour
     [SerializeField] private NPCContractGiver contractGiver;
     [SerializeField] private NavMeshAgent navMeshAgent;
     private int configuredNavigationAreaMask = NavMesh.AllAreas;
+    private Vector3 resolvedNavMeshDestination;
+    private bool hasResolvedNavMeshDestination;
     [SerializeField] private Animator animator;
     [SerializeField] private DialogueManager dialogueManager;
     [Tooltip("Optional fixed scene marker for phases with no Target Location. Set this for an NPC whose NavMeshAgent can shift its Transform before Awake.")]
@@ -959,13 +961,16 @@ public class NPCProgressionManager : MonoBehaviour
 
         if (!destinationSet)
         {
-            // A phase route can begin outside the baked NavMesh (Bhan's authored
-            // Greetings position is one example). Restore the departure pose and
-            // continue with the grounded mover instead of teleporting to a bind
-            // point and leaving progression stuck.
             PlaceAtPhase(currentPhaseIndex);
-            DisableAgentForWaypointMovement();
-            yield return MoveToPhaseByWaypoints(nextPhaseIndex, nextPhase);
+            if (HasAuthoredTravelWaypoints(nextPhase))
+            {
+                DisableAgentForWaypointMovement();
+                yield return MoveToPhaseByWaypoints(nextPhaseIndex, nextPhase);
+            }
+            else
+            {
+                HandleMovementFailure(nextPhaseIndex);
+            }
             yield break;
         }
 
@@ -997,8 +1002,12 @@ public class NPCProgressionManager : MonoBehaviour
                 continue;
             }
 
-            if (!navMeshAgent.pathPending &&
+            float arrivalDistance = navMeshAgent.stoppingDistance + arrivalPadding;
+            Vector3 resolvedOffset = transform.position - resolvedNavMeshDestination;
+            resolvedOffset.y = 0f;
+            if (!navMeshAgent.pathPending && hasResolvedNavMeshDestination &&
                 navMeshAgent.remainingDistance <= navMeshAgent.stoppingDistance + arrivalPadding &&
+                resolvedOffset.sqrMagnitude <= arrivalDistance * arrivalDistance &&
                 (!navMeshAgent.hasPath || navMeshAgent.velocity.sqrMagnitude <= 0.05f))
             {
                 CompleteArrival(nextPhaseIndex);
@@ -1042,13 +1051,11 @@ public class NPCProgressionManager : MonoBehaviour
             yield return null;
         }
 
-        if (movementMode == NPCProgressionMovementMode.NavMesh ||
-            (movementMode == NPCProgressionMovementMode.Waypoints &&
-             useSceneNavMeshLinksInWaypointMode))
+        if (HasAuthoredTravelWaypoints(nextPhase))
         {
             Debug.LogWarning(
                 $"[NPCProgressionManager] The NavMesh route to phase {nextPhaseIndex} " +
-                "became invalid or stalled. Falling back to the grounded waypoint route.",
+                "became invalid or stalled. Using its explicitly authored waypoint route.",
                 this);
             DisableAgentForWaypointMovement();
             yield return MoveToPhaseByWaypoints(nextPhaseIndex, nextPhase);
@@ -1856,21 +1863,27 @@ public class NPCProgressionManager : MonoBehaviour
             return false;
         }
 
-        if (!NavMesh.SamplePosition(targetPosition, out NavMeshHit hit,
-                navMeshSampleRadius, new NavMeshQueryFilter
-                { agentTypeID = navMeshAgent.agentTypeID, areaMask = configuredNavigationAreaMask }))
-        {
-            Debug.LogError("[NPCProgressionManager] Target is outside the NPC's NavMesh area.", this);
-            return false;
-        }
-
+        float horizontalTolerance = Mathf.Min(
+            navMeshSampleRadius,
+            Mathf.Max(0.5f, navMeshAgent.radius));
+        float verticalTolerance = Mathf.Min(
+            navMeshSampleRadius,
+            Mathf.Max(1f, navMeshAgent.height));
         navMeshAgent.isStopped = false;
         navMeshAgent.ResetPath();
-
-        if (!PreferredRoadNavigation.SetDestination(navMeshAgent, hit.position, configuredNavigationAreaMask))
+        hasResolvedNavMeshDestination = PreferredRoadNavigation.SetDestinationNearTarget(
+            navMeshAgent,
+            targetPosition,
+            navMeshSampleRadius,
+            horizontalTolerance,
+            verticalTolerance,
+            configuredNavigationAreaMask,
+            out resolvedNavMeshDestination);
+        if (!hasResolvedNavMeshDestination)
         {
-            Debug.Log(
-                $"[NPCProgressionManager] No complete NavMesh route to '{hit.position}'; using grounded waypoint fallback when available.",
+            Debug.LogWarning(
+                $"[NPCProgressionManager] No complete NavMesh route ends at target '{targetPosition}'. " +
+                "The target marker must be directly above the intended walkable surface.",
                 this);
             return false;
         }
@@ -1903,8 +1916,20 @@ public class NPCProgressionManager : MonoBehaviour
             DisableAgentForWaypointMovement();
 
         SetWalkingAnimation(false);
+        hasResolvedNavMeshDestination = false;
+        // Finish at the authored marker (including its facing), not at a nearby
+        // sampled polygon edge. PlaceAtPhase keeps the Y coordinate grounded.
+        PlaceAtPhase(phaseIndex);
         movementRoutine = null;
         ActivatePhase(phaseIndex, true);
+    }
+
+    private static bool HasAuthoredTravelWaypoints(NPCProgressionPhase phase)
+    {
+        if (phase == null || phase.travelWaypoints == null) return false;
+        foreach (Transform waypoint in phase.travelWaypoints)
+            if (waypoint != null) return true;
+        return false;
     }
 
     private void HandleMovementFailure(int phaseIndex)

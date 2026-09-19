@@ -134,11 +134,28 @@ public sealed class DynamicNavMeshUpdater : MonoBehaviour
         bool alreadyBridgeOnly = navMeshSurface.layerMask.value == bridgeMask;
         if (alreadyBridgeOnly) return;
 
-        // The serialized Surface contains the editor-baked world navigation.
-        // Updating that Surface at runtime rebuilds every rock, building, and
-        // terrain collider and can temporarily invalidate an NPC's current path.
-        // Leave it registered and create a second, bridge-only runtime Surface.
+        // Do not update the serialized Surface at runtime. Rebuilding a real
+        // world Surface would invalidate active paths; an old helper-only Surface
+        // would overlap the fresh bridge data created below.
         NavMeshSurface worldSurface = navMeshSurface;
+
+        // Older Canyon Crossing data contains a second baked Surface made only
+        // from construction helper layers (MapNodes/Node/Bridge), in addition to
+        // the real terrain bake. Its stale polygons overlap the fresh runtime
+        // bridge surface and can make SamplePosition choose the wrong island.
+        // Unregister that helper-only data; never remove a genuine world Surface.
+        int groundLayer = LayerMask.NameToLayer("Ground");
+        int environmentLayer = LayerMask.NameToLayer("Environment");
+        int worldLayerMask = 0;
+        if (groundLayer >= 0) worldLayerMask |= 1 << groundLayer;
+        if (environmentLayer >= 0) worldLayerMask |= 1 << environmentLayer;
+        bool containsWorldGeometry = (worldSurface.layerMask.value & worldLayerMask) != 0;
+        if (!containsWorldGeometry)
+        {
+            worldSurface.RemoveData();
+            worldSurface.enabled = false;
+        }
+
         GameObject runtimeSurfaceObject = new GameObject("Runtime Bridge NavMesh Surface");
         runtimeSurfaceObject.transform.SetParent(transform, false);
 

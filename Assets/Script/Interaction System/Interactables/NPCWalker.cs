@@ -28,6 +28,7 @@ public class NPCWalker : MonoBehaviour
 
     private NavMeshAgent agent;
     private Coroutine walkRoutine;
+    private Vector3 resolvedDestination;
 
     private void Awake()
     {
@@ -81,7 +82,11 @@ public class NPCWalker : MonoBehaviour
 
         while (Time.time < deadline)
         {
-            if (agent.remainingDistance <= agent.stoppingDistance + 0.2f)
+            float arrivalDistance = agent.stoppingDistance + 0.2f;
+            Vector3 destinationOffset = transform.position - resolvedDestination;
+            destinationOffset.y = 0f;
+            if (agent.remainingDistance <= arrivalDistance &&
+                destinationOffset.sqrMagnitude <= arrivalDistance * arrivalDistance)
             {
                 if (!agent.hasPath || agent.velocity.sqrMagnitude < 0.05f)
                 {
@@ -137,29 +142,30 @@ public class NPCWalker : MonoBehaviour
             if (!agent.Warp(startHit.position)) return false;
         }
 
-        if (!NavMesh.SamplePosition(targetDestination.position, out NavMeshHit targetHit,
-                navMeshSampleRadius, agent.areaMask))
-        {
-            Debug.LogError(
-                $"[NPCWalker] Destination '{targetDestination.name}' is outside the NavMesh.",
-                targetDestination);
-            return false;
-        }
-
-        NavMeshPath path = new NavMeshPath();
-        bool calculated = agent.CalculatePath(targetHit.position, path);
-        if (!calculated || path.status != NavMeshPathStatus.PathComplete)
+        float horizontalTolerance = Mathf.Min(
+            navMeshSampleRadius,
+            Mathf.Max(0.5f, agent.radius));
+        float verticalTolerance = Mathf.Min(
+            navMeshSampleRadius,
+            Mathf.Max(1f, agent.height));
+        if (!PreferredRoadNavigation.SetDestinationNearTarget(
+                agent,
+                targetDestination.position,
+                navMeshSampleRadius,
+                horizontalTolerance,
+                verticalTolerance,
+                agent.areaMask,
+                out resolvedDestination))
         {
             Debug.LogWarning(
-                $"[NPCWalker] No complete route to '{targetDestination.name}'. " +
-                $"Calculated={calculated}, Status={path.status}.",
+                $"[NPCWalker] No complete route ends at '{targetDestination.name}'. " +
+                "Check that its marker is directly above the intended NavMesh.",
                 this);
             return false;
         }
 
         agent.isStopped = false;
-        agent.ResetPath();
-        return agent.SetPath(path);
+        return true;
     }
 
     private bool TrySampleLocalNavMesh(Vector3 position, out NavMeshHit hit)

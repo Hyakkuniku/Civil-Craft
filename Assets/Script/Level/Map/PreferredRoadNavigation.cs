@@ -10,6 +10,51 @@ public static class PreferredRoadNavigation
     public const float DirectApproachDistance = 12f;
     public const string LinkAreaName = "RavineLink";
 
+    /// <summary>
+    /// Projects an authored marker only onto navigation immediately beneath it,
+    /// then assigns a complete path whose last corner is that projected point.
+    /// This prevents a large SamplePosition radius from choosing another floor,
+    /// island, bridge, or stale overlapping surface beside the intended target.
+    /// </summary>
+    public static bool SetDestinationNearTarget(
+        NavMeshAgent agent,
+        Vector3 requestedDestination,
+        float sampleRadius,
+        float maximumHorizontalOffset,
+        float maximumVerticalOffset,
+        int allowedMask,
+        out Vector3 resolvedDestination)
+    {
+        resolvedDestination = requestedDestination;
+        if (!IsUsable(agent) || !IsFinite(requestedDestination)) return false;
+
+        NavMeshQueryFilter filter = CreateFilter(agent, allowedMask);
+        if (!NavMesh.SamplePosition(
+                requestedDestination,
+                out NavMeshHit hit,
+                Mathf.Max(0.01f, sampleRadius),
+                filter))
+            return false;
+
+        Vector3 offset = hit.position - requestedDestination;
+        float horizontalOffset = new Vector2(offset.x, offset.z).magnitude;
+        if (horizontalOffset > Mathf.Max(0.01f, maximumHorizontalOffset) ||
+            Mathf.Abs(offset.y) > Mathf.Max(0.01f, maximumVerticalOffset))
+            return false;
+
+        if (!TryCalculateValidatedPath(
+                agent,
+                hit.position,
+                filter,
+                out NavMeshPath path,
+                out int routeMask))
+            return false;
+
+        if (!ApplyPath(agent, path, routeMask)) return false;
+        resolvedDestination = hit.position;
+        return true;
+    }
+
     public static void RefineFinalApproach(NavMeshAgent agent)
     {
         if (agent == null || !agent.isActiveAndEnabled || !agent.isOnNavMesh ||
@@ -26,8 +71,7 @@ public static class PreferredRoadNavigation
 
     public static bool Calculate(NavMeshAgent agent, Vector3 destination, out NavMeshPath path)
     {
-        var filter = new NavMeshQueryFilter { agentTypeID = agent.agentTypeID, areaMask = agent.areaMask };
-        for (int i = 0; i < 32; i++) filter.SetAreaCost(i, agent.GetAreaCost(i));
+        NavMeshQueryFilter filter = CreateFilter(agent, agent.areaMask);
         return Calculate(agent.nextPosition, destination, filter, out path);
     }
 
@@ -35,15 +79,81 @@ public static class PreferredRoadNavigation
     // cannot lock the next cross-ravine trip out of using links.
     public static bool SetDestination(NavMeshAgent agent, Vector3 destination, int allowedMask)
     {
-        var filter = new NavMeshQueryFilter { agentTypeID = agent.agentTypeID, areaMask = allowedMask };
-        for (int i = 0; i < 32; i++) filter.SetAreaCost(i, agent.GetAreaCost(i));
-        if (!CalculateGroundFirst(agent.nextPosition, destination, filter, out NavMeshPath path, out int routeMask) ||
-            path.status != NavMeshPathStatus.PathComplete) return false;
+        if (!IsUsable(agent) || !IsFinite(destination)) return false;
+        NavMeshQueryFilter filter = CreateFilter(agent, allowedMask);
+        if (!TryCalculateValidatedPath(
+                agent,
+                destination,
+                filter,
+                out NavMeshPath path,
+                out int routeMask))
+            return false;
+
+        return ApplyPath(agent, path, routeMask);
+    }
+
+    private static bool TryCalculateValidatedPath(
+        NavMeshAgent agent,
+        Vector3 destination,
+        NavMeshQueryFilter filter,
+        out NavMeshPath path,
+        out int routeMask)
+    {
+        if (!CalculateGroundFirst(
+                agent.nextPosition,
+                destination,
+                filter,
+                out path,
+                out routeMask) ||
+            path.status != NavMeshPathStatus.PathComplete ||
+            !EndsAt(path, destination))
+            return false;
+
+        return true;
+    }
+
+    private static bool ApplyPath(NavMeshAgent agent, NavMeshPath path, int routeMask)
+    {
         int previousMask = agent.areaMask;
         agent.areaMask = routeMask; // Also constrain Unity's automatic repathing.
         if (agent.SetPath(path)) return true;
         agent.areaMask = previousMask;
         return false;
+    }
+
+    private static NavMeshQueryFilter CreateFilter(NavMeshAgent agent, int allowedMask)
+    {
+        var filter = new NavMeshQueryFilter
+        {
+            agentTypeID = agent.agentTypeID,
+            areaMask = allowedMask
+        };
+        for (int i = 0; i < 32; i++) filter.SetAreaCost(i, agent.GetAreaCost(i));
+        return filter;
+    }
+
+    private static bool IsUsable(NavMeshAgent agent)
+    {
+        return agent != null && agent.isActiveAndEnabled && agent.isOnNavMesh;
+    }
+
+    private static bool EndsAt(NavMeshPath path, Vector3 destination)
+    {
+        Vector3[] corners = path.corners;
+        if (corners == null || corners.Length == 0) return false;
+        for (int i = 0; i < corners.Length; i++)
+            if (!IsFinite(corners[i])) return false;
+
+        // CalculatePath should end exactly at a point already on the NavMesh.
+        // A little tolerance avoids rejecting harmless floating-point noise.
+        return (corners[corners.Length - 1] - destination).sqrMagnitude <= 0.05f * 0.05f;
+    }
+
+    private static bool IsFinite(Vector3 value)
+    {
+        return !float.IsNaN(value.x) && !float.IsInfinity(value.x) &&
+               !float.IsNaN(value.y) && !float.IsInfinity(value.y) &&
+               !float.IsNaN(value.z) && !float.IsInfinity(value.z);
     }
 
     public static bool Calculate(Vector3 start, Vector3 destination, out NavMeshPath path)
