@@ -140,6 +140,8 @@ public class LiveLoadVehicle : Interactable
     private Vector3 authoredStartPointLocalPosition;
     private Quaternion authoredStartPointLocalRotation = Quaternion.identity;
     private bool hasAuthoredStartPointPose;
+    private bool hideWhenBuildModeCloses;
+    private bool visibleForBuildReplay;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetInspectionSession()
@@ -267,19 +269,11 @@ public class LiveLoadVehicle : Interactable
             physicsManager.OnSimulationStopped += HandleSimulationStopped;
         }
 
-        if (assignedContract != null && PlayerDataManager.Instance != null)
+        // PlayerDataManager loads persistent data in Awake, before any Start call,
+        // so completed live loads can be hidden before the first rendered frame.
+        if (!visibleForBuildReplay && HasSavedBridgeForAssignedContract())
         {
-            if (PlayerDataManager.Instance.GetSavedBridge(assignedContract.ContractID) != null ||
-                PlayerDataManager.Instance.IsContractCompleted(assignedContract.ContractID))
-            {
-                isParkedAtFinish = true;
-                
-                if (endPoint != null)
-                {
-                    GetWaypointPose(endPoint, out Vector3 parkedPosition, out Quaternion parkedRotation);
-                    ApplyVehiclePose(parkedPosition, parkedRotation);
-                }
-            }
+            HideForSavedBridge();
         }
     }
 
@@ -442,7 +436,115 @@ public class LiveLoadVehicle : Interactable
 
     private void Update()
     {
+        if (hideWhenBuildModeCloses &&
+            (GameManager.Instance == null ||
+             (!GameManager.Instance.IsInBuildMode() && !GameManager.Instance.IsTransitioning)))
+        {
+            HideForSavedBridge();
+            return;
+        }
+
         promptMessage = "Inspect " + vehicleName;
+    }
+
+    /// <summary>
+    /// Called by Save & Continue after bridge data has been persisted. The actual
+    /// hide waits for the build transition to finish so GameManager cannot restore
+    /// the vehicle from its pre-build active-state snapshot.
+    /// </summary>
+    public static void ScheduleHideForSavedContract(ContractSO contract)
+    {
+        if (!IsVehicleContract(contract)) return;
+
+        foreach (LiveLoadVehicle vehicle in FindLoadedVehicles())
+        {
+            if (!MatchesContract(vehicle.assignedContract, contract)) continue;
+            vehicle.visibleForBuildReplay = false;
+            vehicle.hideWhenBuildModeCloses = true;
+
+            if (GameManager.Instance == null ||
+                (!GameManager.Instance.IsInBuildMode() && !GameManager.Instance.IsTransitioning))
+                vehicle.HideForSavedBridge();
+        }
+    }
+
+    /// <summary>Restores only the live load belonging to the bridge being redesigned.</summary>
+    public static void ShowForContractReplay(ContractSO contract)
+    {
+        if (!IsVehicleContract(contract)) return;
+
+        foreach (LiveLoadVehicle vehicle in FindLoadedVehicles())
+        {
+            if (!MatchesContract(vehicle.assignedContract, contract)) continue;
+            vehicle.visibleForBuildReplay = true;
+            vehicle.hideWhenBuildModeCloses = false;
+            if (!vehicle.gameObject.activeSelf) vehicle.gameObject.SetActive(true);
+            vehicle.ResetForBuildReplay();
+        }
+    }
+
+    private void HideForSavedBridge()
+    {
+        hideWhenBuildModeCloses = false;
+        visibleForBuildReplay = false;
+
+        if (isInspectionWindowOpen) CloseInfoPanelInternal(false);
+        ResetForBuildReplay();
+        if (npcObstacle != null) npcObstacle.enabled = false;
+        gameObject.SetActive(false);
+    }
+
+    private void ResetForBuildReplay()
+    {
+        isDriving = false;
+        hasReachedEnd = false;
+        isParkedAtFinish = false;
+        isBrakingAtFinish = false;
+        settledAtFinishTimer = 0f;
+        currentMotorSpeed = 0f;
+
+        if (rb != null)
+        {
+            ClearDynamicVelocity(rb);
+            rb.isKinematic = true;
+            ResetToSimulationStartPose();
+            StripWheelPhysics();
+            rb.Sleep();
+        }
+
+        if (npcObstacle != null) npcObstacle.enabled = configureNPCObstacle;
+        RefreshCargoMass();
+        Physics.SyncTransforms();
+    }
+
+    private bool HasSavedBridgeForAssignedContract()
+    {
+        return IsVehicleContract(assignedContract) &&
+               PlayerDataManager.Instance != null &&
+               PlayerDataManager.Instance.HasValidSavedBridge(assignedContract.ContractID);
+    }
+
+    private static bool IsVehicleContract(ContractSO contract)
+    {
+        return contract != null && contract.liveLoadMode == ContractSO.LiveLoadMode.Vehicle;
+    }
+
+    private static bool MatchesContract(ContractSO left, ContractSO right)
+    {
+        if (left == null || right == null) return false;
+        if (left == right) return true;
+        return !string.IsNullOrWhiteSpace(left.ContractID) &&
+               string.Equals(left.ContractID, right.ContractID, StringComparison.Ordinal);
+    }
+
+    private static IEnumerable<LiveLoadVehicle> FindLoadedVehicles()
+    {
+        foreach (LiveLoadVehicle vehicle in Resources.FindObjectsOfTypeAll<LiveLoadVehicle>())
+        {
+            if (vehicle != null && vehicle.gameObject.scene.IsValid() &&
+                vehicle.gameObject.scene.isLoaded)
+                yield return vehicle;
+        }
     }
 
     protected override void Intract()

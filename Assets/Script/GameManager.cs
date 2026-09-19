@@ -4,6 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine.InputSystem;
 using TMPro;
+using UnityEngine.UI;
 
 [DefaultExecutionOrder(-100)]
 public class GameManager : MonoBehaviour
@@ -306,7 +307,7 @@ public class GameManager : MonoBehaviour
 
         if (redoConfirmPanel != null) redoConfirmPanel.SetActive(false);
 
-        RefreshRedoConfirmationCopy();
+        RefreshRedoConfirmationCopy(null);
 
         HideTransitionFader();
     }
@@ -335,6 +336,7 @@ public class GameManager : MonoBehaviour
         if (isTransitioning || loc == null || loc.IsRedesignBlockedByNPCTravel) return;
 
         pendingRedoLocation = loc;
+        RefreshRedoConfirmationCopy(loc);
         if (redoConfirmPanel != null) redoConfirmPanel.SetActive(true);
         
         CaptureAndHide(uiElementsToHide, uiStateBeforeRedo);
@@ -352,9 +354,29 @@ public class GameManager : MonoBehaviour
 
     public void ConfirmRedo()
     {
+        ConfirmRedoInternal(false);
+    }
+
+    public void ConfirmRetryTutorial()
+    {
+        ConfirmRedoInternal(true);
+    }
+
+    private void ConfirmRedoInternal(bool retryTutorial)
+    {
         if (pendingRedoLocation != null && pendingRedoLocation.IsRedesignBlockedByNPCTravel)
         {
             Debug.LogWarning("Bridge redesign was cancelled because an NPC phase transition is in progress.");
+            CancelRedo();
+            return;
+        }
+
+        if (retryTutorial && (pendingRedoLocation == null ||
+                              pendingRedoLocation.activeContract == null ||
+                              !pendingRedoLocation.activeContract.isTutorialContract ||
+                              !pendingRedoLocation.HasBuildTutorial))
+        {
+            Debug.LogWarning("Tutorial replay was cancelled because this is not a tutorial contract with an assigned build tutorial.");
             CancelRedo();
             return;
         }
@@ -374,7 +396,9 @@ public class GameManager : MonoBehaviour
             PlayerMotor player = FindObjectOfType<PlayerMotor>();
             bool redesignStarted = redesignLocation.BeginBridgeRedesign();
             bool enteredBuildMode = redesignStarted && player != null &&
-                                    redesignLocation.ActivateBuildMode(player.transform);
+                (retryTutorial
+                    ? redesignLocation.ActivateBuildModeWithTutorialReplay(player.transform)
+                    : redesignLocation.ActivateBuildMode(player.transform));
 
             // Entering build mode can still be rejected by a tutorial or another
             // transition. Never leave the committed bridge hidden in that case.
@@ -433,6 +457,12 @@ public class GameManager : MonoBehaviour
 
         if (location != null && location.activeContract != null)
             CurrentContract = location.activeContract; 
+
+        // A saved bridge keeps its vehicle hidden in the overworld. Re-enable
+        // only the matching vehicle while that location is being redesigned.
+        if (CurrentContract != null && PlayerDataManager.Instance != null &&
+            PlayerDataManager.Instance.HasValidSavedBridge(CurrentContract.ContractID))
+            LiveLoadVehicle.ShowForContractReplay(CurrentContract);
 
         if (BuildUIController.Instance != null && CurrentContract != null)
             BuildUIController.Instance.maxBudget = CurrentContract.budget;
@@ -560,6 +590,7 @@ public class GameManager : MonoBehaviour
     private IEnumerator ExitBuildModeRoutine()
     {
         isTransitioning = true;
+        ContractSO exitingContract = CurrentContract;
         try
         {
         CurrentState = GameState.Normal;
@@ -682,6 +713,12 @@ public class GameManager : MonoBehaviour
         {
             HideTransitionFader();
             isTransitioning = false;
+
+            // Cancelling a redesign restores the previously saved bridge. Its
+            // temporary replay vehicle must return to the hidden completed state.
+            if (exitingContract != null && PlayerDataManager.Instance != null &&
+                PlayerDataManager.Instance.HasValidSavedBridge(exitingContract.ContractID))
+                LiveLoadVehicle.ScheduleHideForSavedContract(exitingContract);
         }
     }
 
@@ -743,15 +780,120 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    private void RefreshRedoConfirmationCopy()
+    private void RefreshRedoConfirmationCopy(BuildLocation location)
     {
         if (redoConfirmPanel == null) return;
 
+        const string confirmationCopy =
+            "Redesign this bridge?\n" +
+            "Your saved bridge stays until you save the new design.";
+
+        bool showTutorialReplay = location != null &&
+                                  location.activeContract != null &&
+                                  location.activeContract.isTutorialContract &&
+                                  location.HasBuildTutorial;
+
+        Button redesignButton = null;
+        Button cancelButton = null;
+        Button tutorialButton = null;
+
         foreach (TMP_Text label in redoConfirmPanel.GetComponentsInChildren<TMP_Text>(true))
         {
-            if (label != null && label.text.Contains("remove your current structure"))
-                label.text = "Your current bridge will stay until the redesign is completed";
+            if (label == null) continue;
+
+            Button ownerButton = label.GetComponentInParent<Button>(true);
+            string buttonName = ownerButton != null ? ownerButton.gameObject.name : string.Empty;
+
+            if (buttonName.IndexOf("tutorial", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                label.text = "RETRY TUTORIAL";
+            else if (buttonName.IndexOf("confirm", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                label.text = "REDESIGN";
+            else if (buttonName.IndexOf("cancel", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                label.text = "CANCEL";
+            else if (label.text.Contains("remove your current structure") ||
+                     label.text.Contains("current bridge will stay") ||
+                     label.text.Contains("saved bridge will remain") ||
+                     label.text.Contains("Redesign this bridge?"))
+            {
+                label.text = confirmationCopy;
+                label.enableAutoSizing = true;
+                label.fontSizeMin = 18f;
+                label.fontSizeMax = 34f;
+                label.alignment = TextAlignmentOptions.Center;
+                label.enableWordWrapping = true;
+
+                RectTransform textRect = label.rectTransform;
+                textRect.anchorMin = new Vector2(0.08f, 0.38f);
+                textRect.anchorMax = new Vector2(0.92f, 0.9f);
+                textRect.offsetMin = Vector2.zero;
+                textRect.offsetMax = Vector2.zero;
+            }
         }
+
+        foreach (Button button in redoConfirmPanel.GetComponentsInChildren<Button>(true))
+        {
+            if (button == null) continue;
+
+            string buttonName = button.gameObject.name;
+            if (buttonName.IndexOf("tutorial", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                tutorialButton = button;
+            else if (buttonName.IndexOf("confirm", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                redesignButton = button;
+            else if (buttonName.IndexOf("cancel", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                cancelButton = button;
+        }
+
+        if (tutorialButton != null)
+        {
+            // Replace the duplicated ConfirmRedo persistent event on the
+            // scene-authored tutorial button with the dedicated replay route.
+            tutorialButton.onClick = new Button.ButtonClickedEvent();
+            tutorialButton.onClick.AddListener(ConfirmRetryTutorial);
+            tutorialButton.gameObject.SetActive(showTutorialReplay);
+        }
+
+        LayoutRedoConfirmationButtons(redesignButton, tutorialButton, cancelButton, showTutorialReplay);
+    }
+
+    private static void LayoutRedoConfirmationButtons(
+        Button redesignButton,
+        Button tutorialButton,
+        Button cancelButton,
+        bool showTutorialReplay)
+    {
+        if (showTutorialReplay)
+        {
+            SetRedoButtonRect(redesignButton, 0.05f, 0.31f);
+            SetRedoButtonRect(tutorialButton, 0.37f, 0.63f);
+            SetRedoButtonRect(cancelButton, 0.69f, 0.95f);
+        }
+        else
+        {
+            SetRedoButtonRect(redesignButton, 0.12f, 0.45f);
+            SetRedoButtonRect(cancelButton, 0.55f, 0.88f);
+        }
+    }
+
+    private static void SetRedoButtonRect(Button button, float minX, float maxX)
+    {
+        if (button == null) return;
+
+        RectTransform rect = button.transform as RectTransform;
+        if (rect != null)
+        {
+            rect.anchorMin = new Vector2(minX, 0.1f);
+            rect.anchorMax = new Vector2(maxX, 0.29f);
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+        }
+
+        TMP_Text label = button.GetComponentInChildren<TMP_Text>(true);
+        if (label == null) return;
+
+        label.enableAutoSizing = true;
+        label.fontSizeMin = 13f;
+        label.fontSizeMax = 27f;
+        label.alignment = TextAlignmentOptions.Center;
     }
 
     private void HideTransitionFader()

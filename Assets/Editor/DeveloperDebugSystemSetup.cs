@@ -10,7 +10,7 @@ using UnityEngine.UI;
 [InitializeOnLoad]
 public static class DeveloperDebugSystemSetup
 {
-    private const string AutoSetupSessionKey = "CivilCraft.DeveloperDebugSystemSetup.V8";
+    private const string AutoSetupSessionKey = "CivilCraft.DeveloperDebugSystemSetup.V9";
 
     static DeveloperDebugSystemSetup()
     {
@@ -70,6 +70,7 @@ public static class DeveloperDebugSystemSetup
                 FindRecursive(existingManager.transform, "UnlockAchievementButton") != null &&
                 FindRecursive(existingManager.transform, "UnlockAllAchievementsButton") != null &&
                 FindRecursive(existingManager.transform, "AddCoinsButton") != null &&
+                FindRecursive(existingManager.transform, "NPCDropdown") != null &&
                 FindRecursive(existingManager.transform, "SaveStateButton") != null &&
                 FindRecursive(existingManager.transform, "LoadStateButton") != null &&
                 DropdownTemplatesAreConfigured(existingManager))
@@ -221,7 +222,15 @@ public static class DeveloperDebugSystemSetup
         AddLayout(achievementActionsLabel.gameObject, 190f, 54f, 0f);
         Button unlockAllAchievements = GetOrCreateButton(
             achievementActions, "UnlockAllAchievementsButton", "UNLOCK ALL ACHIEVEMENTS", 742f);
-        TMP_Dropdown phaseDropdown = CreateSelectorRow(content, "NPCPhaseRow", "NPC Phase", "WARP NPC", out Button teleportNpc);
+        RectTransform npcRow = EnsureRow(content, "NPCPhaseRow", 64f);
+        TextMeshProUGUI npcLabel = GetOrCreateText(
+            npcRow, "Label", "NPC / Phase", 24f, FontStyles.Bold);
+        AddLayout(npcLabel.gameObject, 190f, 54f, 0f);
+        TMP_Dropdown npcDropdown = GetOrCreateDropdown(npcRow, "NPCDropdown");
+        AddLayout(npcDropdown.gameObject, 300f, 50f, 1f);
+        TMP_Dropdown phaseDropdown = GetOrCreateDropdown(npcRow, "NPCPhaseDropdown");
+        AddLayout(phaseDropdown.gameObject, 360f, 50f, 1f);
+        Button teleportNpc = GetOrCreateButton(npcRow, "NPCPhaseButton", "WARP NPC", 210f);
 
         RectTransform coinsRow = EnsureRow(content, "CoinsRow", 64f);
         TextMeshProUGUI coinsLabel = GetOrCreateText(coinsRow, "Label", "Add Coins", 24f, FontStyles.Bold);
@@ -315,6 +324,7 @@ public static class DeveloperDebugSystemSetup
         Assign(serializedManager, "sceneDropdown", sceneDropdown);
         Assign(serializedManager, "tutorialDropdown", tutorialDropdown);
         Assign(serializedManager, "buildLocationDropdown", locationDropdown);
+        Assign(serializedManager, "npcDropdown", npcDropdown);
         Assign(serializedManager, "npcPhaseDropdown", phaseDropdown);
         Assign(serializedManager, "achievementDropdown", achievementDropdown);
         Assign(serializedManager, "coinAmountDropdown", coinAmountDropdown);

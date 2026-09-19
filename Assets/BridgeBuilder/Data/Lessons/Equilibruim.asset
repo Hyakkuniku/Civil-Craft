@@ -15,20 +15,12 @@ MonoBehaviour:
   lessonId: What is Equilibrium
   lessonTitle: What is Equilibrium
   lessonImage: {fileID: 0}
-  lessonDescription: 'Equilibrium is the condition in which all forces and turning
-    effects acting on a structure are balanced.
-
-    For a structure to remain stable,
-    the total force acting in every direction must be balanced, and the total turning
-    effect, or moment, must also equal zero. When equilibrium is maintained, the
-    structure does not move, rotate, or collapse.
-
-    A bridge reaches equilibrium
-    when its supports and structural members safely resist the loads acting upon
-    it.
-
-    Bridge Example:
-
-    When a vehicle crosses a bridge, its weight pushes
-    downward. The bridge supports provide upward reactions that balance this force
-    and keep the structure stable.'
+  popupDescription: Equilibrium occurs when the <b><#E09500>forces and moments acting
+    on a structure are balanced</color></b>, allowing it to remain stable.
+  almanacImage: {fileID: 0}
+  lessonDescription: Structural equilibrium is the condition in which the <b><#E09500>combined
+    forces and moments acting on a structure balance one another</color></b>. For
+    a bridge to remain stationary and stable, loads such as its own weight and traffic
+    must be <b><#E09500>balanced by reactions from its supports</color></b>. If these
+    forces or moments become unbalanced, the structure may <b><#E09500>translate,
+    rotate, or experience instability</color></b>.

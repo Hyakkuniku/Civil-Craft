@@ -169,6 +169,8 @@ public class TutorialManager : MonoBehaviour
         currentSequence != null && currentSequence.tutorialSteps != null &&
         currentStepIndex >= 0 && currentStepIndex < currentSequence.tutorialSteps.Length
             ? currentSequence.tutorialSteps[currentStepIndex] : null;
+    /// <summary>The currently displayed authored step, including its scene event targets.</summary>
+    public TutorialStep CurrentStep => ActiveControlStep;
     public bool IsLookLocked => ActiveControlStep != null && ActiveControlStep.lockLook;
     public bool IsJumpLocked => ActiveControlStep != null && ActiveControlStep.lockJump;
     public bool IsRunLocked => ActiveControlStep != null && ActiveControlStep.lockRun;

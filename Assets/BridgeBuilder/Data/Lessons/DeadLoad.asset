@@ -15,10 +15,12 @@ MonoBehaviour:
   lessonId: deadload
   lessonTitle: Dead Load
   lessonImage: {fileID: 21300000, guid: 8097286e569a66a4d9e5bfc046b02263, type: 3}
-  lessonDescription: "In bridge engineering, dead load is the permanent, static weight
-    that a bridge must support throughout its service life. It includes the bridge\u2019s
-    own structural components\u2014such as the deck, beams, girders, trusses, cables,
-    piers, and foundations\u2014as well as permanently attached features like barriers,
-    railings, utilities, and pavement. Unlike moving loads from vehicles, pedestrians,
-    or wind, dead load remains relatively constant and is a fundamental consideration
-    when designing the bridge\u2019s strength, stability, and foundations."
+  popupDescription: A dead load is the <b><#E09500>permanent weight of a structure
+    and the fixed components</color></b> that it must continuously support.
+  almanacImage: {fileID: 0}
+  lessonDescription: A dead load is the load associated with the <b><#E09500>permanent
+    components of a structure<#E09500></b>. For a bridge, this includes the self-weight
+    of structural components such as the <b><#E09500>deck, beams, trusses, piers,
+    barriers, and other permanently attached elements</color></b>. Unlike live loads,
+    these loads generally <b><#E09500> remains in place and continuously acts on
+    the structure</color></b> throughout its service life.

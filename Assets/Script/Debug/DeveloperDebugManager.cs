@@ -37,6 +37,7 @@ public sealed class DeveloperDebugManager : MonoBehaviour
     [SerializeField] private TMP_Dropdown sceneDropdown;
     [SerializeField] private TMP_Dropdown tutorialDropdown;
     [SerializeField] private TMP_Dropdown buildLocationDropdown;
+    [SerializeField] private TMP_Dropdown npcDropdown;
     [SerializeField] private TMP_Dropdown npcPhaseDropdown;
     [SerializeField] private TMP_Dropdown achievementDropdown;
     [SerializeField] private TMP_Dropdown coinAmountDropdown;
@@ -54,6 +55,7 @@ public sealed class DeveloperDebugManager : MonoBehaviour
     private readonly List<string> sceneNames = new List<string>();
     private readonly List<TutorialSequence> tutorials = new List<TutorialSequence>();
     private readonly List<BuildLocation> buildLocations = new List<BuildLocation>();
+    private readonly List<NPCProgressionManager> npcProgressions = new List<NPCProgressionManager>();
     private readonly List<AchievementSO> achievements = new List<AchievementSO>();
     private static readonly int[] DebugCoinAmounts = { 1000, 10000, 100000, 1000000 };
     private readonly Dictionary<Joint, JointBreakLimits> originalJointLimits =
@@ -130,8 +132,9 @@ public sealed class DeveloperDebugManager : MonoBehaviour
             return;
         }
 
-        PrepareCanvas();
         EnsureSaveStateControls();
+        EnsureNPCWarpSelector();
+        PrepareCanvas();
         SetMenuVisible(false, false);
 
         if (timeScaleSlider != null)
@@ -144,6 +147,11 @@ public sealed class DeveloperDebugManager : MonoBehaviour
         {
             invincibleBridgeToggle.SetIsOnWithoutNotify(IsBridgeInvincible);
             invincibleBridgeToggle.onValueChanged.AddListener(SetInvincibleBridge);
+        }
+        if (npcDropdown != null)
+        {
+            npcDropdown.onValueChanged.RemoveListener(HandleNPCSelectionChanged);
+            npcDropdown.onValueChanged.AddListener(HandleNPCSelectionChanged);
         }
 
         PopulateSceneDropdown();
@@ -168,6 +176,8 @@ public sealed class DeveloperDebugManager : MonoBehaviour
             timeScaleSlider.onValueChanged.RemoveListener(SetTimeScale);
         if (invincibleBridgeToggle != null)
             invincibleBridgeToggle.onValueChanged.RemoveListener(SetInvincibleBridge);
+        if (npcDropdown != null)
+            npcDropdown.onValueChanged.RemoveListener(HandleNPCSelectionChanged);
 
         if (Instance == this)
         {
@@ -274,6 +284,7 @@ public sealed class DeveloperDebugManager : MonoBehaviour
         PrepareDropdown(sceneDropdown);
         PrepareDropdown(tutorialDropdown);
         PrepareDropdown(buildLocationDropdown);
+        PrepareDropdown(npcDropdown);
         PrepareDropdown(npcPhaseDropdown);
         PrepareDropdown(achievementDropdown);
         PrepareDropdown(coinAmountDropdown);
@@ -307,6 +318,7 @@ public sealed class DeveloperDebugManager : MonoBehaviour
         RectTransform content = panel != null ? panel.Find("ScrollView/Viewport/Content") as RectTransform : null;
         if (panel == null || content == null) return;
         RestoreAchievementActionRow(content);
+        EnsureNPCWarpSelector();
         EnsureUnlockAllItemsControl(content);
         EnsureResetProgressControl(content);
         Canvas.ForceUpdateCanvases();
@@ -491,6 +503,43 @@ public sealed class DeveloperDebugManager : MonoBehaviour
         CreateRuntimeText(row, "Label", "Shop & Wardrobe", statusText);
         Button source = FindDescendantByName(debugWindow.transform, "AddCoinsButton")?.GetComponent<Button>();
         CreateRuntimeDebugButton(row, "UnlockAllItemsButton", "UNLOCK ALL ITEMS", source, UnlockAllItems);
+    }
+
+    /// <summary>
+    /// Adds the NPC selector to older serialized debug menus that only contain a
+    /// phase selector. The editor setup authors this control for newly repaired
+    /// scenes; this fallback keeps existing development scenes immediately usable.
+    /// </summary>
+    private void EnsureNPCWarpSelector()
+    {
+        if (debugWindow == null || npcPhaseDropdown == null) return;
+
+        if (npcDropdown == null)
+        {
+            Transform existing = FindDescendantByName(debugWindow.transform, "NPCDropdown");
+            if (existing != null) npcDropdown = existing.GetComponent<TMP_Dropdown>();
+        }
+
+        if (npcDropdown == null)
+        {
+            GameObject selector = Instantiate(
+                npcPhaseDropdown.gameObject,
+                npcPhaseDropdown.transform.parent,
+                false);
+            selector.name = "NPCDropdown";
+            npcDropdown = selector.GetComponent<TMP_Dropdown>();
+            npcDropdown.onValueChanged = new TMP_Dropdown.DropdownEvent();
+            selector.transform.SetSiblingIndex(npcPhaseDropdown.transform.GetSiblingIndex());
+        }
+
+        TMP_Text rowLabel = FindDirectChildByName(
+            npcPhaseDropdown.transform.parent,
+            "Label")?.GetComponent<TMP_Text>();
+        if (rowLabel != null) rowLabel.text = "NPC / Phase";
+
+        npcDropdown.onValueChanged.RemoveListener(HandleNPCSelectionChanged);
+        npcDropdown.onValueChanged.AddListener(HandleNPCSelectionChanged);
+        PrepareDropdown(npcDropdown);
     }
 
     private void EnsureResetProgressControl(RectTransform content)
@@ -752,15 +801,21 @@ public sealed class DeveloperDebugManager : MonoBehaviour
         buildLocations.Sort((a, b) => string.Compare(a.name, b.name, StringComparison.OrdinalIgnoreCase));
         SetDropdownOptions(buildLocationDropdown, buildLocations.ConvertAll(GetBuildLocationLabel), "No build locations in this scene");
 
-        npcProgression = FindObjectOfType<NPCProgressionManager>(true);
-        List<string> phases = new List<string>();
-        if (npcProgression != null)
+        npcProgressions.Clear();
+        foreach (NPCProgressionManager progression in
+                 Resources.FindObjectsOfTypeAll<NPCProgressionManager>())
         {
-            for (int i = 0; i < npcProgression.PhaseCount; i++)
-                phases.Add(npcProgression.GetPhaseDisplayName(i));
+            if (IsLoadedSceneObject(progression)) npcProgressions.Add(progression);
         }
-
-        SetDropdownOptions(npcPhaseDropdown, phases, "No NPC progression phases in this scene");
+        npcProgressions.Sort((left, right) => string.Compare(
+            GetNPCLabel(left),
+            GetNPCLabel(right),
+            StringComparison.OrdinalIgnoreCase));
+        SetDropdownOptions(
+            npcDropdown,
+            npcProgressions.ConvertAll(GetNPCLabel),
+            "No progression NPCs in this scene");
+        SelectNPCFromDropdown();
 
         PopulateAchievementDropdown();
         UpdateTimeScaleLabel();
@@ -779,7 +834,7 @@ public sealed class DeveloperDebugManager : MonoBehaviour
         SetStatus(
             $"Lists refreshed: {sceneNames.Count} scenes, {tutorials.Count} tutorials, " +
             $"{buildLocations.Count} build locations, " +
-            $"{(npcProgression != null ? npcProgression.PhaseCount : 0)} NPC phases, " +
+            $"{npcProgressions.Count} NPCs / {GetTotalNPCPhaseCount()} phases, " +
             $"{achievements.Count} achievements. " +
             $"Active tutorial: {activeTutorialLabel}.");
     }
@@ -987,8 +1042,7 @@ public sealed class DeveloperDebugManager : MonoBehaviour
 
     public void TeleportNPCToSelectedPhase()
     {
-        if (npcProgression == null)
-            npcProgression = FindObjectOfType<NPCProgressionManager>(true);
+        SelectNPCFromDropdown();
 
         int index = npcPhaseDropdown != null ? npcPhaseDropdown.value : -1;
         if (npcProgression == null || index < 0 || index >= npcProgression.PhaseCount)
@@ -1005,6 +1059,41 @@ public sealed class DeveloperDebugManager : MonoBehaviour
 
         SetStatus($"NPC moved and activated: {npcProgression.GetPhaseDisplayName(index)}");
         CloseMenu();
+    }
+
+    private void HandleNPCSelectionChanged(int index)
+    {
+        SelectNPCFromDropdown();
+    }
+
+    private void SelectNPCFromDropdown()
+    {
+        int npcIndex = npcDropdown != null ? npcDropdown.value : -1;
+        npcProgression = npcIndex >= 0 && npcIndex < npcProgressions.Count
+            ? npcProgressions[npcIndex]
+            : null;
+
+        List<string> phases = new List<string>();
+        if (npcProgression != null)
+        {
+            for (int i = 0; i < npcProgression.PhaseCount; i++)
+                phases.Add(npcProgression.GetPhaseDisplayName(i));
+        }
+
+        SetDropdownOptions(
+            npcPhaseDropdown,
+            phases,
+            npcProgression == null
+                ? "Select an NPC first"
+                : "Selected NPC has no phases");
+    }
+
+    private int GetTotalNPCPhaseCount()
+    {
+        int count = 0;
+        foreach (NPCProgressionManager progression in npcProgressions)
+            if (progression != null) count += progression.PhaseCount;
+        return count;
     }
 
     public void UnlockSelectedBuildLocationContract()
@@ -1028,10 +1117,12 @@ public sealed class DeveloperDebugManager : MonoBehaviour
 
         if (contract == null)
         {
-            if (npcProgression == null)
-                npcProgression = FindObjectOfType<NPCProgressionManager>(true);
-            if (npcProgression != null)
-                npcProgression.TryGetContractForBuildLocation(location, out contract);
+            foreach (NPCProgressionManager progression in npcProgressions)
+            {
+                if (progression != null &&
+                    progression.TryGetContractForBuildLocation(location, out contract))
+                    break;
+            }
         }
 
         if (contract == null)
@@ -1546,6 +1637,11 @@ public sealed class DeveloperDebugManager : MonoBehaviour
         if (location == null) return "Missing Location";
         string contractName = location.activeContract != null ? location.activeContract.name : "No Contract";
         return $"{location.name} - {contractName}";
+    }
+
+    private static string GetNPCLabel(NPCProgressionManager progression)
+    {
+        return progression != null ? progression.DebugDisplayName : "Missing NPC";
     }
 
     private static string GetAchievementLabel(AchievementSO achievement)

@@ -68,8 +68,11 @@ public class BuildLocation : Interactable
     private readonly List<Point> hiddenUnfinishedPoints = new List<Point>();
     private bool isRedesigningBridge;
     private bool isUnfinishedDraftHidden;
+    private bool isTutorialReplayActive;
 
     public bool IsRedesigningBridge => isRedesigningBridge;
+    public bool HasBuildTutorial => onEnterBuildModeTutorial != null;
+    public bool IsTutorialReplayActive => isTutorialReplayActive;
 
     // The committed bridge remains protected even while baked lists hold a replacement.
     public void AddProtectedBridgeObjects(HashSet<Bar> bars, HashSet<Point> points)
@@ -356,6 +359,26 @@ public class BuildLocation : Interactable
 
     public bool ActivateBuildMode(Transform player)
     {
+        return ActivateBuildModeInternal(player, false);
+    }
+
+    /// <summary>
+    /// Enters a completed location's transactional redesign and replays its
+    /// authored tutorial without erasing permanent lesson completion.
+    /// </summary>
+    public bool ActivateBuildModeWithTutorialReplay(Transform player)
+    {
+        if (onEnterBuildModeTutorial == null)
+        {
+            Debug.LogWarning($"Build Location '{name}' has no tutorial assigned to replay.", this);
+            return false;
+        }
+
+        return ActivateBuildModeInternal(player, true);
+    }
+
+    private bool ActivateBuildModeInternal(Transform player, bool replayTutorial)
+    {
         if (GameManager.Instance == null || activeContract == null || IsOverworldTutorialBlockingBuild()) return false;
 
         if (!GameManager.Instance.EnterBuildMode(this, player)) return false;
@@ -369,7 +392,7 @@ public class BuildLocation : Interactable
         if (magnifier != null) magnifier.RefreshForActiveBuildLocation();
 
         SetBridgeScriptsActive(true);
-        StartCoroutine(StartBuildTutorialAfterTransition());
+        StartCoroutine(StartBuildTutorialAfterTransition(replayTutorial));
 
         if (lockPlayerToZone && player != null)
         {
@@ -391,12 +414,38 @@ public class BuildLocation : Interactable
                (GameManager.Instance == null || GameManager.Instance.CurrentState == GameManager.GameState.Normal);
     }
 
-    private IEnumerator StartBuildTutorialAfterTransition()
+    private IEnumerator StartBuildTutorialAfterTransition(bool forceReplay = false)
     {
         yield return new WaitUntil(() => GameManager.Instance == null ||
             (GameManager.Instance.ActiveBuildLocation == this && !GameManager.Instance.IsTransitioning));
 
         if (GameManager.Instance == null || GameManager.Instance.ActiveBuildLocation != this) yield break;
+
+        if (forceReplay)
+        {
+            if (onEnterBuildModeTutorial == null || TutorialManager.Instance == null)
+            {
+                isTutorialReplayActive = false;
+                yield break;
+            }
+
+            isTutorialReplayActive = true;
+
+            if (BuildTutorialDirector.Instance != null)
+            {
+                BuildTutorialDirector.Instance.EndTutorial();
+                BuildTutorialDirector.Instance.PrepareGhostsForTutorialRestart();
+            }
+
+            if (CommandManager.Instance != null) CommandManager.Instance.ClearHistory();
+
+            // RestartTutorial deliberately bypasses completed-lesson eligibility,
+            // but it does not delete the player's permanent lesson progress.
+            TutorialManager.Instance.RestartTutorial(onEnterBuildModeTutorial);
+            yield break;
+        }
+
+        isTutorialReplayActive = false;
         if (activeContract != null && activeContract.WasTutorialCompletedByCurrentPlayer()) yield break;
         if (onEnterBuildModeTutorial == null || !onEnterBuildModeTutorial.CanStartTutorial()) yield break;
 
@@ -412,7 +461,9 @@ public class BuildLocation : Interactable
     /// </summary>
     public bool RestartBuildTutorialAfterFailure()
     {
-        if (activeContract == null || !activeContract.IsTutorialForCurrentPlayer() ||
+        bool replayingCompletedTutorial = isTutorialReplayActive;
+        if (activeContract == null ||
+            (!activeContract.IsTutorialForCurrentPlayer() && !replayingCompletedTutorial) ||
             onEnterBuildModeTutorial == null || TutorialManager.Instance == null)
         {
             return false;
@@ -420,7 +471,7 @@ public class BuildLocation : Interactable
 
         // A final Play-button step may have already marked one or more chained
         // sequences complete before the simulation failure was known.
-        if (PlayerDataManager.Instance != null)
+        if (!replayingCompletedTutorial && PlayerDataManager.Instance != null)
         {
             HashSet<TutorialSequence> sequencesToReset = new HashSet<TutorialSequence>();
             TutorialSequence sequence = onEnterBuildModeTutorial;
@@ -463,6 +514,12 @@ public class BuildLocation : Interactable
         return true;
     }
 
+    /// <summary>Ends only the optional replay mode; saved lesson progress is unchanged.</summary>
+    public void CompleteTutorialReplay()
+    {
+        isTutorialReplayActive = false;
+    }
+
     private static bool UsesBuildTutorialDirector(TutorialSequence sequence)
     {
         if (sequence == null || sequence.tutorialSteps == null) return false;
@@ -490,6 +547,7 @@ public class BuildLocation : Interactable
         }
 
         if (isRedesigningBridge) CancelBridgeRedesign();
+        isTutorialReplayActive = false;
 
         if (gridImage != null) gridImage.enabled = false;
         if (bakedBars.Count == 0)

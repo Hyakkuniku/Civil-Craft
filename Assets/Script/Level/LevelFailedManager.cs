@@ -236,8 +236,17 @@ public class LevelFailedManager : MonoBehaviour
         {
             ContractSO contract = GameManager.Instance.CurrentContract;
             isTutorial = contract.IsTutorialForCurrentPlayer();
+            BuildLocation activeLocation = GameManager.Instance.ActiveBuildLocation;
+            bool isTutorialReplay = activeLocation != null && activeLocation.IsTutorialReplayActive;
+            bool tutorialAlreadyPassed = LevelCompleteManager.Instance != null &&
+                LevelCompleteManager.Instance.HasPassedTutorialTestThisSession(contract);
             isCompletedContractRedesign = PlayerDataManager.Instance != null &&
                 PlayerDataManager.Instance.HasContractCompletionRecord(contract.ContractID);
+
+            tutorialLocationToRestart = !hideRetryButtonThisFail &&
+                ((isTutorial && !tutorialAlreadyPassed) || isTutorialReplay)
+                ? activeLocation
+                : null;
         }
 
         bool shouldApplyPenalty = !isTutorial && !isCompletedContractRedesign;
@@ -245,10 +254,6 @@ public class LevelFailedManager : MonoBehaviour
         {
             currentFailCount++;
         }
-
-        tutorialLocationToRestart = isTutorial && !hideRetryButtonThisFail && GameManager.Instance != null
-            ? GameManager.Instance.ActiveBuildLocation
-            : null;
 
         if (!IsVehicleForCurrentContract(activeVehicle))
             activeVehicle = FindVehicleForCurrentContract();

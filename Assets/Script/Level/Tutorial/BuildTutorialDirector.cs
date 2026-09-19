@@ -363,7 +363,7 @@ public class BuildTutorialDirector : MonoBehaviour
 
     public void PromptDrawBridge()
     {
-        BeginTracingStep(null);
+        BeginTracingStep(ResolveCurrentStepGhostContainer());
     }
 
     /// <summary>
@@ -402,7 +402,7 @@ public class BuildTutorialDirector : MonoBehaviour
         {
             if (ghostContainer != null)
             {
-                ghostContainer.SetActive(true);
+                ActivateGhostHierarchy(ghostContainer);
                 MakeGhostContainerNonBlocking(ghostContainer.transform);
                 activeGhosts = ghostContainer.GetComponentsInChildren<GhostSegment>(true);
             }
@@ -428,7 +428,7 @@ public class BuildTutorialDirector : MonoBehaviour
             activeGhostPoints = activeTraceState.ghostPoints;
             if (activeTraceState.parent != null)
             {
-                activeTraceState.parent.gameObject.SetActive(true);
+                ActivateGhostHierarchy(activeTraceState.parent.gameObject);
                 MakeGhostContainerNonBlocking(activeTraceState.parent);
             }
         }
@@ -440,6 +440,67 @@ public class BuildTutorialDirector : MonoBehaviour
             Debug.LogWarning("Build tutorial tracing started, but no active GhostSegment objects were found.");
         else
             RefreshGhostCoverage(activeTraceState);
+    }
+
+    /// <summary>
+    /// Older authored steps enable their ghost container with a SetActive UnityEvent and
+    /// then call PromptDrawBridge without passing that container. Resolve that exact event
+    /// target so tutorial replay does not depend on inactive-scene searches or pick ghosts
+    /// belonging to another bridge step.
+    /// </summary>
+    private static GameObject ResolveCurrentStepGhostContainer()
+    {
+        TutorialManager tutorial = TutorialManager.Instance;
+        TutorialStep step = tutorial != null ? tutorial.CurrentStep : null;
+        if (step == null) return null;
+
+        if (ContainsGhostSegments(step.worldHighlightObject))
+            return step.worldHighlightObject;
+
+        UnityEvent stepEvent = step.OnStepStart;
+        if (stepEvent == null) return null;
+
+        for (int i = 0; i < stepEvent.GetPersistentEventCount(); i++)
+        {
+            if (!string.Equals(stepEvent.GetPersistentMethodName(i), "SetActive",
+                    System.StringComparison.Ordinal))
+                continue;
+
+            Object target = stepEvent.GetPersistentTarget(i);
+            GameObject candidate = target as GameObject;
+            if (candidate == null && target is Component component)
+                candidate = component.gameObject;
+
+            if (ContainsGhostSegments(candidate)) return candidate;
+        }
+
+        return null;
+    }
+
+    private static bool ContainsGhostSegments(GameObject candidate)
+    {
+        return candidate != null && candidate.GetComponentInChildren<GhostSegment>(true) != null;
+    }
+
+    private static void ActivateGhostHierarchy(GameObject ghostContainer)
+    {
+        if (ghostContainer == null) return;
+
+        ghostContainer.SetActive(true);
+        Transform root = ghostContainer.transform;
+        GhostSegment[] ghosts = ghostContainer.GetComponentsInChildren<GhostSegment>(true);
+        foreach (GhostSegment ghost in ghosts)
+        {
+            if (ghost == null) continue;
+
+            Transform current = ghost.transform;
+            while (current != null)
+            {
+                current.gameObject.SetActive(true);
+                if (current == root) break;
+                current = current.parent;
+            }
+        }
     }
 
     public void OnMaterialClicked(BridgeMaterialSO clickedMaterial)

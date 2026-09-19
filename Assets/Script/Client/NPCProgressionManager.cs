@@ -197,8 +197,6 @@ public class NPCProgressionManager : MonoBehaviour
     [Min(0.01f)] [SerializeField] private float arrivalPadding = 0.15f;
     [Min(0.1f)] [SerializeField] private float navMeshSampleRadius = 3f;
     [Min(1f)] [SerializeField] private float pathTimeout = 45f;
-    [Tooltip("Prevents progression soft-locks if a target is outside the baked NavMesh.")]
-    [SerializeField] private bool warpToTargetIfPathFails = true;
     [Tooltip("Reattach an agent displaced by a NavMesh rebuild before phase travel. Only a small correction at its current feet is allowed; never moves to the destination.")]
     [SerializeField] private bool rebindNearbyNavMeshBeforeTravel;
     [Tooltip("Seconds without meaningful movement before the NPC recalculates its route.")]
@@ -283,6 +281,9 @@ public class NPCProgressionManager : MonoBehaviour
 
     public int CurrentPhaseIndex => currentPhaseIndex;
     public int PhaseCount => phases != null ? phases.Count : 0;
+    public string DebugDisplayName => string.IsNullOrWhiteSpace(progressionSaveId)
+        ? name
+        : $"{name} ({progressionSaveId})";
     public bool IsTravelling => movementRoutine != null;
     public static bool IsAnyNPCTravelling
     {
@@ -1938,9 +1939,16 @@ public class NPCProgressionManager : MonoBehaviour
         SetWalkingAnimation(false);
         onMovementFailed?.Invoke();
 
-        if (warpToTargetIfPathFails && PlaceAtPhase(phaseIndex))
+        // Progression must never remain locked because a baked route is missing,
+        // disconnected, or changed while the NPC is walking. A failed walk is
+        // recovered by placing the NPC at the authored destination and advancing
+        // the phase exactly as a normal arrival would.
+        if (PlaceAtPhase(phaseIndex))
         {
-            Debug.LogWarning($"[NPCProgressionManager] '{name}': path failed; NPC was moved to phase {phaseIndex} to prevent a progression lock.", this);
+            Debug.LogWarning(
+                $"[NPCProgressionManager] '{name}': route failed; NPC teleported to " +
+                $"phase {phaseIndex} to prevent a progression lock.",
+                this);
             movementRoutine = null;
             ActivatePhase(phaseIndex, true);
             return;

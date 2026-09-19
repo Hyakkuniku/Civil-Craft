@@ -63,7 +63,7 @@ public class NPCWalker : MonoBehaviour
     {
         if (!TrySetCompletePath())
         {
-            FinishWalk(false);
+            RecoverAtDestination();
             yield break;
         }
 
@@ -123,7 +123,36 @@ public class NPCWalker : MonoBehaviour
             $"[NPCWalker] {gameObject.name} could not complete its route to " +
             $"{targetDestination.name}. Path status: {agent.pathStatus}.",
             this);
-        FinishWalk(false);
+        RecoverAtDestination();
+    }
+
+    private void RecoverAtDestination()
+    {
+        if (targetDestination == null)
+        {
+            FinishWalk(false);
+            return;
+        }
+
+        if (agent != null && agent.enabled)
+        {
+            if (agent.isOnNavMesh)
+            {
+                agent.isStopped = true;
+                agent.ResetPath();
+            }
+            agent.enabled = false;
+        }
+
+        transform.SetPositionAndRotation(
+            targetDestination.position,
+            targetDestination.rotation);
+        Debug.LogWarning(
+            $"[NPCWalker] {name} teleported to '{targetDestination.name}' after its " +
+            "route failed, preventing the dependent sequence from becoming stuck.",
+            this);
+        onMovementFailed?.Invoke();
+        FinishWalk(true);
     }
 
     private bool TrySetCompletePath()

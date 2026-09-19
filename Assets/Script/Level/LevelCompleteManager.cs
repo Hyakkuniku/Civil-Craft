@@ -289,6 +289,7 @@ public class LevelCompleteManager : MonoBehaviour
 
     private ContractSO activeContract;
     private HashSet<string> alreadyPaidContracts = new HashSet<string>();
+    private readonly HashSet<string> tutorialTestsPassedThisSession = new HashSet<string>();
 
     private Dictionary<string, int> contractGoldRewards = new Dictionary<string, int>();
     private Dictionary<string, int> contractExpRewards = new Dictionary<string, int>();
@@ -502,6 +503,51 @@ public class LevelCompleteManager : MonoBehaviour
         return false;
     }
 
+    /// <summary>
+    /// True after this tutorial contract has passed its bridge test in the current
+    /// scene session, even if the player chose Retry instead of Save & Continue.
+    /// This prevents a later failed retry from restarting the guided build sequence.
+    /// </summary>
+    public bool HasPassedTutorialTestThisSession(ContractSO contract)
+    {
+        return contract != null &&
+               !string.IsNullOrWhiteSpace(contract.ContractID) &&
+               tutorialTestsPassedThisSession.Contains(contract.ContractID);
+    }
+
+    private void CompleteBuildTutorialAfterSuccessfulTest(ContractSO contract)
+    {
+        BuildLocation activeLocation = GameManager.Instance != null
+            ? GameManager.Instance.ActiveBuildLocation
+            : null;
+        bool isOptionalReplay = activeLocation != null && activeLocation.IsTutorialReplayActive;
+        bool isFirstTutorialRun = contract != null && contract.IsTutorialForCurrentPlayer();
+        if (!isFirstTutorialRun && !isOptionalReplay) return;
+
+        if (isFirstTutorialRun && !string.IsNullOrWhiteSpace(contract.ContractID))
+            tutorialTestsPassedThisSession.Add(contract.ContractID);
+
+        if (isOptionalReplay)
+            activeLocation.CompleteTutorialReplay();
+
+        TutorialManager tutorial = TutorialManager.Instance;
+        BuildTutorialDirector director = BuildTutorialDirector.Instance;
+
+        // The final Play instruction can still be the active tutorial step when
+        // the completion popup opens. Finish it now so the popup does not suspend
+        // it and restore its UI/build locks when the player chooses Retry.
+        if (tutorial != null && tutorial.IsTutorialActive && director != null &&
+            director.isTutorialRunning &&
+            !string.IsNullOrWhiteSpace(tutorial.CurrentLessonName))
+        {
+            tutorial.CompleteTutorialIfPlaying(tutorial.CurrentLessonName);
+        }
+        else if (director != null && director.isTutorialRunning)
+        {
+            director.EndTutorial();
+        }
+    }
+
     public void ResetCompletionState()
     {
         lastStarResult = null;
@@ -527,6 +573,7 @@ public class LevelCompleteManager : MonoBehaviour
         
         levelAlreadyCompleted = true;
         activeContract = currentContract;
+        CompleteBuildTutorialAfterSuccessfulTest(currentContract);
 
         if (cachedPhysicsManager != null)
         {
@@ -781,17 +828,7 @@ public class LevelCompleteManager : MonoBehaviour
             failPenalty = LevelFailedManager.Instance.currentFailCount * LevelFailedManager.Instance.goldPenaltyPerFail;
         }
 
-        if (currentContract != null && currentContract.IsTutorialForCurrentPlayer())
-        {
-            calculatedGold = 0;
-            calculatedExp = 0;
-
-            if (feedbackText != null) feedbackText.text = "<color=green>Tutorial Complete! Great Job!</color>";
-            if (baseRewardText != null) baseRewardText.text = "";
-            if (bonusText != null) bonusText.text = "";
-            if (penaltyText != null) penaltyText.text = "";
-        }
-        else if (currentContract != null && IsContractPaid(currentContract.ContractID))
+        if (currentContract != null && IsContractPaid(currentContract.ContractID))
         {
             calculatedGold = 0;
             calculatedExp = 0;
@@ -854,14 +891,12 @@ public class LevelCompleteManager : MonoBehaviour
 
         if (goldEarnedText != null) 
         {
-            if (currentContract != null && currentContract.IsTutorialForCurrentPlayer()) goldEarnedText.text = "";
-            else goldEarnedText.text = $"Total Earnings: {calculatedGold} Gold (Pending)";
+            goldEarnedText.text = $"Total Earnings: {calculatedGold} Gold (Pending)";
         }
         
         if (expEarnedText != null) 
         {
-            if (currentContract != null && currentContract.IsTutorialForCurrentPlayer()) expEarnedText.text = "";
-            else expEarnedText.text = $"+{calculatedExp} EXP (Pending)";
+            expEarnedText.text = $"+{calculatedExp} EXP (Pending)";
         }
 
         if (costText != null) 
@@ -901,17 +936,18 @@ public class LevelCompleteManager : MonoBehaviour
         bool tutorialResult = currentContract != null && currentContract.IsTutorialForCurrentPlayer();
         bool paidResult = currentContract != null && IsContractPaid(currentContract.ContractID);
         if (rewardStatusText != null)
-            rewardStatusText.text = tutorialResult ? "TUTORIAL" : paidResult ? "ALREADY CLAIMED" : "PENDING CLAIM";
-        bool earnsRewards = !tutorialResult && !paidResult;
+            rewardStatusText.text = paidResult ? "ALREADY CLAIMED" :
+                tutorialResult ? "TUTORIAL REWARD" : "PENDING CLAIM";
+        bool earnsRewards = !paidResult;
         if (baseRewardText != null) baseRewardText.text = $"BASE\n{(earnsRewards ? baseGoldReward : 0):N0}";
         if (bonusText != null) bonusText.text = $"BONUS\n+{(earnsRewards ? bonusGold : 0):N0}";
         if (penaltyText != null) penaltyText.text = $"DEDUCTIONS\n-{(earnsRewards ? budgetPenalty + failPenalty : 0):N0}";
         if (goldEarnedText != null) goldEarnedText.text = $"TOTAL  {calculatedGold:N0}";
         if (expEarnedText != null) expEarnedText.text = $"+{calculatedExp:N0}";
         if (goldEarnedIcon != null)
-            goldEarnedIcon.gameObject.SetActive(!tutorialResult && goldEarnedIcon.sprite != null);
+            goldEarnedIcon.gameObject.SetActive(goldEarnedIcon.sprite != null);
         if (expEarnedIcon != null)
-            expEarnedIcon.gameObject.SetActive(!tutorialResult && expEarnedIcon.sprite != null);
+            expEarnedIcon.gameObject.SetActive(expEarnedIcon.sprite != null);
         if (feedbackText != null && paidResult) feedbackText.text = "Redesign complete. Best stars kept.";
         if (feedbackText != null && tutorialResult) feedbackText.text = "Tutorial complete. Great job!";
         foreach (var label in new[] { feedbackText, baseRewardText, bonusText, penaltyText, goldEarnedText, expEarnedText })
@@ -1242,6 +1278,10 @@ public class LevelCompleteManager : MonoBehaviour
         }
         
         if (CommandManager.Instance != null) CommandManager.Instance.ClearHistory();
+
+        // Saving, rather than merely passing the test, is the authoritative point
+        // at which the completed contract's live load leaves the overworld.
+        LiveLoadVehicle.ScheduleHideForSavedContract(completedContract);
 
         // --- THE FIX: Make sure the state is fully reset before moving on! ---
         ResetCompletionState();
