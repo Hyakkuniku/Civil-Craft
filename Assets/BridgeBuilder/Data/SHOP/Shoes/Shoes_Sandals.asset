@@ -15,7 +15,7 @@ MonoBehaviour:
   itemId: shop_cosmetic_Shoes_Sandals
   itemName: Sandals
   description: Unlock the Sandals shoes for your builder.
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: 52253b14f32cd1747a1c601aa915e442, type: 3}
   category: 4
   cosmeticDefinition: {fileID: 11400000, guid: a6fbc888f5e9c4540b2d29a95a6d13d7, type: 2}
   price: 100

@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   permanentID: Hair_6
   displayName: Crew Cut
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: f030328cc048de04085f04e052db92e4, type: 3}
   category: 1
   modelID: Hair_6
   availableColors:

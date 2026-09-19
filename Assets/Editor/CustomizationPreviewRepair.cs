@@ -69,24 +69,28 @@ public static class CustomizationPreviewRepair
             CosmeticLoadoutData saved = PlayerDataManager.Instance != null
                 ? PlayerDataManager.Instance.GetCosmeticLoadoutCopy() : new CosmeticLoadoutData();
             var draft = saved.Clone();
-            draft.accessoriesID = "EngineeringHardHat";
+            draft.SetAccessoryEquipped("EngineeringHardHat", true);
+            draft.SetAccessoryEquipped("Accessory_SafetyVest", true);
             draft.shirtID = "Shirt_Base";
             draft.shirtColor = Color.red;
             mirror.BeginPreview(draft);
             GameObject hat = mirror.cosmeticBindings.First(b => b.cosmeticID == "EngineeringHardHat").models[0];
+            GameObject vest = mirror.cosmeticBindings.First(b => b.cosmeticID == "Accessory_SafetyVest").models[0];
             if (!hat.activeSelf) throw new InvalidOperationException("Preview hat did not activate.");
+            if (!vest.activeSelf) throw new InvalidOperationException("Preview did not keep multiple accessories active.");
             Renderer shirt = mirror.cosmeticBindings.First(b => b.cosmeticID == "Shirt_Base").models[0].GetComponent<Renderer>();
             var block = new MaterialPropertyBlock();
             shirt.GetPropertyBlock(block, 0);
             int colorProperty = Shader.PropertyToID(shirt.sharedMaterial.HasProperty("_BaseColor") ? "_BaseColor" : "_Color");
             if (block.GetColor(colorProperty) != Color.red) throw new InvalidOperationException("Preview tint did not apply.");
-            draft.accessoriesID = "Accessory_None";
+            draft.SetAccessoryEquipped("Accessory_None", true);
             mirror.UpdatePreview(draft);
             if (hat.activeSelf) throw new InvalidOperationException("None did not hide the hat.");
+            if (vest.activeSelf) throw new InvalidOperationException("None did not hide the vest.");
             mirror.RefreshCosmetics();
             if (hat.activeSelf) throw new InvalidOperationException("Saved refresh replaced preview.");
             mirror.EndPreview(true);
-            if (mirror.IsPreviewing || hat.activeSelf != (saved.accessoriesID == "EngineeringHardHat"))
+            if (mirror.IsPreviewing || hat.activeSelf != saved.IsAccessoryEquipped("EngineeringHardHat"))
                 throw new InvalidOperationException("Cancel did not restore the saved outfit.");
             if (PlayerDataManager.Instance != null && saveBefore != JsonUtility.ToJson(PlayerDataManager.Instance.CurrentData))
                 throw new InvalidOperationException("Preview changed PlayerData.");

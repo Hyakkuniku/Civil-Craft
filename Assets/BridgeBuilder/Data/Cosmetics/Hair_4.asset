@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   permanentID: Hair_4
   displayName: Bob Cut
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: 16759c5d292db8e4fa05c9bc81c5f427, type: 3}
   category: 1
   modelID: Hair_4
   availableColors:

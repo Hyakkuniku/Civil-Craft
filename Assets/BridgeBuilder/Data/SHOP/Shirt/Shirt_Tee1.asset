@@ -15,7 +15,7 @@ MonoBehaviour:
   itemId: shop_cosmetic_Shirt_Tee1
   itemName: Work Tee
   description: Unlock the Work Tee shirt for your builder.
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: 34018ad4855b47b4e999435fee4bb81b, type: 3}
   category: 2
   cosmeticDefinition: {fileID: 11400000, guid: 9fac472547d211348b790f296653efcd, type: 2}
   price: 100

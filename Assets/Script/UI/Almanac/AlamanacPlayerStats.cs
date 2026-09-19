@@ -75,7 +75,7 @@ public class AlmanacPlayerStats : MonoBehaviour
 
         if (playerNameText != null) playerNameText.text = "Engineer: " + data.playerName;
         if (titleText != null) titleText.text = data.GetTitle();
-        if (goldText != null) goldText.text = "₱" + data.gold.ToString("N0");
+        if (goldText != null) goldText.text = data.gold.ToString("N0");
         if (expText != null)
             expText.text = isMaxRank
                 ? data.exp.ToString("N0") + " EXP"

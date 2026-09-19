@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   permanentID: Hair_Base
   displayName: Classic Hair
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: 1a73d09a0fc007d43b994a4c9b63a4f6, type: 3}
   category: 1
   modelID: Base_Hair.Front|Base_Hair.Back
   availableColors:

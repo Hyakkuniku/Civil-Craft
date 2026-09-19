@@ -15,7 +15,7 @@ MonoBehaviour:
   itemId: shop_cosmetic_Shirt_Tee2
   itemName: Pocket Tee
   description: Unlock the Pocket Tee shirt for your builder.
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: 4198b0060eb692c4293532d9c9d65a1a, type: 3}
   category: 2
   cosmeticDefinition: {fileID: 11400000, guid: a61fcdcc6cea1f84092e166b6a7f9877, type: 2}
   price: 100

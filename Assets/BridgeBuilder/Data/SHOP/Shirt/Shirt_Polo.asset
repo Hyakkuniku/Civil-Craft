@@ -15,7 +15,7 @@ MonoBehaviour:
   itemId: shop_cosmetic_Shirt_Polo
   itemName: Polo
   description: Unlock the Polo shirt for your builder.
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: 6d581f111b6d6c04481f18bec36109bf, type: 3}
   category: 2
   cosmeticDefinition: {fileID: 11400000, guid: 4cbb120f4c542d5418b06e06fdccfadf, type: 2}
   price: 100

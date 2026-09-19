@@ -6,12 +6,18 @@ public class AchievementRowUI : MonoBehaviour
 {
     private bool layoutPassPending;
     private float displayedProgress;
+    private AchievementSO currentAchievement;
+    private bool currentHideDetails;
 
     [Header("UI Elements")]
     public Image iconImage;
     public TextMeshProUGUI titleText;
     public TextMeshProUGUI descriptionText;
     public TextMeshProUGUI rewardText;
+    private Image rewardCoinIcon;
+    private Image rewardExperienceIcon;
+    private TextMeshProUGUI rewardCoinValueText;
+    private TextMeshProUGUI rewardExperienceValueText;
     
     [Header("Progress Bar")]
     public Image progressFill;
@@ -29,11 +35,14 @@ public class AchievementRowUI : MonoBehaviour
     {
         if (achievement == null) return;
 
+        currentAchievement = achievement;
+
         gameObject.SetActive(true);
         ApplyReferenceLayout();
         layoutPassPending = true;
 
         bool hideDetails = achievement.hideDetailsUntilUnlocked && !isCompleted;
+        currentHideDetails = hideDetails;
 
         if (titleText != null)
             titleText.SetText(hideDetails ? "???" : achievement.achievementName);
@@ -54,12 +63,8 @@ public class AchievementRowUI : MonoBehaviour
             iconImage.canvasRenderer.SetAlpha(1f);
         }
         
-        if (rewardText != null)
-        {
-            rewardText.text = hideDetails
-                ? "???"
-                : $"Reward: ₱{achievement.bonusGold}  •  {achievement.bonusExp} EXP";
-        }
+        EnsureRewardIcons();
+        ApplyRewardLayout(achievement, hideDetails);
 
         if (hideDetails)
         {
@@ -106,6 +111,8 @@ public class AchievementRowUI : MonoBehaviour
             LayoutRebuilder.ForceRebuildLayoutImmediate(parentRect);
 
         ApplyReferenceLayout();
+        if (currentAchievement != null)
+            ApplyRewardLayout(currentAchievement, currentHideDetails);
         ApplyProgressVisual();
         if (transform is RectTransform rowRect)
             LayoutRebuilder.ForceRebuildLayoutImmediate(rowRect);
@@ -191,10 +198,11 @@ public class AchievementRowUI : MonoBehaviour
             rewardText.rectTransform.SetParent(transform, false);
             ConfigureTextRect(rewardText,
                 new Vector2(0f, 1f), new Vector2(1f, 1f),
-                new Vector2(0f, 1f), new Vector2(148f, -82f), new Vector2(-520f, 32f),
+                new Vector2(0f, 1f), new Vector2(148f, -82f), new Vector2(82f, 32f),
                 20f, FontStyles.Normal);
             rewardText.color = new Color(0.30f, 0.22f, 0.14f, 1f);
         }
+        EnsureRewardIcons();
 
         // Keep the legacy name as a fallback for scenes/prefabs not yet renamed.
         Transform divider = transform.Find("RowDivider") ?? transform.Find("GameObject");
@@ -274,6 +282,95 @@ public class AchievementRowUI : MonoBehaviour
                 new Vector2(0f, 1f), new Vector2(0f, 1f),
                 new Vector2(0.5f, 0.5f), new Vector2(113f, -26f), new Vector2(30f, 30f));
         }
+    }
+
+    private void EnsureRewardIcons()
+    {
+        rewardCoinIcon = EnsureRewardIcon(
+            "RewardCoinIcon", CurrencyIconKind.Coin, new Vector2(244f, -98f));
+        rewardExperienceIcon = EnsureRewardIcon(
+            "RewardExperienceIcon", CurrencyIconKind.Experience,
+            new Vector2(374f, -98f));
+        rewardCoinValueText = EnsureRewardValueText("RewardCoinValue", new Vector2(264f, -82f));
+        rewardExperienceValueText = EnsureRewardValueText("RewardExperienceValue", new Vector2(394f, -82f));
+    }
+
+    private void ApplyRewardLayout(AchievementSO achievement, bool hideDetails)
+    {
+        bool showGold = !hideDetails && achievement.bonusGold > 0;
+        bool showExperience = !hideDetails && achievement.bonusExp > 0;
+        bool hasReward = showGold || showExperience;
+
+        if (rewardText != null)
+        {
+            rewardText.text = hideDetails ? "???" : hasReward ? "Reward" : "Completed";
+            rewardText.rectTransform.sizeDelta = new Vector2(hasReward ? 82f : 130f, 32f);
+        }
+
+        if (rewardCoinIcon != null)
+            rewardCoinIcon.gameObject.SetActive(showGold && rewardCoinIcon.sprite != null);
+        if (rewardCoinValueText != null)
+        {
+            rewardCoinValueText.text = achievement.bonusGold.ToString("N0");
+            rewardCoinValueText.gameObject.SetActive(showGold);
+        }
+
+        float experienceIconX = showGold ? 374f : 244f;
+        float experienceValueX = showGold ? 394f : 264f;
+        if (rewardExperienceIcon != null)
+        {
+            rewardExperienceIcon.rectTransform.anchoredPosition = new Vector2(experienceIconX, -98f);
+            rewardExperienceIcon.gameObject.SetActive(showExperience && rewardExperienceIcon.sprite != null);
+        }
+        if (rewardExperienceValueText != null)
+        {
+            rewardExperienceValueText.rectTransform.anchoredPosition = new Vector2(experienceValueX, -82f);
+            rewardExperienceValueText.text = achievement.bonusExp.ToString("N0");
+            rewardExperienceValueText.gameObject.SetActive(showExperience);
+        }
+    }
+
+    private Image EnsureRewardIcon(string name, CurrencyIconKind kind, Vector2 position)
+    {
+        Image image = CurrencyIconCatalog.EnsureIcon(
+            transform, name, kind, new Vector2(0f, 1f), new Vector2(0f, 1f));
+        if (image == null) return null;
+        RectTransform rect = image.rectTransform;
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = position;
+        rect.sizeDelta = new Vector2(26f, 26f);
+        return image;
+    }
+
+    private TextMeshProUGUI EnsureRewardValueText(string name, Vector2 position)
+    {
+        Transform existing = transform.Find(name);
+        bool existed = existing != null;
+        bool wasActive = existed && existing.gameObject.activeSelf;
+        TextMeshProUGUI text;
+        if (existing != null)
+        {
+            text = existing.GetComponent<TextMeshProUGUI>();
+        }
+        else
+        {
+            GameObject valueObject = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer));
+            valueObject.transform.SetParent(transform, false);
+            text = valueObject.AddComponent<TextMeshProUGUI>();
+        }
+
+        if (rewardText != null) text.font = rewardText.font;
+        ConfigureTextRect(text,
+            new Vector2(0f, 1f), new Vector2(0f, 1f),
+            new Vector2(0f, 1f), position, new Vector2(96f, 32f),
+            20f, FontStyles.Normal);
+        text.color = new Color(0.30f, 0.22f, 0.14f, 1f);
+        text.enableAutoSizing = true;
+        text.fontSizeMin = 15f;
+        text.fontSizeMax = 20f;
+        text.alignment = TextAlignmentOptions.MidlineLeft;
+        text.gameObject.SetActive(existed && wasActive);
+        return text;
     }
 
     private void SetDisplayedProgress(float normalizedProgress)

@@ -47,6 +47,8 @@ public class ContractAlmanacTab : MonoBehaviour
     private TextMeshProUGUI starSummaryText;
     private Button seeInMapButton;
     private ContractSO displayedContract;
+    private Image coinRewardIcon;
+    private Image experienceRewardIcon;
 
     private sealed class AnimatedElement
     {
@@ -213,8 +215,10 @@ public class ContractAlmanacTab : MonoBehaviour
         if (clientText != null) clientText.text = "COMMISSIONED BY  /  " + clientName.ToUpperInvariant();
         if (descriptionText != null) descriptionText.text = contract.jobDescription;
         if (rewardsText != null)
-            rewardsText.text = "<b>" + contract.goldReward.ToString("N0") + " G</b>   CONTRACT PAY\n" +
-                               "<b>" + contract.expReward.ToString("N0") + " XP</b>   EXPERIENCE";
+            rewardsText.text = "<b>" + contract.goldReward.ToString("N0") + "</b>   CONTRACT PAY\n" +
+                               "<b>" + contract.expReward.ToString("N0") + "</b>   EXPERIENCE";
+        EnsureRewardIcons();
+        SetRewardIconsActive(true);
         UpdateStarDisplay(contract);
         UpdateSeeInMapVisibility();
 
@@ -268,6 +272,7 @@ public class ContractAlmanacTab : MonoBehaviour
         if (clientText != null) clientText.text = "";
         if (descriptionText != null) descriptionText.text = "Complete a contract to add its project record and bridge photograph to this archive.";
         if (rewardsText != null) rewardsText.text = "";
+        SetRewardIconsActive(false);
         
         if (snapshotImage != null) { snapshotImage.texture = null; snapshotImage.color = new Color(0,0,0,0); }
         if (snapshotCaptionText != null) snapshotCaptionText.text = "";
@@ -357,6 +362,7 @@ public class ContractAlmanacTab : MonoBehaviour
             TextAlignmentOptions.MidlineLeft, Ink);
         SetNormalizedRect(rewardsText.rectTransform,
             new Vector2(0.14f, 0.19f), new Vector2(0.52f, 0.31f));
+        EnsureRewardIcons();
 
         ConfigureText(pageCounterText, 16f, 14f, 18f, FontStyles.Bold,
             TextAlignmentOptions.BottomRight, MutedInk);
@@ -383,6 +389,25 @@ public class ContractAlmanacTab : MonoBehaviour
 
         UpdateStarDisplay(displayedContract);
         UpdateSeeInMapVisibility();
+    }
+
+    private void EnsureRewardIcons()
+    {
+        if (rewardsText == null || rewardsText.transform.parent == null) return;
+        Transform parent = rewardsText.transform.parent;
+        coinRewardIcon = CurrencyIconCatalog.EnsureIcon(
+            parent, "ContractCoinRewardIcon", CurrencyIconKind.Coin,
+            new Vector2(0.095f, 0.255f), new Vector2(0.132f, 0.302f));
+        experienceRewardIcon = CurrencyIconCatalog.EnsureIcon(
+            parent, "ContractExperienceRewardIcon", CurrencyIconKind.Experience,
+            new Vector2(0.095f, 0.198f), new Vector2(0.132f, 0.247f));
+    }
+
+    private void SetRewardIconsActive(bool active)
+    {
+        if (coinRewardIcon != null) coinRewardIcon.gameObject.SetActive(active && coinRewardIcon.sprite != null);
+        if (experienceRewardIcon != null)
+            experienceRewardIcon.gameObject.SetActive(active && experienceRewardIcon.sprite != null);
     }
 
     private void LateUpdate()

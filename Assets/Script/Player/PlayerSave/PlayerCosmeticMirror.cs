@@ -85,17 +85,15 @@ public class PlayerCosmeticMirror : MonoBehaviour
     {
         if (loadout == null) return;
         CosmeticBindingUtility.Apply(cosmeticBindings, loadout);
-        ApplyLegacyHat(loadout.accessoriesID);
+        ApplyLegacyHat(loadout);
     }
 
-    private void ApplyLegacyHat(string equippedHatID)
+    private void ApplyLegacyHat(CosmeticLoadoutData loadout)
     {
         foreach (CosmeticItem hat in hats)
         {
             if (hat == null || hat.cosmeticModel == null) continue;
-            bool visible = !string.IsNullOrWhiteSpace(equippedHatID) &&
-                           string.Equals(hat.cosmeticID?.Trim(), equippedHatID.Trim(),
-                               StringComparison.Ordinal);
+            bool visible = loadout != null && loadout.IsAccessoryEquipped(hat.cosmeticID);
             hat.cosmeticModel.SetActive(visible);
         }
     }
@@ -107,6 +105,8 @@ public class PlayerCosmeticMirror : MonoBehaviour
 
     private void HandleSavedHatChanged(string equippedHatID)
     {
-        if (!previewSessionActive) ApplyLegacyHat(equippedHatID);
+        // The legacy event carries only one ID. Reload the complete saved
+        // loadout so it cannot hide the other equipped accessories.
+        if (!previewSessionActive) RefreshCosmetics();
     }
 }

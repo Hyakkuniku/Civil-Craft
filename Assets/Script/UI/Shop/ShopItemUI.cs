@@ -11,6 +11,7 @@ public class ShopItemUI : MonoBehaviour
     [SerializeField] private Image iconImage;
     [SerializeField] private Button buyButton;
     [SerializeField] private TMP_Text priceText;
+    [SerializeField] private Image priceCoinIcon;
     [SerializeField] private GameObject ownedBadge;
 
     private ShopManager owner;
@@ -20,6 +21,11 @@ public class ShopItemUI : MonoBehaviour
 
     private void Awake()
     {
+        if (priceCoinIcon == null)
+        {
+            Transform icon = transform.Find("BuyButton/PriceCoinIcon");
+            if (icon != null) priceCoinIcon = icon.GetComponent<Image>();
+        }
         if (buyButton != null)
             buyButton.onClick.AddListener(HandleBuyClicked);
     }
@@ -43,7 +49,9 @@ public class ShopItemUI : MonoBehaviour
         if (iconImage != null)
         {
             iconImage.sprite = item != null
-                ? item.icon != null ? item.icon : item.cosmeticDefinition != null ? item.cosmeticDefinition.icon : null
+                ? item.cosmeticDefinition != null && item.cosmeticDefinition.icon != null
+                    ? item.cosmeticDefinition.icon
+                    : item.icon
                 : null;
             // The setup prefab uses an empty Image before an item is bound.
             // Always restore an opaque tint when a real catalog icon is assigned.
@@ -70,6 +78,14 @@ public class ShopItemUI : MonoBehaviour
                 : owner != null && item != null
                     ? owner.FormatPrice(item.price)
                     : "--";
+        }
+
+        if (priceCoinIcon != null)
+        {
+            priceCoinIcon.sprite = CurrencyIconCatalog.Get(CurrencyIconKind.Coin);
+            priceCoinIcon.preserveAspect = true;
+            priceCoinIcon.raycastTarget = false;
+            priceCoinIcon.gameObject.SetActive(valid && !owned && priceCoinIcon.sprite != null);
         }
 
         if (buyButton != null)

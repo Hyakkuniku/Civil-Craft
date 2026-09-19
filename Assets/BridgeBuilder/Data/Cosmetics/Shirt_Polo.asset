@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   permanentID: Shirt_Polo
   displayName: Polo
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: 6d581f111b6d6c04481f18bec36109bf, type: 3}
   category: 2
   modelID: Top_Polo
   availableColors:

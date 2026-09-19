@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   permanentID: Shoes_Boots2
   displayName: Heavy Boots
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: d8206c947e275a54595211daf94910e7, type: 3}
   category: 4
   modelID: Shoes_Boots_2
   availableColors:

@@ -9,7 +9,7 @@ using UnityEngine.UI;
 [InitializeOnLoad]
 public static class AlmanacProfilePageSetup
 {
-    private const string SessionKey = "CivilCraft.AlmanacProfilePage.FinalWiring.v1";
+    private const string SessionKey = "CivilCraft.AlmanacProfilePage.FinalWiring.v2.CurrencyIcons";
     private const string LeftDesignName = "ProfilePageDesign";
     private const string RightDesignName = "ProfileStatsDesign";
 
@@ -97,6 +97,7 @@ public static class AlmanacProfilePageSetup
 
         Transform design = FindDescendant(stats.transform, RightDesignName);
         if (design == null) design = stats.transform;
+        ApplyCurrencyIcons(design);
 
         Transform fillTransform = FindDescendant(design, "ExpProgressFill");
         Image fill = fillTransform != null ? fillTransform.GetComponent<Image>() : null;
@@ -289,6 +290,12 @@ public static class AlmanacProfilePageSetup
             goldCard.transform, "GoldValue", "0", font, 28f,
             FontStyles.Bold, Ink, TextAlignmentOptions.MidlineRight);
         SetRect(goldValue.rectTransform, new Vector2(0.56f, 0f), new Vector2(0.94f, 1f));
+        Image coinIcon = CreateSpriteImage(goldCard.transform, "CoinIcon",
+            AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Elements/UI/peso.png"));
+        SetRect(coinIcon.rectTransform, new Vector2(0.04f, 0.18f), new Vector2(0.20f, 0.82f));
+        Transform goldLabel = FindDescendant(goldCard.transform, "GoldLabel");
+        if (goldLabel is RectTransform goldLabelRect)
+            SetRect(goldLabelRect, new Vector2(0.21f, 0f), new Vector2(0.60f, 1f));
 
         Image secondaryCard = CreatePanel(overviewCard.transform, "SecondaryCurrencyCard", CardLight, Line, 1f);
         SetRect(secondaryCard.rectTransform, new Vector2(0.51f, 0.53f), new Vector2(0.965f, 0.75f));
@@ -298,9 +305,19 @@ public static class AlmanacProfilePageSetup
             secondaryCard.transform, "SecondaryCurrencyValue", "0", font, 28f,
             FontStyles.Bold, Ink, TextAlignmentOptions.MidlineRight);
         SetRect(secondaryValue.rectTransform, new Vector2(0.60f, 0f), new Vector2(0.94f, 1f));
+        Image diamondIcon = CreateSpriteImage(secondaryCard.transform, "DiamondIcon",
+            AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Elements/UI/diamond icon.png"));
+        SetRect(diamondIcon.rectTransform, new Vector2(0.04f, 0.18f), new Vector2(0.20f, 0.82f));
+        Transform secondaryLabel = FindDescendant(secondaryCard.transform, "SecondaryCurrencyLabel");
+        if (secondaryLabel is RectTransform secondaryLabelRect)
+            SetRect(secondaryLabelRect, new Vector2(0.21f, 0f), new Vector2(0.62f, 1f));
 
-        CreateLabel(overviewCard.transform, "ExpLabel", "XP   EXP", font,
-            new Vector2(0.04f, 0.35f), new Vector2(0.40f, 0.51f), 25f);
+        CreateLabel(overviewCard.transform, "ExpLabel", "EXPERIENCE", font,
+            new Vector2(0.125f, 0.35f), new Vector2(0.40f, 0.51f), 25f);
+        Image experienceIcon = CreateSpriteImage(overviewCard.transform, "ExperienceIcon",
+            AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Elements/UI/exp icon.png"));
+        SetRect(experienceIcon.rectTransform,
+            new Vector2(0.04f, 0.345f), new Vector2(0.115f, 0.515f));
         TMP_Text expValue = CreateText(
             overviewCard.transform, "ExpValue", "0 / 100", font, 25f,
             FontStyles.Bold, Ink, TextAlignmentOptions.MidlineRight);
@@ -382,6 +399,67 @@ public static class AlmanacProfilePageSetup
         stats.achievementSectionRoot = achievementSection.gameObject;
         stats.overviewCardRect = overviewCard.rectTransform;
         stats.achievementPanelButton = viewAchievements;
+    }
+
+    private static void ApplyCurrencyIcons(Transform design)
+    {
+        if (design == null) return;
+        Sprite coin = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Elements/UI/peso.png");
+        Sprite experience = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Elements/UI/exp icon.png");
+        Sprite diamond = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Elements/UI/diamond icon.png");
+
+        Transform goldCard = FindDescendant(design, "GoldCard");
+        if (goldCard != null)
+        {
+            Image icon = EnsureSpriteImage(goldCard, "CoinIcon", coin);
+            SetRect(icon.rectTransform, new Vector2(0.04f, 0.18f), new Vector2(0.20f, 0.82f));
+            Transform label = FindDescendant(goldCard, "GoldLabel");
+            if (label is RectTransform labelRect)
+                SetRect(labelRect, new Vector2(0.21f, 0f), new Vector2(0.60f, 1f));
+        }
+
+        Transform secondaryCard = FindDescendant(design, "SecondaryCurrencyCard");
+        if (secondaryCard != null)
+        {
+            Image icon = EnsureSpriteImage(secondaryCard, "DiamondIcon", diamond);
+            SetRect(icon.rectTransform, new Vector2(0.04f, 0.18f), new Vector2(0.20f, 0.82f));
+            Transform label = FindDescendant(secondaryCard, "SecondaryCurrencyLabel");
+            if (label is RectTransform labelRect)
+                SetRect(labelRect, new Vector2(0.21f, 0f), new Vector2(0.62f, 1f));
+        }
+
+        Transform overview = FindDescendant(design, "OverviewCard");
+        if (overview != null)
+        {
+            Image icon = EnsureSpriteImage(overview, "ExperienceIcon", experience);
+            SetRect(icon.rectTransform,
+                new Vector2(0.04f, 0.345f), new Vector2(0.115f, 0.515f));
+            Transform label = FindDescendant(overview, "ExpLabel");
+            if (label is RectTransform labelRect)
+                SetRect(labelRect, new Vector2(0.125f, 0.35f), new Vector2(0.40f, 0.51f));
+            TMP_Text labelText = label != null ? label.GetComponent<TMP_Text>() : null;
+            if (labelText != null) labelText.text = "EXPERIENCE";
+        }
+    }
+
+    private static Image EnsureSpriteImage(Transform parent, string name, Sprite sprite)
+    {
+        Transform existing = parent.Find(name);
+        Image image = existing != null
+            ? existing.GetComponent<Image>()
+            : CreateSpriteImage(parent, name, sprite);
+        if (image == null)
+        {
+            GameObject imageObject = new GameObject(
+                name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            imageObject.transform.SetParent(parent, false);
+            image = imageObject.GetComponent<Image>();
+        }
+        image.sprite = sprite;
+        image.color = Color.white;
+        image.preserveAspect = true;
+        image.raycastTarget = false;
+        return image;
     }
 
     private static void ConfigureBookAndProfilePages(AlmanacPlayerStats stats, Transform modelPage)

@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   permanentID: Shoes_Black
   displayName: Black Shoes
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: 0a8616b5a6839404099189aaff974708, type: 3}
   category: 4
   modelID: Shoes_Black Shoes
   availableColors:

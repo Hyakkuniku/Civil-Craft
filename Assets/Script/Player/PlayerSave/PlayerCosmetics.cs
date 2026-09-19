@@ -23,9 +23,9 @@ public static class CosmeticBindingUtility
     private static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
     private static readonly int ColorProperty = Shader.PropertyToID("_Color");
 
-    // These accessories occupy the same volume as the full hair meshes.  Until
-    // dedicated "under hat" hair variants exist, hiding hair is the only
-    // deterministic way to prevent it from cutting through the headwear.
+    // Headwear remains compatible with the selected hairstyle. It is fitted a
+    // little farther around the head so the hair can stay visible without most
+    // of it cutting through the hat or cap.
     private static readonly HashSet<string> HeadwearIDs = new HashSet<string>(
         StringComparer.OrdinalIgnoreCase)
     {
@@ -34,17 +34,22 @@ public static class CosmeticBindingUtility
         "Accessory_LargeCap"
     };
 
+    private static readonly Dictionary<GameObject, Vector3> OriginalHeadwearScales =
+        new Dictionary<GameObject, Vector3>();
+
+    private static readonly Vector3 HeadwearFitMultiplier = new Vector3(1.1f, 1.04f, 1.1f);
+
     public static void Apply(IList<CosmeticModelBinding> bindings, CosmeticLoadoutData loadout)
     {
         if (bindings == null || loadout == null) return;
 
-        // Resolve one binding per category before changing any GameObjects.
-        // The previous single-pass implementation could leave authored/default
-        // objects visible when a binding was missing or duplicated.
+        // Resolve one binding for each clothing category. Accessories are
+        // intentionally multi-select and are applied separately below.
         Dictionary<CosmeticCategory, CosmeticModelBinding> selected =
             new Dictionary<CosmeticCategory, CosmeticModelBinding>();
         foreach (CosmeticCategory category in Enum.GetValues(typeof(CosmeticCategory)))
         {
+            if (category == CosmeticCategory.Accessories) continue;
             string selectedID = loadout.GetID(category)?.Trim();
             CosmeticModelBinding exact = null;
             CosmeticModelBinding fallback = null;
@@ -66,6 +71,9 @@ public static class CosmeticBindingUtility
             selected[category] = exact ?? fallback;
         }
 
+        HashSet<string> selectedAccessoryIDs = new HashSet<string>(
+            loadout.GetAccessoryIDs(), StringComparer.OrdinalIgnoreCase);
+
         // Always clear the whole wardrobe first.  This also fixes prefabs whose
         // FBX authored several hair, shirt, or pants variants as active.
         for (int i = 0; i < bindings.Count; i++)
@@ -76,21 +84,34 @@ public static class CosmeticBindingUtility
             {
                 if (model == null) continue;
                 model.SetActive(false);
+                if (HeadwearIDs.Contains(binding.cosmeticID?.Trim() ?? string.Empty))
+                    RestoreHeadwearScale(model);
             }
         }
 
-        string accessoryID = selected.TryGetValue(CosmeticCategory.Accessories,
-            out CosmeticModelBinding accessory)
-            ? accessory?.cosmeticID?.Trim()
-            : loadout.accessoriesID?.Trim();
-        bool hideHairForHeadwear = !string.IsNullOrWhiteSpace(accessoryID) &&
-                                   HeadwearIDs.Contains(accessoryID);
+        Color accessoryColor = loadout.GetColor(CosmeticCategory.Accessories);
+        for (int i = 0; i < bindings.Count; i++)
+        {
+            CosmeticModelBinding binding = bindings[i];
+            if (binding == null || binding.category != CosmeticCategory.Accessories ||
+                binding.models == null ||
+                !selectedAccessoryIDs.Contains(binding.cosmeticID?.Trim() ?? string.Empty))
+                continue;
+
+            foreach (GameObject model in binding.models)
+            {
+                if (model == null) continue;
+                model.SetActive(true);
+                if (HeadwearIDs.Contains(binding.cosmeticID?.Trim() ?? string.Empty))
+                    FitHeadwearOverHair(model);
+                ApplyColor(model, accessoryColor);
+            }
+        }
 
         foreach (KeyValuePair<CosmeticCategory, CosmeticModelBinding> choice in selected)
         {
             CosmeticModelBinding binding = choice.Value;
             if (binding == null || binding.models == null) continue;
-            if (choice.Key == CosmeticCategory.Hair && hideHairForHeadwear) continue;
 
             Color color = loadout.GetColor(choice.Key);
             foreach (GameObject model in binding.models)
@@ -100,6 +121,24 @@ public static class CosmeticBindingUtility
                 ApplyColor(model, color);
             }
         }
+    }
+
+    private static void FitHeadwearOverHair(GameObject model)
+    {
+        if (model == null) return;
+        if (!OriginalHeadwearScales.TryGetValue(model, out Vector3 originalScale))
+        {
+            originalScale = model.transform.localScale;
+            OriginalHeadwearScales[model] = originalScale;
+        }
+
+        model.transform.localScale = Vector3.Scale(originalScale, HeadwearFitMultiplier);
+    }
+
+    private static void RestoreHeadwearScale(GameObject model)
+    {
+        if (model != null && OriginalHeadwearScales.TryGetValue(model, out Vector3 originalScale))
+            model.transform.localScale = originalScale;
     }
 
     private static void ApplyColor(GameObject model, Color color)
@@ -168,8 +207,7 @@ public class PlayerCosmetics : MonoBehaviour
         foreach (CosmeticItem hat in hats)
         {
             if (hat == null || hat.cosmeticModel == null) continue;
-            bool visible = string.Equals(hat.cosmeticID?.Trim(),
-                loadout.accessoriesID?.Trim(), StringComparison.Ordinal);
+            bool visible = loadout.IsAccessoryEquipped(hat.cosmeticID);
             hat.cosmeticModel.SetActive(visible);
         }
     }

@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   permanentID: Pants_Cargo
   displayName: Cargo Pants
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: db6a18ab4478c134bbc515a5277a49f4, type: 3}
   category: 3
   modelID: Bottom_CargoPants
   availableColors:

@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   permanentID: Shoes_Base
   displayName: Builder Shoes
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: 0b61cce5a0b50314d9a3fea1dffdc759, type: 3}
   category: 4
   modelID: Base_SHOE
   availableColors:

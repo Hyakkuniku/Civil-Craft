@@ -20,6 +20,7 @@ public static class CharacterCustomizationSetup
     private const string PanelPrefabPath = "Assets/Prefabs/UI/CharacterCustomizationPanel.prefab";
     private const string PreviewPrefabPath = "Assets/Resources/Loading/NewCharacterPreview.prefab";
     private const string ManagersPrefabPath = "Assets/Prefabs/BuildingMode/MANAGERS AND CANVASES.prefab";
+    private const string CosmeticImageFolder = "Assets/Elements/Characters/Cosmetics/Images";
     private static readonly string[] ScenePaths =
     {
         "Assets/Scenes/CanyonCrossing.unity",
@@ -32,6 +33,7 @@ public static class CharacterCustomizationSetup
         public string label;
         public CosmeticCategory category;
         public string[] modelNames;
+        public string iconPath;
         public bool defaultUnlocked;
         public bool defaultWhenEmpty;
     }
@@ -39,36 +41,38 @@ public static class CharacterCustomizationSetup
     private static readonly Spec[] Specs =
     {
         new Spec { id="Accessory_None", label="None", category=CosmeticCategory.Accessories, modelNames=new string[0], defaultUnlocked=true, defaultWhenEmpty=true },
-        new Spec { id="EngineeringHardHat", label="Engineering Hard Hat", category=CosmeticCategory.Accessories, modelNames=new[]{"Base_Hard Hat"} },
+        new Spec { id="EngineeringHardHat", label="Engineering Hard Hat", category=CosmeticCategory.Accessories, modelNames=new[]{"Base_Hard Hat"}, iconPath="Assets/Elements/UI/RewardsUI/hard_hat.png" },
         new Spec { id="Accessory_SmallCap", label="Small Cap", category=CosmeticCategory.Accessories, modelNames=new[]{"Accesories_Cap_Small"} },
         new Spec { id="Accessory_LargeCap", label="Large Cap", category=CosmeticCategory.Accessories, modelNames=new[]{"Accesories_Cap_Large"} },
         new Spec { id="Accessory_SafetyVest", label="Safety Vest", category=CosmeticCategory.Accessories, modelNames=new[]{"Accesories_Vest"} },
 
-        new Spec { id="Hair_Base", label="Classic Hair", category=CosmeticCategory.Hair, modelNames=new[]{"Base_Hair.Front", "Base_Hair.Back"}, defaultUnlocked=true, defaultWhenEmpty=true },
-        new Spec { id="Hair_1", label="Side Sweep", category=CosmeticCategory.Hair, modelNames=new[]{"Hair_1"} },
-        new Spec { id="Hair_2", label="Short Layers", category=CosmeticCategory.Hair, modelNames=new[]{"Hair_2"} },
-        new Spec { id="Hair_4", label="Bob Cut", category=CosmeticCategory.Hair, modelNames=new[]{"Hair_4"} },
-        new Spec { id="Hair_5", label="Wavy Hair", category=CosmeticCategory.Hair, modelNames=new[]{"Hair_5"} },
-        new Spec { id="Hair_6", label="Crew Cut", category=CosmeticCategory.Hair, modelNames=new[]{"Hair_6"} },
-        new Spec { id="Hair_8", label="Curly Hair", category=CosmeticCategory.Hair, modelNames=new[]{"Hair_8"} },
+        new Spec { id="Hair_Base", label="Classic Hair", category=CosmeticCategory.Hair, modelNames=new[]{"Base_Hair.Front", "Base_Hair.Back"}, iconPath=CosmeticImageFolder+"/Hair_Base.png", defaultUnlocked=true, defaultWhenEmpty=true },
+        new Spec { id="Hair_1", label="Side Sweep", category=CosmeticCategory.Hair, modelNames=new[]{"Hair_1"}, iconPath=CosmeticImageFolder+"/Hair_1.png" },
+        new Spec { id="Hair_2", label="Short Layers", category=CosmeticCategory.Hair, modelNames=new[]{"Hair_2"}, iconPath=CosmeticImageFolder+"/Hair_2.png" },
+        new Spec { id="Hair_4", label="Bob Cut", category=CosmeticCategory.Hair, modelNames=new[]{"Hair_4"}, iconPath=CosmeticImageFolder+"/Hair_4.png" },
+        new Spec { id="Hair_5", label="Wavy Hair", category=CosmeticCategory.Hair, modelNames=new[]{"Hair_5"}, iconPath=CosmeticImageFolder+"/Hair_5.png" },
+        new Spec { id="Hair_6", label="Crew Cut", category=CosmeticCategory.Hair, modelNames=new[]{"Hair_6"}, iconPath=CosmeticImageFolder+"/Hair_6.png" },
+        // The artist exported Hair_8's thumbnail as Hair_3.png. Keep this
+        // explicit mapping so its card cannot silently fall back to Hair_6.
+        new Spec { id="Hair_8", label="Curly Hair", category=CosmeticCategory.Hair, modelNames=new[]{"Hair_8"}, iconPath=CosmeticImageFolder+"/Hair_3.png" },
 
         new Spec { id="Shirt_Base", label="Builder Tee", category=CosmeticCategory.Shirt, modelNames=new[]{"Base_Tshirt"}, defaultUnlocked=true, defaultWhenEmpty=true },
-        new Spec { id="Shirt_Blouse", label="Blouse", category=CosmeticCategory.Shirt, modelNames=new[]{"Top_Blouse"} },
-        new Spec { id="Shirt_Polo", label="Polo", category=CosmeticCategory.Shirt, modelNames=new[]{"Top_Polo"} },
-        new Spec { id="Shirt_Tee1", label="Work Tee", category=CosmeticCategory.Shirt, modelNames=new[]{"Top_tshirt_1"} },
-        new Spec { id="Shirt_Tee2", label="Pocket Tee", category=CosmeticCategory.Shirt, modelNames=new[]{"Top_tshirt_2"} },
+        new Spec { id="Shirt_Blouse", label="Blouse", category=CosmeticCategory.Shirt, modelNames=new[]{"Top_Blouse"}, iconPath=CosmeticImageFolder+"/Blouse.png" },
+        new Spec { id="Shirt_Polo", label="Polo", category=CosmeticCategory.Shirt, modelNames=new[]{"Top_Polo"}, iconPath=CosmeticImageFolder+"/Polo.png" },
+        new Spec { id="Shirt_Tee1", label="Work Tee", category=CosmeticCategory.Shirt, modelNames=new[]{"Top_tshirt_1"}, iconPath=CosmeticImageFolder+"/Tshirt_1.png" },
+        new Spec { id="Shirt_Tee2", label="Pocket Tee", category=CosmeticCategory.Shirt, modelNames=new[]{"Top_tshirt_2"}, iconPath=CosmeticImageFolder+"/Tshirt_2.png" },
 
         new Spec { id="Pants_Base", label="Builder Pants", category=CosmeticCategory.Pants, modelNames=new[]{"Base_Pants"}, defaultUnlocked=true, defaultWhenEmpty=true },
-        new Spec { id="Pants_Straight", label="Straight Pants", category=CosmeticCategory.Pants, modelNames=new[]{"Bottom_Pants"} },
-        new Spec { id="Pants_Cargo", label="Cargo Pants", category=CosmeticCategory.Pants, modelNames=new[]{"Bottom_CargoPants"} },
-        new Spec { id="Pants_Rolled", label="Rolled Pants", category=CosmeticCategory.Pants, modelNames=new[]{"Bottom_RolledUp_Pants"} },
+        new Spec { id="Pants_Straight", label="Straight Pants", category=CosmeticCategory.Pants, modelNames=new[]{"Bottom_Pants"}, iconPath=CosmeticImageFolder+"/Pants.png" },
+        new Spec { id="Pants_Cargo", label="Cargo Pants", category=CosmeticCategory.Pants, modelNames=new[]{"Bottom_CargoPants"}, iconPath=CosmeticImageFolder+"/Cargo_Pants.png" },
+        new Spec { id="Pants_Rolled", label="Rolled Pants", category=CosmeticCategory.Pants, modelNames=new[]{"Bottom_RolledUp_Pants"}, iconPath=CosmeticImageFolder+"/RolledUp_Pants.png" },
         new Spec { id="Pants_Skirt", label="Work Skirt", category=CosmeticCategory.Pants, modelNames=new[]{"Bottom_Skirt"} },
 
-        new Spec { id="Shoes_Base", label="Builder Shoes", category=CosmeticCategory.Shoes, modelNames=new[]{"Base_SHOE"}, defaultUnlocked=true, defaultWhenEmpty=true },
-        new Spec { id="Shoes_Sandals", label="Sandals", category=CosmeticCategory.Shoes, modelNames=new[]{"Shoes_Sandals"} },
-        new Spec { id="Shoes_Boots1", label="Work Boots", category=CosmeticCategory.Shoes, modelNames=new[]{"Shoes_Boots_1"} },
-        new Spec { id="Shoes_Boots2", label="Heavy Boots", category=CosmeticCategory.Shoes, modelNames=new[]{"Shoes_Boots_2"} },
-        new Spec { id="Shoes_Black", label="Black Shoes", category=CosmeticCategory.Shoes, modelNames=new[]{"Shoes_Black Shoes"} }
+        new Spec { id="Shoes_Base", label="Builder Shoes", category=CosmeticCategory.Shoes, modelNames=new[]{"Base_SHOE"}, iconPath=CosmeticImageFolder+"/Shoe1.png", defaultUnlocked=true, defaultWhenEmpty=true },
+        new Spec { id="Shoes_Sandals", label="Sandals", category=CosmeticCategory.Shoes, modelNames=new[]{"Shoes_Sandals"}, iconPath=CosmeticImageFolder+"/Sandals.png" },
+        new Spec { id="Shoes_Boots1", label="Work Boots", category=CosmeticCategory.Shoes, modelNames=new[]{"Shoes_Boots_1"}, iconPath=CosmeticImageFolder+"/Boots_1.png" },
+        new Spec { id="Shoes_Boots2", label="Heavy Boots", category=CosmeticCategory.Shoes, modelNames=new[]{"Shoes_Boots_2"}, iconPath=CosmeticImageFolder+"/Boots_2.png" },
+        new Spec { id="Shoes_Black", label="Black Shoes", category=CosmeticCategory.Shoes, modelNames=new[]{"Shoes_Black Shoes"}, iconPath=CosmeticImageFolder+"/Shoe.png" }
     };
 
     private static readonly Color Paper = new Color32(246, 231, 198, 255);
@@ -83,6 +87,7 @@ public static class CharacterCustomizationSetup
         EnsureFolder(DefinitionFolder);
         EnsureFolder(Path.GetDirectoryName(PanelPrefabPath).Replace('\\', '/'));
         List<CosmeticDefinition> definitions = EnsureDefinitions();
+        SynchronizeShopItems(definitions);
         CreatePanelPrefab(definitions);
         ConfigurePreviewPrefab();
         ConfigureManagersPrefab();
@@ -109,9 +114,53 @@ public static class CharacterCustomizationSetup
             definition.EditorConfigure(spec.id, spec.label, spec.category,
                 string.Join("|", spec.modelNames), spec.defaultUnlocked,
                 spec.category == CosmeticCategory.Hair ? hair : cloth);
+            if (!string.IsNullOrWhiteSpace(spec.iconPath))
+            {
+                Sprite icon = AssetDatabase.LoadAssetAtPath<Sprite>(spec.iconPath);
+                if (icon != null) definition.icon = icon;
+                else Debug.LogWarning($"[CharacterCustomizationSetup] Missing cosmetic icon: {spec.iconPath}");
+            }
             result.Add(definition);
         }
         return result;
+    }
+
+    [MenuItem("Tools/Civil Craft/Sync Cosmetic Artwork")]
+    public static void SyncCosmeticArtwork()
+    {
+        List<CosmeticDefinition> definitions = EnsureDefinitions();
+        SynchronizeShopItems(definitions);
+        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh();
+        Debug.Log("[CharacterCustomizationSetup] Shop and Almanac cosmetic artwork synchronized.");
+    }
+
+    private static void SynchronizeShopItems(List<CosmeticDefinition> definitions)
+    {
+        HashSet<CosmeticDefinition> known = new HashSet<CosmeticDefinition>(definitions);
+        foreach (string guid in AssetDatabase.FindAssets("t:ShopItemData"))
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            ShopItemData item = AssetDatabase.LoadAssetAtPath<ShopItemData>(path);
+            if (item == null || item.cosmeticDefinition == null ||
+                !known.Contains(item.cosmeticDefinition)) continue;
+
+            item.icon = item.cosmeticDefinition.icon;
+            item.category = ToShopCategory(item.cosmeticDefinition.category);
+            EditorUtility.SetDirty(item);
+        }
+    }
+
+    private static ShopCategory ToShopCategory(CosmeticCategory category)
+    {
+        switch (category)
+        {
+            case CosmeticCategory.Hair: return ShopCategory.Hairstyle;
+            case CosmeticCategory.Shirt: return ShopCategory.Shirt;
+            case CosmeticCategory.Pants: return ShopCategory.Pants;
+            case CosmeticCategory.Shoes: return ShopCategory.Shoes;
+            default: return ShopCategory.Accessory;
+        }
     }
 
     private static void CreatePanelPrefab(List<CosmeticDefinition> definitions)

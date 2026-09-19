@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   permanentID: Hair_5
   displayName: Wavy Hair
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: b4f83ae0e42b26748ac6537452111712, type: 3}
   category: 1
   modelID: Hair_5
   availableColors:

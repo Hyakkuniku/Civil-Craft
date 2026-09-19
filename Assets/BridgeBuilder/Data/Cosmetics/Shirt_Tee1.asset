@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   permanentID: Shirt_Tee1
   displayName: Work Tee
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: 34018ad4855b47b4e999435fee4bb81b, type: 3}
   category: 2
   modelID: Top_tshirt_1
   availableColors:

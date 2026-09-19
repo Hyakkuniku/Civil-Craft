@@ -15,7 +15,7 @@ MonoBehaviour:
   itemId: shop_cosmetic_Shirt_Blouse
   itemName: Blouse
   description: Unlock the Blouse shirt for your builder.
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: 17dbf868d8cb6084b810ea78b5bbbb7a, type: 3}
   category: 2
   cosmeticDefinition: {fileID: 11400000, guid: d12aef6e86354554d8b94f18093512ca, type: 2}
   price: 100

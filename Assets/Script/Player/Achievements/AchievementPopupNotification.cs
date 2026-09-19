@@ -25,6 +25,8 @@ public sealed class AchievementPopupNotification : MonoBehaviour
         public string detail;
         public Sprite icon;
         public PopupKind kind;
+        public int goldReward;
+        public int experienceReward;
     }
 
     private const int AbsoluteSortingOrder = 32767;
@@ -80,6 +82,10 @@ public sealed class AchievementPopupNotification : MonoBehaviour
     [SerializeField] private TMP_Text headingText;
     [SerializeField] private TMP_Text achievementNameText;
     [SerializeField] private TMP_Text rewardText;
+    private Image rewardCoinIcon;
+    private Image rewardExperienceIcon;
+    private TMP_Text rewardCoinValueText;
+    private TMP_Text rewardExperienceValueText;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStaticState()
@@ -157,7 +163,9 @@ public sealed class AchievementPopupNotification : MonoBehaviour
             title = achievement.achievementName,
             detail = BuildRewardText(achievement),
             icon = achievement.achievementIcon,
-            kind = PopupKind.Achievement
+            kind = PopupKind.Achievement,
+            goldReward = achievement.bonusGold,
+            experienceReward = achievement.bonusExp
         };
 
         Dispatch(request);
@@ -338,7 +346,11 @@ public sealed class AchievementPopupNotification : MonoBehaviour
     {
         ApplyStyle(request.kind);
         achievementNameText.text = request.title;
-        rewardText.text = request.detail;
+        EnsureRewardIcons();
+        if (request.kind == PopupKind.Achievement)
+            ApplyAchievementRewardLayout(request);
+        else
+            ApplyStandardDetailLayout(request.detail);
 
         if (iconImage != null)
         {
@@ -426,12 +438,142 @@ public sealed class AchievementPopupNotification : MonoBehaviour
     private static string BuildRewardText(AchievementSO achievement)
     {
         if (achievement.bonusGold > 0 && achievement.bonusExp > 0)
-            return $"Reward: ₱{achievement.bonusGold}  •  {achievement.bonusExp} EXP";
+            return $"Reward:       {achievement.bonusGold:N0}          {achievement.bonusExp:N0}";
         if (achievement.bonusGold > 0)
-            return $"Reward: ₱{achievement.bonusGold}";
+            return $"Reward:       {achievement.bonusGold:N0}";
         if (achievement.bonusExp > 0)
-            return $"Reward: {achievement.bonusExp} EXP";
+            return $"Reward:       {achievement.bonusExp:N0}";
         return "Achievement completed";
+    }
+
+    private void EnsureRewardIcons()
+    {
+        if (popupRoot == null) return;
+        rewardCoinIcon = EnsurePopupRewardIcon(
+            "RewardCoinIcon", CurrencyIconKind.Coin, new Vector2(250f, -44f));
+        rewardExperienceIcon = EnsurePopupRewardIcon(
+            "RewardExperienceIcon", CurrencyIconKind.Experience, new Vector2(390f, -44f));
+        rewardCoinValueText = EnsurePopupRewardValue(
+            "RewardCoinValue", new Vector2(268f, -111f));
+        rewardExperienceValueText = EnsurePopupRewardValue(
+            "RewardExperienceValue", new Vector2(408f, -111f));
+    }
+
+    private void ApplyAchievementRewardLayout(PopupRequest request)
+    {
+        bool showGold = request.goldReward > 0;
+        bool showExperience = request.experienceReward > 0;
+        bool hasReward = showGold || showExperience;
+
+        ConfigurePopupTextRect(
+            rewardText,
+            new Vector2(158f, -111f),
+            new Vector2(hasReward ? 78f : 570f, 30f));
+        rewardText.text = hasReward ? "Reward" : "Achievement completed";
+
+        if (rewardCoinIcon != null)
+        {
+            rewardCoinIcon.rectTransform.anchoredPosition = new Vector2(250f, -44f);
+            rewardCoinIcon.gameObject.SetActive(showGold && rewardCoinIcon.sprite != null);
+        }
+        if (rewardCoinValueText != null)
+        {
+            rewardCoinValueText.text = request.goldReward.ToString("N0");
+            rewardCoinValueText.color = rewardText.color;
+            rewardCoinValueText.gameObject.SetActive(showGold);
+        }
+
+        float experienceIconX = showGold ? 390f : 250f;
+        float experienceValueX = showGold ? 408f : 268f;
+        if (rewardExperienceIcon != null)
+        {
+            rewardExperienceIcon.rectTransform.anchoredPosition = new Vector2(experienceIconX, -44f);
+            rewardExperienceIcon.gameObject.SetActive(
+                showExperience && rewardExperienceIcon.sprite != null);
+        }
+        if (rewardExperienceValueText != null)
+        {
+            ConfigurePopupTextRect(
+                rewardExperienceValueText,
+                new Vector2(experienceValueX, -111f),
+                new Vector2(110f, 30f));
+            rewardExperienceValueText.text = request.experienceReward.ToString("N0");
+            rewardExperienceValueText.color = rewardText.color;
+            rewardExperienceValueText.gameObject.SetActive(showExperience);
+        }
+    }
+
+    private void ApplyStandardDetailLayout(string detail)
+    {
+        ConfigurePopupTextRect(
+            rewardText,
+            new Vector2(158f, -111f),
+            new Vector2(570f, 30f));
+        rewardText.text = detail;
+        if (rewardCoinIcon != null) rewardCoinIcon.gameObject.SetActive(false);
+        if (rewardExperienceIcon != null) rewardExperienceIcon.gameObject.SetActive(false);
+        if (rewardCoinValueText != null) rewardCoinValueText.gameObject.SetActive(false);
+        if (rewardExperienceValueText != null) rewardExperienceValueText.gameObject.SetActive(false);
+    }
+
+    private Image EnsurePopupRewardIcon(string name, CurrencyIconKind kind, Vector2 position)
+    {
+        Image image = CurrencyIconCatalog.EnsureIcon(
+            popupRoot.transform, name, kind,
+            new Vector2(0f, 0.5f), new Vector2(0f, 0.5f));
+        if (image == null) return null;
+        RectTransform rect = image.rectTransform;
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = position;
+        rect.sizeDelta = new Vector2(25f, 25f);
+        return image;
+    }
+
+    private TMP_Text EnsurePopupRewardValue(string name, Vector2 position)
+    {
+        Transform existing = popupRoot.transform.Find(name);
+        TMP_Text text;
+        if (existing != null)
+        {
+            text = existing.GetComponent<TMP_Text>();
+        }
+        else
+        {
+            GameObject valueObject = new GameObject(
+                name, typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+            valueObject.transform.SetParent(popupRoot.transform, false);
+            text = valueObject.GetComponent<TMP_Text>();
+        }
+
+        if (rewardText != null) text.font = rewardText.font;
+        text.fontSize = 22f;
+        text.enableAutoSizing = true;
+        text.fontSizeMin = 16f;
+        text.fontSizeMax = 22f;
+        text.fontStyle = FontStyles.Bold;
+        text.alignment = TextAlignmentOptions.MidlineLeft;
+        text.enableWordWrapping = false;
+        text.overflowMode = TextOverflowModes.Ellipsis;
+        text.raycastTarget = false;
+        ConfigurePopupTextRect(text, position, new Vector2(110f, 30f));
+        text.gameObject.SetActive(false);
+        return text;
+    }
+
+    private static void ConfigurePopupTextRect(TMP_Text text, Vector2 topLeft, Vector2 size)
+    {
+        if (text == null) return;
+        RectTransform rect = text.rectTransform;
+        rect.anchorMin = new Vector2(0f, 1f);
+        rect.anchorMax = new Vector2(0f, 1f);
+        rect.pivot = new Vector2(0f, 1f);
+        rect.anchoredPosition = topLeft;
+        rect.sizeDelta = size;
+        rect.localScale = Vector3.one;
+        text.alignment = TextAlignmentOptions.MidlineLeft;
+        text.enableWordWrapping = false;
+        text.overflowMode = TextOverflowModes.Ellipsis;
+        text.raycastTarget = false;
     }
 
     private bool HasCompleteUIReferences()

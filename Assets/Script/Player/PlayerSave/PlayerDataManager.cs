@@ -1209,9 +1209,11 @@ public class PlayerDataManager : MonoBehaviour
             CurrentData.unlockedCosmeticIDs.Add(normalizedID);
         if (equipImmediately)
         {
-            CurrentData.equippedHatID = normalizedID;
             EnsureCosmeticLoadout();
-            CurrentData.cosmeticLoadout.SetID(CosmeticCategory.Accessories, normalizedID);
+            CurrentData.cosmeticLoadout.SetAccessoryEquipped(normalizedID, true);
+            CurrentData.equippedHatID = normalizedID;
+            CurrentData.cosmeticLoadoutVersion = Mathf.Max(
+                CurrentData.cosmeticLoadoutVersion, 2);
         }
 
         SaveGame();
@@ -1245,12 +1247,17 @@ public class PlayerDataManager : MonoBehaviour
 
         CosmeticLoadoutData previousLoadout = CurrentData.cosmeticLoadout;
         string previousHatID = CurrentData.equippedHatID;
+        int previousLoadoutVersion = CurrentData.cosmeticLoadoutVersion;
         CurrentData.cosmeticLoadout = loadout.Clone();
+        CurrentData.cosmeticLoadout.NormalizeAccessories();
+        CurrentData.cosmeticLoadoutVersion = Mathf.Max(
+            CurrentData.cosmeticLoadoutVersion, 2);
         CurrentData.equippedHatID = CurrentData.cosmeticLoadout.accessoriesID ?? string.Empty;
         if (!TrySaveGame())
         {
             CurrentData.cosmeticLoadout = previousLoadout;
             CurrentData.equippedHatID = previousHatID;
+            CurrentData.cosmeticLoadoutVersion = previousLoadoutVersion;
             return false;
         }
 
@@ -1278,11 +1285,19 @@ public class PlayerDataManager : MonoBehaviour
             CurrentData.cosmeticLoadoutVersion = 1;
         }
 
-        if (string.IsNullOrWhiteSpace(CurrentData.cosmeticLoadout.accessoriesID) &&
+        if ((string.IsNullOrWhiteSpace(CurrentData.cosmeticLoadout.accessoriesID) ||
+             string.Equals(CurrentData.cosmeticLoadout.accessoriesID, "Accessory_None",
+                 StringComparison.OrdinalIgnoreCase)) &&
+            (CurrentData.cosmeticLoadout.accessoryIDs == null ||
+             CurrentData.cosmeticLoadout.accessoryIDs.Count == 0) &&
             !string.IsNullOrWhiteSpace(CurrentData.equippedHatID))
         {
             CurrentData.cosmeticLoadout.accessoriesID = CurrentData.equippedHatID.Trim();
         }
+
+        CurrentData.cosmeticLoadout.NormalizeAccessories();
+        if (CurrentData.cosmeticLoadoutVersion < 2)
+            CurrentData.cosmeticLoadoutVersion = 2;
     }
 
     // ────────────────────────────────────────────────

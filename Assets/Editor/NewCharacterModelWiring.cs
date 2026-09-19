@@ -19,7 +19,8 @@ public static class NewCharacterModelWiring
     private const string ModelPath = "Assets/Elements/Characters/Character_Cosmetics.fbx";
     private const string PreviewPrefabPath = "Assets/Resources/Loading/NewCharacterPreview.prefab";
     private const string GeneratedSkinFolder = "Assets/Generated/CharacterSkins";
-    private const string AutoRunKey = "CivilCraft.NewCharacterModelWiring.v5";
+    private const string SafetyVestRepairMarker = "CivilCraft.SafetyVestBodySkin.v1";
+    private const string AutoRunKey = "CivilCraft.NewCharacterModelWiring.v6";
 
     static NewCharacterModelWiring()
     {
@@ -448,6 +449,19 @@ public static class NewCharacterModelWiring
             .ToArray();
         if (vests.Length == 0) return 0;
 
+        // This is a one-time asset migration. Re-reading the FBX donor on every
+        // domain reload toggled Read/Write and forced two complete model
+        // reimports, which produced the empty-clip and bad-polygon warnings.
+        //
+        // The marker is the fast path. The weight check is deliberately kept as
+        // a fallback because a checked-in native Mesh can be present before
+        // Unity has refreshed its .meta importer data. In that case the vest is
+        // already correct and must not cause the source FBX to be reimported.
+        vests = vests
+            .Where(vest => !IsSafetyVestRepairCurrent(vest, animationRoot))
+            .ToArray();
+        if (vests.Length == 0) return 0;
+
         HashSet<string> temporarilyReadable = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         try
         {
@@ -494,6 +508,7 @@ public static class NewCharacterModelWiring
                 EditorUtility.SetDirty(mesh);
                 EditorUtility.SetDirty(vest);
                 PrefabUtility.RecordPrefabInstancePropertyModifications(vest);
+                SetAssetMarker(mesh, SafetyVestRepairMarker);
                 repaired++;
             }
 
@@ -516,6 +531,69 @@ public static class NewCharacterModelWiring
     {
         return candidate != null &&
                candidate.name.IndexOf("Vest", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static bool HasAssetMarker(UnityEngine.Object asset, string marker)
+    {
+        if (asset == null || string.IsNullOrWhiteSpace(marker)) return false;
+        string path = AssetDatabase.GetAssetPath(asset);
+        AssetImporter importer = AssetImporter.GetAtPath(path);
+        return importer != null && string.Equals(importer.userData, marker,
+            StringComparison.Ordinal);
+    }
+
+    private static bool IsSafetyVestRepairCurrent(
+        SkinnedMeshRenderer vest,
+        Transform animationRoot)
+    {
+        if (vest == null || vest.sharedMesh == null) return false;
+        if (HasAssetMarker(vest.sharedMesh, SafetyVestRepairMarker)) return true;
+
+        // Only trust generated project meshes. Imported FBX sub-assets may have
+        // a superficially similar bone list while still being rigidly weighted
+        // to Head, which is the broken state this migration repairs.
+        string path = AssetDatabase.GetAssetPath(vest.sharedMesh);
+        if (string.IsNullOrEmpty(path) ||
+            !path.Replace('\\', '/').StartsWith(
+                GeneratedSkinFolder + "/", StringComparison.OrdinalIgnoreCase) ||
+            !vest.sharedMesh.isReadable)
+            return false;
+
+        Transform[] bones = vest.bones;
+        BoneWeight[] weights = vest.sharedMesh.boneWeights;
+        Matrix4x4[] bindposes = vest.sharedMesh.bindposes;
+        if (bones == null || bones.Length == 0 || weights == null || weights.Length == 0 ||
+            bindposes == null || bindposes.Length != bones.Length)
+            return false;
+
+        Transform head = FindGenericBone(animationRoot, "Head");
+        int headIndex = Array.IndexOf(bones, head);
+        if (headIndex < 0) return false;
+
+        // The old broken vest had every vertex assigned only to Head. A body-
+        // skinned vest necessarily contains meaningful torso/non-head weights.
+        foreach (BoneWeight weight in weights)
+        {
+            if ((weight.weight0 > 0.001f && weight.boneIndex0 != headIndex) ||
+                (weight.weight1 > 0.001f && weight.boneIndex1 != headIndex) ||
+                (weight.weight2 > 0.001f && weight.boneIndex2 != headIndex) ||
+                (weight.weight3 > 0.001f && weight.boneIndex3 != headIndex))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static void SetAssetMarker(UnityEngine.Object asset, string marker)
+    {
+        if (asset == null || string.IsNullOrWhiteSpace(marker)) return;
+        string path = AssetDatabase.GetAssetPath(asset);
+        AssetImporter importer = AssetImporter.GetAtPath(path);
+        if (importer == null || string.Equals(importer.userData, marker,
+                StringComparison.Ordinal))
+            return;
+        importer.userData = marker;
+        AssetDatabase.WriteImportSettingsIfDirty(path);
     }
 
     private static bool IsWardrobeMesh(Transform candidate, Transform visual)

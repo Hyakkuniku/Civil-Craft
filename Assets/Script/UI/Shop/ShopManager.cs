@@ -29,7 +29,7 @@ public class ShopManager : MonoBehaviour
     [Header("Panel")]
     [SerializeField] private GameObject shopPanel;
     [SerializeField] private TMP_Text currencyText;
-    [SerializeField] private string currencyPrefix = "₱";
+    [SerializeField] private string currencyPrefix = "";
     [SerializeField] private TMP_Text secondaryCurrencyText;
     [SerializeField] private string secondaryCurrencyPlaceholder = "0";
 
@@ -546,9 +546,9 @@ public class ShopManager : MonoBehaviour
             confirmationPriceText.text = FormatPrice(item.price);
         if (confirmationIconImage != null)
         {
-            Sprite displayIcon = item.icon != null
-                ? item.icon
-                : item.cosmeticDefinition != null ? item.cosmeticDefinition.icon : null;
+            Sprite displayIcon = item.cosmeticDefinition != null && item.cosmeticDefinition.icon != null
+                ? item.cosmeticDefinition.icon
+                : item.icon;
             confirmationIconImage.sprite = displayIcon;
             confirmationIconImage.color = Color.white;
             confirmationIconImage.preserveAspect = true;

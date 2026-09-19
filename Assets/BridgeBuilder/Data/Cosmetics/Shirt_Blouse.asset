@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   permanentID: Shirt_Blouse
   displayName: Blouse
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: 17dbf868d8cb6084b810ea78b5bbbb7a, type: 3}
   category: 2
   modelID: Top_Blouse
   availableColors:

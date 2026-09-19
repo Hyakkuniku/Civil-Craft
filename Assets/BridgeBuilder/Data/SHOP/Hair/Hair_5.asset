@@ -15,7 +15,7 @@ MonoBehaviour:
   itemId: shop_cosmetic_Hair_5
   itemName: Wavy Hair
   description: Unlock the Wavy Hair hairstyle for your builder.
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: b4f83ae0e42b26748ac6537452111712, type: 3}
   category: 1
   cosmeticDefinition: {fileID: 11400000, guid: 0ddd31ff5d8990f40bfda6193b047998, type: 2}
   price: 100

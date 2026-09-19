@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   permanentID: Hair_1
   displayName: Side Sweep
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: 490bb915207183c408a92fd04b18a222, type: 3}
   category: 1
   modelID: Hair_1
   availableColors:

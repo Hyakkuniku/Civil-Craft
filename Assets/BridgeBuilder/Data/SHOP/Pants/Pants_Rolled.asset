@@ -15,7 +15,7 @@ MonoBehaviour:
   itemId: shop_cosmetic_Pants_Rolled
   itemName: Rolled Pants
   description: Unlock the Rolled Pants pants for your builder.
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: fb23775ce718d3e439135db83ac885c0, type: 3}
   category: 3
   cosmeticDefinition: {fileID: 11400000, guid: 95ac80a840024b04991435b4f75b0358, type: 2}
   price: 100

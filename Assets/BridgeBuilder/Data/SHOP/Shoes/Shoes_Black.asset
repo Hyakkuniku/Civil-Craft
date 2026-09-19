@@ -15,7 +15,7 @@ MonoBehaviour:
   itemId: shop_cosmetic_Shoes_Black
   itemName: Black Shoes
   description: Unlock the Black Shoes shoes for your builder.
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: 0a8616b5a6839404099189aaff974708, type: 3}
   category: 4
   cosmeticDefinition: {fileID: 11400000, guid: f57966c054fd464428051715451436f9, type: 2}
   price: 100

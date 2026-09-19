@@ -15,7 +15,7 @@ MonoBehaviour:
   itemId: shop_cosmetic_Shoes_Boots1
   itemName: Work Boots
   description: Unlock the Work Boots shoes for your builder.
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: 3176578567cdcab4fa9efa7bd7f449af, type: 3}
   category: 4
   cosmeticDefinition: {fileID: 11400000, guid: 3d84cbd683ddbef4dbddb3632d5083e3, type: 2}
   price: 100

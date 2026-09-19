@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   permanentID: Shoes_Sandals
   displayName: Sandals
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: 52253b14f32cd1747a1c601aa915e442, type: 3}
   category: 4
   modelID: Shoes_Sandals
   availableColors:

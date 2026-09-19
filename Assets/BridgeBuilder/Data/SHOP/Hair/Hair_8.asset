@@ -15,7 +15,7 @@ MonoBehaviour:
   itemId: shop_cosmetic_Hair_8
   itemName: Curly Hair
   description: Unlock the Curly Hair hairstyle for your builder.
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: a67198a0bdc510640a7fc8836faa9616, type: 3}
   category: 1
   cosmeticDefinition: {fileID: 11400000, guid: 3f4b400bc5712564f9d6471f5e524650, type: 2}
   price: 100

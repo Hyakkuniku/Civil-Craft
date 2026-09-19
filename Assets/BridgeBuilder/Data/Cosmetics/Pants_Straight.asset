@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   permanentID: Pants_Straight
   displayName: Straight Pants
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: 1792f174146193846a5332c5f6d1efb1, type: 3}
   category: 3
   modelID: Bottom_Pants
   availableColors:

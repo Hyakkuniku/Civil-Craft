@@ -43,6 +43,22 @@ public class ShopItemData : ScriptableObject
     {
         price = Mathf.Max(0, price);
 
+        // The wardrobe definition owns the visual/model pairing. Keeping the
+        // shop presentation derived from it prevents a card from advertising
+        // one item while unlocking a different 3D model.
+        if (cosmeticDefinition != null)
+        {
+            icon = cosmeticDefinition.icon;
+            switch (cosmeticDefinition.category)
+            {
+                case CosmeticCategory.Hair: category = ShopCategory.Hairstyle; break;
+                case CosmeticCategory.Shirt: category = ShopCategory.Shirt; break;
+                case CosmeticCategory.Pants: category = ShopCategory.Pants; break;
+                case CosmeticCategory.Shoes: category = ShopCategory.Shoes; break;
+                default: category = ShopCategory.Accessory; break;
+            }
+        }
+
         if (string.IsNullOrWhiteSpace(itemId))
         {
             itemId = Guid.NewGuid().ToString("N");

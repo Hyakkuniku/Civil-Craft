@@ -60,6 +60,12 @@ public class ObjectiveTrackerUI : MonoBehaviour
     private TextMeshProUGUI offerLoadValue;
     private TextMeshProUGUI offerSpanValue;
     private TextMeshProUGUI offerRewardValue;
+    private TextMeshProUGUI offerGoldValue;
+    private TextMeshProUGUI offerExperienceValue;
+    private Image rewardGoldIcon;
+    private Image rewardExperienceIcon;
+    private Image offerGoldIcon;
+    private Image offerExperienceIcon;
 
     private static readonly Color32 FrameColor = new Color32(88, 57, 35, 255);
     private static readonly Color32 ClipColor = new Color32(67, 42, 27, 255);
@@ -77,6 +83,7 @@ public class ObjectiveTrackerUI : MonoBehaviour
         else { Destroy(gameObject); return; }
 
         ApplySharedVisualStyle();
+        EnsureRewardIcons();
         
         if (trackerPanel != null) trackerPanel.SetActive(false);
         if (listPanel != null) listPanel.SetActive(false);
@@ -723,8 +730,8 @@ public class ObjectiveTrackerUI : MonoBehaviour
         if (task.isReadyToTurnIn && !task.isCompleted)
         {
             if (rewardContainer != null) rewardContainer.SetActive(true);
-            if (rewardGoldText != null) rewardGoldText.text = $"+{task.pendingGold} Gold";
-            if (rewardExpText != null) rewardExpText.text = $"+{task.pendingExp} EXP";
+            if (rewardGoldText != null) rewardGoldText.text = $"+{task.pendingGold:N0}";
+            if (rewardExpText != null) rewardExpText.text = $"+{task.pendingExp:N0}";
             if (completeButton != null) completeButton.SetActive(true);
         }
         else
@@ -830,8 +837,9 @@ public class ObjectiveTrackerUI : MonoBehaviour
         int displayedExp = task != null && task.isReadyToTurnIn
             ? task.pendingExp
             : contract.expReward;
-        offerRewardValue.text =
-            $"<b>REWARDS</b>     {displayedGold:N0} Gold     +{displayedExp:N0} EXP";
+        offerRewardValue.text = "REWARDS";
+        if (offerGoldValue != null) offerGoldValue.text = displayedGold.ToString("N0");
+        if (offerExperienceValue != null) offerExperienceValue.text = $"+{displayedExp:N0}";
 
         PopulateAllowedMaterialCards(contract);
 
@@ -1019,11 +1027,34 @@ public class ObjectiveTrackerUI : MonoBehaviour
         offerRewardValue = CreateOfferText(
             rewardSection,
             "Reward Value",
-            25f,
-            FontStyles.Normal,
+            22f,
+            FontStyles.Bold,
             TextAlignmentOptions.Center,
-            new Vector2(920f, 52f),
-            Vector2.zero);
+            new Vector2(210f, 46f),
+            new Vector2(-350f, 0f));
+        offerRewardValue.text = "REWARDS";
+        CreateOfferDivider(rewardSection, "Reward Label Divider",
+            new Vector2(1.5f, 38f), new Vector2(-225f, 0f));
+
+        offerGoldValue = CreateOfferText(
+            rewardSection,
+            "Gold Reward Value",
+            24f,
+            FontStyles.Bold,
+            TextAlignmentOptions.MidlineLeft,
+            new Vector2(125f, 46f),
+            new Vector2(-45f, 0f));
+        CreateOfferDivider(rewardSection, "Reward Type Divider",
+            new Vector2(1.5f, 38f), new Vector2(70f, 0f));
+        offerExperienceValue = CreateOfferText(
+            rewardSection,
+            "Experience Reward Value",
+            24f,
+            FontStyles.Bold,
+            TextAlignmentOptions.MidlineLeft,
+            new Vector2(125f, 46f),
+            new Vector2(245f, 0f));
+        EnsureOfferRewardIcons(rewardSection);
     }
 
     private void CreateAllowedMaterialsScrollView(RectTransform parent)
@@ -1536,9 +1567,10 @@ public class ObjectiveTrackerUI : MonoBehaviour
         ConfigureText(rewardGoldText, 24f, PrimaryTextColor, FontStyles.Bold, TextAlignmentOptions.Center);
         ConfigureText(rewardExpText, 24f, PrimaryTextColor, FontStyles.Bold, TextAlignmentOptions.Center);
         SetCenteredRect(rewardGoldText != null ? rewardGoldText.rectTransform : null,
-            new Vector2(360f, 46f), new Vector2(-190f, 22f));
+            new Vector2(180f, 46f), new Vector2(-105f, 22f));
         SetCenteredRect(rewardExpText != null ? rewardExpText.rectTransform : null,
-            new Vector2(360f, 46f), new Vector2(190f, 22f));
+            new Vector2(180f, 46f), new Vector2(275f, 22f));
+        EnsureRewardIcons();
 
         if (rewardContainer != null)
         {
@@ -1554,6 +1586,45 @@ public class ObjectiveTrackerUI : MonoBehaviour
             new Vector2(420f, 72f), new Vector2(0f, -305f));
         SetCenteredRect(completeButton != null ? completeButton.GetComponent<RectTransform>() : null,
             new Vector2(360f, 72f), new Vector2(0f, -55f));
+    }
+
+    private void EnsureRewardIcons()
+    {
+        if (rewardContainer == null) return;
+        rewardGoldIcon = EnsureCenteredCurrencyIcon(
+            rewardContainer.transform, "CoinRewardIcon", CurrencyIconKind.Coin,
+            new Vector2(-225f, 22f), 36f);
+        rewardExperienceIcon = EnsureCenteredCurrencyIcon(
+            rewardContainer.transform, "ExperienceRewardIcon", CurrencyIconKind.Experience,
+            new Vector2(155f, 22f), 36f);
+    }
+
+    private void EnsureOfferRewardIcons(Transform rewardSection)
+    {
+        if (rewardSection == null) return;
+        offerGoldIcon = EnsureCenteredCurrencyIcon(
+            rewardSection, "OfferCoinRewardIcon", CurrencyIconKind.Coin,
+            new Vector2(-145f, 0f), 30f);
+        offerExperienceIcon = EnsureCenteredCurrencyIcon(
+            rewardSection, "OfferExperienceRewardIcon", CurrencyIconKind.Experience,
+            new Vector2(145f, 0f), 30f);
+    }
+
+    private static Image EnsureCenteredCurrencyIcon(
+        Transform parent,
+        string name,
+        CurrencyIconKind kind,
+        Vector2 position,
+        float size)
+    {
+        Image image = CurrencyIconCatalog.EnsureIcon(
+            parent, name, kind, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f));
+        if (image == null) return null;
+        RectTransform rect = image.rectTransform;
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = position;
+        rect.sizeDelta = new Vector2(size, size);
+        return image;
     }
 
     private void EnsureObjectiveListBackButton()

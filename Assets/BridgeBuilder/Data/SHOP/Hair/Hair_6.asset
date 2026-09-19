@@ -15,7 +15,7 @@ MonoBehaviour:
   itemId: shop_cosmetic_Hair_6
   itemName: Crew Cut
   description: Unlock the Crew Cut hairstyle for your builder.
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: f030328cc048de04085f04e052db92e4, type: 3}
   category: 1
   cosmeticDefinition: {fileID: 11400000, guid: 27edb916cefbc7d48bb1ae87de4ad170, type: 2}
   price: 100

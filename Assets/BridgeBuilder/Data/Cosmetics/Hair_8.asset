@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   permanentID: Hair_8
   displayName: Curly Hair
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: a67198a0bdc510640a7fc8836faa9616, type: 3}
   category: 1
   modelID: Hair_8
   availableColors:

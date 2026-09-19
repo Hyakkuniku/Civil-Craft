@@ -12,10 +12,12 @@ using UnityEngine.UI;
 [InitializeOnLoad]
 public static class ShopSceneSetup
 {
-    private const string SessionKey = "CivilCraft.ShopSceneSetup.V4";
+    private const string SessionKey = "CivilCraft.ShopSceneSetup.V5.CurrencyIcons";
     private const string CardPrefabPath = "Assets/Prefabs/UI/ShopItemCard.prefab";
     private const string FontPath = "Assets/TextMesh Pro/Resources/Fonts & Materials/Bekind Sans SDF.asset";
     private const string CoinPlusSpritePath = "Assets/Elements/UI/bm_ui/coin_plus (1).png";
+    private const string CoinSpritePath = "Assets/Elements/UI/peso.png";
+    private const string DiamondSpritePath = "Assets/Elements/UI/diamond icon.png";
 
     private static readonly Color PanelColor = Hex("F8EDCF", 0.99f);
     private static readonly Color CardColor = Hex("FFF8E8", 1f);
@@ -82,6 +84,8 @@ public static class ShopSceneSetup
         bool isComplete = existingManager != null &&
                           FindSceneComponent<ShopButtonTrigger>(scene) != null &&
                           FindRecursive(existingManager.transform, "SecondaryCurrencyPill") != null &&
+                          FindRecursive(existingManager.transform, "CoinIcon") != null &&
+                          FindRecursive(existingManager.transform, "DiamondIcon") != null &&
                           FindRecursive(existingManager.transform, "PurchaseConfirmationPanel") != null &&
                           FindRecursive(existingManager.transform, "PurchaseFeedbackPanel") != null;
         if (alreadyRan && isComplete) return;
@@ -187,8 +191,13 @@ public static class ShopSceneSetup
         Outline currencyOutline = currencyPill.AddComponent<Outline>();
         currencyOutline.effectColor = MutedBrown;
         currencyOutline.effectDistance = new Vector2(2f, -2f);
-        TMP_Text currency = CreateText(currencyPill.transform, "CurrencyText", "₱0", 34f, FontStyles.Bold, font);
-        SetStretch(currency.rectTransform, 10f);
+        Image currencyIcon = CreateImage(currencyPill.transform, "CoinIcon", Color.white).GetComponent<Image>();
+        currencyIcon.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(CoinSpritePath);
+        currencyIcon.preserveAspect = true;
+        currencyIcon.raycastTarget = false;
+        SetAnchored(currencyIcon.rectTransform, new Vector2(0.06f, 0.15f), new Vector2(0.31f, 0.85f));
+        TMP_Text currency = CreateText(currencyPill.transform, "CurrencyText", "0", 34f, FontStyles.Bold, font);
+        SetAnchored(currency.rectTransform, new Vector2(0.29f, 0f), new Vector2(0.96f, 1f));
         currency.alignment = TextAlignmentOptions.Center;
 
         GameObject tabs = new GameObject("CategoryTabs", typeof(RectTransform), typeof(HorizontalLayoutGroup));
@@ -269,6 +278,7 @@ public static class ShopSceneSetup
         SerializedObject managerData = new SerializedObject(manager);
         managerData.FindProperty("shopPanel").objectReferenceValue = panel;
         managerData.FindProperty("currencyText").objectReferenceValue = currency;
+        managerData.FindProperty("currencyPrefix").stringValue = string.Empty;
         managerData.FindProperty("itemGridContent").objectReferenceValue = content.transform;
         managerData.FindProperty("itemCardPrefab").objectReferenceValue = cardPrefab;
 
@@ -348,6 +358,8 @@ public static class ShopSceneSetup
             ? secondaryTextTransform.GetComponent<TMP_Text>()
             : null;
 
+        ApplyCurrencyArtwork(panel, manager);
+
         GameObject confirmationPanel;
         Transform existingConfirmation = FindRecursive(panel.transform, "PurchaseConfirmationPanel");
         if (existingConfirmation == null)
@@ -396,7 +408,7 @@ public static class ShopSceneSetup
             TMP_Text confirmationPrice = CreateText(
                 dialog.transform,
                 "ConfirmationPrice",
-                "₱0",
+                "0",
                 38f,
                 FontStyles.Bold,
                 font);
@@ -469,6 +481,7 @@ public static class ShopSceneSetup
 
         SerializedObject managerData = new SerializedObject(manager);
         managerData.FindProperty("secondaryCurrencyText").objectReferenceValue = secondaryText;
+        managerData.FindProperty("currencyPrefix").stringValue = string.Empty;
         managerData.FindProperty("purchaseConfirmationPanel").objectReferenceValue = confirmationPanel;
         managerData.FindProperty("confirmationTitleText").objectReferenceValue = titleText;
         managerData.FindProperty("confirmationDescriptionText").objectReferenceValue = descriptionText;
@@ -483,6 +496,59 @@ public static class ShopSceneSetup
         confirmationPanel.SetActive(false);
         feedbackPanel.transform.SetAsLastSibling();
         feedbackPanel.SetActive(false);
+    }
+
+    private static void ApplyCurrencyArtwork(GameObject panel, ShopManager manager)
+    {
+        Sprite coin = AssetDatabase.LoadAssetAtPath<Sprite>(CoinSpritePath);
+        Sprite diamond = AssetDatabase.LoadAssetAtPath<Sprite>(DiamondSpritePath);
+
+        Transform primaryPill = FindRecursive(panel.transform, "CurrencyPill");
+        if (primaryPill != null)
+        {
+            Transform existing = primaryPill.Find("CoinIcon");
+            GameObject iconObject = existing != null
+                ? existing.gameObject
+                : CreateImage(primaryPill, "CoinIcon", Color.white);
+            Image image = iconObject.GetComponent<Image>();
+            iconObject.layer = primaryPill.gameObject.layer;
+            image.sprite = coin;
+            image.color = Color.white;
+            image.preserveAspect = true;
+            image.raycastTarget = false;
+            SetAnchored(image.rectTransform,
+                new Vector2(0.06f, 0.15f), new Vector2(0.31f, 0.85f));
+
+            Transform value = FindRecursive(primaryPill, "CurrencyText");
+            if (value is RectTransform valueRect)
+                SetAnchored(valueRect, new Vector2(0.29f, 0f), new Vector2(0.96f, 1f));
+        }
+
+        Transform secondaryPill = FindRecursive(panel.transform, "SecondaryCurrencyPill");
+        if (secondaryPill != null)
+        {
+            Transform existing = secondaryPill.Find("DiamondIcon");
+            GameObject iconObject = existing != null
+                ? existing.gameObject
+                : CreateImage(secondaryPill, "DiamondIcon", Color.white);
+            Image image = iconObject.GetComponent<Image>();
+            iconObject.layer = secondaryPill.gameObject.layer;
+            image.sprite = diamond;
+            image.color = Color.white;
+            image.preserveAspect = true;
+            image.raycastTarget = false;
+            SetAnchored(image.rectTransform,
+                new Vector2(0.08f, 0.16f), new Vector2(0.43f, 0.84f));
+
+            Transform value = FindRecursive(secondaryPill, "SecondaryCurrencyText");
+            if (value is RectTransform valueRect)
+                SetAnchored(valueRect, new Vector2(0.39f, 0f), new Vector2(0.94f, 1f));
+        }
+
+        SerializedObject serializedManager = new SerializedObject(manager);
+        SerializedProperty prefix = serializedManager.FindProperty("currencyPrefix");
+        if (prefix != null) prefix.stringValue = string.Empty;
+        serializedManager.ApplyModifiedPropertiesWithoutUndo();
     }
 
     private static void UpgradeWardrobeTabs(GameObject panel, ShopManager manager)
@@ -556,9 +622,17 @@ public static class ShopSceneSetup
         SetAnchored(description.rectTransform, new Vector2(0.07f, 0.18f), new Vector2(0.93f, 0.38f));
         description.enableWordWrapping = true;
 
-        Button buy = CreateButton(root.transform, "BuyButton", "₱0", 29f, font, Gold);
+        Button buy = CreateButton(root.transform, "BuyButton", "0", 29f, font, Gold);
         SetAnchored(buy.GetComponent<RectTransform>(), new Vector2(0.16f, 0.035f), new Vector2(0.84f, 0.17f));
         TMP_Text price = buy.GetComponentInChildren<TMP_Text>(true);
+        GameObject priceCoinObject = CreateImage(buy.transform, "PriceCoinIcon", Color.white);
+        Image priceCoinIcon = priceCoinObject.GetComponent<Image>();
+        priceCoinIcon.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(CoinSpritePath);
+        priceCoinIcon.preserveAspect = true;
+        priceCoinIcon.raycastTarget = false;
+        SetAnchored(priceCoinObject.GetComponent<RectTransform>(),
+            new Vector2(0.08f, 0.18f), new Vector2(0.27f, 0.82f));
+        SetAnchored(price.rectTransform, new Vector2(0.25f, 0f), new Vector2(0.94f, 1f));
 
         GameObject owned = CreateImage(root.transform, "OwnedBadge", Brown);
         SetAnchored(owned.GetComponent<RectTransform>(), new Vector2(0.69f, 0.86f), new Vector2(0.95f, 0.95f));
@@ -573,6 +647,7 @@ public static class ShopSceneSetup
         cardData.FindProperty("iconImage").objectReferenceValue = icon;
         cardData.FindProperty("buyButton").objectReferenceValue = buy;
         cardData.FindProperty("priceText").objectReferenceValue = price;
+        cardData.FindProperty("priceCoinIcon").objectReferenceValue = priceCoinIcon;
         cardData.FindProperty("ownedBadge").objectReferenceValue = owned;
         cardData.ApplyModifiedPropertiesWithoutUndo();
 

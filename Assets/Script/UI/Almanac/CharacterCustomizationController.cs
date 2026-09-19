@@ -200,16 +200,13 @@ public sealed class CharacterCustomizationController : MonoBehaviour
 
         List<CosmeticDefinition> filtered = cosmetics.FindAll(item =>
             item != null && item.category == category);
-        string selectedID = previewLoadout != null ? previewLoadout.GetID(category) : string.Empty;
-        selectedDefinition = filtered.Find(item =>
-            string.Equals(item.PermanentID, selectedID, StringComparison.Ordinal));
+        selectedDefinition = filtered.Find(IsSelected);
 
         for (int i = 0; i < optionSlots.Count; i++)
         {
             CosmeticDefinition definition = i < filtered.Count ? filtered[i] : null;
             bool unlocked = IsUnlocked(definition);
-            bool selected = definition != null &&
-                string.Equals(definition.PermanentID, selectedID, StringComparison.Ordinal);
+            bool selected = IsSelected(definition);
             if (optionSlots[i] != null)
                 optionSlots[i].Bind(definition, unlocked, selected, SelectCosmetic);
         }
@@ -220,7 +217,17 @@ public sealed class CharacterCustomizationController : MonoBehaviour
     {
         if (definition == null || previewLoadout == null || !IsUnlocked(definition)) return;
         selectedDefinition = definition;
-        previewLoadout.SetID(definition.category, definition.PermanentID);
+        if (definition.category == CosmeticCategory.Accessories)
+        {
+            bool isNone = string.Equals(definition.PermanentID, "Accessory_None",
+                StringComparison.OrdinalIgnoreCase);
+            bool equip = isNone || !previewLoadout.IsAccessoryEquipped(definition.PermanentID);
+            previewLoadout.SetAccessoryEquipped(definition.PermanentID, equip);
+        }
+        else
+        {
+            previewLoadout.SetID(definition.category, definition.PermanentID);
+        }
         ApplyPreview();
         ShowCategory(definition.category);
     }
@@ -278,11 +285,18 @@ public sealed class CharacterCustomizationController : MonoBehaviour
     private bool IsUnlocked(CosmeticDefinition definition)
     {
         return definition != null && (definition.unlockedByDefault ||
-            (previewLoadout != null && string.Equals(
-                previewLoadout.GetID(definition.category), definition.PermanentID,
-                StringComparison.Ordinal)) ||
+            IsSelected(definition) ||
             (PlayerDataManager.Instance != null &&
              PlayerDataManager.Instance.IsCosmeticUnlocked(definition.PermanentID)));
+    }
+
+    private bool IsSelected(CosmeticDefinition definition)
+    {
+        if (definition == null || previewLoadout == null) return false;
+        if (definition.category == CosmeticCategory.Accessories)
+            return previewLoadout.IsAccessoryEquipped(definition.PermanentID);
+        return string.Equals(previewLoadout.GetID(definition.category),
+            definition.PermanentID, StringComparison.Ordinal);
     }
 
     private void ApplyDefaultSelections(CosmeticLoadoutData loadout)

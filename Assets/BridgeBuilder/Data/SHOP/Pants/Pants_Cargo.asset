@@ -15,7 +15,7 @@ MonoBehaviour:
   itemId: shop_cosmetic_Pants_Cargo
   itemName: Cargo Pants
   description: Unlock the Cargo Pants pants for your builder.
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: db6a18ab4478c134bbc515a5277a49f4, type: 3}
   category: 3
   cosmeticDefinition: {fileID: 11400000, guid: e23f922b64214e648a98ed070f83b721, type: 2}
   price: 100

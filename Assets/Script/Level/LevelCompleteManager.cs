@@ -271,6 +271,8 @@ public class LevelCompleteManager : MonoBehaviour
     public TextMeshProUGUI penaltyText;    
     public TextMeshProUGUI goldEarnedText; 
     public TextMeshProUGUI expEarnedText;
+    private Image goldEarnedIcon;
+    private Image expEarnedIcon;
 
     [Header("Photo Display")]
     public RawImage bridgePhotoDisplay; 
@@ -865,7 +867,9 @@ public class LevelCompleteManager : MonoBehaviour
         if (costText != null) 
         {
             costText.text = $"Total Cost: ₱{Mathf.RoundToInt(finalCost):N0}";
-            costText.color = (finalCost > maxBudget) ? new Color32(164, 62, 45, 255) : CompletionReceiptLayout.Ink;
+            costText.color = finalCost > maxBudget
+                ? (Color)new Color32(164, 62, 45, 255)
+                : CompletionReceiptLayout.Ink;
         }
         
         if (costPercentageText != null)
@@ -902,8 +906,12 @@ public class LevelCompleteManager : MonoBehaviour
         if (baseRewardText != null) baseRewardText.text = $"BASE\n{(earnsRewards ? baseGoldReward : 0):N0}";
         if (bonusText != null) bonusText.text = $"BONUS\n+{(earnsRewards ? bonusGold : 0):N0}";
         if (penaltyText != null) penaltyText.text = $"DEDUCTIONS\n-{(earnsRewards ? budgetPenalty + failPenalty : 0):N0}";
-        if (goldEarnedText != null) goldEarnedText.text = $"TOTAL  {calculatedGold:N0} Gold";
-        if (expEarnedText != null) expEarnedText.text = $"+{calculatedExp:N0} EXP";
+        if (goldEarnedText != null) goldEarnedText.text = $"TOTAL  {calculatedGold:N0}";
+        if (expEarnedText != null) expEarnedText.text = $"+{calculatedExp:N0}";
+        if (goldEarnedIcon != null)
+            goldEarnedIcon.gameObject.SetActive(!tutorialResult && goldEarnedIcon.sprite != null);
+        if (expEarnedIcon != null)
+            expEarnedIcon.gameObject.SetActive(!tutorialResult && expEarnedIcon.sprite != null);
         if (feedbackText != null && paidResult) feedbackText.text = "Redesign complete. Best stars kept.";
         if (feedbackText != null && tutorialResult) feedbackText.text = "Tutorial complete. Great job!";
         foreach (var label in new[] { feedbackText, baseRewardText, bonusText, penaltyText, goldEarnedText, expEarnedText })
@@ -1033,8 +1041,14 @@ public class LevelCompleteManager : MonoBehaviour
         bonusText = CompletionReceiptLayout.Label(rewards,"Bonus","",.34f,.29f,.65f,.70f,26,font,TextAlignmentOptions.Center);
         penaltyText = CompletionReceiptLayout.Label(rewards,"Penalty","",.67f,.29f,.97f,.70f,26,font,TextAlignmentOptions.Center);
         CompletionReceiptLayout.Divider(rewards,"Rewards Total Divider",.035f,.25f,.965f);
-        goldEarnedText = CompletionReceiptLayout.Label(rewards,"Gold Earnings","",.035f,.015f,.69f,.235f,28,font);
-        expEarnedText = CompletionReceiptLayout.Label(rewards,"EXP Earnings","",.70f,.015f,.965f,.235f,28,font,TextAlignmentOptions.MidlineRight);
+        goldEarnedIcon = CurrencyIconCatalog.EnsureIcon(
+            rewards, "Gold Earnings Icon", CurrencyIconKind.Coin,
+            new Vector2(.035f, .035f), new Vector2(.085f, .225f));
+        goldEarnedText = CompletionReceiptLayout.Label(rewards,"Gold Earnings","",.09f,.015f,.69f,.235f,28,font);
+        expEarnedIcon = CurrencyIconCatalog.EnsureIcon(
+            rewards, "EXP Earnings Icon", CurrencyIconKind.Experience,
+            new Vector2(.70f, .035f), new Vector2(.75f, .225f));
+        expEarnedText = CompletionReceiptLayout.Label(rewards,"EXP Earnings","",.755f,.015f,.965f,.235f,28,font,TextAlignmentOptions.MidlineRight);
         var receipt = CompletionReceiptLayout.Box(paper,"Material Receipt",.62f,.12f,.98f,.975f);
         completionReceiptTutorialTarget = receipt;
         if (receiptBackground != null)
