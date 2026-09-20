@@ -3,10 +3,14 @@ using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 [DisallowMultipleComponent]
 public sealed class SimulationLessonPresenter : MonoBehaviour
 {
+    private const string GenericLessonResourcePath =
+        "Simulation Lessons/Generic Bridge Lesson";
+
     [SerializeField, HideInInspector] private int hierarchyAuthoringVersion;
 
     private enum MessagePriority
@@ -34,6 +38,10 @@ public sealed class SimulationLessonPresenter : MonoBehaviour
     [SerializeField] private TextMeshProUGUI titleText;
     [SerializeField] private TextMeshProUGUI messageText;
 
+    [Header("Simulation lesson controls")]
+    [SerializeField] private Button lessonMenuButton;
+    [SerializeField] private Button lessonCloseButton;
+
     private readonly List<PendingMessage> pendingMessages = new List<PendingMessage>();
     private BridgePhysicsManager physicsManager;
     private SimulationLessonDefinition definition;
@@ -54,27 +62,30 @@ public sealed class SimulationLessonPresenter : MonoBehaviour
     private bool terminalFailure;
     private bool successConfirmed;
     private float outcomePresentedAt = float.NegativeInfinity;
+    private bool lessonPanelOpen;
+    private bool slowMotionApplied;
+    private float timeScaleBeforeLesson = 1f;
+    private float appliedLessonTimeScale = 1f;
 
     /// <summary>
     /// Returns the time the active result flow must still wait before replacing
-    /// the lesson with its completion/failure UI. Locations without a configured
-    /// lesson return zero and retain their existing progression timing.
+    /// the lesson with its completion/failure UI. A dismissed lesson returns
+    /// zero so an optional hidden panel never slows normal progression.
     /// </summary>
     public static float GetRemainingOutcomeReadTime(BuildLocation location)
     {
-        if (location == null || !location.enableSimulationLesson ||
-            location.simulationLesson == null) return 0f;
+        if (location == null) return 0f;
 
         SimulationLessonPresenter presenter = BuildUIController.Instance != null
             ? BuildUIController.Instance.GetComponent<SimulationLessonPresenter>()
             : FindObjectOfType<SimulationLessonPresenter>();
-        if (presenter == null || !presenter.lessonActive ||
+        if (presenter == null || !presenter.lessonPanelOpen || !presenter.lessonActive ||
             presenter.lessonLocation != location || presenter.definition == null ||
             float.IsNegativeInfinity(presenter.outcomePresentedAt)) return 0f;
 
         float requiredTime = presenter.definition.fadeDuration +
             presenter.definition.minimumMessageDuration;
-        return Mathf.Max(0f, requiredTime - (Time.time - presenter.outcomePresentedAt));
+        return Mathf.Max(0f, requiredTime - (Time.unscaledTime - presenter.outcomePresentedAt));
     }
 
     public void Configure(
@@ -91,9 +102,26 @@ public sealed class SimulationLessonPresenter : MonoBehaviour
         hierarchyAuthoringVersion = authoringVersion;
     }
 
+    public void ConfigureControls(
+        Button menuButton,
+        Button closeButton,
+        int authoringVersion = 0)
+    {
+        lessonMenuButton = menuButton;
+        lessonCloseButton = closeButton;
+        hierarchyAuthoringVersion = authoringVersion;
+    }
+
     private void Awake()
     {
         EnsurePanelIsUnderBuildCanvas();
+        if (lessonMenuButton != null)
+        {
+            lessonMenuButton.onClick.AddListener(OpenLessonPanel);
+            lessonMenuButton.gameObject.SetActive(false);
+        }
+        if (lessonCloseButton != null) lessonCloseButton.onClick.AddListener(CloseLessonPanel);
+
         if (lessonPanel != null)
         {
             visiblePanelPosition = lessonPanel.anchoredPosition;
@@ -143,6 +171,9 @@ public sealed class SimulationLessonPresenter : MonoBehaviour
 
     private void OnDestroy()
     {
+        RestoreSimulationSpeed();
+        if (lessonMenuButton != null) lessonMenuButton.onClick.RemoveListener(OpenLessonPanel);
+        if (lessonCloseButton != null) lessonCloseButton.onClick.RemoveListener(CloseLessonPanel);
         UnbindPhysicsManager();
         LevelFailedManager.SimulationFailed -= HandleSimulationFailed;
         LevelCompleteManager.SimulationSucceeded -= HandleSimulationSucceeded;
@@ -235,7 +266,14 @@ public sealed class SimulationLessonPresenter : MonoBehaviour
         BuildLocation location = GameManager.Instance != null
             ? GameManager.Instance.ActiveBuildLocation
             : null;
-        if (location == null || !location.enableSimulationLesson || location.simulationLesson == null)
+        if (location == null)
+        {
+            ClearLesson();
+            return;
+        }
+
+        SimulationLessonDefinition resolvedDefinition = ResolveDefinition(location);
+        if (resolvedDefinition == null)
         {
             ClearLesson();
             return;
@@ -243,14 +281,65 @@ public sealed class SimulationLessonPresenter : MonoBehaviour
 
         ClearLesson();
         lessonLocation = location;
-        definition = location.simulationLesson;
+        definition = resolvedDefinition;
         lessonActive = true;
         activeVehicle = FindVehicleForCurrentContract();
         lastVehicleProgress = activeVehicle != null ? activeVehicle.NormalizedRouteProgress : 0f;
         lastVehicleMovementTime = Time.time;
 
         if (titleText != null) titleText.text = definition.panelTitle;
-        PresentImmediately(definition.simulationStarted, MessagePriority.Information);
+        currentMessage = definition.simulationStarted;
+        currentPriority = MessagePriority.Information;
+        if (messageText != null) messageText.text = currentMessage;
+
+        // A deliberately authored lesson is part of the location's experience,
+        // so it opens by default. The generic fallback remains optional and is
+        // available from the lesson button for the duration of the simulation.
+        if (location.simulationLesson != null)
+            OpenLessonPanel();
+        else
+            RefreshControlVisibility();
+    }
+
+    private static SimulationLessonDefinition ResolveDefinition(BuildLocation location)
+    {
+        if (location != null && location.simulationLesson != null)
+            return location.simulationLesson;
+        return Resources.Load<SimulationLessonDefinition>(GenericLessonResourcePath);
+    }
+
+    public void OpenLessonPanel()
+    {
+        if (!lessonActive || definition == null || lessonPanel == null) return;
+
+        lessonPanelOpen = true;
+        if (lessonMenuButton != null) lessonMenuButton.gameObject.SetActive(false);
+        if (titleText != null) titleText.text = definition.panelTitle;
+        if (messageText != null && !string.IsNullOrWhiteSpace(currentMessage))
+            messageText.text = currentMessage;
+
+        if (presentationRoutine != null) StopCoroutine(presentationRoutine);
+        lessonPanel.gameObject.SetActive(true);
+        lessonCanvasGroup.interactable = true;
+        lessonCanvasGroup.blocksRaycasts = true;
+        ApplyLessonSlowMotion();
+        presentationRoutine = StartCoroutine(AnimatePanelOpen());
+    }
+
+    public void CloseLessonPanel()
+    {
+        if (!lessonPanelOpen) return;
+        lessonPanelOpen = false;
+        RestoreSimulationSpeed();
+        if (presentationRoutine != null) StopCoroutine(presentationRoutine);
+        presentationRoutine = StartCoroutine(AnimatePanelClosed());
+    }
+
+    private void RefreshControlVisibility()
+    {
+        bool simulationActive = lessonActive && physicsManager != null && physicsManager.IsSimulationActive;
+        if (lessonMenuButton != null)
+            lessonMenuButton.gameObject.SetActive(simulationActive && !lessonPanelOpen);
     }
 
     private void ObserveStress()
@@ -343,6 +432,18 @@ public sealed class SimulationLessonPresenter : MonoBehaviour
         if (!lessonActive || string.IsNullOrWhiteSpace(text)) return;
         if (terminalFailure && priority != MessagePriority.Outcome) return;
 
+        // Keep the lesson current even while the optional panel is closed. On
+        // reopening, the player sees what is happening now rather than a stale
+        // message that was visible when they dismissed it.
+        if (!lessonPanelOpen)
+        {
+            pendingMessages.Clear();
+            currentMessage = text;
+            currentPriority = priority;
+            if (messageText != null) messageText.text = text;
+            return;
+        }
+
         if (lessonPanel == null || !lessonPanel.gameObject.activeSelf ||
             priority > currentPriority || (interruptEqualPriority && priority == currentPriority))
         {
@@ -360,29 +461,82 @@ public sealed class SimulationLessonPresenter : MonoBehaviour
             lessonCanvasGroup == null || messageText == null) return;
 
         if (priority == MessagePriority.Outcome)
-            outcomePresentedAt = Time.time;
+            outcomePresentedAt = Time.unscaledTime;
 
         if (presentationRoutine != null) StopCoroutine(presentationRoutine);
         currentMessage = text;
         currentPriority = priority;
         messageText.text = text;
+        if (!lessonPanelOpen) return;
         lessonPanel.gameObject.SetActive(true);
         presentationRoutine = StartCoroutine(PresentMessageRoutine());
     }
 
-    private IEnumerator PresentMessageRoutine()
+    private IEnumerator AnimatePanelOpen()
+    {
+        float duration = definition != null ? definition.fadeDuration : 0.2f;
+        float slideDistance = definition != null ? definition.slideDistance : 24f;
+        Vector2 hiddenPosition = visiblePanelPosition + Vector2.left * slideDistance;
+        lessonCanvasGroup.alpha = 0f;
+        lessonPanel.anchoredPosition = hiddenPosition;
+
+        float elapsed = 0f;
+        while (elapsed < duration)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            float t = duration <= 0f ? 1f : Mathf.Clamp01(elapsed / duration);
+            float eased = 1f - Mathf.Pow(1f - t, 3f);
+            lessonCanvasGroup.alpha = eased;
+            lessonPanel.anchoredPosition = Vector2.LerpUnclamped(hiddenPosition, visiblePanelPosition, eased);
+            yield return null;
+        }
+
+        lessonCanvasGroup.alpha = 1f;
+        lessonPanel.anchoredPosition = visiblePanelPosition;
+        presentationRoutine = StartCoroutine(PresentMessageRoutine(false));
+    }
+
+    private IEnumerator AnimatePanelClosed()
+    {
+        float duration = definition != null ? definition.fadeDuration : 0.2f;
+        float slideDistance = definition != null ? definition.slideDistance : 24f;
+        Vector2 hiddenPosition = visiblePanelPosition + Vector2.left * slideDistance;
+        Vector2 startPosition = lessonPanel.anchoredPosition;
+        float startAlpha = lessonCanvasGroup.alpha;
+        lessonCanvasGroup.interactable = false;
+        lessonCanvasGroup.blocksRaycasts = false;
+
+        float elapsed = 0f;
+        while (elapsed < duration)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            float t = duration <= 0f ? 1f : Mathf.Clamp01(elapsed / duration);
+            float eased = t * t;
+            lessonCanvasGroup.alpha = Mathf.Lerp(startAlpha, 0f, eased);
+            lessonPanel.anchoredPosition = Vector2.LerpUnclamped(startPosition, hiddenPosition, eased);
+            yield return null;
+        }
+
+        lessonCanvasGroup.alpha = 0f;
+        lessonPanel.anchoredPosition = visiblePanelPosition;
+        lessonPanel.gameObject.SetActive(false);
+        presentationRoutine = null;
+        RefreshControlVisibility();
+    }
+
+    private IEnumerator PresentMessageRoutine(bool animateEntrance = true)
     {
         float fadeDuration = definition != null ? definition.fadeDuration : 0.2f;
         float slideDistance = definition != null ? definition.slideDistance : 24f;
         float displayDuration = definition != null ? definition.minimumMessageDuration : 3.5f;
         Vector2 hiddenPosition = visiblePanelPosition + Vector2.left * slideDistance;
 
-        lessonCanvasGroup.alpha = 0f;
-        lessonPanel.anchoredPosition = hiddenPosition;
+        lessonCanvasGroup.alpha = animateEntrance ? 0f : 1f;
+        lessonPanel.anchoredPosition = animateEntrance ? hiddenPosition : visiblePanelPosition;
         float elapsed = 0f;
-        while (elapsed < fadeDuration)
+        while (animateEntrance && elapsed < fadeDuration)
         {
-            elapsed += Time.deltaTime;
+            elapsed += Time.unscaledDeltaTime;
             float t = fadeDuration <= 0f ? 1f : Mathf.Clamp01(elapsed / fadeDuration);
             lessonCanvasGroup.alpha = t;
             lessonPanel.anchoredPosition = Vector2.Lerp(hiddenPosition, visiblePanelPosition, t);
@@ -394,7 +548,7 @@ public sealed class SimulationLessonPresenter : MonoBehaviour
         elapsed = 0f;
         while (elapsed < displayDuration)
         {
-            elapsed += Time.deltaTime;
+            elapsed += Time.unscaledDeltaTime;
             yield return null;
         }
 
@@ -413,24 +567,15 @@ public sealed class SimulationLessonPresenter : MonoBehaviour
             yield break;
         }
 
-        elapsed = 0f;
-        while (elapsed < fadeDuration)
-        {
-            elapsed += Time.deltaTime;
-            float t = fadeDuration <= 0f ? 1f : Mathf.Clamp01(elapsed / fadeDuration);
-            lessonCanvasGroup.alpha = 1f - t;
-            lessonPanel.anchoredPosition = Vector2.Lerp(visiblePanelPosition, hiddenPosition, t);
-            yield return null;
-        }
-
-        lessonCanvasGroup.alpha = 0f;
-        lessonPanel.gameObject.SetActive(false);
+        // The panel remains visible until the player presses its close button.
+        lessonCanvasGroup.alpha = 1f;
+        lessonPanel.anchoredPosition = visiblePanelPosition;
         presentationRoutine = null;
-        currentMessage = null;
     }
 
     private void ClearLesson()
     {
+        RestoreSimulationSpeed();
         if (presentationRoutine != null) StopCoroutine(presentationRoutine);
         presentationRoutine = null;
         pendingMessages.Clear();
@@ -439,6 +584,7 @@ public sealed class SimulationLessonPresenter : MonoBehaviour
         lessonLocation = null;
         activeVehicle = null;
         lessonActive = false;
+        lessonPanelOpen = false;
         liveLoadMessageQueued = false;
         vehicleEntryMessageQueued = false;
         midpointMessageQueued = false;
@@ -449,10 +595,49 @@ public sealed class SimulationLessonPresenter : MonoBehaviour
         outcomePresentedAt = float.NegativeInfinity;
 
         if (lessonCanvasGroup != null) lessonCanvasGroup.alpha = 0f;
+        if (lessonCanvasGroup != null)
+        {
+            lessonCanvasGroup.interactable = false;
+            lessonCanvasGroup.blocksRaycasts = false;
+        }
+        if (lessonMenuButton != null) lessonMenuButton.gameObject.SetActive(false);
         if (lessonPanel != null)
         {
             lessonPanel.anchoredPosition = visiblePanelPosition;
             lessonPanel.gameObject.SetActive(false);
         }
+    }
+
+    private void ApplyLessonSlowMotion()
+    {
+        if (slowMotionApplied || definition == null || !definition.enableSlowMotion ||
+            physicsManager == null || !physicsManager.IsSimulationActive || Time.timeScale <= 0f)
+        {
+            return;
+        }
+
+        timeScaleBeforeLesson = Time.timeScale;
+        appliedLessonTimeScale = timeScaleBeforeLesson *
+            Mathf.Clamp(definition.simulationTimeScale, 0.1f, 1f);
+
+        // Deliberately leave Time.fixedDeltaTime untouched. PhysX continues to
+        // solve the exact same fixed-size steps and deterministic stress samples;
+        // those steps are simply presented less frequently in wall-clock time.
+        Time.timeScale = appliedLessonTimeScale;
+        slowMotionApplied = true;
+    }
+
+    private void RestoreSimulationSpeed()
+    {
+        if (!slowMotionApplied) return;
+
+        // Do not overwrite a pause, debug speed, or another system's later
+        // change. Restore only when our own scale is still the active value.
+        if (Mathf.Approximately(Time.timeScale, appliedLessonTimeScale))
+            Time.timeScale = timeScaleBeforeLesson;
+
+        slowMotionApplied = false;
+        timeScaleBeforeLesson = 1f;
+        appliedLessonTimeScale = 1f;
     }
 }

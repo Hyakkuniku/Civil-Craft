@@ -11,6 +11,13 @@ public sealed class SimulationLessonDefinition : ScriptableObject
     [Min(0f)] public float fadeDuration = 0.2f;
     [Min(0f)] public float slideDistance = 24f;
 
+    [Header("Lesson Slow Motion")]
+    [Tooltip("Slows wall-clock playback while this lesson panel is open. The physics fixed timestep is never changed.")]
+    public bool enableSlowMotion = true;
+    [Range(0.1f, 1f)]
+    [Tooltip("Simulation playback speed while the lesson is visible. 0.5 plays at half speed.")]
+    public float simulationTimeScale = 0.5f;
+
     [Header("Observed Event Thresholds")]
     [Range(0f, 1f)] public float vehicleEnteredProgress = 0.1f;
     [Range(0f, 1f)] public float vehicleMidpointProgress = 0.5f;

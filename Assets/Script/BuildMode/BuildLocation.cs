@@ -55,10 +55,9 @@ public class BuildLocation : Interactable
     [Tooltip("If assigned, this tutorial will start the moment the player enters this Build Location.")]
     public TutorialSequence onEnterBuildModeTutorial;
 
-    [Header("Optional Simulation Lesson")]
-    [Tooltip("Shows an outcome-aware engineering lesson while this location is being simulated.")]
-    public bool enableSimulationLesson = false;
-    [Tooltip("Messages and thresholds used by this location. Leave empty to keep the current simulation UI unchanged.")]
+    [Header("Simulation Lesson Override")]
+    [HideInInspector] public bool enableSimulationLesson = false;
+    [Tooltip("Optional location-specific simulation lesson. Leave empty to use the generic bridge lesson when the player enables lessons from the build-mode menu.")]
     public SimulationLessonDefinition simulationLesson;
 
     [Header("Pre-placed Anchors")]

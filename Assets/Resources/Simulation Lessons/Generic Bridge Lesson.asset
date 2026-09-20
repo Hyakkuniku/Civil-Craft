@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6f37df8d20f74e62a3e88f7fa41df9b0, type: 3}
+  m_Name: Generic Bridge Lesson
+  m_EditorClassIdentifier:
+  panelTitle: BRIDGE BEHAVIOR
+  minimumMessageDuration: 3.5
+  fadeDuration: 0.2
+  slideDistance: 24
+  enableSlowMotion: 1
+  simulationTimeScale: 0.5
+  vehicleEnteredProgress: 0.1
+  vehicleMidpointProgress: 0.5
+  highStressThreshold: 0.7
+  vehicleStuckDelay: 5
+  simulationStarted: Simulation started. Watch how the bridge responds as dead load and live load travel through its members.
+  liveLoadStarted: The moving live load is transferring weight through the road, structural members, and supports into the ground.
+  vehicleEnteredBridge: The live load has entered the bridge. Observe which members begin carrying more force.
+  vehicleReachedMidpoint: The live load is near midspan, where the bridge is often farthest from its supports and structural demand can increase.
+  highStressDetected: Orange or red members are using a high percentage of their capacity. Check whether the load has a direct, well-supported path to the anchors.
+  stressLimitExceeded: The bridge exceeded the contract's allowed stress. Improve the load path, shorten unsupported spans, or add effective support.
+  firstMemberBreak: A structural member exceeded its capacity and failed. The remaining structure must now carry the redistributed load.
+  vehicleStuck: The vehicle has stopped moving. Check the road alignment, clearance, and excessive bridge deformation near its position.
+  vehicleFailed: The continuous load path was lost before the vehicle completed the crossing. Strengthen the failed area and test again.
+  bridgeSucceeded: The bridge carried the required live load successfully and maintained a continuous load path between its supports.
+  simulationStopped: Simulation stopped. Review the bridge's movement and stressed areas before revising the design.

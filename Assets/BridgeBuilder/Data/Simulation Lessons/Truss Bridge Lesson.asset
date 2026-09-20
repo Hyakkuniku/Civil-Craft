@@ -1,0 +1,50 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6f37df8d20f74e62a3e88f7fa41df9b0, type: 3}
+  m_Name: Truss Bridge Lesson
+  m_EditorClassIdentifier: 
+  panelTitle: TRUSS BRIDGE BEHAVIOR
+  minimumMessageDuration: 3.5
+  fadeDuration: 0.2
+  slideDistance: 24
+  enableSlowMotion: 1
+  simulationTimeScale: 0.5
+  vehicleEnteredProgress: 0.1
+  vehicleMidpointProgress: 0.5
+  highStressThreshold: 0.7
+  vehicleStuckDelay: 5
+  simulationStarted: Simulation started. Watch how the connected triangles carry
+    the moving live load toward both supports.
+  liveLoadStarted: The vehicle's weight enters through the road. The truss redirects
+    much of that bending demand into pulling and pushing forces along its members.
+  vehicleEnteredBridge: The live load has entered the first truss panels. Diagonal
+    and vertical members now share the force with the top and bottom chords.
+  vehicleReachedMidpoint: The vehicle is near midspan, where the truss is working
+    hardest. In a typical loaded truss, the top chord is pushed in compression while
+    the bottom chord is pulled in tension.
+  highStressDetected: Orange or red members are carrying a high percentage of their
+    capacity. Check whether each triangle provides a continuous path to an anchor.
+  stressLimitExceeded: This truss exceeded the contract's allowed stress. Improve
+    its panel geometry, reinforce the highly stressed members, or provide a clearer
+    load path to the supports.
+  firstMemberBreak: A truss member exceeded its capacity and failed. One broken side
+    of a triangle can force the remaining members to carry loads they were not designed
+    to resist.
+  vehicleStuck: The vehicle has stopped moving. Check for excessive truss deflection,
+    uneven road joints, or members obstructing the roadway.
+  vehicleFailed: The truss lost a continuous path for the live load. Restore complete
+    triangles and strengthen the failed region before testing again.
+  bridgeSucceeded: The truss carried the required live load successfully. Its connected
+    triangles transferred the vehicle's weight through the chords and web members
+    into the supports.
+  simulationStopped: Simulation stopped. Review the stressed truss panels and confirm
+    that every triangle remains connected before revising the design.

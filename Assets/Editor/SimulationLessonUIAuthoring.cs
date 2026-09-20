@@ -14,11 +14,10 @@ using UnityEngine.UI;
 public static class SimulationLessonUIAuthoring
 {
     private const string PresenterGuid = "86a69af76ec4471a939e90ba7287f209";
-    private const int HierarchyAuthoringVersion = 2;
+    private const int HierarchyAuthoringVersion = 6;
 
     private static readonly string[] PrefabPaths =
     {
-        "Assets/BridgeBuilder/Data/BuildUIManager.prefab",
         "Assets/Prefabs/BuildingMode/MANAGERS AND CANVASES.prefab"
     };
 
@@ -162,6 +161,19 @@ public static class SimulationLessonUIAuthoring
                 changed = true;
             }
 
+
+            changed |= EnsureLessonControls(
+                uiParent,
+                existingPanel,
+                panelSprite,
+                font,
+                out Button menuButton,
+                out Button closeButton);
+            presenter.ConfigureControls(
+                menuButton,
+                closeButton,
+                HierarchyAuthoringVersion);
+
             SerializedObject serializedPresenter = new SerializedObject(presenter);
             SerializedProperty version = serializedPresenter.FindProperty("hierarchyAuthoringVersion");
             if (version != null && version.intValue != HierarchyAuthoringVersion)
@@ -272,10 +284,184 @@ public static class SimulationLessonUIAuthoring
         message.text = "Simulation lesson text";
 
         presenter.Configure(panelRect, group, title, message, HierarchyAuthoringVersion);
+        EnsureLessonControls(
+            uiParent,
+            panelRect,
+            panelSprite,
+            font,
+            out Button newMenuButton,
+            out Button newCloseButton);
+        presenter.ConfigureControls(
+            newMenuButton,
+            newCloseButton,
+            HierarchyAuthoringVersion);
         panelObject.SetActive(false);
         EditorUtility.SetDirty(controller);
         EditorUtility.SetDirty(presenter);
         return true;
+    }
+
+    private static bool EnsureLessonControls(
+        Transform uiParent,
+        RectTransform lessonPanel,
+        Sprite panelSprite,
+        TMP_FontAsset font,
+        out Button menuButton,
+        out Button closeButton)
+    {
+        bool changed = false;
+        Transform existingMenu = FindDescendant(uiParent, "SimulationLessonMenuButton");
+        Transform existingOptions = FindDescendant(uiParent, "SimulationLessonOptionsPanel");
+        if (existingOptions != null)
+        {
+            Object.DestroyImmediate(existingOptions.gameObject);
+            changed = true;
+        }
+
+        GameObject menuObject;
+        if (existingMenu == null)
+        {
+            menuObject = new GameObject(
+                "SimulationLessonMenuButton",
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(Image),
+                typeof(Button));
+            menuObject.transform.SetParent(uiParent, false);
+            menuObject.transform.SetAsLastSibling();
+            changed = true;
+        }
+        else
+        {
+            menuObject = existingMenu.gameObject;
+        }
+
+        RectTransform menuRect = menuObject.GetComponent<RectTransform>();
+        menuRect.anchorMin = new Vector2(0f, 1f);
+        menuRect.anchorMax = new Vector2(0f, 1f);
+        menuRect.pivot = new Vector2(0f, 1f);
+        menuRect.anchoredPosition = new Vector2(32f, -205f);
+        menuRect.sizeDelta = new Vector2(64f, 64f);
+
+        Image menuImage = menuObject.GetComponent<Image>();
+        menuImage.sprite = panelSprite;
+        menuImage.type = panelSprite != null ? Image.Type.Sliced : Image.Type.Simple;
+        menuImage.color = new Color32(13, 43, 116, 246);
+        menuImage.raycastTarget = true;
+        menuButton = menuObject.GetComponent<Button>();
+        menuButton.targetGraphic = menuImage;
+
+        if (FindDescendant(menuObject.transform, "Burger Bar 1") == null)
+        {
+            for (int index = 0; index < 3; index++)
+            {
+                GameObject bar = CreateImage(
+                    "Burger Bar " + (index + 1),
+                    menuObject.transform,
+                    null,
+                    Color.white);
+                RectTransform barRect = bar.GetComponent<RectTransform>();
+                barRect.anchorMin = barRect.anchorMax = new Vector2(0.5f, 0.5f);
+                barRect.pivot = new Vector2(0.5f, 0.5f);
+                barRect.anchoredPosition = new Vector2(0f, 12f - index * 12f);
+                barRect.sizeDelta = new Vector2(30f, 4f);
+            }
+            changed = true;
+        }
+
+        Transform existingClose = FindDescendant(lessonPanel, "SimulationLessonCloseButton");
+        GameObject closeObject;
+        if (existingClose == null)
+        {
+            closeObject = new GameObject(
+                "SimulationLessonCloseButton",
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(Image),
+                typeof(Button),
+                typeof(Outline));
+            closeObject.transform.SetParent(lessonPanel, false);
+            changed = true;
+        }
+        else
+        {
+            closeObject = existingClose.gameObject;
+        }
+        closeObject.transform.SetAsLastSibling();
+        closeObject.SetActive(true);
+
+        RectTransform closeRect = closeObject.GetComponent<RectTransform>();
+        closeRect.anchorMin = closeRect.anchorMax = new Vector2(1f, 1f);
+        closeRect.pivot = new Vector2(0.5f, 0.5f);
+        closeRect.anchoredPosition = Vector2.zero;
+        closeRect.sizeDelta = new Vector2(42f, 42f);
+
+        Image closeImage = closeObject.GetComponent<Image>();
+        Sprite circleSprite = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/Knob.psd");
+        closeImage.sprite = circleSprite != null ? circleSprite : panelSprite;
+        closeImage.type = Image.Type.Simple;
+        closeImage.color = new Color32(250, 246, 232, 255);
+        closeImage.raycastTarget = true;
+        closeButton = closeObject.GetComponent<Button>();
+        closeButton.targetGraphic = closeImage;
+
+        Outline closeOutline = closeObject.GetComponent<Outline>();
+        closeOutline.effectColor = new Color32(13, 43, 116, 230);
+        closeOutline.effectDistance = new Vector2(2f, -2f);
+        closeOutline.useGraphicAlpha = true;
+
+        Transform existingCloseLabel = FindDescendant(closeObject.transform, "Close Icon");
+        TextMeshProUGUI closeLabel;
+        if (existingCloseLabel == null)
+        {
+            closeLabel = CreateText(
+                "Close Icon",
+                closeObject.transform,
+                font,
+                new Color32(13, 43, 116, 255),
+                28f,
+                TextAlignmentOptions.Center);
+            changed = true;
+        }
+        else
+        {
+            closeLabel = existingCloseLabel.GetComponent<TextMeshProUGUI>();
+        }
+        Stretch(closeLabel.rectTransform, 1f, 1f, 1f, 3f);
+        closeLabel.text = "×";
+        closeLabel.fontStyle = FontStyles.Bold;
+        closeLabel.raycastTarget = false;
+
+        Transform title = FindDescendant(lessonPanel, "Title");
+        if (title is RectTransform titleRect)
+            titleRect.offsetMax = new Vector2(-70f, -12f);
+
+        // These are presentation-only children and must remain enabled. Keeping
+        // this repair here prevents a close-button layout edit from leaving the
+        // frame visible while its background and text disappear.
+        changed |= EnsureActive(lessonPanel, "Background");
+        changed |= EnsureActive(lessonPanel, "Title");
+        changed |= EnsureActive(lessonPanel, "Divider");
+        changed |= EnsureActive(lessonPanel, "Message");
+
+        menuObject.SetActive(false);
+        return changed;
+    }
+
+    private static bool EnsureActive(Transform root, string objectName)
+    {
+        Transform target = FindDescendant(root, objectName);
+        if (target == null || target.gameObject.activeSelf) return false;
+        target.gameObject.SetActive(true);
+        return true;
+    }
+
+    private static Transform FindDescendant(Transform root, string objectName)
+    {
+        if (root == null) return null;
+        foreach (Transform value in root.GetComponentsInChildren<Transform>(true))
+            if (value != null && value.name == objectName) return value;
+        return null;
     }
 
     private static Canvas ResolveBuildCanvas(BuildUIController controller)
