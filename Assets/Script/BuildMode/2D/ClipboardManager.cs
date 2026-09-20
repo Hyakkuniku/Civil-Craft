@@ -120,6 +120,13 @@ public class ClipboardManager : MonoBehaviour
             }
         }
 
+        BuildTutorialDirector tutorialDirector = BuildTutorialDirector.Instance;
+        if (tutorialDirector != null && !tutorialDirector.CanCopyTutorialSelection(capturedBars))
+        {
+            tutorialDirector.NotifyTutorialCopyBlocked();
+            return;
+        }
+
         if (capturedBars.Count == 0)
         {
             barCreator.ClearSelectionPublic();

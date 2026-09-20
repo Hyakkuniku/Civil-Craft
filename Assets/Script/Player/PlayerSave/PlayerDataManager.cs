@@ -1863,4 +1863,33 @@ public class PlayerDataManager : MonoBehaviour
         state.wasTravelling = wasTravelling;
         SaveGame();
     }
+
+    public void MarkNPCPhaseDialogueCompleted(string progressionId, string phaseId)
+    {
+        if (CurrentData == null || string.IsNullOrWhiteSpace(progressionId) ||
+            string.IsNullOrWhiteSpace(phaseId)) return;
+        if (CurrentData.npcProgressions == null)
+            CurrentData.npcProgressions = new List<NPCProgressionSaveData>();
+
+        string normalizedProgressionId = progressionId.Trim();
+        string normalizedPhaseId = phaseId.Trim();
+        NPCProgressionSaveData state = CurrentData.npcProgressions.Find(entry =>
+            entry != null && string.Equals(entry.progressionId, normalizedProgressionId,
+                StringComparison.Ordinal));
+
+        if (state == null)
+        {
+            state = new NPCProgressionSaveData { progressionId = normalizedProgressionId };
+            CurrentData.npcProgressions.Add(state);
+        }
+
+        if (state.completedDialoguePhaseIds == null)
+            state.completedDialoguePhaseIds = new List<string>();
+        if (state.completedDialoguePhaseIds.Exists(savedPhaseId =>
+                string.Equals(savedPhaseId, normalizedPhaseId, StringComparison.Ordinal)))
+            return;
+
+        state.completedDialoguePhaseIds.Add(normalizedPhaseId);
+        SaveGame();
+    }
 }

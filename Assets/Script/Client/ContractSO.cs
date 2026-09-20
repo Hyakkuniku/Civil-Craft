@@ -54,6 +54,21 @@ public class ContractSO : ScriptableObject
     public bool allowVehicleCargo;
     [Min(0), Tooltip("0 makes loading optional. A higher count requires that many loaded cargo items before Simulate.")]
     public int minimumLoadedCargo;
+    [Tooltip("Optional NPC progression save ID that must finish a dialogue before this contract's cargo can be picked up or loaded.")]
+    public string cargoUnlockProgressionId;
+    [Tooltip("Zero-based NPC phase index whose completed dialogue unlocks this contract's cargo. Use -1 for no phase gate.")]
+    public int cargoUnlockAfterDialoguePhaseIndex = -1;
+
+    public bool IsCargoInteractionUnlocked()
+    {
+        if (string.IsNullOrWhiteSpace(cargoUnlockProgressionId) ||
+            cargoUnlockAfterDialoguePhaseIndex < 0) return true;
+
+        NPCProgressionManager progression =
+            NPCProgressionManager.FindByProgressionSaveId(cargoUnlockProgressionId);
+        return progression != null &&
+               progression.HasCompletedPhaseDialogue(cargoUnlockAfterDialoguePhaseIndex);
+    }
 
     public enum ContractMap
     {

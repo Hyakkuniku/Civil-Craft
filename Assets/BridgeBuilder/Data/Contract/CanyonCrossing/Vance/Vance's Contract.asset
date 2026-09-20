@@ -12,6 +12,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
   m_Name: Vance's Contract
   m_EditorClassIdentifier: 
+  liveLoadMode: 0
+  allowVehicleCargo: 1
+  minimumLoadedCargo: 4
+  cargoUnlockProgressionId: VanceNPC
+  cargoUnlockAfterDialoguePhaseIndex: 3
   contractID: VancesContract
   efficiencyStarBudgetRatio: 0.85
   strengthStarMaxStress: 60
@@ -40,31 +45,37 @@ MonoBehaviour:
   offerDialogue:
     name: Vance
     sentences:
-    - Vehicles from the factory can already reach the other side.
-    - The issue is that the road takes them all the way around the canyon.
-    - 'They end up traveling much farther than they need to. '
-    - A bridge here would give them a much more direct route.
-    - "This crossing will carry a heavier vehicle than the ones you\u2019ve handled
-      before."
+    - This bridge will form the first half of a new supply route to the community.
+    - It needs to connect the factory road to the supply point at the middle ravine.
+    - The loaded vehicle is heavier than the ones you have handled before.
     - <b><#E09500>As that weight moves across, different parts of the bridge may
-      respond in different ways<#E09500></b>.
-    - <b><#E09500>Pay attention to how the structural members behave during the test<#E09500></b>.
-    - Watch how they work together as the vehicle crosses.
-    - "If you\u2019re ready, I can give you the contract."
+      respond in different ways</color></b>.
+    - <b><#E09500>Pay attention to how the structural members behave during the test</color></b>.
+    - Watch how they work together while the cargo vehicle crosses.
+    - If the bridge can carry the complete load safely, the supplies can reach the
+      middle ravine.
+    - If you're ready, take the contract.
   continueOfferDialogue:
     name: Vance
     sentences: []
   reminderDialogue:
     name: Vance
     sentences:
-    - 'Take your time with the design.
-
-'
-    - Keep an eye on how the different parts of the bridge respond during the test.
+    - The cargo is secured and the required live load is ready.
+    - Take your time with the design.
+    - Watch how the different parts of the bridge respond when the loaded vehicle
+      crosses.
   finishedContractDialogue:
     name: Vance
     sentences:
-    - "Now that\u2019s a shortcut."
-    - Vehicles from the factory can head straight through instead of taking the long
-      way around the canyon.
-    - That should save everyone using this route a lot of travel time.
+    - That's the first part of the route open.
+    - The loaded vehicle made it from the factory to the middle ravine safely.
+    - You also proved that the bridge can carry the actual cargo the community needs,
+      not just an empty vehicle.
+    - But the delivery is only halfway there.
+    - The road ends at the next ravine, and the community is still on the other side.
+    - <b>Silas<b> is responsible for the projects beyond this point.
+    - He is waiting near the middle supply area, where the vehicle stopped.
+    - Take the contract record to him. He'll show you what is needed to finish the
+      route.
+    - Good work, {PlayerName}.

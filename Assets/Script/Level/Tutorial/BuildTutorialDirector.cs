@@ -216,12 +216,13 @@ public class BuildTutorialDirector : MonoBehaviour
                 BarCreator creator = BuildUIController.Instance != null
                     ? BuildUIController.Instance.barCreator
                     : null;
-                requiredSelectionBars.Clear();
                 requiredSelectionPoints.Clear();
-                if (creator != null)
+                // TutorialDragSelectionAnim records the exact connected bridge before
+                // advancing here. Keep that authoritative set; the current selection is
+                // only a fallback for older scenes without the selection indicator hook.
+                if (requiredSelectionBars.Count == 0 && creator != null)
                 {
                     requiredSelectionBars.UnionWith(creator.selectedBars);
-                    requiredSelectionPoints.UnionWith(creator.selectedPoints);
                 }
             }
         }
@@ -439,7 +440,7 @@ public class BuildTutorialDirector : MonoBehaviour
         if (activeGhosts == null || activeGhosts.Length == 0)
             Debug.LogWarning("Build tutorial tracing started, but no active GhostSegment objects were found.");
         else
-            RefreshGhostCoverage(activeTraceState);
+            CheckGhostBridgeCompletion();
     }
 
     /// <summary>
@@ -615,6 +616,67 @@ public class BuildTutorialDirector : MonoBehaviour
         }
 
         if (!selectionStillComplete) ReturnToSelectionStart();
+    }
+
+    /// <summary>
+    /// Stores the complete source bridge identified by the selection tutorial. The Copy
+    /// step uses this exact set rather than trusting whichever partial selection happens
+    /// to be active when its button is pressed.
+    /// </summary>
+    public void SetRequiredTutorialSelection(IEnumerable<Bar> requiredBars)
+    {
+        TutorialManager tutorial = TutorialManager.Instance;
+        if (tutorial == null || !tutorial.IsPlayingLesson(selectionTutorialLesson) ||
+            tutorial.CurrentStepAction != TutorialStepAction.SelectBridge)
+        {
+            return;
+        }
+
+        requiredSelectionBars.Clear();
+        requiredSelectionPoints.Clear();
+
+        if (requiredBars == null) return;
+        foreach (Bar bar in requiredBars)
+        {
+            if (bar != null && bar.gameObject.activeInHierarchy)
+                requiredSelectionBars.Add(bar);
+        }
+    }
+
+    /// <summary>
+    /// Prevents Copy from bypassing the Select Bridge step or copying only part of the
+    /// tutorial bridge. Extra selected bars are rejected too because they would create a
+    /// paste preview that can never match the authored destination ghost.
+    /// </summary>
+    public bool CanCopyTutorialSelection(ICollection<Bar> barsToCopy)
+    {
+        TutorialManager tutorial = TutorialManager.Instance;
+        if (tutorial == null || !tutorial.IsPlayingLesson(selectionTutorialLesson))
+            return true;
+
+        if (tutorial.CurrentStepAction != TutorialStepAction.CopySelection ||
+            barsToCopy == null || requiredSelectionBars.Count == 0 ||
+            barsToCopy.Count != requiredSelectionBars.Count)
+        {
+            return false;
+        }
+
+        foreach (Bar requiredBar in requiredSelectionBars)
+        {
+            if (requiredBar == null || !requiredBar.gameObject.activeInHierarchy ||
+                !barsToCopy.Contains(requiredBar))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    public void NotifyTutorialCopyBlocked()
+    {
+        if (BuildUIController.Instance != null)
+            BuildUIController.Instance.LogAction("Select the entire highlighted bridge before copying.");
     }
 
     public void NotifyPasteCanceled()
@@ -1212,18 +1274,40 @@ public class BuildTutorialDirector : MonoBehaviour
         if (!isTracingStep || IsAwaitingInvalidBarUndo || activeTraceState == null ||
             activeGhosts == null || activeGhosts.Length == 0) return;
 
-        bool allGhostsCovered = RefreshGhostCoverage(activeTraceState);
+        TraceStepState completedState = activeTraceState;
+        bool allGhostsCovered = RefreshGhostCoverage(completedState);
         if (!allGhostsCovered) return;
 
-        activeTraceState.completed = true;
+        completedState.completed = true;
 
         isTracingStep = false;
         RestoreTintedBar();
 
-        if (activeTraceState.parent != null)
-            activeTraceState.parent.gameObject.SetActive(false);
+        if (completedState.parent != null)
+            completedState.parent.gameObject.SetActive(false);
 
-        if (TutorialManager.Instance != null) TutorialManager.Instance.ShowNextStep();
+        TutorialManager tutorial = TutorialManager.Instance;
+        if (tutorial == null) return;
+
+        int completedStepIndex = completedState.stepIndex;
+        tutorial.ShowNextStep();
+
+        // ShowNextStep deliberately rejects duplicate/same-frame advances. Undo can restore
+        // the final missing bar in the same frame that history recovery returned here, so a
+        // rejected advance must not leave a fully covered tracing step permanently disarmed.
+        // Keep it live and Update will retry on the next frame.
+        if (tutorial.IsTutorialActive && tutorial.CurrentStepIndex == completedStepIndex)
+        {
+            completedState.completed = false;
+            activeStepIndex = completedStepIndex;
+            activeTraceState = completedState;
+            activeGhosts = completedState.ghosts;
+            activeGhostPoints = completedState.ghostPoints;
+            isTracingStep = true;
+
+            if (completedState.parent != null)
+                completedState.parent.gameObject.SetActive(true);
+        }
     }
 
     private bool RefreshGhostCoverage(TraceStepState state)

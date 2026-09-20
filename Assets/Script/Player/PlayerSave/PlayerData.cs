@@ -90,6 +90,9 @@ public class NPCProgressionSaveData
 
     [Tooltip("True when the game was saved after travel began but before arrival.")]
     public bool wasTravelling;
+
+    [Tooltip("Stable phase IDs whose dialogue has finished at least once. Used by phase-gated world interactions.")]
+    public List<string> completedDialoguePhaseIds = new List<string>();
 }
 
 [System.Serializable]

@@ -304,6 +304,50 @@ public class NPCProgressionManager : MonoBehaviour
             ? phases[currentPhaseIndex]
             : null;
 
+    public string ProgressionSaveId => progressionSaveId;
+
+    public bool HasCompletedPhaseDialogue(int phaseIndex)
+    {
+        if (phases == null || phaseIndex < 0 || phaseIndex >= phases.Count ||
+            phases[phaseIndex] == null) return false;
+
+        // Reaching a later phase proves that every earlier dialogue-driven phase
+        // completed, including saves created before dialogue completion was tracked.
+        if (currentPhaseIndex > phaseIndex || completedDialoguePhases.Contains(phaseIndex))
+            return true;
+
+        if (PlayerDataManager.Instance == null || string.IsNullOrWhiteSpace(progressionSaveId) ||
+            !PlayerDataManager.Instance.TryGetNPCProgression(
+                progressionSaveId, out NPCProgressionSaveData savedState) || savedState == null)
+        {
+            return false;
+        }
+
+        int savedPhaseIndex = FindPhaseIndexById(savedState.currentPhaseId);
+        if (savedPhaseIndex < 0) savedPhaseIndex = savedState.currentPhaseIndex;
+        if (savedPhaseIndex > phaseIndex) return true;
+
+        string phaseId = phases[phaseIndex].phaseId;
+        return savedState.completedDialoguePhaseIds != null &&
+               savedState.completedDialoguePhaseIds.Exists(savedPhaseId =>
+                   string.Equals(savedPhaseId, phaseId, System.StringComparison.Ordinal));
+    }
+
+    public static NPCProgressionManager FindByProgressionSaveId(string progressionId)
+    {
+        if (string.IsNullOrWhiteSpace(progressionId)) return null;
+        string normalizedId = progressionId.Trim();
+
+        foreach (NPCProgressionManager manager in Resources.FindObjectsOfTypeAll<NPCProgressionManager>())
+        {
+            if (manager == null || !manager.gameObject.scene.IsValid()) continue;
+            if (string.Equals(manager.progressionSaveId, normalizedId,
+                    System.StringComparison.Ordinal)) return manager;
+        }
+
+        return null;
+    }
+
     public string GetPhaseDisplayName(int phaseIndex)
     {
         if (phases == null || phaseIndex < 0 || phaseIndex >= phases.Count)
@@ -2222,6 +2266,8 @@ public class NPCProgressionManager : MonoBehaviour
     {
         if (phase == null) return;
 
+        MarkPhaseDialogueCompleted(phaseIndex, phase);
+
         GrantConfiguredPhaseFeature(phase);
 
         TryShowMaterialIntroduction(phaseIndex, phase);
@@ -2423,6 +2469,8 @@ public class NPCProgressionManager : MonoBehaviour
         runningOptionalSequencePhases.Remove(phaseIndex);
         if (phase == null) return;
 
+        MarkPhaseDialogueCompleted(phaseIndex, phase);
+
         if (!phase.repeatDialogue)
             completedDialoguePhases.Add(phaseIndex);
 
@@ -2438,6 +2486,20 @@ public class NPCProgressionManager : MonoBehaviour
         // This is intentionally last: events that move the NPC or advance the
         // phase now wait until the final authored dialogue/unlock step has closed.
         phase.InvokeDialogueFinished();
+    }
+
+    private void MarkPhaseDialogueCompleted(int phaseIndex, NPCProgressionPhase phase)
+    {
+        if (phase == null || phaseIndex < 0 || phaseIndex >= phases.Count) return;
+
+        completedDialoguePhases.Add(phaseIndex);
+        if (persistProgression && PlayerDataManager.Instance != null &&
+            !string.IsNullOrWhiteSpace(progressionSaveId) &&
+            !string.IsNullOrWhiteSpace(phase.phaseId))
+        {
+            PlayerDataManager.Instance.MarkNPCPhaseDialogueCompleted(
+                progressionSaveId, phase.phaseId);
+        }
     }
 
     private static bool IsUsableDialogue(Dialogue dialogue)

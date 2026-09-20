@@ -27,12 +27,15 @@ public class CargoItem : Interactable
         playerCargoContract.liveLoadMode == ContractSO.LiveLoadMode.PlayerCarriedCargo);
     [SerializeField, HideInInspector] private string persistentCargoId;
     public string PersistentCargoId => persistentCargoId;
+    public bool IsProgressionInteractionUnlocked => playerCargoContract == null ||
+        playerCargoContract.IsCargoInteractionUnlocked();
     public bool IsPermanentlyLoaded => loadedSlot != null ||
         (PlayerDataManager.Instance != null && PlayerDataManager.Instance.IsCargoPermanentlyLoaded(persistentCargoId));
     private VehicleCargoSlot loadedSlot;
     private CargoDropLocation deliveredLocation;
     public CargoDropLocation DeliveredLocation => deliveredLocation;
-    public override bool IsInteractionAvailable => base.IsInteractionAvailable && !IsPermanentlyLoaded &&
+    public override bool IsInteractionAvailable => base.IsInteractionAvailable && IsProgressionInteractionUnlocked &&
+        !IsPermanentlyLoaded &&
         !deliveryRestorePending && (!deliveredToLocation || HasAvailableStoryDestination()) &&
         !(isHeld && RestrictsFreeDrop);
 
@@ -222,6 +225,7 @@ public class CargoItem : Interactable
 
     public void PickUp()
     {
+        if (!IsProgressionInteractionUnlocked) return;
         if (deliveryRestorePending) return;
         if (deliveredToLocation)
         {

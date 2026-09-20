@@ -163,6 +163,9 @@ public class TutorialDragSelectionAnim : MonoBehaviour
             }
         }
 
+        if (BuildTutorialDirector.Instance != null)
+            BuildTutorialDirector.Instance.SetRequiredTutorialSelection(requiredBars);
+
         selectionCompleted = true;
         Hide();
 
@@ -214,7 +217,39 @@ public class TutorialDragSelectionAnim : MonoBehaviour
             }
         }
 
-        return required;
+        // A slightly undersized tutorial volume must not make a partial bridge valid.
+        // Expand every bar touched by the volume to its complete active connected graph.
+        Queue<Bar> pending = new Queue<Bar>(required);
+        HashSet<Bar> connectedBridge = new HashSet<Bar>(required);
+        while (pending.Count > 0)
+        {
+            Bar current = pending.Dequeue();
+            AddConnectedBars(current != null ? current.startPoint : null, authoredBars, connectedBridge, pending);
+            AddConnectedBars(current != null ? current.endPoint : null, authoredBars, connectedBridge, pending);
+        }
+
+        return new List<Bar>(connectedBridge);
+    }
+
+    private static void AddConnectedBars(
+        Point point,
+        HashSet<Bar> authoredBars,
+        HashSet<Bar> connectedBridge,
+        Queue<Bar> pending)
+    {
+        if (point == null) return;
+
+        foreach (Bar connectedBar in point.ConnectedBars)
+        {
+            if (connectedBar == null || !connectedBar.gameObject.activeInHierarchy ||
+                authoredBars.Contains(connectedBar) || connectedBridge.Contains(connectedBar))
+            {
+                continue;
+            }
+
+            connectedBridge.Add(connectedBar);
+            pending.Enqueue(connectedBar);
+        }
     }
 
     private bool SegmentIntersectsFinalVolume(Vector3 worldStart, Vector3 worldEnd)

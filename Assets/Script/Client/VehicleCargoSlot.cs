@@ -63,7 +63,8 @@ public class VehicleCargoSlot : Interactable
                 PlayerDataManager.Instance.GetLoadedVehicleCargo(persistentSlotId) != null) return false;
             CargoItem held = CargoItem.HeldCargo;
             promptMessage = "Load Cargo";
-            return held != null && !held.RestrictsFreeDrop && (acceptedCargo == null || acceptedCargo == held);
+            return held != null && held.IsProgressionInteractionUnlocked &&
+                   !held.RestrictsFreeDrop && (acceptedCargo == null || acceptedCargo == held);
         }
     }
 
