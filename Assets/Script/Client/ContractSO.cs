@@ -58,6 +58,8 @@ public class ContractSO : ScriptableObject
     public string cargoUnlockProgressionId;
     [Tooltip("Zero-based NPC phase index whose completed dialogue unlocks this contract's cargo. Use -1 for no phase gate.")]
     public int cargoUnlockAfterDialoguePhaseIndex = -1;
+    [Tooltip("Optional phase ID the same NPC moves to once Minimum Loaded Cargo is reached. Empty means no automatic phase move.")]
+    public string cargoLoadedNPCPhaseId;
 
     public bool IsCargoInteractionUnlocked()
     {

@@ -17,6 +17,7 @@ MonoBehaviour:
   minimumLoadedCargo: 4
   cargoUnlockProgressionId: VanceNPC
   cargoUnlockAfterDialoguePhaseIndex: 3
+  cargoLoadedNPCPhaseId: Project Briefing
   contractID: VancesContract
   efficiencyStarBudgetRatio: 0.85
   strengthStarMaxStress: 60

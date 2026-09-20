@@ -76,13 +76,16 @@ public sealed class BridgeSelectionOutline
     private static readonly int Mask = Shader.PropertyToID("_BridgeSelectionMask");
     private static readonly int TempA = Shader.PropertyToID("_BridgeSelectionTempA");
     private static readonly int TempB = Shader.PropertyToID("_BridgeSelectionTempB");
+    private readonly Transform root;
     private readonly MeshFilter[] meshes;
     private readonly Renderer[] renderers;
     private readonly Point point;
     private readonly Bar bar;
+    private bool visualOnlyVisible;
 
     public BridgeSelectionOutline(Transform root)
     {
+        this.root = root;
         point = root.GetComponent<Point>();
         bar = root.GetComponent<Bar>();
         meshes = root.GetComponentsInChildren<MeshFilter>(true);
@@ -91,6 +94,16 @@ public sealed class BridgeSelectionOutline
         if (outlineMaterial == null) outlineMaterial = Resources.Load<Material>("UI/BridgeSelectionOutline");
         if (outlines.Count == 0) RenderPipelineManager.beginCameraRendering += EnqueueOutline;
         outlines.Add(this);
+    }
+
+    /// <summary>
+    /// Shows this outline as a visual-only world hint when the target is not a
+    /// bridge Bar or Point. It does not modify selection or interaction state.
+    /// </summary>
+    public void SetVisualOnlyVisible(bool visible)
+    {
+        visualOnlyVisible = visible;
+        if (visible) Draw();
     }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -114,6 +127,23 @@ public sealed class BridgeSelectionOutline
 
     private bool IsVisible(Camera camera)
     {
+        GameManager manager = GameManager.Instance;
+        if (point == null && bar == null)
+        {
+            Camera gameplayCamera = manager != null && manager.MainCamera != null
+                ? manager.MainCamera
+                : Camera.main;
+            return visualOnlyVisible && root != null && root.gameObject.activeInHierarchy &&
+                   camera == gameplayCamera &&
+                   (manager == null || manager.CurrentState == GameManager.GameState.Normal);
+        }
+
+        if (manager == null || manager.CurrentState != GameManager.GameState.Building ||
+            manager.ActiveBuildLocation == null || camera != manager.ActiveBuildLocation.locationCamera)
+            return false;
+        BarCreator creator = BuildUIController.Instance != null ? BuildUIController.Instance.barCreator : null;
+        if (creator != null && creator.isSimulating) return false;
+
         if (point != null)
         {
             if (!point.gameObject.activeInHierarchy) return false;
@@ -128,18 +158,13 @@ public sealed class BridgeSelectionOutline
                     { selected = true; break; }
             if (!selected) return false;
         }
-        else if (bar == null || !bar.isHighlighted || !bar.gameObject.activeInHierarchy) return false;
+        else if (!bar.isHighlighted || !bar.gameObject.activeInHierarchy) return false;
         return true;
     }
 
     private static void EnqueueOutline(ScriptableRenderContext context, Camera camera)
     {
         if (!Application.isPlaying || outlineMaterial == null) return;
-        GameManager manager = GameManager.Instance;
-        if (manager == null || manager.CurrentState != GameManager.GameState.Building ||
-            manager.ActiveBuildLocation == null || camera != manager.ActiveBuildLocation.locationCamera) return;
-        BarCreator creator = BuildUIController.Instance != null ? BuildUIController.Instance.barCreator : null;
-        if (creator != null && creator.isSimulating) return;
         bool any = false;
         foreach (var outline in outlines) if (outline.IsVisible(camera)) { any = true; break; }
         if (!any) return;
@@ -173,11 +198,16 @@ public sealed class BridgeSelectionOutline
             center += (outline.bar.StartPosition + outline.bar.EndPosition) * 0.5f;
             selectedCount++;
         }
-        if (selectedCount > 0) center /= selectedCount;
+        bool centerFound = selectedCount > 0;
+        if (centerFound) center /= selectedCount;
         else
             foreach (var outline in outlines)
                 if (outline.IsVisible(camera) && outline.point != null)
-                { center = outline.point.transform.position; break; }
+                { center = outline.point.transform.position; centerFound = true; break; }
+        if (!centerFound)
+            foreach (var outline in outlines)
+                if (outline.IsVisible(camera) && outline.root != null)
+                { center = outline.root.position; break; }
         float depth = Mathf.Max(camera.nearClipPlane, Vector3.Dot(center - camera.transform.position, camera.transform.forward));
         float worldHeight = camera.orthographic ? 2f * camera.orthographicSize :
             2f * depth * Mathf.Tan(camera.fieldOfView * Mathf.Deg2Rad * 0.5f);

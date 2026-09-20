@@ -12,6 +12,7 @@ public class CargoItem : Interactable
     private int carryLayer = -1;
     private Collider[] heldColliders;
     private bool[] colliderStates;
+    private BridgeSelectionOutline pickupOutline;
     private static CargoItem heldCargo;
     public static CargoItem HeldCargo => heldCargo;
     [Tooltip("Player-carried contract owning this item. NPC contract assignment fills this automatically. Its cargo may only be delivered at that contract's drop location.")]
@@ -23,8 +24,12 @@ public class CargoItem : Interactable
     private bool deliveredToLocation;
     private bool deliveryRestorePending = true;
     public bool DeliveryRestorePending => deliveryRestorePending;
+    public bool CanLoadIntoVehicle => playerCargoContract != null &&
+        playerCargoContract.liveLoadMode == ContractSO.LiveLoadMode.Vehicle &&
+        playerCargoContract.allowVehicleCargo;
     public bool RestrictsFreeDrop => storyCargo || (playerCargoContract != null &&
-        playerCargoContract.liveLoadMode == ContractSO.LiveLoadMode.PlayerCarriedCargo);
+        (playerCargoContract.liveLoadMode == ContractSO.LiveLoadMode.PlayerCarriedCargo ||
+         playerCargoContract.allowVehicleCargo));
     [SerializeField, HideInInspector] private string persistentCargoId;
     public string PersistentCargoId => persistentCargoId;
     public bool IsProgressionInteractionUnlocked => playerCargoContract == null ||
@@ -41,7 +46,7 @@ public class CargoItem : Interactable
 
     public bool MountInVehicle(VehicleCargoSlot slot, Transform socket)
     {
-        if (!isHeld || RestrictsFreeDrop || slot == null || socket == null || !slot.IsInteractionAvailable) return false;
+        if (!isHeld || !CanLoadIntoVehicle || slot == null || socket == null || !slot.IsInteractionAvailable) return false;
         if (PlayerDataManager.Instance == null ||
             !PlayerDataManager.Instance.TrySaveVehicleCargo(slot.PersistentSlotId, persistentCargoId, cargoWeight))
         {
@@ -144,6 +149,19 @@ public class CargoItem : Interactable
     [Header("Cargo Settings")]
     [Tooltip("The base weight of this cargo in kg. This can be overridden by an NPC Contract.")]
     public float cargoWeight = 50f;
+
+    [Header("Cargo Recovery")]
+    [Min(1f), Tooltip("Respawn vehicle cargo after it falls this far below its authored starting position.")]
+    [SerializeField] private float lostBelowSpawnDistance = 15f;
+    [Min(10f), Tooltip("Respawn vehicle cargo after it travels abnormally far from its authored starting position.")]
+    [SerializeField] private float maximumDistanceFromSpawn = 150f;
+    [Min(0.1f), SerializeField] private float recoveryCheckInterval = 0.5f;
+    private Vector3 authoredLocalPosition;
+    private Quaternion authoredLocalRotation;
+    private Vector3 authoredLocalScale;
+    private Vector3 authoredWorldPosition;
+    private Quaternion authoredWorldRotation;
+    private float nextRecoveryCheckTime;
     
     [Header("Holding Settings")]
     [Tooltip("The empty GameObject attached to the Player's Camera where the cargo sits when held.")]
@@ -156,6 +174,11 @@ public class CargoItem : Interactable
     {
         rb = GetComponent<Rigidbody>();
         originalParent = transform.parent;
+        authoredLocalPosition = transform.localPosition;
+        authoredLocalRotation = transform.localRotation;
+        authoredLocalScale = transform.localScale;
+        authoredWorldPosition = transform.position;
+        authoredWorldRotation = transform.rotation;
         PrepareCargoColliders();
         if (string.IsNullOrWhiteSpace(promptMessage)) promptMessage = "Pick up Cargo";
         
@@ -318,16 +341,88 @@ public class CargoItem : Interactable
 
     private void LateUpdate()
     {
+        UpdatePickupOutline();
         if (!isHeld || leftHand == null || rightHand == null || carryAnimator == null) return;
         Transform facing = carryAnimator.transform;
         transform.SetPositionAndRotation((leftHand.position + rightHand.position) * .5f +
             facing.rotation * handOffset, facing.rotation * Quaternion.Euler(heldRotation));
     }
 
+    private void UpdatePickupOutline()
+    {
+        bool hasPhaseGate = playerCargoContract != null &&
+            !string.IsNullOrWhiteSpace(playerCargoContract.cargoUnlockProgressionId) &&
+            playerCargoContract.cargoUnlockAfterDialoguePhaseIndex >= 0;
+        bool shouldHighlight = hasPhaseGate && IsInteractionAvailable && !isHeld;
+
+        if (shouldHighlight && pickupOutline == null)
+            pickupOutline = new BridgeSelectionOutline(transform);
+        pickupOutline?.SetVisualOnlyVisible(shouldHighlight);
+    }
+
+    private void DisposePickupOutline()
+    {
+        if (pickupOutline == null) return;
+        pickupOutline.Dispose();
+        pickupOutline = null;
+    }
+
     public void Drop()
     {
         if (RestrictsFreeDrop) return;
         ReleaseHeldCargo();
+    }
+
+    public void RespawnAtAuthoredLocation()
+    {
+        if (IsPermanentlyLoaded) return;
+        if (isHeld) ReleaseHeldCargo();
+
+        deliveredToLocation = false;
+        deliveredLocation = null;
+        pickupParent = null;
+        transform.SetParent(originalParent, false);
+        if (originalParent != null)
+        {
+            transform.localPosition = authoredLocalPosition;
+            transform.localRotation = authoredLocalRotation;
+            transform.localScale = authoredLocalScale;
+        }
+        else
+        {
+            transform.SetPositionAndRotation(authoredWorldPosition, authoredWorldRotation);
+            transform.localScale = authoredLocalScale;
+        }
+
+        if (rb == null) rb = GetComponent<Rigidbody>();
+        if (rb != null)
+        {
+            rb.isKinematic = false;
+            rb.useGravity = true;
+            rb.velocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+            rb.WakeUp();
+        }
+        promptMessage = "Pick up Cargo";
+        Physics.SyncTransforms();
+        Debug.Log($"[Vehicle Cargo] '{name}' was lost and returned to its starting location.", this);
+    }
+
+    private bool ShouldRecoverVehicleCargo()
+    {
+        if (!CanLoadIntoVehicle || IsPermanentlyLoaded || deliveryRestorePending) return false;
+        if (isHeld && (carryingMotor == null || !carryingMotor.gameObject.activeInHierarchy)) return true;
+
+        Vector3 position = transform.position;
+        if (float.IsNaN(position.x) || float.IsNaN(position.y) || float.IsNaN(position.z) ||
+            float.IsInfinity(position.x) || float.IsInfinity(position.y) || float.IsInfinity(position.z)) return true;
+
+        Vector3 spawnPosition = originalParent != null
+            ? originalParent.TransformPoint(authoredLocalPosition)
+            : authoredWorldPosition;
+        if (position.y < spawnPosition.y - Mathf.Max(1f, lostBelowSpawnDistance)) return true;
+        float maxDistance = Mathf.Max(10f, maximumDistanceFromSpawn);
+        return (position - spawnPosition).sqrMagnitude > maxDistance * maxDistance;
     }
 
     public bool PlaceAtDropLocation(CargoDropLocation location)
@@ -415,11 +510,27 @@ public class CargoItem : Interactable
     }
 
     // System cleanup/reset is allowed even when manual dropping is restricted.
-    private void OnDisable() { if (isHeld) ReleaseHeldCargo(); }
+    private void OnDisable()
+    {
+        DisposePickupOutline();
+        if (isHeld) ReleaseHeldCargo();
+    }
+
+    private void OnDestroy() => DisposePickupOutline();
 
     // ADDED: This forces the cargo's weight onto the bridge while you carry it!
     private void FixedUpdate()
     {
+        if (Time.unscaledTime >= nextRecoveryCheckTime)
+        {
+            nextRecoveryCheckTime = Time.unscaledTime + Mathf.Max(0.1f, recoveryCheckInterval);
+            if (ShouldRecoverVehicleCargo())
+            {
+                RespawnAtAuthoredLocation();
+                return;
+            }
+        }
+
         if (isHeld && playerTransform != null)
         {
             // Shoot an invisible ray down from slightly above the player's feet

@@ -262,6 +262,7 @@ public class GameManager : MonoBehaviour
     public ContractSO CurrentContract { get; private set; } 
 
     [SerializeField] private Camera mainCamera;
+    public Camera MainCamera => mainCamera;
     private Transform mainCamParent;
     private Vector3 mainCamLocalPos;
     private Quaternion mainCamLocalRot;

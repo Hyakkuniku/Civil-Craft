@@ -58,6 +58,47 @@ public class LiveLoadVehicle : Interactable
     {
         if (rb != null) rb.mass = TotalTestWeight;
     }
+
+    [Header("Cargo Completion Events")]
+    [Tooltip("Invoked once when a player loading action reaches this contract's Minimum Loaded Cargo count.")]
+    [SerializeField] private UnityEvent onRequiredCargoLoaded;
+
+    public event Action RequiredCargoLoaded;
+    private bool requiredCargoLoadedInvoked;
+
+    /// <summary>
+    /// Called by a cargo slot after it has successfully secured an item. Save
+    /// restoration deliberately uses RefreshCargoMass instead, so loading a
+    /// scene cannot replay the event and move an NPC backwards.
+    /// </summary>
+    public void NotifyCargoLoaded()
+    {
+        RefreshCargoMass();
+        if (requiredCargoLoadedInvoked || !AllowsCargo || assignedContract.minimumLoadedCargo <= 0 ||
+            LoadedCargoCount < assignedContract.minimumLoadedCargo) return;
+
+        requiredCargoLoadedInvoked = true;
+        AdvanceCargoNPCPhase();
+        onRequiredCargoLoaded?.Invoke();
+        RequiredCargoLoaded?.Invoke();
+    }
+
+    private void AdvanceCargoNPCPhase()
+    {
+        if (string.IsNullOrWhiteSpace(assignedContract.cargoLoadedNPCPhaseId)) return;
+
+        NPCProgressionManager npc = NPCProgressionManager.FindByProgressionSaveId(
+            assignedContract.cargoUnlockProgressionId);
+        if (npc == null)
+        {
+            Debug.LogWarning(
+                $"[Vehicle Cargo] Required cargo is loaded, but no active NPC uses progression ID " +
+                $"'{assignedContract.cargoUnlockProgressionId}'.", this);
+            return;
+        }
+
+        npc.MoveToPhaseById(assignedContract.cargoLoadedNPCPhaseId);
+    }
     public static LiveLoadVehicle FindActiveForContract(ContractSO contract)
     {
         if (contract == null) return null;

@@ -64,7 +64,8 @@ public class VehicleCargoSlot : Interactable
             CargoItem held = CargoItem.HeldCargo;
             promptMessage = "Load Cargo";
             return held != null && held.IsProgressionInteractionUnlocked &&
-                   !held.RestrictsFreeDrop && (acceptedCargo == null || acceptedCargo == held);
+                   held.CanLoadIntoVehicle && held.playerCargoContract == vehicle.assignedContract &&
+                   (acceptedCargo == null || acceptedCargo == held);
         }
     }
 
@@ -72,8 +73,9 @@ public class VehicleCargoSlot : Interactable
     {
         if (!IsInteractionAvailable) return;
         CargoItem cargo = CargoItem.HeldCargo;
-        if (cargo != null && cargo.MountInVehicle(this, cargoSocket)) LoadedCargo = cargo;
-        vehicle.RefreshCargoMass();
+        if (cargo == null || !cargo.MountInVehicle(this, cargoSocket)) return;
+        LoadedCargo = cargo;
+        vehicle.NotifyCargoLoaded();
     }
 
     private void Reset()
