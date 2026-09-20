@@ -23,6 +23,13 @@ public class LiveLoadVehicle : Interactable
     [Header("Open World Settings")]
     public ContractSO assignedContract; 
     private readonly List<VehicleCargoSlot> cargoSlots = new List<VehicleCargoSlot>();
+    [Header("Smart Cargo Loading")]
+    [Tooltip("Creates one comfortable truck-level loading interaction instead of requiring the player to reach each small slot.")]
+    [SerializeField] private bool useSmartCargoLoadingZone = true;
+    [Min(0.5f), Tooltip("Extra horizontal reach added around the rendered truck bounds.")]
+    [SerializeField] private float cargoLoadingZonePadding = 1.5f;
+    private VehicleCargoLoadingZone smartCargoLoadingZone;
+    public bool UsesSmartCargoLoadingZone => smartCargoLoadingZone != null && smartCargoLoadingZone.isActiveAndEnabled;
     public bool AllowsCargo => assignedContract != null &&
         assignedContract.liveLoadMode == ContractSO.LiveLoadMode.Vehicle && assignedContract.allowVehicleCargo;
     public bool CanChangeCargo => isActiveAndEnabled && AllowsCargo && !isDriving &&
@@ -53,6 +60,38 @@ public class LiveLoadVehicle : Interactable
     public void RegisterCargoSlot(VehicleCargoSlot slot)
     {
         if (slot != null && !cargoSlots.Contains(slot)) cargoSlots.Add(slot);
+    }
+
+    public bool TryGetCompatibleCargoSlot(CargoItem cargo, out VehicleCargoSlot result)
+    {
+        result = null;
+        if (cargo == null || cargo.playerCargoContract != assignedContract) return false;
+
+        // An explicitly authored cargo-to-slot match always wins.
+        foreach (VehicleCargoSlot slot in cargoSlots)
+        {
+            if (slot != null && slot.acceptedCargo == cargo && slot.CanAccept(cargo))
+            {
+                result = slot;
+                return true;
+            }
+        }
+
+        // Generic empty slots are the safe fallback.
+        foreach (VehicleCargoSlot slot in cargoSlots)
+        {
+            if (slot != null && slot.acceptedCargo == null && slot.CanAccept(cargo))
+            {
+                result = slot;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public bool TryLoadCargoFromSmartZone(CargoItem cargo)
+    {
+        return TryGetCompatibleCargoSlot(cargo, out VehicleCargoSlot slot) && slot.TryLoadCargo(cargo);
     }
     public void RefreshCargoMass()
     {
@@ -303,6 +342,8 @@ public class LiveLoadVehicle : Interactable
 
     private void Start()
     {
+        CreateSmartCargoLoadingZone();
+
         if (physicsManager != null)
         {
             physicsManager.OnSettlePhaseStarted += HandleSettlePhaseStarted;
@@ -316,6 +357,67 @@ public class LiveLoadVehicle : Interactable
         {
             HideForSavedBridge();
         }
+    }
+
+    private void CreateSmartCargoLoadingZone()
+    {
+        if (!useSmartCargoLoadingZone || !AllowsCargo || cargoSlots.Count == 0) return;
+
+        smartCargoLoadingZone = GetComponentInChildren<VehicleCargoLoadingZone>(true);
+        if (smartCargoLoadingZone != null)
+        {
+            smartCargoLoadingZone.Initialize(this);
+            return;
+        }
+
+        Bounds localBounds = CalculateLocalCargoSlotBounds();
+        float padding = Mathf.Max(0.5f, cargoLoadingZonePadding);
+        GameObject zoneObject = new GameObject("Smart Cargo Loading Zone (Runtime)");
+        zoneObject.hideFlags = HideFlags.DontSave;
+        zoneObject.transform.SetParent(transform, false);
+        zoneObject.transform.localPosition = localBounds.center;
+        Vector3 inheritedScale = transform.lossyScale;
+        zoneObject.transform.localScale = new Vector3(
+            SafeScaleReciprocal(inheritedScale.x),
+            SafeScaleReciprocal(inheritedScale.y),
+            SafeScaleReciprocal(inheritedScale.z));
+        int interactableLayer = LayerMask.NameToLayer("Interactable");
+        zoneObject.layer = interactableLayer >= 0 ? interactableLayer : gameObject.layer;
+
+        Vector3 slotSpanInWorld = new Vector3(
+            Mathf.Abs(localBounds.size.x * inheritedScale.x),
+            Mathf.Abs(localBounds.size.y * inheritedScale.y),
+            Mathf.Abs(localBounds.size.z * inheritedScale.z));
+        BoxCollider trigger = zoneObject.AddComponent<BoxCollider>();
+        trigger.isTrigger = true;
+        trigger.center = Vector3.zero;
+        trigger.size = new Vector3(
+            Mathf.Clamp(slotSpanInWorld.x + padding * 2f, 2f, 8f),
+            Mathf.Clamp(slotSpanInWorld.y + 1f, 2.5f, 5f),
+            Mathf.Clamp(slotSpanInWorld.z + padding * 2f, 3f, 8f));
+        smartCargoLoadingZone = zoneObject.AddComponent<VehicleCargoLoadingZone>();
+        smartCargoLoadingZone.Initialize(this);
+    }
+
+    private Bounds CalculateLocalCargoSlotBounds()
+    {
+        bool found = false;
+        Bounds bounds = new Bounds(Vector3.zero, new Vector3(2f, 2.5f, 3f));
+        foreach (VehicleCargoSlot slot in cargoSlots)
+        {
+            if (slot == null) continue;
+            Vector3 localPoint = transform.InverseTransformPoint(slot.transform.position);
+            if (!found) { bounds = new Bounds(localPoint, Vector3.zero); found = true; }
+            else bounds.Encapsulate(localPoint);
+        }
+        if (!found) return bounds;
+
+        return bounds;
+    }
+
+    private static float SafeScaleReciprocal(float scale)
+    {
+        return 1f / Mathf.Max(0.0001f, Mathf.Abs(scale));
     }
 
     private void OnDestroy()

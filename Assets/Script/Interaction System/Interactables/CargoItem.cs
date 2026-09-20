@@ -38,6 +38,7 @@ public class CargoItem : Interactable
         (PlayerDataManager.Instance != null && PlayerDataManager.Instance.IsCargoPermanentlyLoaded(persistentCargoId));
     private VehicleCargoSlot loadedSlot;
     private CargoDropLocation deliveredLocation;
+    private Coroutine vehicleLoadingRoutine;
     public CargoDropLocation DeliveredLocation => deliveredLocation;
     public override bool IsInteractionAvailable => base.IsInteractionAvailable && IsProgressionInteractionUnlocked &&
         !IsPermanentlyLoaded &&
@@ -46,14 +47,14 @@ public class CargoItem : Interactable
 
     public bool MountInVehicle(VehicleCargoSlot slot, Transform socket)
     {
-        if (!isHeld || !CanLoadIntoVehicle || slot == null || socket == null || !slot.IsInteractionAvailable) return false;
+        if (!isHeld || !CanLoadIntoVehicle || slot == null || socket == null || !slot.CanAccept(this)) return false;
         if (PlayerDataManager.Instance == null ||
             !PlayerDataManager.Instance.TrySaveVehicleCargo(slot.PersistentSlotId, persistentCargoId, cargoWeight))
         {
             Debug.LogWarning("[Vehicle Cargo] Could not save this loading action. Cargo stays in your hands. Check the save error or assign persistent IDs in Edit Mode and save the scene.", this);
             return false;
         }
-        return SecureInVehicle(slot, socket);
+        return SecureInVehicle(slot, socket, true);
     }
 
     public bool RestoreVehicleLoad(VehicleCargoSlot slot, Transform socket, float savedWeight)
@@ -61,12 +62,15 @@ public class CargoItem : Interactable
         if (slot == null || socket == null || (loadedSlot != null && loadedSlot != slot)) return false;
         if (rb == null) rb = GetComponent<Rigidbody>();
         SetWeight(savedWeight);
-        return SecureInVehicle(slot, socket);
+        return SecureInVehicle(slot, socket, false);
     }
 
-    private bool SecureInVehicle(VehicleCargoSlot slot, Transform socket)
+    private bool SecureInVehicle(VehicleCargoSlot slot, Transform socket, bool animate)
     {
         if (rb == null) rb = GetComponent<Rigidbody>();
+        Vector3 animationStartPosition = transform.position;
+        Quaternion animationStartRotation = transform.rotation;
+        Vector3 animationStartWorldScale = transform.lossyScale;
         ReleaseHeldCargo();
         loadedSlot = slot;
         Collider[] loadedColliders = GetComponentsInChildren<Collider>(true);
@@ -79,9 +83,63 @@ public class CargoItem : Interactable
         rb.useGravity = false;
         // Cargo mass is transferred to the truck, not counted twice by physics.
         transform.SetParent(socket, true);
-        transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+        Vector3 targetLocalScale = transform.localScale;
+        if (animate && Application.isPlaying && isActiveAndEnabled)
+        {
+            Vector3 socketScale = socket.lossyScale;
+            transform.localScale = new Vector3(
+                DivideScale(animationStartWorldScale.x, socketScale.x),
+                DivideScale(animationStartWorldScale.y, socketScale.y),
+                DivideScale(animationStartWorldScale.z, socketScale.z));
+            transform.SetPositionAndRotation(animationStartPosition, animationStartRotation);
+            vehicleLoadingRoutine = StartCoroutine(AnimateIntoVehicleSocket(
+                socket, animationStartPosition, animationStartRotation,
+                transform.localScale, targetLocalScale));
+        }
+        else
+        {
+            transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+            transform.localScale = targetLocalScale;
+        }
         gameObject.SetActive(true);
         return true;
+    }
+
+    [Header("Vehicle Loading Animation")]
+    [Min(0.1f), SerializeField] private float vehicleLoadingDuration = 0.55f;
+    [Min(0f), SerializeField] private float vehicleLoadingArcHeight = 0.35f;
+
+    private System.Collections.IEnumerator AnimateIntoVehicleSocket(
+        Transform socket, Vector3 startPosition, Quaternion startRotation,
+        Vector3 startLocalScale, Vector3 targetLocalScale)
+    {
+        float duration = Mathf.Max(0.1f, vehicleLoadingDuration);
+        float elapsed = 0f;
+        while (elapsed < duration && socket != null)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / duration);
+            float eased = t * t * (3f - 2f * t);
+            Vector3 targetPosition = socket.position;
+            Vector3 arc = Vector3.up * (4f * eased * (1f - eased) * vehicleLoadingArcHeight);
+            transform.position = Vector3.Lerp(startPosition, targetPosition, eased) + arc;
+            transform.rotation = Quaternion.Slerp(startRotation, socket.rotation, eased);
+            transform.localScale = Vector3.Lerp(startLocalScale, targetLocalScale, eased);
+            yield return null;
+        }
+
+        if (socket != null)
+        {
+            transform.SetParent(socket, false);
+            transform.SetLocalPositionAndRotation(Vector3.zero, Quaternion.identity);
+            transform.localScale = targetLocalScale;
+        }
+        vehicleLoadingRoutine = null;
+    }
+
+    private static float DivideScale(float worldScale, float parentScale)
+    {
+        return worldScale / Mathf.Max(0.0001f, Mathf.Abs(parentScale));
     }
 
     public bool IsHeldBy(Transform player) => isHeld && playerTransform == player;

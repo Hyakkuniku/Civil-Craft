@@ -24226,6 +24226,13 @@ MonoBehaviour:
   safePositionSampleInterval: 0.2
   respawnHeightOffset: 0.15
   safeHeightAboveDeathThreshold: 2
+  safeGroundedDuration: 0.75
+  maximumCheckpointDrop: 2
+  maximumSafeGroundSlope: 50
+  safeGroundProbeDistance: 1
+  safeGroundLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
   objectsToReset:
   - objectTransform: {fileID: 4274415236340906572}
     startPos: {x: 0, y: 0, z: 0}

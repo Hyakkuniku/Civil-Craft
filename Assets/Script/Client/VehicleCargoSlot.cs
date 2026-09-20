@@ -16,6 +16,25 @@ public class VehicleCargoSlot : Interactable
     public float LoadedWeight => LoadedCargo != null && LoadedCargo.gameObject.activeInHierarchy
         ? Mathf.Max(0f, LoadedCargo.cargoWeight) : 0f;
 
+    public bool CanAccept(CargoItem cargo)
+    {
+        if (cargo == null || LoadedCargo != null || vehicle == null || !vehicle.CanChangeCargo ||
+            cargoSocket == null || !cargoSocket.IsChildOf(vehicle.transform)) return false;
+        if (PlayerDataManager.Instance != null &&
+            PlayerDataManager.Instance.GetLoadedVehicleCargo(persistentSlotId) != null) return false;
+        return cargo.IsProgressionInteractionUnlocked && cargo.CanLoadIntoVehicle &&
+               cargo.playerCargoContract == vehicle.assignedContract &&
+               (acceptedCargo == null || acceptedCargo == cargo);
+    }
+
+    public bool TryLoadCargo(CargoItem cargo)
+    {
+        if (!CanAccept(cargo) || !cargo.MountInVehicle(this, cargoSocket)) return false;
+        LoadedCargo = cargo;
+        vehicle.NotifyCargoLoaded();
+        return true;
+    }
+
     private void Awake()
     {
         if (vehicle == null) vehicle = GetComponentInParent<LiveLoadVehicle>();
@@ -57,25 +76,19 @@ public class VehicleCargoSlot : Interactable
     {
         get
         {
+            if (vehicle != null && vehicle.UsesSmartCargoLoadingZone) return false;
             if (!base.IsInteractionAvailable || LoadedCargo != null || vehicle == null || !vehicle.CanChangeCargo ||
                 cargoSocket == null || !cargoSocket.IsChildOf(vehicle.transform)) return false;
-            if (PlayerDataManager.Instance != null &&
-                PlayerDataManager.Instance.GetLoadedVehicleCargo(persistentSlotId) != null) return false;
             CargoItem held = CargoItem.HeldCargo;
             promptMessage = "Load Cargo";
-            return held != null && held.IsProgressionInteractionUnlocked &&
-                   held.CanLoadIntoVehicle && held.playerCargoContract == vehicle.assignedContract &&
-                   (acceptedCargo == null || acceptedCargo == held);
+            return CanAccept(held);
         }
     }
 
     protected override void Intract()
     {
         if (!IsInteractionAvailable) return;
-        CargoItem cargo = CargoItem.HeldCargo;
-        if (cargo == null || !cargo.MountInVehicle(this, cargoSocket)) return;
-        LoadedCargo = cargo;
-        vehicle.NotifyCargoLoaded();
+        TryLoadCargo(CargoItem.HeldCargo);
     }
 
     private void Reset()
