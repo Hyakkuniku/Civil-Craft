@@ -239,6 +239,14 @@ public class LevelCompleteManager : MonoBehaviour
     /// has exited, and the completion panel has closed.
     /// </summary>
     public static event Action<ContractSO, BuildLocation> BridgeSavedAtLocation;
+    /// <summary>Raised only after the active contract's existing completion checks have passed.</summary>
+    public static event Action<ContractSO, BuildLocation> SimulationSucceeded;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetSimulationLessonEvents()
+    {
+        SimulationSucceeded = null;
+    }
 
     [Header("UI References")]
     public GameObject levelCompletePanel;
@@ -573,6 +581,10 @@ public class LevelCompleteManager : MonoBehaviour
         
         levelAlreadyCompleted = true;
         activeContract = currentContract;
+        BuildLocation completedLocation = GameManager.Instance != null
+            ? GameManager.Instance.ActiveBuildLocation
+            : null;
+        SimulationSucceeded?.Invoke(currentContract, completedLocation);
         CompleteBuildTutorialAfterSuccessfulTest(currentContract);
 
         if (cachedPhysicsManager != null)
@@ -589,7 +601,10 @@ public class LevelCompleteManager : MonoBehaviour
             finishingVehicle.StopAndFreezeForWin();
         }
 
-        StartCoroutine(TakeSnapshotAndShowUIRoutine(currentContract, finishingVehicle));
+        StartCoroutine(TakeSnapshotAndShowUIRoutine(
+            currentContract,
+            finishingVehicle,
+            completedLocation));
     }
 
     private static LiveLoadVehicle FindVehicleForContract(ContractSO currentContract)
@@ -606,10 +621,17 @@ public class LevelCompleteManager : MonoBehaviour
 
     private IEnumerator TakeSnapshotAndShowUIRoutine(
         ContractSO currentContract,
-        LiveLoadVehicle finishingVehicle)
+        LiveLoadVehicle finishingVehicle,
+        BuildLocation completedLocation)
     {
         while (finishingVehicle != null && finishingVehicle.IsFinishBraking)
             yield return new WaitForFixedUpdate();
+
+        // The success event has already replaced any queued informational text
+        // with the verified outcome. Keep the build UI visible until that message
+        // has had its configured reading time, then continue to the receipt.
+        while (SimulationLessonPresenter.GetRemainingOutcomeReadTime(completedLocation) > 0f)
+            yield return null;
 
         temporarilyHiddenPanels.Clear();
         foreach (GameObject ui in uiElementsToHide)

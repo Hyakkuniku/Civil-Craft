@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6f37df8d20f74e62a3e88f7fa41df9b0, type: 3}
+  m_Name: Beam Bridge Lesson
+  m_EditorClassIdentifier:
+  panelTitle: BEAM BRIDGE BEHAVIOR
+  minimumMessageDuration: 3.5
+  fadeDuration: 0.2
+  slideDistance: 24
+  vehicleEnteredProgress: 0.1
+  vehicleMidpointProgress: 0.5
+  highStressThreshold: 0.7
+  vehicleStuckDelay: 5
+  simulationStarted: Simulation started. Watch how the horizontal beam responds as the live load moves across it.
+  liveLoadStarted: The vehicle pushes the beam downward while the anchors and supports provide upward reactions.
+  vehicleEnteredBridge: Near the support, the load has a short path into the ground. The beam begins carrying both bending and shear.
+  vehicleReachedMidpoint: The vehicle is near midspan, the point farthest from either support. A simple beam usually experiences its greatest bending here.
+  highStressDetected: Orange or red members are carrying a high percentage of their capacity. On a beam bridge, a long unsupported span increases bending demand.
+  stressLimitExceeded: This beam exceeded the contract's allowed stress. Shorten the unsupported span, add an intermediate support, or use a deeper structural form.
+  firstMemberBreak: A beam member exceeded its capacity and failed. The road can no longer transfer the live load safely between the supports.
+  vehicleStuck: The vehicle has stopped moving. Excessive beam deflection or a misaligned road joint may be blocking the crossing.
+  vehicleFailed: The continuous road and load path were lost. Strengthen the beam or add support before testing again.
+  bridgeSucceeded: The beam bridge carried the required live load successfully. Its supports limited the unsupported span and kept the road continuous.
+  simulationStopped: Simulation stopped. Review the beam's deflection and stressed areas before revising the design.

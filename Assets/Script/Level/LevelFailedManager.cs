@@ -3,10 +3,18 @@ using TMPro;
 using UnityEngine.SceneManagement;
 using System.Collections;
 using System.Collections.Generic; 
+using System;
 
 public class LevelFailedManager : MonoBehaviour
 {
     public static LevelFailedManager Instance { get; private set; }
+    public static event Action<string> SimulationFailed;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetSimulationFailureEvent()
+    {
+        SimulationFailed = null;
+    }
 
     [Header("UI References")]
     [Tooltip("Drag the Level Failed Panel here.")]
@@ -209,6 +217,7 @@ public class LevelFailedManager : MonoBehaviour
         }
         if (isFailed) return;
         isFailed = true; 
+        SimulationFailed?.Invoke(reason);
 
         if (failDelayCoroutine != null) StopCoroutine(failDelayCoroutine);
         failDelayCoroutine = StartCoroutine(FailDelayRoutine(reason));
@@ -217,6 +226,15 @@ public class LevelFailedManager : MonoBehaviour
     private IEnumerator FailDelayRoutine(string reason)
     {
         yield return new WaitForSeconds(delayBeforeFailScreen);
+
+        BuildLocation failedLocation = GameManager.Instance != null
+            ? GameManager.Instance.ActiveBuildLocation
+            : null;
+        // Preserve the existing destruction-view delay, then wait only for any
+        // unread portion of the lesson outcome before covering it with the fail UI.
+        while (SimulationLessonPresenter.GetRemainingOutcomeReadTime(failedLocation) > 0f)
+            yield return null;
+
         ShowFailScreen(reason);
     }
 

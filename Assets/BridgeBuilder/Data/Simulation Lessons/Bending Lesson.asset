@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6f37df8d20f74e62a3e88f7fa41df9b0, type: 3}
+  m_Name: Bending Lesson
+  m_EditorClassIdentifier:
+  panelTitle: BENDING AND LOAD PATH
+  minimumMessageDuration: 3.5
+  fadeDuration: 0.2
+  slideDistance: 24
+  vehicleEnteredProgress: 0.1
+  vehicleMidpointProgress: 0.5
+  highStressThreshold: 0.7
+  vehicleStuckDelay: 5
+  simulationStarted: Simulation started. Watch how the moving live load changes the shape of the bridge.
+  liveLoadStarted: As the vehicle moves, its weight creates bending in the road. The upper side is compressed while the lower side is pulled in tension.
+  vehicleEnteredBridge: The live load is now transferring through the road into the supporting members and anchors.
+  vehicleReachedMidpoint: The vehicle is near midspan, where bending demand is often greatest. Deeper triangular support can reduce this bending.
+  highStressDetected: Orange or red members are carrying a high percentage of their capacity. Their position shows where the load path needs more support.
+  stressLimitExceeded: The bridge exceeded the contract's allowed stress. Reduce bending demand with a deeper structure or a clearer load path before testing again.
+  firstMemberBreak: A member exceeded its capacity under bending or axial force. Observe how the remaining load redistributes through the bridge.
+  vehicleStuck: The live load has stopped moving. Check the road alignment and clearance around this area.
+  vehicleFailed: The load path was interrupted. Strengthen the failed area or improve the bridge geometry before testing again.
+  bridgeSucceeded: The bridge carried the live load successfully. Its depth and connected members controlled bending throughout the crossing.
+  simulationStopped: Simulation stopped. Return to editing when you are ready to revise the design.

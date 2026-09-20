@@ -1621,6 +1621,8 @@ MonoBehaviour:
   fastTravelTarget: {fileID: 0}
   advancesTutorial: 1
   onEnterBuildModeTutorial: {fileID: 0}
+  enableSimulationLesson: 0
+  simulationLesson: {fileID: 0}
   startingAnchors:
   - {fileID: 7041708869184496851}
   endingAnchors:

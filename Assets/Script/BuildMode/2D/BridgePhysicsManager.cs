@@ -11,6 +11,7 @@ public class BridgePhysicsManager : MonoBehaviour
     public event Action OnSettlePhaseStarted;
     public event Action OnSimulationStarted;
     public event Action OnSimulationStopped;
+    public event Action<BarStressHandler> OnFirstMemberBroken;
 
     [Header("Physics Settings")]
     public float barColliderThickness = 0.2f;
@@ -63,7 +64,12 @@ public class BridgePhysicsManager : MonoBehaviour
     [Tooltip("Peak total structural stress, including dead load. Used for failure and contract limits.")]
     [HideInInspector] public float peakStressThisRun = 0f;
     public bool HadBrokenPartsThisRun { get; private set; }
-    public void RecordBrokenPart() { HadBrokenPartsThisRun = true; }
+    public void RecordBrokenPart(BarStressHandler brokenMember)
+    {
+        if (HadBrokenPartsThisRun) return;
+        HadBrokenPartsThisRun = true;
+        OnFirstMemberBroken?.Invoke(brokenMember);
+    }
 
     private HashSet<Point> simPoints = new HashSet<Point>();
     private HashSet<Bar> simBars = new HashSet<Bar>();
@@ -1561,7 +1567,7 @@ public class BarStressHandler : MonoBehaviour
     {
         if (isBroken) return;
         isBroken = true;
-        if (manager != null) manager.RecordBrokenPart();
+        if (manager != null) manager.RecordBrokenPart(this);
         currentStressPercent = 1f;
         currentStructuralStressPercent = 1f;
 

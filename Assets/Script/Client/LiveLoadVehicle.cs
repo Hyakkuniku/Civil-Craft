@@ -209,6 +209,21 @@ public class LiveLoadVehicle : Interactable
 
     [HideInInspector] public bool isParkedAtFinish = false;
     public bool IsFinishBraking => isBrakingAtFinish;
+    public bool HasReachedEnd => hasReachedEnd;
+    public bool IsDriving => isDriving;
+    public float CurrentSpeed => rb != null && !rb.isKinematic ? rb.velocity.magnitude : 0f;
+    public float NormalizedRouteProgress
+    {
+        get
+        {
+            if (startPoint == null || endPoint == null) return 0f;
+            GetWaypointPose(startPoint, out Vector3 routeStart, out _);
+            GetWaypointPose(endPoint, out Vector3 routeEnd, out _);
+            Vector3 route = routeEnd - routeStart;
+            if (route.sqrMagnitude < 0.0001f) return 0f;
+            return Mathf.Clamp01(Vector3.Dot(transform.position - routeStart, route) / route.sqrMagnitude);
+        }
+    }
     
     private float currentMotorSpeed = 0f;
     private PhysicMaterial wheelMat; 
