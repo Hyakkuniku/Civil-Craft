@@ -1081,6 +1081,10 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
         if (restoreCharacterController) characterController.enabled = true;
 
+        LevelResetManager resetManager = FindObjectOfType<LevelResetManager>(true);
+        if (resetManager != null)
+            resetManager.RegisterCurrentPlayerPoseAsSafe();
+
         navigationDestination = null;
         if (PathGuider.Instance != null)
             PathGuider.Instance.SetNewWaypoints(new List<GuiderWaypoint>());

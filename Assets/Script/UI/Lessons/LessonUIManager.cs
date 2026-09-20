@@ -177,6 +177,7 @@ public sealed class LessonUIManager : MonoBehaviour
         {
             RestoreHiddenCanvases();
             RestorePlayerControls();
+            MinimapUnlockController.RefreshAll();
             return;
         }
 
@@ -196,6 +197,7 @@ public sealed class LessonUIManager : MonoBehaviour
         CurrentLesson = null;
         RestoreHiddenCanvases();
         RestorePlayerControls();
+        MinimapUnlockController.RefreshAll();
         if (closedLesson != null) LessonClosed?.Invoke(closedLesson);
     }
 

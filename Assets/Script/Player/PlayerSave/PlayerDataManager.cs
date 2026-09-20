@@ -242,6 +242,15 @@ public class PlayerDataManager : MonoBehaviour
     /// </summary>
     public bool UnlockFeature(string featureId)
     {
+        return UnlockFeature(featureId, true);
+    }
+
+    /// <summary>
+    /// Permanently unlocks a feature while allowing a caller that owns a larger
+    /// reward presentation to defer the compact notification.
+    /// </summary>
+    public bool UnlockFeature(string featureId, bool showNotification)
+    {
         string normalizedId = NormalizeFeatureId(featureId);
         if (CurrentData == null || string.IsNullOrEmpty(normalizedId)) return false;
 
@@ -256,7 +265,8 @@ public class PlayerDataManager : MonoBehaviour
         }
 
         OnFeatureUnlocksChanged?.Invoke();
-        AchievementPopupNotification.NotifyFeatureUnlock(GetFeatureDisplayName(normalizedId));
+        if (showNotification)
+            AchievementPopupNotification.NotifyFeatureUnlock(GetFeatureDisplayName(normalizedId));
         return true;
     }
 

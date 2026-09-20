@@ -434,6 +434,8 @@ public class NPCProgressionManager : MonoBehaviour
         TryRestoreSavedProgression(
             out currentPhaseIndex, out bool wasTravellingWhenSaved);
 
+        RestoreMissedPhaseFeatureUnlocks(currentPhaseIndex);
+
         if (restoreSavedPhaseBridgesOnStart)
             RestoreSavedPhaseBridges();
 
@@ -620,6 +622,31 @@ public class NPCProgressionManager : MonoBehaviour
         }
 
         return match;
+    }
+
+    /// <summary>
+    /// Repairs saves that reached a later phase before a queued Collect popup
+    /// committed the preceding phase's permanent feature reward.
+    /// </summary>
+    private void RestoreMissedPhaseFeatureUnlocks(int resolvedPhaseIndex)
+    {
+        if (PlayerDataManager.Instance == null || phases == null) return;
+
+        int completedPhaseCount = Mathf.Clamp(resolvedPhaseIndex, 0, phases.Count);
+        for (int i = 0; i < completedPhaseCount; i++)
+        {
+            NPCProgressionPhase completedPhase = phases[i];
+            if (completedPhase == null ||
+                string.IsNullOrWhiteSpace(completedPhase.unlockFeatureIdAfterDialogue) ||
+                PlayerDataManager.Instance.IsFeatureUnlocked(
+                    completedPhase.unlockFeatureIdAfterDialogue))
+            {
+                continue;
+            }
+
+            PlayerDataManager.Instance.UnlockFeature(
+                completedPhase.unlockFeatureIdAfterDialogue);
+        }
     }
 
     private void SaveProgressionState(int phaseIndex, bool wasTravelling)
@@ -2226,11 +2253,19 @@ public class NPCProgressionManager : MonoBehaviour
                     ? phase.unlockFeatureIdAfterDialogue
                     : phase.featureUnlockDisplayName;
 
+                // Commit the permanent unlock before advancing the NPC phase.
+                // The Collect button remains the presentation acknowledgement,
+                // but closing/reloading during the popup can no longer lose the
+                // reward while leaving progression parked at a later phase.
+                if (!GrantPhaseDialogueFeature(phase, false))
+                    return;
+
                 ItemUnlockUI.Instance.ShowReward(
                     displayName,
                     phase.featureUnlockIcon,
                     string.Empty,
-                    () => GrantPhaseDialogueFeature(phase));
+                    () => AchievementPopupNotification.NotifyFeatureUnlock(
+                        displayName, phase.featureUnlockIcon));
             }
             else
             {
@@ -2466,23 +2501,24 @@ public class NPCProgressionManager : MonoBehaviour
         return result;
     }
 
-    private void GrantPhaseDialogueFeature(NPCProgressionPhase phase)
+    private bool GrantPhaseDialogueFeature(
+        NPCProgressionPhase phase,
+        bool showNotification = true)
     {
         if (phase == null || string.IsNullOrWhiteSpace(phase.unlockFeatureIdAfterDialogue))
-            return;
+            return false;
 
         if (PlayerDataManager.Instance != null)
         {
-            // Save the feature after Collect. UnlockFeature queues the compact
-            // follow-up notification above every other UI.
-            PlayerDataManager.Instance.UnlockFeature(phase.unlockFeatureIdAfterDialogue);
+            return PlayerDataManager.Instance.UnlockFeature(
+                phase.unlockFeatureIdAfterDialogue,
+                showNotification);
         }
-        else
-        {
-            Debug.LogWarning(
-                $"[NPCProgressionManager] Cannot unlock feature '{phase.unlockFeatureIdAfterDialogue}' because PlayerDataManager is unavailable.",
-                this);
-        }
+
+        Debug.LogWarning(
+            $"[NPCProgressionManager] Cannot unlock feature '{phase.unlockFeatureIdAfterDialogue}' because PlayerDataManager is unavailable.",
+            this);
+        return false;
     }
 
     /// <summary>Runtime/UI entry point matching the Idle Roaming Inspector checkbox.</summary>

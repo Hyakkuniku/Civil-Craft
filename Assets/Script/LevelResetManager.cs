@@ -38,6 +38,21 @@ public class LevelResetManager : MonoBehaviour
     [Tooltip("Positions too close to the death height are never accepted as safe.")]
     [SerializeField, Min(0f)] private float safeHeightAboveDeathThreshold = 2f;
 
+    [Tooltip("The player must remain continuously grounded for this long before a new respawn point is accepted.")]
+    [SerializeField, Min(0f)] private float safeGroundedDuration = 0.75f;
+
+    [Tooltip("Maximum downward change between automatic checkpoints. Large falls into a canyon cannot replace the checkpoint on the bank.")]
+    [SerializeField, Min(0.1f)] private float maximumCheckpointDrop = 2f;
+
+    [Tooltip("Maximum ground angle that can be used as a respawn point.")]
+    [SerializeField, Range(0f, 89f)] private float maximumSafeGroundSlope = 50f;
+
+    [Tooltip("How far below the CharacterController's feet to search for supporting ground.")]
+    [SerializeField, Min(0.1f)] private float safeGroundProbeDistance = 1f;
+
+    [Tooltip("Physics layers that may support a safe player respawn. Triggers are always ignored.")]
+    [SerializeField] private LayerMask safeGroundLayers = ~0;
+
     [Header("Objects to Reset (Square One)")]
     [Tooltip("Add the Player, Cargo, and any vehicles to this list.")]
     public List<ResetableObject> objectsToReset = new List<ResetableObject>();
@@ -51,8 +66,10 @@ public class LevelResetManager : MonoBehaviour
     private Vector3 lastSafePlayerPosition;
     private Quaternion lastSafePlayerRotation;
     private float nextSafePositionSampleTime;
+    private float groundedSince = -1f;
     private bool hasSafePlayerPose;
     private bool initializationComplete;
+    private readonly RaycastHit[] groundHits = new RaycastHit[16];
 
     private IEnumerator Start()
     {
@@ -212,18 +229,120 @@ public class LevelResetManager : MonoBehaviour
             if (playerController != null &&
                 (!playerController.enabled || !playerController.isGrounded))
             {
+                groundedSince = -1f;
                 return;
             }
+
+            if (groundedSince < 0f)
+            {
+                groundedSince = Time.unscaledTime;
+                return;
+            }
+
+            if (Time.unscaledTime - groundedSince < Mathf.Max(0f, safeGroundedDuration))
+                return;
 
             // During bridge testing, the ground under the player can disappear.
             // Keep the safe pose on the bank from immediately before simulation.
             if (bridgeManager != null && bridgeManager.isSimulating)
                 return;
+
+            if (!HasSafeWalkableGround(playerTransform.position))
+                return;
+
+            // A normal slope or staircase updates in small increments. A large
+            // vertical drop means the player fell into a ravine or onto buried
+            // collision and must keep the checkpoint from before the fall.
+            if (hasSafePlayerPose &&
+                playerTransform.position.y < lastSafePlayerPosition.y -
+                Mathf.Max(0.1f, maximumCheckpointDrop))
+            {
+                return;
+            }
         }
 
         lastSafePlayerPosition = playerTransform.position;
         lastSafePlayerRotation = playerTransform.rotation;
         hasSafePlayerPose = true;
+        groundedSince = Time.unscaledTime;
+    }
+
+    /// <summary>
+    /// Authored teleports such as minimap fast travel are trusted arrival points.
+    /// Registering them explicitly lets a legitimate lower destination establish a
+    /// new baseline without weakening automatic canyon-fall protection.
+    /// </summary>
+    public void RegisterCurrentPlayerPoseAsSafe()
+    {
+        ResolvePlayerReferences();
+        if (playerTransform == null) return;
+
+        lastSafePlayerPosition = playerTransform.position;
+        lastSafePlayerRotation = playerTransform.rotation;
+        hasSafePlayerPose = true;
+        groundedSince = Time.unscaledTime;
+        nextSafePositionSampleTime = Time.unscaledTime +
+                                     Mathf.Max(0.05f, safePositionSampleInterval);
+    }
+
+    public bool TryGetLastSafePlayerPosition(out Vector3 position)
+    {
+        position = lastSafePlayerPosition;
+        return useLastSafePlayerPosition && hasSafePlayerPose;
+    }
+
+    private bool HasSafeWalkableGround(Vector3 playerPosition)
+    {
+        if (playerController == null)
+            playerController = playerTransform != null
+                ? playerTransform.GetComponent<CharacterController>()
+                : null;
+
+        float bottomOffset = playerController != null
+            ? playerController.center.y - playerController.height * 0.5f
+            : 0f;
+        float probeRadius = playerController != null
+            ? Mathf.Max(0.05f, playerController.radius * 0.45f)
+            : 0.15f;
+        float startHeight = Mathf.Max(0.2f,
+            playerController != null ? playerController.stepOffset + 0.1f : 0.35f);
+        Vector3 origin = playerPosition + Vector3.up * (bottomOffset + startHeight);
+        float distance = startHeight + Mathf.Max(0.1f, safeGroundProbeDistance);
+
+        int hitCount = Physics.SphereCastNonAlloc(
+            origin,
+            probeRadius,
+            Vector3.down,
+            groundHits,
+            distance,
+            safeGroundLayers,
+            QueryTriggerInteraction.Ignore);
+
+        float bestDistance = float.PositiveInfinity;
+        bool foundWalkableGround = false;
+        for (int i = 0; i < hitCount; i++)
+        {
+            RaycastHit hit = groundHits[i];
+            if (hit.collider == null || IsPlayerCollider(hit.collider)) continue;
+
+            float slope = Vector3.Angle(hit.normal, Vector3.up);
+            if (slope > Mathf.Clamp(maximumSafeGroundSlope, 0f, 89f)) continue;
+
+            if (hit.distance < bestDistance)
+            {
+                bestDistance = hit.distance;
+                foundWalkableGround = true;
+            }
+        }
+
+        return foundWalkableGround;
+    }
+
+    private bool IsPlayerCollider(Collider candidate)
+    {
+        return candidate != null && playerTransform != null &&
+               (candidate.transform == playerTransform ||
+                candidate.transform.IsChildOf(playerTransform));
     }
 
     private void OnValidate()
@@ -231,5 +350,9 @@ public class LevelResetManager : MonoBehaviour
         safePositionSampleInterval = Mathf.Max(0.05f, safePositionSampleInterval);
         respawnHeightOffset = Mathf.Max(0f, respawnHeightOffset);
         safeHeightAboveDeathThreshold = Mathf.Max(0f, safeHeightAboveDeathThreshold);
+        safeGroundedDuration = Mathf.Max(0f, safeGroundedDuration);
+        maximumCheckpointDrop = Mathf.Max(0.1f, maximumCheckpointDrop);
+        maximumSafeGroundSlope = Mathf.Clamp(maximumSafeGroundSlope, 0f, 89f);
+        safeGroundProbeDistance = Mathf.Max(0.1f, safeGroundProbeDistance);
     }
 }

@@ -14,13 +14,32 @@ public class MinimapFollow : MonoBehaviour
     public bool rotateWithPlayer = false;
 
     private bool manualView;
+    private float nextPlayerSearchTime;
 
     public bool IsManualView => manualView;
 
     private void LateUpdate()
     {
         if (manualView) return;
-        if (player == null) return;
+        if (player == null)
+        {
+            // Runtime-repaired minimap cameras can be created before a scene's
+            // player prefab finishes spawning. Keep trying at a low frequency.
+            if (Time.unscaledTime < nextPlayerSearchTime) return;
+            nextPlayerSearchTime = Time.unscaledTime + 0.5f;
+            PlayerMotor playerMotor = null;
+            foreach (PlayerMotor candidate in FindObjectsOfType<PlayerMotor>())
+            {
+                if (candidate != null && candidate.gameObject.scene == gameObject.scene)
+                {
+                    playerMotor = candidate;
+                    break;
+                }
+            }
+
+            if (playerMotor == null) return;
+            player = playerMotor.transform;
+        }
 
         // 1. Follow the player's X and Z, but lock the Y height in the sky
         Vector3 newPosition = player.position;
