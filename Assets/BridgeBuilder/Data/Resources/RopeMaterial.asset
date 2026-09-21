@@ -15,10 +15,10 @@ MonoBehaviour:
   materialId: RopeMaterial
   displayName: Support Rope
   introductionDescription: A flexible support for suspension-style bridges that works best under tension. Rope cannot carry meaningful compression, so anchor it securely above a supported road deck.
-  costPerMeter: 85
+  costPerMeter: 125
   massPerMeter: 0.216
   maxLength: Infinity
-  maxTension: 108000
+  maxTension: 62000
   maxCompression: 0
   useSpring: 1
   spring: 10000

@@ -99,6 +99,13 @@ public static class DeterministicBridgeStressSolver
         public bool IsRoad;
     }
 
+    private sealed class ActiveSystem
+    {
+        public decimal[,] Factor;
+        public int[] Pivots;
+        public bool IsStructurallyStable;
+    }
+
     private const decimal Gravity = 9.81m;
     private const decimal MillimetresPerMetre = 1000m;
     private const decimal MinimumPivot = 0.000000000001m;
@@ -198,25 +205,11 @@ public static class DeterministicBridgeStressSolver
         }
         if (degreeCount == 0) return null;
 
-        decimal[,] stiffness = new decimal[degreeCount, degreeCount];
-        foreach (MemberData member in members)
-            AddMemberStiffness(stiffness, nodes, member);
-
-        // Check the real stiffness matrix before numerical regularization. A
-        // rank-deficient truss is a mechanism: it can fold while reporting very
-        // little axial force. Previously that case could fall back to PhysX and
-        // appear stronger than a complete truss.
-        bool isStructurallyStable = HasFullRank(stiffness);
-
-        // A tiny deterministic diagonal keeps mechanisms solvable and produces a
-        // very high utilization instead of a platform-dependent singular failure.
-        decimal largestDiagonal = 0m;
-        for (int i = 0; i < degreeCount; i++)
-            largestDiagonal = DecimalMax(largestDiagonal, DecimalAbs(stiffness[i, i]));
-        decimal regularization = largestDiagonal > 0m ? largestDiagonal / 1000000000m : 0.000001m;
-        for (int i = 0; i < degreeCount; i++) stiffness[i, i] += regularization;
-
-        if (!TryFactor(stiffness, out decimal[,] factor, out int[] pivots)) return null;
+        // Cache factorizations for rope active sets. A slack rope must be removed
+        // from stiffness, not merely hidden from the reported stress: otherwise
+        // it can secretly prop up a bridge while carrying compression.
+        Dictionary<string, ActiveSystem> activeSystems = new Dictionary<string, ActiveSystem>();
+        bool isStructurallyStable = true;
 
         decimal[] deadLoads = new decimal[degreeCount];
         foreach (MemberData member in members)
@@ -226,8 +219,10 @@ public static class DeterministicBridgeStressSolver
             AddVerticalLoad(deadLoads, nodes[member.NodeB], -endpointWeight);
         }
 
-        decimal[] deadDisplacements = Solve(factor, pivots, deadLoads);
-        decimal[] deadForces = CalculateMemberForces(nodes, members, deadDisplacements);
+        decimal[] deadForces = SolveTensionOnly(
+            nodes, members, degreeCount, deadLoads, activeSystems, out bool deadLoadStable);
+        if (deadForces == null) return null;
+        isStructurallyStable &= deadLoadStable;
 
         List<int> roadMemberIndices = new List<int>();
         decimal roadMinX = decimal.MaxValue;
@@ -254,15 +249,17 @@ public static class DeterministicBridgeStressSolver
             decimal[] totalLoads = (decimal[])deadLoads.Clone();
             ApplyRoadPointLoad(totalLoads, nodes, members, roadMemberIndices, loadX, vehicleWeight);
 
-            decimal[] displacements = Solve(factor, pivots, totalLoads);
-            decimal[] totalForces = CalculateMemberForces(nodes, members, displacements);
+            decimal[] totalForces = SolveTensionOnly(
+                nodes, members, degreeCount, totalLoads, activeSystems, out bool sampleStable);
+            if (totalForces == null) return null;
+            isStructurallyStable &= sampleStable;
             Sample sample = new Sample(members.Count);
 
             for (int memberIndex = 0; memberIndex < members.Count; memberIndex++)
             {
                 MemberData member = members[memberIndex];
                 decimal totalForce = totalForces[memberIndex];
-                bool tension = totalForce >= 0m;
+                bool tension = member.IsRope ? totalForce > 0m : totalForce >= 0m;
                 decimal limit = tension ? member.TensionLimit : member.CompressionLimit;
                 decimal structuralRatio = limit > 0m ? DecimalAbs(totalForce) / limit : 0m;
 
@@ -297,6 +294,85 @@ public static class DeterministicBridgeStressSolver
             peakDisplayed,
             peakStructural,
             isStructurallyStable);
+    }
+
+    private static decimal[] SolveTensionOnly(
+        List<NodeData> nodes,
+        List<MemberData> members,
+        int degreeCount,
+        decimal[] loads,
+        Dictionary<string, ActiveSystem> activeSystems,
+        out bool isStable)
+    {
+        bool[] slack = new bool[members.Count];
+        int ropeCount = 0;
+        for (int i = 0; i < members.Count; i++)
+            if (members[i].IsRope) ropeCount++;
+
+        // Removing a compressed rope can make another rope slack. Each pass
+        // removes at least one, so this terminates after at most ropeCount + 1
+        // solves. This intentionally errs on the safe side for ambiguous ropes.
+        for (int pass = 0; pass <= ropeCount; pass++)
+        {
+            char[] keyChars = new char[ropeCount];
+            int ropeIndex = 0;
+            for (int i = 0; i < members.Count; i++)
+                if (members[i].IsRope) keyChars[ropeIndex++] = slack[i] ? '0' : '1';
+            string key = new string(keyChars);
+
+            if (!activeSystems.TryGetValue(key, out ActiveSystem system))
+            {
+                decimal[,] stiffness = new decimal[degreeCount, degreeCount];
+                for (int i = 0; i < members.Count; i++)
+                    if (!slack[i]) AddMemberStiffness(stiffness, nodes, members[i]);
+
+                // Test the actual structure before the small numerical support
+                // added below. A bridge relying on a slack cable is a mechanism.
+                bool stable = HasFullRank(stiffness);
+                decimal largestDiagonal = 0m;
+                for (int i = 0; i < degreeCount; i++)
+                    largestDiagonal = DecimalMax(largestDiagonal, DecimalAbs(stiffness[i, i]));
+                decimal regularization = largestDiagonal > 0m
+                    ? largestDiagonal / 1000000000m : 0.000001m;
+                for (int i = 0; i < degreeCount; i++) stiffness[i, i] += regularization;
+                if (!TryFactor(stiffness, out decimal[,] factor, out int[] pivots))
+                {
+                    isStable = false;
+                    return null;
+                }
+
+                system = new ActiveSystem
+                {
+                    Factor = factor,
+                    Pivots = pivots,
+                    IsStructurallyStable = stable
+                };
+                activeSystems.Add(key, system);
+            }
+
+            decimal[] displacements = Solve(system.Factor, system.Pivots, loads);
+            decimal[] forces = CalculateMemberForces(nodes, members, displacements);
+            bool removedRope = false;
+            for (int i = 0; i < members.Count; i++)
+            {
+                if (!members[i].IsRope) continue;
+                if (slack[i])
+                    forces[i] = 0m;
+                else if (forces[i] < 0m)
+                {
+                    slack[i] = true;
+                    forces[i] = 0m;
+                    removedRope = true;
+                }
+            }
+
+            if (removedRope) continue;
+            isStable = system.IsStructurallyStable;
+            return forces;
+        }
+
+        isStable = false;
+        return null;
     }
 
     private static bool HasFullRank(decimal[,] source)

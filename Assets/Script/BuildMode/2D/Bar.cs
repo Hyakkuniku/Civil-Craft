@@ -337,6 +337,14 @@ public class Bar : MonoBehaviour
     [HideInInspector] public bool isHighlighted = false; 
 
     private List<GameObject> visualSegments = new List<GameObject>();
+    private readonly List<Renderer> ropeBuildRenderers = new List<Renderer>();
+    private readonly List<LineRenderer> ropeSimulationLines = new List<LineRenderer>();
+    private bool ropeSimulationVisualActive;
+    private float ropeSimulationRestLength;
+    private const int RopeCurvePoints = 17;
+    private static readonly Color RopeLineColor = new Color(0.72f, 0.43f, 0.25f, 1f);
+    private static Shader ropeSimulationShader;
+    private Material ropeSimulationMaterial;
     private float baseLength = 1f; 
     private Vector3 originalScale = Vector3.one;
     
@@ -411,6 +419,15 @@ public class Bar : MonoBehaviour
     {
         selectionOutline?.Dispose();
         RemoveConnections();
+        ReleaseRopeSimulationMaterial();
+    }
+
+    private void ReleaseRopeSimulationMaterial()
+    {
+        if (ropeSimulationMaterial == null) return;
+        if (Application.isPlaying) Destroy(ropeSimulationMaterial);
+        else DestroyImmediate(ropeSimulationMaterial);
+        ropeSimulationMaterial = null;
     }
 
     private void RemoveConnections()
@@ -431,8 +448,13 @@ public class Bar : MonoBehaviour
 
     public void Initialize(BridgeMaterialSO data)
     {
+        ReleaseRopeSimulationMaterial();
         materialData = data;
         visualSegments.Clear();
+        ropeBuildRenderers.Clear();
+        ropeSimulationLines.Clear();
+        ropeSimulationVisualActive = false;
+        ropeSimulationRestLength = 0f;
         
         foreach (Transform child in transform)
         {
@@ -448,27 +470,60 @@ public class Bar : MonoBehaviour
             {
                 GameObject newSegment = Instantiate(materialData.segmentPrefab, transform);
                 newSegment.name = materialData.isDualBeam ? $"VisualSegment_{i}" : "VisualSegment";
-                
+
                 float offsetValue = 0f;
                 if (materialData.isDualBeam)
                 {
                     offsetValue = (i == 0) ? materialData.zOffset : -materialData.zOffset;
                 }
-                
                 newSegment.transform.localPosition = new Vector3(0, 0, offsetValue);
 
                 var renderer = newSegment.GetComponentInChildren<Renderer>();
+                if (materialData.isRope)
+                    ropeBuildRenderers.AddRange(newSegment.GetComponentsInChildren<Renderer>());
                 if (renderer != null && i == 0)
                 {
                     originalScale = newSegment.transform.localScale;
-                    
                     baseLength = materialData.isPier ? renderer.bounds.size.y : renderer.bounds.size.x;
-                    visualSize = renderer.bounds.size; 
-                    if (baseLength <= 0f) baseLength = 1f; 
+                    visualSize = renderer.bounds.size;
+                    if (baseLength <= 0f) baseLength = 1f;
                 }
-                
+
                 newSegment.transform.localScale = Vector3.zero;
                 visualSegments.Add(newSegment);
+            }
+
+            if (materialData.isRope && ropeBuildRenderers.Count > 0)
+            {
+                if (ropeSimulationShader == null)
+                    ropeSimulationShader = Resources.Load<Shader>("Shaders/RopeSimulation");
+                if (ropeSimulationShader != null)
+                    ropeSimulationMaterial = new Material(ropeSimulationShader);
+            }
+
+            if (ropeSimulationMaterial != null)
+            {
+                ropeSimulationMaterial.SetColor("_BaseColor", RopeLineColor);
+                for (int i = 0; i < spawnCount; i++)
+                {
+                    GameObject lineObject = new GameObject($"SimulationRope_{i}");
+                    lineObject.transform.SetParent(transform, false);
+                    LineRenderer line = lineObject.AddComponent<LineRenderer>();
+                    line.useWorldSpace = true;
+                    line.positionCount = RopeCurvePoints;
+                    line.widthMultiplier = Mathf.Clamp(visualSize.y * 1.65f, 0.16f, 0.30f);
+                    line.numCornerVertices = 4;
+                    line.numCapVertices = 4;
+                    line.textureMode = LineTextureMode.Tile;
+                    line.alignment = LineAlignment.View;
+                    line.sharedMaterial = ropeSimulationMaterial;
+                    line.startColor = Color.white;
+                    line.endColor = Color.white;
+                    line.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                    line.receiveShadows = false;
+                    line.enabled = false;
+                    ropeSimulationLines.Add(line);
+                }
             }
         }
 
@@ -537,6 +592,8 @@ public class Bar : MonoBehaviour
         {
             foreach (var seg in visualSegments) seg.transform.localScale = Vector3.zero;
             if (pierCapInstance != null) pierCapInstance.transform.localScale = Vector3.zero;
+            if (ropeSimulationVisualActive)
+                foreach (LineRenderer line in ropeSimulationLines) line.enabled = false;
             return;
         }
 
@@ -602,6 +659,51 @@ public class Bar : MonoBehaviour
             foreach (var seg in visualSegments)
             {
                 seg.transform.localScale = newScale;
+            }
+        }
+
+        if (ropeSimulationVisualActive)
+            UpdateRopeSimulationLines(actualStart, actualEnd, totalDistance);
+    }
+
+    public void SetRopeSimulationVisual(bool active, float restLength = 0f)
+    {
+        if (materialData == null || !materialData.isRope) return;
+        ropeSimulationVisualActive = active && ropeSimulationLines.Count > 0;
+        ropeSimulationRestLength = ropeSimulationVisualActive ? Mathf.Max(0f, restLength) : 0f;
+
+        foreach (Renderer renderer in ropeBuildRenderers)
+            if (renderer != null) renderer.enabled = !ropeSimulationVisualActive;
+        foreach (LineRenderer line in ropeSimulationLines)
+            if (line != null) line.enabled = ropeSimulationVisualActive;
+
+        if (ropeSimulationVisualActive && startPoint != null && endPoint != null)
+            UpdateRopeSimulationLines(startPoint.transform.position,
+                endPoint.transform.position,
+                Vector3.Distance(startPoint.transform.position, endPoint.transform.position));
+    }
+
+    private void UpdateRopeSimulationLines(Vector3 start, Vector3 end, float chordLength)
+    {
+        // One continuous ribbon per strand avoids seams. Sag is visual only and
+        // appears when the endpoint distance becomes shorter than the authored rope.
+        float slack = Mathf.Max(0f, ropeSimulationRestLength - chordLength - 0.03f);
+        float sag = Mathf.Min(Mathf.Sqrt(0.375f * chordLength * slack),
+            ropeSimulationRestLength * 0.12f);
+        for (int strand = 0; strand < ropeSimulationLines.Count; strand++)
+        {
+            LineRenderer line = ropeSimulationLines[strand];
+            if (line == null) continue;
+            line.enabled = true;
+            float zOffset = materialData.isDualBeam
+                ? (strand == 0 ? materialData.zOffset : -materialData.zOffset) : 0f;
+            for (int point = 0; point < RopeCurvePoints; point++)
+            {
+                float t = (float)point / (RopeCurvePoints - 1);
+                Vector3 position = Vector3.Lerp(start, end, t);
+                position.y -= 4f * sag * t * (1f - t);
+                position.z = start.z + zOffset;
+                line.SetPosition(point, position);
             }
         }
     }

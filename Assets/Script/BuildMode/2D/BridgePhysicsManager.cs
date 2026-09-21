@@ -1563,6 +1563,9 @@ public class BarStressHandler : MonoBehaviour
             else
                 originalColors[i] = Color.white;
         }
+
+        if (mat.isRope && myBar != null)
+            myBar.SetRopeSimulationVisual(true, restLength);
     }
 
     public void SetRopeJoint(SpringJoint joint)
@@ -1618,6 +1621,8 @@ public class BarStressHandler : MonoBehaviour
 
     private void OnDestroy()
     {
+        if (material != null && material.isRope && myBar != null)
+            myBar.SetRopeSimulationVisual(false);
         if (childRenderers == null) return;
         for (int i = 0; i < childRenderers.Length; i++)
         {
@@ -1625,15 +1630,17 @@ public class BarStressHandler : MonoBehaviour
         }
     }
 
+    private void LateUpdate()
+    {
+        if (material == null || !material.isRope || isBroken ||
+            myBar == null || p1 == null || p2 == null) return;
+        myBar.StartPosition = p1.transform.position;
+        myBar.UpdateCreatingBar(p2.transform.position);
+    }
+
     public void EvaluateStress(bool allowBreaking = true)
     {
         if (!canTrackStress || isBroken || p1 == null || p2 == null) return;
-
-        if (material.isRope && myBar != null)
-        {
-            myBar.StartPosition = p1.transform.position;
-            myBar.UpdateCreatingBar(p2.transform.position);
-        }
 
         CacheJointsIfNeeded();
         if (!material.isRope && (joints == null || joints.Length == 0)) return;
@@ -1674,7 +1681,7 @@ public class BarStressHandler : MonoBehaviour
 
         if (material.isRope)
         {
-            if (smoothedForce > tensionLimit)
+            if (isTension && smoothedForce > tensionLimit)
             {
                 breakingJoint = ropeJoint;
                 breakCause = "Tension (Rope Snapped)";
