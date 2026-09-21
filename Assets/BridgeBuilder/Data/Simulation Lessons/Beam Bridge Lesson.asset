@@ -22,8 +22,8 @@ MonoBehaviour:
   vehicleMidpointProgress: 0.5
   highStressThreshold: 0.7
   vehicleStuckDelay: 5
-  simulationStarted: Simulation started. Watch how the horizontal beam responds as
-    the live load moves across it.
+  simulationStarted: Simulation started. Watch the vehicle approach the horizontal
+    beam. The beam is not carrying its live load until the wheels reach the roadway.
   liveLoadStarted: The vehicle pushes the beam downward while the anchors and supports
     provide upward reactions.
   vehicleEnteredBridge: Near the support, the load has a short path into the ground.

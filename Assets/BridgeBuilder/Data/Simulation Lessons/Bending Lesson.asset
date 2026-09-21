@@ -22,8 +22,8 @@ MonoBehaviour:
   vehicleMidpointProgress: 0.5
   highStressThreshold: 0.7
   vehicleStuckDelay: 5
-  simulationStarted: Simulation started. Watch how the moving live load changes the
-    shape of the bridge.
+  simulationStarted: Simulation started. Watch the vehicle approach the bridge. Bending
+    from live load begins only after the wheels transfer weight onto the roadway.
   liveLoadStarted: As the vehicle moves, its weight creates bending in the road.
     The upper side is compressed while the lower side is pulled in tension.
   vehicleEnteredBridge: The live load is now transferring through the road into the

@@ -22,7 +22,7 @@ MonoBehaviour:
   vehicleMidpointProgress: 0.5
   highStressThreshold: 0.7
   vehicleStuckDelay: 5
-  simulationStarted: Simulation started. Watch how the bridge responds as dead load and live load travel through its members.
+  simulationStarted: Simulation started. Watch the vehicle approach the bridge. Its live load will begin transferring only when its wheels reach the roadway.
   liveLoadStarted: The moving live load is transferring weight through the road, structural members, and supports into the ground.
   vehicleEnteredBridge: The live load has entered the bridge. Observe which members begin carrying more force.
   vehicleReachedMidpoint: The live load is near midspan, where the bridge is often farthest from its supports and structural demand can increase.

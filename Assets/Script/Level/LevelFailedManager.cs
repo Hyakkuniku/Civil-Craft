@@ -47,8 +47,14 @@ public class LevelFailedManager : MonoBehaviour
     [Tooltip("The Y-axis height at which the vehicle is considered fallen/destroyed.")]
     public float deathThreshold = -15f;
 
-    [Tooltip("The vehicle also fails after falling this far below its own start point. This keeps fall detection reliable in scenes that use different world heights.")]
+    [Tooltip("The vehicle fails after its physical wheel envelope remains this far below the authored route.")]
     [Min(1f)] public float maximumVehicleFallDistance = 6f;
+
+    [Tooltip("How long the vehicle must remain below its route before the fall is confirmed. This filters a single physics/depenetration frame.")]
+    [Min(0.05f)] public float vehicleFallConfirmationDuration = 0.35f;
+
+    [Tooltip("Fail a test if a driving vehicle on the bridge makes no meaningful forward progress for this many simulation seconds.")]
+    [Min(1f)] public float vehicleStallTimeout = 8f;
     
     [Tooltip("How long to wait before showing the fail screen (lets the player watch the destruction).")]
     public float delayBeforeFailScreen = 2.0f; 
@@ -62,9 +68,11 @@ public class LevelFailedManager : MonoBehaviour
     private BridgePhysicsManager physicsManager;
     private Coroutine failDelayCoroutine;
     private BuildLocation tutorialLocationToRestart;
-    private float activeVehicleStartY;
-    private bool hasVehicleStartHeight;
     private bool vehicleWasPresentForSimulation;
+    private bool vehicleReachedBridgeThisRun;
+    private float vehicleBelowRouteTimer;
+    private float vehicleStallTimer;
+    private float vehicleBestRouteProgress;
     
     [HideInInspector] public bool isFailed = false;
 
@@ -144,6 +152,14 @@ public class LevelFailedManager : MonoBehaviour
             }
 
             if (!BridgePhysicsManager.DebugInvincibleBridge &&
+                !physicsManager.IsDeterministicStructureStable &&
+                physicsManager.peakStressThisRun >= 1f)
+            {
+                InitiateFailure("Structurally Unstable Bridge!");
+                return;
+            }
+
+            if (!BridgePhysicsManager.DebugInvincibleBridge &&
                 physicsManager.peakStressThisRun >= stressThreshold)
             {
                 InitiateFailure(stressFailReason);
@@ -162,15 +178,52 @@ public class LevelFailedManager : MonoBehaviour
                     return;
                 }
 
-                float relativeDeathThreshold = hasVehicleStartHeight
-                    ? activeVehicleStartY - Mathf.Max(1f, maximumVehicleFallDistance)
-                    : float.NegativeInfinity;
-                float effectiveDeathThreshold = Mathf.Max(deathThreshold, relativeDeathThreshold);
+                if (physicsManager != null &&
+                    physicsManager.TryGetCurrentVehicleRoadState(out _, out float bridgeLoadFactor) &&
+                    bridgeLoadFactor > 0.01f)
+                    vehicleReachedBridgeThisRun = true;
 
-                if (activeVehicle.transform.position.y < effectiveDeathThreshold)
+                // Compare the actual wheel envelope with the authored route. A
+                // model's transform root is not a safe measurement: Vance's
+                // imported cargo truck has a rotated, heavily scaled root whose
+                // height does not represent the visible wheels.
+                bool belowRoute = activeVehicle.TryGetVerticalRouteDeviation(
+                    out float routeDeviation,
+                    out float physicalHeight)
+                    ? routeDeviation < -Mathf.Max(1f, maximumVehicleFallDistance)
+                    : physicalHeight < deathThreshold;
+                belowRoute |= physicalHeight < deathThreshold;
+
+                vehicleBelowRouteTimer = belowRoute
+                    ? vehicleBelowRouteTimer + Time.unscaledDeltaTime
+                    : 0f;
+
+                if (vehicleBelowRouteTimer >= Mathf.Max(0.05f, vehicleFallConfirmationDuration))
                 {
-                    InitiateFailure("Vehicle Fell Into the Ravine!");
+                    InitiateFailure(vehicleReachedBridgeThisRun
+                        ? "Vehicle Fell Into the Ravine!"
+                        : "Vehicle Fell Before Reaching the Bridge!");
                     return;
+                }
+
+                if (vehicleReachedBridgeThisRun && activeVehicle.IsDriving &&
+                    !activeVehicle.HasReachedEnd)
+                {
+                    float routeProgress = activeVehicle.NormalizedRouteProgress;
+                    if (routeProgress >= vehicleBestRouteProgress + 0.005f)
+                    {
+                        vehicleBestRouteProgress = routeProgress;
+                        vehicleStallTimer = 0f;
+                    }
+                    else if (Time.timeScale > 0f)
+                    {
+                        vehicleStallTimer += Time.deltaTime;
+                        if (vehicleStallTimer >= Mathf.Max(1f, vehicleStallTimeout))
+                        {
+                            InitiateFailure("Vehicle Stalled on the Bridge!");
+                            return;
+                        }
+                    }
                 }
             }
             else if (vehicleWasPresentForSimulation)
@@ -185,8 +238,11 @@ public class LevelFailedManager : MonoBehaviour
     private void HandleSimulationStarted()
     {
         activeVehicle = null;
-        hasVehicleStartHeight = false;
         vehicleWasPresentForSimulation = false;
+        vehicleReachedBridgeThisRun = false;
+        vehicleBelowRouteTimer = 0f;
+        vehicleStallTimer = 0f;
+        vehicleBestRouteProgress = 0f;
         if (GameManager.Instance != null && GameManager.Instance.IsCargoTestActive) return;
         CaptureActiveVehicle(FindVehicleForCurrentContract());
     }
@@ -197,10 +253,8 @@ public class LevelFailedManager : MonoBehaviour
         if (activeVehicle == null) return;
 
         vehicleWasPresentForSimulation = true;
-        activeVehicleStartY = activeVehicle.startPoint != null
-            ? activeVehicle.startPoint.position.y
-            : activeVehicle.transform.position.y;
-        hasVehicleStartHeight = true;
+        vehicleStallTimer = 0f;
+        vehicleBestRouteProgress = activeVehicle.NormalizedRouteProgress;
     }
 
     private static bool IsVehicleForCurrentContract(LiveLoadVehicle vehicle)
@@ -370,8 +424,24 @@ public class LevelFailedManager : MonoBehaviour
         string reason = failureReason ?? string.Empty;
         string normalized = reason.ToLowerInvariant();
 
+        if (normalized.Contains("unstable") || normalized.Contains("mechanism"))
+        {
+            return new FailurePresentation(
+                "UNSTABLE STRUCTURAL SYSTEM",
+                "The bridge can fold without developing normal member resistance, so its low axial stress does not represent real strength.",
+                "Close the open panels with complete triangles and connect the structural load path to both anchors.");
+        }
+
         if (normalized.Contains("fell") || normalized.Contains("ravine"))
         {
+            if (normalized.Contains("before reaching"))
+            {
+                return new FailurePresentation(
+                    "VEHICLE MISSED THE BRIDGE",
+                    "The live-load vehicle fell before its wheels reached the roadway, so the bridge was not yet carrying the contract load.",
+                    "Check the start approach, road alignment, and clearance between the bank and the first bridge segment.");
+            }
+
             return new FailurePresentation(
                 "VEHICLE LEFT THE BRIDGE",
                 "The live-load vehicle fell below the test route because the roadway or its supporting structure could not maintain a continuous crossing.",
@@ -384,6 +454,14 @@ public class LevelFailedManager : MonoBehaviour
                 "LIVE-LOAD VEHICLE LOST",
                 "The contract vehicle was destroyed or removed before it completed the required crossing.",
                 "Inspect road joints and vehicle clearance, then reinforce the area where the vehicle was lost.");
+        }
+
+        if (normalized.Contains("vehicle") && normalized.Contains("stall"))
+        {
+            return new FailurePresentation(
+                "VEHICLE STALLED ON BRIDGE",
+                "The live-load vehicle stopped making forward progress before completing the crossing.",
+                "Check the road surface for gaps or steep bends and leave enough clearance around the vehicle.");
         }
 
         if (normalized.Contains("stress") || normalized.Contains("capacity"))
@@ -638,8 +716,9 @@ public class LevelFailedManager : MonoBehaviour
         
         isFailed = false;
         activeVehicle = null;
-        hasVehicleStartHeight = false;
         vehicleWasPresentForSimulation = false;
+        vehicleReachedBridgeThisRun = false;
+        vehicleBelowRouteTimer = 0f;
         tutorialLocationToRestart = null;
         showExitButtonThisFail = false;
         RestoreHiddenUI(); 

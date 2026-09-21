@@ -13,12 +13,18 @@ public static class DeterministicBridgeStressSolver
     {
         private readonly Dictionary<Bar, int> barIndices;
 
-        internal Result(Bar[] bars, Sample[] samples, float peakDisplayed, float peakStructural)
+        internal Result(
+            Bar[] bars,
+            Sample[] samples,
+            float peakDisplayed,
+            float peakStructural,
+            bool isStructurallyStable)
         {
             Bars = bars;
             Samples = samples;
             PeakDisplayedStress = peakDisplayed;
             PeakStructuralStress = peakStructural;
+            IsStructurallyStable = isStructurallyStable;
             barIndices = new Dictionary<Bar, int>(bars.Length);
             for (int i = 0; i < bars.Length; i++)
                 if (bars[i] != null) barIndices[bars[i]] = i;
@@ -28,6 +34,12 @@ public static class DeterministicBridgeStressSolver
         public Sample[] Samples { get; }
         public float PeakDisplayedStress { get; }
         public float PeakStructuralStress { get; }
+        /// <summary>
+        /// False when the authored bars contain a free mechanism. A mechanism can
+        /// move without stretching a member, so low axial stress must not be
+        /// interpreted as strength.
+        /// </summary>
+        public bool IsStructurallyStable { get; }
         public bool IsValid => Bars.Length > 0 && Samples.Length > 0;
 
         public bool TryGetStress(Bar bar, int sampleIndex, out float displayed, out float structural, out bool tension)
@@ -66,6 +78,7 @@ public static class DeterministicBridgeStressSolver
         public decimal X;
         public decimal Y;
         public bool IsFixed;
+        public bool HasMember;
         public int XDegree = -1;
         public int YDegree = -1;
     }
@@ -168,6 +181,8 @@ public static class DeterministicBridgeStressSolver
                 IsRope = material.isRope,
                 IsRoad = material.isRoad
             });
+            nodes[nodeA].HasMember = true;
+            nodes[nodeB].HasMember = true;
         }
 
         if (nodes.Count < 2 || members.Count == 0) return null;
@@ -175,7 +190,9 @@ public static class DeterministicBridgeStressSolver
         int degreeCount = 0;
         foreach (NodeData node in nodes)
         {
-            if (node.IsFixed) continue;
+            // Build locations can retain unused construction points. They are not
+            // part of the bridge and must not create empty stiffness rows.
+            if (!node.HasMember || node.IsFixed) continue;
             node.XDegree = degreeCount++;
             node.YDegree = degreeCount++;
         }
@@ -184,6 +201,12 @@ public static class DeterministicBridgeStressSolver
         decimal[,] stiffness = new decimal[degreeCount, degreeCount];
         foreach (MemberData member in members)
             AddMemberStiffness(stiffness, nodes, member);
+
+        // Check the real stiffness matrix before numerical regularization. A
+        // rank-deficient truss is a mechanism: it can fold while reporting very
+        // little axial force. Previously that case could fall back to PhysX and
+        // appear stronger than a complete truss.
+        bool isStructurallyStable = HasFullRank(stiffness);
 
         // A tiny deterministic diagonal keeps mechanisms solvable and produces a
         // very high utilization instead of a platform-dependent singular failure.
@@ -268,7 +291,67 @@ public static class DeterministicBridgeStressSolver
 
         Bar[] resultBars = new Bar[members.Count];
         for (int i = 0; i < members.Count; i++) resultBars[i] = members[i].Bar;
-        return new Result(resultBars, samples, peakDisplayed, peakStructural);
+        return new Result(
+            resultBars,
+            samples,
+            peakDisplayed,
+            peakStructural,
+            isStructurallyStable);
+    }
+
+    private static bool HasFullRank(decimal[,] source)
+    {
+        int size = source.GetLength(0);
+        if (size == 0) return false;
+
+        decimal[,] matrix = (decimal[,])source.Clone();
+        decimal largestEntry = 0m;
+        for (int row = 0; row < size; row++)
+        {
+            for (int column = 0; column < size; column++)
+                largestEntry = DecimalMax(largestEntry, DecimalAbs(matrix[row, column]));
+        }
+
+        if (largestEntry <= MinimumPivot) return false;
+        decimal rankTolerance = DecimalMax(MinimumPivot, largestEntry / 10000000000m);
+        int pivotRow = 0;
+
+        for (int column = 0; column < size && pivotRow < size; column++)
+        {
+            int bestRow = pivotRow;
+            decimal bestMagnitude = DecimalAbs(matrix[bestRow, column]);
+            for (int row = pivotRow + 1; row < size; row++)
+            {
+                decimal magnitude = DecimalAbs(matrix[row, column]);
+                if (magnitude <= bestMagnitude) continue;
+                bestMagnitude = magnitude;
+                bestRow = row;
+            }
+
+            if (bestMagnitude <= rankTolerance) continue;
+
+            if (bestRow != pivotRow)
+            {
+                for (int swapColumn = column; swapColumn < size; swapColumn++)
+                {
+                    decimal temporary = matrix[pivotRow, swapColumn];
+                    matrix[pivotRow, swapColumn] = matrix[bestRow, swapColumn];
+                    matrix[bestRow, swapColumn] = temporary;
+                }
+            }
+
+            for (int row = pivotRow + 1; row < size; row++)
+            {
+                if (DecimalAbs(matrix[row, column]) <= rankTolerance) continue;
+                decimal factor = matrix[row, column] / matrix[pivotRow, column];
+                for (int eliminationColumn = column; eliminationColumn < size; eliminationColumn++)
+                    matrix[row, eliminationColumn] -= factor * matrix[pivotRow, eliminationColumn];
+            }
+
+            pivotRow++;
+        }
+
+        return pivotRow == size;
     }
 
     private static void AddMemberStiffness(decimal[,] matrix, List<NodeData> nodes, MemberData member)

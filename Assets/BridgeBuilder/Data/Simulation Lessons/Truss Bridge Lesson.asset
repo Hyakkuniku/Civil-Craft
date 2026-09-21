@@ -22,8 +22,8 @@ MonoBehaviour:
   vehicleMidpointProgress: 0.5
   highStressThreshold: 0.7
   vehicleStuckDelay: 5
-  simulationStarted: Simulation started. Watch how the connected triangles carry
-    the moving live load toward both supports.
+  simulationStarted: Simulation started. Watch the vehicle approach the truss. Its
+    connected triangles begin carrying live load only after the wheels reach the roadway.
   liveLoadStarted: The vehicle's weight enters through the road. The truss redirects
     much of that bending demand into pulling and pushing forces along its members.
   vehicleEnteredBridge: The live load has entered the first truss panels. Diagonal

@@ -30,7 +30,7 @@ MonoBehaviour:
   clientName: Vance
   jobDescription: We need a bridge across this ravine!
   budget: 100000
-  liveLoadWeight: 1500
+  liveLoadWeight: 5000
   bridgeSpan: 3
   allowedMaterials: []
   hiddenTools: 

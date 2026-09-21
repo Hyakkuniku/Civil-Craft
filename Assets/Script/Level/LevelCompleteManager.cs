@@ -578,6 +578,20 @@ public class LevelCompleteManager : MonoBehaviour
     public void CompleteLevelForVehicle(ContractSO currentContract, LiveLoadVehicle finishingVehicle)
     {
         if (levelAlreadyCompleted) return;
+
+        // Keep every completion route consistent (finish trigger, timer, cargo,
+        // and authored UnityEvents). A bridge cannot pass merely because a
+        // folding or excessively sagged roadway happened to reach the goal.
+        if (!BridgePhysicsManager.DebugInvincibleBridge &&
+            cachedPhysicsManager != null && cachedPhysicsManager.isSimulating &&
+            !cachedPhysicsManager.IsDeterministicStructureStable)
+        {
+            if (LevelFailedManager.Instance != null)
+            {
+                LevelFailedManager.Instance.TriggerLevelFailed("Structurally Unstable Bridge!");
+            }
+            return;
+        }
         
         levelAlreadyCompleted = true;
         activeContract = currentContract;

@@ -811,7 +811,8 @@ public class BuildUIController : MonoBehaviour
 
         DeterministicBridgeStressSolver.Result unloaded =
             DeterministicBridgeStressSolver.Analyze(points, bars, 0f, false, samples);
-        if (unloaded == null || !unloaded.IsValid || unloaded.PeakStructuralStress >= 1f)
+        if (unloaded == null || !unloaded.IsValid || !unloaded.IsStructurallyStable ||
+            unloaded.PeakStructuralStress >= 1f)
             return 0f;
 
         ContractSO contract = GameManager.Instance != null ? GameManager.Instance.CurrentContract : null;
@@ -824,7 +825,7 @@ public class BuildUIController : MonoBehaviour
         {
             DeterministicBridgeStressSolver.Result result =
                 DeterministicBridgeStressSolver.Analyze(points, bars, high, false, samples);
-            if (result == null || !result.IsValid) return 0f;
+            if (result == null || !result.IsValid || !result.IsStructurallyStable) return 0f;
             if (result.PeakStructuralStress >= 1f)
             {
                 foundFailure = true;
@@ -842,7 +843,7 @@ public class BuildUIController : MonoBehaviour
             float candidate = (low + high) * 0.5f;
             DeterministicBridgeStressSolver.Result result =
                 DeterministicBridgeStressSolver.Analyze(points, bars, candidate, false, samples);
-            if (result == null || !result.IsValid) return 0f;
+            if (result == null || !result.IsValid || !result.IsStructurallyStable) return 0f;
 
             if (result.PeakStructuralStress >= 1f) high = candidate;
             else low = candidate;

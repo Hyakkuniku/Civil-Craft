@@ -64,11 +64,46 @@ public class BridgePhysicsManager : MonoBehaviour
     [Tooltip("Peak total structural stress, including dead load. Used for failure and contract limits.")]
     [HideInInspector] public float peakStressThisRun = 0f;
     public bool HadBrokenPartsThisRun { get; private set; }
+    public bool IsDeterministicStructureStable =>
+        !useDeterministicStressAnalysis ||
+        (deterministicAnalysisPrepared && deterministicStructureStable);
     public void RecordBrokenPart(BarStressHandler brokenMember)
     {
         if (HadBrokenPartsThisRun) return;
         HadBrokenPartsThisRun = true;
         OnFirstMemberBroken?.Invoke(brokenMember);
+    }
+
+    /// <summary>
+    /// Keep the vehicle's wheels and chassis in contact with road bars, but not
+    /// the side trusses. Those non-road bars transmit load through the bridge
+    /// joints and are still evaluated for stress; their colliders should not
+    /// trap a truck wider than the road's physical lane.
+    /// </summary>
+    public void IgnoreVehicleContactsWithNonRoadMembers(IEnumerable<Collider> vehicleColliders)
+    {
+        if (vehicleColliders == null) return;
+
+        foreach (Bar bar in deterministicBars)
+        {
+            if (bar == null || !bar.gameObject.activeInHierarchy ||
+                bar.materialData == null || bar.materialData.isRoad)
+                continue;
+
+            foreach (Collider memberCollider in bar.GetComponentsInChildren<Collider>())
+            {
+                if (memberCollider == null || !memberCollider.enabled || memberCollider.isTrigger)
+                    continue;
+
+                foreach (Collider vehicleCollider in vehicleColliders)
+                {
+                    if (vehicleCollider == null || !vehicleCollider.enabled ||
+                        vehicleCollider.isTrigger)
+                        continue;
+                    Physics.IgnoreCollision(vehicleCollider, memberCollider, true);
+                }
+            }
+        }
     }
 
     private HashSet<Point> simPoints = new HashSet<Point>();
@@ -87,8 +122,115 @@ public class BridgePhysicsManager : MonoBehaviour
     private int previousSolverIterations;
     private int previousSolverVelocityIterations;
     private DeterministicBridgeStressSolver.Result deterministicStressResult;
-    private int deterministicStressStep;
-    private int deterministicCrossingSteps = 1;
+    private DeterministicBridgeStressSolver.Result deterministicDeadLoadResult;
+    private LiveLoadVehicle deterministicLiveLoadVehicle;
+    private float deterministicRoadMinX;
+    private float deterministicRoadMaxX;
+    private bool deterministicAnalysisPrepared;
+    private bool deterministicStructureStable;
+
+    /// <summary>
+    /// Reports where the active contract vehicle really is relative to the
+    /// authored road, rather than estimating bridge entry from route time.
+    /// loadFactor is zero off the bridge and rises as its wheel envelope enters.
+    /// </summary>
+    public bool TryGetCurrentVehicleRoadState(out float roadProgress, out float loadFactor)
+    {
+        roadProgress = 0f;
+        loadFactor = 0f;
+
+        ContractSO contract = GameManager.Instance != null
+            ? GameManager.Instance.CurrentContract
+            : null;
+        LiveLoadVehicle vehicle = deterministicLiveLoadVehicle != null
+            ? deterministicLiveLoadVehicle
+            : LiveLoadVehicle.FindActiveForContract(contract);
+        if (vehicle == null || !TryResolveRoadSpan()) return false;
+
+        float vehicleMinX;
+        float vehicleMaxX;
+        bool hasPhysicalBounds = vehicle.TryGetPhysicalBounds(out Bounds vehicleBounds);
+        if (hasPhysicalBounds)
+        {
+            vehicleMinX = vehicleBounds.min.x;
+            vehicleMaxX = vehicleBounds.max.x;
+        }
+        else
+        {
+            vehicleMinX = vehicle.transform.position.x;
+            vehicleMaxX = vehicleMinX;
+        }
+
+        float overlapMin = Mathf.Max(vehicleMinX, deterministicRoadMinX);
+        float overlapMax = Mathf.Min(vehicleMaxX, deterministicRoadMaxX);
+        float overlap = Mathf.Max(0f, overlapMax - overlapMin);
+        float vehicleLength = vehicleMaxX - vehicleMinX;
+
+        if (vehicleLength > 0.01f)
+            loadFactor = Mathf.Clamp01(overlap / vehicleLength);
+        else
+            loadFactor = vehicleMinX >= deterministicRoadMinX && vehicleMinX <= deterministicRoadMaxX
+                ? 1f
+                : 0f;
+
+        float supportedLoadX = overlap > 0f
+            ? (overlapMin + overlapMax) * 0.5f
+            : (vehicleMinX + vehicleMaxX) * 0.5f;
+
+        // Horizontal overlap alone is not proof that the live load is on the
+        // bridge. A vehicle falling through the ravine still shares the same X
+        // coordinate. Require its wheel envelope to remain close to an actual
+        // road segment before applying live load or showing traversal lessons.
+        if (loadFactor > 0f && hasPhysicalBounds &&
+            TryGetRoadSurfaceHeight(supportedLoadX, vehicleBounds.min.y, out float roadSurfaceY))
+        {
+            float verticalTolerance = Mathf.Max(0.75f, vehicleBounds.size.y * 1.5f);
+            if (Mathf.Abs(vehicleBounds.min.y - roadSurfaceY) > verticalTolerance)
+                loadFactor = 0f;
+        }
+        else if (loadFactor > 0f && hasPhysicalBounds)
+        {
+            loadFactor = 0f;
+        }
+
+        roadProgress = Mathf.InverseLerp(
+            deterministicRoadMinX,
+            deterministicRoadMaxX,
+            supportedLoadX);
+        return true;
+    }
+
+    private bool TryGetRoadSurfaceHeight(float worldX, float vehicleBottomY, out float roadY)
+    {
+        roadY = 0f;
+        bool found = false;
+        float closestVerticalDistance = float.PositiveInfinity;
+
+        foreach (Bar bar in deterministicBars)
+        {
+            if (bar == null || bar.materialData == null || !bar.materialData.isRoad ||
+                bar.startPoint == null || bar.endPoint == null || !bar.gameObject.activeInHierarchy)
+                continue;
+
+            Vector3 start = bar.startPoint.transform.position;
+            Vector3 end = bar.endPoint.transform.position;
+            float minX = Mathf.Min(start.x, end.x);
+            float maxX = Mathf.Max(start.x, end.x);
+            if (worldX < minX - 0.05f || worldX > maxX + 0.05f) continue;
+
+            float segmentY = Mathf.Abs(end.x - start.x) <= 0.001f
+                ? Mathf.Max(start.y, end.y)
+                : Mathf.Lerp(start.y, end.y, Mathf.InverseLerp(start.x, end.x, worldX));
+            float distance = Mathf.Abs(vehicleBottomY - segmentY);
+            if (distance >= closestVerticalDistance) continue;
+
+            closestVerticalDistance = distance;
+            roadY = segmentY;
+            found = true;
+        }
+
+        return found;
+    }
 
     // --- Deterministic Spatial Comparers ---
     private class SpatialPointComparer : IComparer<Point>
@@ -234,14 +376,15 @@ public class BridgePhysicsManager : MonoBehaviour
             {
                 pendingSimulationStart = false;
                 isSimulating = true;
-                bool hasDeterministicStress = deterministicStressResult != null && deterministicStressResult.IsValid;
-                peakDisplayedStressThisRun = hasDeterministicStress
-                    ? deterministicStressResult.PeakDisplayedStress
-                    : 0f;
+                bool hasDeterministicStress = deterministicStressResult != null &&
+                    deterministicStressResult.IsValid && deterministicStructureStable;
+                // Peaks must describe load positions that have actually occurred,
+                // not the solver's precomputed worst case somewhere later on the
+                // crossing.
+                peakDisplayedStressThisRun = 0f;
                 // Structural failure follows the deterministic load position over
                 // time; do not fail immediately because a later sample is unsafe.
                 peakStressThisRun = 0f;
-                deterministicStressStep = 0;
                 lockStressTracking = false;
                 
                 foreach (var handler in activeStressHandlers)
@@ -256,10 +399,16 @@ public class BridgePhysicsManager : MonoBehaviour
 
         if (isSimulating && !lockStressTracking)
         {
-            bool hasDeterministicStress = deterministicStressResult != null && deterministicStressResult.IsValid;
-            int deterministicSampleIndex = hasDeterministicStress
-                ? GetDeterministicSampleIndex()
-                : 0;
+            bool hasDeterministicStress = deterministicStressResult != null &&
+                deterministicStressResult.IsValid && deterministicStructureStable;
+            bool hasUnstableDeterministicStructure = useDeterministicStressAnalysis &&
+                deterministicAnalysisPrepared && !deterministicStructureStable;
+            int deterministicSampleIndex = 0;
+            float deterministicLoadFactor = 0f;
+            if (hasDeterministicStress)
+                GetDeterministicLoadState(out deterministicSampleIndex, out deterministicLoadFactor);
+            else if (hasUnstableDeterministicStructure)
+                TryGetCurrentVehicleRoadState(out _, out deterministicLoadFactor);
             float currentStructuralMax = 0f;
             float currentDisplayedMax = 0f;
             foreach (var handler in activeStressHandlers)
@@ -268,7 +417,7 @@ public class BridgePhysicsManager : MonoBehaviour
                 
                 // In deterministic mode PhysX is still evaluated for motion, but
                 // it is not allowed to decide gameplay stress or break timing.
-                handler.EvaluateStress(!hasDeterministicStress);
+                handler.EvaluateStress(!hasDeterministicStress && !hasUnstableDeterministicStructure);
                 if (hasDeterministicStress && deterministicStressResult.TryGetStress(
                         handler.Bar,
                         deterministicSampleIndex,
@@ -276,7 +425,37 @@ public class BridgePhysicsManager : MonoBehaviour
                         out float structuralStress,
                         out bool isTension))
                 {
+                    if (deterministicDeadLoadResult != null && deterministicDeadLoadResult.IsValid &&
+                        deterministicDeadLoadResult.TryGetStress(
+                            handler.Bar,
+                            deterministicSampleIndex,
+                            out float deadDisplayedStress,
+                            out float deadStructuralStress,
+                            out bool deadIsTension))
+                    {
+                        displayedStress = Mathf.Lerp(
+                            deadDisplayedStress,
+                            displayedStress,
+                            deterministicLoadFactor);
+                        structuralStress = Mathf.Lerp(
+                            deadStructuralStress,
+                            structuralStress,
+                            deterministicLoadFactor);
+                        if (deterministicLoadFactor <= 0f) isTension = deadIsTension;
+                    }
+                    else
+                    {
+                        displayedStress *= deterministicLoadFactor;
+                        structuralStress *= deterministicLoadFactor;
+                    }
+
                     handler.ApplyDeterministicStress(displayedStress, structuralStress, isTension);
+                }
+                else if (hasUnstableDeterministicStructure && deterministicLoadFactor > 0.01f)
+                {
+                    // A mechanism can fold without generating large axial force.
+                    // Show it as unsafe instead of rewarding the low force reading.
+                    handler.ApplyDeterministicStress(1f, 1f, false);
                 }
                 
                 if (handler.isBroken)
@@ -296,14 +475,9 @@ public class BridgePhysicsManager : MonoBehaviour
             }
 
             peakStressThisRun = Mathf.Max(peakStressThisRun, currentStructuralMax);
-            if (!hasDeterministicStress)
-            {
-                peakDisplayedStressThisRun = Mathf.Max(
-                    peakDisplayedStressThisRun,
-                    Mathf.Clamp01(currentDisplayedMax));
-            }
-
-            deterministicStressStep++;
+            peakDisplayedStressThisRun = Mathf.Max(
+                peakDisplayedStressThisRun,
+                Mathf.Clamp01(currentDisplayedMax));
         }
     }
 
@@ -549,8 +723,12 @@ public class BridgePhysicsManager : MonoBehaviour
         deterministicPoints.Clear();
         deterministicBars.Clear();
         deterministicStressResult = null;
-        deterministicStressStep = 0;
-        deterministicCrossingSteps = 1;
+        deterministicDeadLoadResult = null;
+        deterministicLiveLoadVehicle = null;
+        deterministicRoadMinX = 0f;
+        deterministicRoadMaxX = 0f;
+        deterministicAnalysisPrepared = false;
+        deterministicStructureStable = false;
 
         Physics.SyncTransforms();
         RestoreGlobalPhysicsSettings();
@@ -628,16 +806,30 @@ public class BridgePhysicsManager : MonoBehaviour
     private void PrepareDeterministicStressAnalysis()
     {
         deterministicStressResult = null;
-        deterministicStressStep = 0;
-        deterministicCrossingSteps = 1;
+        deterministicDeadLoadResult = null;
+        deterministicLiveLoadVehicle = null;
+        deterministicRoadMinX = float.PositiveInfinity;
+        deterministicRoadMaxX = float.NegativeInfinity;
+        deterministicAnalysisPrepared = false;
+        deterministicStructureStable = false;
         if (!useDeterministicStressAnalysis) return;
+
+        deterministicAnalysisPrepared = true;
 
         ContractSO contract = GameManager.Instance != null ? GameManager.Instance.CurrentContract : null;
         float liveLoadKg = LiveLoadVehicle.GetContractTestWeight(contract);
+        deterministicLiveLoadVehicle = LiveLoadVehicle.FindActiveForContract(contract);
+        bool hasRoadSpan = TryResolveRoadSpan();
         deterministicStressResult = DeterministicBridgeStressSolver.Analyze(
             deterministicPoints,
             deterministicBars,
             liveLoadKg,
+            displayLiveLoadStressOnly,
+            deterministicLoadSamples);
+        deterministicDeadLoadResult = DeterministicBridgeStressSolver.Analyze(
+            deterministicPoints,
+            deterministicBars,
+            0f,
             displayLiveLoadStressOnly,
             deterministicLoadSamples);
 
@@ -645,46 +837,73 @@ public class BridgePhysicsManager : MonoBehaviour
         {
             Debug.LogWarning(
                 "[BridgePhysicsManager] Deterministic stress analysis could not solve this bridge; " +
-                "falling back to PhysX stress readings for this run.", this);
+                "the bridge will be treated as structurally unstable instead of using a forgiving PhysX score.", this);
             deterministicStressResult = null;
-            return;
+            deterministicDeadLoadResult = null;
         }
-
-        float crossingDistance = 0f;
-        float crossingSpeed = 5f;
-        LiveLoadVehicle[] vehicles = FindObjectsOfType<LiveLoadVehicle>();
-        foreach (LiveLoadVehicle vehicle in vehicles)
+        else
         {
-            if (vehicle == null || (contract != null && vehicle.assignedContract != contract)) continue;
-            crossingSpeed = Mathf.Max(0.01f, vehicle.maxSpeed);
-            if (vehicle.startPoint != null && vehicle.endPoint != null)
-                crossingDistance = Mathf.Abs(vehicle.endPoint.position.x - vehicle.startPoint.position.x);
-            break;
-        }
-
-        if (crossingDistance <= 0f)
-        {
-            foreach (Bar bar in deterministicBars)
+            deterministicStructureStable = deterministicStressResult.IsStructurallyStable;
+            if (!deterministicStructureStable)
             {
-                if (bar == null || bar.materialData == null || !bar.materialData.isRoad) continue;
-                crossingDistance += Mathf.Abs(bar.endPoint.transform.position.x - bar.startPoint.transform.position.x);
+                Debug.LogWarning(
+                    "[BridgePhysicsManager] The bridge contains a free structural mechanism. " +
+                    "Low axial force from folding will not count as bridge strength.", this);
             }
         }
 
-        // The wheel motor reaches full speed in 0.5 seconds. Include its average
-        // acceleration distance so the deterministic visualization tracks the cart.
-        float crossingSeconds = crossingDistance / crossingSpeed + 0.25f;
-        deterministicCrossingSteps = Mathf.Max(1, Mathf.RoundToInt(crossingSeconds / Time.fixedDeltaTime));
+        if (deterministicLiveLoadVehicle == null ||
+            !hasRoadSpan)
+        {
+            Debug.LogWarning(
+                "[BridgePhysicsManager] Deterministic live load has no matching active vehicle or valid road span. " +
+                "Only the bridge's dead load will be evaluated until the setup is corrected.", this);
+        }
     }
 
-    private int GetDeterministicSampleIndex()
+    private void GetDeterministicLoadState(out int sampleIndex, out float loadFactor)
     {
-        if (deterministicStressResult == null || deterministicStressResult.Samples.Length == 0) return 0;
-        float progress = Mathf.Clamp01(deterministicStressStep / (float)deterministicCrossingSteps);
-        return Mathf.Clamp(
+        sampleIndex = 0;
+        loadFactor = 0f;
+        if (deterministicStressResult == null || deterministicStressResult.Samples.Length == 0 ||
+            !TryGetCurrentVehicleRoadState(out float progress, out loadFactor))
+            return;
+        if (loadFactor <= 0f) return;
+
+        sampleIndex = Mathf.Clamp(
             Mathf.RoundToInt(progress * (deterministicStressResult.Samples.Length - 1)),
             0,
             deterministicStressResult.Samples.Length - 1);
+    }
+
+    private bool TryResolveRoadSpan()
+    {
+        if (!float.IsNaN(deterministicRoadMinX) && !float.IsInfinity(deterministicRoadMinX) &&
+            !float.IsNaN(deterministicRoadMaxX) && !float.IsInfinity(deterministicRoadMaxX) &&
+            deterministicRoadMaxX > deterministicRoadMinX)
+            return true;
+
+        deterministicRoadMinX = float.PositiveInfinity;
+        deterministicRoadMaxX = float.NegativeInfinity;
+        foreach (Bar bar in deterministicBars)
+        {
+            if (bar == null || bar.materialData == null || !bar.materialData.isRoad ||
+                bar.startPoint == null || bar.endPoint == null)
+                continue;
+
+            deterministicRoadMinX = Mathf.Min(
+                deterministicRoadMinX,
+                bar.startPoint.transform.position.x,
+                bar.endPoint.transform.position.x);
+            deterministicRoadMaxX = Mathf.Max(
+                deterministicRoadMaxX,
+                bar.startPoint.transform.position.x,
+                bar.endPoint.transform.position.x);
+        }
+
+        return !float.IsNaN(deterministicRoadMinX) && !float.IsInfinity(deterministicRoadMinX) &&
+               !float.IsNaN(deterministicRoadMaxX) && !float.IsInfinity(deterministicRoadMaxX) &&
+               deterministicRoadMaxX > deterministicRoadMinX;
     }
 
     public bool BakeBridge(ContractSO contract = null)
@@ -1571,7 +1790,7 @@ public class BarStressHandler : MonoBehaviour
         currentStressPercent = 1f;
         currentStructuralStressPercent = 1f;
 
-        ReleaseFailedEndpoint(brokenJoint);
+        ReleaseAllFailedMemberConnections(brokenJoint);
         
         for (int i = 0; i < childRenderers.Length; i++) SetBarColor(manager.brokenColor, i);
         
@@ -1583,41 +1802,33 @@ public class BarStressHandler : MonoBehaviour
     }
 
     /// <summary>
-    /// Dual-beam members have two parallel joints at each endpoint. Destroying
-    /// only the sampled joint leaves its twin attached, making a black failed
-    /// member continue to behave as if it were intact. Release every joint that
-    /// targets the failed endpoint, while preserving the opposite endpoint so
-    /// the broken member can hang naturally.
+    /// A black member represents a complete structural failure. Release every
+    /// connection at both endpoints so it can no longer transfer load through a
+    /// hidden surviving hinge. Adjacent intact members remain joined to their
+    /// shared Point; only the failed member is detached.
     /// </summary>
-    private void ReleaseFailedEndpoint(Joint failedJoint)
+    private void ReleaseAllFailedMemberConnections(Joint failedJoint)
     {
-        if (failedJoint == null) return;
-
-        Rigidbody failedEndpoint = failedJoint.connectedBody;
-        if (failedEndpoint == null)
+        if (material != null && material.isRope)
         {
-            DestroyImmediate(failedJoint);
+            Joint ropeConnection = ropeJoint != null ? ropeJoint : failedJoint;
+            if (ropeConnection != null) DestroyImmediate(ropeConnection);
+            ropeJoint = null;
             return;
         }
 
-        bool releasedAny = false;
-        foreach (Joint joint in GetComponents<Joint>())
+        // Solid and dual-beam joints are authored on the Bar itself. Destroying
+        // the complete set releases both endpoints and both parallel rails.
+        foreach (Joint joint in GetComponentsInChildren<Joint>(true))
         {
-            if (joint == null || joint.connectedBody != failedEndpoint) continue;
-
-            // A null connectedBody means "attach to the world" in Unity; setting
-            // it before deferred destruction creates a one-frame world pin and
-            // can launch the bridge apart. Remove the component immediately so
-            // this endpoint becomes free without injecting a constraint impulse.
-            DestroyImmediate(joint);
-            releasedAny = true;
+            if (joint != null) DestroyImmediate(joint);
         }
 
-        // Rope joints live on an endpoint Point rather than on the Bar object.
-        if (!releasedAny)
-        {
+        // Defensive fallback for a legacy setup whose sampled joint is not on
+        // the Bar root.
+        if (failedJoint != null && failedJoint != ropeJoint)
             DestroyImmediate(failedJoint);
-        }
+        joints = Array.Empty<Joint>();
     }
 
     private void SetBarColor(Color targetColor, int index)

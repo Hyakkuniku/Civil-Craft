@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.Events;
+using UnityEngine.Serialization;
 using TMPro;
 
 [DefaultExecutionOrder(-40)] 
@@ -142,8 +143,63 @@ public class LiveLoadVehicle : Interactable
     {
         if (contract == null) return null;
         foreach (var vehicle in FindObjectsOfType<LiveLoadVehicle>())
-            if (vehicle.isActiveAndEnabled && vehicle.assignedContract == contract) return vehicle;
+            if (vehicle.isActiveAndEnabled && MatchesContract(vehicle.assignedContract, contract)) return vehicle;
         return null;
+    }
+
+    /// <summary>
+    /// Returns the world-space physical envelope used to decide how much of this
+    /// vehicle is currently supported by the bridge. Trigger volumes such as the
+    /// interaction and smart-loading zones are deliberately excluded.
+    /// </summary>
+    public bool TryGetPhysicalBounds(out Bounds bounds)
+    {
+        bounds = new Bounds(transform.position, Vector3.zero);
+        bool found = false;
+
+        // The wheel contact envelope is the best approximation of how much
+        // vehicle weight has transferred from the bank onto the bridge.
+        foreach (WheelData wheel in wheels)
+        {
+            Collider wheelCollider = wheel != null && wheel.physObj != null
+                ? wheel.physObj.GetComponent<Collider>()
+                : null;
+            if (wheelCollider == null || !wheelCollider.enabled ||
+                !wheelCollider.gameObject.activeInHierarchy)
+                continue;
+
+            if (!found)
+            {
+                bounds = wheelCollider.bounds;
+                found = true;
+            }
+            else
+            {
+                bounds.Encapsulate(wheelCollider.bounds);
+            }
+        }
+
+        if (found) return true;
+
+        // Fallback for a vehicle authored without wheel objects.
+        foreach (Collider vehicleCollider in GetComponentsInChildren<Collider>())
+        {
+            if (vehicleCollider == null || !vehicleCollider.enabled ||
+                vehicleCollider.isTrigger || !vehicleCollider.gameObject.activeInHierarchy)
+                continue;
+
+            if (!found)
+            {
+                bounds = vehicleCollider.bounds;
+                found = true;
+            }
+            else
+            {
+                bounds.Encapsulate(vehicleCollider.bounds);
+            }
+        }
+
+        return found;
     }
     public static float GetContractTestWeight(ContractSO contract)
     {
@@ -178,6 +234,12 @@ public class LiveLoadVehicle : Interactable
     public float engineTorque = 1500f; 
     public float vehicleMass = 1000f;
     public float centerOfMassOffset = -0.5f; 
+    [Tooltip("Freeze only chassis Z rotation while the live load drives and brakes. X stays free so the wheel hinges can propel the vehicle.")]
+    [FormerlySerializedAs("lockChassisRotationWhileDriving")]
+    [SerializeField] private bool freezeChassisZRotationWhileDriving = true;
+    [Tooltip("Moves an unusually large imported-model scale from this Rigidbody root into its direct children at startup, preserving the visible model while keeping the physics root near unit scale.")]
+    [SerializeField] private bool normalizeOverscaledPhysicsRoot = true;
+    [Min(2f)] [SerializeField] private float physicsRootScaleThreshold = 10f;
 
     [Header("Custom Wheel Setup")]
     public GameObject[] wheelObjects;
@@ -202,6 +264,7 @@ public class LiveLoadVehicle : Interactable
     public BridgePhysicsManager physicsManager;
 
     private Rigidbody rb;
+    private RigidbodyConstraints normalChassisConstraints;
     private bool isDriving = false;
     private bool hasReachedEnd = false; 
     private bool isBrakingAtFinish = false;
@@ -225,6 +288,36 @@ public class LiveLoadVehicle : Interactable
             return Mathf.Clamp01(Vector3.Dot(transform.position - routeStart, route) / route.sqrMagnitude);
         }
     }
+
+    public float ExpectedRouteHeight
+    {
+        get
+        {
+            if (startPoint == null || endPoint == null) return authoredStartPosition.y;
+            GetWaypointPose(startPoint, out Vector3 routeStart, out _);
+            GetWaypointPose(endPoint, out Vector3 routeEnd, out _);
+            return Mathf.Lerp(routeStart.y, routeEnd.y, NormalizedRouteProgress);
+        }
+    }
+
+    /// <summary>
+    /// Returns how far the vehicle's physical wheel envelope is above or below
+    /// its authored route. The reference offset is captured after the vehicle is
+    /// reset for a simulation, so imported models whose root is far from their
+    /// wheels (such as Vance's scaled cargo truck) are handled correctly.
+    /// </summary>
+    public bool TryGetVerticalRouteDeviation(out float deviation, out float physicalHeight)
+    {
+        physicalHeight = transform.position.y;
+        if (TryGetPhysicalBounds(out Bounds physicalBounds))
+            physicalHeight = physicalBounds.center.y;
+
+        if (!hasPhysicalRouteHeightOffset)
+            CapturePhysicalRouteHeightOffset();
+
+        deviation = physicalHeight - (ExpectedRouteHeight + physicalRouteHeightOffset);
+        return hasPhysicalRouteHeightOffset;
+    }
     
     private float currentMotorSpeed = 0f;
     private PhysicMaterial wheelMat; 
@@ -240,6 +333,8 @@ public class LiveLoadVehicle : Interactable
     private bool hasAuthoredStartPointPose;
     private bool hideWhenBuildModeCloses;
     private bool visibleForBuildReplay;
+    private float physicalRouteHeightOffset;
+    private bool hasPhysicalRouteHeightOffset;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetInspectionSession()
@@ -259,29 +354,42 @@ public class LiveLoadVehicle : Interactable
 
     private void Awake()
     {
+        EnsureAuthoredReferences(true);
         rb = GetComponent<Rigidbody>();
+        // Scene-authored vehicles may arrive dynamic. Freeze the body before
+        // changing an imported root scale so PhysX never observes an intermediate
+        // collider hierarchy during scene startup.
+        rb.isKinematic = true;
+        NormalizePhysicsRootScale();
         authoredStartPosition = transform.position;
         authoredStartRotation = transform.rotation;
         CaptureAuthoredStartPointPose();
         
         rb.mass = vehicleMass;
-        rb.isKinematic = true; 
         rb.useGravity = true; 
         rb.interpolation = RigidbodyInterpolation.Interpolate;
         rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
 
-        rb.centerOfMass = new Vector3(0, centerOfMassOffset, 0);
-        rb.constraints = RigidbodyConstraints.FreezeRotationY | RigidbodyConstraints.FreezePositionZ;
+        ApplyConfiguredCenterOfMass();
+        normalChassisConstraints = RigidbodyConstraints.FreezeRotationY | RigidbodyConstraints.FreezePositionZ;
+        rb.constraints = normalChassisConstraints;
         rb.sleepThreshold = 0f;
         rb.maxDepenetrationVelocity = 10f; 
 
-        // Imported vehicle models often put their chassis collider on a child mesh.
-        Collider chassisCol = GetComponent<Collider>() ?? GetComponentInChildren<Collider>();
-        if (chassisCol != null)
+        // Cargo slots and interaction zones are triggers, not the chassis. Apply
+        // low friction to every solid body collider, including imported child
+        // meshes, so a body corner cannot catch a flexing road seam.
+        Collider chassisCol = null;
+        PhysicMaterial slipMat = new PhysicMaterial("ChassisSlip");
+        slipMat.dynamicFriction = 0f;
+        slipMat.staticFriction = 0f;
+        slipMat.bounciness = 0f;
+        foreach (Collider bodyCollider in GetComponentsInChildren<Collider>(true))
         {
-            PhysicMaterial slipMat = new PhysicMaterial("ChassisSlip");
-            slipMat.dynamicFriction = 0f; slipMat.staticFriction = 0f; slipMat.bounciness = 0f;
-            chassisCol.material = slipMat;
+            if (bodyCollider == null || bodyCollider.isTrigger || IsVisualWheelCollider(bodyCollider))
+                continue;
+            if (chassisCol == null) chassisCol = bodyCollider;
+            bodyCollider.material = slipMat;
         }
 
         ConfigureNPCNavMeshObstacle(chassisCol);
@@ -320,8 +428,114 @@ public class LiveLoadVehicle : Interactable
             wheels.Add(wd);
         }
 
+        CapturePhysicalRouteHeightOffset();
+
         if (physicsManager == null) physicsManager = FindObjectOfType<BridgePhysicsManager>();
         if (vehicleInfoPanel != null) vehicleInfoPanel.SetActive(false);
+    }
+
+    /// <summary>
+    /// Keeps a replacement FBX from silently disconnecting the gameplay authored
+    /// on the vehicle prefab. Scene overrides can legitimately hold the route and
+    /// UI references, while wheels and cargo slots must always belong to this
+    /// vehicle hierarchy.
+    /// </summary>
+    private void EnsureAuthoredReferences(bool reportProblems)
+    {
+        foreach (VehicleCargoSlot slot in GetComponentsInChildren<VehicleCargoSlot>(true))
+        {
+            if (slot == null) continue;
+            slot.vehicle = this;
+            if (slot.cargoSocket == null) slot.cargoSocket = slot.transform;
+            RegisterCargoSlot(slot);
+        }
+
+        List<GameObject> resolvedWheels = new List<GameObject>();
+        if (wheelObjects != null)
+        {
+            foreach (GameObject wheel in wheelObjects)
+            {
+                if (wheel == null || !wheel.transform.IsChildOf(transform) ||
+                    wheel.GetComponentInChildren<Renderer>(true) == null ||
+                    resolvedWheels.Contains(wheel))
+                    continue;
+
+                resolvedWheels.Add(wheel);
+            }
+        }
+
+        // Blender replacements commonly preserve useful Tire/Wheel object names
+        // even though Unity loses the serialized references when the old meshes
+        // are removed. Reconnect only explicitly named rendered children so body
+        // or cargo meshes can never be mistaken for wheels.
+        foreach (Renderer renderer in GetComponentsInChildren<Renderer>(true))
+        {
+            if (renderer == null) continue;
+            GameObject candidate = renderer.gameObject;
+            string candidateName = candidate.name;
+            bool namedWheel = candidateName.IndexOf("wheel", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                              candidateName.IndexOf("tire", StringComparison.OrdinalIgnoreCase) >= 0;
+            if (!namedWheel || resolvedWheels.Contains(candidate)) continue;
+            resolvedWheels.Add(candidate);
+        }
+
+        resolvedWheels.Sort((left, right) =>
+            string.Compare(left.name, right.name, StringComparison.OrdinalIgnoreCase));
+        wheelObjects = resolvedWheels.ToArray();
+
+        if (reportProblems && wheelObjects.Length < 2)
+        {
+            Debug.LogWarning(
+                $"[LiveLoadVehicle] '{name}' has only {wheelObjects.Length} resolved wheel object(s). " +
+                "Name imported wheel meshes with 'Wheel' or 'Tire', or assign Wheel Objects in the Inspector.",
+                this);
+        }
+    }
+
+#if UNITY_EDITOR
+    private void OnValidate()
+    {
+        EnsureAuthoredReferences(false);
+    }
+#endif
+
+    private void NormalizePhysicsRootScale()
+    {
+        if (!normalizeOverscaledPhysicsRoot) return;
+
+        Vector3 rootScale = transform.localScale;
+        float largestAxis = Mathf.Max(
+            Mathf.Abs(rootScale.x),
+            Mathf.Abs(rootScale.y),
+            Mathf.Abs(rootScale.z));
+        if (largestAxis <= Mathf.Max(2f, physicsRootScaleThreshold)) return;
+        bool isUniform = Mathf.Abs(Mathf.Abs(rootScale.x) - largestAxis) <= largestAxis * 0.001f &&
+                         Mathf.Abs(Mathf.Abs(rootScale.y) - largestAxis) <= largestAxis * 0.001f &&
+                         Mathf.Abs(Mathf.Abs(rootScale.z) - largestAxis) <= largestAxis * 0.001f;
+        if (!isUniform)
+        {
+            Debug.LogWarning(
+                $"[LiveLoadVehicle] '{name}' has a non-uniform oversized physics-root scale " +
+                $"({rootScale}). Normalize that hierarchy in the scene before simulation.", this);
+            return;
+        }
+
+        // Preserve every direct child's local-to-world matrix while transferring
+        // the imported model scale away from the Rigidbody transform. Vance's
+        // truck is authored at roughly 246x; leaving that on the dynamic root can
+        // destabilize compound colliders and generated wheel rigidbodies.
+        for (int i = 0; i < transform.childCount; i++)
+        {
+            Transform child = transform.GetChild(i);
+            child.localPosition = Vector3.Scale(child.localPosition, rootScale);
+            child.localScale = Vector3.Scale(child.localScale, rootScale);
+        }
+
+        transform.localScale = Vector3.one;
+        Physics.SyncTransforms();
+        Debug.Log(
+            $"[LiveLoadVehicle] Normalized oversized physics root '{name}' from {rootScale} to (1, 1, 1). " +
+            "Child world transforms were preserved.", this);
     }
 
     private void ConfigureNPCNavMeshObstacle(Collider chassisCollider)
@@ -335,21 +549,18 @@ public class LiveLoadVehicle : Interactable
 
         npcObstacle.shape = NavMeshObstacleShape.Box;
 
-        if (chassisCollider is BoxCollider boxCollider)
-        {
-            npcObstacle.center = boxCollider.center;
-            npcObstacle.size = boxCollider.size + Vector3.one * (npcObstaclePadding * 2f);
-        }
-        else if (chassisCollider != null)
+        if (chassisCollider != null)
         {
             Vector3 scale = transform.lossyScale;
             Vector3 worldSize = chassisCollider.bounds.size;
             npcObstacle.center = transform.InverseTransformPoint(chassisCollider.bounds.center);
             npcObstacle.size = new Vector3(
-                worldSize.x / Mathf.Max(Mathf.Abs(scale.x), 0.0001f),
-                worldSize.y / Mathf.Max(Mathf.Abs(scale.y), 0.0001f),
-                worldSize.z / Mathf.Max(Mathf.Abs(scale.z), 0.0001f)) +
-                Vector3.one * (npcObstaclePadding * 2f);
+                (worldSize.x + npcObstaclePadding * 2f) /
+                    Mathf.Max(Mathf.Abs(scale.x), 0.0001f),
+                (worldSize.y + npcObstaclePadding * 2f) /
+                    Mathf.Max(Mathf.Abs(scale.y), 0.0001f),
+                (worldSize.z + npcObstaclePadding * 2f) /
+                    Mathf.Max(Mathf.Abs(scale.z), 0.0001f));
         }
 
         // Moving obstacles should use local avoidance. Carving a moving physics
@@ -454,7 +665,7 @@ public class LiveLoadVehicle : Interactable
 
     private void BuildWheelPhysics()
     {
-        Collider chassisCol = GetComponent<Collider>() ?? GetComponentInChildren<Collider>();
+        List<Collider> chassisColliders = GetSolidChassisColliders();
 
         foreach (var w in wheels)
         {
@@ -485,8 +696,39 @@ public class LiveLoadVehicle : Interactable
             }
             
             Collider wheelCol = w.physObj.GetComponent<Collider>();
-            if (chassisCol != null && wheelCol != null) Physics.IgnoreCollision(chassisCol, wheelCol, true);
+            if (wheelCol != null)
+                foreach (Collider chassisCollider in chassisColliders)
+                    Physics.IgnoreCollision(chassisCollider, wheelCol, true);
         }
+    }
+
+    private bool IsVisualWheelCollider(Collider candidate)
+    {
+        if (wheelObjects == null) return false;
+        foreach (GameObject visualWheel in wheelObjects)
+            if (visualWheel != null && candidate.transform.IsChildOf(visualWheel.transform))
+                return true;
+        return false;
+    }
+
+    private List<Collider> GetSolidChassisColliders()
+    {
+        List<Collider> colliders = new List<Collider>();
+        foreach (Collider candidate in GetComponentsInChildren<Collider>(true))
+        {
+            if (candidate != null && candidate.enabled && !candidate.isTrigger &&
+                !IsVisualWheelCollider(candidate) && !IsPhysicsWheelCollider(candidate))
+                colliders.Add(candidate);
+        }
+        return colliders;
+    }
+
+    private bool IsPhysicsWheelCollider(Collider candidate)
+    {
+        foreach (WheelData wheel in wheels)
+            if (wheel.physObj != null && candidate.transform.IsChildOf(wheel.physObj.transform))
+                return true;
+        return false;
     }
 
     private void StripWheelPhysics()
@@ -530,15 +772,17 @@ public class LiveLoadVehicle : Interactable
 
         ClearDynamicVelocity(rb);
         rb.isKinematic = true;
+        SetDrivingRotationConstraint(false);
         ApplySimulationSolverSettings(rb);
 
         ResetToSimulationStartPose();
 
         BuildWheelPhysics(); 
+        IgnoreNonRoadBridgeContacts();
 
         
         rb.ResetCenterOfMass();
-        rb.centerOfMass = new Vector3(0, centerOfMassOffset, 0);
+        ApplyConfiguredCenterOfMass();
         rb.ResetInertiaTensor(); 
         
         foreach (var w in wheels)
@@ -549,6 +793,17 @@ public class LiveLoadVehicle : Interactable
         }
 
         Physics.SyncTransforms(); 
+        CapturePhysicalRouteHeightOffset();
+    }
+
+    private void CapturePhysicalRouteHeightOffset()
+    {
+        float physicalHeight = transform.position.y;
+        if (TryGetPhysicalBounds(out Bounds physicalBounds))
+            physicalHeight = physicalBounds.center.y;
+
+        physicalRouteHeightOffset = physicalHeight - ExpectedRouteHeight;
+        hasPhysicalRouteHeightOffset = true;
     }
 
     private void ApplySimulationSolverSettings(Rigidbody body)
@@ -563,6 +818,19 @@ public class LiveLoadVehicle : Interactable
         body.solverVelocityIterations = Mathf.Max(1, Physics.defaultSolverVelocityIterations);
     }
 
+    private void ApplyConfiguredCenterOfMass()
+    {
+        if (rb == null) return;
+
+        // Rigidbody.centerOfMass follows the transform's rotation but explicitly
+        // ignores its scale. Convert a world-vertical offset with rotation only;
+        // Transform.InverseTransformVector would incorrectly divide it by the
+        // imported model scale. This also keeps rotated vehicle roots from moving
+        // their centre of mass sideways instead of downward.
+        rb.centerOfMass = Quaternion.Inverse(transform.rotation) *
+                          (Vector3.up * centerOfMassOffset);
+    }
+
     private void HandleSimulationStarted()
     {
         // Every LiveLoadVehicle listens to the shared physics manager. Never let
@@ -575,7 +843,10 @@ public class LiveLoadVehicle : Interactable
         if (isInspectionWindowOpen && inspectionOpenedFromBuildMode)
             CloseInfoPanelInternal(false);
         buildModeInspectionOutline?.SetBuildModeVisualOnlyVisible(false);
+
+        IgnoreNonRoadBridgeContacts();
         
+        SetDrivingRotationConstraint(true);
         rb.isKinematic = false;
         ClearDynamicVelocity(rb);
         rb.WakeUp();
@@ -590,6 +861,15 @@ public class LiveLoadVehicle : Interactable
         isBrakingAtFinish = false;
         settledAtFinishTimer = 0f;
         isDriving = true; 
+    }
+
+    private void IgnoreNonRoadBridgeContacts()
+    {
+        // Apply before the bridge's settling ticks as well as when driving starts.
+        // Kinematic vehicle colliders can otherwise push side trusses out of
+        // place before the wheels ever begin moving.
+        physicsManager?.IgnoreVehicleContactsWithNonRoadMembers(
+            GetComponentsInChildren<Collider>());
     }
 
     private void HandleSimulationStopped()
@@ -707,6 +987,7 @@ public class LiveLoadVehicle : Interactable
         {
             ClearDynamicVelocity(rb);
             rb.isKinematic = true;
+            SetDrivingRotationConstraint(false);
             ResetToSimulationStartPose();
             StripWheelPhysics();
             rb.Sleep();
@@ -988,17 +1269,27 @@ public class LiveLoadVehicle : Interactable
         if (rb == null) return;
         ClearDynamicVelocity(rb);
         rb.isKinematic = true;
-        
-        rb.ResetCenterOfMass();
-        rb.centerOfMass = new Vector3(0, centerOfMassOffset, 0);
-        rb.ResetInertiaTensor();
+        SetDrivingRotationConstraint(false);
 
         if (!isParkedAtFinish)
             ResetToSimulationStartPose();
 
+        rb.ResetCenterOfMass();
+        ApplyConfiguredCenterOfMass();
+        rb.ResetInertiaTensor();
+
         StripWheelPhysics(); 
 
         rb.Sleep(); 
+    }
+
+    private void SetDrivingRotationConstraint(bool driving)
+    {
+        if (rb == null) return;
+        rb.constraints = normalChassisConstraints |
+            (driving && freezeChassisZRotationWhileDriving
+                ? RigidbodyConstraints.FreezeRotationZ
+                : RigidbodyConstraints.None);
     }
 
     private static void ClearDynamicVelocity(Rigidbody body)

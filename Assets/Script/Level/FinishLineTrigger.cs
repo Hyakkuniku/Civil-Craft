@@ -49,6 +49,18 @@ public class FinishLineTrigger : MonoBehaviour
 
         if (LevelFailedManager.Instance != null && LevelFailedManager.Instance.isFailed) return;
 
+        // Reaching the trigger is not a valid structural pass if the bridge only
+        // survived by folding or sagging beyond the serviceability limit.
+        if (!BridgePhysicsManager.DebugInvincibleBridge &&
+            !physicsManager.IsDeterministicStructureStable)
+        {
+            if (LevelFailedManager.Instance != null)
+            {
+                LevelFailedManager.Instance.TriggerLevelFailed("Structurally Unstable Bridge!");
+            }
+            return;
+        }
+
         physicsManager.lockStressTracking = true;
 
         // Freeze the car safely and tell it to stay parked!

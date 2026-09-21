@@ -256,14 +256,18 @@ public sealed class SimulationLessonPresenter : MonoBehaviour
     private void HandleSimulationStarted()
     {
         if (!lessonActive) BeginLessonForActiveLocation();
-        if (!lessonActive || definition == null || liveLoadMessageQueued) return;
+        if (!lessonActive || definition == null) return;
 
-        liveLoadMessageQueued = true;
-        QueueMessage(definition.liveLoadStarted, MessagePriority.Information);
+        // Starting the motor does not mean the vehicle is already loading the
+        // bridge. The live-load message is queued only after wheel overlap is
+        // observed in ObserveVehicle.
         activeVehicle = FindVehicleForCurrentContract();
         if (activeVehicle != null)
         {
-            lastVehicleProgress = activeVehicle.NormalizedRouteProgress;
+            lastVehicleProgress = physicsManager != null &&
+                physicsManager.TryGetCurrentVehicleRoadState(out float roadProgress, out _)
+                ? roadProgress
+                : activeVehicle.NormalizedRouteProgress;
             lastVehicleMovementTime = Time.time;
         }
     }
@@ -298,7 +302,10 @@ public sealed class SimulationLessonPresenter : MonoBehaviour
         definition = resolvedDefinition;
         lessonActive = true;
         activeVehicle = FindVehicleForCurrentContract();
-        lastVehicleProgress = activeVehicle != null ? activeVehicle.NormalizedRouteProgress : 0f;
+        lastVehicleProgress = activeVehicle != null && physicsManager != null &&
+            physicsManager.TryGetCurrentVehicleRoadState(out float initialRoadProgress, out _)
+            ? initialRoadProgress
+            : activeVehicle != null ? activeVehicle.NormalizedRouteProgress : 0f;
         lastVehicleMovementTime = Time.time;
 
         if (titleText != null) titleText.text = definition.panelTitle;
@@ -371,14 +378,24 @@ public sealed class SimulationLessonPresenter : MonoBehaviour
         if (activeVehicle == null) activeVehicle = FindVehicleForCurrentContract();
         if (activeVehicle == null) return;
 
-        float progress = activeVehicle.NormalizedRouteProgress;
-        if (!vehicleEntryMessageQueued && progress >= definition.vehicleEnteredProgress)
+        if (physicsManager == null ||
+            !physicsManager.TryGetCurrentVehicleRoadState(out float progress, out float loadFactor))
+            return;
+
+        if (!liveLoadMessageQueued && loadFactor > 0.01f)
+        {
+            liveLoadMessageQueued = true;
+            QueueMessage(definition.liveLoadStarted, MessagePriority.Information);
+        }
+
+        if (!vehicleEntryMessageQueued && loadFactor >= definition.vehicleEnteredProgress)
         {
             vehicleEntryMessageQueued = true;
             QueueMessage(definition.vehicleEnteredBridge, MessagePriority.Information);
         }
 
-        if (!midpointMessageQueued && progress >= definition.vehicleMidpointProgress)
+        if (!midpointMessageQueued && loadFactor > 0f &&
+            progress >= definition.vehicleMidpointProgress)
         {
             midpointMessageQueued = true;
             QueueMessage(definition.vehicleReachedMidpoint, MessagePriority.Information);
@@ -390,7 +407,7 @@ public sealed class SimulationLessonPresenter : MonoBehaviour
             lastVehicleMovementTime = Time.time;
         }
 
-        bool isBetweenEndpoints = progress >= definition.vehicleEnteredProgress && progress < 0.95f;
+        bool isBetweenEndpoints = loadFactor > 0f && progress < 0.95f;
         if (!stuckMessageQueued && activeVehicle.IsDriving && isBetweenEndpoints &&
             Time.time - lastVehicleMovementTime >= definition.vehicleStuckDelay)
         {
