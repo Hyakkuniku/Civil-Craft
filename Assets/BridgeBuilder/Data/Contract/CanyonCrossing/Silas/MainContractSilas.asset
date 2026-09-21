@@ -12,6 +12,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
   m_Name: MainContractSilas
   m_EditorClassIdentifier: 
+  liveLoadMode: 0
+  allowVehicleCargo: 0
+  minimumLoadedCargo: 0
+  cargoUnlockProgressionId: 
+  cargoUnlockAfterDialoguePhaseIndex: -1
+  cargoLoadedNPCPhaseId: 
   contractID: MainContractSilas
   efficiencyStarBudgetRatio: 0.85
   strengthStarMaxStress: 60
@@ -40,23 +46,22 @@ MonoBehaviour:
   offerDialogue:
     name: Silas
     sentences:
-    - That road leads out of <b><#E09500>Canyon Crossing</color></b>.
-    - The <b><#E09500>Town River</color></b> is beyond it.
-    - "There\u2019s already another way there, but this would give the region a much
-      more direct connection."
-    - "Finish this crossing, and the route you\u2019ve built will finally lead beyond
-      the canyon."
-    - This crossing will carry a heavier vehicle than the ones before it.
+    - "This crossing is different from the ones you\u2019ve handled before."
+    - The gap is wide, and the site already gives you structures that you can use.
+    - <b><#E09500>The towers and your new rope material give you another way to support
+      parts of the structure across the canyon</color> </b>..
+    - "You don\u2019t have to build the same way you did on your earlier projects."
     - This time, pay attention to more than just where the vehicle is.
-    - <b><#E09500>Watch how the rest of the structure responds as the load moves
-      across</color></b>.
-    - <b><#E09500>Keep an eye on how the different parts behave during the test</color></b>.
+    - <b><#E09500>Watch how the load moves through the different parts of the structure
+      as the Jeep crosses</color> </b>.
     - "If you\u2019re ready, take the contract.\r\n"
   continueOfferDialogue:
     name: Silas
     sentences:
-    - "Don\u2019t focus on just one part of the bridge."
-    - 'Watch how the whole structure responds as the vehicle moves across. '
+    - "You\u2019ve got the towers, anchor points, and rope available at the site."
+    - <b><#E09500>Think about how you can use them to support the structure across
+      the gap</color></b>.
+    - "How you connect everything is up to you.\r"
   reminderDialogue:
     name: Silas
     sentences: []
@@ -65,9 +70,15 @@ MonoBehaviour:
     sentences:
     - "That\u2019s it."
     - The eastern passage is open.
-    - 'You started by connecting Central Canyonville to the factory.
-
-'
+    - You started by connecting Central Canyonville to the factory.
     - Then you improved the route through the canyon and brought it all the way to
       the community.
-    - Now that route leads toward the <b><#E09500>Town River</color></b>.
+    - This last crossing asked you to use the site differently from the ones before
+      it.
+    - <b><#E09500>Remember those towers and how they helped support a crossing over
+      a wider gap</color></b>.
+    - You may encounter structures like that again.
+    - Now the route leads toward the <b><#E09500>Town River</color></b>.
+    - "Head for <b><#E09500>Town River</color></b> when you\u2019re ready."
+    - Good work, {PlayerName}.
+    - 'If our paths cross again, I may still have something for you. '
