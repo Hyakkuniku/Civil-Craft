@@ -429,14 +429,14 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 bool constraintHit = false;
                 foreach (Point p in selectedPoints)
                 {
-                    if (p.IsPermanentAnchor) continue;
+                    if (p.IsScenePlacedAnchor) continue;
                     
                     foreach (Bar b in p.ConnectedBars)
                     {
                         if (b == null || !b.gameObject.activeSelf || b.materialData.isPier || b.startPoint == null || b.endPoint == null) continue;
                         
                         Point otherPoint = (b.startPoint == p) ? b.endPoint : b.startPoint;
-                        if (selectedPoints.Contains(otherPoint) && !otherPoint.IsPermanentAnchor) continue;
+                        if (selectedPoints.Contains(otherPoint) && !otherPoint.IsScenePlacedAnchor) continue;
                         
                         float maxLen = b.materialData.maxLength;
                         Vector3 movingNodeOriginalPos = currentMoveAction.originalPositions[p];
@@ -467,11 +467,14 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
             foreach (Point p in selectedPoints)
             {
-                if (p.IsPermanentAnchor) continue;
+                if (p.IsScenePlacedAnchor) continue;
 
                 Vector3 proposedPos = currentMoveAction.originalPositions[p] + finalDelta;
 
-                if (Physics.CheckSphere(proposedPos, 0.2f, envMask))
+                // Pier foundations intentionally sit at pierBaseY inside the
+                // terrain. Treating that contact as an obstruction makes every
+                // pier drag invalid before the top has a chance to move.
+                if (!IsPierFoundationPoint(p) && Physics.CheckSphere(proposedPos, 0.2f, envMask))
                 {
                     isSafe = false;
                     break;
@@ -481,7 +484,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 {
                     if (b == null || !b.gameObject.activeSelf || b.materialData.isPier || b.startPoint == null || b.endPoint == null) continue; 
                     Point otherPoint = (b.startPoint == p) ? b.endPoint : b.startPoint;
-                    if (selectedPoints.Contains(otherPoint) && !otherPoint.IsPermanentAnchor) continue;
+                    if (selectedPoints.Contains(otherPoint) && !otherPoint.IsScenePlacedAnchor) continue;
                     
                     if (Vector3.Distance(otherPoint.transform.position, proposedPos) > b.materialData.maxLength + 0.05f) 
                     {
@@ -525,7 +528,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
             foreach (Point p in selectedPoints)
             {
-                if (!p.IsPermanentAnchor) p.transform.position = currentMoveAction.originalPositions[p] + finalDelta;
+                if (!p.IsScenePlacedAnchor) p.transform.position = currentMoveAction.originalPositions[p] + finalDelta;
             }
             
             foreach (Point p in selectedPoints)
@@ -534,22 +537,35 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 {
                     if (b != null && b.gameObject.activeSelf && b.materialData.isPier && b.startPoint != null && b.endPoint != null)
                     {
-                        Point pBot = b.startPoint.transform.position.y < b.endPoint.transform.position.y ? b.startPoint : b.endPoint;
-                        Point pTop = b.startPoint.transform.position.y > b.endPoint.transform.position.y ? b.startPoint : b.endPoint;
+                        // Use the pre-drag identity, not transient Y positions:
+                        // dragging a tip below its base must not swap the ends.
+                        float startY = currentMoveAction.originalPositions.TryGetValue(
+                            b.startPoint, out Vector3 originalStart)
+                            ? originalStart.y : b.startPoint.transform.position.y;
+                        float endY = currentMoveAction.originalPositions.TryGetValue(
+                            b.endPoint, out Vector3 originalEnd)
+                            ? originalEnd.y : b.endPoint.transform.position.y;
+                        Point pBot = startY <= endY
+                            ? b.startPoint : b.endPoint;
+                        Point pTop = pBot == b.startPoint ? b.endPoint : b.startPoint;
                         
                         Vector3 botPos = pBot.transform.position;
                         Vector3 topPos = pTop.transform.position;
                         
-                        if (selectedPoints.Contains(pBot) && !selectedPoints.Contains(pTop)) topPos.x = botPos.x;
-                        else botPos.x = topPos.x; 
+                        if (pBot.IsScenePlacedAnchor) topPos.x = botPos.x;
+                        else if (pTop.IsScenePlacedAnchor ||
+                                 !selectedPoints.Contains(pBot) || selectedPoints.Contains(pTop))
+                            botPos.x = topPos.x;
+                        else topPos.x = botPos.x;
                         
-                        botPos.y = pierBaseY; 
+                        if (!pBot.IsScenePlacedAnchor) botPos.y = pierBaseY;
                         
-                        if (topPos.y < botPos.y + 1f) topPos.y = botPos.y + 1f;
-                        if (topPos.y > botPos.y + b.materialData.maxLength) topPos.y = botPos.y + b.materialData.maxLength;
+                        if (!pTop.IsScenePlacedAnchor)
+                            topPos.y = Mathf.Clamp(topPos.y, botPos.y + 1f,
+                                botPos.y + b.materialData.maxLength);
                         
-                        pBot.transform.position = botPos;
-                        pTop.transform.position = topPos;
+                        if (!pBot.IsScenePlacedAnchor) pBot.transform.position = botPos;
+                        if (!pTop.IsScenePlacedAnchor) pTop.transform.position = topPos;
                     }
                 }
             }
@@ -872,6 +888,36 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (isMoveMode && eventData.button == PointerEventData.InputButton.Left)
         {
             CheckForExistingPoint(screenPos, out Point hoveredNode, out _);
+            if (hoveredNode == null)
+            {
+                Bar pier = CheckForExistingBar(screenPos, true);
+                if (pier != null)
+                {
+                    ClearSelection();
+                    Point upper = pier.startPoint != null && pier.endPoint != null &&
+                                  pier.startPoint.transform.position.y > pier.endPoint.transform.position.y
+                        ? pier.startPoint : pier.endPoint;
+                    Point lower = upper == pier.startPoint ? pier.endPoint : pier.startPoint;
+                    // Keep the visible upper tip primary for the drag guides and
+                    // grid snap; the buried foundation moves with the pier.
+                    if (upper != null && !upper.IsScenePlacedAnchor)
+                    {
+                        upper.isSelected = true;
+                        selectedPoints.Add(upper);
+                    }
+                    if (lower != null && !lower.IsScenePlacedAnchor &&
+                        !selectedPoints.Contains(lower))
+                    {
+                        lower.isSelected = true;
+                        selectedPoints.Add(lower);
+                    }
+                    if (selectedPoints.Count > 0)
+                    {
+                        hoveredNode = selectedPoints[0];
+                        UpdateBarHighlights();
+                    }
+                }
+            }
             if (hoveredNode != null)
             {
                 if (hoveredNode.IsScenePlacedAnchor)
@@ -1499,6 +1545,21 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (BuildUIController.Instance != null) BuildUIController.Instance.MarkBridgeDirty();
     }
 
+    private static bool IsPierFoundationPoint(Point point)
+    {
+        foreach (Bar bar in point.ConnectedBars)
+        {
+            if (bar == null || !bar.gameObject.activeInHierarchy || bar.materialData == null ||
+                !bar.materialData.isPier || bar.startPoint == null || bar.endPoint == null)
+                continue;
+
+            Point lower = bar.startPoint.transform.position.y <= bar.endPoint.transform.position.y
+                ? bar.startPoint : bar.endPoint;
+            if (lower == point) return true;
+        }
+        return false;
+    }
+
     private void PerformSwipeDelete(Vector2 screenPos)
     {
         CheckForExistingPoint(screenPos, out Point hoveredPoint, out _);
@@ -1539,16 +1600,24 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (p.gameObject.activeSelf) { currentAction.affectedObjects.Add(p.gameObject); p.gameObject.SetActive(false); }
     }
 
-    private Bar CheckForExistingBar(Vector2 screenPos)
+    private Bar CheckForExistingBar(Vector2 screenPos, bool pierOnly = false)
     {
         Camera cam = GetActiveCamera();
+        BuildLocation activeLocation = GameManager.Instance != null
+            ? GameManager.Instance.ActiveBuildLocation : null;
+        float buildPlaneZ = pierOnly ? GetBuildPlaneZ() : 0f;
         Bar closestBar = null;
         float minSqrDist = deleteSnapRadiusPixels * deleteSnapRadiusPixels;
         foreach (Point p in Point.AllPoints)
         {
             foreach (Bar b in p.ConnectedBars)
             {
-                if (b == null || !b.gameObject.activeSelf || b.startPoint == null || b.endPoint == null) continue;
+                if (b == null || !b.gameObject.activeSelf || b.startPoint == null || b.endPoint == null ||
+                    (pierOnly && (b.materialData == null || !b.materialData.isPier))) continue;
+                if (pierOnly &&
+                    ((activeLocation != null && b.OwnerLocation != null && b.OwnerLocation != activeLocation) ||
+                     Mathf.Abs(b.startPoint.transform.position.z - buildPlaneZ) > nodeSnapDepthTolerance))
+                    continue;
                 Vector3 startScreenPos = cam.WorldToScreenPoint(b.startPoint.transform.position);
                 Vector3 endScreenPos = cam.WorldToScreenPoint(b.endPoint.transform.position);
                 if (startScreenPos.z > 0 && endScreenPos.z > 0)

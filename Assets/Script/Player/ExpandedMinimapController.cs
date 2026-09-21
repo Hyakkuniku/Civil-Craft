@@ -69,6 +69,10 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
     private readonly List<MarkerView> markers = new List<MarkerView>();
     private RectTransform markerLayer;
+    private RectTransform playerMarker;
+    private RectTransform playerMarkerArrow;
+    private Transform playerMarkerTarget;
+    private float nextPlayerMarkerSearch;
     private GameObject controlsRoot;
     private CanvasGroup controlsCanvasGroup;
     private Canvas owningCanvas;
@@ -314,9 +318,11 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
     public void CenterOnPlayer()
     {
-        if (!isExpanded || minimapFollow == null || minimapFollow.player == null) return;
+        if (!isExpanded || minimapCamera == null) return;
+        Transform player = GetPlayerMarkerTarget();
+        if (player == null) return;
 
-        Vector3 center = minimapFollow.player.position;
+        Vector3 center = player.position;
         center.y = minimapCamera.transform.position.y;
         SetCameraCenterClamped(center);
     }
@@ -439,20 +445,93 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
     private void EnsureMarkerLayer()
     {
-        if (mapImage == null || markerLayer != null) return;
+        if (mapImage == null) return;
 
-        Transform existing = mapImage.transform.Find("BuildLocationMarkers");
-        if (existing != null)
-            markerLayer = existing as RectTransform;
-        else
+        if (markerLayer == null)
         {
-            GameObject layer = new GameObject("BuildLocationMarkers", typeof(RectTransform));
-            layer.layer = mapImage.gameObject.layer;
-            markerLayer = layer.GetComponent<RectTransform>();
-            markerLayer.SetParent(mapImage.rectTransform, false);
-            Stretch(markerLayer, Vector2.zero, Vector2.zero);
+            Transform existing = mapImage.transform.Find("BuildLocationMarkers");
+            if (existing != null)
+                markerLayer = existing as RectTransform;
+            else
+            {
+                GameObject layer = new GameObject("BuildLocationMarkers", typeof(RectTransform));
+                layer.layer = mapImage.gameObject.layer;
+                markerLayer = layer.GetComponent<RectTransform>();
+                markerLayer.SetParent(mapImage.rectTransform, false);
+                Stretch(markerLayer, Vector2.zero, Vector2.zero);
+            }
         }
         markerLayer.SetAsLastSibling();
+        EnsurePlayerMarker();
+    }
+
+    private void EnsurePlayerMarker()
+    {
+        if (markerLayer == null || playerMarker != null) return;
+
+        GameObject rootObject = new GameObject("PlayerMarker", typeof(RectTransform));
+        rootObject.layer = markerLayer.gameObject.layer;
+        playerMarker = rootObject.GetComponent<RectTransform>();
+        playerMarker.SetParent(markerLayer, false);
+        playerMarker.anchorMin = playerMarker.anchorMax = new Vector2(0.5f, 0.5f);
+        playerMarker.pivot = new Vector2(0.5f, 0.5f);
+        playerMarker.sizeDelta = new Vector2(48f, 48f);
+
+        GameObject arrowObject = new GameObject("Heading", typeof(RectTransform));
+        arrowObject.layer = rootObject.layer;
+        playerMarkerArrow = arrowObject.GetComponent<RectTransform>();
+        playerMarkerArrow.SetParent(playerMarker, false);
+        playerMarkerArrow.anchorMin = playerMarkerArrow.anchorMax = new Vector2(0.5f, 0.5f);
+        playerMarkerArrow.sizeDelta = new Vector2(36f, 36f);
+
+        CreatePlayerArrowPart(playerMarkerArrow, "Border", 36f, new Color(0.17f, 0.11f, 0.07f, 1f));
+        CreatePlayerArrowPart(playerMarkerArrow, "Fill", 27f, new Color(0.10f, 0.84f, 0.98f, 1f));
+
+        GameObject labelObject = new GameObject("YouLabel", typeof(RectTransform),
+            typeof(CanvasRenderer), typeof(Image), typeof(Outline));
+        labelObject.layer = rootObject.layer;
+        RectTransform labelRect = labelObject.GetComponent<RectTransform>();
+        labelRect.SetParent(playerMarker, false);
+        labelRect.anchorMin = labelRect.anchorMax = new Vector2(0.5f, 0.5f);
+        labelRect.anchoredPosition = new Vector2(0f, -31f);
+        labelRect.sizeDelta = new Vector2(54f, 22f);
+        Image labelBackground = labelObject.GetComponent<Image>();
+        labelBackground.color = new Color(0.12f, 0.17f, 0.27f, 0.96f);
+        labelBackground.raycastTarget = false;
+        Outline labelOutline = labelObject.GetComponent<Outline>();
+        labelOutline.effectColor = new Color(1f, 0.96f, 0.82f, 0.95f);
+        labelOutline.effectDistance = new Vector2(1f, -1f);
+
+        GameObject textObject = new GameObject("Text", typeof(RectTransform),
+            typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+        textObject.layer = rootObject.layer;
+        RectTransform textRect = textObject.GetComponent<RectTransform>();
+        textRect.SetParent(labelRect, false);
+        Stretch(textRect, Vector2.zero, Vector2.zero);
+        TextMeshProUGUI label = textObject.GetComponent<TextMeshProUGUI>();
+        label.text = "YOU";
+        label.alignment = TextAlignmentOptions.Center;
+        label.fontSize = 16f;
+        label.fontStyle = FontStyles.Bold;
+        label.color = Color.white;
+        label.raycastTarget = false;
+        if (uiFont != null) label.font = uiFont;
+
+        playerMarker.gameObject.SetActive(false);
+    }
+
+    private static void CreatePlayerArrowPart(RectTransform parent, string name, float size, Color color)
+    {
+        GameObject partObject = new GameObject(name, typeof(RectTransform),
+            typeof(CanvasRenderer), typeof(PlayerMapArrowGraphic));
+        partObject.layer = parent.gameObject.layer;
+        RectTransform rect = partObject.GetComponent<RectTransform>();
+        rect.SetParent(parent, false);
+        rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
+        rect.sizeDelta = new Vector2(size, size);
+        PlayerMapArrowGraphic graphic = partObject.GetComponent<PlayerMapArrowGraphic>();
+        graphic.color = color;
+        graphic.raycastTarget = false;
     }
 
     private void EnsureControls()
@@ -678,6 +757,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
             CreateLocationMarker(location);
         }
 
+        if (playerMarker != null) playerMarker.SetAsLastSibling();
         UpdateMarkerPositions();
     }
 
@@ -781,7 +861,57 @@ public sealed class ExpandedMinimapController : MonoBehaviour
             marker.diamond.localScale = Vector3.one * (shouldPulse ? pulse : 0.78f);
         }
 
+        UpdatePlayerMarker(rect);
         UpdateLocationActionPanel();
+    }
+
+    private void UpdatePlayerMarker(Rect rect)
+    {
+        if (playerMarker == null) return;
+        Transform player = isExpanded ? GetPlayerMarkerTarget() : null;
+        if (player == null)
+        {
+            playerMarker.gameObject.SetActive(false);
+            return;
+        }
+
+        Vector3 viewport = minimapCamera.WorldToViewportPoint(player.position);
+        bool visible = viewport.z > 0f && viewport.x >= 0.025f && viewport.x <= 0.975f &&
+                       viewport.y >= 0.035f && viewport.y <= 0.965f;
+        playerMarker.gameObject.SetActive(visible);
+        if (!visible) return;
+
+        playerMarker.anchoredPosition = new Vector2(
+            (viewport.x - 0.5f) * rect.width,
+            (viewport.y - 0.5f) * rect.height);
+
+        Vector3 forward = Vector3.ProjectOnPlane(player.forward, Vector3.up);
+        if (forward.sqrMagnitude < 0.001f) return;
+        Vector3 ahead = minimapCamera.WorldToViewportPoint(player.position + forward.normalized);
+        Vector2 heading = new Vector2(
+            (ahead.x - viewport.x) * rect.width,
+            (ahead.y - viewport.y) * rect.height);
+        if (heading.sqrMagnitude > 0.001f)
+            playerMarkerArrow.localRotation = Quaternion.Euler(
+                0f, 0f, Vector2.SignedAngle(Vector2.up, heading));
+    }
+
+    private Transform GetPlayerMarkerTarget()
+    {
+        if (minimapFollow != null && minimapFollow.player != null)
+            return playerMarkerTarget = minimapFollow.player;
+        if (playerMarkerTarget != null) return playerMarkerTarget;
+        if (Time.unscaledTime < nextPlayerMarkerSearch) return null;
+        nextPlayerMarkerSearch = Time.unscaledTime + 0.5f;
+
+        foreach (PlayerMotor candidate in FindObjectsOfType<PlayerMotor>())
+        {
+            if (candidate == null || candidate.gameObject.scene != gameObject.scene) continue;
+            playerMarkerTarget = candidate.transform;
+            if (minimapFollow != null) minimapFollow.player = playerMarkerTarget;
+            break;
+        }
+        return playerMarkerTarget;
     }
 
     private void SelectLocation(BuildLocation location)
@@ -1570,6 +1700,27 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         rect.pivot = new Vector2(0.5f, 0.5f);
         rect.offsetMin = offsetMin;
         rect.offsetMax = offsetMax;
+    }
+}
+
+/// <summary>A sprite-free UI arrow so the player pin works in every map scene.</summary>
+[DisallowMultipleComponent]
+public sealed class PlayerMapArrowGraphic : MaskableGraphic
+{
+    protected override void OnPopulateMesh(VertexHelper vertexHelper)
+    {
+        vertexHelper.Clear();
+        Rect rect = GetPixelAdjustedRect();
+        UIVertex vertex = UIVertex.simpleVert;
+        vertex.color = color;
+
+        vertex.position = new Vector3(rect.center.x, rect.yMax, 0f);
+        vertexHelper.AddVert(vertex);
+        vertex.position = new Vector3(rect.xMin, rect.yMin, 0f);
+        vertexHelper.AddVert(vertex);
+        vertex.position = new Vector3(rect.xMax, rect.yMin, 0f);
+        vertexHelper.AddVert(vertex);
+        vertexHelper.AddTriangle(0, 1, 2);
     }
 }
 
