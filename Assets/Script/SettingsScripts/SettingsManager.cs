@@ -337,7 +337,16 @@ public class SettingsManager : MonoBehaviour
         if (accountStatusText != null)
         {
             if (signedIn)
-                accountStatusText.text = $"Signed in as <b>{savedName}</b>\nOnline account and cloud-ready progression.";
+            {
+                CloudSaveManager cloud = PlayerDataManager.Instance != null
+                    ? PlayerDataManager.Instance.GetComponent<CloudSaveManager>() : null;
+                string syncStatus = cloud != null && !string.IsNullOrEmpty(cloud.LastSyncError)
+                    ? "Online sync pending. Progress is safe on this device."
+                    : cloud != null && cloud.IsSyncing
+                        ? "Syncing progress online..."
+                        : "Progress saves on this device and syncs online when available.";
+                accountStatusText.text = $"Signed in as <b>{savedName}</b>\n{syncStatus}";
+            }
             else if (guest)
                 accountStatusText.text = "Playing as <b>Guest</b>\nProgress is stored locally on this device.";
             else

@@ -122,7 +122,9 @@ public class CinematicDirector : MonoBehaviour
     {
         if (isPlaying) return;
 
-        if (playOnlyOnce && PlayerPrefs.GetInt($"Cinematic_{cinematicID}", 0) == 1)
+        if (playOnlyOnce && (PlayerDataManager.Instance != null
+                ? PlayerDataManager.Instance.HasPlayedCinematic(cinematicID)
+                : PlayerPrefs.GetInt($"Cinematic_{cinematicID}", 0) == 1))
         {
             Debug.Log($"[Cinematic] '{cinematicID}' has already been played. Skipping.");
             return;
@@ -226,8 +228,13 @@ public class CinematicDirector : MonoBehaviour
 
         if (playOnlyOnce)
         {
-            PlayerPrefs.SetInt($"Cinematic_{cinematicID}", 1);
-            PlayerPrefs.Save();
+            if (PlayerDataManager.Instance != null)
+                PlayerDataManager.Instance.MarkCinematicPlayed(cinematicID);
+            else
+            {
+                PlayerPrefs.SetInt($"Cinematic_{cinematicID}", 1);
+                PlayerPrefs.Save();
+            }
         }
 
         isPlaying = false;

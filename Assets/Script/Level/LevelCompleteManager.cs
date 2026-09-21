@@ -728,7 +728,9 @@ public class LevelCompleteManager : MonoBehaviour
             if (bridgePhotoDisplay != null) bridgePhotoDisplay.texture = currentBridgePhoto;
 
             byte[] imageBytes = currentBridgePhoto.EncodeToPNG();
-            string photoPath = Application.persistentDataPath + "/" + currentContract.ContractID + "_photo.png";
+            string photoPath = PlayerDataManager.Instance != null
+                ? PlayerDataManager.Instance.GetBridgePhotoPath(currentContract.ContractID)
+                : Application.persistentDataPath + "/" + currentContract.ContractID + "_photo.png";
             File.WriteAllBytes(photoPath, imageBytes);
         }
 

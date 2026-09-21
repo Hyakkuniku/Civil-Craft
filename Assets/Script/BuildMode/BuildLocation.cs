@@ -113,7 +113,9 @@ public class BuildLocation : Interactable
 
     private void Start()
     {
-        if (activeContract != null && PlayerPrefs.GetInt("LockedContract_" + activeContract.ContractID, 0) == 1)
+        if (activeContract != null && (PlayerDataManager.Instance != null
+                ? PlayerDataManager.Instance.IsContractLocked(activeContract.ContractID)
+                : PlayerPrefs.GetInt("LockedContract_" + activeContract.ContractID, 0) == 1))
         {
             activeContract = null; 
         }
@@ -169,8 +171,13 @@ public class BuildLocation : Interactable
                     
                     if (activeContract != null)
                     {
-                        PlayerPrefs.SetInt("LockedContract_" + activeContract.ContractID, 1);
-                        PlayerPrefs.Save();
+                        if (PlayerDataManager.Instance != null)
+                            PlayerDataManager.Instance.SetContractLocked(activeContract.ContractID, true);
+                        else
+                        {
+                            PlayerPrefs.SetInt("LockedContract_" + activeContract.ContractID, 1);
+                            PlayerPrefs.Save();
+                        }
                         
                         if (LevelFailedManager.Instance != null) 
                         {

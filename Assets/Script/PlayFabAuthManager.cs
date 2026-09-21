@@ -4,16 +4,30 @@ using TMPro;
 using PlayFab;
 using PlayFab.ClientModels;
 using UnityEngine.SceneManagement; 
+using UnityEngine.EventSystems;
 using System.Text.RegularExpressions; 
 using System;
 
 public class PlayFabAuthManager : MonoBehaviour
 {
+    private const string RememberedPlayFabIdKey = "RememberedPlayFabId";
+    private const string DeviceLinkedPlayFabIdKey = "DeviceLinkedPlayFabId";
+
     public static PlayFabAuthManager Instance { get; private set; }
     public event Action MainMenuAuthenticationSucceeded;
+    public event Action<bool> AutomaticLoginCompleted;
     public bool IsPlayerLoggedIn => PlayFabClientAPI.IsClientLoggedIn();
+    public bool IsAutomaticLoginInProgress { get; private set; }
+    public bool IsGuestSelected => PlayerPrefs.GetInt("LoginChoice", 0) == 1;
+    public bool IsCloudSaveReady { get; private set; }
 
     private bool returnToMainMenuAfterLogin;
+    private bool playAfterAutomaticLogin;
+    private bool manualLoginInProgress;
+    private int authenticationGeneration;
+    private GameObject saveChoiceOverlay;
+    private GameObject saveChoiceEventSystem;
+    private Action cancelSaveChoice;
 
     [Header("PlayFab Configuration")]
     public string playFabTitleID = ""; 
@@ -67,7 +81,11 @@ public class PlayFabAuthManager : MonoBehaviour
     private void Awake()
     {
         if (Instance == null) Instance = this;
-        else Destroy(gameObject);
+        else
+        {
+            Destroy(gameObject);
+            return;
+        }
 
         if (!string.IsNullOrEmpty(playFabTitleID))
         {
@@ -79,11 +97,122 @@ public class PlayFabAuthManager : MonoBehaviour
 
     private void Start()
     {
+        CloudSaveManager cloud = PlayerDataManager.Instance != null
+            ? PlayerDataManager.Instance.GetComponent<CloudSaveManager>() : null;
+        IsCloudSaveReady = PlayFabClientAPI.IsClientLoggedIn() &&
+            cloud != null && cloud.IsAccountActive;
         UpdatePlayerNameDisplay();
+        TryRestoreLogin();
+    }
+
+    private static bool TryGetDeviceId(out string deviceId)
+    {
+        deviceId = string.Empty;
+        if (Application.platform != RuntimePlatform.Android &&
+            Application.platform != RuntimePlatform.IPhonePlayer)
+            return false;
+
+        deviceId = SystemInfo.deviceUniqueIdentifier;
+        return !string.IsNullOrWhiteSpace(deviceId) &&
+               deviceId != SystemInfo.unsupportedIdentifier;
+    }
+
+    private void TryRestoreLogin()
+    {
+        if (PlayerPrefs.GetInt("LoginChoice", 0) != 2 ||
+            PlayFabClientAPI.IsClientLoggedIn() ||
+            !TryGetDeviceId(out string deviceId)) return;
+
+        string expectedPlayFabId = PlayerPrefs.GetString(RememberedPlayFabIdKey, string.Empty);
+        if (string.IsNullOrEmpty(expectedPlayFabId)) return;
+
+        IsAutomaticLoginInProgress = true;
+        int generation = ++authenticationGeneration;
+        var info = new GetPlayerCombinedInfoRequestParams { GetPlayerProfile = true };
+
+        if (Application.platform == RuntimePlatform.Android)
+        {
+            PlayFabClientAPI.LoginWithAndroidDeviceID(new LoginWithAndroidDeviceIDRequest
+            {
+                AndroidDeviceId = deviceId,
+                CreateAccount = false,
+                InfoRequestParameters = info
+            }, result => OnAutomaticLoginSuccess(result, expectedPlayFabId, generation),
+               error => OnAutomaticLoginError(error, generation));
+        }
+        else
+        {
+            PlayFabClientAPI.LoginWithIOSDeviceID(new LoginWithIOSDeviceIDRequest
+            {
+                DeviceId = deviceId,
+                CreateAccount = false,
+                InfoRequestParameters = info
+            }, result => OnAutomaticLoginSuccess(result, expectedPlayFabId, generation),
+               error => OnAutomaticLoginError(error, generation));
+        }
+    }
+
+    private void OnAutomaticLoginSuccess(LoginResult result, string expectedPlayFabId, int generation)
+    {
+        if (generation != authenticationGeneration)
+        {
+            PlayFabClientAPI.ForgetAllCredentials();
+            return;
+        }
+
+        if (!string.Equals(result.PlayFabId, expectedPlayFabId, StringComparison.Ordinal))
+        {
+            // A device may have been re-linked outside this installation. Never
+            // accept a different account merely because its device login worked.
+            PlayFabClientAPI.ForgetAllCredentials();
+            PlayerPrefs.DeleteKey(RememberedPlayFabIdKey);
+            PlayerPrefs.Save();
+            Debug.LogWarning("Automatic login returned a different PlayFab account. Please sign in manually.", this);
+            IsAutomaticLoginInProgress = false;
+            FinishAutomaticLogin(false);
+            return;
+        }
+
+        isGuest = false;
+        string displayName = result.InfoResultPayload?.PlayerProfile?.DisplayName;
+        loggedInPlayerName = string.IsNullOrWhiteSpace(displayName)
+            ? PlayerPrefs.GetString("SavedPlayerName", "Player") : displayName;
+        PlayerPrefs.SetString("SavedPlayerName", loggedInPlayerName);
+        PlayerPrefs.Save();
+        UpdatePlayerNameDisplay();
+        BeginCloudSaveLogin(result, CloudSaveManager.StartMode.Resume, generation, succeeded =>
+        {
+            if (generation != authenticationGeneration) return;
+            IsAutomaticLoginInProgress = false;
+            if (!succeeded) PlayFabClientAPI.ForgetAllCredentials();
+            FinishAutomaticLogin(succeeded);
+        });
+    }
+
+    private void OnAutomaticLoginError(PlayFabError error, int generation)
+    {
+        if (generation != authenticationGeneration) return;
+        IsAutomaticLoginInProgress = false;
+        Debug.LogWarning("Automatic login failed; manual sign-in is available. " + error.ErrorMessage, this);
+        FinishAutomaticLogin(false);
+    }
+
+    private void FinishAutomaticLogin(bool succeeded)
+    {
+        AutomaticLoginCompleted?.Invoke(succeeded);
+        if (!playAfterAutomaticLogin) return;
+        playAfterAutomaticLogin = false;
+        if (succeeded) LoadGameScene();
+        else OpenAuthCanvas();
     }
 
     private void Update()
     {
+        if (saveChoiceOverlay != null && Input.GetKeyDown(KeyCode.Escape))
+        {
+            cancelSaveChoice?.Invoke();
+            return;
+        }
         if (forgotPasswordCooldown > 0f)
         {
             forgotPasswordCooldown -= Time.deltaTime;
@@ -118,7 +247,9 @@ public class PlayFabAuthManager : MonoBehaviour
         {
             playerNameDisplay.gameObject.SetActive(true);
             string savedName = PlayerPrefs.GetString("SavedPlayerName", "Player");
-            playerNameDisplay.text = "Playing as: " + savedName;
+            playerNameDisplay.text = choice == 2 && !PlayFabClientAPI.IsClientLoggedIn()
+                ? "Last played as: " + savedName
+                : "Playing as: " + savedName;
         }
     }
 
@@ -141,9 +272,15 @@ public class PlayFabAuthManager : MonoBehaviour
         }
         else if (choice == 2)
         {
+            if (IsAutomaticLoginInProgress)
+            {
+                playAfterAutomaticLogin = true;
+                return;
+            }
             if (PlayFabClientAPI.IsClientLoggedIn())
             {
-                LoadGameScene(); 
+                if (IsCloudSaveReady) LoadGameScene();
+                else SetFeedbackMessage("Checking online save. Please wait...", processColor);
             }
             else
             {
@@ -182,6 +319,12 @@ public class PlayFabAuthManager : MonoBehaviour
 
     public void CloseAuthCanvas()
     {
+        if (manualLoginInProgress)
+        {
+            authenticationGeneration++;
+            FailPendingLogin("Account switch canceled. Your guest save is unchanged.");
+        }
+        CloseSaveChoice();
         returnToMainMenuAfterLogin = false;
         if (loginPanel != null) loginPanel.SetActive(true);
         if (registerPanel != null) registerPanel.SetActive(false);
@@ -192,7 +335,17 @@ public class PlayFabAuthManager : MonoBehaviour
     /// <summary>Clears the current PlayFab/guest session without deleting game progress.</summary>
     public void LogoutToSignedOutState()
     {
+        CloseSaveChoice();
         CancelInvoke(nameof(LoadGameScene));
+        authenticationGeneration++;
+        IsAutomaticLoginInProgress = false;
+        playAfterAutomaticLogin = false;
+        manualLoginInProgress = false;
+        IsCloudSaveReady = false;
+        CloudSaveManager cloud = PlayerDataManager.Instance != null
+            ? PlayerDataManager.Instance.GetComponent<CloudSaveManager>() : null;
+        if (cloud != null) cloud.EndSession();
+        if (PlayerDataManager.Instance != null) PlayerDataManager.Instance.UseGuestSave();
         PlayFabClientAPI.ForgetAllCredentials();
         returnToMainMenuAfterLogin = false;
         isGuest = false;
@@ -200,6 +353,7 @@ public class PlayFabAuthManager : MonoBehaviour
 
         PlayerPrefs.SetInt("LoginChoice", 0);
         PlayerPrefs.DeleteKey("SavedPlayerName");
+        PlayerPrefs.DeleteKey(RememberedPlayFabIdKey);
         PlayerPrefs.Save();
 
         if (authCanvas != null) authCanvas.SetActive(false);
@@ -208,12 +362,23 @@ public class PlayFabAuthManager : MonoBehaviour
 
     public void OnPlayAsGuestClicked()
     {
+        CloseSaveChoice();
+        authenticationGeneration++;
+        IsAutomaticLoginInProgress = false;
+        playAfterAutomaticLogin = false;
+        manualLoginInProgress = false;
+        IsCloudSaveReady = false;
+        CloudSaveManager cloud = PlayerDataManager.Instance != null
+            ? PlayerDataManager.Instance.GetComponent<CloudSaveManager>() : null;
+        if (cloud != null) cloud.EndSession();
+        if (PlayerDataManager.Instance != null) PlayerDataManager.Instance.UseGuestSave();
         PlayFabClientAPI.ForgetAllCredentials();
         isGuest = true;
         loggedInPlayerName = "Guest";
         
         PlayerPrefs.SetInt("LoginChoice", 1); 
         PlayerPrefs.SetString("SavedPlayerName", "Guest"); 
+        PlayerPrefs.DeleteKey(RememberedPlayFabIdKey);
         PlayerPrefs.Save();
 
         UpdatePlayerNameDisplay(); 
@@ -307,6 +472,13 @@ public class PlayFabAuthManager : MonoBehaviour
 
     public void OnLoginButtonClicked()
     {
+        if (manualLoginInProgress) return;
+        if (IsAutomaticLoginInProgress)
+        {
+            SetFeedbackMessage("Finishing automatic sign-in. Please wait...", processColor);
+            return;
+        }
+
         string inputId = loginUsername.text.Trim(); 
 
         if (string.IsNullOrEmpty(inputId) || string.IsNullOrEmpty(loginPassword.text))
@@ -329,6 +501,8 @@ public class PlayFabAuthManager : MonoBehaviour
         };
 
         bool isEmailLogin = inputId.Contains("@");
+        manualLoginInProgress = true;
+        int generation = ++authenticationGeneration;
 
         if (isEmailLogin)
         {
@@ -338,7 +512,9 @@ public class PlayFabAuthManager : MonoBehaviour
                 Password = loginPassword.text,
                 InfoRequestParameters = infoParams
             };
-            PlayFabClientAPI.LoginWithEmailAddress(request, OnLoginSuccess, OnLoginError);
+            PlayFabClientAPI.LoginWithEmailAddress(request,
+                result => OnLoginSuccess(result, generation),
+                error => OnLoginError(error, generation));
         }
         else
         {
@@ -348,7 +524,9 @@ public class PlayFabAuthManager : MonoBehaviour
                 Password = loginPassword.text,
                 InfoRequestParameters = infoParams
             };
-            PlayFabClientAPI.LoginWithPlayFab(request, OnLoginSuccess, OnLoginError);
+            PlayFabClientAPI.LoginWithPlayFab(request,
+                result => OnLoginSuccess(result, generation),
+                error => OnLoginError(error, generation));
         }
     }
 
@@ -437,8 +615,16 @@ public class PlayFabAuthManager : MonoBehaviour
     // PLAYFAB SUCCESS/ERROR CALLBACKS
     // ────────────────────────────────────────────────
 
-    private void OnLoginSuccess(LoginResult result)
+    private void OnLoginSuccess(LoginResult result, int generation)
     {
+        if (generation != authenticationGeneration) return;
+        // A successful account switch replaces the PlayFab credentials. Stop
+        // the previous account's pending sync before any further API calls.
+        CloudSaveManager previousCloud = PlayerDataManager.Instance != null
+            ? PlayerDataManager.Instance.GetComponent<CloudSaveManager>() : null;
+        if (previousCloud != null) previousCloud.EndSession();
+        IsCloudSaveReady = false;
+        loginPassword.text = string.Empty;
         string inputId = loginUsername.text.Trim();
         bool isEmailLogin = inputId.Contains("@");
 
@@ -447,40 +633,317 @@ public class PlayFabAuthManager : MonoBehaviour
             if (result.InfoResultPayload.AccountInfo.Username != inputId)
             {
                 SetFeedbackMessage("Login Failed: Username is case-sensitive. Please check your capitalization.", errorColor);
+                manualLoginInProgress = false;
                 PlayFabClientAPI.ForgetAllCredentials(); 
                 return;
             }
         }
 
-        // We removed the email verification check entirely! Just log them straight in.
-        
+        // Inspect saves before linking this device: canceling the choice must
+        // leave both the guest slot and the remembered account untouched.
+        loggedInPlayerName = string.Empty;
         if (result.InfoResultPayload != null && result.InfoResultPayload.PlayerProfile != null)
         {
             loggedInPlayerName = result.InfoResultPayload.PlayerProfile.DisplayName;
         }
 
-        string welcomeName = string.IsNullOrEmpty(loggedInPlayerName) ? "Player" : loggedInPlayerName;
-        SetFeedbackMessage("Login Successful! Welcome, " + welcomeName + "!", successColor);
-        
-        PlayerPrefs.SetInt("LoginChoice", 2);
-        PlayerPrefs.SetString("SavedPlayerName", welcomeName);
-        PlayerPrefs.Save();
-
-        UpdatePlayerNameDisplay(); 
-        
-        Debug.Log("Logged in! Name: " + welcomeName);
-        if (returnToMainMenuAfterLogin)
-        {
-            CompleteMainMenuAuthenticationRequest();
-        }
-        else
-        {
-            Invoke(nameof(LoadGameScene), 1.5f);
-        }
+        CompleteManualLogin(result, generation);
     }
 
-    private void OnLoginError(PlayFabError error)
+    private void CompleteManualLogin(LoginResult result, int generation)
     {
+        if (generation != authenticationGeneration) return;
+        CloudSaveManager cloud = PlayerDataManager.Instance != null
+            ? PlayerDataManager.Instance.GetComponent<CloudSaveManager>() : null;
+        if (cloud == null)
+        {
+            FailPendingLogin("Account save is unavailable. Please try again.");
+            return;
+        }
+
+        SetFeedbackMessage("Checking account save...", processColor);
+        cloud.InspectAccount(result, availability =>
+        {
+            if (generation != authenticationGeneration) return;
+            switch (availability)
+            {
+                case CloudSaveManager.SaveAvailability.Empty:
+                    if (!ShowSaveChoice(
+                            "This account has no save.\nStart fresh or use your guest save?",
+                            "Start Fresh", "Use Guest Save",
+                            () => StartSelectedLogin(result, generation,
+                                CloudSaveManager.StartMode.StartFresh),
+                            () => StartSelectedLogin(result, generation,
+                                CloudSaveManager.StartMode.UseGuestSave)))
+                        FailPendingLogin("Could not show the save choice. Please try again.");
+                    break;
+
+                case CloudSaveManager.SaveAvailability.Online:
+                case CloudSaveManager.SaveAvailability.LocalOnly:
+                    bool online = availability == CloudSaveManager.SaveAvailability.Online;
+                    string message = online
+                        ? "This account has saved progress.\nSwitch to it? Your guest save is kept."
+                        : "This account has a save on this device.\nSwitch to it? Your guest save is kept.";
+                    if (!ShowSaveChoice(message, "Stay Guest", "Switch Account",
+                            CancelPendingLogin,
+                            () => StartSelectedLogin(result, generation,
+                                online ? CloudSaveManager.StartMode.LoadOnline :
+                                    CloudSaveManager.StartMode.LoadLocalAccount)))
+                        FailPendingLogin("Could not show the account choice. Please try again.");
+                    break;
+
+                default:
+                    FailPendingLogin("Could not check this account's save. Your guest save is unchanged.");
+                    break;
+            }
+        });
+    }
+
+    private void StartSelectedLogin(LoginResult result, int generation,
+        CloudSaveManager.StartMode mode)
+    {
+        if (generation != authenticationGeneration) return;
+        CloseSaveChoice();
+        SetFeedbackMessage("Opening account save...", processColor);
+        BeginCloudSaveLogin(result, mode, generation, succeeded =>
+        {
+            if (generation != authenticationGeneration) return;
+            if (!succeeded)
+            {
+                FailPendingLogin("Could not open this account's save. Your guest save is unchanged.");
+                return;
+            }
+
+            SetFeedbackMessage("Finishing sign-in...", processColor);
+            LinkDeviceAfterSaveChoice(result, generation,
+                deviceLinked => FinishSelectedLogin(result, deviceLinked, generation, mode));
+        });
+    }
+
+    private void LinkDeviceAfterSaveChoice(LoginResult result, int generation,
+        Action<bool> onComplete)
+    {
+        if (!TryGetDeviceId(out string deviceId))
+        {
+            onComplete(false);
+            return;
+        }
+
+        bool forceLink = !string.IsNullOrEmpty(PlayerPrefs.GetString(DeviceLinkedPlayFabIdKey, string.Empty)) &&
+            !string.Equals(PlayerPrefs.GetString(DeviceLinkedPlayFabIdKey, string.Empty),
+                result.PlayFabId, StringComparison.Ordinal);
+        Action<PlayFabError> onError = error =>
+        {
+            if (generation != authenticationGeneration) return;
+            Debug.LogWarning("Device sign-in could not be enabled: " + error.ErrorMessage, this);
+            onComplete(false);
+        };
+        if (Application.platform == RuntimePlatform.Android)
+            PlayFabClientAPI.LinkAndroidDeviceID(new LinkAndroidDeviceIDRequest
+            {
+                AndroidDeviceId = deviceId,
+                ForceLink = forceLink
+            }, _ => { if (generation == authenticationGeneration) onComplete(true); }, onError);
+        else
+            PlayFabClientAPI.LinkIOSDeviceID(new LinkIOSDeviceIDRequest
+            {
+                DeviceId = deviceId,
+                ForceLink = forceLink
+            }, _ => { if (generation == authenticationGeneration) onComplete(true); }, onError);
+    }
+
+    private void FinishSelectedLogin(LoginResult result, bool deviceLinked, int generation,
+        CloudSaveManager.StartMode mode)
+    {
+        if (generation != authenticationGeneration) return;
+        manualLoginInProgress = false;
+        string welcomeName = string.IsNullOrEmpty(loggedInPlayerName)
+            ? "Player" : loggedInPlayerName;
+        PlayerPrefs.SetInt("LoginChoice", 2);
+        PlayerPrefs.SetString("SavedPlayerName", welcomeName);
+        if (deviceLinked)
+        {
+            PlayerPrefs.SetString(RememberedPlayFabIdKey, result.PlayFabId);
+            PlayerPrefs.SetString(DeviceLinkedPlayFabIdKey, result.PlayFabId);
+        }
+        else PlayerPrefs.DeleteKey(RememberedPlayFabIdKey);
+        PlayerPrefs.Save();
+
+        isGuest = false;
+        if ((mode == CloudSaveManager.StartMode.StartFresh ||
+             mode == CloudSaveManager.StartMode.UseGuestSave) &&
+            PlayerDataManager.Instance?.CurrentData != null)
+        {
+            PlayerDataManager.Instance.CurrentData.playerName = welcomeName;
+            PlayerDataManager.Instance.SaveGame();
+        }
+        UpdatePlayerNameDisplay();
+        CloudSaveManager cloud = PlayerDataManager.Instance != null
+            ? PlayerDataManager.Instance.GetComponent<CloudSaveManager>() : null;
+        SetFeedbackMessage(cloud != null && !string.IsNullOrEmpty(cloud.LastSyncError)
+            ? "Signed in. Online sync will retry; progress is saved on this device."
+            : "Login successful. Save is ready.", successColor);
+        if (returnToMainMenuAfterLogin) CompleteMainMenuAuthenticationRequest();
+        else Invoke(nameof(LoadGameScene), 1.5f);
+    }
+
+    private void CancelPendingLogin()
+    {
+        CloseSaveChoice();
+        manualLoginInProgress = false;
+        IsCloudSaveReady = false;
+        PlayFabClientAPI.ForgetAllCredentials();
+        if (PlayerDataManager.Instance != null) PlayerDataManager.Instance.UseGuestSave();
+        isGuest = true;
+        loggedInPlayerName = "Guest";
+        PlayerPrefs.SetInt("LoginChoice", 1);
+        PlayerPrefs.SetString("SavedPlayerName", "Guest");
+        PlayerPrefs.DeleteKey(RememberedPlayFabIdKey);
+        PlayerPrefs.Save();
+        UpdatePlayerNameDisplay();
+        if (returnToMainMenuAfterLogin) CompleteMainMenuAuthenticationRequest();
+        else CloseAuthCanvas();
+    }
+
+    private void FailPendingLogin(string message)
+    {
+        CloseSaveChoice();
+        manualLoginInProgress = false;
+        IsCloudSaveReady = false;
+        CloudSaveManager cloud = PlayerDataManager.Instance != null
+            ? PlayerDataManager.Instance.GetComponent<CloudSaveManager>() : null;
+        if (cloud != null) cloud.EndSession();
+        if (PlayerDataManager.Instance != null) PlayerDataManager.Instance.UseGuestSave();
+        PlayFabClientAPI.ForgetAllCredentials();
+        if (PlayerPrefs.GetInt("LoginChoice", 0) == 2)
+        {
+            PlayerPrefs.SetInt("LoginChoice", 0);
+            PlayerPrefs.DeleteKey(RememberedPlayFabIdKey);
+            PlayerPrefs.Save();
+        }
+        isGuest = IsGuestSelected;
+        loggedInPlayerName = isGuest ? "Guest" : string.Empty;
+        UpdatePlayerNameDisplay();
+        SetFeedbackMessage(message, errorColor);
+    }
+
+    private void BeginCloudSaveLogin(LoginResult result, CloudSaveManager.StartMode mode, int generation,
+        Action<bool> onComplete)
+    {
+        IsCloudSaveReady = false;
+        CloudSaveManager cloud = PlayerDataManager.Instance != null
+            ? PlayerDataManager.Instance.GetComponent<CloudSaveManager>() : null;
+        if (cloud == null)
+        {
+            Debug.LogError("Cloud save manager is missing from PlayerDataManager.", this);
+            onComplete(false);
+            return;
+        }
+        cloud.BeginSession(result, mode, ready =>
+        {
+            if (generation != authenticationGeneration) return;
+            IsCloudSaveReady = ready;
+            onComplete(ready);
+        });
+    }
+
+    private bool ShowSaveChoice(string message, string leftLabel, string rightLabel,
+        Action onLeft, Action onRight)
+    {
+        CloseSaveChoice();
+        SceneController sceneController = FindObjectOfType<SceneController>(true);
+        GameObject template = sceneController != null ? sceneController.quitConfirmationPanel : null;
+        if (template == null) return false;
+
+        saveChoiceOverlay = new GameObject("Account Save Confirmation", typeof(RectTransform),
+            typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+        Canvas canvas = saveChoiceOverlay.GetComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.overrideSorting = true;
+        canvas.sortingOrder = 32000;
+        CanvasScaler scaler = saveChoiceOverlay.GetComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        CanvasScaler sourceScaler = template.GetComponentInParent<CanvasScaler>(true);
+        scaler.referenceResolution = sourceScaler != null
+            ? sourceScaler.referenceResolution : new Vector2(1920f, 1080f);
+        scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+        scaler.matchWidthOrHeight = sourceScaler != null ? sourceScaler.matchWidthOrHeight : 0.5f;
+
+        GameObject blocker = new GameObject("Dim Background", typeof(RectTransform), typeof(Image));
+        blocker.transform.SetParent(saveChoiceOverlay.transform, false);
+        RectTransform blockerRect = blocker.GetComponent<RectTransform>();
+        blockerRect.anchorMin = Vector2.zero;
+        blockerRect.anchorMax = Vector2.one;
+        blockerRect.offsetMin = Vector2.zero;
+        blockerRect.offsetMax = Vector2.zero;
+        blocker.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.7f);
+
+        GameObject panel = Instantiate(template, saveChoiceOverlay.transform, false);
+        panel.name = "Account Save Choice Panel";
+        Button left = null;
+        Button right = null;
+        TMP_Text body = null;
+        foreach (Button button in panel.GetComponentsInChildren<Button>(true))
+        {
+            if (button.name == "btnCancel") left = button;
+            if (button.name == "btnConf") right = button;
+        }
+        foreach (TMP_Text label in panel.GetComponentsInChildren<TMP_Text>(true))
+            if (label.name == "textConf") { body = label; break; }
+
+        if (left == null || right == null || body == null)
+        {
+            CloseSaveChoice();
+            return false;
+        }
+
+        body.text = message;
+        body.enableAutoSizing = true;
+        body.fontSizeMin = 24f;
+        left.onClick = new Button.ButtonClickedEvent();
+        right.onClick = new Button.ButtonClickedEvent();
+        SetChoiceButton(left, leftLabel, onLeft);
+        SetChoiceButton(right, rightLabel, onRight);
+        cancelSaveChoice = CancelPendingLogin;
+        panel.SetActive(true);
+        if (EventSystem.current == null)
+            saveChoiceEventSystem = new GameObject("Account Save Event System",
+                typeof(EventSystem), typeof(StandaloneInputModule));
+        return true;
+    }
+
+    private static void SetChoiceButton(Button button, string label, Action action)
+    {
+        TMP_Text buttonText = button.GetComponentInChildren<TMP_Text>(true);
+        if (buttonText != null)
+        {
+            buttonText.text = label;
+            buttonText.enableAutoSizing = true;
+            buttonText.fontSizeMin = 18f;
+        }
+        button.onClick.AddListener(() => action?.Invoke());
+    }
+
+    private void CloseSaveChoice()
+    {
+        cancelSaveChoice = null;
+        if (saveChoiceOverlay != null) Destroy(saveChoiceOverlay);
+        if (saveChoiceEventSystem != null) Destroy(saveChoiceEventSystem);
+        saveChoiceOverlay = null;
+        saveChoiceEventSystem = null;
+    }
+
+    private void OnDestroy()
+    {
+        CloseSaveChoice();
+        if (Instance == this) Instance = null;
+    }
+
+    private void OnLoginError(PlayFabError error, int generation)
+    {
+        if (generation != authenticationGeneration) return;
+        manualLoginInProgress = false;
+        loginPassword.text = string.Empty;
         SetFeedbackMessage("Login Failed: " + error.ErrorMessage, errorColor);
     }
 

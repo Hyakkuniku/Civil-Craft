@@ -90,7 +90,9 @@ public class NPCContractGiver : Interactable
     {
         if (contractToGive != null)
         {
-            isLocked = PlayerPrefs.GetInt("LockedContract_" + contractToGive.ContractID, 0) == 1;
+            isLocked = PlayerDataManager.Instance != null
+                ? PlayerDataManager.Instance.IsContractLocked(contractToGive.ContractID)
+                : PlayerPrefs.GetInt("LockedContract_" + contractToGive.ContractID, 0) == 1;
         }
 
         if (contractToGive != null && PlayerDataManager.Instance != null && !isLocked)
@@ -402,8 +404,13 @@ public class NPCContractGiver : Interactable
     {
         if (contractToGive == null || targetBuildLocation == null) return;
 
-        PlayerPrefs.DeleteKey("LockedContract_" + contractToGive.ContractID);
-        PlayerPrefs.Save();
+        if (PlayerDataManager.Instance != null)
+            PlayerDataManager.Instance.SetContractLocked(contractToGive.ContractID, false);
+        else
+        {
+            PlayerPrefs.DeleteKey("LockedContract_" + contractToGive.ContractID);
+            PlayerPrefs.Save();
+        }
         isLocked = false;
         isProgressionInteractionLocked = false;
         isAwaitingContractDecision = false;
@@ -429,8 +436,9 @@ public class NPCContractGiver : Interactable
         isAwaitingContractDecision = false;
         isContractCompleted = false;
         isFullyTurnedIn = false;
-        isLocked = phaseContract != null &&
-                   PlayerPrefs.GetInt("LockedContract_" + phaseContract.ContractID, 0) == 1;
+        isLocked = phaseContract != null && (PlayerDataManager.Instance != null
+            ? PlayerDataManager.Instance.IsContractLocked(phaseContract.ContractID)
+            : PlayerPrefs.GetInt("LockedContract_" + phaseContract.ContractID, 0) == 1);
 
         if (phaseContract == null) return;
 

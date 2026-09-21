@@ -422,8 +422,13 @@ public class NPCProgressionManager : MonoBehaviour
         ContractSO phaseContract = phases[phaseIndex].contract;
         if (phaseContract != null)
         {
-            PlayerPrefs.DeleteKey("LockedContract_" + phaseContract.ContractID);
-            PlayerPrefs.Save();
+            if (PlayerDataManager.Instance != null)
+                PlayerDataManager.Instance.SetContractLocked(phaseContract.ContractID, false);
+            else
+            {
+                PlayerPrefs.DeleteKey("LockedContract_" + phaseContract.ContractID);
+                PlayerPrefs.Save();
+            }
         }
 
         invokedInteractionPhases.Remove(phaseIndex);

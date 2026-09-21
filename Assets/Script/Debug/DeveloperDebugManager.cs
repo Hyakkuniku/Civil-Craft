@@ -1131,8 +1131,13 @@ public sealed class DeveloperDebugManager : MonoBehaviour
             return;
         }
 
-        PlayerPrefs.DeleteKey("LockedContract_" + contract.ContractID);
-        PlayerPrefs.Save();
+        if (PlayerDataManager.Instance != null)
+            PlayerDataManager.Instance.SetContractLocked(contract.ContractID, false);
+        else
+        {
+            PlayerPrefs.DeleteKey("LockedContract_" + contract.ContractID);
+            PlayerPrefs.Save();
+        }
         location.activeContract = contract;
 
         if (matchingGiver != null)

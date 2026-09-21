@@ -11616,6 +11616,9 @@ MonoBehaviour:
   bakedRoadColliderSeamOverlap: 0.2
   simulatedRoadColliderSeamOverlap: 0.6
   bakedRoadVisualTop: 0.025
+  constrainVisualBridgeToPlane: 1
+  visualLinearDrag: 0.5
+  visualAngularDrag: 1.5
   stressSmoothingFrames: 10
   stressDirectionDeadZone: 0.0005
   displayLiveLoadStressOnly: 1
@@ -12201,10 +12204,14 @@ MonoBehaviour:
   levelFailedPanel: {fileID: 998641529604367835}
   levelNameText: {fileID: 9014256148687314760}
   penaltyText: {fileID: 0}
+  failureDetailText: {fileID: 0}
+  failureRecommendationText: {fileID: 0}
   retryButton: {fileID: 0}
   uiElementsToHide: []
   deathThreshold: -50
   maximumVehicleFallDistance: 6
+  vehicleFallConfirmationDuration: 0.35
+  vehicleStallTimeout: 8
   delayBeforeFailScreen: 2
   goldPenaltyPerFail: 25
   currentFailCount: 0

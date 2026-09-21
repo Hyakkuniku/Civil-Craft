@@ -113,7 +113,16 @@ public class MainMenuUIController : MonoBehaviour
     /// <summary>Hook this to the original Click to Play button.</summary>
     public void OnClickToPlay()
     {
-        if (authManager != null && authManager.IsPlayerLoggedIn)
+        if (authManager != null && authManager.IsAutomaticLoginInProgress)
+        {
+            waitingForAuthentication = true;
+            authManager.AutomaticLoginCompleted -= HandleAutomaticLoginCompleted;
+            authManager.AutomaticLoginCompleted += HandleAutomaticLoginCompleted;
+            return;
+        }
+
+        if (authManager != null &&
+            ((authManager.IsPlayerLoggedIn && authManager.IsCloudSaveReady) || authManager.IsGuestSelected))
         {
             ShowMenuPanel();
             return;
@@ -222,11 +231,31 @@ public class MainMenuUIController : MonoBehaviour
         ShowMenuPanel();
     }
 
+    private void HandleAutomaticLoginCompleted(bool succeeded)
+    {
+        if (authManager != null)
+            authManager.AutomaticLoginCompleted -= HandleAutomaticLoginCompleted;
+        if (!waitingForAuthentication) return;
+
+        waitingForAuthentication = false;
+        if (succeeded) ShowMenuPanel();
+        else if (authManager != null)
+        {
+            waitingForAuthentication = true;
+            authManager.MainMenuAuthenticationSucceeded -= HandleAuthenticationSucceeded;
+            authManager.MainMenuAuthenticationSucceeded += HandleAuthenticationSucceeded;
+            authManager.OpenAuthCanvasForMainMenu();
+        }
+    }
+
     private void OnDestroy()
     {
         RestoreButtonAnimationStates();
         if (authManager != null)
+        {
             authManager.MainMenuAuthenticationSucceeded -= HandleAuthenticationSucceeded;
+            authManager.AutomaticLoginCompleted -= HandleAutomaticLoginCompleted;
+        }
         if (featureUnlockSubscribed && PlayerDataManager.Instance != null)
             PlayerDataManager.Instance.OnFeatureUnlocksChanged -= RefreshUnlockableButtons;
         featureUnlockSubscribed = false;

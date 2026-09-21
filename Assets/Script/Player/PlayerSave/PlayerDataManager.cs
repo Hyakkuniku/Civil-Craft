@@ -35,11 +35,17 @@ public class PlayerDataManager : MonoBehaviour
     
     // Optional: Useful if you have a top-right Gold UI that needs to refresh immediately!
     public Action OnCurrencyChanged; 
+    /// <summary>Raised only after the local JSON has been committed successfully.</summary>
+    public event Action OnSaveCommitted;
     /// <summary>Raised after a shop purchase has been saved successfully.</summary>
     public Action<string> OnShopItemPurchased;
     public Action OnItemOwnershipChanged;
     
     private string saveFilePath;
+    private string guestSaveFilePath;
+    private string activeAccountId;
+    private bool allowLegacyProgressPrefs = true;
+    public string CurrentSavePath => saveFilePath;
     private bool isCheckingAchievements = false; // Prevents infinite loops!
     private bool hasMigratedContractIdentifiers;
     private bool suppressAutomaticPositionSave;
@@ -69,9 +75,14 @@ public class PlayerDataManager : MonoBehaviour
 
         DontDestroyOnLoad(gameObject);
 
-        saveFilePath = Application.persistentDataPath + "/playerSaveData.json";
+        guestSaveFilePath = Path.Combine(Application.persistentDataPath, "playerSaveData.json");
+        saveFilePath = guestSaveFilePath;
+        allowLegacyProgressPrefs = true;
         LoadGame();
+        if (GetComponent<CloudSaveManager>() == null)
+            gameObject.AddComponent<CloudSaveManager>();
         RegisterContracts(Resources.FindObjectsOfTypeAll<ContractSO>());
+        MigrateLegacyContractLocks();
         MigrateCompletedContractFeatureUnlocks();
         MigrateEarnedAchievementFeatureUnlock();
     }
@@ -289,6 +300,7 @@ public class PlayerDataManager : MonoBehaviour
 
         try
         {
+            Directory.CreateDirectory(Path.GetDirectoryName(saveFilePath));
             string json = JsonUtility.ToJson(CurrentData, true);
             File.WriteAllText(temporaryPath, json);
 
@@ -316,6 +328,7 @@ public class PlayerDataManager : MonoBehaviour
                 File.Move(temporaryPath, saveFilePath);
             }
 
+            OnSaveCommitted?.Invoke();
             return true;
         }
         catch (Exception exception)
@@ -330,7 +343,7 @@ public class PlayerDataManager : MonoBehaviour
         }
     }
 
-    public void LoadGame()
+    public void LoadGame(bool persistOnLoad = true)
     {
         CurrentData = TryReadSaveFile(saveFilePath);
         if (CurrentData == null)
@@ -347,7 +360,7 @@ public class PlayerDataManager : MonoBehaviour
             };
 
         NormalizeLoadedData();
-        SaveGame();
+        if (persistOnLoad) SaveGame();
     }
 
     /// <summary>
@@ -1482,6 +1495,8 @@ public class PlayerDataManager : MonoBehaviour
         if (CurrentData.discoveredMaterialIds == null) CurrentData.discoveredMaterialIds = new List<string>();
         if (CurrentData.completedLessons == null) CurrentData.completedLessons = new List<string>();
         if (CurrentData.completedContracts == null) CurrentData.completedContracts = new List<string>();
+        if (CurrentData.lockedContractIds == null) CurrentData.lockedContractIds = new List<string>();
+        if (CurrentData.playedCinematicIds == null) CurrentData.playedCinematicIds = new List<string>();
         if (CurrentData.unlockedAchievements == null) CurrentData.unlockedAchievements = new List<string>();
         if (CurrentData.unlockedCosmeticIDs == null) CurrentData.unlockedCosmeticIDs = new List<string>();
         EnsureCosmeticLoadout();
@@ -1862,6 +1877,225 @@ public class PlayerDataManager : MonoBehaviour
         state.currentPhaseId = currentPhaseId ?? string.Empty;
         state.wasTravelling = wasTravelling;
         SaveGame();
+    }
+
+    /// <summary>Keep guest and PlayFab accounts in separate on-device save slots.</summary>
+    public bool HasAccountSave(string playFabId)
+    {
+        if (string.IsNullOrWhiteSpace(playFabId)) return false;
+        foreach (char character in playFabId)
+            if (!char.IsLetterOrDigit(character)) return false;
+        string path = Path.Combine(Application.persistentDataPath, "Accounts", playFabId,
+            "playerSaveData.json");
+        return File.Exists(path) || File.Exists(path + ".bak");
+    }
+
+    public bool UseAccountSave(string playFabId, bool importLegacyGuestSave, out bool hadLocalSave)
+    {
+        hadLocalSave = false;
+        if (string.IsNullOrWhiteSpace(playFabId)) return false;
+        foreach (char character in playFabId)
+            if (!char.IsLetterOrDigit(character)) return false;
+
+        string directory = Path.Combine(Application.persistentDataPath, "Accounts", playFabId);
+        string accountPath = Path.Combine(directory, "playerSaveData.json");
+        string previousPath = saveFilePath;
+        PlayerData previousData = CurrentData;
+        bool previousLegacyPermission = allowLegacyProgressPrefs;
+        string previousAccountId = activeAccountId;
+        try
+        {
+            Directory.CreateDirectory(directory);
+            bool copiedLegacySave = false;
+            if (!File.Exists(accountPath) && !File.Exists(accountPath + ".bak") &&
+                importLegacyGuestSave && File.Exists(guestSaveFilePath))
+            {
+                File.Copy(guestSaveFilePath, accountPath);
+                copiedLegacySave = true;
+                if (File.Exists(guestSaveFilePath + ".bak"))
+                    File.Copy(guestSaveFilePath + ".bak", accountPath + ".bak");
+            }
+            if (copiedLegacySave)
+            {
+                PlayerPrefs.SetString("LegacyProgressPrefsOwner", playFabId);
+                PlayerPrefs.Save();
+            }
+            hadLocalSave = File.Exists(accountPath) || File.Exists(accountPath + ".bak");
+            if (hadLocalSave && TryReadSaveFile(accountPath) == null &&
+                TryReadSaveFile(accountPath + ".bak") == null)
+                throw new InvalidDataException("Neither account save nor its backup is readable.");
+            allowLegacyProgressPrefs = string.Equals(
+                PlayerPrefs.GetString("LegacyProgressPrefsOwner", string.Empty),
+                playFabId, StringComparison.Ordinal) &&
+                PlayerPrefs.GetInt("LegacyProgressPrefsIgnored_" + playFabId, 0) == 0;
+            activeAccountId = playFabId;
+            saveFilePath = accountPath;
+            LoadGame(false);
+            NotifyProfileChanged();
+            return true;
+        }
+        catch (Exception exception)
+        {
+            saveFilePath = previousPath;
+            CurrentData = previousData;
+            allowLegacyProgressPrefs = previousLegacyPermission;
+            activeAccountId = previousAccountId;
+            Debug.LogError("[PlayerDataManager] Could not open account save: " + exception.Message, this);
+            return false;
+        }
+    }
+
+    public void UseGuestSave()
+    {
+        activeAccountId = null;
+        allowLegacyProgressPrefs = true;
+        saveFilePath = guestSaveFilePath;
+        LoadGame();
+        NotifyProfileChanged();
+    }
+
+    public string GetCurrentDataJson()
+    {
+        return CurrentData == null ? string.Empty : JsonUtility.ToJson(CurrentData);
+    }
+
+    /// <summary>Bridge snapshots stay local, but must not bleed between accounts.</summary>
+    public string GetBridgePhotoPath(string contractId)
+    {
+        return Path.Combine(Path.GetDirectoryName(saveFilePath), contractId + "_photo.png");
+    }
+
+    public string ResolveBridgePhotoPath(string contractId, string legacyContractName)
+    {
+        string scopedPath = GetBridgePhotoPath(contractId);
+        if (File.Exists(scopedPath)) return scopedPath;
+
+        string oldPath = Path.Combine(Application.persistentDataPath,
+            legacyContractName + "_photo.png");
+        if (string.IsNullOrEmpty(activeAccountId)) return oldPath;
+        if (!allowLegacyProgressPrefs) return scopedPath;
+
+        string legacyById = Path.Combine(Application.persistentDataPath,
+            contractId + "_photo.png");
+        string source = File.Exists(legacyById) ? legacyById : oldPath;
+        if (!File.Exists(source)) return scopedPath;
+        try
+        {
+            File.Copy(source, scopedPath);
+        }
+        catch (Exception exception)
+        {
+            Debug.LogWarning("[PlayerDataManager] Could not copy bridge snapshot: " +
+                exception.Message, this);
+        }
+        return scopedPath;
+    }
+
+    public bool TryApplyCloudData(string json, out string error)
+    {
+        error = string.Empty;
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            error = "Cloud save is empty.";
+            return false;
+        }
+        try
+        {
+            PlayerData data = JsonUtility.FromJson<PlayerData>(json);
+            if (data == null) { error = "Cloud save is invalid."; return false; }
+            if (!TryRestoreDebugState(data, out error)) return false;
+            NotifyProfileChanged();
+            return true;
+        }
+        catch (Exception exception)
+        {
+            error = exception.Message;
+            return false;
+        }
+    }
+
+    public void IgnoreLegacyProgressPrefsForCurrentAccount()
+    {
+        allowLegacyProgressPrefs = false;
+        if (string.IsNullOrEmpty(activeAccountId)) return;
+        PlayerPrefs.SetInt("LegacyProgressPrefsIgnored_" + activeAccountId, 1);
+        PlayerPrefs.Save();
+    }
+
+    private void NotifyProfileChanged()
+    {
+        OnCurrencyChanged?.Invoke();
+        OnFeatureUnlocksChanged?.Invoke();
+        OnAlmanacAlertsChanged?.Invoke();
+        OnObjectiveAlertsChanged?.Invoke();
+        OnMinimapUnlockChanged?.Invoke();
+    }
+
+    public bool IsContractLocked(string contractId)
+    {
+        if (CurrentData == null || string.IsNullOrWhiteSpace(contractId)) return false;
+        if (CurrentData.lockedContractIds == null)
+            CurrentData.lockedContractIds = new List<string>();
+        if (CurrentData.lockedContractIds.Contains(contractId)) return true;
+        string legacyKey = "LockedContract_" + contractId;
+        if (!allowLegacyProgressPrefs || PlayerPrefs.GetInt(legacyKey, 0) != 1) return false;
+        CurrentData.lockedContractIds.Add(contractId);
+        SaveGame();
+        PlayerPrefs.DeleteKey(legacyKey);
+        PlayerPrefs.Save();
+        return true;
+    }
+
+    public void SetContractLocked(string contractId, bool locked)
+    {
+        if (CurrentData == null || string.IsNullOrWhiteSpace(contractId)) return;
+        if (CurrentData.lockedContractIds == null)
+            CurrentData.lockedContractIds = new List<string>();
+        bool changed = locked
+            ? !CurrentData.lockedContractIds.Contains(contractId)
+            : CurrentData.lockedContractIds.Contains(contractId);
+        if (locked && changed) CurrentData.lockedContractIds.Add(contractId);
+        if (!locked && changed) CurrentData.lockedContractIds.Remove(contractId);
+        PlayerPrefs.DeleteKey("LockedContract_" + contractId);
+        PlayerPrefs.Save();
+        if (changed) SaveGame();
+    }
+
+    public bool HasPlayedCinematic(string cinematicId)
+    {
+        if (CurrentData == null || string.IsNullOrWhiteSpace(cinematicId)) return false;
+        if (CurrentData.playedCinematicIds == null)
+            CurrentData.playedCinematicIds = new List<string>();
+        if (CurrentData.playedCinematicIds.Contains(cinematicId)) return true;
+        string legacyKey = "Cinematic_" + cinematicId;
+        if (!allowLegacyProgressPrefs || PlayerPrefs.GetInt(legacyKey, 0) != 1) return false;
+        CurrentData.playedCinematicIds.Add(cinematicId);
+        SaveGame();
+        PlayerPrefs.DeleteKey(legacyKey);
+        PlayerPrefs.Save();
+        return true;
+    }
+
+    public void MarkCinematicPlayed(string cinematicId)
+    {
+        if (CurrentData == null || string.IsNullOrWhiteSpace(cinematicId)) return;
+        if (CurrentData.playedCinematicIds == null)
+            CurrentData.playedCinematicIds = new List<string>();
+        if (!CurrentData.playedCinematicIds.Contains(cinematicId))
+        {
+            CurrentData.playedCinematicIds.Add(cinematicId);
+            SaveGame();
+        }
+        PlayerPrefs.DeleteKey("Cinematic_" + cinematicId);
+        PlayerPrefs.Save();
+    }
+
+    private void MigrateLegacyContractLocks()
+    {
+        if (allGameContracts == null) return;
+        foreach (ContractSO contract in allGameContracts)
+            if (contract != null && !string.IsNullOrWhiteSpace(contract.ContractID))
+                IsContractLocked(contract.ContractID);
     }
 
     public void MarkNPCPhaseDialogueCompleted(string progressionId, string phaseId)

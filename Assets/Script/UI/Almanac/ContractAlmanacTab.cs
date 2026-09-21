@@ -224,8 +224,10 @@ public class ContractAlmanacTab : MonoBehaviour
 
         if (snapshotImage != null)
         {
-            string photoPath = Application.persistentDataPath + "/" + contract.ContractID + "_photo.png";
-            if (!File.Exists(photoPath))
+            string photoPath = PlayerDataManager.Instance != null
+                ? PlayerDataManager.Instance.ResolveBridgePhotoPath(contract.ContractID, contract.name)
+                : Application.persistentDataPath + "/" + contract.ContractID + "_photo.png";
+            if (PlayerDataManager.Instance == null && !File.Exists(photoPath))
             {
                 // Compatibility with bridge photos saved before stable contract IDs existed.
                 photoPath = Application.persistentDataPath + "/" + contract.name + "_photo.png";

@@ -169,6 +169,8 @@ public class PlayerData
     public string activeObjectiveKey = "";
     public List<string> unlockedLevels = new List<string> { "Tutorial" };
     public List<string> completedContracts = new List<string>();
+    public List<string> lockedContractIds = new List<string>();
+    public List<string> playedCinematicIds = new List<string>();
     // LessonData archive IDs. This is intentionally separate from completedLessons,
     // which controls TutorialSequence prerequisites and replay behavior.
     public List<string> unlockedLessonIds = new List<string>();
