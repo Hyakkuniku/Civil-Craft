@@ -205,6 +205,7 @@ public class LiveLoadVehicle : Interactable
     private bool isDriving = false;
     private bool hasReachedEnd = false; 
     private bool isBrakingAtFinish = false;
+    private bool participatingInCurrentSimulation;
     private float settledAtFinishTimer = 0f;
 
     [HideInInspector] public bool isParkedAtFinish = false;
@@ -229,6 +230,8 @@ public class LiveLoadVehicle : Interactable
     private PhysicMaterial wheelMat; 
     private bool isInspectionWindowOpen;
     private bool inspectionUsesPanelCoordinator;
+    private bool inspectionOpenedFromBuildMode;
+    private BridgeSelectionOutline buildModeInspectionOutline;
     private static LiveLoadVehicle activeInspectionVehicle;
     private Vector3 authoredStartPosition;
     private Quaternion authoredStartRotation;
@@ -437,6 +440,7 @@ public class LiveLoadVehicle : Interactable
 
     private void OnDestroy()
     {
+        DisposeBuildModeInspectionOutline();
         if (activeInspectionVehicle == this)
             activeInspectionVehicle = null;
 
@@ -511,8 +515,8 @@ public class LiveLoadVehicle : Interactable
 
     private void HandleSettlePhaseStarted()
     {
-        if (IsPlayerCargoContract()) return;
-        if (GameManager.Instance != null && assignedContract != null && GameManager.Instance.CurrentContract != assignedContract) return;
+        if (!CanParticipateInCurrentSimulation() || IsPlayerCargoContract()) return;
+        participatingInCurrentSimulation = true;
 
         hasReachedEnd = false; 
         isParkedAtFinish = false; 
@@ -561,8 +565,16 @@ public class LiveLoadVehicle : Interactable
 
     private void HandleSimulationStarted()
     {
-        if (IsPlayerCargoContract()) return;
-        if (GameManager.Instance != null && assignedContract != null && GameManager.Instance.CurrentContract != assignedContract) return;
+        // Every LiveLoadVehicle listens to the shared physics manager. Never let
+        // an unassigned or different contract's vehicle react to that global
+        // event; otherwise a stray cart can start driving and later be reported
+        // as the active contract's failed live load.
+        if (!CanParticipateInCurrentSimulation() || IsPlayerCargoContract()) return;
+        participatingInCurrentSimulation = true;
+
+        if (isInspectionWindowOpen && inspectionOpenedFromBuildMode)
+            CloseInfoPanelInternal(false);
+        buildModeInspectionOutline?.SetBuildModeVisualOnlyVisible(false);
         
         rb.isKinematic = false;
         ClearDynamicVelocity(rb);
@@ -582,7 +594,8 @@ public class LiveLoadVehicle : Interactable
 
     private void HandleSimulationStopped()
     {
-        if (IsPlayerCargoContract()) return;
+        if (!participatingInCurrentSimulation) return;
+        participatingInCurrentSimulation = false;
         StopAndReset();
     }
 
@@ -594,6 +607,8 @@ public class LiveLoadVehicle : Interactable
 
     private void Update()
     {
+        UpdateBuildModeInspectionOutline();
+
         if (hideWhenBuildModeCloses &&
             (GameManager.Instance == null ||
              (!GameManager.Instance.IsInBuildMode() && !GameManager.Instance.IsTransitioning)))
@@ -603,6 +618,33 @@ public class LiveLoadVehicle : Interactable
         }
 
         promptMessage = "Inspect " + vehicleName;
+    }
+
+    private void UpdateBuildModeInspectionOutline()
+    {
+        bool shouldHighlight = IsBuildModeInspectionAvailable();
+        if (shouldHighlight && buildModeInspectionOutline == null)
+            buildModeInspectionOutline = new BridgeSelectionOutline(transform);
+        buildModeInspectionOutline?.SetBuildModeVisualOnlyVisible(shouldHighlight);
+    }
+
+    private bool IsBuildModeInspectionAvailable()
+    {
+        if (vehicleInfoPanel == null || isDriving || GameManager.Instance == null ||
+            GameManager.Instance.CurrentState != GameManager.GameState.Building ||
+            GameManager.Instance.IsTransitioning ||
+            (physicsManager != null && physicsManager.IsSimulationActive))
+            return false;
+
+        ContractSO currentContract = GameManager.Instance.CurrentContract;
+        return currentContract != null && MatchesContract(assignedContract, currentContract);
+    }
+
+    private void DisposeBuildModeInspectionOutline()
+    {
+        if (buildModeInspectionOutline == null) return;
+        buildModeInspectionOutline.Dispose();
+        buildModeInspectionOutline = null;
     }
 
     /// <summary>
@@ -695,6 +737,18 @@ public class LiveLoadVehicle : Interactable
                string.Equals(left.ContractID, right.ContractID, StringComparison.Ordinal);
     }
 
+    private bool CanParticipateInCurrentSimulation()
+    {
+        ContractSO currentContract = GameManager.Instance != null
+            ? GameManager.Instance.CurrentContract
+            : null;
+
+        // A vehicle with no contract is scenery, not a simulation participant.
+        // Requiring a real active contract also prevents global simulation events
+        // fired during scene transitions from waking any vehicle.
+        return currentContract != null && MatchesContract(assignedContract, currentContract);
+    }
+
     private static IEnumerable<LiveLoadVehicle> FindLoadedVehicles()
     {
         foreach (LiveLoadVehicle vehicle in Resources.FindObjectsOfTypeAll<LiveLoadVehicle>())
@@ -714,12 +768,56 @@ public class LiveLoadVehicle : Interactable
             return;
         }
 
+        OpenInspectionPanel(false);
+    }
+
+    /// <summary>
+    /// Opens the existing scene-authored inspection panel when the build canvas
+    /// receives a click or tap over this vehicle. The caller consumes the pointer
+    /// event so the same gesture cannot also edit the bridge.
+    /// </summary>
+    public static bool TryOpenBuildModeInspection(Vector2 screenPosition, Camera buildCamera)
+    {
+        if (buildCamera == null || GameManager.Instance == null ||
+            GameManager.Instance.CurrentState != GameManager.GameState.Building ||
+            GameManager.Instance.IsTransitioning)
+            return false;
+
+        Ray ray = buildCamera.ScreenPointToRay(screenPosition);
+        RaycastHit[] hits = Physics.RaycastAll(
+            ray,
+            buildCamera.farClipPlane,
+            Physics.DefaultRaycastLayers,
+            QueryTriggerInteraction.Collide);
+        Array.Sort(hits, (left, right) => left.distance.CompareTo(right.distance));
+
+        ContractSO currentContract = GameManager.Instance.CurrentContract;
+        foreach (RaycastHit hit in hits)
+        {
+            if (hit.collider == null) continue;
+            LiveLoadVehicle vehicle = hit.collider.GetComponentInParent<LiveLoadVehicle>();
+            if (vehicle == null || !vehicle.isActiveAndEnabled || vehicle.vehicleInfoPanel == null) continue;
+            if (!vehicle.IsBuildModeInspectionAvailable()) continue;
+            if (!MatchesContract(vehicle.assignedContract, currentContract))
+                continue;
+
+            if (vehicle.isInspectionWindowOpen && activeInspectionVehicle == vehicle) return true;
+            vehicle.OpenInspectionPanel(true);
+            return true;
+        }
+
+        return false;
+    }
+
+    private void OpenInspectionPanel(bool openedFromBuildMode)
+    {
         if (vehicleInfoPanel != null)
         {
             // Multiple vehicles can intentionally share one inspection panel. The
             // panel's serialized Close button may point at Vehicle 1, so remember
             // which vehicle actually opened it and route Close to that instance.
             activeInspectionVehicle = this;
+            inspectionOpenedFromBuildMode = openedFromBuildMode;
 
             VehicleInspectionPanel inspectionPanel = vehicleInfoPanel.GetComponent<VehicleInspectionPanel>();
             if (inspectionPanel != null)
@@ -747,11 +845,19 @@ public class LiveLoadVehicle : Interactable
                     "<size=19><color=#6B4A36>Simulation travel speed</color></size>";
             }
 
-            inspectionUsesPanelCoordinator = UIPanelCoordinator.Instance != null;
+            // Build mode uses this as a lightweight overlay. Sending it through
+            // the full-screen coordinator disables the build canvas, including
+            // the blueprint background and HUD.
+            inspectionUsesPanelCoordinator = !openedFromBuildMode && UIPanelCoordinator.Instance != null;
             temporarilyHiddenPanels.Clear();
             if (inspectionUsesPanelCoordinator)
             {
                 UIPanelCoordinator.Instance.OpenPanel(vehicleInfoPanel);
+            }
+            else if (openedFromBuildMode)
+            {
+                vehicleInfoPanel.SetActive(true);
+                vehicleInfoPanel.transform.SetAsLastSibling();
             }
             else
             {
@@ -803,7 +909,9 @@ public class LiveLoadVehicle : Interactable
         if (!isInspectionWindowOpen) return;
         bool wasInspectionOpen = isInspectionWindowOpen ||
                                  (vehicleInfoPanel != null && vehicleInfoPanel.activeSelf);
+        bool wasBuildModeInspection = inspectionOpenedFromBuildMode;
         isInspectionWindowOpen = false;
+        inspectionOpenedFromBuildMode = false;
 
         if (inspectionUsesPanelCoordinator && UIPanelCoordinator.Instance != null)
         {
@@ -825,20 +933,26 @@ public class LiveLoadVehicle : Interactable
             activeInspectionVehicle = null;
 
         InputManager inputObj = FindObjectOfType<InputManager>();
-        if (inputObj != null) { inputObj.SetPlayerInputEnable(true); inputObj.SetLookEnabled(true); }
+        bool returningToBuildMode = GameManager.Instance != null && GameManager.Instance.IsInBuildMode();
+        if (inputObj != null)
+        {
+            inputObj.SetPlayerInputEnable(!returningToBuildMode);
+            inputObj.SetLookEnabled(!returningToBuildMode);
+        }
 
         PlayerMotor player = FindObjectOfType<PlayerMotor>();
-        if (player != null) player.enabled = true;
+        if (player != null) player.enabled = !returningToBuildMode;
 
         // --- THE FIX: Advance the tutorial exactly when the player finishes reading and closes the panel! ---
-        if (invokeCompletionEvents && wasInspectionOpen && advancesTutorial && TutorialManager.Instance != null)
+        if (invokeCompletionEvents && wasInspectionOpen && !wasBuildModeInspection &&
+            advancesTutorial && TutorialManager.Instance != null)
         {
             TutorialManager.Instance.ShowNextStep();
         }
 
         // Keep this last: listeners may immediately open another modal window
         // (such as LessonUI), which should become the active UI state.
-        if (invokeCompletionEvents && wasInspectionOpen)
+        if (invokeCompletionEvents && wasInspectionOpen && !wasBuildModeInspection)
         {
             onInspectionWindowClosed?.Invoke();
             InspectionWindowClosed?.Invoke();

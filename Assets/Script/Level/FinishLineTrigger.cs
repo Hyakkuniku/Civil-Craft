@@ -40,7 +40,7 @@ public class FinishLineTrigger : MonoBehaviour
         if (car == null) return; // The player character walking into this will be ignored.
         
         // --- THE FIX 2: Ensure the vehicle belongs to this specific finish line's contract ---
-        if (car.assignedContract != null && assignedContract != null && car.assignedContract != assignedContract) return;
+        if (!ContractsMatch(car.assignedContract, assignedContract)) return;
 
         BridgePhysicsManager physicsManager = FindObjectOfType<BridgePhysicsManager>();
         
@@ -65,5 +65,13 @@ public class FinishLineTrigger : MonoBehaviour
         {
             LevelCompleteManager.Instance.CompleteLevelForVehicle(assignedContract, car);
         }
+    }
+
+    private static bool ContractsMatch(ContractSO left, ContractSO right)
+    {
+        if (left == null || right == null) return false;
+        if (left == right) return true;
+        return !string.IsNullOrWhiteSpace(left.ContractID) &&
+               string.Equals(left.ContractID, right.ContractID, System.StringComparison.Ordinal);
     }
 }

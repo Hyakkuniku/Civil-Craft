@@ -82,6 +82,7 @@ public sealed class BridgeSelectionOutline
     private readonly Point point;
     private readonly Bar bar;
     private bool visualOnlyVisible;
+    private bool visualOnlyBuildModeVisible;
 
     public BridgeSelectionOutline(Transform root)
     {
@@ -103,6 +104,17 @@ public sealed class BridgeSelectionOutline
     public void SetVisualOnlyVisible(bool visible)
     {
         visualOnlyVisible = visible;
+        if (visible) Draw();
+    }
+
+    /// <summary>
+    /// Shows a non-bridge object as a build-mode hint without changing bridge
+    /// selection state. Unlike normal interaction hints, this renders only in
+    /// the active Build Location camera and disappears during simulation.
+    /// </summary>
+    public void SetBuildModeVisualOnlyVisible(bool visible)
+    {
+        visualOnlyBuildModeVisible = visible;
         if (visible) Draw();
     }
 
@@ -130,6 +142,20 @@ public sealed class BridgeSelectionOutline
         GameManager manager = GameManager.Instance;
         if (point == null && bar == null)
         {
+            if (visualOnlyBuildModeVisible)
+            {
+                if (manager == null || manager.CurrentState != GameManager.GameState.Building ||
+                    manager.ActiveBuildLocation == null ||
+                    camera != manager.ActiveBuildLocation.locationCamera)
+                    return false;
+
+                BarCreator buildCreator = BuildUIController.Instance != null
+                    ? BuildUIController.Instance.barCreator
+                    : null;
+                return root != null && root.gameObject.activeInHierarchy &&
+                       (buildCreator == null || !buildCreator.isSimulating);
+            }
+
             Camera gameplayCamera = manager != null && manager.MainCamera != null
                 ? manager.MainCamera
                 : Camera.main;

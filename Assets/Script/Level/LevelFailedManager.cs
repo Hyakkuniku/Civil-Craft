@@ -205,40 +205,41 @@ public class LevelFailedManager : MonoBehaviour
 
     private static bool IsVehicleForCurrentContract(LiveLoadVehicle vehicle)
     {
-        if (vehicle == null) return false;
+        if (vehicle == null || !vehicle.gameObject.activeInHierarchy) return false;
 
         ContractSO currentContract = GameManager.Instance != null
             ? GameManager.Instance.CurrentContract
             : null;
 
-        return currentContract == null ||
-               vehicle.assignedContract == null ||
-               vehicle.assignedContract == currentContract;
+        return ContractsMatch(vehicle.assignedContract, currentContract);
     }
 
     private static LiveLoadVehicle FindVehicleForCurrentContract()
     {
-        LiveLoadVehicle fallback = null;
         ContractSO currentContract = GameManager.Instance != null
             ? GameManager.Instance.CurrentContract
             : null;
+        if (currentContract == null) return null;
 
         foreach (LiveLoadVehicle vehicle in FindObjectsOfType<LiveLoadVehicle>(true))
         {
-            if (vehicle == null || !vehicle.gameObject.scene.IsValid()) continue;
+            if (vehicle == null || !vehicle.gameObject.scene.IsValid() ||
+                !vehicle.gameObject.activeInHierarchy)
+                continue;
 
-            if (currentContract != null && vehicle.assignedContract == currentContract)
+            if (ContractsMatch(vehicle.assignedContract, currentContract))
                 return vehicle;
-
-            if (fallback == null &&
-                vehicle.gameObject.activeInHierarchy &&
-                (currentContract == null || vehicle.assignedContract == null))
-            {
-                fallback = vehicle;
-            }
         }
 
-        return fallback;
+        return null;
+    }
+
+    private static bool ContractsMatch(ContractSO left, ContractSO right)
+    {
+        if (left == null || right == null) return false;
+        if (left == right) return true;
+        return !string.IsNullOrWhiteSpace(left.ContractID) &&
+               string.Equals(left.ContractID, right.ContractID, System.StringComparison.Ordinal);
     }
 
     private void InitiateFailure(string reason)

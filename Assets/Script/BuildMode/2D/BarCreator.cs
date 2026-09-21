@@ -161,6 +161,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     private Canvas cachedSelectionCanvas;
     private PointerEventData cachedPointerData;
     private List<RaycastResult> cachedRaycastResults = new List<RaycastResult>();
+    private bool pointerDownOpenedVehicleInspection;
     private HashSet<Bar> cachedAffectedBars = new HashSet<Bar>();
     private List<Point> cachedPointsToProcess = new List<Point>();
     private List<Bar> cachedBarsToTransfer = new List<Bar>();
@@ -841,6 +842,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
     public void OnPointerDown(PointerEventData eventData)
     {
+        pointerDownOpenedVehicleInspection = false;
         if (IsAutoDrawing) return;
         if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building) return;
         if (isSimulating || Touch.activeTouches.Count > 1) return;
@@ -854,6 +856,12 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (eventData.button != PointerEventData.InputButton.Left) return;
 
         Vector2 screenPos = eventData.position;
+
+        if (LiveLoadVehicle.TryOpenBuildModeInspection(screenPos, GetActiveCamera()))
+        {
+            pointerDownOpenedVehicleInspection = true;
+            return;
+        }
 
         if (IsPasting && eventData.button == PointerEventData.InputButton.Left)
         {
@@ -982,6 +990,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
     public void OnDrag(PointerEventData eventData)
     {
+        if (pointerDownOpenedVehicleInspection) return;
         if (eventData.button != PointerEventData.InputButton.Left) return;
 
         if (isDeleteMode && currentSwipeDeleteAction != null) PerformSwipeDelete(eventData.position);
@@ -1008,6 +1017,11 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
     public void OnPointerUp(PointerEventData eventData)
     {
+        if (pointerDownOpenedVehicleInspection)
+        {
+            pointerDownOpenedVehicleInspection = false;
+            return;
+        }
         if (IsAutoDrawing) return;
         if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building) return;
         if (isSimulating) return; 
