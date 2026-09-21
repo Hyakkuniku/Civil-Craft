@@ -51,10 +51,10 @@ MonoBehaviour:
       on either side.
     - <b><#E09500>You'll have to decide how to use the available support points across
       the site</color></b>.
-    - The loaded jeep will place weight on different parts of the bridge as it moves.
-    - <b><#E09500>Watch how that load is distributed across the whole structure</color></b>.**
-    - ' If your bridge carries the supplies safely to the other side, the community
-      will finally have a direct connection to Vance''s factory.'
+    - The test jeep will place weight on different parts of the bridge as it moves.
+    - <b><#E09500>Watch how that load is distributed across the whole structure</color></b>.
+    - If your bridge carries the jeep safely, Vance's supplies can then reach the
+      community by this route.
     - If you're ready, take the contract.
   continueOfferDialogue:
     name: Silas
@@ -64,18 +64,18 @@ MonoBehaviour:
     sentences:
     - Vance's shipment has already made it halfway.
     - This bridge is the final connection to the community.
-    - Do not rush the design. Watch how the loaded jeep's weight spreads through
+    - Do not rush the design. Watch how the jeep's weight spreads through
       the structure as it crosses.
   finishedContractDialogue:
     name: Silas
     sentences:
-    - The supplies made it through.
+    - The final crossing is open.
     - Vance's factory is now connected to the middle ravine, and this bridge carries
       the route the rest of the way to the community.
     - They will not have to wait for deliveries to travel all the way around the
       canyon anymore.
     - What started as one shipment is now a complete supply route.
-    - This crossing was wider than your earlier projects, and the loaded jeep placed
+    - This crossing was wider than your earlier projects, and the test jeep placed
       weight across the entire structure.
     - You handled the load distribution well.
     - Good work, {PlayerName}.

@@ -25,7 +25,7 @@ MonoBehaviour:
   autoCollectReward: 0
   featureUnlockRewards: []
   clientName: Professor Bhan
-  jobDescription: Build a safe bridge connecting the shop to Canyonreach.
+  jobDescription: Build a safe bridge connecting the shop to Canyonville.
   budget: 75000
   liveLoadWeight: 2000
   bridgeSpan: 50
@@ -55,19 +55,19 @@ MonoBehaviour:
     - Right now, people have to take a long route around the canyon just to reach
       it.
     - 'The <b><#E09500>Shopkeeper</color></b> commissioned a bridge to create a direct
-      connection to Central Canyonville.
+      connection to Canyonville.
 
 '
     - 'This will be your <b><#E09500>first real project</color></b>.
 
 '
     - Remember what you've learned.
-    - Consider the <b><#E09500>structure<#E09500></b>, the <b><#E09500>loads<#E09500></b>
+    - Consider the <b><#E09500>structure</color></b>, the <b><#E09500>loads</color></b>
       it will carry, and how your design will support them.
     - During training, I showed you exactly what to build.
-    - This time, the <b><#E09500>decision is yours<#E09500></b>.
-    - You may use a <b><#E09500>beam<#E09500></b> or <b><#E09500>truss design<#E09500></b>.
-    - Study the site, review the <b><#E09500>required load<#E09500></b>, and choose
+    - This time, the <b><#E09500>decision is yours</color></b>.
+    - You may use a <b><#E09500>beam</color></b> or <b><#E09500>truss design</color></b>.
+    - Study the site, review the <b><#E09500>required load</color></b>, and choose
       the structure you believe is appropriate.
   continueOfferDialogue:
     name: Professor Bhan
@@ -89,8 +89,8 @@ MonoBehaviour:
     name: Professor Bhan
     sentences:
     - Well done.
-    - You successfully connected the shop to Central Canyonville.
-    - More importantly, you <b><#E09500>made the decision yourself<#E09500></b>.
+    - You successfully connected the shop to Canyonville.
+    - More importantly, you <b><#E09500>made the decision yourself</color></b>.
     - 'You chose your approach, built the structure, and tested your design.
 
 '

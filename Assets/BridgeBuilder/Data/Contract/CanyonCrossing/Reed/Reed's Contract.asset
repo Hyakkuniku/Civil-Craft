@@ -45,10 +45,10 @@ MonoBehaviour:
     sentences:
     - "That\u2019s one of the supply facilities serving Canyon Crossing."
     - 'A lot of the materials that are used around here come through that facility. '
-    - 'The problem is getting them into Central Canyonville. '
+    - The problem is getting them into Canyonville.
     - "The factory isn\u2019t actually far from the city, but the canyon separates
       the two roads. "
-    - It makes supplying Central Canyonville harder than it should be.
+    - It makes supplying Canyonville harder than it should be.
     - A direct crossing here would solve that.
     - "But keep in mind, those carts can get pretty heavy when they\u2019re loaded."
     - So don't just think about getting the cart from one side to the other.
@@ -67,5 +67,5 @@ MonoBehaviour:
     name: Reed
     sentences:
     - "That\u2019s exactly what the crossing needed."
-    - The factory finally has a direct connection to Central Canyonville.
+    - The factory finally has a direct connection to Canyonville.
     - Getting supplies into the city should be much easier now.

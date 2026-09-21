@@ -2533,12 +2533,11 @@ MonoBehaviour:
     - Ah, you must be the young <b><#E09500>civil engineer</color></b> I've been
       expecting.
     - You may already have some knowledge about engineering.
-    - But knowledge and experience are two different things.
     - But <b><#E09500>knowledge</color></b> and <b><#E09500>experience</color></b>
       are two different things.
     - <b><#E09500>Arcadia</color></b> will give you the chance to put what you've
       learned into practice
-    - Every <b><#E09500>project<#E09500></b> you complete will teach you something
+    - Every <b><#E09500>project</color></b> you complete will teach you something
       new.
   fetchAlmanacDialogue:
     name: Professor Bhan
@@ -73810,7 +73809,7 @@ MonoBehaviour:
     OnStepStart:
       m_PersistentCalls:
         m_Calls: []
-  - message: Close the <#E09500><b>ALMANAC</b>
+  - message: Close the <b><#E09500>ALMANAC</color></b>
     screenPosition: 0
     showNextButton: 1
     canSkip: 0
@@ -76408,7 +76407,7 @@ MonoBehaviour:
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
   tutorialSteps:
-  - message: <b><#E09500>APPROACH</b></color> Professor Bhan
+  - message: <b><#E09500>APPROACH</color></b> Professor Bhan
     screenPosition: 1
     showNextButton: 0
     canSkip: 0
@@ -76480,7 +76479,7 @@ MonoBehaviour:
     OnStepStart:
       m_PersistentCalls:
         m_Calls: []
-  - message: Open the <#E09500><b>ALMANAC</b>
+  - message: Open the <b><#E09500>ALMANAC</color></b>
     screenPosition: 0
     showNextButton: 0
     canSkip: 0
@@ -76500,7 +76499,7 @@ MonoBehaviour:
     OnStepStart:
       m_PersistentCalls:
         m_Calls: []
-  - message: Return the <#E09500><b>ALMANAC</b></color> to Professor Bhan
+  - message: Return to Professor Bhan with the <b><#E09500>ALMANAC</color></b>
     screenPosition: 1
     showNextButton: 0
     canSkip: 0

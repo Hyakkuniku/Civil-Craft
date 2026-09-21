@@ -19,8 +19,8 @@ MonoBehaviour:
     and the fixed components</color></b> that it must continuously support.
   almanacImage: {fileID: 0}
   lessonDescription: A dead load is the load associated with the <b><#E09500>permanent
-    components of a structure<#E09500></b>. For a bridge, this includes the self-weight
+    components of a structure</color></b>. For a bridge, this includes the self-weight
     of structural components such as the <b><#E09500>deck, beams, trusses, piers,
     barriers, and other permanently attached elements</color></b>. Unlike live loads,
-    these loads generally <b><#E09500> remains in place and continuously acts on
+    these loads generally <b><#E09500>remain in place and continuously act on
     the structure</color></b> throughout its service life.

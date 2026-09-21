@@ -136,8 +136,8 @@ MonoBehaviour:
       name: Reed
       sentences:
       - You must be the Engineer that Professor Bhan mentioned.
-      - "I\u2019m <b><#E09500>Reed<#E09500></b>."
-      - I heard you finished your first project back in <b><#E09500>Central Canyonville<#E09500></b>.
+      - "I\u2019m <b><#E09500>Reed</color></b>."
+      - I heard you finished your first project back in <b><#E09500>Canyonville</color></b>.
       - "Good timing. There\u2019s a crossing nearby that could use your help."
       - "Come with me. I\u2019ll show you."
     optionalDialogueSequence: []

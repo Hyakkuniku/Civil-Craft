@@ -75,8 +75,7 @@ MonoBehaviour:
       not just an empty vehicle.
     - But the delivery is only halfway there.
     - The road ends at the next ravine, and the community is still on the other side.
-    - <b>Silas<b> is responsible for the projects beyond this point.
-    - He is waiting near the middle supply area, where the vehicle stopped.
-    - Take the contract record to him. He'll show you what is needed to finish the
-      route.
+    - <b><#E09500>Silas</color></b> is responsible for the projects beyond this point.
+    - He is waiting near the middle ravine.
+    - Meet him there. He'll show you what is needed to finish the route.
     - Good work, {PlayerName}.

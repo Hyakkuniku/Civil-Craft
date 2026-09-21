@@ -62,22 +62,22 @@ MonoBehaviour:
     - For this project, you'll be constructing a <b><#E09500>Beam Bridge</color></b>.
     - A <b><#E09500>beam bridge</color></b> is a simple structure that uses horizontal
       members to carry the load toward its supports.
-    - Your job is to construct the bridge and make sure it can safely make the <b><#E09500>Vehicle</color></b>.
+    - Your job is to construct the bridge and make sure it can safely carry the <b><#E09500>vehicle</color></b>.
     - Review the <b><#E09500>contract</color></b> carefully, then decide how you'll
       approach the construction.
   reminderDialogue:
     name: Professor Bhan
     sentences:
     - You can now go to the <b><#E09500>construction site</color></b> whenever you
-      are ready..
+      are ready.
     - Enter <b><#E09500>Build Mode</color></b> and begin construction.
   finishedContractDialogue:
     name: Professor Bhan
     sentences:
     - Good work, {PlayerName}.
     - Your first training bridge has passed its test.
-    - You now know how to accept a <b><#E09500>contract<#E09500></b>, use the <b><#E09500>blueprint<#E09500></b>,
+    - You now know how to accept a <b><#E09500>contract</color></b>, use the <b><#E09500>blueprint</color></b>,
       build a bridge, and test your design.
     - But your work is not finished yet.
     - An engineer should inspect the structure after construction.
-    - Open your <b><#E09500>Almanac<#E09500></b> and review your first entry.
+    - Open your <b><#E09500>Almanac</color></b> and review your first entry.
