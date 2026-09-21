@@ -3,6 +3,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 
 [InitializeOnLoad]
 public static class VehicleInspectionPanelRepair
@@ -23,9 +24,27 @@ public static class VehicleInspectionPanelRepair
         if (EditorApplication.isPlayingOrWillChangePlaymode) return;
         var panels = new HashSet<GameObject>();
         foreach (LiveLoadVehicle vehicle in Resources.FindObjectsOfTypeAll<LiveLoadVehicle>())
-            if (vehicle.gameObject.scene.IsValid() && vehicle.gameObject.scene.isLoaded &&
-                !EditorUtility.IsPersistent(vehicle) && vehicle.vehicleInfoPanel != null)
-                panels.Add(vehicle.vehicleInfoPanel);
+        {
+            if (!vehicle.gameObject.scene.IsValid() || !vehicle.gameObject.scene.isLoaded ||
+                EditorUtility.IsPersistent(vehicle) || vehicle.vehicleInfoPanel == null)
+                continue;
+
+            GameObject panel = vehicle.vehicleInfoPanel;
+            panels.Add(panel);
+            VehicleInspectionPanel handler = panel.GetComponent<VehicleInspectionPanel>();
+            if (handler == null) handler = Undo.AddComponent<VehicleInspectionPanel>(panel);
+            if (handler.LayoutVersion >= VehicleInspectionPanel.CurrentLayoutVersion) continue;
+
+            Undo.RecordObjects(panel.GetComponentsInChildren<RectTransform>(true), "Revamp vehicle inspection layout");
+            Undo.RecordObjects(panel.GetComponentsInChildren<TMP_Text>(true), "Revamp vehicle inspection typography");
+            Undo.RecordObject(handler, "Revamp vehicle inspection layout");
+            handler.ApplyLayout(vehicle.vehicleNameText, vehicle.vehicleWeightText, vehicle.vehicleSpeedText);
+            foreach (RectTransform rect in panel.GetComponentsInChildren<RectTransform>(true)) EditorUtility.SetDirty(rect);
+            foreach (TMP_Text text in panel.GetComponentsInChildren<TMP_Text>(true)) EditorUtility.SetDirty(text);
+            EditorUtility.SetDirty(handler);
+            PrefabUtility.RecordPrefabInstancePropertyModifications(handler);
+            EditorSceneManager.MarkSceneDirty(panel.scene);
+        }
         int repaired = 0;
         foreach (GameObject panel in panels)
         {

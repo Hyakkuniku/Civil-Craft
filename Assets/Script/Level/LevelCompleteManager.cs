@@ -808,6 +808,7 @@ public class LevelCompleteManager : MonoBehaviour
             }
         }
 
+        SimulationLessonPresenter.HideForResultOverlay();
         if (levelCompletePanel != null) levelCompletePanel.SetActive(true);
         if (AudioManager.Instance != null)
             AudioManager.Instance.PlaySFX("Level_Complete");

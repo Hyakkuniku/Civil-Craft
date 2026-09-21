@@ -721,13 +721,31 @@ public class LiveLoadVehicle : Interactable
             // which vehicle actually opened it and route Close to that instance.
             activeInspectionVehicle = this;
 
+            VehicleInspectionPanel inspectionPanel = vehicleInfoPanel.GetComponent<VehicleInspectionPanel>();
+            if (inspectionPanel != null)
+                inspectionPanel.ApplyLayout(vehicleNameText, vehicleWeightText, vehicleSpeedText);
+
             if (vehicleNameText != null) vehicleNameText.text = vehicleName;
             
             float displayWeight = TotalTestWeight;
-            if (vehicleWeightText != null) vehicleWeightText.text = AllowsCargo
-                ? $"Weight: {displayWeight} kg (cargo: {PayloadWeight} kg)"
-                : $"Weight: {displayWeight} kg";
-            if (vehicleSpeedText != null) vehicleSpeedText.text = $"Top Speed: {maxSpeed} m/s";
+            if (vehicleWeightText != null)
+            {
+                vehicleWeightText.text = AllowsCargo
+                    ? $"<size=20><color=#9B6A3E>LIVE LOAD</color></size>\n" +
+                      $"<size=42><b>{displayWeight:N0} kg</b></size>\n" +
+                      $"<size=19><color=#6B4A36>Vehicle {vehicleMass:N0} kg  \u2022  Cargo {PayloadWeight:N0} kg</color></size>"
+                    : $"<size=20><color=#9B6A3E>LIVE LOAD</color></size>\n" +
+                      $"<size=42><b>{displayWeight:N0} kg</b></size>\n" +
+                      "<size=19><color=#6B4A36>Required test weight</color></size>";
+            }
+
+            if (vehicleSpeedText != null)
+            {
+                vehicleSpeedText.text =
+                    "<size=20><color=#9B6A3E>TOP SPEED</color></size>\n" +
+                    $"<size=42><b>{maxSpeed:0.#} m/s</b></size>\n" +
+                    "<size=19><color=#6B4A36>Simulation travel speed</color></size>";
+            }
 
             inspectionUsesPanelCoordinator = UIPanelCoordinator.Instance != null;
             temporarilyHiddenPanels.Clear();

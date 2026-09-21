@@ -88,6 +88,20 @@ public sealed class SimulationLessonPresenter : MonoBehaviour
         return Mathf.Max(0f, requiredTime - (Time.unscaledTime - presenter.outcomePresentedAt));
     }
 
+    /// <summary>
+    /// Result screens own the foreground once their outcome-reading delay has
+    /// elapsed. Clear the optional lesson UI and restore any lesson slow motion
+    /// before the completion or failure overlay is shown.
+    /// </summary>
+    public static void HideForResultOverlay()
+    {
+        SimulationLessonPresenter presenter = BuildUIController.Instance != null
+            ? BuildUIController.Instance.GetComponent<SimulationLessonPresenter>()
+            : FindObjectOfType<SimulationLessonPresenter>();
+
+        if (presenter != null) presenter.ClearLesson();
+    }
+
     public void Configure(
         RectTransform panel,
         CanvasGroup canvasGroup,

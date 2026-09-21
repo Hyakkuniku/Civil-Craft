@@ -1,6 +1,6 @@
 using UnityEngine;
 
-[RequireComponent(typeof(Rigidbody))]
+[DisallowMultipleComponent]
 public class CargoItem : Interactable
 {
     private Rigidbody rb;
@@ -230,14 +230,18 @@ public class CargoItem : Interactable
 
     private void Awake()
     {
+        // Imported props often arrive with concave MeshColliders. Prepare those
+        // before adding a dynamic body; otherwise PhysX logs its non-convex /
+        // non-kinematic warning before Awake gets a chance to repair the item.
+        PrepareCargoColliders();
         rb = GetComponent<Rigidbody>();
+        if (rb == null) rb = gameObject.AddComponent<Rigidbody>();
         originalParent = transform.parent;
         authoredLocalPosition = transform.localPosition;
         authoredLocalRotation = transform.localRotation;
         authoredLocalScale = transform.localScale;
         authoredWorldPosition = transform.position;
         authoredWorldRotation = transform.rotation;
-        PrepareCargoColliders();
         if (string.IsNullOrWhiteSpace(promptMessage)) promptMessage = "Pick up Cargo";
         
         if (rb != null)
@@ -390,7 +394,7 @@ public class CargoItem : Interactable
         // movable cargo, PhysX requires convex meshes on its Rigidbody.
         foreach (MeshCollider mesh in GetComponentsInChildren<MeshCollider>(true))
         {
-            if (mesh.sharedMesh == null || mesh.attachedRigidbody != GetComponent<Rigidbody>()) continue;
+            if (mesh.sharedMesh == null) continue;
             if (!mesh.convex) mesh.convex = true;
         }
         if (GetComponentsInChildren<Collider>(true).Length == 0)

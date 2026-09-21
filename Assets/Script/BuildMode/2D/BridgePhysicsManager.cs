@@ -1571,7 +1571,7 @@ public class BarStressHandler : MonoBehaviour
         currentStressPercent = 1f;
         currentStructuralStressPercent = 1f;
 
-        if (brokenJoint != null) Destroy(brokenJoint);
+        ReleaseFailedEndpoint(brokenJoint);
         
         for (int i = 0; i < childRenderers.Length; i++) SetBarColor(manager.brokenColor, i);
         
@@ -1579,6 +1579,44 @@ public class BarStressHandler : MonoBehaviour
         {
             myBar.StartPosition = p1.transform.position;
             myBar.UpdateCreatingBar(p1.transform.position + (Vector3.down * restLength));
+        }
+    }
+
+    /// <summary>
+    /// Dual-beam members have two parallel joints at each endpoint. Destroying
+    /// only the sampled joint leaves its twin attached, making a black failed
+    /// member continue to behave as if it were intact. Release every joint that
+    /// targets the failed endpoint, while preserving the opposite endpoint so
+    /// the broken member can hang naturally.
+    /// </summary>
+    private void ReleaseFailedEndpoint(Joint failedJoint)
+    {
+        if (failedJoint == null) return;
+
+        Rigidbody failedEndpoint = failedJoint.connectedBody;
+        if (failedEndpoint == null)
+        {
+            DestroyImmediate(failedJoint);
+            return;
+        }
+
+        bool releasedAny = false;
+        foreach (Joint joint in GetComponents<Joint>())
+        {
+            if (joint == null || joint.connectedBody != failedEndpoint) continue;
+
+            // A null connectedBody means "attach to the world" in Unity; setting
+            // it before deferred destruction creates a one-frame world pin and
+            // can launch the bridge apart. Remove the component immediately so
+            // this endpoint becomes free without injecting a constraint impulse.
+            DestroyImmediate(joint);
+            releasedAny = true;
+        }
+
+        // Rope joints live on an endpoint Point rather than on the Bar object.
+        if (!releasedAny)
+        {
+            DestroyImmediate(failedJoint);
         }
     }
 
