@@ -30,6 +30,14 @@ public class BridgePhysicsManager : MonoBehaviour
     [Tooltip("Local height of the road's visible top surface before the permanent collider is thickened.")]
     [SerializeField] private float bakedRoadVisualTop = 0.025f;
 
+    [Header("Visual Bridge Motion")]
+    [Tooltip("Keep simulated bridge members in the X/Y construction plane without changing the deterministic stress formula or thresholds.")]
+    [SerializeField] private bool constrainVisualBridgeToPlane = true;
+    [Tooltip("Linear damping for moving bridge bars and nodes. Higher values calm visual oscillation.")]
+    [Min(0f)] [SerializeField] private float visualLinearDrag = 0.5f;
+    [Tooltip("Angular damping for moving bridge bars and nodes. Higher values reduce violent spinning after a member breaks.")]
+    [Min(0f)] [SerializeField] private float visualAngularDrag = 1.5f;
+
     [Header("Stress Sampling")]
     [Tooltip("Number of fixed-physics samples used by the current-stress display. This is a rolling average, never a stored maximum.")]
     [Min(1)] public int stressSmoothingFrames = 10;
@@ -1174,8 +1182,7 @@ public class BridgePhysicsManager : MonoBehaviour
             barRb.useGravity = true;
             
             barRb.mass = length * bar.materialData.GetPlacedMassPerMeter();
-            barRb.drag = 0.5f;
-            barRb.angularDrag = 0.5f;
+            ConfigureVisualBridgeBody(barRb);
             barRb.interpolation = RigidbodyInterpolation.Interpolate;
             barRb.collisionDetectionMode = CollisionDetectionMode.Discrete;
             barRb.sleepThreshold = 0f;
@@ -1277,6 +1284,7 @@ public class BridgePhysicsManager : MonoBehaviour
             ClearDynamicVelocity(nodeRb);
             nodeRb.isKinematic = true;
             nodeRb.useGravity = !p.isAnchor;
+            ConfigureVisualBridgeBody(nodeRb);
             
             if (!p.isAnchor)
             {
@@ -1295,8 +1303,6 @@ public class BridgePhysicsManager : MonoBehaviour
                 }
                 
                 nodeRb.mass = calculatedMass;
-                nodeRb.drag = 0.5f;
-                nodeRb.angularDrag = 0.5f;
                 nodeRb.interpolation = RigidbodyInterpolation.Interpolate;
 
                 nodeRb.sleepThreshold = 0f;
@@ -1345,6 +1351,17 @@ public class BridgePhysicsManager : MonoBehaviour
                 if (stressHandler != null) stressHandler.SetRopeJoint(ropeSpring);
             }
         } 
+    }
+
+    private void ConfigureVisualBridgeBody(Rigidbody body)
+    {
+        body.constraints = constrainVisualBridgeToPlane
+            ? RigidbodyConstraints.FreezePositionZ |
+              RigidbodyConstraints.FreezeRotationX |
+              RigidbodyConstraints.FreezeRotationY
+            : RigidbodyConstraints.None;
+        body.drag = visualLinearDrag;
+        body.angularDrag = visualAngularDrag;
     }
 
     /// <summary>
@@ -1791,6 +1808,7 @@ public class BarStressHandler : MonoBehaviour
         currentStructuralStressPercent = 1f;
 
         ReleaseAllFailedMemberConnections(brokenJoint);
+        WakeVisualBodiesAtFailure();
         
         for (int i = 0; i < childRenderers.Length; i++) SetBarColor(manager.brokenColor, i);
         
@@ -1829,6 +1847,33 @@ public class BarStressHandler : MonoBehaviour
         if (failedJoint != null && failedJoint != ropeJoint)
             DestroyImmediate(failedJoint);
         joints = Array.Empty<Joint>();
+    }
+
+    private void WakeVisualBodiesAtFailure()
+    {
+        // Destroying a joint does not always wake every body in a settled
+        // island. Let gravity immediately animate the detached member and the
+        // still-connected neighbors; deterministic breakage was decided above.
+        Rigidbody failedBody = GetComponent<Rigidbody>();
+        if (failedBody != null && !failedBody.isKinematic) failedBody.WakeUp();
+
+        WakePointAndNeighbors(p1);
+        if (p2 != p1) WakePointAndNeighbors(p2);
+    }
+
+    private void WakePointAndNeighbors(Point point)
+    {
+        if (point == null) return;
+        Rigidbody pointBody = point.GetComponent<Rigidbody>();
+        if (pointBody != null && !pointBody.isKinematic) pointBody.WakeUp();
+
+        foreach (Bar neighbor in point.ConnectedBars)
+        {
+            if (neighbor == null || neighbor == myBar) continue;
+            Rigidbody neighborBody = neighbor.GetComponent<Rigidbody>();
+            if (neighborBody != null && !neighborBody.isKinematic)
+                neighborBody.WakeUp();
+        }
     }
 
     private void SetBarColor(Color targetColor, int index)
