@@ -29,7 +29,7 @@ MonoBehaviour:
   featureUnlockRewards: []
   clientName: Vance
   jobDescription: We need a bridge across this ravine!
-  budget: 100000
+  budget: 150000
   liveLoadWeight: 5000
   bridgeSpan: 3
   allowedMaterials: []

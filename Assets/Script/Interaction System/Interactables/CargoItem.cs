@@ -41,9 +41,22 @@ public class CargoItem : Interactable
     private Coroutine vehicleLoadingRoutine;
     public CargoDropLocation DeliveredLocation => deliveredLocation;
     public override bool IsInteractionAvailable => base.IsInteractionAvailable && IsProgressionInteractionUnlocked &&
+        IsCompatibleWithParentVehicle &&
         !IsPermanentlyLoaded &&
         !deliveryRestorePending && (!deliveredToLocation || HasAvailableStoryDestination()) &&
         !(isHeld && RestrictsFreeDrop);
+
+    // A copied truck can keep decorative crates from the previous contract.
+    // They must not advertise themselves as pickup cargo for the new location.
+    private bool IsCompatibleWithParentVehicle
+    {
+        get
+        {
+            LiveLoadVehicle vehicle = GetComponentInParent<LiveLoadVehicle>();
+            return vehicle == null ||
+                (vehicle.AllowsCargo && vehicle.assignedContract == playerCargoContract);
+        }
+    }
 
     public bool MountInVehicle(VehicleCargoSlot slot, Transform socket)
     {
@@ -310,6 +323,7 @@ public class CargoItem : Interactable
 
     public void PickUp()
     {
+        if (!IsCompatibleWithParentVehicle) return;
         if (!IsProgressionInteractionUnlocked) return;
         if (deliveryRestorePending) return;
         if (deliveredToLocation)
@@ -583,6 +597,7 @@ public class CargoItem : Interactable
     // ADDED: This forces the cargo's weight onto the bridge while you carry it!
     private void FixedUpdate()
     {
+        if (!IsCompatibleWithParentVehicle) return;
         if (Time.unscaledTime >= nextRecoveryCheckTime)
         {
             nextRecoveryCheckTime = Time.unscaledTime + Mathf.Max(0.1f, recoveryCheckInterval);

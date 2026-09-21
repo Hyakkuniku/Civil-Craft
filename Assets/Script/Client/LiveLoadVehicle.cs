@@ -50,9 +50,25 @@ public class LiveLoadVehicle : Interactable
     {
         get
         {
-            if (!AllowsCargo) return 0f;
             float total = 0f;
-            foreach (var slot in cargoSlots) if (slot != null) total += slot.LoadedWeight;
+            foreach (VehicleCargoSlot slot in cargoSlots)
+            {
+                if (slot == null) continue;
+                if (slot.LoadedCargo != null)
+                {
+                    total += slot.LoadedWeight;
+                    continue;
+                }
+
+                // Later crossings reuse a truck whose supplies are already
+                // sitting in its authored slots. These crates are visual cargo,
+                // not new pickups, but their mass still belongs in the test.
+                CargoItem authoredCargo = slot.acceptedCargo;
+                if (!AllowsCargo && authoredCargo != null &&
+                    authoredCargo.transform.IsChildOf(slot.transform) &&
+                    authoredCargo.gameObject.activeInHierarchy)
+                    total += Mathf.Max(0f, authoredCargo.cargoWeight);
+            }
             return total;
         }
     }
@@ -204,7 +220,7 @@ public class LiveLoadVehicle : Interactable
     public static float GetContractTestWeight(ContractSO contract)
     {
         if (contract == null) return 1000f;
-        if (contract.liveLoadMode != ContractSO.LiveLoadMode.Vehicle || !contract.allowVehicleCargo)
+        if (contract.liveLoadMode != ContractSO.LiveLoadMode.Vehicle)
             return contract.liveLoadWeight;
         LiveLoadVehicle vehicle = FindActiveForContract(contract);
         return vehicle != null ? vehicle.TotalTestWeight : contract.liveLoadWeight;
@@ -386,7 +402,8 @@ public class LiveLoadVehicle : Interactable
         slipMat.bounciness = 0f;
         foreach (Collider bodyCollider in GetComponentsInChildren<Collider>(true))
         {
-            if (bodyCollider == null || bodyCollider.isTrigger || IsVisualWheelCollider(bodyCollider))
+            if (bodyCollider == null || bodyCollider.isTrigger || IsVisualWheelCollider(bodyCollider) ||
+                IsAuthoredWheelAxleCollider(bodyCollider))
                 continue;
             if (chassisCol == null) chassisCol = bodyCollider;
             bodyCollider.material = slipMat;
@@ -404,13 +421,28 @@ public class LiveLoadVehicle : Interactable
 
             Renderer rend = visualWheel.GetComponentInChildren<Renderer>();
             if (rend == null) continue;
-            Vector3 trueCenter = rend.bounds.center;
 
-            GameObject physWheel = new GameObject(visualWheel.name + "_PhysicsAxle");
-            physWheel.transform.position = trueCenter;
-            physWheel.transform.rotation = visualWheel.transform.rotation;
-            physWheel.transform.SetParent(transform);
-            visualWheel.transform.SetParent(physWheel.transform, true);
+            // A truck saved as a prefab may already contain the axle objects
+            // created by an earlier run. Reuse them: wrapping the visible wheel
+            // again leaves the old SphereCollider welded to the chassis, so the
+            // truck rests on fixed spheres instead of its driven wheels.
+            Transform authoredAxle = visualWheel.transform.parent;
+            bool reuseAxle = authoredAxle != null && authoredAxle.parent == transform &&
+                             authoredAxle.name == visualWheel.name + "_PhysicsAxle" &&
+                             authoredAxle.GetComponent<SphereCollider>() != null;
+            GameObject physWheel;
+            if (reuseAxle)
+            {
+                physWheel = authoredAxle.gameObject;
+            }
+            else
+            {
+                physWheel = new GameObject(visualWheel.name + "_PhysicsAxle");
+                physWheel.transform.position = rend.bounds.center;
+                physWheel.transform.rotation = visualWheel.transform.rotation;
+                physWheel.transform.SetParent(transform);
+                visualWheel.transform.SetParent(physWheel.transform, true);
+            }
 
             WheelData wd = new WheelData();
             wd.physObj = physWheel;
@@ -420,7 +452,8 @@ public class LiveLoadVehicle : Interactable
             Collider oldCol = visualWheel.GetComponent<Collider>();
             if (oldCol != null) Destroy(oldCol);
 
-            SphereCollider sc = physWheel.AddComponent<SphereCollider>();
+            SphereCollider sc = physWheel.GetComponent<SphereCollider>();
+            if (sc == null) sc = physWheel.AddComponent<SphereCollider>();
             sc.radius = wheelRadius; sc.material = wheelMat;
 
             if (chassisCol != null) Physics.IgnoreCollision(chassisCol, sc, true);
@@ -571,6 +604,7 @@ public class LiveLoadVehicle : Interactable
 
     private void Start()
     {
+        ReuseSceneInspectionPanelIfUnassigned();
         CreateSmartCargoLoadingZone();
 
         if (physicsManager != null)
@@ -585,6 +619,25 @@ public class LiveLoadVehicle : Interactable
         if (!visibleForBuildReplay && HasSavedBridgeForAssignedContract())
         {
             HideForSavedBridge();
+        }
+    }
+
+    private void ReuseSceneInspectionPanelIfUnassigned()
+    {
+        if (vehicleInfoPanel != null || assignedContract == null) return;
+
+        // A copied vehicle prefab cannot serialize references to scene UI.
+        // Reuse the already-authored panel from another vehicle in this scene.
+        foreach (LiveLoadVehicle other in FindObjectsOfType<LiveLoadVehicle>(true))
+        {
+            if (other == null || other == this || other.gameObject.scene != gameObject.scene ||
+                other.vehicleInfoPanel == null) continue;
+
+            vehicleInfoPanel = other.vehicleInfoPanel;
+            vehicleNameText = other.vehicleNameText;
+            vehicleWeightText = other.vehicleWeightText;
+            vehicleSpeedText = other.vehicleSpeedText;
+            break;
         }
     }
 
@@ -708,6 +761,17 @@ public class LiveLoadVehicle : Interactable
         foreach (GameObject visualWheel in wheelObjects)
             if (visualWheel != null && candidate.transform.IsChildOf(visualWheel.transform))
                 return true;
+        return false;
+    }
+
+    private bool IsAuthoredWheelAxleCollider(Collider candidate)
+    {
+        if (candidate == null || candidate.transform.parent != transform ||
+            !(candidate is SphereCollider) || wheelObjects == null) return false;
+
+        foreach (GameObject visualWheel in wheelObjects)
+            if (visualWheel != null && visualWheel.transform.parent == candidate.transform &&
+                candidate.name == visualWheel.name + "_PhysicsAxle") return true;
         return false;
     }
 
@@ -1106,13 +1170,15 @@ public class LiveLoadVehicle : Interactable
 
             if (vehicleNameText != null) vehicleNameText.text = vehicleName;
             
+            float payloadWeight = PayloadWeight;
             float displayWeight = TotalTestWeight;
+            float baseWeight = assignedContract != null ? assignedContract.liveLoadWeight : vehicleMass;
             if (vehicleWeightText != null)
             {
-                vehicleWeightText.text = AllowsCargo
+                vehicleWeightText.text = AllowsCargo || payloadWeight > 0f
                     ? $"<size=20><color=#9B6A3E>LIVE LOAD</color></size>\n" +
                       $"<size=42><b>{displayWeight:N0} kg</b></size>\n" +
-                      $"<size=19><color=#6B4A36>Vehicle {vehicleMass:N0} kg  \u2022  Cargo {PayloadWeight:N0} kg</color></size>"
+                      $"<size=19><color=#6B4A36>Vehicle {baseWeight:N0} kg  \u2022  Cargo {payloadWeight:N0} kg</color></size>"
                     : $"<size=20><color=#9B6A3E>LIVE LOAD</color></size>\n" +
                       $"<size=42><b>{displayWeight:N0} kg</b></size>\n" +
                       "<size=19><color=#6B4A36>Required test weight</color></size>";

@@ -12,6 +12,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
   m_Name: SilasContract
   m_EditorClassIdentifier: 
+  liveLoadMode: 0
+  allowVehicleCargo: 0
+  minimumLoadedCargo: 0
+  cargoUnlockProgressionId: 
+  cargoUnlockAfterDialoguePhaseIndex: -1
+  cargoLoadedNPCPhaseId: 
   contractID: SilasMainContract
   efficiencyStarBudgetRatio: 0.85
   strengthStarMaxStress: 60
@@ -40,32 +46,37 @@ MonoBehaviour:
   offerDialogue:
     name: Silas
     sentences:
-    - "There\u2019s a community on the other side of the canyon."
-    - 'They can already reach Central Canyonville, but the current route takes them
-      a long way around.
-
-'
-    - "The crossings you\u2019ve built have brought access much closer."
-    - A bridge here would make that connection much easier for them.
-    - "This is a wider crossing than the ones you\u2019ve handled before."
-    - <b><#E09500>Pay attention to how the bridge responds as the vehicle moves across<#E09500></b>.
-    - <b><#E09500>Watch the whole structure during the test<#E09500></b>.
-    - "If you\u2019re ready, take the contract."
+    - This is a wider crossing than the ones you've handled before.
+    - There is a rock formation partway across, but it sits much lower than the roads
+      on either side.
+    - <b><#E09500>You'll have to decide how to use the available support points across
+      the site</color></b>.
+    - The loaded jeep will place weight on different parts of the bridge as it moves.
+    - <b><#E09500>Watch how that load is distributed across the whole structure</color></b>.**
+    - ' If your bridge carries the supplies safely to the other side, the community
+      will finally have a direct connection to Vance''s factory.'
+    - If you're ready, take the contract.
   continueOfferDialogue:
     name: Silas
     sentences: []
   reminderDialogue:
     name: Silas
     sentences:
-    - "Don\u2019t rush the design."
-    - Keep an eye on how the whole bridge responds when the vehicle crosses.
+    - Vance's shipment has already made it halfway.
+    - This bridge is the final connection to the community.
+    - Do not rush the design. Watch how the loaded jeep's weight spreads through
+      the structure as it crosses.
   finishedContractDialogue:
     name: Silas
     sentences:
-    - The community has a direct connection to the route now.
-    - "They won\u2019t have to take the long way around anymore."
-    - 'That was a wider crossing than your earlier projects.
-
-'
-    - You handled it well.
-    - "I\u2019ve got a feeling this won\u2019t be the last project we handle together. "
+    - The supplies made it through.
+    - Vance's factory is now connected to the middle ravine, and this bridge carries
+      the route the rest of the way to the community.
+    - They will not have to wait for deliveries to travel all the way around the
+      canyon anymore.
+    - What started as one shipment is now a complete supply route.
+    - This crossing was wider than your earlier projects, and the loaded jeep placed
+      weight across the entire structure.
+    - You handled the load distribution well.
+    - Good work, {PlayerName}.
+    - Stay nearby. There is another passage farther east that we still need to discuss.
