@@ -19,6 +19,13 @@ public class PauseManager : MonoBehaviour
     [Tooltip("The existing HUD Pause button. It is hidden for tutorial contracts.")]
     public GameObject pauseButton;
 
+    [Header("Mode Rules")]
+    [Tooltip("Allow the pause menu to open while the player is in bridge build mode.")]
+    [SerializeField] private bool allowPauseInBuildMode;
+
+    [Tooltip("Freeze local simulation while the pause menu is open. Disable this for synchronous multiplayer so the match continues.")]
+    [SerializeField] private bool freezeTimeOnPause = true;
+
     [Header("Elements to Hide")]
     [Tooltip("Drag any game objects (like HUD elements) here that should disappear when paused.")]
     public GameObject[] objectsToHide; // --- NEW: Array of objects to hide ---
@@ -118,7 +125,8 @@ public class PauseManager : MonoBehaviour
         }
 
         isPaused = true;
-        Time.timeScale = 0f; // Freezes physics and animations
+        if (freezeTimeOnPause)
+            Time.timeScale = 0f;
 
         if (AudioManager.Instance != null)
             AudioManager.Instance.PauseMusic();
@@ -148,7 +156,8 @@ public class PauseManager : MonoBehaviour
     public void ResumeGame()
     {
         isPaused = false;
-        Time.timeScale = 1f; // Unfreezes the game
+        if (freezeTimeOnPause)
+            Time.timeScale = 1f;
 
         if (AudioManager.Instance != null)
             AudioManager.Instance.ResumeMusic();
@@ -209,14 +218,14 @@ public class PauseManager : MonoBehaviour
                GameManager.Instance.CurrentContract.IsTutorialForCurrentPlayer();
     }
 
-    private static bool IsPauseBlocked()
+    private bool IsPauseBlocked()
     {
         // The Main Canvas pause menu belongs to overworld exploration. Build Mode
         // has its own simulation controls and must never expose this pause button.
         bool isInBuildMode = GameManager.Instance != null &&
                              GameManager.Instance.CurrentState == GameManager.GameState.Building;
 
-        return isInBuildMode || IsPauseBlockedByTutorialContract();
+        return (!allowPauseInBuildMode && isInBuildMode) || IsPauseBlockedByTutorialContract();
     }
 
     private GameObject FindPauseButton()
