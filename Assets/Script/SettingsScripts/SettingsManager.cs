@@ -7,7 +7,7 @@ public class SettingsManager : MonoBehaviour
 {
     private const string AudioStartupMigrationKey = "AudioSettingsStartupFixV1";
     private static readonly int[] FrameRateCaps = { 30, 60, 90, 120 };
-    private static int DefaultQualityIndex => Mathf.Clamp(Application.isMobilePlatform ? 1 : 2,
+    private static int DefaultQualityIndex => Mathf.Clamp(Application.isMobilePlatform ? 0 : 2,
         0, Mathf.Max(0, QualitySettings.names.Length - 1));
 
     [Header("UI Panel Visibility")]
@@ -403,7 +403,7 @@ public class SettingsManager : MonoBehaviour
 
         if (shadowsToggle != null)
         {
-            bool shadowsEnabled = PlayerPrefs.GetInt("EnableShadows", 1) == 1; // Default to ON
+            bool shadowsEnabled = PlayerPrefs.GetInt("EnableShadows", Application.isMobilePlatform ? 0 : 1) == 1;
             shadowsToggle.SetIsOnWithoutNotify(shadowsEnabled);
             SetShadows(shadowsEnabled);
         }

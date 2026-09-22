@@ -513,10 +513,14 @@ public sealed class MagnifyingGlassController : MonoBehaviour
             if (source == null || mirrored == null)
                 continue;
 
-            mirrored.gameObject.SetActive(source.gameObject.activeSelf);
-            mirrored.enabled = source.enabled;
-            mirrored.color = source.color;
-            mirrored.material = source.material;
+            if (mirrored.gameObject.activeSelf != source.gameObject.activeSelf)
+                mirrored.gameObject.SetActive(source.gameObject.activeSelf);
+            if (mirrored.enabled != source.enabled)
+                mirrored.enabled = source.enabled;
+            if (mirrored.color != source.color)
+                mirrored.color = source.color;
+            if (mirrored.material != source.material)
+                mirrored.material = source.material;
         }
     }
 

@@ -184,8 +184,15 @@ public class BuildUIController : MonoBehaviour
     private Color targetBudgetBarColor;
     private Color displayedBudgetBarColor;
     private bool budgetBarVisualInitialized;
+    private Vector2 lastBudgetTrackSize = new Vector2(-1f, -1f);
+    private float nextSimulationPanelVisibilityCheck;
 
     private Dictionary<BridgeMaterialSO, int> materialUsageCount = new Dictionary<BridgeMaterialSO, int>();
+    private readonly HashSet<Bar> liveBeamAffectedBars = new HashSet<Bar>();
+    private Bar lastLiveBeamBar;
+    private int lastLiveBeamLengthHundredths = int.MinValue;
+    private int lastLiveBeamCost = int.MinValue;
+    private int lastLiveBeamAngleTenths = int.MinValue;
 
     private void Awake() { Instance = this; }
 
@@ -392,7 +399,8 @@ public class BuildUIController : MonoBehaviour
 
             if (barCreator != null && barCreator.IsCreating)
             {
-                UpdateStatsUI();
+                if (statsPanel != null && statsPanel.activeInHierarchy)
+                    UpdateStatsUI();
                 UpdateContractUI();
             }
         }
@@ -406,6 +414,10 @@ public class BuildUIController : MonoBehaviour
 
     private void LateUpdate()
     {
+        // Scene-authored tutorial controls can change visibility outside this
+        // controller, but scanning every Button each frame allocates on mobile.
+        if (Time.unscaledTime < nextSimulationPanelVisibilityCheck) return;
+        nextSimulationPanelVisibilityCheck = Time.unscaledTime + 0.1f;
         RefreshSimulationPanelVisibility();
     }
 
@@ -668,15 +680,19 @@ public class BuildUIController : MonoBehaviour
             if (barCreator.IsCreating && barCreator.currentBar != null) targetBar = barCreator.currentBar;
             else if (barCreator.IsMoving && barCreator.isDraggingSelection)
             {
-                var selectedPoints = barCreator.GetSelectedPoints();
-                HashSet<Bar> affectedBars = new HashSet<Bar>();
+                var selectedPoints = barCreator.selectedBars.Count == 0
+                    ? barCreator.selectedPoints
+                    : barCreator.GetSelectedPoints();
+                liveBeamAffectedBars.Clear();
                 foreach (Point p in selectedPoints)
                 {
-                    foreach (Bar b in p.ConnectedBars) if (b != null && b.gameObject.activeSelf) affectedBars.Add(b);
+                    if (p == null || p.IsScenePlacedAnchor) continue;
+                    foreach (Bar b in p.ConnectedBars)
+                        if (b != null && b.gameObject.activeSelf) liveBeamAffectedBars.Add(b);
                 }
-                if (affectedBars.Count == 1)
+                if (liveBeamAffectedBars.Count == 1)
                 {
-                    var enumerator = affectedBars.GetEnumerator();
+                    var enumerator = liveBeamAffectedBars.GetEnumerator();
                     enumerator.MoveNext();
                     targetBar = enumerator.Current;
                 }
@@ -690,12 +706,35 @@ public class BuildUIController : MonoBehaviour
         if (targetBar != null && targetBar.materialData != null)
         {
             if (liveBeamStatsPanel != null && !liveBeamStatsPanel.activeSelf) liveBeamStatsPanel.SetActive(true);
-            if (liveBeamLengthText != null) liveBeamLengthText.text = $"{targetBar.currentLength:F2}m";
-            if (liveBeamCostText != null) liveBeamCostText.text = $"₱{targetBar.GetCost():N0}";
-            if (liveBeamAngleText != null) liveBeamAngleText.text = $"{targetBar.currentAngle:F1}°";
+            if (targetBar != lastLiveBeamBar)
+            {
+                lastLiveBeamBar = targetBar;
+                lastLiveBeamLengthHundredths = int.MinValue;
+                lastLiveBeamCost = int.MinValue;
+                lastLiveBeamAngleTenths = int.MinValue;
+            }
+            int lengthHundredths = Mathf.RoundToInt(targetBar.currentLength * 100f);
+            int cost = Mathf.RoundToInt(targetBar.GetCost());
+            int angleTenths = Mathf.RoundToInt(targetBar.currentAngle * 10f);
+            if (lengthHundredths != lastLiveBeamLengthHundredths)
+            {
+                lastLiveBeamLengthHundredths = lengthHundredths;
+                if (liveBeamLengthText != null) liveBeamLengthText.text = $"{targetBar.currentLength:F2}m";
+            }
+            if (cost != lastLiveBeamCost)
+            {
+                lastLiveBeamCost = cost;
+                if (liveBeamCostText != null) liveBeamCostText.text = $"₱{targetBar.GetCost():N0}";
+            }
+            if (angleTenths != lastLiveBeamAngleTenths)
+            {
+                lastLiveBeamAngleTenths = angleTenths;
+                if (liveBeamAngleText != null) liveBeamAngleText.text = $"{targetBar.currentAngle:F1}°";
+            }
         }
         else
         {
+            lastLiveBeamBar = null;
             if (liveBeamStatsPanel != null && liveBeamStatsPanel.activeSelf) liveBeamStatsPanel.SetActive(false);
         }
     }
@@ -719,41 +758,51 @@ public class BuildUIController : MonoBehaviour
 
     public void MarkBridgeDirty() 
     { 
-        RecalculateStaticBridge(); 
-        UpdateStatsUI();
+        // Moving a node changes cost immediately, but the capacity readout is
+        // informational. Its repeated stress solves are deferred until release.
+        bool draggingNodes = barCreator != null && barCreator.IsMoving && barCreator.isDraggingSelection;
+        bool showEngineeringStats = statsPanel != null && statsPanel.activeInHierarchy;
+        RecalculateStaticBridge(showEngineeringStats && !draggingNodes, draggingNodes);
+        if (showEngineeringStats) UpdateStatsUI();
         UpdateContractUI();
 
-        RefreshAllMaterialButtons(); 
+        if (!draggingNodes) RefreshAllMaterialButtons();
     }
 
-    private void RecalculateStaticBridge()
+    private void RecalculateStaticBridge(bool refreshCapacity, bool reuseTopology)
     {
-        uniqueBars.Clear();
-        activePoints.Clear();
-        materialUsageCount.Clear(); 
-
-        BuildLocation targetLocation = GameManager.Instance != null
-            ? GameManager.Instance.ActiveBuildLocation
-            : null;
-
-        // Bar ownership is authoritative. Walking Point.ConnectedBars could use
-        // stale links left by a disabled/saved bridge or include another ravine.
-        foreach (Bar bar in FindObjectsOfType<Bar>(true))
+        // A drag changes member lengths, not which bars or points exist. Reuse
+        // the last topology so budget checks avoid a scene-wide object search.
+        if (!reuseTopology || uniqueBars.Count == 0)
         {
-            if (bar == null || !bar.gameObject.activeInHierarchy || !bar.enabled ||
-                bar.materialData == null ||
-                (barCreator != null && barCreator.IsCreating && barCreator.currentBar == bar) ||
-                (targetLocation != null && !targetLocation.Owns(bar)))
-            {
-                continue;
-            }
+            uniqueBars.Clear();
+            activePoints.Clear();
 
-            uniqueBars.Add(bar);
-            if (bar.startPoint != null && bar.startPoint.gameObject.activeInHierarchy)
-                activePoints.Add(bar.startPoint);
-            if (bar.endPoint != null && bar.endPoint.gameObject.activeInHierarchy)
-                activePoints.Add(bar.endPoint);
+            BuildLocation targetLocation = GameManager.Instance != null
+                ? GameManager.Instance.ActiveBuildLocation
+                : null;
+
+            // Bar ownership is authoritative. Walking Point.ConnectedBars could use
+            // stale links left by a disabled/saved bridge or include another ravine.
+            foreach (Bar bar in FindObjectsOfType<Bar>(true))
+            {
+                if (bar == null || !bar.gameObject.activeInHierarchy || !bar.enabled ||
+                    bar.materialData == null ||
+                    (barCreator != null && barCreator.IsCreating && barCreator.currentBar == bar) ||
+                    (targetLocation != null && !targetLocation.Owns(bar)))
+                {
+                    continue;
+                }
+
+                uniqueBars.Add(bar);
+                if (bar.startPoint != null && bar.startPoint.gameObject.activeInHierarchy)
+                    activePoints.Add(bar.startPoint);
+                if (bar.endPoint != null && bar.endPoint.gameObject.activeInHierarchy)
+                    activePoints.Add(bar.endPoint);
+            }
         }
+
+        materialUsageCount.Clear();
 
         // M and J describe the planar engineering model. A dual visual/physical
         // beam still represents one model member and one joint at each endpoint;
@@ -782,10 +831,8 @@ public class BuildUIController : MonoBehaviour
             }
         }
 
-        cachedEstimatedCapacityKg = EstimateBridgeCapacityKg();
-        
-        lastRoadLength = -1f; 
-        lastDisplayM = -1;
+        if (refreshCapacity)
+            cachedEstimatedCapacityKg = EstimateBridgeCapacityKg();
     }
 
     private static float GetStructuralLength(Bar bar)
@@ -992,6 +1039,18 @@ public class BuildUIController : MonoBehaviour
     {
         if (!budgetBarVisualInitialized || budgetFillBar == null) return;
 
+        float remainingDistance = Mathf.Abs(displayedBudgetRemainingRatio - targetBudgetRemainingRatio);
+        Color colorDifference = displayedBudgetBarColor - targetBudgetBarColor;
+        RectTransform trackRect = budgetFillRect != null ? budgetFillRect.parent as RectTransform : null;
+        bool trackResized = trackRect != null &&
+            (Mathf.Abs(trackRect.rect.width - lastBudgetTrackSize.x) > 0.5f ||
+             Mathf.Abs(trackRect.rect.height - lastBudgetTrackSize.y) > 0.5f);
+        if (remainingDistance < 0.0005f &&
+            Mathf.Abs(colorDifference.r) + Mathf.Abs(colorDifference.g) +
+            Mathf.Abs(colorDifference.b) + Mathf.Abs(colorDifference.a) < 0.002f &&
+            !trackResized)
+            return;
+
         float speed = Mathf.Max(0.1f, budgetFillAnimationSpeed);
         displayedBudgetRemainingRatio = Mathf.MoveTowards(
             displayedBudgetRemainingRatio,
@@ -1003,6 +1062,13 @@ public class BuildUIController : MonoBehaviour
             displayedBudgetBarColor,
             targetBudgetBarColor,
             colorBlend);
+        if (Mathf.Abs(displayedBudgetRemainingRatio - targetBudgetRemainingRatio) < 0.0005f)
+            displayedBudgetRemainingRatio = targetBudgetRemainingRatio;
+        if (Mathf.Abs(displayedBudgetBarColor.r - targetBudgetBarColor.r) +
+            Mathf.Abs(displayedBudgetBarColor.g - targetBudgetBarColor.g) +
+            Mathf.Abs(displayedBudgetBarColor.b - targetBudgetBarColor.b) +
+            Mathf.Abs(displayedBudgetBarColor.a - targetBudgetBarColor.a) < 0.002f)
+            displayedBudgetBarColor = targetBudgetBarColor;
         ApplyBudgetBarVisual();
     }
 
@@ -1014,6 +1080,7 @@ public class BuildUIController : MonoBehaviour
         RectTransform trackRect = budgetFillRect.parent as RectTransform;
         float trackWidth = trackRect != null ? trackRect.rect.width : 0f;
         float trackHeight = trackRect != null ? trackRect.rect.height : budgetFillHeight;
+        lastBudgetTrackSize = new Vector2(trackWidth, trackHeight);
         float inset = Mathf.Max(0f, budgetFillHorizontalInset);
         float availableWidth = Mathf.Max(0f, trackWidth - inset * 2f);
         float fillWidth = availableWidth * Mathf.Clamp01(displayedBudgetRemainingRatio);
@@ -1127,8 +1194,8 @@ public class BuildUIController : MonoBehaviour
     {
         PlayBuildButtonClickSfx();
         if (!IsToolAllowed()) return;
-        MarkBridgeDirty();
         if (statsPanel != null) statsPanel.SetActive(!statsPanel.activeSelf);
+        MarkBridgeDirty();
     }
     public void OnCutSelectedButtonClicked()
     {

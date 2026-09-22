@@ -1,10 +1,18 @@
 using System; 
 using System.Collections.Generic;
 using UnityEngine;
+using Unity.Profiling;
 
 [DefaultExecutionOrder(-50)] 
 public class BridgePhysicsManager : MonoBehaviour
 {
+    private static readonly ProfilerMarker PhysicsGraphMarker =
+        new ProfilerMarker("CivilCraft.Simulation.PhysicsGraph");
+    private static readonly ProfilerMarker CollisionSetupMarker =
+        new ProfilerMarker("CivilCraft.Simulation.CollisionSetup");
+    private static readonly ProfilerMarker StressAnalysisMarker =
+        new ProfilerMarker("CivilCraft.Simulation.StressAnalysis");
+
     /// <summary>Development-menu override. Normal gameplay must leave this false.</summary>
     public static bool DebugInvincibleBridge { get; set; }
 
@@ -16,7 +24,10 @@ public class BridgePhysicsManager : MonoBehaviour
     [Header("Physics Settings")]
     public float barColliderThickness = 0.2f;
     public int physicsSolverIterations = 40; 
+    [Min(1)] public int physicsSolverVelocityIterations = 20;
     public int settleFramesAmount = 60;
+    [Tooltip("On mobile, limits long physics catch-up bursts during a bridge test. It does not change the fixed timestep or contract stress calculation.")]
+    [Min(0.02f)] [SerializeField] private float mobileMaximumSimulationDeltaTime = 0.08f;
 
     [Header("Road Collision")]
     [Tooltip("Physical thickness shared by simulated and finalized roads. This keeps wheel support continuous while the bridge flexes.")]
@@ -127,10 +138,8 @@ public class BridgePhysicsManager : MonoBehaviour
     private PhysicMaterial sharedRoadPhysicsMat;
     private bool deterministicPhysicsOverridesApplied;
     private bool previousAutoSyncTransforms;
-    private int previousSolverIterations;
-    private int previousSolverVelocityIterations;
+    private float previousMaximumDeltaTime;
     private DeterministicBridgeStressSolver.Result deterministicStressResult;
-    private DeterministicBridgeStressSolver.Result deterministicDeadLoadResult;
     private LiveLoadVehicle deterministicLiveLoadVehicle;
     private float deterministicRoadMinX;
     private float deterministicRoadMaxX;
@@ -423,9 +432,9 @@ public class BridgePhysicsManager : MonoBehaviour
             {
                 if (handler == null) continue;
                 
-                // In deterministic mode PhysX is still evaluated for motion, but
-                // it is not allowed to decide gameplay stress or break timing.
-                handler.EvaluateStress(!hasDeterministicStress && !hasUnstableDeterministicStructure);
+                // PhysX still moves the bridge, but a deterministic sample is
+                // authoritative for stress. Avoid reading and recoloring every
+                // joint just before replacing that result in the same tick.
                 if (hasDeterministicStress && deterministicStressResult.TryGetStress(
                         handler.Bar,
                         deterministicSampleIndex,
@@ -433,10 +442,8 @@ public class BridgePhysicsManager : MonoBehaviour
                         out float structuralStress,
                         out bool isTension))
                 {
-                    if (deterministicDeadLoadResult != null && deterministicDeadLoadResult.IsValid &&
-                        deterministicDeadLoadResult.TryGetStress(
+                    if (deterministicStressResult.TryGetDeadLoadStress(
                             handler.Bar,
-                            deterministicSampleIndex,
                             out float deadDisplayedStress,
                             out float deadStructuralStress,
                             out bool deadIsTension))
@@ -464,6 +471,12 @@ public class BridgePhysicsManager : MonoBehaviour
                     // A mechanism can fold without generating large axial force.
                     // Show it as unsafe instead of rewarding the low force reading.
                     handler.ApplyDeterministicStress(1f, 1f, false);
+                }
+                else
+                {
+                    // Retain the PhysX visual fallback for a member absent from
+                    // the deterministic result, without letting it break the bridge.
+                    handler.EvaluateStress(!hasDeterministicStress && !hasUnstableDeterministicStructure);
                 }
                 
                 if (handler.isBroken)
@@ -613,14 +626,21 @@ public class BridgePhysicsManager : MonoBehaviour
             if (point != null) point.EvaluateAnchorState();
         }
 
-        SetupBarsPhysics(deterministicBars);
-        SetupDirectConnections(deterministicBars, deterministicPoints);
-        ReleaseUnsupportedRoadJoints(deterministicBars, deterministicPoints);
-        ResolveAdjacentCollisions(deterministicBars);
-        if (activeAbutmentAligner != null)
-            activeAbutmentAligner.IgnoreCollisionsWithBridge(CollectStructuralColliders());
+        using (PhysicsGraphMarker.Auto())
+        {
+            SetupBarsPhysics(deterministicBars);
+            SetupDirectConnections(deterministicBars, deterministicPoints);
+            ReleaseUnsupportedRoadJoints(deterministicBars, deterministicPoints);
+        }
+        using (CollisionSetupMarker.Auto())
+        {
+            ResolveAdjacentCollisions(deterministicBars);
+            if (activeAbutmentAligner != null)
+                activeAbutmentAligner.IgnoreCollisionsWithBridge(CollectStructuralColliders());
+        }
         ResetPhysicsState();
-        PrepareDeterministicStressAnalysis();
+        using (StressAnalysisMarker.Auto())
+            PrepareDeterministicStressAnalysis();
 
         needsPhysicsRelease = true;
         currentSettleFrame = 0;
@@ -731,7 +751,6 @@ public class BridgePhysicsManager : MonoBehaviour
         deterministicPoints.Clear();
         deterministicBars.Clear();
         deterministicStressResult = null;
-        deterministicDeadLoadResult = null;
         deterministicLiveLoadVehicle = null;
         deterministicRoadMinX = 0f;
         deterministicRoadMaxX = 0f;
@@ -747,16 +766,18 @@ public class BridgePhysicsManager : MonoBehaviour
         if (!deterministicPhysicsOverridesApplied)
         {
             previousAutoSyncTransforms = Physics.autoSyncTransforms;
-            previousSolverIterations = Physics.defaultSolverIterations;
-            previousSolverVelocityIterations = Physics.defaultSolverVelocityIterations;
+            previousMaximumDeltaTime = Time.maximumDeltaTime;
             deterministicPhysicsOverridesApplied = true;
         }
 
         // Setup transform changes are synchronized explicitly. Avoiding implicit
         // sync points keeps physics setup independent from render-frame timing.
         Physics.autoSyncTransforms = false;
-        Physics.defaultSolverIterations = Mathf.Max(1, physicsSolverIterations);
-        Physics.defaultSolverVelocityIterations = 20;
+        // Keep expensive iterations on the simulated bridge and vehicle only.
+        // Changing the global defaults would also burden unrelated scene bodies.
+        if (Application.isMobilePlatform)
+            Time.maximumDeltaTime = Mathf.Min(previousMaximumDeltaTime,
+                Mathf.Max(Time.fixedDeltaTime, mobileMaximumSimulationDeltaTime));
     }
 
     private void RestoreGlobalPhysicsSettings()
@@ -764,8 +785,7 @@ public class BridgePhysicsManager : MonoBehaviour
         if (!deterministicPhysicsOverridesApplied) return;
 
         Physics.autoSyncTransforms = previousAutoSyncTransforms;
-        Physics.defaultSolverIterations = previousSolverIterations;
-        Physics.defaultSolverVelocityIterations = previousSolverVelocityIterations;
+        Time.maximumDeltaTime = previousMaximumDeltaTime;
         deterministicPhysicsOverridesApplied = false;
     }
 
@@ -814,7 +834,6 @@ public class BridgePhysicsManager : MonoBehaviour
     private void PrepareDeterministicStressAnalysis()
     {
         deterministicStressResult = null;
-        deterministicDeadLoadResult = null;
         deterministicLiveLoadVehicle = null;
         deterministicRoadMinX = float.PositiveInfinity;
         deterministicRoadMaxX = float.NegativeInfinity;
@@ -834,12 +853,6 @@ public class BridgePhysicsManager : MonoBehaviour
             liveLoadKg,
             displayLiveLoadStressOnly,
             deterministicLoadSamples);
-        deterministicDeadLoadResult = DeterministicBridgeStressSolver.Analyze(
-            deterministicPoints,
-            deterministicBars,
-            0f,
-            displayLiveLoadStressOnly,
-            deterministicLoadSamples);
 
         if (deterministicStressResult == null || !deterministicStressResult.IsValid)
         {
@@ -847,7 +860,6 @@ public class BridgePhysicsManager : MonoBehaviour
                 "[BridgePhysicsManager] Deterministic stress analysis could not solve this bridge; " +
                 "the bridge will be treated as structurally unstable instead of using a forgiving PhysX score.", this);
             deterministicStressResult = null;
-            deterministicDeadLoadResult = null;
         }
         else
         {
@@ -1355,6 +1367,8 @@ public class BridgePhysicsManager : MonoBehaviour
 
     private void ConfigureVisualBridgeBody(Rigidbody body)
     {
+        body.solverIterations = Mathf.Max(1, physicsSolverIterations);
+        body.solverVelocityIterations = Mathf.Max(1, physicsSolverVelocityIterations);
         body.constraints = constrainVisualBridgeToPlane
             ? RigidbodyConstraints.FreezePositionZ |
               RigidbodyConstraints.FreezeRotationX |
@@ -1494,7 +1508,15 @@ public class BridgePhysicsManager : MonoBehaviour
         List<Collider> bridgeCols = new List<Collider>();
         foreach(Bar b in activeBars)
         {
-            bridgeCols.AddRange(b.GetComponentsInChildren<Collider>());
+            if (b == null) continue;
+            foreach (Collider collider in b.GetComponentsInChildren<Collider>())
+            {
+                // Disabled and trigger volumes cannot push bridge parts apart.
+                // Excluding them avoids unnecessary pairwise physics calls.
+                if (collider != null && collider.enabled && !collider.isTrigger &&
+                    collider.gameObject.activeInHierarchy)
+                    bridgeCols.Add(collider);
+            }
         }
 
         for (int i = 0; i < bridgeCols.Count; i++)
@@ -1536,6 +1558,7 @@ public class BarStressHandler : MonoBehaviour
 
     private Renderer[] childRenderers;
     private Color[] originalColors;
+    private bool stressVisualDirty;
     public Bar Bar => myBar;
 
     public void Setup(BridgeMaterialSO mat, Point point1, Point point2)
@@ -1632,6 +1655,16 @@ public class BarStressHandler : MonoBehaviour
 
     private void LateUpdate()
     {
+        // Several fixed ticks can run before one rendered frame on mobile.
+        // Color the latest stress once per frame instead of writing materials
+        // for intermediate values the player can never see.
+        if (stressVisualDirty)
+        {
+            stressVisualDirty = false;
+            if (!isBroken && manager != null && manager.enableVisualizer)
+                UpdateStressVisuals();
+        }
+
         if (material == null || !material.isRope || isBroken ||
             myBar == null || p1 == null || p2 == null) return;
         myBar.StartPosition = p1.transform.position;
@@ -1725,7 +1758,7 @@ public class BarStressHandler : MonoBehaviour
 
         if (manager != null && manager.enableVisualizer)
         {
-            UpdateStressVisuals();
+            stressVisualDirty = true;
         }
 
         if (allowBreaking && breakingJoint != null && !isBroken && !BridgePhysicsManager.DebugInvincibleBridge)
@@ -1742,7 +1775,7 @@ public class BarStressHandler : MonoBehaviour
         currentStressPercent = Mathf.Max(0f, displayedRatio);
         currentStructuralStressPercent = Mathf.Max(0f, structuralRatio);
 
-        if (manager != null && manager.enableVisualizer) UpdateStressVisuals();
+        if (manager != null && manager.enableVisualizer) stressVisualDirty = true;
         if (currentStructuralStressPercent <= 1f || BridgePhysicsManager.DebugInvincibleBridge) return;
 
         CacheJointsIfNeeded();

@@ -682,13 +682,13 @@ public class PlayFabAuthManager : MonoBehaviour
                 case CloudSaveManager.SaveAvailability.LocalOnly:
                     bool online = availability == CloudSaveManager.SaveAvailability.Online;
                     string message = online
-                        ? "This account has saved progress.\nSwitch to it? Your guest save is kept."
-                        : "This account has a save on this device.\nSwitch to it? Your guest save is kept.";
-                    if (!ShowSaveChoice(message, "Stay Guest", "Switch Account",
-                            CancelPendingLogin,
+                        ? "This account has saved progress.\nSwitch accounts? Your guest save stays."
+                        : "This account has a device save.\nSwitch accounts? Your guest save stays.";
+                    if (!ShowSaveChoice(message, "Switch Account", "Stay Guest",
                             () => StartSelectedLogin(result, generation,
                                 online ? CloudSaveManager.StartMode.LoadOnline :
-                                    CloudSaveManager.StartMode.LoadLocalAccount)))
+                                    CloudSaveManager.StartMode.LoadLocalAccount),
+                            CancelPendingLogin))
                         FailPendingLogin("Could not show the account choice. Please try again.");
                     break;
 
@@ -880,13 +880,22 @@ public class PlayFabAuthManager : MonoBehaviour
 
         GameObject panel = Instantiate(template, saveChoiceOverlay.transform, false);
         panel.name = "Account Save Choice Panel";
+        // The main-menu confirmation uses the same rounded sprite and typeface
+        // as the bridge-redesign dialog. Match that dialog's light card styling.
+        Color outlineColor = new Color32(73, 56, 44, 255);
+        Color fillColor = new Color32(255, 251, 246, 255);
+        Image panelImage = panel.GetComponent<Image>();
+        if (panelImage != null) panelImage.color = outlineColor;
+        Transform content = panel.transform.Find("QuitConfirmationContent");
+        Image contentImage = content != null ? content.GetComponent<Image>() : null;
+        if (contentImage != null) contentImage.color = fillColor;
         Button left = null;
         Button right = null;
         TMP_Text body = null;
         foreach (Button button in panel.GetComponentsInChildren<Button>(true))
         {
-            if (button.name == "btnCancel") left = button;
-            if (button.name == "btnConf") right = button;
+            if (button.name == "btnConf") left = button;
+            if (button.name == "btnCancel") right = button;
         }
         foreach (TMP_Text label in panel.GetComponentsInChildren<TMP_Text>(true))
             if (label.name == "textConf") { body = label; break; }
@@ -899,11 +908,21 @@ public class PlayFabAuthManager : MonoBehaviour
 
         body.text = message;
         body.enableAutoSizing = true;
-        body.fontSizeMin = 24f;
+        body.fontSize = 34f;
+        body.fontSizeMin = 18f;
+        body.fontSizeMax = 34f;
+        body.alignment = TextAlignmentOptions.Center;
+        body.enableWordWrapping = true;
+        body.color = outlineColor;
+        RectTransform bodyRect = body.rectTransform;
+        bodyRect.anchorMin = new Vector2(0.08f, 0.38f);
+        bodyRect.anchorMax = new Vector2(0.92f, 0.9f);
+        bodyRect.offsetMin = Vector2.zero;
+        bodyRect.offsetMax = Vector2.zero;
         left.onClick = new Button.ButtonClickedEvent();
         right.onClick = new Button.ButtonClickedEvent();
-        SetChoiceButton(left, leftLabel, onLeft);
-        SetChoiceButton(right, rightLabel, onRight);
+        SetChoiceButton(left, leftLabel, onLeft, -160f, outlineColor, fillColor);
+        SetChoiceButton(right, rightLabel, onRight, 160f, outlineColor, fillColor);
         cancelSaveChoice = CancelPendingLogin;
         panel.SetActive(true);
         if (EventSystem.current == null)
@@ -912,14 +931,44 @@ public class PlayFabAuthManager : MonoBehaviour
         return true;
     }
 
-    private static void SetChoiceButton(Button button, string label, Action action)
+    private static void SetChoiceButton(Button button, string label, Action action,
+        float horizontalPosition, Color outlineColor, Color fillColor)
     {
+        RectTransform buttonRect = button.transform as RectTransform;
+        if (buttonRect != null)
+        {
+            buttonRect.anchoredPosition = new Vector2(horizontalPosition, -130f);
+            buttonRect.sizeDelta = new Vector2(250f, 90f);
+        }
+        Image outline = button.GetComponent<Image>();
+        if (outline != null)
+        {
+            outline.color = outlineColor;
+            GameObject inset = new GameObject("Light Button Interior",
+                typeof(RectTransform), typeof(Image));
+            inset.transform.SetParent(button.transform, false);
+            inset.transform.SetAsFirstSibling();
+            RectTransform insetRect = inset.GetComponent<RectTransform>();
+            insetRect.anchorMin = Vector2.zero;
+            insetRect.anchorMax = Vector2.one;
+            insetRect.offsetMin = new Vector2(5f, 5f);
+            insetRect.offsetMax = new Vector2(-5f, -5f);
+            Image insetImage = inset.GetComponent<Image>();
+            insetImage.sprite = outline.sprite;
+            insetImage.type = Image.Type.Sliced;
+            insetImage.color = fillColor;
+            insetImage.raycastTarget = false;
+        }
         TMP_Text buttonText = button.GetComponentInChildren<TMP_Text>(true);
         if (buttonText != null)
         {
             buttonText.text = label;
             buttonText.enableAutoSizing = true;
-            buttonText.fontSizeMin = 18f;
+            buttonText.fontSize = 27f;
+            buttonText.fontSizeMin = 16f;
+            buttonText.fontSizeMax = 27f;
+            buttonText.alignment = TextAlignmentOptions.Center;
+            buttonText.color = outlineColor;
         }
         button.onClick.AddListener(() => action?.Invoke());
     }

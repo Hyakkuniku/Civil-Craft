@@ -1132,6 +1132,10 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 }
 
                 currentMoveAction = null;
+                // Finish the deferred capacity estimate once, after the final
+                // node positions are known. PerformMerge already refreshes it.
+                if (!didMerge && BuildUIController.Instance != null)
+                    BuildUIController.Instance.MarkBridgeDirty();
             }
             return; 
         }

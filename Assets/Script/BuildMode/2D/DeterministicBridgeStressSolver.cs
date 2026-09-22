@@ -16,12 +16,14 @@ public static class DeterministicBridgeStressSolver
         internal Result(
             Bar[] bars,
             Sample[] samples,
+            Sample deadLoadSample,
             float peakDisplayed,
             float peakStructural,
             bool isStructurallyStable)
         {
             Bars = bars;
             Samples = samples;
+            DeadLoadSample = deadLoadSample;
             PeakDisplayedStress = peakDisplayed;
             PeakStructuralStress = peakStructural;
             IsStructurallyStable = isStructurallyStable;
@@ -32,6 +34,7 @@ public static class DeterministicBridgeStressSolver
 
         public Bar[] Bars { get; }
         public Sample[] Samples { get; }
+        public Sample DeadLoadSample { get; }
         public float PeakDisplayedStress { get; }
         public float PeakStructuralStress { get; }
         /// <summary>
@@ -54,6 +57,20 @@ public static class DeterministicBridgeStressSolver
             displayed = sample.DisplayedRatios[barIndex];
             structural = sample.StructuralRatios[barIndex];
             tension = sample.IsTension[barIndex];
+            return true;
+        }
+
+        public bool TryGetDeadLoadStress(Bar bar, out float displayed, out float structural, out bool tension)
+        {
+            displayed = 0f;
+            structural = 0f;
+            tension = false;
+            if (bar == null || DeadLoadSample == null || !barIndices.TryGetValue(bar, out int barIndex))
+                return false;
+
+            displayed = DeadLoadSample.DisplayedRatios[barIndex];
+            structural = DeadLoadSample.StructuralRatios[barIndex];
+            tension = DeadLoadSample.IsTension[barIndex];
             return true;
         }
     }
@@ -224,6 +241,23 @@ public static class DeterministicBridgeStressSolver
         if (deadForces == null) return null;
         isStructurallyStable &= deadLoadStable;
 
+        // The unloaded stress is identical at every route sample. Keep it with
+        // the loaded result instead of solving the whole bridge a second time.
+        Sample deadLoadSample = new Sample(members.Count);
+        for (int memberIndex = 0; memberIndex < members.Count; memberIndex++)
+        {
+            MemberData member = members[memberIndex];
+            decimal deadForce = deadForces[memberIndex];
+            bool tension = member.IsRope ? deadForce > 0m : deadForce >= 0m;
+            decimal limit = tension ? member.TensionLimit : member.CompressionLimit;
+            decimal structuralRatio = limit > 0m ? DecimalAbs(deadForce) / limit : 0m;
+            if (member.IsRope && !tension) structuralRatio = 0m;
+            deadLoadSample.StructuralRatios[memberIndex] = RatioToFloat(structuralRatio);
+            deadLoadSample.DisplayedRatios[memberIndex] = displayLiveLoadOnly
+                ? 0f : deadLoadSample.StructuralRatios[memberIndex];
+            deadLoadSample.IsTension[memberIndex] = tension;
+        }
+
         List<int> roadMemberIndices = new List<int>();
         decimal roadMinX = decimal.MaxValue;
         decimal roadMaxX = decimal.MinValue;
@@ -244,6 +278,15 @@ public static class DeterministicBridgeStressSolver
 
         for (int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++)
         {
+            // Without a vehicle load every route position produces exactly the
+            // same system. Preserve the requested sample indices without
+            // solving the identical dead-load case repeatedly.
+            if (vehicleWeight == 0m && sampleIndex > 0)
+            {
+                samples[sampleIndex] = samples[0];
+                continue;
+            }
+
             decimal progress = (decimal)sampleIndex / (sampleCount - 1);
             decimal loadX = roadMinX + (roadMaxX - roadMinX) * progress;
             decimal[] totalLoads = (decimal[])deadLoads.Clone();
@@ -291,6 +334,7 @@ public static class DeterministicBridgeStressSolver
         return new Result(
             resultBars,
             samples,
+            deadLoadSample,
             peakDisplayed,
             peakStructural,
             isStructurallyStable);

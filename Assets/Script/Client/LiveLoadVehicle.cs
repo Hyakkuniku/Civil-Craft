@@ -879,7 +879,9 @@ public class LiveLoadVehicle : Interactable
             : Mathf.Max(1, Physics.defaultSolverIterations);
 
         body.solverIterations = positionIterations;
-        body.solverVelocityIterations = Mathf.Max(1, Physics.defaultSolverVelocityIterations);
+        body.solverVelocityIterations = physicsManager != null
+            ? Mathf.Max(1, physicsManager.physicsSolverVelocityIterations)
+            : Mathf.Max(1, Physics.defaultSolverVelocityIterations);
     }
 
     private void ApplyConfiguredCenterOfMass()

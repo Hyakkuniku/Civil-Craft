@@ -35,6 +35,7 @@ public class Point : MonoBehaviour
 
     private Renderer pointRenderer;
     private BridgeSelectionOutline selectionOutline;
+    private AnchorEdgeSnap edgeSnap;
 
     [HideInInspector] public Vector3 preSimPos;
     [HideInInspector] public Quaternion preSimRot;
@@ -43,6 +44,7 @@ public class Point : MonoBehaviour
     private void Awake()
     {
         pointRenderer = GetComponentInChildren<Renderer>();
+        edgeSnap = GetComponent<AnchorEdgeSnap>();
 
         if (Application.isPlaying && ownerLocation == null && GameManager.Instance != null)
             ownerLocation = GameManager.Instance.ActiveBuildLocation;
@@ -96,7 +98,9 @@ public class Point : MonoBehaviour
 
     private void Update()
     {
-        AnchorEdgeSnap edgeSnap = GetComponent<AnchorEdgeSnap>();
+        if (!transform.hasChanged) return;
+        if (!Application.isPlaying && edgeSnap == null)
+            edgeSnap = GetComponent<AnchorEdgeSnap>();
         if (transform.hasChanged && edgeSnap != null)
         {
             if (edgeSnap.ControlsEditorPlacement)
