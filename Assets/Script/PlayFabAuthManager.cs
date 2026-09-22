@@ -92,7 +92,386 @@ public class PlayFabAuthManager : MonoBehaviour
             PlayFabSettings.staticSettings.TitleId = playFabTitleID;
         }
 
+        ApplyAuthenticationStyle();
         if (authCanvas != null) authCanvas.SetActive(false);
+    }
+
+    private void ApplyAuthenticationStyle()
+    {
+        if (authCanvas == null || loginPanel == null || registerPanel == null) return;
+
+        Color brown = new Color32(73, 56, 44, 255);
+        Color cream = new Color32(255, 250, 242, 255);
+        Color white = new Color32(255, 253, 249, 255);
+        Color muted = new Color32(116, 96, 80, 255);
+
+        Sprite outlineSprite = null;
+        Sprite surfaceSprite = null;
+        SceneController sceneController = FindObjectOfType<SceneController>(true);
+        if (sceneController != null && sceneController.quitConfirmationPanel != null)
+        {
+            Image outlineSource = sceneController.quitConfirmationPanel.GetComponent<Image>();
+            if (outlineSource != null) outlineSprite = outlineSource.sprite;
+            Transform sourceContent = sceneController.quitConfirmationPanel.transform
+                .Find("QuitConfirmationContent");
+            Image surfaceSource = sourceContent != null ? sourceContent.GetComponent<Image>() : null;
+            if (surfaceSource != null) surfaceSprite = surfaceSource.sprite;
+        }
+        Sprite controlSprite = surfaceSprite;
+        foreach (Image candidate in Resources.FindObjectsOfTypeAll<Image>())
+        {
+            if (candidate.sprite != null &&
+                candidate.sprite.name.IndexOf("Rounded5", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                controlSprite = candidate.sprite;
+                break;
+            }
+        }
+
+        Image authBackground = authCanvas.transform.Find("BG")?.GetComponent<Image>();
+        if (authBackground != null)
+            authBackground.color = new Color(0.08f, 0.055f, 0.04f, 0.76f);
+
+        StyleAuthCard(loginPanel, new Vector2(720f, 680f), outlineSprite, surfaceSprite,
+            brown, cream);
+        StyleAuthCard(registerPanel, new Vector2(720f, 790f), outlineSprite, surfaceSprite,
+            brown, cream);
+        if (forgotPasswordPanel != null)
+            StyleAuthCard(forgotPasswordPanel, new Vector2(700f, 560f), outlineSprite,
+                surfaceSprite, brown, cream);
+
+        TMP_Text loginTitle = FindText(loginPanel, "txt_login");
+        StyleTitle(loginTitle, "WELCOME BACK", new Vector2(0f, 245f), brown);
+        CreateSubtitle(loginPanel, loginTitle, "Sign in to continue your journey",
+            new Vector2(0f, 198f), muted);
+
+        TMP_Text loginUserLabel = FindText(loginPanel, "txt_LogUser");
+        TMP_Text loginPassLabel = FindText(loginPanel, "txt_LogPass");
+        StyleFieldLabel(loginUserLabel, "USERNAME OR EMAIL", new Vector2(0f, 135f), brown);
+        StyleFieldLabel(loginPassLabel, "PASSWORD", new Vector2(0f, 35f), brown);
+        StyleInput(loginUsername, loginPanel.transform, new Vector2(0f, 95f),
+            new Vector2(520f, 58f), controlSprite, brown, white, "Username or email");
+        StyleInput(loginPassword, loginPanel.transform, new Vector2(0f, -5f),
+            new Vector2(520f, 58f), controlSprite, brown, white, "Password");
+
+        StyleNamedButton(loginPanel, "btn_login", "SIGN IN", new Vector2(0f, -110f),
+            new Vector2(520f, 62f), true, controlSprite, brown, cream);
+        StyleNamedButton(loginPanel, "btn_Register", "CREATE ACCOUNT", new Vector2(-132f, -200f),
+            new Vector2(245f, 52f), false, controlSprite, brown, cream);
+        StyleNamedButton(loginPanel, "btn_ForgotPass", "FORGOT PASSWORD", new Vector2(132f, -200f),
+            new Vector2(245f, 52f), false, controlSprite, brown, cream);
+        StyleNamedButton(loginPanel, "btn_guest", "CONTINUE AS GUEST", new Vector2(0f, -280f),
+            new Vector2(330f, 50f), false, controlSprite, brown, cream);
+        StyleCloseButton(loginPanel, "btn_exit", new Vector2(303f, 289f), brown);
+
+        TMP_Text registerTitle = FindText(registerPanel, "txt_Title");
+        StyleTitle(registerTitle, "CREATE ACCOUNT", new Vector2(0f, 302f), brown);
+        CreateSubtitle(registerPanel, registerTitle, "Save your progress and play on another device",
+            new Vector2(0f, 252f), muted);
+
+        StyleFieldLabel(FindText(registerPanel, "txt_Email"), "EMAIL",
+            new Vector2(0f, 195f), brown);
+        StyleFieldLabel(FindText(registerPanel, "txt_RegUSer"), "USERNAME",
+            new Vector2(0f, 91f), brown);
+        StyleFieldLabel(FindText(registerPanel, "txt_RegPass"), "PASSWORD",
+            new Vector2(0f, -13f), brown);
+        StyleFieldLabel(FindText(registerPanel, "txt_ConfRegPass"), "CONFIRM PASSWORD",
+            new Vector2(0f, -117f), brown);
+        StyleInput(registerEmail, registerPanel.transform, new Vector2(0f, 155f),
+            new Vector2(520f, 56f), controlSprite, brown, white, "Email address");
+        StyleInput(registerUsername, registerPanel.transform, new Vector2(0f, 51f),
+            new Vector2(520f, 56f), controlSprite, brown, white, "Choose a username");
+        StyleInput(registerPassword, registerPanel.transform, new Vector2(0f, -53f),
+            new Vector2(520f, 56f), controlSprite, brown, white, "Create a password");
+        StyleInput(registerConfirmPassword, registerPanel.transform, new Vector2(0f, -157f),
+            new Vector2(520f, 56f), controlSprite, brown, white, "Repeat your password");
+
+        StyleNamedButton(registerPanel, "btn_Register", "CREATE ACCOUNT", new Vector2(0f, -250f),
+            new Vector2(520f, 62f), true, controlSprite, brown, cream);
+        StyleNamedButton(registerPanel, "btn_signup", "BACK TO SIGN IN", new Vector2(0f, -325f),
+            new Vector2(260f, 46f), false, controlSprite, brown, cream, true);
+        StyleCloseButton(registerPanel, "btn_exit (2)", new Vector2(303f, 337f), brown);
+
+        if (forgotPasswordPanel != null)
+        {
+            TMP_Text recoverTitle = FindText(forgotPasswordPanel, "txt_title");
+            StyleTitle(recoverTitle, "RECOVER ACCOUNT", new Vector2(0f, 190f), brown);
+            CreateSubtitle(forgotPasswordPanel, recoverTitle,
+                "We'll send a password reset link to your email",
+                new Vector2(0f, 140f), muted);
+            StyleFieldLabel(FindText(forgotPasswordPanel, "txt_LogUser"), "EMAIL",
+                new Vector2(0f, 72f), brown);
+            StyleInput(resetEmailInput, forgotPasswordPanel.transform, new Vector2(0f, 29f),
+                new Vector2(520f, 58f), controlSprite, brown, white, "Email address");
+            StyleNamedButton(forgotPasswordPanel, "btn_recover", "SEND RECOVERY EMAIL",
+                new Vector2(0f, -78f), new Vector2(520f, 62f), true,
+                controlSprite, brown, cream);
+            StyleNamedButton(forgotPasswordPanel, "btn_back", "BACK TO SIGN IN",
+                new Vector2(0f, -166f), new Vector2(260f, 46f), false,
+                controlSprite, brown, cream, true);
+            StyleCloseButton(forgotPasswordPanel, "btn_exit (1)",
+                new Vector2(293f, 224f), brown);
+        }
+
+        if (feedbackText != null)
+        {
+            SetRect(feedbackText.rectTransform, new Vector2(0f, -375f), new Vector2(900f, 52f));
+            feedbackText.enableAutoSizing = true;
+            feedbackText.fontSizeMin = 18f;
+            feedbackText.fontSizeMax = 26f;
+            feedbackText.alignment = TextAlignmentOptions.Center;
+            feedbackText.fontStyle = FontStyles.Bold;
+            feedbackText.raycastTarget = false;
+        }
+
+        errorColor = new Color32(174, 57, 49, 255);
+        successColor = new Color32(56, 126, 75, 255);
+        processColor = new Color32(166, 111, 43, 255);
+    }
+
+    private static void StyleAuthCard(GameObject panel, Vector2 size, Sprite outlineSprite,
+        Sprite surfaceSprite, Color outlineColor, Color surfaceColor)
+    {
+        RectTransform panelRect = panel.transform as RectTransform;
+        SetRect(panelRect, Vector2.zero, size);
+        Image outline = panel.GetComponent<Image>();
+        if (outline != null)
+        {
+            if (outlineSprite != null) outline.sprite = outlineSprite;
+            outline.type = Image.Type.Sliced;
+            outline.color = outlineColor;
+        }
+
+        Transform existing = panel.transform.Find("AuthCardInterior");
+        GameObject interior = existing != null ? existing.gameObject :
+            new GameObject("AuthCardInterior", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        interior.layer = panel.layer;
+        interior.transform.SetParent(panel.transform, false);
+        interior.transform.SetAsFirstSibling();
+        RectTransform interiorRect = interior.transform as RectTransform;
+        interiorRect.anchorMin = Vector2.zero;
+        interiorRect.anchorMax = Vector2.one;
+        interiorRect.offsetMin = new Vector2(8f, 8f);
+        interiorRect.offsetMax = new Vector2(-8f, -8f);
+        Image surface = interior.GetComponent<Image>();
+        if (surfaceSprite != null) surface.sprite = surfaceSprite;
+        surface.type = Image.Type.Sliced;
+        surface.color = surfaceColor;
+        surface.raycastTarget = false;
+    }
+
+    private static void StyleTitle(TMP_Text title, string text, Vector2 position, Color color)
+    {
+        if (title == null) return;
+        title.text = text;
+        title.color = color;
+        title.fontStyle = FontStyles.Bold;
+        title.enableAutoSizing = true;
+        title.fontSizeMin = 28f;
+        title.fontSizeMax = 46f;
+        title.alignment = TextAlignmentOptions.Center;
+        title.raycastTarget = false;
+        SetRect(title.rectTransform, position, new Vector2(620f, 64f));
+    }
+
+    private static void CreateSubtitle(GameObject panel, TMP_Text source, string text,
+        Vector2 position, Color color)
+    {
+        if (source == null) return;
+        Transform existing = panel.transform.Find("AuthSubtitle");
+        TMP_Text subtitle;
+        if (existing != null) subtitle = existing.GetComponent<TMP_Text>();
+        else
+        {
+            subtitle = Instantiate(source, panel.transform, false);
+            subtitle.gameObject.name = "AuthSubtitle";
+        }
+        subtitle.text = text;
+        subtitle.color = color;
+        subtitle.fontStyle = FontStyles.Normal;
+        subtitle.enableAutoSizing = true;
+        subtitle.fontSizeMin = 18f;
+        subtitle.fontSizeMax = 25f;
+        subtitle.alignment = TextAlignmentOptions.Center;
+        subtitle.raycastTarget = false;
+        SetRect(subtitle.rectTransform, position, new Vector2(640f, 42f));
+    }
+
+    private static void StyleFieldLabel(TMP_Text label, string text, Vector2 position, Color color)
+    {
+        if (label == null) return;
+        label.text = text;
+        label.color = color;
+        label.fontStyle = FontStyles.Bold;
+        label.enableAutoSizing = true;
+        label.fontSizeMin = 16f;
+        label.fontSizeMax = 22f;
+        label.alignment = TextAlignmentOptions.Left;
+        label.raycastTarget = false;
+        SetRect(label.rectTransform, position, new Vector2(560f, 30f));
+    }
+
+    private static void StyleInput(TMP_InputField input, Transform panel, Vector2 position,
+        Vector2 size, Sprite roundedSprite, Color outlineColor, Color surfaceColor,
+        string placeholder)
+    {
+        if (input == null) return;
+        input.transform.SetParent(panel, false);
+        RectTransform rect = input.transform as RectTransform;
+        SetRect(rect, position, size);
+        Image background = input.GetComponent<Image>();
+        if (background != null)
+        {
+            if (roundedSprite != null) background.sprite = roundedSprite;
+            background.type = Image.Type.Sliced;
+            background.color = new Color32(248, 242, 233, 255);
+            Outline border = input.GetComponent<Outline>();
+            if (border == null) border = input.gameObject.AddComponent<Outline>();
+            border.effectColor = new Color(outlineColor.r, outlineColor.g, outlineColor.b, 0.48f);
+            border.effectDistance = new Vector2(1.25f, -1.25f);
+            border.useGraphicAlpha = true;
+        }
+        if (input.textComponent != null)
+        {
+            input.textComponent.color = outlineColor;
+            input.textComponent.fontSize = 22f;
+            input.textComponent.margin = new Vector4(18f, 0f, 50f, 0f);
+        }
+        TMP_Text placeholderText = input.placeholder as TMP_Text;
+        if (placeholderText != null)
+        {
+            placeholderText.text = placeholder;
+            placeholderText.color = new Color(outlineColor.r, outlineColor.g, outlineColor.b, 0.42f);
+            placeholderText.fontSize = 21f;
+            placeholderText.fontStyle = FontStyles.Normal;
+            placeholderText.margin = new Vector4(18f, 0f, 50f, 0f);
+        }
+        ColorBlock inputColors = input.colors;
+        inputColors.normalColor = Color.white;
+        inputColors.highlightedColor = new Color32(255, 252, 247, 255);
+        inputColors.selectedColor = new Color32(255, 252, 247, 255);
+        inputColors.pressedColor = new Color32(244, 235, 224, 255);
+        inputColors.disabledColor = new Color32(215, 208, 199, 180);
+        inputColors.colorMultiplier = 1f;
+        inputColors.fadeDuration = 0.12f;
+        input.colors = inputColors;
+        input.customCaretColor = true;
+        input.caretColor = outlineColor;
+        input.selectionColor = new Color(outlineColor.r, outlineColor.g, outlineColor.b, 0.25f);
+    }
+
+    private static void StyleNamedButton(GameObject panel, string objectName, string text,
+        Vector2 position, Vector2 size, bool primary, Sprite roundedSprite,
+        Color brown, Color cream, bool linkStyle = false)
+    {
+        Button button = FindButton(panel, objectName);
+        if (button == null) return;
+        RectTransform rect = button.transform as RectTransform;
+        button.transform.SetParent(panel.transform, false);
+        SetRect(rect, position, size);
+        Image image = button.GetComponent<Image>();
+        if (image != null)
+        {
+            if (roundedSprite != null) image.sprite = roundedSprite;
+            image.type = Image.Type.Sliced;
+            Color secondaryFill = new Color32(237, 224, 207, 255);
+            image.color = linkStyle ? new Color(1f, 1f, 1f, 0f) :
+                primary ? brown : secondaryFill;
+            Outline border = button.GetComponent<Outline>();
+            if (!primary && !linkStyle)
+            {
+                if (border == null) border = button.gameObject.AddComponent<Outline>();
+                border.effectColor = new Color(brown.r, brown.g, brown.b, 0.3f);
+                border.effectDistance = new Vector2(1f, -1f);
+                border.useGraphicAlpha = true;
+                border.enabled = true;
+            }
+            else if (border != null) border.enabled = false;
+
+            Shadow depth = null;
+            foreach (Shadow shadow in button.GetComponents<Shadow>())
+            {
+                if (!(shadow is Outline)) { depth = shadow; break; }
+            }
+            if (!linkStyle)
+            {
+                if (depth == null) depth = button.gameObject.AddComponent<Shadow>();
+                depth.effectColor = new Color(0.16f, 0.11f, 0.08f, primary ? 0.24f : 0.12f);
+                depth.effectDistance = new Vector2(0f, primary ? -4f : -2f);
+                depth.useGraphicAlpha = true;
+                depth.enabled = true;
+            }
+            else if (depth != null) depth.enabled = false;
+        }
+        ColorBlock colors = button.colors;
+        colors.normalColor = Color.white;
+        colors.highlightedColor = primary
+            ? new Color32(255, 244, 232, 255) : new Color32(255, 250, 242, 255);
+        colors.selectedColor = colors.highlightedColor;
+        colors.pressedColor = primary
+            ? new Color32(200, 179, 158, 255) : new Color32(224, 208, 190, 255);
+        colors.disabledColor = new Color32(170, 162, 153, 150);
+        colors.colorMultiplier = 1f;
+        colors.fadeDuration = 0.12f;
+        button.colors = colors;
+        TMP_Text label = button.GetComponentInChildren<TMP_Text>(true);
+        if (label != null)
+        {
+            label.text = text;
+            label.color = primary ? cream : brown;
+            label.fontStyle = linkStyle ? FontStyles.Normal : FontStyles.Bold;
+            label.enableAutoSizing = true;
+            label.fontSizeMin = 15f;
+            label.fontSizeMax = primary ? 24f : 21f;
+            label.alignment = TextAlignmentOptions.Center;
+        }
+    }
+
+    private static void StyleCloseButton(GameObject panel, string objectName, Vector2 position,
+        Color brown)
+    {
+        Button button = FindButton(panel, objectName);
+        if (button == null) return;
+        button.transform.SetParent(panel.transform, false);
+        SetRect(button.transform as RectTransform, position, new Vector2(54f, 54f));
+        Image image = button.GetComponent<Image>();
+        TMP_Text label = button.GetComponentInChildren<TMP_Text>(true);
+        if (label != null)
+        {
+            if (image != null) image.color = new Color(1f, 1f, 1f, 0f);
+            label.text = "×";
+            label.color = brown;
+            label.fontStyle = FontStyles.Bold;
+            label.fontSize = 38f;
+            label.alignment = TextAlignmentOptions.Center;
+        }
+        else if (image != null) image.color = brown;
+    }
+
+    private static TMP_Text FindText(GameObject root, string objectName)
+    {
+        foreach (TMP_Text text in root.GetComponentsInChildren<TMP_Text>(true))
+            if (text.gameObject.name == objectName) return text;
+        return null;
+    }
+
+    private static Button FindButton(GameObject root, string objectName)
+    {
+        foreach (Button button in root.GetComponentsInChildren<Button>(true))
+            if (button.gameObject.name == objectName) return button;
+        return null;
+    }
+
+    private static void SetRect(RectTransform rect, Vector2 position, Vector2 size)
+    {
+        if (rect == null) return;
+        rect.anchorMin = new Vector2(0.5f, 0.5f);
+        rect.anchorMax = new Vector2(0.5f, 0.5f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = position;
+        rect.sizeDelta = size;
+        rect.localScale = Vector3.one;
+        rect.localRotation = Quaternion.identity;
     }
 
     private void Start()
@@ -399,6 +778,7 @@ public class PlayFabAuthManager : MonoBehaviour
         loginPanel.SetActive(true);
         registerPanel.SetActive(false);
         if (forgotPasswordPanel != null) forgotPasswordPanel.SetActive(false);
+        PositionFeedback(-375f);
         SetFeedbackMessage("", Color.white);
     }
 
@@ -407,6 +787,7 @@ public class PlayFabAuthManager : MonoBehaviour
         loginPanel.SetActive(false);
         registerPanel.SetActive(true);
         if (forgotPasswordPanel != null) forgotPasswordPanel.SetActive(false);
+        PositionFeedback(-430f);
         SetFeedbackMessage("", Color.white);
     }
 
@@ -415,7 +796,15 @@ public class PlayFabAuthManager : MonoBehaviour
         loginPanel.SetActive(false);
         registerPanel.SetActive(false);
         if (forgotPasswordPanel != null) forgotPasswordPanel.SetActive(true);
-        SetFeedbackMessage("Enter your email to reset your password.", Color.white);
+        PositionFeedback(-320f);
+        SetFeedbackMessage("", Color.white);
+    }
+
+    private void PositionFeedback(float verticalPosition)
+    {
+        if (feedbackText == null) return;
+        RectTransform rect = feedbackText.rectTransform;
+        rect.anchoredPosition = new Vector2(0f, verticalPosition);
     }
 
     private void SetFeedbackMessage(string message, Color color)
