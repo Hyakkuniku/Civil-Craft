@@ -9108,6 +9108,7 @@ MonoBehaviour:
   modeHeading: {fileID: 8100040003}
   modeDescription: {fileID: 8100050003}
   descriptionGroup: {fileID: 8100030004}
+  useFusionNetworking: 1
   multiplayerSceneName: Multiplayer
   hostPreferenceKey: MultiplayerSessionRole
   roomCodePreferenceKey: MultiplayerRoomCode
@@ -12674,7 +12675,8 @@ MonoBehaviour:
   NetworkConfig:
     ProtocolVersion: 0
     NetworkTransport: {fileID: 1448698112}
-    PlayerPrefab: {fileID: 712300000000001, guid: 93a87f617a28443cbd0c92555340eea4, type: 3}
+    PlayerPrefab: {fileID: 712300000000001, guid: 93a87f617a28443cbd0c92555340eea4,
+      type: 3}
     Prefabs:
       NetworkPrefabsLists:
       - {fileID: 11400000, guid: 9e1765c6e4809bd4f96bc1cec6d2c7c2, type: 2}
@@ -12696,18 +12698,6 @@ MonoBehaviour:
     OldPrefabList: []
   RunInBackground: 1
   LogLevel: 1
---- !u!114 &1448698115
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1448698111}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: cc2e2ea7336f4abe99e9f9fe2f93cfee, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!4 &1448698114
 Transform:
   m_ObjectHideFlags: 0
@@ -12723,6 +12713,18 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1448698115
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1448698111}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cc2e2ea7336f4abe99e9f9fe2f93cfee, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &1467056036 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 450956806638189609, guid: db77d626f6ad63d439d5caadb9f0d348,

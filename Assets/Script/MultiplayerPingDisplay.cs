@@ -1,4 +1,5 @@
 using TMPro;
+using Fusion;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -25,6 +26,31 @@ public sealed class MultiplayerPingDisplay : MonoBehaviour
     {
         if (Time.unscaledTime < nextRefreshTime) return;
         nextRefreshTime = Time.unscaledTime + RefreshInterval;
+
+        FusionConnectionManager fusion = FusionConnectionManager.Instance;
+        if (fusion != null && fusion.Runner != null && fusion.Runner.IsRunning)
+        {
+            NetworkRunner fusionRunner = fusion.Runner;
+            PlayerRef peer = fusionRunner.LocalPlayer;
+            if (fusion.IsHosting)
+            {
+                foreach (PlayerRef player in fusionRunner.ActivePlayers)
+                {
+                    if (player == fusionRunner.LocalPlayer) continue;
+                    peer = player;
+                    break;
+                }
+                if (peer == fusionRunner.LocalPlayer)
+                {
+                    pingLabel.text = "-- ms";
+                    return;
+                }
+            }
+
+            double seconds = fusionRunner.GetPlayerRtt(peer);
+            pingLabel.text = seconds > 0d ? $"{Mathf.RoundToInt((float)(seconds * 1000d))} ms" : "-- ms";
+            return;
+        }
 
         NetworkManager manager = NetworkManager.Singleton;
         if (manager == null || !manager.IsListening || manager.NetworkConfig.NetworkTransport == null)

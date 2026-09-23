@@ -47,6 +47,8 @@ public class ModeSelectionManager : MonoBehaviour
     private Coroutine presentationCoroutine;
 
     [Header("Multiplayer Entry")]
+    [Tooltip("Enable to test Photon Fusion Host/Join. Leave off until Fusion avatars are verified; Relay remains available as fallback.")]
+    [SerializeField] private bool useFusionNetworking;
     [SerializeField] private string multiplayerSceneName = "Multiplayer";
     [SerializeField] private string hostPreferenceKey = "MultiplayerSessionRole";
     [SerializeField] private string roomCodePreferenceKey = "MultiplayerRoomCode";
@@ -70,6 +72,8 @@ public class ModeSelectionManager : MonoBehaviour
     private bool joinStartInProgress;
     private int joinRequestVersion;
     private bool preserveClientForSceneTransition;
+    private string activeHostRoomCode;
+    private bool? displayedHostGuestJoined;
 
     void Start()
     {
@@ -89,17 +93,32 @@ public class ModeSelectionManager : MonoBehaviour
 
         UpdateUI();
         MoveCamera(true); 
-        MultiplayerConnectionManager connection = FindObjectOfType<MultiplayerConnectionManager>(true);
-        if (connection != null && PlayerPrefs.GetString(hostPreferenceKey) == "Join")
+        if (useFusionNetworking && PlayerPrefs.GetString(hostPreferenceKey) == "Join" &&
+            FusionConnectionManager.Instance != null && FusionConnectionManager.Instance.IsClientConnected)
         {
-            if (connection.IsClientConnected)
-                ShowClientWaitingState();
-            else if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsClient)
+            ShowClientWaitingState();
+        }
+        else
+        {
+            MultiplayerConnectionManager connection = FindObjectOfType<MultiplayerConnectionManager>(true);
+            if (!useFusionNetworking && connection != null && PlayerPrefs.GetString(hostPreferenceKey) == "Join")
             {
-                preserveClientForSceneTransition = true;
-                StartCoroutine(ShowWaitingWhenConnected(connection));
+                if (connection.IsClientConnected)
+                    ShowClientWaitingState();
+                else if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsClient)
+                {
+                    preserveClientForSceneTransition = true;
+                    StartCoroutine(ShowWaitingWhenConnected(connection));
+                }
             }
         }
+    }
+
+    private void Update()
+    {
+        if (hostCodeReady && multiplayerEntryPanel != null &&
+            multiplayerEntryPanel.activeInHierarchy)
+            RefreshHostGuestStatus();
     }
 
     private void OnDestroy()
@@ -111,12 +130,16 @@ public class ModeSelectionManager : MonoBehaviour
         {
             MultiplayerConnectionManager connection = FindObjectOfType<MultiplayerConnectionManager>(true);
             if (connection != null) connection.StopHosting();
+            if (FusionConnectionManager.Instance != null && FusionConnectionManager.Instance.IsHosting)
+                FusionConnectionManager.Instance.StopSession();
         }
 
         if (!preserveClientForSceneTransition)
         {
             MultiplayerConnectionManager connection = FindObjectOfType<MultiplayerConnectionManager>(true);
             if (connection != null && !connection.IsClientConnected) connection.StopJoining();
+            if (FusionConnectionManager.Instance != null && !FusionConnectionManager.Instance.IsHosting)
+                FusionConnectionManager.Instance.StopSession();
         }
     }
 
@@ -206,8 +229,10 @@ public class ModeSelectionManager : MonoBehaviour
             return;
         }
 
-        MultiplayerConnectionManager connection = FindObjectOfType<MultiplayerConnectionManager>(true);
-        if (connection == null)
+        MultiplayerConnectionManager connection = useFusionNetworking ? null :
+            FindObjectOfType<MultiplayerConnectionManager>(true);
+        FusionConnectionManager fusion = useFusionNetworking ? FusionConnectionManager.GetOrCreate() : null;
+        if (connection == null && fusion == null)
         {
             ShowHostError("NETWORK MANAGER IS MISSING.");
             return;
@@ -223,7 +248,9 @@ public class ModeSelectionManager : MonoBehaviour
 
         try
         {
-            string roomCode = await connection.StartHostWithRelayAsync();
+            string roomCode = useFusionNetworking
+                ? await fusion.StartHostAsync()
+                : await connection.StartHostWithRelayAsync();
             if (this == null || requestVersion != hostRequestVersion ||
                 multiplayerEntryPanel == null || !multiplayerEntryPanel.activeInHierarchy)
             {
@@ -233,9 +260,9 @@ public class ModeSelectionManager : MonoBehaviour
             PlayerPrefs.SetString(roomCodePreferenceKey, roomCode);
             PlayerPrefs.Save();
             hostCodeReady = true;
-            if (multiplayerPromptText != null)
-                multiplayerPromptText.text =
-                    $"ROOM CODE\n<size=44><b>{roomCode}</b></size>\nShare this code with Player 2.";
+            activeHostRoomCode = roomCode;
+            displayedHostGuestJoined = null;
+            RefreshHostGuestStatus();
             if (hostButtonLabel != null) hostButtonLabel.text = "START GAME";
         }
         catch (OperationCanceledException)
@@ -244,7 +271,7 @@ public class ModeSelectionManager : MonoBehaviour
         }
         catch (Exception exception)
         {
-            Debug.LogError($"[Multiplayer] Could not create Relay room: {exception}", this);
+            Debug.LogError($"[Multiplayer] Could not create online room: {exception}", this);
             if (this != null && requestVersion == hostRequestVersion)
                 ShowHostError("COULD NOT CREATE ROOM. CHECK YOUR CONNECTION AND TRY AGAIN.");
         }
@@ -260,9 +287,38 @@ public class ModeSelectionManager : MonoBehaviour
 
     private void ShowHostError(string message)
     {
+        activeHostRoomCode = null;
+        displayedHostGuestJoined = null;
         if (multiplayerPromptText != null) multiplayerPromptText.text = message;
         if (hostButtonLabel != null) hostButtonLabel.text = "HOST GAME";
         if (joinButtonObject != null) joinButtonObject.SetActive(true);
+    }
+
+    private void RefreshHostGuestStatus()
+    {
+        if (string.IsNullOrEmpty(activeHostRoomCode)) return;
+
+        bool guestJoined;
+        if (useFusionNetworking)
+        {
+            FusionConnectionManager fusion = FusionConnectionManager.Instance;
+            guestJoined = fusion != null && fusion.IsHosting &&
+                          fusion.ConnectedPlayerCount >= 2;
+        }
+        else
+        {
+            NetworkManager manager = NetworkManager.Singleton;
+            guestJoined = manager != null && manager.IsHost &&
+                          manager.ConnectedClients.Count >= 2;
+        }
+
+        if (displayedHostGuestJoined == guestJoined) return;
+        displayedHostGuestJoined = guestJoined;
+        if (multiplayerPromptText != null)
+            multiplayerPromptText.text =
+                $"ROOM CODE\n<size=44><b>{activeHostRoomCode}</b></size>\n" +
+                (guestJoined ? "PLAYER 2 JOINED (2/2) - START WHEN READY."
+                             : "SHARE CODE - WAITING FOR PLAYER 2 (1/2)...");
     }
 
     private void SetHostButtonInteractable(bool interactable)
@@ -310,8 +366,10 @@ public class ModeSelectionManager : MonoBehaviour
             return;
         }
 
-        MultiplayerConnectionManager connection = FindObjectOfType<MultiplayerConnectionManager>(true);
-        if (connection == null)
+        MultiplayerConnectionManager connection = useFusionNetworking ? null :
+            FindObjectOfType<MultiplayerConnectionManager>(true);
+        FusionConnectionManager fusion = useFusionNetworking ? FusionConnectionManager.GetOrCreate() : null;
+        if (connection == null && fusion == null)
         {
             ShowJoinError("NETWORK MANAGER IS MISSING.");
             return;
@@ -331,7 +389,10 @@ public class ModeSelectionManager : MonoBehaviour
 
         try
         {
-            await connection.JoinWithRelayAsync(roomCode);
+            if (useFusionNetworking)
+                await fusion.JoinAsync(roomCode);
+            else
+                await connection.JoinWithRelayAsync(roomCode);
             if (this == null || requestVersion != joinRequestVersion) return;
 
             ShowClientWaitingState();
@@ -464,6 +525,8 @@ public class ModeSelectionManager : MonoBehaviour
                 connection.StopHosting();
                 connection.StopJoining();
             }
+            if (FusionConnectionManager.Instance != null)
+                FusionConnectionManager.Instance.StopSession();
         }
 
         if (roomCodeFocusCoroutine != null)
@@ -473,6 +536,8 @@ public class ModeSelectionManager : MonoBehaviour
         }
 
         hostCodeReady = false;
+        activeHostRoomCode = null;
+        displayedHostGuestJoined = null;
         joinCodeEntryReady = false;
         if (multiplayerPromptText != null && !string.IsNullOrEmpty(defaultMultiplayerPrompt))
             multiplayerPromptText.text = defaultMultiplayerPrompt;
@@ -522,6 +587,22 @@ public class ModeSelectionManager : MonoBehaviour
 
     private void BeginHostMultiplayerSession()
     {
+        if (useFusionNetworking)
+        {
+            FusionConnectionManager fusion = FusionConnectionManager.Instance;
+            if (fusion == null || !fusion.StartMultiplayerScene(multiplayerSceneName))
+            {
+                ShowHostError("ROOM IS NO LONGER ACTIVE OR SCENE IS MISSING. HOST AGAIN.");
+                hostCodeReady = false;
+                return;
+            }
+
+            preserveHostForSceneTransition = true;
+            PlayerPrefs.SetString(hostPreferenceKey, "Host");
+            PlayerPrefs.Save();
+            return;
+        }
+
         MultiplayerConnectionManager connection = FindObjectOfType<MultiplayerConnectionManager>(true);
         NetworkManager manager = NetworkManager.Singleton;
         if (connection == null || !connection.IsHosting || manager == null || manager.SceneManager == null)

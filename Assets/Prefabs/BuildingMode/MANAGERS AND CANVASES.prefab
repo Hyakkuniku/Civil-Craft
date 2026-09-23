@@ -11610,7 +11610,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   barColliderThickness: 0.1
   physicsSolverIterations: 30
+  physicsSolverVelocityIterations: 20
   settleFramesAmount: 60
+  mobileMaximumSimulationDeltaTime: 0.08
   bakedRoadColliderThickness: 0.12
   bakedRoadColliderWidth: 2.4
   bakedRoadColliderSeamOverlap: 0.2
