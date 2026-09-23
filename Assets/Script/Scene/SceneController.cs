@@ -107,7 +107,8 @@ public class SceneController : MonoBehaviour
         // Never route the Story Play button back into a front-end screen.
         if (string.Equals(sceneName, SCENE_MAIN_MENU, System.StringComparison.OrdinalIgnoreCase) ||
             string.Equals(sceneName, SCENE_MODE_SELECTION, System.StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(sceneName, "Level Selection", System.StringComparison.OrdinalIgnoreCase))
+            string.Equals(sceneName, "Level Selection", System.StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(sceneName, "Multiplayer", System.StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }

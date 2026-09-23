@@ -1,6 +1,5 @@
 using UnityEngine;
 using UnityEngine.AI;
-using UnityEngine.SceneManagement; // Required to check the current scene name!
 
 public class PlayerSpawnManager : MonoBehaviour
 {
@@ -42,10 +41,11 @@ public class PlayerSpawnManager : MonoBehaviour
             }
         }
         // SCENARIO 2: We are loading the game, let's check if we have a saved position here!
-        else if (PlayerDataManager.Instance != null && PlayerDataManager.Instance.CurrentData != null)
+        else if (gameObject.scene.name != "Multiplayer" &&
+                 PlayerDataManager.Instance != null && PlayerDataManager.Instance.CurrentData != null)
         {
             // Only teleport to the saved position if the saved scene perfectly matches the current scene
-            if (PlayerDataManager.Instance.CurrentData.lastSavedScene == SceneManager.GetActiveScene().name)
+            if (PlayerDataManager.Instance.CurrentData.lastSavedScene == gameObject.scene.name)
             {
                 if (PlayerDataManager.Instance.CurrentData.lastSavedPosition != null)
                 {
@@ -106,6 +106,10 @@ public class PlayerSpawnManager : MonoBehaviour
 
     private void SaveSafestKnownPosition()
     {
+        // This shared Player also exists in Multiplayer. Its position must not
+        // replace the separate Story resume location when that scene closes.
+        string sceneName = gameObject.scene.name;
+        if (sceneName == "Multiplayer") return;
         if (PlayerDataManager.Instance == null) return;
 
         Vector3 positionToSave = transform.position;
@@ -118,7 +122,7 @@ public class PlayerSpawnManager : MonoBehaviour
         }
 
         PlayerDataManager.Instance.SavePlayerPosition(
-            SceneManager.GetActiveScene().name,
+            sceneName,
             positionToSave);
     }
 }

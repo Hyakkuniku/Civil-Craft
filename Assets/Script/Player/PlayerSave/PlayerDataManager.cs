@@ -450,6 +450,9 @@ public class PlayerDataManager : MonoBehaviour
     public void SavePlayerPosition(string sceneName, Vector3 position)
     {
         if (suppressAutomaticPositionSave) return;
+        // lastSavedScene/lastSavedPosition belong to Story Mode, even though
+        // the same player prefab and save manager are used by Multiplayer.
+        if (string.Equals(sceneName, "Multiplayer", StringComparison.OrdinalIgnoreCase)) return;
 
         if (CurrentData != null)
         {

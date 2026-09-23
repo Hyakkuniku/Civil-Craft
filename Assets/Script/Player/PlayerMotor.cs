@@ -4,6 +4,8 @@ using UnityEngine.InputSystem;
 [DefaultExecutionOrder(-50)]
 public class PlayerMotor : MonoBehaviour
 {
+    public event System.Action Jumped;
+
     private CharacterController controller;
     private Vector3 playerVelocity;
     public void ResetTestMotion() { playerVelocity = Vector3.zero; }
@@ -213,6 +215,8 @@ public class PlayerMotor : MonoBehaviour
             {
                 playerAnimator.SetTrigger("Jump");
             }
+
+            Jumped?.Invoke();
         }
     }
 
