@@ -54,8 +54,8 @@ public class BridgePhysicsManager : MonoBehaviour
     [Min(1)] public int stressSmoothingFrames = 10;
     [Tooltip("Ignores tiny endpoint-length changes when deciding whether a bar is in tension or compression.")]
     [Min(0f)] public float stressDirectionDeadZone = 0.0005f;
-    [Tooltip("Shows load added after the dead-load settling phase. Failure and peak-stress checks still use total structural stress.")]
-    public bool displayLiveLoadStressOnly = true;
+    [Tooltip("Legacy compatibility setting. Runtime tests now show total dead plus live load so the visible stress matches structural failure calculations.")]
+    public bool displayLiveLoadStressOnly = false;
     [Tooltip("Snaps force readings back to their settled dead-load value inside this relative tolerance, removing PhysX resting jitter.")]
     [Range(0f, 0.25f)] public float deadLoadReturnTolerance = 0.02f;
     [Tooltip("Minimum force tolerance, in Newtons, used when returning to the settled dead-load value.")]
@@ -83,6 +83,24 @@ public class BridgePhysicsManager : MonoBehaviour
     [Tooltip("Peak total structural stress, including dead load. Used for failure and contract limits.")]
     [HideInInspector] public float peakStressThisRun = 0f;
     public bool HadBrokenPartsThisRun { get; private set; }
+    public bool HasLiveLoadEngagedThisRun { get; private set; }
+    public string FirstMemberFailureDescription { get; private set; }
+    public bool FirstMemberFailedUnderDeadLoad { get; private set; }
+    /// <summary>
+    /// Optional contract limits below material capacity wait for the truck to
+    /// reach the bridge. Actual 100% member failure is never delayed.
+    /// </summary>
+    public bool IsContractStressLimitArmed
+    {
+        get
+        {
+            ContractSO contract = GameManager.Instance != null
+                ? GameManager.Instance.CurrentContract
+                : null;
+            return contract == null || contract.liveLoadMode != ContractSO.LiveLoadMode.Vehicle ||
+                   HasLiveLoadEngagedThisRun;
+        }
+    }
     public bool IsDeterministicStructureStable =>
         !useDeterministicStressAnalysis ||
         (deterministicAnalysisPrepared && deterministicStructureStable);
@@ -90,7 +108,47 @@ public class BridgePhysicsManager : MonoBehaviour
     {
         if (HadBrokenPartsThisRun) return;
         HadBrokenPartsThisRun = true;
+        FirstMemberFailedUnderDeadLoad = !HasLiveLoadEngagedThisRun;
+        FirstMemberFailureDescription = brokenMember != null
+            ? brokenMember.FailureDescription
+            : "A structural member exceeded its capacity.";
         OnFirstMemberBroken?.Invoke(brokenMember);
+    }
+
+    /// <summary>
+    /// Guarantees that a structural failure reported by the level rules has a
+    /// visible physical consequence. This deliberately reuses BarStressHandler's
+    /// normal break path instead of maintaining a second destruction system.
+    /// </summary>
+    public bool EnsureVisibleStructuralFailure(string cause)
+    {
+        if (!IsSimulationActive || BridgePhysicsManager.DebugInvincibleBridge)
+            return false;
+
+        BarStressHandler mostStressed = null;
+        float highestStress = float.NegativeInfinity;
+        foreach (BarStressHandler handler in activeStressHandlers)
+        {
+            if (handler == null) continue;
+            if (handler.isBroken)
+            {
+                handler.WakeFailureBodies();
+                return true;
+            }
+
+            float stress = handler.currentStructuralStressPercent;
+            if (mostStressed == null || stress > highestStress)
+            {
+                mostStressed = handler;
+                highestStress = stress;
+            }
+        }
+
+        if (mostStressed == null) return false;
+        string failureCause = string.IsNullOrWhiteSpace(cause)
+            ? "Structural capacity exceeded"
+            : cause;
+        return mostStressed.ForceBreakForFailure(failureCause);
     }
 
     /// <summary>
@@ -307,6 +365,9 @@ public class BridgePhysicsManager : MonoBehaviour
 
     private void Awake()
     {
+        // Older scenes serialized the former live-load-only display rule. The
+        // current rule deliberately shows self-weight as soon as settling ends.
+        displayLiveLoadStressOnly = false;
         sharedRoadPhysicsMat = new PhysicMaterial("BridgeRoadGrip");
         sharedRoadPhysicsMat.dynamicFriction = 1f;
         sharedRoadPhysicsMat.staticFriction = 1f;
@@ -422,10 +483,25 @@ public class BridgePhysicsManager : MonoBehaviour
                 deterministicAnalysisPrepared && !deterministicStructureStable;
             int deterministicSampleIndex = 0;
             float deterministicLoadFactor = 0f;
+            bool hasVehicleRoadState = TryGetCurrentVehicleRoadState(
+                out float vehicleRoadProgress,
+                out float vehicleRoadLoadFactor);
+            if (hasVehicleRoadState && vehicleRoadLoadFactor > 0.01f)
+                HasLiveLoadEngagedThisRun = true;
             if (hasDeterministicStress)
-                GetDeterministicLoadState(out deterministicSampleIndex, out deterministicLoadFactor);
+            {
+                deterministicLoadFactor = vehicleRoadLoadFactor;
+                if (hasVehicleRoadState && deterministicLoadFactor > 0f)
+                {
+                    deterministicSampleIndex = Mathf.Clamp(
+                        Mathf.RoundToInt(vehicleRoadProgress *
+                                         (deterministicStressResult.Samples.Length - 1)),
+                        0,
+                        deterministicStressResult.Samples.Length - 1);
+                }
+            }
             else if (hasUnstableDeterministicStructure)
-                TryGetCurrentVehicleRoadState(out _, out deterministicLoadFactor);
+                deterministicLoadFactor = vehicleRoadLoadFactor;
             float currentStructuralMax = 0f;
             float currentDisplayedMax = 0f;
             foreach (var handler in activeStressHandlers)
@@ -464,19 +540,26 @@ public class BridgePhysicsManager : MonoBehaviour
                         structuralStress *= deterministicLoadFactor;
                     }
 
-                    handler.ApplyDeterministicStress(displayedStress, structuralStress, isTension);
+                    handler.ApplyDeterministicStress(
+                        displayedStress,
+                        structuralStress,
+                        isTension);
                 }
                 else if (hasUnstableDeterministicStructure && deterministicLoadFactor > 0.01f)
                 {
                     // A mechanism can fold without generating large axial force.
                     // Show it as unsafe instead of rewarding the low force reading.
-                    handler.ApplyDeterministicStress(1f, 1f, false);
+                    // This synthetic 100% marker is not a measured member overload,
+                    // so let the physical mechanism fold instead of detaching every bar.
+                    handler.ApplyDeterministicStress(1f, 1f, false, false);
                 }
                 else
                 {
                     // Retain the PhysX visual fallback for a member absent from
                     // the deterministic result, without letting it break the bridge.
-                    handler.EvaluateStress(!hasDeterministicStress && !hasUnstableDeterministicStructure);
+                    handler.EvaluateStress(
+                        !hasDeterministicStress &&
+                        !hasUnstableDeterministicStructure);
                 }
                 
                 if (handler.isBroken)
@@ -567,6 +650,9 @@ public class BridgePhysicsManager : MonoBehaviour
     {
         if (isSimulating || pendingSimulationStart) return;
         HadBrokenPartsThisRun = false;
+        HasLiveLoadEngagedThisRun = false;
+        FirstMemberFailureDescription = string.Empty;
+        FirstMemberFailedUnderDeadLoad = false;
 
         // Build locations may contain endpoint ramps saved by older revisions.
         // Clear those legacy invisible colliders before releasing the bridge.
@@ -1560,6 +1646,49 @@ public class BarStressHandler : MonoBehaviour
     private Color[] originalColors;
     private bool stressVisualDirty;
     public Bar Bar => myBar;
+    public string FailureCause { get; private set; }
+    public float FailureForceNewtons { get; private set; }
+    public string FailureDescription
+    {
+        get
+        {
+            string memberName = material != null ? material.GetDisplayName() : "Structural member";
+            string cause = string.IsNullOrWhiteSpace(FailureCause) ? "excessive force" : FailureCause;
+            float percent = Mathf.Max(1f, currentStructuralStressPercent) * 100f;
+            return $"{memberName} failed from {cause.ToLowerInvariant()} at {percent:0.#}% of capacity.";
+        }
+    }
+
+    /// <summary>
+    /// Used by BridgePhysicsManager when a contract-level failure was detected
+    /// before the sampled member managed to detach itself. BreakBar remains the
+    /// single implementation responsible for releasing connections and visuals.
+    /// </summary>
+    public bool ForceBreakForFailure(string cause)
+    {
+        if (isBroken)
+        {
+            WakeFailureBodies();
+            return true;
+        }
+        if (material == null || myBar == null) return false;
+
+        CacheJointsIfNeeded();
+        Joint sampledJoint = material.isRope
+            ? ropeJoint
+            : joints != null && joints.Length > 0 ? joints[0] : null;
+        float limit = isCurrentlyInTension
+            ? material.maxTension
+            : material.GetCompressionLimit(restLength);
+        float force = Mathf.Max(0f, limit) * Mathf.Max(1f, currentStructuralStressPercent);
+        BreakBar(cause, force, sampledJoint);
+        return isBroken;
+    }
+
+    public void WakeFailureBodies()
+    {
+        WakeVisualBodiesAtFailure();
+    }
 
     public void Setup(BridgeMaterialSO mat, Point point1, Point point2)
     {
@@ -1714,7 +1843,7 @@ public class BarStressHandler : MonoBehaviour
 
         if (material.isRope)
         {
-            if (isTension && smoothedForce > tensionLimit)
+            if (isTension && smoothedForce >= tensionLimit)
             {
                 breakingJoint = ropeJoint;
                 breakCause = "Tension (Rope Snapped)";
@@ -1722,12 +1851,12 @@ public class BarStressHandler : MonoBehaviour
         }
         else
         {
-            if (isTension && smoothedForce > tensionLimit)
+            if (isTension && smoothedForce >= tensionLimit)
             {
                 breakingJoint = joints[0]; 
                 breakCause = "Tension (Pulled apart)";
             }
-            else if (!isTension && smoothedForce > compressionLimit)
+            else if (!isTension && smoothedForce >= compressionLimit)
             {
                 breakingJoint = joints[0];
                 breakCause = material.isPier
@@ -1767,7 +1896,11 @@ public class BarStressHandler : MonoBehaviour
         }
     }
 
-    public void ApplyDeterministicStress(float displayedRatio, float structuralRatio, bool isTension)
+    public void ApplyDeterministicStress(
+        float displayedRatio,
+        float structuralRatio,
+        bool isTension,
+        bool allowBreaking = true)
     {
         if (!canTrackStress || isBroken || material == null) return;
 
@@ -1776,13 +1909,13 @@ public class BarStressHandler : MonoBehaviour
         currentStructuralStressPercent = Mathf.Max(0f, structuralRatio);
 
         if (manager != null && manager.enableVisualizer) stressVisualDirty = true;
-        if (currentStructuralStressPercent <= 1f || BridgePhysicsManager.DebugInvincibleBridge) return;
+        if (!allowBreaking || currentStructuralStressPercent < 1f ||
+            BridgePhysicsManager.DebugInvincibleBridge) return;
 
         CacheJointsIfNeeded();
         Joint breakingJoint = material.isRope
             ? ropeJoint
             : joints != null && joints.Length > 0 ? joints[0] : null;
-        if (breakingJoint == null) return;
 
         float limit = isTension ? material.maxTension : material.GetCompressionLimit(restLength);
         string cause = material.isRope
@@ -1843,9 +1976,11 @@ public class BarStressHandler : MonoBehaviour
     {
         if (isBroken) return;
         isBroken = true;
+        FailureCause = cause;
+        FailureForceNewtons = Mathf.Max(0f, force);
         if (manager != null) manager.RecordBrokenPart(this);
-        currentStressPercent = 1f;
-        currentStructuralStressPercent = 1f;
+        currentStressPercent = Mathf.Max(1f, currentStressPercent);
+        currentStructuralStressPercent = Mathf.Max(1f, currentStructuralStressPercent);
 
         ReleaseAllFailedMemberConnections(brokenJoint);
         WakeVisualBodiesAtFailure();
@@ -1895,7 +2030,18 @@ public class BarStressHandler : MonoBehaviour
         // island. Let gravity immediately animate the detached member and the
         // still-connected neighbors; deterministic breakage was decided above.
         Rigidbody failedBody = GetComponent<Rigidbody>();
-        if (failedBody != null && !failedBody.isKinematic) failedBody.WakeUp();
+        if (failedBody != null)
+        {
+            // Simulation bars are normally dynamic already. This fallback covers
+            // legacy or partially authored members that would otherwise remain
+            // suspended after their joints were removed.
+            if (failedBody.isKinematic && manager != null && manager.IsSimulationActive)
+            {
+                failedBody.isKinematic = false;
+                failedBody.useGravity = true;
+            }
+            if (!failedBody.isKinematic) failedBody.WakeUp();
+        }
 
         WakePointAndNeighbors(p1);
         if (p2 != p1) WakePointAndNeighbors(p2);

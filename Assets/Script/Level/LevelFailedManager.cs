@@ -59,6 +59,9 @@ public class LevelFailedManager : MonoBehaviour
     [Tooltip("How long to wait before showing the fail screen (lets the player watch the destruction).")]
     public float delayBeforeFailScreen = 2.0f; 
 
+    [Tooltip("Minimum unobstructed viewing time for a structural collapse before the failure panel appears.")]
+    [Min(0.5f)] public float minimumStructuralFailureObservationTime = 2f;
+
     [Header("Penalty Tracking")]
     [Tooltip("How much gold is deducted from the final reward EVERY time the bridge collapses?")]
     public int goldPenaltyPerFail = 25;
@@ -160,10 +163,21 @@ public class LevelFailedManager : MonoBehaviour
             }
 
             if (!BridgePhysicsManager.DebugInvincibleBridge &&
+                physicsManager.HadBrokenPartsThisRun)
+            {
+                stressFailReason = physicsManager.FirstMemberFailedUnderDeadLoad
+                    ? "Dead load capacity exceeded: " + physicsManager.FirstMemberFailureDescription
+                    : "Member capacity exceeded: " + physicsManager.FirstMemberFailureDescription;
+                InitiateFailure(stressFailReason);
+                return; 
+            }
+
+            if (!BridgePhysicsManager.DebugInvincibleBridge &&
+                physicsManager.IsContractStressLimitArmed &&
                 physicsManager.peakStressThisRun >= stressThreshold)
             {
                 InitiateFailure(stressFailReason);
-                return; 
+                return;
             }
 
             if (GameManager.Instance != null && GameManager.Instance.IsCargoTestActive) return;
@@ -304,16 +318,41 @@ public class LevelFailedManager : MonoBehaviour
             return;
         }
         if (isFailed) return;
+
+        // The failure event drives lessons and UI, so make the physical break
+        // happen first. This closes the gap where peak stress could fail the
+        // contract even though a missing cached joint left the bridge intact.
+        bool structuralFailure = IsStructuralFailureReason(reason);
+        bool collapseVisible = structuralFailure && physicsManager != null &&
+            physicsManager.EnsureVisibleStructuralFailure(reason);
+
         isFailed = true; 
         SimulationFailed?.Invoke(reason);
 
         if (failDelayCoroutine != null) StopCoroutine(failDelayCoroutine);
-        failDelayCoroutine = StartCoroutine(FailDelayRoutine(reason));
+        failDelayCoroutine = StartCoroutine(FailDelayRoutine(reason, collapseVisible));
     }
 
-    private IEnumerator FailDelayRoutine(string reason)
+    private static bool IsStructuralFailureReason(string reason)
     {
-        yield return new WaitForSeconds(delayBeforeFailScreen);
+        if (string.IsNullOrWhiteSpace(reason)) return false;
+        string normalized = reason.ToLowerInvariant();
+        return normalized.Contains("stress") ||
+               normalized.Contains("capacity") ||
+               normalized.Contains("collapse") ||
+               normalized.Contains("member") ||
+               normalized.Contains("structur") ||
+               normalized.Contains("dead load") ||
+               normalized.Contains("unstable") ||
+               normalized.Contains("mechanism");
+    }
+
+    private IEnumerator FailDelayRoutine(string reason, bool collapseVisible)
+    {
+        float observationTime = collapseVisible
+            ? Mathf.Max(delayBeforeFailScreen, minimumStructuralFailureObservationTime)
+            : delayBeforeFailScreen;
+        yield return new WaitForSeconds(observationTime);
 
         BuildLocation failedLocation = GameManager.Instance != null
             ? GameManager.Instance.ActiveBuildLocation
@@ -464,10 +503,29 @@ public class LevelFailedManager : MonoBehaviour
                 "Check the road surface for gaps or steep bends and leave enough clearance around the vehicle.");
         }
 
+        if (normalized.Contains("dead load") || normalized.Contains("self-weight"))
+        {
+            float peakStress = physicsManager != null
+                ? physicsManager.peakStressThisRun * 100f
+                : 0f;
+            string failedMember = physicsManager != null &&
+                                  !string.IsNullOrWhiteSpace(physicsManager.FirstMemberFailureDescription)
+                ? " " + physicsManager.FirstMemberFailureDescription
+                : string.Empty;
+            string measured = peakStress > 0.01f
+                ? $" Total structural stress reached {peakStress:0.#}% before the live load entered."
+                : string.Empty;
+            return new FailurePresentation(
+                "BRIDGE FAILED UNDER DEAD LOAD",
+                "The bridge could not support its own weight before the live-load phase." +
+                failedMember + measured,
+                "Reduce unnecessary heavy members, shorten unsupported spans, and add a direct supported load path before testing again.");
+        }
+
         if (normalized.Contains("stress") || normalized.Contains("capacity"))
         {
             float peakStress = physicsManager != null
-                ? physicsManager.GetPeakDisplayedBridgeStress() * 100f
+                ? physicsManager.peakStressThisRun * 100f
                 : 0f;
             ContractSO contract = GameManager.Instance != null ? GameManager.Instance.CurrentContract : null;
             float allowedStress = contract != null && contract.enforceMaxStress
@@ -477,16 +535,21 @@ public class LevelFailedManager : MonoBehaviour
                 ? $" Peak bridge stress reached {peakStress:0.#}% against an allowed {allowedStress:0.#}%."
                 : $" The allowed stress limit was {allowedStress:0.#}%.";
 
+            string failedMember = physicsManager != null &&
+                                  !string.IsNullOrWhiteSpace(physicsManager.FirstMemberFailureDescription)
+                ? " " + physicsManager.FirstMemberFailureDescription
+                : string.Empty;
             return new FailurePresentation(
                 "STRESS LIMIT EXCEEDED",
-                "One or more structural members exceeded the contract's safe capacity." + measured,
+                "One or more structural members exceeded the contract's safe capacity." +
+                failedMember + measured,
                 "Strengthen orange or red members, reduce long unsupported spans, and improve the load path with complete triangles.");
         }
 
         if (normalized.Contains("collapse") || normalized.Contains("member") || normalized.Contains("structur"))
         {
             float peakStress = physicsManager != null
-                ? physicsManager.GetPeakDisplayedBridgeStress() * 100f
+                ? physicsManager.peakStressThisRun * 100f
                 : 0f;
             string measured = peakStress > 0.01f
                 ? $" The test recorded a peak bridge stress of {peakStress:0.#}%."
