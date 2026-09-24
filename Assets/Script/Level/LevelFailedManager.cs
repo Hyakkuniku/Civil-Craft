@@ -55,6 +55,9 @@ public class LevelFailedManager : MonoBehaviour
 
     [Tooltip("Fail a test if a driving vehicle on the bridge makes no meaningful forward progress for this many simulation seconds.")]
     [Min(1f)] public float vehicleStallTimeout = 8f;
+
+    [Tooltip("How often to search the scene while waiting for a contract vehicle to spawn. Cached vehicles are still checked every frame.")]
+    [Min(0.05f)] public float vehicleLookupInterval = 0.25f;
     
     [Tooltip("How long to wait before showing the fail screen (lets the player watch the destruction).")]
     public float delayBeforeFailScreen = 2.0f; 
@@ -76,6 +79,7 @@ public class LevelFailedManager : MonoBehaviour
     private float vehicleBelowRouteTimer;
     private float vehicleStallTimer;
     private float vehicleBestRouteProgress;
+    private float nextVehicleLookupTime;
     
     [HideInInspector] public bool isFailed = false;
 
@@ -181,10 +185,23 @@ public class LevelFailedManager : MonoBehaviour
             }
 
             if (GameManager.Instance != null && GameManager.Instance.IsCargoTestActive) return;
-            if (!IsVehicleForCurrentContract(activeVehicle))
-                CaptureActiveVehicle(FindVehicleForCurrentContract());
+            bool hasValidVehicle = IsVehicleForCurrentContract(activeVehicle);
+            if (!hasValidVehicle && activeVehicle == null && vehicleWasPresentForSimulation)
+            {
+                // Do not delay destruction detection behind the lookup throttle.
+                InitiateFailure("Vehicle Destroyed!");
+                return;
+            }
 
-            if (activeVehicle != null)
+            if (!hasValidVehicle && Time.unscaledTime >= nextVehicleLookupTime)
+            {
+                nextVehicleLookupTime = Time.unscaledTime +
+                    Mathf.Max(0.05f, vehicleLookupInterval);
+                CaptureActiveVehicle(FindVehicleForCurrentContract());
+                hasValidVehicle = IsVehicleForCurrentContract(activeVehicle);
+            }
+
+            if (hasValidVehicle)
             {
                 if (!activeVehicle.gameObject.activeInHierarchy)
                 {
@@ -240,7 +257,7 @@ public class LevelFailedManager : MonoBehaviour
                     }
                 }
             }
-            else if (vehicleWasPresentForSimulation)
+            else if (activeVehicle == null && vehicleWasPresentForSimulation)
             {
                 // A destroyed GameObject compares equal to null in Unity. Once a
                 // test vehicle was registered, losing it is itself a failed test.
@@ -257,6 +274,8 @@ public class LevelFailedManager : MonoBehaviour
         vehicleBelowRouteTimer = 0f;
         vehicleStallTimer = 0f;
         vehicleBestRouteProgress = 0f;
+        nextVehicleLookupTime = Time.unscaledTime +
+            Mathf.Max(0.05f, vehicleLookupInterval);
         if (GameManager.Instance != null && GameManager.Instance.IsCargoTestActive) return;
         CaptureActiveVehicle(FindVehicleForCurrentContract());
     }

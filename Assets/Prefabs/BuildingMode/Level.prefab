@@ -1629,6 +1629,7 @@ MonoBehaviour:
   - {fileID: 808856719226515779}
   bakedBars: []
   bakedPoints: []
+  buildModeOnlyStarterBridge: {fileID: 0}
 --- !u!65 &692355753180442579
 BoxCollider:
   m_ObjectHideFlags: 0

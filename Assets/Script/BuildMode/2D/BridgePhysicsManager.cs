@@ -12,6 +12,8 @@ public class BridgePhysicsManager : MonoBehaviour
         new ProfilerMarker("CivilCraft.Simulation.CollisionSetup");
     private static readonly ProfilerMarker StressAnalysisMarker =
         new ProfilerMarker("CivilCraft.Simulation.StressAnalysis");
+    private static readonly ProfilerMarker RuntimeStressMarker =
+        new ProfilerMarker("CivilCraft.Simulation.RuntimeStress");
 
     /// <summary>Development-menu override. Normal gameplay must leave this false.</summary>
     public static bool DebugInvincibleBridge { get; set; }
@@ -69,6 +71,10 @@ public class BridgePhysicsManager : MonoBehaviour
 
     [Header("Stress Visualizer Colors")]
     public bool enableVisualizer = true;
+    [Tooltip("How many full stress-capacity units the meter and member colors can animate per second. 3 reaches 100% from zero in about 0.33 seconds. This does not affect failure timing.")]
+    [Min(0.01f)] public float stressVisualResponseSpeed = 3f;
+    [Tooltip("Maximum member-color refresh rate. Stress values and failure checks still run immediately; only renderer color writes are throttled.")]
+    [Range(5f, 60f)] public float stressColorUpdatesPerSecond = 30f;
     public Color warningColor = Color.yellow;
     public Color criticalColor = Color.red;
     public Color brokenColor = Color.black;
@@ -108,6 +114,7 @@ public class BridgePhysicsManager : MonoBehaviour
     {
         if (HadBrokenPartsThisRun) return;
         HadBrokenPartsThisRun = true;
+        currentVisualMaxStress = 1f;
         FirstMemberFailedUnderDeadLoad = !HasLiveLoadEngagedThisRun;
         FirstMemberFailureDescription = brokenMember != null
             ? brokenMember.FailureDescription
@@ -203,6 +210,12 @@ public class BridgePhysicsManager : MonoBehaviour
     private float deterministicRoadMaxX;
     private bool deterministicAnalysisPrepared;
     private bool deterministicStructureStable;
+    private bool deterministicRuntimeStateApplied;
+    private bool deterministicRuntimeStateReusable;
+    private int lastDeterministicSampleIndex = -1;
+    private float lastDeterministicLoadFactor = float.NaN;
+    private float currentVisualMaxStress;
+    private float nextStressColorUpdateTime;
 
     /// <summary>
     /// Reports where the active contract vehicle really is relative to the
@@ -477,6 +490,8 @@ public class BridgePhysicsManager : MonoBehaviour
 
         if (isSimulating && !lockStressTracking)
         {
+            using (RuntimeStressMarker.Auto())
+            {
             bool hasDeterministicStress = deterministicStressResult != null &&
                 deterministicStressResult.IsValid && deterministicStructureStable;
             bool hasUnstableDeterministicStructure = useDeterministicStressAnalysis &&
@@ -502,8 +517,35 @@ public class BridgePhysicsManager : MonoBehaviour
             }
             else if (hasUnstableDeterministicStructure)
                 deterministicLoadFactor = vehicleRoadLoadFactor;
+
+            // A deterministic sample is immutable. Reapplying the same sample
+            // and load factor to every member cannot change stress or failure,
+            // so skip that O(member count) work until the vehicle input changes.
+            bool usesDeterministicRuntimeState =
+                hasDeterministicStress || hasUnstableDeterministicStructure;
+            if (usesDeterministicRuntimeState)
+            {
+                bool stateChanged = !deterministicRuntimeStateApplied ||
+                    deterministicSampleIndex != lastDeterministicSampleIndex ||
+                    !Mathf.Approximately(
+                        deterministicLoadFactor,
+                        lastDeterministicLoadFactor);
+                if (!stateChanged && deterministicRuntimeStateReusable) return;
+
+                deterministicRuntimeStateApplied = true;
+                lastDeterministicSampleIndex = deterministicSampleIndex;
+                lastDeterministicLoadFactor = deterministicLoadFactor;
+            }
+            else
+            {
+                deterministicRuntimeStateApplied = false;
+                deterministicRuntimeStateReusable = false;
+            }
+
             float currentStructuralMax = 0f;
             float currentDisplayedMax = 0f;
+            bool runtimeStateReusable = hasDeterministicStress ||
+                (hasUnstableDeterministicStructure && deterministicLoadFactor > 0.01f);
             foreach (var handler in activeStressHandlers)
             {
                 if (handler == null) continue;
@@ -557,6 +599,7 @@ public class BridgePhysicsManager : MonoBehaviour
                 {
                     // Retain the PhysX visual fallback for a member absent from
                     // the deterministic result, without letting it break the bridge.
+                    runtimeStateReusable = false;
                     handler.EvaluateStress(
                         !hasDeterministicStress &&
                         !hasUnstableDeterministicStructure);
@@ -582,7 +625,36 @@ public class BridgePhysicsManager : MonoBehaviour
             peakDisplayedStressThisRun = Mathf.Max(
                 peakDisplayedStressThisRun,
                 Mathf.Clamp01(currentDisplayedMax));
+            deterministicRuntimeStateReusable = runtimeStateReusable;
+            }
         }
+    }
+
+    private void LateUpdate()
+    {
+        if (!IsSimulationActive || activeStressHandlers.Count == 0)
+        {
+            currentVisualMaxStress = 0f;
+            return;
+        }
+
+        float colorInterval = 1f / Mathf.Max(5f, stressColorUpdatesPerSecond);
+        bool refreshMemberColors = enableVisualizer &&
+            Time.unscaledTime >= nextStressColorUpdateTime;
+        if (refreshMemberColors)
+            nextStressColorUpdateTime = Time.unscaledTime + colorInterval;
+
+        float maxVisualStress = HadBrokenPartsThisRun ? 1f : 0f;
+        float deltaTime = Time.deltaTime;
+        for (int i = 0; i < activeStressHandlers.Count; i++)
+        {
+            BarStressHandler handler = activeStressHandlers[i];
+            if (handler == null) continue;
+            handler.AdvanceVisualStress(deltaTime, refreshMemberColors);
+            maxVisualStress = Mathf.Max(maxVisualStress, handler.VisualStressPercent);
+        }
+
+        currentVisualMaxStress = Mathf.Clamp01(maxVisualStress);
     }
 
     private void GatherActiveBridgeData(out HashSet<Point> outPoints, out HashSet<Bar> outBars)
@@ -674,6 +746,12 @@ public class BridgePhysicsManager : MonoBehaviour
         peakDisplayedStressThisRun = 0f;
         peakStressThisRun = 0f;
         lockStressTracking = false;
+        deterministicRuntimeStateApplied = false;
+        deterministicRuntimeStateReusable = false;
+        lastDeterministicSampleIndex = -1;
+        lastDeterministicLoadFactor = float.NaN;
+        currentVisualMaxStress = 0f;
+        nextStressColorUpdateTime = 0f;
 
         GatherActiveBridgeData(out simPoints, out simBars);
 
@@ -760,6 +838,9 @@ public class BridgePhysicsManager : MonoBehaviour
         OnSimulationStopped?.Invoke(); 
 
         activeStressHandlers.Clear();
+        deterministicRuntimeStateApplied = false;
+        deterministicRuntimeStateReusable = false;
+        currentVisualMaxStress = 0f;
 
         foreach (Bar bar in deterministicBars)
         {
@@ -1163,6 +1244,9 @@ public class BridgePhysicsManager : MonoBehaviour
         activeStressHandlers.Clear();
         isSimulating = false;
         pendingSimulationStart = false;
+        deterministicRuntimeStateApplied = false;
+        deterministicRuntimeStateReusable = false;
+        currentVisualMaxStress = 0f;
         simPoints.Clear();
         simBars.Clear();
         deterministicPoints.Clear();
@@ -1220,18 +1304,9 @@ public class BridgePhysicsManager : MonoBehaviour
 
     public float GetMaxBridgeStress()
     {
-        float maxStress = 0f;
-        foreach (var handler in activeStressHandlers)
-        {
-            if (handler == null) continue;
-            if (handler.isBroken) return 1f; 
-
-            if (handler.currentStressPercent > maxStress)
-            {
-                maxStress = handler.currentStressPercent;
-            }
-        }
-        return Mathf.Clamp01(maxStress); 
+        // LateUpdate already advances every member and calculates this maximum.
+        // UI and lesson callers can read it without rescanning the bridge.
+        return HadBrokenPartsThisRun ? 1f : currentVisualMaxStress;
     }
 
     /// <summary>
@@ -1357,7 +1432,7 @@ public class BridgePhysicsManager : MonoBehaviour
         BarStressHandler stressHandler = bar.GetComponent<BarStressHandler>();
         if (stressHandler == null) stressHandler = bar.gameObject.AddComponent<BarStressHandler>();
         
-        stressHandler.Setup(bar.materialData, p1, p2);
+        stressHandler.Setup(this, bar.materialData, p1, p2);
         activeStressHandlers.Add(stressHandler);
     }
 
@@ -1619,6 +1694,10 @@ public class BridgePhysicsManager : MonoBehaviour
 
 public class BarStressHandler : MonoBehaviour
 {
+    private static readonly ProfilerMarker StressVisualMarker =
+        new ProfilerMarker("CivilCraft.Simulation.StressVisual");
+    private static readonly int ColorProperty = Shader.PropertyToID("_Color");
+    private static readonly int BaseColorProperty = Shader.PropertyToID("_BaseColor");
     private BridgePhysicsManager manager; 
     private BridgeMaterialSO material;
     private Point p1;
@@ -1630,8 +1709,10 @@ public class BarStressHandler : MonoBehaviour
     private SpringJoint ropeJoint; 
     
     [HideInInspector] public bool isBroken = false;
+    // Authoritative values. Failure and run-peak logic read these immediately.
     [HideInInspector] public float currentStressPercent = 0f;
     [HideInInspector] public float currentStructuralStressPercent = 0f;
+    private float visualStressPercent;
     
     private float smoothedForce = 0f;
     private float settledDeadLoadForce = 0f;
@@ -1644,8 +1725,11 @@ public class BarStressHandler : MonoBehaviour
 
     private Renderer[] childRenderers;
     private Color[] originalColors;
+    private int[] colorPropertyIds;
+    private MaterialPropertyBlock[] colorPropertyBlocks;
     private bool stressVisualDirty;
     public Bar Bar => myBar;
+    public float VisualStressPercent => visualStressPercent;
     public string FailureCause { get; private set; }
     public float FailureForceNewtons { get; private set; }
     public string FailureDescription
@@ -1690,9 +1774,13 @@ public class BarStressHandler : MonoBehaviour
         WakeVisualBodiesAtFailure();
     }
 
-    public void Setup(BridgeMaterialSO mat, Point point1, Point point2)
+    public void Setup(
+        BridgePhysicsManager owner,
+        BridgeMaterialSO mat,
+        Point point1,
+        Point point2)
     {
-        manager = FindObjectOfType<BridgePhysicsManager>(); 
+        manager = owner;
         material = mat;
         p1 = point1;
         p2 = point2;
@@ -1701,19 +1789,38 @@ public class BarStressHandler : MonoBehaviour
         
         restLength = Vector3.Distance(p1.transform.position, p2.transform.position);
         isCurrentlyInTension = false;
+        currentStressPercent = 0f;
+        currentStructuralStressPercent = 0f;
+        visualStressPercent = 0f;
         settlingForceHistory.Clear();
 
         childRenderers = GetComponentsInChildren<Renderer>();
         originalColors = new Color[childRenderers.Length];
+        colorPropertyIds = new int[childRenderers.Length];
+        colorPropertyBlocks = new MaterialPropertyBlock[childRenderers.Length];
         
         for (int i = 0; i < childRenderers.Length; i++)
         {
-            if (childRenderers[i].material.HasProperty("_Color"))
-                originalColors[i] = childRenderers[i].material.color;
-            else if (childRenderers[i].material.HasProperty("_BaseColor"))
-                originalColors[i] = childRenderers[i].material.GetColor("_BaseColor");
+            Renderer renderer = childRenderers[i];
+            Material sharedMaterial = renderer != null ? renderer.sharedMaterial : null;
+            colorPropertyBlocks[i] = new MaterialPropertyBlock();
+            if (renderer != null) renderer.GetPropertyBlock(colorPropertyBlocks[i]);
+
+            if (sharedMaterial != null && sharedMaterial.HasProperty(ColorProperty))
+            {
+                colorPropertyIds[i] = ColorProperty;
+                originalColors[i] = sharedMaterial.GetColor(ColorProperty);
+            }
+            else if (sharedMaterial != null && sharedMaterial.HasProperty(BaseColorProperty))
+            {
+                colorPropertyIds[i] = BaseColorProperty;
+                originalColors[i] = sharedMaterial.GetColor(BaseColorProperty);
+            }
             else
+            {
+                colorPropertyIds[i] = -1;
                 originalColors[i] = Color.white;
+            }
         }
 
         if (mat.isRope && myBar != null)
@@ -1738,8 +1845,6 @@ public class BarStressHandler : MonoBehaviour
             ? AverageSamples(settlingForceHistory)
             : ReadCurrentForce();
         smoothedForce = settledDeadLoadForce;
-        currentStressPercent = 0f;
-        currentStructuralStressPercent = 0f;
         
         forceHistory.Clear();
         for (int i = 0; i < smoothingFrames; i++)
@@ -1782,16 +1887,35 @@ public class BarStressHandler : MonoBehaviour
         }
     }
 
-    private void LateUpdate()
+    public void AdvanceVisualStress(float deltaTime, bool refreshMemberColors)
     {
-        // Several fixed ticks can run before one rendered frame on mobile.
-        // Color the latest stress once per frame instead of writing materials
-        // for intermediate values the player can never see.
-        if (stressVisualDirty)
+        // The manager advances all members in one LateUpdate, avoiding one Unity
+        // message dispatch per bridge member while preserving render-rate easing.
+        if (!isBroken)
         {
+            float responseSpeed = manager != null
+                ? Mathf.Max(0.01f, manager.stressVisualResponseSpeed)
+                : 3f;
+            float previousVisualStress = visualStressPercent;
+            visualStressPercent = Mathf.MoveTowards(
+                visualStressPercent,
+                currentStressPercent,
+                responseSpeed * deltaTime);
+
+            bool visualChanged = !Mathf.Approximately(previousVisualStress, visualStressPercent);
+            if (visualChanged) stressVisualDirty = true;
+            if (refreshMemberColors && stressVisualDirty &&
+                manager != null && manager.enableVisualizer)
+            {
+                using (StressVisualMarker.Auto())
+                    UpdateStressVisuals();
+                stressVisualDirty = false;
+            }
+        }
+        else
+        {
+            visualStressPercent = Mathf.Max(1f, visualStressPercent);
             stressVisualDirty = false;
-            if (!isBroken && manager != null && manager.enableVisualizer)
-                UpdateStressVisuals();
         }
 
         if (material == null || !material.isRope || isBroken ||
@@ -1872,6 +1996,7 @@ public class BarStressHandler : MonoBehaviour
         currentStructuralStressPercent =
             Mathf.Round((totalStructuralForce / stressLimit) * 1000f) / 1000f;
 
+        float previousDisplayedStress = currentStressPercent;
         if (material.isRope && !isTension) 
         {
             currentStressPercent = 0f; 
@@ -1885,10 +2010,8 @@ public class BarStressHandler : MonoBehaviour
             currentStressPercent = Mathf.Round(rawPercent * 1000f) / 1000f;
         }
 
-        if (manager != null && manager.enableVisualizer)
-        {
+        if (!Mathf.Approximately(previousDisplayedStress, currentStressPercent))
             stressVisualDirty = true;
-        }
 
         if (allowBreaking && breakingJoint != null && !isBroken && !BridgePhysicsManager.DebugInvincibleBridge)
         {
@@ -1905,10 +2028,13 @@ public class BarStressHandler : MonoBehaviour
         if (!canTrackStress || isBroken || material == null) return;
 
         isCurrentlyInTension = isTension;
-        currentStressPercent = Mathf.Max(0f, displayedRatio);
+        float nextDisplayedStress = Mathf.Max(0f, displayedRatio);
+        bool displayedStressChanged =
+            !Mathf.Approximately(currentStressPercent, nextDisplayedStress);
+        currentStressPercent = nextDisplayedStress;
         currentStructuralStressPercent = Mathf.Max(0f, structuralRatio);
 
-        if (manager != null && manager.enableVisualizer) stressVisualDirty = true;
+        if (displayedStressChanged) stressVisualDirty = true;
         if (!allowBreaking || currentStructuralStressPercent < 1f ||
             BridgePhysicsManager.DebugInvincibleBridge) return;
 
@@ -1959,13 +2085,13 @@ public class BarStressHandler : MonoBehaviour
         {
             Color stressColor;
 
-            if (currentStressPercent < 0.5f)
+            if (visualStressPercent < 0.5f)
             {
-                stressColor = Color.Lerp(originalColors[i], manager.warningColor, currentStressPercent * 2f);
+                stressColor = Color.Lerp(originalColors[i], manager.warningColor, visualStressPercent * 2f);
             }
             else
             {
-                stressColor = Color.Lerp(manager.warningColor, manager.criticalColor, (currentStressPercent - 0.5f) * 2f);
+                stressColor = Color.Lerp(manager.warningColor, manager.criticalColor, (visualStressPercent - 0.5f) * 2f);
             }
 
             SetBarColor(stressColor, i);
@@ -1981,6 +2107,9 @@ public class BarStressHandler : MonoBehaviour
         if (manager != null) manager.RecordBrokenPart(this);
         currentStressPercent = Mathf.Max(1f, currentStressPercent);
         currentStructuralStressPercent = Mathf.Max(1f, currentStructuralStressPercent);
+        // Failure itself must stay synchronized with the meter and black member.
+        // Do not visually lag behind an already-collapsing bridge.
+        visualStressPercent = Mathf.Max(1f, visualStressPercent);
 
         ReleaseAllFailedMemberConnections(brokenJoint);
         WakeVisualBodiesAtFailure();
@@ -2064,15 +2193,16 @@ public class BarStressHandler : MonoBehaviour
 
     private void SetBarColor(Color targetColor, int index)
     {
-        if (childRenderers[index] == null) return;
+        if (childRenderers == null || colorPropertyIds == null ||
+            colorPropertyBlocks == null || index < 0 ||
+            index >= childRenderers.Length || childRenderers[index] == null ||
+            colorPropertyIds[index] < 0)
+            return;
 
-        if (childRenderers[index].material.HasProperty("_Color"))
-        {
-            childRenderers[index].material.color = targetColor;
-        }
-        else if (childRenderers[index].material.HasProperty("_BaseColor"))
-        {
-            childRenderers[index].material.SetColor("_BaseColor", targetColor);
-        }
+        // Property blocks avoid Renderer.material instantiation and repeated
+        // shader-property searches during every color refresh.
+        MaterialPropertyBlock block = colorPropertyBlocks[index];
+        block.SetColor(colorPropertyIds[index], targetColor);
+        childRenderers[index].SetPropertyBlock(block);
     }
 }

@@ -92,6 +92,8 @@ public class BuildUIController : MonoBehaviour
     public Color safeStressColor = Color.green;
     public Color warningStressColor = Color.yellow;
     public Color criticalStressColor = Color.red;
+    [Tooltip("Numeric stress-label refresh rate. The fill bar still animates every rendered frame.")]
+    [Range(5f, 30f)] public float stressTextUpdatesPerSecond = 10f;
 
     [Header("Universal Timer UI (Time Attack & Hold)")]
     public GameObject timerPanel; 
@@ -174,6 +176,8 @@ public class BuildUIController : MonoBehaviour
     private HashSet<Point> activePoints = new HashSet<Point>();
 
     private float lastStressPercent = -1f;
+    private float lastStressFillAmount = -1f;
+    private float nextStressTextUpdateTime;
     private int lastProjectedCost = -1;
     private int lastDisplayedMaxBudget = -1;
     private float lastRoadLength = -1f;
@@ -1162,7 +1166,9 @@ public class BuildUIController : MonoBehaviour
     private void UpdatePlayPauseButtonUI()
     {
         if (playPauseButtonImage == null || physicsManager == null) return;
-        playPauseButtonImage.sprite = physicsManager.isSimulating ? (stopIcon != null ? stopIcon : playPauseButtonImage.sprite) : (playIcon != null ? playIcon : playPauseButtonImage.sprite);
+        Sprite desiredSprite = physicsManager.isSimulating ? stopIcon : playIcon;
+        if (desiredSprite != null && playPauseButtonImage.sprite != desiredSprite)
+            playPauseButtonImage.sprite = desiredSprite;
     }
 
     private void UpdateStressUI()
@@ -1179,14 +1185,20 @@ public class BuildUIController : MonoBehaviour
                 Color.Lerp(safeStressColor, warningStressColor, currentStress * 2f) :
                 Color.Lerp(warningStressColor, criticalStressColor, (currentStress - 0.5f) * 2f);
 
-            if (stressFillBar != null) 
+            if (stressFillBar != null &&
+                !Mathf.Approximately(currentStress, lastStressFillAmount))
             { 
+                lastStressFillAmount = currentStress;
                 stressFillBar.fillAmount = currentStress;
                 stressFillBar.color = currentStressColor; 
             }
 
-            if (!Mathf.Approximately(stressPercent, lastStressPercent))
+            bool failureValue = currentStress >= 1f;
+            if (!Mathf.Approximately(stressPercent, lastStressPercent) &&
+                (failureValue || Time.unscaledTime >= nextStressTextUpdateTime))
             {
+                nextStressTextUpdateTime = Time.unscaledTime +
+                    1f / Mathf.Max(5f, stressTextUpdatesPerSecond);
                 lastStressPercent = stressPercent;
                 if (stressText != null) 
                 { 
@@ -1202,7 +1214,13 @@ public class BuildUIController : MonoBehaviour
                 lastStressPercent = 0f;
                 if (stressText != null) { stressText.text = "0.0%"; stressText.color = safeStressColor; }
             }
-            if (stressFillBar != null) { stressFillBar.fillAmount = 0f; stressFillBar.color = safeStressColor; }
+            nextStressTextUpdateTime = 0f;
+            if (stressFillBar != null && !Mathf.Approximately(lastStressFillAmount, 0f))
+            {
+                lastStressFillAmount = 0f;
+                stressFillBar.fillAmount = 0f;
+                stressFillBar.color = safeStressColor;
+            }
         }
     }
 
