@@ -170,6 +170,8 @@ public static class CosmeticBindingUtility
 
 public class PlayerCosmetics : MonoBehaviour
 {
+    private const string WardrobePlayerResource = "Loading/NewCharacterPreview";
+
     public static PlayerCosmetics Instance { get; private set; }
     public static event Action<string> EquippedHatChanged;
     public static event Action<CosmeticLoadoutData> LoadoutChanged;
@@ -180,7 +182,11 @@ public class PlayerCosmetics : MonoBehaviour
     [Header("Categorized Model Bindings")]
     public List<CosmeticModelBinding> cosmeticBindings = new List<CosmeticModelBinding>();
 
-    private void Awake() => Instance = this;
+    private void Awake()
+    {
+        Instance = this;
+        UpgradeLegacyPlayerVisual();
+    }
     private void Start() => RefreshCosmetics();
 
     private void OnDestroy()
@@ -217,5 +223,57 @@ public class PlayerCosmetics : MonoBehaviour
         if (PlayerDataManager.Instance != null)
             PlayerDataManager.Instance.UnlockCosmeticReward(hatID, true);
         RefreshCosmetics();
+    }
+
+    private void UpgradeLegacyPlayerVisual()
+    {
+        // Older scenes such as Bhan House have the wardrobe IDs but no model
+        // references. Their old character mesh cannot display the saved outfit.
+        if (cosmeticBindings != null)
+        {
+            foreach (CosmeticModelBinding binding in cosmeticBindings)
+                if (binding != null && binding.models != null)
+                    foreach (GameObject model in binding.models)
+                        if (model != null) return;
+        }
+
+        PlayerMotor motor = GetComponent<PlayerMotor>();
+        Animator oldAnimator = motor != null ? motor.playerAnimator : null;
+        if (oldAnimator == null) return;
+
+        Transform oldVisual = oldAnimator.transform;
+        while (oldVisual.parent != null && oldVisual.parent != transform)
+            oldVisual = oldVisual.parent;
+        if (oldVisual.parent != transform ||
+            !oldVisual.name.StartsWith("Character_w_Clothes_v4", StringComparison.Ordinal)) return;
+
+        GameObject wardrobePrefab = Resources.Load<GameObject>(WardrobePlayerResource);
+        if (wardrobePrefab == null)
+        {
+            Debug.LogWarning("[PlayerCosmetics] Full wardrobe player prefab is missing; keeping the legacy model.", this);
+            return;
+        }
+
+        GameObject replacement = Instantiate(wardrobePrefab, transform, false);
+        replacement.name = "NewCharacterModel (Player)";
+        replacement.transform.localPosition = oldVisual.localPosition;
+        replacement.transform.localRotation = oldVisual.localRotation;
+        replacement.transform.localScale = oldVisual.localScale;
+
+        PlayerCosmeticMirror wardrobe = replacement.GetComponent<PlayerCosmeticMirror>();
+        Animator newAnimator = replacement.GetComponentInChildren<Animator>(true);
+        if (wardrobe == null || newAnimator == null || wardrobe.cosmeticBindings == null ||
+            wardrobe.cosmeticBindings.Count == 0)
+        {
+            Destroy(replacement);
+            Debug.LogWarning("[PlayerCosmetics] Full wardrobe player is incomplete; keeping the legacy model.", this);
+            return;
+        }
+
+        hats = wardrobe.hats;
+        cosmeticBindings = wardrobe.cosmeticBindings;
+        wardrobe.enabled = false; // The PlayerCosmetics component owns this loadout.
+        motor.playerAnimator = newAnimator;
+        oldVisual.gameObject.SetActive(false);
     }
 }

@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using TMPro;
@@ -398,14 +399,10 @@ public sealed class LoadingScreenManager : MonoBehaviour
     {
         ReleasePreviewModel();
 
-        GameObject source = FindLivePlayerVisual();
-        if (source != null)
-        {
-            previewModel = Instantiate(source, previewStage, false);
-            previewModel.name = "Loading Player (Current Appearance)";
-            StripGameplayComponents(previewModel);
-        }
-        else if (assets != null && assets.fallbackPlayerPrefab != null)
+        // Every transition should show the same wardrobe-capable character.
+        // A live scene visual may still be an older/base rig even when a saved
+        // cosmetic loadout exists, so only use it if the preview prefab fails.
+        if (assets != null && assets.fallbackPlayerPrefab != null)
         {
             try
             {
@@ -419,7 +416,8 @@ public sealed class LoadingScreenManager : MonoBehaviour
                 previewModel = clone as GameObject;
                 if (previewModel != null)
                 {
-                    previewModel.name = "Loading Player (Fallback)";
+                    previewModel.name = "Loading Player (Saved Appearance)";
+                    ApplySavedPreviewAppearance(previewModel, null);
                     StripGameplayComponents(previewModel);
                 }
                 else if (clone != null)
@@ -434,6 +432,18 @@ public sealed class LoadingScreenManager : MonoBehaviour
                     $"The scene will continue loading without it. {exception.Message}",
                     this);
                 previewModel = null;
+            }
+        }
+
+        if (previewModel == null)
+        {
+            GameObject source = FindLivePlayerVisual();
+            if (source != null)
+            {
+                previewModel = Instantiate(source, previewStage, false);
+                previewModel.name = "Loading Player (Scene Fallback)";
+                ApplySavedPreviewAppearance(previewModel, source);
+                StripGameplayComponents(previewModel);
             }
         }
 
@@ -469,6 +479,7 @@ public sealed class LoadingScreenManager : MonoBehaviour
         Animator animator = player.GetComponentsInChildren<Animator>(true)
             .FirstOrDefault(candidate =>
                 candidate != null &&
+                candidate.gameObject.activeInHierarchy &&
                 candidate.runtimeAnimatorController != null &&
                 candidate.runtimeAnimatorController.name == "PlayerAnimator");
 
@@ -485,6 +496,65 @@ public sealed class LoadingScreenManager : MonoBehaviour
         return visualRoot.parent == player.transform
             ? visualRoot.gameObject
             : animator.gameObject;
+    }
+
+    private static void ApplySavedPreviewAppearance(GameObject clone, GameObject source)
+    {
+        if (clone == null || PlayerDataManager.Instance == null) return;
+        CosmeticLoadoutData loadout = PlayerDataManager.Instance.GetCosmeticLoadoutCopy();
+
+        PlayerCosmeticMirror mirror = clone.GetComponentInChildren<PlayerCosmeticMirror>(true);
+        if (mirror != null)
+        {
+            mirror.ApplyLoadout(loadout);
+            return;
+        }
+
+        PlayerCosmetics sourceCosmetics = source != null
+            ? source.GetComponentInParent<PlayerCosmetics>() : null;
+        if (sourceCosmetics == null || sourceCosmetics.cosmeticBindings == null) return;
+
+        List<CosmeticModelBinding> clonedBindings = new List<CosmeticModelBinding>();
+        foreach (CosmeticModelBinding binding in sourceCosmetics.cosmeticBindings)
+        {
+            if (binding == null) continue;
+            CosmeticModelBinding cloned = new CosmeticModelBinding
+            {
+                cosmeticID = binding.cosmeticID,
+                category = binding.category,
+                defaultWhenEmpty = binding.defaultWhenEmpty
+            };
+            if (binding.models != null)
+                foreach (GameObject model in binding.models)
+                {
+                    GameObject cloneModel = FindMatchingPreviewObject(model, source.transform, clone.transform);
+                    if (cloneModel != null) cloned.models.Add(cloneModel);
+                }
+            clonedBindings.Add(cloned);
+        }
+        CosmeticBindingUtility.Apply(clonedBindings, loadout);
+    }
+
+    private static GameObject FindMatchingPreviewObject(GameObject original, Transform sourceRoot, Transform cloneRoot)
+    {
+        if (original == null || !original.transform.IsChildOf(sourceRoot)) return null;
+
+        Stack<int> siblingPath = new Stack<int>();
+        Transform current = original.transform;
+        while (current != sourceRoot)
+        {
+            siblingPath.Push(current.GetSiblingIndex());
+            current = current.parent;
+        }
+
+        current = cloneRoot;
+        while (siblingPath.Count > 0)
+        {
+            int childIndex = siblingPath.Pop();
+            if (childIndex >= current.childCount) return null;
+            current = current.GetChild(childIndex);
+        }
+        return current.gameObject;
     }
 
     private static void StripGameplayComponents(GameObject clone)

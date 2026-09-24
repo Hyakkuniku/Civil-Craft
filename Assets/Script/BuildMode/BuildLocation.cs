@@ -67,6 +67,10 @@ public class BuildLocation : Interactable
     [HideInInspector] public List<Bar> bakedBars = new List<Bar>();
     [HideInInspector] public List<Point> bakedPoints = new List<Point>();
 
+    [Header("Build-Mode-Only Starter Bridge")]
+    [Tooltip("Optional editable starter bridge root. Hidden in the overworld and shown as soon as this location enters build mode. Do not assign a saved/committed bridge here.")]
+    public GameObject buildModeOnlyStarterBridge;
+
     private readonly List<Bar> committedBarsBeforeRedesign = new List<Bar>();
     private readonly List<Point> committedPointsBeforeRedesign = new List<Point>();
     private readonly List<Bar> hiddenUnfinishedBars = new List<Bar>();
@@ -101,6 +105,10 @@ public class BuildLocation : Interactable
 
     private void Awake()
     {
+        if (buildModeOnlyStarterBridge == null)
+            buildModeOnlyStarterBridge = FindStarterBridgeAtAnchors();
+        HideBuildModeOnlyStarterBridge();
+
         if (locationCamera != null) locationCamera.enabled = false;
         if (cinematicCamera != null) cinematicCamera.enabled = false; 
         if (gridImage != null) gridImage.enabled = false; 
@@ -567,6 +575,7 @@ public class BuildLocation : Interactable
             HideUnfinishedBridgeDraft();
             SetBridgeScriptsActive(false);
         }
+        HideBuildModeOnlyStarterBridge();
 
         if (lockPlayerToZone && originalPlayerParent != null && player != null)
         {
@@ -598,6 +607,7 @@ public class BuildLocation : Interactable
         foreach (Bar bar in FindObjectsOfType<Bar>(true))
         {
             if (bar == null || !bar.gameObject.activeInHierarchy || bakedBars.Contains(bar)) continue;
+            if (IsStarterBridgeObject(bar.transform)) continue;
 
             bar.InferOwnerFromEndpoints();
             if (bar.OwnerLocation != this) continue;
@@ -645,12 +655,124 @@ public class BuildLocation : Interactable
     {
         if (point == null || !point.gameObject.activeInHierarchy || bakedPoints.Contains(point) ||
             startingAnchors.Contains(point) || endingAnchors.Contains(point) ||
-            hiddenUnfinishedPoints.Contains(point))
+            hiddenUnfinishedPoints.Contains(point) || IsStarterBridgeObject(point.transform))
         {
             return;
         }
 
         hiddenUnfinishedPoints.Add(point);
+    }
+
+    private bool IsStarterBridgeObject(Transform target)
+    {
+        return buildModeOnlyStarterBridge != null && target != null &&
+               target.IsChildOf(buildModeOnlyStarterBridge.transform);
+    }
+
+    private GameObject FindStarterBridgeAtAnchors()
+    {
+        if (startingAnchors.Count == 0 || endingAnchors.Count == 0) return null;
+
+        HashSet<GameObject> candidates = new HashSet<GameObject>();
+        foreach (Bar bar in FindObjectsOfType<Bar>(true))
+        {
+            if (bar == null || bar.gameObject.scene != gameObject.scene) continue;
+
+            Transform parent = bar.transform.parent;
+            while (parent != null && !parent.name.StartsWith("STARTER_BRIDGE_"))
+                parent = parent.parent;
+            if (parent != null) candidates.Add(parent.gameObject);
+        }
+
+        foreach (GameObject candidate in candidates)
+        {
+            Bar[] bars = candidate.GetComponentsInChildren<Bar>(true);
+            if (HasStarterEndpointAtAnchor(bars, startingAnchors) &&
+                HasStarterEndpointAtAnchor(bars, endingAnchors))
+                return candidate;
+        }
+
+        return null;
+    }
+
+    private static bool HasStarterEndpointAtAnchor(Bar[] bars, List<Point> anchors)
+    {
+        foreach (Point anchor in anchors)
+        {
+            if (anchor == null) continue;
+            foreach (Bar bar in bars)
+            {
+                if (bar == null) continue;
+                if (Vector3.Distance(bar.StartPosition, anchor.transform.position) < 1f ||
+                    Vector3.Distance(bar.EndPosition, anchor.transform.position) < 1f)
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    public void ShowBuildModeOnlyStarterBridge()
+    {
+        if (buildModeOnlyStarterBridge == null || bakedBars.Count > 0) return;
+
+        buildModeOnlyStarterBridge.SetActive(true);
+
+        // Prefabbed bars can lose references to the scene's endpoint anchors.
+        // Repair them after activation so the complete bridge is available for
+        // selection, deletion, and simulation on the first build-mode entry.
+        foreach (Point point in buildModeOnlyStarterBridge.GetComponentsInChildren<Point>(true))
+            if (point != null) point.AssignOwner(this, true);
+        foreach (Bar bar in buildModeOnlyStarterBridge.GetComponentsInChildren<Bar>(true))
+        {
+            if (bar == null || !bar.gameObject.activeInHierarchy ||
+                (bar.StartPosition - bar.EndPosition).sqrMagnitude < 0.0001f) continue;
+            bar.AutoRepairEndpoints();
+            RepairStarterAnchorEndpoint(bar, true);
+            RepairStarterAnchorEndpoint(bar, false);
+            bar.AssignOwner(this, true);
+        }
+
+        ClaimConnectedBridgeOwnership();
+        SetBridgeScriptsActive(true);
+    }
+
+    public void HideBuildModeOnlyStarterBridge()
+    {
+        if (buildModeOnlyStarterBridge == null) return;
+
+        // Once the player saves the edited starter as a real bridge, its pieces
+        // become the committed crossing and must remain visible in the world.
+        foreach (Bar bar in bakedBars)
+            if (bar != null && IsStarterBridgeObject(bar.transform)) return;
+
+        buildModeOnlyStarterBridge.SetActive(false);
+    }
+
+    private void RepairStarterAnchorEndpoint(Bar bar, bool isStart)
+    {
+        if ((isStart ? bar.startPoint : bar.endPoint) != null) return;
+
+        Vector3 savedPosition = isStart ? bar.StartPosition : bar.EndPosition;
+        Point nearest = null;
+        float nearestDistance = 1f;
+        foreach (Point anchor in startingAnchors)
+            ConsiderStarterAnchor(anchor, savedPosition, ref nearest, ref nearestDistance);
+        foreach (Point anchor in endingAnchors)
+            ConsiderStarterAnchor(anchor, savedPosition, ref nearest, ref nearestDistance);
+
+        if (nearest == null) return;
+        if (isStart) bar.startPoint = nearest;
+        else bar.endPoint = nearest;
+        if (!nearest.ConnectedBars.Contains(bar)) nearest.ConnectedBars.Add(bar);
+    }
+
+    private static void ConsiderStarterAnchor(Point anchor, Vector3 position, ref Point nearest, ref float nearestDistance)
+    {
+        if (anchor == null) return;
+        float distance = Vector3.Distance(anchor.transform.position, position);
+        if (distance >= nearestDistance) return;
+        nearest = anchor;
+        nearestDistance = distance;
     }
 
     public void ResetTimeAttack()

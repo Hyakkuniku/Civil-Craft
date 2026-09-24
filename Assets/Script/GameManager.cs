@@ -538,6 +538,7 @@ public class GameManager : MonoBehaviour
 
         // 4. Show Build Mode UI while the screen is black
         HideDecorativeCanyons();
+        location.ShowBuildModeOnlyStarterBridge();
         foreach (GameObject uiElement in buildModeUIElements) if (uiElement != null) uiElement.SetActive(true);
         InvokeEventSafely(OnEnterBuildMode);
 
@@ -616,7 +617,10 @@ public class GameManager : MonoBehaviour
         if (ActiveBuildLocation != null && ActiveBuildLocation.IsRedesigningBridge)
             ActiveBuildLocation.CancelBridgeRedesign();
         if (ActiveBuildLocation != null)
+        {
+            ActiveBuildLocation.HideBuildModeOnlyStarterBridge();
             ActiveBuildLocation.HideUnfinishedBridgeDraft();
+        }
         RestoreCapturedStates(buildLocationStateBeforeBuildMode);
 
         // 1. Hide Build Mode UI instantly

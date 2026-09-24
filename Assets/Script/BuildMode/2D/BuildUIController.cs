@@ -121,6 +121,12 @@ public class BuildUIController : MonoBehaviour
     public TextMeshProUGUI unlockMaterialText; 
     private MaterialButtonTrigger pendingUnlockButton;
 
+    [Header("Material Panel Visibility")]
+    [Tooltip("Optional material-button scroll panel. If empty, it is found from the material buttons' ScrollRect.")]
+    [SerializeField] private GameObject materialsPanel;
+    private MaterialButtonTrigger[] materialButtons = System.Array.Empty<MaterialButtonTrigger>();
+    private bool materialsPanelHiddenForEmpty;
+
     [Header("Tool Highlighting")]
     public Image selectToolImage;
     public Image moveToolImage;
@@ -312,6 +318,7 @@ public class BuildUIController : MonoBehaviour
         BuildCameraController cam = FindObjectOfType<BuildCameraController>();
         if (cam != null) cam.ReturnToBuildView();
         RefreshSimulationButtonLock();
+        RefreshMaterialPanelVisibility();
     }
 
     private void HideExitBuildModeButtonDuringSimulation()
@@ -359,11 +366,63 @@ public class BuildUIController : MonoBehaviour
 
     public void RefreshAllMaterialButtons()
     {
-        MaterialButtonTrigger[] allButtons = FindObjectsOfType<MaterialButtonTrigger>(true);
-        foreach (var b in allButtons) 
+        materialButtons = FindObjectsOfType<MaterialButtonTrigger>(true);
+        foreach (var b in materialButtons)
         {
             b.EvaluateMaterialRestriction();
         }
+        RefreshMaterialPanelVisibility();
+    }
+
+    private void RefreshMaterialPanelVisibility()
+    {
+        if (simulationInProgressForUI) return;
+
+        if (materialsPanel == null)
+        {
+            foreach (MaterialButtonTrigger button in materialButtons)
+            {
+                if (button == null) continue;
+                ScrollRect scroll = button.GetComponentInParent<ScrollRect>(true);
+                if (scroll == null || scroll.name != "MaterialsScrollPanel") continue;
+                materialsPanel = scroll.gameObject;
+                break;
+            }
+        }
+        if (materialsPanel == null) return;
+
+        bool hasVisibleButton = false;
+        Transform panelTransform = materialsPanel.transform;
+        foreach (MaterialButtonTrigger button in materialButtons)
+        {
+            if (button == null || !button.gameObject.activeSelf ||
+                !button.transform.IsChildOf(panelTransform)) continue;
+            Transform wrapper = button.parentWrapper != null
+                ? button.parentWrapper.transform : button.transform;
+            if (IsVisibleInsidePanel(wrapper, panelTransform))
+            {
+                hasVisibleButton = true;
+                break;
+            }
+        }
+
+        if (!hasVisibleButton && materialsPanel.activeSelf)
+        {
+            materialsPanel.SetActive(false);
+            materialsPanelHiddenForEmpty = true;
+        }
+        else if (hasVisibleButton && materialsPanelHiddenForEmpty)
+        {
+            materialsPanel.SetActive(true);
+            materialsPanelHiddenForEmpty = false;
+        }
+    }
+
+    private static bool IsVisibleInsidePanel(Transform target, Transform panel)
+    {
+        for (Transform current = target; current != null && current != panel; current = current.parent)
+            if (!current.gameObject.activeSelf) return false;
+        return target != null && target.IsChildOf(panel);
     }
 
     public void ShowTimer(bool isVisible)
@@ -419,6 +478,7 @@ public class BuildUIController : MonoBehaviour
         if (Time.unscaledTime < nextSimulationPanelVisibilityCheck) return;
         nextSimulationPanelVisibilityCheck = Time.unscaledTime + 0.1f;
         RefreshSimulationPanelVisibility();
+        RefreshMaterialPanelVisibility();
     }
 
     public void RefreshContractBuildUI()
