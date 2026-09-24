@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using Unity.Profiling;
+using UnityEngine.Rendering;
 
 [DefaultExecutionOrder(-50)] 
 public class BridgePhysicsManager : MonoBehaviour
@@ -657,6 +658,17 @@ public class BridgePhysicsManager : MonoBehaviour
         currentVisualMaxStress = Mathf.Clamp01(maxVisualStress);
     }
 
+    private void RestoreActiveStressVisuals()
+    {
+        // Reset is infrequent, so restore in-place before clearing the cached
+        // handlers. The hot simulation/update path remains allocation-free.
+        for (int i = 0; i < activeStressHandlers.Count; i++)
+        {
+            BarStressHandler handler = activeStressHandlers[i];
+            if (handler != null) handler.RestoreOriginalAppearance();
+        }
+    }
+
     private void GatherActiveBridgeData(out HashSet<Point> outPoints, out HashSet<Bar> outBars)
     {
         outPoints = new HashSet<Point>();
@@ -742,6 +754,10 @@ public class BridgePhysicsManager : MonoBehaviour
             }
         }
         
+        // Normally reset removes every handler, but explicitly clear its
+        // property-block color first. This keeps repeated simulations safe even
+        // if Unity defers or skips a component destruction callback.
+        RestoreActiveStressVisuals();
         activeStressHandlers.Clear(); 
         peakDisplayedStressThisRun = 0f;
         peakStressThisRun = 0f;
@@ -837,6 +853,7 @@ public class BridgePhysicsManager : MonoBehaviour
         pendingSimulationStart = false;
         OnSimulationStopped?.Invoke(); 
 
+        RestoreActiveStressVisuals();
         activeStressHandlers.Clear();
         deterministicRuntimeStateApplied = false;
         deterministicRuntimeStateReusable = false;
@@ -1235,7 +1252,12 @@ public class BridgePhysicsManager : MonoBehaviour
             if (b == null) continue;
             foreach (var j in b.GetComponentsInChildren<Joint>()) Destroy(j);
             foreach (var rb in b.GetComponentsInChildren<Rigidbody>()) Destroy(rb);
-            if (b.GetComponent<BarStressHandler>() != null) Destroy(b.GetComponent<BarStressHandler>());
+            BarStressHandler stressHandler = b.GetComponent<BarStressHandler>();
+            if (stressHandler != null)
+            {
+                stressHandler.RestoreOriginalAppearance();
+                Destroy(stressHandler);
+            }
             EnsurePermanentBakedRoadCollider(b);
             b.enabled = false; 
             targetLoc.bakedBars.Add(b); 
@@ -1780,6 +1802,11 @@ public class BarStressHandler : MonoBehaviour
         Point point1,
         Point point2)
     {
+        // Setup is normally paired with component destruction on reset, but
+        // restore first so an interrupted/repeated setup cannot keep a stale
+        // stress override on the renderer.
+        RestoreOriginalColors();
+
         manager = owner;
         material = mat;
         p1 = point1;
@@ -1792,6 +1819,13 @@ public class BarStressHandler : MonoBehaviour
         currentStressPercent = 0f;
         currentStructuralStressPercent = 0f;
         visualStressPercent = 0f;
+        isBroken = false;
+        canTrackStress = false;
+        FailureCause = string.Empty;
+        FailureForceNewtons = 0f;
+        joints = null;
+        ropeJoint = null;
+        forceHistory.Clear();
         settlingForceHistory.Clear();
 
         childRenderers = GetComponentsInChildren<Renderer>();
@@ -1806,25 +1840,56 @@ public class BarStressHandler : MonoBehaviour
             colorPropertyBlocks[i] = new MaterialPropertyBlock();
             if (renderer != null) renderer.GetPropertyBlock(colorPropertyBlocks[i]);
 
-            if (sharedMaterial != null && sharedMaterial.HasProperty(ColorProperty))
+            int colorPropertyId = ResolveColorPropertyId(sharedMaterial);
+            colorPropertyIds[i] = colorPropertyId;
+            if (colorPropertyId >= 0)
             {
-                colorPropertyIds[i] = ColorProperty;
-                originalColors[i] = sharedMaterial.GetColor(ColorProperty);
-            }
-            else if (sharedMaterial != null && sharedMaterial.HasProperty(BaseColorProperty))
-            {
-                colorPropertyIds[i] = BaseColorProperty;
-                originalColors[i] = sharedMaterial.GetColor(BaseColorProperty);
+                MaterialPropertyBlock block = colorPropertyBlocks[i];
+                originalColors[i] = block.HasColor(colorPropertyId)
+                    ? block.GetColor(colorPropertyId)
+                    : sharedMaterial.GetColor(colorPropertyId);
             }
             else
             {
-                colorPropertyIds[i] = -1;
                 originalColors[i] = Color.white;
             }
         }
 
+        // Force one controlled-rate refresh even when this run begins at zero
+        // stress, ensuring every repeated simulation starts from its safe color.
+        stressVisualDirty = true;
+
         if (mat.isRope && myBar != null)
             myBar.SetRopeSimulationVisual(true, restLength);
+    }
+
+    private static int ResolveColorPropertyId(Material sharedMaterial)
+    {
+        if (sharedMaterial == null) return -1;
+
+        // URP materials often retain both serialized compatibility properties.
+        // Resolve the shader's real [MainColor] property first so a property
+        // block is not written to an unused legacy _Color slot.
+        Shader shader = sharedMaterial.shader;
+        if (shader != null)
+        {
+            int propertyCount = shader.GetPropertyCount();
+            for (int i = 0; i < propertyCount; i++)
+            {
+                if (shader.GetPropertyType(i) != ShaderPropertyType.Color ||
+                    (shader.GetPropertyFlags(i) & ShaderPropertyFlags.MainColor) == 0)
+                    continue;
+
+                int mainColorId = shader.GetPropertyNameId(i);
+                if (sharedMaterial.HasProperty(mainColorId)) return mainColorId;
+            }
+        }
+
+        // Custom bridge shaders may not declare [MainColor]. Prefer the URP
+        // convention, then retain compatibility with Standard-style shaders.
+        if (sharedMaterial.HasProperty(BaseColorProperty)) return BaseColorProperty;
+        if (sharedMaterial.HasProperty(ColorProperty)) return ColorProperty;
+        return -1;
     }
 
     public void SetRopeJoint(SpringJoint joint)
@@ -1880,10 +1945,22 @@ public class BarStressHandler : MonoBehaviour
     {
         if (material != null && material.isRope && myBar != null)
             myBar.SetRopeSimulationVisual(false);
+        RestoreOriginalColors();
+    }
+
+    public void RestoreOriginalAppearance()
+    {
+        RestoreOriginalColors();
+    }
+
+    private void RestoreOriginalColors()
+    {
         if (childRenderers == null) return;
         for (int i = 0; i < childRenderers.Length; i++)
         {
-            if (childRenderers[i] != null) SetBarColor(originalColors[i], i);
+            if (childRenderers[i] != null && originalColors != null &&
+                i < originalColors.Length)
+                SetBarColor(originalColors[i], i);
         }
     }
 
