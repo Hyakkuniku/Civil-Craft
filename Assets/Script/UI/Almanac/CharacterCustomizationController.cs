@@ -72,6 +72,38 @@ public sealed class CharacterCustomizationController : MonoBehaviour
     private Vector3 portraitOriginalLocalScale;
     private Quaternion portraitOriginalLocalRotation;
 
+    public bool IsCustomizationReady => isCustomizationOpen && !isTransitioning &&
+        customizationPanel != null && customizationPanel.activeInHierarchy;
+    public bool IsCustomizationOpen => isCustomizationOpen || isTransitioning;
+    public CosmeticCategory CurrentCategory => currentCategory;
+
+    public bool IsAccessorySelectedInPreview(string cosmeticId)
+    {
+        return previewLoadout != null && previewLoadout.IsAccessoryEquipped(cosmeticId);
+    }
+
+    public RectTransform GetCosmeticOptionTarget(string cosmeticId)
+    {
+        foreach (CosmeticOptionButton slot in optionSlots)
+        {
+            if (slot != null && string.Equals(slot.CosmeticId, cosmeticId,
+                    StringComparison.OrdinalIgnoreCase))
+                return slot.ButtonTarget;
+        }
+        return null;
+    }
+
+    public RectTransform GetSaveLookTarget()
+    {
+        if (customizationPanel == null) return null;
+        foreach (Button button in customizationPanel.GetComponentsInChildren<Button>(true))
+        {
+            if (button != null && button.name == "SaveLookButton")
+                return button.GetComponent<RectTransform>();
+        }
+        return null;
+    }
+
     private void Awake()
     {
         InitializeButtons();

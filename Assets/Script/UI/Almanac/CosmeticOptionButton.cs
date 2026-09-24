@@ -15,6 +15,10 @@ public sealed class CosmeticOptionButton : MonoBehaviour
     private CosmeticDefinition definition;
     private Action<CosmeticDefinition> onClicked;
 
+    public string CosmeticId => definition != null ? definition.PermanentID : string.Empty;
+    public RectTransform ButtonTarget => button != null
+        ? button.GetComponent<RectTransform>() : null;
+
     private void Awake()
     {
         if (button == null) button = GetComponent<Button>();

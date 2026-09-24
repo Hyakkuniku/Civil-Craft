@@ -29,6 +29,8 @@ public class ShopManager : MonoBehaviour
     // optional vest prompt without buying it.
     private const string SafetyVestFollowupLessonId = "Sequence_Shop_SafetyVest_Purchase";
     private const string SafetyVestItemId = "shop_cosmetic_Accessory_SafetyVest";
+    private const string SafetyVestCosmeticId = "Accessory_SafetyVest";
+    private const string SafetyVestEquipLessonId = "Sequence_Shop_SafetyVest_Equip";
 
     public static ShopManager Instance { get; private set; }
 
@@ -87,11 +89,29 @@ public class ShopManager : MonoBehaviour
     private Coroutine ownedVestAdvanceCoroutine;
     private TutorialStep[] originalOpenTutorialSteps;
     private TutorialStep safetyVestPurchaseStep;
+    private TutorialStep shopCloseStep;
+    private TutorialStep openAlmanacStep;
+    private TutorialStep openEditPlayerStep;
+    private TutorialStep selectSafetyVestStep;
+    private TutorialStep saveSafetyVestStep;
+    private CharacterCustomizationController customizationController;
     private bool initialized;
 
     public GameObject Panel => shopPanel;
     public IReadOnlyList<ShopItemData> AllItems => allItems;
     public ShopCategory CurrentCategory => currentCategory;
+    public bool IsGuidingVestEquip
+    {
+        get
+        {
+            TutorialManager tutorial = TutorialManager.Instance;
+            return tutorial != null && tutorial.IsPlayingSequence(onOpenTutorial) &&
+                   (tutorial.CurrentStep == openAlmanacStep ||
+                    tutorial.CurrentStep == openEditPlayerStep ||
+                    tutorial.CurrentStep == selectSafetyVestStep ||
+                    tutorial.CurrentStep == saveSafetyVestStep);
+        }
+    }
 
 #if UNITY_EDITOR
     private void OnValidate()
@@ -154,11 +174,24 @@ public class ShopManager : MonoBehaviour
         UpdateCurrencyDisplay();
     }
 
+    private void Update()
+    {
+        MonitorVestEquipTutorial();
+    }
+
     private void OnDestroy()
     {
         UnbindPlayerData();
         if (safetyVestPurchaseStep != null)
             safetyVestPurchaseStep.OnStepStart.RemoveListener(PrepareSafetyVestPurchaseStep);
+        if (openAlmanacStep != null)
+            openAlmanacStep.OnStepStart.RemoveListener(PrepareOpenAlmanacStep);
+        if (openEditPlayerStep != null)
+            openEditPlayerStep.OnStepStart.RemoveListener(PrepareEditPlayerStep);
+        if (selectSafetyVestStep != null)
+            selectSafetyVestStep.OnStepStart.RemoveListener(PrepareSelectSafetyVestStep);
+        if (saveSafetyVestStep != null)
+            saveSafetyVestStep.OnStepStart.RemoveListener(PrepareSaveSafetyVestStep);
 
         foreach (KeyValuePair<Button, UnityAction> listener in tabListeners)
         {
@@ -264,8 +297,9 @@ public class ShopManager : MonoBehaviour
             !CanBuySafetyVestNow())
             return false;
 
-        int finalStepIndex = onOpenTutorial.tutorialSteps.Length - 1;
-        return TutorialManager.Instance.CurrentStepIndex < finalStepIndex;
+        int closeStepIndex = Array.IndexOf(onOpenTutorial.tutorialSteps, shopCloseStep);
+        if (closeStepIndex < 0) closeStepIndex = onOpenTutorial.tutorialSteps.Length - 1;
+        return TutorialManager.Instance.CurrentStepIndex < closeStepIndex;
     }
 
     private bool CanBuySafetyVestNow()
@@ -289,13 +323,15 @@ public class ShopManager : MonoBehaviour
     {
         if (onOpenTutorial == null ||
             (onOpenTutorial.lessonName != ShopIntroLessonId &&
-             onOpenTutorial.lessonName != SafetyVestFollowupLessonId))
+             onOpenTutorial.lessonName != SafetyVestFollowupLessonId &&
+             onOpenTutorial.lessonName != SafetyVestEquipLessonId))
             return;
 
         if (originalOpenTutorialSteps == null)
             originalOpenTutorialSteps = onOpenTutorial.tutorialSteps;
         if (originalOpenTutorialSteps == null || originalOpenTutorialSteps.Length == 0)
             return;
+        shopCloseStep = originalOpenTutorialSteps[originalOpenTutorialSteps.Length - 1];
 
         ShopItemData vest = allItems.Find(item => item != null && item.ItemId == SafetyVestItemId);
         if (vest == null)
@@ -320,41 +356,219 @@ public class ShopManager : MonoBehaviour
             };
             safetyVestPurchaseStep.OnStepStart.AddListener(PrepareSafetyVestPurchaseStep);
         }
+        EnsureVestEquipSteps();
 
         bool ownsVest = boundPlayerData != null && boundPlayerData.OwnsShopItem(SafetyVestItemId);
+        bool wearsVest = IsSafetyVestSavedEquipped();
         bool finishedIntro = boundPlayerData != null &&
             boundPlayerData.CurrentData.completedLessons.Contains(ShopIntroLessonId);
 
-        if (finishedIntro && !ownsVest)
+        if (finishedIntro)
         {
-            // Existing saves receive just the new lesson once, instead of replaying
-            // the entire introduction they already completed.
-            onOpenTutorial.lessonName = SafetyVestFollowupLessonId;
-            onOpenTutorial.tutorialSteps = new[]
+            // Older saves may have completed the previous purchase-only lesson.
+            // The new lesson finishes only after the vest is saved as equipped.
+            onOpenTutorial.lessonName = wearsVest ? ShopIntroLessonId : SafetyVestEquipLessonId;
+            if (wearsVest)
             {
-                safetyVestPurchaseStep,
-                originalOpenTutorialSteps[originalOpenTutorialSteps.Length - 1]
-            };
+                onOpenTutorial.tutorialSteps = originalOpenTutorialSteps;
+                return;
+            }
+
+            List<TutorialStep> followupSteps = new List<TutorialStep>();
+            if (!ownsVest) followupSteps.Add(safetyVestPurchaseStep);
+            followupSteps.Add(shopCloseStep);
+            AddVestEquipSteps(followupSteps);
+            foreach (TutorialStep step in followupSteps)
+            {
+                if (step != null) step.canSkip = false;
+            }
+            onOpenTutorial.tutorialSteps = followupSteps.ToArray();
             return;
         }
 
         onOpenTutorial.lessonName = ShopIntroLessonId;
-        if (ownsVest)
-        {
-            onOpenTutorial.tutorialSteps = originalOpenTutorialSteps;
-            return;
-        }
-
-        TutorialStep[] extendedSteps = new TutorialStep[originalOpenTutorialSteps.Length + 1];
-        int insertAt = originalOpenTutorialSteps.Length - 1;
-        Array.Copy(originalOpenTutorialSteps, 0, extendedSteps, 0, insertAt);
-        extendedSteps[insertAt] = safetyVestPurchaseStep;
-        extendedSteps[insertAt + 1] = originalOpenTutorialSteps[insertAt];
+        List<TutorialStep> extendedSteps = new List<TutorialStep>(originalOpenTutorialSteps.Length + 5);
+        for (int i = 0; i < originalOpenTutorialSteps.Length - 1; i++)
+            extendedSteps.Add(originalOpenTutorialSteps[i]);
+        if (!ownsVest && !wearsVest) extendedSteps.Add(safetyVestPurchaseStep);
+        extendedSteps.Add(shopCloseStep);
+        if (!wearsVest) AddVestEquipSteps(extendedSteps);
         foreach (TutorialStep step in extendedSteps)
         {
             if (step != null) step.canSkip = false;
         }
-        onOpenTutorial.tutorialSteps = extendedSteps;
+        onOpenTutorial.tutorialSteps = extendedSteps.ToArray();
+    }
+
+    private void AddVestEquipSteps(List<TutorialStep> steps)
+    {
+        steps.Add(openAlmanacStep);
+        steps.Add(openEditPlayerStep);
+        steps.Add(selectSafetyVestStep);
+        steps.Add(saveSafetyVestStep);
+    }
+
+    private void EnsureVestEquipSteps()
+    {
+        if (openAlmanacStep != null) return;
+
+        openAlmanacStep = CreateVestEquipStep(
+            "Now open the <b><#E09500>ALMANAC</color></b> to equip your new Safety Vest.");
+        openAlmanacStep.OnStepStart.AddListener(PrepareOpenAlmanacStep);
+
+        openEditPlayerStep = CreateVestEquipStep(
+            "Tap <b><#E09500>EDIT PLAYER</color></b> on your profile to open the wardrobe.");
+        openEditPlayerStep.OnStepStart.AddListener(PrepareEditPlayerStep);
+
+        selectSafetyVestStep = CreateVestEquipStep(
+            "In Accessories, select the <b><#E09500>SAFETY VEST</color></b> to wear it.");
+        selectSafetyVestStep.OnStepStart.AddListener(PrepareSelectSafetyVestStep);
+
+        saveSafetyVestStep = CreateVestEquipStep(
+            "Tap <b><#E09500>SAVE LOOK</color></b> to keep the Safety Vest equipped.");
+        saveSafetyVestStep.OnStepStart.AddListener(PrepareSaveSafetyVestStep);
+    }
+
+    private static TutorialStep CreateVestEquipStep(string message)
+    {
+        return new TutorialStep
+        {
+            message = message,
+            screenPosition = TutorialPosition.Left,
+            showNextButton = false,
+            canSkip = false,
+            usePointer = true,
+            pointerOffset = new Vector2(0f, 80f),
+            pointerRotation = 180f
+        };
+    }
+
+    private void PrepareOpenAlmanacStep()
+    {
+        GameObject button = AlmanacManager.Instance != null
+            ? AlmanacManager.Instance.hudOpenButton : null;
+        PointStepAt(openAlmanacStep, button != null
+            ? button.GetComponent<RectTransform>() : null);
+    }
+
+    private void PrepareEditPlayerStep()
+    {
+        Button button = AlmanacManager.Instance != null
+            ? AlmanacManager.Instance.EditPlayerButton : null;
+        PointStepAt(openEditPlayerStep, button != null
+            ? button.GetComponent<RectTransform>() : null);
+    }
+
+    private void PrepareSelectSafetyVestStep()
+    {
+        CharacterCustomizationController controller = GetCustomizationController();
+        if (controller != null && controller.IsCustomizationReady)
+            controller.ShowCategory(CosmeticCategory.Accessories);
+        PointStepAt(selectSafetyVestStep, controller != null
+            ? controller.GetCosmeticOptionTarget(SafetyVestCosmeticId) : null);
+    }
+
+    private void PrepareSaveSafetyVestStep()
+    {
+        CharacterCustomizationController controller = GetCustomizationController();
+        PointStepAt(saveSafetyVestStep, controller != null
+            ? controller.GetSaveLookTarget() : null);
+    }
+
+    private static void PointStepAt(TutorialStep step, RectTransform target)
+    {
+        if (step == null) return;
+        step.pointerTarget = target;
+        step.usePointer = target != null;
+    }
+
+    private CharacterCustomizationController GetCustomizationController()
+    {
+        if (customizationController != null) return customizationController;
+        AlmanacManager almanac = AlmanacManager.Instance;
+        if (almanac != null && almanac.Panel != null)
+            customizationController = almanac.Panel.GetComponentInChildren<CharacterCustomizationController>(true);
+        if (customizationController == null)
+            customizationController = FindObjectOfType<CharacterCustomizationController>(true);
+        return customizationController;
+    }
+
+    private static bool IsSafetyVestSavedEquipped()
+    {
+        PlayerDataManager dataManager = PlayerDataManager.Instance;
+        return dataManager != null && dataManager.CurrentData != null &&
+               dataManager.CurrentData.cosmeticLoadout != null &&
+               dataManager.CurrentData.cosmeticLoadout.IsAccessoryEquipped(SafetyVestCosmeticId);
+    }
+
+    private void MonitorVestEquipTutorial()
+    {
+        TutorialManager tutorial = TutorialManager.Instance;
+        if (tutorial == null || !tutorial.IsPlayingSequence(onOpenTutorial)) return;
+
+        TutorialStep step = tutorial.CurrentStep;
+        if (step != openAlmanacStep && step != openEditPlayerStep &&
+            step != selectSafetyVestStep && step != saveSafetyVestStep)
+            return;
+
+        AlmanacManager almanac = AlmanacManager.Instance;
+        CharacterCustomizationController controller = GetCustomizationController();
+        if (step == openAlmanacStep)
+        {
+            if (almanac != null && almanac.IsOpenAndReady)
+                tutorial.ShowNextStep();
+            return;
+        }
+
+        if (step == saveSafetyVestStep && IsSafetyVestSavedEquipped())
+        {
+            // Saving persists immediately, but let the wardrobe's return animation
+            // finish before completing the tutorial and releasing queued guides.
+            if (controller == null || !controller.IsCustomizationOpen)
+                tutorial.ShowNextStep();
+            return;
+        }
+
+        if (almanac == null || !almanac.IsOpenAndReady)
+        {
+            ReturnToVestEquipStep(tutorial, openAlmanacStep);
+            return;
+        }
+
+        if (step == openEditPlayerStep)
+        {
+            if (controller != null && controller.IsCustomizationReady)
+                tutorial.ShowNextStep();
+            return;
+        }
+
+        if (controller == null) return;
+        if (!controller.IsCustomizationOpen)
+        {
+            ReturnToVestEquipStep(tutorial, openEditPlayerStep);
+            return;
+        }
+        if (!controller.IsCustomizationReady) return;
+
+        if (step == selectSafetyVestStep)
+        {
+            if (controller.CurrentCategory != CosmeticCategory.Accessories)
+                PrepareSelectSafetyVestStep();
+            if (controller.IsAccessorySelectedInPreview(SafetyVestCosmeticId))
+                tutorial.ShowNextStep();
+        }
+        else if (!controller.IsAccessorySelectedInPreview(SafetyVestCosmeticId))
+        {
+            ReturnToVestEquipStep(tutorial, selectSafetyVestStep);
+        }
+    }
+
+    private void ReturnToVestEquipStep(TutorialManager tutorial, TutorialStep target)
+    {
+        if (tutorial == null || onOpenTutorial == null || onOpenTutorial.tutorialSteps == null)
+            return;
+        int index = Array.IndexOf(onOpenTutorial.tutorialSteps, target);
+        if (index >= 0) tutorial.ReturnToStep(index);
     }
 
     private void PrepareSafetyVestPurchaseStep()

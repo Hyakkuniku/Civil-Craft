@@ -38,6 +38,16 @@ public class AlmanacManager : MonoBehaviour
 {
     public static AlmanacManager Instance { get; private set; }
     public GameObject Panel => almanacCanvas;
+    public bool IsOpenAndReady => almanacCanvas != null &&
+        almanacCanvas.activeInHierarchy && !isAnimating;
+    public Button EditPlayerButton
+    {
+        get
+        {
+            if (editPlayerButton == null) RefreshEditPlayerAccess();
+            return editPlayerButton;
+        }
+    }
 
     [Header("HUD Integration")]
     public GameObject hudOpenButton; 
@@ -545,7 +555,9 @@ public class AlmanacManager : MonoBehaviour
         RefreshEditPlayerAccess();
 
         bool startedFirstOpenTutorial = false;
-        if (onFirstOpenTutorial != null)
+        bool guidingVestEquip = ShopManager.Instance != null &&
+            ShopManager.Instance.IsGuidingVestEquip;
+        if (onFirstOpenTutorial != null && !guidingVestEquip)
         {
             if (TutorialManager.Instance != null)
             {
@@ -558,7 +570,7 @@ public class AlmanacManager : MonoBehaviour
 
         // The first-open walkthrough owns this visit. Newly unlocked tab guides
         // begin on the next open so their pointers never compete for the book UI.
-        if (!startedFirstOpenTutorial)
+        if (!startedFirstOpenTutorial && !guidingVestEquip)
             TryStartPendingTabUnlockTutorial();
 
         isAnimating = false;
@@ -611,7 +623,8 @@ public class AlmanacManager : MonoBehaviour
     private void TryStartPendingTabUnlockTutorial()
     {
         if (almanacCanvas == null || !almanacCanvas.activeInHierarchy ||
-            PlayerDataManager.Instance == null || TutorialManager.Instance == null)
+            PlayerDataManager.Instance == null || TutorialManager.Instance == null ||
+            (ShopManager.Instance != null && ShopManager.Instance.IsGuidingVestEquip))
         {
             return;
         }
@@ -637,6 +650,7 @@ public class AlmanacManager : MonoBehaviour
     private void TryStartSelectedTabUnlockTutorial(AlmanacTabType selectedType)
     {
         if (PlayerDataManager.Instance == null || TutorialManager.Instance == null ||
+            (ShopManager.Instance != null && ShopManager.Instance.IsGuidingVestEquip) ||
             !IsTabUnlocked(PlayerDataManager.Instance.CurrentData, selectedType))
         {
             return;
