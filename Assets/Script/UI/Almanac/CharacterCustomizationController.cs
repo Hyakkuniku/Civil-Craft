@@ -126,6 +126,8 @@ public sealed class CharacterCustomizationController : MonoBehaviour
 
     public void OpenCustomization()
     {
+        if (AlmanacManager.Instance == null || !AlmanacManager.Instance.CanEditPlayer)
+            return;
         if (isTransitioning || isCustomizationOpen) return;
         if (!ResolvePreviewMirror())
         {

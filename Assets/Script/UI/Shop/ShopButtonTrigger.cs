@@ -98,7 +98,7 @@ public class ShopButtonTrigger : MonoBehaviour
         PlayerDataManager.Instance.OnFeatureUnlocksChanged += RefreshVisibility;
     }
 
-    private bool IsShopUnlocked()
+    public bool IsShopUnlocked()
     {
         return !requirePersistentUnlock ||
                (PlayerDataManager.Instance != null &&

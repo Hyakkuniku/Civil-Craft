@@ -24,6 +24,12 @@ public class ShopCategoryTab
 [DisallowMultipleComponent]
 public class ShopManager : MonoBehaviour
 {
+    private const string ShopIntroLessonId = "Sequence_Shop";
+    // A new lesson ID is intentional: older saves may have completed the
+    // optional vest prompt without buying it.
+    private const string SafetyVestFollowupLessonId = "Sequence_Shop_SafetyVest_Purchase";
+    private const string SafetyVestItemId = "shop_cosmetic_Accessory_SafetyVest";
+
     public static ShopManager Instance { get; private set; }
 
     [Header("Panel")]
@@ -78,6 +84,9 @@ public class ShopManager : MonoBehaviour
     private PlayerDataManager boundPlayerData;
     private ShopItemData pendingPurchase;
     private Coroutine openTutorialCoroutine;
+    private Coroutine ownedVestAdvanceCoroutine;
+    private TutorialStep[] originalOpenTutorialSteps;
+    private TutorialStep safetyVestPurchaseStep;
     private bool initialized;
 
     public GameObject Panel => shopPanel;
@@ -148,6 +157,8 @@ public class ShopManager : MonoBehaviour
     private void OnDestroy()
     {
         UnbindPlayerData();
+        if (safetyVestPurchaseStep != null)
+            safetyVestPurchaseStep.OnStepStart.RemoveListener(PrepareSafetyVestPurchaseStep);
 
         foreach (KeyValuePair<Button, UnityAction> listener in tabListeners)
         {
@@ -197,6 +208,13 @@ public class ShopManager : MonoBehaviour
             return;
         }
 
+        // If the player cannot make the required purchase, let them leave without
+        // recording tutorial completion. It will prompt them again on the next visit.
+        TutorialManager tutorial = TutorialManager.Instance;
+        if (tutorial != null && tutorial.IsPlayingSequence(onOpenTutorial) &&
+            tutorial.CurrentStep == safetyVestPurchaseStep && !CanBuySafetyVestNow())
+            tutorial.CancelTutorialWithoutCompletion(onOpenTutorial);
+
         if (openTutorialCoroutine != null)
         {
             StopCoroutine(openTutorialCoroutine);
@@ -224,6 +242,8 @@ public class ShopManager : MonoBehaviour
 
         Canvas.ForceUpdateCanvases();
 
+        ConfigureSafetyVestTutorial();
+
         if (TutorialManager.Instance != null)
             TutorialManager.Instance.PlayPriorityTutorial(onOpenTutorial);
         else
@@ -240,8 +260,161 @@ public class ShopManager : MonoBehaviour
             return false;
         }
 
+        if (TutorialManager.Instance.CurrentStep == safetyVestPurchaseStep &&
+            !CanBuySafetyVestNow())
+            return false;
+
         int finalStepIndex = onOpenTutorial.tutorialSteps.Length - 1;
         return TutorialManager.Instance.CurrentStepIndex < finalStepIndex;
+    }
+
+    private bool CanBuySafetyVestNow()
+    {
+        ShopItemData vest = allItems.Find(item => item != null && item.ItemId == SafetyVestItemId);
+        if (vest == null || boundPlayerData == null || boundPlayerData.CurrentData == null ||
+            boundPlayerData.CurrentData.gold < vest.price)
+            return false;
+
+        foreach (ShopItemUI card in cardPool)
+        {
+            if (card != null && card.Item != null && card.Item.ItemId == SafetyVestItemId &&
+                card.PurchaseButtonTarget != null)
+                return true;
+        }
+
+        return false;
+    }
+
+    private void ConfigureSafetyVestTutorial()
+    {
+        if (onOpenTutorial == null ||
+            (onOpenTutorial.lessonName != ShopIntroLessonId &&
+             onOpenTutorial.lessonName != SafetyVestFollowupLessonId))
+            return;
+
+        if (originalOpenTutorialSteps == null)
+            originalOpenTutorialSteps = onOpenTutorial.tutorialSteps;
+        if (originalOpenTutorialSteps == null || originalOpenTutorialSteps.Length == 0)
+            return;
+
+        ShopItemData vest = allItems.Find(item => item != null && item.ItemId == SafetyVestItemId);
+        if (vest == null)
+        {
+            Debug.LogWarning("[ShopManager] Safety Vest is missing from the shop catalog; its tutorial step was not added.", this);
+            onOpenTutorial.lessonName = ShopIntroLessonId;
+            onOpenTutorial.tutorialSteps = originalOpenTutorialSteps;
+            return;
+        }
+
+        if (safetyVestPurchaseStep == null)
+        {
+            safetyVestPurchaseStep = new TutorialStep
+            {
+                message = "Buy the <b><#E09500>SAFETY VEST</color></b> in Accessories. Confirm the purchase to continue. Short on coins? Close the Shop and return later.",
+                screenPosition = TutorialPosition.LowCenter,
+                showNextButton = false,
+                canSkip = false,
+                usePointer = true,
+                pointerOffset = new Vector2(0f, 80f),
+                pointerRotation = 180f
+            };
+            safetyVestPurchaseStep.OnStepStart.AddListener(PrepareSafetyVestPurchaseStep);
+        }
+
+        bool ownsVest = boundPlayerData != null && boundPlayerData.OwnsShopItem(SafetyVestItemId);
+        bool finishedIntro = boundPlayerData != null &&
+            boundPlayerData.CurrentData.completedLessons.Contains(ShopIntroLessonId);
+
+        if (finishedIntro && !ownsVest)
+        {
+            // Existing saves receive just the new lesson once, instead of replaying
+            // the entire introduction they already completed.
+            onOpenTutorial.lessonName = SafetyVestFollowupLessonId;
+            onOpenTutorial.tutorialSteps = new[]
+            {
+                safetyVestPurchaseStep,
+                originalOpenTutorialSteps[originalOpenTutorialSteps.Length - 1]
+            };
+            return;
+        }
+
+        onOpenTutorial.lessonName = ShopIntroLessonId;
+        if (ownsVest)
+        {
+            onOpenTutorial.tutorialSteps = originalOpenTutorialSteps;
+            return;
+        }
+
+        TutorialStep[] extendedSteps = new TutorialStep[originalOpenTutorialSteps.Length + 1];
+        int insertAt = originalOpenTutorialSteps.Length - 1;
+        Array.Copy(originalOpenTutorialSteps, 0, extendedSteps, 0, insertAt);
+        extendedSteps[insertAt] = safetyVestPurchaseStep;
+        extendedSteps[insertAt + 1] = originalOpenTutorialSteps[insertAt];
+        foreach (TutorialStep step in extendedSteps)
+        {
+            if (step != null) step.canSkip = false;
+        }
+        onOpenTutorial.tutorialSteps = extendedSteps;
+    }
+
+    private void PrepareSafetyVestPurchaseStep()
+    {
+        ShowAccessories();
+
+        safetyVestPurchaseStep.usePointer = false;
+        safetyVestPurchaseStep.pointerTarget = null;
+        foreach (ShopItemUI card in cardPool)
+        {
+            if (card == null || card.Item == null || card.Item.ItemId != SafetyVestItemId ||
+                !card.gameObject.activeInHierarchy)
+                continue;
+
+            RectTransform target = card.PurchaseButtonTarget;
+            if (target == null) target = card.GetComponent<RectTransform>();
+            safetyVestPurchaseStep.pointerTarget = target;
+            safetyVestPurchaseStep.usePointer = target != null;
+            ScrollCardIntoView(card.GetComponent<RectTransform>());
+            break;
+        }
+
+        if (boundPlayerData != null && boundPlayerData.OwnsShopItem(SafetyVestItemId) &&
+            ownedVestAdvanceCoroutine == null)
+            ownedVestAdvanceCoroutine = StartCoroutine(AdvanceOwnedVestStep());
+    }
+
+    private IEnumerator AdvanceOwnedVestStep()
+    {
+        yield return null;
+        ownedVestAdvanceCoroutine = null;
+        TutorialManager tutorial = TutorialManager.Instance;
+        if (tutorial != null && tutorial.IsPlayingSequence(onOpenTutorial) &&
+            tutorial.CurrentStep == safetyVestPurchaseStep)
+            tutorial.ShowNextStep();
+    }
+
+    private void ScrollCardIntoView(RectTransform card)
+    {
+        if (card == null || itemGridContent == null) return;
+        ScrollRect scroll = itemGridContent.GetComponentInParent<ScrollRect>();
+        if (scroll == null || scroll.content == null) return;
+
+        RectTransform viewport = scroll.viewport != null
+            ? scroll.viewport : scroll.GetComponent<RectTransform>();
+        if (viewport == null) return;
+
+        Canvas.ForceUpdateCanvases();
+        Bounds cardBounds = RectTransformUtility.CalculateRelativeRectTransformBounds(viewport, card);
+        Rect visible = viewport.rect;
+        float offset = cardBounds.max.y > visible.yMax
+            ? cardBounds.max.y - visible.yMax
+            : cardBounds.min.y < visible.yMin
+                ? cardBounds.min.y - visible.yMin
+                : 0f;
+        if (Mathf.Approximately(offset, 0f)) return;
+
+        scroll.StopMovement();
+        scroll.content.anchoredPosition -= new Vector2(0f, offset);
+        Canvas.ForceUpdateCanvases();
     }
 
     public void ShowCategory(ShopCategory category)
@@ -327,6 +500,7 @@ public class ShopManager : MonoBehaviour
         PopulateConfirmation(item);
         purchaseConfirmationPanel.SetActive(true);
         purchaseConfirmationPanel.transform.SetAsLastSibling();
+        UpdateTutorialPresentationForModal();
         return true;
     }
 
@@ -344,6 +518,7 @@ public class ShopManager : MonoBehaviour
         pendingPurchase = null;
         if (purchaseConfirmationPanel != null)
             purchaseConfirmationPanel.SetActive(false);
+        UpdateTutorialPresentationForModal();
     }
 
     public void CancelPendingPurchase()
@@ -351,12 +526,26 @@ public class ShopManager : MonoBehaviour
         pendingPurchase = null;
         if (purchaseConfirmationPanel != null)
             purchaseConfirmationPanel.SetActive(false);
+        UpdateTutorialPresentationForModal();
     }
 
     public void HidePurchaseFeedback()
     {
         if (purchaseFeedbackPanel != null)
             purchaseFeedbackPanel.SetActive(false);
+        UpdateTutorialPresentationForModal();
+    }
+
+    private void UpdateTutorialPresentationForModal()
+    {
+        TutorialManager tutorial = TutorialManager.Instance;
+        if (tutorial == null || onOpenTutorial == null) return;
+
+        bool modalOpen = (purchaseConfirmationPanel != null &&
+                          purchaseConfirmationPanel.activeInHierarchy) ||
+                         (purchaseFeedbackPanel != null &&
+                          purchaseFeedbackPanel.activeInHierarchy);
+        tutorial.SetPresentationSuppressed(onOpenTutorial, modalOpen);
     }
 
     public void HandleAddCurrencyClicked()
@@ -475,6 +664,7 @@ public class ShopManager : MonoBehaviour
 
         purchaseFeedbackPanel.SetActive(true);
         purchaseFeedbackPanel.transform.SetAsLastSibling();
+        UpdateTutorialPresentationForModal();
     }
 
     private bool CanPurchase(ShopItemData item, out string rejection)
@@ -531,6 +721,11 @@ public class ShopManager : MonoBehaviour
 
         Debug.Log($"[ShopManager] Purchased '{item.itemName}' for {FormatPrice(item.price)}.", item);
         onItemPurchased.Invoke(item);
+        if (item.ItemId == SafetyVestItemId && ownedVestAdvanceCoroutine == null &&
+            TutorialManager.Instance != null &&
+            TutorialManager.Instance.IsPlayingSequence(onOpenTutorial) &&
+            TutorialManager.Instance.CurrentStep == safetyVestPurchaseStep)
+            ownedVestAdvanceCoroutine = StartCoroutine(AdvanceOwnedVestStep());
         RefreshVisibleCards();
         UpdateCurrencyDisplay();
         return true;

@@ -149,6 +149,11 @@ public class TutorialManager : MonoBehaviour
 
     private TutorialSequence currentSequence;
     private int currentStepIndex = -1;
+    private TutorialSequence presentationSuppressedFor;
+    private int suppressedPresentationStepIndex = -1;
+    private bool suppressedPanelWasActive;
+    private bool suppressedNextWasActive;
+    private bool suppressedSkipWasActive;
     private bool isAdvancingStep;
     private int lastAdvanceFrame = -1;
     private readonly List<TutorialSequence> queuedSequences = new List<TutorialSequence>();
@@ -210,6 +215,17 @@ public class TutorialManager : MonoBehaviour
             return false;
 
         CompleteTutorial();
+        return true;
+    }
+
+    /// <summary>Stops a modal tutorial without saving it as completed.</summary>
+    public bool CancelTutorialWithoutCompletion(TutorialSequence sequence)
+    {
+        if (!IsPlayingSequence(sequence)) return false;
+
+        SuspendCurrentTutorial();
+        if (suspendedTutorialResumeHoldCount == 0 && !TryResumeSuspendedTutorial())
+            TryStartQueuedTutorialNextFrame();
         return true;
     }
 
@@ -475,7 +491,8 @@ public class TutorialManager : MonoBehaviour
         {
             var step = currentSequence.tutorialSteps[currentStepIndex];
             
-            if (step.usePointer && step.pointerTarget != null && bouncingArrow != null)
+            if (presentationSuppressedFor == null && step.usePointer &&
+                step.pointerTarget != null && bouncingArrow != null)
             {
                 bouncingArrow.PointAt(step.pointerTarget, step.pointerOffset);
                 bouncingArrow.transform.localEulerAngles = new Vector3(0, 0, step.pointerRotation);
@@ -491,6 +508,8 @@ public class TutorialManager : MonoBehaviour
             QueueTutorial(sequence);
             return;
         }
+
+        ClearPresentationSuppression();
 
         ClearTrackedButton();
         isAdvancingStep = false;
@@ -767,6 +786,8 @@ public class TutorialManager : MonoBehaviour
 
         lastScreenPosition = step.screenPosition;
         step.OnStepStart?.Invoke();
+        if (presentationSuppressedFor != null && presentationSuppressedFor == currentSequence)
+            CaptureAndHideCurrentPresentation();
     }
 
     private GameObject GetPanelForPosition(TutorialPosition position)
@@ -967,7 +988,71 @@ public class TutorialManager : MonoBehaviour
 
     public void SetNextButtonActive(bool isActive)
     {
+        if (presentationSuppressedFor != null && presentationSuppressedFor == currentSequence)
+        {
+            suppressedNextWasActive = isActive;
+            return;
+        }
+
         if (nextButton != null) nextButton.SetActive(isActive);
+    }
+
+    /// <summary>
+    /// Temporarily hides this sequence's tutorial controls while its own modal
+    /// dialog needs the screen. The step stays active and resumes on cancel.
+    /// </summary>
+    public void SetPresentationSuppressed(TutorialSequence sequence, bool suppressed)
+    {
+        if (sequence == null) return;
+
+        if (suppressed)
+        {
+            if (!IsPlayingSequence(sequence)) return;
+            if (presentationSuppressedFor == sequence) return;
+            presentationSuppressedFor = sequence;
+            CaptureAndHideCurrentPresentation();
+            return;
+        }
+
+        if (presentationSuppressedFor != sequence) return;
+        bool canRestore = IsPlayingSequence(sequence) &&
+            suppressedPresentationStepIndex == currentStepIndex;
+        bool panelWasActive = suppressedPanelWasActive;
+        bool nextWasActive = suppressedNextWasActive;
+        bool skipWasActive = suppressedSkipWasActive;
+        ClearPresentationSuppression();
+        if (!canRestore) return;
+
+        GameObject panel = GetPanelForPosition(currentSequence.tutorialSteps[currentStepIndex].screenPosition);
+        if (panel != null) panel.SetActive(panelWasActive);
+        if (nextButton != null) nextButton.SetActive(nextWasActive);
+        if (skipButton != null) skipButton.SetActive(skipWasActive);
+    }
+
+    private void CaptureAndHideCurrentPresentation()
+    {
+        TutorialStep step = CurrentStep;
+        if (step == null) return;
+
+        GameObject panel = GetPanelForPosition(step.screenPosition);
+        suppressedPresentationStepIndex = currentStepIndex;
+        suppressedPanelWasActive = panel != null && panel.activeSelf;
+        suppressedNextWasActive = nextButton != null && nextButton.activeSelf;
+        suppressedSkipWasActive = skipButton != null && skipButton.activeSelf;
+
+        if (panel != null) panel.SetActive(false);
+        if (nextButton != null) nextButton.SetActive(false);
+        if (skipButton != null) skipButton.SetActive(false);
+        if (bouncingArrow != null) bouncingArrow.Hide();
+    }
+
+    private void ClearPresentationSuppression()
+    {
+        presentationSuppressedFor = null;
+        suppressedPresentationStepIndex = -1;
+        suppressedPanelWasActive = false;
+        suppressedNextWasActive = false;
+        suppressedSkipWasActive = false;
     }
 
     /// <summary>
@@ -988,6 +1073,7 @@ public class TutorialManager : MonoBehaviour
     private void CompleteTutorial()
     {
         TutorialSequence completedSequence = currentSequence;
+        ClearPresentationSuppression();
         ClearTrackedButton(); 
         Tutorial3DIndicator.HideAll();
         TutorialAnchorHighlighter.ClearAll();
@@ -1056,6 +1142,7 @@ public class TutorialManager : MonoBehaviour
 
     private void SuspendCurrentTutorial()
     {
+        ClearPresentationSuppression();
         ClearTrackedButton();
         Tutorial3DIndicator.HideAll();
         TutorialAnchorHighlighter.ClearAll();

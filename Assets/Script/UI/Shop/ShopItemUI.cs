@@ -18,6 +18,9 @@ public class ShopItemUI : MonoBehaviour
     private ShopItemData item;
 
     public ShopItemData Item => item;
+    public RectTransform PurchaseButtonTarget => buyButton != null
+        ? buyButton.GetComponent<RectTransform>()
+        : null;
 
     private void Awake()
     {

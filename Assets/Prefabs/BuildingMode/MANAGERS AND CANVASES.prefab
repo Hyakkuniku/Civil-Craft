@@ -7877,6 +7877,8 @@ MonoBehaviour:
   uiElementsToHide:
   - {fileID: 0}
   almanacCanvas: {fileID: 1595121132325660703}
+  editPlayerButton: {fileID: 8540294829275267830}
+  shopUnlockSource: {fileID: 0}
   categories:
   - categoryName: PlayerStats
     tabType: 0
@@ -21230,7 +21232,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &6643937494759460600
 RectTransform:
   m_ObjectHideFlags: 0

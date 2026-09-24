@@ -64,6 +64,20 @@ public class AlmanacManager : MonoBehaviour
     [Header("UI Panels")]
     public GameObject almanacCanvas;
 
+    [Header("Shop-Gated Player Editing")]
+    [SerializeField] private Button editPlayerButton;
+    [SerializeField] private ShopButtonTrigger shopUnlockSource;
+
+    public bool CanEditPlayer
+    {
+        get
+        {
+            if (shopUnlockSource == null)
+                shopUnlockSource = FindObjectOfType<ShopButtonTrigger>(true);
+            return shopUnlockSource != null && shopUnlockSource.IsShopUnlocked();
+        }
+    }
+
     [Header("Tabs & Categories")]
     public List<AlmanacCategory> categories = new List<AlmanacCategory>();
     public float selectedTabUpOffset = 15f; 
@@ -155,6 +169,7 @@ public class AlmanacManager : MonoBehaviour
 
             PlayerDataManager.Instance.OnAlmanacUnlocked += ShowHudButton;
             PlayerDataManager.Instance.OnAlmanacAlertsChanged += HandleAlmanacAlertsChanged;
+            PlayerDataManager.Instance.OnFeatureUnlocksChanged += RefreshEditPlayerAccess;
         }
 
         if (TutorialManager.Instance != null)
@@ -162,6 +177,7 @@ public class AlmanacManager : MonoBehaviour
 
         EvaluateTabUnlocks();
         RefreshPersistentAlerts();
+        RefreshEditPlayerAccess();
     }
 
     private void OnDestroy()
@@ -170,6 +186,7 @@ public class AlmanacManager : MonoBehaviour
         {
             PlayerDataManager.Instance.OnAlmanacUnlocked -= ShowHudButton;
             PlayerDataManager.Instance.OnAlmanacAlertsChanged -= HandleAlmanacAlertsChanged;
+            PlayerDataManager.Instance.OnFeatureUnlocksChanged -= RefreshEditPlayerAccess;
         }
 
         if (TutorialManager.Instance != null)
@@ -189,6 +206,29 @@ public class AlmanacManager : MonoBehaviour
     private void HandleAlmanacAlertsChanged()
     {
         RefreshPersistentAlerts();
+    }
+
+    private void RefreshEditPlayerAccess()
+    {
+        // Existing scene copies of the Almanac predate the serialized binding.
+        // Resolve their single Profile/Edit button without changing the scene's
+        // large authored hierarchy or affecting any other Almanac control.
+        if (editPlayerButton == null && almanacCanvas != null)
+        {
+            foreach (Button candidate in almanacCanvas.GetComponentsInChildren<Button>(true))
+            {
+                if (candidate == null || candidate.name != "Edit") continue;
+                editPlayerButton = candidate;
+                break;
+            }
+        }
+
+        if (editPlayerButton != null)
+        {
+            bool unlocked = CanEditPlayer;
+            editPlayerButton.interactable = unlocked;
+            editPlayerButton.gameObject.SetActive(unlocked);
+        }
     }
 
     private void HandleTutorialCompleted(TutorialSequence completedSequence)
@@ -462,6 +502,7 @@ public class AlmanacManager : MonoBehaviour
     {
         if (isAnimating) return; 
 
+        RefreshEditPlayerAccess();
         CaptureArchiveInteractionButtonContainers();
         EvaluateTabUnlocks(); 
         StartCoroutine(OpenAlmanacRoutine());
@@ -501,6 +542,7 @@ public class AlmanacManager : MonoBehaviour
             if (hub != null) hub.ResetToHome();
         }
         SelectFirstVisibleCategory();
+        RefreshEditPlayerAccess();
 
         bool startedFirstOpenTutorial = false;
         if (onFirstOpenTutorial != null)
