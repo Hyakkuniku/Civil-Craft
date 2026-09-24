@@ -92,7 +92,7 @@ public class ShopItemUI : MonoBehaviour
         }
 
         if (buyButton != null)
-            buyButton.interactable = valid && !owned;
+            buyButton.interactable = valid && !owned && owner.CanInteractWithItem(item);
     }
 
     private void HandleBuyClicked()

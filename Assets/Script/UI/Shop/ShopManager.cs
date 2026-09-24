@@ -96,10 +96,28 @@ public class ShopManager : MonoBehaviour
     private TutorialStep saveSafetyVestStep;
     private CharacterCustomizationController customizationController;
     private bool initialized;
+    private bool appliedVestShopLock;
 
     public GameObject Panel => shopPanel;
     public IReadOnlyList<ShopItemData> AllItems => allItems;
     public ShopCategory CurrentCategory => currentCategory;
+    public bool IsVestShopTutorialLocked
+    {
+        get
+        {
+            TutorialManager tutorial = TutorialManager.Instance;
+            if (shopPanel == null || !shopPanel.activeInHierarchy ||
+                tutorial == null || !tutorial.IsPlayingSequence(onOpenTutorial) ||
+                onOpenTutorial.tutorialSteps == null)
+                return false;
+
+            TutorialStep[] steps = onOpenTutorial.tutorialSteps;
+            int closeIndex = Array.IndexOf(steps, shopCloseStep);
+            return closeIndex >= 0 && openAlmanacStep != null &&
+                   Array.IndexOf(steps, openAlmanacStep) >= 0 &&
+                   tutorial.CurrentStepIndex <= closeIndex;
+        }
+    }
     public bool IsGuidingVestEquip
     {
         get
@@ -177,6 +195,20 @@ public class ShopManager : MonoBehaviour
     private void Update()
     {
         MonitorVestEquipTutorial();
+        RefreshVestShopLock();
+    }
+
+    private void RefreshVestShopLock()
+    {
+        bool locked = IsVestShopTutorialLocked;
+        if (locked == appliedVestShopLock) return;
+        appliedVestShopLock = locked;
+        if (locked) ShowCategory(ShopCategory.Accessory);
+        else
+        {
+            RefreshTabVisuals();
+            RefreshVisibleCards();
+        }
     }
 
     private void OnDestroy()
@@ -206,6 +238,12 @@ public class ShopManager : MonoBehaviour
 
     public void OpenShop()
     {
+        if (IsGuidingVestEquip)
+        {
+            Debug.Log("[ShopManager] Finish equipping the Safety Vest before returning to the Shop.", this);
+            return;
+        }
+
         InitializeIfNeeded();
         BindPlayerData();
 
@@ -277,10 +315,31 @@ public class ShopManager : MonoBehaviour
 
         ConfigureSafetyVestTutorial();
 
+        // The original category-tour click would contradict the locked vest
+        // purchase flow. Keep its explanation, but advance with NEXT instead.
+        if (onOpenTutorial.tutorialSteps != null &&
+            Array.IndexOf(onOpenTutorial.tutorialSteps, openAlmanacStep) >= 0 &&
+            originalOpenTutorialSteps != null && originalOpenTutorialSteps.Length > 1)
+        {
+            TutorialStep categoryStep = originalOpenTutorialSteps[1];
+            categoryStep.message = "You can browse the other <b><#E09500>SHOP CATEGORIES</color></b> after the Safety Vest walkthrough. For now, stay in Accessories.";
+            categoryStep.showNextButton = true;
+            categoryStep.advanceOnClick = false;
+            categoryStep.usePointer = false;
+
+            if (originalOpenTutorialSteps.Length > 2)
+            {
+                TutorialStep itemStep = originalOpenTutorialSteps[2];
+                itemStep.message = "Each card shows its <b><#E09500>PRICE</color></b>. For this walkthrough, only the Safety Vest can be purchased.";
+                itemStep.usePointer = false;
+            }
+        }
+
         if (TutorialManager.Instance != null)
             TutorialManager.Instance.PlayPriorityTutorial(onOpenTutorial);
         else
             onOpenTutorial.TryStartTutorial();
+        RefreshVestShopLock();
     }
 
     private bool IsOpenTutorialBlockingClose()
@@ -634,6 +693,8 @@ public class ShopManager : MonoBehaviour
     public void ShowCategory(ShopCategory category)
     {
         InitializeIfNeeded();
+        if (IsVestShopTutorialLocked && category != ShopCategory.Accessory)
+            return;
         currentCategory = category;
 
         List<ShopItemData> filtered = new List<ShopItemData>();
@@ -774,6 +835,11 @@ public class ShopManager : MonoBehaviour
         return item != null && boundPlayerData != null && boundPlayerData.OwnsShopItem(item.ItemId);
     }
 
+    public bool CanInteractWithItem(ShopItemData item)
+    {
+        return item != null && (!IsVestShopTutorialLocked || item.ItemId == SafetyVestItemId);
+    }
+
     public string FormatPrice(int price)
     {
         return $"{currencyPrefix}{Mathf.Max(0, price):N0}";
@@ -851,8 +917,12 @@ public class ShopManager : MonoBehaviour
     {
         foreach (ShopCategoryTab tab in categoryTabs)
         {
-            if (tab == null || tab.selectedVisual == null) continue;
-            tab.selectedVisual.SetActive(tab.category == currentCategory);
+            if (tab == null) continue;
+            if (tab.button != null)
+                tab.button.interactable = !IsVestShopTutorialLocked ||
+                                          tab.category == ShopCategory.Accessory;
+            if (tab.selectedVisual != null)
+                tab.selectedVisual.SetActive(tab.category == currentCategory);
         }
     }
 
@@ -886,6 +956,12 @@ public class ShopManager : MonoBehaviour
         if (item == null || string.IsNullOrWhiteSpace(item.ItemId))
         {
             rejection = "This shop item is not configured correctly.";
+            return false;
+        }
+
+        if (IsVestShopTutorialLocked && item.ItemId != SafetyVestItemId)
+        {
+            rejection = "Buy and equip the Safety Vest before shopping for other items.";
             return false;
         }
 
