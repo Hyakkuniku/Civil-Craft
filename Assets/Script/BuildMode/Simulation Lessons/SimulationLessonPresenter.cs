@@ -641,7 +641,15 @@ public sealed class SimulationLessonPresenter : MonoBehaviour
 
     private void ApplyLessonSlowMotion()
     {
-        if (slowMotionApplied || definition == null || !definition.enableSlowMotion ||
+        // The generic fallback lesson is informational and must not alter the
+        // simulation speed. Slow motion is reserved for a lesson deliberately
+        // authored and assigned to the active build location.
+        bool hasAuthoredLocationLesson = lessonLocation != null &&
+            lessonLocation.simulationLesson != null &&
+            definition == lessonLocation.simulationLesson;
+
+        if (!hasAuthoredLocationLesson || slowMotionApplied || definition == null ||
+            !definition.enableSlowMotion ||
             physicsManager == null || !physicsManager.IsSimulationActive || Time.timeScale <= 0f)
         {
             return;
