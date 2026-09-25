@@ -16,7 +16,8 @@ public sealed class AchievementPopupNotification : MonoBehaviour
         Achievement,
         Feature,
         Cosmetic,
-        Almanac
+        Almanac,
+        Multiplayer
     }
 
     private sealed class PopupRequest
@@ -222,6 +223,17 @@ public sealed class AchievementPopupNotification : MonoBehaviour
         });
     }
 
+    /// <summary>Uses the persistent notification overlay for a guest departure.</summary>
+    public static void NotifyMultiplayerGuestLeft()
+    {
+        Dispatch(new PopupRequest
+        {
+            title = "GUEST LEFT",
+            detail = "Room remains open for another player",
+            kind = PopupKind.Multiplayer
+        });
+    }
+
     private static void Dispatch(PopupRequest request)
     {
         if (request == null) return;
@@ -366,26 +378,27 @@ public sealed class AchievementPopupNotification : MonoBehaviour
         bool isFeatureUnlock = kind == PopupKind.Feature;
         bool isCosmeticUnlock = kind == PopupKind.Cosmetic;
         bool isAlmanacUpdate = kind == PopupKind.Almanac;
+        bool isMultiplayer = kind == PopupKind.Multiplayer;
         Color selectedBackground = isAlmanacUpdate
             ? almanacBackgroundColor
             : isCosmeticUnlock
             ? cosmeticBackgroundColor
-            : isFeatureUnlock ? featureBackgroundColor : backgroundColor;
+            : isFeatureUnlock || isMultiplayer ? featureBackgroundColor : backgroundColor;
         Color selectedAccent = isAlmanacUpdate
             ? almanacAccentColor
             : isCosmeticUnlock
             ? cosmeticAccentColor
-            : isFeatureUnlock ? featureAccentColor : accentColor;
+            : isFeatureUnlock || isMultiplayer ? featureAccentColor : accentColor;
         Color selectedPrimary = isAlmanacUpdate
             ? almanacPrimaryTextColor
             : isCosmeticUnlock
             ? cosmeticPrimaryTextColor
-            : isFeatureUnlock ? featurePrimaryTextColor : primaryTextColor;
+            : isFeatureUnlock || isMultiplayer ? featurePrimaryTextColor : primaryTextColor;
         Color selectedSecondary = isAlmanacUpdate
             ? almanacSecondaryTextColor
             : isCosmeticUnlock
             ? cosmeticSecondaryTextColor
-            : isFeatureUnlock ? featureSecondaryTextColor : secondaryTextColor;
+            : isFeatureUnlock || isMultiplayer ? featureSecondaryTextColor : secondaryTextColor;
 
         if (backgroundImage != null) backgroundImage.color = selectedBackground;
         if (accentImage != null) accentImage.color = selectedAccent;
@@ -396,6 +409,8 @@ public sealed class AchievementPopupNotification : MonoBehaviour
                 ? "ALMANAC UPDATED"
                 : isCosmeticUnlock
                 ? "COSMETIC UNLOCKED"
+                : isMultiplayer
+                ? "MULTIPLAYER"
                 : isFeatureUnlock ? "FEATURE UNLOCKED" : "ACHIEVEMENT UNLOCKED";
             headingText.color = selectedAccent;
         }

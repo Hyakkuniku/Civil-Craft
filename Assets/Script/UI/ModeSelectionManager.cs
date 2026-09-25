@@ -93,6 +93,11 @@ public class ModeSelectionManager : MonoBehaviour
 
         UpdateUI();
         MoveCamera(true); 
+        if (FusionConnectionManager.ConsumeHostLeftNotice())
+        {
+            ShowHostLeftNotice();
+            return;
+        }
         if (useFusionNetworking && PlayerPrefs.GetString(hostPreferenceKey) == "Join" &&
             FusionConnectionManager.Instance != null && FusionConnectionManager.Instance.IsClientConnected)
         {
@@ -217,6 +222,24 @@ public class ModeSelectionManager : MonoBehaviour
             if (previousButton != null) previousButton.SetActive(currentIndex > 0);
             if (nextButton != null) nextButton.SetActive(currentIndex < modes.Length - 1);
         }
+    }
+
+    public void ShowHostLeftNotice()
+    {
+        OpenMultiplayerPanel();
+        if (multiplayerPromptText != null)
+            multiplayerPromptText.text = "HOST LEFT THE SESSION. THE ROOM HAS CLOSED.";
+    }
+
+    public void ShowGuestLeftNotice()
+    {
+        if (!hostCodeReady || string.IsNullOrEmpty(activeHostRoomCode)) return;
+
+        displayedHostGuestJoined = false;
+        if (multiplayerPromptText != null)
+            multiplayerPromptText.text =
+                $"ROOM CODE\n<size=44><b>{activeHostRoomCode}</b></size>\n" +
+                "PLAYER 2 LEFT. ROOM IS OPEN - SHARE CODE TO REJOIN (1/2).";
     }
 
     public async void HostMultiplayer()

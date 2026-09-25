@@ -151,7 +151,11 @@ public class BuildLocation : Interactable
 
     private void Update()
     {
-        if (IsRedesignBlockedByNPCTravel) promptMessage = "";
+        if (gameObject.scene.name == "Multiplayer" &&
+            FusionConnectionManager.Instance != null &&
+            FusionConnectionManager.Instance.IsClientConnected)
+            promptMessage = "Host builds the bridge for now";
+        else if (IsRedesignBlockedByNPCTravel) promptMessage = "";
         else if (IsOverworldTutorialBlockingBuild()) promptMessage = "Finish the current tutorial first.";
         else if (activeContract == null) promptMessage = "Requires Contract! Talk to the client.";
         else if (bakedBars.Count > 0) promptMessage = "Redesign Bridge";
@@ -211,6 +215,11 @@ public class BuildLocation : Interactable
 
     public void TryEnterBuildMode()
     {
+        if (gameObject.scene.name == "Multiplayer" &&
+            FusionConnectionManager.Instance != null &&
+            FusionConnectionManager.Instance.IsClientConnected)
+            return;
+
         if (GameManager.Instance != null && GameManager.Instance.IsCargoTestActive)
         {
             if (GameManager.Instance.ActiveBuildLocation == this) GameManager.Instance.CancelCargoTest();

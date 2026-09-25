@@ -429,6 +429,14 @@ public class GameManager : MonoBehaviour
 
     public bool EnterBuildMode(BuildLocation location, Transform player)
     {
+        if (gameObject.scene.name == "Multiplayer" &&
+            FusionConnectionManager.Instance != null &&
+            FusionConnectionManager.Instance.IsClientConnected)
+        {
+            Debug.Log("[Multiplayer] Bridge editing is host-only for now.");
+            return false;
+        }
+
         if (TutorialManager.Instance != null && TutorialManager.Instance.IsTutorialActive)
         {
             Debug.LogWarning("Build Mode entry blocked while a tutorial is active.");

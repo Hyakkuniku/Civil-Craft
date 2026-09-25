@@ -16,7 +16,7 @@ public class PauseManager : MonoBehaviour
     [Tooltip("Drag your Settings Panel here (Optional, to close it when unpausing).")]
     public GameObject settingsPanel; 
 
-    [Tooltip("The existing HUD Pause button. It is hidden for tutorial contracts.")]
+    [Tooltip("The existing HUD Pause button. It is hidden for tutorial contracts and multiplayer build mode.")]
     public GameObject pauseButton;
 
     [Header("Mode Rules")]
@@ -205,7 +205,10 @@ public class PauseManager : MonoBehaviour
             GameplayMobileUILayout.Apply();
 
         bool pauseAllowed = !IsPauseBlocked();
-        if (pauseButton != null) pauseButton.SetActive(pauseAllowed);
+        bool hideInMultiplayerBuildMode = SceneManager.GetActiveScene().name == "Multiplayer" &&
+                                          GameManager.Instance != null &&
+                                          GameManager.Instance.CurrentState != GameManager.GameState.Normal;
+        if (pauseButton != null) pauseButton.SetActive(pauseAllowed && !hideInMultiplayerBuildMode);
 
         if (!pauseAllowed && isPaused) ResumeGame();
     }
@@ -295,6 +298,12 @@ public class PauseManager : MonoBehaviour
         
         // Ensure the game isn't trying to carry over a paused state
         isPaused = false; 
+
+        // Close the Photon room immediately instead of waiting for the loading
+        // screen to finish. The other player can then leave with a clear notice.
+        if (SceneManager.GetActiveScene().name == "Multiplayer" &&
+            FusionConnectionManager.Instance != null)
+            FusionConnectionManager.Instance.StopSession();
 
         LoadingScreenManager.LoadScene(modeSelectionSceneName);
     }

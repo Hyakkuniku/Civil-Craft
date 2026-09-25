@@ -2,7 +2,6 @@ using System;
 using UnityEngine;
 using UnityEngine.UI; 
 using TMPro;
-using UnityEngine.SceneManagement;
 using System.Collections.Generic;
 using System.Collections;
 using System.IO;
@@ -233,6 +232,7 @@ internal sealed class CompletionStarGraphic : MaskableGraphic
 public class LevelCompleteManager : MonoBehaviour
 {
     public static LevelCompleteManager Instance { get; private set; }
+    private bool IsMultiplayerScene => gameObject.scene.name == "Multiplayer";
 
     /// <summary>
     /// Raised after a successfully tested bridge has been saved/baked, Build Mode
@@ -999,6 +999,15 @@ public class LevelCompleteManager : MonoBehaviour
             expEarnedIcon.gameObject.SetActive(expEarnedIcon.sprite != null);
         if (feedbackText != null && paidResult) feedbackText.text = "Redesign complete. Best stars kept.";
         if (feedbackText != null && tutorialResult) feedbackText.text = "Tutorial complete. Great job!";
+        if (IsMultiplayerScene)
+        {
+            if (rewardStatusText != null) rewardStatusText.text = "PRACTICE - NOT SAVED";
+            if (baseRewardText != null) baseRewardText.text = "BASE\n0";
+            if (bonusText != null) bonusText.text = "BONUS\n+0";
+            if (penaltyText != null) penaltyText.text = "DEDUCTIONS\n-0";
+            if (goldEarnedText != null) goldEarnedText.text = "TOTAL  0";
+            if (expEarnedText != null) expEarnedText.text = "+0";
+        }
         foreach (var label in new[] { feedbackText, baseRewardText, bonusText, penaltyText, goldEarnedText, expEarnedText })
             if (label != null) label.text = label.text.Replace("<color=green>", "<color=#4C6E2F>")
                 .Replace("<color=yellow>", "<color=#9B631B>").Replace("<color=red>", "<color=#A43E2D>");
@@ -1169,10 +1178,21 @@ public class LevelCompleteManager : MonoBehaviour
             foreach (var label in receipt.GetComponentsInChildren<TextMeshProUGUI>(true)) label.font = ReceiptFont;
         costPercentageText = null; // No unexplained percentage or stress progress bar.
         feedbackText = CompletionReceiptLayout.Label(paper,"Feedback","",.025f,.028f,.47f,.11f,26,font);
-        CompletionReceiptLayout.Button(paper,"Retry",.49f,.025f,.69f,.11f,new Color32(239,214,170,255),font,RetrySimulation);
-        Button saveButton = CompletionReceiptLayout.Button(
-            paper,"Save & Continue",.71f,.025f,.975f,.11f,new Color32(228,157,44,255),font,SaveAndBakeBridge);
-        completionSaveTutorialTarget = saveButton.transform as RectTransform;
+        if (IsMultiplayerScene)
+        {
+            CompletionReceiptLayout.Button(paper,"Back to Build",.49f,.025f,.975f,.11f,
+                new Color32(239,214,170,255),font,RetrySimulation);
+            completionSaveTutorialTarget = null;
+        }
+        else
+        {
+            CompletionReceiptLayout.Button(paper,"Retry",.49f,.025f,.69f,.11f,
+                new Color32(239,214,170,255),font,RetrySimulation);
+            Button saveButton = CompletionReceiptLayout.Button(
+                paper,"Save & Continue",.71f,.025f,.975f,.11f,
+                new Color32(228,157,44,255),font,SaveAndBakeBridge);
+            completionSaveTutorialTarget = saveButton.transform as RectTransform;
+        }
         safe.gameObject.AddComponent<CompletionEntranceMotion>().Configure(frame,receipt,photoFrame);
     }
 
@@ -1194,6 +1214,12 @@ public class LevelCompleteManager : MonoBehaviour
 
     public void SaveAndBakeBridge()
     {
+        if (IsMultiplayerScene)
+        {
+            Debug.LogWarning("[Multiplayer] Bridge saving is disabled in this scene.", this);
+            return;
+        }
+
         if (!levelAlreadyCompleted || lastStarResult == null || !lastStarResult.completed) return;
         if (IsFirstCompletionTutorialBlockingActions()) return;
         CompleteFirstCompletionTutorialIfActive();
@@ -1361,7 +1387,8 @@ public class LevelCompleteManager : MonoBehaviour
 
     private void TryStartFirstCompletionTutorial(ContractSO completedContract)
     {
-        if (!showFirstCompletionTutorial || firstCompletionTutorial == null ||
+        if (IsMultiplayerScene ||
+            !showFirstCompletionTutorial || firstCompletionTutorial == null ||
             completedContract == null || TutorialManager.Instance == null ||
             PlayerDataManager.Instance == null || PlayerDataManager.Instance.CurrentData == null ||
             PlayerDataManager.Instance.CurrentData.lifetimeBridgesBuilt > 0)

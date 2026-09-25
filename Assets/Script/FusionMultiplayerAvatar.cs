@@ -11,6 +11,10 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
 {
     private const float PoseSendInterval = 1f / 15f;
     private const float AppearanceCheckInterval = 0.5f;
+    private const float BridgeNodeSyncInterval = 0.2f;
+    private const float LiveLoadSyncInterval = 0.05f;
+    private const int MaxBridgeNodes = 64;
+    private const int MaxBridgeBars = 96;
     private static readonly int SpeedParameter = Animator.StringToHash("Speed");
     private static readonly int SprintParameter = Animator.StringToHash("IsSprinting");
     private static readonly int GroundedParameter = Animator.StringToHash("IsGrounded");
@@ -25,6 +29,23 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
     [Networked] private bool Grounded { get; set; }
     [Networked] private uint JumpSequence { get; set; }
     [Networked, Capacity(2048)] private string Appearance { get; set; }
+    [Networked] private bool IsBridgeBuilder { get; set; }
+    [Networked] private int HostBridgeNodeCount { get; set; }
+    [Networked, Capacity(MaxBridgeNodes)] private NetworkArray<Vector3> HostBridgeNodes => default;
+    [Networked] private int HostBridgeBarCount { get; set; }
+    [Networked, Capacity(MaxBridgeBars)] private NetworkArray<BridgeBarSnapshot> HostBridgeBars => default;
+    [Networked] private bool HostLiveLoadVisible { get; set; }
+    [Networked] private int HostLiveLoadContractHash { get; set; }
+    [Networked] private int HostLiveLoadNameHash { get; set; }
+    [Networked] private Vector3 HostLiveLoadPosition { get; set; }
+    [Networked] private Quaternion HostLiveLoadRotation { get; set; }
+
+    public struct BridgeBarSnapshot : INetworkStruct
+    {
+        public Vector3 Start;
+        public Vector3 End;
+        public int MaterialHash;
+    }
 
     private PlayerMotor sceneMotor;
     private PlayerCosmetics sceneCosmetics;
@@ -40,6 +61,28 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
     private float nextPoseSendTime;
     private float nextAppearanceCheckTime;
     private bool localSpawnAdjusted;
+    private float nextBridgeNodeSyncTime;
+    private float nextLiveLoadSyncTime;
+    private GameObject remoteBridgeNodeRoot;
+    private Material remoteBridgeNodeMaterial;
+    private Material remoteBridgeNodeAppearanceMaterial;
+    private Vector3 remoteBridgeNodeScale = Vector3.one * 0.28f;
+    private readonly List<Transform> remoteBridgeNodeMarkers = new List<Transform>();
+    private GameObject remoteBridgeBarRoot;
+    private readonly List<BridgeBarVisual> remoteBridgeBars = new List<BridgeBarVisual>();
+    private Dictionary<int, BridgeMaterialSO> bridgeMaterialsByHash;
+    private readonly HashSet<int> missingBridgeMaterialHashes = new HashSet<int>();
+    private LiveLoadVehicle remoteLiveLoad;
+    private bool remoteLiveLoadWasActive;
+    private bool remoteLiveLoadBehaviourEnabled;
+    private Vector3 remoteLiveLoadOriginalPosition;
+    private Quaternion remoteLiveLoadOriginalRotation;
+    private Rigidbody[] remoteLiveLoadBodies;
+    private bool[] remoteLiveLoadBodyWasKinematic;
+    private Collider[] remoteLiveLoadColliders;
+    private bool[] remoteLiveLoadColliderWasEnabled;
+    private UnityEngine.AI.NavMeshObstacle[] remoteLiveLoadObstacles;
+    private bool[] remoteLiveLoadObstacleWasEnabled;
 
     public override void Spawned()
     {
@@ -52,12 +95,18 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
         PlayerCosmetics.LoadoutChanged -= PublishAppearance;
         BindSceneMotor(null);
         DestroyRemoteVisual();
+        DestroyRemoteBridgeNodes();
+        DestroyRemoteBridgeBars();
+        RestoreRemoteLiveLoad();
     }
 
     private void OnDestroy()
     {
         PlayerCosmetics.LoadoutChanged -= PublishAppearance;
         BindSceneMotor(null);
+        DestroyRemoteBridgeNodes();
+        DestroyRemoteBridgeBars();
+        RestoreRemoteLiveLoad();
     }
 
     private void Update()
@@ -70,6 +119,9 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
             sceneAnimator = null;
             localSpawnAdjusted = false;
             DestroyRemoteVisual();
+            DestroyRemoteBridgeNodes();
+            DestroyRemoteBridgeBars();
+            RestoreRemoteLiveLoad();
             return;
         }
 
@@ -86,6 +138,9 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
             return;
         }
 
+        UpdateRemoteBridgeNodes();
+        UpdateRemoteBridgeBars();
+        UpdateRemoteLiveLoad();
         if (!PoseReady) return;
         UpdateRemotePose();
         if (visualContainer == null) CreateRemoteVisual();
@@ -95,6 +150,24 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
 
     public override void FixedUpdateNetwork()
     {
+        if (HasInputAuthority && HasStateAuthority && Runner.IsServer &&
+            SceneManager.GetActiveScene().name == "Multiplayer" &&
+            Time.unscaledTime >= nextLiveLoadSyncTime)
+        {
+            nextLiveLoadSyncTime = Time.unscaledTime + LiveLoadSyncInterval;
+            PublishHostLiveLoad();
+        }
+
+        if (HasInputAuthority && HasStateAuthority && Runner.IsServer &&
+            SceneManager.GetActiveScene().name == "Multiplayer" &&
+            Time.unscaledTime >= nextBridgeNodeSyncTime)
+        {
+            if (!IsBridgeBuilder) IsBridgeBuilder = true;
+            nextBridgeNodeSyncTime = Time.unscaledTime + BridgeNodeSyncInterval;
+            PublishHostBridgeNodes();
+            PublishHostBridgeBars();
+        }
+
         if (!HasInputAuthority || sceneMotor == null ||
             SceneManager.GetActiveScene().name != "Multiplayer" ||
             Time.unscaledTime < nextPoseSendTime)
@@ -132,6 +205,500 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
         Grounded = ground;
         JumpSequence = jump;
         PoseReady = true;
+    }
+
+    private void PublishHostBridgeNodes()
+    {
+        BuildLocation location = GameManager.Instance != null &&
+            GameManager.Instance.CurrentState != GameManager.GameState.Normal
+            ? GameManager.Instance.ActiveBuildLocation : null;
+        int count = 0;
+        if (location != null)
+        {
+            foreach (Point point in Point.AllPoints)
+            {
+                if (point == null || !point.gameObject.activeInHierarchy ||
+                    point.OwnerLocation != location || point.IsScenePlacedAnchor)
+                    continue;
+
+                bool hasPlacedBar = false;
+                foreach (Bar bar in point.ConnectedBars)
+                {
+                    if (bar != null && bar.gameObject.activeInHierarchy)
+                    {
+                        hasPlacedBar = true;
+                        break;
+                    }
+                }
+                if (!hasPlacedBar) continue;
+                if (count == MaxBridgeNodes) break;
+
+                Vector3 position = point.transform.position;
+                if (HostBridgeNodes[count] != position)
+                    HostBridgeNodes.Set(count, position);
+                count++;
+            }
+        }
+
+        if (HostBridgeNodeCount != count) HostBridgeNodeCount = count;
+    }
+
+    private void UpdateRemoteBridgeNodes()
+    {
+        // Only the host avatar publishes nodes. These are visual-only on guests:
+        // no Point, Bar, collider, or build ownership is created locally.
+        if (!IsBridgeBuilder)
+        {
+            DestroyRemoteBridgeNodes();
+            return;
+        }
+
+        int count = Mathf.Clamp(HostBridgeNodeCount, 0, MaxBridgeNodes);
+        if (count == 0)
+        {
+            if (remoteBridgeNodeRoot != null) remoteBridgeNodeRoot.SetActive(false);
+            return;
+        }
+
+        if (remoteBridgeNodeRoot == null) CreateRemoteBridgeNodeRoot();
+        remoteBridgeNodeRoot.SetActive(true);
+        while (remoteBridgeNodeMarkers.Count < count)
+        {
+            GameObject marker = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            marker.name = "Host Bridge Node";
+            marker.layer = 2; // Ignore Raycast; this is not an editable bridge point.
+            marker.transform.SetParent(remoteBridgeNodeRoot.transform, false);
+            marker.transform.localScale = remoteBridgeNodeScale;
+            Collider markerCollider = marker.GetComponent<Collider>();
+            if (markerCollider != null) Destroy(markerCollider);
+            Renderer markerRenderer = marker.GetComponent<Renderer>();
+            markerRenderer.sharedMaterial = remoteBridgeNodeAppearanceMaterial;
+            markerRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            markerRenderer.receiveShadows = false;
+            remoteBridgeNodeMarkers.Add(marker.transform);
+        }
+
+        for (int index = 0; index < remoteBridgeNodeMarkers.Count; index++)
+        {
+            Transform marker = remoteBridgeNodeMarkers[index];
+            bool visible = index < count;
+            if (marker.gameObject.activeSelf != visible) marker.gameObject.SetActive(visible);
+            if (visible) marker.position = HostBridgeNodes[index];
+        }
+    }
+
+    private void CreateRemoteBridgeNodeRoot()
+    {
+        remoteBridgeNodeRoot = new GameObject("Opponent Bridge Nodes (Read Only)");
+        BarCreator creator = FindObjectOfType<BarCreator>(true);
+        Renderer authoredNode = creator != null && creator.pointToInstantiate != null
+            ? creator.pointToInstantiate.GetComponentInChildren<Renderer>(true) : null;
+        if (authoredNode != null && authoredNode.sharedMaterial != null)
+        {
+            remoteBridgeNodeAppearanceMaterial = authoredNode.sharedMaterial;
+            remoteBridgeNodeScale = creator.pointToInstantiate.transform.localScale;
+            return;
+        }
+
+        Shader shader = Shader.Find("Universal Render Pipeline/Unlit") ??
+                        Shader.Find("Unlit/Color") ?? Shader.Find("Standard");
+        if (shader == null) return;
+
+        remoteBridgeNodeMaterial = new Material(shader);
+        Color cyan = new Color32(54, 226, 240, 255);
+        remoteBridgeNodeMaterial.color = cyan;
+        if (remoteBridgeNodeMaterial.HasProperty("_BaseColor"))
+            remoteBridgeNodeMaterial.SetColor("_BaseColor", cyan);
+        remoteBridgeNodeAppearanceMaterial = remoteBridgeNodeMaterial;
+    }
+
+    private void DestroyRemoteBridgeNodes()
+    {
+        if (remoteBridgeNodeRoot != null) Destroy(remoteBridgeNodeRoot);
+        if (remoteBridgeNodeMaterial != null) Destroy(remoteBridgeNodeMaterial);
+        remoteBridgeNodeRoot = null;
+        remoteBridgeNodeMaterial = null;
+        remoteBridgeNodeAppearanceMaterial = null;
+        remoteBridgeNodeScale = Vector3.one * 0.28f;
+        remoteBridgeNodeMarkers.Clear();
+    }
+
+    private static int StableHash(string value)
+    {
+        // Material/contract identifiers must match across separately built clients.
+        unchecked
+        {
+            uint hash = 2166136261;
+            if (value != null)
+                foreach (char character in value)
+                {
+                    hash = (hash ^ character) * 16777619;
+                }
+            return (int)hash;
+        }
+    }
+
+    private void PublishHostBridgeBars()
+    {
+        BuildLocation location = GameManager.Instance != null &&
+            GameManager.Instance.CurrentState != GameManager.GameState.Normal
+            ? GameManager.Instance.ActiveBuildLocation : null;
+        int count = 0;
+        if (location != null)
+        {
+            foreach (Bar bar in FindObjectsOfType<Bar>())
+            {
+                if (bar == null || !bar.gameObject.activeInHierarchy ||
+                    bar.OwnerLocation != location || bar.materialData == null ||
+                    bar.startPoint == null || bar.endPoint == null)
+                    continue;
+                if (count >= MaxBridgeBars) break;
+
+                BridgeBarSnapshot snapshot = new BridgeBarSnapshot
+                {
+                    Start = bar.startPoint.transform.position,
+                    End = bar.endPoint.transform.position,
+                    MaterialHash = StableHash(bar.materialData.Id)
+                };
+                BridgeBarSnapshot previous = HostBridgeBars[count];
+                if (previous.Start != snapshot.Start || previous.End != snapshot.End ||
+                    previous.MaterialHash != snapshot.MaterialHash)
+                    HostBridgeBars.Set(count, snapshot);
+                count++;
+            }
+        }
+        if (HostBridgeBarCount != count) HostBridgeBarCount = count;
+    }
+
+    private void UpdateRemoteBridgeBars()
+    {
+        if (!IsBridgeBuilder)
+        {
+            DestroyRemoteBridgeBars();
+            return;
+        }
+
+        int count = Mathf.Clamp(HostBridgeBarCount, 0, MaxBridgeBars);
+        if (count == 0)
+        {
+            if (remoteBridgeBarRoot != null) remoteBridgeBarRoot.SetActive(false);
+            return;
+        }
+
+        if (remoteBridgeBarRoot == null)
+            remoteBridgeBarRoot = new GameObject("Opponent Bridge (Read Only)");
+        remoteBridgeBarRoot.SetActive(true);
+        if (bridgeMaterialsByHash == null) LoadBridgeMaterials();
+
+        while (remoteBridgeBars.Count < count) remoteBridgeBars.Add(null);
+        for (int index = 0; index < remoteBridgeBars.Count; index++)
+        {
+            if (index >= count)
+            {
+                if (remoteBridgeBars[index] != null)
+                    remoteBridgeBars[index].Root.SetActive(false);
+                continue;
+            }
+
+            BridgeBarSnapshot snapshot = HostBridgeBars[index];
+            BridgeBarVisual visual = remoteBridgeBars[index];
+            if (visual == null || visual.MaterialHash != snapshot.MaterialHash)
+            {
+                if (visual != null) Destroy(visual.Root);
+                visual = bridgeMaterialsByHash.TryGetValue(snapshot.MaterialHash, out BridgeMaterialSO material)
+                    ? new BridgeBarVisual(material, snapshot.MaterialHash, remoteBridgeBarRoot.transform)
+                    : null;
+                if (visual == null && missingBridgeMaterialHashes.Add(snapshot.MaterialHash))
+                    Debug.LogWarning("[Fusion] Guest could not find a bridge material used by the host. " +
+                        "Check that both builds include the same Resources materials.", this);
+                remoteBridgeBars[index] = visual;
+            }
+            if (visual == null) continue;
+            visual.Root.SetActive(true);
+            visual.SetEndpoints(snapshot.Start, snapshot.End);
+        }
+    }
+
+    private void LoadBridgeMaterials()
+    {
+        bridgeMaterialsByHash = new Dictionary<int, BridgeMaterialSO>();
+        foreach (BridgeMaterialSO material in Resources.LoadAll<BridgeMaterialSO>(string.Empty))
+        {
+            if (material == null) continue;
+            int hash = StableHash(material.Id);
+            if (!bridgeMaterialsByHash.ContainsKey(hash)) bridgeMaterialsByHash.Add(hash, material);
+        }
+    }
+
+    private void DestroyRemoteBridgeBars()
+    {
+        if (remoteBridgeBarRoot != null) Destroy(remoteBridgeBarRoot);
+        remoteBridgeBarRoot = null;
+        remoteBridgeBars.Clear();
+        bridgeMaterialsByHash = null;
+        missingBridgeMaterialHashes.Clear();
+    }
+
+    private sealed class BridgeBarVisual
+    {
+        public readonly GameObject Root;
+        public readonly int MaterialHash;
+        private readonly BridgeMaterialSO material;
+        private readonly List<Transform> segments = new List<Transform>();
+        private readonly List<Vector3> segmentBaseScales = new List<Vector3>();
+        private readonly Transform cap;
+        private readonly Vector3 capBaseScale;
+        private readonly float capTopOffset;
+        private readonly float capBottomOffset;
+        private readonly float baseLength;
+
+        public BridgeBarVisual(BridgeMaterialSO bridgeMaterial, int hash, Transform parent)
+        {
+            material = bridgeMaterial;
+            MaterialHash = hash;
+            Root = new GameObject("Host " + material.GetDisplayName());
+            Root.layer = 2;
+            Root.transform.SetParent(parent, false);
+
+            int strandCount = material.isDualBeam ? 2 : 1;
+            float measuredLength = 1f;
+            for (int strand = 0; strand < strandCount; strand++)
+            {
+                GameObject segment = CreateMeshOnlyCopy(material.segmentPrefab,
+                    Root.transform, "Bridge Segment");
+                if (segment == null) continue;
+                segment.transform.localPosition = new Vector3(0f, 0f,
+                    material.isDualBeam ? (strand == 0 ? material.zOffset : -material.zOffset) : 0f);
+                Renderer renderer = segment.GetComponentInChildren<Renderer>(true);
+                if (renderer != null && strand == 0)
+                    measuredLength = material.isPier ? renderer.bounds.size.y : renderer.bounds.size.x;
+                segments.Add(segment.transform);
+                segmentBaseScales.Add(segment.transform.localScale);
+            }
+            baseLength = Mathf.Max(0.01f, measuredLength);
+
+            if (material.isPier && material.pierCapPrefab != null)
+            {
+                GameObject capObject = CreateMeshOnlyCopy(material.pierCapPrefab,
+                    Root.transform, "Pier Cap");
+                cap = capObject != null ? capObject.transform : null;
+                capBaseScale = cap != null ? cap.localScale : Vector3.one;
+                Renderer capRenderer = cap != null ? cap.GetComponentInChildren<Renderer>(true) : null;
+                capTopOffset = capRenderer != null ? capRenderer.bounds.max.y : 0f;
+                capBottomOffset = capRenderer != null ? capRenderer.bounds.min.y : 0f;
+            }
+        }
+
+        public void SetEndpoints(Vector3 start, Vector3 end)
+        {
+            if (material.isPier ? start.y > end.y :
+                start.x > end.x || (Mathf.Approximately(start.x, end.x) && start.y > end.y))
+            {
+                Vector3 swap = start;
+                start = end;
+                end = swap;
+            }
+
+            Vector3 direction = end - start;
+            direction.z = 0f;
+            float length = direction.magnitude;
+            if (material.isPier)
+            {
+                float adjusted = Mathf.Max(0.05f, end.y - capTopOffset + capBottomOffset - start.y);
+                Root.transform.SetPositionAndRotation(start + Vector3.up * (adjusted * 0.5f),
+                    Quaternion.identity);
+                for (int i = 0; i < segments.Count; i++)
+                {
+                    Vector3 original = segmentBaseScales[i];
+                    segments[i].localScale = new Vector3(original.x,
+                        original.y * adjusted / baseLength, original.z);
+                }
+                if (cap != null)
+                {
+                    cap.localScale = capBaseScale;
+                    cap.position = new Vector3(end.x, end.y - capTopOffset, end.z);
+                    cap.rotation = Quaternion.identity;
+                }
+            }
+            else
+            {
+                Vector3 midpoint = (start + end) * 0.5f;
+                midpoint.z = start.z;
+                Root.transform.SetPositionAndRotation(midpoint,
+                    Quaternion.Euler(0f, 0f, Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg));
+                for (int i = 0; i < segments.Count; i++)
+                {
+                    Vector3 original = segmentBaseScales[i];
+                    segments[i].localScale = new Vector3(original.x * length / baseLength,
+                        original.y, original.z);
+                }
+            }
+        }
+
+        private static GameObject CreateMeshOnlyCopy(GameObject source, Transform parent, string name)
+        {
+            if (source == null) return null;
+            GameObject copy = new GameObject(name);
+            copy.layer = 2;
+            copy.transform.SetParent(parent, false);
+            copy.transform.localRotation = source.transform.localRotation;
+            copy.transform.localScale = source.transform.localScale;
+
+            MeshFilter sourceFilter = source.GetComponent<MeshFilter>();
+            MeshRenderer sourceRenderer = source.GetComponent<MeshRenderer>();
+            if (sourceFilter != null && sourceRenderer != null)
+            {
+                copy.AddComponent<MeshFilter>().sharedMesh = sourceFilter.sharedMesh;
+                copy.AddComponent<MeshRenderer>().sharedMaterials = sourceRenderer.sharedMaterials;
+            }
+            foreach (Transform child in source.transform)
+            {
+                GameObject part = UnityEngine.Object.Instantiate(child.gameObject, copy.transform, false);
+                SetVisualOnly(part);
+            }
+            return copy;
+        }
+
+        private static void SetVisualOnly(GameObject root)
+        {
+            foreach (Transform child in root.GetComponentsInChildren<Transform>(true))
+                child.gameObject.layer = 2;
+            foreach (MonoBehaviour behaviour in root.GetComponentsInChildren<MonoBehaviour>(true))
+                behaviour.enabled = false;
+            foreach (Collider collider in root.GetComponentsInChildren<Collider>(true))
+                collider.enabled = false;
+            foreach (Rigidbody body in root.GetComponentsInChildren<Rigidbody>(true))
+                body.isKinematic = true;
+        }
+    }
+
+    private void PublishHostLiveLoad()
+    {
+        LiveLoadVehicle active = null;
+        foreach (LiveLoadVehicle vehicle in FindObjectsOfType<LiveLoadVehicle>())
+        {
+            if (vehicle == null || vehicle.gameObject.scene != gameObject.scene ||
+                vehicle.assignedContract == null || vehicle.physicsManager == null ||
+                !vehicle.physicsManager.IsSimulationActive ||
+                (GameManager.Instance != null && GameManager.Instance.CurrentContract != null &&
+                 vehicle.assignedContract != GameManager.Instance.CurrentContract))
+                continue;
+            active = vehicle;
+            break;
+        }
+
+        if (active == null)
+        {
+            HostLiveLoadVisible = false;
+            return;
+        }
+
+        HostLiveLoadContractHash = StableHash(active.assignedContract.ContractID);
+        HostLiveLoadNameHash = StableHash(active.gameObject.name);
+        HostLiveLoadPosition = active.transform.position;
+        HostLiveLoadRotation = active.transform.rotation;
+        HostLiveLoadVisible = true;
+    }
+
+    private void UpdateRemoteLiveLoad()
+    {
+        if (!IsBridgeBuilder || !HostLiveLoadVisible)
+        {
+            RestoreRemoteLiveLoad();
+            return;
+        }
+
+        if (remoteLiveLoad == null ||
+            StableHash(remoteLiveLoad.assignedContract != null
+                ? remoteLiveLoad.assignedContract.ContractID : null) != HostLiveLoadContractHash ||
+            StableHash(remoteLiveLoad.gameObject.name) != HostLiveLoadNameHash)
+        {
+            RestoreRemoteLiveLoad();
+            foreach (LiveLoadVehicle candidate in FindObjectsOfType<LiveLoadVehicle>(true))
+            {
+                if (candidate == null || candidate.gameObject.scene != gameObject.scene ||
+                    candidate.assignedContract == null ||
+                    StableHash(candidate.assignedContract.ContractID) != HostLiveLoadContractHash ||
+                    StableHash(candidate.gameObject.name) != HostLiveLoadNameHash)
+                    continue;
+                CaptureRemoteLiveLoad(candidate);
+                break;
+            }
+        }
+
+        if (remoteLiveLoad == null) return;
+        Transform vehicleTransform = remoteLiveLoad.transform;
+        if ((vehicleTransform.position - HostLiveLoadPosition).sqrMagnitude > 9f)
+            vehicleTransform.SetPositionAndRotation(HostLiveLoadPosition, HostLiveLoadRotation);
+        else
+        {
+            float blend = 1f - Mathf.Exp(-18f * Time.deltaTime);
+            vehicleTransform.SetPositionAndRotation(
+                Vector3.Lerp(vehicleTransform.position, HostLiveLoadPosition, blend),
+                Quaternion.Slerp(vehicleTransform.rotation, HostLiveLoadRotation, blend));
+        }
+    }
+
+    private void CaptureRemoteLiveLoad(LiveLoadVehicle vehicle)
+    {
+        remoteLiveLoad = vehicle;
+        remoteLiveLoadWasActive = vehicle.gameObject.activeSelf;
+        remoteLiveLoadOriginalPosition = vehicle.transform.position;
+        remoteLiveLoadOriginalRotation = vehicle.transform.rotation;
+        if (!remoteLiveLoadWasActive) vehicle.gameObject.SetActive(true);
+        remoteLiveLoadBehaviourEnabled = vehicle.enabled;
+        vehicle.enabled = false;
+
+        remoteLiveLoadBodies = vehicle.GetComponentsInChildren<Rigidbody>(true);
+        remoteLiveLoadBodyWasKinematic = new bool[remoteLiveLoadBodies.Length];
+        for (int index = 0; index < remoteLiveLoadBodies.Length; index++)
+        {
+            remoteLiveLoadBodyWasKinematic[index] = remoteLiveLoadBodies[index].isKinematic;
+            remoteLiveLoadBodies[index].isKinematic = true;
+        }
+
+        remoteLiveLoadColliders = vehicle.GetComponentsInChildren<Collider>(true);
+        remoteLiveLoadColliderWasEnabled = new bool[remoteLiveLoadColliders.Length];
+        for (int index = 0; index < remoteLiveLoadColliders.Length; index++)
+        {
+            remoteLiveLoadColliderWasEnabled[index] = remoteLiveLoadColliders[index].enabled;
+            remoteLiveLoadColliders[index].enabled = false;
+        }
+
+        remoteLiveLoadObstacles = vehicle.GetComponentsInChildren<UnityEngine.AI.NavMeshObstacle>(true);
+        remoteLiveLoadObstacleWasEnabled = new bool[remoteLiveLoadObstacles.Length];
+        for (int index = 0; index < remoteLiveLoadObstacles.Length; index++)
+        {
+            remoteLiveLoadObstacleWasEnabled[index] = remoteLiveLoadObstacles[index].enabled;
+            remoteLiveLoadObstacles[index].enabled = false;
+        }
+    }
+
+    private void RestoreRemoteLiveLoad()
+    {
+        if (remoteLiveLoad != null)
+        {
+            remoteLiveLoad.transform.SetPositionAndRotation(
+                remoteLiveLoadOriginalPosition, remoteLiveLoadOriginalRotation);
+            for (int index = 0; index < remoteLiveLoadBodies.Length; index++)
+                if (remoteLiveLoadBodies[index] != null)
+                    remoteLiveLoadBodies[index].isKinematic = remoteLiveLoadBodyWasKinematic[index];
+            for (int index = 0; index < remoteLiveLoadColliders.Length; index++)
+                if (remoteLiveLoadColliders[index] != null)
+                    remoteLiveLoadColliders[index].enabled = remoteLiveLoadColliderWasEnabled[index];
+            for (int index = 0; index < remoteLiveLoadObstacles.Length; index++)
+                if (remoteLiveLoadObstacles[index] != null)
+                    remoteLiveLoadObstacles[index].enabled = remoteLiveLoadObstacleWasEnabled[index];
+            remoteLiveLoad.enabled = remoteLiveLoadBehaviourEnabled;
+            if (!remoteLiveLoadWasActive) remoteLiveLoad.gameObject.SetActive(false);
+        }
+        remoteLiveLoad = null;
+        remoteLiveLoadBodies = null;
+        remoteLiveLoadBodyWasKinematic = null;
+        remoteLiveLoadColliders = null;
+        remoteLiveLoadColliderWasEnabled = null;
+        remoteLiveLoadObstacles = null;
+        remoteLiveLoadObstacleWasEnabled = null;
     }
 
     private void FindScenePlayer()

@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.IO;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
@@ -16,9 +17,12 @@ public sealed class FusionConnectionManager : MonoBehaviour
     private const string RoomAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private const int RoomCodeLength = 6;
     private const string FixedRegion = "asia";
+    private const string ModeSelectionSceneName = "Mode Selection";
 
     private NetworkRunner runner;
     private int operationVersion;
+    private bool clientSessionEstablished;
+    private static bool pendingHostLeftNotice;
 
     public static FusionConnectionManager Instance { get; private set; }
     public NetworkRunner Runner => runner;
@@ -41,6 +45,13 @@ public sealed class FusionConnectionManager : MonoBehaviour
         if (Instance != null) return Instance;
         GameObject service = new GameObject("Fusion Connection Manager");
         return service.AddComponent<FusionConnectionManager>();
+    }
+
+    public static bool ConsumeHostLeftNotice()
+    {
+        if (!pendingHostLeftNotice) return false;
+        pendingHostLeftNotice = false;
+        return true;
     }
 
     private void Awake()
@@ -73,6 +84,7 @@ public sealed class FusionConnectionManager : MonoBehaviour
         if (IsHosting) return HostJoinCode;
         if (runner != null) throw new InvalidOperationException("A Fusion session is already starting or running.");
 
+        pendingHostLeftNotice = false;
         int version = ++operationVersion;
         string roomCode = CreateRoomCode();
         NetworkRunner newRunner = CreateRunner();
@@ -106,6 +118,7 @@ public sealed class FusionConnectionManager : MonoBehaviour
         if (runner != null) throw new InvalidOperationException("A Fusion session is already starting or running.");
         if (string.IsNullOrWhiteSpace(roomCode)) throw new ArgumentException("Enter a room code.", nameof(roomCode));
 
+        pendingHostLeftNotice = false;
         int version = ++operationVersion;
         NetworkRunner newRunner = CreateRunner();
         try
@@ -121,6 +134,7 @@ public sealed class FusionConnectionManager : MonoBehaviour
 
             if (version != operationVersion) throw new OperationCanceledException();
             if (!result.Ok) throw new InvalidOperationException($"Fusion join failed: {result.ShutdownReason}");
+            clientSessionEstablished = true;
         }
         catch
         {
@@ -147,9 +161,73 @@ public sealed class FusionConnectionManager : MonoBehaviour
     {
         ++operationVersion;
         HostJoinCode = null;
+        clientSessionEstablished = false;
         NetworkRunner oldRunner = runner;
         runner = null;
         if (oldRunner != null) _ = ShutdownRunnerAsync(oldRunner);
+    }
+
+    public void HandleHostDisconnected(NetworkRunner disconnectedRunner, bool alreadyShutDown)
+    {
+        // Local leaves and failed join attempts must not look like a host loss.
+        if (runner != disconnectedRunner || !clientSessionEstablished) return;
+
+        ++operationVersion;
+        clientSessionEstablished = false;
+        HostJoinCode = null;
+        runner = null;
+        pendingHostLeftNotice = true;
+
+        if (alreadyShutDown)
+            Destroy(disconnectedRunner.gameObject);
+        else
+            StartCoroutine(ShutdownDisconnectedRunnerNextFrame(disconnectedRunner));
+
+        StartCoroutine(ReturnToModeSelectionAfterHostLoss());
+    }
+
+    public void HandleGuestDisconnected(NetworkRunner activeRunner, PlayerRef player)
+    {
+        // Only the live host should announce a remote player leaving. In
+        // particular, shutting down our own room must not produce a notice.
+        if (runner != activeRunner || !IsHosting || player == activeRunner.LocalPlayer)
+            return;
+
+        if (SceneManager.GetActiveScene().name == ModeSelectionSceneName)
+        {
+            ModeSelectionManager selection = FindObjectOfType<ModeSelectionManager>(true);
+            if (selection != null) selection.ShowGuestLeftNotice();
+        }
+        else
+        {
+            AchievementPopupNotification.NotifyMultiplayerGuestLeft();
+        }
+    }
+
+    private IEnumerator ShutdownDisconnectedRunnerNextFrame(NetworkRunner disconnectedRunner)
+    {
+        // Do not re-enter Fusion shutdown while it is dispatching a disconnect.
+        yield return null;
+        _ = ShutdownRunnerAsync(disconnectedRunner);
+    }
+
+    private IEnumerator ReturnToModeSelectionAfterHostLoss()
+    {
+        // A local scene transition may already be in flight when the host drops.
+        while (LoadingScreenManager.IsLoading)
+            yield return null;
+
+        if (!pendingHostLeftNotice) yield break;
+
+        if (SceneManager.GetActiveScene().name != ModeSelectionSceneName)
+        {
+            LoadingScreenManager.LoadScene(ModeSelectionSceneName);
+            yield break;
+        }
+
+        ModeSelectionManager selection = FindObjectOfType<ModeSelectionManager>(true);
+        if (selection != null && ConsumeHostLeftNotice())
+            selection.ShowHostLeftNotice();
     }
 
     private NetworkRunner CreateRunner()

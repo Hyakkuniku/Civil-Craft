@@ -66,11 +66,19 @@ public sealed class FusionSessionCallbacks : MonoBehaviour, INetworkRunnerCallba
         if (runner.IsServer && runner.TryGetPlayerObject(player, out NetworkObject avatar) &&
             avatar != null)
             runner.Despawn(avatar);
+
+        FusionConnectionManager.Instance?.HandleGuestDisconnected(runner, player);
     }
 
-    public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason) { }
+    public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason)
+    {
+        FusionConnectionManager.Instance?.HandleHostDisconnected(runner, true);
+    }
     public void OnConnectedToServer(NetworkRunner runner) { }
-    public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason) { }
+    public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason)
+    {
+        FusionConnectionManager.Instance?.HandleHostDisconnected(runner, false);
+    }
     public void OnConnectRequest(NetworkRunner runner,
         NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { }
     public void OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress,

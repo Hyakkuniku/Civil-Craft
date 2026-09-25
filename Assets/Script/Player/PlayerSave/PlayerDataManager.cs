@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using System.IO;
 using System;
 using System.Collections.Generic;
@@ -1566,6 +1567,8 @@ public class PlayerDataManager : MonoBehaviour
     public bool SaveBridgeData(string contractId, List<Point> points, List<Bar> bars, float totalSpent, float maxStress,
         ContractStarResult starResult = null)
     {
+        if (SceneManager.GetActiveScene().name == "Multiplayer") return false;
+
         if (CurrentData == null || string.IsNullOrWhiteSpace(contractId) ||
             points == null || bars == null) return false;
 
@@ -1833,6 +1836,8 @@ public class PlayerDataManager : MonoBehaviour
 
     public void DeleteSavedBridge(string contractId)
     {
+        if (SceneManager.GetActiveScene().name == "Multiplayer") return;
+
         if (CurrentData == null || CurrentData.savedBridges == null) return;
         CurrentData.savedBridges.RemoveAll(b =>
             b != null && ContractIdentifiersMatch(b.contractId, contractId));
