@@ -643,6 +643,26 @@ public class ClipboardManager : MonoBehaviour
             gb.UpdateCreatingBar(gb.EndPosition);
         }
 
+        // Finger placement is less precise than a mouse. Snap only when the
+        // *entire* copied bridge can be translated onto the tutorial ghost;
+        // individual bars or an incorrectly rotated copy cannot trigger it.
+        if (BuildTutorialDirector.Instance != null &&
+            BuildTutorialDirector.Instance.TryGetTutorialPasteSnap(ghostPasteBars, out Vector3 tutorialShift))
+        {
+            pasteRootPos += tutorialShift;
+            isValidPaste = true;
+            for (int i = 0; i < ghostPastePoints.Count; i++)
+                ghostPastePoints[i].transform.position += tutorialShift;
+            for (int i = 0; i < ghostPasteBars.Count; i++)
+            {
+                Bar bar = ghostPasteBars[i];
+                CopiedBarInfo copiedBar = copiedBars[i];
+                bar.StartPosition = ghostPastePoints[copiedBar.startIdx].transform.position;
+                bar.EndPosition = ghostPastePoints[copiedBar.endIdx].transform.position;
+                bar.UpdateCreatingBar(bar.EndPosition);
+            }
+        }
+
         // --- THE FIX: FORGIVING ENVIRONMENT CHECKS ---
         int envMask = LayerMask.GetMask("Environment");
         

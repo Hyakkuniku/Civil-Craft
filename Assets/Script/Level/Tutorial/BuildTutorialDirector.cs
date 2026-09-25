@@ -67,6 +67,8 @@ public class BuildTutorialDirector : MonoBehaviour
 
     [Header("Selection / Copy-Paste Tutorial")]
     [SerializeField] private string selectionTutorialLesson = "Sequence_Build2";
+    [SerializeField, Min(0.2f), Tooltip("How close the complete copied bridge must be before it snaps exactly onto the destination ghost. Helps touch placement without accepting a partial or rotated bridge.")]
+    private float pastePreviewSnapRadius = 1.25f;
     [Tooltip("Optional warning panel shown when Cut is attempted during this tutorial section.")]
     [SerializeField] private GameObject cutBlockedWarningPanel;
 
@@ -788,7 +790,63 @@ public class BuildTutorialDirector : MonoBehaviour
         return pasteTargetReachedThisStep;
     }
 
+    /// <summary>
+    /// Finds one rigid translation that aligns every copied member with the
+    /// authored destination. The narrow final endpoint tolerance remains
+    /// unchanged; only the touch-friendly capture distance is larger.
+    /// </summary>
+    public bool TryGetTutorialPasteSnap(IReadOnlyList<Bar> previewBars, out Vector3 shift)
+    {
+        shift = Vector3.zero;
+        TutorialManager tutorial = TutorialManager.Instance;
+        if (tutorial == null || !tutorial.IsPlayingLesson(selectionTutorialLesson) ||
+            tutorial.CurrentStepAction != TutorialStepAction.PositionPastePreview ||
+            previewBars == null || pasteTargetGhosts == null || pasteTargetGhosts.Length == 0)
+            return false;
+
+        if (DoesPastePreviewMatchTargets(previewBars, Vector3.zero)) return true;
+
+        GhostSegment firstGhost = null;
+        foreach (GhostSegment ghost in pasteTargetGhosts)
+        {
+            if (ghost == null) continue;
+            firstGhost = ghost;
+            break;
+        }
+        if (firstGhost == null) return false;
+
+        float maxSqrShift = pastePreviewSnapRadius * pastePreviewSnapRadius;
+        foreach (Bar previewBar in previewBars)
+        {
+            if (previewBar == null || previewBar.materialData != firstGhost.requiredMaterial)
+                continue;
+
+            Vector3 forwardShift = firstGhost.startPos - previewBar.StartPosition;
+            if (forwardShift.sqrMagnitude <= maxSqrShift &&
+                DoesPastePreviewMatchTargets(previewBars, forwardShift))
+            {
+                shift = forwardShift;
+                return true;
+            }
+
+            Vector3 reverseShift = firstGhost.endPos - previewBar.StartPosition;
+            if (reverseShift.sqrMagnitude <= maxSqrShift &&
+                DoesPastePreviewMatchTargets(previewBars, reverseShift))
+            {
+                shift = reverseShift;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private bool DoesPastePreviewMatchTargets(IReadOnlyList<Bar> previewBars)
+    {
+        return DoesPastePreviewMatchTargets(previewBars, Vector3.zero);
+    }
+
+    private bool DoesPastePreviewMatchTargets(IReadOnlyList<Bar> previewBars, Vector3 shift)
     {
         HashSet<Bar> usedPreviewBars = new HashSet<Bar>();
         int requiredGhostCount = 0;
@@ -807,7 +865,7 @@ public class BuildTutorialDirector : MonoBehaviour
                 }
 
                 if (DoesPlacementMatchGhost(previewBar.materialData,
-                        previewBar.StartPosition, previewBar.EndPosition, ghost))
+                        previewBar.StartPosition + shift, previewBar.EndPosition + shift, ghost))
                 {
                     matchingPreview = previewBar;
                     break;
