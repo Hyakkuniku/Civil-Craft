@@ -6,6 +6,10 @@ Shader "Civil Craft/Canyon Road Surface"
         _ShoulderTint ("Shoulder color", Color) = (.38, .38, .37, 1)
         _EdgeLineTint ("Edge line color", Color) = (.82, .80, .72, 1)
         _CenterLineTint ("Center line color", Color) = (1, .76, .20, 1)
+        _SidewalkTint ("Sidewalk color", Color) = (.66, .65, .62, 1)
+        _CurbTint ("Curb color", Color) = (.82, .80, .74, 1)
+        _SidewalkWidth ("Sidewalk width (road half-widths)", Range(0,.6)) = .22
+        _CurbWidth ("Curb width (road half-widths)", Range(.005,.12)) = .045
         _Strength ("Strength", Range(0,1)) = .85
         _Width ("Width", Float) = .075
         _Softness ("Softness", Float) = .16
@@ -40,11 +44,13 @@ Shader "Civil Craft/Canyon Road Surface"
 
             CBUFFER_START(UnityPerMaterial)
                 float4 _RoadTint, _ShoulderTint, _EdgeLineTint, _CenterLineTint;
+                float4 _SidewalkTint, _CurbTint;
                 float4 _PathBounds;
                 float4 _Segments[16];
                 float4 _SegmentWidths[16];
                 float _Strength, _Width, _Softness, _MarkingStrength;
                 float _EdgeLineWidth, _CenterLineWidth, _DashLength, _DashGap;
+                float _SidewalkWidth, _CurbWidth;
                 int _SegmentCount;
             CBUFFER_END
 
@@ -95,8 +101,16 @@ Shader "Civil Craft/Canyon Road Surface"
                 // Never perturb the footprint or markings with noise. Straight
                 // authored route segments must render with straight edges.
                 float normalizedDistance = nearest / radius;
-                float roadMask = 1 - smoothstep(1 - _Softness, 1, normalizedDistance);
-                clip(roadMask - .002);
+                // A crisp road/curb boundary separates asphalt from concrete.
+                // The sidewalk extends outside the road's authored width.
+                float edgeFeather = min(_Softness, .08);
+                float roadMask = 1 - smoothstep(1 - edgeFeather, 1, normalizedDistance);
+                float hasSidewalk = step(.001, _SidewalkWidth);
+                float sidewalkMask = hasSidewalk *
+                    (1 - smoothstep(1 + _SidewalkWidth - edgeFeather,
+                        1 + _SidewalkWidth, normalizedDistance));
+                float coverage = max(roadMask, sidewalkMask);
+                clip(coverage - .002);
 
                 float3 paved = lerp(_RoadTint.rgb, _ShoulderTint.rgb,
                     smoothstep(.78, .98, normalizedDistance));
@@ -115,14 +129,25 @@ Shader "Civil Craft/Canyon Road Surface"
                 roadColor = lerp(roadColor, _EdgeLineTint.rgb, edgeLine * _MarkingStrength);
                 roadColor = lerp(roadColor, _CenterLineTint.rgb, centerLine * dash * _MarkingStrength);
 
+                // Subtle cross-joints distinguish concrete sidewalk from a
+                // painted shoulder, without changing the road or terrain mesh.
+                float jointPhase = frac(distanceAlong / max(_Width * 1.5, .0001));
+                float jointDistance = min(jointPhase, 1 - jointPhase);
+                float joint = 1 - smoothstep(.008, .024, jointDistance);
+                float3 sidewalkColor = _SidewalkTint.rgb * (1 - joint * .16);
+                float3 surfaceColor = lerp(sidewalkColor, roadColor, roadMask);
+                float curb = hasSidewalk * (1 - smoothstep(_CurbWidth * .5,
+                    _CurbWidth * .5 + aa, abs(normalizedDistance - 1)));
+                surfaceColor = lerp(surfaceColor, _CurbTint.rgb, curb);
+
                 // The overlay is not a multiply decal anymore, so receive the
                 // main-light shadow explicitly (including the player's shadow).
                 half3 normalWS = normalize(i.normalWS);
                 Light mainLight = GetMainLight(TransformWorldToShadowCoord(i.positionWS));
                 half direct = saturate(dot(normalWS, mainLight.direction)) *
                     mainLight.distanceAttenuation * mainLight.shadowAttenuation;
-                roadColor *= lerp(.5, 1, direct);
-                return half4(roadColor, roadMask * saturate(_Strength * 1.5));
+                surfaceColor *= lerp(.5, 1, direct);
+                return half4(surfaceColor, coverage * saturate(_Strength * 1.5));
             }
             ENDHLSL
         }

@@ -41,9 +41,17 @@ public sealed class CanyonDirtPathsEditor : Editor
             ? "Visual road only: the canyon mesh, colliders and NavMesh stay unchanged. Move the route endpoints in Scene view. Width is relative to canyon size."
             : "Visual dirt only: original materials, cliff mesh and NavMesh stay unchanged. Move the street endpoints in Scene view. Width is relative to canyon size. Disable this component to remove the effect.", MessageType.Info);
         serializedObject.Update();
-        DrawPropertiesExcluding(serializedObject, "m_Script", isRoad ? "dirtTint" : "roadTint");
+        DrawPropertiesExcluding(serializedObject, "m_Script", "dirtTint", "roadTint",
+            "sidewalkWidth", "sidewalkTint", "curbTint");
         if (isRoad)
+        {
             EditorGUILayout.PropertyField(serializedObject.FindProperty("roadTint"), new GUIContent("Road Tint"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("sidewalkWidth"), new GUIContent("Sidewalk Width"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("sidewalkTint"), new GUIContent("Sidewalk Color"));
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("curbTint"), new GUIContent("Curb Color"));
+        }
+        else
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("dirtTint"), new GUIContent("Dirt Tint"));
         serializedObject.ApplyModifiedProperties();
     }
 

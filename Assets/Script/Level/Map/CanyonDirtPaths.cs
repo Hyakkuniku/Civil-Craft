@@ -26,6 +26,10 @@ public sealed class CanyonDirtPaths : MonoBehaviour
     public Color dirtTint = new Color(.78f, .70f, .60f, 1);
     [HideInInspector, Tooltip("Neutral road color. Unlike dirt tint, this does not multiply the underlying terrain color.")]
     public Color roadTint = new Color(.30f, .32f, .34f, 1);
+    [HideInInspector, Range(0f, .6f), Tooltip("Width of each sidewalk as a fraction of the road's half-width. Set to 0 to hide sidewalks.")]
+    public float sidewalkWidth = .22f;
+    [HideInInspector] public Color sidewalkTint = new Color(.66f, .65f, .62f, 1);
+    [HideInInspector] public Color curbTint = new Color(.82f, .80f, .74f, 1);
     [Tooltip("Coordinates run from 0 to 1 across the canyon's world X/Z bounds. Up to 16 segments.")]
     public Street[] streets = {
         new Street(new Vector2(.02f, .46f), new Vector2(.35f, .46f)),
@@ -101,7 +105,7 @@ public sealed class CanyonDirtPaths : MonoBehaviour
             for (int i = 0; i < materials.Length; i++) materials[i] = material;
             surfaceRenderer.sharedMaterials = materials;
             surfaceRenderer.shadowCastingMode = ShadowCastingMode.Off;
-            surfaceRenderer.receiveShadows = false; // Underlying canyon already supplies lighting/shadows.
+            surfaceRenderer.receiveShadows = false; // The road shader samples main-light shadows itself.
             surfaceRenderer.lightProbeUsage = LightProbeUsage.Off;
             surfaceRenderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
             dirty = true;
@@ -134,7 +138,13 @@ public sealed class CanyonDirtPaths : MonoBehaviour
         material.SetFloat("_Width", Mathf.Clamp(width, .01f, .2f));
         material.SetFloat("_Softness", Mathf.Clamp(edgeSoftness, .05f, .8f));
         material.SetFloat("_Strength", Mathf.Clamp01(strength));
-        if (material.HasProperty("_RoadTint")) material.SetColor("_RoadTint", roadTint);
+        if (material.HasProperty("_RoadTint"))
+        {
+            material.SetColor("_RoadTint", roadTint);
+            material.SetFloat("_SidewalkWidth", Mathf.Clamp(sidewalkWidth, 0f, .6f));
+            material.SetColor("_SidewalkTint", sidewalkTint);
+            material.SetColor("_CurbTint", curbTint);
+        }
         else material.SetColor("_DirtTint", dirtTint);
     }
 
