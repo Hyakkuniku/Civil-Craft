@@ -140,8 +140,13 @@ public class BuildLocation : Interactable
 
         ClaimConnectedBridgeOwnership();
 
-        ResolveSavedBridgeContract();
-        LoadSavedBridge();
+        // Multiplayer bridges exist only for the current Photon room. Never
+        // hydrate one from the player's single-player bridge records.
+        if (gameObject.scene.name != "Multiplayer")
+        {
+            ResolveSavedBridgeContract();
+            LoadSavedBridge();
+        }
 
         if (bakedBars.Count == 0) 
         {
@@ -1014,6 +1019,7 @@ public class BuildLocation : Interactable
 
     public bool LoadSavedBridge()
     {
+        if (gameObject.scene.name == "Multiplayer") return false;
         if (activeContract == null || PlayerDataManager.Instance == null) return false;
         if (bakedBars.Count > 0) return true;
         

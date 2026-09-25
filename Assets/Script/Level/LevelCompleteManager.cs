@@ -321,6 +321,11 @@ public class LevelCompleteManager : MonoBehaviour
     private RectTransform completionStarsTutorialTarget;
     private RectTransform completionReceiptTutorialTarget;
     private RectTransform completionSaveTutorialTarget;
+    private Button multiplayerBackButton;
+    private Button multiplayerSaveButton;
+    private TextMeshProUGUI guestWaitingText;
+    private bool guestSessionCompletionVisible;
+    private GameObject guestReceiptPlaceholder;
 
     private void Awake()
     {
@@ -486,6 +491,7 @@ public class LevelCompleteManager : MonoBehaviour
 
     private void OnDestroy()
     {
+        if (Instance == this) Instance = null;
         if (currentBridgePhoto != null) Destroy(currentBridgePhoto);
         if (ReceiptFont != null)
         {
@@ -564,6 +570,9 @@ public class LevelCompleteManager : MonoBehaviour
 
     public void ResetCompletionState()
     {
+        if (IsMultiplayerScene && FusionConnectionManager.Instance != null &&
+            FusionConnectionManager.Instance.IsHosting)
+            FusionMultiplayerAvatar.FindLocalHostAvatar()?.QueueHostCompletion(default);
         timerLocationContract = null;
         timerBridgeLocation = null;
         connectivityVisited.Clear();
@@ -737,11 +746,14 @@ public class LevelCompleteManager : MonoBehaviour
 
             if (bridgePhotoDisplay != null) bridgePhotoDisplay.texture = currentBridgePhoto;
 
-            byte[] imageBytes = currentBridgePhoto.EncodeToPNG();
-            string photoPath = PlayerDataManager.Instance != null
-                ? PlayerDataManager.Instance.GetBridgePhotoPath(currentContract.ContractID)
-                : Application.persistentDataPath + "/" + currentContract.ContractID + "_photo.png";
-            File.WriteAllBytes(photoPath, imageBytes);
+            if (!IsMultiplayerScene)
+            {
+                byte[] imageBytes = currentBridgePhoto.EncodeToPNG();
+                string photoPath = PlayerDataManager.Instance != null
+                    ? PlayerDataManager.Instance.GetBridgePhotoPath(currentContract.ContractID)
+                    : Application.persistentDataPath + "/" + currentContract.ContractID + "_photo.png";
+                File.WriteAllBytes(photoPath, imageBytes);
+            }
         }
 
         float totalCalculatedCost = 0f;
@@ -1001,7 +1013,7 @@ public class LevelCompleteManager : MonoBehaviour
         if (feedbackText != null && tutorialResult) feedbackText.text = "Tutorial complete. Great job!";
         if (IsMultiplayerScene)
         {
-            if (rewardStatusText != null) rewardStatusText.text = "PRACTICE - NOT SAVED";
+            if (rewardStatusText != null) rewardStatusText.text = "SESSION ONLY";
             if (baseRewardText != null) baseRewardText.text = "BASE\n0";
             if (bonusText != null) bonusText.text = "BONUS\n+0";
             if (penaltyText != null) penaltyText.text = "DEDUCTIONS\n-0";
@@ -1013,6 +1025,27 @@ public class LevelCompleteManager : MonoBehaviour
                 .Replace("<color=yellow>", "<color=#9B631B>").Replace("<color=red>", "<color=#A43E2D>");
 
         TryStartFirstCompletionTutorial(currentContract);
+        if (IsMultiplayerScene && FusionConnectionManager.Instance != null &&
+            FusionConnectionManager.Instance.IsHosting && lastStarResult != null)
+        {
+            int flags = (lastStarResult.completed ? 1 : 0) |
+                (lastStarResult.efficient ? 2 : 0) |
+                (lastStarResult.strong ? 4 : 0) |
+                (lastStarResult.hadBrokenParts ? 8 : 0);
+            FusionMultiplayerAvatar.FindLocalHostAvatar()?.QueueHostCompletion(
+                new FusionMultiplayerAvatar.SessionCompletionSnapshot
+                {
+                    Visible = 1,
+                    ContractHash = FusionMultiplayerAvatar.StableHash(
+                        currentContract != null ? currentContract.ContractID : null),
+                    StarFlags = flags,
+                    Cost = finalCost,
+                    Budget = maxBudget,
+                    PeakStress = peakStress,
+                    CostTarget = lastStarResult.costTarget,
+                    StressTarget = lastStarResult.stressTarget
+                });
+        }
     }
 
     private void ShowStarResults(ContractSO contract)
@@ -1020,7 +1053,9 @@ public class LevelCompleteManager : MonoBehaviour
         if (lastStarResult == null || starIcons[0] == null) return;
         int best = contract != null && PlayerDataManager.Instance != null
             ? PlayerDataManager.Instance.GetContractStars(contract.ContractID) : 0;
-        starLabels[0].text = $"<b>{lastStarResult.Stars}/3 earned</b>\nSaved best: {best}/3";
+        starLabels[0].text = IsMultiplayerScene
+            ? $"<b>{lastStarResult.Stars}/3 earned</b>\nThis room only"
+            : $"<b>{lastStarResult.Stars}/3 earned</b>\nSaved best: {best}/3";
         starLabels[1].text = $"<b>₱{lastStarResult.totalCost:N0}</b>\nGoal: ≤ ₱{lastStarResult.costTarget:N0}";
         starLabels[2].text = $"<b>{lastStarResult.peakStress:0.#}% peak</b>\nGoal: ≤ {lastStarResult.stressTarget:0.#}%\n{(lastStarResult.hadBrokenParts ? "Parts broken" : "No broken parts")}";
         if (starAnimation != null) StopCoroutine(starAnimation);
@@ -1180,8 +1215,14 @@ public class LevelCompleteManager : MonoBehaviour
         feedbackText = CompletionReceiptLayout.Label(paper,"Feedback","",.025f,.028f,.47f,.11f,26,font);
         if (IsMultiplayerScene)
         {
-            CompletionReceiptLayout.Button(paper,"Back to Build",.49f,.025f,.975f,.11f,
+            multiplayerBackButton = CompletionReceiptLayout.Button(paper,"Back to Build",.49f,.025f,.69f,.11f,
                 new Color32(239,214,170,255),font,RetrySimulation);
+            multiplayerSaveButton = CompletionReceiptLayout.Button(paper,"Save for Session",.71f,.025f,.975f,.11f,
+                new Color32(228,157,44,255),font,SaveBridgeForSession);
+            guestWaitingText = CompletionReceiptLayout.Label(paper,"Guest Waiting",
+                "Waiting for host to save or retry...",.49f,.025f,.975f,.11f,
+                25,font,TextAlignmentOptions.Center);
+            guestWaitingText.gameObject.SetActive(false);
             completionSaveTutorialTarget = null;
         }
         else
@@ -1371,6 +1412,201 @@ public class LevelCompleteManager : MonoBehaviour
             BridgeSavedAtLocation?.Invoke(completedContract, completedLocation);
         if (!completedContract.autoCollectReward && !wasContractAlreadyCompleted && returnGiver != null)
             StartCoroutine(ShowTurnInGuideAfterExit(returnGiver, completedContract));
+    }
+
+    public void SaveBridgeForSession()
+    {
+        if (!IsMultiplayerScene || FusionConnectionManager.Instance == null ||
+            !FusionConnectionManager.Instance.IsHosting)
+        {
+            Debug.LogWarning("[Multiplayer] Only the active room host can save a session bridge.", this);
+            return;
+        }
+        if (!levelAlreadyCompleted || lastStarResult == null || !lastStarResult.completed) return;
+
+        BuildLocation location = GameManager.Instance != null
+            ? GameManager.Instance.ActiveBuildLocation : null;
+        ContractSO contract = location != null ? location.activeContract : null;
+        if (location == null || contract == null || cachedPhysicsManager == null)
+        {
+            Debug.LogError("[Multiplayer] Cannot save the session bridge without its active build location, contract, and physics manager.", this);
+            return;
+        }
+
+        // Keep only the scene objects. Never call PlayerDataManager, complete a
+        // contract, grant rewards, or create a bridge file in Multiplayer.
+        cachedPhysicsManager.StopPhysicsAndReset();
+        if (!cachedPhysicsManager.BakeBridge())
+        {
+            Debug.LogError("[Multiplayer] Session bridge bake failed; the build remains available to retry.", this);
+            return;
+        }
+
+        location.CommitBridgeRedesign();
+        if (CommandManager.Instance != null) CommandManager.Instance.ClearHistory();
+        if (LevelFailedManager.Instance != null) LevelFailedManager.Instance.ResetFailCount();
+        ResetCompletionState();
+        if (GameManager.Instance != null) GameManager.Instance.ExitBuildMode();
+        ClosePanel();
+        Debug.Log("[Multiplayer] Bridge saved for this room only. It will disappear when the session ends.", this);
+    }
+
+    public void ShowGuestSessionCompletion(FusionMultiplayerAvatar.SessionCompletionSnapshot result,
+        FusionMultiplayerAvatar source)
+    {
+        if (!IsMultiplayerScene || FusionConnectionManager.Instance == null ||
+            !FusionConnectionManager.Instance.IsClientConnected ||
+            levelCompletePanel == null || guestSessionCompletionVisible) return;
+
+        guestSessionCompletionVisible = true;
+        temporarilyHiddenPanels.Clear();
+        foreach (GameObject ui in uiElementsToHide)
+        {
+            if (ui == null || !ui.activeSelf) continue;
+            temporarilyHiddenPanels.Add(ui);
+            ui.SetActive(false);
+        }
+
+        InputManager input = FindObjectOfType<InputManager>();
+        if (input != null)
+        {
+            input.SetPlayerInputEnable(false);
+            input.SetLookEnabled(false);
+        }
+        PlayerMotor player = FindObjectOfType<PlayerMotor>();
+        if (player != null) player.enabled = false;
+
+        if (multiplayerBackButton != null) multiplayerBackButton.gameObject.SetActive(false);
+        if (multiplayerSaveButton != null) multiplayerSaveButton.gameObject.SetActive(false);
+        if (guestWaitingText != null) guestWaitingText.gameObject.SetActive(true);
+
+        lastStarResult = new ContractStarResult
+        {
+            completed = (result.StarFlags & 1) != 0,
+            efficient = (result.StarFlags & 2) != 0,
+            strong = (result.StarFlags & 4) != 0,
+            hadBrokenParts = (result.StarFlags & 8) != 0,
+            totalCost = result.Cost,
+            peakStress = result.PeakStress,
+            costTarget = result.CostTarget,
+            stressTarget = result.StressTarget
+        };
+
+        if (feedbackText != null) feedbackText.text = "Host's bridge passed the test.";
+        if (costText != null)
+        {
+            costText.text = $"Total Cost: ₱{Mathf.RoundToInt(result.Cost):N0}";
+            costText.color = result.Cost > result.Budget
+                ? new Color32(164, 62, 45, 255) : CompletionReceiptLayout.Ink;
+        }
+        if (budgetText != null) budgetText.text = $"Budget: ₱{Mathf.RoundToInt(result.Budget):N0}";
+        if (stressText != null)
+        {
+            stressText.text = $"Peak Bridge Stress: {result.PeakStress:0.0}%";
+            stressText.color = result.PeakStress >= 100f ? new Color32(164, 62, 45, 255) :
+                result.PeakStress >= 50f ? new Color32(155, 99, 27, 255) :
+                new Color32(76, 110, 47, 255);
+        }
+        if (receiptBalanceText != null)
+            receiptBalanceText.text = $"{(result.Cost > result.Budget ? "Over budget" : "Remaining")}   " +
+                $"₱{Mathf.RoundToInt(Mathf.Abs(result.Budget - result.Cost)):N0}";
+        if (receiptStampText != null)
+        {
+            bool overBudget = result.Cost > result.Budget;
+            receiptStampText.text = overBudget ? "OVER BUDGET" : "WITHIN BUDGET";
+            receiptStampText.color = overBudget ? new Color32(164, 62, 45, 255) :
+                new Color32(76, 110, 47, 255);
+        }
+        if (rewardStatusText != null) rewardStatusText.text = "SESSION ONLY";
+        if (baseRewardText != null) baseRewardText.text = "BASE\n0";
+        if (bonusText != null) bonusText.text = "BONUS\n+0";
+        if (penaltyText != null) penaltyText.text = "DEDUCTIONS\n-0";
+        if (goldEarnedText != null) goldEarnedText.text = "TOTAL  0";
+        if (expEarnedText != null) expEarnedText.text = "+0";
+
+        if (receiptContentParent != null)
+        {
+            foreach (Transform child in receiptContentParent) Destroy(child.gameObject);
+            int rows = source != null
+                ? source.PopulateGuestReceiptRows(receiptContentParent, receiptRowPrefab,
+                    result.ContractHash) : 0;
+            if (rows == 0)
+            {
+                guestReceiptPlaceholder = new GameObject("Host Bridge Receipt",
+                    typeof(RectTransform), typeof(LayoutElement), typeof(TextMeshProUGUI));
+                guestReceiptPlaceholder.transform.SetParent(receiptContentParent, false);
+                guestReceiptPlaceholder.GetComponent<LayoutElement>().preferredHeight = 84f;
+                TextMeshProUGUI label = guestReceiptPlaceholder.GetComponent<TextMeshProUGUI>();
+                label.font = ReceiptFont != null ? ReceiptFont : TMP_Settings.defaultFontAsset;
+                label.fontSize = 25f;
+                label.color = CompletionReceiptLayout.Ink;
+                label.alignment = TextAlignmentOptions.Center;
+                label.text = "Host bridge result\nSaved in this room only";
+            }
+        }
+
+        CaptureGuestBridgePhoto(result.ContractHash);
+        SimulationLessonPresenter.HideForResultOverlay();
+        levelCompletePanel.SetActive(true);
+        ShowStarResults(null);
+        if (AudioManager.Instance != null) AudioManager.Instance.PlaySFX("Level_Complete");
+    }
+
+    public void HideGuestSessionCompletion()
+    {
+        if (!guestSessionCompletionVisible) return;
+        guestSessionCompletionVisible = false;
+        if (guestReceiptPlaceholder != null) Destroy(guestReceiptPlaceholder);
+        guestReceiptPlaceholder = null;
+        if (multiplayerBackButton != null) multiplayerBackButton.gameObject.SetActive(true);
+        if (multiplayerSaveButton != null) multiplayerSaveButton.gameObject.SetActive(true);
+        if (guestWaitingText != null) guestWaitingText.gameObject.SetActive(false);
+        if (starAnimation != null) StopCoroutine(starAnimation);
+        starAnimation = null;
+        ClosePanel();
+    }
+
+    private void CaptureGuestBridgePhoto(int contractHash)
+    {
+        if (currentBridgePhoto != null) Destroy(currentBridgePhoto);
+        currentBridgePhoto = null;
+        if (bridgePhotoDisplay != null) bridgePhotoDisplay.texture = null;
+        Camera camera = null;
+        foreach (BuildLocation location in FindObjectsOfType<BuildLocation>(true))
+        {
+            if (location == null || location.gameObject.scene != gameObject.scene ||
+                location.activeContract == null ||
+                FusionMultiplayerAvatar.StableHash(location.activeContract.ContractID) != contractHash)
+                continue;
+            camera = location.cinematicCamera != null
+                ? location.cinematicCamera : location.locationCamera;
+            break;
+        }
+        if (camera == null || bridgePhotoDisplay == null) return;
+
+        RenderTexture render = new RenderTexture(960, 540, 24);
+        RenderTexture previousActive = RenderTexture.active;
+        RenderTexture previousTarget = camera.targetTexture;
+        bool wasEnabled = camera.enabled;
+        try
+        {
+            camera.targetTexture = render;
+            camera.enabled = true;
+            camera.Render();
+            RenderTexture.active = render;
+            Texture2D photo = new Texture2D(960, 540, TextureFormat.RGB24, false);
+            photo.ReadPixels(new Rect(0, 0, 960, 540), 0, 0);
+            photo.Apply();
+            currentBridgePhoto = photo;
+            bridgePhotoDisplay.texture = photo;
+        }
+        finally
+        {
+            camera.enabled = wasEnabled;
+            camera.targetTexture = previousTarget;
+            RenderTexture.active = previousActive;
+            Destroy(render);
+        }
     }
 
     private IEnumerator ShowTurnInGuideAfterExit(NPCContractGiver giver, ContractSO contract)

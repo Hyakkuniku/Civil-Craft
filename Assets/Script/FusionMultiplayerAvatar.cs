@@ -39,12 +39,30 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
     [Networked] private int HostLiveLoadNameHash { get; set; }
     [Networked] private Vector3 HostLiveLoadPosition { get; set; }
     [Networked] private Quaternion HostLiveLoadRotation { get; set; }
+    [Networked] private SessionCompletionSnapshot HostCompletion { get; set; }
+    [Networked] private int HostCompletionRevision { get; set; }
 
     public struct BridgeBarSnapshot : INetworkStruct
     {
         public Vector3 Start;
         public Vector3 End;
         public int MaterialHash;
+        public int ContractHash;
+        public int Committed;
+        public Vector3 RoadColliderSize;
+        public Vector3 RoadColliderCenter;
+    }
+
+    public struct SessionCompletionSnapshot : INetworkStruct
+    {
+        public int Visible;
+        public int ContractHash;
+        public int StarFlags;
+        public float Cost;
+        public float Budget;
+        public float PeakStress;
+        public float CostTarget;
+        public float StressTarget;
     }
 
     private PlayerMotor sceneMotor;
@@ -83,6 +101,9 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
     private bool[] remoteLiveLoadColliderWasEnabled;
     private UnityEngine.AI.NavMeshObstacle[] remoteLiveLoadObstacles;
     private bool[] remoteLiveLoadObstacleWasEnabled;
+    private SessionCompletionSnapshot pendingCompletion;
+    private bool pendingCompletionDirty;
+    private int lastObservedCompletionRevision;
 
     public override void Spawned()
     {
@@ -98,6 +119,8 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
         DestroyRemoteBridgeNodes();
         DestroyRemoteBridgeBars();
         RestoreRemoteLiveLoad();
+        if (LevelCompleteManager.Instance != null)
+            LevelCompleteManager.Instance.HideGuestSessionCompletion();
     }
 
     private void OnDestroy()
@@ -107,6 +130,8 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
         DestroyRemoteBridgeNodes();
         DestroyRemoteBridgeBars();
         RestoreRemoteLiveLoad();
+        if (LevelCompleteManager.Instance != null)
+            LevelCompleteManager.Instance.HideGuestSessionCompletion();
     }
 
     private void Update()
@@ -122,6 +147,8 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
             DestroyRemoteBridgeNodes();
             DestroyRemoteBridgeBars();
             RestoreRemoteLiveLoad();
+            if (LevelCompleteManager.Instance != null)
+                LevelCompleteManager.Instance.HideGuestSessionCompletion();
             return;
         }
 
@@ -141,6 +168,7 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
         UpdateRemoteBridgeNodes();
         UpdateRemoteBridgeBars();
         UpdateRemoteLiveLoad();
+        UpdateRemoteCompletion();
         if (!PoseReady) return;
         UpdateRemotePose();
         if (visualContainer == null) CreateRemoteVisual();
@@ -150,6 +178,13 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
 
     public override void FixedUpdateNetwork()
     {
+        if (HasInputAuthority && HasStateAuthority && Runner.IsServer && pendingCompletionDirty)
+        {
+            HostCompletion = pendingCompletion;
+            HostCompletionRevision++;
+            pendingCompletionDirty = false;
+        }
+
         if (HasInputAuthority && HasStateAuthority && Runner.IsServer &&
             SceneManager.GetActiveScene().name == "Multiplayer" &&
             Time.unscaledTime >= nextLiveLoadSyncTime)
@@ -209,35 +244,39 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
 
     private void PublishHostBridgeNodes()
     {
-        BuildLocation location = GameManager.Instance != null &&
+        BuildLocation activeLocation = GameManager.Instance != null &&
             GameManager.Instance.CurrentState != GameManager.GameState.Normal
             ? GameManager.Instance.ActiveBuildLocation : null;
+        BuildLocation[] locations = FindObjectsOfType<BuildLocation>();
         int count = 0;
-        if (location != null)
+        foreach (Point point in Point.AllPoints)
         {
-            foreach (Point point in Point.AllPoints)
+            if (point == null || !point.gameObject.activeInHierarchy || point.IsScenePlacedAnchor)
+                continue;
+
+            bool belongsToVisibleBridge = false;
+            foreach (BuildLocation location in locations)
             {
-                if (point == null || !point.gameObject.activeInHierarchy ||
-                    point.OwnerLocation != location || point.IsScenePlacedAnchor)
-                    continue;
-
-                bool hasPlacedBar = false;
-                foreach (Bar bar in point.ConnectedBars)
-                {
-                    if (bar != null && bar.gameObject.activeInHierarchy)
-                    {
-                        hasPlacedBar = true;
-                        break;
-                    }
-                }
-                if (!hasPlacedBar) continue;
-                if (count == MaxBridgeNodes) break;
-
-                Vector3 position = point.transform.position;
-                if (HostBridgeNodes[count] != position)
-                    HostBridgeNodes.Set(count, position);
-                count++;
+                if (location == null || point.OwnerLocation != location) continue;
+                if (location == activeLocation || location.bakedPoints.Contains(point))
+                    belongsToVisibleBridge = true;
             }
+            if (!belongsToVisibleBridge) continue;
+
+            bool hasPlacedBar = false;
+            foreach (Bar bar in point.ConnectedBars)
+                if (bar != null && bar.gameObject.activeInHierarchy)
+                {
+                    hasPlacedBar = true;
+                    break;
+                }
+            if (!hasPlacedBar) continue;
+            if (count == MaxBridgeNodes) break;
+
+            Vector3 position = point.transform.position;
+            if (HostBridgeNodes[count] != position)
+                HostBridgeNodes.Set(count, position);
+            count++;
         }
 
         if (HostBridgeNodeCount != count) HostBridgeNodeCount = count;
@@ -323,7 +362,7 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
         remoteBridgeNodeMarkers.Clear();
     }
 
-    private static int StableHash(string value)
+    public static int StableHash(string value)
     {
         // Material/contract identifiers must match across separately built clients.
         unchecked
@@ -338,34 +377,92 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
         }
     }
 
+    public static FusionMultiplayerAvatar FindLocalHostAvatar()
+    {
+        foreach (FusionMultiplayerAvatar avatar in FindObjectsOfType<FusionMultiplayerAvatar>())
+            if (avatar != null && avatar.Runner != null && avatar.Runner.IsRunning &&
+                avatar.Runner.IsServer && avatar.HasStateAuthority && avatar.HasInputAuthority)
+                return avatar;
+        return null;
+    }
+
+    public void QueueHostCompletion(SessionCompletionSnapshot completion)
+    {
+        if (Runner == null || !Runner.IsRunning || !Runner.IsServer ||
+            !HasStateAuthority || !HasInputAuthority ||
+            SceneManager.GetActiveScene().name != "Multiplayer") return;
+        pendingCompletion = completion;
+        pendingCompletionDirty = true;
+    }
+
+    private void UpdateRemoteCompletion()
+    {
+        if (!IsBridgeBuilder || HostCompletionRevision == lastObservedCompletionRevision) return;
+        LevelCompleteManager completion = LevelCompleteManager.Instance;
+        if (completion == null) return;
+
+        lastObservedCompletionRevision = HostCompletionRevision;
+        SessionCompletionSnapshot snapshot = HostCompletion;
+        if (snapshot.Visible != 0) completion.ShowGuestSessionCompletion(snapshot, this);
+        else completion.HideGuestSessionCompletion();
+    }
+
     private void PublishHostBridgeBars()
     {
-        BuildLocation location = GameManager.Instance != null &&
+        BuildLocation activeLocation = GameManager.Instance != null &&
             GameManager.Instance.CurrentState != GameManager.GameState.Normal
             ? GameManager.Instance.ActiveBuildLocation : null;
+        BuildLocation[] locations = FindObjectsOfType<BuildLocation>();
+        List<Bar> candidates = new List<Bar>(FindObjectsOfType<Bar>());
+        foreach (BuildLocation location in locations)
+            if (location != null)
+                foreach (Bar baked in location.bakedBars)
+                    if (baked != null && !candidates.Contains(baked)) candidates.Add(baked);
         int count = 0;
-        if (location != null)
+        foreach (Bar bar in candidates)
         {
-            foreach (Bar bar in FindObjectsOfType<Bar>())
-            {
-                if (bar == null || !bar.gameObject.activeInHierarchy ||
-                    bar.OwnerLocation != location || bar.materialData == null ||
-                    bar.startPoint == null || bar.endPoint == null)
-                    continue;
-                if (count >= MaxBridgeBars) break;
+            if (bar == null || !bar.gameObject.activeInHierarchy ||
+                bar.materialData == null || bar.startPoint == null || bar.endPoint == null)
+                continue;
 
-                BridgeBarSnapshot snapshot = new BridgeBarSnapshot
+            bool committed = false;
+            bool visible = false;
+            int contractHash = 0;
+            foreach (BuildLocation location in locations)
+            {
+                if (location == null || !location.Owns(bar)) continue;
+                if (location.bakedBars.Contains(bar)) committed = true;
+                if (location == activeLocation || committed)
                 {
-                    Start = bar.startPoint.transform.position,
-                    End = bar.endPoint.transform.position,
-                    MaterialHash = StableHash(bar.materialData.Id)
-                };
-                BridgeBarSnapshot previous = HostBridgeBars[count];
-                if (previous.Start != snapshot.Start || previous.End != snapshot.End ||
-                    previous.MaterialHash != snapshot.MaterialHash)
-                    HostBridgeBars.Set(count, snapshot);
-                count++;
+                    visible = true;
+                    if (location.activeContract != null)
+                        contractHash = StableHash(location.activeContract.ContractID);
+                }
             }
+            if (!visible) continue;
+            if (count >= MaxBridgeBars) break;
+
+            BoxCollider roadCollider = committed && bar.materialData.isRoad
+                ? bar.GetComponent<BoxCollider>() : null;
+            BridgeBarSnapshot snapshot = new BridgeBarSnapshot
+            {
+                Start = bar.startPoint.transform.position,
+                End = bar.endPoint.transform.position,
+                MaterialHash = StableHash(bar.materialData.Id),
+                ContractHash = contractHash,
+                Committed = committed ? 1 : 0,
+                RoadColliderSize = roadCollider != null ? roadCollider.size : Vector3.zero,
+                RoadColliderCenter = roadCollider != null ? roadCollider.center : Vector3.zero
+            };
+            BridgeBarSnapshot previous = HostBridgeBars[count];
+            if (previous.Start != snapshot.Start || previous.End != snapshot.End ||
+                previous.MaterialHash != snapshot.MaterialHash ||
+                previous.ContractHash != snapshot.ContractHash ||
+                previous.Committed != snapshot.Committed ||
+                previous.RoadColliderSize != snapshot.RoadColliderSize ||
+                previous.RoadColliderCenter != snapshot.RoadColliderCenter)
+                HostBridgeBars.Set(count, snapshot);
+            count++;
         }
         if (HostBridgeBarCount != count) HostBridgeBarCount = count;
     }
@@ -416,6 +513,7 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
             if (visual == null) continue;
             visual.Root.SetActive(true);
             visual.SetEndpoints(snapshot.Start, snapshot.End);
+            visual.SetRoadCollider(snapshot);
         }
     }
 
@@ -423,11 +521,51 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
     {
         bridgeMaterialsByHash = new Dictionary<int, BridgeMaterialSO>();
         foreach (BridgeMaterialSO material in Resources.LoadAll<BridgeMaterialSO>(string.Empty))
+            RegisterBridgeMaterial(material);
+
+        // Some materials are referenced directly by a contract rather than
+        // stored under Resources; both players have the same authored scene.
+        foreach (BuildLocation location in FindObjectsOfType<BuildLocation>(true))
         {
-            if (material == null) continue;
-            int hash = StableHash(material.Id);
-            if (!bridgeMaterialsByHash.ContainsKey(hash)) bridgeMaterialsByHash.Add(hash, material);
+            ContractSO contract = location != null ? location.activeContract : null;
+            if (contract == null || contract.allowedMaterials == null) continue;
+            foreach (MaterialAllowance allowance in contract.allowedMaterials)
+                if (allowance != null) RegisterBridgeMaterial(allowance.material);
         }
+    }
+
+    private void RegisterBridgeMaterial(BridgeMaterialSO material)
+    {
+        if (material == null) return;
+        int hash = StableHash(material.Id);
+        if (!bridgeMaterialsByHash.ContainsKey(hash)) bridgeMaterialsByHash.Add(hash, material);
+    }
+
+    public int PopulateGuestReceiptRows(Transform parent, GameObject rowPrefab, int contractHash)
+    {
+        if (!IsBridgeBuilder || parent == null || rowPrefab == null) return 0;
+        if (bridgeMaterialsByHash == null) LoadBridgeMaterials();
+        Dictionary<BridgeMaterialSO, float> usage = new Dictionary<BridgeMaterialSO, float>();
+        int count = Mathf.Clamp(HostBridgeBarCount, 0, MaxBridgeBars);
+        for (int index = 0; index < count; index++)
+        {
+            BridgeBarSnapshot bar = HostBridgeBars[index];
+            if (bar.ContractHash != contractHash ||
+                !bridgeMaterialsByHash.TryGetValue(bar.MaterialHash, out BridgeMaterialSO material))
+                continue;
+            float length = Vector3.Distance(bar.Start, bar.End) *
+                (material.isDualBeam ? 2f : 1f);
+            usage[material] = usage.TryGetValue(material, out float previous)
+                ? previous + length : length;
+        }
+
+        foreach (KeyValuePair<BridgeMaterialSO, float> entry in usage)
+        {
+            GameObject row = Instantiate(rowPrefab, parent);
+            ReceiptRowUI receipt = row.GetComponent<ReceiptRowUI>();
+            if (receipt != null) receipt.Setup(entry.Key, entry.Value);
+        }
+        return usage.Count;
     }
 
     private void DestroyRemoteBridgeBars()
@@ -447,6 +585,7 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
         private readonly List<Transform> segments = new List<Transform>();
         private readonly List<Vector3> segmentBaseScales = new List<Vector3>();
         private readonly Transform cap;
+        private BoxCollider roadCollider;
         private readonly Vector3 capBaseScale;
         private readonly float capTopOffset;
         private readonly float capBottomOffset;
@@ -533,6 +672,26 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
                         original.y, original.z);
                 }
             }
+        }
+
+        public void SetRoadCollider(BridgeBarSnapshot snapshot)
+        {
+            bool isCommittedRoad = material.isRoad && snapshot.Committed != 0 &&
+                snapshot.RoadColliderSize.sqrMagnitude > 0f;
+            if (isCommittedRoad && roadCollider == null)
+                roadCollider = Root.AddComponent<BoxCollider>();
+            if (roadCollider != null)
+            {
+                roadCollider.enabled = isCommittedRoad;
+                if (isCommittedRoad)
+                {
+                    roadCollider.size = snapshot.RoadColliderSize;
+                    roadCollider.center = snapshot.RoadColliderCenter;
+                    roadCollider.isTrigger = false;
+                }
+            }
+            int bridgeLayer = LayerMask.NameToLayer("Bridge");
+            Root.layer = isCommittedRoad && bridgeLayer >= 0 ? bridgeLayer : 2;
         }
 
         private static GameObject CreateMeshOnlyCopy(GameObject source, Transform parent, string name)
