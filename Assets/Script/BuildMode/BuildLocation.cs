@@ -71,6 +71,9 @@ public class BuildLocation : Interactable
     [Tooltip("Optional editable starter bridge root. Hidden in the overworld and shown as soon as this location enters build mode. Do not assign a saved/committed bridge here.")]
     public GameObject buildModeOnlyStarterBridge;
 
+    private GameObject starterBridgeRedesignTemplate;
+    private GameObject committedStarterRootBeforeRedesign;
+    private GameObject redesignStarterRoot;
     private readonly List<Bar> committedBarsBeforeRedesign = new List<Bar>();
     private readonly List<Point> committedPointsBeforeRedesign = new List<Point>();
     private readonly List<Bar> hiddenUnfinishedBars = new List<Bar>();
@@ -279,6 +282,7 @@ public class BuildLocation : Interactable
         if (isRedesigningBridge || bakedBars.Count == 0 || IsRedesignBlockedByNPCTravel)
             return false;
 
+        EnsureStarterBridgeRedesignTemplate();
         committedBarsBeforeRedesign.Clear();
         committedPointsBeforeRedesign.Clear();
         committedBarsBeforeRedesign.AddRange(bakedBars);
@@ -307,6 +311,14 @@ public class BuildLocation : Interactable
         bakedBars.Clear();
         bakedPoints.Clear();
         isRedesigningBridge = true;
+
+        if (starterBridgeRedesignTemplate != null && buildModeOnlyStarterBridge != null)
+        {
+            committedStarterRootBeforeRedesign = buildModeOnlyStarterBridge;
+            redesignStarterRoot = Instantiate(starterBridgeRedesignTemplate);
+            redesignStarterRoot.name = "RedesignStarter_" + committedStarterRootBeforeRedesign.name;
+            buildModeOnlyStarterBridge = redesignStarterRoot;
+        }
         return true;
     }
 
@@ -333,6 +345,14 @@ public class BuildLocation : Interactable
 
         committedBarsBeforeRedesign.Clear();
         committedPointsBeforeRedesign.Clear();
+        if (redesignStarterRoot != null)
+        {
+            GameObject previousRoot = committedStarterRootBeforeRedesign;
+            redesignStarterRoot = null;
+            committedStarterRootBeforeRedesign = null;
+            if (previousRoot != null && previousRoot != buildModeOnlyStarterBridge)
+                Destroy(previousRoot);
+        }
         isRedesigningBridge = false;
     }
 
@@ -356,6 +376,15 @@ public class BuildLocation : Interactable
 
         BarCreator creator = FindObjectOfType<BarCreator>(true);
         if (creator != null) creator.ClearPlayerPlacedBridge(this);
+
+        if (redesignStarterRoot != null)
+        {
+            GameObject abandonedRoot = redesignStarterRoot;
+            buildModeOnlyStarterBridge = committedStarterRootBeforeRedesign;
+            redesignStarterRoot = null;
+            committedStarterRootBeforeRedesign = null;
+            Destroy(abandonedRoot);
+        }
 
         foreach (Point point in bakedPoints)
             if (point != null) point.gameObject.SetActive(true);
@@ -717,6 +746,7 @@ public class BuildLocation : Interactable
     {
         if (buildModeOnlyStarterBridge == null || bakedBars.Count > 0) return;
 
+        EnsureStarterBridgeRedesignTemplate();
         buildModeOnlyStarterBridge.SetActive(true);
 
         // Prefabbed bars can lose references to the scene's endpoint anchors.
@@ -736,6 +766,17 @@ public class BuildLocation : Interactable
 
         ClaimConnectedBridgeOwnership();
         SetBridgeScriptsActive(true);
+    }
+
+    private void EnsureStarterBridgeRedesignTemplate()
+    {
+        if (starterBridgeRedesignTemplate != null || buildModeOnlyStarterBridge == null) return;
+
+        // Capture the authored bridge before the player can edit or erase it.
+        // Keep this copy inactive; Redesign receives a separate editable clone.
+        starterBridgeRedesignTemplate = Instantiate(buildModeOnlyStarterBridge);
+        starterBridgeRedesignTemplate.name = "RedesignTemplate_" + buildModeOnlyStarterBridge.name;
+        starterBridgeRedesignTemplate.SetActive(false);
     }
 
     public void HideBuildModeOnlyStarterBridge()

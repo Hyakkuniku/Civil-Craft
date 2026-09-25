@@ -14,11 +14,16 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   materialId: RopeMaterial
   displayName: Support Rope
-  introductionDescription: A flexible support for suspension-style bridges that works best under tension. Rope cannot carry meaningful compression, so anchor it securely above a supported road deck.
+  introductionDescription: A flexible support for suspension-style bridges that works
+    best under tension. Rope cannot carry meaningful compression, so anchor it securely
+    above a supported road deck.
+  introductionImage: {fileID: 0}
+  almanacDescription: 
+  almanacImage: {fileID: 0}
   costPerMeter: 125
   massPerMeter: 0.216
   maxLength: Infinity
-  maxTension: 62000
+  maxTension: 52000
   maxCompression: 0
   useSpring: 1
   spring: 10000
@@ -26,6 +31,9 @@ MonoBehaviour:
   isRope: 1
   isRoad: 0
   isPier: 0
+  pierBucklingReferenceLength: 10
+  pierBucklingExponent: 2
+  pierMinimumCompressionMultiplier: 0.15
   unlockCost: 500
   materialIcon: {fileID: 21300000, guid: 69f3ba5b0653805438eff98b9377ce57, type: 3}
   segmentPrefab: {fileID: 8846941766389065738, guid: 10c1b50154ff8924281486b4e7c6b513,
