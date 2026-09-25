@@ -360,6 +360,62 @@ public class Bar : MonoBehaviour
     {
         if (Application.isPlaying && ownerLocation == null && GameManager.Instance != null)
             ownerLocation = GameManager.Instance.ActiveBuildLocation;
+
+        // Interactive starter bridges are saved as prefabs with their visual
+        // children, but the runtime-only visualSegments list is not serialized.
+        // Reconnect to those children instead of spawning another set of meshes.
+        RestoreExistingVisuals();
+    }
+
+    private void RestoreExistingVisuals()
+    {
+        if (materialData == null || visualSegments.Count != 0) return;
+
+        for (int i = 0; i < transform.childCount; i++)
+        {
+            Transform child = transform.GetChild(i);
+            if (child.name.StartsWith("VisualSegment_", System.StringComparison.Ordinal) ||
+                child.name == "VisualSegment")
+            {
+                visualSegments.Add(child.gameObject);
+                if (materialData.isRope)
+                    ropeBuildRenderers.AddRange(child.GetComponentsInChildren<Renderer>(true));
+            }
+            else if (child.name == "PierCap")
+            {
+                pierCapInstance = child.gameObject;
+            }
+            else if (materialData.isRope && child.name.StartsWith("SimulationRope_", System.StringComparison.Ordinal))
+            {
+                LineRenderer line = child.GetComponent<LineRenderer>();
+                if (line != null) ropeSimulationLines.Add(line);
+            }
+        }
+
+        if (visualSegments.Count == 0) return;
+
+        // Treat the prefab's authored shape as the baseline. This preserves its
+        // exact appearance and lets Move scale it by the endpoint length ratio.
+        originalScale = visualSegments[0].transform.localScale;
+        Vector3 span = EndPosition - StartPosition;
+        span.z = 0f;
+        float savedLength = span.magnitude;
+        if (materialData.isPier)
+        {
+            float lowerY = Mathf.Min(StartPosition.y, EndPosition.y);
+            float upperY = Mathf.Max(StartPosition.y, EndPosition.y);
+            baseLength = Mathf.Max(0.05f, (transform.position.y - lowerY) * 2f);
+            if (pierCapInstance != null)
+            {
+                originalCapScale = pierCapInstance.transform.localScale;
+                capTopOffset = upperY - pierCapInstance.transform.position.y;
+                capBottomOffset = capTopOffset - (savedLength - baseLength);
+            }
+        }
+        else
+        {
+            baseLength = Mathf.Max(0.01f, savedLength);
+        }
     }
 
     public void AssignOwner(BuildLocation location, bool overwriteExisting = false)
@@ -569,6 +625,7 @@ public class Bar : MonoBehaviour
 
     public void UpdateCreatingBar(Vector3 ToPosition) 
     {
+        if (visualSegments.Count == 0) RestoreExistingVisuals();
         EndPosition = ToPosition;
         if (visualSegments.Count == 0 || materialData == null) return;
 

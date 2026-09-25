@@ -890,26 +890,33 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             CheckForExistingPoint(screenPos, out Point hoveredNode, out _);
             if (hoveredNode == null)
             {
-                Bar pier = CheckForExistingBar(screenPos, true);
-                if (pier != null)
+                Bar hoveredBar = CheckForExistingBar(screenPos);
+                if (hoveredBar != null)
                 {
                     ClearSelection();
-                    Point upper = pier.startPoint != null && pier.endPoint != null &&
-                                  pier.startPoint.transform.position.y > pier.endPoint.transform.position.y
-                        ? pier.startPoint : pier.endPoint;
-                    Point lower = upper == pier.startPoint ? pier.endPoint : pier.startPoint;
-                    // Keep the visible upper tip primary for the drag guides and
-                    // grid snap; the buried foundation moves with the pier.
-                    if (upper != null && !upper.IsScenePlacedAnchor)
+                    Point first = hoveredBar.startPoint;
+                    Point second = hoveredBar.endPoint;
+                    if (hoveredBar.materialData != null && hoveredBar.materialData.isPier &&
+                        first != null && second != null && first.transform.position.y < second.transform.position.y)
                     {
-                        upper.isSelected = true;
-                        selectedPoints.Add(upper);
+                        first = hoveredBar.endPoint;
+                        second = hoveredBar.startPoint;
                     }
-                    if (lower != null && !lower.IsScenePlacedAnchor &&
-                        !selectedPoints.Contains(lower))
+
+                    // Dragging a member moves both editable endpoints together;
+                    // scene anchors stay fixed. Node drags still reshape one end.
+                    if (first != null && first.isActiveAndEnabled && !first.IsScenePlacedAnchor)
                     {
-                        lower.isSelected = true;
-                        selectedPoints.Add(lower);
+                        first.isSelected = true;
+                        first.UpdateMaterial();
+                        selectedPoints.Add(first);
+                    }
+                    if (second != null && second.isActiveAndEnabled &&
+                        !second.IsScenePlacedAnchor && second != first)
+                    {
+                        second.isSelected = true;
+                        second.UpdateMaterial();
+                        selectedPoints.Add(second);
                     }
                     if (selectedPoints.Count > 0)
                     {
@@ -1609,7 +1616,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         Camera cam = GetActiveCamera();
         BuildLocation activeLocation = GameManager.Instance != null
             ? GameManager.Instance.ActiveBuildLocation : null;
-        float buildPlaneZ = pierOnly ? GetBuildPlaneZ() : 0f;
+        float buildPlaneZ = GetBuildPlaneZ();
         Bar closestBar = null;
         float minSqrDist = deleteSnapRadiusPixels * deleteSnapRadiusPixels;
         foreach (Point p in Point.AllPoints)
@@ -1618,9 +1625,8 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             {
                 if (b == null || !b.gameObject.activeSelf || b.startPoint == null || b.endPoint == null ||
                     (pierOnly && (b.materialData == null || !b.materialData.isPier))) continue;
-                if (pierOnly &&
-                    ((activeLocation != null && b.OwnerLocation != null && b.OwnerLocation != activeLocation) ||
-                     Mathf.Abs(b.startPoint.transform.position.z - buildPlaneZ) > nodeSnapDepthTolerance))
+                if ((activeLocation != null && b.OwnerLocation != null && b.OwnerLocation != activeLocation) ||
+                    Mathf.Abs(b.startPoint.transform.position.z - buildPlaneZ) > nodeSnapDepthTolerance)
                     continue;
                 Vector3 startScreenPos = cam.WorldToScreenPoint(b.startPoint.transform.position);
                 Vector3 endScreenPos = cam.WorldToScreenPoint(b.endPoint.transform.position);

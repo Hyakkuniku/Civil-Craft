@@ -11,13 +11,13 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
   m_Name: Vance Side Realignment
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   liveLoadMode: 0
   allowVehicleCargo: 0
   minimumLoadedCargo: 0
-  cargoUnlockProgressionId:
+  cargoUnlockProgressionId: 
   cargoUnlockAfterDialoguePhaseIndex: -1
-  cargoLoadedNPCPhaseId:
+  cargoLoadedNPCPhaseId: 
   contractID: VanceSideRealignment
   efficiencyStarBudgetRatio: 0.85
   strengthStarMaxStress: 60
@@ -28,12 +28,13 @@ MonoBehaviour:
   autoCollectReward: 0
   featureUnlockRewards: []
   clientName: Vance
-  jobDescription: Realign the joints of an existing bridge without adding or removing parts. Test the corrected crossing with the delivery vehicle.
+  jobDescription: Realign the joints of an existing bridge without adding or removing
+    parts. Test the corrected crossing with the delivery vehicle.
   budget: 150000
   liveLoadWeight: 1000
   bridgeSpan: 30
   allowedMaterials: []
-  hiddenTools: 0000000002000000030000000400000005000000060000000700000008000000090000000a0000000d000000
+  hiddenTools: 0300000004000000050000000600000007000000080000000d00000000000000
   hiddenMaterials:
   - {fileID: 11400000, guid: 57a46c6632dd61b4094902963cf1c5be, type: 2}
   - {fileID: 11400000, guid: b98aa9ba752ac28449feebc76f256bf2, type: 2}
@@ -51,16 +52,22 @@ MonoBehaviour:
   offerDialogue:
     name: Vance
     sentences:
-    - Another engineer assembled this crossing, but some of its joints are out of position.
-    - I do not need you to add more material or tear the bridge apart. I need you to realign what is already there.
-    - Use <b><#E09500>Move</color></b> to reposition the existing joints, then watch how the bridge carries the test vehicle.
-    - You can use <b><#E09500>Undo, Redo, and Simulate</color></b> while you work. Find an alignment that keeps a safe path across.
+    - Another engineer assembled this crossing, but some of its joints are out of
+      position.
+    - I do not need you to add more material or tear the bridge apart. I need you
+      to realign what is already there.
+    - Use <b><#E09500>Move</color></b> to reposition the existing joints, then watch
+      how the bridge carries the test vehicle.
+    - You can use <b><#E09500>Undo, Redo, and Simulate</color></b> while you work.
+      Find an alignment that keeps a safe path across.
     - Will you inspect and correct this bridge?
   continueOfferDialogue:
     name: Vance
     sentences:
-    - The bridge is already in place. Turn on Move, then drag a joint that needs adjustment.
-    - You cannot add or erase members on this job. Test the new alignment before you finish.
+    - The bridge is already in place. Turn on Move, then drag a joint that needs
+      adjustment.
+    - You cannot add or erase members on this job. Test the new alignment before
+      you finish.
   reminderDialogue:
     name: Vance
     sentences:
