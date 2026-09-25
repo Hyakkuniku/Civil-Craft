@@ -76,6 +76,9 @@ public class BuildCameraController : MonoBehaviour
     private float lockedZPosition; 
 
     private HashSet<int> uiTouches = new HashSet<int>();
+    // Reuse this buffer while fingers move; allocating a List every rendered
+    // frame produces avoidable GC pressure on Android.
+    private readonly List<Touch> validTouches = new List<Touch>(4);
     private bool mouseStartedOnUI = false;
     private PointerEventData cachedEventData;
     private List<RaycastResult> cachedRaycastResults = new List<RaycastResult>();
@@ -167,7 +170,7 @@ public class BuildCameraController : MonoBehaviour
                 }
             }
 
-            List<Touch> validTouches = new List<Touch>();
+            validTouches.Clear();
             foreach (var touch in Touch.activeTouches)
             {
                 if (!uiTouches.Contains(touch.finger.index))

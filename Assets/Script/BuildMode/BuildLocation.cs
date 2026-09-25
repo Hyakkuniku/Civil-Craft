@@ -102,6 +102,7 @@ public class BuildLocation : Interactable
 
     private float timeAttackTimer;
     private bool isTimeAttackActive = false;
+    private BridgePhysicsManager cachedTimeAttackPhysics;
 
     private void Awake()
     {
@@ -155,8 +156,9 @@ public class BuildLocation : Interactable
 
         if (isTimeAttackActive)
         {
-            BridgePhysicsManager phys = FindObjectOfType<BridgePhysicsManager>();
-            bool isSimulating = phys != null && phys.isSimulating;
+            if (cachedTimeAttackPhysics == null)
+                cachedTimeAttackPhysics = FindObjectOfType<BridgePhysicsManager>();
+            bool isSimulating = cachedTimeAttackPhysics != null && cachedTimeAttackPhysics.isSimulating;
             bool isFailed = LevelFailedManager.Instance != null && LevelFailedManager.Instance.isFailed;
             bool isPaused = Time.timeScale == 0f;
 

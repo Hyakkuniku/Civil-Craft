@@ -11,7 +11,13 @@ public class PlayerUI : MonoBehaviour
     [Tooltip("A Prefab of a UI Button that has TextMeshPro inside it")]
     [SerializeField] private GameObject interactButtonPrefab; 
 
-    private Dictionary<Interactable, GameObject> activeButtons = new Dictionary<Interactable, GameObject>();
+    private struct ActiveButton
+    {
+        public GameObject gameObject;
+        public TextMeshProUGUI label;
+    }
+
+    private Dictionary<Interactable, ActiveButton> activeButtons = new Dictionary<Interactable, ActiveButton>();
     
     // --- OPTIMIZATION: Pre-allocate this list so we don't generate garbage 10x a second! ---
     private List<Interactable> toRemove = new List<Interactable>();
@@ -29,8 +35,7 @@ public class PlayerUI : MonoBehaviour
             }
             else
             {
-                GameObject existingButton = activeButtons[interactable];
-                TextMeshProUGUI buttonText = existingButton.GetComponentInChildren<TextMeshProUGUI>();
+                TextMeshProUGUI buttonText = activeButtons[interactable].label;
                 
                 if (buttonText != null && buttonText.text != interactable.promptMessage)
                 {
@@ -52,7 +57,7 @@ public class PlayerUI : MonoBehaviour
 
         foreach (Interactable interactable in toRemove)
         {
-            Destroy(activeButtons[interactable]);
+            Destroy(activeButtons[interactable].gameObject);
             activeButtons.Remove(interactable);
         }
     }
@@ -73,6 +78,6 @@ public class PlayerUI : MonoBehaviour
             btn.onClick.AddListener(() => interactable.BaseInteract());
         }
 
-        activeButtons.Add(interactable, newButton);
+        activeButtons.Add(interactable, new ActiveButton { gameObject = newButton, label = buttonText });
     }
 }

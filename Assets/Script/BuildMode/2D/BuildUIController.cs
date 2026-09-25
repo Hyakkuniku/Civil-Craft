@@ -196,9 +196,13 @@ public class BuildUIController : MonoBehaviour
     private bool budgetBarVisualInitialized;
     private Vector2 lastBudgetTrackSize = new Vector2(-1f, -1f);
     private float nextSimulationPanelVisibilityCheck;
+    private string lastTimerPrefix;
+    private int lastTimerMinutes = -1;
+    private int lastTimerSeconds = -1;
 
     private Dictionary<BridgeMaterialSO, int> materialUsageCount = new Dictionary<BridgeMaterialSO, int>();
     private readonly HashSet<Bar> liveBeamAffectedBars = new HashSet<Bar>();
+    private readonly HashSet<Point> liveBeamSelectedPoints = new HashSet<Point>();
     private Bar lastLiveBeamBar;
     private int lastLiveBeamLengthHundredths = int.MinValue;
     private int lastLiveBeamCost = int.MinValue;
@@ -431,7 +435,8 @@ public class BuildUIController : MonoBehaviour
 
     public void ShowTimer(bool isVisible)
     {
-        if (timerPanel != null) timerPanel.SetActive(isVisible);
+        if (timerPanel != null && timerPanel.activeSelf != isVisible)
+            timerPanel.SetActive(isVisible);
     }
 
     public void UpdateTimerText(string prefix, float timeInSeconds)
@@ -440,6 +445,11 @@ public class BuildUIController : MonoBehaviour
         {
             int minutes = Mathf.FloorToInt(timeInSeconds / 60F);
             int seconds = Mathf.FloorToInt(timeInSeconds - minutes * 60);
+            if (prefix == lastTimerPrefix && minutes == lastTimerMinutes &&
+                seconds == lastTimerSeconds) return;
+            lastTimerPrefix = prefix;
+            lastTimerMinutes = minutes;
+            lastTimerSeconds = seconds;
             timerText.text = $"{prefix}<color=red>{minutes:00}:{seconds:00}</color>";
         }
     }
@@ -744,13 +754,23 @@ public class BuildUIController : MonoBehaviour
             if (barCreator.IsCreating && barCreator.currentBar != null) targetBar = barCreator.currentBar;
             else if (barCreator.IsMoving && barCreator.isDraggingSelection)
             {
-                var selectedPoints = barCreator.selectedBars.Count == 0
-                    ? barCreator.selectedPoints
-                    : barCreator.GetSelectedPoints();
-                liveBeamAffectedBars.Clear();
-                foreach (Point p in selectedPoints)
+                // GetSelectedPoints creates a HashSet and List; the HUD checks
+                // this on every move frame, so reuse one set instead.
+                liveBeamSelectedPoints.Clear();
+                foreach (Point point in barCreator.selectedPoints)
+                    if (point != null && !point.IsScenePlacedAnchor)
+                        liveBeamSelectedPoints.Add(point);
+                foreach (Bar selectedBar in barCreator.selectedBars)
                 {
-                    if (p == null || p.IsScenePlacedAnchor) continue;
+                    if (selectedBar == null) continue;
+                    if (selectedBar.startPoint != null && !selectedBar.startPoint.IsScenePlacedAnchor)
+                        liveBeamSelectedPoints.Add(selectedBar.startPoint);
+                    if (selectedBar.endPoint != null && !selectedBar.endPoint.IsScenePlacedAnchor)
+                        liveBeamSelectedPoints.Add(selectedBar.endPoint);
+                }
+                liveBeamAffectedBars.Clear();
+                foreach (Point p in liveBeamSelectedPoints)
+                {
                     foreach (Bar b in p.ConnectedBars)
                         if (b != null && b.gameObject.activeSelf) liveBeamAffectedBars.Add(b);
                 }

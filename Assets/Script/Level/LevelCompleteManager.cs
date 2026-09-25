@@ -303,6 +303,10 @@ public class LevelCompleteManager : MonoBehaviour
     private Dictionary<string, int> contractExpRewards = new Dictionary<string, int>();
 
     private BridgePhysicsManager cachedPhysicsManager;
+    private ContractSO timerLocationContract;
+    private BuildLocation timerBridgeLocation;
+    private readonly HashSet<Point> connectivityVisited = new HashSet<Point>();
+    private readonly Queue<Point> connectivityQueue = new Queue<Point>();
 
     private float lastFinalCost = 0f;
     private float lastPeakStress = 0f;
@@ -371,24 +375,26 @@ public class LevelCompleteManager : MonoBehaviour
             {
                 if (LevelFailedManager.Instance == null || !LevelFailedManager.Instance.isFailed)
                 {
-                    // --- THE FIX: Prioritize finding the exact location tied to this specific contract! ---
-                    BuildLocation activeLoc = null;
-                    BuildLocation[] allLocs = Resources.FindObjectsOfTypeAll<BuildLocation>();
-                    foreach (var loc in allLocs)
+                    // The contract and location cannot change within one test.
+                    // Resolve the exact authored location once, not on every physics tick.
+                    if (timerLocationContract != currentContract || timerBridgeLocation == null)
                     {
-                        if (loc.gameObject.scene.name != null && loc.activeContract == currentContract)
+                        timerLocationContract = currentContract;
+                        timerBridgeLocation = null;
+                        foreach (BuildLocation loc in Resources.FindObjectsOfTypeAll<BuildLocation>())
                         {
-                            activeLoc = loc;
-                            break;
+                            if (loc != null && loc.gameObject.scene.name != null &&
+                                loc.activeContract == currentContract)
+                            {
+                                timerBridgeLocation = loc;
+                                break;
+                            }
                         }
-                    }
-                    
-                    if (activeLoc == null && GameManager.Instance != null && GameManager.Instance.ActiveBuildLocation != null)
-                    {
-                        activeLoc = GameManager.Instance.ActiveBuildLocation;
+                        if (timerBridgeLocation == null && GameManager.Instance != null)
+                            timerBridgeLocation = GameManager.Instance.ActiveBuildLocation;
                     }
 
-                    if (activeLoc != null && IsBridgeConnected(activeLoc))
+                    if (timerBridgeLocation != null && IsBridgeConnected(timerBridgeLocation))
                     {
                         currentSimulationFrames++; 
                         
@@ -440,21 +446,21 @@ public class LevelCompleteManager : MonoBehaviour
         if (loc == null || loc.startingAnchors.Count == 0) return false;
         if (loc.endingAnchors.Count == 0) return false;
 
-        HashSet<Point> visited = new HashSet<Point>();
-        Queue<Point> queue = new Queue<Point>();
+        connectivityVisited.Clear();
+        connectivityQueue.Clear();
 
         foreach (Point p in loc.startingAnchors)
         {
             if (p != null && p.gameObject.activeSelf)
             {
-                visited.Add(p);
-                queue.Enqueue(p);
+                connectivityVisited.Add(p);
+                connectivityQueue.Enqueue(p);
             }
         }
 
-        while (queue.Count > 0)
+        while (connectivityQueue.Count > 0)
         {
-            Point current = queue.Dequeue();
+            Point current = connectivityQueue.Dequeue();
 
             if (loc.endingAnchors.Contains(current)) return true;
 
@@ -466,10 +472,10 @@ public class LevelCompleteManager : MonoBehaviour
                     if (stress != null && stress.isBroken) continue;
 
                     Point neighbor = (b.startPoint == current) ? b.endPoint : b.startPoint;
-                    if (neighbor != null && neighbor.gameObject.activeSelf && !visited.Contains(neighbor))
+                    if (neighbor != null && neighbor.gameObject.activeSelf && !connectivityVisited.Contains(neighbor))
                     {
-                        visited.Add(neighbor);
-                        queue.Enqueue(neighbor);
+                        connectivityVisited.Add(neighbor);
+                        connectivityQueue.Enqueue(neighbor);
                     }
                 }
             }
@@ -558,6 +564,10 @@ public class LevelCompleteManager : MonoBehaviour
 
     public void ResetCompletionState()
     {
+        timerLocationContract = null;
+        timerBridgeLocation = null;
+        connectivityVisited.Clear();
+        connectivityQueue.Clear();
         lastStarResult = null;
         if (starAnimation != null) StopCoroutine(starAnimation);
         starAnimation = null;

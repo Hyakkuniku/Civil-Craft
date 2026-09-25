@@ -1,0 +1,73 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
+  m_Name: Vance Side Realignment
+  m_EditorClassIdentifier:
+  liveLoadMode: 0
+  allowVehicleCargo: 0
+  minimumLoadedCargo: 0
+  cargoUnlockProgressionId:
+  cargoUnlockAfterDialoguePhaseIndex: -1
+  cargoLoadedNPCPhaseId:
+  contractID: VanceSideRealignment
+  efficiencyStarBudgetRatio: 0.85
+  strengthStarMaxStress: 60
+  contractMap: 0
+  countsTowardMapAchievements: 0
+  isStoryModeContract: 0
+  isTutorialContract: 0
+  autoCollectReward: 0
+  featureUnlockRewards: []
+  clientName: Vance
+  jobDescription: Realign the joints of an existing bridge without adding or removing parts. Test the corrected crossing with the delivery vehicle.
+  budget: 150000
+  liveLoadWeight: 1000
+  bridgeSpan: 30
+  allowedMaterials: []
+  hiddenTools: 0000000002000000030000000400000005000000060000000700000008000000090000000a0000000d000000
+  hiddenMaterials:
+  - {fileID: 11400000, guid: 57a46c6632dd61b4094902963cf1c5be, type: 2}
+  - {fileID: 11400000, guid: b98aa9ba752ac28449feebc76f256bf2, type: 2}
+  - {fileID: 11400000, guid: 4524a3fc876c6b640a735e6808fe1271, type: 2}
+  - {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
+  - {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
+  enforceMaxStress: 0
+  maxAllowedStress: 100
+  isTimeAttack: 0
+  timeAttackDuration: 60
+  winCondition: 0
+  requiredIntactTime: 5
+  goldReward: 250
+  expReward: 75
+  offerDialogue:
+    name: Vance
+    sentences:
+    - Another engineer assembled this crossing, but some of its joints are out of position.
+    - I do not need you to add more material or tear the bridge apart. I need you to realign what is already there.
+    - Use <b><#E09500>Move</color></b> to reposition the existing joints, then watch how the bridge carries the test vehicle.
+    - You can use <b><#E09500>Undo, Redo, and Simulate</color></b> while you work. Find an alignment that keeps a safe path across.
+    - Will you inspect and correct this bridge?
+  continueOfferDialogue:
+    name: Vance
+    sentences:
+    - The bridge is already in place. Turn on Move, then drag a joint that needs adjustment.
+    - You cannot add or erase members on this job. Test the new alignment before you finish.
+  reminderDialogue:
+    name: Vance
+    sentences:
+    - Reposition the existing joints with Move and keep the roadway connected.
+    - Use Undo if an adjustment makes the crossing worse, then simulate again.
+  finishedContractDialogue:
+    name: Vance
+    sentences:
+    - The vehicle crossed safely with the bridge in its new alignment.
+    - Careful placement can matter as much as adding material. Good work, {PlayerName}.

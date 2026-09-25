@@ -30,8 +30,8 @@ MonoBehaviour:
   clientName: Reed
   jobDescription: Inspect another engineer's bridge. Erase unnecessary members and
     keep a safe crossing for the test vehicle.
-  budget: 50000
-  liveLoadWeight: 1000
+  budget: 100000
+  liveLoadWeight: 1500
   bridgeSpan: 30
   allowedMaterials: []
   hiddenTools: 0000000001000000030000000400000005000000060000000700000008000000090000000a0000000d000000
