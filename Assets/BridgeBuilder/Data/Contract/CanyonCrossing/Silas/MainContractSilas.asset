@@ -34,7 +34,8 @@ MonoBehaviour:
   bridgeSpan: 30
   allowedMaterials: []
   hiddenTools: 
-  hiddenMaterials: []
+  hiddenMaterials:
+  - {fileID: 11400000, guid: 57a46c6632dd61b4094902963cf1c5be, type: 2}
   enforceMaxStress: 0
   maxAllowedStress: 100
   isTimeAttack: 0

@@ -35,6 +35,7 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
     [Networked] private int HostBridgeBarCount { get; set; }
     [Networked, Capacity(MaxBridgeBars)] private NetworkArray<BridgeBarSnapshot> HostBridgeBars => default;
     [Networked] private bool HostLiveLoadVisible { get; set; }
+    [Networked] private bool HostLiveLoadSimulating { get; set; }
     [Networked] private int HostLiveLoadContractHash { get; set; }
     [Networked] private int HostLiveLoadNameHash { get; set; }
     [Networked] private Vector3 HostLiveLoadPosition { get; set; }
@@ -93,6 +94,7 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
     private LiveLoadVehicle remoteLiveLoad;
     private bool remoteLiveLoadWasActive;
     private bool remoteLiveLoadBehaviourEnabled;
+    private bool remoteLiveLoadInspectionAvailable;
     private Vector3 remoteLiveLoadOriginalPosition;
     private Quaternion remoteLiveLoadOriginalRotation;
     private Rigidbody[] remoteLiveLoadBodies;
@@ -734,17 +736,26 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
     private void PublishHostLiveLoad()
     {
         LiveLoadVehicle active = null;
+        LiveLoadVehicle parkedFallback = null;
         foreach (LiveLoadVehicle vehicle in FindObjectsOfType<LiveLoadVehicle>())
         {
             if (vehicle == null || vehicle.gameObject.scene != gameObject.scene ||
-                vehicle.assignedContract == null || vehicle.physicsManager == null ||
-                !vehicle.physicsManager.IsSimulationActive ||
-                (GameManager.Instance != null && GameManager.Instance.CurrentContract != null &&
-                 vehicle.assignedContract != GameManager.Instance.CurrentContract))
-                continue;
-            active = vehicle;
-            break;
+                vehicle.assignedContract == null) continue;
+
+            bool isCurrentContract = GameManager.Instance != null &&
+                GameManager.Instance.CurrentContract == vehicle.assignedContract;
+            if (isCurrentContract)
+            {
+                active = vehicle;
+                break;
+            }
+            if (!vehicle.isParkedAtFinish) continue;
+            if (parkedFallback == null) parkedFallback = vehicle;
+            if (StableHash(vehicle.assignedContract.ContractID) == HostLiveLoadContractHash &&
+                StableHash(vehicle.gameObject.name) == HostLiveLoadNameHash)
+                active = vehicle;
         }
+        if (active == null) active = parkedFallback;
 
         if (active == null)
         {
@@ -756,6 +767,8 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
         HostLiveLoadNameHash = StableHash(active.gameObject.name);
         HostLiveLoadPosition = active.transform.position;
         HostLiveLoadRotation = active.transform.rotation;
+        HostLiveLoadSimulating = active.physicsManager != null &&
+            active.physicsManager.IsSimulationActive;
         HostLiveLoadVisible = true;
     }
 
@@ -786,6 +799,7 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
         }
 
         if (remoteLiveLoad == null) return;
+        SetRemoteLiveLoadInspectionAvailable(!HostLiveLoadSimulating);
         Transform vehicleTransform = remoteLiveLoad.transform;
         if ((vehicleTransform.position - HostLiveLoadPosition).sqrMagnitude > 9f)
             vehicleTransform.SetPositionAndRotation(HostLiveLoadPosition, HostLiveLoadRotation);
@@ -806,6 +820,8 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
         remoteLiveLoadOriginalRotation = vehicle.transform.rotation;
         if (!remoteLiveLoadWasActive) vehicle.gameObject.SetActive(true);
         remoteLiveLoadBehaviourEnabled = vehicle.enabled;
+        remoteLiveLoadInspectionAvailable = false;
+        vehicle.SetRemoteMultiplayerRepresentation(true);
         vehicle.enabled = false;
 
         remoteLiveLoadBodies = vehicle.GetComponentsInChildren<Rigidbody>(true);
@@ -833,6 +849,17 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
         }
     }
 
+    private void SetRemoteLiveLoadInspectionAvailable(bool available)
+    {
+        if (remoteLiveLoad == null || remoteLiveLoadInspectionAvailable == available) return;
+        remoteLiveLoadInspectionAvailable = available;
+        remoteLiveLoad.enabled = available && remoteLiveLoadBehaviourEnabled;
+        for (int index = 0; index < remoteLiveLoadColliders.Length; index++)
+            if (remoteLiveLoadColliders[index] != null)
+                remoteLiveLoadColliders[index].enabled =
+                    available && remoteLiveLoadColliderWasEnabled[index];
+    }
+
     private void RestoreRemoteLiveLoad()
     {
         if (remoteLiveLoad != null)
@@ -848,6 +875,7 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
             for (int index = 0; index < remoteLiveLoadObstacles.Length; index++)
                 if (remoteLiveLoadObstacles[index] != null)
                     remoteLiveLoadObstacles[index].enabled = remoteLiveLoadObstacleWasEnabled[index];
+            remoteLiveLoad.SetRemoteMultiplayerRepresentation(false);
             remoteLiveLoad.enabled = remoteLiveLoadBehaviourEnabled;
             if (!remoteLiveLoadWasActive) remoteLiveLoad.gameObject.SetActive(false);
         }

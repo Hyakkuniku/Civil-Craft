@@ -467,10 +467,14 @@ public class GameManager : MonoBehaviour
         if (location != null && location.activeContract != null)
             CurrentContract = location.activeContract; 
 
-        // A saved bridge keeps its vehicle hidden in the overworld. Re-enable
-        // only the matching vehicle while that location is being redesigned.
-        if (CurrentContract != null && PlayerDataManager.Instance != null &&
-            PlayerDataManager.Instance.HasValidSavedBridge(CurrentContract.ContractID))
+        // Story saves hide their vehicles; a session-only redesign instead
+        // resets the parked vehicle to the start of the next test.
+        if (CurrentContract != null &&
+            ((location != null && location.gameObject.scene.name != "Multiplayer" &&
+              PlayerDataManager.Instance != null &&
+              PlayerDataManager.Instance.HasValidSavedBridge(CurrentContract.ContractID)) ||
+             (location != null && location.gameObject.scene.name == "Multiplayer" &&
+              location.IsRedesigningBridge)))
             LiveLoadVehicle.ShowForContractReplay(CurrentContract);
 
         if (BuildUIController.Instance != null && CurrentContract != null)
@@ -713,10 +717,16 @@ public class GameManager : MonoBehaviour
 
         InvokeEventSafely(OnExitBuildMode);
 
+        bool cancelledSessionRedesign = ActiveBuildLocation != null &&
+            ActiveBuildLocation.gameObject.scene.name == "Multiplayer" &&
+            ActiveBuildLocation.IsRedesigningBridge;
         if (ActiveBuildLocation != null && currentPlayerTransform != null)
         {
             ActiveBuildLocation.DeactivateBuildMode(currentPlayerTransform);
         }
+
+        if (cancelledSessionRedesign)
+            LiveLoadVehicle.RestoreSessionVehicleAfterCancelledRedesign(exitingContract);
 
         currentPlayerTransform = null;
         ActiveBuildLocation = null; 
@@ -729,7 +739,8 @@ public class GameManager : MonoBehaviour
 
             // Cancelling a redesign restores the previously saved bridge. Its
             // temporary replay vehicle must return to the hidden completed state.
-            if (exitingContract != null && PlayerDataManager.Instance != null &&
+            if (gameObject.scene.name != "Multiplayer" && exitingContract != null &&
+                PlayerDataManager.Instance != null &&
                 PlayerDataManager.Instance.HasValidSavedBridge(exitingContract.ContractID))
                 LiveLoadVehicle.ScheduleHideForSavedContract(exitingContract);
         }

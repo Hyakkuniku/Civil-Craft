@@ -34,7 +34,9 @@ MonoBehaviour:
   bridgeSpan: 30
   allowedMaterials: []
   hiddenTools: 
-  hiddenMaterials: []
+  hiddenMaterials:
+  - {fileID: 11400000, guid: 4524a3fc876c6b640a735e6808fe1271, type: 2}
+  - {fileID: 11400000, guid: 57a46c6632dd61b4094902963cf1c5be, type: 2}
   enforceMaxStress: 0
   maxAllowedStress: 100
   isTimeAttack: 0
@@ -64,8 +66,8 @@ MonoBehaviour:
     sentences:
     - Vance's shipment has already made it halfway.
     - This bridge is the final connection to the community.
-    - Do not rush the design. Watch how the jeep's weight spreads through
-      the structure as it crosses.
+    - Do not rush the design. Watch how the jeep's weight spreads through the structure
+      as it crosses.
   finishedContractDialogue:
     name: Silas
     sentences:

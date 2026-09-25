@@ -15,6 +15,9 @@ MonoBehaviour:
   liveLoadMode: 0
   allowVehicleCargo: 0
   minimumLoadedCargo: 0
+  cargoUnlockProgressionId: 
+  cargoUnlockAfterDialoguePhaseIndex: -1
+  cargoLoadedNPCPhaseId: 
   contractID: TUT_CONTRACT2
   efficiencyStarBudgetRatio: 0.85
   strengthStarMaxStress: 60
@@ -34,7 +37,7 @@ MonoBehaviour:
     maxPieces: 0
   - material: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
     maxPieces: 0
-  hiddenTools: 01000000
+  hiddenTools: 
   hiddenMaterials:
   - {fileID: 11400000, guid: 57a46c6632dd61b4094902963cf1c5be, type: 2}
   - {fileID: 11400000, guid: b98aa9ba752ac28449feebc76f256bf2, type: 2}

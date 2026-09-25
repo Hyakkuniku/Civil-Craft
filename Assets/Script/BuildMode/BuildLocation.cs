@@ -97,7 +97,8 @@ public class BuildLocation : Interactable
         foreach (Point point in endingAnchors) if (point != null) points.Add(point);
     }
     public bool IsRedesignBlockedByNPCTravel =>
-        bakedBars.Count > 0 && NPCProgressionManager.IsAnyNPCTravelling;
+        gameObject.scene.name != "Multiplayer" && bakedBars.Count > 0 &&
+        NPCProgressionManager.IsAnyNPCTravelling;
     public override bool IsInteractionAvailable =>
         base.IsInteractionAvailable && !IsRedesignBlockedByNPCTravel;
 

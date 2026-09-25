@@ -33,7 +33,7 @@ public class LiveLoadVehicle : Interactable
     public bool UsesSmartCargoLoadingZone => smartCargoLoadingZone != null && smartCargoLoadingZone.isActiveAndEnabled;
     public bool AllowsCargo => assignedContract != null &&
         assignedContract.liveLoadMode == ContractSO.LiveLoadMode.Vehicle && assignedContract.allowVehicleCargo;
-    public bool CanChangeCargo => isActiveAndEnabled && AllowsCargo && !isDriving &&
+    public bool CanChangeCargo => isActiveAndEnabled && !isRemoteMultiplayerRepresentation && AllowsCargo && !isDriving &&
         (physicsManager == null || !physicsManager.IsSimulationActive) &&
         (GameManager.Instance == null || GameManager.Instance.CurrentState == GameManager.GameState.Normal);
     public int LoadedCargoCount
@@ -349,6 +349,10 @@ public class LiveLoadVehicle : Interactable
     private bool hasAuthoredStartPointPose;
     private bool hideWhenBuildModeCloses;
     private bool visibleForBuildReplay;
+    private bool isRemoteMultiplayerRepresentation;
+    private bool hasSessionParkedPose;
+    private Vector3 sessionParkedPosition;
+    private Quaternion sessionParkedRotation;
     private float physicalRouteHeightOffset;
     private bool hasPhysicalRouteHeightOffset;
 
@@ -1022,11 +1026,41 @@ public class LiveLoadVehicle : Interactable
         foreach (LiveLoadVehicle vehicle in FindLoadedVehicles())
         {
             if (!MatchesContract(vehicle.assignedContract, contract)) continue;
+            if (vehicle.gameObject.scene.name == "Multiplayer" && vehicle.isParkedAtFinish)
+            {
+                vehicle.sessionParkedPosition = vehicle.transform.position;
+                vehicle.sessionParkedRotation = vehicle.transform.rotation;
+                vehicle.hasSessionParkedPose = true;
+            }
             vehicle.visibleForBuildReplay = true;
             vehicle.hideWhenBuildModeCloses = false;
             if (!vehicle.gameObject.activeSelf) vehicle.gameObject.SetActive(true);
             vehicle.ResetForBuildReplay();
         }
+    }
+
+    public static void RestoreSessionVehicleAfterCancelledRedesign(ContractSO contract)
+    {
+        if (!IsVehicleContract(contract)) return;
+        foreach (LiveLoadVehicle vehicle in FindLoadedVehicles())
+        {
+            if (vehicle.gameObject.scene.name != "Multiplayer" ||
+                !MatchesContract(vehicle.assignedContract, contract) ||
+                !vehicle.hasSessionParkedPose) continue;
+
+            vehicle.hasSessionParkedPose = false;
+            vehicle.StopAndReset();
+            vehicle.transform.SetPositionAndRotation(
+                vehicle.sessionParkedPosition, vehicle.sessionParkedRotation);
+            vehicle.hasReachedEnd = true;
+            vehicle.isParkedAtFinish = true;
+            Physics.SyncTransforms();
+        }
+    }
+
+    public void SetRemoteMultiplayerRepresentation(bool remote)
+    {
+        isRemoteMultiplayerRepresentation = remote;
     }
 
     private void HideForSavedBridge()
@@ -1066,7 +1100,7 @@ public class LiveLoadVehicle : Interactable
 
     private bool HasSavedBridgeForAssignedContract()
     {
-        return IsVehicleContract(assignedContract) &&
+        return gameObject.scene.name != "Multiplayer" && IsVehicleContract(assignedContract) &&
                PlayerDataManager.Instance != null &&
                PlayerDataManager.Instance.HasValidSavedBridge(assignedContract.ContractID);
     }
