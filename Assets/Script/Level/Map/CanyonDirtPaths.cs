@@ -24,6 +24,8 @@ public sealed class CanyonDirtPaths : MonoBehaviour
     [Range(0, 1)] public float strength = .65f;
     [Tooltip("Multiplies the existing sand color, preserving its lighting and shadows.")]
     public Color dirtTint = new Color(.78f, .70f, .60f, 1);
+    [HideInInspector, Tooltip("Neutral road color. Unlike dirt tint, this does not multiply the underlying terrain color.")]
+    public Color roadTint = new Color(.30f, .32f, .34f, 1);
     [Tooltip("Coordinates run from 0 to 1 across the canyon's world X/Z bounds. Up to 16 segments.")]
     public Street[] streets = {
         new Street(new Vector2(.02f, .46f), new Vector2(.35f, .46f)),
@@ -77,11 +79,18 @@ public sealed class CanyonDirtPaths : MonoBehaviour
             sourceFilter = canyon.GetComponent<MeshFilter>();
             sourceRenderer = canyon.GetComponent<MeshRenderer>();
             if (sourceFilter == null || sourceFilter.sharedMesh == null || sourceRenderer == null) return;
-            material = new Material(surfaceShader) { name = "Main City Dirt (instance only)", hideFlags = HideFlags.HideAndDontSave };
+            bool isRoad = surfaceShader.name == "Civil Craft/Canyon Road Surface";
+            material = new Material(surfaceShader)
+            {
+                name = isRoad ? "Canyon Road (instance only)" : "Main City Dirt (instance only)",
+                hideFlags = HideFlags.HideAndDontSave
+            };
             // Game cameras need a normal scene renderer, not an editor preview.
             // Also rebuild on mode changes when domain/scene reload is disabled.
             surfaceCreatedForPlay = playing;
-            surface = new GameObject("Dirt Surface (generated, no collider)")
+            surface = new GameObject(isRoad
+                ? "Road Surface (generated, no collider)"
+                : "Dirt Surface (generated, no collider)")
             {
                 hideFlags = playing ? HideFlags.None : HideFlags.HideAndDontSave
             };
@@ -112,7 +121,11 @@ public sealed class CanyonDirtPaths : MonoBehaviour
             Vector2 a = streets[i].from, z = streets[i].to;
             segments[i] = new Vector4(a.x * b.size.x / size, a.y * b.size.z / size,
                 z.x * b.size.x / size, z.y * b.size.z / size);
-            segmentWidths[i] = new Vector4(streets[i].widthMultiplier > 0 ? Mathf.Clamp(streets[i].widthMultiplier, .1f, 2) : 1, 0, 0, 0);
+            Vector2 segmentSpan = new Vector2(segments[i].z - segments[i].x,
+                segments[i].w - segments[i].y);
+            segmentWidths[i] = new Vector4(
+                streets[i].widthMultiplier > 0 ? Mathf.Clamp(streets[i].widthMultiplier, .1f, 2) : 1,
+                segmentSpan.magnitude, 0, 0);
         }
         material.SetVector("_PathBounds", new Vector4(b.min.x, b.min.z, 1 / size, 0));
         material.SetVectorArray("_Segments", segments);
@@ -121,7 +134,8 @@ public sealed class CanyonDirtPaths : MonoBehaviour
         material.SetFloat("_Width", Mathf.Clamp(width, .01f, .2f));
         material.SetFloat("_Softness", Mathf.Clamp(edgeSoftness, .05f, .8f));
         material.SetFloat("_Strength", Mathf.Clamp01(strength));
-        material.SetColor("_DirtTint", dirtTint);
+        if (material.HasProperty("_RoadTint")) material.SetColor("_RoadTint", roadTint);
+        else material.SetColor("_DirtTint", dirtTint);
     }
 
     private void OnDisable() { Release(); }

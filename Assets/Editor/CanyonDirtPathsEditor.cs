@@ -35,8 +35,16 @@ public sealed class CanyonDirtPathsEditor : Editor
 {
     public override void OnInspectorGUI()
     {
-        EditorGUILayout.HelpBox("Visual dirt only: original materials, cliff mesh and NavMesh stay unchanged. Move the street endpoints in Scene view. Width is relative to canyon size. Disable this component to remove the effect.", MessageType.Info);
-        DrawDefaultInspector();
+        var paths = (CanyonDirtPaths)target;
+        bool isRoad = paths.surfaceShader != null && paths.surfaceShader.name == "Civil Craft/Canyon Road Surface";
+        EditorGUILayout.HelpBox(isRoad
+            ? "Visual road only: the canyon mesh, colliders and NavMesh stay unchanged. Move the route endpoints in Scene view. Width is relative to canyon size."
+            : "Visual dirt only: original materials, cliff mesh and NavMesh stay unchanged. Move the street endpoints in Scene view. Width is relative to canyon size. Disable this component to remove the effect.", MessageType.Info);
+        serializedObject.Update();
+        DrawPropertiesExcluding(serializedObject, "m_Script", isRoad ? "dirtTint" : "roadTint");
+        if (isRoad)
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("roadTint"), new GUIContent("Road Tint"));
+        serializedObject.ApplyModifiedProperties();
     }
 
     private void OnSceneGUI()
@@ -45,7 +53,8 @@ public sealed class CanyonDirtPathsEditor : Editor
         if (paths.canyon == null || paths.streets == null) return;
         Bounds b = paths.SurfaceBounds;
         if (b.size.x < .001f || b.size.z < .001f) return;
-        Handles.color = new Color(.85f,.60f,.23f);
+        bool isRoad = paths.surfaceShader != null && paths.surfaceShader.name == "Civil Craft/Canyon Road Surface";
+        Handles.color = isRoad ? new Color(.55f, .62f, .67f) : new Color(.85f,.60f,.23f);
         for (int i = 0; i < Mathf.Min(paths.streets.Length,16); i++)
         {
             var street = paths.streets[i];
@@ -55,7 +64,7 @@ public sealed class CanyonDirtPathsEditor : Editor
             a = Handles.PositionHandle(a,Quaternion.identity);
             z = Handles.PositionHandle(z,Quaternion.identity);
             if (!EditorGUI.EndChangeCheck()) continue;
-            Undo.RecordObject(paths,"Move Dirt Street");
+            Undo.RecordObject(paths, isRoad ? "Move Road Route" : "Move Dirt Street");
             street.from = Normalized(a,b);
             street.to = Normalized(z,b);
             paths.streets[i] = street;
