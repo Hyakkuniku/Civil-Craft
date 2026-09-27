@@ -43,6 +43,10 @@ public class BridgePhysicsManager : MonoBehaviour
     [Min(0f)] [SerializeField] private float simulatedRoadColliderSeamOverlap = 0.6f;
     [Tooltip("Local height of the road's visible top surface before the permanent collider is thickened.")]
     [SerializeField] private float bakedRoadVisualTop = 0.025f;
+    [Tooltip("Prevents a bridge member attached to a scene-authored bank anchor from being launched by a static collider it already overlaps when simulation begins. Only the initially overlapping collider pair is ignored; later terrain contacts still work normally.")]
+    [SerializeField] private bool ignoreInitialStaticEndpointOverlaps = true;
+    [Tooltip("Small tolerance used only while detecting static colliders already touching an anchored endpoint member at simulation start.")]
+    [Min(0f)] [SerializeField] private float endpointOverlapTolerance = 0.005f;
 
     [Header("Visual Bridge Motion")]
     [Tooltip("Keep simulated bridge members in the X/Y construction plane without changing the deterministic stress formula or thresholds.")]
@@ -120,6 +124,20 @@ public class BridgePhysicsManager : MonoBehaviour
         FirstMemberFailureDescription = brokenMember != null
             ? brokenMember.FailureDescription
             : "A structural member exceeded its capacity.";
+        if (brokenMember != null)
+        {
+            Bar failedBar = brokenMember.Bar;
+            string barName = failedBar != null ? failedBar.name : "Unknown member";
+            Debug.LogWarning(
+                $"[BridgeFailure] '{barName}' failed via {brokenMember.FailureSource}. " +
+                $"Cause={brokenMember.FailureCause}; " +
+                $"Stress={brokenMember.currentStructuralStressPercent * 100f:0.#}%; " +
+                $"Force={brokenMember.FailureForceNewtons:0.#} N; " +
+                $"VehicleLoadFactor={lastDeterministicLoadFactor:0.###}; " +
+                $"Sample={lastDeterministicSampleIndex}; " +
+                $"LiveLoadEngaged={HasLiveLoadEngagedThisRun}.",
+                failedBar);
+        }
         OnFirstMemberBroken?.Invoke(brokenMember);
     }
 
@@ -217,6 +235,7 @@ public class BridgePhysicsManager : MonoBehaviour
     private float lastDeterministicLoadFactor = float.NaN;
     private float currentVisualMaxStress;
     private float nextStressColorUpdateTime;
+    private readonly Collider[] endpointOverlapBuffer = new Collider[64];
 
     /// <summary>
     /// Reports where the active contract vehicle really is relative to the
@@ -814,7 +833,12 @@ public class BridgePhysicsManager : MonoBehaviour
         }
         using (CollisionSetupMarker.Auto())
         {
+            // Physics.autoSyncTransforms is disabled during simulation setup.
+            // Make freshly-created member colliders queryable before configuring
+            // their pairwise collision rules.
+            Physics.SyncTransforms();
             ResolveAdjacentCollisions(deterministicBars);
+            IgnoreInitialStaticEndpointCollisions(deterministicBars);
             if (activeAbutmentAligner != null)
                 activeAbutmentAligner.IgnoreCollisionsWithBridge(CollectStructuralColliders());
         }
@@ -1710,6 +1734,99 @@ public class BridgePhysicsManager : MonoBehaviour
             }
         }
     }
+
+    private void IgnoreInitialStaticEndpointCollisions(List<Bar> activeBars)
+    {
+        if (!ignoreInitialStaticEndpointOverlaps || activeBars == null) return;
+
+        int ignoredPairCount = 0;
+        bool overlapBufferWasFull = false;
+        float tolerance = Mathf.Max(0f, endpointOverlapTolerance);
+
+        foreach (Bar bar in activeBars)
+        {
+            if (bar == null || bar.startPoint == null || bar.endPoint == null)
+                continue;
+
+            // Pier-supported runtime nodes are intentionally excluded. This is
+            // only for permanent bank anchors authored into the scene, where a
+            // road or beam collider may begin slightly buried in cliff geometry.
+            if (!bar.startPoint.IsScenePlacedAnchor && !bar.endPoint.IsScenePlacedAnchor)
+                continue;
+
+            foreach (Collider memberCollider in bar.GetComponentsInChildren<Collider>(true))
+            {
+                if (memberCollider == null || !memberCollider.enabled ||
+                    memberCollider.isTrigger || !memberCollider.gameObject.activeInHierarchy)
+                    continue;
+
+                Vector3 center;
+                Vector3 halfExtents;
+                Quaternion orientation;
+                if (memberCollider is BoxCollider box)
+                {
+                    center = box.transform.TransformPoint(box.center);
+                    Vector3 scale = box.transform.lossyScale;
+                    scale = new Vector3(
+                        Mathf.Abs(scale.x),
+                        Mathf.Abs(scale.y),
+                        Mathf.Abs(scale.z));
+                    halfExtents = Vector3.Scale(box.size * 0.5f, scale);
+                    orientation = box.transform.rotation;
+                }
+                else
+                {
+                    Bounds bounds = memberCollider.bounds;
+                    center = bounds.center;
+                    halfExtents = bounds.extents;
+                    orientation = Quaternion.identity;
+                }
+
+                halfExtents += Vector3.one * tolerance;
+                int overlapCount = Physics.OverlapBoxNonAlloc(
+                    center,
+                    halfExtents,
+                    endpointOverlapBuffer,
+                    orientation,
+                    ~0,
+                    QueryTriggerInteraction.Ignore);
+                if (overlapCount >= endpointOverlapBuffer.Length)
+                    overlapBufferWasFull = true;
+
+                int safeCount = Mathf.Min(overlapCount, endpointOverlapBuffer.Length);
+                for (int i = 0; i < safeCount; i++)
+                {
+                    Collider other = endpointOverlapBuffer[i];
+                    endpointOverlapBuffer[i] = null;
+                    if (other == null || other == memberCollider || !other.enabled ||
+                        other.isTrigger || other.attachedRigidbody != null)
+                        continue;
+
+                    // A collider with no Rigidbody is static world geometry. If
+                    // the endpoint member starts inside it, resolving that old
+                    // authoring overlap as an impact can launch the first road
+                    // section differently across frame rates and platforms.
+                    Physics.IgnoreCollision(memberCollider, other, true);
+                    ignoredPairCount++;
+                }
+            }
+        }
+
+        if (ignoredPairCount > 0)
+        {
+            Debug.Log(
+                $"[BridgePhysicsManager] Ignored {ignoredPairCount} static collider pair(s) " +
+                "already overlapping scene-anchored bridge members at simulation start.",
+                this);
+        }
+        if (overlapBufferWasFull)
+        {
+            Debug.LogWarning(
+                "[BridgePhysicsManager] An endpoint overlap query filled its safety buffer. " +
+                "Check the bank anchor for excessive stacked colliders.",
+                this);
+        }
+    }
 }
 // Note: BarStressHandler remains exactly the same and has been omitted here to save context space, 
 // as it was fully provided and correctly updated in our previous message!
@@ -1753,6 +1870,7 @@ public class BarStressHandler : MonoBehaviour
     public Bar Bar => myBar;
     public float VisualStressPercent => visualStressPercent;
     public string FailureCause { get; private set; }
+    public string FailureSource { get; private set; }
     public float FailureForceNewtons { get; private set; }
     public string FailureDescription
     {
@@ -1787,7 +1905,7 @@ public class BarStressHandler : MonoBehaviour
             ? material.maxTension
             : material.GetCompressionLimit(restLength);
         float force = Mathf.Max(0f, limit) * Mathf.Max(1f, currentStructuralStressPercent);
-        BreakBar(cause, force, sampledJoint);
+        BreakBar(cause, force, sampledJoint, "level-rule forced collapse");
         return isBroken;
     }
 
@@ -1822,6 +1940,7 @@ public class BarStressHandler : MonoBehaviour
         isBroken = false;
         canTrackStress = false;
         FailureCause = string.Empty;
+        FailureSource = string.Empty;
         FailureForceNewtons = 0f;
         joints = null;
         ropeJoint = null;
@@ -2092,7 +2211,7 @@ public class BarStressHandler : MonoBehaviour
 
         if (allowBreaking && breakingJoint != null && !isBroken && !BridgePhysicsManager.DebugInvincibleBridge)
         {
-            BreakBar(breakCause, smoothedForce, breakingJoint);
+            BreakBar(breakCause, smoothedForce, breakingJoint, "PhysX joint-force fallback");
         }
     }
 
@@ -2126,7 +2245,11 @@ public class BarStressHandler : MonoBehaviour
             : isTension
                 ? "Tension (Pulled apart)"
                 : material.isPier ? "Compression (Pier Buckled)" : "Compression (Buckled)";
-        BreakBar(cause, Mathf.Max(0f, limit) * currentStructuralStressPercent, breakingJoint);
+        BreakBar(
+            cause,
+            Mathf.Max(0f, limit) * currentStructuralStressPercent,
+            breakingJoint,
+            "deterministic truss analysis");
     }
 
     private void CacheJointsIfNeeded()
@@ -2175,11 +2298,12 @@ public class BarStressHandler : MonoBehaviour
         }
     }
 
-    private void BreakBar(string cause, float force, Joint brokenJoint)
+    private void BreakBar(string cause, float force, Joint brokenJoint, string source)
     {
         if (isBroken) return;
         isBroken = true;
         FailureCause = cause;
+        FailureSource = string.IsNullOrWhiteSpace(source) ? "unknown source" : source;
         FailureForceNewtons = Mathf.Max(0f, force);
         if (manager != null) manager.RecordBrokenPart(this);
         currentStressPercent = Mathf.Max(1f, currentStressPercent);
