@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using System.Collections;
 using System.IO;
 
-// Editor-only layout authoring helpers. Result panels are serialized into scenes/prefabs.
+// Shared helpers for dynamic material receipt rows; full result panels are authored in the Editor.
 public static class CompletionReceiptLayout
 {
     internal static readonly Color Ink = new Color32(73,48,29,255);
@@ -20,6 +20,7 @@ public static class CompletionReceiptLayout
         image.sprite = roundedSprite; image.type = Image.Type.Sliced;
         image.pixelsPerUnitMultiplier = 18f / Mathf.Max(1f,radius);
     }
+#endif
     internal static RectTransform Box(Transform parent, string name, float x0,float y0,float x1,float y1)
     {
         var rect = new GameObject(name, typeof(RectTransform)).GetComponent<RectTransform>();
@@ -31,7 +32,9 @@ public static class CompletionReceiptLayout
     {
         var rect = Box(parent,name,x0,y0,x1,y1);
         var image = rect.gameObject.AddComponent<Image>(); image.color = color; image.raycastTarget = false;
+#if UNITY_EDITOR
         if (name != "Dash" && name != "Viewport") Round(image);
+#endif
         return rect;
     }
     internal static TextMeshProUGUI Label(Transform parent,string name,string value,float x0,float y0,float x1,float y1,
@@ -43,6 +46,7 @@ public static class CompletionReceiptLayout
         text.alignment = alignment; text.raycastTarget = false;
         return text;
     }
+#if UNITY_EDITOR
     internal static Button Button(Transform parent,string title,float x0,float y0,float x1,float y1,Color color,
         TMP_FontAsset font,UnityEngine.Events.UnityAction action)
     {
@@ -54,6 +58,7 @@ public static class CompletionReceiptLayout
         Label(rect,"Label",title,.04f,.08f,.96f,.92f,32,font,TextAlignmentOptions.Center);
         return button;
     }
+#endif
     internal static void Divider(Transform parent,string name,float x0,float y,float x1)
     {
         var line = Box(parent,name,x0,y,x1,y);
@@ -61,7 +66,6 @@ public static class CompletionReceiptLayout
         for (int i=0;i<32;i++)
             Panel(line,"Dash",i/32f,0,(i+.65f)/32f,1,new Color32(112,109,103,150));
     }
-#endif
 }
 
 
