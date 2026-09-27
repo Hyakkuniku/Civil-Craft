@@ -14,4 +14,8 @@ public sealed class LoadingScreenAssets : ScriptableObject
 
     [Tooltip("The normal player Animator Controller used for the loading preview's running state.")]
     public RuntimeAnimatorController playerAnimatorController;
+
+    [Tooltip("Near clipping distance for the loading preview camera. Lower values keep cosmetics close to the camera visible.")]
+    [Range(0.01f, 0.05f)]
+    public float playerPreviewNearClipPlane = 0.01f;
 }

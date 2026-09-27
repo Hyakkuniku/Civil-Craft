@@ -483,7 +483,9 @@ public sealed class LoadingScreenManager : MonoBehaviour
         previewCamera.backgroundColor = new Color(0f, 0f, 0f, 0f);
         previewCamera.cullingMask = 1 << PreviewLayer;
         previewCamera.fieldOfView = 30f;
-        previewCamera.nearClipPlane = 0.05f;
+        previewCamera.nearClipPlane = assets != null && assets.playerPreviewNearClipPlane > 0f
+            ? Mathf.Clamp(assets.playerPreviewNearClipPlane, 0.01f, 0.05f)
+            : 0.01f;
         previewCamera.farClipPlane = 50f;
         previewCamera.allowHDR = false;
         previewCamera.allowMSAA = textureSize >= 512;
@@ -666,7 +668,13 @@ public sealed class LoadingScreenManager : MonoBehaviour
     private static void StripGameplayComponents(GameObject clone)
     {
         foreach (MonoBehaviour behaviour in clone.GetComponentsInChildren<MonoBehaviour>(true))
+        {
+            // Destroy is deferred until the end of the frame. Disable first so
+            // copied cosmetic/gameplay callbacks cannot change the preview look
+            // while the loading overlay is already visible.
+            behaviour.enabled = false;
             Destroy(behaviour);
+        }
         foreach (Collider collider in clone.GetComponentsInChildren<Collider>(true))
             Destroy(collider);
         foreach (Rigidbody body in clone.GetComponentsInChildren<Rigidbody>(true))
@@ -686,26 +694,30 @@ public sealed class LoadingScreenManager : MonoBehaviour
             renderer.shadowCastingMode = ShadowCastingMode.On;
             renderer.allowOcclusionWhenDynamic = false;
 
-            // Clothing and shoes are separate skinned meshes. The preview stage
-            // lives far away from the gameplay camera, so Unity may otherwise
-            // cull one of those meshes for part of the sprint animation and make
-            // the bare body feet appear intermittently.
+            // Clothing and shoes are separate skinned meshes. Their preview-only
+            // culling bounds are set after the saved outfit has been framed.
             if (renderer is SkinnedMeshRenderer skinnedRenderer)
-            {
-                skinnedRenderer.updateWhenOffscreen = true;
                 skinnedRenderer.forceMatrixRecalculationPerRender = true;
-            }
         }
     }
 
     private void FramePreviewModel()
     {
         Renderer[] renderers = previewModel.GetComponentsInChildren<Renderer>(true);
-        if (renderers.Length == 0) return;
-
-        Bounds bounds = renderers[0].bounds;
-        for (int i = 1; i < renderers.Length; i++)
-            bounds.Encapsulate(renderers[i].bounds);
+        Bounds bounds = default;
+        bool hasVisibleRenderer = false;
+        foreach (Renderer renderer in renderers)
+        {
+            if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy)
+                continue;
+            if (!hasVisibleRenderer)
+            {
+                bounds = renderer.bounds;
+                hasVisibleRenderer = true;
+            }
+            else bounds.Encapsulate(renderer.bounds);
+        }
+        if (!hasVisibleRenderer) return;
 
         Vector3 center = previewStage.InverseTransformPoint(bounds.center);
         float height = Mathf.Max(1f, bounds.size.y);
@@ -714,22 +726,66 @@ public sealed class LoadingScreenManager : MonoBehaviour
 
         previewCamera.transform.localPosition = center + new Vector3(0f, height * 0.04f, -distance);
         previewCamera.transform.LookAt(previewStage.TransformPoint(center + Vector3.up * height * 0.03f));
+
+        // Height-based framing alone can put a deep hat or other accessory in
+        // front of the near plane. Move back only if the visible outfit's bounds
+        // actually cross it; normal framing remains unchanged.
+        Vector3 forward = previewCamera.transform.forward;
+        Vector3 extents = bounds.extents;
+        float nearestDepth = Vector3.Dot(bounds.center - previewCamera.transform.position, forward) -
+            Mathf.Abs(forward.x) * extents.x -
+            Mathf.Abs(forward.y) * extents.y -
+            Mathf.Abs(forward.z) * extents.z;
+        float minimumDepth = previewCamera.nearClipPlane + 0.02f;
+        if (nearestDepth < minimumDepth)
+            previewCamera.transform.position -= forward * (minimumDepth - nearestDepth);
     }
 
     private void ExpandAnimatedRendererBounds()
     {
-        // Clothing and footwear are separate skinned meshes. Their imported
-        // bounds only cover the bind pose and can leave the animated shoes
-        // outside the bounds during the sprint cycle. Unity then culls the
-        // complete shoe renderer while the body's bare feet remain visible.
-        // Expand after framing so these safety bounds do not zoom the camera out.
+        // Use one generous preview-character volume for every active skinned
+        // garment. Imported clothing bounds can be tiny or offset relative to
+        // the running rig, causing individual shirts/pants/shoes to disappear.
+        // Update When Offscreen would recalculate and overwrite manual bounds,
+        // so keep it off once these preview-only bounds are assigned.
+        Renderer[] renderers = previewModel.GetComponentsInChildren<Renderer>(true);
+        Bounds characterBounds = default;
+        bool hasVisibleRenderer = false;
+        foreach (Renderer renderer in renderers)
+        {
+            if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy)
+                continue;
+            if (!hasVisibleRenderer)
+            {
+                characterBounds = renderer.bounds;
+                hasVisibleRenderer = true;
+            }
+            else characterBounds.Encapsulate(renderer.bounds);
+        }
+        if (!hasVisibleRenderer) return;
+
+        characterBounds.Expand(characterBounds.size * 0.5f + Vector3.one * 0.2f);
+        Vector3 worldMin = characterBounds.min;
+        Vector3 worldMax = characterBounds.max;
         foreach (SkinnedMeshRenderer renderer in
                  previewModel.GetComponentsInChildren<SkinnedMeshRenderer>(true))
         {
-            Bounds bounds = renderer.localBounds;
-            bounds.extents *= 4f;
-            renderer.localBounds = bounds;
-            renderer.updateWhenOffscreen = true;
+            if (!renderer.gameObject.activeInHierarchy || !renderer.enabled) continue;
+
+            Transform rendererTransform = renderer.transform;
+            Bounds localBounds = new Bounds(
+                rendererTransform.InverseTransformPoint(characterBounds.center), Vector3.zero);
+            for (int corner = 0; corner < 8; corner++)
+            {
+                Vector3 worldCorner = new Vector3(
+                    (corner & 1) == 0 ? worldMin.x : worldMax.x,
+                    (corner & 2) == 0 ? worldMin.y : worldMax.y,
+                    (corner & 4) == 0 ? worldMin.z : worldMax.z);
+                localBounds.Encapsulate(rendererTransform.InverseTransformPoint(worldCorner));
+            }
+
+            renderer.updateWhenOffscreen = false;
+            renderer.localBounds = localBounds;
             renderer.forceMatrixRecalculationPerRender = true;
         }
     }
