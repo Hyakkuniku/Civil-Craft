@@ -28,10 +28,10 @@ public class LevelFailedManager : MonoBehaviour
     public TextMeshProUGUI penaltyText; 
 
     [Header("Failure Diagnosis UI")]
-    [Tooltip("Detailed explanation of what caused the failed test. Created automatically when omitted.")]
+    [Tooltip("Authored detail text inside the Level Failed panel.")]
     public TextMeshProUGUI failureDetailText;
 
-    [Tooltip("Actionable bridge-design advice for the detected failure. Created automatically when omitted.")]
+    [Tooltip("Authored recommendation text inside the Level Failed panel.")]
     public TextMeshProUGUI failureRecommendationText;
 
     // --- NEW: Reference to the Retry Button ---
@@ -112,10 +112,8 @@ public class LevelFailedManager : MonoBehaviour
 
         if (levelFailedPanel != null)
         {
-            // Build while inactive so the entrance animation starts only when a
-            // real failure opens the panel, never during scene initialization.
             levelFailedPanel.SetActive(false);
-            BuildFailureLayout();
+            BindAuthoredLayout();
             UIReservedRegionLayout.Register(levelFailedPanel.transform as RectTransform);
         }
     }
@@ -600,7 +598,35 @@ public class LevelFailedManager : MonoBehaviour
             "Review stressed members, road continuity, supports, and the required live-load route before testing again.");
     }
 
-    private void BuildFailureLayout()
+    private void BindAuthoredLayout()
+    {
+        if (levelFailedPanel == null) return;
+        Transform paper = levelFailedPanel.transform.Find("Failure Safe Area/Wood Frame/Cream Panel");
+        if (paper == null)
+        {
+            Debug.LogError("Level Failed has no authored report layout. Use Tools/Civil Craft/Author Level Result Dialogs.", this);
+            return;
+        }
+
+        contractNameText = FindUI<TextMeshProUGUI>(paper, "Failure Header/Contract Name");
+        levelNameText = FindUI<TextMeshProUGUI>(paper, "Failure Summary/Failure Reason");
+        failureDetailText = FindUI<TextMeshProUGUI>(paper, "Failure Diagnosis/Failure Detail");
+        failureRecommendationText = FindUI<TextMeshProUGUI>(paper, "Failure Diagnosis/Recommendation");
+        penaltyText = FindUI<TextMeshProUGUI>(paper, "Failure Status/Penalty Status");
+        failureExitButtonRect = FindUI<RectTransform>(paper, "EXIT");
+        failureRetryButtonRect = FindUI<RectTransform>(paper, "TRY AGAIN");
+        exitButton = failureExitButtonRect != null ? failureExitButtonRect.gameObject : null;
+        retryButton = failureRetryButtonRect != null ? failureRetryButtonRect.gameObject : null;
+    }
+
+    private static T FindUI<T>(Transform root, string path) where T : Component
+    {
+        Transform child = root != null ? root.Find(path) : null;
+        return child != null ? child.GetComponent<T>() : null;
+    }
+
+#if UNITY_EDITOR
+    public void AuthorFailureLayout()
     {
         if (levelFailedPanel == null) return;
 
@@ -679,6 +705,7 @@ public class LevelFailedManager : MonoBehaviour
 
         safe.gameObject.AddComponent<FailureEntranceMotion>().Configure(frame, reasonCard, diagnosis);
     }
+#endif
 
     private void UpdateFailureButtonLayout()
     {
@@ -809,92 +836,5 @@ public class LevelFailedManager : MonoBehaviour
         showExitButtonThisFail = false;
         RestoreHiddenUI(); 
         if (levelFailedPanel != null) levelFailedPanel.SetActive(false);
-    }
-}
-
-internal sealed class FailureEntranceMotion : MonoBehaviour
-{
-    private RectTransform frame;
-    private RectTransform summary;
-    private RectTransform diagnosis;
-    private CanvasGroup rootGroup;
-    private CanvasGroup summaryGroup;
-    private CanvasGroup diagnosisGroup;
-    private Vector2 summaryPosition;
-    private Vector2 diagnosisPosition;
-    private Coroutine animationRoutine;
-
-    internal void Configure(RectTransform panel, RectTransform summaryCard, RectTransform diagnosisCard)
-    {
-        frame = panel;
-        summary = summaryCard;
-        diagnosis = diagnosisCard;
-        summaryPosition = summary.anchoredPosition;
-        diagnosisPosition = diagnosis.anchoredPosition;
-        rootGroup = panel.gameObject.AddComponent<CanvasGroup>();
-        summaryGroup = summary.gameObject.AddComponent<CanvasGroup>();
-        diagnosisGroup = diagnosis.gameObject.AddComponent<CanvasGroup>();
-    }
-
-    private void OnEnable()
-    {
-        if (frame != null) animationRoutine = StartCoroutine(Reveal());
-    }
-
-    private IEnumerator Reveal()
-    {
-        rootGroup.interactable = false;
-        rootGroup.alpha = 0f;
-        summaryGroup.alpha = diagnosisGroup.alpha = 0f;
-        frame.localScale = Vector3.one * .82f;
-        summary.anchoredPosition = summaryPosition + Vector2.up * 45f;
-        diagnosis.anchoredPosition = diagnosisPosition + Vector2.up * 35f;
-
-        float elapsed = 0f;
-        while (elapsed < .85f)
-        {
-            elapsed += Time.unscaledDeltaTime;
-            rootGroup.alpha = Ease(elapsed / .28f);
-            frame.localScale = Vector3.one * Mathf.LerpUnclamped(.82f, 1f, Pop(elapsed / .55f));
-            float summaryT = Ease((elapsed - .12f) / .32f);
-            float diagnosisT = Ease((elapsed - .28f) / .38f);
-            summaryGroup.alpha = summaryT;
-            diagnosisGroup.alpha = diagnosisT;
-            summary.anchoredPosition = summaryPosition + Vector2.up * (45f * (1f - summaryT));
-            diagnosis.anchoredPosition = diagnosisPosition + Vector2.up * (35f * (1f - diagnosisT));
-            yield return null;
-        }
-
-        Restore();
-        animationRoutine = null;
-    }
-
-    private static float Ease(float value)
-    {
-        float t = Mathf.Clamp01(value);
-        return 1f - Mathf.Pow(1f - t, 3f);
-    }
-
-    private static float Pop(float value)
-    {
-        float t = Mathf.Clamp01(value) - 1f;
-        return 1f + 2.2f * t * t * t + 1.2f * t * t;
-    }
-
-    private void OnDisable()
-    {
-        if (animationRoutine != null) StopCoroutine(animationRoutine);
-        animationRoutine = null;
-        Restore();
-    }
-
-    private void Restore()
-    {
-        if (frame == null) return;
-        frame.localScale = Vector3.one;
-        summary.anchoredPosition = summaryPosition;
-        diagnosis.anchoredPosition = diagnosisPosition;
-        rootGroup.alpha = summaryGroup.alpha = diagnosisGroup.alpha = 1f;
-        rootGroup.interactable = true;
     }
 }

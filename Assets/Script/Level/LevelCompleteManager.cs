@@ -5,37 +5,21 @@ using TMPro;
 using System.Collections.Generic;
 using System.Collections;
 using System.IO;
-using UnityEngine.EventSystems;
 
-// Shared code-built hierarchy keeps every scene's completion panel consistent.
-internal static class CompletionReceiptLayout
+// Editor-only layout authoring helpers. Result panels are serialized into scenes/prefabs.
+public static class CompletionReceiptLayout
 {
+    internal static readonly Color Ink = new Color32(73,48,29,255);
+#if UNITY_EDITOR
     private static Sprite roundedSprite;
+    public static void SetRoundedSprite(Sprite sprite) { roundedSprite = sprite; }
     internal static void Round(Image image, float radius = 18f)
     {
         if (roundedSprite == null)
-        {
-            const int size = 64;
-            const float corner = 18f;
-            var texture = new Texture2D(size,size,TextureFormat.RGBA32,false);
-            texture.name = "Completion rounded corners";
-            texture.wrapMode = TextureWrapMode.Clamp; texture.filterMode = FilterMode.Bilinear;
-            var pixels = new Color32[size*size];
-            for (int y=0;y<size;y++) for (int x=0;x<size;x++)
-            {
-                float dx = Mathf.Max(Mathf.Abs(x+.5f-size*.5f)-(size*.5f-corner),0);
-                float dy = Mathf.Max(Mathf.Abs(y+.5f-size*.5f)-(size*.5f-corner),0);
-                byte alpha = (byte)Mathf.RoundToInt(Mathf.Clamp01(corner-Mathf.Sqrt(dx*dx+dy*dy)+.5f)*255);
-                pixels[y*size+x] = new Color32(255,255,255,alpha);
-            }
-            texture.SetPixels32(pixels); texture.Apply(false,true);
-            roundedSprite = Sprite.Create(texture,new Rect(0,0,size,size),new Vector2(.5f,.5f),100,0,
-                SpriteMeshType.FullRect,new Vector4(19,19,19,19));
-        }
+            throw new InvalidOperationException("Author the level-result rounded sprite before building UI.");
         image.sprite = roundedSprite; image.type = Image.Type.Sliced;
         image.pixelsPerUnitMultiplier = 18f / Mathf.Max(1f,radius);
     }
-    internal static readonly Color Ink = new Color32(73,48,29,255);
     internal static RectTransform Box(Transform parent, string name, float x0,float y0,float x1,float y1)
     {
         var rect = new GameObject(name, typeof(RectTransform)).GetComponent<RectTransform>();
@@ -65,7 +49,7 @@ internal static class CompletionReceiptLayout
         var rect = Panel(parent,title,x0,y0,x1,y1,color);
         var image = rect.GetComponent<Image>(); image.raycastTarget = true;
         var button = rect.gameObject.AddComponent<Button>(); button.targetGraphic = image;
-        button.onClick.AddListener(action);
+        UnityEditor.Events.UnityEventTools.AddPersistentListener(button.onClick, action);
         rect.gameObject.AddComponent<CompletionButtonMotion>();
         Label(rect,"Label",title,.04f,.08f,.96f,.92f,32,font,TextAlignmentOptions.Center);
         return button;
@@ -77,157 +61,9 @@ internal static class CompletionReceiptLayout
         for (int i=0;i<32;i++)
             Panel(line,"Dash",i/32f,0,(i+.65f)/32f,1,new Color32(112,109,103,150));
     }
+#endif
 }
 
-internal sealed class CompletionButtonMotion : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler,
-    IPointerDownHandler, IPointerUpHandler
-{
-    private bool hovered;
-    private bool pressed;
-    private void OnDisable() { hovered = pressed = false; transform.localScale = Vector3.one; }
-    private void Update()
-    {
-        var button = GetComponent<Button>();
-        float target = button != null && button.IsInteractable() ? (pressed ? .91f : hovered ? 1.045f : 1f) : 1f;
-        transform.localScale = Vector3.Lerp(transform.localScale,Vector3.one*target,1f-Mathf.Exp(-22f*Time.unscaledDeltaTime));
-    }
-    public void OnPointerEnter(PointerEventData e) { hovered = true; }
-    public void OnPointerExit(PointerEventData e) { hovered = pressed = false; }
-    public void OnPointerDown(PointerEventData e) { if(e.button == PointerEventData.InputButton.Left) pressed = true; }
-    public void OnPointerUp(PointerEventData e) { pressed = false; }
-}
-
-internal sealed class CompletionEntranceMotion : MonoBehaviour
-{
-    private RectTransform frame;
-    private RectTransform receipt;
-    private CanvasGroup panelGroup;
-    private CanvasGroup receiptGroup;
-    private CanvasGroup photoGroup;
-    private Vector2 receiptPosition;
-    private Coroutine animationRoutine;
-
-    internal void Configure(RectTransform panel,RectTransform slip,RectTransform photo)
-    {
-        frame = panel; receipt = slip; receiptPosition = slip.anchoredPosition;
-        panelGroup = panel.gameObject.AddComponent<CanvasGroup>();
-        receiptGroup = slip.gameObject.AddComponent<CanvasGroup>();
-        photoGroup = photo.gameObject.AddComponent<CanvasGroup>();
-    }
-    private void OnEnable()
-    {
-        if (frame != null) animationRoutine = StartCoroutine(Reveal());
-    }
-    private IEnumerator Reveal()
-    {
-        panelGroup.interactable = false;
-        panelGroup.alpha = 0;
-        receiptGroup.alpha = photoGroup.alpha = 0;
-        frame.localScale = Vector3.one * .78f;
-        receipt.anchoredPosition = receiptPosition + Vector2.up * 125f;
-        float elapsed = 0;
-        while (elapsed < 1.15f)
-        {
-            elapsed += Time.unscaledDeltaTime;
-            panelGroup.alpha = Ease(elapsed/.4f);
-            // A small overshoot makes the entrance visible without exceeding the safe margins.
-            frame.localScale = Vector3.one * Mathf.LerpUnclamped(.78f,1f,Pop(elapsed/.7f));
-            photoGroup.alpha = Ease((elapsed-.22f)/.5f);
-            float slip = Pop((elapsed-.4f)/.75f);
-            receiptGroup.alpha = Ease((elapsed-.4f)/.35f);
-            receipt.anchoredPosition = receiptPosition + Vector2.up * (125f*(1f-slip));
-            yield return null;
-        }
-        Restore(); animationRoutine = null;
-    }
-    private static float Ease(float t) { t = Mathf.Clamp01(t); return 1f-Mathf.Pow(1f-t,3f); }
-    private static float Pop(float t)
-    {
-        t = Mathf.Clamp01(t)-1f;
-        return 1f + 2.2f*t*t*t + 1.2f*t*t;
-    }
-    private void OnDisable()
-    {
-        if (animationRoutine != null) StopCoroutine(animationRoutine);
-        animationRoutine = null; Restore();
-    }
-    private void Restore()
-    {
-        if(frame == null) return;
-        frame.localScale = Vector3.one; receipt.anchoredPosition = receiptPosition;
-        panelGroup.alpha = receiptGroup.alpha = photoGroup.alpha = 1f;
-        panelGroup.interactable = true;
-    }
-}
-
-internal sealed class CompletionSafeArea : MonoBehaviour
-{
-    private void OnEnable() { Apply(); }
-    private void LateUpdate() { Apply(); }
-    private void Apply()
-    {
-        var rect = (RectTransform)transform;
-        var parent = rect.parent as RectTransform;
-        var canvas = GetComponentInParent<Canvas>();
-        if (parent == null || canvas == null || parent.rect.width <= 0 || parent.rect.height <= 0) return;
-        Camera camera = canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : canvas.worldCamera;
-        Rect safe = Screen.safeArea;
-        RectTransformUtility.ScreenPointToLocalPointInRectangle(parent,safe.min,camera,out Vector2 min);
-        RectTransformUtility.ScreenPointToLocalPointInRectangle(parent,safe.max,camera,out Vector2 max);
-        rect.anchorMin = new Vector2(Mathf.Clamp01((min.x-parent.rect.xMin)/parent.rect.width),Mathf.Clamp01((min.y-parent.rect.yMin)/parent.rect.height));
-        rect.anchorMax = new Vector2(Mathf.Clamp01((max.x-parent.rect.xMin)/parent.rect.width),Mathf.Clamp01((max.y-parent.rect.yMin)/parent.rect.height));
-        rect.offsetMin = rect.offsetMax = Vector2.zero;
-    }
-}
-
-// A real UI mesh, not a generated bitmap: receipt edges stay crisp at different sizes.
-internal sealed class CompletionReceiptPaper : MaskableGraphic
-{
-    protected override void OnPopulateMesh(VertexHelper vh)
-    {
-        vh.Clear(); Rect r = rectTransform.rect; float tooth = Mathf.Min(10f,r.height*.02f);
-        AddQuad(vh,new Vector2(r.xMin,r.yMin+tooth),new Vector2(r.xMax,r.yMax-tooth));
-        int teeth = Mathf.Max(2,Mathf.RoundToInt(r.width/22f));
-        for (int i=0;i<teeth;i++)
-        {
-            float left = Mathf.Lerp(r.xMin,r.xMax,(float)i/teeth);
-            float right = Mathf.Lerp(r.xMin,r.xMax,(float)(i+1)/teeth);
-            AddTriangle(vh,new Vector2(left,r.yMax-tooth),new Vector2((left+right)*.5f,r.yMax),new Vector2(right,r.yMax-tooth));
-            AddTriangle(vh,new Vector2(left,r.yMin+tooth),new Vector2(right,r.yMin+tooth),new Vector2((left+right)*.5f,r.yMin));
-        }
-    }
-    private void AddTriangle(VertexHelper vh,Vector2 a,Vector2 b,Vector2 c)
-    {
-        int index=vh.currentVertCount; vh.AddVert(a,color,Vector2.zero); vh.AddVert(b,color,Vector2.zero);
-        vh.AddVert(c,color,Vector2.zero); vh.AddTriangle(index,index+1,index+2);
-    }
-    private void AddQuad(VertexHelper vh,Vector2 min,Vector2 max)
-    {
-        AddTriangle(vh,min,new Vector2(min.x,max.y),max);
-        AddTriangle(vh,min,max,new Vector2(max.x,min.y));
-    }
-}
-
-[DefaultExecutionOrder(-30)] 
-// Vector stars do not depend on a font containing the star glyph on Android.
-internal sealed class CompletionStarGraphic : MaskableGraphic
-{
-    protected override void OnPopulateMesh(VertexHelper vh)
-    {
-        vh.Clear();
-        Rect rect = GetPixelAdjustedRect();
-        Vector2 center = rect.center;
-        float radius = Mathf.Min(rect.width, rect.height) * 0.48f;
-        vh.AddVert(center, color, Vector2.zero);
-        for (int i = 0; i < 10; i++)
-        {
-            float angle = (90f - i * 36f) * Mathf.Deg2Rad;
-            float r = radius * (i % 2 == 0 ? 1f : 0.45f);
-            vh.AddVert(center + new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * r, color, Vector2.zero);
-        }
-        for (int i = 0; i < 10; i++) vh.AddTriangle(0, i + 1, (i + 1) % 10 + 1);
-    }
-}
 
 public class LevelCompleteManager : MonoBehaviour
 {
@@ -332,7 +168,8 @@ public class LevelCompleteManager : MonoBehaviour
         if (Instance == null) Instance = this;
         else { Destroy(gameObject); return; }
 
-        BuildReceiptLayout();
+        BindAuthoredLayout();
+        InitializeReceiptFont();
         EnsureFirstCompletionTutorialDraft();
         if (levelCompletePanel != null)
             UIReservedRegionLayout.Register(levelCompletePanel.transform as RectTransform);
@@ -764,7 +601,10 @@ public class LevelCompleteManager : MonoBehaviour
 
         if (receiptContentParent != null && receiptRowPrefab != null)
         {
-            foreach (Transform child in receiptContentParent) Destroy(child.gameObject);
+            if (guestReceiptPlaceholder != null) guestReceiptPlaceholder.SetActive(false);
+            foreach (Transform child in receiptContentParent)
+                if (guestReceiptPlaceholder == null || child.gameObject != guestReceiptPlaceholder)
+                    Destroy(child.gameObject);
 
             Dictionary<BridgeMaterialSO, float> materialUsage = new Dictionary<BridgeMaterialSO, float>();
             HashSet<Bar> countedBars = new HashSet<Bar>();
@@ -1100,17 +940,93 @@ public class LevelCompleteManager : MonoBehaviour
         starAnimation = null;
     }
 
-    private void BuildReceiptLayout()
+    private void BindAuthoredLayout()
+    {
+        if (levelCompletePanel == null) return;
+        Transform paper = levelCompletePanel.transform.Find("Completion Safe Area/Wood Frame/Cream Panel");
+        if (paper == null)
+        {
+            Debug.LogError("Level Complete has no authored receipt layout. Use Tools/Civil Craft/Author Level Result Dialogs.", this);
+            return;
+        }
+
+        feedbackText = FindUI<TextMeshProUGUI>(paper, "Feedback");
+        completionTitleTutorialTarget = FindUI<RectTransform>(paper, "Title");
+        completionStarsTutorialTarget = FindUI<RectTransform>(paper, "Contract Stars");
+        completionReceiptTutorialTarget = FindUI<RectTransform>(paper, "Material Receipt");
+        Transform rewards = paper.Find("Reward Summary");
+        rewardStatusText = FindUI<TextMeshProUGUI>(rewards, "Claim Status");
+        baseRewardText = FindUI<TextMeshProUGUI>(rewards, "Base Reward");
+        bonusText = FindUI<TextMeshProUGUI>(rewards, "Bonus");
+        penaltyText = FindUI<TextMeshProUGUI>(rewards, "Penalty");
+        goldEarnedText = FindUI<TextMeshProUGUI>(rewards, "Gold Earnings");
+        expEarnedText = FindUI<TextMeshProUGUI>(rewards, "EXP Earnings");
+        goldEarnedIcon = FindUI<Image>(rewards, "Gold Earnings Icon");
+        expEarnedIcon = FindUI<Image>(rewards, "EXP Earnings Icon");
+        if (goldEarnedIcon != null)
+        {
+            goldEarnedIcon.sprite = CurrencyIconCatalog.Get(CurrencyIconKind.Coin);
+            goldEarnedIcon.enabled = goldEarnedIcon.sprite != null;
+        }
+        if (expEarnedIcon != null)
+        {
+            expEarnedIcon.sprite = CurrencyIconCatalog.Get(CurrencyIconKind.Experience);
+            expEarnedIcon.enabled = expEarnedIcon.sprite != null;
+        }
+        bridgePhotoDisplay = FindUI<RawImage>(paper, "Bridge Photo Slot/Bridge Photo Frame/Rounded Photo Mask/Bridge Photo");
+        stressText = FindUI<TextMeshProUGUI>(paper, "Peak Stress Card/Peak Stress");
+        Transform receipt = paper.Find("Material Receipt");
+        receiptContentParent = receipt != null ? receipt.Find("Receipt Scroll/Viewport/Receipt Items") : null;
+        costText = FindUI<TextMeshProUGUI>(receipt, "Total Cost");
+        budgetText = FindUI<TextMeshProUGUI>(receipt, "Budget");
+        receiptBalanceText = FindUI<TextMeshProUGUI>(receipt, "Remaining");
+        receiptStampText = FindUI<TextMeshProUGUI>(receipt, "Budget Stamp");
+        guestReceiptPlaceholder = receiptContentParent != null
+            ? receiptContentParent.Find("Host Bridge Receipt")?.gameObject : null;
+        costPercentageText = null;
+
+        for (int i = 0; i < 3; i++)
+        {
+            Transform column = paper.Find("Contract Stars/Star Criterion " + (i + 1));
+            starIcons[i] = FindUI<Graphic>(column, "Star");
+            starLabels[i] = FindUI<TextMeshProUGUI>(column, "Requirement");
+        }
+
+        if (IsMultiplayerScene)
+        {
+            multiplayerBackButton = FindUI<Button>(paper, "Back to Build");
+            multiplayerSaveButton = FindUI<Button>(paper, "Save for Session");
+            guestWaitingText = FindUI<TextMeshProUGUI>(paper, "Guest Waiting");
+            completionSaveTutorialTarget = null;
+        }
+        else completionSaveTutorialTarget = FindUI<RectTransform>(paper, "Save & Continue");
+    }
+
+    private static T FindUI<T>(Transform root, string path) where T : Component
+    {
+        Transform child = root != null ? root.Find(path) : null;
+        return child != null ? child.GetComponent<T>() : null;
+    }
+
+    private void InitializeReceiptFont()
+    {
+        if (receiptSourceFont == null) return;
+        TMP_FontAsset fallback = feedbackText != null ? feedbackText.font : TMP_Settings.defaultFontAsset;
+        ReceiptFont = TMP_FontAsset.CreateFontAsset(receiptSourceFont);
+        ReceiptFont.name = "Fake Receipt Runtime SDF";
+        ReceiptFont.fallbackFontAssetTable = new List<TMP_FontAsset>();
+        if (fallback != null) ReceiptFont.fallbackFontAssetTable.Add(fallback);
+        Transform receipt = completionReceiptTutorialTarget;
+        if (receipt != null)
+            foreach (TextMeshProUGUI label in receipt.GetComponentsInChildren<TextMeshProUGUI>(true))
+                label.font = ReceiptFont;
+    }
+
+#if UNITY_EDITOR
+    public void AuthorReceiptLayout()
     {
         if (levelCompletePanel == null) return;
         TMP_FontAsset font = feedbackText != null ? feedbackText.font : TMP_Settings.defaultFontAsset;
-        if (receiptSourceFont != null)
-        {
-            ReceiptFont = TMP_FontAsset.CreateFontAsset(receiptSourceFont);
-            ReceiptFont.name = "Fake Receipt Runtime SDF";
-            ReceiptFont.fallbackFontAssetTable = new List<TMP_FontAsset>();
-            if (font != null) ReceiptFont.fallbackFontAssetTable.Add(font);
-        }
         foreach (Transform child in levelCompletePanel.transform) child.gameObject.SetActive(false);
         var root = levelCompletePanel.GetComponent<RectTransform>();
         if (root == null) return;
@@ -1209,13 +1125,23 @@ public class LevelCompleteManager : MonoBehaviour
         scroll.viewport = viewport; scroll.content = content; scroll.horizontal = false;
         scroll.movementType = ScrollRect.MovementType.Clamped; scroll.scrollSensitivity = 30;
         receiptContentParent = content;
+        guestReceiptPlaceholder = new GameObject("Host Bridge Receipt",
+            typeof(RectTransform), typeof(LayoutElement), typeof(TextMeshProUGUI));
+        guestReceiptPlaceholder.transform.SetParent(content, false);
+        guestReceiptPlaceholder.GetComponent<LayoutElement>().preferredHeight = 84f;
+        TextMeshProUGUI guestLabel = guestReceiptPlaceholder.GetComponent<TextMeshProUGUI>();
+        guestLabel.font = font;
+        guestLabel.fontSize = 25f;
+        guestLabel.color = CompletionReceiptLayout.Ink;
+        guestLabel.alignment = TextAlignmentOptions.Center;
+        guestLabel.raycastTarget = false;
+        guestLabel.text = "Host bridge result\nSaved in this room only";
+        guestReceiptPlaceholder.SetActive(false);
         CompletionReceiptLayout.Divider(receipt,"Total Divider",.075f,.35f,.925f);
         costText = CompletionReceiptLayout.Label(receipt,"Total Cost","",.08f,.27f,.92f,.335f,29,font,TextAlignmentOptions.MidlineRight);
         budgetText = CompletionReceiptLayout.Label(receipt,"Budget","",.08f,.207f,.92f,.265f,25,font,TextAlignmentOptions.MidlineRight);
         receiptBalanceText = CompletionReceiptLayout.Label(receipt,"Remaining","",.08f,.145f,.92f,.203f,25,font,TextAlignmentOptions.MidlineRight);
         receiptStampText = CompletionReceiptLayout.Label(receipt,"Budget Stamp","WITHIN BUDGET",.10f,.067f,.90f,.125f,25,font,TextAlignmentOptions.Center);
-        if (ReceiptFont != null)
-            foreach (var label in receipt.GetComponentsInChildren<TextMeshProUGUI>(true)) label.font = ReceiptFont;
         costPercentageText = null; // No unexplained percentage or stress progress bar.
         feedbackText = CompletionReceiptLayout.Label(paper,"Feedback","",.025f,.028f,.47f,.11f,26,font);
         if (IsMultiplayerScene)
@@ -1241,6 +1167,7 @@ public class LevelCompleteManager : MonoBehaviour
         }
         safe.gameObject.AddComponent<CompletionEntranceMotion>().Configure(frame,receipt,photoFrame);
     }
+#endif
 
     public void RetrySimulation()
     {
@@ -1531,23 +1458,15 @@ public class LevelCompleteManager : MonoBehaviour
 
         if (receiptContentParent != null)
         {
-            foreach (Transform child in receiptContentParent) Destroy(child.gameObject);
+            if (guestReceiptPlaceholder != null) guestReceiptPlaceholder.SetActive(false);
+            foreach (Transform child in receiptContentParent)
+                if (guestReceiptPlaceholder == null || child.gameObject != guestReceiptPlaceholder)
+                    Destroy(child.gameObject);
             int rows = source != null
                 ? source.PopulateGuestReceiptRows(receiptContentParent, receiptRowPrefab,
                     result.ContractHash) : 0;
-            if (rows == 0)
-            {
-                guestReceiptPlaceholder = new GameObject("Host Bridge Receipt",
-                    typeof(RectTransform), typeof(LayoutElement), typeof(TextMeshProUGUI));
-                guestReceiptPlaceholder.transform.SetParent(receiptContentParent, false);
-                guestReceiptPlaceholder.GetComponent<LayoutElement>().preferredHeight = 84f;
-                TextMeshProUGUI label = guestReceiptPlaceholder.GetComponent<TextMeshProUGUI>();
-                label.font = ReceiptFont != null ? ReceiptFont : TMP_Settings.defaultFontAsset;
-                label.fontSize = 25f;
-                label.color = CompletionReceiptLayout.Ink;
-                label.alignment = TextAlignmentOptions.Center;
-                label.text = "Host bridge result\nSaved in this room only";
-            }
+            if (rows == 0 && guestReceiptPlaceholder != null)
+                guestReceiptPlaceholder.SetActive(true);
         }
 
         CaptureGuestBridgePhoto(result.ContractHash);
@@ -1562,8 +1481,7 @@ public class LevelCompleteManager : MonoBehaviour
     {
         if (!guestSessionCompletionVisible) return;
         guestSessionCompletionVisible = false;
-        if (guestReceiptPlaceholder != null) Destroy(guestReceiptPlaceholder);
-        guestReceiptPlaceholder = null;
+        if (guestReceiptPlaceholder != null) guestReceiptPlaceholder.SetActive(false);
         if (multiplayerBackButton != null) multiplayerBackButton.gameObject.SetActive(true);
         if (multiplayerSaveButton != null) multiplayerSaveButton.gameObject.SetActive(true);
         if (guestWaitingText != null) guestWaitingText.gameObject.SetActive(false);
