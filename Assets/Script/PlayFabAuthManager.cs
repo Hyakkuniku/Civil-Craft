@@ -4,9 +4,11 @@ using TMPro;
 using PlayFab;
 using PlayFab.ClientModels;
 using UnityEngine.SceneManagement; 
-using UnityEngine.EventSystems;
 using System.Text.RegularExpressions; 
 using System;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
 
 public class PlayFabAuthManager : MonoBehaviour
 {
@@ -25,8 +27,6 @@ public class PlayFabAuthManager : MonoBehaviour
     private bool playAfterAutomaticLogin;
     private bool manualLoginInProgress;
     private int authenticationGeneration;
-    private GameObject saveChoiceOverlay;
-    private GameObject saveChoiceEventSystem;
     private Action cancelSaveChoice;
 
     [Header("PlayFab Configuration")]
@@ -44,6 +44,8 @@ public class PlayFabAuthManager : MonoBehaviour
     public GameObject loginPanel;
     public GameObject registerPanel;
     public GameObject forgotPasswordPanel;
+    [Tooltip("Inactive, scene-authored account save choice dialog in Main Menu.")]
+    public AuthoredSaveChoiceDialog saveChoiceDialog;
     
     [Tooltip("Text on the main menu to show 'Playing as: Name'")]
     public TextMeshProUGUI playerNameDisplay; 
@@ -92,13 +94,26 @@ public class PlayFabAuthManager : MonoBehaviour
             PlayFabSettings.staticSettings.TitleId = playFabTitleID;
         }
 
-        ApplyAuthenticationStyle();
         if (authCanvas != null) authCanvas.SetActive(false);
+        if (saveChoiceDialog != null) saveChoiceDialog.Hide();
     }
 
-    private void ApplyAuthenticationStyle()
+#if UNITY_EDITOR
+    // One-time authoring action. Presentation belongs to the saved Main Menu scene,
+    // not to the authentication flow that runs each time the game starts.
+    [ContextMenu("Author Authentication UI In Scene")]
+    public void AuthorAuthenticationUIInScene()
     {
+        if (Application.isPlaying)
+        {
+            Debug.LogWarning("Stop Play Mode before authoring the authentication UI.", this);
+            return;
+        }
+
         if (authCanvas == null || loginPanel == null || registerPanel == null) return;
+
+        UnityEditor.Undo.RegisterFullObjectHierarchyUndo(authCanvas,
+            "Author Authentication UI");
 
         Color brown = new Color32(73, 56, 44, 255);
         Color cream = new Color32(255, 250, 242, 255);
@@ -227,6 +242,9 @@ public class PlayFabAuthManager : MonoBehaviour
         errorColor = new Color32(174, 57, 49, 255);
         successColor = new Color32(56, 126, 75, 255);
         processColor = new Color32(166, 111, 43, 255);
+
+        UnityEditor.EditorUtility.SetDirty(this);
+        UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(gameObject.scene);
     }
 
     private static void StyleAuthCard(GameObject panel, Vector2 size, Sprite outlineSprite,
@@ -245,6 +263,8 @@ public class PlayFabAuthManager : MonoBehaviour
         Transform existing = panel.transform.Find("AuthCardInterior");
         GameObject interior = existing != null ? existing.gameObject :
             new GameObject("AuthCardInterior", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        if (existing == null)
+            UnityEditor.Undo.RegisterCreatedObjectUndo(interior, "Create auth card interior");
         interior.layer = panel.layer;
         interior.transform.SetParent(panel.transform, false);
         interior.transform.SetAsFirstSibling();
@@ -285,6 +305,7 @@ public class PlayFabAuthManager : MonoBehaviour
         {
             subtitle = Instantiate(source, panel.transform, false);
             subtitle.gameObject.name = "AuthSubtitle";
+            UnityEditor.Undo.RegisterCreatedObjectUndo(subtitle.gameObject, "Create auth subtitle");
         }
         subtitle.text = text;
         subtitle.color = color;
@@ -326,7 +347,7 @@ public class PlayFabAuthManager : MonoBehaviour
             background.type = Image.Type.Sliced;
             background.color = new Color32(248, 242, 233, 255);
             Outline border = input.GetComponent<Outline>();
-            if (border == null) border = input.gameObject.AddComponent<Outline>();
+            if (border == null) border = UnityEditor.Undo.AddComponent<Outline>(input.gameObject);
             border.effectColor = new Color(outlineColor.r, outlineColor.g, outlineColor.b, 0.48f);
             border.effectDistance = new Vector2(1.25f, -1.25f);
             border.useGraphicAlpha = true;
@@ -380,7 +401,7 @@ public class PlayFabAuthManager : MonoBehaviour
             Outline border = button.GetComponent<Outline>();
             if (!primary && !linkStyle)
             {
-                if (border == null) border = button.gameObject.AddComponent<Outline>();
+                if (border == null) border = UnityEditor.Undo.AddComponent<Outline>(button.gameObject);
                 border.effectColor = new Color(brown.r, brown.g, brown.b, 0.3f);
                 border.effectDistance = new Vector2(1f, -1f);
                 border.useGraphicAlpha = true;
@@ -395,7 +416,7 @@ public class PlayFabAuthManager : MonoBehaviour
             }
             if (!linkStyle)
             {
-                if (depth == null) depth = button.gameObject.AddComponent<Shadow>();
+                if (depth == null) depth = UnityEditor.Undo.AddComponent<Shadow>(button.gameObject);
                 depth.effectColor = new Color(0.16f, 0.11f, 0.08f, primary ? 0.24f : 0.12f);
                 depth.effectDistance = new Vector2(0f, primary ? -4f : -2f);
                 depth.useGraphicAlpha = true;
@@ -473,6 +494,7 @@ public class PlayFabAuthManager : MonoBehaviour
         rect.localScale = Vector3.one;
         rect.localRotation = Quaternion.identity;
     }
+#endif
 
     private void Start()
     {
@@ -587,7 +609,7 @@ public class PlayFabAuthManager : MonoBehaviour
 
     private void Update()
     {
-        if (saveChoiceOverlay != null && Input.GetKeyDown(KeyCode.Escape))
+        if (saveChoiceDialog != null && saveChoiceDialog.IsVisible && SaveChoiceEscapePressed())
         {
             cancelSaveChoice?.Invoke();
             return;
@@ -606,6 +628,17 @@ public class PlayFabAuthManager : MonoBehaviour
             if (forgotPasswordSubmitButton != null) forgotPasswordSubmitButton.interactable = true;
             if (forgotPasswordButtonText != null) forgotPasswordButtonText.text = "Send Email";
         }
+    }
+
+    private static bool SaveChoiceEscapePressed()
+    {
+#if ENABLE_INPUT_SYSTEM
+        return Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame;
+#elif ENABLE_LEGACY_INPUT_MANAGER
+        return Input.GetKeyDown(KeyCode.Escape);
+#else
+        return false;
+#endif
     }
 
     // ────────────────────────────────────────────────
@@ -1240,135 +1273,18 @@ public class PlayFabAuthManager : MonoBehaviour
         Action onLeft, Action onRight)
     {
         CloseSaveChoice();
-        SceneController sceneController = FindObjectOfType<SceneController>(true);
-        GameObject template = sceneController != null ? sceneController.quitConfirmationPanel : null;
-        if (template == null) return false;
-
-        saveChoiceOverlay = new GameObject("Account Save Confirmation", typeof(RectTransform),
-            typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
-        Canvas canvas = saveChoiceOverlay.GetComponent<Canvas>();
-        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.overrideSorting = true;
-        canvas.sortingOrder = 32000;
-        CanvasScaler scaler = saveChoiceOverlay.GetComponent<CanvasScaler>();
-        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        CanvasScaler sourceScaler = template.GetComponentInParent<CanvasScaler>(true);
-        scaler.referenceResolution = sourceScaler != null
-            ? sourceScaler.referenceResolution : new Vector2(1920f, 1080f);
-        scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-        scaler.matchWidthOrHeight = sourceScaler != null ? sourceScaler.matchWidthOrHeight : 0.5f;
-
-        GameObject blocker = new GameObject("Dim Background", typeof(RectTransform), typeof(Image));
-        blocker.transform.SetParent(saveChoiceOverlay.transform, false);
-        RectTransform blockerRect = blocker.GetComponent<RectTransform>();
-        blockerRect.anchorMin = Vector2.zero;
-        blockerRect.anchorMax = Vector2.one;
-        blockerRect.offsetMin = Vector2.zero;
-        blockerRect.offsetMax = Vector2.zero;
-        blocker.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.7f);
-
-        GameObject panel = Instantiate(template, saveChoiceOverlay.transform, false);
-        panel.name = "Account Save Choice Panel";
-        // The main-menu confirmation uses the same rounded sprite and typeface
-        // as the bridge-redesign dialog. Match that dialog's light card styling.
-        Color outlineColor = new Color32(73, 56, 44, 255);
-        Color fillColor = new Color32(255, 251, 246, 255);
-        Image panelImage = panel.GetComponent<Image>();
-        if (panelImage != null) panelImage.color = outlineColor;
-        Transform content = panel.transform.Find("QuitConfirmationContent");
-        Image contentImage = content != null ? content.GetComponent<Image>() : null;
-        if (contentImage != null) contentImage.color = fillColor;
-        Button left = null;
-        Button right = null;
-        TMP_Text body = null;
-        foreach (Button button in panel.GetComponentsInChildren<Button>(true))
-        {
-            if (button.name == "btnConf") left = button;
-            if (button.name == "btnCancel") right = button;
-        }
-        foreach (TMP_Text label in panel.GetComponentsInChildren<TMP_Text>(true))
-            if (label.name == "textConf") { body = label; break; }
-
-        if (left == null || right == null || body == null)
-        {
-            CloseSaveChoice();
+        if (saveChoiceDialog == null) return false;
+        if (!saveChoiceDialog.Show("ACCOUNT SAVE", message, leftLabel, rightLabel,
+                onLeft, onRight))
             return false;
-        }
-
-        body.text = message;
-        body.enableAutoSizing = true;
-        body.fontSize = 34f;
-        body.fontSizeMin = 18f;
-        body.fontSizeMax = 34f;
-        body.alignment = TextAlignmentOptions.Center;
-        body.enableWordWrapping = true;
-        body.color = outlineColor;
-        RectTransform bodyRect = body.rectTransform;
-        bodyRect.anchorMin = new Vector2(0.08f, 0.38f);
-        bodyRect.anchorMax = new Vector2(0.92f, 0.9f);
-        bodyRect.offsetMin = Vector2.zero;
-        bodyRect.offsetMax = Vector2.zero;
-        left.onClick = new Button.ButtonClickedEvent();
-        right.onClick = new Button.ButtonClickedEvent();
-        SetChoiceButton(left, leftLabel, onLeft, -160f, outlineColor, fillColor);
-        SetChoiceButton(right, rightLabel, onRight, 160f, outlineColor, fillColor);
         cancelSaveChoice = CancelPendingLogin;
-        panel.SetActive(true);
-        if (EventSystem.current == null)
-            saveChoiceEventSystem = new GameObject("Account Save Event System",
-                typeof(EventSystem), typeof(StandaloneInputModule));
         return true;
-    }
-
-    private static void SetChoiceButton(Button button, string label, Action action,
-        float horizontalPosition, Color outlineColor, Color fillColor)
-    {
-        RectTransform buttonRect = button.transform as RectTransform;
-        if (buttonRect != null)
-        {
-            buttonRect.anchoredPosition = new Vector2(horizontalPosition, -130f);
-            buttonRect.sizeDelta = new Vector2(250f, 90f);
-        }
-        Image outline = button.GetComponent<Image>();
-        if (outline != null)
-        {
-            outline.color = outlineColor;
-            GameObject inset = new GameObject("Light Button Interior",
-                typeof(RectTransform), typeof(Image));
-            inset.transform.SetParent(button.transform, false);
-            inset.transform.SetAsFirstSibling();
-            RectTransform insetRect = inset.GetComponent<RectTransform>();
-            insetRect.anchorMin = Vector2.zero;
-            insetRect.anchorMax = Vector2.one;
-            insetRect.offsetMin = new Vector2(5f, 5f);
-            insetRect.offsetMax = new Vector2(-5f, -5f);
-            Image insetImage = inset.GetComponent<Image>();
-            insetImage.sprite = outline.sprite;
-            insetImage.type = Image.Type.Sliced;
-            insetImage.color = fillColor;
-            insetImage.raycastTarget = false;
-        }
-        TMP_Text buttonText = button.GetComponentInChildren<TMP_Text>(true);
-        if (buttonText != null)
-        {
-            buttonText.text = label;
-            buttonText.enableAutoSizing = true;
-            buttonText.fontSize = 27f;
-            buttonText.fontSizeMin = 16f;
-            buttonText.fontSizeMax = 27f;
-            buttonText.alignment = TextAlignmentOptions.Center;
-            buttonText.color = outlineColor;
-        }
-        button.onClick.AddListener(() => action?.Invoke());
     }
 
     private void CloseSaveChoice()
     {
         cancelSaveChoice = null;
-        if (saveChoiceOverlay != null) Destroy(saveChoiceOverlay);
-        if (saveChoiceEventSystem != null) Destroy(saveChoiceEventSystem);
-        saveChoiceOverlay = null;
-        saveChoiceEventSystem = null;
+        if (saveChoiceDialog != null) saveChoiceDialog.Hide();
     }
 
     private void OnDestroy()

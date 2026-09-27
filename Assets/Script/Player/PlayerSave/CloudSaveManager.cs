@@ -8,8 +8,6 @@ using PlayFab.ClientModels;
 using PlayFab.DataModels;
 using PlayFab.Internal;
 using UnityEngine;
-using UnityEngine.EventSystems;
-using UnityEngine.UI;
 using EntityKey = PlayFab.DataModels.EntityKey;
 
 /// <summary>
@@ -56,8 +54,8 @@ public sealed class CloudSaveManager : MonoBehaviour
     private float nextSyncTime;
     private int generation;
     private Action<bool> startupComplete;
-    private GameObject conflictOverlay;
-    private GameObject conflictEventSystem;
+    [Header("Authored Conflict Dialog")]
+    [SerializeField] private AuthoredSaveChoiceDialog conflictDialog;
     private bool pausedForConflict;
     private float previousTimeScale;
     private StartMode startMode;
@@ -73,6 +71,9 @@ public sealed class CloudSaveManager : MonoBehaviour
     {
         saveManager = GetComponent<PlayerDataManager>();
         if (saveManager != null) saveManager.OnSaveCommitted += OnLocalSaveCommitted;
+        if (conflictDialog == null)
+            conflictDialog = GetComponentInChildren<AuthoredSaveChoiceDialog>(true);
+        if (conflictDialog != null) conflictDialog.Hide();
     }
 
     private void OnDestroy()
@@ -452,108 +453,32 @@ public sealed class CloudSaveManager : MonoBehaviour
     private void ShowConflictOverlay()
     {
         CloseConflictOverlay();
+        if (conflictDialog == null)
+        {
+            showingConflict = false;
+            Fail("The authored cloud-save conflict dialog is missing.");
+            return;
+        }
+
         previousTimeScale = Time.timeScale;
         Time.timeScale = 0f;
         pausedForConflict = true;
-        conflictOverlay = new GameObject("Cloud Save Conflict", typeof(RectTransform),
-            typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
-        conflictOverlay.transform.SetParent(transform, false);
-        Canvas canvas = conflictOverlay.GetComponent<Canvas>();
-        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.overrideSorting = true;
-        canvas.sortingOrder = 32767;
-        CanvasScaler scaler = conflictOverlay.GetComponent<CanvasScaler>();
-        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1080f, 1920f);
-        scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-        scaler.matchWidthOrHeight = 0.5f;
-
-        Image backdrop = MakeImage("Blocker", conflictOverlay.transform,
-            new Color(0f, 0f, 0f, 0.85f));
-        SetAnchors(backdrop.rectTransform, Vector2.zero, Vector2.one);
-
-        Image panel = MakeImage("Choice Panel", backdrop.transform,
-            new Color(0.11f, 0.16f, 0.22f, 1f));
-        RectTransform panelRect = panel.rectTransform;
-        panelRect.anchorMin = new Vector2(0.07f, 0.5f);
-        panelRect.anchorMax = new Vector2(0.93f, 0.5f);
-        panelRect.sizeDelta = new Vector2(0f, 470f);
-        panelRect.anchoredPosition = Vector2.zero;
-
-        MakeText("Title", panel.transform, "Choose a save", 46, FontStyle.Bold,
-            new Vector2(0.05f, 0.75f), new Vector2(0.95f, 0.95f));
-        MakeText("Explanation", panel.transform,
+        string explanation =
             "This device and your online account have different progress. Neither will replace the other. " +
             (conflictBackedUp ? "Both copies are backed up on this device." :
-                "Your online save will not be changed."),
-            31, FontStyle.Normal, new Vector2(0.07f, 0.34f), new Vector2(0.93f, 0.75f));
-
-        MakeButton("Keep Device Copy", panel.transform, new Vector2(0.05f, 0.07f),
-            new Vector2(0.48f, 0.29f), () => ResolveConflict(true));
-        MakeButton("Use Online Save", panel.transform, new Vector2(0.52f, 0.07f),
-            new Vector2(0.95f, 0.29f), () => ResolveConflict(false));
-
-        if (EventSystem.current == null)
+                "Your online save will not be changed.");
+        if (!conflictDialog.Show("CHOOSE A SAVE", explanation, "Keep Device Copy",
+                "Use Online Save", () => ResolveConflict(true), () => ResolveConflict(false)))
         {
-            conflictEventSystem = new GameObject("Cloud Save Event System",
-                typeof(EventSystem), typeof(StandaloneInputModule));
-            conflictEventSystem.transform.SetParent(transform, false);
+            CloseConflictOverlay();
+            showingConflict = false;
+            Fail("The authored cloud-save conflict dialog is incomplete.");
         }
-    }
-
-    private static Image MakeImage(string name, Transform parent, Color color)
-    {
-        GameObject go = new GameObject(name, typeof(RectTransform), typeof(Image));
-        go.transform.SetParent(parent, false);
-        Image image = go.GetComponent<Image>();
-        image.color = color;
-        return image;
-    }
-
-    private static void SetAnchors(RectTransform rect, Vector2 min, Vector2 max)
-    {
-        rect.anchorMin = min;
-        rect.anchorMax = max;
-        rect.offsetMin = Vector2.zero;
-        rect.offsetMax = Vector2.zero;
-    }
-
-    private static Text MakeText(string name, Transform parent, string value, int size,
-        FontStyle style, Vector2 min, Vector2 max)
-    {
-        GameObject go = new GameObject(name, typeof(RectTransform), typeof(Text));
-        go.transform.SetParent(parent, false);
-        Text label = go.GetComponent<Text>();
-        label.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-        label.text = value;
-        label.fontSize = size;
-        label.fontStyle = style;
-        label.alignment = TextAnchor.MiddleCenter;
-        label.color = Color.white;
-        label.resizeTextForBestFit = true;
-        label.resizeTextMinSize = 18;
-        label.resizeTextMaxSize = size;
-        SetAnchors(label.rectTransform, min, max);
-        return label;
-    }
-
-    private static void MakeButton(string label, Transform parent, Vector2 min, Vector2 max,
-        UnityEngine.Events.UnityAction onClick)
-    {
-        Image image = MakeImage(label, parent, new Color(0.16f, 0.44f, 0.7f, 1f));
-        SetAnchors(image.rectTransform, min, max);
-        Button button = image.gameObject.AddComponent<Button>();
-        button.targetGraphic = image;
-        button.onClick.AddListener(onClick);
-        MakeText("Label", image.transform, label, 30, FontStyle.Bold, Vector2.zero, Vector2.one);
     }
 
     private void CloseConflictOverlay()
     {
-        if (conflictOverlay != null) Destroy(conflictOverlay);
-        if (conflictEventSystem != null) Destroy(conflictEventSystem);
-        conflictOverlay = null;
-        conflictEventSystem = null;
+        if (conflictDialog != null) conflictDialog.Hide();
         if (pausedForConflict)
         {
             Time.timeScale = previousTimeScale;
