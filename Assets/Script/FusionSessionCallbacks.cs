@@ -15,21 +15,6 @@ public sealed class FusionSessionCallbacks : MonoBehaviour, INetworkRunnerCallba
         avatarPrefab = Resources.Load<NetworkObject>("FusionMultiplayerAvatar");
     }
 
-    private void OnEnable()
-    {
-        SceneManager.activeSceneChanged += OnActiveSceneChanged;
-    }
-
-    private void OnDisable()
-    {
-        SceneManager.activeSceneChanged -= OnActiveSceneChanged;
-    }
-
-    private void OnActiveSceneChanged(Scene previous, Scene next)
-    {
-        if (next.name == "Multiplayer") EnsureAvatars(GetComponent<NetworkRunner>());
-    }
-
     public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
     {
         EnsureAvatars(runner);

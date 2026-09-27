@@ -9,7 +9,6 @@ using UnityEngine.SceneManagement;
 /// <summary>A Fusion proxy for the existing locally controlled scene Player.</summary>
 public sealed class FusionMultiplayerAvatar : NetworkBehaviour
 {
-    private const float PoseSendInterval = 1f / 15f;
     private const float AppearanceCheckInterval = 0.5f;
     private const float BridgeNodeSyncInterval = 0.2f;
     private const float LiveLoadSyncInterval = 0.05f;
@@ -24,6 +23,8 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
     [Networked] private Quaternion Rotation { get; set; }
     [Networked] private Vector3 Scale { get; set; }
     [Networked] private bool PoseReady { get; set; }
+    [Networked] private uint PoseRevision { get; set; }
+    [Networked] private float PoseSourceTime { get; set; }
     [Networked] private float MoveSpeed { get; set; }
     [Networked] private bool Sprinting { get; set; }
     [Networked] private bool Grounded { get; set; }
@@ -42,6 +43,14 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
     [Networked] private Quaternion HostLiveLoadRotation { get; set; }
     [Networked] private SessionCompletionSnapshot HostCompletion { get; set; }
     [Networked] private int HostCompletionRevision { get; set; }
+
+    [Header("Player pose replication")]
+    [SerializeField, Range(15f, 60f)] private float poseSendRate = 30f;
+    [SerializeField, Range(0f, 0.2f)] private float remoteInterpolationDelay = 0.08f;
+    [SerializeField, Range(0f, 0.05f)] private float remoteMaxExtrapolation = 0.025f;
+    [SerializeField, Range(1f, 2f)] private float hostMaxPlaybackSpeed = 1.5f;
+    [SerializeField, Min(1f)] private float remoteTeleportDistance = 8f;
+    [SerializeField] private bool logMovementDiagnostics;
 
     public struct BridgeBarSnapshot : INetworkStruct
     {
@@ -77,7 +86,36 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
     private string lastAppliedAppearance;
     private uint localJumpSequence;
     private uint lastObservedJumpSequence;
-    private float nextPoseSendTime;
+    private uint localPoseSequence;
+    private uint lastObservedPoseRevision;
+    private readonly RemoteAvatarPoseBuffer remotePoseBuffer = new RemoteAvatarPoseBuffer();
+    private readonly MovementPoseSendSchedule poseSendSchedule = new MovementPoseSendSchedule();
+    private float nextMovementDiagnosticsTime;
+    private int receivedPoseSamples;
+    private int skippedPoseSamples;
+    private int extrapolatedRenderFrames;
+    private int diagnosticRenderFrames;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    private int sentPoseSamples;
+    private int attemptedPoseSamples;
+    private int suppressedPoseSamples;
+    private int resimPoseTicks;
+    private RpcSendMessageResult lastSuppressedPoseResult;
+    private float lastPoseSendTime;
+    private float maximumPoseSendGap;
+    private float lastPoseReceiveTime;
+    private float maximumPoseReceiveGap;
+    private float maximumReceivedPoseStep;
+    private Vector3 lastReceivedPosePosition;
+    private float maximumRenderedPoseStep;
+    private Vector3 lastRenderedPosePosition;
+    private bool hasRenderedPoseDiagnostic;
+    private int receivedRpcSamples;
+    private int rejectedRpcSamples;
+    private float maximumOwnerFrameTime;
+    private float totalOwnerFrameTime;
+    private int ownerFrameCount;
+#endif
     private float nextAppearanceCheckTime;
     private bool localSpawnAdjusted;
     private float nextBridgeNodeSyncTime;
@@ -109,6 +147,7 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
 
     public override void Spawned()
     {
+        ResetRemotePoseBuffer();
         if (HasInputAuthority)
             PlayerCosmetics.LoadoutChanged += PublishAppearance;
     }
@@ -120,6 +159,7 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
         DestroyRemoteVisual();
         DestroyRemoteBridgeNodes();
         DestroyRemoteBridgeBars();
+        ResetRemotePoseBuffer();
         RestoreRemoteLiveLoad();
         if (LevelCompleteManager.Instance != null)
             LevelCompleteManager.Instance.HideGuestSessionCompletion();
@@ -129,6 +169,7 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
     {
         PlayerCosmetics.LoadoutChanged -= PublishAppearance;
         BindSceneMotor(null);
+        ResetRemotePoseBuffer();
         DestroyRemoteBridgeNodes();
         DestroyRemoteBridgeBars();
         RestoreRemoteLiveLoad();
@@ -148,6 +189,7 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
             DestroyRemoteVisual();
             DestroyRemoteBridgeNodes();
             DestroyRemoteBridgeBars();
+            ResetRemotePoseBuffer();
             RestoreRemoteLiveLoad();
             if (LevelCompleteManager.Instance != null)
                 LevelCompleteManager.Instance.HideGuestSessionCompletion();
@@ -157,6 +199,16 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
         if (sceneMotor == null) FindScenePlayer();
         if (HasInputAuthority)
         {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            if (logMovementDiagnostics)
+            {
+                float frameTime = Time.unscaledDeltaTime;
+                maximumOwnerFrameTime = Mathf.Max(maximumOwnerFrameTime, frameTime);
+                totalOwnerFrameTime += frameTime;
+                ownerFrameCount++;
+                LogOwnerMovementDiagnostics();
+            }
+#endif
             if (!localSpawnAdjusted) OffsetJoiningPlayerSpawn();
             if (Time.unscaledTime >= nextAppearanceCheckTime)
             {
@@ -172,10 +224,84 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
         UpdateRemoteLiveLoad();
         UpdateRemoteCompletion();
         if (!PoseReady) return;
-        UpdateRemotePose();
         if (visualContainer == null) CreateRemoteVisual();
         ApplyRemoteAppearance();
         ApplyRemoteAnimation();
+    }
+
+    public override void Render()
+    {
+        if (Runner == null || !Runner.IsRunning || HasInputAuthority || !PoseReady ||
+            SceneManager.GetActiveScene().name != "Multiplayer") return;
+
+        if (PoseRevision != lastObservedPoseRevision)
+        {
+            if (lastObservedPoseRevision != 0)
+            {
+                uint revisionGap = PoseRevision - lastObservedPoseRevision;
+                if (revisionGap > 1 && revisionGap < 1000)
+                    skippedPoseSamples += (int)revisionGap - 1;
+            }
+            lastObservedPoseRevision = PoseRevision;
+            if (remotePoseBuffer.Add(PoseSourceTime, Position, Rotation, Scale,
+                    Time.unscaledTime, Mathf.Max(1f, remoteTeleportDistance)))
+            {
+                receivedPoseSamples++;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                RecordReceivedPose(Position);
+#endif
+            }
+        }
+
+        float playbackSpeedLimit = Runner.IsServer
+            ? Mathf.Clamp(hostMaxPlaybackSpeed, 1f, 2f) : float.PositiveInfinity;
+        if (!remotePoseBuffer.TrySample(Time.unscaledTime, remoteInterpolationDelay,
+                remoteMaxExtrapolation, playbackSpeedLimit,
+                out RemoteAvatarPoseBuffer.Pose pose)) return;
+
+        transform.SetPositionAndRotation(pose.Position, pose.Rotation);
+        transform.localScale = pose.Scale;
+        if (remotePoseBuffer.IsExtrapolating) extrapolatedRenderFrames++;
+        diagnosticRenderFrames++;
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (logMovementDiagnostics)
+        {
+            if (hasRenderedPoseDiagnostic)
+                maximumRenderedPoseStep = Mathf.Max(maximumRenderedPoseStep,
+                    Vector3.Distance(pose.Position, lastRenderedPosePosition));
+            lastRenderedPosePosition = pose.Position;
+            hasRenderedPoseDiagnostic = true;
+        }
+        if (logMovementDiagnostics && Time.unscaledTime >= nextMovementDiagnosticsTime)
+        {
+            float interval = nextMovementDiagnosticsTime > 0f ? 5f : 0f;
+            nextMovementDiagnosticsTime = Time.unscaledTime + 5f;
+            if (interval > 0f)
+                Debug.Log($"[Fusion movement] peer={Object.InputAuthority} " +
+                    $"rtt={Runner.GetPlayerRtt(Object.InputAuthority) * 1000d:0}ms " +
+                    $"tick={Runner.TickRate}Hz targetSend={poseSendRate:0}Hz " +
+                    $"received/s={receivedPoseSamples / interval:0.0} rpcReceived/s={receivedRpcSamples / interval:0.0} " +
+                    $"maxReceiveGap={maximumPoseReceiveGap * 1000f:0}ms " +
+                    $"maxPoseStep={maximumReceivedPoseStep:0.000}m " +
+                    $"maxRenderStep={maximumRenderedPoseStep:0.000}m " +
+                    $"skippedSeq={skippedPoseSamples} rejectedRpc={rejectedRpcSamples} " +
+                    $"extrapolatedFrames={extrapolatedRenderFrames} " +
+                    $"buffer={remotePoseBuffer.SampleCount} delay={remoteInterpolationDelay * 1000f:0}ms " +
+                    $"maxPlayback={playbackSpeedLimit:0.00}x " +
+                    $"sourceGap={remotePoseBuffer.LastSampleGap * 1000f:0}ms " +
+                    $"fps={diagnosticRenderFrames / interval:0}", this);
+            receivedPoseSamples = 0;
+            skippedPoseSamples = 0;
+            extrapolatedRenderFrames = 0;
+            diagnosticRenderFrames = 0;
+            receivedRpcSamples = 0;
+            rejectedRpcSamples = 0;
+            maximumPoseReceiveGap = 0f;
+            maximumReceivedPoseStep = 0f;
+            maximumRenderedPoseStep = 0f;
+        }
+#endif
     }
 
     public override void FixedUpdateNetwork()
@@ -206,34 +332,117 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
         }
 
         if (!HasInputAuthority || sceneMotor == null ||
-            SceneManager.GetActiveScene().name != "Multiplayer" ||
-            Time.unscaledTime < nextPoseSendTime)
+            SceneManager.GetActiveScene().name != "Multiplayer")
             return;
 
-        nextPoseSendTime = Time.unscaledTime + PoseSendInterval;
+        // Client-side re-simulation also invokes FixedUpdateNetwork. An RPC
+        // invoked there is culled by Fusion, but advancing our wall-clock send
+        // schedule there would skip the corresponding real (forward) send.
+        bool isForwardTick = Runner.IsForward;
+        if (!isForwardTick)
+        {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            if (logMovementDiagnostics) resimPoseTicks++;
+#endif
+        }
+        if (!poseSendSchedule.ShouldSend(Time.unscaledTimeAsDouble,
+                Mathf.Clamp(poseSendRate, 15f, 60f), isForwardTick)) return;
+
         Transform player = sceneMotor.transform;
         float speed = sceneAnimator != null ? sceneAnimator.GetFloat(SpeedParameter) : 0f;
         bool sprint = sceneAnimator != null && sceneAnimator.GetBool(SprintParameter);
         bool ground = sceneAnimator == null || sceneAnimator.GetBool(GroundedParameter);
+        uint sequence = ++localPoseSequence;
+        float sampleTime = Time.unscaledTime;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (logMovementDiagnostics) attemptedPoseSamples++;
+#endif
 
+        bool sent;
         if (HasStateAuthority)
+        {
             SetPose(player.position, player.rotation, player.localScale,
-                speed, sprint, ground, localJumpSequence);
+                speed, sprint, ground, localJumpSequence, sequence, sampleTime);
+            sent = true;
+        }
         else
-            RPC_PublishPose(player.position, player.rotation, player.localScale,
-                speed, sprint, ground, localJumpSequence);
+        {
+            RpcInvokeInfo sendInfo = RPC_PublishPose(player.position, player.rotation, player.localScale,
+                speed, sprint, ground, localJumpSequence, sequence, sampleTime);
+            sent = (sendInfo.SendMessageResult & RpcSendMessageResult.MaskNotSent) == 0;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            if (logMovementDiagnostics && !sent)
+            {
+                suppressedPoseSamples++;
+                lastSuppressedPoseResult = sendInfo.SendMessageResult;
+            }
+#endif
+        }
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (logMovementDiagnostics && sent)
+        {
+            if (sentPoseSamples > 0 || lastPoseSendTime > 0f)
+                maximumPoseSendGap = Mathf.Max(maximumPoseSendGap, sampleTime - lastPoseSendTime);
+            lastPoseSendTime = sampleTime;
+            sentPoseSamples++;
+        }
+#endif
     }
 
     [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority, Channel = RpcChannel.Unreliable)]
-    private void RPC_PublishPose(Vector3 newPosition, Quaternion newRotation, Vector3 newScale,
-        float speed, bool sprint, bool ground, uint jump)
+    private RpcInvokeInfo RPC_PublishPose(Vector3 newPosition, Quaternion newRotation, Vector3 newScale,
+        float speed, bool sprint, bool ground, uint jump, uint sequence, float sampleTime)
     {
-        SetPose(newPosition, newRotation, newScale, speed, sprint, ground, jump);
+        if (PoseReady && (int)(sequence - PoseRevision) <= 0)
+        {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            rejectedRpcSamples++;
+#endif
+            return default;
+        }
+        if (!SetPose(newPosition, newRotation, newScale, speed, sprint, ground, jump,
+                sequence, sampleTime))
+        {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            rejectedRpcSamples++;
+#endif
+            return default;
+        }
+
+        // The host has StateAuthority and does not receive its own networked
+        // state as an interpolated snapshot. Buffer each guest RPC on arrival,
+        // rather than seeing only the last pose when Render runs.
+        if (Runner != null && Runner.IsServer && !HasInputAuthority)
+        {
+            if (lastObservedPoseRevision != 0)
+            {
+                uint gap = sequence - lastObservedPoseRevision;
+                if (gap > 1 && gap < 1000) skippedPoseSamples += (int)gap - 1;
+            }
+            lastObservedPoseRevision = sequence;
+            if (remotePoseBuffer.Add(sampleTime, newPosition, newRotation, newScale,
+                    Time.unscaledTime, Mathf.Max(1f, remoteTeleportDistance)))
+            {
+                receivedPoseSamples++;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                receivedRpcSamples++;
+                RecordReceivedPose(newPosition);
+#endif
+            }
+        }
+        return default;
     }
 
-    private void SetPose(Vector3 newPosition, Quaternion newRotation, Vector3 newScale,
-        float speed, bool sprint, bool ground, uint jump)
+    private bool SetPose(Vector3 newPosition, Quaternion newRotation, Vector3 newScale,
+        float speed, bool sprint, bool ground, uint jump, uint sequence, float sampleTime)
     {
+        if (!IsFinite(sampleTime) || !IsFinite(speed) || !IsFinite(newPosition.x) ||
+            !IsFinite(newPosition.y) || !IsFinite(newPosition.z) ||
+            !IsFinite(newRotation.x) || !IsFinite(newRotation.y) ||
+            !IsFinite(newRotation.z) || !IsFinite(newRotation.w) ||
+            !IsFinite(newScale.x) || !IsFinite(newScale.y) ||
+            !IsFinite(newScale.z)) return false;
+
         Position = newPosition;
         Rotation = newRotation;
         Scale = newScale;
@@ -241,7 +450,93 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
         Sprinting = sprint;
         Grounded = ground;
         JumpSequence = jump;
+        PoseRevision = sequence;
+        PoseSourceTime = sampleTime;
         PoseReady = true;
+        return true;
+    }
+
+    private static bool IsFinite(float value) =>
+        !float.IsNaN(value) && !float.IsInfinity(value);
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    private void RecordReceivedPose(Vector3 position)
+    {
+        float now = Time.unscaledTime;
+        if (lastPoseReceiveTime > 0f)
+        {
+            maximumPoseReceiveGap = Mathf.Max(maximumPoseReceiveGap,
+                now - lastPoseReceiveTime);
+            maximumReceivedPoseStep = Mathf.Max(maximumReceivedPoseStep,
+                Vector3.Distance(position, lastReceivedPosePosition));
+        }
+        lastPoseReceiveTime = now;
+        lastReceivedPosePosition = position;
+    }
+
+    private void LogOwnerMovementDiagnostics()
+    {
+        if (Time.unscaledTime < nextMovementDiagnosticsTime) return;
+        if (nextMovementDiagnosticsTime == 0f)
+        {
+            nextMovementDiagnosticsTime = Time.unscaledTime + 5f;
+            return;
+        }
+
+        float averageFrame = ownerFrameCount > 0
+            ? totalOwnerFrameTime / ownerFrameCount : 0f;
+        Debug.Log($"[Fusion movement owner] peer={Object.InputAuthority} " +
+            $"host={Runner.IsServer} tick={Runner.TickRate}Hz " +
+            $"targetSend={poseSendRate:0}Hz attempted/s={attemptedPoseSamples / 5f:0.0} " +
+            $"sent/s={sentPoseSamples / 5f:0.0} suppressed={suppressedPoseSamples} " +
+            $"lastSuppress={(suppressedPoseSamples > 0 ? lastSuppressedPoseResult.ToString() : "none")} " +
+            $"resimTicks={resimPoseTicks} " +
+            $"maxSendGap={maximumPoseSendGap * 1000f:0}ms " +
+            $"avgFrame={averageFrame * 1000f:0}ms " +
+            $"maxFrame={maximumOwnerFrameTime * 1000f:0}ms " +
+            $"corrections=n/a(owner-controlled pose)", this);
+        nextMovementDiagnosticsTime = Time.unscaledTime + 5f;
+        sentPoseSamples = 0;
+        attemptedPoseSamples = 0;
+        suppressedPoseSamples = 0;
+        resimPoseTicks = 0;
+        lastSuppressedPoseResult = default;
+        maximumPoseSendGap = 0f;
+        maximumOwnerFrameTime = 0f;
+        totalOwnerFrameTime = 0f;
+        ownerFrameCount = 0;
+    }
+#endif
+
+    private void ResetRemotePoseBuffer()
+    {
+        remotePoseBuffer.Clear();
+        poseSendSchedule.Reset();
+        lastObservedPoseRevision = 0;
+        nextMovementDiagnosticsTime = 0f;
+        receivedPoseSamples = 0;
+        skippedPoseSamples = 0;
+        extrapolatedRenderFrames = 0;
+        diagnosticRenderFrames = 0;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        sentPoseSamples = 0;
+        attemptedPoseSamples = 0;
+        suppressedPoseSamples = 0;
+        resimPoseTicks = 0;
+        lastSuppressedPoseResult = default;
+        lastPoseSendTime = 0f;
+        maximumPoseSendGap = 0f;
+        lastPoseReceiveTime = 0f;
+        maximumPoseReceiveGap = 0f;
+        maximumReceivedPoseStep = 0f;
+        maximumRenderedPoseStep = 0f;
+        hasRenderedPoseDiagnostic = false;
+        receivedRpcSamples = 0;
+        rejectedRpcSamples = 0;
+        maximumOwnerFrameTime = 0f;
+        totalOwnerFrameTime = 0f;
+        ownerFrameCount = 0;
+#endif
     }
 
     private void PublishHostBridgeNodes()
@@ -955,19 +1250,6 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
         Debug.LogWarning("[Fusion] No safe second spawn found; players will begin together.", this);
     }
 
-    private void UpdateRemotePose()
-    {
-        if ((transform.position - Position).sqrMagnitude > 100f)
-            transform.SetPositionAndRotation(Position, Rotation);
-        else
-        {
-            float blend = 1f - Mathf.Exp(-15f * Time.deltaTime);
-            transform.position = Vector3.Lerp(transform.position, Position, blend);
-            transform.rotation = Quaternion.Slerp(transform.rotation, Rotation, blend);
-        }
-        transform.localScale = Scale;
-    }
-
     private void CreateRemoteVisual()
     {
         if (sceneMotor == null || sceneCosmetics == null) return;
@@ -983,7 +1265,7 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
         visualContainer.SetActive(false);
         GameObject visual = Instantiate(sourceVisual.gameObject, visualContainer.transform, false);
         visual.name = "Remote " + sourceVisual.name;
-        visual.transform.localPosition = sourceVisual.localPosition;
+        visual.transform.localPosition = sceneMotor.GetVisualBaseLocalPosition(sourceVisual);
         visual.transform.localRotation = sourceVisual.localRotation;
         visual.transform.localScale = sourceVisual.localScale;
 

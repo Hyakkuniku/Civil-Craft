@@ -7378,11 +7378,13 @@ MonoBehaviour:
   - {fileID: 11400000, guid: d16ef45202a457f43bc02f4d7e730647, type: 2}
   - {fileID: 11400000, guid: 511cf4b78fcb2ee4aa7169008e424b48, type: 2}
   - {fileID: 11400000, guid: 1f93c961d5b0ced468282419d064a7d3, type: 2}
+  - {fileID: 11400000, guid: 08ef0a30971b46d18d7752fdf9b5470f, type: 2}
   - {fileID: 11400000, guid: b2c3c504e3cdd4043b4bfad718fccd86, type: 2}
   - {fileID: 11400000, guid: 9de353268b31b6d4aac7964bf7b8676c, type: 2}
   - {fileID: 11400000, guid: d58e962a84aed8944ad5741d6404b861, type: 2}
   - {fileID: 11400000, guid: 5edc8d91db6f6014190820a7c01cea37, type: 2}
   - {fileID: 11400000, guid: b8ce50ba6d905d9449faec73f3fa007a, type: 2}
+  - {fileID: 11400000, guid: e8c4a3554dc04105b9bb0ecfa923fd13, type: 2}
 --- !u!1 &1720876520320307134
 GameObject:
   m_ObjectHideFlags: 0
@@ -11631,6 +11633,8 @@ MonoBehaviour:
   useDeterministicStressAnalysis: 1
   deterministicLoadSamples: 101
   enableVisualizer: 1
+  stressVisualResponseSpeed: 3
+  stressColorUpdatesPerSecond: 30
   warningColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   criticalColor: {r: 1, g: 0, b: 0, a: 1}
   brokenColor: {r: 0, g: 0, b: 0, a: 1}
@@ -12216,7 +12220,9 @@ MonoBehaviour:
   maximumVehicleFallDistance: 6
   vehicleFallConfirmationDuration: 0.35
   vehicleStallTimeout: 8
+  vehicleLookupInterval: 0.25
   delayBeforeFailScreen: 2
+  minimumStructuralFailureObservationTime: 2
   goldPenaltyPerFail: 25
   currentFailCount: 0
   isFailed: 0
@@ -29442,6 +29448,9 @@ MonoBehaviour:
   whitelistedButton: {fileID: 0}
   actionLogText: {fileID: 7791811976296315348}
   logDisplayTime: 3
+  actionLogSafeAreaMarginPixels: 12
+  actionLogPanelGapPixels: 12
+  actionLogProtectedRegions: []
   barCreator: {fileID: 0}
   physicsManager: {fileID: 6021715051215011940}
   buildButtonClickSfxId: Click
@@ -29477,6 +29486,7 @@ MonoBehaviour:
   safeStressColor: {r: 0, g: 1, b: 0, a: 1}
   warningStressColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   criticalStressColor: {r: 1, g: 0, b: 0, a: 1}
+  stressTextUpdatesPerSecond: 10
   timerPanel: {fileID: 0}
   timerText: {fileID: 0}
   statsPanel: {fileID: 2233159533889658714}
@@ -29494,6 +29504,7 @@ MonoBehaviour:
   liveBeamAngleText: {fileID: 409730037865076745}
   unlockMaterialPanel: {fileID: 0}
   unlockMaterialText: {fileID: 0}
+  materialsPanel: {fileID: 0}
   selectToolImage: {fileID: 0}
   moveToolImage: {fileID: 0}
   deleteToolImage: {fileID: 0}

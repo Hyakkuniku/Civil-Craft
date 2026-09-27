@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.SceneManagement;
 
 [DefaultExecutionOrder(-50)]
 public class PlayerMotor : MonoBehaviour
@@ -8,7 +9,50 @@ public class PlayerMotor : MonoBehaviour
 
     private CharacterController controller;
     private Vector3 playerVelocity;
-    public void ResetTestMotion() { playerVelocity = Vector3.zero; }
+    private Vector3 previousFixedPosition;
+    private Vector3 currentFixedPosition;
+    private float lastMotionFixedTime;
+    private bool hasFixedMotion;
+    private Transform visualRoot;
+    private Vector3 visualRootBaseLocalPosition;
+
+    public void ResetTestMotion()
+    {
+        playerVelocity = Vector3.zero;
+        ResetRenderMotion();
+    }
+
+    public Vector3 RenderPositionOffset
+    {
+        get
+        {
+            FusionConnectionManager connection = FusionConnectionManager.Instance;
+            if (!isActiveAndEnabled || !hasFixedMotion ||
+                SceneManager.GetActiveScene().name != "Multiplayer" ||
+                connection == null || !connection.IsClientConnected ||
+                (transform.position - currentFixedPosition).sqrMagnitude > 1f)
+                return Vector3.zero;
+
+            float alpha = Mathf.Clamp01((Time.time - lastMotionFixedTime) /
+                Mathf.Max(0.0001f, Time.fixedDeltaTime));
+            Vector3 renderPosition = Vector3.Lerp(previousFixedPosition,
+                currentFixedPosition, alpha);
+            return renderPosition - transform.position;
+        }
+    }
+
+    public Vector3 GetVisualBaseLocalPosition(Transform candidate) =>
+        candidate != null && candidate == visualRoot
+            ? visualRootBaseLocalPosition : candidate != null ? candidate.localPosition : Vector3.zero;
+
+    private void ResetRenderMotion()
+    {
+        previousFixedPosition = transform.position;
+        currentFixedPosition = transform.position;
+        lastMotionFixedTime = Time.fixedTime;
+        hasFixedMotion = false;
+        if (visualRoot != null) visualRoot.localPosition = visualRootBaseLocalPosition;
+    }
     private bool isGrounded;
     
     [Header("References")]
@@ -48,6 +92,11 @@ public class PlayerMotor : MonoBehaviour
 
     private void LateUpdate()
     {
+        if (visualRoot != null)
+            visualRoot.localPosition = visualRootBaseLocalPosition +
+                transform.InverseTransformVector(IsCarryingCargo()
+                    ? Vector3.zero : RenderPositionOffset);
+
         if (carriedItem == null || carryingHips == null) return;
         // Generic clips animate hip translation even with Apply Root Motion off.
         // The CharacterController owns travel; keep the model over that body.
@@ -89,6 +138,9 @@ public class PlayerMotor : MonoBehaviour
     private void Start()
     {
         controller = GetComponent<CharacterController>();
+        visualRoot = transform.Find("NewCharacterModel");
+        if (visualRoot != null) visualRootBaseLocalPosition = visualRoot.localPosition;
+        ResetRenderMotion();
         
         if (cameraTransform == null && Camera.main != null)
         {
@@ -136,6 +188,8 @@ public class PlayerMotor : MonoBehaviour
     public void ProcessMove(Vector2 input)
     {
         if (!isActiveAndEnabled || controller == null || !controller.enabled) return;
+        Vector3 beforeMove = transform.position;
+        previousFixedPosition = beforeMove;
         input = Vector2.ClampMagnitude(input, 1f);
         float moveAmount = input.magnitude;
         float startThreshold = Mathf.Clamp(sprintStartThreshold, 0.1f, 1f);
@@ -191,10 +245,15 @@ public class PlayerMotor : MonoBehaviour
             playerAnimator.SetFloat("Speed", moveAmount);
             playerAnimator.SetBool(SprintParameter, isSprinting);
         }
+
+        currentFixedPosition = transform.position;
+        lastMotionFixedTime = Time.fixedTime;
+        hasFixedMotion = true;
     }
 
     private void OnDisable()
     {
+        ResetRenderMotion();
         isSprinting = false;
         if (playerAnimator != null)
         {

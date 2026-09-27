@@ -48,11 +48,13 @@ public class PlayerLook : MonoBehaviour
     private float distanceSmoothVelocity;
     private Vector3 previousFollowPosition;
     private bool hasCameraPose;
+    private PlayerMotor localMotor;
     private readonly RaycastHit[] sphereCastHits = new RaycastHit[24];
     private readonly RaycastHit[] raycastHits = new RaycastHit[24];
 
     private void Start()
     {
+        localMotor = GetComponent<PlayerMotor>();
         ApplySavedCameraSettings();
         currentDistance = defaultDistance;
         
@@ -113,6 +115,9 @@ public class PlayerLook : MonoBehaviour
 
         Quaternion rotation = Quaternion.Euler(pitch, yaw, 0);
         Vector3 pivot = followTarget.position;
+        if (!forceSnap && localMotor != null &&
+            (followTarget == transform || followTarget.IsChildOf(transform)))
+            pivot += localMotor.RenderPositionOffset;
         Vector3 backward = rotation * Vector3.back;
         float desiredDistance = Mathf.Clamp(defaultDistance,
             Mathf.Max(0.01f, minDistance), Mathf.Max(minDistance, maxDistance));
