@@ -334,6 +334,8 @@ public class LevelCompleteManager : MonoBehaviour
 
         BuildReceiptLayout();
         EnsureFirstCompletionTutorialDraft();
+        if (levelCompletePanel != null)
+            UIReservedRegionLayout.Register(levelCompletePanel.transform as RectTransform);
         if (levelCompletePanel != null) levelCompletePanel.SetActive(false); 
     }
 
@@ -491,6 +493,8 @@ public class LevelCompleteManager : MonoBehaviour
 
     private void OnDestroy()
     {
+        if (levelCompletePanel != null)
+            UIReservedRegionLayout.Unregister(levelCompletePanel.transform as RectTransform);
         if (Instance == this) Instance = null;
         if (currentBridgePhoto != null) Destroy(currentBridgePhoto);
         if (ReceiptFont != null)
@@ -847,6 +851,7 @@ public class LevelCompleteManager : MonoBehaviour
         }
 
         SimulationLessonPresenter.HideForResultOverlay();
+        UIReservedRegionLayout.NotifyLayoutChanging();
         if (levelCompletePanel != null) levelCompletePanel.SetActive(true);
         if (AudioManager.Instance != null)
             AudioManager.Instance.PlaySFX("Level_Complete");
@@ -1547,6 +1552,7 @@ public class LevelCompleteManager : MonoBehaviour
 
         CaptureGuestBridgePhoto(result.ContractHash);
         SimulationLessonPresenter.HideForResultOverlay();
+        UIReservedRegionLayout.NotifyLayoutChanging();
         levelCompletePanel.SetActive(true);
         ShowStarResults(null);
         if (AudioManager.Instance != null) AudioManager.Instance.PlaySFX("Level_Complete");

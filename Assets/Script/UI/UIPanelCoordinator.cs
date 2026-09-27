@@ -49,6 +49,7 @@ public class UIPanelCoordinator : MonoBehaviour
     /// without discarding the guidance target they need to restore afterwards.
     /// </summary>
     public bool HasOpenPanel => panelStack.Count > 0;
+    public GameObject CurrentPanel => panelStack.Count > 0 ? panelStack.Peek().panel : null;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void EnsureCoordinatorExists()
@@ -138,6 +139,7 @@ public class UIPanelCoordinator : MonoBehaviour
     public void OpenPanel(GameObject panel, bool activatePanel)
     {
         if (panel == null) return;
+        UIReservedRegionLayout.NotifyLayoutChanging();
 
         RefreshManagedPanels();
 
@@ -191,6 +193,7 @@ public class UIPanelCoordinator : MonoBehaviour
     public void ClosePanel(GameObject panel, bool deactivatePanel)
     {
         if (panel == null) return;
+        UIReservedRegionLayout.NotifyLayoutChanging();
 
         if (!ContainsPanel(panel))
         {

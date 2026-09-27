@@ -173,6 +173,11 @@ public class TutorialManager : MonoBehaviour
     private Canvas skipButtonCanvas;
     private Rect lastSkipSafeArea;
     private Vector2Int lastSkipScreenSize;
+    private float bannerTransitionUntil;
+
+    public bool IsBannerTransitioning => Time.unscaledTime < bannerTransitionUntil &&
+        ((centerPanel != null && centerPanel.activeInHierarchy) ||
+         (leftPanel != null && leftPanel.activeInHierarchy));
 
     public int CurrentStepIndex => currentStepIndex;
     public string CurrentLessonName => currentSequence != null ? currentSequence.lessonName : string.Empty;
@@ -184,6 +189,19 @@ public class TutorialManager : MonoBehaviour
             ? currentSequence.tutorialSteps[currentStepIndex] : null;
     /// <summary>The currently displayed authored step, including its scene event targets.</summary>
     public TutorialStep CurrentStep => ActiveControlStep;
+    /// <summary>The visible centered message's actual bounds, including LowCenter steps.</summary>
+    public RectTransform VisibleCenteredBannerRect
+    {
+        get
+        {
+            TutorialStep step = ActiveControlStep;
+            return step != null &&
+                (step.screenPosition == TutorialPosition.Center ||
+                 step.screenPosition == TutorialPosition.LowCenter) &&
+                centerPanelRect != null && centerPanelRect.gameObject.activeInHierarchy
+                    ? centerPanelRect : null;
+        }
+    }
     public bool IsLookLocked => ActiveControlStep != null && ActiveControlStep.lockLook;
     public bool IsJumpLocked => ActiveControlStep != null && ActiveControlStep.lockJump;
     public bool IsRunLocked => ActiveControlStep != null && ActiveControlStep.lockRun;
@@ -317,6 +335,8 @@ public class TutorialManager : MonoBehaviour
             panelButton.onClick.AddListener(RecallCurrentTutorialGuide);
         }
         CacheTutorialPanelPositions();
+        UIReservedRegionLayout.Register(centerPanelRect);
+        UIReservedRegionLayout.Register(leftPanelRect);
         tutorialRootCanvas = FindTutorialRootCanvas();
         EnsureTutorialSkipButton();
         trackedButtonAction = new UnityAction(OnTrackedButtonClicked);
@@ -398,6 +418,7 @@ public class TutorialManager : MonoBehaviour
             return;
         }
         if (contractGuideVisible) return;
+        UIReservedRegionLayout.NotifyLayoutChanging();
         PrepareTutorialCanvas();
         ApplyPanelPosition(TutorialPosition.Left);
         if (leftPanel != null) leftPanel.SetActive(true);
@@ -671,6 +692,7 @@ public class TutorialManager : MonoBehaviour
 
     private void ShowTutorialStep(TutorialStep step, bool playReverseAnimation)
     {
+        UIReservedRegionLayout.NotifyLayoutChanging();
         // A rapidly advanced step can interrupt a slide before it reaches its target.
         // Stop it before reading or restoring positions so the next transition starts
         // from a stable, authored layout instead of inheriting an in-between position.
@@ -740,6 +762,7 @@ public class TutorialManager : MonoBehaviour
                 AnimatePanelIn(activePanel);
                 waitDelay = transitionDuration;
             }
+            bannerTransitionUntil = Time.unscaledTime + Mathf.Max(0f, waitDelay);
 
             if (step.screenPosition == TutorialPosition.Left && activeText != null)
             {
@@ -1712,6 +1735,12 @@ public class TutorialManager : MonoBehaviour
             Tutorial3DIndicator.SetModalOccluded(false);
         }
         TutorialAnchorHighlighter.ClearAll();
+    }
+
+    private void OnDestroy()
+    {
+        UIReservedRegionLayout.Unregister(centerPanelRect);
+        UIReservedRegionLayout.Unregister(leftPanelRect);
     }
 }
 

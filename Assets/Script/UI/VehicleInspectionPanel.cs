@@ -13,12 +13,14 @@ public sealed class VehicleInspectionPanel : MonoBehaviour
 
     private void OnEnable()
     {
+        UIReservedRegionLayout.Register(transform as RectTransform);
         if (TutorialManager.Instance != null)
             TutorialManager.Instance.SetInspectionModalOpen(gameObject, true);
     }
 
     private void OnDisable()
     {
+        UIReservedRegionLayout.Unregister(transform as RectTransform);
         if (TutorialManager.Instance != null)
             TutorialManager.Instance.SetInspectionModalOpen(gameObject, false);
     }

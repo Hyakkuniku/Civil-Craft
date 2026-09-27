@@ -25,7 +25,24 @@ public class BuildUIController : MonoBehaviour
     [Header("Action Log")]
     public TextMeshProUGUI actionLogText; 
     public float logDisplayTime = 3f;
-    private Coroutine clearLogCoroutine;
+    [SerializeField, Min(0f)] private float actionLogSafeAreaMarginPixels = 12f;
+    [Tooltip("Pixel gap between Action Logs and the tutorial banner or other reserved UI.")]
+    [SerializeField, Min(0f)] private float actionLogPanelGapPixels = 12f;
+    [Tooltip("Optional additional UI controls whose actual bounds Action Logs must avoid.")]
+    [SerializeField] private List<RectTransform> actionLogProtectedRegions = new List<RectTransform>();
+    private RectTransform actionLogRect;
+    private Vector2 authoredActionLogPosition;
+    private Vector2 authoredActionLogSize;
+    private Vector2 preferredActionLogScreenCenter;
+    private string currentActionLog;
+    private float currentActionLogRemaining;
+    private bool actionLogPrepared;
+    private bool actionLogVisible;
+    private bool actionLogInitialized;
+    private int lastActionLogScreenWidth = -1;
+    private int lastActionLogScreenHeight = -1;
+    private Rect lastActionLogSafeArea;
+    private float lastActionLogCanvasScale = -1f;
 
     [Header("System References")]
     public BarCreator barCreator;
@@ -212,8 +229,17 @@ public class BuildUIController : MonoBehaviour
 
     private void OnEnable()
     {
+        UIReservedRegionLayout.LayoutChanging += HideActionLogTemporarily;
+        RegisterActionLogProtectedRegions();
         if (GameManager.Instance != null && GameManager.Instance.CurrentContract != null)
             RefreshContractBuildUI();
+    }
+
+    private void OnDisable()
+    {
+        UIReservedRegionLayout.LayoutChanging -= HideActionLogTemporarily;
+        UnregisterActionLogProtectedRegions();
+        HideActionLogTemporarily();
     }
 
     private void Start()
@@ -250,7 +276,8 @@ public class BuildUIController : MonoBehaviour
             fillShadow.useGraphicAlpha = true;
         }
 
-        if (actionLogText != null) actionLogText.text = ""; 
+        InitializeActionLog();
+        RegisterActionLogProtectedRegions();
 
         MarkBridgeDirty();
 
@@ -394,6 +421,7 @@ public class BuildUIController : MonoBehaviour
                 ScrollRect scroll = button.GetComponentInParent<ScrollRect>(true);
                 if (scroll == null || scroll.name != "MaterialsScrollPanel") continue;
                 materialsPanel = scroll.gameObject;
+                UIReservedRegionLayout.Register(materialsPanel.transform as RectTransform);
                 break;
             }
         }
@@ -487,6 +515,7 @@ public class BuildUIController : MonoBehaviour
 
     private void LateUpdate()
     {
+        UpdateActionLog();
         // Scene-authored tutorial controls can change visibility outside this
         // controller, but scanning every Button each frame allocates on mobile.
         if (Time.unscaledTime < nextSimulationPanelVisibilityCheck) return;
@@ -825,19 +854,202 @@ public class BuildUIController : MonoBehaviour
 
     public void LogAction(string message)
     {
-        if (actionLogText != null)
+        if (actionLogText == null || string.IsNullOrEmpty(message)) return;
+
+        if (currentActionLog == message)
         {
-            actionLogText.text = message;
-            if (clearLogCoroutine != null) StopCoroutine(clearLogCoroutine);
-            clearLogCoroutine = StartCoroutine(ClearLogRoutine());
+            // Refresh the same message without rewriting TMP or restarting its UI.
+            currentActionLogRemaining = Mathf.Max(0f, logDisplayTime);
+            TryShowCurrentActionLog();
+            return;
         }
+
+        // Action feedback represents the latest input. A new action replaces the
+        // previous message immediately; if UI space is blocked, only this latest
+        // message waits to become visible.
+        currentActionLog = message;
+        currentActionLogRemaining = Mathf.Max(0f, logDisplayTime);
+        actionLogPrepared = false;
+        HideActionLogTemporarily();
+        TryShowCurrentActionLog();
         Debug.Log("[Action Log] " + message);
     }
 
-    private IEnumerator ClearLogRoutine()
+    private void UpdateActionLog()
     {
-        yield return new WaitForSeconds(logDisplayTime);
-        if (actionLogText != null) actionLogText.text = "";
+        if (!actionLogInitialized) InitializeActionLog();
+        if (actionLogRect == null || actionLogText == null || currentActionLog == null) return;
+
+        bool wasVisible = actionLogVisible;
+        if (!TryShowCurrentActionLog())
+        {
+            HideActionLogTemporarily();
+            return;
+        }
+        if (!wasVisible) return;
+        currentActionLogRemaining -= Time.deltaTime;
+        if (currentActionLogRemaining > 0f) return;
+
+        actionLogText.enabled = false;
+        actionLogText.text = "";
+        actionLogRect.anchoredPosition = authoredActionLogPosition;
+        actionLogRect.sizeDelta = authoredActionLogSize;
+        currentActionLog = null;
+        actionLogPrepared = false;
+        actionLogVisible = false;
+    }
+
+    private bool CanPresentActionLog()
+    {
+        if (!isActiveAndEnabled || actionLogRect == null ||
+            !UIReservedRegionLayout.IsRenderable(actionLogRect) ||
+            UIReservedRegionLayout.IsModalTransitioning) return false;
+
+        TutorialManager tutorial = TutorialManager.Instance;
+        // A centered banner has measured bounds even while its entrance animation
+        // runs. Follow those bounds immediately; continue waiting for other
+        // tutorial transitions so an old panel cannot briefly cover the log.
+        return tutorial == null || !tutorial.IsBannerTransitioning ||
+               tutorial.VisibleCenteredBannerRect != null;
+    }
+
+    private bool TryShowCurrentActionLog()
+    {
+        if (!actionLogInitialized) InitializeActionLog();
+        if (actionLogRect == null || actionLogText == null ||
+            currentActionLog == null ||
+            !CanPresentActionLog()) return false;
+
+        if (!actionLogPrepared) PrepareActionLog(currentActionLog);
+        if (!TryPlaceActionLog(actionLogVisible)) return false;
+
+        if (!actionLogVisible)
+        {
+            actionLogText.enabled = true;
+            actionLogVisible = true;
+        }
+        return true;
+    }
+
+    private void InitializeActionLog()
+    {
+        if (actionLogInitialized || actionLogText == null) return;
+        actionLogRect = actionLogText.rectTransform;
+        authoredActionLogPosition = actionLogRect.anchoredPosition;
+        authoredActionLogSize = actionLogRect.sizeDelta;
+        actionLogText.text = "";
+        actionLogText.enabled = false;
+        actionLogText.raycastTarget = false;
+        actionLogInitialized = true;
+    }
+
+    private void PrepareActionLog(string message)
+    {
+        actionLogText.text = message;
+        actionLogRect.anchoredPosition = authoredActionLogPosition;
+        actionLogRect.sizeDelta = authoredActionLogSize;
+        float preferredHeight = actionLogText.GetPreferredValues(
+            message, actionLogRect.rect.width, Mathf.Infinity).y;
+        actionLogRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical,
+            Mathf.Max(actionLogRect.rect.height, preferredHeight + 4f));
+        actionLogPrepared = true;
+        lastActionLogScreenWidth = -1;
+    }
+
+    private bool TryPlaceActionLog(bool keepCurrentIfSafe)
+    {
+        RectTransform centeredBanner = TutorialManager.Instance != null
+            ? TutorialManager.Instance.VisibleCenteredBannerRect : null;
+        Vector2 center;
+        if (centeredBanner != null)
+        {
+            if (!UIReservedRegionLayout.TryFindPlacementBelow(actionLogRect,
+                    centeredBanner, actionLogSafeAreaMarginPixels,
+                    actionLogPanelGapPixels, out center)) return false;
+        }
+        else
+        {
+            if (!RefreshPreferredActionLogCenter() ||
+                !UIReservedRegionLayout.TryFindVerticalPlacement(actionLogRect,
+                    preferredActionLogScreenCenter, keepCurrentIfSafe,
+                    actionLogSafeAreaMarginPixels, actionLogPanelGapPixels,
+                    out center)) return false;
+        }
+        return UIReservedRegionLayout.TrySetScreenCenter(actionLogRect, center);
+    }
+
+    private void RegisterActionLogProtectedRegions()
+    {
+        UIReservedRegionLayout.Register(EffectiveToolsPanel);
+        UIReservedRegionLayout.Register(selectionActionPanel != null
+            ? selectionActionPanel.transform as RectTransform : null);
+        UIReservedRegionLayout.Register(materialsPanel != null
+            ? materialsPanel.transform as RectTransform : null);
+        UIReservedRegionLayout.Register(simulationControlsPanel != null
+            ? simulationControlsPanel.transform as RectTransform : null);
+        UIReservedRegionLayout.Register(selectToolImage != null ? selectToolImage.rectTransform : null);
+        UIReservedRegionLayout.Register(moveToolImage != null ? moveToolImage.rectTransform : null);
+        UIReservedRegionLayout.Register(deleteToolImage != null ? deleteToolImage.rectTransform : null);
+        UIReservedRegionLayout.Register(gridToolImage != null ? gridToolImage.rectTransform : null);
+        UIReservedRegionLayout.Register(infoToolImage != null ? infoToolImage.rectTransform : null);
+        foreach (GameObject ui in hideDuringSimulation)
+            if (ui != null) UIReservedRegionLayout.Register(ui.transform as RectTransform);
+        if (actionLogProtectedRegions == null) return;
+        foreach (RectTransform region in actionLogProtectedRegions)
+            UIReservedRegionLayout.Register(region);
+    }
+
+    private void UnregisterActionLogProtectedRegions()
+    {
+        UIReservedRegionLayout.Unregister(EffectiveToolsPanel);
+        UIReservedRegionLayout.Unregister(selectionActionPanel != null
+            ? selectionActionPanel.transform as RectTransform : null);
+        UIReservedRegionLayout.Unregister(materialsPanel != null
+            ? materialsPanel.transform as RectTransform : null);
+        UIReservedRegionLayout.Unregister(simulationControlsPanel != null
+            ? simulationControlsPanel.transform as RectTransform : null);
+        UIReservedRegionLayout.Unregister(selectToolImage != null ? selectToolImage.rectTransform : null);
+        UIReservedRegionLayout.Unregister(moveToolImage != null ? moveToolImage.rectTransform : null);
+        UIReservedRegionLayout.Unregister(deleteToolImage != null ? deleteToolImage.rectTransform : null);
+        UIReservedRegionLayout.Unregister(gridToolImage != null ? gridToolImage.rectTransform : null);
+        UIReservedRegionLayout.Unregister(infoToolImage != null ? infoToolImage.rectTransform : null);
+        foreach (GameObject ui in hideDuringSimulation)
+            if (ui != null) UIReservedRegionLayout.Unregister(ui.transform as RectTransform);
+        if (actionLogProtectedRegions == null) return;
+        foreach (RectTransform region in actionLogProtectedRegions)
+            UIReservedRegionLayout.Unregister(region);
+    }
+
+    private bool RefreshPreferredActionLogCenter()
+    {
+        Canvas canvas = actionLogText.canvas;
+        float scale = canvas != null ? canvas.rootCanvas.scaleFactor : 1f;
+        Rect safeArea = Screen.safeArea;
+        if (lastActionLogScreenWidth == Screen.width &&
+            lastActionLogScreenHeight == Screen.height &&
+            lastActionLogSafeArea == safeArea &&
+            Mathf.Approximately(lastActionLogCanvasScale, scale)) return true;
+
+        Vector2 currentPosition = actionLogRect.anchoredPosition;
+        actionLogRect.anchoredPosition = authoredActionLogPosition;
+        bool measured = UIReservedRegionLayout.TryGetScreenRect(
+            actionLogRect, out Rect authoredBounds);
+        actionLogRect.anchoredPosition = currentPosition;
+        if (!measured) return false;
+
+        preferredActionLogScreenCenter = authoredBounds.center;
+        lastActionLogScreenWidth = Screen.width;
+        lastActionLogScreenHeight = Screen.height;
+        lastActionLogSafeArea = safeArea;
+        lastActionLogCanvasScale = scale;
+        return true;
+    }
+
+    private void HideActionLogTemporarily()
+    {
+        if (!actionLogVisible) return;
+        if (actionLogText != null) actionLogText.enabled = false;
+        actionLogVisible = false;
     }
 
     public void MarkBridgeDirty() 

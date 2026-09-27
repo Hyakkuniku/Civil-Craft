@@ -129,6 +129,7 @@ public sealed class SimulationLessonPresenter : MonoBehaviour
     private void Awake()
     {
         EnsurePanelIsUnderBuildCanvas();
+        UIReservedRegionLayout.Register(lessonPanel);
         if (lessonMenuButton != null)
         {
             lessonMenuButton.onClick.AddListener(OpenLessonPanel);
@@ -185,6 +186,7 @@ public sealed class SimulationLessonPresenter : MonoBehaviour
 
     private void OnDestroy()
     {
+        UIReservedRegionLayout.Unregister(lessonPanel);
         RestoreSimulationSpeed();
         if (lessonMenuButton != null) lessonMenuButton.onClick.RemoveListener(OpenLessonPanel);
         if (lessonCloseButton != null) lessonCloseButton.onClick.RemoveListener(CloseLessonPanel);
@@ -333,6 +335,8 @@ public sealed class SimulationLessonPresenter : MonoBehaviour
     {
         if (!lessonActive || definition == null || lessonPanel == null) return;
 
+        UIReservedRegionLayout.NotifyTransition(
+            definition != null ? definition.fadeDuration : 0.2f);
         lessonPanelOpen = true;
         if (lessonMenuButton != null) lessonMenuButton.gameObject.SetActive(false);
         if (titleText != null) titleText.text = definition.panelTitle;
@@ -350,6 +354,8 @@ public sealed class SimulationLessonPresenter : MonoBehaviour
     public void CloseLessonPanel()
     {
         if (!lessonPanelOpen) return;
+        UIReservedRegionLayout.NotifyTransition(
+            definition != null ? definition.fadeDuration : 0.2f);
         lessonPanelOpen = false;
         RestoreSimulationSpeed();
         if (presentationRoutine != null) StopCoroutine(presentationRoutine);

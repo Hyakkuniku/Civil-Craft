@@ -116,6 +116,7 @@ public class LevelFailedManager : MonoBehaviour
             // real failure opens the panel, never during scene initialization.
             levelFailedPanel.SetActive(false);
             BuildFailureLayout();
+            UIReservedRegionLayout.Register(levelFailedPanel.transform as RectTransform);
         }
     }
 
@@ -132,6 +133,8 @@ public class LevelFailedManager : MonoBehaviour
 
     private void OnDestroy()
     {
+        if (levelFailedPanel != null)
+            UIReservedRegionLayout.Unregister(levelFailedPanel.transform as RectTransform);
         if (physicsManager != null)
         {
             physicsManager.OnSimulationStarted -= HandleSimulationStarted;
@@ -472,6 +475,7 @@ public class LevelFailedManager : MonoBehaviour
 
         UpdateFailureButtonLayout();
         SimulationLessonPresenter.HideForResultOverlay();
+        UIReservedRegionLayout.NotifyLayoutChanging();
         if (levelFailedPanel != null) levelFailedPanel.SetActive(true);
         if (AudioManager.Instance != null)
             AudioManager.Instance.PlaySFX("Level_Fail");
