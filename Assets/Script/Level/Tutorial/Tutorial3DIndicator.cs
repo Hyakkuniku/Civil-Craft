@@ -6,6 +6,9 @@ public class Tutorial3DIndicator : MonoBehaviour
 {
     private static readonly HashSet<Tutorial3DIndicator> activeIndicators =
         new HashSet<Tutorial3DIndicator>();
+    private static readonly HashSet<Tutorial3DIndicator> modalHiddenIndicators =
+        new HashSet<Tutorial3DIndicator>();
+    private static bool modalOccluded;
 
     [Header("Target Position")]
     [Tooltip("World-space offset from the highlighted anchor.")]
@@ -55,6 +58,12 @@ public class Tutorial3DIndicator : MonoBehaviour
     private void OnEnable()
     {
         EnsureInitialized();
+        if (modalOccluded)
+        {
+            modalHiddenIndicators.Add(this);
+            gameObject.SetActive(false);
+            return;
+        }
         activeIndicators.Add(this);
     }
 
@@ -66,6 +75,7 @@ public class Tutorial3DIndicator : MonoBehaviour
     private void OnDestroy()
     {
         activeIndicators.Remove(this);
+        modalHiddenIndicators.Remove(this);
     }
 
     private void Update()
@@ -112,12 +122,42 @@ public class Tutorial3DIndicator : MonoBehaviour
         transform.localRotation = originalLocalRotation;
         transform.localScale = originalLocalScale;
         transform.position = target.position + positionOffset;
-        gameObject.SetActive(true);
+        if (modalOccluded)
+        {
+            modalHiddenIndicators.Add(this);
+            gameObject.SetActive(false);
+        }
+        else
+            gameObject.SetActive(true);
+    }
+
+    public static void SetModalOccluded(bool occluded)
+    {
+        if (modalOccluded == occluded) return;
+        modalOccluded = occluded;
+        if (occluded)
+        {
+            Tutorial3DIndicator[] snapshot = new Tutorial3DIndicator[activeIndicators.Count];
+            activeIndicators.CopyTo(snapshot);
+            foreach (Tutorial3DIndicator indicator in snapshot)
+            {
+                if (indicator == null) continue;
+                modalHiddenIndicators.Add(indicator);
+                indicator.gameObject.SetActive(false);
+            }
+            return;
+        }
+
+        foreach (Tutorial3DIndicator indicator in modalHiddenIndicators)
+            if (indicator != null && indicator.targetAnchor != null)
+                indicator.gameObject.SetActive(true);
+        modalHiddenIndicators.Clear();
     }
 
     public void Hide()
     {
         targetAnchor = null;
+        modalHiddenIndicators.Remove(this);
         if (initialized)
         {
             transform.localScale = originalLocalScale;
@@ -146,12 +186,20 @@ public class Tutorial3DIndicator : MonoBehaviour
 
     public static void HideAll()
     {
-        if (activeIndicators.Count == 0) return;
+        if (activeIndicators.Count == 0 && modalHiddenIndicators.Count == 0) return;
 
         Tutorial3DIndicator[] snapshot = new Tutorial3DIndicator[activeIndicators.Count];
         activeIndicators.CopyTo(snapshot);
         foreach (Tutorial3DIndicator indicator in snapshot)
             if (indicator != null) indicator.Hide();
+        if (modalHiddenIndicators.Count > 0)
+        {
+            snapshot = new Tutorial3DIndicator[modalHiddenIndicators.Count];
+            modalHiddenIndicators.CopyTo(snapshot);
+            foreach (Tutorial3DIndicator indicator in snapshot)
+                if (indicator != null) indicator.Hide();
+            modalHiddenIndicators.Clear();
+        }
     }
 
     private void EnsureInitialized()
@@ -168,5 +216,12 @@ public class Tutorial3DIndicator : MonoBehaviour
             collider3D.enabled = false;
         foreach (Collider2D collider2D in GetComponentsInChildren<Collider2D>(true))
             collider2D.enabled = false;
+    }
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStaticState()
+    {
+        modalHiddenIndicators.Clear();
+        modalOccluded = false;
     }
 }

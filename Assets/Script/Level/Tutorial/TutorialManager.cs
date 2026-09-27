@@ -154,6 +154,14 @@ public class TutorialManager : MonoBehaviour
     private bool suppressedPanelWasActive;
     private bool suppressedNextWasActive;
     private bool suppressedSkipWasActive;
+    private readonly HashSet<GameObject> inspectionModalOwners = new HashSet<GameObject>();
+    private TutorialSequence inspectionHiddenSequence;
+    private int inspectionHiddenStepIndex = -1;
+    private bool inspectionHiddenGuide;
+    private bool inspectionPanelWasActive;
+    private bool inspectionNextWasActive;
+    private bool inspectionSkipWasActive;
+    private bool inspectionHighlightWasActive;
     private bool isAdvancingStep;
     private int lastAdvanceFrame = -1;
     private readonly List<TutorialSequence> queuedSequences = new List<TutorialSequence>();
@@ -477,9 +485,12 @@ public class TutorialManager : MonoBehaviour
         }
 
         UpdateContractGuide();
+        if (inspectionModalOwners.Count > 0 && !IsTutorialActive && contractGuideVisible)
+            HidePresentationForInspection();
         if (recallGuideButton != null)
         {
-            recallGuideButton.gameObject.SetActive(GetRecallableStep() != null && PathGuider.Instance != null);
+            recallGuideButton.gameObject.SetActive(inspectionModalOwners.Count == 0 &&
+                GetRecallableStep() != null && PathGuider.Instance != null);
             recallGuideButton.interactable = Time.unscaledTime >= nextGuideRecallTime;
         }
         if (BuildTutorialDirector.Instance != null && BuildTutorialDirector.Instance.isTracingStep)
@@ -491,7 +502,7 @@ public class TutorialManager : MonoBehaviour
         {
             var step = currentSequence.tutorialSteps[currentStepIndex];
             
-            if (presentationSuppressedFor == null && step.usePointer &&
+            if (inspectionModalOwners.Count == 0 && presentationSuppressedFor == null && step.usePointer &&
                 step.pointerTarget != null && bouncingArrow != null)
             {
                 bouncingArrow.PointAt(step.pointerTarget, step.pointerOffset);
@@ -785,9 +796,21 @@ public class TutorialManager : MonoBehaviour
         }
 
         lastScreenPosition = step.screenPosition;
+        if (inspectionModalOwners.Count > 0)
+            HidePresentationForInspection();
         step.OnStepStart?.Invoke();
         if (presentationSuppressedFor != null && presentationSuppressedFor == currentSequence)
+        {
             CaptureAndHideCurrentPresentation();
+            if (inspectionModalOwners.Count > 0)
+            {
+                suppressedPanelWasActive = inspectionPanelWasActive;
+                suppressedNextWasActive = inspectionNextWasActive;
+                suppressedSkipWasActive = inspectionSkipWasActive;
+            }
+        }
+        if (inspectionModalOwners.Count > 0)
+            HidePresentationForInspection();
     }
 
     private GameObject GetPanelForPosition(TutorialPosition position)
@@ -988,6 +1011,12 @@ public class TutorialManager : MonoBehaviour
 
     public void SetNextButtonActive(bool isActive)
     {
+        if (inspectionModalOwners.Count > 0)
+        {
+            inspectionNextWasActive = isActive;
+            return;
+        }
+
         if (presentationSuppressedFor != null && presentationSuppressedFor == currentSequence)
         {
             suppressedNextWasActive = isActive;
@@ -1011,6 +1040,12 @@ public class TutorialManager : MonoBehaviour
             if (presentationSuppressedFor == sequence) return;
             presentationSuppressedFor = sequence;
             CaptureAndHideCurrentPresentation();
+            if (inspectionModalOwners.Count > 0)
+            {
+                suppressedPanelWasActive = inspectionPanelWasActive;
+                suppressedNextWasActive = inspectionNextWasActive;
+                suppressedSkipWasActive = inspectionSkipWasActive;
+            }
             return;
         }
 
@@ -1027,6 +1062,125 @@ public class TutorialManager : MonoBehaviour
         if (panel != null) panel.SetActive(panelWasActive);
         if (nextButton != null) nextButton.SetActive(nextWasActive);
         if (skipButton != null) skipButton.SetActive(skipWasActive);
+        if (inspectionModalOwners.Count > 0)
+        {
+            inspectionPanelWasActive = panelWasActive;
+            inspectionNextWasActive = nextWasActive;
+            inspectionSkipWasActive = skipWasActive;
+            HidePresentationForInspection();
+        }
+    }
+
+    /// <summary>
+    /// An inspection panel owns this temporary visual pause for its entire active
+    /// lifetime. Tutorial objectives and step events continue to run normally.
+    /// Multiple inspection panels can overlap without restoring the tutorial early.
+    /// </summary>
+    public void SetInspectionModalOpen(GameObject owner, bool open)
+    {
+        if (owner == null) return;
+
+        if (open)
+        {
+            if (!inspectionModalOwners.Add(owner)) return;
+            if (inspectionModalOwners.Count == 1)
+            {
+                TutorialAnchorHighlighter.SetModalOccluded(true);
+                Tutorial3DIndicator.SetModalOccluded(true);
+                HidePresentationForInspection();
+            }
+            return;
+        }
+
+        if (!inspectionModalOwners.Remove(owner) || inspectionModalOwners.Count != 0) return;
+        TutorialAnchorHighlighter.SetModalOccluded(false);
+        Tutorial3DIndicator.SetModalOccluded(false);
+        RestorePresentationAfterInspection();
+    }
+
+    private void HidePresentationForInspection()
+    {
+        TutorialStep step = CurrentStep;
+        bool guide = step == null && contractGuideVisible;
+        GameObject panel = step != null ? GetPanelForPosition(step.screenPosition) :
+            guide ? leftPanel : null;
+
+        // Capture again only when a real objective advanced while the modal was
+        // open. Repeated Update calls must not overwrite the original visible state.
+        if (inspectionHiddenSequence != currentSequence ||
+            inspectionHiddenStepIndex != currentStepIndex || inspectionHiddenGuide != guide)
+        {
+            inspectionHiddenSequence = currentSequence;
+            inspectionHiddenStepIndex = currentStepIndex;
+            inspectionHiddenGuide = guide;
+            inspectionPanelWasActive = panel != null && panel.activeSelf;
+            inspectionNextWasActive = nextButton != null && nextButton.activeSelf;
+            inspectionSkipWasActive = skipButton != null && skipButton.activeSelf;
+            inspectionHighlightWasActive = step != null && step.worldHighlightObject != null &&
+                step.worldHighlightObject.activeSelf;
+        }
+
+        if (currentAnimationCoroutine != null)
+        {
+            StopCoroutine(currentAnimationCoroutine);
+            currentAnimationCoroutine = null;
+        }
+        if (leftTextIdleCoroutine != null)
+        {
+            StopCoroutine(leftTextIdleCoroutine);
+            leftTextIdleCoroutine = null;
+            if (leftText != null) leftText.transform.localScale = Vector3.one;
+        }
+
+        if (centerPanel != null) centerPanel.SetActive(false);
+        if (leftPanel != null) leftPanel.SetActive(false);
+        if (nextButton != null) nextButton.SetActive(false);
+        if (skipButton != null) skipButton.SetActive(false);
+        if (recallGuideButton != null) recallGuideButton.gameObject.SetActive(false);
+        if (bouncingArrow != null) bouncingArrow.Hide();
+        if (step != null && step.worldHighlightObject != null)
+            step.worldHighlightObject.SetActive(false);
+    }
+
+    private void RestorePresentationAfterInspection()
+    {
+        TutorialStep step = CurrentStep;
+        bool sameStep = step != null && inspectionHiddenSequence == currentSequence &&
+            inspectionHiddenStepIndex == currentStepIndex;
+        bool restoreGuide = step == null && inspectionHiddenGuide && contractGuideVisible;
+        bool blockedByOwnModal = presentationSuppressedFor != null &&
+            presentationSuppressedFor == currentSequence;
+
+        if ((sameStep || restoreGuide) && !blockedByOwnModal)
+        {
+            GameObject panel = sameStep ? GetPanelForPosition(step.screenPosition) : leftPanel;
+            if (sameStep) ApplyPanelPosition(step.screenPosition);
+            else ApplyPanelPosition(TutorialPosition.Left);
+            if (panel != null)
+            {
+                CanvasGroup group = panel.GetComponent<CanvasGroup>();
+                if (group != null) group.alpha = 1f;
+                panel.transform.localScale = Vector3.one;
+                panel.SetActive(inspectionPanelWasActive);
+            }
+            if (nextButton != null) nextButton.SetActive(inspectionNextWasActive);
+            if (skipButton != null) skipButton.SetActive(inspectionSkipWasActive);
+            if (sameStep && inspectionHighlightWasActive && step.worldHighlightObject != null)
+                step.worldHighlightObject.SetActive(true);
+            if (sameStep && step.usePointer && step.pointerTarget != null && bouncingArrow != null)
+            {
+                bouncingArrow.PointAt(step.pointerTarget, step.pointerOffset);
+                bouncingArrow.transform.localEulerAngles = new Vector3(0f, 0f, step.pointerRotation);
+            }
+        }
+
+        inspectionHiddenSequence = null;
+        inspectionHiddenStepIndex = -1;
+        inspectionHiddenGuide = false;
+        inspectionPanelWasActive = false;
+        inspectionNextWasActive = false;
+        inspectionSkipWasActive = false;
+        inspectionHighlightWasActive = false;
     }
 
     private void CaptureAndHideCurrentPresentation()
@@ -1551,6 +1705,12 @@ public class TutorialManager : MonoBehaviour
 
     private void OnDisable()
     {
+        if (inspectionModalOwners.Count > 0)
+        {
+            inspectionModalOwners.Clear();
+            TutorialAnchorHighlighter.SetModalOccluded(false);
+            Tutorial3DIndicator.SetModalOccluded(false);
+        }
         TutorialAnchorHighlighter.ClearAll();
     }
 }

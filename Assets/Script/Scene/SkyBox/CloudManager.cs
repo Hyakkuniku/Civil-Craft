@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -16,6 +17,10 @@ public class CloudManager : MonoBehaviour
     [Min(0)]
     [Tooltip("How many clouds should be on screen at once?")]
     public int numberOfClouds = 15;
+
+    [Min(1)]
+    [Tooltip("Maximum clouds instantiated in one frame while the scene opens. The final cloud count is unchanged.")]
+    [SerializeField] private int initialSpawnsPerFrame = 5;
 
     [Tooltip("The center point of the cloud area. Adjust Y to put it in the sky.")]
     public Vector3 spawnCenter = new Vector3(0f, 20f, 50f);
@@ -45,17 +50,35 @@ public class CloudManager : MonoBehaviour
     }
 
     private readonly List<CloudData> clouds = new List<CloudData>();
+    private int initialSpawnCount;
+    public bool IsInitialSpawnComplete { get; private set; }
+    public float InitialSpawnProgress => numberOfClouds <= 0 ? 1f :
+        Mathf.Clamp01((float)initialSpawnCount / numberOfClouds);
 
-    private void Start()
+    private IEnumerator Start()
     {
         if (cloudPrefabs == null || cloudPrefabs.Count == 0)
         {
             Debug.LogWarning("CloudManager: No cloud prefabs assigned!", this);
-            return;
+            IsInitialSpawnComplete = true;
+            yield break;
         }
 
+        // Only spread startup work when a loading overlay is hiding the scene.
+        // Directly opened scenes keep their original, fully populated first frame.
+        int batchSize = LoadingScreenManager.IsLoading
+            ? Mathf.Max(1, initialSpawnsPerFrame)
+            : int.MaxValue;
         for (int i = 0; i < numberOfClouds; i++)
+        {
             SpawnCloud(true);
+            initialSpawnCount++;
+            if (initialSpawnCount % batchSize == 0 &&
+                initialSpawnCount < numberOfClouds)
+                yield return null;
+        }
+
+        IsInitialSpawnComplete = true;
     }
 
     private void Update()
@@ -139,6 +162,7 @@ public class CloudManager : MonoBehaviour
     private void OnValidate()
     {
         numberOfClouds = Mathf.Max(0, numberOfClouds);
+        initialSpawnsPerFrame = Mathf.Max(1, initialSpawnsPerFrame);
         minSpeed = Mathf.Max(0f, minSpeed);
         maxSpeed = Mathf.Max(minSpeed, maxSpeed);
         minScale = Mathf.Max(0.01f, minScale);

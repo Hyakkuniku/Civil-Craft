@@ -71,6 +71,8 @@ public class LevelResetManager : MonoBehaviour
     private bool initializationComplete;
     private readonly RaycastHit[] groundHits = new RaycastHit[16];
 
+    public bool IsInitialized => initializationComplete;
+
     private IEnumerator Start()
     {
         ResolvePlayerReferences();

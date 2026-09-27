@@ -6,6 +6,7 @@ using UnityEngine.AI;
 /// <summary>Connects authored ravine links to nearby baked banks without inventing crossings.</summary>
 public sealed class RavineNavMeshLinks : MonoBehaviour
 {
+    public bool IsInitialized { get; private set; }
     [SerializeField, Min(0.1f)] private float endpointSnapRadius = 1.5f;
 
     private IEnumerator Start()
@@ -13,6 +14,7 @@ public sealed class RavineNavMeshLinks : MonoBehaviour
         // All world surfaces must be registered before querying their polygons.
         yield return null;
         RepairLinks();
+        IsInitialized = true;
     }
 
     public void RepairLinks()

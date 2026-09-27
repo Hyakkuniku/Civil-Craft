@@ -55,6 +55,7 @@ public sealed class LoadingScreenManager : MonoBehaviour
     private TMP_FontAsset loadingFont;
     private LoadingScreenAssets assets;
     private bool isLoading;
+    private int lastDisplayedPercent = -1;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void Bootstrap()
@@ -136,17 +137,23 @@ public sealed class LoadingScreenManager : MonoBehaviour
         }
 
         Time.timeScale = 1f;
+        isLoading = true;
         StartCoroutine(LoadRoutine(sceneName));
     }
 
     private IEnumerator LoadRoutine(string sceneName)
     {
-        isLoading = true;
-        PreparePlayerPreview();
+        float shownAt = Time.realtimeSinceStartup;
+        float minimumDisplaySeconds = assets != null
+            ? Mathf.Max(0f, assets.minimumDisplaySeconds)
+            : 1.5f;
         SetLoadingTip();
         SetProgress(0f);
-        SetVisible(true, true);
+        SetVisible(true, false);
+        canvasGroup.alpha = 0f;
 
+        // Render the overlay before any optional preview setup or scene-loading
+        // work can occupy the main thread.
         float fadeElapsed = 0f;
         while (fadeElapsed < 0.18f)
         {
@@ -156,67 +163,80 @@ public sealed class LoadingScreenManager : MonoBehaviour
         }
 
         canvasGroup.alpha = 1f;
-        float shownAt = Time.realtimeSinceStartup;
+        // Keep the runner in the persistent loading hierarchy and give its
+        // Animator a rendered frame before the destination scene starts loading.
+        try
+        {
+            PreparePlayerPreview();
+        }
+        catch (System.Exception exception)
+        {
+            Debug.LogWarning($"[LoadingScreen] Optional player preview failed: {exception.Message}", this);
+            ReleasePreviewModel();
+            if (playerImage != null) playerImage.enabled = false;
+        }
+        yield return null;
+
         AsyncOperation operation = SceneManager.LoadSceneAsync(sceneName);
         if (operation == null)
         {
             Debug.LogError($"[LoadingScreen] Unity could not start loading '{sceneName}'.", this);
             SetVisible(false, true);
+            ReleasePreviewModel();
             isLoading = false;
             yield break;
         }
 
         operation.allowSceneActivation = false;
         float displayedProgress = 0f;
-        float progressVelocity = 0f;
-        const float minimumVisibleSeconds = 1.35f;
 
-        // Keep the display tied to Unity's real async progress, but ease out
-        // the large steps reported by AsyncOperation so the bar and runner glide.
-        while (operation.progress < 0.9f || Time.realtimeSinceStartup - shownAt < minimumVisibleSeconds)
+        // LoadSceneAsync stops at 0.9 while activation is disabled. Reserve the
+        // remainder for activation and scene-owned startup work, not a timer.
+        while (operation.progress < 0.9f)
         {
-            float realProgress = Mathf.Clamp01(operation.progress / 0.9f);
-            float elapsed = Time.realtimeSinceStartup - shownAt;
-            float presentationProgress = Mathf.SmoothStep(
-                0f,
-                1f,
-                Mathf.Clamp01(elapsed / minimumVisibleSeconds));
-            float target = Mathf.Min(realProgress, presentationProgress);
-            displayedProgress = Mathf.SmoothDamp(
-                displayedProgress,
-                target,
-                ref progressVelocity,
-                0.14f,
-                Mathf.Infinity,
-                Time.unscaledDeltaTime);
+            float target = Mathf.Clamp01(operation.progress / 0.9f) * 0.82f;
+            displayedProgress = AdvanceProgress(
+                displayedProgress, target, shownAt, minimumDisplaySeconds, false);
             SetProgress(displayedProgress);
             yield return null;
         }
 
-        // Finish the last few percent instead of snapping directly to 100%.
-        progressVelocity = 0f;
-        while (displayedProgress < 0.997f)
+        // Do not wait for the visual bar to catch up before allowing activation.
+        // Awake and OnEnable run during this phase, under the loading overlay.
+        operation.allowSceneActivation = true;
+        while (!operation.isDone)
         {
-            displayedProgress = Mathf.SmoothDamp(
-                displayedProgress,
-                1f,
-                ref progressVelocity,
-                0.09f,
-                Mathf.Infinity,
-                Time.unscaledDeltaTime);
+            displayedProgress = AdvanceProgress(
+                displayedProgress, 0.88f, shownAt, minimumDisplaySeconds, false);
             SetProgress(displayedProgress);
+            yield return null;
+        }
+
+        // Start runs on the first destination-scene frame. Give it that frame,
+        // then observe the scene's explicit readiness signals until they finish.
+        yield return null;
+
+        Scene destination = SceneManager.GetActiveScene();
+        List<LevelResetManager> resetManagers = CollectReadinessComponents<LevelResetManager>(destination);
+        List<DynamicNavMeshUpdater> navMeshUpdaters = CollectReadinessComponents<DynamicNavMeshUpdater>(destination);
+        List<RavineNavMeshLinks> ravineLinks = CollectReadinessComponents<RavineNavMeshLinks>(destination);
+        List<CloudManager> cloudManagers = CollectReadinessComponents<CloudManager>(destination);
+
+        while (true)
+        {
+            float initializationProgress = GetInitializationProgress(
+                resetManagers, navMeshUpdaters, ravineLinks, cloudManagers,
+                out bool ready);
+            float target = ready ? 1f : 0.90f + 0.09f * initializationProgress;
+            displayedProgress = AdvanceProgress(
+                displayedProgress, target, shownAt, minimumDisplaySeconds, ready);
+            SetProgress(displayedProgress);
+            if (ready && displayedProgress >= 1f)
+                break;
             yield return null;
         }
 
         SetProgress(1f);
-        yield return new WaitForSecondsRealtime(0.14f);
-        operation.allowSceneActivation = true;
-
-        while (!operation.isDone)
-            yield return null;
-
-        // Give PlayerSpawnManager and the new scene's canvases one frame to settle.
-        yield return null;
 
         fadeElapsed = 0f;
         while (fadeElapsed < 0.22f)
@@ -229,6 +249,92 @@ public sealed class LoadingScreenManager : MonoBehaviour
         SetVisible(false, true);
         ReleasePreviewModel();
         isLoading = false;
+    }
+
+    private static float AdvanceProgress(
+        float current, float realTarget, float shownAt,
+        float minimumDisplaySeconds, bool ready)
+    {
+        float elapsed = Time.realtimeSinceStartup - shownAt;
+        float durationProgress = minimumDisplaySeconds > 0f
+            ? Mathf.Clamp01(elapsed / minimumDisplaySeconds)
+            : 1f;
+        float presentationCap = Mathf.SmoothStep(0f, 1f, durationProgress);
+        float target = Mathf.Min(realTarget, presentationCap);
+
+        // The time curve only limits how quickly a fast load can be presented;
+        // it can never advance beyond the real stage. After a slow load, catch
+        // up promptly instead of imposing another minimum-duration wait.
+        float speed = ready && durationProgress >= 1f
+            ? 8f
+            : minimumDisplaySeconds > 0f
+                ? Mathf.Max(2.4f, 1.6f / minimumDisplaySeconds)
+                : 2.4f;
+        // A single long scene-integration frame should not jump the bar across
+        // a large distance on the first frame that Unity can render again.
+        float animationDelta = Mathf.Min(Time.unscaledDeltaTime, 0.05f);
+        return Mathf.MoveTowards(
+            current, Mathf.Max(current, target), speed * animationDelta);
+    }
+
+    private static List<T> CollectReadinessComponents<T>(Scene scene) where T : Behaviour
+    {
+        List<T> result = new List<T>();
+        foreach (T component in FindObjectsOfType<T>(true))
+        {
+            if (component != null && component.gameObject.scene == scene && component.isActiveAndEnabled)
+                result.Add(component);
+        }
+        return result;
+    }
+
+    private static float GetInitializationProgress(
+        List<LevelResetManager> resetManagers,
+        List<DynamicNavMeshUpdater> navMeshUpdaters,
+        List<RavineNavMeshLinks> ravineLinks,
+        List<CloudManager> cloudManagers,
+        out bool ready)
+    {
+        float completed = 0f;
+        int count = 0;
+        ready = true;
+
+        foreach (LevelResetManager manager in resetManagers)
+        {
+            if (manager == null || !manager.isActiveAndEnabled) continue;
+            count++;
+            if (manager.IsInitialized) completed++;
+            else ready = false;
+        }
+
+        foreach (DynamicNavMeshUpdater updater in navMeshUpdaters)
+        {
+            if (updater == null || !updater.isActiveAndEnabled) continue;
+            count++;
+            completed += updater.StartupProgress;
+            if (!updater.IsStartupReady)
+                ready = false;
+        }
+
+        foreach (RavineNavMeshLinks links in ravineLinks)
+        {
+            if (links == null || !links.isActiveAndEnabled) continue;
+            count++;
+            if (links.IsInitialized) completed++;
+            else
+                ready = false;
+        }
+
+        foreach (CloudManager clouds in cloudManagers)
+        {
+            if (clouds == null || !clouds.isActiveAndEnabled) continue;
+            count++;
+            completed += clouds.InitialSpawnProgress;
+            if (!clouds.IsInitialSpawnComplete)
+                ready = false;
+        }
+
+        return count > 0 ? Mathf.Clamp01(completed / count) : 1f;
     }
 
     private void BuildPresentation()
@@ -656,7 +762,12 @@ public sealed class LoadingScreenManager : MonoBehaviour
             fillRect.offsetMax = Vector2.zero;
             progressFill.enabled = progress > 0.001f;
         }
-        if (percentageText != null) percentageText.text = Mathf.RoundToInt(progress * 100f) + "%";
+        int percent = progress >= 1f ? 100 : Mathf.Min(99, Mathf.FloorToInt(progress * 100f));
+        if (percentageText != null && percent != lastDisplayedPercent)
+        {
+            percentageText.text = percent + "%";
+            lastDisplayedPercent = percent;
+        }
 
         if (playerRect != null && progressTrack != null)
         {

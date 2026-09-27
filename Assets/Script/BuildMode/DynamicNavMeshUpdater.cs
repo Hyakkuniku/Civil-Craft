@@ -66,12 +66,18 @@ public sealed class DynamicNavMeshUpdater : MonoBehaviour
     private Coroutine updateRoutine;
     private bool updateRequested;
     private bool asyncUpdateInProgress;
+    private bool startupScanComplete;
+    private AsyncOperation activeUpdateOperation;
     private bool ownsRuntimeBridgeSurface;
     private Transform generatedBridgeLinksRoot;
     private readonly Dictionary<Point, NavMeshLink> generatedTerminalLinks = new Dictionary<Point, NavMeshLink>();
 
     public bool IsUpdating => asyncUpdateInProgress;
     public bool HasPendingOrRunningUpdate => updateRequested || updateRoutine != null || asyncUpdateInProgress;
+    public bool IsStartupReady => startupScanComplete && !HasPendingOrRunningUpdate;
+    public float StartupProgress => !startupScanComplete ? 0f :
+        !HasPendingOrRunningUpdate ? 1f :
+        activeUpdateOperation != null ? 0.2f + 0.75f * Mathf.Clamp01(activeUpdateOperation.progress) : 0.1f;
 
     private void Awake()
     {
@@ -94,7 +100,11 @@ public sealed class DynamicNavMeshUpdater : MonoBehaviour
 
     private IEnumerator Start()
     {
-        if (!updateSavedBridgesOnStart) yield break;
+        if (!updateSavedBridgesOnStart)
+        {
+            startupScanComplete = true;
+            yield break;
+        }
 
         // BuildLocation.Start loads saved bridge instances. Waiting one frame makes
         // sure their bars and colliders exist before source collection begins.
@@ -112,6 +122,7 @@ public sealed class DynamicNavMeshUpdater : MonoBehaviour
         }
 
         if (foundBakedBridge) RequestUpdate();
+        startupScanComplete = true;
     }
 
     private void OnDestroy()
@@ -308,7 +319,9 @@ public sealed class DynamicNavMeshUpdater : MonoBehaviour
                 continue;
             }
 
+            activeUpdateOperation = operation;
             yield return operation;
+            activeUpdateOperation = null;
             asyncUpdateInProgress = false;
             RebuildBridgeEndLinks();
             if (validateRoadCoverageAfterUpdate) ValidateRoadCoverage();

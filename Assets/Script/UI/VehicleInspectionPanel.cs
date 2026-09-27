@@ -11,6 +11,18 @@ public sealed class VehicleInspectionPanel : MonoBehaviour
     [SerializeField, HideInInspector] private int layoutVersion;
     public int LayoutVersion => layoutVersion;
 
+    private void OnEnable()
+    {
+        if (TutorialManager.Instance != null)
+            TutorialManager.Instance.SetInspectionModalOpen(gameObject, true);
+    }
+
+    private void OnDisable()
+    {
+        if (TutorialManager.Instance != null)
+            TutorialManager.Instance.SetInspectionModalOpen(gameObject, false);
+    }
+
     /// <summary>
     /// Restyles the existing scene-authored inspection panel. No UI objects are
     /// spawned here; this only arranges and formats the references already wired

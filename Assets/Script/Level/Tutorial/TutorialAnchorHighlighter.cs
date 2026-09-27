@@ -10,6 +10,7 @@ public sealed class TutorialAnchorHighlighter : MonoBehaviour
 {
     private static readonly HashSet<TutorialAnchorHighlighter> activeHighlighters =
         new HashSet<TutorialAnchorHighlighter>();
+    private static bool modalOccluded;
 
     private readonly HashSet<Point> highlightedPoints = new HashSet<Point>();
 
@@ -36,8 +37,20 @@ public sealed class TutorialAnchorHighlighter : MonoBehaviour
 
         if (!highlightedPoints.Add(point)) return;
 
-        point.SetTutorialHighlighted(true);
+        if (!modalOccluded) point.SetTutorialHighlighted(true);
         activeHighlighters.Add(this);
+    }
+
+    public static void SetModalOccluded(bool occluded)
+    {
+        if (modalOccluded == occluded) return;
+        modalOccluded = occluded;
+        foreach (TutorialAnchorHighlighter highlighter in activeHighlighters)
+        {
+            if (highlighter == null) continue;
+            foreach (Point point in highlighter.highlightedPoints)
+                if (point != null) point.SetTutorialHighlighted(!occluded);
+        }
     }
 
     public void ClearHighlight()
@@ -67,5 +80,6 @@ public sealed class TutorialAnchorHighlighter : MonoBehaviour
     {
         ClearAll();
         activeHighlighters.Clear();
+        modalOccluded = false;
     }
 }

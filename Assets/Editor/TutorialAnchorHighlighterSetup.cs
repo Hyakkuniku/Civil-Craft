@@ -47,6 +47,13 @@ public static class TutorialAnchorHighlighterSetup
         Scene scene = SceneManager.GetActiveScene();
         if (!scene.IsValid() || !scene.isLoaded || scene.name != "CanyonCrossing") return;
 
+        // This is a one-time migration, not a scene synchronization pass. Once the
+        // highlighter exists, tutorial steps belong to the scene author. In particular,
+        // re-running setup on editor startup must not reset their Screen Position.
+        TutorialSequence sequence = FindSequence(scene, SequenceName);
+        if (sequence != null && sequence.GetComponent<TutorialAnchorHighlighter>() != null)
+            return;
+
         SessionState.SetBool(SessionKey, true);
         SetupActiveScene(!scene.isDirty);
     }
@@ -76,6 +83,7 @@ public static class TutorialAnchorHighlighterSetup
 
         TutorialAnchorHighlighter highlighter =
             sequence.GetComponent<TutorialAnchorHighlighter>();
+        bool addedHighlighter = highlighter == null;
         if (highlighter == null)
             highlighter = sequence.gameObject.AddComponent<TutorialAnchorHighlighter>();
 
@@ -84,8 +92,9 @@ public static class TutorialAnchorHighlighterSetup
         SerializedProperty constructionStep = steps.GetArrayElementAtIndex(stepIndex);
         SerializedProperty calls = GetCalls(constructionStep);
         var anchors = new List<Transform>();
+        bool changed = addedHighlighter;
 
-        // Preserve manually authored tutorial highlights and migrate the old pointer event.
+        // Preserve authored highlight calls; only remove legacy calls or stale targets.
         for (int i = calls.arraySize - 1; i >= 0; i--)
         {
             SerializedProperty call = calls.GetArrayElementAtIndex(i);
@@ -95,12 +104,17 @@ public static class TutorialAnchorHighlighterSetup
             if (method == "HighlightAnchor" && target is TutorialAnchorHighlighter)
             {
                 AddAnchor(anchors, argument);
-                calls.DeleteArrayElementAtIndex(i);
+                if (target != highlighter)
+                {
+                    calls.DeleteArrayElementAtIndex(i);
+                    changed = true;
+                }
             }
             else if (method == "ShowAtPosition" && target is Tutorial3DIndicator)
             {
                 AddAnchor(anchors, argument);
                 calls.DeleteArrayElementAtIndex(i);
+                changed = true;
             }
         }
 
@@ -112,23 +126,42 @@ public static class TutorialAnchorHighlighterSetup
             return;
         }
 
-        foreach (Transform anchor in anchors)
-            AppendHighlightCall(calls, highlighter, anchor);
-        constructionStep.FindPropertyRelative("message").stringValue = UpdatedMessage;
-        constructionStep.FindPropertyRelative("showNextButton").boolValue = false;
-        serializedSequence.ApplyModifiedPropertiesWithoutUndo();
+        changed |= EnsureHighlightCalls(calls, highlighter, anchors);
+        SerializedProperty constructionMessage = constructionStep.FindPropertyRelative("message");
+        if (constructionMessage.stringValue != UpdatedMessage)
+        {
+            constructionMessage.stringValue = UpdatedMessage;
+            changed = true;
+        }
+        SerializedProperty showNext = constructionStep.FindPropertyRelative("showNextButton");
+        if (showNext.boolValue)
+        {
+            showNext.boolValue = false;
+            changed = true;
+        }
+        if (changed) serializedSequence.ApplyModifiedPropertiesWithoutUndo();
 
         serializedSequence.Update();
         steps = serializedSequence.FindProperty("tutorialSteps");
         bool explanationAlreadyExists = stepIndex > 0 &&
-            steps.GetArrayElementAtIndex(stepIndex - 1).FindPropertyRelative("message")
-                .stringValue == ExplanationMessage;
+            IsExplanationStep(steps.GetArrayElementAtIndex(stepIndex - 1), highlighter);
         int explanationIndex = explanationAlreadyExists ? stepIndex - 1 : stepIndex;
         if (!explanationAlreadyExists)
+        {
             steps.InsertArrayElementAtIndex(explanationIndex);
+            ConfigureNewExplanationStep(
+                steps.GetArrayElementAtIndex(explanationIndex), highlighter, anchors);
+            changed = true;
+        }
+        else
+        {
+            // A previously authored step may have a custom position, wording, locks,
+            // or events. Add only missing anchor highlights; do not reset its fields.
+            changed |= EnsureHighlightCalls(
+                GetCalls(steps.GetArrayElementAtIndex(explanationIndex)), highlighter, anchors);
+        }
 
-        ConfigureExplanationStep(
-            steps.GetArrayElementAtIndex(explanationIndex), highlighter, anchors);
+        if (!changed) return;
         serializedSequence.ApplyModifiedPropertiesWithoutUndo();
         EditorUtility.SetDirty(highlighter);
         EditorUtility.SetDirty(sequence);
@@ -140,7 +173,7 @@ public static class TutorialAnchorHighlighterSetup
             highlighter);
     }
 
-    private static void ConfigureExplanationStep(
+    private static void ConfigureNewExplanationStep(
         SerializedProperty step,
         TutorialAnchorHighlighter highlighter,
         List<Transform> anchors)
@@ -163,8 +196,51 @@ public static class TutorialAnchorHighlighterSetup
 
         SerializedProperty calls = GetCalls(step);
         calls.arraySize = 0;
+        EnsureHighlightCalls(calls, highlighter, anchors);
+    }
+
+    private static bool IsExplanationStep(SerializedProperty step, TutorialAnchorHighlighter highlighter)
+    {
+        if (step.FindPropertyRelative("message").stringValue == ExplanationMessage)
+            return true;
+
+        // Accept edited wording as long as the previous step still has the
+        // explanation's highlight calls and NEXT behavior. This avoids duplicates.
+        if (!step.FindPropertyRelative("showNextButton").boolValue) return false;
+        SerializedProperty calls = GetCalls(step);
+        for (int i = 0; i < calls.arraySize; i++)
+        {
+            SerializedProperty call = calls.GetArrayElementAtIndex(i);
+            if (call.FindPropertyRelative("m_Target").objectReferenceValue == highlighter &&
+                call.FindPropertyRelative("m_MethodName").stringValue == "HighlightAnchor")
+                return true;
+        }
+        return false;
+    }
+
+    private static bool EnsureHighlightCalls(
+        SerializedProperty calls, TutorialAnchorHighlighter highlighter, List<Transform> anchors)
+    {
+        bool changed = false;
         foreach (Transform anchor in anchors)
+        {
+            bool found = false;
+            for (int i = 0; i < calls.arraySize; i++)
+            {
+                SerializedProperty call = calls.GetArrayElementAtIndex(i);
+                if (call.FindPropertyRelative("m_Target").objectReferenceValue == highlighter &&
+                    call.FindPropertyRelative("m_MethodName").stringValue == "HighlightAnchor" &&
+                    GetTransformArgument(call) == anchor)
+                {
+                    found = true;
+                    break;
+                }
+            }
+            if (found) continue;
             AppendHighlightCall(calls, highlighter, anchor);
+            changed = true;
+        }
+        return changed;
     }
 
     private static SerializedProperty GetCalls(SerializedProperty step)
