@@ -11,8 +11,9 @@ using UnityEngine;
 using EntityKey = PlayFab.DataModels.EntityKey;
 
 /// <summary>
-/// Synchronizes one account's local save with one PlayFab entity file. Local
-/// commits remain authoritative while offline; divergent copies require a choice.
+/// Synchronizes one account's encrypted gameplay save and bridge-photo files with
+/// PlayFab. Local commits remain authoritative while offline; divergent gameplay
+/// copies require a choice.
 /// </summary>
 [DisallowMultipleComponent]
 public sealed class CloudSaveManager : MonoBehaviour
@@ -66,6 +67,7 @@ public sealed class CloudSaveManager : MonoBehaviour
     private StartMode startMode;
     private bool strictStartup;
     private bool suspendSyncForConflict;
+    private string requestedPhotoContractId;
 
     public bool IsSyncing => inFlight;
     public bool HasConflict => showingConflict;
@@ -104,6 +106,7 @@ public sealed class CloudSaveManager : MonoBehaviour
         conflictingCloudProfileVersion = 0;
         conflictingCloudGeneration = 0;
         conflictingCloudNeedsEncryptionUpgrade = false;
+        requestedPhotoContractId = null;
         lastSyncedHash = null;
         LastSyncError = null;
     }
@@ -196,6 +199,11 @@ public sealed class CloudSaveManager : MonoBehaviour
 
         if (retryRequired || Hash(saveManager.GetCurrentDataJson()) != lastSyncedHash)
             SyncNow();
+        else if (saveManager.TryGetPendingBridgePhoto(
+                     out BridgePhotoSaveData pendingPhoto, out string pendingPhotoPath))
+            UploadBridgePhoto(pendingPhoto, pendingPhotoPath);
+        else if (TryGetRequestedPhoto(out BridgePhotoSaveData requestedPhoto))
+            DownloadBridgePhoto(requestedPhoto);
         else
             nextSyncTime = Time.realtimeSinceStartup + RetrySeconds;
     }
@@ -203,9 +211,38 @@ public sealed class CloudSaveManager : MonoBehaviour
     private void OnApplicationPause(bool paused)
     {
         if (paused && IsAccountActive && !inFlight && !showingConflict && !suspendSyncForConflict &&
-            PlayFabClientAPI.IsClientLoggedIn() &&
-            Hash(saveManager.GetCurrentDataJson()) != lastSyncedHash)
-            SyncNow();
+            PlayFabClientAPI.IsClientLoggedIn())
+        {
+            if (Hash(saveManager.GetCurrentDataJson()) != lastSyncedHash)
+                SyncNow();
+            else if (saveManager.TryGetPendingBridgePhoto(
+                         out BridgePhotoSaveData pendingPhoto, out string pendingPhotoPath))
+                UploadBridgePhoto(pendingPhoto, pendingPhotoPath);
+        }
+    }
+
+    /// <summary>Prioritizes a missing Almanac photo without blocking its UI.</summary>
+    public void RequestBridgePhotoDownload(string contractId)
+    {
+        if (!IsAccountActive || string.IsNullOrWhiteSpace(contractId)) return;
+        BridgePhotoSaveData record = saveManager?.GetBridgePhotoRecord(contractId);
+        if (record == null || !record.cloudAvailable || record.pendingUpload ||
+            File.Exists(saveManager.GetBridgePhotoPath(contractId))) return;
+        requestedPhotoContractId = contractId.Trim();
+        nextSyncTime = Time.realtimeSinceStartup;
+    }
+
+    private bool TryGetRequestedPhoto(out BridgePhotoSaveData record)
+    {
+        record = null;
+        if (string.IsNullOrWhiteSpace(requestedPhotoContractId)) return false;
+        record = saveManager.GetBridgePhotoRecord(requestedPhotoContractId);
+        if (record != null && record.cloudAvailable && !record.pendingUpload &&
+            !File.Exists(saveManager.GetBridgePhotoPath(record.contractId)))
+            return true;
+        requestedPhotoContractId = null;
+        record = null;
+        return false;
     }
 
     private void SyncNow()
@@ -571,6 +608,157 @@ public sealed class CloudSaveManager : MonoBehaviour
         conflictingCloudNeedsEncryptionUpgrade = false;
     }
 
+    private void UploadBridgePhoto(BridgePhotoSaveData record, string photoPath)
+    {
+        if (record == null || string.IsNullOrWhiteSpace(photoPath) || entity == null) return;
+
+        byte[] bytes;
+        try
+        {
+            bytes = File.ReadAllBytes(photoPath);
+        }
+        catch (Exception exception)
+        {
+            FailPhoto("Could not read the pending bridge photo: " + exception.Message);
+            return;
+        }
+
+        if (bytes.Length == 0 || bytes.Length > PlayerDataManager.MaxBridgePhotoBytes ||
+            !string.Equals(HashBytes(bytes), record.sha256, StringComparison.OrdinalIgnoreCase))
+        {
+            FailPhoto("The pending bridge photo failed local validation.");
+            return;
+        }
+
+        inFlight = true;
+        int requestGeneration = generation;
+        string photoId = record.photoId;
+        string fileName = record.cloudFileName;
+        string photoHash = record.sha256;
+
+        PlayFabDataAPI.GetFiles(new GetFilesRequest { Entity = entity }, files =>
+        {
+            if (requestGeneration != generation) return;
+            PlayFabDataAPI.InitiateFileUploads(new InitiateFileUploadsRequest
+            {
+                Entity = entity,
+                FileNames = new List<string> { fileName },
+                ProfileVersion = files.ProfileVersion
+            }, initiated =>
+            {
+                if (requestGeneration != generation) return;
+                if (initiated.UploadDetails == null || initiated.UploadDetails.Count != 1 ||
+                    string.IsNullOrWhiteSpace(initiated.UploadDetails[0].UploadUrl))
+                {
+                    FailPhoto("PlayFab did not provide a bridge-photo upload URL.");
+                    return;
+                }
+
+                PlayFabHttp.SimplePutCall(initiated.UploadDetails[0].UploadUrl, bytes, _ =>
+                {
+                    if (requestGeneration != generation) return;
+                    PlayFabDataAPI.FinalizeFileUploads(new FinalizeFileUploadsRequest
+                    {
+                        Entity = entity,
+                        FileNames = new List<string> { fileName },
+                        ProfileVersion = initiated.ProfileVersion
+                    }, finalized =>
+                    {
+                        if (requestGeneration != generation) return;
+                        if (!saveManager.MarkBridgePhotoUploaded(photoId, photoHash))
+                        {
+                            FailPhoto("The uploaded bridge photo metadata could not be committed locally.");
+                            return;
+                        }
+                        FinishPhotoOperation();
+                    }, error =>
+                    {
+                        if (requestGeneration == generation)
+                            FailPhoto("Finalizing bridge photo failed: " + error.ErrorMessage);
+                    });
+                }, error =>
+                {
+                    if (requestGeneration == generation)
+                        FailPhoto("Bridge photo upload failed: " + error);
+                });
+            }, error =>
+            {
+                if (requestGeneration == generation)
+                    FailPhoto("Starting bridge photo upload failed: " + error.ErrorMessage);
+            });
+        }, error =>
+        {
+            if (requestGeneration == generation)
+                FailPhoto("Bridge photo lookup failed: " + error.ErrorMessage);
+        });
+    }
+
+    private void DownloadBridgePhoto(BridgePhotoSaveData record)
+    {
+        if (record == null || entity == null) return;
+        inFlight = true;
+        int requestGeneration = generation;
+        string photoId = record.photoId;
+        string fileName = record.cloudFileName;
+        string contractId = record.contractId;
+
+        PlayFabDataAPI.GetFiles(new GetFilesRequest { Entity = entity }, files =>
+        {
+            if (requestGeneration != generation) return;
+            if (files.Metadata == null ||
+                !files.Metadata.TryGetValue(fileName, out GetFileMetadata metadata) ||
+                metadata == null || string.IsNullOrWhiteSpace(metadata.DownloadUrl))
+            {
+                saveManager.MarkBridgePhotoUnavailable(photoId);
+                if (string.Equals(requestedPhotoContractId, contractId, StringComparison.Ordinal))
+                    requestedPhotoContractId = null;
+                FinishPhotoOperation();
+                return;
+            }
+            if (metadata.Size <= 0 || metadata.Size > PlayerDataManager.MaxBridgePhotoBytes)
+            {
+                FailPhoto("The cloud bridge photo is empty or too large.");
+                return;
+            }
+
+            PlayFabHttp.SimpleGetCall(metadata.DownloadUrl, bytes =>
+            {
+                if (requestGeneration != generation) return;
+                if (!saveManager.TryStoreDownloadedBridgePhoto(photoId, bytes, out string error))
+                {
+                    FailPhoto("Downloaded bridge photo could not be stored: " + error);
+                    return;
+                }
+                if (string.Equals(requestedPhotoContractId, contractId, StringComparison.Ordinal))
+                    requestedPhotoContractId = null;
+                FinishPhotoOperation();
+            }, error =>
+            {
+                if (requestGeneration == generation)
+                    FailPhoto("Bridge photo download failed: " + error);
+            });
+        }, error =>
+        {
+            if (requestGeneration == generation)
+                FailPhoto("Bridge photo lookup failed: " + error.ErrorMessage);
+        });
+    }
+
+    private void FinishPhotoOperation()
+    {
+        inFlight = false;
+        LastSyncError = null;
+        nextSyncTime = Time.realtimeSinceStartup + 0.25f;
+    }
+
+    private void FailPhoto(string message)
+    {
+        LastSyncError = message;
+        Debug.LogWarning("[CloudSave] " + message + " Photo sync will retry.", this);
+        inFlight = false;
+        nextSyncTime = Time.realtimeSinceStartup + RetrySeconds;
+    }
+
     private static string Hash(string value)
     {
         if (string.IsNullOrEmpty(value)) return string.Empty;
@@ -579,6 +767,13 @@ public sealed class CloudSaveManager : MonoBehaviour
             byte[] hash = sha.ComputeHash(Encoding.UTF8.GetBytes(value));
             return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
         }
+    }
+
+    private static string HashBytes(byte[] bytes)
+    {
+        if (bytes == null || bytes.Length == 0) return string.Empty;
+        using (SHA256 sha = SHA256.Create())
+            return BitConverter.ToString(sha.ComputeHash(bytes)).Replace("-", "").ToLowerInvariant();
     }
 
     private string GetCloudEncryptionPurpose()

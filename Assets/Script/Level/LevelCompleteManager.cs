@@ -4,7 +4,6 @@ using UnityEngine.UI;
 using TMPro;
 using System.Collections.Generic;
 using System.Collections;
-using System.IO;
 
 // Shared helpers for dynamic material receipt rows; full result panels are authored in the Editor.
 public static class CompletionReceiptLayout
@@ -591,14 +590,6 @@ public class LevelCompleteManager : MonoBehaviour
 
             if (bridgePhotoDisplay != null) bridgePhotoDisplay.texture = currentBridgePhoto;
 
-            if (!IsMultiplayerScene)
-            {
-                byte[] imageBytes = currentBridgePhoto.EncodeToPNG();
-                string photoPath = PlayerDataManager.Instance != null
-                    ? PlayerDataManager.Instance.GetBridgePhotoPath(currentContract.ContractID)
-                    : Application.persistentDataPath + "/" + currentContract.ContractID + "_photo.png";
-                File.WriteAllBytes(photoPath, imageBytes);
-            }
         }
 
         float totalCalculatedCost = 0f;
@@ -1261,6 +1252,19 @@ public class LevelCompleteManager : MonoBehaviour
                 $"[LevelCompleteManager] '{completedContract.name}' remains unfinished because bridge geometry could not be persisted. " +
                 "The baked objects remain in the scene so saving can be retried.", this);
             return;
+        }
+
+        // The tested image becomes persistent only after its bridge geometry is
+        // safely committed. Account sessions will queue it for PlayFab upload;
+        // guest sessions retain the same pending record for a later import.
+        if (currentBridgePhoto != null)
+        {
+            byte[] photoBytes = currentBridgePhoto.EncodeToPNG();
+            if (!PlayerDataManager.Instance.TrySaveBridgePhoto(
+                    completedContract.ContractID, photoBytes))
+                Debug.LogWarning(
+                    $"[LevelCompleteManager] Bridge saved, but its photo could not be queued for '{completedContract.name}'.",
+                    this);
         }
 
         // The new geometry is now safely persisted. Only at this point may the

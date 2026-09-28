@@ -73,6 +73,7 @@ public class ContractAlmanacTab : MonoBehaviour
             PlayerDataManager.Instance.CheckAllAchievements();
             PlayerDataManager.Instance.OnMinimapUnlockChanged += HandleMapUnlockChanged;
             PlayerDataManager.Instance.OnFeatureUnlocksChanged += HandleMapUnlockChanged;
+            PlayerDataManager.Instance.OnBridgePhotoChanged += HandleBridgePhotoAvailable;
         }
 
         // Listen to the Almanac Manager!
@@ -106,6 +107,7 @@ public class ContractAlmanacTab : MonoBehaviour
         {
             PlayerDataManager.Instance.OnMinimapUnlockChanged -= HandleMapUnlockChanged;
             PlayerDataManager.Instance.OnFeatureUnlocksChanged -= HandleMapUnlockChanged;
+            PlayerDataManager.Instance.OnBridgePhotoChanged -= HandleBridgePhotoAvailable;
         }
     }
 
@@ -250,7 +252,17 @@ public class ContractAlmanacTab : MonoBehaviour
                 ReleaseLoadedSnapshot();
                 snapshotImage.texture = null;
                 snapshotImage.color = Color.black; 
-                if (snapshotCaptionText != null) snapshotCaptionText.text = "Photo Missing";
+                BridgePhotoSaveData record = PlayerDataManager.Instance != null
+                    ? PlayerDataManager.Instance.GetBridgePhotoRecord(contract.ContractID)
+                    : null;
+                CloudSaveManager cloud = PlayerDataManager.Instance != null
+                    ? PlayerDataManager.Instance.GetComponent<CloudSaveManager>()
+                    : null;
+                bool canDownload = record != null && record.cloudAvailable &&
+                    !record.pendingUpload && cloud != null && cloud.IsAccountActive;
+                if (snapshotCaptionText != null)
+                    snapshotCaptionText.text = canDownload ? "Downloading Photo..." : "Photo Missing";
+                if (canDownload) cloud.RequestBridgePhotoDownload(contract.ContractID);
             }
         }
 
@@ -264,6 +276,14 @@ public class ContractAlmanacTab : MonoBehaviour
             AlmanacManager.Instance.virtualHasNext = (index < completedContractsList.Count - 1);
             AlmanacManager.Instance.ForceUpdatePaginationUI();
         }
+    }
+
+    private void HandleBridgePhotoAvailable(string contractId)
+    {
+        if (!isActiveAndEnabled || displayedContract == null ||
+            !string.Equals(displayedContract.ContractID, contractId,
+                System.StringComparison.Ordinal)) return;
+        DisplayContract(currentIndex);
     }
 
     private void ClearDetails()
