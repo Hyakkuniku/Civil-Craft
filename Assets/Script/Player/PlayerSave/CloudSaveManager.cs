@@ -27,8 +27,10 @@ public sealed class CloudSaveManager : MonoBehaviour
     [Serializable]
     private sealed class CloudEnvelope
     {
-        public int schemaVersion = 1;
+        public int schemaVersion = 2;
         public string accountId;
+        public string encryptedPlayerData;
+        // Retained only so version-1 cloud saves can be migrated.
         public string playerDataJson;
         public string sha256;
     }
@@ -46,6 +48,9 @@ public sealed class CloudSaveManager : MonoBehaviour
     private string lastSyncedHash;
     private string conflictingCloudJson;
     private string conflictingCloudHash;
+    private int conflictingCloudProfileVersion;
+    private int conflictingCloudGeneration;
+    private bool conflictingCloudNeedsEncryptionUpgrade;
     private bool hadLocalSaveAtLogin;
     private bool inFlight;
     private bool retryRequired;
@@ -95,6 +100,10 @@ public sealed class CloudSaveManager : MonoBehaviour
         accountId = null;
         entity = null;
         conflictingCloudJson = null;
+        conflictingCloudHash = null;
+        conflictingCloudProfileVersion = 0;
+        conflictingCloudGeneration = 0;
+        conflictingCloudNeedsEncryptionUpgrade = false;
         lastSyncedHash = null;
         LastSyncError = null;
     }
@@ -247,14 +256,31 @@ public sealed class CloudSaveManager : MonoBehaviour
     private void ReceiveCloud(byte[] bytes, int profileVersion, int requestGeneration)
     {
         CloudEnvelope cloud;
+        bool needsEncryptionUpgrade;
         try
         {
             cloud = JsonUtility.FromJson<CloudEnvelope>(Encoding.UTF8.GetString(bytes));
-            if (cloud == null || cloud.schemaVersion != 1 || cloud.accountId != accountId ||
-                string.IsNullOrWhiteSpace(cloud.playerDataJson) ||
+            if (cloud == null || cloud.accountId != accountId)
+                throw new InvalidDataException("Invalid or unsupported cloud-save file.");
+
+            needsEncryptionUpgrade = cloud.schemaVersion == 1;
+            if (cloud.schemaVersion == 2)
+            {
+                if (!SaveEncryption.TryDecryptOrReadLegacy(cloud.encryptedPlayerData,
+                        GetCloudEncryptionPurpose(), out string decryptedJson,
+                        out bool wasLegacy, out string encryptionError) || wasLegacy)
+                    throw new InvalidDataException("Cloud payload authentication failed: " + encryptionError);
+                cloud.playerDataJson = decryptedJson;
+            }
+            else if (cloud.schemaVersion != 1)
+            {
+                throw new InvalidDataException("Invalid or unsupported cloud-save file.");
+            }
+
+            if (string.IsNullOrWhiteSpace(cloud.playerDataJson) ||
                 cloud.sha256 != Hash(cloud.playerDataJson) ||
                 JsonUtility.FromJson<PlayerData>(cloud.playerDataJson) == null)
-                throw new InvalidDataException("Invalid or unsupported cloud-save file.");
+                throw new InvalidDataException("Invalid or unsupported cloud-save data.");
         }
         catch (Exception exception)
         {
@@ -286,15 +312,23 @@ public sealed class CloudSaveManager : MonoBehaviour
                 return;
             }
             saveManager.IgnoreLegacyProgressPrefsForCurrentAccount();
-            MarkSynced(cloud.sha256);
-            FinishOperation();
+            if (needsEncryptionUpgrade) UploadLocal(profileVersion, requestGeneration);
+            else
+            {
+                MarkSynced(cloud.sha256);
+                FinishOperation();
+            }
             return;
         }
 
         if (localHash == cloud.sha256)
         {
-            MarkSynced(cloud.sha256);
-            FinishOperation();
+            if (needsEncryptionUpgrade) UploadLocal(profileVersion, requestGeneration);
+            else
+            {
+                MarkSynced(cloud.sha256);
+                FinishOperation();
+            }
         }
         else if (!hadLocalSaveAtLogin || localHash == lastSyncedHash)
         {
@@ -304,8 +338,12 @@ public sealed class CloudSaveManager : MonoBehaviour
                 return;
             }
             saveManager.IgnoreLegacyProgressPrefsForCurrentAccount();
-            MarkSynced(cloud.sha256);
-            FinishOperation();
+            if (needsEncryptionUpgrade) UploadLocal(profileVersion, requestGeneration);
+            else
+            {
+                MarkSynced(cloud.sha256);
+                FinishOperation();
+            }
         }
         else if (cloud.sha256 == lastSyncedHash)
         {
@@ -316,6 +354,9 @@ public sealed class CloudSaveManager : MonoBehaviour
             conflictBackedUp = PreserveConflictCopies(saveManager.GetCurrentDataJson(), cloud.playerDataJson);
             conflictingCloudJson = cloud.playerDataJson;
             conflictingCloudHash = cloud.sha256;
+            conflictingCloudProfileVersion = profileVersion;
+            conflictingCloudGeneration = requestGeneration;
+            conflictingCloudNeedsEncryptionUpgrade = needsEncryptionUpgrade;
             showingConflict = true;
             inFlight = false;
             ShowConflictOverlay();
@@ -330,7 +371,7 @@ public sealed class CloudSaveManager : MonoBehaviour
         byte[] bytes = Encoding.UTF8.GetBytes(JsonUtility.ToJson(new CloudEnvelope
         {
             accountId = accountId,
-            playerDataJson = playerJson,
+            encryptedPlayerData = SaveEncryption.Encrypt(playerJson, GetCloudEncryptionPurpose()),
             sha256 = uploadedHash
         }));
 
@@ -439,8 +480,11 @@ public sealed class CloudSaveManager : MonoBehaviour
             Directory.CreateDirectory(directory);
             string id = DateTime.UtcNow.ToString("yyyyMMddHHmmss") + "-" +
                 Guid.NewGuid().ToString("N").Substring(0, 8);
-            File.WriteAllText(Path.Combine(directory, id + "-device.json"), localJson);
-            File.WriteAllText(Path.Combine(directory, id + "-online.json"), onlineJson);
+            string purpose = "conflict-backup:" + accountId;
+            File.WriteAllText(Path.Combine(directory, id + "-device.json"),
+                SaveEncryption.Encrypt(localJson, purpose));
+            File.WriteAllText(Path.Combine(directory, id + "-online.json"),
+                SaveEncryption.Encrypt(onlineJson, purpose));
             return true;
         }
         catch (Exception exception)
@@ -509,11 +553,22 @@ public sealed class CloudSaveManager : MonoBehaviour
                 return;
             }
             saveManager.IgnoreLegacyProgressPrefsForCurrentAccount();
-            MarkSynced(conflictingCloudHash);
-            FinishOperation();
+            if (conflictingCloudNeedsEncryptionUpgrade)
+            {
+                inFlight = true;
+                UploadLocal(conflictingCloudProfileVersion, conflictingCloudGeneration);
+            }
+            else
+            {
+                MarkSynced(conflictingCloudHash);
+                FinishOperation();
+            }
         }
         conflictingCloudJson = null;
         conflictingCloudHash = null;
+        conflictingCloudProfileVersion = 0;
+        conflictingCloudGeneration = 0;
+        conflictingCloudNeedsEncryptionUpgrade = false;
     }
 
     private static string Hash(string value)
@@ -524,5 +579,10 @@ public sealed class CloudSaveManager : MonoBehaviour
             byte[] hash = sha.ComputeHash(Encoding.UTF8.GetBytes(value));
             return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
         }
+    }
+
+    private string GetCloudEncryptionPurpose()
+    {
+        return "cloud-account:" + accountId;
     }
 }

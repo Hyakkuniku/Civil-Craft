@@ -1296,7 +1296,9 @@ public sealed class DeveloperDebugManager : MonoBehaviour
 
         try
         {
-            File.WriteAllText(temporaryPath, JsonUtility.ToJson(snapshot, true));
+            string snapshotJson = JsonUtility.ToJson(snapshot, true);
+            File.WriteAllText(temporaryPath,
+                SaveEncryption.Encrypt(snapshotJson, "developer-debug-state"));
             if (File.Exists(path))
             {
                 File.Copy(temporaryPath, path, true);
@@ -1333,7 +1335,11 @@ public sealed class DeveloperDebugManager : MonoBehaviour
         DebugStateSnapshot snapshot;
         try
         {
-            snapshot = JsonUtility.FromJson<DebugStateSnapshot>(File.ReadAllText(path));
+            string serialized = File.ReadAllText(path);
+            if (!SaveEncryption.TryDecryptOrReadLegacy(serialized, "developer-debug-state",
+                    out string snapshotJson, out _, out string encryptionError))
+                throw new InvalidDataException(encryptionError);
+            snapshot = JsonUtility.FromJson<DebugStateSnapshot>(snapshotJson);
         }
         catch (Exception exception)
         {

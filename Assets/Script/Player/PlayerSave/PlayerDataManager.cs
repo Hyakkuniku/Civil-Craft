@@ -303,7 +303,8 @@ public class PlayerDataManager : MonoBehaviour
         {
             Directory.CreateDirectory(Path.GetDirectoryName(saveFilePath));
             string json = JsonUtility.ToJson(CurrentData, true);
-            File.WriteAllText(temporaryPath, json);
+            string encryptedSave = SaveEncryption.Encrypt(json, GetEncryptionPurposeForPath(saveFilePath));
+            File.WriteAllText(temporaryPath, encryptedSave);
 
             if (File.Exists(saveFilePath))
             {
@@ -329,6 +330,8 @@ public class PlayerDataManager : MonoBehaviour
                 File.Move(temporaryPath, saveFilePath);
             }
 
+            EncryptLegacyBackupIfNeeded(backupPath);
+            WriteEncryptionMarker(saveFilePath);
             OnSaveCommitted?.Invoke();
             return true;
         }
@@ -433,8 +436,19 @@ public class PlayerDataManager : MonoBehaviour
 
         try
         {
-            string json = File.ReadAllText(path);
-            if (string.IsNullOrWhiteSpace(json)) return null;
+            string serialized = File.ReadAllText(path);
+            if (!SaveEncryption.TryDecryptOrReadLegacy(serialized,
+                    GetEncryptionPurposeForPath(path), out string json,
+                    out bool wasLegacy, out string encryptionError))
+            {
+                Debug.LogError($"[PlayerDataManager] Could not open '{path}': {encryptionError}", this);
+                return null;
+            }
+            if (wasLegacy && File.Exists(GetEncryptionMarkerPath(path)))
+            {
+                Debug.LogError($"[PlayerDataManager] Rejected a plaintext save after encryption migration: '{path}'.", this);
+                return null;
+            }
             return JsonUtility.FromJson<PlayerData>(json);
         }
         catch (Exception exception)
@@ -442,6 +456,91 @@ public class PlayerDataManager : MonoBehaviour
             Debug.LogError($"[PlayerDataManager] Could not read '{path}': {exception.Message}", this);
             return null;
         }
+    }
+
+    private string GetEncryptionPurposeForPath(string path)
+    {
+        string directory = Path.GetDirectoryName(path);
+        string accountId = string.IsNullOrEmpty(directory) ? string.Empty : Path.GetFileName(directory);
+        string parentDirectory = string.IsNullOrEmpty(directory)
+            ? string.Empty
+            : Path.GetDirectoryName(directory);
+        if (!string.IsNullOrEmpty(parentDirectory) &&
+            string.Equals(Path.GetFileName(parentDirectory), "Accounts", StringComparison.OrdinalIgnoreCase) &&
+            !string.IsNullOrWhiteSpace(accountId))
+            return "local-account:" + accountId;
+
+        return "local-guest";
+    }
+
+    private void EncryptLegacyBackupIfNeeded(string backupPath)
+    {
+        if (!File.Exists(backupPath)) return;
+        try
+        {
+            string serialized = File.ReadAllText(backupPath);
+            if (SaveEncryption.IsEncrypted(serialized)) return;
+            if (!SaveEncryption.TryDecryptOrReadLegacy(serialized,
+                    GetEncryptionPurposeForPath(backupPath), out string plaintext,
+                    out bool wasLegacy, out string error) || !wasLegacy)
+            {
+                Debug.LogWarning("[PlayerDataManager] Could not migrate the backup save: " + error, this);
+                return;
+            }
+
+            File.WriteAllText(backupPath,
+                SaveEncryption.Encrypt(plaintext, GetEncryptionPurposeForPath(backupPath)));
+        }
+        catch (Exception exception)
+        {
+            // The newly committed primary remains usable even if an old backup
+            // cannot be upgraded on this device.
+            Debug.LogWarning("[PlayerDataManager] Could not encrypt the backup save: " +
+                exception.Message, this);
+        }
+    }
+
+    private string GetEncryptionMarkerPath(string path)
+    {
+        return Path.Combine(Path.GetDirectoryName(path), ".save-encryption-v1");
+    }
+
+    private void WriteEncryptionMarker(string path)
+    {
+        string markerPath = GetEncryptionMarkerPath(path);
+        string temporaryMarkerPath = markerPath + ".tmp";
+        try
+        {
+            File.WriteAllText(temporaryMarkerPath, SaveEncryption.Encrypt(
+                "enabled", GetEncryptionPurposeForPath(path) + ":marker"));
+            if (File.Exists(markerPath)) File.Delete(markerPath);
+            File.Move(temporaryMarkerPath, markerPath);
+        }
+        catch (Exception exception)
+        {
+            try
+            {
+                if (File.Exists(temporaryMarkerPath)) File.Delete(temporaryMarkerPath);
+            }
+            catch (Exception) { }
+            Debug.LogWarning("[PlayerDataManager] Could not record encryption migration: " +
+                exception.Message, this);
+        }
+    }
+
+    private void CopySaveWithEncryptionContext(string sourcePath, string destinationPath)
+    {
+        string serialized = File.ReadAllText(sourcePath);
+        if (!SaveEncryption.TryDecryptOrReadLegacy(serialized,
+                GetEncryptionPurposeForPath(sourcePath), out string plaintext,
+                out bool wasLegacy, out string error))
+            throw new InvalidDataException("The guest save could not be imported: " + error);
+        if (wasLegacy && File.Exists(GetEncryptionMarkerPath(sourcePath)))
+            throw new InvalidDataException(
+                "The guest save was changed back to plaintext after encryption migration.");
+
+        File.WriteAllText(destinationPath,
+            SaveEncryption.Encrypt(plaintext, GetEncryptionPurposeForPath(destinationPath)));
     }
 
     // ────────────────────────────────────────────────
@@ -1918,10 +2017,11 @@ public class PlayerDataManager : MonoBehaviour
             if (!File.Exists(accountPath) && !File.Exists(accountPath + ".bak") &&
                 importLegacyGuestSave && File.Exists(guestSaveFilePath))
             {
-                File.Copy(guestSaveFilePath, accountPath);
+                CopySaveWithEncryptionContext(guestSaveFilePath, accountPath);
                 copiedLegacySave = true;
                 if (File.Exists(guestSaveFilePath + ".bak"))
-                    File.Copy(guestSaveFilePath + ".bak", accountPath + ".bak");
+                    CopySaveWithEncryptionContext(guestSaveFilePath + ".bak", accountPath + ".bak");
+                WriteEncryptionMarker(accountPath);
             }
             if (copiedLegacySave)
             {
@@ -1939,6 +2039,8 @@ public class PlayerDataManager : MonoBehaviour
             activeAccountId = playFabId;
             saveFilePath = accountPath;
             LoadGame(false);
+            if (!TrySaveGame())
+                throw new IOException("The account save could not be encrypted and committed.");
             NotifyProfileChanged();
             return true;
         }
