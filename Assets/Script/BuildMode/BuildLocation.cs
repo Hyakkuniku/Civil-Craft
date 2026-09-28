@@ -79,6 +79,7 @@ public class BuildLocation : Interactable
     private readonly List<Bar> hiddenUnfinishedBars = new List<Bar>();
     private readonly List<Point> hiddenUnfinishedPoints = new List<Point>();
     private bool isRedesigningBridge;
+    private bool isInPlaceSavedBridgeRedesign;
     private bool isUnfinishedDraftHidden;
     private bool isTutorialReplayActive;
 
@@ -319,9 +320,9 @@ public class BuildLocation : Interactable
     }
 
     /// <summary>
-    /// Starts a transactional redesign. The committed bridge and its save remain
-    /// untouched while a separate working bridge is built. Committed objects are
-    /// hidden and detached from the active build graph until commit or rollback.
+    /// Starts a transactional redesign. Ordinary saved bridges are edited in
+    /// place; sites with an authored starter respawn an editable starter copy.
+    /// The persisted bridge record remains the rollback source in both cases.
     /// </summary>
     public bool BeginBridgeRedesign()
     {
@@ -330,6 +331,49 @@ public class BuildLocation : Interactable
 
         if (buildModeOnlyStarterBridge == null)
             buildModeOnlyStarterBridge = FindStarterBridgeAtAnchors();
+
+        // A persisted bridge is already the player's design. Reopen those exact
+        // pieces for editing instead of hiding them and spawning the authored
+        // starter bridge again. Locations with an authored baked-interactable
+        // starter intentionally respawn that starter instead.
+        if (buildModeOnlyStarterBridge == null &&
+            gameObject.scene.name != "Multiplayer" && activeContract != null &&
+            PlayerDataManager.Instance != null &&
+            PlayerDataManager.Instance.HasValidSavedBridge(activeContract.ContractID))
+        {
+            committedBarsBeforeRedesign.Clear();
+            committedPointsBeforeRedesign.Clear();
+            committedBarsBeforeRedesign.AddRange(bakedBars);
+            committedPointsBeforeRedesign.AddRange(bakedPoints);
+
+            foreach (Point point in committedPointsBeforeRedesign)
+            {
+                if (point == null) continue;
+                point.gameObject.SetActive(true);
+                point.AssignOwner(this, true);
+                point.enabled = true;
+            }
+            foreach (Bar bar in committedBarsBeforeRedesign)
+            {
+                if (bar == null) continue;
+                bar.gameObject.SetActive(true);
+                bar.AssignOwner(this, true);
+                if (bar.startPoint != null && !bar.startPoint.ConnectedBars.Contains(bar))
+                    bar.startPoint.ConnectedBars.Add(bar);
+                if (bar.endPoint != null && !bar.endPoint.ConnectedBars.Contains(bar))
+                    bar.endPoint.ConnectedBars.Add(bar);
+                bar.enabled = true;
+            }
+
+            // BakeBridge must capture only active redesign geometry; a deleted
+            // original must not be pulled back in from these committed lists.
+            bakedBars.Clear();
+            bakedPoints.Clear();
+            isInPlaceSavedBridgeRedesign = true;
+            isRedesigningBridge = true;
+            return true;
+        }
+
         EnsureStarterBridgeRedesignTemplate();
         committedBarsBeforeRedesign.Clear();
         committedPointsBeforeRedesign.Clear();
@@ -382,6 +426,24 @@ public class BuildLocation : Interactable
     {
         if (!isRedesigningBridge) return;
 
+        if (isInPlaceSavedBridgeRedesign)
+        {
+            // Keep every piece still present in the newly baked bridge. Only
+            // pieces erased during this redesign are discarded.
+            foreach (Bar bar in committedBarsBeforeRedesign)
+                if (bar != null && !bakedBars.Contains(bar)) Destroy(bar.gameObject);
+            foreach (Point point in committedPointsBeforeRedesign)
+                if (point != null && !startingAnchors.Contains(point) &&
+                    !endingAnchors.Contains(point) && !bakedPoints.Contains(point))
+                    Destroy(point.gameObject);
+
+            committedBarsBeforeRedesign.Clear();
+            committedPointsBeforeRedesign.Clear();
+            isInPlaceSavedBridgeRedesign = false;
+            isRedesigningBridge = false;
+            return;
+        }
+
         foreach (Bar bar in committedBarsBeforeRedesign)
         {
             if (bar != null) Destroy(bar.gameObject);
@@ -415,6 +477,12 @@ public class BuildLocation : Interactable
     public void CancelBridgeRedesign()
     {
         if (!isRedesigningBridge) return;
+
+        if (isInPlaceSavedBridgeRedesign)
+        {
+            CancelInPlaceSavedBridgeRedesign();
+            return;
+        }
 
         // Make the old bridge the protected baked bridge again before clearing
         // working objects, otherwise the shared Bar/Point parents would allow the
@@ -454,6 +522,91 @@ public class BuildLocation : Interactable
         committedPointsBeforeRedesign.Clear();
         isRedesigningBridge = false;
 
+        SetBridgeScriptsActive(false);
+
+        if (DynamicNavMeshUpdater.Instance != null)
+            DynamicNavMeshUpdater.Instance.UpdateWalkableNavMeshForLocation(this);
+    }
+
+    private void CancelInPlaceSavedBridgeRedesign()
+    {
+        // Stage the edited bridge out of the graph before reconstruction. Do
+        // not destroy it until the persisted original has loaded successfully.
+        List<Bar> editedBars = new List<Bar>(committedBarsBeforeRedesign);
+        foreach (Bar bar in bakedBars)
+            if (bar != null && !editedBars.Contains(bar)) editedBars.Add(bar);
+        List<Point> editedPoints = new List<Point>(committedPointsBeforeRedesign);
+        foreach (Point point in bakedPoints)
+            if (point != null && !editedPoints.Contains(point)) editedPoints.Add(point);
+
+        foreach (Bar bar in editedBars)
+        {
+            if (bar == null) continue;
+            if (bar.startPoint != null) bar.startPoint.ConnectedBars.Remove(bar);
+            if (bar.endPoint != null) bar.endPoint.ConnectedBars.Remove(bar);
+            bar.gameObject.SetActive(false);
+        }
+        foreach (Point point in editedPoints)
+            if (point != null && !startingAnchors.Contains(point) && !endingAnchors.Contains(point))
+                point.gameObject.SetActive(false);
+
+        bakedBars.Clear();
+        bakedPoints.Clear();
+        if (!LoadSavedBridge())
+        {
+            // A malformed saved record can fail after creating some points or
+            // bars. Remove that partial reconstruction before restoring the
+            // still-retained working bridge.
+            foreach (Bar bar in bakedBars)
+                if (bar != null)
+                {
+                    bar.gameObject.SetActive(false);
+                    Destroy(bar.gameObject);
+                }
+            foreach (Point point in bakedPoints)
+                if (point != null && !startingAnchors.Contains(point) && !endingAnchors.Contains(point))
+                {
+                    point.gameObject.SetActive(false);
+                    Destroy(point.gameObject);
+                }
+            Debug.LogError($"[BuildLocation] Could not restore the saved bridge at '{name}'. " +
+                "The edited bridge has been retained so it is not lost.", this);
+            foreach (Point point in editedPoints)
+                if (point != null) point.gameObject.SetActive(true);
+            foreach (Bar bar in editedBars)
+            {
+                if (bar == null) continue;
+                bar.gameObject.SetActive(true);
+                if (bar.startPoint != null && !bar.startPoint.ConnectedBars.Contains(bar))
+                    bar.startPoint.ConnectedBars.Add(bar);
+                if (bar.endPoint != null && !bar.endPoint.ConnectedBars.Contains(bar))
+                    bar.endPoint.ConnectedBars.Add(bar);
+            }
+            bakedBars.Clear();
+            bakedPoints.Clear();
+            bakedBars.AddRange(editedBars);
+            bakedPoints.AddRange(editedPoints);
+        }
+        else
+        {
+            // Clear any newly drawn bars under the shared build parents, while
+            // the restored baked bridge and other locations remain protected.
+            BarCreator creator = FindObjectOfType<BarCreator>(true);
+            if (creator != null) creator.ClearPlayerPlacedBridge(this);
+            foreach (Bar bar in editedBars)
+                if (bar != null) Destroy(bar.gameObject);
+            foreach (Point point in editedPoints)
+                if (point != null && !startingAnchors.Contains(point) && !endingAnchors.Contains(point))
+                    Destroy(point.gameObject);
+
+            // Undo actions still refer to the discarded working objects.
+            if (CommandManager.Instance != null) CommandManager.Instance.ClearHistory();
+        }
+
+        committedBarsBeforeRedesign.Clear();
+        committedPointsBeforeRedesign.Clear();
+        isInPlaceSavedBridgeRedesign = false;
+        isRedesigningBridge = false;
         SetBridgeScriptsActive(false);
 
         if (DynamicNavMeshUpdater.Instance != null)
@@ -845,7 +998,7 @@ public class BuildLocation : Interactable
 
     public void ShowBuildModeOnlyStarterBridge()
     {
-        if (buildModeOnlyStarterBridge == null || bakedBars.Count > 0) return;
+        if (isInPlaceSavedBridgeRedesign || buildModeOnlyStarterBridge == null || bakedBars.Count > 0) return;
 
         EnsureStarterBridgeRedesignTemplate();
         buildModeOnlyStarterBridge.SetActive(true);

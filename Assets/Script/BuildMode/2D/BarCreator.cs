@@ -960,6 +960,16 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                     if (p.gameObject.activeSelf) currentMoveAction.originalPositions[p] = p.transform.position;
                 }
             }
+            else
+            {
+                // An empty tap deselects the bridge without leaving Move Mode.
+                isDraggingSelection = false;
+                currentMoveAction = null;
+                if (radiusIndicator != null) radiusIndicator.enabled = false;
+                if (selectedPoints.Count > 0 || selectedBars.Count > 0 ||
+                    highlightedSceneAnchors.Count > 0)
+                    ClearSelection();
+            }
             return;
         }
 
@@ -1154,6 +1164,12 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 isDraggingSelectionBox = false;
                 if (selectionBoxUI != null) selectionBoxUI.gameObject.SetActive(false);
                 SelectPointsInBox(selectionStartPos, eventData.position);
+                if (selectedPoints.Count == 0 && selectedBars.Count == 0 &&
+                    highlightedSceneAnchors.Count == 0)
+                {
+                    ToggleSelectMode();
+                    return;
+                }
             }
             else
             {
@@ -1163,7 +1179,13 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 {
                     Bar tappedBar = CheckForExistingBar(eventData.position);
                     if (tappedBar != null) ToggleBarSelection(tappedBar);
-                    else ClearSelection(); 
+                    else
+                    {
+                        // A tap on empty build space is not a selection gesture.
+                        // Leave Select Mode so the next tool can be used directly.
+                        ToggleSelectMode();
+                        return;
+                    }
                 }
 
                 if (BuildUIController.Instance != null && (selectedPoints.Count > 0 || selectedBars.Count > 0))
@@ -1368,7 +1390,12 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             CancelCreation(); 
             SetActiveMaterial(null); 
         }
-        else ClearSelection();
+        else
+        {
+            isDraggingSelectionBox = false;
+            if (selectionBoxUI != null) selectionBoxUI.gameObject.SetActive(false);
+            ClearSelection();
+        }
         
         if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("Select Mode: " + (isSelectMode ? "ON" : "OFF"));
     }
