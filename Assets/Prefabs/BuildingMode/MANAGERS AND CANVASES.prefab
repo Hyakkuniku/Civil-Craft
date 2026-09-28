@@ -19212,6 +19212,8 @@ MonoBehaviour:
   bakedRoadColliderSeamOverlap: 0.2
   simulatedRoadColliderSeamOverlap: 0.6
   bakedRoadVisualTop: 0.025
+  ignoreInitialStaticEndpointOverlaps: 1
+  endpointOverlapTolerance: 0.005
   constrainVisualBridgeToPlane: 1
   visualLinearDrag: 0.5
   visualAngularDrag: 1.5

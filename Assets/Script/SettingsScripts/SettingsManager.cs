@@ -365,7 +365,11 @@ public class SettingsManager : MonoBehaviour
 
     public static void TriggerVibration()
     {
-        if (PlayerPrefs.GetInt("UseHaptics", 1) == 1) Handheld.Vibrate();
+        if (PlayerPrefs.GetInt("UseHaptics", 1) != 1) return;
+
+#if UNITY_ANDROID || UNITY_IOS
+        Handheld.Vibrate();
+#endif
     }
 
     // ────────────────────────────────────────────────
