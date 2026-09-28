@@ -77,21 +77,6 @@ public class SavedBridgeData
 }
 
 [System.Serializable]
-public class BridgePhotoSaveData
-{
-    // Stable contract identity and a share-safe photo identity. A future
-    // leaderboard entry can store photoId without exposing a local file path.
-    public string contractId;
-    public string photoId;
-    public string cloudFileName;
-    public string sha256;
-    public int byteLength;
-    public string capturedAtUtc;
-    public bool pendingUpload;
-    public bool cloudAvailable;
-}
-
-[System.Serializable]
 public class NPCProgressionSaveData
 {
     [Tooltip("Stable ID of the NPC progression sequence that owns this record.")]
@@ -196,7 +181,6 @@ public class PlayerData
     public List<string> unlockedDoors = new List<string>();
 
     public List<SavedBridgeData> savedBridges = new List<SavedBridgeData>();
-    public List<BridgePhotoSaveData> bridgePhotos = new List<BridgePhotoSaveData>();
     public List<NPCProgressionSaveData> npcProgressions = new List<NPCProgressionSaveData>();
     public List<NPCVisibilitySaveData> npcVisibility = new List<NPCVisibilitySaveData>();
     public List<string> completedLessonCloseActions = new List<string>();

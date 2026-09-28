@@ -238,31 +238,45 @@ public class ContractAlmanacTab : MonoBehaviour
             if (File.Exists(photoPath))
             {
                 ReleaseLoadedSnapshot();
-                byte[] bytes = File.ReadAllBytes(photoPath);
                 Texture2D tex = new Texture2D(2, 2);
-                tex.LoadImage(bytes);
-                
-                snapshotImage.texture = tex;
-                snapshotImage.color = Color.white;
-                loadedSnapshot = tex;
-                if (snapshotCaptionText != null) snapshotCaptionText.text = clientName + "'s Bridge";
+                bool loaded = false;
+                try
+                {
+                    loaded = tex.LoadImage(File.ReadAllBytes(photoPath));
+                }
+                catch (System.Exception exception)
+                {
+                    Debug.LogWarning("[ContractAlmanacTab] Could not load bridge preview: " +
+                        exception.Message, this);
+                }
+
+                if (loaded)
+                {
+                    snapshotImage.texture = tex;
+                    snapshotImage.color = Color.white;
+                    loadedSnapshot = tex;
+                    if (snapshotCaptionText != null)
+                        snapshotCaptionText.text = clientName + "'s Bridge";
+                }
+                else
+                {
+                    Destroy(tex);
+                    snapshotImage.texture = null;
+                    snapshotImage.color = Color.black;
+                    if (snapshotCaptionText != null)
+                        snapshotCaptionText.text = "Preview Unavailable";
+                }
             }
             else
             {
                 ReleaseLoadedSnapshot();
                 snapshotImage.texture = null;
-                snapshotImage.color = Color.black; 
-                BridgePhotoSaveData record = PlayerDataManager.Instance != null
-                    ? PlayerDataManager.Instance.GetBridgePhotoRecord(contract.ContractID)
-                    : null;
-                CloudSaveManager cloud = PlayerDataManager.Instance != null
-                    ? PlayerDataManager.Instance.GetComponent<CloudSaveManager>()
-                    : null;
-                bool canDownload = record != null && record.cloudAvailable &&
-                    !record.pendingUpload && cloud != null && cloud.IsAccountActive;
+                snapshotImage.color = Color.black;
                 if (snapshotCaptionText != null)
-                    snapshotCaptionText.text = canDownload ? "Downloading Photo..." : "Photo Missing";
-                if (canDownload) cloud.RequestBridgePhotoDownload(contract.ContractID);
+                    snapshotCaptionText.text = PlayerDataManager.Instance != null &&
+                        PlayerDataManager.Instance.HasValidSavedBridge(contract.ContractID)
+                        ? "Preparing Bridge Photo..."
+                        : "Photo Unavailable";
             }
         }
 

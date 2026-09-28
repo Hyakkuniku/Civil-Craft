@@ -1254,16 +1254,16 @@ public class LevelCompleteManager : MonoBehaviour
             return;
         }
 
-        // The tested image becomes persistent only after its bridge geometry is
-        // safely committed. Account sessions will queue it for PlayFab upload;
-        // guest sessions retain the same pending record for a later import.
+        // Keep the tested image as a high-quality local cache only after its
+        // bridge geometry is safely committed. Other devices reconstruct the
+        // bridge at its real build location and photograph it with that site's camera.
         if (currentBridgePhoto != null)
         {
             byte[] photoBytes = currentBridgePhoto.EncodeToPNG();
             if (!PlayerDataManager.Instance.TrySaveBridgePhoto(
                     completedContract.ContractID, photoBytes))
                 Debug.LogWarning(
-                    $"[LevelCompleteManager] Bridge saved, but its photo could not be queued for '{completedContract.name}'.",
+                    $"[LevelCompleteManager] Bridge saved, but its photo could not be cached for '{completedContract.name}'.",
                     this);
         }
 

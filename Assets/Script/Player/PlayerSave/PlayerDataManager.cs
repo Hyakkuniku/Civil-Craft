@@ -2,13 +2,16 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using System.IO;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Security.Cryptography;
+using System.Text;
 
 [DisallowMultipleComponent]
 public class PlayerDataManager : MonoBehaviour
 {
     private const string AchievementsFeatureId = "achievements";
+    private const string ActualBridgePhotoMarkerVersion = "actual-v1:";
     public const int MaxBridgePhotoBytes = 8 * 1024 * 1024;
 
     public static PlayerDataManager Instance { get; private set; }
@@ -43,7 +46,7 @@ public class PlayerDataManager : MonoBehaviour
     /// <summary>Raised after a shop purchase has been saved successfully.</summary>
     public Action<string> OnShopItemPurchased;
     public Action OnItemOwnershipChanged;
-    /// <summary>Raised after a bridge photo or its cloud availability changes.</summary>
+    /// <summary>Raised after an account-scoped local bridge preview changes.</summary>
     public Action<string> OnBridgePhotoChanged;
     
     private string saveFilePath;
@@ -54,6 +57,8 @@ public class PlayerDataManager : MonoBehaviour
     private bool isCheckingAchievements = false; // Prevents infinite loops!
     private bool hasMigratedContractIdentifiers;
     private bool suppressAutomaticPositionSave;
+    private Coroutine bridgePhotoWarmup;
+    private int bridgePhotoWarmupRevision;
     private readonly HashSet<string> completionRecordsMissingBridge = new HashSet<string>();
     
 
@@ -79,6 +84,7 @@ public class PlayerDataManager : MonoBehaviour
             transform.SetParent(null, true);
 
         DontDestroyOnLoad(gameObject);
+        SceneManager.sceneLoaded += HandleSceneLoaded;
 
         guestSaveFilePath = Path.Combine(Application.persistentDataPath, "playerSaveData.json");
         saveFilePath = guestSaveFilePath;
@@ -90,12 +96,20 @@ public class PlayerDataManager : MonoBehaviour
         MigrateLegacyContractLocks();
         MigrateCompletedContractFeatureUnlocks();
         MigrateEarnedAchievementFeatureUnlock();
+        StartBridgePhotoWarmup();
     }
 
     private void OnDestroy()
     {
+        bridgePhotoWarmupRevision++;
+        SceneManager.sceneLoaded -= HandleSceneLoaded;
         if (Instance == this)
             Instance = null;
+    }
+
+    private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        StartBridgePhotoWarmup();
     }
 
 #if UNITY_EDITOR
@@ -554,16 +568,10 @@ public class PlayerDataManager : MonoBehaviour
         string guestDirectory = Path.GetDirectoryName(guestSaveFilePath);
         string accountDirectory = Path.GetDirectoryName(accountSavePath);
 
-        // New saves have explicit photo records. Older saves only have bridge
-        // geometry, so include those contract IDs and let NormalizeLoadedData
-        // create the upload metadata after the account slot is opened.
+        // Bridge geometry is the source of truth for local Almanac previews.
+        // Copy any existing guest captures as a quality-preserving cache; missing
+        // images are regenerated from the imported geometry after account login.
         HashSet<string> contractIds = new HashSet<string>(StringComparer.Ordinal);
-        if (importedData.bridgePhotos != null)
-        {
-            foreach (BridgePhotoSaveData record in importedData.bridgePhotos)
-                if (record != null && !string.IsNullOrWhiteSpace(record.contractId))
-                    contractIds.Add(record.contractId.Trim());
-        }
         if (importedData.savedBridges != null)
         {
             foreach (SavedBridgeData bridge in importedData.savedBridges)
@@ -573,12 +581,16 @@ public class PlayerDataManager : MonoBehaviour
 
         foreach (string contractId in contractIds)
         {
-            string sourcePath = Path.Combine(guestDirectory, contractId + "_photo.png");
-            string destinationPath = Path.Combine(accountDirectory, contractId + "_photo.png");
+            string cacheFileName = GetSafeBridgeCacheId(contractId) + "_photo.png";
+            string sourcePath = Path.Combine(guestDirectory, cacheFileName);
+            string destinationPath = Path.Combine(accountDirectory, cacheFileName);
             if (!File.Exists(sourcePath)) continue;
             try
             {
                 File.Copy(sourcePath, destinationPath, true);
+                string sourceHashPath = sourcePath + ".bridgehash";
+                if (File.Exists(sourceHashPath))
+                    File.Copy(sourceHashPath, destinationPath + ".bridgehash", true);
             }
             catch (Exception exception)
             {
@@ -1658,10 +1670,7 @@ public class PlayerDataManager : MonoBehaviour
         if (CurrentData.unlockedContractMaterials == null) CurrentData.unlockedContractMaterials = new List<string>();
         if (CurrentData.unlockedDoors == null) CurrentData.unlockedDoors = new List<string>();
         if (CurrentData.savedBridges == null) CurrentData.savedBridges = new List<SavedBridgeData>();
-        if (CurrentData.bridgePhotos == null) CurrentData.bridgePhotos = new List<BridgePhotoSaveData>();
         if (CurrentData.npcProgressions == null) CurrentData.npcProgressions = new List<NPCProgressionSaveData>();
-
-        NormalizeBridgePhotoRecords();
 
         // Older saves only stored current EXP. Until EXP becomes spendable this
         // safely migrates it into the new lifetime "EXP Received" counter.
@@ -2123,20 +2132,35 @@ public class PlayerDataManager : MonoBehaviour
     /// <summary>Returns the account-scoped local cache path for a bridge snapshot.</summary>
     public string GetBridgePhotoPath(string contractId)
     {
-        return Path.Combine(Path.GetDirectoryName(saveFilePath), contractId + "_photo.png");
+        return Path.Combine(Path.GetDirectoryName(saveFilePath),
+            GetSafeBridgeCacheId(contractId) + "_photo.png");
     }
 
-    public BridgePhotoSaveData GetBridgePhotoRecord(string contractId)
+    private static string GetSafeBridgeCacheId(string contractId)
     {
-        if (CurrentData?.bridgePhotos == null || string.IsNullOrWhiteSpace(contractId)) return null;
-        string normalizedId = contractId.Trim();
-        return CurrentData.bridgePhotos.Find(record => record != null &&
-            string.Equals(record.contractId, normalizedId, StringComparison.Ordinal));
+        string normalizedId = string.IsNullOrWhiteSpace(contractId)
+            ? "unknown-contract"
+            : contractId.Trim();
+        char[] characters = normalizedId.ToCharArray();
+        char[] invalidCharacters = Path.GetInvalidFileNameChars();
+        bool changed = false;
+        for (int index = 0; index < characters.Length; index++)
+        {
+            if (Array.IndexOf(invalidCharacters, characters[index]) < 0) continue;
+            characters[index] = '_';
+            changed = true;
+        }
+
+        string safeId = new string(characters);
+        if (!changed) return safeId;
+        string suffix = ComputeSha256(Encoding.UTF8.GetBytes(normalizedId)).Substring(0, 8);
+        return safeId + "_" + suffix;
     }
 
     /// <summary>
-    /// Commits a captured photo locally and records enough metadata to resume a
-    /// PlayFab upload after an offline session or process restart.
+    /// Stores the high-quality completion capture as a local cache. Bridge
+    /// geometry remains the synchronized source of truth, so this PNG never
+    /// needs to be uploaded and can be photographed again on another device.
     /// </summary>
     public bool TrySaveBridgePhoto(string contractId, byte[] pngBytes)
     {
@@ -2145,227 +2169,109 @@ public class PlayerDataManager : MonoBehaviour
             return false;
 
         string normalizedId = contractId.Trim();
-        if (CurrentData.bridgePhotos == null)
-            CurrentData.bridgePhotos = new List<BridgePhotoSaveData>();
+        SavedBridgeData bridge = GetSavedBridge(normalizedId);
+        return bridge != null && WriteBridgePhotoCache(bridge, pngBytes, true);
+    }
 
-        BridgePhotoSaveData record = GetBridgePhotoRecord(normalizedId);
-        if (record == null)
-        {
-            record = CreateBridgePhotoRecord(normalizedId);
-            CurrentData.bridgePhotos.Add(record);
-        }
-        else
-        {
-            EnsureBridgePhotoIdentity(record);
-        }
+    /// <summary>Schedules a missing or stale photo at the bridge's loaded build location.</summary>
+    public bool TryEnsureBridgePhoto(string contractId, out string photoPath)
+    {
+        photoPath = GetBridgePhotoPath(contractId);
+        SavedBridgeData bridge = GetSavedBridge(contractId);
+        if (bridge == null) return false;
+        if (IsBridgePhotoCacheCurrent(bridge, photoPath)) return true;
+        StartBridgePhotoWarmup();
+        return false;
+    }
 
-        string photoPath = GetBridgePhotoPath(normalizedId);
-        string temporaryPath = photoPath + ".tmp";
+    private bool WriteBridgePhotoCache(SavedBridgeData bridge, byte[] pngBytes, bool notify)
+    {
+        if (bridge == null || string.IsNullOrWhiteSpace(bridge.contractId) ||
+            !IsValidPng(pngBytes) || pngBytes.Length > MaxBridgePhotoBytes)
+            return false;
+
+        string contractId = bridge.contractId.Trim();
+        string photoPath = GetBridgePhotoPath(contractId);
+        string hashPath = GetBridgePhotoHashPath(contractId);
+        string temporaryPhotoPath = photoPath + ".tmp";
+        string temporaryHashPath = hashPath + ".tmp";
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(photoPath));
-            File.WriteAllBytes(temporaryPath, pngBytes);
-            if (File.Exists(photoPath))
-            {
-                File.Copy(temporaryPath, photoPath, true);
-                File.Delete(temporaryPath);
-            }
-            else
-            {
-                File.Move(temporaryPath, photoPath);
-            }
+            File.WriteAllBytes(temporaryPhotoPath, pngBytes);
+            ReplaceCacheFile(temporaryPhotoPath, photoPath);
+            File.WriteAllText(temporaryHashPath,
+                ActualBridgePhotoMarkerVersion + ComputeBridgePhotoHash(bridge));
+            ReplaceCacheFile(temporaryHashPath, hashPath);
+            if (notify) OnBridgePhotoChanged?.Invoke(contractId);
+            return true;
         }
         catch (Exception exception)
         {
-            try { if (File.Exists(temporaryPath)) File.Delete(temporaryPath); }
-            catch (Exception) { }
-            Debug.LogWarning("[PlayerDataManager] Could not save bridge photo: " +
+            TryDeleteCacheFile(temporaryPhotoPath);
+            TryDeleteCacheFile(temporaryHashPath);
+            Debug.LogWarning("[PlayerDataManager] Could not cache bridge photo: " +
                 exception.Message, this);
             return false;
         }
-
-        record.sha256 = ComputeSha256(pngBytes);
-        record.byteLength = pngBytes.Length;
-        record.capturedAtUtc = DateTime.UtcNow.ToString("O");
-        record.pendingUpload = true;
-        OnBridgePhotoChanged?.Invoke(normalizedId);
-        return TrySaveGame();
     }
 
-    public bool TryGetPendingBridgePhoto(out BridgePhotoSaveData record, out string photoPath)
+    private bool IsBridgePhotoCacheCurrent(SavedBridgeData bridge, string photoPath)
     {
-        record = null;
-        photoPath = string.Empty;
-        if (CurrentData?.bridgePhotos == null) return false;
-        foreach (BridgePhotoSaveData candidate in CurrentData.bridgePhotos)
-        {
-            if (candidate == null || !candidate.pendingUpload ||
-                string.IsNullOrWhiteSpace(candidate.contractId) ||
-                string.IsNullOrWhiteSpace(candidate.photoId) ||
-                string.IsNullOrWhiteSpace(candidate.cloudFileName)) continue;
-            string candidatePath = GetBridgePhotoPath(candidate.contractId);
-            if (!File.Exists(candidatePath)) continue;
-            record = candidate;
-            photoPath = candidatePath;
-            return true;
-        }
-        return false;
-    }
-
-    public bool MarkBridgePhotoUploaded(string photoId, string uploadedHash)
-    {
-        BridgePhotoSaveData record = FindBridgePhotoById(photoId);
-        if (record == null || !string.Equals(record.sha256, uploadedHash,
-                StringComparison.OrdinalIgnoreCase)) return false;
-        bool previousPending = record.pendingUpload;
-        bool previousAvailable = record.cloudAvailable;
-        record.pendingUpload = false;
-        record.cloudAvailable = true;
-        if (TrySaveGame()) return true;
-        record.pendingUpload = previousPending;
-        record.cloudAvailable = previousAvailable;
-        return false;
-    }
-
-    public void MarkBridgePhotoUnavailable(string photoId)
-    {
-        BridgePhotoSaveData record = FindBridgePhotoById(photoId);
-        if (record == null) return;
-        bool previousAvailable = record.cloudAvailable;
-        record.cloudAvailable = false;
-        if (!TrySaveGame()) record.cloudAvailable = previousAvailable;
-        else OnBridgePhotoChanged?.Invoke(record.contractId);
-    }
-
-    public bool TryStoreDownloadedBridgePhoto(string photoId, byte[] pngBytes, out string error)
-    {
-        error = string.Empty;
-        BridgePhotoSaveData record = FindBridgePhotoById(photoId);
-        if (record == null) { error = "Photo metadata no longer exists."; return false; }
-        if (!IsValidPng(pngBytes) || pngBytes.Length > MaxBridgePhotoBytes)
-        {
-            error = "Downloaded photo is invalid or too large.";
-            return false;
-        }
-        if (!string.Equals(ComputeSha256(pngBytes), record.sha256,
-                StringComparison.OrdinalIgnoreCase))
-        {
-            error = "Downloaded photo hash does not match its save metadata.";
-            return false;
-        }
-
-        string photoPath = GetBridgePhotoPath(record.contractId);
-        string temporaryPath = photoPath + ".download";
+        if (bridge == null || !File.Exists(photoPath)) return false;
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(photoPath));
-            File.WriteAllBytes(temporaryPath, pngBytes);
-            if (File.Exists(photoPath)) File.Delete(photoPath);
-            File.Move(temporaryPath, photoPath);
-            OnBridgePhotoChanged?.Invoke(record.contractId);
-            return true;
+            byte[] bytes = File.ReadAllBytes(photoPath);
+            if (!IsValidPng(bytes) || bytes.Length > MaxBridgePhotoBytes) return false;
+
+            string expectedMarker = ActualBridgePhotoMarkerVersion + ComputeBridgePhotoHash(bridge);
+            string hashPath = GetBridgePhotoHashPath(bridge.contractId);
+            if (!File.Exists(hashPath))
+            {
+                // Photos without a marker predate generated previews, so preserve
+                // them as the original completion-camera capture.
+                File.WriteAllText(hashPath, expectedMarker);
+                return true;
+            }
+
+            return string.Equals(File.ReadAllText(hashPath).Trim(), expectedMarker,
+                StringComparison.OrdinalIgnoreCase);
         }
         catch (Exception exception)
         {
-            try { if (File.Exists(temporaryPath)) File.Delete(temporaryPath); }
-            catch (Exception) { }
-            error = exception.Message;
+            Debug.LogWarning("[PlayerDataManager] Could not inspect bridge preview cache: " +
+                exception.Message, this);
             return false;
         }
     }
 
-    private BridgePhotoSaveData FindBridgePhotoById(string photoId)
+    private string GetBridgePhotoHashPath(string contractId)
     {
-        if (CurrentData?.bridgePhotos == null || string.IsNullOrWhiteSpace(photoId)) return null;
-        return CurrentData.bridgePhotos.Find(record => record != null &&
-            string.Equals(record.photoId, photoId, StringComparison.Ordinal));
+        return GetBridgePhotoPath(contractId) + ".bridgehash";
     }
 
-    private static BridgePhotoSaveData CreateBridgePhotoRecord(string contractId)
+    private static void ReplaceCacheFile(string temporaryPath, string destinationPath)
     {
-        BridgePhotoSaveData record = new BridgePhotoSaveData { contractId = contractId };
-        EnsureBridgePhotoIdentity(record);
-        return record;
-    }
-
-    private static void EnsureBridgePhotoIdentity(BridgePhotoSaveData record)
-    {
-        if (record == null) return;
-        if (string.IsNullOrWhiteSpace(record.photoId))
-            record.photoId = Guid.NewGuid().ToString("N");
-        if (string.IsNullOrWhiteSpace(record.cloudFileName))
-            record.cloudFileName = "bridge_photo_" + record.photoId + ".png";
-    }
-
-    private void NormalizeBridgePhotoRecords()
-    {
-        if (CurrentData?.bridgePhotos == null) return;
-        CurrentData.bridgePhotos.RemoveAll(record => record == null ||
-            string.IsNullOrWhiteSpace(record.contractId));
-        foreach (BridgePhotoSaveData record in CurrentData.bridgePhotos)
+        if (File.Exists(destinationPath))
         {
-            record.contractId = record.contractId.Trim();
-            EnsureBridgePhotoIdentity(record);
-            string photoPath = GetBridgePhotoPath(record.contractId);
-            if (!File.Exists(photoPath)) continue;
-            try
-            {
-                byte[] bytes = File.ReadAllBytes(photoPath);
-                if (!IsValidPng(bytes) || bytes.Length > MaxBridgePhotoBytes) continue;
-                string localHash = ComputeSha256(bytes);
-                if (!string.Equals(record.sha256, localHash, StringComparison.OrdinalIgnoreCase))
-                {
-                    if (record.cloudAvailable && !record.pendingUpload &&
-                        !string.IsNullOrWhiteSpace(record.sha256))
-                    {
-                        // Cloud metadata came from the synchronized PlayerData.
-                        // Remove a stale cache so the matching remote image is
-                        // downloaded instead of uploading an older device copy.
-                        File.Delete(photoPath);
-                    }
-                    else
-                    {
-                        record.sha256 = localHash;
-                        record.byteLength = bytes.Length;
-                        record.pendingUpload = true;
-                    }
-                }
-            }
-            catch (Exception exception)
-            {
-                Debug.LogWarning("[PlayerDataManager] Could not inspect bridge photo: " +
-                    exception.Message, this);
-            }
+            File.Copy(temporaryPath, destinationPath, true);
+            File.Delete(temporaryPath);
         }
-
-        HashSet<string> knownContracts = new HashSet<string>(StringComparer.Ordinal);
-        foreach (BridgePhotoSaveData record in CurrentData.bridgePhotos)
-            knownContracts.Add(record.contractId);
-        if (CurrentData.savedBridges == null) return;
-        foreach (SavedBridgeData bridge in CurrentData.savedBridges)
+        else
         {
-            if (bridge == null || string.IsNullOrWhiteSpace(bridge.contractId) ||
-                knownContracts.Contains(bridge.contractId)) continue;
-            string photoPath = GetBridgePhotoPath(bridge.contractId);
-            if (!File.Exists(photoPath)) continue;
-            try
-            {
-                byte[] bytes = File.ReadAllBytes(photoPath);
-                if (!IsValidPng(bytes) || bytes.Length > MaxBridgePhotoBytes) continue;
-                BridgePhotoSaveData record = CreateBridgePhotoRecord(bridge.contractId);
-                record.sha256 = ComputeSha256(bytes);
-                record.byteLength = bytes.Length;
-                record.capturedAtUtc = File.GetLastWriteTimeUtc(photoPath).ToString("O");
-                record.pendingUpload = true;
-                CurrentData.bridgePhotos.Add(record);
-                knownContracts.Add(record.contractId);
-            }
-            catch (Exception exception)
-            {
-                Debug.LogWarning("[PlayerDataManager] Could not migrate bridge photo: " +
-                    exception.Message, this);
-            }
+            File.Move(temporaryPath, destinationPath);
         }
+    }
+
+    private static void TryDeleteCacheFile(string path)
+    {
+        try { if (File.Exists(path)) File.Delete(path); }
+        catch (Exception) { }
+    }
+
+    private static string ComputeBridgePhotoHash(SavedBridgeData bridge)
+    {
+        return ComputeSha256(Encoding.UTF8.GetBytes(JsonUtility.ToJson(bridge)));
     }
 
     private static bool IsValidPng(byte[] bytes)
@@ -2384,27 +2290,189 @@ public class PlayerDataManager : MonoBehaviour
     public string ResolveBridgePhotoPath(string contractId, string legacyContractName)
     {
         string scopedPath = GetBridgePhotoPath(contractId);
-        if (File.Exists(scopedPath)) return scopedPath;
+        SavedBridgeData bridge = GetSavedBridge(contractId);
+        if (bridge != null && IsBridgePhotoCacheCurrent(bridge, scopedPath)) return scopedPath;
+
+        // Never show an older generated drawing or a photo belonging to an old
+        // bridge revision while the real scene capture is pending.
+        TryDeleteCacheFile(scopedPath);
+        TryDeleteCacheFile(GetBridgePhotoHashPath(contractId));
 
         string oldPath = Path.Combine(Application.persistentDataPath,
             legacyContractName + "_photo.png");
-        if (string.IsNullOrEmpty(activeAccountId)) return oldPath;
-        if (!allowLegacyProgressPrefs) return scopedPath;
-
         string legacyById = Path.Combine(Application.persistentDataPath,
-            contractId + "_photo.png");
+            GetSafeBridgeCacheId(contractId) + "_photo.png");
         string source = File.Exists(legacyById) ? legacyById : oldPath;
-        if (!File.Exists(source)) return scopedPath;
+        if (bridge != null && allowLegacyProgressPrefs && File.Exists(source) &&
+            !string.Equals(source, scopedPath, StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(scopedPath));
+                File.Copy(source, scopedPath, true);
+                File.WriteAllText(GetBridgePhotoHashPath(contractId),
+                    ActualBridgePhotoMarkerVersion + ComputeBridgePhotoHash(bridge));
+                return scopedPath;
+            }
+            catch (Exception exception)
+            {
+                Debug.LogWarning("[PlayerDataManager] Could not copy bridge snapshot: " +
+                    exception.Message, this);
+            }
+        }
+
+        StartBridgePhotoWarmup();
+        return scopedPath;
+    }
+
+    private void StartBridgePhotoWarmup()
+    {
+        bridgePhotoWarmupRevision++;
+        if (bridgePhotoWarmup != null)
+        {
+            StopCoroutine(bridgePhotoWarmup);
+            bridgePhotoWarmup = null;
+        }
+
+        if (!isActiveAndEnabled || CurrentData?.savedBridges == null ||
+            CurrentData.savedBridges.Count == 0) return;
+        bridgePhotoWarmup = StartCoroutine(WarmBridgePhotoCache(bridgePhotoWarmupRevision));
+    }
+
+    private IEnumerator WarmBridgePhotoCache(int revision)
+    {
+        // BuildLocation.Start resolves the saved contract and reconstructs its
+        // real bridge. Wait for those scene objects and their visuals to settle.
+        yield return null;
+        yield return null;
+        List<string> contractIds = new List<string>();
+        foreach (SavedBridgeData bridge in CurrentData.savedBridges)
+        {
+            if (IsBridgeDataValid(bridge, out _) && !contractIds.Contains(bridge.contractId))
+                contractIds.Add(bridge.contractId);
+        }
+
+        foreach (string contractId in contractIds)
+        {
+            if (revision != bridgePhotoWarmupRevision) yield break;
+            SavedBridgeData bridge = GetSavedBridge(contractId);
+            string photoPath = GetBridgePhotoPath(contractId);
+            if (bridge == null || IsBridgePhotoCacheCurrent(bridge, photoPath)) continue;
+
+            BuildLocation location = FindLoadedBuildLocation(contractId);
+            if (location == null) continue;
+            if (location.bakedBars.Count == 0) location.LoadSavedBridge();
+            if (!DoesLoadedBridgeMatch(location, bridge)) continue;
+            CaptureActualBridgePhoto(location, bridge);
+
+            // Render at most one build location per frame during profile load.
+            yield return null;
+        }
+
+        if (revision == bridgePhotoWarmupRevision)
+            bridgePhotoWarmup = null;
+    }
+
+    private BuildLocation FindLoadedBuildLocation(string contractId)
+    {
+        foreach (BuildLocation location in Resources.FindObjectsOfTypeAll<BuildLocation>())
+        {
+            if (location == null || !location.gameObject.scene.IsValid() ||
+                !location.gameObject.scene.isLoaded || location.activeContract == null ||
+                !location.activeContract.MatchesIdentifier(contractId)) continue;
+            return location;
+        }
+        return null;
+    }
+
+    private static bool DoesLoadedBridgeMatch(BuildLocation location, SavedBridgeData bridge)
+    {
+        if (location == null || bridge?.points == null || bridge.bars == null ||
+            location.bakedPoints.Count != bridge.points.Count ||
+            location.bakedBars.Count != bridge.bars.Count) return false;
+
+        List<Point> unmatchedPoints = new List<Point>(location.bakedPoints);
+        foreach (SavedPointData savedPoint in bridge.points)
+        {
+            if (savedPoint?.position == null) return false;
+            Vector3 position = savedPoint.position.ToVector3();
+            int matchIndex = unmatchedPoints.FindIndex(point => point != null &&
+                Vector3.Distance(point.transform.position, position) < 0.1f);
+            if (matchIndex < 0) return false;
+            unmatchedPoints.RemoveAt(matchIndex);
+        }
+
+        List<SavedBarData> unmatchedBars = new List<SavedBarData>(bridge.bars);
+        foreach (Bar bar in location.bakedBars)
+        {
+            if (bar == null || bar.startPoint == null || bar.endPoint == null ||
+                bar.materialData == null) return false;
+            int matchIndex = unmatchedBars.FindIndex(savedBar =>
+            {
+                if (savedBar == null || !string.Equals(savedBar.materialName,
+                        bar.materialData.name, StringComparison.Ordinal)) return false;
+                SavedPointData savedStart = bridge.points.Find(point =>
+                    point != null && point.index == savedBar.startPointIndex);
+                SavedPointData savedEnd = bridge.points.Find(point =>
+                    point != null && point.index == savedBar.endPointIndex);
+                if (savedStart?.position == null || savedEnd?.position == null) return false;
+                Vector3 actualStart = bar.startPoint.transform.position;
+                Vector3 actualEnd = bar.endPoint.transform.position;
+                Vector3 expectedStart = savedStart.position.ToVector3();
+                Vector3 expectedEnd = savedEnd.position.ToVector3();
+                return (Vector3.Distance(actualStart, expectedStart) < 0.1f &&
+                        Vector3.Distance(actualEnd, expectedEnd) < 0.1f) ||
+                       (Vector3.Distance(actualStart, expectedEnd) < 0.1f &&
+                        Vector3.Distance(actualEnd, expectedStart) < 0.1f);
+            });
+            if (matchIndex < 0) return false;
+            unmatchedBars.RemoveAt(matchIndex);
+        }
+        return unmatchedBars.Count == 0;
+    }
+
+    private bool CaptureActualBridgePhoto(BuildLocation location, SavedBridgeData bridge)
+    {
+        Camera camera = location.cinematicCamera != null
+            ? location.cinematicCamera : location.locationCamera;
+        if (camera == null || !camera.gameObject.activeInHierarchy) return false;
+
+        const int width = 960;
+        const int height = 540;
+        RenderTexture render = RenderTexture.GetTemporary(width, height, 24,
+            RenderTextureFormat.ARGB32);
+        RenderTexture previousActive = RenderTexture.active;
+        RenderTexture previousTarget = camera.targetTexture;
+        bool cameraWasEnabled = camera.enabled;
+        bool gridWasEnabled = location.gridImage != null && location.gridImage.enabled;
+        Texture2D photo = null;
         try
         {
-            File.Copy(source, scopedPath);
+            if (gridWasEnabled) location.gridImage.enabled = false;
+            camera.targetTexture = render;
+            camera.enabled = true;
+            camera.Render();
+            RenderTexture.active = render;
+            photo = new Texture2D(width, height, TextureFormat.RGB24, false);
+            photo.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+            photo.Apply(false, false);
+            return WriteBridgePhotoCache(bridge, photo.EncodeToPNG(), true);
         }
         catch (Exception exception)
         {
-            Debug.LogWarning("[PlayerDataManager] Could not copy bridge snapshot: " +
-                exception.Message, this);
+            Debug.LogWarning($"[PlayerDataManager] Could not capture the actual bridge photo for " +
+                $"'{bridge.contractId}': {exception.Message}", this);
+            return false;
         }
-        return scopedPath;
+        finally
+        {
+            if (photo != null) Destroy(photo);
+            camera.enabled = cameraWasEnabled;
+            camera.targetTexture = previousTarget;
+            RenderTexture.active = previousActive;
+            if (gridWasEnabled) location.gridImage.enabled = true;
+            RenderTexture.ReleaseTemporary(render);
+        }
     }
 
     public bool TryApplyCloudData(string json, out string error)
@@ -2440,6 +2508,7 @@ public class PlayerDataManager : MonoBehaviour
 
     private void NotifyProfileChanged()
     {
+        StartBridgePhotoWarmup();
         OnCurrencyChanged?.Invoke();
         OnFeatureUnlocksChanged?.Invoke();
         OnAlmanacAlertsChanged?.Invoke();
