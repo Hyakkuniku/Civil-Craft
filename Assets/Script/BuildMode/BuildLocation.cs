@@ -328,6 +328,8 @@ public class BuildLocation : Interactable
         if (isRedesigningBridge || bakedBars.Count == 0 || IsRedesignBlockedByNPCTravel)
             return false;
 
+        if (buildModeOnlyStarterBridge == null)
+            buildModeOnlyStarterBridge = FindStarterBridgeAtAnchors();
         EnsureStarterBridgeRedesignTemplate();
         committedBarsBeforeRedesign.Clear();
         committedPointsBeforeRedesign.Clear();
@@ -361,7 +363,11 @@ public class BuildLocation : Interactable
         if (starterBridgeRedesignTemplate != null && buildModeOnlyStarterBridge != null)
         {
             committedStarterRootBeforeRedesign = buildModeOnlyStarterBridge;
-            redesignStarterRoot = Instantiate(starterBridgeRedesignTemplate);
+            // The authored starter is nested under its build site. Cloning it
+            // without that parent treats its large local offset as a world
+            // position and leaves the bridge outside the build camera.
+            redesignStarterRoot = Instantiate(starterBridgeRedesignTemplate,
+                starterBridgeRedesignTemplate.transform.parent, false);
             redesignStarterRoot.name = "RedesignStarter_" + committedStarterRootBeforeRedesign.name;
             buildModeOnlyStarterBridge = redesignStarterRoot;
         }
@@ -748,8 +754,6 @@ public class BuildLocation : Interactable
 
     private GameObject FindStarterBridgeAtAnchors()
     {
-        if (startingAnchors.Count == 0 || endingAnchors.Count == 0) return null;
-
         HashSet<GameObject> candidates = new HashSet<GameObject>();
         foreach (Bar bar in FindObjectsOfType<Bar>(true))
         {
@@ -761,15 +765,41 @@ public class BuildLocation : Interactable
             if (parent != null) candidates.Add(parent.gameObject);
         }
 
+        GameObject nearestLocalCandidate = null;
+        float nearestLocalDistanceSqr = 100f * 100f;
         foreach (GameObject candidate in candidates)
         {
+            // Several copied workbenches retain the same serialized anchors.
+            // Only a starter in this workbench's build-site hierarchy belongs
+            // to it; the nearest visible bar disambiguates nearby workbenches.
+            Transform candidateParent = candidate.transform.parent;
+            if (candidateParent == null || !transform.IsChildOf(candidateParent))
+                continue;
+
             Bar[] bars = candidate.GetComponentsInChildren<Bar>(true);
-            if (HasStarterEndpointAtAnchor(bars, startingAnchors) &&
+            float candidateDistanceSqr = float.PositiveInfinity;
+            foreach (Bar bar in bars)
+            {
+                if (bar == null || (bar.StartPosition - bar.EndPosition).sqrMagnitude < 0.0001f)
+                    continue;
+
+                float distanceSqr = (bar.transform.position - transform.position).sqrMagnitude;
+                if (distanceSqr < candidateDistanceSqr)
+                    candidateDistanceSqr = distanceSqr;
+            }
+
+            if (candidateDistanceSqr >= 100f * 100f) continue;
+            if (startingAnchors.Count > 0 && endingAnchors.Count > 0 &&
+                HasStarterEndpointAtAnchor(bars, startingAnchors) &&
                 HasStarterEndpointAtAnchor(bars, endingAnchors))
                 return candidate;
+
+            if (candidateDistanceSqr >= nearestLocalDistanceSqr) continue;
+            nearestLocalDistanceSqr = candidateDistanceSqr;
+            nearestLocalCandidate = candidate;
         }
 
-        return null;
+        return nearestLocalCandidate;
     }
 
     private static bool HasStarterEndpointAtAnchor(Bar[] bars, List<Point> anchors)
@@ -779,13 +809,38 @@ public class BuildLocation : Interactable
             if (anchor == null) continue;
             foreach (Bar bar in bars)
             {
-                if (bar == null) continue;
-                if (Vector3.Distance(bar.StartPosition, anchor.transform.position) < 1f ||
-                    Vector3.Distance(bar.EndPosition, anchor.transform.position) < 1f)
+                if (bar == null || (bar.StartPosition - bar.EndPosition).sqrMagnitude < 0.0001f)
+                    continue;
+
+                // Baked coordinates are world-space snapshots. Moving the prefab
+                // instance afterward does not update them, so compare the endpoints
+                // at their current world positions instead.
+                if (Vector3.Distance(GetStarterEndpointWorldPosition(bar, true), anchor.transform.position) < 1f ||
+                    Vector3.Distance(GetStarterEndpointWorldPosition(bar, false), anchor.transform.position) < 1f)
                     return true;
             }
         }
         return false;
+    }
+
+    private static Vector3 GetStarterEndpointWorldPosition(Bar bar, bool isStart)
+    {
+        Point endpoint = isStart ? bar.startPoint : bar.endPoint;
+        if (endpoint != null) return endpoint.transform.position;
+
+        // An endpoint at a scene anchor cannot be serialized in a prefab. Use
+        // the other endpoint's displacement when available; otherwise the bar's
+        // midpoint gives the displacement of the whole baked prefab instance.
+        Point otherEndpoint = isStart ? bar.endPoint : bar.startPoint;
+        Vector3 original = isStart ? bar.StartPosition : bar.EndPosition;
+        if (otherEndpoint != null)
+        {
+            Vector3 otherOriginal = isStart ? bar.EndPosition : bar.StartPosition;
+            return original + (otherEndpoint.transform.position - otherOriginal);
+        }
+
+        Vector3 originalMidpoint = (bar.StartPosition + bar.EndPosition) * 0.5f;
+        return original + (bar.transform.position - originalMidpoint);
     }
 
     public void ShowBuildModeOnlyStarterBridge()
@@ -804,6 +859,13 @@ public class BuildLocation : Interactable
         {
             if (bar == null || !bar.gameObject.activeInHierarchy ||
                 (bar.StartPosition - bar.EndPosition).sqrMagnitude < 0.0001f) continue;
+
+            // Keep the repair coordinates in sync with a repositioned prefab.
+            // Calculate both before changing either stored endpoint.
+            Vector3 currentStart = GetStarterEndpointWorldPosition(bar, true);
+            Vector3 currentEnd = GetStarterEndpointWorldPosition(bar, false);
+            bar.StartPosition = currentStart;
+            bar.EndPosition = currentEnd;
             bar.AutoRepairEndpoints();
             RepairStarterAnchorEndpoint(bar, true);
             RepairStarterAnchorEndpoint(bar, false);
@@ -820,7 +882,8 @@ public class BuildLocation : Interactable
 
         // Capture the authored bridge before the player can edit or erase it.
         // Keep this copy inactive; Redesign receives a separate editable clone.
-        starterBridgeRedesignTemplate = Instantiate(buildModeOnlyStarterBridge);
+        starterBridgeRedesignTemplate = Instantiate(buildModeOnlyStarterBridge,
+            buildModeOnlyStarterBridge.transform.parent, false);
         starterBridgeRedesignTemplate.name = "RedesignTemplate_" + buildModeOnlyStarterBridge.name;
         starterBridgeRedesignTemplate.SetActive(false);
     }
