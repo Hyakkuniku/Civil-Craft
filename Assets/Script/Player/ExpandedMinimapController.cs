@@ -169,8 +169,17 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
     private void Start()
     {
+#if UNITY_EDITOR
+        long startupStarted = System.Diagnostics.Stopwatch.GetTimestamp();
+#endif
         ResolveReferencesAndBuildUI();
         RebuildLocationMarkers();
+#if UNITY_EDITOR
+        double startupSeconds = (System.Diagnostics.Stopwatch.GetTimestamp() - startupStarted) /
+                                (double)System.Diagnostics.Stopwatch.Frequency;
+        if (startupSeconds > 0.1)
+            Debug.Log($"[LoadingScreen Diagnostic] ExpandedMinimap Start took {startupSeconds:F2}s.", this);
+#endif
     }
 
     private void OnDestroy()

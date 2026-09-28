@@ -56,6 +56,13 @@ public sealed class LoadingScreenManager : MonoBehaviour
     private LoadingScreenAssets assets;
     private bool isLoading;
     private int lastDisplayedPercent = -1;
+#if UNITY_EDITOR
+    private AsyncOperation observedSceneLoad;
+    private float previousLoadingFrameTime;
+    private float previousSceneLoadProgress;
+    private string loadingPhase;
+    private readonly List<SkinnedMeshRenderer> diagnosticGarmentRenderers = new List<SkinnedMeshRenderer>();
+#endif
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void Bootstrap()
@@ -176,8 +183,15 @@ public sealed class LoadingScreenManager : MonoBehaviour
             if (playerImage != null) playerImage.enabled = false;
         }
         yield return null;
+#if UNITY_EDITOR
+        LogPreviewRenderDiagnostics();
+        loadingPhase = "Scene loading";
+#endif
 
         AsyncOperation operation = SceneManager.LoadSceneAsync(sceneName);
+#if UNITY_EDITOR
+        observedSceneLoad = operation;
+#endif
         if (operation == null)
         {
             Debug.LogError($"[LoadingScreen] Unity could not start loading '{sceneName}'.", this);
@@ -203,6 +217,9 @@ public sealed class LoadingScreenManager : MonoBehaviour
 
         // Do not wait for the visual bar to catch up before allowing activation.
         // Awake and OnEnable run during this phase, under the loading overlay.
+#if UNITY_EDITOR
+        loadingPhase = "Scene activation";
+#endif
         operation.allowSceneActivation = true;
         while (!operation.isDone)
         {
@@ -214,6 +231,9 @@ public sealed class LoadingScreenManager : MonoBehaviour
 
         // Start runs on the first destination-scene frame. Give it that frame,
         // then observe the scene's explicit readiness signals until they finish.
+#if UNITY_EDITOR
+        loadingPhase = "Scene initialization";
+#endif
         yield return null;
 
         Scene destination = SceneManager.GetActiveScene();
@@ -249,7 +269,90 @@ public sealed class LoadingScreenManager : MonoBehaviour
         SetVisible(false, true);
         ReleasePreviewModel();
         isLoading = false;
+#if UNITY_EDITOR
+        observedSceneLoad = null;
+        previousLoadingFrameTime = 0f;
+        loadingPhase = null;
+#endif
     }
+
+#if UNITY_EDITOR
+    private void LateUpdate()
+    {
+        if (!isLoading) return;
+        float now = Time.realtimeSinceStartup;
+        float gap = now - previousLoadingFrameTime;
+        if (previousLoadingFrameTime > 0f && gap > 0.5f)
+        {
+            float currentSceneProgress = observedSceneLoad != null
+                ? observedSceneLoad.progress : -1f;
+            Debug.LogWarning(
+                $"[LoadingScreen Diagnostic] No loading-screen frame for {gap:F2}s " +
+                $"during {loadingPhase}; displayed={lastDisplayedPercent}%, " +
+                $"scene progress {previousSceneLoadProgress:F2} -> {currentSceneProgress:F2}.", this);
+        }
+        previousLoadingFrameTime = now;
+        previousSceneLoadProgress = observedSceneLoad != null
+            ? observedSceneLoad.progress : -1f;
+    }
+
+    private void LogPreviewOutfitDiagnostics()
+    {
+        if (previewModel == null) return;
+        diagnosticGarmentRenderers.Clear();
+        PlayerCosmeticMirror mirror = previewModel.GetComponentInChildren<PlayerCosmeticMirror>(true);
+        CosmeticLoadoutData loadout = PlayerDataManager.Instance != null
+            ? PlayerDataManager.Instance.GetCosmeticLoadoutCopy() : null;
+        Debug.Log($"[LoadingScreen Diagnostic] Saved shirt={loadout?.shirtID ?? "<none>"}, " +
+                  $"pants={loadout?.pantsID ?? "<none>"}; preview mirror={mirror != null}.", this);
+        if (mirror == null) return;
+
+        foreach (CosmeticModelBinding binding in mirror.cosmeticBindings)
+        {
+            if (binding == null || (binding.category != CosmeticCategory.Shirt &&
+                                    binding.category != CosmeticCategory.Pants) || binding.models == null)
+                continue;
+            foreach (GameObject model in binding.models)
+            {
+                if (model == null || !model.activeInHierarchy) continue;
+                foreach (SkinnedMeshRenderer renderer in model.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+                {
+                    diagnosticGarmentRenderers.Add(renderer);
+                    Debug.Log($"[LoadingScreen Diagnostic] {binding.category}/{binding.cosmeticID}: " +
+                              $"model={model.name}, renderer={renderer.name}, active={renderer.gameObject.activeInHierarchy}, " +
+                              $"enabled={renderer.enabled}, visible={renderer.isVisible}, " +
+                              $"mesh={renderer.sharedMesh?.name ?? "<none>"}, " +
+                              $"bounds={renderer.bounds}, offscreen={renderer.updateWhenOffscreen}.", this);
+                    foreach (Material material in renderer.sharedMaterials)
+                    {
+                        if (material == null) continue;
+                        Color baseColor = material.HasProperty("_BaseColor")
+                            ? material.GetColor("_BaseColor")
+                            : material.HasProperty("_Color") ? material.GetColor("_Color") : Color.white;
+                        Debug.Log($"[LoadingScreen Diagnostic] Material {material.name}: " +
+                                  $"shader={material.shader?.name ?? "<none>"}, " +
+                                  $"queue={material.renderQueue}, alpha={baseColor.a:F3}.", this);
+                    }
+                }
+            }
+        }
+    }
+
+    private void LogPreviewRenderDiagnostics()
+    {
+        if (previewCamera == null || diagnosticGarmentRenderers.Count == 0) return;
+        Plane[] planes = GeometryUtility.CalculateFrustumPlanes(previewCamera);
+        foreach (SkinnedMeshRenderer renderer in diagnosticGarmentRenderers)
+        {
+            if (renderer == null) continue;
+            Debug.Log($"[LoadingScreen Diagnostic] Rendered {renderer.name}: " +
+                      $"active={renderer.gameObject.activeInHierarchy}, enabled={renderer.enabled}, " +
+                      $"visible={renderer.isVisible}, inFrustum={GeometryUtility.TestPlanesAABB(planes, renderer.bounds)}, " +
+                      $"layer={renderer.gameObject.layer}, offscreen={renderer.updateWhenOffscreen}, " +
+                      $"bounds={renderer.bounds}.", this);
+        }
+    }
+#endif
 
     private static float AdvanceProgress(
         float current, float realTarget, float shownAt,
@@ -526,6 +629,9 @@ public sealed class LoadingScreenManager : MonoBehaviour
                 {
                     previewModel.name = "Loading Player (Saved Appearance)";
                     ApplySavedPreviewAppearance(previewModel, null);
+#if UNITY_EDITOR
+                    LogPreviewOutfitDiagnostics();
+#endif
                     StripGameplayComponents(previewModel);
                 }
                 else if (clone != null)
@@ -551,6 +657,9 @@ public sealed class LoadingScreenManager : MonoBehaviour
                 previewModel = Instantiate(source, previewStage, false);
                 previewModel.name = "Loading Player (Scene Fallback)";
                 ApplySavedPreviewAppearance(previewModel, source);
+#if UNITY_EDITOR
+                LogPreviewOutfitDiagnostics();
+#endif
                 StripGameplayComponents(previewModel);
             }
         }
@@ -575,7 +684,7 @@ public sealed class LoadingScreenManager : MonoBehaviour
         preview.BeginRunning(assets != null ? assets.playerAnimatorController : null);
 
         FramePreviewModel();
-        ExpandAnimatedRendererBounds();
+        KeepPreviewSkinnedMeshesUpdating();
         previewCamera.enabled = true;
     }
 
@@ -694,8 +803,8 @@ public sealed class LoadingScreenManager : MonoBehaviour
             renderer.shadowCastingMode = ShadowCastingMode.On;
             renderer.allowOcclusionWhenDynamic = false;
 
-            // Clothing and shoes are separate skinned meshes. Their preview-only
-            // culling bounds are set after the saved outfit has been framed.
+            // Clothing and shoes are separate skinned meshes. Keep them updating
+            // in the preview even if their imported bounds are too small.
             if (renderer is SkinnedMeshRenderer skinnedRenderer)
                 skinnedRenderer.forceMatrixRecalculationPerRender = true;
         }
@@ -741,51 +850,15 @@ public sealed class LoadingScreenManager : MonoBehaviour
             previewCamera.transform.position -= forward * (minimumDepth - nearestDepth);
     }
 
-    private void ExpandAnimatedRendererBounds()
+    private void KeepPreviewSkinnedMeshesUpdating()
     {
-        // Use one generous preview-character volume for every active skinned
-        // garment. Imported clothing bounds can be tiny or offset relative to
-        // the running rig, causing individual shirts/pants/shoes to disappear.
-        // Update When Offscreen would recalculate and overwrite manual bounds,
-        // so keep it off once these preview-only bounds are assigned.
-        Renderer[] renderers = previewModel.GetComponentsInChildren<Renderer>(true);
-        Bounds characterBounds = default;
-        bool hasVisibleRenderer = false;
-        foreach (Renderer renderer in renderers)
-        {
-            if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy)
-                continue;
-            if (!hasVisibleRenderer)
-            {
-                characterBounds = renderer.bounds;
-                hasVisibleRenderer = true;
-            }
-            else characterBounds.Encapsulate(renderer.bounds);
-        }
-        if (!hasVisibleRenderer) return;
-
-        characterBounds.Expand(characterBounds.size * 0.5f + Vector3.one * 0.2f);
-        Vector3 worldMin = characterBounds.min;
-        Vector3 worldMax = characterBounds.max;
-        foreach (SkinnedMeshRenderer renderer in
-                 previewModel.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+        // The imported shirt/pants bounds can miss this separate running
+        // animation, so Unity culls only those garments and leaves a bare rig.
+        // This affects the small, temporary loading preview, not gameplay models.
+        foreach (SkinnedMeshRenderer renderer in previewModel.GetComponentsInChildren<SkinnedMeshRenderer>(true))
         {
             if (!renderer.gameObject.activeInHierarchy || !renderer.enabled) continue;
-
-            Transform rendererTransform = renderer.transform;
-            Bounds localBounds = new Bounds(
-                rendererTransform.InverseTransformPoint(characterBounds.center), Vector3.zero);
-            for (int corner = 0; corner < 8; corner++)
-            {
-                Vector3 worldCorner = new Vector3(
-                    (corner & 1) == 0 ? worldMin.x : worldMax.x,
-                    (corner & 2) == 0 ? worldMin.y : worldMax.y,
-                    (corner & 4) == 0 ? worldMin.z : worldMax.z);
-                localBounds.Encapsulate(rendererTransform.InverseTransformPoint(worldCorner));
-            }
-
-            renderer.updateWhenOffscreen = false;
-            renderer.localBounds = localBounds;
+            renderer.updateWhenOffscreen = true;
             renderer.forceMatrixRecalculationPerRender = true;
         }
     }

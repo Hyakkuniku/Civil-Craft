@@ -486,7 +486,19 @@ public class NPCProgressionManager : MonoBehaviour
         RestoreMissedPhaseFeatureUnlocks(currentPhaseIndex);
 
         if (restoreSavedPhaseBridgesOnStart)
+        {
+#if UNITY_EDITOR
+            long bridgeRestoreStarted = System.Diagnostics.Stopwatch.GetTimestamp();
+#endif
             RestoreSavedPhaseBridges();
+#if UNITY_EDITOR
+            double bridgeRestoreSeconds = (System.Diagnostics.Stopwatch.GetTimestamp() - bridgeRestoreStarted) /
+                                          (double)System.Diagnostics.Stopwatch.Frequency;
+            if (bridgeRestoreSeconds > 0.1)
+                Debug.Log($"[LoadingScreen Diagnostic] NPC '{name}' saved bridge restore took " +
+                          $"{bridgeRestoreSeconds:F2}s.", this);
+#endif
+        }
 
         // Waypoint travel can resume an interrupted transition without either
         // teleporting the NPC or requiring the completion event to fire again.

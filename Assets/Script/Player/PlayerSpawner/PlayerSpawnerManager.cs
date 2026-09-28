@@ -87,7 +87,16 @@ public class PlayerSpawnManager : MonoBehaviour
         if (!validateSavedSpawnAgainstNavMesh)
             return true;
 
+#if UNITY_EDITOR
+        long triangulationStarted = System.Diagnostics.Stopwatch.GetTimestamp();
+#endif
         NavMeshTriangulation triangulation = NavMesh.CalculateTriangulation();
+#if UNITY_EDITOR
+        double triangulationSeconds = (System.Diagnostics.Stopwatch.GetTimestamp() - triangulationStarted) /
+                                      (double)System.Diagnostics.Stopwatch.Frequency;
+        Debug.Log($"[LoadingScreen Diagnostic] Spawn NavMesh triangulation took {triangulationSeconds:F2}s " +
+                  $"({triangulation.vertices?.Length ?? 0} vertices).", this);
+#endif
         if (triangulation.vertices == null || triangulation.vertices.Length == 0)
             return true;
 

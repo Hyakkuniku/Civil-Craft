@@ -126,6 +126,10 @@ public class BuildLocation : Interactable
 
     private void Start()
     {
+#if UNITY_EDITOR
+        long startupStarted = System.Diagnostics.Stopwatch.GetTimestamp();
+        long sectionStarted = startupStarted;
+#endif
         if (activeContract != null && (PlayerDataManager.Instance != null
                 ? PlayerDataManager.Instance.IsContractLocked(activeContract.ContractID)
                 : PlayerPrefs.GetInt("LockedContract_" + activeContract.ContractID, 0) == 1))
@@ -138,8 +142,14 @@ public class BuildLocation : Interactable
         {
             b.AutoRepairEndpoints();
         }
+#if UNITY_EDITOR
+        LogStartupSection("bar scan/repair", ref sectionStarted);
+#endif
 
         ClaimConnectedBridgeOwnership();
+#if UNITY_EDITOR
+        LogStartupSection("claim ownership", ref sectionStarted);
+#endif
 
         // Multiplayer bridges exist only for the current Photon room. Never
         // hydrate one from the player's single-player bridge records.
@@ -148,12 +158,33 @@ public class BuildLocation : Interactable
             ResolveSavedBridgeContract();
             LoadSavedBridge();
         }
+#if UNITY_EDITOR
+        LogStartupSection("saved bridge restore", ref sectionStarted);
+#endif
 
         if (bakedBars.Count == 0) 
         {
             SetBridgeScriptsActive(false);
         }
+#if UNITY_EDITOR
+        LogStartupSection("disable unbaked scripts", ref sectionStarted);
+        double totalSeconds = (System.Diagnostics.Stopwatch.GetTimestamp() - startupStarted) /
+                              (double)System.Diagnostics.Stopwatch.Frequency;
+        if (totalSeconds > 0.1)
+            Debug.Log($"[LoadingScreen Diagnostic] BuildLocation '{name}' Start took {totalSeconds:F2}s.", this);
+#endif
     }
+
+#if UNITY_EDITOR
+    private void LogStartupSection(string section, ref long previousTick)
+    {
+        long now = System.Diagnostics.Stopwatch.GetTimestamp();
+        double seconds = (now - previousTick) / (double)System.Diagnostics.Stopwatch.Frequency;
+        previousTick = now;
+        if (seconds > 0.1)
+            Debug.Log($"[LoadingScreen Diagnostic] BuildLocation '{name}' {section} took {seconds:F2}s.", this);
+    }
+#endif
 
     private void Update()
     {
