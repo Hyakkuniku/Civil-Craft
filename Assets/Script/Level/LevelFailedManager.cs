@@ -486,6 +486,16 @@ public class LevelFailedManager : MonoBehaviour
         string reason = failureReason ?? string.Empty;
         string normalized = reason.ToLowerInvariant();
 
+        if (normalized.Contains("boat") &&
+            (normalized.Contains("impact") || normalized.Contains("collid") ||
+             normalized.Contains("struck")))
+        {
+            return new FailurePresentation(
+                "BOAT STRUCK THE BRIDGE",
+                "The boat hit bridge members in its crossing route, causing local damage and ending the test.",
+                "Raise or move members out of the boat's path, keep the channel clear, and support the revised span.");
+        }
+
         if (normalized.Contains("unstable") || normalized.Contains("mechanism"))
         {
             return new FailurePresentation(

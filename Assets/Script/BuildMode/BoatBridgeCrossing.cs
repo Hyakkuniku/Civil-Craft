@@ -9,11 +9,12 @@ using UnityEngine.Serialization;
 [DisallowMultipleComponent]
 public sealed class BoatBridgeCrossing : MonoBehaviour
 {
-    [Header("Contract and Route")]
+    [Header("Contract and Travel")]
     public ContractSO assignedContract;
-    [Tooltip("Scene marker for the boat's starting pose. Keep route markers outside the boat hierarchy.")]
-    public Transform startPoint;
-    public Transform endPoint;
+    [Tooltip("World-space movement direction. The placed boat transform is the starting pose.")]
+    [SerializeField] private Vector3 travelDirection = Vector3.back;
+    [Tooltip("Distance traveled before the boat is hidden. No endpoint object is needed.")]
+    [SerializeField, Min(0.01f)] private float travelDistance = 100f;
     [SerializeField, Min(0.01f)] private float speed = 3f;
     [SerializeField, Min(0f)] private float startDelay;
     [Tooltip("Optional. Leave empty to find the scene's bridge simulation manager.")]
@@ -30,10 +31,28 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
     [Tooltip("Prevent the boat from physically pushing other objects. Mesh Colliders stay enabled during crossing so exact impact checks work.")]
     [FormerlySerializedAs("disableBoatPhysicalColliders")]
     [SerializeField] private bool preventBoatPhysicalContacts = true;
+    [Tooltip("Radius around the first struck member that can also be damaged.")]
+    [SerializeField, Min(0.1f)] private float impactRadius = 5f;
+    [Tooltip("Maximum number of members released at one impact, including the first.")]
+    [SerializeField, Range(1, 8)] private int maxBrokenMembers = 4;
+    [Tooltip("Minimum boat travel between separate impacts. Keeps adjacent colliders from causing a burst every physics step.")]
+    [SerializeField, Min(0f)] private float impactSpacing = 3f;
+    [Tooltip("Small downward velocity given to intact members near contact so the surrounding bridge visibly yields. Set to 0 to disable.")]
+    [SerializeField, Min(0f)] private float impactDeflectionSpeed = 0.45f;
+    [Tooltip("Optional authored effect. When empty, a small pooled wood-impact particle effect is created once.")]
+    [SerializeField] private ParticleSystem impactEffect;
+    [Tooltip("URP transparent particle material for the fallback impact effect. Assign a material asset so it is included in mobile builds.")]
+    [SerializeField] private Material impactMaterial;
+    [Tooltip("World-space size of the fallback wood splinters.")]
+    [SerializeField, Min(0.1f)] private float impactParticleSize = 0.9f;
+    [Tooltip("Moves the impact burst slightly toward the build camera so the boat hull does not hide it.")]
+    [SerializeField, Min(0f)] private float impactCameraOffset = 2f;
 
     private readonly RaycastHit[] sweepHits = new RaycastHit[64];
     private readonly Collider[] overlapHits = new Collider[64];
     private readonly List<Collider> bridgeColliders = new List<Collider>(128);
+    private readonly List<Bar> impactedBars = new List<Bar>(8);
+    private readonly List<float> impactedDistances = new List<float>(8);
     private BridgePhysicsManager subscribedManager;
     private BuildLocation activeLocation;
     private BridgeSelectionOutline buildModeOutline;
@@ -48,9 +67,14 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
     private bool finishedCrossing;
     private float delayRemaining;
     private bool warnedFullQuery;
+    private Vector3 authoredPosition;
+    private Quaternion authoredRotation;
+    private Vector3 crossingDirection;
+    private float distanceTraveled;
+    private float lastImpactDistance = float.NegativeInfinity;
+    private Material generatedImpactMaterial;
 
-    private bool HasIndependentRoute => startPoint != null && endPoint != null &&
-        !startPoint.IsChildOf(transform) && !endPoint.IsChildOf(transform);
+    private bool HasTravelDirection => travelDirection.sqrMagnitude > 0.000001f;
 
     private void Awake()
     {
@@ -64,6 +88,8 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
         }
 
         boatRenderers = GetComponentsInChildren<Renderer>(true);
+        authoredPosition = transform.position;
+        authoredRotation = transform.rotation;
         boatMeshColliders = GetComponentsInChildren<MeshCollider>(true);
         boatMeshWorldBounds = new Bounds[boatMeshColliders.Length];
         for (int i = 0; i < boatMeshColliders.Length; i++)
@@ -73,6 +99,7 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
         for (int i = 0; i < boatRenderers.Length; i++)
             authoredRendererStates[i] = boatRenderers[i].enabled;
         RefreshHull();
+        if (impactEffect == null) CreateDefaultImpactEffect();
 
         if (preventBoatPhysicalContacts)
         {
@@ -101,8 +128,6 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
     {
         // Also catches a manager instantiated after this boat's OnEnable.
         BindSimulationManager();
-        if (HasIndependentRoute)
-            transform.SetPositionAndRotation(startPoint.position, startPoint.rotation);
         RefreshHull();
     }
 
@@ -118,6 +143,7 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
     {
         UnbindSimulationManager();
         DisposeOutline();
+        if (generatedImpactMaterial != null) Destroy(generatedImpactMaterial);
     }
 
     private void BindSimulationManager()
@@ -142,7 +168,7 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
 
     private void Update()
     {
-        bool showOutline = !finishedCrossing && !moving && HasIndependentRoute &&
+        bool showOutline = !finishedCrossing && !moving && HasTravelDirection &&
             GameManager.Instance != null &&
             GameManager.Instance.CurrentState == GameManager.GameState.Building &&
             !GameManager.Instance.IsTransitioning &&
@@ -170,9 +196,9 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
             GameManager.Instance.ActiveBuildLocation == null)
             return;
 
-        if (!HasIndependentRoute)
+        if (!HasTravelDirection)
         {
-            Debug.LogWarning("[BoatBridgeCrossing] Assign Start Point and End Point outside the boat prefab hierarchy.", this);
+            Debug.LogWarning("[BoatBridgeCrossing] Set a nonzero Travel Direction on the boat.", this);
             return;
         }
 
@@ -180,7 +206,11 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
         CacheBridgeColliders();
         finishedCrossing = false;
         SetBoatVisible(true);
-        transform.SetPositionAndRotation(startPoint.position, startPoint.rotation);
+        transform.SetPositionAndRotation(authoredPosition, authoredRotation);
+        crossingDirection = travelDirection.normalized;
+        distanceTraveled = 0f;
+        lastImpactDistance = float.NegativeInfinity;
+        if (impactEffect != null) impactEffect.Clear(true);
         SetMeshQueriesActive(true);
         RefreshHull();
         delayRemaining = startDelay;
@@ -196,11 +226,12 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
         activeLocation = null;
         bridgeColliders.Clear();
         delayRemaining = 0f;
-        if (startPoint != null)
-            transform.SetPositionAndRotation(startPoint.position, startPoint.rotation);
-        // A completed crossing stays hidden. Retry makes it visible again when
-        // the next simulation starts; an interrupted crossing remains visible.
-        SetBoatVisible(!finishedCrossing);
+        if (impactEffect != null) impactEffect.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        transform.SetPositionAndRotation(authoredPosition, authoredRotation);
+        // Hide only after a crossing has finished during simulation. Returning
+        // to build mode restores the authored boat and its selection outline.
+        finishedCrossing = false;
+        SetBoatVisible(true);
     }
 
     private void FixedUpdate()
@@ -209,7 +240,7 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
             activeLocation == null || GameManager.Instance == null ||
             GameManager.Instance.ActiveBuildLocation != activeLocation ||
             !MatchesContract(assignedContract, GameManager.Instance.CurrentContract) ||
-            !HasIndependentRoute)
+            !HasTravelDirection)
             return;
 
         if (delayRemaining > 0f)
@@ -220,28 +251,28 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
 
         Vector3 previousCenter = transform.TransformPoint(activeHullCenter);
         Vector3 previousPosition = transform.position;
-        Vector3 nextPosition = Vector3.MoveTowards(previousPosition, endPoint.position,
-            speed * Time.fixedDeltaTime);
+        float step = Mathf.Min(speed * Time.fixedDeltaTime,
+            Mathf.Max(0f, travelDistance - distanceTraveled));
+        Vector3 nextPosition = previousPosition + crossingDirection * step;
         transform.position = nextPosition;
 
-        if (!useManualHull && hasBoatMeshColliders)
+        if (distanceTraveled - lastImpactDistance >= impactSpacing)
         {
-            if (TryBreakWithMeshColliders(previousPosition, nextPosition)) return;
-        }
-        else if (TryBreakWithBox(previousCenter, previousPosition, nextPosition))
-        {
-            return;
+            if (!useManualHull && hasBoatMeshColliders)
+                TryBreakWithMeshColliders(previousPosition, nextPosition);
+            else
+                TryBreakWithBox(previousCenter);
         }
 
-        if (nextPosition != endPoint.position) return;
+        distanceTraveled += step;
+        if (distanceTraveled < travelDistance) return;
         moving = false;
         SetMeshQueriesActive(false);
         finishedCrossing = true;
         SetBoatVisible(false);
     }
 
-    private bool TryBreakWithBox(Vector3 previousCenter, Vector3 previousPosition,
-        Vector3 nextPosition)
+    private bool TryBreakWithBox(Vector3 previousCenter)
     {
         Vector3 scale = transform.lossyScale;
         Vector3 halfExtents = new Vector3(
@@ -266,10 +297,9 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
                 nearestBridgeHit = i;
                 nearestDistance = sweepHits[i].distance;
             }
-            if (nearestBridgeHit >= 0 && TryBreakHit(sweepHits[nearestBridgeHit].collider))
+            if (nearestBridgeHit >= 0 && TryBreakHit(sweepHits[nearestBridgeHit].collider,
+                    nextCenter))
             {
-                transform.position = Vector3.MoveTowards(previousPosition, nextPosition,
-                    Mathf.Max(0f, nearestDistance));
                 return true;
             }
         }
@@ -279,20 +309,91 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
             QueryTriggerInteraction.Ignore);
         WarnIfQueryFilled(overlaps, overlapHits.Length);
         for (int i = 0; i < overlaps; i++)
-            if (TryBreakHit(overlapHits[i])) return true;
+            if (TryBreakHit(overlapHits[i], nextCenter)) return true;
 
         return false;
     }
 
-    private bool TryBreakHit(Collider hit)
+    private bool TryBreakHit(Collider hit, Vector3 boatContactCenter)
     {
-        if (!TryGetActiveBridgeBar(hit, out Bar bar) ||
-            !subscribedManager.TryBreakMemberFromExternalImpact(bar, "boat impact"))
+        if (!TryGetActiveBridgeBar(hit, out Bar bar))
             return false;
 
-        moving = false;
-        SetMeshQueriesActive(false);
+        Vector3 impactPoint = hit.ClosestPoint(boatContactCenter);
+        CollectImpactArea(bar, impactPoint);
+        if (subscribedManager.BreakMembersFromExternalImpact(impactedBars,
+                "boat impact") == 0) return false;
+
+        ApplyLocalImpactDeflection(impactPoint);
+        lastImpactDistance = distanceTraveled;
+        PlayImpactEffect(impactPoint);
         return true;
+    }
+
+    private void CollectImpactArea(Bar struckBar, Vector3 impactPoint)
+    {
+        impactedBars.Clear();
+        impactedDistances.Clear();
+        impactedBars.Add(struckBar);
+        impactedDistances.Add(0f);
+        float radiusSquared = impactRadius * impactRadius;
+
+        foreach (BarStressHandler member in subscribedManager.activeStressHandlers)
+        {
+            Bar candidate = member != null ? member.Bar : null;
+            if (candidate == null || candidate == struckBar || member.isBroken ||
+                !activeLocation.Owns(candidate) || candidate.startPoint == null ||
+                candidate.endPoint == null) continue;
+
+            float distanceSquared = DistanceSquaredToBar(candidate, impactPoint);
+            if (distanceSquared > radiusSquared) continue;
+
+            int index = 1;
+            while (index < impactedDistances.Count &&
+                   impactedDistances[index] <= distanceSquared) index++;
+            if (index >= maxBrokenMembers) continue;
+            impactedBars.Insert(index, candidate);
+            impactedDistances.Insert(index, distanceSquared);
+            if (impactedBars.Count <= maxBrokenMembers) continue;
+            impactedBars.RemoveAt(maxBrokenMembers);
+            impactedDistances.RemoveAt(maxBrokenMembers);
+        }
+    }
+
+    private void ApplyLocalImpactDeflection(Vector3 impactPoint)
+    {
+        if (impactDeflectionSpeed <= 0f) return;
+        float radiusSquared = impactRadius * impactRadius;
+        foreach (BarStressHandler member in subscribedManager.activeStressHandlers)
+        {
+            Bar bar = member != null ? member.Bar : null;
+            if (bar == null || member.isBroken || !activeLocation.Owns(bar) ||
+                bar.startPoint == null || bar.endPoint == null) continue;
+
+            float distanceSquared = DistanceSquaredToBar(bar, impactPoint);
+            if (distanceSquared > radiusSquared) continue;
+            Rigidbody body = bar.GetComponent<Rigidbody>();
+            if (body == null || body.isKinematic) continue;
+
+            float falloff = 1f - 0.5f * Mathf.Sqrt(distanceSquared) / impactRadius;
+            float desiredDownSpeed = impactDeflectionSpeed * falloff;
+            float additionalSpeed = Mathf.Min(desiredDownSpeed,
+                Mathf.Max(0f, desiredDownSpeed + body.velocity.y));
+            if (additionalSpeed <= 0f) continue;
+            body.AddForce(Vector3.down * body.mass * additionalSpeed, ForceMode.Impulse);
+            body.WakeUp();
+        }
+    }
+
+    private static float DistanceSquaredToBar(Bar bar, Vector3 position)
+    {
+        Vector3 start = bar.startPoint.transform.position;
+        Vector3 segment = bar.endPoint.transform.position - start;
+        float lengthSquared = segment.sqrMagnitude;
+        float fraction = lengthSquared > 0.000001f
+            ? Mathf.Clamp01(Vector3.Dot(position - start, segment) / lengthSquared)
+            : 0f;
+        return (position - (start + segment * fraction)).sqrMagnitude;
     }
 
     private bool TryGetActiveBridgeBar(Collider hit, out Bar bar)
@@ -352,9 +453,9 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
                             bridgeCollider.transform.rotation,
                             boatMesh, boatMesh.transform.position + sampleOffset,
                             boatMesh.transform.rotation, out _, out _) ||
-                        !TryBreakHit(bridgeCollider)) continue;
+                        !TryBreakHit(bridgeCollider,
+                            boatMeshWorldBounds[i].center + sampleOffset)) continue;
 
-                    transform.position = Vector3.Lerp(previousPosition, nextPosition, fraction);
                     return true;
                 }
             }
@@ -396,6 +497,68 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
             if (boatRenderers[i] != null)
                 boatRenderers[i].enabled = visible && authoredRendererStates[i];
         if (!visible) buildModeOutline?.SetBuildModeVisualOnlyVisible(false);
+    }
+
+    private void CreateDefaultImpactEffect()
+    {
+        // One reusable system per boat; impacts emit into world space so
+        // earlier splinters do not follow the moving hull.
+        GameObject effectObject = new GameObject("Boat Impact Effect");
+        effectObject.transform.SetParent(transform, false);
+        effectObject.layer = gameObject.layer;
+        impactEffect = effectObject.AddComponent<ParticleSystem>();
+
+        ParticleSystem.MainModule main = impactEffect.main;
+        main.loop = true;
+        main.playOnAwake = false;
+        main.simulationSpace = ParticleSystemSimulationSpace.World;
+        main.scalingMode = ParticleSystemScalingMode.Local;
+        main.startLifetime = new ParticleSystem.MinMaxCurve(0.55f, 1.1f);
+        main.startSpeed = new ParticleSystem.MinMaxCurve(1.5f, 3f);
+        main.startSize = new ParticleSystem.MinMaxCurve(
+            impactParticleSize * 0.6f, impactParticleSize);
+        main.startColor = new Color(1f, 0.75f, 0.43f, 1f);
+        main.gravityModifier = 0.75f;
+        main.maxParticles = 64;
+
+        ParticleSystem.EmissionModule emission = impactEffect.emission;
+        emission.rateOverTime = 0f;
+        emission.rateOverDistance = 0f;
+        ParticleSystem.ShapeModule shape = impactEffect.shape;
+        shape.shapeType = ParticleSystemShapeType.Sphere;
+        shape.radius = 0.2f;
+
+        ParticleSystemRenderer particleRenderer = effectObject.GetComponent<ParticleSystemRenderer>();
+        if (impactMaterial != null)
+            particleRenderer.sharedMaterial = impactMaterial;
+        else
+        {
+            Shader shader = Shader.Find("Universal Render Pipeline/Particles/Unlit");
+            if (shader != null)
+            {
+                generatedImpactMaterial = new Material(shader);
+                generatedImpactMaterial.SetFloat("_Surface", 1f);
+                generatedImpactMaterial.SetFloat("_SrcBlend", 5f);
+                generatedImpactMaterial.SetFloat("_DstBlend", 10f);
+                generatedImpactMaterial.SetFloat("_ZWrite", 0f);
+                generatedImpactMaterial.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                generatedImpactMaterial.SetOverrideTag("RenderType", "Transparent");
+                generatedImpactMaterial.renderQueue = 3000;
+                particleRenderer.sharedMaterial = generatedImpactMaterial;
+            }
+        }
+        impactEffect.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+    }
+
+    private void PlayImpactEffect(Vector3 contactPoint)
+    {
+        if (impactEffect == null) return;
+        Camera buildCamera = activeLocation != null ? activeLocation.locationCamera : null;
+        impactEffect.transform.position = buildCamera != null
+            ? contactPoint - buildCamera.transform.forward * impactCameraOffset
+            : contactPoint;
+        if (!impactEffect.isPlaying) impactEffect.Play();
+        impactEffect.Emit(16);
     }
 
     private void DisposeOutline()
@@ -465,18 +628,25 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
     {
         speed = Mathf.Max(0.01f, speed);
         startDelay = Mathf.Max(0f, startDelay);
+        travelDistance = Mathf.Max(0.01f, travelDistance);
+        impactRadius = Mathf.Max(0.1f, impactRadius);
+        maxBrokenMembers = Mathf.Clamp(maxBrokenMembers, 1, 8);
+        impactSpacing = Mathf.Max(0f, impactSpacing);
+        impactDeflectionSpeed = Mathf.Max(0f, impactDeflectionSpeed);
+        impactParticleSize = Mathf.Max(0.1f, impactParticleSize);
+        impactCameraOffset = Mathf.Max(0f, impactCameraOffset);
         hullSize = new Vector3(Mathf.Max(0.01f, hullSize.x),
             Mathf.Max(0.01f, hullSize.y), Mathf.Max(0.01f, hullSize.z));
     }
 
     private void OnDrawGizmosSelected()
     {
-        if (startPoint != null && endPoint != null)
+        if (HasTravelDirection)
         {
             Gizmos.color = Color.cyan;
-            Gizmos.DrawLine(startPoint.position, endPoint.position);
-            Gizmos.DrawWireSphere(startPoint.position, 0.25f);
-            Gizmos.DrawWireSphere(endPoint.position, 0.25f);
+            Gizmos.DrawLine(transform.position,
+                transform.position + travelDirection.normalized * travelDistance);
+            Gizmos.DrawWireSphere(transform.position, 0.25f);
         }
 
         // Mesh-collider crossings do not use a box. Show the yellow wireframe

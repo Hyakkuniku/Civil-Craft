@@ -170,6 +170,41 @@ public class BridgePhysicsManager : MonoBehaviour
     }
 
     /// <summary>
+    /// Releases only the members selected around a single external impact.
+    /// The first break records the contract failure; later local breaks reuse
+    /// the same joint-release path without recording a second failure.
+    /// </summary>
+    public int BreakMembersFromExternalImpact(IReadOnlyList<Bar> bars, string cause)
+    {
+        // A boat can strike several separate sections during one crossing.
+        // RecordBrokenPart still records only the first failure for scoring.
+        if (!isSimulating || DebugInvincibleBridge || bars == null)
+            return 0;
+
+        int broken = 0;
+        externalImpactInProgress = true;
+        try
+        {
+            for (int i = 0; i < bars.Count; i++)
+            {
+                Bar bar = bars[i];
+                if (bar == null) continue;
+                BarStressHandler member = bar.GetComponent<BarStressHandler>();
+                if (member == null || member.isBroken || !activeStressHandlers.Contains(member))
+                    continue;
+                if (member.ForceBreakForFailure(cause)) broken++;
+            }
+        }
+        finally
+        {
+            externalImpactInProgress = false;
+        }
+        if (broken > 0)
+            ReleaseUnsupportedRoadJoints(deterministicBars, deterministicPoints);
+        return broken;
+    }
+
+    /// <summary>
     /// Guarantees that a structural failure reported by the level rules has a
     /// visible physical consequence. This deliberately reuses BarStressHandler's
     /// normal break path instead of maintaining a second destruction system.
@@ -1640,7 +1675,8 @@ public class BridgePhysicsManager : MonoBehaviour
             foreach (Bar bar in current.ConnectedBars)
             {
                 if (bar == null || !activeBarSet.Contains(bar) || !bar.gameObject.activeSelf ||
-                    bar.materialData == null || bar.materialData.isRoad)
+                    bar.materialData == null || bar.materialData.isRoad ||
+                    IsBrokenMember(bar))
                     continue;
 
                 Point neighbor = null;
@@ -1663,7 +1699,8 @@ public class BridgePhysicsManager : MonoBehaviour
             foreach (Bar road in point.ConnectedBars)
             {
                 if (road == null || !activeBarSet.Contains(road) || !road.gameObject.activeSelf ||
-                    road.materialData == null || !road.materialData.isRoad)
+                    road.materialData == null || !road.materialData.isRoad ||
+                    IsBrokenMember(road))
                     continue;
 
                 foreach (Joint joint in road.GetComponents<Joint>())
@@ -1674,6 +1711,9 @@ public class BridgePhysicsManager : MonoBehaviour
                     // can survive into a batched fixed step and change the solver graph.
                     joint.connectedBody = null;
                     DestroyImmediate(joint);
+                    Rigidbody roadBody = road.GetComponent<Rigidbody>();
+                    if (roadBody != null && !roadBody.isKinematic) roadBody.WakeUp();
+                    if (!nodeBody.isKinematic) nodeBody.WakeUp();
                     releasedJointCount++;
                 }
             }
@@ -1685,6 +1725,12 @@ public class BridgePhysicsManager : MonoBehaviour
                 $"[BridgePhysicsManager] Released {releasedJointCount} unsupported road joint(s). " +
                 "Road joints require a structural load path to an anchor.", this);
         }
+    }
+
+    private static bool IsBrokenMember(Bar bar)
+    {
+        BarStressHandler handler = bar != null ? bar.GetComponent<BarStressHandler>() : null;
+        return handler != null && handler.isBroken;
     }
 
     private void AttachJoint(GameObject barObj, Rigidbody targetRb, BridgeMaterialSO mat, Vector3 anchorWorldPosition)
