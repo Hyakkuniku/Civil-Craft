@@ -138,6 +138,7 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
     private void OnEnable()
     {
         BindSimulationManager();
+        LevelCompleteManager.SimulationSucceeded += HandleSimulationSucceeded;
     }
 
     private void Start()
@@ -149,6 +150,7 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
 
     private void OnDisable()
     {
+        LevelCompleteManager.SimulationSucceeded -= HandleSimulationSucceeded;
         moving = false;
         SetMeshQueriesActive(false);
         UnbindSimulationManager();
@@ -248,6 +250,18 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
         // to build mode restores the authored boat and its selection outline.
         finishedCrossing = false;
         SetBoatVisible(true);
+    }
+
+    private void HandleSimulationSucceeded(ContractSO completedContract, BuildLocation completedLocation)
+    {
+        if (!moving || !MatchesContract(assignedContract, completedContract) ||
+            (completedLocation != null && completedLocation != activeLocation)) return;
+
+        // The vehicle reaching its finish line completes the test. The boat is
+        // an obstacle, not another goal, so stop its impact checks immediately
+        // without hiding it or waiting for its full travel distance.
+        moving = false;
+        SetMeshQueriesActive(false);
     }
 
     private void FixedUpdate()

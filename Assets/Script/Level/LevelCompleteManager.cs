@@ -480,7 +480,6 @@ public class LevelCompleteManager : MonoBehaviour
 
         StartCoroutine(TakeSnapshotAndShowUIRoutine(
             currentContract,
-            finishingVehicle,
             completedLocation));
     }
 
@@ -498,12 +497,8 @@ public class LevelCompleteManager : MonoBehaviour
 
     private IEnumerator TakeSnapshotAndShowUIRoutine(
         ContractSO currentContract,
-        LiveLoadVehicle finishingVehicle,
         BuildLocation completedLocation)
     {
-        while (finishingVehicle != null && finishingVehicle.IsFinishBraking)
-            yield return new WaitForFixedUpdate();
-
         // The success event has already replaced any queued informational text
         // with the verified outcome. Keep the build UI visible until that message
         // has had its configured reading time, then continue to the receipt.
