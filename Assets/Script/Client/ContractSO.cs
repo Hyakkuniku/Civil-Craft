@@ -86,6 +86,10 @@ public class ContractSO : ScriptableObject
     [Tooltip("Permanent unique save ID, for example CONTRACT_CANYON_001. Never change this after release.")]
     public string contractID;
 
+    [Header("Leaderboard")]
+    [Tooltip("Hide test or non-playable contract assets from the contract picker.")]
+    public bool hideFromLeaderboard;
+
     /// <summary>
     /// Stable identifier used by saves and runtime systems. The asset name is
     /// retained as a fallback so newly created or legacy contracts keep working

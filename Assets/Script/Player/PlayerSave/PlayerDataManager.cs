@@ -1799,6 +1799,46 @@ public class PlayerDataManager : MonoBehaviour
         }
         newSave.starsEarned = newSave.latestStarResult?.Stars ?? 0;
         newSave.bestStars = newSave.bestStarResult?.Stars ?? 0;
+
+        // A leaderboard record represents one actual successful attempt. Keep
+        // both metrics together, independently of the older star-best logic.
+        ContractLeaderboardData oldLeaderboardRecord = FindLeaderboardRecord(newSave.contractId);
+        ContractLeaderboardData updatedLeaderboardRecord = null;
+        if (starResult != null && starResult.completed &&
+            IsFinite(totalSpent) && totalSpent >= 0f &&
+            IsFinite(maxStress) && maxStress >= 0f)
+        {
+            ContractLeaderboardData baseline = oldLeaderboardRecord;
+            if (baseline == null && previousRecords.Count > 0)
+            {
+                SavedBridgeData previous = previousRecords[0];
+                if (IsBridgeDataValid(previous, out _))
+                {
+                    LeaderboardRunData legacyRun = new LeaderboardRunData(
+                        previous.totalSpent, previous.maxStress);
+                    baseline = new ContractLeaderboardData {
+                        contractId = newSave.contractId,
+                        mostEfficient = legacyRun,
+                        strongest = legacyRun
+                    };
+                }
+            }
+
+            LeaderboardRunData run = new LeaderboardRunData(totalSpent, maxStress);
+            updatedLeaderboardRecord = new ContractLeaderboardData {
+                contractId = newSave.contractId,
+                mostEfficient = IsBetterLeaderboardRun(run, baseline?.mostEfficient, false)
+                    ? run : baseline.mostEfficient,
+                strongest = IsBetterLeaderboardRun(run, baseline?.strongest, true)
+                    ? run : baseline.strongest
+            };
+            if (CurrentData.leaderboardRecords == null)
+                CurrentData.leaderboardRecords = new List<ContractLeaderboardData>();
+            if (oldLeaderboardRecord != null)
+                CurrentData.leaderboardRecords.Remove(oldLeaderboardRecord);
+            CurrentData.leaderboardRecords.Add(updatedLeaderboardRecord);
+        }
+
         CurrentData.savedBridges.RemoveAll(entry =>
             entry != null && ContractIdentifiersMatch(entry.contractId, newSave.contractId));
         CurrentData.savedBridges.Add(newSave);
@@ -1820,7 +1860,52 @@ public class PlayerDataManager : MonoBehaviour
         // Keep memory consistent with disk when persistence fails.
         CurrentData.savedBridges.Remove(newSave);
         CurrentData.savedBridges.AddRange(previousRecords);
+        if (updatedLeaderboardRecord != null)
+        {
+            CurrentData.leaderboardRecords.Remove(updatedLeaderboardRecord);
+            if (oldLeaderboardRecord != null)
+                CurrentData.leaderboardRecords.Add(oldLeaderboardRecord);
+        }
         return false;
+    }
+
+    public ContractLeaderboardData GetLeaderboardRecord(string contractId)
+    {
+        if (CurrentData == null || string.IsNullOrWhiteSpace(contractId)) return null;
+        ContractLeaderboardData record = FindLeaderboardRecord(contractId);
+        if (record != null) return record;
+
+        // Existing save files predate leaderboards. Their saved bridge is a
+        // legitimate successful result, so display it until the next redesign.
+        SavedBridgeData previous = GetSavedBridge(contractId);
+        if (previous == null) return null;
+        LeaderboardRunData run = new LeaderboardRunData(previous.totalSpent, previous.maxStress);
+        return new ContractLeaderboardData {
+            contractId = NormalizeContractIdentifier(contractId),
+            mostEfficient = run,
+            strongest = run
+        };
+    }
+
+    private ContractLeaderboardData FindLeaderboardRecord(string contractId)
+    {
+        if (CurrentData?.leaderboardRecords == null) return null;
+        return CurrentData.leaderboardRecords.Find(item =>
+            item != null && ContractIdentifiersMatch(item.contractId, contractId));
+    }
+
+    private static bool IsBetterLeaderboardRun(
+        LeaderboardRunData candidate, LeaderboardRunData previous, bool strongest)
+    {
+        if (previous == null) return true;
+        const float tolerance = 0.01f;
+        float first = strongest ? candidate.peakStress : candidate.cost;
+        float previousFirst = strongest ? previous.peakStress : previous.cost;
+        if (first < previousFirst - tolerance) return true;
+        if (first > previousFirst + tolerance) return false;
+        float second = strongest ? candidate.cost : candidate.peakStress;
+        float previousSecond = strongest ? previous.cost : previous.peakStress;
+        return second < previousSecond - tolerance;
     }
 
     /// <summary>Developer grant: one save, no spending, equipping, or purchase rewards.</summary>

@@ -77,6 +77,28 @@ public class SavedBridgeData
 }
 
 [System.Serializable]
+public class LeaderboardRunData
+{
+    public float cost;
+    public float peakStress;
+
+    public LeaderboardRunData(float cost, float peakStress)
+    {
+        this.cost = cost;
+        this.peakStress = peakStress;
+    }
+}
+
+[System.Serializable]
+public class ContractLeaderboardData
+{
+    public string contractId;
+    // These may be different attempts. Never combine values from separate runs.
+    public LeaderboardRunData mostEfficient;
+    public LeaderboardRunData strongest;
+}
+
+[System.Serializable]
 public class NPCProgressionSaveData
 {
     [Tooltip("Stable ID of the NPC progression sequence that owns this record.")]
@@ -181,6 +203,8 @@ public class PlayerData
     public List<string> unlockedDoors = new List<string>();
 
     public List<SavedBridgeData> savedBridges = new List<SavedBridgeData>();
+    // Optional in older saves; populated from their latest saved bridge on first use.
+    public List<ContractLeaderboardData> leaderboardRecords = new List<ContractLeaderboardData>();
     public List<NPCProgressionSaveData> npcProgressions = new List<NPCProgressionSaveData>();
     public List<NPCVisibilitySaveData> npcVisibility = new List<NPCVisibilitySaveData>();
     public List<string> completedLessonCloseActions = new List<string>();

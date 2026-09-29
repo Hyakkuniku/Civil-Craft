@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: NewContract
   m_EditorClassIdentifier: 
   contractID: 123
+  hideFromLeaderboard: 1
   efficiencyStarBudgetRatio: 0.85
   strengthStarMaxStress: 60
   contractMap: 0
