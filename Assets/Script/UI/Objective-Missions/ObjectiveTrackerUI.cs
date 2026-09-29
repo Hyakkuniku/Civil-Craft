@@ -340,8 +340,32 @@ public class ObjectiveTrackerUI : MonoBehaviour
         if (npc == null || npc.contractToGive == null || PlayerDataManager.Instance == null) return;
 
         var activeTasks = PlayerDataManager.Instance.CurrentData.activeQuests;
+        if (activeTasks == null) return;
+
         TrackedTask taskToComplete = activeTasks.Find(t =>
-            npc.contractToGive.MatchesIdentifier(t.contractName));
+            t != null && !t.isCompleted && npc.contractToGive.MatchesIdentifier(t.contractName));
+
+        // A valid bridge can outlive a missing objective (for example, a bridge
+        // built before the side-contract offer was recorded). Recover only that
+        // objective so the normal Collect flow can still validate the saved
+        // geometry and commit the reward exactly once.
+        if (taskToComplete == null &&
+            PlayerDataManager.Instance.HasValidSavedBridge(npc.contractToGive.ContractID) &&
+            !PlayerDataManager.Instance.HasContractCompletionRecord(npc.contractToGive.ContractID))
+        {
+            string targetName = npc.targetBuildLocation != null
+                ? npc.targetBuildLocation.navigationTarget != null
+                    ? npc.targetBuildLocation.navigationTarget.name
+                    : npc.targetBuildLocation.gameObject.name
+                : string.Empty;
+            taskToComplete = CreateContractTask(
+                npc.contractToGive, targetName, npc.contractToGive.jobDescription);
+            activeTasks.Add(taskToComplete);
+            UnlockAndShowTracker();
+            Debug.LogWarning(
+                $"[ObjectiveTrackerUI] Restored missing objective for saved bridge '{npc.contractToGive.ContractID}'.",
+                this);
+        }
         
         if (taskToComplete != null && !taskToComplete.isCompleted)
         {

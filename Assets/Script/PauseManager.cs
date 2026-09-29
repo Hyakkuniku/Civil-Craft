@@ -1,3 +1,5 @@
+using System;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.InputSystem;
@@ -26,6 +28,12 @@ public class PauseManager : MonoBehaviour
     [Tooltip("Freeze local simulation while the pause menu is open. Disable this for synchronous multiplayer so the match continues.")]
     [SerializeField] private bool freezeTimeOnPause = true;
 
+    [Header("Pause Panel Motion")]
+    [SerializeField, Min(0f)] private float openDuration = 0.24f;
+    [SerializeField, Min(0f)] private float closeDuration = 0.16f;
+    [SerializeField, Range(0.8f, 1f)] private float entranceScale = 0.94f;
+    [SerializeField, Min(0f)] private float entranceOffset = 18f;
+
     [Header("Elements to Hide")]
     [Tooltip("Drag any game objects (like HUD elements) here that should disappear when paused.")]
     public GameObject[] objectsToHide; // --- NEW: Array of objects to hide ---
@@ -36,6 +44,13 @@ public class PauseManager : MonoBehaviour
 
     [HideInInspector] public bool isPaused = false;
 
+    private RectTransform pauseRect;
+    private CanvasGroup pauseCanvasGroup;
+    private Vector2 restingPosition;
+    private Vector3 restingScale;
+    private Coroutine panelMotion;
+    private bool isClosingPause;
+
     private void Awake()
     {
         if (Instance == null) Instance = this;
@@ -45,8 +60,20 @@ public class PauseManager : MonoBehaviour
             return;
         }
 
-        // Ensure the pause panel is hidden when the game starts
-        if (pausePanel != null) pausePanel.SetActive(false);
+        // The panel and its button hierarchy are authored in each scene. Only
+        // the CanvasGroup is repaired for older scenes that predate the motion.
+        if (pausePanel != null)
+        {
+            pauseRect = pausePanel.transform as RectTransform;
+            pauseCanvasGroup = pausePanel.GetComponent<CanvasGroup>();
+            if (pauseCanvasGroup == null) pauseCanvasGroup = pausePanel.AddComponent<CanvasGroup>();
+            if (pauseRect != null)
+            {
+                restingPosition = pauseRect.anchoredPosition;
+                restingScale = pauseRect.localScale;
+            }
+            pausePanel.SetActive(false);
+        }
     }
 
     private void Start()
@@ -94,6 +121,7 @@ public class PauseManager : MonoBehaviour
     public void TogglePause()
     {
         DiagnosePauseInvocation();
+        if (isClosingPause) return;
         // If the settings panel is open, pressing Escape should just close settings, not unpause the whole game yet.
         if (isPaused && settingsPanel != null && settingsPanel.activeSelf)
         {
@@ -118,6 +146,7 @@ public class PauseManager : MonoBehaviour
 
     public void PauseGame()
     {
+        if (isPaused || isClosingPause) return;
         if (IsPauseBlocked())
         {
             RefreshPauseAvailability();
@@ -135,6 +164,8 @@ public class PauseManager : MonoBehaviour
             UIPanelCoordinator.Instance.OpenPanel(pausePanel);
         else if (pausePanel != null)
             pausePanel.SetActive(true);
+
+        PlayOpenMotion();
 
         if (UIPanelCoordinator.Instance == null && objectsToHide != null)
         {
@@ -155,6 +186,21 @@ public class PauseManager : MonoBehaviour
 
     public void ResumeGame()
     {
+        if (isClosingPause) return;
+        if (isPaused && pausePanel != null && pausePanel.activeInHierarchy &&
+            closeDuration > 0f)
+        {
+            PlayCloseMotion(FinishResumeGame);
+            return;
+        }
+
+        FinishResumeGame();
+    }
+
+    private void FinishResumeGame()
+    {
+        StopPanelMotion();
+        isClosingPause = false;
         isPaused = false;
         if (freezeTimeOnPause)
             Time.timeScale = 1f;
@@ -190,6 +236,8 @@ public class PauseManager : MonoBehaviour
             inputObj.SetPlayerInputEnable(true);
             inputObj.SetLookEnabled(true);
         }
+
+        ResetPanelVisuals();
     }
 
     public void RefreshPauseAvailability()
@@ -210,7 +258,7 @@ public class PauseManager : MonoBehaviour
                                           GameManager.Instance.CurrentState != GameManager.GameState.Normal;
         if (pauseButton != null) pauseButton.SetActive(pauseAllowed && !hideInMultiplayerBuildMode);
 
-        if (!pauseAllowed && isPaused) ResumeGame();
+        if (!pauseAllowed && isPaused && !isClosingPause) FinishResumeGame();
     }
 
     private static bool IsPauseBlockedByTutorialContract()
@@ -293,6 +341,18 @@ public class PauseManager : MonoBehaviour
 
     public void ReturnToModeSelection()
     {
+        if (isClosingPause) return;
+        if (pausePanel != null && pausePanel.activeInHierarchy && closeDuration > 0f)
+        {
+            PlayCloseMotion(FinishReturnToModeSelection);
+            return;
+        }
+
+        FinishReturnToModeSelection();
+    }
+
+    private void FinishReturnToModeSelection()
+    {
         // CRITICAL: Always reset time scale before loading a new scene, or the next scene will be frozen!
         Time.timeScale = 1f; 
         
@@ -306,6 +366,103 @@ public class PauseManager : MonoBehaviour
             FusionConnectionManager.Instance.StopSession();
 
         LoadingScreenManager.LoadScene(modeSelectionSceneName);
+    }
+
+    private void PlayOpenMotion()
+    {
+        if (pausePanel == null || pauseRect == null || pauseCanvasGroup == null) return;
+        StopPanelMotion();
+        pauseCanvasGroup.alpha = 0f;
+        pauseCanvasGroup.interactable = false;
+        pauseCanvasGroup.blocksRaycasts = true;
+        pauseRect.localScale = restingScale * entranceScale;
+        pauseRect.anchoredPosition = restingPosition + Vector2.down * entranceOffset;
+
+        if (openDuration <= 0f)
+        {
+            ResetPanelVisuals();
+            return;
+        }
+
+        panelMotion = StartCoroutine(AnimateOpen());
+    }
+
+    private IEnumerator AnimateOpen()
+    {
+        float elapsed = 0f;
+        while (elapsed < openDuration && pausePanel != null && pausePanel.activeInHierarchy)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            float progress = Mathf.Clamp01(elapsed / openDuration);
+            float remaining = 1f - progress;
+            float eased = 1f - remaining * remaining * remaining;
+            pauseCanvasGroup.alpha = eased;
+            pauseRect.localScale = restingScale * Mathf.Lerp(entranceScale, 1f, eased);
+            pauseRect.anchoredPosition = restingPosition + Vector2.down *
+                (entranceOffset * (1f - eased));
+            yield return null;
+        }
+
+        ResetPanelVisuals();
+        panelMotion = null;
+    }
+
+    private void PlayCloseMotion(Action onComplete)
+    {
+        if (pauseRect == null || pauseCanvasGroup == null)
+        {
+            onComplete?.Invoke();
+            return;
+        }
+
+        StopPanelMotion();
+        isClosingPause = true;
+        pauseCanvasGroup.interactable = false;
+        pauseCanvasGroup.blocksRaycasts = true;
+        panelMotion = StartCoroutine(AnimateClose(onComplete));
+    }
+
+    private IEnumerator AnimateClose(Action onComplete)
+    {
+        float elapsed = 0f;
+        float startingAlpha = pauseCanvasGroup.alpha;
+        Vector3 startingScale = pauseRect.localScale;
+        Vector2 startingPosition = pauseRect.anchoredPosition;
+        while (elapsed < closeDuration && pausePanel != null && pausePanel.activeInHierarchy)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            float progress = Mathf.Clamp01(elapsed / closeDuration);
+            float eased = progress * progress;
+            pauseCanvasGroup.alpha = Mathf.Lerp(startingAlpha, 0f, eased);
+            pauseRect.localScale = Vector3.Lerp(startingScale, restingScale * entranceScale, eased);
+            pauseRect.anchoredPosition = Vector2.Lerp(startingPosition,
+                restingPosition + Vector2.down * entranceOffset, eased);
+            yield return null;
+        }
+
+        panelMotion = null;
+        isClosingPause = false;
+        onComplete?.Invoke();
+    }
+
+    private void StopPanelMotion()
+    {
+        if (panelMotion == null) return;
+        StopCoroutine(panelMotion);
+        panelMotion = null;
+    }
+
+    private void ResetPanelVisuals()
+    {
+        if (pauseCanvasGroup != null)
+        {
+            pauseCanvasGroup.alpha = 1f;
+            pauseCanvasGroup.interactable = true;
+            pauseCanvasGroup.blocksRaycasts = true;
+        }
+        if (pauseRect == null) return;
+        pauseRect.localScale = restingScale;
+        pauseRect.anchoredPosition = restingPosition;
     }
 
     // Temporary, read-only diagnostics. Calls are omitted from release builds.
