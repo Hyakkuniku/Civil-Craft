@@ -21,8 +21,10 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
     [SerializeField] private BridgePhysicsManager physicsManager;
 
     [Header("Bridge Impact")]
-    [Tooltip("Use the manual box instead of the boat's Mesh Colliders. Leave off for accurate mesh-shaped impacts.")]
+    [Tooltip("Use the manual box instead of the visible hull mesh. Leave off for mesh-shaped impacts.")]
     [SerializeField] private bool useManualHull;
+    [Tooltip("Optional: assign the hull Mesh Filter for exact impacts. When empty, the largest visible hull/body mesh is chosen automatically.")]
+    [SerializeField] private MeshFilter impactHullMesh;
     [Tooltip("Boat-local impact box center when Use Manual Hull is enabled.")]
     [SerializeField] private Vector3 hullCenter;
     [SerializeField] private Vector3 hullSize = new Vector3(2f, 1f, 4f);
@@ -90,7 +92,19 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
         boatRenderers = GetComponentsInChildren<Renderer>(true);
         authoredPosition = transform.position;
         authoredRotation = transform.rotation;
-        boatMeshColliders = GetComponentsInChildren<MeshCollider>(true);
+        // This FBX has no authored collider. A renderer-wide box includes empty
+        // space around the curved bow and can damage a bridge too early.
+        MeshFilter hull = FindImpactHullMesh();
+        MeshCollider hullCollider = !useManualHull && hull != null
+            ? GetOrCreateHullCollider(hull)
+            : null;
+#if UNITY_EDITOR
+        if (hullCollider != null)
+            Debug.Log($"[BoatBridgeCrossing] Using visible hull mesh '{hull.sharedMesh.name}' on '{hull.name}' for impact checks.", this);
+#endif
+        boatMeshColliders = hullCollider != null
+            ? new[] { hullCollider }
+            : System.Array.Empty<MeshCollider>();
         boatMeshWorldBounds = new Bounds[boatMeshColliders.Length];
         for (int i = 0; i < boatMeshColliders.Length; i++)
             if (boatMeshColliders[i] != null && boatMeshColliders[i].sharedMesh != null)
@@ -99,6 +113,8 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
         for (int i = 0; i < boatRenderers.Length; i++)
             authoredRendererStates[i] = boatRenderers[i].enabled;
         RefreshHull();
+        if (!useManualHull && !hasBoatMeshColliders)
+            Debug.LogError("[BoatBridgeCrossing] No usable hull mesh was found. Impact checks are disabled to avoid false box collisions. Assign Impact Hull Mesh or enable Use Manual Hull and size its box explicitly.", this);
         if (impactEffect == null) CreateDefaultImpactEffect();
 
         if (preventBoatPhysicalContacts)
@@ -258,10 +274,10 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
 
         if (distanceTraveled - lastImpactDistance >= impactSpacing)
         {
-            if (!useManualHull && hasBoatMeshColliders)
-                TryBreakWithMeshColliders(previousPosition, nextPosition);
-            else
+            if (useManualHull)
                 TryBreakWithBox(previousCenter);
+            else if (hasBoatMeshColliders)
+                TryBreakWithMeshColliders(previousPosition, nextPosition);
         }
 
         distanceTraveled += step;
@@ -479,6 +495,56 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
         return world;
     }
 
+    private MeshFilter FindImpactHullMesh()
+    {
+        if (impactHullMesh != null && impactHullMesh.transform.IsChildOf(transform) &&
+            impactHullMesh.sharedMesh != null)
+            return impactHullMesh;
+
+        MeshFilter best = null;
+        int bestPriority = -1;
+        float bestVolume = 0f;
+        foreach (MeshFilter filter in GetComponentsInChildren<MeshFilter>(true))
+        {
+            if (filter == null || filter.sharedMesh == null ||
+                !filter.gameObject.activeInHierarchy ||
+                !filter.TryGetComponent(out MeshRenderer renderer) || !renderer.enabled)
+                continue;
+
+            string objectName = filter.name;
+            string meshName = filter.sharedMesh.name;
+            string materialName = renderer.sharedMaterial != null
+                ? renderer.sharedMaterial.name : string.Empty;
+            int priority = ContainsHullWord(objectName, meshName, "hull") ||
+                materialName.IndexOf("hull", System.StringComparison.OrdinalIgnoreCase) >= 0 ? 3 :
+                ContainsHullWord(objectName, meshName, "body") ? 2 :
+                ContainsHullWord(objectName, meshName, "boat") ? 1 : 0;
+            Vector3 size = renderer.bounds.size;
+            float volume = size.x * size.y * size.z;
+            if (priority < bestPriority || (priority == bestPriority && volume <= bestVolume))
+                continue;
+            best = filter;
+            bestPriority = priority;
+            bestVolume = volume;
+        }
+        return best;
+    }
+
+    private static bool ContainsHullWord(string objectName, string meshName, string word)
+    {
+        return objectName.IndexOf(word, System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+            meshName.IndexOf(word, System.StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static MeshCollider GetOrCreateHullCollider(MeshFilter hull)
+    {
+        MeshCollider collider = hull.GetComponent<MeshCollider>();
+        if (collider == null) collider = hull.gameObject.AddComponent<MeshCollider>();
+        collider.sharedMesh = hull.sharedMesh;
+        collider.convex = false;
+        return collider;
+    }
+
     private void SetMeshQueriesActive(bool active)
     {
         if (boatMeshColliders == null || useManualHull) return;
@@ -579,49 +645,6 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
     {
         activeHullCenter = hullCenter;
         activeHullSize = hullSize;
-        if (!useManualHull && !hasBoatMeshColliders &&
-            TryFitHullToRenderers(boatRenderers,
-                out Vector3 fittedCenter, out Vector3 fittedSize))
-        {
-            activeHullCenter = fittedCenter;
-            activeHullSize = fittedSize;
-        }
-    }
-
-    private bool TryFitHullToRenderers(Renderer[] renderers,
-        out Vector3 fittedCenter, out Vector3 fittedSize)
-    {
-        Vector3 minimum = new Vector3(float.PositiveInfinity, float.PositiveInfinity, float.PositiveInfinity);
-        Vector3 maximum = new Vector3(float.NegativeInfinity, float.NegativeInfinity, float.NegativeInfinity);
-        bool found = false;
-
-        if (renderers != null)
-        {
-            foreach (Renderer boatRenderer in renderers)
-            {
-                if (boatRenderer == null) continue;
-                Bounds bounds = boatRenderer.bounds;
-                if (bounds.size.sqrMagnitude <= 0.000001f) continue;
-                Vector3 lower = bounds.min;
-                Vector3 upper = bounds.max;
-                for (int x = 0; x < 2; x++)
-                for (int y = 0; y < 2; y++)
-                for (int z = 0; z < 2; z++)
-                {
-                    Vector3 corner = transform.InverseTransformPoint(new Vector3(
-                        x == 0 ? lower.x : upper.x,
-                        y == 0 ? lower.y : upper.y,
-                        z == 0 ? lower.z : upper.z));
-                    minimum = Vector3.Min(minimum, corner);
-                    maximum = Vector3.Max(maximum, corner);
-                }
-                found = true;
-            }
-        }
-
-        fittedCenter = found ? (minimum + maximum) * 0.5f : hullCenter;
-        fittedSize = found ? maximum - minimum : hullSize;
-        return found;
     }
 
     private void OnValidate()
@@ -649,24 +672,24 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
             Gizmos.DrawWireSphere(transform.position, 0.25f);
         }
 
-        // Mesh-collider crossings do not use a box. Show the yellow wireframe
-        // only when the fallback/manual box is actually used.
-        if (!useManualHull && GetComponentInChildren<MeshCollider>(true) != null)
+        if (!useManualHull)
+        {
+            MeshFilter hull = FindImpactHullMesh();
+            if (hull != null)
+            {
+                Gizmos.color = Color.yellow;
+                Matrix4x4 hullMatrix = Gizmos.matrix;
+                Gizmos.matrix = hull.transform.localToWorldMatrix;
+                Gizmos.DrawWireMesh(hull.sharedMesh);
+                Gizmos.matrix = hullMatrix;
+            }
             return;
+        }
 
         Gizmos.color = Color.yellow;
         Matrix4x4 previous = Gizmos.matrix;
         Gizmos.matrix = transform.localToWorldMatrix;
-        Vector3 gizmoCenter = hullCenter;
-        Vector3 gizmoSize = hullSize;
-        if (!useManualHull &&
-            TryFitHullToRenderers(GetComponentsInChildren<Renderer>(true),
-                out Vector3 fittedCenter, out Vector3 fittedSize))
-        {
-            gizmoCenter = fittedCenter;
-            gizmoSize = fittedSize;
-        }
-        Gizmos.DrawWireCube(gizmoCenter, gizmoSize);
+        Gizmos.DrawWireCube(hullCenter, hullSize);
         Gizmos.matrix = previous;
     }
 }
