@@ -170,9 +170,11 @@ public class LevelFailedManager : MonoBehaviour
             if (!BridgePhysicsManager.DebugInvincibleBridge &&
                 physicsManager.HadBrokenPartsThisRun)
             {
-                stressFailReason = physicsManager.FirstMemberFailedUnderDeadLoad
-                    ? "Dead load capacity exceeded: " + physicsManager.FirstMemberFailureDescription
-                    : "Member capacity exceeded: " + physicsManager.FirstMemberFailureDescription;
+                stressFailReason = physicsManager.FirstMemberFailedByExternalImpact
+                    ? "Bridge collapsed after boat impact!"
+                    : physicsManager.FirstMemberFailedUnderDeadLoad
+                        ? "Dead load capacity exceeded: " + physicsManager.FirstMemberFailureDescription
+                        : "Member capacity exceeded: " + physicsManager.FirstMemberFailureDescription;
                 InitiateFailure(stressFailReason);
                 return; 
             }

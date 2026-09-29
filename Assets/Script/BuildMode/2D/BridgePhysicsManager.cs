@@ -97,6 +97,8 @@ public class BridgePhysicsManager : MonoBehaviour
     public bool HasLiveLoadEngagedThisRun { get; private set; }
     public string FirstMemberFailureDescription { get; private set; }
     public bool FirstMemberFailedUnderDeadLoad { get; private set; }
+    public bool FirstMemberFailedByExternalImpact { get; private set; }
+    private bool externalImpactInProgress;
     /// <summary>
     /// Optional contract limits below material capacity wait for the truck to
     /// reach the bridge. Actual 100% member failure is never delayed.
@@ -120,7 +122,8 @@ public class BridgePhysicsManager : MonoBehaviour
         if (HadBrokenPartsThisRun) return;
         HadBrokenPartsThisRun = true;
         currentVisualMaxStress = 1f;
-        FirstMemberFailedUnderDeadLoad = !HasLiveLoadEngagedThisRun;
+        FirstMemberFailedByExternalImpact = externalImpactInProgress;
+        FirstMemberFailedUnderDeadLoad = !HasLiveLoadEngagedThisRun && !externalImpactInProgress;
         FirstMemberFailureDescription = brokenMember != null
             ? brokenMember.FailureDescription
             : "A structural member exceeded its capacity.";
@@ -139,6 +142,31 @@ public class BridgePhysicsManager : MonoBehaviour
                 failedBar);
         }
         OnFirstMemberBroken?.Invoke(brokenMember);
+    }
+
+    /// <summary>
+    /// Breaks the actual member struck by an external simulation obstacle.
+    /// The existing stress-handler break path still releases its joints and
+    /// records the failure; no separate bridge destruction rules are created.
+    /// </summary>
+    public bool TryBreakMemberFromExternalImpact(Bar bar, string cause)
+    {
+        if (!isSimulating || DebugInvincibleBridge || bar == null || HadBrokenPartsThisRun)
+            return false;
+
+        BarStressHandler member = bar.GetComponent<BarStressHandler>();
+        if (member == null || member.isBroken || !activeStressHandlers.Contains(member))
+            return false;
+
+        externalImpactInProgress = true;
+        try
+        {
+            return member.ForceBreakForFailure(cause);
+        }
+        finally
+        {
+            externalImpactInProgress = false;
+        }
     }
 
     /// <summary>
@@ -756,6 +784,7 @@ public class BridgePhysicsManager : MonoBehaviour
         HasLiveLoadEngagedThisRun = false;
         FirstMemberFailureDescription = string.Empty;
         FirstMemberFailedUnderDeadLoad = false;
+        FirstMemberFailedByExternalImpact = false;
 
         // Build locations may contain endpoint ramps saved by older revisions.
         // Clear those legacy invisible colliders before releasing the bridge.
