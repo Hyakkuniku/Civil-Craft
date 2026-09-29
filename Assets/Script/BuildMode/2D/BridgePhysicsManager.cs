@@ -23,6 +23,7 @@ public class BridgePhysicsManager : MonoBehaviour
     public event Action OnSimulationStarted;
     public event Action OnSimulationStopped;
     public event Action<BarStressHandler> OnFirstMemberBroken;
+    public event Action<BarStressHandler> OnMemberBroken;
 
     [Header("Physics Settings")]
     public float barColliderThickness = 0.2f;
@@ -84,6 +85,21 @@ public class BridgePhysicsManager : MonoBehaviour
     public Color criticalColor = Color.red;
     public Color brokenColor = Color.black;
 
+    [Header("Bridge Break Particles")]
+    [Tooltip("Material for a few fast, material-neutral fragments. The same two emitters serve every simulated bridge member.")]
+    [SerializeField] private Material breakParticleMaterial;
+    [SerializeField] private Material smokeParticleMaterial;
+    [Min(1)] [SerializeField] private int breakParticlesPerMember = 6;
+    [Min(1)] [SerializeField] private int maxBreakParticles = 128;
+    [Min(0.1f)] [SerializeField] private float breakParticleSize = 0.35f;
+    [Min(1)] [SerializeField] private int smokeParticlesPerMember = 8;
+    [Min(1)] [SerializeField] private int maxSmokeParticles = 160;
+    [Min(0.1f)] [SerializeField] private float smokeParticleSize = 1.5f;
+    [Tooltip("Moves the burst toward the build camera so a bridge member or boat does not hide it.")]
+    [Min(0f)] [SerializeField] private float breakParticleCameraOffset = 2f;
+    private ParticleSystem breakParticleSystem;
+    private ParticleSystem smokeParticleSystem;
+
     [HideInInspector] public bool isSimulating = false;
     [HideInInspector] public bool lockStressTracking = false; 
     public bool IsSimulationActive => isSimulating || pendingSimulationStart;
@@ -142,6 +158,132 @@ public class BridgePhysicsManager : MonoBehaviour
                 failedBar);
         }
         OnFirstMemberBroken?.Invoke(brokenMember);
+    }
+
+    public void RecordMemberBreakEffect(BarStressHandler brokenMember)
+    {
+        if (brokenMember == null || !IsSimulationActive) return;
+
+        Bar bar = brokenMember.Bar;
+        if (bar != null && (breakParticleSystem != null || smokeParticleSystem != null))
+        {
+            Vector3 position = bar.startPoint != null && bar.endPoint != null
+                ? (bar.startPoint.transform.position + bar.endPoint.transform.position) * 0.5f
+                : bar.transform.position;
+            BuildLocation location = GameManager.Instance != null
+                ? GameManager.Instance.ActiveBuildLocation : null;
+            Camera buildCamera = location != null ? location.locationCamera : null;
+            if (buildCamera != null)
+                position -= buildCamera.transform.forward * breakParticleCameraOffset;
+
+            EmitBreakParticles(breakParticleSystem, breakParticlesPerMember, position);
+            EmitBreakParticles(smokeParticleSystem, smokeParticlesPerMember, position);
+        }
+
+        OnMemberBroken?.Invoke(brokenMember);
+    }
+
+    private static void EmitBreakParticles(ParticleSystem system, int count, Vector3 position)
+    {
+        if (system == null) return;
+        system.transform.position = position;
+        if (!system.isPlaying) system.Play();
+        system.Emit(count);
+    }
+
+    private ParticleSystem CreateBreakEmitter(string name, Material material, int capacity)
+    {
+        if (material == null) return null;
+        GameObject effectObject = new GameObject(name);
+        effectObject.transform.SetParent(transform, false);
+        ParticleSystem system = effectObject.AddComponent<ParticleSystem>();
+        ParticleSystem.MainModule main = system.main;
+        main.loop = true;
+        main.playOnAwake = false;
+        main.simulationSpace = ParticleSystemSimulationSpace.World;
+        main.scalingMode = ParticleSystemScalingMode.Local;
+        main.maxParticles = capacity;
+
+        ParticleSystem.EmissionModule emission = system.emission;
+        emission.rateOverTime = 0f;
+        emission.rateOverDistance = 0f;
+        ParticleSystem.ShapeModule shape = system.shape;
+        shape.shapeType = ParticleSystemShapeType.Sphere;
+        effectObject.GetComponent<ParticleSystemRenderer>().sharedMaterial = material;
+        system.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        return system;
+    }
+
+    private void CreateBreakParticleSystem()
+    {
+        breakParticleSystem = CreateBreakEmitter("Bridge Break Fragments",
+            breakParticleMaterial, maxBreakParticles);
+        if (breakParticleSystem != null)
+        {
+            ParticleSystem.MainModule main = breakParticleSystem.main;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.45f, 0.85f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(2f, 4f);
+            main.startSize = new ParticleSystem.MinMaxCurve(
+                breakParticleSize * 0.5f, breakParticleSize);
+            main.startColor = new ParticleSystem.MinMaxGradient(
+                new Color(0.75f, 0.72f, 0.66f, 1f),
+                new Color(0.42f, 0.40f, 0.36f, 1f));
+            main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+            main.gravityModifier = 1.2f;
+            ParticleSystem.ShapeModule shape = breakParticleSystem.shape;
+            shape.radius = 0.18f;
+            ParticleSystemRenderer renderer = breakParticleSystem.GetComponent<ParticleSystemRenderer>();
+            renderer.renderMode = ParticleSystemRenderMode.Stretch;
+            renderer.lengthScale = 0.7f;
+            renderer.velocityScale = 0.12f;
+        }
+
+        smokeParticleSystem = CreateBreakEmitter("Bridge Break Dust",
+            smokeParticleMaterial, maxSmokeParticles);
+        if (smokeParticleSystem != null)
+        {
+            ParticleSystem.MainModule main = smokeParticleSystem.main;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(1.1f, 1.8f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(0.3f, 1.1f);
+            main.startSize = new ParticleSystem.MinMaxCurve(
+                smokeParticleSize * 0.7f, smokeParticleSize);
+            main.startColor = Color.white;
+            main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+            main.gravityModifier = -0.08f;
+
+            ParticleSystem.ShapeModule shape = smokeParticleSystem.shape;
+            shape.radius = 0.35f;
+            ParticleSystem.SizeOverLifetimeModule size = smokeParticleSystem.sizeOverLifetime;
+            size.enabled = true;
+            size.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(
+                new Keyframe(0f, 0.25f), new Keyframe(0.35f, 0.9f),
+                new Keyframe(1f, 1.55f)));
+
+            Gradient dustFade = new Gradient();
+            dustFade.SetKeys(new[]
+            {
+                new GradientColorKey(new Color(0.47f, 0.45f, 0.41f), 0f),
+                new GradientColorKey(new Color(0.72f, 0.70f, 0.65f), 1f)
+            }, new[]
+            {
+                new GradientAlphaKey(0f, 0f),
+                new GradientAlphaKey(0.45f, 0.12f),
+                new GradientAlphaKey(0.3f, 0.55f),
+                new GradientAlphaKey(0f, 1f)
+            });
+            ParticleSystem.ColorOverLifetimeModule color = smokeParticleSystem.colorOverLifetime;
+            color.enabled = true;
+            color.color = new ParticleSystem.MinMaxGradient(dustFade);
+            smokeParticleSystem.GetComponent<ParticleSystemRenderer>().sortingOrder = -1;
+        }
+    }
+
+    private void ClearBreakParticles()
+    {
+        if (breakParticleSystem != null)
+            breakParticleSystem.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        if (smokeParticleSystem != null)
+            smokeParticleSystem.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
     }
 
     /// <summary>
@@ -469,6 +611,7 @@ public class BridgePhysicsManager : MonoBehaviour
         sharedRoadPhysicsMat.staticFriction = 1f;
         sharedRoadPhysicsMat.frictionCombine = PhysicMaterialCombine.Maximum;
         sharedRoadPhysicsMat.bounciness = 0f;
+        CreateBreakParticleSystem();
     }
 
     private void Start()
@@ -939,6 +1082,7 @@ public class BridgePhysicsManager : MonoBehaviour
         
         isSimulating = false;
         pendingSimulationStart = false;
+        ClearBreakParticles();
         OnSimulationStopped?.Invoke(); 
 
         RestoreActiveStressVisuals();
@@ -1354,6 +1498,7 @@ public class BridgePhysicsManager : MonoBehaviour
         activeStressHandlers.Clear();
         isSimulating = false;
         pendingSimulationStart = false;
+        ClearBreakParticles();
         deterministicRuntimeStateApplied = false;
         deterministicRuntimeStateReusable = false;
         currentVisualMaxStress = 0f;
@@ -2380,6 +2525,7 @@ public class BarStressHandler : MonoBehaviour
         FailureCause = cause;
         FailureSource = string.IsNullOrWhiteSpace(source) ? "unknown source" : source;
         FailureForceNewtons = Mathf.Max(0f, force);
+        if (manager != null) manager.RecordMemberBreakEffect(this);
         if (manager != null) manager.RecordBrokenPart(this);
         currentStressPercent = Mathf.Max(1f, currentStressPercent);
         currentStructuralStressPercent = Mathf.Max(1f, currentStructuralStressPercent);

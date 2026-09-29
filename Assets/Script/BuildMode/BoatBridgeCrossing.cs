@@ -41,14 +41,6 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
     [SerializeField, Min(0f)] private float impactSpacing = 3f;
     [Tooltip("Small downward velocity given to intact members near contact so the surrounding bridge visibly yields. Set to 0 to disable.")]
     [SerializeField, Min(0f)] private float impactDeflectionSpeed = 0.45f;
-    [Tooltip("Optional authored effect. When empty, a small pooled wood-impact particle effect is created once.")]
-    [SerializeField] private ParticleSystem impactEffect;
-    [Tooltip("URP transparent particle material for the fallback impact effect. Assign a material asset so it is included in mobile builds.")]
-    [SerializeField] private Material impactMaterial;
-    [Tooltip("World-space size of the fallback wood splinters.")]
-    [SerializeField, Min(0.1f)] private float impactParticleSize = 0.9f;
-    [Tooltip("Moves the impact burst slightly toward the build camera so the boat hull does not hide it.")]
-    [SerializeField, Min(0f)] private float impactCameraOffset = 2f;
 
     private readonly RaycastHit[] sweepHits = new RaycastHit[64];
     private readonly Collider[] overlapHits = new Collider[64];
@@ -74,7 +66,6 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
     private Vector3 crossingDirection;
     private float distanceTraveled;
     private float lastImpactDistance = float.NegativeInfinity;
-    private Material generatedImpactMaterial;
 
     private bool HasTravelDirection => travelDirection.sqrMagnitude > 0.000001f;
 
@@ -115,8 +106,6 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
         RefreshHull();
         if (!useManualHull && !hasBoatMeshColliders)
             Debug.LogError("[BoatBridgeCrossing] No usable hull mesh was found. Impact checks are disabled to avoid false box collisions. Assign Impact Hull Mesh or enable Use Manual Hull and size its box explicitly.", this);
-        if (impactEffect == null) CreateDefaultImpactEffect();
-
         if (preventBoatPhysicalContacts)
         {
             // Disabling a MeshCollider removes the shape ComputePenetration
@@ -161,7 +150,6 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
     {
         UnbindSimulationManager();
         DisposeOutline();
-        if (generatedImpactMaterial != null) Destroy(generatedImpactMaterial);
     }
 
     private void BindSimulationManager()
@@ -228,7 +216,6 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
         crossingDirection = travelDirection.normalized;
         distanceTraveled = 0f;
         lastImpactDistance = float.NegativeInfinity;
-        if (impactEffect != null) impactEffect.Clear(true);
         SetMeshQueriesActive(true);
         RefreshHull();
         delayRemaining = startDelay;
@@ -244,7 +231,6 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
         activeLocation = null;
         bridgeColliders.Clear();
         delayRemaining = 0f;
-        if (impactEffect != null) impactEffect.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
         transform.SetPositionAndRotation(authoredPosition, authoredRotation);
         // Hide only after a crossing has finished during simulation. Returning
         // to build mode restores the authored boat and its selection outline.
@@ -356,7 +342,6 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
 
         ApplyLocalImpactDeflection(impactPoint);
         lastImpactDistance = distanceTraveled;
-        PlayImpactEffect(impactPoint);
         return true;
     }
 
@@ -579,68 +564,6 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
         if (!visible) buildModeOutline?.SetBuildModeVisualOnlyVisible(false);
     }
 
-    private void CreateDefaultImpactEffect()
-    {
-        // One reusable system per boat; impacts emit into world space so
-        // earlier splinters do not follow the moving hull.
-        GameObject effectObject = new GameObject("Boat Impact Effect");
-        effectObject.transform.SetParent(transform, false);
-        effectObject.layer = gameObject.layer;
-        impactEffect = effectObject.AddComponent<ParticleSystem>();
-
-        ParticleSystem.MainModule main = impactEffect.main;
-        main.loop = true;
-        main.playOnAwake = false;
-        main.simulationSpace = ParticleSystemSimulationSpace.World;
-        main.scalingMode = ParticleSystemScalingMode.Local;
-        main.startLifetime = new ParticleSystem.MinMaxCurve(0.55f, 1.1f);
-        main.startSpeed = new ParticleSystem.MinMaxCurve(1.5f, 3f);
-        main.startSize = new ParticleSystem.MinMaxCurve(
-            impactParticleSize * 0.6f, impactParticleSize);
-        main.startColor = new Color(1f, 0.75f, 0.43f, 1f);
-        main.gravityModifier = 0.75f;
-        main.maxParticles = 64;
-
-        ParticleSystem.EmissionModule emission = impactEffect.emission;
-        emission.rateOverTime = 0f;
-        emission.rateOverDistance = 0f;
-        ParticleSystem.ShapeModule shape = impactEffect.shape;
-        shape.shapeType = ParticleSystemShapeType.Sphere;
-        shape.radius = 0.2f;
-
-        ParticleSystemRenderer particleRenderer = effectObject.GetComponent<ParticleSystemRenderer>();
-        if (impactMaterial != null)
-            particleRenderer.sharedMaterial = impactMaterial;
-        else
-        {
-            Shader shader = Shader.Find("Universal Render Pipeline/Particles/Unlit");
-            if (shader != null)
-            {
-                generatedImpactMaterial = new Material(shader);
-                generatedImpactMaterial.SetFloat("_Surface", 1f);
-                generatedImpactMaterial.SetFloat("_SrcBlend", 5f);
-                generatedImpactMaterial.SetFloat("_DstBlend", 10f);
-                generatedImpactMaterial.SetFloat("_ZWrite", 0f);
-                generatedImpactMaterial.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-                generatedImpactMaterial.SetOverrideTag("RenderType", "Transparent");
-                generatedImpactMaterial.renderQueue = 3000;
-                particleRenderer.sharedMaterial = generatedImpactMaterial;
-            }
-        }
-        impactEffect.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
-    }
-
-    private void PlayImpactEffect(Vector3 contactPoint)
-    {
-        if (impactEffect == null) return;
-        Camera buildCamera = activeLocation != null ? activeLocation.locationCamera : null;
-        impactEffect.transform.position = buildCamera != null
-            ? contactPoint - buildCamera.transform.forward * impactCameraOffset
-            : contactPoint;
-        if (!impactEffect.isPlaying) impactEffect.Play();
-        impactEffect.Emit(16);
-    }
-
     private void DisposeOutline()
     {
         if (buildModeOutline == null) return;
@@ -670,8 +593,6 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
         maxBrokenMembers = Mathf.Clamp(maxBrokenMembers, 1, 8);
         impactSpacing = Mathf.Max(0f, impactSpacing);
         impactDeflectionSpeed = Mathf.Max(0f, impactDeflectionSpeed);
-        impactParticleSize = Mathf.Max(0.1f, impactParticleSize);
-        impactCameraOffset = Mathf.Max(0f, impactCameraOffset);
         hullSize = new Vector3(Mathf.Max(0.01f, hullSize.x),
             Mathf.Max(0.01f, hullSize.y), Mathf.Max(0.01f, hullSize.z));
     }
