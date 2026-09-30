@@ -75436,13 +75436,13 @@ MonoBehaviour:
     type: 2}
   smokeParticleMaterial: {fileID: 2100000, guid: fd027d641ac84b1a9b3655f8b87597c2,
     type: 2}
-  breakParticlesPerMember: 6
+  breakParticlesPerMember: 12
   maxBreakParticles: 128
-  breakParticleSize: 0.35
-  smokeParticlesPerMember: 8
+  breakParticleSize: 0.55
+  smokeParticlesPerMember: 12
   maxSmokeParticles: 160
-  smokeParticleSize: 1.5
-  breakParticleCameraOffset: 2
+  smokeParticleSize: 2.2
+  breakParticleCameraOffset: 3
   isSimulating: 0
   lockStressTracking: 0
   activeStressHandlers: []

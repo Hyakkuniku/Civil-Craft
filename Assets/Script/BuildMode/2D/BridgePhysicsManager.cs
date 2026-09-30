@@ -86,17 +86,17 @@ public class BridgePhysicsManager : MonoBehaviour
     public Color brokenColor = Color.black;
 
     [Header("Bridge Break Particles")]
-    [Tooltip("Material for a few fast, material-neutral fragments. The same two emitters serve every simulated bridge member.")]
+    [Tooltip("Material-neutral fragments. The same capped emitters serve every simulated bridge member.")]
     [SerializeField] private Material breakParticleMaterial;
     [SerializeField] private Material smokeParticleMaterial;
-    [Min(1)] [SerializeField] private int breakParticlesPerMember = 6;
+    [Min(1)] [SerializeField] private int breakParticlesPerMember = 12;
     [Min(1)] [SerializeField] private int maxBreakParticles = 128;
-    [Min(0.1f)] [SerializeField] private float breakParticleSize = 0.35f;
-    [Min(1)] [SerializeField] private int smokeParticlesPerMember = 8;
+    [Min(0.1f)] [SerializeField] private float breakParticleSize = 0.55f;
+    [Min(1)] [SerializeField] private int smokeParticlesPerMember = 12;
     [Min(1)] [SerializeField] private int maxSmokeParticles = 160;
-    [Min(0.1f)] [SerializeField] private float smokeParticleSize = 1.5f;
+    [Min(0.1f)] [SerializeField] private float smokeParticleSize = 2.2f;
     [Tooltip("Moves the burst toward the build camera so a bridge member or boat does not hide it.")]
-    [Min(0f)] [SerializeField] private float breakParticleCameraOffset = 2f;
+    [Min(0f)] [SerializeField] private float breakParticleCameraOffset = 3f;
     private ParticleSystem breakParticleSystem;
     private ParticleSystem smokeParticleSystem;
 
@@ -221,21 +221,36 @@ public class BridgePhysicsManager : MonoBehaviour
         if (breakParticleSystem != null)
         {
             ParticleSystem.MainModule main = breakParticleSystem.main;
-            main.startLifetime = new ParticleSystem.MinMaxCurve(0.45f, 0.85f);
-            main.startSpeed = new ParticleSystem.MinMaxCurve(2f, 4f);
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.65f, 1.05f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(2.5f, 5f);
             main.startSize = new ParticleSystem.MinMaxCurve(
                 breakParticleSize * 0.5f, breakParticleSize);
             main.startColor = new ParticleSystem.MinMaxGradient(
-                new Color(0.75f, 0.72f, 0.66f, 1f),
-                new Color(0.42f, 0.40f, 0.36f, 1f));
+                new Color(0.88f, 0.82f, 0.70f, 1f),
+                new Color(0.38f, 0.36f, 0.33f, 1f));
             main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
             main.gravityModifier = 1.2f;
             ParticleSystem.ShapeModule shape = breakParticleSystem.shape;
-            shape.radius = 0.18f;
+            shape.radius = 0.25f;
             ParticleSystemRenderer renderer = breakParticleSystem.GetComponent<ParticleSystemRenderer>();
             renderer.renderMode = ParticleSystemRenderMode.Stretch;
-            renderer.lengthScale = 0.7f;
-            renderer.velocityScale = 0.12f;
+            renderer.lengthScale = 1f;
+            renderer.velocityScale = 0.18f;
+
+            Gradient fragmentFade = new Gradient();
+            fragmentFade.SetKeys(new[]
+            {
+                new GradientColorKey(Color.white, 0f),
+                new GradientColorKey(Color.white, 1f)
+            }, new[]
+            {
+                new GradientAlphaKey(1f, 0f),
+                new GradientAlphaKey(1f, 0.65f),
+                new GradientAlphaKey(0f, 1f)
+            });
+            ParticleSystem.ColorOverLifetimeModule fragmentColor = breakParticleSystem.colorOverLifetime;
+            fragmentColor.enabled = true;
+            fragmentColor.color = new ParticleSystem.MinMaxGradient(fragmentFade);
         }
 
         smokeParticleSystem = CreateBreakEmitter("Bridge Break Dust",
@@ -243,8 +258,8 @@ public class BridgePhysicsManager : MonoBehaviour
         if (smokeParticleSystem != null)
         {
             ParticleSystem.MainModule main = smokeParticleSystem.main;
-            main.startLifetime = new ParticleSystem.MinMaxCurve(1.1f, 1.8f);
-            main.startSpeed = new ParticleSystem.MinMaxCurve(0.3f, 1.1f);
+            main.startLifetime = new ParticleSystem.MinMaxCurve(1.3f, 2f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(0.4f, 1.5f);
             main.startSize = new ParticleSystem.MinMaxCurve(
                 smokeParticleSize * 0.7f, smokeParticleSize);
             main.startColor = Color.white;
@@ -252,23 +267,23 @@ public class BridgePhysicsManager : MonoBehaviour
             main.gravityModifier = -0.08f;
 
             ParticleSystem.ShapeModule shape = smokeParticleSystem.shape;
-            shape.radius = 0.35f;
+            shape.radius = 0.45f;
             ParticleSystem.SizeOverLifetimeModule size = smokeParticleSystem.sizeOverLifetime;
             size.enabled = true;
             size.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(
-                new Keyframe(0f, 0.25f), new Keyframe(0.35f, 0.9f),
-                new Keyframe(1f, 1.55f)));
+                new Keyframe(0f, 0.4f), new Keyframe(0.35f, 1f),
+                new Keyframe(1f, 1.6f)));
 
             Gradient dustFade = new Gradient();
             dustFade.SetKeys(new[]
             {
-                new GradientColorKey(new Color(0.47f, 0.45f, 0.41f), 0f),
-                new GradientColorKey(new Color(0.72f, 0.70f, 0.65f), 1f)
+                new GradientColorKey(new Color(0.45f, 0.42f, 0.38f), 0f),
+                new GradientColorKey(new Color(0.72f, 0.68f, 0.61f), 1f)
             }, new[]
             {
-                new GradientAlphaKey(0f, 0f),
-                new GradientAlphaKey(0.45f, 0.12f),
-                new GradientAlphaKey(0.3f, 0.55f),
+                new GradientAlphaKey(0.18f, 0f),
+                new GradientAlphaKey(0.72f, 0.15f),
+                new GradientAlphaKey(0.48f, 0.55f),
                 new GradientAlphaKey(0f, 1f)
             });
             ParticleSystem.ColorOverLifetimeModule color = smokeParticleSystem.colorOverLifetime;
