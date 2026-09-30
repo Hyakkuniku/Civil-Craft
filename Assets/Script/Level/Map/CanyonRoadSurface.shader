@@ -4,8 +4,8 @@ Shader "Civil Craft/Canyon Road Surface"
     {
         _RoadTint ("Road surface color", Color) = (.30, .32, .34, 1)
         _ShoulderTint ("Shoulder color", Color) = (.38, .38, .37, 1)
-        _EdgeLineTint ("Edge line color", Color) = (.82, .80, .72, 1)
-        _CenterLineTint ("Center line color", Color) = (1, .76, .20, 1)
+        _EdgeLineTint ("Edge line color", Color) = (1, 1, 1, 1)
+        _CenterLineTint ("Center line color", Color) = (1, 1, 1, 1)
         _SidewalkTint ("Sidewalk color", Color) = (.66, .65, .62, 1)
         _CurbTint ("Curb color", Color) = (.82, .80, .74, 1)
         _SidewalkWidth ("Sidewalk width (road half-widths)", Range(0,.6)) = .22
@@ -13,7 +13,7 @@ Shader "Civil Craft/Canyon Road Surface"
         _Strength ("Strength", Range(0,1)) = .85
         _Width ("Width", Float) = .075
         _Softness ("Softness", Float) = .16
-        _MarkingStrength ("Marking strength", Range(0,1)) = .85
+        _MarkingStrength ("Marking strength", Range(0,1)) = 1
         _EdgeLineWidth ("Edge line width", Range(.005,.12)) = .035
         _CenterLineWidth ("Center line width", Range(.005,.12)) = .045
         _DashLength ("Center dash length (road widths)", Range(.2,4)) = 1.2

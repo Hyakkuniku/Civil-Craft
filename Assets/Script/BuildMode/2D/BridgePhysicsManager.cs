@@ -2084,10 +2084,17 @@ public class BarStressHandler : MonoBehaviour
     private Queue<float> settlingForceHistory = new Queue<float>();
     private int smoothingFrames = 10;
 
-    private Renderer[] childRenderers;
-    private Color[] originalColors;
-    private int[] colorPropertyIds;
-    private MaterialPropertyBlock[] colorPropertyBlocks;
+    private struct RendererColorSlot
+    {
+        public Renderer renderer;
+        public int materialIndex;
+        public int colorPropertyId;
+        public Color originalColor;
+        public MaterialPropertyBlock originalBlock;
+        public MaterialPropertyBlock workingBlock;
+    }
+
+    private RendererColorSlot[] rendererColorSlots;
     private bool stressVisualDirty;
     public Bar Bar => myBar;
     public float VisualStressPercent => visualStressPercent;
@@ -2169,32 +2176,39 @@ public class BarStressHandler : MonoBehaviour
         forceHistory.Clear();
         settlingForceHistory.Clear();
 
-        childRenderers = GetComponentsInChildren<Renderer>();
-        originalColors = new Color[childRenderers.Length];
-        colorPropertyIds = new int[childRenderers.Length];
-        colorPropertyBlocks = new MaterialPropertyBlock[childRenderers.Length];
-        
-        for (int i = 0; i < childRenderers.Length; i++)
+        Renderer[] childRenderers = GetComponentsInChildren<Renderer>();
+        List<RendererColorSlot> slots = new List<RendererColorSlot>(childRenderers.Length);
+        foreach (Renderer renderer in childRenderers)
         {
-            Renderer renderer = childRenderers[i];
-            Material sharedMaterial = renderer != null ? renderer.sharedMaterial : null;
-            colorPropertyBlocks[i] = new MaterialPropertyBlock();
-            if (renderer != null) renderer.GetPropertyBlock(colorPropertyBlocks[i]);
+            if (renderer == null) continue;
+            Material[] sharedMaterials = renderer.sharedMaterials;
+            for (int materialIndex = 0; materialIndex < sharedMaterials.Length; materialIndex++)
+            {
+                Material sharedMaterial = sharedMaterials[materialIndex];
+                int colorPropertyId = ResolveColorPropertyId(sharedMaterial);
+                if (colorPropertyId < 0) continue;
 
-            int colorPropertyId = ResolveColorPropertyId(sharedMaterial);
-            colorPropertyIds[i] = colorPropertyId;
-            if (colorPropertyId >= 0)
-            {
-                MaterialPropertyBlock block = colorPropertyBlocks[i];
-                originalColors[i] = block.HasColor(colorPropertyId)
-                    ? block.GetColor(colorPropertyId)
-                    : sharedMaterial.GetColor(colorPropertyId);
-            }
-            else
-            {
-                originalColors[i] = Color.white;
+                // A road mesh can have multiple submaterials. Capture each slot's
+                // original override instead of applying the first slot's color
+                // to the entire renderer and leaving that override after reset.
+                MaterialPropertyBlock originalBlock = new MaterialPropertyBlock();
+                renderer.GetPropertyBlock(originalBlock, materialIndex);
+                MaterialPropertyBlock workingBlock = new MaterialPropertyBlock();
+                renderer.GetPropertyBlock(workingBlock, materialIndex);
+                slots.Add(new RendererColorSlot
+                {
+                    renderer = renderer,
+                    materialIndex = materialIndex,
+                    colorPropertyId = colorPropertyId,
+                    originalColor = originalBlock.HasColor(colorPropertyId)
+                        ? originalBlock.GetColor(colorPropertyId)
+                        : sharedMaterial.GetColor(colorPropertyId),
+                    originalBlock = originalBlock,
+                    workingBlock = workingBlock
+                });
             }
         }
+        rendererColorSlots = slots.ToArray();
 
         // Force one controlled-rate refresh even when this run begins at zero
         // stress, ensuring every repeated simulation starts from its safe color.
@@ -2296,12 +2310,14 @@ public class BarStressHandler : MonoBehaviour
 
     private void RestoreOriginalColors()
     {
-        if (childRenderers == null) return;
-        for (int i = 0; i < childRenderers.Length; i++)
+        if (rendererColorSlots == null) return;
+        for (int i = 0; i < rendererColorSlots.Length; i++)
         {
-            if (childRenderers[i] != null && originalColors != null &&
-                i < originalColors.Length)
-                SetBarColor(originalColors[i], i);
+            RendererColorSlot slot = rendererColorSlots[i];
+            if (slot.renderer != null)
+                slot.renderer.SetPropertyBlock(
+                    slot.originalBlock.isEmpty ? null : slot.originalBlock,
+                    slot.materialIndex);
         }
     }
 
@@ -2501,15 +2517,16 @@ public class BarStressHandler : MonoBehaviour
 
     private void UpdateStressVisuals()
     {
-        if (childRenderers == null || childRenderers.Length == 0) return;
+        if (rendererColorSlots == null || rendererColorSlots.Length == 0) return;
 
-        for (int i = 0; i < childRenderers.Length; i++)
+        for (int i = 0; i < rendererColorSlots.Length; i++)
         {
             Color stressColor;
 
             if (visualStressPercent < 0.5f)
             {
-                stressColor = Color.Lerp(originalColors[i], manager.warningColor, visualStressPercent * 2f);
+                stressColor = Color.Lerp(rendererColorSlots[i].originalColor,
+                    manager.warningColor, visualStressPercent * 2f);
             }
             else
             {
@@ -2542,7 +2559,9 @@ public class BarStressHandler : MonoBehaviour
         // Blackening that line hides its rope material and leaves an unnatural
         // black streak; solid members retain their existing broken-color cue.
         if (material.isRope) RestoreOriginalColors();
-        else for (int i = 0; i < childRenderers.Length; i++) SetBarColor(manager.brokenColor, i);
+        else if (rendererColorSlots != null)
+            for (int i = 0; i < rendererColorSlots.Length; i++)
+                SetBarColor(manager.brokenColor, i);
         
         if (material.isRope && myBar != null)
         {
@@ -2621,16 +2640,15 @@ public class BarStressHandler : MonoBehaviour
 
     private void SetBarColor(Color targetColor, int index)
     {
-        if (childRenderers == null || colorPropertyIds == null ||
-            colorPropertyBlocks == null || index < 0 ||
-            index >= childRenderers.Length || childRenderers[index] == null ||
-            colorPropertyIds[index] < 0)
+        if (rendererColorSlots == null || index < 0 ||
+            index >= rendererColorSlots.Length)
             return;
 
-        // Property blocks avoid Renderer.material instantiation and repeated
-        // shader-property searches during every color refresh.
-        MaterialPropertyBlock block = colorPropertyBlocks[index];
-        block.SetColor(colorPropertyIds[index], targetColor);
-        childRenderers[index].SetPropertyBlock(block);
+        RendererColorSlot slot = rendererColorSlots[index];
+        if (slot.renderer == null) return;
+
+        // Reuse the setup-time block; the simulation's hot path allocates nothing.
+        slot.workingBlock.SetColor(slot.colorPropertyId, targetColor);
+        slot.renderer.SetPropertyBlock(slot.workingBlock, slot.materialIndex);
     }
 }
