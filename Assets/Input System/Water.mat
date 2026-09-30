@@ -38,7 +38,7 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _Depth_Fade_Distance: 0.39
+    - _Depth_Fade_Distance: 1
     - _Flow_Direction: 0.339
     - _Flow_Noise_Scale: 50
     - _Flow_Speed: 0.12

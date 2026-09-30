@@ -1140,6 +1140,11 @@ public class BridgePhysicsManager : MonoBehaviour
             if (bar.gameObject.activeSelf && bar.startPoint != null && bar.endPoint != null)
             {
                 bar.StartPosition = bar.startPoint.transform.position;
+                // A snapped rope temporarily points downward during failure.
+                // Restore its authored span after the endpoints return to their
+                // pre-simulation positions, before Level Failed -> Retry resumes.
+                if (bar.materialData != null && bar.materialData.isRope)
+                    bar.UpdateCreatingBar(bar.endPoint.transform.position);
             }
         }
 
@@ -2511,14 +2516,18 @@ public class BarStressHandler : MonoBehaviour
         if (manager != null) manager.RecordBrokenPart(this);
         currentStressPercent = Mathf.Max(1f, currentStressPercent);
         currentStructuralStressPercent = Mathf.Max(1f, currentStructuralStressPercent);
-        // Failure itself must stay synchronized with the meter and black member.
+        // Failure itself must stay synchronized with the stress meter.
         // Do not visually lag behind an already-collapsing bridge.
         visualStressPercent = Mathf.Max(1f, visualStressPercent);
 
         ReleaseAllFailedMemberConnections(brokenJoint);
         WakeVisualBodiesAtFailure();
         
-        for (int i = 0; i < childRenderers.Length; i++) SetBarColor(manager.brokenColor, i);
+        // A snapped rope is already visibly detached and animated by its line.
+        // Blackening that line hides its rope material and leaves an unnatural
+        // black streak; solid members retain their existing broken-color cue.
+        if (material.isRope) RestoreOriginalColors();
+        else for (int i = 0; i < childRenderers.Length; i++) SetBarColor(manager.brokenColor, i);
         
         if (material.isRope && myBar != null)
         {
