@@ -66082,6 +66082,7 @@ MonoBehaviour:
   unearnedStarSprite: {fileID: 21300000, guid: 91df24aafd1b17947afc922622f41840, type: 3}
   firstCompletionTutorial: {fileID: 0}
   showFirstCompletionTutorial: 1
+  submitSavedRunsToLeaderboard: 1
   receiptContentParent: {fileID: 1163730275}
   receiptRowPrefab: {fileID: 57992146011034018, guid: 1184363f0986e454191181012f996ef0,
     type: 3}

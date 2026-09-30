@@ -37,6 +37,7 @@ public sealed class LeaderboardPanelUI : MonoBehaviour
     private readonly List<ContractSO> displayedContracts = new List<ContractSO>();
     private int requestGeneration;
     private Coroutine dropdownReadyCoroutine;
+    private LeaderboardPanelMotion panelMotion;
 
     private void Awake()
     {
@@ -45,6 +46,7 @@ public sealed class LeaderboardPanelUI : MonoBehaviour
         if (contractDropdown != null) contractDropdown.onValueChanged.AddListener(OnSelectionChanged);
         if (efficientToggle != null) efficientToggle.onValueChanged.AddListener(OnRankingChanged);
         if (strongestToggle != null) strongestToggle.onValueChanged.AddListener(OnRankingChanged);
+        if (panel != null) panelMotion = panel.GetComponent<LeaderboardPanelMotion>();
         if (panel != null) panel.SetActive(false);
     }
 
@@ -79,7 +81,10 @@ public sealed class LeaderboardPanelUI : MonoBehaviour
             StopCoroutine(dropdownReadyCoroutine);
             dropdownReadyCoroutine = null;
         }
-        if (panel != null) panel.SetActive(false);
+        if (panelMotion != null && panelMotion.isActiveAndEnabled)
+            panelMotion.Close();
+        else if (panel != null)
+            panel.SetActive(false);
     }
 
     private IEnumerator EnableDropdownAfterStart()

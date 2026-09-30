@@ -108,6 +108,10 @@ public class LevelCompleteManager : MonoBehaviour
     private TutorialSequence firstCompletionTutorial;
     [SerializeField] private bool showFirstCompletionTutorial = true;
 
+    [Header("Online Leaderboard (Development)")]
+    [SerializeField, Tooltip("Enable only after submitBridgeRunV1 is deployed to PlayFab and both statistics per contract use Max aggregation. Offline or guest runs are not submitted.")]
+    private bool submitSavedRunsToLeaderboard;
+
     public TMP_FontAsset ReceiptFont { get; private set; }
     public Transform receiptContentParent; 
     public GameObject receiptRowPrefab;    
@@ -1248,6 +1252,10 @@ public class LevelCompleteManager : MonoBehaviour
                 "The baked objects remain in the scene so saving can be retried.", this);
             return;
         }
+
+        if (submitSavedRunsToLeaderboard)
+            LeaderboardSubmissionService.SubmitSavedRun(
+                completedContract, lastFinalCost, lastPeakStress);
 
         // Keep the tested image as a high-quality local cache only after its
         // bridge geometry is safely committed. Other devices reconstruct the

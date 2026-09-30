@@ -57,6 +57,9 @@ public static class LeaderboardPanelAuthoring
         {
             Canvas canvas = FindInScene<Canvas>(scene, c => c.renderMode != RenderMode.WorldSpace);
             if (canvas == null) throw new InvalidOperationException("Mode Selection canvas not found.");
+            font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(FontPath) ?? TMP_Settings.defaultFontAsset;
+            Transform existingCard = FindDescendant(canvas.transform, "Session Choice Card");
+            rounded = existingCard != null ? existingCard.GetComponent<Image>()?.sprite : null;
             Transform existingPanel = canvas.transform.Find(PanelName);
             if (existingPanel != null)
             {
@@ -71,10 +74,6 @@ public static class LeaderboardPanelAuthoring
                 }
                 return;
             }
-
-            font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(FontPath) ?? TMP_Settings.defaultFontAsset;
-            Transform existingCard = FindDescendant(canvas.transform, "Session Choice Card");
-            rounded = existingCard != null ? existingCard.GetComponent<Image>()?.sprite : null;
 
             RectTransform canvasRect = canvas.transform as RectTransform;
             LeaderboardPanelUI controller = canvas.GetComponent<LeaderboardPanelUI>();
@@ -215,7 +214,7 @@ public static class LeaderboardPanelAuthoring
                 new Vector2(800f, 40f));
 
             SerializedObject serialized = new SerializedObject(controller);
-            serialized.FindProperty("authoredLayoutVersion").intValue = 4;
+            serialized.FindProperty("authoredLayoutVersion").intValue = 5;
             Set(serialized, "panel", overlay.gameObject);
             Set(serialized, "openButton", open);
             Set(serialized, "closeButton", close);
@@ -248,6 +247,7 @@ public static class LeaderboardPanelAuthoring
                 catalog.GetArrayElementAtIndex(i).objectReferenceValue = contractAssets[i];
             serialized.ApplyModifiedPropertiesWithoutUndo();
             SetAuthoredDropdownOptions(dropdown, contractAssets);
+            ApplyPolishedLayout(overlay);
 
             overlay.SetAsLastSibling();
             overlay.gameObject.SetActive(false);
@@ -274,7 +274,10 @@ public static class LeaderboardPanelAuthoring
     {
         SerializedObject serialized = new SerializedObject(controller);
         SerializedProperty version = serialized.FindProperty("authoredLayoutVersion");
-        if (version == null || version.intValue >= 4) return false;
+        if (version == null || version.intValue >= 5) return false;
+
+        if (version.intValue < 4)
+        {
 
         foreach (string toggleName in new[] { "Most Efficient Toggle", "Strongest Toggle" })
         {
@@ -348,10 +351,13 @@ public static class LeaderboardPanelAuthoring
             SetAuthoredDropdownOptions(dropdown, authoredContracts);
         }
 
-        version.intValue = 4;
+        }
+
+        ApplyPolishedLayout(panel);
+        version.intValue = 5;
         serialized.ApplyModifiedPropertiesWithoutUndo();
         EditorUtility.SetDirty(controller);
-        Debug.Log("[Leaderboard] Updated generated checkbox artwork and mobile text sizing.");
+        Debug.Log("[Leaderboard] Updated the authored leaderboard layout and motion.");
         return true;
     }
 
@@ -368,6 +374,198 @@ public static class LeaderboardPanelAuthoring
         dropdown.SetValueWithoutNotify(0);
         dropdown.RefreshShownValue();
         EditorUtility.SetDirty(dropdown);
+    }
+
+    private static void ApplyPolishedLayout(Transform panel)
+    {
+        RectTransform card = FindDescendant(panel, "Leaderboard Card") as RectTransform;
+        if (card == null) return;
+
+        RectTransform title = FindDescendant(card, "Leaderboard Title Tab") as RectTransform;
+        if (title != null)
+        {
+            Place(title, new Vector2(.5f, 1f), new Vector2(0f, 12f),
+                new Vector2(500f, 77f));
+            SetFontSize(title, "Title", 47f);
+        }
+
+        RectTransform close = FindDescendant(card, "Close Leaderboards Button") as RectTransform;
+        if (close != null)
+        {
+            close.anchorMin = close.anchorMax = Vector2.one;
+            close.pivot = Vector2.one;
+            close.anchoredPosition = new Vector2(-24f, -24f);
+            close.sizeDelta = new Vector2(68f, 68f);
+            SetFontSize(close, "Label", 43f);
+        }
+
+        RectTransform dropdown = FindDescendant(card, "Contract Dropdown") as RectTransform;
+        if (dropdown != null)
+        {
+            TopStretch(dropdown, .17f, .83f, 68f, 140f);
+            Outline border = dropdown.GetComponent<Outline>();
+            if (border == null) border = dropdown.gameObject.AddComponent<Outline>();
+            border.effectColor = Brown;
+            border.effectDistance = new Vector2(2f, -2f);
+            border.useGraphicAlpha = false;
+            TMP_Dropdown choice = dropdown.GetComponent<TMP_Dropdown>();
+            if (choice != null && choice.captionText != null)
+                choice.captionText.fontSize = 34f;
+        }
+
+        SetToggleLayout(card, "Most Efficient Toggle", -226f);
+        SetToggleLayout(card, "Strongest Toggle", 226f);
+
+        RectTransform description = FindDescendant(card, "Ranking Description") as RectTransform;
+        if (description != null)
+        {
+            TopStretch(description, .09f, .91f, 234f, 277f);
+            SetFontSize(card, "Ranking Description", 27f);
+        }
+
+        RectTransform header = FindDescendant(card, "Column Header") as RectTransform;
+        if (header != null)
+        {
+            header.anchorMin = new Vector2(0f, 1f);
+            header.anchorMax = new Vector2(1f, 1f);
+            header.pivot = new Vector2(.5f, .5f);
+            header.offsetMin = new Vector2(90f, -340f);
+            header.offsetMax = new Vector2(-90f, -286f);
+            foreach (TMP_Text label in header.GetComponentsInChildren<TMP_Text>(true))
+                label.fontSize = 29f;
+        }
+
+        RectTransform frame = FindDescendant(card, "Ranking List Frame") as RectTransform;
+        if (frame == null)
+        {
+            frame = CreateRect("Ranking List Frame", card);
+            AddImage(frame, Brown, false);
+            RectTransform surface = CreateRect("Ranking List Surface", frame);
+            Stretch(surface, 4f, 4f, 4f, 4f);
+            AddImage(surface, new Color32(249, 239, 221, 255), false);
+        }
+        frame.anchorMin = Vector2.zero;
+        frame.anchorMax = Vector2.one;
+        frame.offsetMin = new Vector2(82f, 132f);
+        frame.offsetMax = new Vector2(-82f, -279f);
+        if (header != null) frame.SetSiblingIndex(header.GetSiblingIndex());
+
+        RectTransform viewport = FindDescendant(card, "Leaderboard Viewport") as RectTransform;
+        if (viewport != null)
+        {
+            viewport.anchorMin = Vector2.zero;
+            viewport.anchorMax = Vector2.one;
+            viewport.offsetMin = new Vector2(90f, 147f);
+            viewport.offsetMax = new Vector2(-114f, -348f);
+        }
+
+        RectTransform scrollbar = FindDescendant(card, "Leaderboard Scrollbar") as RectTransform;
+        if (scrollbar != null)
+        {
+            scrollbar.anchorMin = new Vector2(1f, 0f);
+            scrollbar.anchorMax = Vector2.one;
+            scrollbar.offsetMin = new Vector2(-108f, 147f);
+            scrollbar.offsetMax = new Vector2(-92f, -348f);
+        }
+
+        RectTransform status = FindDescendant(card, "Leaderboard Status") as RectTransform;
+        if (status != null)
+        {
+            status.anchorMin = Vector2.zero;
+            status.anchorMax = Vector2.one;
+            status.offsetMin = new Vector2(115f, 147f);
+            status.offsetMax = new Vector2(-115f, -348f);
+            SetFontSize(card, "Leaderboard Status", 30f);
+        }
+
+        RectTransform personal = FindDescendant(card, "Personal Best") as RectTransform;
+        if (personal != null)
+        {
+            BottomStretch(personal, .09f, .91f, 68f, 112f);
+            SetFontSize(card, "Personal Best", 30f);
+        }
+        RectTransform footer = FindDescendant(card, "Top 15 Footer") as RectTransform;
+        if (footer != null)
+        {
+            BottomStretch(footer, .15f, .85f, 20f, 52f);
+            SetFontSize(card, "Top 15 Footer", 25f);
+        }
+
+        RectTransform content = FindDescendant(card, "Top 15 Content") as RectTransform;
+        if (content != null)
+        {
+            VerticalLayoutGroup layout = content.GetComponent<VerticalLayoutGroup>();
+            if (layout != null) layout.spacing = 4f;
+            foreach (LeaderboardRowUI row in content.GetComponentsInChildren<LeaderboardRowUI>(true))
+            {
+                RectTransform rowRect = row.transform as RectTransform;
+                rowRect.sizeDelta = new Vector2(rowRect.sizeDelta.x, 54f);
+                LayoutElement element = row.GetComponent<LayoutElement>();
+                if (element != null) element.preferredHeight = 54f;
+                foreach (TMP_Text label in row.GetComponentsInChildren<TMP_Text>(true))
+                {
+                    label.fontSize = 30f;
+                    RectTransform cell = label.transform as RectTransform;
+                    cell.offsetMin = new Vector2(12f, 0f);
+                    cell.offsetMax = new Vector2(-6f, 0f);
+                }
+            }
+        }
+        if (header != null)
+            foreach (TMP_Text label in header.GetComponentsInChildren<TMP_Text>(true))
+            {
+                RectTransform cell = label.transform as RectTransform;
+                cell.offsetMin = new Vector2(12f, 0f);
+                cell.offsetMax = new Vector2(-6f, 0f);
+            }
+
+        LeaderboardPanelMotion motion = panel.GetComponent<LeaderboardPanelMotion>();
+        if (motion == null) motion = panel.gameObject.AddComponent<LeaderboardPanelMotion>();
+        SerializedObject motionSettings = new SerializedObject(motion);
+        Set(motionSettings, "overlayGroup", panel.GetComponent<CanvasGroup>());
+        Set(motionSettings, "card", card);
+        motionSettings.ApplyModifiedPropertiesWithoutUndo();
+        EditorUtility.SetDirty(motion);
+    }
+
+    private static void SetToggleLayout(RectTransform card, string name, float x)
+    {
+        RectTransform toggle = FindDescendant(card, name) as RectTransform;
+        if (toggle == null) return;
+        Place(toggle, new Vector2(.5f, 1f), new Vector2(x, -190f),
+            new Vector2(405f, 66f));
+        RectTransform box = FindDescendant(toggle, "Checkbox") as RectTransform;
+        if (box != null)
+            Place(box, new Vector2(0f, .5f), new Vector2(32f, 0f),
+                new Vector2(56f, 56f));
+        SetFontSize(toggle, "Label", 36f);
+    }
+
+    private static void SetFontSize(Transform parent, string name, float size)
+    {
+        Transform child = FindDescendant(parent, name);
+        TMP_Text label = child != null ? child.GetComponent<TMP_Text>() : null;
+        if (label != null) label.fontSize = size;
+    }
+
+    private static void TopStretch(RectTransform rect, float leftAnchor, float rightAnchor,
+        float top, float bottom)
+    {
+        rect.anchorMin = new Vector2(leftAnchor, 1f);
+        rect.anchorMax = new Vector2(rightAnchor, 1f);
+        rect.pivot = new Vector2(.5f, .5f);
+        rect.offsetMin = new Vector2(0f, -bottom);
+        rect.offsetMax = new Vector2(0f, -top);
+    }
+
+    private static void BottomStretch(RectTransform rect, float leftAnchor, float rightAnchor,
+        float bottom, float top)
+    {
+        rect.anchorMin = new Vector2(leftAnchor, 0f);
+        rect.anchorMax = new Vector2(rightAnchor, 0f);
+        rect.pivot = new Vector2(.5f, .5f);
+        rect.offsetMin = new Vector2(0f, bottom);
+        rect.offsetMax = new Vector2(0f, top);
     }
 
     private static Sprite FindCheckmarkSprite(Scene scene)
