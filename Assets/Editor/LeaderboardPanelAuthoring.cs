@@ -214,7 +214,7 @@ public static class LeaderboardPanelAuthoring
                 new Vector2(800f, 40f));
 
             SerializedObject serialized = new SerializedObject(controller);
-            serialized.FindProperty("authoredLayoutVersion").intValue = 5;
+            serialized.FindProperty("authoredLayoutVersion").intValue = 7;
             Set(serialized, "panel", overlay.gameObject);
             Set(serialized, "openButton", open);
             Set(serialized, "closeButton", close);
@@ -248,6 +248,7 @@ public static class LeaderboardPanelAuthoring
             serialized.ApplyModifiedPropertiesWithoutUndo();
             SetAuthoredDropdownOptions(dropdown, contractAssets);
             ApplyPolishedLayout(overlay);
+            ApplyReadableTypography(overlay);
 
             overlay.SetAsLastSibling();
             overlay.gameObject.SetActive(false);
@@ -274,7 +275,7 @@ public static class LeaderboardPanelAuthoring
     {
         SerializedObject serialized = new SerializedObject(controller);
         SerializedProperty version = serialized.FindProperty("authoredLayoutVersion");
-        if (version == null || version.intValue >= 5) return false;
+        if (version == null || version.intValue >= 7) return false;
 
         if (version.intValue < 4)
         {
@@ -353,12 +354,101 @@ public static class LeaderboardPanelAuthoring
 
         }
 
-        ApplyPolishedLayout(panel);
-        version.intValue = 5;
+        if (version.intValue < 5) ApplyPolishedLayout(panel);
+        ApplyReadableTypography(panel);
+        version.intValue = 7;
         serialized.ApplyModifiedPropertiesWithoutUndo();
         EditorUtility.SetDirty(controller);
-        Debug.Log("[Leaderboard] Updated the authored leaderboard layout and motion.");
+        Debug.Log("[Leaderboard] Updated the authored leaderboard typography.");
         return true;
+    }
+
+    private static void ApplyReadableTypography(Transform panel)
+    {
+        TMP_FontAsset readableFont = font;
+        if (readableFont == null)
+            throw new InvalidOperationException("Leaderboard Bekind font asset not found.");
+
+        Transform card = FindDescendant(panel, "Leaderboard Card");
+        if (card == null) return;
+
+        // Keep Bekind consistent across the panel. Weight, contrast and alignment
+        // provide the hierarchy without switching to a different typeface.
+        StyleLabel(card, "Title", font, 47f, FontStyles.Bold,
+            TextAlignmentOptions.Center);
+        StyleLabel(card, "Ranking Description", readableFont, 26f, FontStyles.Normal,
+            TextAlignmentOptions.Center);
+        StyleLabel(card, "Leaderboard Status", readableFont, 30f, FontStyles.Normal,
+            TextAlignmentOptions.Center);
+        StyleLabel(card, "Personal Best", readableFont, 29f, FontStyles.Bold,
+            TextAlignmentOptions.Center);
+        StyleLabel(card, "Top 15 Footer", readableFont, 25f, FontStyles.Normal,
+            TextAlignmentOptions.Center);
+
+        foreach (string toggleName in new[] { "Most Efficient Toggle", "Strongest Toggle" })
+        {
+            Transform toggle = FindDescendant(card, toggleName);
+            if (toggle != null)
+                StyleLabel(toggle, "Label", readableFont, 34f, FontStyles.Bold,
+                    TextAlignmentOptions.MidlineLeft);
+        }
+
+        TMP_Dropdown dropdown = card.GetComponentInChildren<TMP_Dropdown>(true);
+        if (dropdown != null)
+        {
+            StyleText(dropdown.captionText, readableFont, 32f, FontStyles.Bold,
+                TextAlignmentOptions.MidlineLeft);
+            StyleText(dropdown.itemText, readableFont, 29f, FontStyles.Normal,
+                TextAlignmentOptions.MidlineLeft);
+        }
+
+        Transform header = FindDescendant(card, "Column Header");
+        if (header != null)
+        {
+            StyleLabel(header, "Rank Header", readableFont, 27f, FontStyles.Bold,
+                TextAlignmentOptions.Center);
+            StyleLabel(header, "Builder Header", readableFont, 27f, FontStyles.Bold,
+                TextAlignmentOptions.MidlineLeft);
+            StyleLabel(header, "Cost Header", readableFont, 27f, FontStyles.Bold,
+                TextAlignmentOptions.MidlineRight);
+            StyleLabel(header, "Stress Header", readableFont, 27f, FontStyles.Bold,
+                TextAlignmentOptions.MidlineRight);
+        }
+
+        foreach (LeaderboardRowUI row in card.GetComponentsInChildren<LeaderboardRowUI>(true))
+        {
+            StyleLabel(row.transform, "Rank", readableFont, 29f, FontStyles.Bold,
+                TextAlignmentOptions.Center);
+            StyleLabel(row.transform, "Builder", readableFont, 30f, FontStyles.Normal,
+                TextAlignmentOptions.MidlineLeft);
+            StyleLabel(row.transform, "Cost", readableFont, 29f, FontStyles.Bold,
+                TextAlignmentOptions.MidlineRight);
+            StyleLabel(row.transform, "Peak Stress", readableFont, 29f, FontStyles.Bold,
+                TextAlignmentOptions.MidlineRight);
+        }
+    }
+
+    private static void StyleLabel(Transform parent, string name, TMP_FontAsset face,
+        float size, FontStyles style, TextAlignmentOptions alignment)
+    {
+        Transform child = FindDescendant(parent, name);
+        if (child != null)
+            StyleText(child.GetComponent<TMP_Text>(), face, size, style, alignment);
+    }
+
+    private static void StyleText(TMP_Text label, TMP_FontAsset face, float size,
+        FontStyles style, TextAlignmentOptions alignment)
+    {
+        if (label == null) return;
+        label.font = face;
+        label.fontSize = size;
+        label.fontStyle = style;
+        label.alignment = alignment;
+        label.color = Brown;
+        label.enableAutoSizing = false;
+        label.enableWordWrapping = false;
+        label.overflowMode = TextOverflowModes.Ellipsis;
+        EditorUtility.SetDirty(label);
     }
 
     private static void SetAuthoredDropdownOptions(TMP_Dropdown dropdown,

@@ -811,6 +811,12 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         foreach (Bar bar in bars)
         {
             if (bar == null || bar == ghostPierBar || preservedBars.Contains(bar)) continue;
+            // Material segment prefabs can themselves carry a Bar component.
+            // They are visuals inside a bridge member, not independent pieces.
+            // Destroying one while preserving its outer baked Bar strips every
+            // renderer from the saved bridge during redesign rollback.
+            Transform parent = bar.transform.parent;
+            if (parent != null && parent.GetComponentInParent<Bar>() != null) continue;
             if (buildLocation != null && bar.OwnerLocation != buildLocation) continue;
             bar.gameObject.SetActive(false);
             Destroy(bar.gameObject);

@@ -211,6 +211,58 @@ public static class DeterministicBridgeStressSolver
 
         if (nodes.Count < 2 || members.Count == 0) return null;
 
+        // A separate pier or construction offcut has no load path to the road.
+        // Its free degrees of freedom must not make the driven bridge appear
+        // unstable. Keep every component containing a road member, plus all
+        // members genuinely connected to those components through shared nodes.
+        // Disconnected road sections remain in the analysis.
+        List<int>[] connectedMembersByNode = new List<int>[nodes.Count];
+        for (int i = 0; i < members.Count; i++)
+        {
+            MemberData member = members[i];
+            if (connectedMembersByNode[member.NodeA] == null)
+                connectedMembersByNode[member.NodeA] = new List<int>();
+            if (connectedMembersByNode[member.NodeB] == null)
+                connectedMembersByNode[member.NodeB] = new List<int>();
+            connectedMembersByNode[member.NodeA].Add(i);
+            connectedMembersByNode[member.NodeB].Add(i);
+        }
+
+        bool[] includedNodes = new bool[nodes.Count];
+        bool[] includedMembers = new bool[members.Count];
+        Queue<int> nodesToVisit = new Queue<int>();
+        for (int i = 0; i < members.Count; i++)
+        {
+            if (!members[i].IsRoad) continue;
+            EnqueueNode(members[i].NodeA, includedNodes, nodesToVisit);
+            EnqueueNode(members[i].NodeB, includedNodes, nodesToVisit);
+        }
+        if (nodesToVisit.Count == 0) return null;
+
+        while (nodesToVisit.Count > 0)
+        {
+            int nodeIndex = nodesToVisit.Dequeue();
+            foreach (int memberIndex in connectedMembersByNode[nodeIndex])
+            {
+                if (includedMembers[memberIndex]) continue;
+                includedMembers[memberIndex] = true;
+                MemberData member = members[memberIndex];
+                EnqueueNode(member.NodeA, includedNodes, nodesToVisit);
+                EnqueueNode(member.NodeB, includedNodes, nodesToVisit);
+            }
+        }
+
+        List<MemberData> roadConnectedMembers = new List<MemberData>(members.Count);
+        for (int i = 0; i < members.Count; i++)
+            if (includedMembers[i]) roadConnectedMembers.Add(members[i]);
+        members = roadConnectedMembers;
+        foreach (NodeData node in nodes) node.HasMember = false;
+        foreach (MemberData member in members)
+        {
+            nodes[member.NodeA].HasMember = true;
+            nodes[member.NodeB].HasMember = true;
+        }
+
         int degreeCount = 0;
         foreach (NodeData node in nodes)
         {
@@ -338,6 +390,13 @@ public static class DeterministicBridgeStressSolver
             peakDisplayed,
             peakStructural,
             isStructurallyStable);
+    }
+
+    private static void EnqueueNode(int index, bool[] included, Queue<int> queue)
+    {
+        if (included[index]) return;
+        included[index] = true;
+        queue.Enqueue(index);
     }
 
     private static decimal[] SolveTensionOnly(

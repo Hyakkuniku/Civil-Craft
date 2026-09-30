@@ -96,6 +96,15 @@ public class BuildLocation : Interactable
         foreach (Point point in committedPointsBeforeRedesign) if (point != null) points.Add(point);
         foreach (Point point in startingAnchors) if (point != null) points.Add(point);
         foreach (Point point in endingAnchors) if (point != null) points.Add(point);
+        // An authored editable starter is not player-created work. It may live
+        // under the same runtime bridge parents as newly placed pieces.
+        if (buildModeOnlyStarterBridge != null)
+        {
+            foreach (Bar bar in buildModeOnlyStarterBridge.GetComponentsInChildren<Bar>(true))
+                if (bar != null) bars.Add(bar);
+            foreach (Point point in buildModeOnlyStarterBridge.GetComponentsInChildren<Point>(true))
+                if (point != null) points.Add(point);
+        }
     }
     public bool IsRedesignBlockedByNPCTravel =>
         gameObject.scene.name != "Multiplayer" && bakedBars.Count > 0 &&
@@ -693,6 +702,7 @@ public class BuildLocation : Interactable
                 BuildTutorialDirector.Instance.PrepareGhostsForTutorialRestart();
             }
 
+            ClearBridgeForTutorialRestart();
             if (CommandManager.Instance != null) CommandManager.Instance.ClearHistory();
 
             // RestartTutorial deliberately bypasses completed-lesson eligibility,
@@ -756,10 +766,7 @@ public class BuildLocation : Interactable
 
         if (BuildTutorialDirector.Instance != null) BuildTutorialDirector.Instance.EndTutorial();
 
-        BarCreator barCreator = BuildUIController.Instance != null
-            ? BuildUIController.Instance.barCreator
-            : FindObjectOfType<BarCreator>();
-        if (barCreator != null) barCreator.ClearPlayerPlacedBridge(this);
+        ClearBridgeForTutorialRestart();
 
         if (CommandManager.Instance != null) CommandManager.Instance.ClearHistory();
 
@@ -768,6 +775,42 @@ public class BuildLocation : Interactable
 
         TutorialManager.Instance.RestartTutorial(onEnterBuildModeTutorial);
         return true;
+    }
+
+    private void ClearBridgeForTutorialRestart()
+    {
+        // A completed tutorial's saved bridge is the rollback source for
+        // redesign. Remove it from the playable graph without deleting it or
+        // touching the persisted record. A successful replacement will discard
+        // these old objects; cancelling redesign restores the saved bridge.
+        if (isInPlaceSavedBridgeRedesign)
+        {
+            foreach (Bar bar in committedBarsBeforeRedesign)
+            {
+                if (bar == null) continue;
+                if (bar.startPoint != null) bar.startPoint.ConnectedBars.Remove(bar);
+                if (bar.endPoint != null) bar.endPoint.ConnectedBars.Remove(bar);
+                bar.gameObject.SetActive(false);
+            }
+
+            foreach (Point point in committedPointsBeforeRedesign)
+            {
+                if (point != null && !startingAnchors.Contains(point) &&
+                    !endingAnchors.Contains(point))
+                    point.gameObject.SetActive(false);
+            }
+        }
+
+        BarCreator barCreator = BuildUIController.Instance != null
+            ? BuildUIController.Instance.barCreator
+            : FindObjectOfType<BarCreator>(true);
+        if (barCreator != null) barCreator.ClearPlayerPlacedBridge(this);
+
+        // Exiting and re-entering build mode must not resurrect the discarded
+        // draft for this location.
+        hiddenUnfinishedBars.Clear();
+        hiddenUnfinishedPoints.Clear();
+        isUnfinishedDraftHidden = false;
     }
 
     /// <summary>Ends only the optional replay mode; saved lesson progress is unchanged.</summary>
