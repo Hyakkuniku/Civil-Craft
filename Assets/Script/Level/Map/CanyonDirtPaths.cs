@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -13,7 +14,15 @@ public sealed class CanyonDirtPaths : MonoBehaviour
         public Vector2 to;
         [Tooltip("0 keeps standard width; use smaller values for side lanes.")]
         [Range(0, 2)] public float widthMultiplier;
-        public Street(Vector2 a, Vector2 b) { from = a; to = b; widthMultiplier = 1; }
+        [Tooltip("Optional surface for this street. Leave empty to use the component's default Surface Shader.")]
+        public Shader surfaceShader;
+        public Street(Vector2 a, Vector2 b)
+        {
+            from = a;
+            to = b;
+            widthMultiplier = 1;
+            surfaceShader = null;
+        }
     }
 
     public Transform canyon;
@@ -22,14 +31,20 @@ public sealed class CanyonDirtPaths : MonoBehaviour
     [Range(.01f, .2f)] public float width = .075f;
     [Range(.05f, .8f)] public float edgeSoftness = .35f;
     [Range(0, 1)] public float strength = .65f;
-    [Tooltip("Multiplies the existing sand color, preserving its lighting and shadows.")]
+    [Tooltip("Warm dirt color painted over the terrain. The route keeps soft edges and receives the main light's shadows.")]
     public Color dirtTint = new Color(.78f, .70f, .60f, 1);
-    [HideInInspector, Tooltip("Neutral road color. Unlike dirt tint, this does not multiply the underlying terrain color.")]
+    [HideInInspector, Tooltip("Neutral road color painted over the underlying terrain.")]
     public Color roadTint = new Color(.30f, .32f, .34f, 1);
     [HideInInspector, Range(0f, .6f), Tooltip("Width of each sidewalk as a fraction of the road's half-width. Set to 0 to hide sidewalks.")]
     public float sidewalkWidth = .22f;
     [HideInInspector] public Color sidewalkTint = new Color(.66f, .65f, .62f, 1);
     [HideInInspector] public Color curbTint = new Color(.82f, .80f, .74f, 1);
+    [HideInInspector] public Color stoneTint = new Color(.86f, .75f, .62f, 1);
+    [HideInInspector] public Color groutTint = new Color(.69f, .59f, .48f, 1);
+    [HideInInspector, Range(0f, .12f)] public float stoneVariation = .05f;
+    [HideInInspector, Range(3f, 5f)] public float stonesAcross = 4f;
+    [HideInInspector, Range(.6f, 2.5f)] public float stoneAspect = 1.2f;
+    [HideInInspector, Range(.01f, .08f)] public float jointWidth = .03f;
     [Tooltip("Coordinates run from 0 to 1 across the canyon's world X/Z bounds. Up to 16 segments.")]
     public Street[] streets = {
         new Street(new Vector2(.02f, .46f), new Vector2(.35f, .46f)),
@@ -39,13 +54,22 @@ public sealed class CanyonDirtPaths : MonoBehaviour
         new Street(new Vector2(.49f, .48f), new Vector2(.55f, .87f))
     };
 
-    private GameObject surface;
-    private MeshRenderer surfaceRenderer;
+    private sealed class SurfaceOverlay
+    {
+        public Shader shader;
+        public GameObject gameObject;
+        public MeshRenderer renderer;
+        public Material material;
+        public readonly Vector4[] segments = new Vector4[16];
+        public readonly Vector4[] segmentWidths = new Vector4[16];
+        public int count;
+    }
+
+    private readonly List<SurfaceOverlay> surfaces = new List<SurfaceOverlay>(4);
     private MeshRenderer sourceRenderer;
     private MeshFilter sourceFilter;
-    private Material material;
-    private readonly Vector4[] segments = new Vector4[16];
-    private readonly Vector4[] segmentWidths = new Vector4[16];
+    private Mesh sourceMesh;
+    private Shader lastDefaultShader;
     private Matrix4x4 lastMatrix;
     private bool dirty = true;
     private bool surfaceCreatedForPlay;
@@ -56,6 +80,25 @@ public sealed class CanyonDirtPaths : MonoBehaviour
     private void OnEnable() { dirty = true; }
     private void OnValidate() { dirty = true; } // Unity may invoke this off the main thread.
     public void Refresh() { dirty = true; }
+
+    // Pass a referenced Shader asset when changing the default during play.
+    // Streets with an override keep their own surface.
+    public void SetSurfaceShader(Shader shader)
+    {
+        if (surfaceShader == shader) return;
+        surfaceShader = shader;
+        Refresh();
+    }
+
+    public void SetStreetSurfaceShader(int streetIndex, Shader shader)
+    {
+        if (streets == null || streetIndex < 0 || streetIndex >= streets.Length) return;
+        Street street = streets[streetIndex];
+        if (street.surfaceShader == shader) return;
+        street.surfaceShader = shader;
+        streets[streetIndex] = street;
+        Refresh();
+    }
 
     // Called after editor save serialization has finished. Recreate transient
     // objects and shader arrays without modifying any authored street settings.
@@ -69,72 +112,112 @@ public sealed class CanyonDirtPaths : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (canyon == null || surfaceShader == null)
+        if (canyon == null)
         {
-            if (surface != null) Release();
+            if (surfaces.Count > 0) Release();
+            return;
+        }
+        MeshFilter selectedFilter = canyon.GetComponent<MeshFilter>();
+        MeshRenderer selectedRenderer = canyon.GetComponent<MeshRenderer>();
+        if (selectedFilter == null || selectedFilter.sharedMesh == null || selectedRenderer == null)
+        {
+            if (surfaces.Count > 0) Release();
             return;
         }
         bool playing = Application.IsPlaying(gameObject);
-        if (surface == null || surfaceRenderer == null || sourceRenderer == null ||
-            surfaceCreatedForPlay != playing ||
-            sourceFilter == null || sourceFilter.transform != canyon || material == null || material.shader != surfaceShader)
+        bool missingOverlay = false;
+        foreach (SurfaceOverlay overlay in surfaces)
+            if (overlay.gameObject == null || overlay.renderer == null || overlay.material == null)
+                missingOverlay = true;
+        if (dirty || missingOverlay || sourceFilter != selectedFilter ||
+            sourceRenderer != selectedRenderer || sourceMesh != selectedFilter.sharedMesh ||
+            surfaceCreatedForPlay != playing || lastDefaultShader != surfaceShader ||
+            lastMatrix != canyon.localToWorldMatrix)
         {
             Release();
-            sourceFilter = canyon.GetComponent<MeshFilter>();
-            sourceRenderer = canyon.GetComponent<MeshRenderer>();
-            if (sourceFilter == null || sourceFilter.sharedMesh == null || sourceRenderer == null) return;
-            bool isRoad = surfaceShader.name == "Civil Craft/Canyon Road Surface";
-            material = new Material(surfaceShader)
-            {
-                name = isRoad ? "Canyon Road (instance only)" : "Main City Dirt (instance only)",
-                hideFlags = HideFlags.HideAndDontSave
-            };
-            // Game cameras need a normal scene renderer, not an editor preview.
-            // Also rebuild on mode changes when domain/scene reload is disabled.
+            sourceFilter = selectedFilter;
+            sourceRenderer = selectedRenderer;
+            sourceMesh = selectedFilter.sharedMesh;
             surfaceCreatedForPlay = playing;
-            surface = new GameObject(isRoad
-                ? "Road Surface (generated, no collider)"
-                : "Dirt Surface (generated, no collider)")
-            {
-                hideFlags = playing ? HideFlags.None : HideFlags.HideAndDontSave
-            };
-            surface.transform.SetParent(canyon, false);
-            surface.AddComponent<MeshFilter>().sharedMesh = sourceFilter.sharedMesh;
-            surfaceRenderer = surface.AddComponent<MeshRenderer>();
-            var materials = new Material[sourceFilter.sharedMesh.subMeshCount];
-            for (int i = 0; i < materials.Length; i++) materials[i] = material;
-            surfaceRenderer.sharedMaterials = materials;
-            surfaceRenderer.shadowCastingMode = ShadowCastingMode.Off;
-            surfaceRenderer.receiveShadows = false; // The road shader samples main-light shadows itself.
-            surfaceRenderer.lightProbeUsage = LightProbeUsage.Off;
-            surfaceRenderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
-            dirty = true;
+            lastDefaultShader = surfaceShader;
+            lastMatrix = canyon.localToWorldMatrix;
+            BuildSurfaces(playing);
+            dirty = false;
         }
-        surface.layer = canyon.gameObject.layer;
-        surfaceRenderer.enabled = sourceRenderer.enabled;
-        surfaceRenderer.forceRenderingOff = sourceRenderer.forceRenderingOff;
-        surfaceRenderer.renderingLayerMask = sourceRenderer.renderingLayerMask;
-        if (!dirty && lastMatrix == canyon.localToWorldMatrix) return;
-        lastMatrix = canyon.localToWorldMatrix;
-        dirty = false;
-        Bounds b = SurfaceBounds;
+        foreach (SurfaceOverlay overlay in surfaces)
+        {
+            overlay.gameObject.layer = canyon.gameObject.layer;
+            overlay.renderer.enabled = sourceRenderer.enabled;
+            overlay.renderer.forceRenderingOff = sourceRenderer.forceRenderingOff;
+            overlay.renderer.renderingLayerMask = sourceRenderer.renderingLayerMask;
+        }
+    }
+
+    private void BuildSurfaces(bool playing)
+    {
+        Bounds b = sourceRenderer.bounds;
         float size = Mathf.Max(.001f, Mathf.Min(b.size.x, b.size.z));
         int count = Mathf.Min(16, streets == null ? 0 : streets.Length);
         for (int i = 0; i < count; i++)
         {
-            Vector2 a = streets[i].from, z = streets[i].to;
-            segments[i] = new Vector4(a.x * b.size.x / size, a.y * b.size.z / size,
+            Street street = streets[i];
+            Shader shader = street.surfaceShader != null ? street.surfaceShader : surfaceShader;
+            if (shader == null) continue;
+            SurfaceOverlay overlay = null;
+            foreach (SurfaceOverlay candidate in surfaces)
+                if (candidate.shader == shader) { overlay = candidate; break; }
+            if (overlay == null)
+            {
+                overlay = new SurfaceOverlay { shader = shader };
+                surfaces.Add(overlay);
+            }
+            Vector2 a = street.from, z = street.to;
+            int slot = overlay.count++;
+            overlay.segments[slot] = new Vector4(a.x * b.size.x / size, a.y * b.size.z / size,
                 z.x * b.size.x / size, z.y * b.size.z / size);
-            Vector2 segmentSpan = new Vector2(segments[i].z - segments[i].x,
-                segments[i].w - segments[i].y);
-            segmentWidths[i] = new Vector4(
-                streets[i].widthMultiplier > 0 ? Mathf.Clamp(streets[i].widthMultiplier, .1f, 2) : 1,
+            Vector2 segmentSpan = new Vector2(overlay.segments[slot].z - overlay.segments[slot].x,
+                overlay.segments[slot].w - overlay.segments[slot].y);
+            overlay.segmentWidths[slot] = new Vector4(
+                street.widthMultiplier > 0 ? Mathf.Clamp(street.widthMultiplier, .1f, 2) : 1,
                 segmentSpan.magnitude, 0, 0);
         }
+        foreach (SurfaceOverlay overlay in surfaces)
+        {
+            bool isRoad = overlay.shader.name == "Civil Craft/Canyon Road Surface";
+            bool isStone = overlay.shader.name == "Civil Craft/Canyon Stone Path";
+            string name = isRoad ? "Road Surface" :
+                isStone ? "Stone Path Surface" : "Dirt Surface";
+            overlay.material = new Material(overlay.shader)
+            {
+                name = name + " (instance only)",
+                hideFlags = HideFlags.HideAndDontSave
+            };
+            // One mesh overlay per distinct shader, not one per street.
+            overlay.gameObject = new GameObject(name + " (generated, no collider)")
+            {
+                hideFlags = playing ? HideFlags.None : HideFlags.HideAndDontSave
+            };
+            overlay.gameObject.transform.SetParent(canyon, false);
+            overlay.gameObject.AddComponent<MeshFilter>().sharedMesh = sourceMesh;
+            overlay.renderer = overlay.gameObject.AddComponent<MeshRenderer>();
+            var materials = new Material[sourceMesh.subMeshCount];
+            for (int i = 0; i < materials.Length; i++) materials[i] = overlay.material;
+            overlay.renderer.sharedMaterials = materials;
+            overlay.renderer.shadowCastingMode = ShadowCastingMode.Off;
+            overlay.renderer.receiveShadows = false; // Each shader samples the main light itself.
+            overlay.renderer.lightProbeUsage = LightProbeUsage.Off;
+            overlay.renderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
+            ConfigureMaterial(overlay, b, size);
+        }
+    }
+
+    private void ConfigureMaterial(SurfaceOverlay overlay, Bounds b, float size)
+    {
+        Material material = overlay.material;
         material.SetVector("_PathBounds", new Vector4(b.min.x, b.min.z, 1 / size, 0));
-        material.SetVectorArray("_Segments", segments);
-        material.SetVectorArray("_SegmentWidths", segmentWidths);
-        material.SetInt("_SegmentCount", count);
+        material.SetVectorArray("_Segments", overlay.segments);
+        material.SetVectorArray("_SegmentWidths", overlay.segmentWidths);
+        material.SetInt("_SegmentCount", overlay.count);
         material.SetFloat("_Width", Mathf.Clamp(width, .01f, .2f));
         material.SetFloat("_Softness", Mathf.Clamp(edgeSoftness, .05f, .8f));
         material.SetFloat("_Strength", Mathf.Clamp01(strength));
@@ -145,7 +228,17 @@ public sealed class CanyonDirtPaths : MonoBehaviour
             material.SetColor("_SidewalkTint", sidewalkTint);
             material.SetColor("_CurbTint", curbTint);
         }
-        else material.SetColor("_DirtTint", dirtTint);
+        else if (material.HasProperty("_StoneTint"))
+        {
+            material.SetColor("_StoneTint", stoneTint);
+            material.SetColor("_GroutTint", groutTint);
+            material.SetFloat("_StoneVariation", Mathf.Clamp(stoneVariation, 0f, .12f));
+            material.SetFloat("_StonesAcross", Mathf.Clamp(stonesAcross, 3f, 5f));
+            material.SetFloat("_StoneAspect", Mathf.Clamp(stoneAspect, .6f, 2.5f));
+            material.SetFloat("_JointWidth", Mathf.Clamp(jointWidth, .01f, .08f));
+        }
+        else if (material.HasProperty("_DirtTint"))
+            material.SetColor("_DirtTint", dirtTint);
     }
 
     private void OnDisable() { Release(); }
@@ -153,14 +246,16 @@ public sealed class CanyonDirtPaths : MonoBehaviour
     private void Release()
     {
         // Runtime destruction is deferred; hide the old overlay immediately.
-        if (surfaceRenderer != null) surfaceRenderer.enabled = false;
-        Dispose(surface);
-        Dispose(material);
-        surface = null;
-        surfaceRenderer = null;
-        material = null;
+        foreach (SurfaceOverlay overlay in surfaces)
+        {
+            if (overlay.renderer != null) overlay.renderer.enabled = false;
+            Dispose(overlay.gameObject);
+            Dispose(overlay.material);
+        }
+        surfaces.Clear();
         sourceRenderer = null;
         sourceFilter = null;
+        sourceMesh = null;
     }
     private static void Dispose(UnityEngine.Object value)
     {

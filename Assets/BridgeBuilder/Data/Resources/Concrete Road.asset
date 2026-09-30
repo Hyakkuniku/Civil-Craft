@@ -14,10 +14,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   materialId: Concrete Road
   displayName: Reinforced Concrete Road Deck
-  introductionDescription: A stronger but more expensive driving surface. Reinforcement carries pulling forces while the concrete carries much larger compression loads, and its shorter placement length makes careful support important.
+  introductionDescription: A stronger but more expensive driving surface. Reinforcement
+    carries pulling forces while the concrete carries much larger compression loads,
+    and its shorter placement length makes careful support important.
+  introductionImage: {fileID: 0}
+  almanacDescription: 
+  almanacImage: {fileID: 0}
   costPerMeter: 650
   massPerMeter: 243
-  maxLength: 6
+  maxLength: 10
   maxTension: 142000
   maxCompression: 1550000
   useSpring: 0
@@ -26,6 +31,9 @@ MonoBehaviour:
   isRope: 0
   isRoad: 1
   isPier: 0
+  pierBucklingReferenceLength: 10
+  pierBucklingExponent: 2
+  pierMinimumCompressionMultiplier: 0.15
   unlockCost: 500
   materialIcon: {fileID: 21300000, guid: 2c7f87884363c10419a67a604e269078, type: 3}
   segmentPrefab: {fileID: 2775697335276142100, guid: ad11c3992efa8e741aac900de724517e,

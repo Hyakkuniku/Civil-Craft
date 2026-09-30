@@ -19,6 +19,7 @@ MonoBehaviour:
   cargoUnlockAfterDialoguePhaseIndex: -1
   cargoLoadedNPCPhaseId: 
   contractID: MainContractSilas
+  hideFromLeaderboard: 0
   efficiencyStarBudgetRatio: 0.85
   strengthStarMaxStress: 60
   contractMap: 0
@@ -34,8 +35,7 @@ MonoBehaviour:
   bridgeSpan: 30
   allowedMaterials: []
   hiddenTools: 
-  hiddenMaterials:
-  - {fileID: 11400000, guid: 57a46c6632dd61b4094902963cf1c5be, type: 2}
+  hiddenMaterials: []
   enforceMaxStress: 0
   maxAllowedStress: 100
   isTimeAttack: 0
