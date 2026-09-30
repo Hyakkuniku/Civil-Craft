@@ -38,9 +38,9 @@ public static class DeterministicBridgeStressSolver
         public float PeakDisplayedStress { get; }
         public float PeakStructuralStress { get; }
         /// <summary>
-        /// False when the authored bars contain a free mechanism. A mechanism can
-        /// move without stretching a member, so low axial stress must not be
-        /// interpreted as strength.
+        /// False when the authored bars contain a free mechanism. This is exposed
+        /// for diagnostics; gameplay still uses the calculated member stresses and
+        /// lets the physics simulation demonstrate the mechanism's deformation.
         /// </summary>
         public bool IsStructurallyStable { get; }
         public bool IsValid => Bars.Length > 0 && Samples.Length > 0;

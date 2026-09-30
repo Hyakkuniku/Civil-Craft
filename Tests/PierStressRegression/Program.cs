@@ -32,6 +32,29 @@ static class Program
         Check(result.PeakStructuralStress < 1, "Adequately supported bridge must survive.");
         Console.WriteLine("PASS: pier foundation carries center load with bank anchors present.");
 
+        // A deck with no triangulation is a mechanism, but that status is only
+        // diagnostic. The runtime must consume these real member ratios instead
+        // of replacing every member with a synthetic 100% failure value.
+        var mechanismLeft = Node(-5, 0, true);
+        var mechanismCenter = Node(0, 0);
+        var mechanismRight = Node(5, 0, true);
+        var mechanismBars = new List<Bar> {
+            Member(mechanismLeft, mechanismCenter, roadMaterial),
+            Member(mechanismCenter, mechanismRight, roadMaterial)
+        };
+        var mechanism = DeterministicBridgeStressSolver.Analyze(
+            new List<Point> { mechanismLeft, mechanismCenter, mechanismRight },
+            mechanismBars,
+            1000,
+            true,
+            11);
+        Check(mechanism != null && mechanism.IsValid, "Incomplete truss must still produce stress samples.");
+        Check(!mechanism.IsStructurallyStable, "Untriangulated deck must remain identifiable as a mechanism.");
+        for (int i = 0; i < mechanism.Bars.Length; i++)
+            Check(mechanism.Samples[5].StructuralRatios[i] < 1f,
+                "Mechanism diagnostics must not fabricate a 100% member overload.");
+        Console.WriteLine("PASS: incomplete truss keeps real per-member stress instead of synthetic failure.");
+
         pier.startPoint = top; pier.endPoint = bottom;
         var reversed = DeterministicBridgeStressSolver.Analyze(points,bars,1000,true,11);
         Check(Same(result,reversed), "Endpoint reversal changed stresses.");

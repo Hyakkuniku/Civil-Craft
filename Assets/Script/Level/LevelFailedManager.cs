@@ -160,14 +160,6 @@ public class LevelFailedManager : MonoBehaviour
             }
 
             if (!BridgePhysicsManager.DebugInvincibleBridge &&
-                !physicsManager.IsDeterministicStructureStable &&
-                physicsManager.peakStressThisRun >= 1f)
-            {
-                InitiateFailure("Structurally Unstable Bridge!");
-                return;
-            }
-
-            if (!BridgePhysicsManager.DebugInvincibleBridge &&
                 physicsManager.HadBrokenPartsThisRun)
             {
                 stressFailReason = physicsManager.FirstMemberFailedByExternalImpact

@@ -693,8 +693,6 @@ public class BridgePhysicsManager : MonoBehaviour
             {
                 pendingSimulationStart = false;
                 isSimulating = true;
-                bool hasDeterministicStress = deterministicStressResult != null &&
-                    deterministicStressResult.IsValid && deterministicStructureStable;
                 // Peaks must describe load positions that have actually occurred,
                 // not the solver's precomputed worst case somewhere later on the
                 // crossing.
@@ -719,9 +717,7 @@ public class BridgePhysicsManager : MonoBehaviour
             using (RuntimeStressMarker.Auto())
             {
             bool hasDeterministicStress = deterministicStressResult != null &&
-                deterministicStressResult.IsValid && deterministicStructureStable;
-            bool hasUnstableDeterministicStructure = useDeterministicStressAnalysis &&
-                deterministicAnalysisPrepared && !deterministicStructureStable;
+                deterministicStressResult.IsValid;
             int deterministicSampleIndex = 0;
             float deterministicLoadFactor = 0f;
             bool hasVehicleRoadState = TryGetCurrentVehicleRoadState(
@@ -741,14 +737,10 @@ public class BridgePhysicsManager : MonoBehaviour
                         deterministicStressResult.Samples.Length - 1);
                 }
             }
-            else if (hasUnstableDeterministicStructure)
-                deterministicLoadFactor = vehicleRoadLoadFactor;
-
             // A deterministic sample is immutable. Reapplying the same sample
             // and load factor to every member cannot change stress or failure,
             // so skip that O(member count) work until the vehicle input changes.
-            bool usesDeterministicRuntimeState =
-                hasDeterministicStress || hasUnstableDeterministicStructure;
+            bool usesDeterministicRuntimeState = hasDeterministicStress;
             if (usesDeterministicRuntimeState)
             {
                 bool stateChanged = !deterministicRuntimeStateApplied ||
@@ -770,8 +762,7 @@ public class BridgePhysicsManager : MonoBehaviour
 
             float currentStructuralMax = 0f;
             float currentDisplayedMax = 0f;
-            bool runtimeStateReusable = hasDeterministicStress ||
-                (hasUnstableDeterministicStructure && deterministicLoadFactor > 0.01f);
+            bool runtimeStateReusable = hasDeterministicStress;
             foreach (var handler in activeStressHandlers)
             {
                 if (handler == null) continue;
@@ -813,22 +804,12 @@ public class BridgePhysicsManager : MonoBehaviour
                         structuralStress,
                         isTension);
                 }
-                else if (hasUnstableDeterministicStructure && deterministicLoadFactor > 0.01f)
-                {
-                    // A mechanism can fold without generating large axial force.
-                    // Show it as unsafe instead of rewarding the low force reading.
-                    // This synthetic 100% marker is not a measured member overload,
-                    // so let the physical mechanism fold instead of detaching every bar.
-                    handler.ApplyDeterministicStress(1f, 1f, false, false);
-                }
                 else
                 {
                     // Retain the PhysX visual fallback for a member absent from
                     // the deterministic result, without letting it break the bridge.
                     runtimeStateReusable = false;
-                    handler.EvaluateStress(
-                        !hasDeterministicStress &&
-                        !hasUnstableDeterministicStructure);
+                    handler.EvaluateStress(!hasDeterministicStress);
                 }
                 
                 if (handler.isBroken)
@@ -1274,7 +1255,7 @@ public class BridgePhysicsManager : MonoBehaviour
         {
             Debug.LogWarning(
                 "[BridgePhysicsManager] Deterministic stress analysis could not solve this bridge; " +
-                "the bridge will be treated as structurally unstable instead of using a forgiving PhysX score.", this);
+                "member stress will use the existing PhysX fallback for this simulation.", this);
             deterministicStressResult = null;
         }
         else
@@ -1284,7 +1265,8 @@ public class BridgePhysicsManager : MonoBehaviour
             {
                 Debug.LogWarning(
                     "[BridgePhysicsManager] The bridge contains a free structural mechanism. " +
-                    "Low axial force from folding will not count as bridge strength.", this);
+                    "This is not an automatic failure: member stress remains active while PhysX " +
+                    "allows the unsupported geometry to deform or collapse.", this);
             }
         }
 
