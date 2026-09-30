@@ -41,6 +41,8 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
     [SerializeField, Min(0f)] private float impactSpacing = 3f;
     [Tooltip("Small downward velocity given to intact members near contact so the surrounding bridge visibly yields. Set to 0 to disable.")]
     [SerializeField, Min(0f)] private float impactDeflectionSpeed = 0.45f;
+    [Tooltip("Sideways velocity applied to a released pier so it topples instead of remaining balanced upright after the boat breaks its joints.")]
+    [SerializeField, Min(0.1f)] private float pierToppleSpeed = 1.5f;
 
     private readonly RaycastHit[] sweepHits = new RaycastHit[64];
     private readonly Collider[] overlapHits = new Collider[64];
@@ -272,12 +274,21 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
         Vector3 nextPosition = previousPosition + crossingDirection * step;
         transform.position = nextPosition;
 
-        if (distanceTraveled - lastImpactDistance >= impactSpacing)
+        bool impactSpacingElapsed =
+            distanceTraveled - lastImpactDistance >= impactSpacing;
+        if (impactSpacingElapsed)
         {
             if (useManualHull)
                 TryBreakWithBox(previousCenter);
             else if (hasBoatMeshColliders)
                 TryBreakWithMeshColliders(previousPosition, nextPosition);
+        }
+        else if (!useManualHull && hasBoatMeshColliders)
+        {
+            // Do not let an earlier beam/road impact make the boat phase through
+            // a pier encountered during the spacing cooldown. Pier checks are
+            // cheap and an already-broken pier is rejected by the normal filter.
+            TryBreakWithMeshColliders(previousPosition, nextPosition, true);
         }
 
         distanceTraveled += step;
@@ -336,10 +347,17 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
             return false;
 
         Vector3 impactPoint = hit.ClosestPoint(boatContactCenter);
+        return TryBreakBarAtPoint(bar, impactPoint);
+    }
+
+    private bool TryBreakBarAtPoint(Bar bar, Vector3 impactPoint)
+    {
+        if (bar == null) return false;
         CollectImpactArea(bar, impactPoint);
         if (subscribedManager.BreakMembersFromExternalImpact(impactedBars,
                 "boat impact") == 0) return false;
 
+        ApplyBrokenMemberImpactMotion(impactPoint);
         ApplyLocalImpactDeflection(impactPoint);
         lastImpactDistance = distanceTraveled;
         return true;
@@ -372,6 +390,54 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
             if (impactedBars.Count <= maxBrokenMembers) continue;
             impactedBars.RemoveAt(maxBrokenMembers);
             impactedDistances.RemoveAt(maxBrokenMembers);
+        }
+    }
+
+    /// <summary>
+    /// The normal break path releases every joint, but a vertical pier can remain
+    /// balanced on its foundation when gravity is its only post-break force. Give
+    /// newly released members the motion of the impact; piers receive an in-plane
+    /// lateral impulse so the 2D bridge constraints still allow them to topple.
+    /// </summary>
+    private void ApplyBrokenMemberImpactMotion(Vector3 impactPoint)
+    {
+        for (int i = 0; i < impactedBars.Count; i++)
+        {
+            Bar bar = impactedBars[i];
+            if (bar == null || bar.materialData == null) continue;
+            BarStressHandler member = bar.GetComponent<BarStressHandler>();
+            if (member == null || !member.isBroken) continue;
+
+            Rigidbody body = bar.GetComponent<Rigidbody>();
+            if (body == null || body.isKinematic) continue;
+
+            if (bar.materialData.isPier)
+            {
+                Vector3 axis = bar.endPoint != null && bar.startPoint != null
+                    ? bar.endPoint.transform.position - bar.startPoint.transform.position
+                    : Vector3.up;
+                axis.z = 0f;
+                Vector3 axisDirection = axis.sqrMagnitude > 0.000001f
+                    ? axis.normalized : Vector3.up;
+                Vector3 lateral = Vector3.Cross(Vector3.forward, axisDirection);
+                if (lateral.sqrMagnitude <= 0.000001f) lateral = Vector3.left;
+
+                // AddForceAtPosition produces both the shove and the rotation a
+                // monolithic pier needs to visibly fall away from its foundation.
+                body.AddForceAtPosition(lateral.normalized * body.mass * pierToppleSpeed,
+                    impactPoint, ForceMode.Impulse);
+                Vector3 rotationAxis = Vector3.Cross(axisDirection, lateral.normalized);
+                float torqueLever = Mathf.Max(0.5f, axis.magnitude * 0.25f);
+                body.AddTorque(rotationAxis * body.mass * pierToppleSpeed * torqueLever,
+                    ForceMode.Impulse);
+            }
+            else if (impactDeflectionSpeed > 0f)
+            {
+                body.AddForce(Vector3.down * body.mass * impactDeflectionSpeed,
+                    ForceMode.Impulse);
+            }
+
+            body.WakeUp();
         }
     }
 
@@ -439,7 +505,10 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
         }
     }
 
-    private bool TryBreakWithMeshColliders(Vector3 previousPosition, Vector3 nextPosition)
+    private bool TryBreakWithMeshColliders(
+        Vector3 previousPosition,
+        Vector3 nextPosition,
+        bool piersOnly = false)
     {
         Vector3 previousOffset = previousPosition - nextPosition;
         for (int i = 0; i < boatMeshColliders.Length; i++)
@@ -451,31 +520,119 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
             swept.Encapsulate(boatMeshWorldBounds[i].min + previousOffset);
             swept.Encapsulate(boatMeshWorldBounds[i].max + previousOffset);
 
-            foreach (Collider bridgeCollider in bridgeColliders)
-            {
-                if (bridgeCollider == null || !bridgeCollider.enabled ||
-                    !bridgeCollider.gameObject.activeInHierarchy ||
-                    !swept.Intersects(bridgeCollider.bounds)) continue;
+            // The imported hull is open and non-convex. A pier can visibly pass
+            // through its interior without ComputePenetration reporting a surface
+            // overlap. Test the solid swept hull volume directly against every
+            // active pier's structural centerline before relying on colliders.
+            if (TryBreakPierThroughHullVolume(boatMeshWorldBounds[i], previousOffset))
+                return true;
 
-                // Check the mesh itself at several points along this physics
-                // step. The bounds above only reject distant members.
-                for (int sample = 1; sample <= 4; sample++)
+            // Piers are checked first. At a busy bridge cross-section the hull
+            // can overlap a road, braces, and a pier in the same fixed step; the
+            // former first-hit return could consume the cooldown before the pier
+            // was ever considered.
+            int passCount = piersOnly ? 1 : 2;
+            for (int pass = 0; pass < passCount; pass++)
+            {
+                bool requirePier = pass == 0;
+                foreach (Collider bridgeCollider in bridgeColliders)
                 {
-                    float fraction = sample * 0.25f;
-                    Vector3 sampleOffset = previousOffset * (1f - fraction);
-                    if (!Physics.ComputePenetration(
+                    if (bridgeCollider == null || !bridgeCollider.enabled ||
+                        !bridgeCollider.gameObject.activeInHierarchy ||
+                        !swept.Intersects(bridgeCollider.bounds) ||
+                        !TryGetActiveBridgeBar(bridgeCollider, out Bar candidate)) continue;
+
+                    bool isPier = candidate.materialData != null &&
+                        candidate.materialData.isPier;
+                    if (isPier != requirePier) continue;
+
+                    // Check the mesh itself at several points along this physics
+                    // step. The bounds above only reject distant members.
+                    for (int sample = 1; sample <= 4; sample++)
+                    {
+                        float fraction = sample * 0.25f;
+                        Vector3 sampleOffset = previousOffset * (1f - fraction);
+                        Bounds sampledHullBounds = boatMeshWorldBounds[i];
+                        sampledHullBounds.center += sampleOffset;
+
+                        bool exactContact = Physics.ComputePenetration(
                             bridgeCollider, bridgeCollider.transform.position,
                             bridgeCollider.transform.rotation,
                             boatMesh, boatMesh.transform.position + sampleOffset,
-                            boatMesh.transform.rotation, out _, out _) ||
-                        !TryBreakHit(bridgeCollider,
-                            boatMeshWorldBounds[i].center + sampleOffset)) continue;
+                            boatMesh.transform.rotation, out _, out _);
 
-                    return true;
+                        // ComputePenetration is unreliable for the imported
+                        // non-convex boat hull against a thin runtime pier box.
+                        // For piers only, use the already-tight hull-mesh bounds
+                        // as a conservative fallback so a visible strike cannot
+                        // silently pass through the foundation.
+                        bool pierBoundsContact = isPier &&
+                            sampledHullBounds.Intersects(bridgeCollider.bounds);
+                        if ((!exactContact && !pierBoundsContact) ||
+                            !TryBreakHit(bridgeCollider, sampledHullBounds.center)) continue;
+
+                        return true;
+                    }
                 }
             }
         }
         return false;
+    }
+
+    private bool TryBreakPierThroughHullVolume(
+        Bounds currentHullBounds,
+        Vector3 previousOffset)
+    {
+        for (int sample = 1; sample <= 4; sample++)
+        {
+            float fraction = sample * 0.25f;
+            Bounds sampledHullBounds = currentHullBounds;
+            sampledHullBounds.center += previousOffset * (1f - fraction);
+
+            foreach (BarStressHandler member in subscribedManager.activeStressHandlers)
+            {
+                Bar pier = member != null ? member.Bar : null;
+                if (pier == null || member.isBroken || pier.materialData == null ||
+                    !pier.materialData.isPier || !activeLocation.Owns(pier) ||
+                    pier.startPoint == null || pier.endPoint == null) continue;
+
+                if (!TryGetSegmentBoundsContact(
+                        pier.startPoint.transform.position,
+                        pier.endPoint.transform.position,
+                        sampledHullBounds,
+                        out Vector3 impactPoint)) continue;
+
+                if (TryBreakBarAtPoint(pier, impactPoint)) return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryGetSegmentBoundsContact(
+        Vector3 start,
+        Vector3 end,
+        Bounds bounds,
+        out Vector3 contactPoint)
+    {
+        contactPoint = start;
+        if (bounds.Contains(start)) return true;
+        if (bounds.Contains(end))
+        {
+            contactPoint = end;
+            return true;
+        }
+
+        Vector3 segment = end - start;
+        float length = segment.magnitude;
+        if (length <= 0.000001f) return false;
+
+        Ray ray = new Ray(start, segment / length);
+        if (!bounds.IntersectRay(ray, out float distance) || distance > length)
+            return false;
+
+        contactPoint = ray.GetPoint(distance);
+        return true;
     }
 
     private static Bounds GetMeshWorldBounds(MeshCollider meshCollider)
@@ -593,6 +750,7 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
         maxBrokenMembers = Mathf.Clamp(maxBrokenMembers, 1, 8);
         impactSpacing = Mathf.Max(0f, impactSpacing);
         impactDeflectionSpeed = Mathf.Max(0f, impactDeflectionSpeed);
+        pierToppleSpeed = Mathf.Max(0.1f, pierToppleSpeed);
         hullSize = new Vector3(Mathf.Max(0.01f, hullSize.x),
             Mathf.Max(0.01f, hullSize.y), Mathf.Max(0.01f, hullSize.z));
     }
