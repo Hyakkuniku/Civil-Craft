@@ -14,7 +14,7 @@ public sealed class LeaderboardRowUI : MonoBehaviour
     {
         if (rankText != null) rankText.text = rank.ToString();
         if (builderText != null) builderText.text = string.IsNullOrWhiteSpace(builder) ? "Builder" : builder;
-        if (costText != null) costText.text = cost.ToString("N0");
+        if (costText != null) costText.text = "₱" + cost.ToString("N0");
         if (stressText != null) stressText.text = peakStress.ToString("0.0") + "%";
         if (background != null)
             background.color = rank <= 3
