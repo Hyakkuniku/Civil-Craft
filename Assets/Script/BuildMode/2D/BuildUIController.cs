@@ -109,6 +109,8 @@ public class BuildUIController : MonoBehaviour
     public Color safeStressColor = Color.green;
     public Color warningStressColor = Color.yellow;
     public Color criticalStressColor = Color.red;
+    [Tooltip("How quickly the stress gauge rises and falls, in full-gauge units per second. Visual only; bridge stress and failure timing are unchanged.")]
+    [Min(0.1f)] public float stressFillAnimationSpeed = 2.5f;
     [Tooltip("Numeric stress-label refresh rate. The fill bar still animates every rendered frame.")]
     [Range(5f, 30f)] public float stressTextUpdatesPerSecond = 10f;
 
@@ -194,6 +196,7 @@ public class BuildUIController : MonoBehaviour
 
     private float lastStressPercent = -1f;
     private float lastStressFillAmount = -1f;
+    private static readonly Color StressReadoutColor = new Color(0.973f, 0.918f, 0.843f, 1f);
     private float nextStressTextUpdateTime;
     private int lastProjectedCost = -1;
     private int lastDisplayedMaxBudget = -1;
@@ -246,6 +249,13 @@ public class BuildUIController : MonoBehaviour
     {
         if (barCreator == null) barCreator = FindObjectOfType<BarCreator>();
         if (physicsManager == null) physicsManager = FindObjectOfType<BridgePhysicsManager>();
+
+        // Keep the readout legible over both the dark empty card and bright stress colors.
+        if (stressText != null)
+        {
+            stressText.outlineColor = new Color32(35, 23, 17, 230);
+            stressText.outlineWidth = 0.12f;
+        }
         
         if (selectionActionPanel != null) selectionActionPanel.SetActive(false);
         if (statsPanel != null) statsPanel.SetActive(false); 
@@ -1411,19 +1421,30 @@ public class BuildUIController : MonoBehaviour
             // can see stress rise and fall as the vehicle crosses the bridge. The
             // manager still records the run peak separately for result scoring.
             float currentStress = physicsManager.GetMaxBridgeStress();
-            float stressPercent = currentStress * 100f;
+            float previousFill = Mathf.Max(0f, lastStressFillAmount);
+            float displayedStress = Mathf.MoveTowards(previousFill, currentStress,
+                Mathf.Max(0.1f, stressFillAnimationSpeed) * Time.unscaledDeltaTime);
+            float stressPercent = displayedStress * 100f;
 
-            Color currentStressColor = currentStress <= 0.5f ?
-                Color.Lerp(safeStressColor, warningStressColor, currentStress * 2f) :
-                Color.Lerp(warningStressColor, criticalStressColor, (currentStress - 0.5f) * 2f);
+            Color currentStressColor = displayedStress <= 0.5f ?
+                Color.Lerp(safeStressColor, warningStressColor, displayedStress * 2f) :
+                Color.Lerp(warningStressColor, criticalStressColor, (displayedStress - 0.5f) * 2f);
 
-            if (stressFillBar != null &&
-                !Mathf.Approximately(currentStress, lastStressFillAmount))
-            { 
-                lastStressFillAmount = currentStress;
-                stressFillBar.fillAmount = currentStress;
-                stressFillBar.color = currentStressColor; 
+            if (stressFillBar != null)
+            {
+                RectTransform fillRect = stressFillBar.rectTransform;
+                Vector2 anchorMax = fillRect.anchorMax;
+                float fillHeight = Mathf.Clamp01(displayedStress);
+                if (!Mathf.Approximately(anchorMax.y, fillHeight))
+                {
+                    anchorMax.y = fillHeight;
+                    fillRect.anchorMax = anchorMax;
+                }
+
+                if (!Mathf.Approximately(displayedStress, lastStressFillAmount))
+                    stressFillBar.color = currentStressColor;
             }
+            lastStressFillAmount = displayedStress;
 
             bool failureValue = currentStress >= 1f;
             if (!Mathf.Approximately(stressPercent, lastStressPercent) &&
@@ -1434,8 +1455,8 @@ public class BuildUIController : MonoBehaviour
                 lastStressPercent = stressPercent;
                 if (stressText != null) 
                 { 
-                    stressText.text = $"{stressPercent:0.0}%";
-                    stressText.color = currentStressColor; 
+                    stressText.text = $"<size=15><color=#F8EAD7>BRIDGE STRESS</color></size>\n<size=31>{stressPercent:0.0}%</size>";
+                    stressText.color = StressReadoutColor;
                 }
             }
         }
@@ -1444,15 +1465,27 @@ public class BuildUIController : MonoBehaviour
             if (!Mathf.Approximately(lastStressPercent, 0f))
             {
                 lastStressPercent = 0f;
-                if (stressText != null) { stressText.text = "0.0%"; stressText.color = safeStressColor; }
+                if (stressText != null)
+                {
+                    stressText.text = "<size=15><color=#F8EAD7>BRIDGE STRESS</color></size>\n<size=31>0.0%</size>";
+                    stressText.color = StressReadoutColor;
+                }
             }
             nextStressTextUpdateTime = 0f;
-            if (stressFillBar != null && !Mathf.Approximately(lastStressFillAmount, 0f))
+            if (stressFillBar != null)
             {
-                lastStressFillAmount = 0f;
-                stressFillBar.fillAmount = 0f;
-                stressFillBar.color = safeStressColor;
+                RectTransform fillRect = stressFillBar.rectTransform;
+                Vector2 anchorMax = fillRect.anchorMax;
+                if (!Mathf.Approximately(anchorMax.y, 0f))
+                {
+                    anchorMax.y = 0f;
+                    fillRect.anchorMax = anchorMax;
+                }
+
+                if (!Mathf.Approximately(lastStressFillAmount, 0f))
+                    stressFillBar.color = safeStressColor;
             }
+            lastStressFillAmount = 0f;
         }
     }
 
