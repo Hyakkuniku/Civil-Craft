@@ -13,6 +13,7 @@ public class SettingsTabController : MonoBehaviour
     [Header("Visual Feedback")]
     public Color activeTabColor = Color.white;
     public Color inactiveTabColor = new Color(0.7f, 0.7f, 0.7f, 1f);
+    private int activeTabIndex;
 
     private void Start()
     {
@@ -35,6 +36,7 @@ public class SettingsTabController : MonoBehaviour
     public void SwitchTab(int tabIndex)
     {
         if (tabPanels == null || tabIndex < 0 || tabIndex >= tabPanels.Length) return;
+        activeTabIndex = tabIndex;
 
         for (int i = 0; i < tabPanels.Length; i++)
         {
@@ -53,6 +55,17 @@ public class SettingsTabController : MonoBehaviour
                     btnImage.color = isActive ? activeTabColor : inactiveTabColor;
                 }
             }
+        }
+    }
+
+    public void RefreshTabColors()
+    {
+        if (tabButtons == null) return;
+        for (int i = 0; i < tabButtons.Length; i++)
+        {
+            if (tabButtons[i] == null) continue;
+            Image image = tabButtons[i].GetComponent<Image>();
+            if (image != null) image.color = i == activeTabIndex ? activeTabColor : inactiveTabColor;
         }
     }
 }

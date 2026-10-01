@@ -7,6 +7,18 @@ public sealed class LeaderboardToggleStyle : MonoBehaviour
     [SerializeField] private Image checkbox;
     private Toggle toggle;
 
+    public void Configure(Image image)
+    {
+        checkbox = image;
+        RefreshState();
+    }
+
+    public void RefreshState()
+    {
+        if (toggle == null) toggle = GetComponent<Toggle>();
+        if (toggle != null) Refresh(toggle.isOn);
+    }
+
     private void Awake()
     {
         toggle = GetComponent<Toggle>();

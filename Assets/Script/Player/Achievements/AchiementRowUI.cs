@@ -95,7 +95,7 @@ public class AchievementRowUI : MonoBehaviour
                 : achievement.targetAmount;
             int clampedProgress = Mathf.Min(currentProgress, targetAmount);
             
-            if (progressText != null) progressText.text = $"{clampedProgress} / {targetAmount}";
+            if (progressText != null) progressText.text = targetAmount > 0 ? $"{clampedProgress} / {targetAmount}" : "Coming soon";
             SetDisplayedProgress(targetAmount > 0
                 ? (float)clampedProgress / targetAmount
                 : 0f);
@@ -127,7 +127,7 @@ public class AchievementRowUI : MonoBehaviour
             rowRect.anchorMax = new Vector2(1f, 1f);
             rowRect.pivot = new Vector2(0.5f, 1f);
             rowRect.anchoredPosition = new Vector2(0f, rowRect.anchoredPosition.y);
-            rowRect.sizeDelta = new Vector2(rowRect.sizeDelta.x, 138f);
+            rowRect.sizeDelta = new Vector2(rowRect.sizeDelta.x, 160f);
 
             // A few scene variants had a zero-width Content rect during the
             // first layout pass. Without this fallback only the fixed-width
@@ -148,8 +148,8 @@ public class AchievementRowUI : MonoBehaviour
 
         LayoutElement layout = GetComponent<LayoutElement>();
         if (layout == null) layout = gameObject.AddComponent<LayoutElement>();
-        layout.minHeight = 138f;
-        layout.preferredHeight = 138f;
+        layout.minHeight = 160f;
+        layout.preferredHeight = 160f;
         layout.flexibleWidth = 1f;
 
         HorizontalLayoutGroup oldLayout = GetComponent<HorizontalLayoutGroup>();
@@ -179,18 +179,21 @@ public class AchievementRowUI : MonoBehaviour
             new Vector2(0f, 0.5f), new Vector2(0f, 0.5f),
             new Vector2(0.5f, 0.5f), new Vector2(70f, 0f), new Vector2(92f, 92f));
 
+        float progressWidth = Mathf.Clamp(rowRect != null ? rowRect.rect.width * .24f : 260f, 150f, 280f);
+        float reservedWidth = 148f + progressWidth + 52f;
         ConfigureTextRect(titleText,
             new Vector2(0f, 1f), new Vector2(1f, 1f),
-            new Vector2(0f, 1f), new Vector2(148f, -12f), new Vector2(-520f, 34f),
-            27f, FontStyles.Bold);
+            new Vector2(0f, 1f), new Vector2(148f, -14f), new Vector2(-reservedWidth, 38f),
+            30f, FontStyles.Bold);
 
         if (descriptionText != null)
         {
             descriptionText.rectTransform.SetParent(transform, false);
             ConfigureTextRect(descriptionText,
                 new Vector2(0f, 1f), new Vector2(1f, 1f),
-                new Vector2(0f, 1f), new Vector2(148f, -48f), new Vector2(-520f, 30f),
-                21f, FontStyles.Normal);
+                new Vector2(0f, 1f), new Vector2(148f, -54f), new Vector2(-reservedWidth, 58f),
+                25f, FontStyles.Normal);
+            descriptionText.enableWordWrapping = true;
         }
 
         if (rewardText != null)
@@ -198,8 +201,8 @@ public class AchievementRowUI : MonoBehaviour
             rewardText.rectTransform.SetParent(transform, false);
             ConfigureTextRect(rewardText,
                 new Vector2(0f, 1f), new Vector2(1f, 1f),
-                new Vector2(0f, 1f), new Vector2(148f, -82f), new Vector2(82f, 32f),
-                20f, FontStyles.Normal);
+                new Vector2(0f, 1f), new Vector2(148f, -116f), new Vector2(82f, 32f),
+                22f, FontStyles.Normal);
             rewardText.color = new Color(0.30f, 0.22f, 0.14f, 1f);
         }
         EnsureRewardIcons();
@@ -222,14 +225,14 @@ public class AchievementRowUI : MonoBehaviour
         RectTransform progressContainerRect = progressContainer as RectTransform;
         ConfigureRect(progressContainerRect,
             new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
-            new Vector2(1f, 0.5f), new Vector2(-26f, 0f), new Vector2(340f, 92f));
+            new Vector2(1f, 0.5f), new Vector2(-26f, 0f), new Vector2(progressWidth, 92f));
 
         if (progressText != null)
         {
             ConfigureTextRect(progressText,
                 new Vector2(0f, 1f), new Vector2(1f, 1f),
                 new Vector2(0.5f, 1f), new Vector2(0f, 0f), new Vector2(0f, 36f),
-                23f, FontStyles.Bold);
+                26f, FontStyles.Bold);
             progressText.alignment = TextAlignmentOptions.TopRight;
         }
 
@@ -287,12 +290,12 @@ public class AchievementRowUI : MonoBehaviour
     private void EnsureRewardIcons()
     {
         rewardCoinIcon = EnsureRewardIcon(
-            "RewardCoinIcon", CurrencyIconKind.Coin, new Vector2(244f, -98f));
+            "RewardCoinIcon", CurrencyIconKind.Coin, new Vector2(244f, -132f));
         rewardExperienceIcon = EnsureRewardIcon(
             "RewardExperienceIcon", CurrencyIconKind.Experience,
-            new Vector2(374f, -98f));
-        rewardCoinValueText = EnsureRewardValueText("RewardCoinValue", new Vector2(264f, -82f));
-        rewardExperienceValueText = EnsureRewardValueText("RewardExperienceValue", new Vector2(394f, -82f));
+            new Vector2(374f, -132f));
+        rewardCoinValueText = EnsureRewardValueText("RewardCoinValue", new Vector2(264f, -116f));
+        rewardExperienceValueText = EnsureRewardValueText("RewardExperienceValue", new Vector2(394f, -116f));
     }
 
     private void ApplyRewardLayout(AchievementSO achievement, bool hideDetails)
@@ -311,7 +314,7 @@ public class AchievementRowUI : MonoBehaviour
             rewardCoinIcon.gameObject.SetActive(showGold && rewardCoinIcon.sprite != null);
         if (rewardCoinValueText != null)
         {
-            rewardCoinValueText.text = achievement.bonusGold.ToString("N0");
+            rewardCoinValueText.text = achievement.bonusGold.ToString("N0") + (rewardCoinIcon == null || rewardCoinIcon.sprite == null ? " Gold" : "");
             rewardCoinValueText.gameObject.SetActive(showGold);
         }
 
@@ -319,13 +322,13 @@ public class AchievementRowUI : MonoBehaviour
         float experienceValueX = showGold ? 394f : 264f;
         if (rewardExperienceIcon != null)
         {
-            rewardExperienceIcon.rectTransform.anchoredPosition = new Vector2(experienceIconX, -98f);
+            rewardExperienceIcon.rectTransform.anchoredPosition = new Vector2(experienceIconX, -132f);
             rewardExperienceIcon.gameObject.SetActive(showExperience && rewardExperienceIcon.sprite != null);
         }
         if (rewardExperienceValueText != null)
         {
-            rewardExperienceValueText.rectTransform.anchoredPosition = new Vector2(experienceValueX, -82f);
-            rewardExperienceValueText.text = achievement.bonusExp.ToString("N0");
+            rewardExperienceValueText.rectTransform.anchoredPosition = new Vector2(experienceValueX, -116f);
+            rewardExperienceValueText.text = achievement.bonusExp.ToString("N0") + (rewardExperienceIcon == null || rewardExperienceIcon.sprite == null ? " XP" : "");
             rewardExperienceValueText.gameObject.SetActive(showExperience);
         }
     }
@@ -362,12 +365,12 @@ public class AchievementRowUI : MonoBehaviour
         if (rewardText != null) text.font = rewardText.font;
         ConfigureTextRect(text,
             new Vector2(0f, 1f), new Vector2(0f, 1f),
-            new Vector2(0f, 1f), position, new Vector2(96f, 32f),
-            20f, FontStyles.Normal);
+            new Vector2(0f, 1f), position, new Vector2(116f, 32f),
+            22f, FontStyles.Normal);
         text.color = new Color(0.30f, 0.22f, 0.14f, 1f);
         text.enableAutoSizing = true;
         text.fontSizeMin = 15f;
-        text.fontSizeMax = 20f;
+        text.fontSizeMax = 22f;
         text.alignment = TextAlignmentOptions.MidlineLeft;
         text.gameObject.SetActive(existed && wasActive);
         return text;

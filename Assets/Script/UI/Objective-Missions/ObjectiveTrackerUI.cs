@@ -1383,7 +1383,7 @@ public class ObjectiveTrackerUI : MonoBehaviour
         }
     }
 
-    private void ApplySharedVisualStyle()
+    public void ApplySharedVisualStyle()
     {
         if (trackerPanel == null) return;
 
@@ -1437,12 +1437,16 @@ public class ObjectiveTrackerUI : MonoBehaviour
             closeRect.anchorMax = Vector2.one;
             closeRect.pivot = new Vector2(0.5f, 0.5f);
             closeRect.anchoredPosition = new Vector2(-50f, -50f);
-            closeRect.sizeDelta = new Vector2(64f, 64f);
+            closeRect.sizeDelta = new Vector2(88f, 88f);
         }
 
         ScrollRect scrollRect = listPanel != null ? listPanel.GetComponentInChildren<ScrollRect>(true) : null;
         if (scrollRect != null)
         {
+            scrollRect.horizontal = false;
+            scrollRect.vertical = true;
+            scrollRect.movementType = ScrollRect.MovementType.Clamped;
+            scrollRect.decelerationRate = .12f;
             RectTransform scrollTransform = scrollRect.GetComponent<RectTransform>();
             StretchRect(scrollTransform, new Vector2(30f, 30f), new Vector2(-30f, -30f));
 
@@ -1492,6 +1496,9 @@ public class ObjectiveTrackerUI : MonoBehaviour
             completeButton,
             "COLLECT REWARD",
             new Color32(113, 177, 44, 255));
+        ObjectiveMobileFit mobileFit = trackerPanel.GetComponent<ObjectiveMobileFit>();
+        if (mobileFit == null) mobileFit = trackerPanel.AddComponent<ObjectiveMobileFit>();
+        mobileFit.ApplyLayout();
     }
 
     private void CreateClipboardClip()
@@ -1607,9 +1614,9 @@ public class ObjectiveTrackerUI : MonoBehaviour
         }
 
         SetCenteredRect(navigateButton != null ? navigateButton.GetComponent<RectTransform>() : null,
-            new Vector2(420f, 72f), new Vector2(0f, -305f));
+            new Vector2(420f, 88f), new Vector2(0f, -305f));
         SetCenteredRect(completeButton != null ? completeButton.GetComponent<RectTransform>() : null,
-            new Vector2(360f, 72f), new Vector2(0f, -55f));
+            new Vector2(360f, 80f), new Vector2(0f, -55f));
     }
 
     private void EnsureRewardIcons()

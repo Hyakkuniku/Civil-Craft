@@ -325,6 +325,9 @@ public class AchievementUIManager : MonoBehaviour
             completeToggle.SetIsOnWithoutNotify(activeFilter == AchievementFilter.Complete);
         if (incompleteToggle != null)
             incompleteToggle.SetIsOnWithoutNotify(activeFilter == AchievementFilter.Incomplete);
+        if (allToggle != null) allToggle.GetComponent<LeaderboardToggleStyle>()?.RefreshState();
+        if (completeToggle != null) completeToggle.GetComponent<LeaderboardToggleStyle>()?.RefreshState();
+        if (incompleteToggle != null) incompleteToggle.GetComponent<LeaderboardToggleStyle>()?.RefreshState();
     }
 
     private void HandleAllToggle(bool selected)
@@ -409,7 +412,7 @@ public class AchievementUIManager : MonoBehaviour
             rowRect.anchorMax = new Vector2(1f, 1f);
             rowRect.pivot = new Vector2(0.5f, 1f);
             rowRect.anchoredPosition = Vector2.zero;
-            rowRect.sizeDelta = new Vector2(0f, 138f);
+            rowRect.sizeDelta = new Vector2(0f, 160f);
         }
 
         AchievementRowUI rowUI = rowObj.GetComponent<AchievementRowUI>();
@@ -531,6 +534,7 @@ public class AchievementUIManager : MonoBehaviour
         Transform filterBar = FindDescendant(achievementPanel.transform, "AchievementFilterBar");
         if (filterBar != null)
             StyleFilterBar(filterBar);
+        achievementPanel.GetComponent<CozyModalLayout>()?.ApplyLayout();
     }
 
     private void StyleFilterBar(Transform filterBar)
@@ -706,6 +710,12 @@ public class AchievementUIManager : MonoBehaviour
         return scrollbar;
     }
 
+    public void RelayoutVisibleRows()
+    {
+        if (contentParent == null || contentParent.childCount == 0) return;
+        LayoutRowsManually(contentParent.GetComponentInParent<ScrollRect>(true));
+    }
+
     private void LayoutRowsManually(ScrollRect scrollRect)
     {
         RectTransform contentRect = contentParent as RectTransform;
@@ -714,7 +724,7 @@ public class AchievementUIManager : MonoBehaviour
         const float horizontalPadding = 10f;
         const float topPadding = 10f;
         const float bottomPadding = 10f;
-        const float rowHeight = 138f;
+        const float rowHeight = 160f;
         const float spacing = 12f;
 
         List<RectTransform> rows = new List<RectTransform>();
