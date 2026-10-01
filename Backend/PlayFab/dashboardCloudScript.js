@@ -1,0 +1,96 @@
+// Civil Craft dashboard projection publisher for legacy PlayFab CloudScript.
+// Merge this handler into the active title revision. The Unity client calls the
+// function with its signed-in session; PlayFab supplies currentPlayerId and the
+// Server API writes the website-readable projection. No developer secret is
+// present in the game or browser.
+
+var ccDashboardMaxJsonLength = 10000;
+
+function ccDashboardInteger(value, name, minimum, maximum) {
+    if (typeof value !== "number" || !isFinite(value) ||
+        Math.floor(value) !== value || value < minimum || value > maximum)
+        throw new Error("Invalid dashboard field: " + name + ".");
+    return value;
+}
+
+function ccDashboardText(value, name, maximumLength) {
+    if (typeof value !== "string" || value.length > maximumLength)
+        throw new Error("Invalid dashboard field: " + name + ".");
+    return value;
+}
+
+function ccDashboardJson(value, name, expectedArray) {
+    ccDashboardText(value, name, ccDashboardMaxJsonLength);
+    var parsed;
+    try { parsed = JSON.parse(value); }
+    catch (error) { throw new Error("Invalid dashboard JSON: " + name + "."); }
+    if (expectedArray) {
+        if (!Array.isArray(parsed))
+            throw new Error("Dashboard field must be an array: " + name + ".");
+    } else if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw new Error("Dashboard field must be an object: " + name + ".");
+    }
+    return value;
+}
+
+handlers.syncDashboardV1 = function (args, context) {
+    if (typeof currentPlayerId !== "string" || !currentPlayerId)
+        throw new Error("A signed-in player is required.");
+    if (!args || ccDashboardInteger(args.schemaVersion, "schemaVersion", 1, 1) !== 1)
+        throw new Error("Unsupported dashboard schema.");
+
+    var currentLevel = ccDashboardInteger(args.currentLevel, "currentLevel", 1, 1000);
+    var xp = ccDashboardInteger(args.xp, "xp", 0, 2147483647);
+    var xpToNextLevel = ccDashboardInteger(
+        args.xpToNextLevel, "xpToNextLevel", 1, 2147483647);
+    var achievementsUnlocked = ccDashboardInteger(
+        args.achievementsUnlocked, "achievementsUnlocked", 0, 10000);
+    var achievementsTotal = ccDashboardInteger(
+        args.achievementsTotal, "achievementsTotal", 0, 10000);
+    if (achievementsUnlocked > achievementsTotal)
+        throw new Error("Unlocked achievements cannot exceed the total.");
+
+    var totalScore = ccDashboardInteger(args.totalScore, "totalScore", 0, 2147483647);
+    var bridgesCompleted = ccDashboardInteger(
+        args.bridgesCompleted, "bridgesCompleted", 0, 2147483647);
+    var challengesCompleted = ccDashboardInteger(
+        args.challengesCompleted, "challengesCompleted", 0, 2147483647);
+    var bestSingleBuildScore = ccDashboardInteger(
+        args.bestSingleBuildScore, "bestSingleBuildScore", 0, 2147483647);
+
+    var data = {
+        CurrentLevel: currentLevel.toString(),
+        XP: xp.toString(),
+        XPToNextLevel: xpToNextLevel.toString(),
+        CurrentRegion: ccDashboardText(args.currentRegion, "currentRegion", 100),
+        AchievementsUnlocked: achievementsUnlocked.toString(),
+        AchievementsTotal: achievementsTotal.toString(),
+        BridgesCompleted: bridgesCompleted.toString(),
+        ChallengesCompleted: challengesCompleted.toString(),
+        MapProgress: ccDashboardJson(args.mapProgress, "mapProgress", false),
+        AchievementProgress: ccDashboardJson(
+            args.achievementProgress, "achievementProgress", true),
+        EquippedCosmetics: ccDashboardJson(
+            args.equippedCosmetics, "equippedCosmetics", false),
+        AlmanacProgress: ccDashboardJson(args.almanacProgress, "almanacProgress", false),
+        CharacterSyncedAt: new Date().toISOString()
+    };
+
+    server.UpdateUserData({
+        PlayFabId: currentPlayerId,
+        Data: data,
+        Permission: "Private"
+    });
+    server.UpdatePlayerStatistics({
+        PlayFabId: currentPlayerId,
+        Statistics: [
+            { StatisticName: "TotalScore", Value: totalScore },
+            { StatisticName: "BridgesCompleted", Value: bridgesCompleted },
+            { StatisticName: "ChallengesCompleted", Value: challengesCompleted },
+            { StatisticName: "BestSingleBuildScore", Value: bestSingleBuildScore }
+        ],
+        ForceUpdate: false
+    });
+
+    return { accepted: true, schemaVersion: 1 };
+};

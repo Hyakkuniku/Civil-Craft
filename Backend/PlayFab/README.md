@@ -1,8 +1,10 @@
-# Civil Craft online leaderboard — development setup
+# Civil Craft PlayFab backend — development setup
 
-This folder contains the legacy PlayFab CloudScript handler
-`submitBridgeRunV1`. Unity continues to read the top 15 through the existing
-`LeaderboardPanelUI` and does not allow client statistic writes.
+This folder contains the legacy PlayFab CloudScript handlers
+`submitBridgeRunV1` and `syncDashboardV1`. Unity continues to read the top 15
+through the existing `LeaderboardPanelUI`, while the dashboard handler writes
+the private website projection and summary statistics. Client statistic writes
+remain disabled.
 
 On September 30, 2026, the Civil Craft **Development** title (17FA03) had
 legacy CloudScript revision 3 live. `mergedCloudScript.dev.js` preserves its
@@ -11,6 +13,9 @@ existing sample/Photon handlers and adds the leaderboard handler. All 18
 created in Development with **Maximum** aggregation and manual reset.
 Revision 4 was uploaded and deployed after a non-scoring validation test:
 `submitBridgeRunV1` rejected an unknown contract with zero PlayFab API calls.
+On October 1, 2026, revision 5 was uploaded and deployed with
+`syncDashboardV1`; the uploaded revision was checked for both the dashboard and
+existing leaderboard handlers before deployment.
 The Unity submit flag is enabled in Canyon Crossing and Bhan House, and
 explicitly disabled in Multiplayer. A signed-in SilasContract completion
 reached `submitBridgeRunV1`; both of its live boards show two player entries,
@@ -18,10 +23,11 @@ and each entry decodes to the same cost/stress pair in both tabs. The remaining
 controlled checks are worse/better redesigns, guest/offline submissions, and
 mobile-build gameplay.
 
-1. Run `node Backend/PlayFab/leaderboardCloudScript.test.js` locally.
+1. Run `node Backend/PlayFab/leaderboardCloudScript.test.js` and
+   `node Backend/PlayFab/dashboardCloudScript.test.js` locally.
 2. Before uploading, compare the currently live revision with the preserved
    handlers in `mergedCloudScript.dev.js` in case another developer changed it.
-   Upload **that merged file**, never `leaderboardCloudScript.js` alone.
+   Upload **that merged file**, never either feature-only handler alone.
 3. If a new playable contract is added later, create its `CC_E_<hash>` and
    `CC_S_<hash>` legacy statistic definitions with **Max** aggregation and no
    automatic reset. The names are listed in the `ccLeaderboardContracts` table

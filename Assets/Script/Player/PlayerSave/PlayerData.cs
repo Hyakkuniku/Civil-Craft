@@ -62,8 +62,11 @@ public class ContractStarResult
 [System.Serializable]
 public class SavedBridgeData 
 {
-    public int schemaVersion = 1;
+    public int schemaVersion = 2;
     public string contractId; 
+    // UTC ISO-8601 timestamp used by the read-only web dashboard. Older saves
+    // legitimately leave this empty because their completion time is unknown.
+    public string completedAtUtc;
     public float totalSpent;
     public float maxStress;
     // Whole attempts, never merged flags from different designs. Legacy saves have null results.
@@ -74,6 +77,13 @@ public class SavedBridgeData
     
     public List<SavedPointData> points = new List<SavedPointData>();
     public List<SavedBarData> bars = new List<SavedBarData>();
+}
+
+[System.Serializable]
+public class AchievementUnlockData
+{
+    public string achievementId;
+    public string unlockedAtUtc;
 }
 
 [System.Serializable]
@@ -181,6 +191,9 @@ public class PlayerData
     public bool hasUnlockedMinimap = false;
 
     public List<string> unlockedAchievements = new List<string>();
+    // Timestamps are kept separately so the long-standing ID list remains
+    // backward compatible with existing saves and achievement UI code.
+    public List<AchievementUnlockData> achievementUnlocks = new List<AchievementUnlockData>();
     public List<string> unlockedCosmeticIDs = new List<string>();
     public List<string> purchasedShopItemIds = new List<string>();
     // Stable IDs for permanent systems/features earned through contract rewards.

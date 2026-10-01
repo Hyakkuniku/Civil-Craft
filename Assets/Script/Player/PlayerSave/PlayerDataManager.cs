@@ -92,6 +92,8 @@ public class PlayerDataManager : MonoBehaviour
         LoadGame();
         if (GetComponent<CloudSaveManager>() == null)
             gameObject.AddComponent<CloudSaveManager>();
+        if (GetComponent<DashboardSyncService>() == null)
+            gameObject.AddComponent<DashboardSyncService>();
         RegisterContracts(Resources.FindObjectsOfTypeAll<ContractSO>());
         MigrateLegacyContractLocks();
         MigrateCompletedContractFeatureUnlocks();
@@ -1339,6 +1341,15 @@ public class PlayerDataManager : MonoBehaviour
         if (CurrentData.unlockedAchievements.Contains(achievement.achievementID)) return false;
 
         CurrentData.unlockedAchievements.Add(achievement.achievementID);
+        if (CurrentData.achievementUnlocks == null)
+            CurrentData.achievementUnlocks = new List<AchievementUnlockData>();
+        CurrentData.achievementUnlocks.RemoveAll(record =>
+            record == null || string.Equals(record.achievementId,
+                achievement.achievementID, StringComparison.Ordinal));
+        CurrentData.achievementUnlocks.Add(new AchievementUnlockData {
+            achievementId = achievement.achievementID,
+            unlockedAtUtc = DateTime.UtcNow.ToString("o")
+        });
 
         // These methods also update the received-currency lifetime counters.
         if (achievement.bonusGold > 0) AddGold(achievement.bonusGold);
@@ -1660,6 +1671,7 @@ public class PlayerDataManager : MonoBehaviour
         if (CurrentData.lockedContractIds == null) CurrentData.lockedContractIds = new List<string>();
         if (CurrentData.playedCinematicIds == null) CurrentData.playedCinematicIds = new List<string>();
         if (CurrentData.unlockedAchievements == null) CurrentData.unlockedAchievements = new List<string>();
+        if (CurrentData.achievementUnlocks == null) CurrentData.achievementUnlocks = new List<AchievementUnlockData>();
         if (CurrentData.unlockedCosmeticIDs == null) CurrentData.unlockedCosmeticIDs = new List<string>();
         EnsureCosmeticLoadout();
         if (CurrentData.purchasedShopItemIds == null) CurrentData.purchasedShopItemIds = new List<string>();
@@ -1733,8 +1745,9 @@ public class PlayerDataManager : MonoBehaviour
         contractId = NormalizeContractIdentifier(contractId);
 
         SavedBridgeData newSave = new SavedBridgeData { 
-            schemaVersion = 1,
+            schemaVersion = 2,
             contractId = contractId.Trim(),
+            completedAtUtc = DateTime.UtcNow.ToString("o"),
             totalSpent = totalSpent,
             maxStress = maxStress
         };

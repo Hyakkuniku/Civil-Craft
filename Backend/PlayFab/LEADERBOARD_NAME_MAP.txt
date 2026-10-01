@@ -1,0 +1,66 @@
+Civil Craft PlayFab Leaderboard Name Map
+Verified against the Development title on October 1, 2026.
+
+There are 9 playable contracts and 2 leaderboards per contract, for 18 total.
+
+Prefix meanings
+---------------
+CC_E_ = Efficient leaderboard
+        Lowest bridge cost ranks first; lower peak stress breaks a tie.
+
+CC_S_ = Strongest leaderboard
+        Lowest peak stress ranks first; lower bridge cost breaks a tie.
+
+PlayFab uses Maximum aggregation because the game converts a better, lower
+cost/stress result into a larger encoded integer. The values shown by PlayFab
+are encoded ranking values, not the raw cost or stress.
+
+Hashed name                                      Normal leaderboard name                 Contract ID
+-----------                                      -----------------------                 -----------
+CC_E_24A0506A7A79A0DB                           Shop Keeper Contract - Efficient         ShopKeeper
+CC_S_24A0506A7A79A0DB                           Shop Keeper Contract - Strongest         ShopKeeper
+
+CC_E_6C19CA5B77A6FF90                           Bhan Tutorial 1 - Efficient              TUT_CONTRACT1
+CC_S_6C19CA5B77A6FF90                           Bhan Tutorial 1 - Strongest              TUT_CONTRACT1
+
+CC_E_6C19CD5B77A704A9                           Bhan Tutorial 2 - Efficient              TUT_CONTRACT2
+CC_S_6C19CD5B77A704A9                           Bhan Tutorial 2 - Strongest              TUT_CONTRACT2
+
+CC_E_7AD47CC6EE895E44                           Reed's Contract - Efficient              ReedsContract
+CC_S_7AD47CC6EE895E44                           Reed's Contract - Strongest              ReedsContract
+
+CC_E_6CC5505F08AAC340                           Reed Side Inspection - Efficient         ReedSideInspection
+CC_S_6CC5505F08AAC340                           Reed Side Inspection - Strongest         ReedSideInspection
+
+CC_E_C29D1DB10DD4940D                           Vance's Contract - Efficient             VancesContract
+CC_S_C29D1DB10DD4940D                           Vance's Contract - Strongest             VancesContract
+
+CC_E_0FCFDEF8DF951749                           Vance Side Realignment - Efficient       VanceSideRealignment
+CC_S_0FCFDEF8DF951749                           Vance Side Realignment - Strongest       VanceSideRealignment
+
+CC_E_B57A013AC08B9A90                           Silas Contract - Efficient               SilasMainContract
+CC_S_B57A013AC08B9A90                           Silas Contract - Strongest               SilasMainContract
+
+CC_E_DD46490E01484D5A                           Main Contract Silas - Efficient          MainContractSilas
+CC_S_DD46490E01484D5A                           Main Contract Silas - Strongest          MainContractSilas
+
+
+Dashboard statistics (not per-contract leaderboards)
+----------------------------------------------------
+TotalScore                 Sum of the player's best stars across completed builds.
+BridgesCompleted           Player lifetime bridge-build count.
+ChallengesCompleted        Player lifetime completed-contract count.
+BestSingleBuildScore       Highest star result from one saved build.
+
+
+Source of truth
+---------------
+Unity creates these names in:
+Assets/Script/UI/Leaderboards/LeaderboardScoreCodec.cs
+
+The server allowlist is in:
+Backend/PlayFab/leaderboardCloudScript.js
+
+When a new playable contract is added, add its contract ID and hash to the
+server allowlist, create both CC_E_ and CC_S_ PlayFab statistics, and update
+this file.
