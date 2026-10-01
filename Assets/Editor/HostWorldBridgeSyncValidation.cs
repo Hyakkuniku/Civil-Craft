@@ -7,6 +7,7 @@ using System.Text;
 using Fusion;
 using TMPro;
 using UnityEditor;
+using UnityEditor.Animations;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -92,6 +93,7 @@ public static class HostWorldBridgeSyncValidation
             site.bakedBars.Add(bar);
             ValidateGuestTravelPolicy(site, report);
             ValidatePlayerMapMarkers(fixture.transform, report);
+            ValidateWaveEmote(fixture.transform, report);
 
             HostWorldBridgeSnapshot captured = FusionHostWorldBridgeSync.CaptureLocation(site);
             Require(captured.Bars.Count == 1 && captured.Bars[0].Parts.Count == 2,
@@ -316,6 +318,98 @@ public static class HostWorldBridgeSyncValidation
         peers.Add(PlayerRef.FromIndex(1), view);
         mapType.GetMethod("ClearRemotePlayerMarkers", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(map, null);
         Require(peers.Count == 0 && root == null, "Closing/leaving a session removes remote player marker objects.", report);
+    }
+
+    private static void ValidateWaveEmote(Transform fixture, StringBuilder report)
+    {
+        var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>("Assets/Animations/Player/PlayerAnimator.controller");
+        var clip = AssetDatabase.LoadAssetAtPath<AnimationClip>("Assets/Elements/Characters/Waving.anim");
+        Require(controller != null && clip != null && clip.length > 0f,
+            "Wave emote uses the user's existing PlayerAnimator and Waving animation clip.", report);
+        bool waveParameter = false;
+        foreach (AnimatorControllerParameter parameter in controller.parameters)
+            if (parameter.name == "Wave" && parameter.type == AnimatorControllerParameterType.Bool) waveParameter = true;
+        Require(waveParameter && AnimationUtility.GetAnimationClipSettings(clip).loopTime,
+            "Wave has an authored toggle parameter and the existing clip loops.", report);
+        AnimatorState wave = null;
+        AnimatorStateMachine baseLayer = controller.layers[0].stateMachine;
+        foreach (ChildAnimatorState state in baseLayer.states) if (state.state.name == "Waving") wave = state.state;
+        Require(wave != null && wave.motion == clip, "Waving state references the exact existing animation asset.", report);
+        bool entry = false, exit = false, walk = false, sprint = false, jump = false;
+        foreach (AnimatorStateTransition transition in baseLayer.anyStateTransitions)
+            if (transition.destinationState == wave && !transition.canTransitionToSelf)
+                foreach (AnimatorCondition condition in transition.conditions)
+                    if (condition.parameter == "Wave" && condition.mode == AnimatorConditionMode.If) entry = true;
+        foreach (AnimatorStateTransition transition in wave.transitions)
+        {
+            if (transition.destinationState == null) continue;
+            string destination = transition.destinationState.name;
+            if (destination == "idle" && !transition.hasExitTime)
+                foreach (AnimatorCondition condition in transition.conditions)
+                    if (condition.parameter == "Wave" && condition.mode == AnimatorConditionMode.IfNot) exit = true;
+            if (destination == "walk" && !transition.hasExitTime) walk = true;
+            if (destination == "sprint" && !transition.hasExitTime) sprint = true;
+            if (destination == "jump" && !transition.hasExitTime) jump = true;
+        }
+        Require(entry && exit && walk && sprint && jump,
+            "Wave loops until toggled off and can be interrupted by walk, sprint or jump.", report);
+
+        // Read only the authored scene YAML: no loading/saving the user's large
+        // Canyon scene or replacing their currently open/unsaved Editor scene.
+        string sceneText = File.ReadAllText("Assets/Scenes/CanyonCrossing.unity");
+        int start = sceneText.IndexOf("--- !u!114 &397172065", StringComparison.Ordinal);
+        int end = sceneText.IndexOf("--- !u!", start + 1, StringComparison.Ordinal);
+        string button = sceneText.Substring(start, end - start);
+        Require(button.Contains("m_TargetAssemblyTypeName: MultiplayerEmoteButton, Assembly-CSharp") &&
+                button.Contains("m_MethodName: PlayWave") && button.Contains("m_Target: {fileID: 900000000000000101}") &&
+                sceneText.Contains("guid: c748dcf87e824b5ab5807031b2f36541") &&
+                sceneText.Contains("button: {fileID: 397172065}"),
+            "Existing EmoteButton has a persistent authored On Click target, script and Button reference.", report);
+        var ui = Child("Inactive Wave Button", fixture).AddComponent<MultiplayerEmoteButton>();
+        ui.PlayWave();
+        Require(!ui.GetComponent<Button>().interactable,
+            "Wave button safely rejects clicks without a running multiplayer owner avatar.", report);
+
+        var rig = new GameObject("Native Wave Animator (Temporary)");
+        SceneManager.MoveGameObjectToScene(rig, fixture.gameObject.scene);
+        rig.SetActive(false);
+        Animator animator = rig.AddComponent<Animator>();
+        animator.runtimeAnimatorController = controller;
+        animator.applyRootMotion = false;
+        animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+        try
+        {
+            rig.SetActive(true);
+            animator.Rebind();
+            animator.Update(0f);
+            animator.SetBool("IsGrounded", true);
+            animator.SetFloat("Speed", 0f);
+            animator.SetBool("Wave", true);
+            for (int i = 0; i < 4; i++) animator.Update(0.05f);
+            Require(animator.GetCurrentAnimatorStateInfo(0).IsName("Waving"),
+                "Native Animator enters Waving after pressing the emote toggle.", report);
+            for (int i = 0; i < Mathf.CeilToInt((clip.length * 4f + 0.3f) / 0.05f); i++) animator.Update(0.05f);
+            Require(animator.GetCurrentAnimatorStateInfo(0).IsName("Waving") &&
+                animator.GetCurrentAnimatorStateInfo(0).normalizedTime > 3f,
+                "Native wave remains active across multiple complete animation loops.", report);
+            animator.SetBool("Wave", false);
+            for (int i = 0; i < 4; i++) animator.Update(0.05f);
+            Require(animator.GetCurrentAnimatorStateInfo(0).IsName("idle") && rig.transform.position == Vector3.zero &&
+                !animator.applyRootMotion,
+                "Toggling wave off returns to idle without moving the gameplay root.", report);
+            animator.SetBool("Wave", true);
+            for (int i = 0; i < 4; i++) animator.Update(0.05f);
+            animator.SetFloat("Speed", 0.5f);
+            for (int i = 0; i < 4; i++) animator.Update(0.05f);
+            Require(animator.GetCurrentAnimatorStateInfo(0).IsName("walk"),
+                "Native walking immediately interrupts the wave instead of locking movement.", report);
+            animator.SetBool("Wave", false);
+            animator.SetFloat("Speed", 0f);
+            for (int i = 0; i < 12; i++) animator.Update(0.05f);
+            Require(animator.GetCurrentAnimatorStateInfo(0).IsName("idle"),
+                "Clearing the movement-interrupted wave does not restart it when walking stops.", report);
+        }
+        finally { Object.DestroyImmediate(rig); }
     }
 
     private static void ValidateGuestTravelPolicy(BuildLocation location, StringBuilder report)

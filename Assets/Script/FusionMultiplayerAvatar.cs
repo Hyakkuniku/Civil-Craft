@@ -19,6 +19,8 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
     private static readonly int SprintParameter = Animator.StringToHash("IsSprinting");
     private static readonly int GroundedParameter = Animator.StringToHash("IsGrounded");
     private static readonly int JumpParameter = Animator.StringToHash("Jump");
+    private static readonly int WaveParameter = Animator.StringToHash("Wave");
+    private static readonly int WaveState = Animator.StringToHash("Base Layer.Waving");
 
     [Networked] private Vector3 Position { get; set; }
     [Networked] private Quaternion Rotation { get; set; }
@@ -32,6 +34,7 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
     [Networked] private uint JumpSequence { get; set; }
     [Networked, Capacity(2048)] private string Appearance { get; set; }
     [Networked, Capacity(MaxPlayerNameLength)] private string PlayerName { get; set; }
+    [Networked] private bool IsWaving { get; set; }
     [Networked] private bool IsBridgeBuilder { get; set; }
     [Networked] private int HostBridgeNodeCount { get; set; }
     [Networked, Capacity(MaxBridgeNodes)] private NetworkArray<Vector3> HostBridgeNodes => default;
@@ -53,6 +56,7 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
     [SerializeField, Range(1f, 2f)] private float hostMaxPlaybackSpeed = 1.5f;
     [SerializeField, Min(1f)] private float remoteTeleportDistance = 8f;
     [SerializeField] private bool logMovementDiagnostics;
+    [SerializeField, Min(0.1f)] private float waveCooldown = 1f;
 
     public struct BridgeBarSnapshot : INetworkStruct
     {
@@ -86,6 +90,8 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
     private List<CosmeticItem> remoteHats;
     private string lastPublishedAppearance;
     private string lastPublishedPlayerName;
+    private bool localWaveActive;
+    private float nextLocalWaveTime;
     private string lastAppliedAppearance;
     private uint localJumpSequence;
     private uint lastObservedJumpSequence;
@@ -163,6 +169,68 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
 
     public string MapPlayerName => Object != null && Object.IsValid ? PlayerName : "Player";
 
+    public bool CanWave => localWaveActive ||
+        (Time.unscaledTime >= nextLocalWaveTime && IsWavePoseAllowed);
+
+    private bool IsWavePoseAllowed
+    {
+        get
+        {
+            FusionConnectionManager connection = FusionConnectionManager.Instance;
+            if (Runner == null || !Runner.IsRunning || Object == null || !Object.IsValid || !HasInputAuthority ||
+                connection == null || connection.Runner != Runner || !connection.IsAvatarScene || connection.IsNetworkSceneLoading ||
+                sceneMotor == null || !sceneMotor.isActiveAndEnabled || sceneAnimator == null ||
+                !sceneAnimator.isActiveAndEnabled || !sceneAnimator.HasState(0, WaveState) ||
+                !sceneAnimator.GetBool(GroundedParameter) ||
+                sceneAnimator.GetFloat(SpeedParameter) >= 0.1f || CargoItem.IsCarriedBy(sceneMotor.transform)) return false;
+            if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Normal) return false;
+            if (UIPanelCoordinator.Instance != null && UIPanelCoordinator.Instance.HasOpenPanel) return false;
+            InputManager input = sceneMotor.GetComponent<InputManager>();
+            int carryLayer = sceneAnimator.GetLayerIndex("Carry Pose");
+            return (input == null || input.IsPlayerInputEnabled) &&
+                   (carryLayer < 0 || sceneAnimator.GetLayerWeight(carryLayer) <= 0.5f);
+        }
+    }
+
+    public bool TryWave()
+    {
+        if (!CanWave) return false;
+        bool active = !localWaveActive;
+        if (active) nextLocalWaveTime = Time.unscaledTime + waveCooldown;
+        // The owner's animation responds immediately; only the cosmetic event
+        // is replicated. Never disable locomotion or move the CharacterController.
+        SetLocalWave(active);
+        return true;
+    }
+
+    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority, Channel = RpcChannel.Reliable)]
+    private void RPC_RequestWave(bool active) { AcceptWave(active); }
+
+    private void SetLocalWave(bool active)
+    {
+        localWaveActive = active;
+        PlayWaveAnimation(sceneAnimator, active);
+        if (Runner == null || !Runner.IsRunning || Object == null || !Object.IsValid || !HasInputAuthority) return;
+        if (HasStateAuthority) AcceptWave(active);
+        else RPC_RequestWave(active);
+    }
+
+    private void AcceptWave(bool active)
+    {
+        FusionConnectionManager connection = FusionConnectionManager.Instance;
+        if (!HasStateAuthority || connection == null || connection.Runner != Runner) return;
+        if (active && (!connection.IsAvatarScene || connection.IsNetworkSceneLoading)) return;
+        // One reliable message per start/stop, not one per animation cycle.
+        // Persistent snapshot state also gives late joiners the current emote.
+        IsWaving = active;
+    }
+
+    private static void PlayWaveAnimation(Animator animator, bool active)
+    {
+        if (animator == null || !animator.HasState(0, WaveState)) return;
+        animator.SetBool(WaveParameter, active);
+    }
+
     public override void Spawned()
     {
         lastPublishedPlayerName = null;
@@ -219,6 +287,7 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
         if (sceneMotor == null) FindScenePlayer();
         if (HasInputAuthority)
         {
+            if (localWaveActive && !IsWavePoseAllowed) SetLocalWave(false);
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             if (logMovementDiagnostics)
             {
@@ -1225,12 +1294,17 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
     private void BindSceneMotor(PlayerMotor motor)
     {
         if (sceneMotor == motor) return;
+        if (localWaveActive) SetLocalWave(false);
         if (sceneMotor != null) sceneMotor.Jumped -= OnLocalJump;
         sceneMotor = motor;
         if (sceneMotor != null && HasInputAuthority) sceneMotor.Jumped += OnLocalJump;
     }
 
-    private void OnLocalJump() { localJumpSequence++; }
+    private void OnLocalJump()
+    {
+        localJumpSequence++;
+        if (localWaveActive) SetLocalWave(false);
+    }
 
     private void PublishPlayerName(string value)
     {
@@ -1444,6 +1518,7 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
         remoteAnimator.SetFloat(SpeedParameter, MoveSpeed);
         remoteAnimator.SetBool(SprintParameter, Sprinting);
         remoteAnimator.SetBool(GroundedParameter, Grounded);
+        PlayWaveAnimation(remoteAnimator, IsWaving && Grounded && MoveSpeed < 0.1f);
         if (lastObservedJumpSequence != JumpSequence)
         {
             lastObservedJumpSequence = JumpSequence;
