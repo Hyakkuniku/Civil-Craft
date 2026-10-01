@@ -42,6 +42,8 @@ public class PlayerSpawnManager : MonoBehaviour
         }
         // SCENARIO 2: We are loading the game, let's check if we have a saved position here!
         else if (gameObject.scene.name != "Multiplayer" &&
+                 !(FusionConnectionManager.Instance != null &&
+                   FusionConnectionManager.Instance.IsGuestInHostWorld) &&
                  PlayerDataManager.Instance != null && PlayerDataManager.Instance.CurrentData != null)
         {
             // Only teleport to the saved position if the saved scene perfectly matches the current scene
@@ -118,7 +120,9 @@ public class PlayerSpawnManager : MonoBehaviour
         // This shared Player also exists in Multiplayer. Its position must not
         // replace the separate Story resume location when that scene closes.
         string sceneName = gameObject.scene.name;
-        if (sceneName == "Multiplayer") return;
+        if (sceneName == "Multiplayer" ||
+            (FusionConnectionManager.Instance != null &&
+             FusionConnectionManager.Instance.IsGuestSaveProtected)) return;
         if (PlayerDataManager.Instance == null) return;
 
         Vector3 positionToSave = transform.position;

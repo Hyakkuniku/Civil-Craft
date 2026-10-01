@@ -429,6 +429,8 @@ public class GameManager : MonoBehaviour
 
     public bool EnterBuildMode(BuildLocation location, Transform player)
     {
+        if (FusionConnectionManager.Instance != null &&
+            FusionConnectionManager.Instance.IsGuestInHostWorld) return false;
         if (gameObject.scene.name == "Multiplayer" &&
             FusionConnectionManager.Instance != null &&
             FusionConnectionManager.Instance.IsClientConnected)

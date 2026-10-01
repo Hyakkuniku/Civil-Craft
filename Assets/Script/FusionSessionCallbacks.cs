@@ -5,7 +5,7 @@ using Fusion.Sockets;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-/// <summary>Spawns one Fusion avatar proxy per connected player in Multiplayer.</summary>
+/// <summary>Spawns one Fusion avatar proxy per connected player in a live world.</summary>
 public sealed class FusionSessionCallbacks : MonoBehaviour, INetworkRunnerCallbacks
 {
     private NetworkObject avatarPrefab;
@@ -22,13 +22,16 @@ public sealed class FusionSessionCallbacks : MonoBehaviour, INetworkRunnerCallba
 
     public void OnSceneLoadDone(NetworkRunner runner)
     {
+        FusionConnectionManager.Instance?.HandleSceneLoadCompleted(runner);
         EnsureAvatars(runner);
     }
 
     private void EnsureAvatars(NetworkRunner runner)
     {
-        if (runner == null || !runner.IsServer ||
-            SceneManager.GetActiveScene().name != "Multiplayer") return;
+        FusionConnectionManager connection = FusionConnectionManager.Instance;
+        if (runner == null || !runner.IsServer || connection == null ||
+            connection.Runner != runner || connection.IsNetworkSceneLoading ||
+            !connection.IsAvatarScene) return;
         if (avatarPrefab == null)
         {
             Debug.LogError("[Fusion] FusionMultiplayerAvatar prefab is missing from Resources.", this);
@@ -57,13 +60,28 @@ public sealed class FusionSessionCallbacks : MonoBehaviour, INetworkRunnerCallba
 
     public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason)
     {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        LogGuestDisconnect(runner, $"shutdown={shutdownReason}");
+#endif
         FusionConnectionManager.Instance?.HandleHostDisconnected(runner, true);
     }
     public void OnConnectedToServer(NetworkRunner runner) { }
     public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason)
     {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        LogGuestDisconnect(runner, $"reason={reason}");
+#endif
         FusionConnectionManager.Instance?.HandleHostDisconnected(runner, false);
     }
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    private void LogGuestDisconnect(NetworkRunner runner, string reason)
+    {
+        FusionConnectionManager connection = FusionConnectionManager.Instance;
+        if (connection == null || connection.Runner != runner || runner.IsServer) return;
+        Debug.LogWarning($"[Fusion session] Guest disconnected: {reason} " +
+            $"scene={SceneManager.GetActiveScene().name} loading={connection.IsNetworkSceneLoading}", this);
+    }
+#endif
     public void OnConnectRequest(NetworkRunner runner,
         NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { }
     public void OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress,
@@ -78,7 +96,10 @@ public sealed class FusionSessionCallbacks : MonoBehaviour, INetworkRunnerCallba
         ReliableKey key, ReadOnlySpan<byte> data) { }
     public void OnReliableDataProgress(NetworkRunner runner, PlayerRef player,
         ReliableKey key, float progress) { }
-    public void OnSceneLoadStart(NetworkRunner runner) { }
+    public void OnSceneLoadStart(NetworkRunner runner)
+    {
+        FusionConnectionManager.Instance?.HandleSceneLoadStarted(runner);
+    }
     public void OnObjectExitAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }
     public void OnObjectEnterAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }
 }

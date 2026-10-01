@@ -18,17 +18,31 @@ public sealed class FusionConnectionManager : MonoBehaviour
     private const int RoomCodeLength = 6;
     private const string FixedRegion = "asia";
     private const string ModeSelectionSceneName = "Mode Selection";
+    public const string HostWorldSceneName = "CanyonCrossing";
 
     private NetworkRunner runner;
     private int operationVersion;
     private bool clientSessionEstablished;
+    private bool guestVisitedHostWorld;
+    private bool guestSaveProtected;
+    private bool networkSceneLoading;
     private static bool pendingHostLeftNotice;
 
     public static FusionConnectionManager Instance { get; private set; }
     public NetworkRunner Runner => runner;
+    public bool IsNetworkSceneLoading => networkSceneLoading;
     public string HostJoinCode { get; private set; }
     public bool IsHosting => runner != null && runner.IsRunning && runner.IsServer;
     public bool IsClientConnected => runner != null && runner.IsRunning && runner.IsClient && !runner.IsServer;
+    public bool IsGuestInHostWorld =>
+        SceneManager.GetActiveScene().name == HostWorldSceneName &&
+        (IsClientConnected || guestSaveProtected);
+    public bool IsGuestSaveProtected => guestSaveProtected || IsGuestInHostWorld;
+    public bool IsHostWorldSession => runner != null && runner.IsRunning &&
+        SceneManager.GetActiveScene().name == HostWorldSceneName;
+    public bool IsAvatarScene => runner != null && runner.IsRunning &&
+        (SceneManager.GetActiveScene().name == HostWorldSceneName ||
+         SceneManager.GetActiveScene().name == "Multiplayer");
     public int ConnectedPlayerCount
     {
         get
@@ -75,8 +89,23 @@ public sealed class FusionConnectionManager : MonoBehaviour
 
     private void OnActiveSceneChanged(Scene previous, Scene next)
     {
-        if (previous.name == "Multiplayer" && next.name != "Multiplayer")
+        if (next.name == HostWorldSceneName && IsClientConnected)
+            guestVisitedHostWorld = true;
+        if ((previous.name == "Multiplayer" || previous.name == HostWorldSceneName) &&
+            next.name != previous.name && runner != null && !networkSceneLoading)
             StopSession();
+    }
+
+    public void HandleSceneLoadStarted(NetworkRunner loadingRunner)
+    {
+        if (runner == loadingRunner) networkSceneLoading = true;
+    }
+
+    public void HandleSceneLoadCompleted(NetworkRunner loadingRunner)
+    {
+        if (runner != loadingRunner) return;
+        networkSceneLoading = false;
+        if (IsGuestInHostWorld) guestVisitedHostWorld = true;
     }
 
     public async Task<string> StartHostAsync()
@@ -153,15 +182,30 @@ public sealed class FusionConnectionManager : MonoBehaviour
             return false;
         }
 
-        runner.LoadScene(SceneRef.FromIndex(sceneIndex), LoadSceneMode.Single);
+        // Protect lobby cleanup before Fusion begins its asynchronous load.
+        networkSceneLoading = true;
+        try
+        {
+            runner.LoadScene(SceneRef.FromIndex(sceneIndex), LoadSceneMode.Single);
+        }
+        catch (Exception exception)
+        {
+            networkSceneLoading = false;
+            Debug.LogError($"[Fusion] Could not start scene '{sceneName}': {exception.Message}", this);
+            return false;
+        }
         return true;
     }
 
     public void StopSession()
     {
+        bool wasHostWorldGuest = guestVisitedHostWorld || IsGuestInHostWorld;
+        guestVisitedHostWorld = false;
+        if (wasHostWorldGuest) BeginGuestWorldExit();
         ++operationVersion;
         HostJoinCode = null;
         clientSessionEstablished = false;
+        networkSceneLoading = false;
         NetworkRunner oldRunner = runner;
         runner = null;
         if (oldRunner != null) _ = ShutdownRunnerAsync(oldRunner);
@@ -172,8 +216,14 @@ public sealed class FusionConnectionManager : MonoBehaviour
         // Local leaves and failed join attempts must not look like a host loss.
         if (runner != disconnectedRunner || !clientSessionEstablished) return;
 
+        NetworkSceneManagerDefault disconnectedSceneManager =
+            disconnectedRunner.GetComponent<NetworkSceneManagerDefault>();
+        bool wasHostWorldGuest = guestVisitedHostWorld || IsGuestInHostWorld;
+        guestVisitedHostWorld = false;
+        if (wasHostWorldGuest) BeginGuestWorldExit();
         ++operationVersion;
         clientSessionEstablished = false;
+        networkSceneLoading = false;
         HostJoinCode = null;
         runner = null;
         pendingHostLeftNotice = true;
@@ -183,7 +233,26 @@ public sealed class FusionConnectionManager : MonoBehaviour
         else
             StartCoroutine(ShutdownDisconnectedRunnerNextFrame(disconnectedRunner));
 
-        StartCoroutine(ReturnToModeSelectionAfterHostLoss());
+        StartCoroutine(ReturnToModeSelectionAfterHostLoss(disconnectedSceneManager));
+    }
+
+    private void BeginGuestWorldExit()
+    {
+        if (guestSaveProtected) return;
+        guestSaveProtected = true;
+        StartCoroutine(RestoreGuestSaveAfterSceneExit());
+    }
+
+    private IEnumerator RestoreGuestSaveAfterSceneExit()
+    {
+        // Scene objects can save in OnDestroy after activeSceneChanged. Keep
+        // writes blocked until that teardown has completed.
+        while (SceneManager.GetActiveScene().name == HostWorldSceneName)
+            yield return null;
+        yield return null;
+        if (PlayerDataManager.Instance != null)
+            PlayerDataManager.Instance.LoadGame(false);
+        guestSaveProtected = false;
     }
 
     public void HandleGuestDisconnected(NetworkRunner activeRunner, PlayerRef player)
@@ -211,10 +280,12 @@ public sealed class FusionConnectionManager : MonoBehaviour
         _ = ShutdownRunnerAsync(disconnectedRunner);
     }
 
-    private IEnumerator ReturnToModeSelectionAfterHostLoss()
+    private IEnumerator ReturnToModeSelectionAfterHostLoss(
+        NetworkSceneManagerDefault disconnectedSceneManager)
     {
         // A local scene transition may already be in flight when the host drops.
-        while (LoadingScreenManager.IsLoading)
+        while (LoadingScreenManager.IsLoading ||
+               (disconnectedSceneManager != null && disconnectedSceneManager.IsBusy))
             yield return null;
 
         if (!pendingHostLeftNotice) yield break;

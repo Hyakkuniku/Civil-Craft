@@ -16,7 +16,9 @@ public abstract class Interactable : MonoBehaviour
     /// Allows an interactable to disappear from the generated mobile interaction
     /// buttons without disabling the component and its unrelated update logic.
     /// </summary>
-    public virtual bool IsInteractionAvailable => isActiveAndEnabled;
+    public virtual bool IsInteractionAvailable => isActiveAndEnabled &&
+        !(FusionConnectionManager.Instance != null &&
+          FusionConnectionManager.Instance.IsGuestInHostWorld);
 
     //this finction will be called from out player
     public void BaseInteract()

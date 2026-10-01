@@ -534,6 +534,8 @@ public class TutorialManager : MonoBehaviour
 
     public void PlayTutorial(TutorialSequence sequence)
     {
+        if (FusionConnectionManager.Instance != null &&
+            FusionConnectionManager.Instance.IsGuestInHostWorld) return;
         if (sequence == null || sequence.tutorialSteps == null || sequence.tutorialSteps.Length == 0) return;
         if (IsTutorialActive)
         {
@@ -1460,6 +1462,8 @@ public class TutorialManager : MonoBehaviour
 
     public void QueueTutorial(TutorialSequence sequence, bool ignoreEligibility = false)
     {
+        if (FusionConnectionManager.Instance != null &&
+            FusionConnectionManager.Instance.IsGuestInHostWorld) return;
         if (sequence == null) return;
         if (ignoreEligibility) forcedQueuedSequences.Add(sequence);
         if (!queuedSequences.Contains(sequence)) queuedSequences.Add(sequence);

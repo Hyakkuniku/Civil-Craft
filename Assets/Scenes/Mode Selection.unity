@@ -17375,7 +17375,7 @@ MonoBehaviour:
   modeDescription: {fileID: 8100050003}
   descriptionGroup: {fileID: 8100030004}
   useFusionNetworking: 1
-  multiplayerSceneName: Multiplayer
+  multiplayerSceneName: CanyonCrossing
   hostPreferenceKey: MultiplayerSessionRole
   roomCodePreferenceKey: MultiplayerRoomCode
   roomCodeLength: 6

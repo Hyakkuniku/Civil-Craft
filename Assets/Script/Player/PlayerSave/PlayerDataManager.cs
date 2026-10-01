@@ -318,6 +318,10 @@ public class PlayerDataManager : MonoBehaviour
 
     public bool TrySaveGame()
     {
+        // Visiting the host never writes the guest's story, rewards or bridge
+        // state to disk. Reload the original data when the visit ends.
+        if (FusionConnectionManager.Instance != null &&
+            FusionConnectionManager.Instance.IsGuestSaveProtected) return false;
         if (CurrentData == null || string.IsNullOrWhiteSpace(saveFilePath)) return false;
 
         string temporaryPath = saveFilePath + ".tmp";
@@ -615,6 +619,8 @@ public class PlayerDataManager : MonoBehaviour
     public void SavePlayerPosition(string sceneName, Vector3 position)
     {
         if (suppressAutomaticPositionSave) return;
+        if (FusionConnectionManager.Instance != null &&
+            FusionConnectionManager.Instance.IsGuestSaveProtected) return;
         // lastSavedScene/lastSavedPosition belong to Story Mode, even though
         // the same player prefab and save manager are used by Multiplayer.
         if (string.Equals(sceneName, "Multiplayer", StringComparison.OrdinalIgnoreCase)) return;
@@ -1755,6 +1761,8 @@ public class PlayerDataManager : MonoBehaviour
     public bool SaveBridgeData(string contractId, List<Point> points, List<Bar> bars, float totalSpent, float maxStress,
         ContractStarResult starResult = null)
     {
+        if (FusionConnectionManager.Instance != null &&
+            FusionConnectionManager.Instance.IsGuestSaveProtected) return false;
         if (SceneManager.GetActiveScene().name == "Multiplayer") return false;
 
         if (CurrentData == null || string.IsNullOrWhiteSpace(contractId) ||
@@ -2110,6 +2118,8 @@ public class PlayerDataManager : MonoBehaviour
 
     public void DeleteSavedBridge(string contractId)
     {
+        if (FusionConnectionManager.Instance != null &&
+            FusionConnectionManager.Instance.IsGuestSaveProtected) return;
         if (SceneManager.GetActiveScene().name == "Multiplayer") return;
 
         if (CurrentData == null || CurrentData.savedBridges == null) return;

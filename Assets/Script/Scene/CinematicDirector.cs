@@ -120,6 +120,8 @@ public class CinematicDirector : MonoBehaviour
 
     public void PlayCinematic()
     {
+        if (FusionConnectionManager.Instance != null &&
+            FusionConnectionManager.Instance.IsGuestInHostWorld) return;
         if (isPlaying) return;
 
         if (playOnlyOnce && (PlayerDataManager.Instance != null
@@ -137,6 +139,8 @@ public class CinematicDirector : MonoBehaviour
     // when replaying a contract after a save reset. Keep startup one-shot rules.
     public void PlayContractOfferCinematic()
     {
+        if (FusionConnectionManager.Instance != null &&
+            FusionConnectionManager.Instance.IsGuestInHostWorld) return;
         if (isPlaying) return;
         if (!gameObject.activeInHierarchy)
         {

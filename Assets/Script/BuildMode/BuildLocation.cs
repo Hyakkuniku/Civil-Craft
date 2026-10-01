@@ -148,9 +148,12 @@ public class BuildLocation : Interactable
         }
 
         Bar[] allBarsInScene = FindObjectsOfType<Bar>();
+        Point[] repairCandidates = null;
         foreach (Bar b in allBarsInScene) 
         {
-            b.AutoRepairEndpoints();
+            if (b.startPoint != null && b.endPoint != null) continue;
+            if (repairCandidates == null) repairCandidates = FindObjectsOfType<Point>();
+            b.AutoRepairEndpoints(repairCandidates);
         }
 #if UNITY_EDITOR
         LogStartupSection("bar scan/repair", ref sectionStarted);
@@ -163,7 +166,9 @@ public class BuildLocation : Interactable
 
         // Multiplayer bridges exist only for the current Photon room. Never
         // hydrate one from the player's single-player bridge records.
-        if (gameObject.scene.name != "Multiplayer")
+        if (gameObject.scene.name != "Multiplayer" &&
+            !(FusionConnectionManager.Instance != null &&
+              FusionConnectionManager.Instance.IsGuestInHostWorld))
         {
             ResolveSavedBridgeContract();
             LoadSavedBridge();
@@ -262,6 +267,8 @@ public class BuildLocation : Interactable
 
     public void TryEnterBuildMode()
     {
+        if (FusionConnectionManager.Instance != null &&
+            FusionConnectionManager.Instance.IsGuestInHostWorld) return;
         if (gameObject.scene.name == "Multiplayer" &&
             FusionConnectionManager.Instance != null &&
             FusionConnectionManager.Instance.IsClientConnected)
@@ -335,6 +342,8 @@ public class BuildLocation : Interactable
     /// </summary>
     public bool BeginBridgeRedesign()
     {
+        if (FusionConnectionManager.Instance != null &&
+            FusionConnectionManager.Instance.IsGuestInHostWorld) return false;
         if (isRedesigningBridge || bakedBars.Count == 0 || IsRedesignBlockedByNPCTravel)
             return false;
 
@@ -1310,6 +1319,8 @@ public class BuildLocation : Interactable
 
     public bool LoadSavedBridge()
     {
+        if (FusionConnectionManager.Instance != null &&
+            FusionConnectionManager.Instance.IsGuestInHostWorld) return false;
         if (gameObject.scene.name == "Multiplayer") return false;
         if (activeContract == null || PlayerDataManager.Instance == null) return false;
         if (bakedBars.Count > 0) return true;

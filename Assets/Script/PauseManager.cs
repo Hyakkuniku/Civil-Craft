@@ -361,8 +361,8 @@ public class PauseManager : MonoBehaviour
 
         // Close the Photon room immediately instead of waiting for the loading
         // screen to finish. The other player can then leave with a clear notice.
-        if (SceneManager.GetActiveScene().name == "Multiplayer" &&
-            FusionConnectionManager.Instance != null)
+        if (FusionConnectionManager.Instance != null &&
+            FusionConnectionManager.Instance.IsAvatarScene)
             FusionConnectionManager.Instance.StopSession();
 
         LoadingScreenManager.LoadScene(modeSelectionSceneName);

@@ -436,23 +436,30 @@ public class Bar : MonoBehaviour
     // --- NEW: Re-knits the graph if this Bar was loaded from a Prefab and lost its scene references ---
     public void AutoRepairEndpoints()
     {
-        if (startPoint == null || endPoint == null)
+        if (startPoint != null && endPoint != null) return;
+        AutoRepairEndpoints(FindObjectsOfType<Point>());
+    }
+
+    // Scene startup repairs many bars. Share the candidate list instead of
+    // performing a scene-wide object search for every unresolved endpoint.
+    public void AutoRepairEndpoints(IReadOnlyList<Point> candidates)
+    {
+        if (candidates == null || (startPoint != null && endPoint != null)) return;
+        foreach (Point p in candidates)
         {
-            Point[] allPointsInScene = FindObjectsOfType<Point>();
-            foreach (Point p in allPointsInScene)
+            if (p == null) continue;
+            if (startPoint == null && Vector3.Distance(StartPosition, p.transform.position) < 0.1f)
             {
-                if (startPoint == null && Vector3.Distance(StartPosition, p.transform.position) < 0.1f)
-                {
-                    startPoint = p;
-                    if (!p.ConnectedBars.Contains(this)) p.ConnectedBars.Add(this);
-                }
-                
-                if (endPoint == null && Vector3.Distance(EndPosition, p.transform.position) < 0.1f)
-                {
-                    endPoint = p;
-                    if (!p.ConnectedBars.Contains(this)) p.ConnectedBars.Add(this);
-                }
+                startPoint = p;
+                if (!p.ConnectedBars.Contains(this)) p.ConnectedBars.Add(this);
             }
+
+            if (endPoint == null && Vector3.Distance(EndPosition, p.transform.position) < 0.1f)
+            {
+                endPoint = p;
+                if (!p.ConnectedBars.Contains(this)) p.ConnectedBars.Add(this);
+            }
+            if (startPoint != null && endPoint != null) break;
         }
     }
 

@@ -180,7 +180,8 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
     private void Update()
     {
         if (Runner == null || !Runner.IsRunning) return;
-        if (SceneManager.GetActiveScene().name != "Multiplayer")
+        if (FusionConnectionManager.Instance == null ||
+            !FusionConnectionManager.Instance.IsAvatarScene)
         {
             BindSceneMotor(null);
             sceneCosmetics = null;
@@ -219,10 +220,13 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
             return;
         }
 
-        UpdateRemoteBridgeNodes();
-        UpdateRemoteBridgeBars();
-        UpdateRemoteLiveLoad();
-        UpdateRemoteCompletion();
+        if (SceneManager.GetActiveScene().name == "Multiplayer")
+        {
+            UpdateRemoteBridgeNodes();
+            UpdateRemoteBridgeBars();
+            UpdateRemoteLiveLoad();
+            UpdateRemoteCompletion();
+        }
         if (!PoseReady) return;
         if (visualContainer == null) CreateRemoteVisual();
         ApplyRemoteAppearance();
@@ -232,7 +236,8 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
     public override void Render()
     {
         if (Runner == null || !Runner.IsRunning || HasInputAuthority || !PoseReady ||
-            SceneManager.GetActiveScene().name != "Multiplayer") return;
+            FusionConnectionManager.Instance == null ||
+            !FusionConnectionManager.Instance.IsAvatarScene) return;
 
         if (PoseRevision != lastObservedPoseRevision)
         {
@@ -332,7 +337,8 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
         }
 
         if (!HasInputAuthority || sceneMotor == null ||
-            SceneManager.GetActiveScene().name != "Multiplayer")
+            FusionConnectionManager.Instance == null ||
+            !FusionConnectionManager.Instance.IsAvatarScene)
             return;
 
         // Client-side re-simulation also invokes FixedUpdateNetwork. An RPC
@@ -1225,12 +1231,34 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
     private void OffsetJoiningPlayerSpawn()
     {
         if (sceneMotor == null) return;
-        localSpawnAdjusted = true;
-        if (HasStateAuthority) return;
+        if (HasStateAuthority)
+        {
+            localSpawnAdjusted = true;
+            return;
+        }
 
         Transform player = sceneMotor.transform;
         Vector3 origin = player.position;
-        Vector3[] directions = { player.right, -player.right, player.forward, -player.forward };
+        Quaternion facing = player.rotation;
+        if (SceneManager.GetActiveScene().name == FusionConnectionManager.HostWorldSceneName)
+        {
+            // The guest enters the host's saved world at the host's current
+            // location, not at the guest's own story resume point.
+            FusionMultiplayerAvatar hostAvatar = null;
+            foreach (FusionMultiplayerAvatar avatar in FindObjectsOfType<FusionMultiplayerAvatar>())
+                if (avatar != null && avatar != this && !avatar.HasInputAuthority &&
+                    avatar.PoseReady)
+                {
+                    hostAvatar = avatar;
+                    break;
+                }
+            if (hostAvatar == null) return;
+            origin = hostAvatar.Position;
+            facing = hostAvatar.Rotation;
+        }
+        localSpawnAdjusted = true;
+        Vector3[] directions = { facing * Vector3.right, facing * Vector3.left,
+            facing * Vector3.forward, facing * Vector3.back };
         foreach (Vector3 direction in directions)
         {
             if (!NavMesh.SamplePosition(origin + direction * 3f, out NavMeshHit hit,

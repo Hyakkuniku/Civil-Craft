@@ -61,7 +61,7 @@
         "ClientMaxResimsPerFrame": -1
     },
     "Network": {
-        "ConnectionTimeout": 10.0,
+        "ConnectionTimeout": 45.0,
         "ConnectionShutdownTime": 1.0,
         "ReliableDataTransferModes": 3,
         "GameChannelSendCount": 2,

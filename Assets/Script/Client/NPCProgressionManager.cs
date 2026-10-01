@@ -472,6 +472,14 @@ public class NPCProgressionManager : MonoBehaviour
 
     private void Start()
     {
+        // Until host progression is replicated, the visiting guest must not
+        // restore or advance NPCs from their own single-player save.
+        if (FusionConnectionManager.Instance != null &&
+            FusionConnectionManager.Instance.IsGuestInHostWorld)
+        {
+            enabled = false;
+            return;
+        }
         TrySubscribeToContractCompletion();
 
         if (phases == null || phases.Count == 0)

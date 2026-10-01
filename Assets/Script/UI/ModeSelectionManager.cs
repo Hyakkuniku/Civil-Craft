@@ -49,7 +49,7 @@ public class ModeSelectionManager : MonoBehaviour
     [Header("Multiplayer Entry")]
     [Tooltip("Enable to test Photon Fusion Host/Join. Leave off until Fusion avatars are verified; Relay remains available as fallback.")]
     [SerializeField] private bool useFusionNetworking;
-    [SerializeField] private string multiplayerSceneName = "Multiplayer";
+    [SerializeField] private string multiplayerSceneName = "CanyonCrossing";
     [SerializeField] private string hostPreferenceKey = "MultiplayerSessionRole";
     [SerializeField] private string roomCodePreferenceKey = "MultiplayerRoomCode";
     [SerializeField, Range(4, 8)] private int roomCodeLength = 6;
@@ -130,6 +130,12 @@ public class ModeSelectionManager : MonoBehaviour
     {
         if (roomCodeInput != null)
             roomCodeInput.onSubmit.RemoveListener(HandleRoomCodeSubmitted);
+
+        // Fusion can unload the lobby before asynchronous Host/Join UI work
+        // resumes. The scene transition belongs to the persistent session.
+        if (useFusionNetworking && FusionConnectionManager.Instance != null &&
+            FusionConnectionManager.Instance.IsNetworkSceneLoading)
+            return;
 
         if (!preserveHostForSceneTransition)
         {

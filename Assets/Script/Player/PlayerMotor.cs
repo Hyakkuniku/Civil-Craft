@@ -28,7 +28,8 @@ public class PlayerMotor : MonoBehaviour
         {
             FusionConnectionManager connection = FusionConnectionManager.Instance;
             if (!isActiveAndEnabled || !hasFixedMotion ||
-                SceneManager.GetActiveScene().name != "Multiplayer" ||
+                (SceneManager.GetActiveScene().name != "Multiplayer" &&
+                 SceneManager.GetActiveScene().name != FusionConnectionManager.HostWorldSceneName) ||
                 connection == null || !connection.IsClientConnected ||
                 (transform.position - currentFixedPosition).sqrMagnitude > 1f)
                 return Vector3.zero;
