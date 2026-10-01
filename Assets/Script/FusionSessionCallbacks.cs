@@ -9,21 +9,25 @@ using UnityEngine.SceneManagement;
 public sealed class FusionSessionCallbacks : MonoBehaviour, INetworkRunnerCallbacks
 {
     private NetworkObject avatarPrefab;
+    private FusionHostWorldBridgeSync worldBridges;
 
     private void Awake()
     {
         avatarPrefab = Resources.Load<NetworkObject>("FusionMultiplayerAvatar");
+        worldBridges = GetComponent<FusionHostWorldBridgeSync>();
     }
 
     public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
     {
         EnsureAvatars(runner);
+        worldBridges?.OnPlayerJoined(player);
     }
 
     public void OnSceneLoadDone(NetworkRunner runner)
     {
         FusionConnectionManager.Instance?.HandleSceneLoadCompleted(runner);
         EnsureAvatars(runner);
+        worldBridges?.OnSceneReady();
     }
 
     private void EnsureAvatars(NetworkRunner runner)
@@ -51,6 +55,7 @@ public sealed class FusionSessionCallbacks : MonoBehaviour, INetworkRunnerCallba
 
     public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
     {
+        worldBridges?.OnPlayerLeft(player);
         if (runner.IsServer && runner.TryGetPlayerObject(player, out NetworkObject avatar) &&
             avatar != null)
             runner.Despawn(avatar);
@@ -93,12 +98,16 @@ public sealed class FusionSessionCallbacks : MonoBehaviour, INetworkRunnerCallba
         Dictionary<string, object> data) { }
     public void OnHostMigration(NetworkRunner runner, HostMigrationToken hostMigrationToken) { }
     public void OnReliableDataReceived(NetworkRunner runner, PlayerRef player,
-        ReliableKey key, ReadOnlySpan<byte> data) { }
+        ReliableKey key, ReadOnlySpan<byte> data)
+    {
+        worldBridges?.OnReliableData(player, key, data);
+    }
     public void OnReliableDataProgress(NetworkRunner runner, PlayerRef player,
         ReliableKey key, float progress) { }
     public void OnSceneLoadStart(NetworkRunner runner)
     {
         FusionConnectionManager.Instance?.HandleSceneLoadStarted(runner);
+        worldBridges?.OnSceneLoading();
     }
     public void OnObjectExitAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }
     public void OnObjectEnterAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }

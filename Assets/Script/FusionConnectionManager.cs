@@ -308,6 +308,7 @@ public sealed class FusionConnectionManager : MonoBehaviour
         DontDestroyOnLoad(runnerObject);
         runner = runnerObject.AddComponent<NetworkRunner>();
         runnerObject.AddComponent<NetworkSceneManagerDefault>();
+        runnerObject.AddComponent<FusionHostWorldBridgeSync>();
         runnerObject.AddComponent<FusionSessionCallbacks>();
         return runner;
     }
