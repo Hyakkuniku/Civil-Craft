@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using Fusion;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -24,6 +25,13 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         public Image image;
         public TMP_Text label;
         public Button button;
+    }
+
+    private sealed class RemotePlayerMarker
+    {
+        public RectTransform Root;
+        public RectTransform Arrow;
+        public TMP_Text Label;
     }
 
     [Header("Scene References (auto-detected when empty)")]
@@ -59,6 +67,9 @@ public sealed class ExpandedMinimapController : MonoBehaviour
     [Tooltip("Applied only when a Build Location does not have an explicit Fast Travel Target.")]
     [SerializeField] private Vector3 fallbackFastTravelOffset = new Vector3(0f, 1f, 0f);
 
+    [Header("Multiplayer Map Markers")]
+    [SerializeField] private Color remotePlayerMarkerColor = new Color(0.72f, 0.38f, 0.95f, 1f);
+
     [Header("Fast Travel Motion")]
     [SerializeField, Min(0.05f)] private float fastTravelFocusDuration = 0.25f;
     [SerializeField, Min(0.05f)] private float fastTravelMinimizeDuration = 0.65f;
@@ -68,6 +79,13 @@ public sealed class ExpandedMinimapController : MonoBehaviour
     private PlayerLook fastTravelPlayerLook;
 
     private readonly List<MarkerView> markers = new List<MarkerView>();
+    private readonly Dictionary<PlayerRef, RemotePlayerMarker> remotePlayerMarkers =
+        new Dictionary<PlayerRef, RemotePlayerMarker>();
+    private readonly HashSet<PlayerRef> visibleRemotePlayers = new HashSet<PlayerRef>();
+    private readonly List<PlayerRef> staleRemotePlayers = new List<PlayerRef>();
+    private readonly Dictionary<BuildLocation, List<ContractSO>> guestLocationContracts =
+        new Dictionary<BuildLocation, List<ContractSO>>();
+    private bool guestContractCatalogReady;
     private RectTransform markerLayer;
     private RectTransform playerMarker;
     private RectTransform playerMarkerArrow;
@@ -124,6 +142,8 @@ public sealed class ExpandedMinimapController : MonoBehaviour
     private float previousPinchDistance;
 
     public bool IsExpanded => isExpanded || isAnimating;
+    private static bool IsHostWorldGuest => FusionConnectionManager.Instance != null &&
+                                           FusionConnectionManager.Instance.IsGuestInHostWorld;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void RegisterSceneBootstrap()
@@ -184,6 +204,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
     private void OnDestroy()
     {
+        ClearRemotePlayerMarkers();
         CancelMapSession();
         ClearWorldTravelFade();
         if (enlargeButton != null)
@@ -197,6 +218,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
     private void OnDisable()
     {
+        ClearRemotePlayerMarkers();
         CancelMapSession();
     }
 
@@ -477,33 +499,39 @@ public sealed class ExpandedMinimapController : MonoBehaviour
     private void EnsurePlayerMarker()
     {
         if (markerLayer == null || playerMarker != null) return;
+        playerMarker = CreatePlayerMapMarker("PlayerMarker", "YOU", new Color(0.10f, 0.84f, 0.98f, 1f),
+            out playerMarkerArrow, out _);
+    }
 
-        GameObject rootObject = new GameObject("PlayerMarker", typeof(RectTransform));
+    private RectTransform CreatePlayerMapMarker(string objectName, string title, Color color,
+        out RectTransform arrow, out TMP_Text markerLabel)
+    {
+        GameObject rootObject = new GameObject(objectName, typeof(RectTransform));
         rootObject.layer = markerLayer.gameObject.layer;
-        playerMarker = rootObject.GetComponent<RectTransform>();
-        playerMarker.SetParent(markerLayer, false);
-        playerMarker.anchorMin = playerMarker.anchorMax = new Vector2(0.5f, 0.5f);
-        playerMarker.pivot = new Vector2(0.5f, 0.5f);
-        playerMarker.sizeDelta = new Vector2(48f, 48f);
+        RectTransform root = rootObject.GetComponent<RectTransform>();
+        root.SetParent(markerLayer, false);
+        root.anchorMin = root.anchorMax = new Vector2(0.5f, 0.5f);
+        root.pivot = new Vector2(0.5f, 0.5f);
+        root.sizeDelta = new Vector2(48f, 48f);
 
         GameObject arrowObject = new GameObject("Heading", typeof(RectTransform));
         arrowObject.layer = rootObject.layer;
-        playerMarkerArrow = arrowObject.GetComponent<RectTransform>();
-        playerMarkerArrow.SetParent(playerMarker, false);
-        playerMarkerArrow.anchorMin = playerMarkerArrow.anchorMax = new Vector2(0.5f, 0.5f);
-        playerMarkerArrow.sizeDelta = new Vector2(36f, 36f);
+        arrow = arrowObject.GetComponent<RectTransform>();
+        arrow.SetParent(root, false);
+        arrow.anchorMin = arrow.anchorMax = new Vector2(0.5f, 0.5f);
+        arrow.sizeDelta = new Vector2(36f, 36f);
 
-        CreatePlayerArrowPart(playerMarkerArrow, "Border", 36f, new Color(0.17f, 0.11f, 0.07f, 1f));
-        CreatePlayerArrowPart(playerMarkerArrow, "Fill", 27f, new Color(0.10f, 0.84f, 0.98f, 1f));
+        CreatePlayerArrowPart(arrow, "Border", 36f, new Color(0.17f, 0.11f, 0.07f, 1f));
+        CreatePlayerArrowPart(arrow, "Fill", 27f, color);
 
-        GameObject labelObject = new GameObject("YouLabel", typeof(RectTransform),
+        GameObject labelObject = new GameObject("PlayerLabel", typeof(RectTransform),
             typeof(CanvasRenderer), typeof(Image), typeof(Outline));
         labelObject.layer = rootObject.layer;
         RectTransform labelRect = labelObject.GetComponent<RectTransform>();
-        labelRect.SetParent(playerMarker, false);
+        labelRect.SetParent(root, false);
         labelRect.anchorMin = labelRect.anchorMax = new Vector2(0.5f, 0.5f);
         labelRect.anchoredPosition = new Vector2(0f, -31f);
-        labelRect.sizeDelta = new Vector2(54f, 22f);
+        labelRect.sizeDelta = new Vector2(title == "YOU" ? 54f : 74f, 22f);
         Image labelBackground = labelObject.GetComponent<Image>();
         labelBackground.color = new Color(0.12f, 0.17f, 0.27f, 0.96f);
         labelBackground.raycastTarget = false;
@@ -518,7 +546,11 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         textRect.SetParent(labelRect, false);
         Stretch(textRect, Vector2.zero, Vector2.zero);
         TextMeshProUGUI label = textObject.GetComponent<TextMeshProUGUI>();
-        label.text = "YOU";
+        markerLabel = label;
+        label.text = title;
+        label.richText = false; // Player names are plain text, never TMP markup.
+        label.enableWordWrapping = false;
+        label.overflowMode = TextOverflowModes.Ellipsis;
         label.alignment = TextAlignmentOptions.Center;
         label.fontSize = 16f;
         label.fontStyle = FontStyles.Bold;
@@ -526,7 +558,8 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         label.raycastTarget = false;
         if (uiFont != null) label.font = uiFont;
 
-        playerMarker.gameObject.SetActive(false);
+        root.gameObject.SetActive(false);
+        return root;
     }
 
     private static void CreatePlayerArrowPart(RectTransform parent, string name, float size, Color color)
@@ -754,6 +787,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
             if (marker.root != null) Destroy(marker.root.gameObject);
         }
         markers.Clear();
+        guestContractCatalogReady = false;
 
         if (selectedLocation != null && selectedLocation.gameObject.scene != gameObject.scene)
             selectedLocation = null;
@@ -871,6 +905,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         }
 
         UpdatePlayerMarker(rect);
+        UpdateRemotePlayerMarkers(rect, refreshMetadata);
         UpdateLocationActionPanel();
     }
 
@@ -884,25 +919,107 @@ public sealed class ExpandedMinimapController : MonoBehaviour
             return;
         }
 
-        Vector3 viewport = minimapCamera.WorldToViewportPoint(player.position);
-        bool visible = viewport.z > 0f && viewport.x >= 0.025f && viewport.x <= 0.975f &&
-                       viewport.y >= 0.035f && viewport.y <= 0.965f;
-        playerMarker.gameObject.SetActive(visible);
+        ProjectPlayerMarker(playerMarker, playerMarkerArrow, rect, player.position, player.forward);
+    }
+
+    private void ProjectPlayerMarker(RectTransform root, RectTransform arrow, Rect rect, Vector3 position, Vector3 forward)
+    {
+        Vector3 viewport = minimapCamera.WorldToViewportPoint(position);
+        bool visible = TryProjectPlayerMapPoint(viewport, rect, out Vector2 anchoredPosition);
+        root.gameObject.SetActive(visible);
         if (!visible) return;
-
-        playerMarker.anchoredPosition = new Vector2(
-            (viewport.x - 0.5f) * rect.width,
-            (viewport.y - 0.5f) * rect.height);
-
-        Vector3 forward = Vector3.ProjectOnPlane(player.forward, Vector3.up);
+        root.anchoredPosition = anchoredPosition;
+        forward = Vector3.ProjectOnPlane(forward, Vector3.up);
         if (forward.sqrMagnitude < 0.001f) return;
-        Vector3 ahead = minimapCamera.WorldToViewportPoint(player.position + forward.normalized);
+        Vector3 ahead = minimapCamera.WorldToViewportPoint(position + forward.normalized);
         Vector2 heading = new Vector2(
             (ahead.x - viewport.x) * rect.width,
             (ahead.y - viewport.y) * rect.height);
         if (heading.sqrMagnitude > 0.001f)
-            playerMarkerArrow.localRotation = Quaternion.Euler(
+            arrow.localRotation = Quaternion.Euler(
                 0f, 0f, Vector2.SignedAngle(Vector2.up, heading));
+    }
+
+    private static bool TryProjectPlayerMapPoint(Vector3 viewport, Rect rect, out Vector2 anchoredPosition)
+    {
+        anchoredPosition = new Vector2((viewport.x - 0.5f) * rect.width, (viewport.y - 0.5f) * rect.height);
+        return viewport.z > 0f && viewport.x >= 0.025f && viewport.x <= 0.975f &&
+               viewport.y >= 0.035f && viewport.y <= 0.965f;
+    }
+
+    private void UpdateRemotePlayerMarkers(Rect rect, bool refreshMetadata)
+    {
+        FusionConnectionManager connection = FusionConnectionManager.Instance;
+        NetworkRunner runner = connection != null ? connection.Runner : null;
+        if (!isExpanded || runner == null || !runner.IsRunning || !connection.IsAvatarScene ||
+            connection.IsNetworkSceneLoading || gameObject.scene != SceneManager.GetActiveScene())
+        {
+            ClearRemotePlayerMarkers();
+            return;
+        }
+
+        visibleRemotePlayers.Clear();
+        // SetPlayerObject is already populated by FusionSessionCallbacks for
+        // each peer. No scene-wide searches, new RPCs or position messages.
+        foreach (PlayerRef peer in runner.ActivePlayers)
+        {
+            if (peer == runner.LocalPlayer || !runner.TryGetPlayerObject(peer, out NetworkObject playerObject) ||
+                playerObject == null || !playerObject.IsValid) continue;
+            FusionMultiplayerAvatar avatar = playerObject.GetComponent<FusionMultiplayerAvatar>();
+            if (avatar == null || avatar.Runner != runner ||
+                !avatar.TryGetMapPose(out Vector3 position, out Vector3 forward)) continue;
+            visibleRemotePlayers.Add(peer);
+            if (!remotePlayerMarkers.TryGetValue(peer, out RemotePlayerMarker marker) || marker.Root == null)
+            {
+                marker = new RemotePlayerMarker();
+                marker.Root = CreatePlayerMapMarker("RemotePlayerMarker_" + peer.RawEncoded,
+                    string.Empty, remotePlayerMarkerColor, out marker.Arrow, out marker.Label);
+                remotePlayerMarkers[peer] = marker;
+                // Keep both player pointers above site diamonds. The local
+                // player's marker stays on top if both occupy the same spot.
+                if (playerMarker != null) playerMarker.SetAsLastSibling();
+            }
+            if (refreshMetadata || string.IsNullOrEmpty(marker.Label.text))
+                UpdateRemotePlayerMapLabel(marker.Label, avatar.MapPlayerName);
+            ProjectPlayerMarker(marker.Root, marker.Arrow, rect, position, forward);
+        }
+
+        staleRemotePlayers.Clear();
+        foreach (KeyValuePair<PlayerRef, RemotePlayerMarker> entry in remotePlayerMarkers)
+            if (!visibleRemotePlayers.Contains(entry.Key)) staleRemotePlayers.Add(entry.Key);
+        foreach (PlayerRef peer in staleRemotePlayers)
+        {
+            RemoveRemotePlayerMarker(remotePlayerMarkers[peer]);
+            remotePlayerMarkers.Remove(peer);
+        }
+    }
+
+    private static void UpdateRemotePlayerMapLabel(TMP_Text label, string playerName)
+    {
+        string title = string.IsNullOrWhiteSpace(playerName) ? "Player" : playerName;
+        if (label.text == title) return;
+        label.text = title;
+        label.enableAutoSizing = true;
+        label.fontSizeMin = 12f;
+        label.fontSizeMax = 16f;
+        RectTransform background = (RectTransform)label.rectTransform.parent;
+        background.sizeDelta = new Vector2(Mathf.Clamp(label.GetPreferredValues(title).x + 16f, 74f, 250f), 22f);
+    }
+
+    private void ClearRemotePlayerMarkers()
+    {
+        foreach (RemotePlayerMarker marker in remotePlayerMarkers.Values) RemoveRemotePlayerMarker(marker);
+        remotePlayerMarkers.Clear();
+        visibleRemotePlayers.Clear();
+        staleRemotePlayers.Clear();
+    }
+
+    private static void RemoveRemotePlayerMarker(RemotePlayerMarker marker)
+    {
+        if (marker.Root == null) return;
+        marker.Root.gameObject.SetActive(false);
+        if (Application.isPlaying) Destroy(marker.Root.gameObject);
+        else DestroyImmediate(marker.Root.gameObject);
     }
 
     private Transform GetPlayerMarkerTarget()
@@ -979,8 +1096,12 @@ public sealed class ExpandedMinimapController : MonoBehaviour
             return;
 
         bool hasSelection = selectedLocation != null;
-        locationActionButton.interactable = hasSelection;
-        bool completed = hasSelection && IsLocationCompleted(selectedLocation);
+        bool guestVisit = IsHostWorldGuest;
+        // Guest travel permissions use their own story, but their saved bridge
+        // results must not be displayed as if they belonged to the host's world.
+        bool completed = hasSelection && !guestVisit && IsLocationCompleted(selectedLocation);
+        bool canFastTravel = CanTravelToLocation(selectedLocation);
+        locationActionButton.interactable = hasSelection && (!guestVisit || canFastTravel);
         UpdateCompletedLocationDetails(completed);
 
         Image background = locationActionButton.targetGraphic as Image;
@@ -993,10 +1114,13 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         }
 
         selectedLocationLabel.text = GetLocationLabel(selectedLocation) +
-                                     (completed ? "\n<color=#4B9E55>COMPLETED</color>" : "\n<color=#C47922>NOT COMPLETED</color>");
-        locationActionLabel.text = completed ? "FAST TRAVEL" : "NAVIGATE";
+                                     (guestVisit ? (canFastTravel ? "\n<color=#4B9E55>UNLOCKED IN YOUR PROGRESS</color>" :
+                                                                  "\n<color=#C47922>LOCKED IN YOUR PROGRESS</color>") :
+                                      completed ? "\n<color=#4B9E55>COMPLETED</color>" : "\n<color=#C47922>NOT COMPLETED</color>");
+        locationActionLabel.text = canFastTravel ? "FAST TRAVEL" : guestVisit ? "LOCKED" : "NAVIGATE";
         if (background != null)
-            background.color = completed ? completedLocationColor : availableLocationColor;
+            background.color = guestVisit && !canFastTravel ? lockedLocationColor :
+                               completed ? completedLocationColor : availableLocationColor;
     }
 
     private void UpdateCompletedLocationDetails(bool completed)
@@ -1052,15 +1176,16 @@ public sealed class ExpandedMinimapController : MonoBehaviour
     {
         if (selectedLocation == null || isFastTraveling || isAnimating) return;
 
-        if (IsLocationCompleted(selectedLocation))
+        if (CanTravelToLocation(selectedLocation))
             FastTravelToLocation(selectedLocation);
-        else
+        else if (!IsHostWorldGuest)
             NavigateToLocation(selectedLocation);
     }
 
     private void NavigateToLocation(BuildLocation location)
     {
         if (location == null) return;
+        if (IsHostWorldGuest && !CanTravelToLocation(location)) return;
 
         Transform target = location.navigationTarget != null
             ? location.navigationTarget.transform
@@ -1081,7 +1206,9 @@ public sealed class ExpandedMinimapController : MonoBehaviour
     private void FastTravelToLocation(BuildLocation location)
     {
         if (GameManager.Instance != null && GameManager.Instance.IsCargoTestActive) return;
-        if (location == null || isFastTraveling || isAnimating || !isExpanded) return;
+        if (location == null || location.gameObject.scene != gameObject.scene ||
+            isFastTraveling || isAnimating || !isExpanded) return;
+        if (!CanTravelToLocation(location)) return;
         fastTravelRoutine = StartCoroutine(AnimateFastTravel(location));
     }
 
@@ -1167,14 +1294,14 @@ public sealed class ExpandedMinimapController : MonoBehaviour
     private void TeleportToLocation(BuildLocation location)
     {
         if (GameManager.Instance != null && GameManager.Instance.IsCargoTestActive) return;
-        if (location == null) return;
+        if (location == null || location.gameObject.scene != gameObject.scene) return;
+        // Recheck at the actual teleport, not just when the map button was clicked.
+        if (!CanTravelToLocation(location)) return;
 
-        Transform player = minimapFollow != null ? minimapFollow.player : null;
-        if (player == null)
-        {
-            PlayerMotor motor = FindObjectOfType<PlayerMotor>(true);
-            if (motor != null) player = motor.transform;
-        }
+        // Use this scene's local minimap/player target, never an arbitrary motor
+        // from a loading preview or another scene. Remote Fusion avatars do not
+        // control this target and continue to receive the local player's pose.
+        Transform player = GetPlayerMarkerTarget();
 
         if (player == null)
         {
@@ -1540,6 +1667,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         closingMap = true;
         mapSessionActive = false;
         isExpanded = false;
+        ClearRemotePlayerMarkers();
         isAnimating = false;
         isFastTraveling = false;
         fastTravelPlayerLook = null;
@@ -1632,6 +1760,8 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
     private Color GetMarkerColor(BuildLocation location)
     {
+        if (IsHostWorldGuest)
+            return CanTravelToLocation(location) ? availableLocationColor : lockedLocationColor;
         if (location == navigationDestination)
             return navigationLocationColor;
         if (GameManager.Instance != null && GameManager.Instance.ActiveBuildLocation == location)
@@ -1641,6 +1771,70 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         if (location.activeContract != null)
             return availableLocationColor;
         return lockedLocationColor;
+    }
+
+    private bool CanTravelToLocation(BuildLocation location) => CanFastTravelToLocation(location, IsHostWorldGuest,
+        PlayerDataManager.Instance, IsHostWorldGuest ? GetGuestLocationContracts(location) : null);
+
+    private static bool CanFastTravelToLocation(BuildLocation location, bool hostWorldGuest,
+        PlayerDataManager guestData, IReadOnlyList<ContractSO> contracts)
+    {
+        if (location == null) return false;
+        return hostWorldGuest ? GetUnlockedGuestContract(guestData, contracts) != null : IsLocationCompleted(location);
+    }
+
+    private static ContractSO GetUnlockedGuestContract(PlayerDataManager data, IReadOnlyList<ContractSO> contracts)
+    {
+        if (data == null || data.CurrentData == null || contracts == null) return null;
+        foreach (ContractSO contract in contracts)
+        {
+            if (contract == null) continue;
+            // Read the guest's account progress only; IsContractLocked can migrate
+            // PlayerPrefs/save files, so use the already loaded IDs here instead.
+            if (data.CurrentData.lockedContractIds != null &&
+                data.CurrentData.lockedContractIds.Exists(contract.MatchesIdentifier)) continue;
+            if (data.HasContractCompletionRecord(contract.ContractID) || data.HasValidSavedBridge(contract.ContractID) ||
+                (data.CurrentData.activeQuests != null && data.CurrentData.activeQuests.Exists(task =>
+                    task != null && !task.isCompleted && contract.MatchesIdentifier(task.contractName))))
+                return contract;
+        }
+        return null;
+    }
+
+    private IReadOnlyList<ContractSO> GetGuestLocationContracts(BuildLocation location)
+    {
+        if (location == null) return null;
+        if (!guestContractCatalogReady)
+        {
+            guestLocationContracts.Clear();
+            // NPCs are disabled during a guest visit. Reading their authored
+            // assignments still maps every earlier/future phase to the correct
+            // site without activating NPCs or loading the guest's bridge meshes.
+            foreach (BuildLocation site in Resources.FindObjectsOfTypeAll<BuildLocation>())
+                AddGuestLocationContract(site, site != null ? site.activeContract : null);
+            foreach (NPCContractGiver npc in Resources.FindObjectsOfTypeAll<NPCContractGiver>())
+                if (npc != null && npc.gameObject.scene == gameObject.scene)
+                    AddGuestLocationContract(npc.targetBuildLocation, npc.contractToGive);
+            foreach (NPCProgressionManager npc in Resources.FindObjectsOfTypeAll<NPCProgressionManager>())
+            {
+                if (npc == null || npc.gameObject.scene != gameObject.scene || npc.AuthoredPhases == null) continue;
+                foreach (NPCProgressionPhase phase in npc.AuthoredPhases)
+                    if (phase != null) AddGuestLocationContract(phase.targetBuildLocation, phase.contract);
+            }
+            guestContractCatalogReady = true;
+        }
+        return guestLocationContracts.TryGetValue(location, out List<ContractSO> contracts) ? contracts : null;
+    }
+
+    private void AddGuestLocationContract(BuildLocation location, ContractSO contract)
+    {
+        if (location == null || contract == null || location.gameObject.scene != gameObject.scene) return;
+        if (!guestLocationContracts.TryGetValue(location, out List<ContractSO> contracts))
+        {
+            contracts = new List<ContractSO>();
+            guestLocationContracts.Add(location, contracts);
+        }
+        if (!contracts.Contains(contract)) contracts.Add(contract);
     }
 
     private static bool IsLocationCompleted(BuildLocation location)
@@ -1656,19 +1850,22 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         return location.bakedBars != null && location.bakedBars.Count > 0;
     }
 
-    private static string GetLocationLabel(BuildLocation location)
+    private string GetLocationLabel(BuildLocation location)
     {
         if (location == null) return "Build Location";
-        string label = location.activeContract != null ? location.activeContract.name : location.name;
+        ContractSO contract = IsHostWorldGuest
+            ? GetUnlockedGuestContract(PlayerDataManager.Instance, GetGuestLocationContracts(location))
+            : location.activeContract;
+        if (IsHostWorldGuest && contract == null) return "Locked Build Location";
+        string label = contract != null ? contract.name : location.name;
         return string.IsNullOrWhiteSpace(label) ? "Build Location" : label.Replace('_', ' ');
     }
 
-    private static string GetMarkerLabel(BuildLocation location)
+    private string GetMarkerLabel(BuildLocation location)
     {
-        // A location without an available contract is still represented by its
-        // locked diamond, but its internal scene-object name (usually
-        // "workbench") is not player-facing information.
-        if (location == null || (location.activeContract == null && !IsLocationCompleted(location)))
+        // Names and travel permissions follow this player's own progress.
+        if (location == null || (IsHostWorldGuest ? !CanTravelToLocation(location) :
+            location.activeContract == null && !IsLocationCompleted(location)))
             return string.Empty;
 
         return GetLocationLabel(location);

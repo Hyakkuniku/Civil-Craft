@@ -5,13 +5,15 @@ using System.IO;
 using System.Reflection;
 using System.Text;
 using Fusion;
+using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 using Object = UnityEngine.Object;
 
-/// <summary>Isolated geometry and native collision checks. Never loads a saved game or changes an authored scene.</summary>
+/// <summary>Isolated geometry, collision and guest travel checks. Never loads a saved game or changes an authored scene.</summary>
 public static class HostWorldBridgeSyncValidation
 {
     private const string RequestPath = "Temp/host-world-bridge-validation.request";
@@ -88,6 +90,8 @@ public static class HostWorldBridgeSyncValidation
             var hidden = Child("Hidden Surface", bar.transform);
             hidden.AddComponent<BoxCollider>(); hidden.SetActive(false);
             site.bakedBars.Add(bar);
+            ValidateGuestTravelPolicy(site, report);
+            ValidatePlayerMapMarkers(fixture.transform, report);
 
             HostWorldBridgeSnapshot captured = FusionHostWorldBridgeSync.CaptureLocation(site);
             Require(captured.Bars.Count == 1 && captured.Bars[0].Parts.Count == 2,
@@ -233,6 +237,180 @@ public static class HostWorldBridgeSyncValidation
     {
         object location = snapshots[id];
         return (HostWorldBridgeSnapshot)location.GetType().GetField("Snapshot").GetValue(location);
+    }
+
+    private static void ValidatePlayerMapMarkers(Transform fixture, StringBuilder report)
+    {
+        MethodInfo normalize = typeof(FusionMultiplayerAvatar).GetMethod("NormalizeMapPlayerName",
+            BindingFlags.Static | BindingFlags.NonPublic);
+        Func<string, string> name = value => (string)normalize.Invoke(null, new object[] { value });
+        Require(name("  Hyakk  ") == "Hyakk" && name(null) == "Player" && name("\r\n\t") == "Player",
+            "IGN synchronization trims names and safely handles missing/control-only names.", report);
+        Require(name(new string('A', 40)).Length == 32 &&
+            name(new string('A', 31) + char.ConvertFromUtf32(0x1F600)).Length == 31,
+            "IGN capacity is bounded without splitting a UTF-16 surrogate pair.", report);
+
+        var map = Child("Player Map Validation", fixture).AddComponent<ExpandedMinimapController>();
+        var camera = Child("Player Map Camera", fixture).AddComponent<Camera>();
+        camera.orthographic = true;
+        camera.orthographicSize = 10f;
+        camera.aspect = 2f;
+        camera.transform.SetPositionAndRotation(new Vector3(0, 50, 0), Quaternion.Euler(90, 0, 0));
+        var layerObject = new GameObject("Map Marker Layer", typeof(RectTransform));
+        layerObject.transform.SetParent(fixture, false);
+        RectTransform layer = layerObject.GetComponent<RectTransform>();
+        layer.sizeDelta = new Vector2(800, 400);
+        Type mapType = typeof(ExpandedMinimapController);
+        mapType.GetField("minimapCamera", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(map, camera);
+        mapType.GetField("markerLayer", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(map, layer);
+        mapType.GetField("uiFont", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(map, TMP_Settings.defaultFontAsset);
+        MethodInfo factory = mapType.GetMethod("CreatePlayerMapMarker", BindingFlags.Instance | BindingFlags.NonPublic);
+        Color remoteColor = new Color(0.72f, 0.38f, 0.95f, 1f);
+        object[] arguments = { "ValidationRemotePlayer", "", remoteColor, null, null };
+        var root = (RectTransform)factory.Invoke(map, arguments);
+        var arrow = (RectTransform)arguments[3];
+        var label = (TMP_Text)arguments[4];
+        MethodInfo updateLabel = mapType.GetMethod("UpdateRemotePlayerMapLabel", BindingFlags.Static | BindingFlags.NonPublic);
+        updateLabel.Invoke(null, new object[] { label, "Hyakk" });
+        Require(label.text == "Hyakk" && !label.richText && label.font == TMP_Settings.defaultFontAsset &&
+            root.GetComponentInChildren<PlayerMapArrowGraphic>(true).color != remoteColor &&
+            arrow.Find("Fill").GetComponent<PlayerMapArrowGraphic>().color == remoteColor,
+            "Remote marker uses the IGN, existing map font/arrow style and a distinct color.", report);
+        updateLabel.Invoke(null, new object[] { label, "<b>Literal Player Name</b>" });
+        Require(label.text == "<b>Literal Player Name</b>" && !label.richText && !label.enableWordWrapping &&
+            ((RectTransform)label.rectTransform.parent).sizeDelta.x <= 250f,
+            "IGN is plain text (not TMP markup) and the nameplate width stays bounded.", report);
+        foreach (Graphic graphic in root.GetComponentsInChildren<Graphic>(true))
+            Require(!graphic.raycastTarget, "Player marker graphic does not intercept map dragging: " + graphic.name, report);
+
+        MethodInfo project = mapType.GetMethod("ProjectPlayerMarker", BindingFlags.Instance | BindingFlags.NonPublic);
+        project.Invoke(map, new object[] { root, arrow, layer.rect, new Vector3(5, 0, 0), Vector3.forward });
+        Require(root.gameObject.activeSelf && Vector2.Distance(root.anchoredPosition, new Vector2(100, 0)) < 0.01f &&
+            Quaternion.Angle(arrow.localRotation, Quaternion.identity) < 0.01f,
+            "Native camera projection places the remote player at its world position and facing direction.", report);
+        project.Invoke(map, new object[] { root, arrow, layer.rect, new Vector3(5, 0, 0), Vector3.right });
+        Require(Quaternion.Angle(arrow.localRotation, Quaternion.Euler(0, 0, -90)) < 0.01f,
+            "Map arrow follows remote facing direction while the marker stays fixed at its position.", report);
+        project.Invoke(map, new object[] { root, arrow, layer.rect, new Vector3(50, 0, 0), Vector3.forward });
+        Require(!root.gameObject.activeSelf, "Remote marker outside the current map view is hidden instead of mislocated.", report);
+        project.Invoke(map, new object[] { root, arrow, layer.rect, new Vector3(0, 60, 0), Vector3.forward });
+        Require(!root.gameObject.activeSelf, "Remote marker behind the map camera is hidden.", report);
+
+        var avatar = Child("Unspawned Map Avatar", fixture).AddComponent<FusionMultiplayerAvatar>();
+        Require(!avatar.TryGetMapPose(out _, out _) && avatar.MapPlayerName == "Player",
+            "Uninitialized/despawned avatars cannot produce a phantom map marker at the origin.", report);
+        mapType.GetField("playerMarker", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(map, root);
+        mapType.GetField("playerMarkerArrow", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(map, arrow);
+        mapType.GetMethod("UpdatePlayerMarker", BindingFlags.Instance | BindingFlags.NonPublic)
+            .Invoke(map, new object[] { layer.rect });
+        Require(!root.gameObject.activeSelf, "Local player marker remains hidden on the compact map.", report);
+
+        // Exercise peer cleanup without starting Photon or mutating the live runner.
+        IDictionary peers = (IDictionary)mapType.GetField("remotePlayerMarkers", BindingFlags.Instance | BindingFlags.NonPublic)
+            .GetValue(map);
+        Type viewType = mapType.GetNestedType("RemotePlayerMarker", BindingFlags.NonPublic);
+        object view = Activator.CreateInstance(viewType, true);
+        viewType.GetField("Root").SetValue(view, root);
+        viewType.GetField("Arrow").SetValue(view, arrow);
+        viewType.GetField("Label").SetValue(view, label);
+        peers.Add(PlayerRef.FromIndex(1), view);
+        mapType.GetMethod("ClearRemotePlayerMarkers", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(map, null);
+        Require(peers.Count == 0 && root == null, "Closing/leaving a session removes remote player marker objects.", report);
+    }
+
+    private static void ValidateGuestTravelPolicy(BuildLocation location, StringBuilder report)
+    {
+        MethodInfo policy = typeof(ExpandedMinimapController).GetMethod("CanFastTravelToLocation",
+            BindingFlags.Static | BindingFlags.NonPublic);
+        var committed = new List<Bar>(location.bakedBars);
+        ContractSO originalContract = location.activeContract;
+        var contract = ScriptableObject.CreateInstance<ContractSO>();
+        contract.name = "Validation Guest Contract";
+        contract.contractID = "VALIDATION_GUEST_TRAVEL";
+        var otherContract = ScriptableObject.CreateInstance<ContractSO>();
+        otherContract.name = "Validation Other Contract";
+        otherContract.contractID = "VALIDATION_OTHER_TRAVEL";
+        var data = Child("Isolated Guest Progress", location.transform.parent).AddComponent<PlayerDataManager>();
+        var progress = new PlayerData();
+        typeof(PlayerDataManager).GetProperty("CurrentData").SetValue(data, progress);
+        data.allGameContracts = new List<ContractSO> { contract, otherContract };
+        var contracts = new List<ContractSO> { contract };
+        Func<bool> guestAllowed = () => (bool)policy.Invoke(null, new object[] { location, true, data, contracts });
+        try
+        {
+            location.bakedBars.Clear();
+            Require(!guestAllowed(), "New guest progress cannot fast travel to an unaccepted location.", report);
+            location.activeContract = contract;
+            location.bakedBars.AddRange(committed);
+            Require(!guestAllowed(), "Scene/host contract and baked bridge do not grant guest travel access.", report);
+            location.activeContract = null;
+            location.bakedBars.Clear();
+            Require(!(bool)policy.Invoke(null, new object[] { location, false, null, null }),
+                "Host/single-player still navigates rather than teleporting to unfinished locations.", report);
+            Require(!(bool)policy.Invoke(null, new object[] { null, true, data, contracts }) &&
+                !(bool)policy.Invoke(null, new object[] { location, true, null, contracts }),
+                "Guest travel rejects a missing destination.", report);
+
+            progress.activeQuests.Add(new TrackedTask { contractName = contract.ContractID });
+            Require(guestAllowed(), "Guest's own accepted unfinished contract unlocks its travel destination.", report);
+            progress.activeQuests[0].contractName = contract.name;
+            Require(guestAllowed(), "Legacy asset-name quest identifiers retain guest travel access.", report);
+            progress.activeQuests.Clear();
+            progress.completedContracts.Add(contract.ContractID);
+            Require(guestAllowed(), "Guest's own completion record allows travel without loading a guest bridge.", report);
+            progress.lockedContractIds.Add(contract.ContractID);
+            Require(!guestAllowed(), "Guest's failure lock blocks travel even with an older completion record.", report);
+            progress.lockedContractIds.Clear();
+            progress.completedContracts.Clear();
+            progress.completedContracts.Add(otherContract.ContractID);
+            Require(!guestAllowed(), "Progress for another contract does not unlock this destination.", report);
+            progress.completedContracts.Clear();
+            var saved = new SavedBridgeData { contractId = contract.ContractID };
+            saved.points.Add(new SavedPointData { index = 0, position = new SerializableVector3(Vector3.zero) });
+            saved.points.Add(new SavedPointData { index = 1, position = new SerializableVector3(Vector3.right) });
+            saved.bars.Add(new SavedBarData { startPointIndex = 0, endPointIndex = 1, materialName = "ValidationRoad" });
+            progress.savedBridges.Add(saved);
+            string before = JsonUtility.ToJson(progress);
+            Require(guestAllowed(), "Guest's valid saved bridge grants travel before contract turn-in.", report);
+            Require(before == JsonUtility.ToJson(progress), "Travel lookup does not alter guest save data.", report);
+            saved.bars.Clear();
+            Require(!guestAllowed(), "Invalid saved bridge does not grant travel access.", report);
+
+            // Read inactive NPC metadata, including phases not currently selected.
+            var npc = Child("Disabled Phase Catalog", location.transform.parent).AddComponent<NPCProgressionManager>();
+            npc.enabled = false;
+            var otherSite = Child("Other Guest Site", location.transform.parent).AddComponent<BuildLocation>();
+            typeof(NPCProgressionManager).GetField("phases", BindingFlags.Instance | BindingFlags.NonPublic)
+                .SetValue(npc, new List<NPCProgressionPhase> {
+                    new NPCProgressionPhase { contract = otherContract, targetBuildLocation = otherSite },
+                    new NPCProgressionPhase { contract = contract, targetBuildLocation = location }
+                });
+            var map = Child("Isolated Guest Map", location.transform.parent).AddComponent<ExpandedMinimapController>();
+            int initialPhaseIndex = npc.CurrentPhaseIndex;
+            MethodInfo catalog = typeof(ExpandedMinimapController).GetMethod("GetGuestLocationContracts",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            var mapped = (IReadOnlyList<ContractSO>)catalog.Invoke(map, new object[] { location });
+            Require(mapped != null && mapped.Count == 1 && mapped[0] == contract && !npc.enabled && npc.CurrentPhaseIndex == initialPhaseIndex,
+                "Inactive NPC's later phase maps to the correct site without activating or advancing it.", report);
+            progress.activeQuests.Add(new TrackedTask { contractName = contract.ContractID });
+            Require((bool)policy.Invoke(null, new object[] { location, true, data, mapped }),
+                "Guest travel works when the scene site's activeContract is null.", report);
+            var mappedOther = (IReadOnlyList<ContractSO>)catalog.Invoke(map, new object[] { otherSite });
+            Require(!(bool)policy.Invoke(null, new object[] { otherSite, true, data, mappedOther }),
+                "Cached scene catalog keeps permissions separate between build locations.", report);
+
+            location.bakedBars.AddRange(committed);
+            Require((bool)policy.Invoke(null, new object[] { location, false, null, null }),
+                "Host/single-player keeps fast travel to completed bridges.", report);
+        }
+        finally
+        {
+            location.bakedBars.Clear();
+            location.bakedBars.AddRange(committed);
+            location.activeContract = originalContract;
+            Object.DestroyImmediate(contract);
+            Object.DestroyImmediate(otherContract);
+        }
     }
     private static bool SamePose(Transform left, Transform right) =>
         (left.position - right.position).sqrMagnitude < 0.000001f &&

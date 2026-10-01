@@ -14,6 +14,7 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
     private const float LiveLoadSyncInterval = 0.05f;
     private const int MaxBridgeNodes = 64;
     private const int MaxBridgeBars = 96;
+    private const int MaxPlayerNameLength = 32;
     private static readonly int SpeedParameter = Animator.StringToHash("Speed");
     private static readonly int SprintParameter = Animator.StringToHash("IsSprinting");
     private static readonly int GroundedParameter = Animator.StringToHash("IsGrounded");
@@ -30,6 +31,7 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
     [Networked] private bool Grounded { get; set; }
     [Networked] private uint JumpSequence { get; set; }
     [Networked, Capacity(2048)] private string Appearance { get; set; }
+    [Networked, Capacity(MaxPlayerNameLength)] private string PlayerName { get; set; }
     [Networked] private bool IsBridgeBuilder { get; set; }
     [Networked] private int HostBridgeNodeCount { get; set; }
     [Networked, Capacity(MaxBridgeNodes)] private NetworkArray<Vector3> HostBridgeNodes => default;
@@ -83,12 +85,14 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
     private List<CosmeticModelBinding> remoteBindings;
     private List<CosmeticItem> remoteHats;
     private string lastPublishedAppearance;
+    private string lastPublishedPlayerName;
     private string lastAppliedAppearance;
     private uint localJumpSequence;
     private uint lastObservedJumpSequence;
     private uint localPoseSequence;
     private uint lastObservedPoseRevision;
     private readonly RemoteAvatarPoseBuffer remotePoseBuffer = new RemoteAvatarPoseBuffer();
+    private bool hasRenderedRemotePose;
     private readonly MovementPoseSendSchedule poseSendSchedule = new MovementPoseSendSchedule();
     private float nextMovementDiagnosticsTime;
     private int receivedPoseSamples;
@@ -145,8 +149,23 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
     private bool pendingCompletionDirty;
     private int lastObservedCompletionRevision;
 
+    /// <summary>Read the remote avatar's displayed pose, not a raw network snapshot.</summary>
+    public bool TryGetMapPose(out Vector3 position, out Vector3 forward)
+    {
+        position = Vector3.zero;
+        forward = Vector3.forward;
+        if (Runner == null || !Runner.IsRunning || Object == null || !Object.IsValid ||
+            HasInputAuthority || !hasRenderedRemotePose) return false;
+        position = transform.position;
+        forward = transform.forward;
+        return true;
+    }
+
+    public string MapPlayerName => Object != null && Object.IsValid ? PlayerName : "Player";
+
     public override void Spawned()
     {
+        lastPublishedPlayerName = null;
         ResetRemotePoseBuffer();
         if (HasInputAuthority)
             PlayerCosmetics.LoadoutChanged += PublishAppearance;
@@ -215,7 +234,10 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
             {
                 nextAppearanceCheckTime = Time.unscaledTime + AppearanceCheckInterval;
                 if (PlayerDataManager.Instance != null && PlayerDataManager.Instance.CurrentData != null)
+                {
+                    PublishPlayerName(PlayerDataManager.Instance.CurrentData.playerName);
                     PublishAppearance(PlayerDataManager.Instance.GetCosmeticLoadoutCopy());
+                }
             }
             return;
         }
@@ -266,6 +288,7 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
 
         transform.SetPositionAndRotation(pose.Position, pose.Rotation);
         transform.localScale = pose.Scale;
+        hasRenderedRemotePose = true;
         if (remotePoseBuffer.IsExtrapolating) extrapolatedRenderFrames++;
         diagnosticRenderFrames++;
 
@@ -516,6 +539,7 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
 
     private void ResetRemotePoseBuffer()
     {
+        hasRenderedRemotePose = false;
         remotePoseBuffer.Clear();
         poseSendSchedule.Reset();
         lastObservedPoseRevision = 0;
@@ -1207,6 +1231,35 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
     }
 
     private void OnLocalJump() { localJumpSequence++; }
+
+    private void PublishPlayerName(string value)
+    {
+        if (!HasInputAuthority) return;
+        string name = NormalizeMapPlayerName(value);
+        if (name == lastPublishedPlayerName) return;
+        lastPublishedPlayerName = name;
+        if (HasStateAuthority) PlayerName = name;
+        else RPC_PublishPlayerName(name);
+    }
+
+    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority, Channel = RpcChannel.Reliable)]
+    private void RPC_PublishPlayerName(string name) { PlayerName = NormalizeMapPlayerName(name); }
+
+    private static string NormalizeMapPlayerName(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "Player";
+        var result = new StringBuilder(MaxPlayerNameLength);
+        foreach (char character in value.Trim())
+        {
+            if (char.IsControl(character)) continue;
+            result.Append(character);
+            if (result.Length == MaxPlayerNameLength) break;
+        }
+        // Do not cut an emoji/other UTF-16 surrogate pair in half at the limit.
+        if (result.Length > 0 && char.IsHighSurrogate(result[result.Length - 1])) result.Length--;
+        string name = result.ToString().Trim();
+        return name.Length == 0 ? "Player" : name;
+    }
 
     private void PublishAppearance(CosmeticLoadoutData loadout)
     {

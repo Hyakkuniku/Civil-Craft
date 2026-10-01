@@ -281,6 +281,8 @@ public class NPCProgressionManager : MonoBehaviour
 
     public int CurrentPhaseIndex => currentPhaseIndex;
     public int PhaseCount => phases != null ? phases.Count : 0;
+    // Read authored site/contract assignments without restoring or advancing an NPC.
+    public IReadOnlyList<NPCProgressionPhase> AuthoredPhases => phases;
     public string DebugDisplayName => string.IsNullOrWhiteSpace(progressionSaveId)
         ? name
         : $"{name} ({progressionSaveId})";

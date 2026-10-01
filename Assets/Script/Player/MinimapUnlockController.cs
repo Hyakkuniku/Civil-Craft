@@ -131,7 +131,12 @@ public sealed class MinimapUnlockController : MonoBehaviour
                          PlayerDataManager.Instance.CurrentData.hasUnlockedMinimap);
         bool overworldVisible = GameManager.Instance == null || !GameManager.Instance.IsInBuildMode();
         bool lessonClosed = LessonUIManager.Instance == null || !LessonUIManager.Instance.IsOpen;
-        bool shouldShow = unlocked && overworldVisible && lessonClosed;
+        // Visiting players need the map for build-location travel even if
+        // their own story has not unlocked it. This is session-only visibility,
+        // not an UnlockFeature call or a mutation of the guest's saved data.
+        bool guestVisit = FusionConnectionManager.Instance != null &&
+                          FusionConnectionManager.Instance.IsGuestInHostWorld;
+        bool shouldShow = (unlocked || guestVisit) && overworldVisible && lessonClosed;
 
         if (minimapPanel != null)
             minimapPanel.SetActive(shouldShow);
