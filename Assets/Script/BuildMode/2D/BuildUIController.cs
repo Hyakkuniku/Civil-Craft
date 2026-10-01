@@ -74,6 +74,9 @@ public class BuildUIController : MonoBehaviour
     [Tooltip("Stop/Pause button or its layout wrapper. Can be the same reference as Tutorial Simulation Stop Object.")]
     public GameObject stopSimulationButtonObject;
 
+    private readonly List<Button> simulationPanelButtons = new List<Button>(4);
+    private readonly List<Button> simulationControlButtons = new List<Button>(4);
+
     [Header("Contract Info (Budget)")]
     public float fallbackMaxBudget = 1000f; 
     [HideInInspector] public float maxBudget = 1000f; 
@@ -1640,6 +1643,19 @@ public class BuildUIController : MonoBehaviour
     {
         if (statsPanelRect == null) return;
 
+        // The authored panel still contains its old white title. Its data rows
+        // share that placeholder text, so preserve the bound readouts.
+        foreach (TextMeshProUGUI label in statsPanel.GetComponentsInChildren<TextMeshProUGUI>(true))
+        {
+            if (label == null || label == totalLengthText || label == membersCountText ||
+                label == deadLoadText || label == targetCargoWeightText ||
+                label == estimatedCapacityText || label == efficiencyRatioText ||
+                label == factorOfSafetyText) continue;
+            if (string.Equals(label.text?.Trim(), "Bridge Engineering Stats",
+                    System.StringComparison.OrdinalIgnoreCase))
+                label.gameObject.SetActive(false);
+        }
+
         bool showSafetyRow = factorOfSafetyText != null;
         statsPanelRect.sizeDelta = new Vector2(471f, showSafetyRow ? 370f : 330f);
         Image background = statsPanel.GetComponent<Image>();
@@ -1904,12 +1920,12 @@ public class BuildUIController : MonoBehaviour
         ResolveSimulationUIReferences();
         if (simulationControlsPanel == null) return;
 
-        // Inspect every Button under the container rather than only its wrapper.
-        // GetComponentsInChildren(true) still works while the panel itself is hidden,
-        // allowing a newly re-enabled child button to bring the container back.
-        Button[] containedButtons = simulationControlsPanel.GetComponentsInChildren<Button>(true);
+        // Refill a reusable list to detect added/removed controls without allocating
+        // an array each check. Include inactive children so a re-enabled tutorial
+        // button can bring its hidden panel back.
+        simulationControlsPanel.GetComponentsInChildren(true, simulationPanelButtons);
         bool shouldShowPanel = false;
-        foreach (Button button in containedButtons)
+        foreach (Button button in simulationPanelButtons)
         {
             if (button != null && IsLocallyVisibleWithinPanel(
                     button.transform,
@@ -1921,7 +1937,7 @@ public class BuildUIController : MonoBehaviour
         }
 
         // Support containers that use non-Button wrappers supplied in the Inspector.
-        if (containedButtons.Length == 0)
+        if (simulationPanelButtons.Count == 0)
         {
             shouldShowPanel = IsControlObjectVisible(playSimulationButtonObject) ||
                               IsControlObjectVisible(stopSimulationButtonObject) ||
@@ -1966,8 +1982,8 @@ public class BuildUIController : MonoBehaviour
     {
         if (controlObject == null || simulationControlsPanel == null) return false;
 
-        Button[] childButtons = controlObject.GetComponentsInChildren<Button>(true);
-        foreach (Button button in childButtons)
+        controlObject.GetComponentsInChildren(true, simulationControlButtons);
+        foreach (Button button in simulationControlButtons)
         {
             if (button != null && IsLocallyVisibleWithinPanel(
                     button.transform,
@@ -1975,7 +1991,7 @@ public class BuildUIController : MonoBehaviour
                 return true;
         }
 
-        return childButtons.Length == 0 && IsLocallyVisibleWithinPanel(
+        return simulationControlButtons.Count == 0 && IsLocallyVisibleWithinPanel(
             controlObject.transform,
             simulationControlsPanel.transform);
     }

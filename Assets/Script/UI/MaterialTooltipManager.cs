@@ -55,8 +55,10 @@ public class MaterialTooltipManager : MonoBehaviour
         RectTransform panelRect = tooltipPanel.transform as RectTransform;
         if (panelRect != null)
         {
+            panelRect.anchorMin = panelRect.anchorMax = new Vector2(0.5f, 0.5f);
+            panelRect.pivot = new Vector2(0.5f, 0.5f);
             panelRect.sizeDelta = new Vector2(440f, 306f);
-            panelRect.anchoredPosition = new Vector2(18f, panelRect.anchoredPosition.y);
+            panelRect.anchoredPosition = Vector2.zero;
         }
 
         Image background = tooltipPanel.GetComponent<Image>();

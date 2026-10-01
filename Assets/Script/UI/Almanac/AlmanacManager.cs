@@ -58,6 +58,7 @@ public class AlmanacManager : MonoBehaviour
     public Image animationImage; 
     public Sprite[] bookOpenFrames; 
     [Min(0.01f)]
+    [Tooltip("Seconds per sprite frame. Playback skips expired frames after a hitch instead of extending the animation.")]
     public float frameRate = 0.03f; 
     private bool isAnimating = false;
 
@@ -271,13 +272,18 @@ public class AlmanacManager : MonoBehaviour
 
     private void Update()
     {
+        if (almanacCanvas == null || !almanacCanvas.activeInHierarchy) return;
+        float blend = 1f - Mathf.Exp(-Mathf.Max(0f, tabTransitionSpeed) * Time.unscaledDeltaTime);
         foreach (var kvp in targetTabYPositions)
         {
             RectTransform tabRect = kvp.Key;
+            if (tabRect == null) continue;
             float targetY = kvp.Value;
             
             Vector2 currentPos = tabRect.anchoredPosition;
-            currentPos.y = Mathf.Lerp(currentPos.y, targetY, Time.deltaTime * tabTransitionSpeed);
+            if (currentPos.y == targetY) continue;
+            currentPos.y = Mathf.Lerp(currentPos.y, targetY, blend);
+            if (Mathf.Abs(currentPos.y - targetY) < 0.01f) currentPos.y = targetY;
             tabRect.anchoredPosition = currentPos;
         }
 
@@ -950,25 +956,43 @@ public class AlmanacManager : MonoBehaviour
         animationImage.sprite = bookOpenFrames[firstIndex];
         animationPanel.SetActive(true);
 
-        float delay = Mathf.Max(0.01f, frameRate);
-        if (opening)
+        float frameDuration = Mathf.Max(0.01f, frameRate);
+        double startedAt = Time.realtimeSinceStartupAsDouble;
+        double duration = bookOpenFrames.Length * (double)frameDuration;
+        int lastFrameIndex = -1;
+        while (true)
         {
-            for (int i = 0; i < bookOpenFrames.Length; i++)
+            double elapsed = Time.realtimeSinceStartupAsDouble - startedAt;
+            int index = GetBookAnimationFrameIndex(elapsed, bookOpenFrames.Length, frameDuration, opening);
+            if (index != lastFrameIndex)
             {
-                if (bookOpenFrames[i] != null) animationImage.sprite = bookOpenFrames[i];
-                yield return new WaitForSecondsRealtime(delay);
+                // Preserve the most recent valid frame even when a hitch skips
+                // over a missing sprite in the authored sequence.
+                int fallbackIndex = index;
+                while (bookOpenFrames[fallbackIndex] == null && fallbackIndex != firstIndex)
+                    fallbackIndex += opening ? -1 : 1;
+                Sprite sprite = bookOpenFrames[fallbackIndex];
+                if (sprite != null && animationImage.sprite != sprite) animationImage.sprite = sprite;
+                lastFrameIndex = index;
             }
-        }
-        else
-        {
-            for (int i = bookOpenFrames.Length - 1; i >= 0; i--)
-            {
-                if (bookOpenFrames[i] != null) animationImage.sprite = bookOpenFrames[i];
-                yield return new WaitForSecondsRealtime(delay);
-            }
+            if (elapsed >= duration) break;
+            yield return null;
         }
 
         animationPanel.SetActive(false);
+    }
+
+    private static int GetBookAnimationFrameIndex(double elapsed, int frameCount, float frameDuration, bool opening)
+    {
+        int step = (int)System.Math.Min(frameCount - 1,
+            System.Math.Floor(System.Math.Max(0d, elapsed) / System.Math.Max(0.01d, frameDuration)));
+        return opening ? step : frameCount - 1 - step;
+    }
+
+    private static float GetRealtimeAnimationProgress(double startedAt, float duration)
+    {
+        if (duration <= 0f) return 1f;
+        return Mathf.Clamp01((float)((Time.realtimeSinceStartupAsDouble - startedAt) / duration));
     }
 
     private void HideUiElementsPreservingAnimation()
@@ -1032,15 +1056,16 @@ public class AlmanacManager : MonoBehaviour
         List<TabPageVisual> outgoing = CaptureSpreadVisuals(outgoingCategory, currentSpreadIndex);
         float outgoingDuration = Mathf.Max(0.04f, tabSwitchDuration * 0.42f);
         float incomingDuration = Mathf.Max(0.06f, tabSwitchDuration * 0.58f);
+        double startedAt = Time.realtimeSinceStartupAsDouble;
 
-        yield return AnimateSpreadVisuals(outgoing, 0f, 1f, outgoingDuration);
+        yield return AnimateSpreadVisuals(outgoing, 0f, 1f, outgoingDuration, startedAt);
         ApplyCategorySelection(index);
         ResetSpreadVisuals(outgoing);
 
         AlmanacCategory incomingCategory = categories[currentCategoryIndex];
         List<TabPageVisual> incoming = CaptureSpreadVisuals(incomingCategory, currentSpreadIndex);
         SetSpreadVisualProgress(incoming, 1f);
-        yield return AnimateSpreadVisuals(incoming, 1f, 0f, incomingDuration);
+        yield return AnimateSpreadVisuals(incoming, 1f, 0f, incomingDuration, startedAt + outgoingDuration);
         ResetSpreadVisuals(incoming);
 
         isSwitchingCategory = false;
@@ -1083,18 +1108,17 @@ public class AlmanacManager : MonoBehaviour
         List<TabPageVisual> visuals,
         float from,
         float to,
-        float duration)
+        float duration,
+        double startedAt)
     {
-        float elapsed = 0f;
-        while (elapsed < duration)
+        while (true)
         {
-            elapsed += Time.unscaledDeltaTime;
-            float normalized = Mathf.Clamp01(elapsed / duration);
+            float normalized = GetRealtimeAnimationProgress(startedAt, duration);
             float eased = Mathf.SmoothStep(0f, 1f, normalized);
             SetSpreadVisualProgress(visuals, Mathf.Lerp(from, to, eased));
+            if (normalized >= 1f) break;
             yield return null;
         }
-        SetSpreadVisualProgress(visuals, to);
     }
 
     private void SetSpreadVisualProgress(List<TabPageVisual> visuals, float progress)
@@ -1275,20 +1299,9 @@ public class AlmanacManager : MonoBehaviour
         if (goingForward && rightChanges) liftingPage = oldRight; 
         else if (!goingForward && leftChanges) liftingPage = oldLeft; 
 
-        if (liftingPage != null)
-        {
-            float elapsed = 0f;
-            float targetAngle = goingForward ? 90f : -90f;
-
-            while (elapsed < flipDuration)
-            {
-                elapsed += Time.deltaTime;
-                liftingPage.transform.localRotation = Quaternion.Euler(0, Mathf.Lerp(0, targetAngle, elapsed / flipDuration), 0);
-                yield return null;
-            }
-            liftingPage.transform.localRotation = Quaternion.Euler(0, targetAngle, 0);
-        }
-        else yield return new WaitForSeconds(flipDuration); 
+        float duration = Mathf.Max(0f, flipDuration);
+        double startedAt = Time.realtimeSinceStartupAsDouble;
+        yield return AnimatePageRotation(liftingPage, 0f, goingForward ? 90f : -90f, duration, startedAt);
 
         if (leftChanges && oldLeft != null) oldLeft.SetActive(false);
         if (rightChanges && oldRight != null) oldRight.SetActive(false);
@@ -1310,25 +1323,24 @@ public class AlmanacManager : MonoBehaviour
         if (goingForward && leftChanges) landingPage = newLeft;
         else if (!goingForward && rightChanges) landingPage = newRight;
 
-        if (landingPage != null)
-        {
-            float elapsed = 0f;
-            float startAngle = goingForward ? -90f : 90f;
-            
-            landingPage.transform.localRotation = Quaternion.Euler(0, startAngle, 0);
-
-            while (elapsed < flipDuration)
-            {
-                elapsed += Time.deltaTime;
-                landingPage.transform.localRotation = Quaternion.Euler(0, Mathf.Lerp(startAngle, 0, elapsed / flipDuration), 0);
-                yield return null;
-            }
-            landingPage.transform.localRotation = Quaternion.identity;
-        }
-        else yield return new WaitForSeconds(flipDuration);
+        yield return AnimatePageRotation(landingPage, goingForward ? -90f : 90f, 0f,
+            duration, startedAt + duration);
 
         UpdatePaginationButtons();
         isFlipping = false;
+    }
+
+    private IEnumerator AnimatePageRotation(GameObject page, float from, float to, float duration, double startedAt)
+    {
+        while (true)
+        {
+            float progress = GetRealtimeAnimationProgress(startedAt, duration);
+            if (page != null)
+                page.transform.localRotation = Quaternion.Euler(0f,
+                    Mathf.Lerp(from, to, Mathf.SmoothStep(0f, 1f, progress)), 0f);
+            if (progress >= 1f) break;
+            yield return null;
+        }
     }
 
     private void ToggleSpread(int spreadIndex, bool state)
