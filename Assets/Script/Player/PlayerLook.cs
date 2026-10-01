@@ -38,6 +38,11 @@ public class PlayerLook : MonoBehaviour
     [Tooltip("Target movement beyond this distance is treated as a teleport and snaps the camera into place.")]
     [SerializeField] private float teleportSnapDistance = 2.5f;
 
+    [Header("Close Camera Rendering")]
+    [Min(0.01f)]
+    [Tooltip("Near clipping distance used when an obstacle pushes the camera close to the outfit. The normal camera setting is restored as it moves away.")]
+    [SerializeField] private float closeCameraNearClip = 0.03f;
+
     [HideInInspector] public bool canLook = true;
 
     private float yaw = 0f;
@@ -49,6 +54,8 @@ public class PlayerLook : MonoBehaviour
     private Vector3 previousFollowPosition;
     private bool hasCameraPose;
     private PlayerMotor localMotor;
+    private Camera adjustedCamera;
+    private float normalNearClipPlane;
     private readonly RaycastHit[] sphereCastHits = new RaycastHit[24];
     private readonly RaycastHit[] raycastHits = new RaycastHit[24];
 
@@ -95,7 +102,11 @@ public class PlayerLook : MonoBehaviour
     private void LateUpdate()
     {
         // DO NOT move the camera if Build Mode is active and took control!
-        if (!canLook || cam == null || followTarget == null) return;
+        if (!canLook || cam == null || followTarget == null)
+        {
+            RestoreNearClipPlane();
+            return;
+        }
 
         // Tutorial look locks must not freeze follow movement. The player can
         // still walk while the camera follows at the unchanged orbit angle.
@@ -108,10 +119,39 @@ public class PlayerLook : MonoBehaviour
         UpdateCameraPosition(true);
     }
 
+    private void OnDisable()
+    {
+        RestoreNearClipPlane();
+    }
+
+    private void TrackCameraNearClipPlane()
+    {
+        if (adjustedCamera == cam) return;
+        RestoreNearClipPlane();
+        adjustedCamera = cam;
+        normalNearClipPlane = cam.nearClipPlane;
+    }
+
+    private void RestoreNearClipPlane()
+    {
+        if (adjustedCamera != null) adjustedCamera.nearClipPlane = normalNearClipPlane;
+        adjustedCamera = null;
+    }
+
+    private void UpdateNearClipPlane()
+    {
+        // Keep the clipping plane in front of the nearby outfit instead of
+        // cutting it away at the usual 0.3m. Never increase the authored value.
+        cam.nearClipPlane = cam.orthographic ? normalNearClipPlane : Mathf.Min(
+            normalNearClipPlane,
+            Mathf.Max(Mathf.Min(closeCameraNearClip, normalNearClipPlane), currentDistance * 0.2f));
+    }
+
     private void UpdateCameraPosition(bool forceSnap)
     {
         if (cam == null) return;
         if (followTarget == null) followTarget = transform;
+        TrackCameraNearClipPlane();
 
         Quaternion rotation = Quaternion.Euler(pitch, yaw, 0);
         Vector3 pivot = followTarget.position;
@@ -152,6 +192,7 @@ public class PlayerLook : MonoBehaviour
         }
 
         cam.transform.SetPositionAndRotation(pivot + backward * currentDistance, rotation);
+        UpdateNearClipPlane();
         previousFollowPosition = pivot;
         hasCameraPose = true;
     }
@@ -188,7 +229,7 @@ public class PlayerLook : MonoBehaviour
 
         // Obstacles are allowed to override Min Distance. Keeping the old six-unit
         // minimum in Canyon Crossing forced the camera through any closer wall.
-        float emergencyMinimum = Mathf.Max(0.03f, cam.nearClipPlane * 0.2f);
+        float emergencyMinimum = Mathf.Max(0.03f, normalNearClipPlane * 0.2f);
         return Mathf.Clamp(nearestDistance - collisionPadding, emergencyMinimum, desiredDistance);
     }
 
@@ -227,7 +268,9 @@ public class PlayerLook : MonoBehaviour
         float radius = Mathf.Max(0.05f, collisionRadius);
         if (!protectNearClipPlane || cam == null) return radius;
 
-        float near = Mathf.Max(0.01f, cam.nearClipPlane);
+        // Use the authored plane for probing. Feeding the reduced close-up
+        // plane back into collision detection makes the camera oscillate.
+        float near = Mathf.Max(0.01f, adjustedCamera == cam ? normalNearClipPlane : cam.nearClipPlane);
         if (cam.orthographic)
         {
             float halfHeight = cam.orthographicSize;

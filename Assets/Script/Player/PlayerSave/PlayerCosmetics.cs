@@ -146,6 +146,13 @@ public static class CosmeticBindingUtility
         Renderer[] renderers = model.GetComponentsInChildren<Renderer>(true);
         foreach (Renderer renderer in renderers)
         {
+            // Wardrobe pieces use separate skinned meshes, including skins
+            // generated after import. Their saved bounds do not necessarily
+            // cover the animated pose. Recalculate them so a close camera
+            // cannot cull a visible shirt/hat while the body remains visible.
+            if (renderer is SkinnedMeshRenderer skinned)
+                skinned.updateWhenOffscreen = true;
+
             Material[] materials = renderer.sharedMaterials;
             for (int index = 0; index < materials.Length; index++)
             {
