@@ -19,6 +19,11 @@ function ccDashboardText(value, name, maximumLength) {
     return value;
 }
 
+function ccDashboardOptionalText(value, name, maximumLength) {
+    if (value === undefined || value === null) return "";
+    return ccDashboardText(value, name, maximumLength);
+}
+
 function ccDashboardJson(value, name, expectedArray) {
     ccDashboardText(value, name, ccDashboardMaxJsonLength);
     var parsed;
@@ -57,6 +62,21 @@ handlers.syncDashboardV1 = function (args, context) {
         args.challengesCompleted, "challengesCompleted", 0, 2147483647);
     var bestSingleBuildScore = ccDashboardInteger(
         args.bestSingleBuildScore, "bestSingleBuildScore", 0, 2147483647);
+    var hasPortraitProjection = args.characterPortraitFile !== undefined ||
+        args.characterPortraitUpdatedAt !== undefined ||
+        args.characterPortraitChecksum !== undefined;
+    var portraitFile = ccDashboardOptionalText(
+        args.characterPortraitFile, "characterPortraitFile", 100);
+    var portraitUpdatedAt = ccDashboardOptionalText(
+        args.characterPortraitUpdatedAt, "characterPortraitUpdatedAt", 64);
+    var portraitChecksum = ccDashboardOptionalText(
+        args.characterPortraitChecksum, "characterPortraitChecksum", 64);
+    if (portraitFile && portraitFile !== "characterPortrait.png")
+        throw new Error("Unsupported character portrait file.");
+    if (portraitChecksum && !/^[a-f0-9]{64}$/.test(portraitChecksum))
+        throw new Error("Invalid character portrait checksum.");
+    if (!portraitFile && (portraitUpdatedAt || portraitChecksum))
+        throw new Error("Character portrait metadata has no file.");
 
     var data = {
         CurrentLevel: currentLevel.toString(),
@@ -75,6 +95,13 @@ handlers.syncDashboardV1 = function (args, context) {
         AlmanacProgress: ccDashboardJson(args.almanacProgress, "almanacProgress", false),
         CharacterSyncedAt: new Date().toISOString()
     };
+    // Older installed clients do not send portrait fields. In that case leave
+    // any portrait uploaded by a newer build untouched.
+    if (hasPortraitProjection) {
+        data.CharacterPortraitFile = portraitFile;
+        data.CharacterPortraitUpdatedAt = portraitUpdatedAt;
+        data.CharacterPortraitChecksum = portraitChecksum;
+    }
 
     server.UpdateUserData({
         PlayFabId: currentPlayerId,

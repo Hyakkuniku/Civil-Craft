@@ -6,6 +6,10 @@ through the existing `LeaderboardPanelUI`, while the dashboard handler writes
 the private website projection and summary statistics. Client statistic writes
 remain disabled.
 
+Saving a wardrobe look also renders a transparent 512×512 character portrait
+and atomically replaces the private Entity File `characterPortrait.png`. See
+`CHARACTER_PORTRAIT_WEBSITE.md` for the authenticated website download flow.
+
 On September 30, 2026, the Civil Craft **Development** title (17FA03) had
 legacy CloudScript revision 3 live. `mergedCloudScript.dev.js` preserves its
 existing sample/Photon handlers and adds the leaderboard handler. All 18
@@ -16,6 +20,15 @@ Revision 4 was uploaded and deployed after a non-scoring validation test:
 On October 1, 2026, revision 5 was uploaded and deployed with
 `syncDashboardV1`; the uploaded revision was checked for both the dashboard and
 existing leaderboard handlers before deployment.
+Later on October 1, 2026, revision 6 was uploaded and deployed with the
+character-portrait metadata fields. The uploaded revision was checked for
+`submitBridgeRunV1`, `syncDashboardV1`, and `CharacterPortraitFile` before it
+was made live.
+Revision 7 immediately superseded it with backward-compatible optional portrait
+fields, so installed builds that predate portrait upload can still call
+`syncDashboardV1`. Revision 8 then made missing portrait fields preserve any
+metadata already published by a newer build. Revision 8 is the current live
+revision.
 The Unity submit flag is enabled in Canyon Crossing and Bhan House, and
 explicitly disabled in Multiplayer. A signed-in SilasContract completion
 reached `submitBridgeRunV1`; both of its live boards show two player entries,

@@ -66,6 +66,7 @@ public sealed class CloudSaveManager : MonoBehaviour
     private StartMode startMode;
     private bool strictStartup;
     private bool suspendSyncForConflict;
+    private bool auxiliaryFileOperationInProgress;
 
     public bool IsSyncing => inFlight;
     public bool HasConflict => showingConflict;
@@ -92,6 +93,7 @@ public sealed class CloudSaveManager : MonoBehaviour
         inFlight = false;
         retryRequired = false;
         suspendSyncForConflict = false;
+        auxiliaryFileOperationInProgress = false;
         strictStartup = false;
         showingConflict = false;
         conflictBackedUp = false;
@@ -190,7 +192,8 @@ public sealed class CloudSaveManager : MonoBehaviour
 
     private void Update()
     {
-        if (!IsAccountActive || inFlight || showingConflict || suspendSyncForConflict ||
+        if (!IsAccountActive || inFlight || auxiliaryFileOperationInProgress ||
+            showingConflict || suspendSyncForConflict ||
             Time.realtimeSinceStartup < nextSyncTime ||
             !PlayFabClientAPI.IsClientLoggedIn()) return;
 
@@ -202,7 +205,8 @@ public sealed class CloudSaveManager : MonoBehaviour
 
     private void OnApplicationPause(bool paused)
     {
-        if (paused && IsAccountActive && !inFlight && !showingConflict && !suspendSyncForConflict &&
+        if (paused && IsAccountActive && !inFlight && !auxiliaryFileOperationInProgress &&
+            !showingConflict && !suspendSyncForConflict &&
             PlayFabClientAPI.IsClientLoggedIn())
         {
             if (Hash(saveManager.GetCurrentDataJson()) != lastSyncedHash)
@@ -212,7 +216,7 @@ public sealed class CloudSaveManager : MonoBehaviour
 
     private void SyncNow()
     {
-        if (inFlight || showingConflict || entity == null) return;
+        if (inFlight || auxiliaryFileOperationInProgress || showingConflict || entity == null) return;
         inFlight = true;
         int requestGeneration = generation;
         PlayFabDataAPI.GetFiles(new GetFilesRequest { Entity = entity },
@@ -253,6 +257,29 @@ public sealed class CloudSaveManager : MonoBehaviour
             {
                 if (requestGeneration == generation) Fail("Cloud lookup failed: " + error.ErrorMessage);
             });
+    }
+
+    /// <summary>
+    /// Reserves the entity-file upload slot for a secondary file such as the
+    /// wardrobe portrait. PlayFab permits only one pending file transaction on
+    /// an entity, so this prevents the encrypted save and portrait from racing.
+    /// </summary>
+    public bool TryBeginAuxiliaryFileOperation(out EntityKey entityKey)
+    {
+        entityKey = null;
+        if (!IsAccountActive || entity == null || inFlight || auxiliaryFileOperationInProgress ||
+            showingConflict || suspendSyncForConflict || !PlayFabClientAPI.IsClientLoggedIn())
+            return false;
+
+        auxiliaryFileOperationInProgress = true;
+        entityKey = new EntityKey { Id = entity.Id, Type = entity.Type };
+        return true;
+    }
+
+    public void EndAuxiliaryFileOperation()
+    {
+        auxiliaryFileOperationInProgress = false;
+        nextSyncTime = Mathf.Min(nextSyncTime, Time.realtimeSinceStartup + 0.25f);
     }
 
     private void ReceiveCloud(byte[] bytes, int profileVersion, int requestGeneration)

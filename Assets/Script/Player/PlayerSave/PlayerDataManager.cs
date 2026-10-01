@@ -43,6 +43,8 @@ public class PlayerDataManager : MonoBehaviour
     public Action OnCurrencyChanged; 
     /// <summary>Raised only after the local JSON has been committed successfully.</summary>
     public event Action OnSaveCommitted;
+    /// <summary>Raised after the player explicitly saves a wardrobe look.</summary>
+    public event Action OnCosmeticLookSaved;
     /// <summary>Raised after a shop purchase has been saved successfully.</summary>
     public Action<string> OnShopItemPurchased;
     public Action OnItemOwnershipChanged;
@@ -94,6 +96,8 @@ public class PlayerDataManager : MonoBehaviour
             gameObject.AddComponent<CloudSaveManager>();
         if (GetComponent<DashboardSyncService>() == null)
             gameObject.AddComponent<DashboardSyncService>();
+        if (GetComponent<CharacterPortraitUploadService>() == null)
+            gameObject.AddComponent<CharacterPortraitUploadService>();
         RegisterContracts(Resources.FindObjectsOfTypeAll<ContractSO>());
         MigrateLegacyContractLocks();
         MigrateCompletedContractFeatureUnlocks();
@@ -1459,7 +1463,21 @@ public class PlayerDataManager : MonoBehaviour
 
         if (PlayerCosmetics.Instance != null)
             PlayerCosmetics.Instance.RefreshCosmetics();
+        OnCosmeticLookSaved?.Invoke();
         return true;
+    }
+
+    public bool RecordCharacterPortraitUpload(
+        string fileName, string updatedAtUtc, string checksum)
+    {
+        if (CurrentData == null || string.IsNullOrWhiteSpace(fileName) ||
+            string.IsNullOrWhiteSpace(updatedAtUtc) || string.IsNullOrWhiteSpace(checksum))
+            return false;
+
+        CurrentData.characterPortraitFileName = fileName.Trim();
+        CurrentData.characterPortraitUpdatedAtUtc = updatedAtUtc.Trim();
+        CurrentData.characterPortraitChecksum = checksum.Trim();
+        return TrySaveGame();
     }
 
     private void EnsureCosmeticLoadout()

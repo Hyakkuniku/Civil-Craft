@@ -100,6 +100,9 @@ public sealed class DashboardSyncService : MonoBehaviour
         public string achievementProgress;
         public string equippedCosmetics;
         public string almanacProgress;
+        public string characterPortraitFile;
+        public string characterPortraitUpdatedAt;
+        public string characterPortraitChecksum;
         public int totalScore;
         public int bridgesCompleted;
         public int challengesCompleted;
@@ -181,6 +184,9 @@ public sealed class DashboardSyncService : MonoBehaviour
             { "achievementProgress", payload.achievementProgress },
             { "equippedCosmetics", payload.equippedCosmetics },
             { "almanacProgress", payload.almanacProgress },
+            { "characterPortraitFile", payload.characterPortraitFile },
+            { "characterPortraitUpdatedAt", payload.characterPortraitUpdatedAt },
+            { "characterPortraitChecksum", payload.characterPortraitChecksum },
             { "totalScore", payload.totalScore },
             { "bridgesCompleted", payload.bridgesCompleted },
             { "challengesCompleted", payload.challengesCompleted },
@@ -283,6 +289,9 @@ public sealed class DashboardSyncService : MonoBehaviour
             achievementProgress = achievementProgress,
             equippedCosmetics = BuildCosmeticsJson(data.cosmeticLoadout),
             almanacProgress = JsonUtility.ToJson(almanac),
+            characterPortraitFile = data.characterPortraitFileName ?? string.Empty,
+            characterPortraitUpdatedAt = data.characterPortraitUpdatedAtUtc ?? string.Empty,
+            characterPortraitChecksum = data.characterPortraitChecksum ?? string.Empty,
             totalScore = totalScore,
             bridgesCompleted = Mathf.Max(0, data.lifetimeBridgesBuilt),
             challengesCompleted = Mathf.Max(0, data.lifetimeContractsCompleted),
@@ -660,7 +669,9 @@ public sealed class DashboardSyncService : MonoBehaviour
             payload.xp.ToString(), payload.xpToNextLevel.ToString(), payload.currentRegion,
             payload.achievementsUnlocked.ToString(), payload.achievementsTotal.ToString(),
             payload.mapProgress, payload.achievementProgress, payload.equippedCosmetics,
-            payload.almanacProgress, payload.totalScore.ToString(),
+            payload.almanacProgress, payload.characterPortraitFile,
+            payload.characterPortraitUpdatedAt, payload.characterPortraitChecksum,
+            payload.totalScore.ToString(),
             payload.bridgesCompleted.ToString(), payload.challengesCompleted.ToString(),
             payload.bestSingleBuildScore.ToString()
         });

@@ -182,6 +182,12 @@ public class PlayerData
     // Full wardrobe state. Older saves are migrated from equippedHatID.
     public CosmeticLoadoutData cosmeticLoadout = new CosmeticLoadoutData();
     public int cosmeticLoadoutVersion = 0;
+    // The rendered wardrobe portrait lives in the signed-in player's private
+    // PlayFab Entity Files. The website exchanges its entity token for a fresh
+    // temporary download URL instead of persisting an expiring URL here.
+    public string characterPortraitFileName = "";
+    public string characterPortraitUpdatedAtUtc = "";
+    public string characterPortraitChecksum = "";
 
     // --- NEW: UI Unlock Trackers ---
     public bool hasUnlockedContractsTab = false;
