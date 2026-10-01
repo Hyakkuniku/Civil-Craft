@@ -479,11 +479,10 @@ internal static class GameplayMobileUILayout
             scaler.matchWidthOrHeight = 0.5f;
         }
 
-        // Shop placement is authored in the scene. AccessButtons may be expanded
-        // from a centered container below, so preserve the rendered position too,
-        // not just anchoredPosition (whose origin changes with that container).
+        // Keep all three access buttons in one safe-area-aware vertical stack.
+        // The shop used to keep its authored position, leaving it beside the
+        // Almanac on wide screens and detached from the mobile HUD column.
         RectTransform shopRect = FindNamedRect("Shop_btn", "ShopButton", "Shop Button");
-        Vector3 authoredShopPosition = shopRect != null ? shopRect.position : Vector3.zero;
 
         foreach (PauseManager manager in pauseManagers)
         {
@@ -500,8 +499,7 @@ internal static class GameplayMobileUILayout
         foreach (ObjectiveTrackerUI tracker in Object.FindObjectsOfType<ObjectiveTrackerUI>(true))
             PlaceTopLeft(tracker != null ? GetRect(tracker.openTrackerButton) : null, 1);
 
-        if (shopRect != null)
-            shopRect.position = authoredShopPosition;
+        PlaceTopLeft(shopRect, 2);
 
         foreach (DialogueManager manager in dialogueManagers)
         {
