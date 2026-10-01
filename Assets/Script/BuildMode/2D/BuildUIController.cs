@@ -120,6 +120,8 @@ public class BuildUIController : MonoBehaviour
 
     [Header("Engineering Stats (CAD Readout)")]
     public GameObject statsPanel; 
+    [SerializeField, Min(0.05f)] private float statsOpenDuration = 0.22f;
+    [SerializeField, Min(0.05f)] private float statsCloseDuration = 0.16f;
     public TextMeshProUGUI totalLengthText; 
     public TextMeshProUGUI membersCountText;  
     public TextMeshProUGUI deadLoadText;  
@@ -127,6 +129,13 @@ public class BuildUIController : MonoBehaviour
     public TextMeshProUGUI estimatedCapacityText;
     public TextMeshProUGUI efficiencyRatioText;
     public TextMeshProUGUI factorOfSafetyText; 
+    private RectTransform statsPanelRect;
+    private CanvasGroup statsPanelCanvasGroup;
+    private Vector2 statsPanelRestPosition;
+    private Vector3 statsPanelRestScale;
+    private Coroutine statsPanelAnimation;
+    private float statsPanelProgress;
+    private bool statsPanelVisible;
 
     [Header("Selection UI")]
     public GameObject selectionActionPanel; 
@@ -243,6 +252,7 @@ public class BuildUIController : MonoBehaviour
         UIReservedRegionLayout.LayoutChanging -= HideActionLogTemporarily;
         UnregisterActionLogProtectedRegions();
         HideActionLogTemporarily();
+        ResetStatsPanel();
     }
 
     private void Start()
@@ -258,7 +268,7 @@ public class BuildUIController : MonoBehaviour
         }
         
         if (selectionActionPanel != null) selectionActionPanel.SetActive(false);
-        if (statsPanel != null) statsPanel.SetActive(false); 
+        InitializeStatsPanel();
         if (liveBeamStatsPanel != null) liveBeamStatsPanel.SetActive(false);
         if (timerPanel != null) timerPanel.SetActive(false); 
         if (unlockMaterialPanel != null) unlockMaterialPanel.SetActive(false); 
@@ -510,7 +520,7 @@ public class BuildUIController : MonoBehaviour
 
             if (barCreator != null && barCreator.IsCreating)
             {
-                if (statsPanel != null && statsPanel.activeInHierarchy)
+                if (statsPanelVisible && statsPanel != null && statsPanel.activeInHierarchy)
                     UpdateStatsUI();
                 UpdateContractUI();
             }
@@ -733,7 +743,7 @@ public class BuildUIController : MonoBehaviour
 
         if (infoToolImage != null)
         {
-            infoToolImage.color = (statsPanel != null && statsPanel.activeSelf) ? activeToolColor : inactiveToolColor;
+            infoToolImage.color = statsPanelVisible ? activeToolColor : inactiveToolColor;
         }
     }
 
@@ -1067,7 +1077,7 @@ public class BuildUIController : MonoBehaviour
         // Moving a node changes cost immediately, but the capacity readout is
         // informational. Its repeated stress solves are deferred until release.
         bool draggingNodes = barCreator != null && barCreator.IsMoving && barCreator.isDraggingSelection;
-        bool showEngineeringStats = statsPanel != null && statsPanel.activeInHierarchy;
+        bool showEngineeringStats = statsPanelVisible && statsPanel != null && statsPanel.activeInHierarchy;
         RecalculateStaticBridge(showEngineeringStats && !draggingNodes, draggingNodes);
         if (showEngineeringStats) UpdateStatsUI();
         UpdateContractUI();
@@ -1537,8 +1547,89 @@ public class BuildUIController : MonoBehaviour
     {
         PlayBuildButtonClickSfx();
         if (!IsToolAllowed()) return;
-        if (statsPanel != null) statsPanel.SetActive(!statsPanel.activeSelf);
+        SetStatsPanelVisible(!statsPanelVisible);
         MarkBridgeDirty();
+    }
+
+    // Called only after BarCreator accepts an actual bridge-placement start.
+    public void OnBridgePlacementStarted()
+    {
+        if (statsPanelVisible) SetStatsPanelVisible(false);
+    }
+
+    private void InitializeStatsPanel()
+    {
+        if (statsPanel == null) return;
+        statsPanelRect = statsPanel.GetComponent<RectTransform>();
+        statsPanelCanvasGroup = statsPanel.GetComponent<CanvasGroup>();
+        if (statsPanelRect != null)
+        {
+            statsPanelRestPosition = statsPanelRect.anchoredPosition;
+            statsPanelRestScale = statsPanelRect.localScale;
+        }
+        statsPanelVisible = false;
+        statsPanelProgress = 0f;
+        statsPanel.SetActive(false);
+        ApplyStatsPanelVisual(0f);
+    }
+
+    private void ResetStatsPanel()
+    {
+        if (statsPanelAnimation != null)
+        {
+            StopCoroutine(statsPanelAnimation);
+            statsPanelAnimation = null;
+        }
+        statsPanelVisible = false;
+        statsPanelProgress = 0f;
+        if (statsPanelRect != null)
+        {
+            statsPanelRect.anchoredPosition = statsPanelRestPosition;
+            statsPanelRect.localScale = statsPanelRestScale;
+        }
+        if (statsPanelCanvasGroup != null) statsPanelCanvasGroup.alpha = 1f;
+        if (statsPanel != null) statsPanel.SetActive(false);
+    }
+
+    private void SetStatsPanelVisible(bool visible)
+    {
+        if (statsPanel == null || statsPanelVisible == visible) return;
+        statsPanelVisible = visible;
+        if (statsPanelAnimation != null) StopCoroutine(statsPanelAnimation);
+        if (visible) statsPanel.SetActive(true);
+        if (statsPanelCanvasGroup != null)
+            statsPanelCanvasGroup.blocksRaycasts = false; // Readout only; never block building.
+        statsPanelAnimation = StartCoroutine(AnimateStatsPanel(visible));
+    }
+
+    private IEnumerator AnimateStatsPanel(bool visible)
+    {
+        float start = statsPanelProgress;
+        float target = visible ? 1f : 0f;
+        float duration = visible ? statsOpenDuration : statsCloseDuration;
+        float elapsed = 0f;
+        while (elapsed < duration)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            statsPanelProgress = Mathf.Lerp(start, target, Mathf.Clamp01(elapsed / duration));
+            ApplyStatsPanelVisual(statsPanelProgress);
+            yield return null;
+        }
+        statsPanelProgress = target;
+        ApplyStatsPanelVisual(target);
+        if (!visible && statsPanel != null) statsPanel.SetActive(false);
+        statsPanelAnimation = null;
+    }
+
+    private void ApplyStatsPanelVisual(float progress)
+    {
+        float eased = progress * progress * (3f - 2f * progress);
+        if (statsPanelRect != null)
+        {
+            statsPanelRect.anchoredPosition = statsPanelRestPosition + Vector2.right * (22f * (1f - eased));
+            statsPanelRect.localScale = statsPanelRestScale * Mathf.Lerp(0.94f, 1f, eased);
+        }
+        if (statsPanelCanvasGroup != null) statsPanelCanvasGroup.alpha = eased;
     }
     public void OnCutSelectedButtonClicked()
     {

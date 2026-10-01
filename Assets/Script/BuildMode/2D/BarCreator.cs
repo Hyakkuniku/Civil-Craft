@@ -1831,6 +1831,8 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     private void StartBarCreation(Vector3 startPosition)
     {
         if (activeMaterial == null) return;
+        if (BuildUIController.Instance != null)
+            BuildUIController.Instance.OnBridgePlacementStarted();
         GameObject newBar = Instantiate(barToInstantiate, barParent);
         newBar.name = "Bar";
         currentBar = newBar.GetComponent<Bar>();
