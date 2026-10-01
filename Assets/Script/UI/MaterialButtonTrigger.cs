@@ -234,7 +234,7 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
     public void OnPointerDown(PointerEventData eventData)
     {
         if (MaterialTooltipManager.Instance != null && buttonMaterial != null && isMaterialAllowed)
-            MaterialTooltipManager.Instance.ShowTooltip(buttonMaterial);
+            MaterialTooltipManager.Instance.ShowTooltip(buttonMaterial, true);
     }
 
     public void OnPointerUp(PointerEventData eventData)

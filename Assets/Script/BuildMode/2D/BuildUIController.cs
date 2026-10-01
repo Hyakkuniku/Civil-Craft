@@ -199,6 +199,9 @@ public class BuildUIController : MonoBehaviour
     private int cachedBaseJ = 0;
     private float cachedBaseRoadLength = 0f;
     private float cachedEstimatedCapacityKg = 0f;
+    private Coroutine capacityEstimateCoroutine;
+    private bool capacityEstimatePending;
+    private bool lastCapacityEstimatePending;
 
     private HashSet<Bar> uniqueBars = new HashSet<Bar>();
     private HashSet<Point> activePoints = new HashSet<Point>();
@@ -249,6 +252,7 @@ public class BuildUIController : MonoBehaviour
 
     private void OnDisable()
     {
+        CancelCapacityEstimate();
         UIReservedRegionLayout.LayoutChanging -= HideActionLogTemporarily;
         UnregisterActionLogProtectedRegions();
         HideActionLogTemporarily();
@@ -1078,14 +1082,20 @@ public class BuildUIController : MonoBehaviour
         // informational. Its repeated stress solves are deferred until release.
         bool draggingNodes = barCreator != null && barCreator.IsMoving && barCreator.isDraggingSelection;
         bool showEngineeringStats = statsPanelVisible && statsPanel != null && statsPanel.activeInHierarchy;
-        RecalculateStaticBridge(showEngineeringStats && !draggingNodes, draggingNodes);
-        if (showEngineeringStats) UpdateStatsUI();
+        CancelCapacityEstimate();
+        RecalculateStaticBridge(draggingNodes);
+        if (showEngineeringStats)
+        {
+            if (draggingNodes) capacityEstimatePending = true;
+            else RequestCapacityEstimate();
+            UpdateStatsUI();
+        }
         UpdateContractUI();
 
         if (!draggingNodes) RefreshAllMaterialButtons();
     }
 
-    private void RecalculateStaticBridge(bool refreshCapacity, bool reuseTopology)
+    private void RecalculateStaticBridge(bool reuseTopology)
     {
         // A drag changes member lengths, not which bars or points exist. Reuse
         // the last topology so budget checks avoid a scene-wide object search.
@@ -1147,8 +1157,6 @@ public class BuildUIController : MonoBehaviour
             }
         }
 
-        if (refreshCapacity)
-            cachedEstimatedCapacityKg = EstimateBridgeCapacityKg();
     }
 
     private static float GetStructuralLength(Bar bar)
@@ -1163,10 +1171,40 @@ public class BuildUIController : MonoBehaviour
         return endpointLength > 0.001f ? endpointLength : Mathf.Max(0f, bar.currentLength);
     }
 
-    private float EstimateBridgeCapacityKg()
+    private void CancelCapacityEstimate()
     {
+        if (capacityEstimateCoroutine != null)
+        {
+            StopCoroutine(capacityEstimateCoroutine);
+            capacityEstimateCoroutine = null;
+        }
+        capacityEstimatePending = false;
+    }
+
+    private void RequestCapacityEstimate()
+    {
+        CancelCapacityEstimate();
+        capacityEstimatePending = true;
+        // Let the panel begin its entrance animation before the first solve.
+        capacityEstimateCoroutine = StartCoroutine(EstimateBridgeCapacityOverFrames());
+    }
+
+    private void FinishCapacityEstimate(float capacityKg)
+    {
+        cachedEstimatedCapacityKg = capacityKg;
+        capacityEstimatePending = false;
+        capacityEstimateCoroutine = null;
+        if (statsPanelVisible) UpdateStatsUI();
+    }
+
+    private IEnumerator EstimateBridgeCapacityOverFrames()
+    {
+        yield return null;
         if (uniqueBars.Count == 0 || activePoints.Count < 2 || cachedBaseRoadLength <= 0.001f)
-            return 0f;
+        {
+            FinishCapacityEstimate(0f);
+            yield break;
+        }
 
         List<Bar> bars = new List<Bar>(uniqueBars);
         List<Point> points = new List<Point>(activePoints);
@@ -1176,7 +1214,11 @@ public class BuildUIController : MonoBehaviour
             DeterministicBridgeStressSolver.Analyze(points, bars, 0f, false, samples);
         if (unloaded == null || !unloaded.IsValid || !unloaded.IsStructurallyStable ||
             unloaded.PeakStructuralStress >= 1f)
-            return 0f;
+        {
+            FinishCapacityEstimate(0f);
+            yield break;
+        }
+        yield return null;
 
         ContractSO contract = GameManager.Instance != null ? GameManager.Instance.CurrentContract : null;
         float high = Mathf.Max(100f, LiveLoadVehicle.GetContractTestWeight(contract) * 2f);
@@ -1188,7 +1230,11 @@ public class BuildUIController : MonoBehaviour
         {
             DeterministicBridgeStressSolver.Result result =
                 DeterministicBridgeStressSolver.Analyze(points, bars, high, false, samples);
-            if (result == null || !result.IsValid || !result.IsStructurallyStable) return 0f;
+            if (result == null || !result.IsValid || !result.IsStructurallyStable)
+            {
+                FinishCapacityEstimate(0f);
+                yield break;
+            }
             if (result.PeakStructuralStress >= 1f)
             {
                 foundFailure = true;
@@ -1197,22 +1243,34 @@ public class BuildUIController : MonoBehaviour
 
             low = high;
             high *= 2f;
+            yield return null;
         }
 
-        if (!foundFailure) return high;
+        if (!foundFailure)
+        {
+            FinishCapacityEstimate(high);
+            yield break;
+        }
+
+        yield return null;
 
         for (int i = 0; i < 10; i++)
         {
             float candidate = (low + high) * 0.5f;
             DeterministicBridgeStressSolver.Result result =
                 DeterministicBridgeStressSolver.Analyze(points, bars, candidate, false, samples);
-            if (result == null || !result.IsValid || !result.IsStructurallyStable) return 0f;
+            if (result == null || !result.IsValid || !result.IsStructurallyStable)
+            {
+                FinishCapacityEstimate(0f);
+                yield break;
+            }
 
             if (result.PeakStructuralStress >= 1f) high = candidate;
             else low = candidate;
+            yield return null;
         }
 
-        return low;
+        FinishCapacityEstimate(low);
     }
 
     private void UpdateStatsUI()
@@ -1247,27 +1305,32 @@ public class BuildUIController : MonoBehaviour
                             Mathf.Abs(lastLiveLoad - liveLoad) > 0.05f ||
                             Mathf.Abs(lastEstimatedCapacity - theoreticalCapacityKg) > 0.05f ||
                             Mathf.Abs(lastEfficiencyRatio - efficiencyRatio) > 0.005f ||
-                            Mathf.Abs(lastEstimatedFoS - estimatedFoS) > 0.005f;
+                            Mathf.Abs(lastEstimatedFoS - estimatedFoS) > 0.005f ||
+                            lastCapacityEstimatePending != capacityEstimatePending;
         if (statsChanged)
         {
+            lastCapacityEstimatePending = capacityEstimatePending;
             lastRoadLength = roadLength;
             lastDeadLoad = deadLoad;
             lastLiveLoad = liveLoad;
             lastEstimatedCapacity = theoreticalCapacityKg;
             lastEfficiencyRatio = efficiencyRatio;
             lastEstimatedFoS = estimatedFoS;
-            if (totalLengthText != null) totalLengthText.text = $"Road Length: {roadLength:F1}m";
-            if (deadLoadText != null) deadLoadText.text = $"Dead Load: {deadLoad:F1}kg";
+            if (totalLengthText != null) totalLengthText.text = $"<color=#F2BF72>ROAD LENGTH</color>  <b>{roadLength:F1} m</b>";
+            if (deadLoadText != null) deadLoadText.text = $"<color=#F2BF72>DEAD LOAD</color>  <b>{deadLoad:F1} kg</b>";
             
-            if (targetCargoWeightText != null) targetCargoWeightText.text = $"Live Load: {liveLoad:F0}kg";
-            if (estimatedCapacityText != null) estimatedCapacityText.text = $"Est. Capacity: ~{theoreticalCapacityKg:F0}kg";
-            if (efficiencyRatioText != null) efficiencyRatioText.text = $"Efficiency Ratio: {efficiencyRatio:F2}";
+            if (targetCargoWeightText != null) targetCargoWeightText.text = $"<color=#F2BF72>LIVE LOAD</color>  <b>{liveLoad:F0} kg</b>";
+            if (estimatedCapacityText != null) estimatedCapacityText.text = capacityEstimatePending
+                ? "<color=#F2BF72>EST. CAPACITY</color>  Calculating..." : $"<color=#F2BF72>EST. CAPACITY</color>  <b>~{theoreticalCapacityKg:F0} kg</b>";
+            if (efficiencyRatioText != null) efficiencyRatioText.text = capacityEstimatePending
+                ? "<color=#F2BF72>EFFICIENCY RATIO</color>  Calculating..." : $"<color=#F2BF72>EFFICIENCY RATIO</color>  <b>{efficiencyRatio:F2}</b>";
             
             if (factorOfSafetyText != null)
             {
-                if (estimatedFoS >= 2.0f) factorOfSafetyText.text = $"Est. FoS: <color=green>{estimatedFoS:F2} (Safe)</color>";
-                else if (estimatedFoS >= 1.0f) factorOfSafetyText.text = $"Est. FoS: <color=yellow>{estimatedFoS:F2} (Risky)</color>";
-                else factorOfSafetyText.text = $"Est. FoS: <color=red>{estimatedFoS:F2} (Will Fail)</color>";
+                if (capacityEstimatePending) factorOfSafetyText.text = "<color=#F2BF72>SAFETY</color>  Calculating...";
+                else if (estimatedFoS >= 2.0f) factorOfSafetyText.text = $"<color=#F2BF72>SAFETY</color>  <color=#83DBA6><b>{estimatedFoS:F2} · Safe</b></color>";
+                else if (estimatedFoS >= 1.0f) factorOfSafetyText.text = $"<color=#F2BF72>SAFETY</color>  <color=#FFE088><b>{estimatedFoS:F2} · Risky</b></color>";
+                else factorOfSafetyText.text = $"<color=#F2BF72>SAFETY</color>  <color=#FF9284><b>{estimatedFoS:F2} · Will Fail</b></color>";
             }
         }
 
@@ -1275,7 +1338,7 @@ public class BuildUIController : MonoBehaviour
         {
             lastDisplayM = displayM;
             lastDisplayJ = displayJ;
-            if (membersCountText != null) membersCountText.text = $"Members (M): {displayM} | Joints (J): {displayJ}";
+            if (membersCountText != null) membersCountText.text = $"<color=#F2BF72>STRUCTURE</color>  <b>{displayM} members  |  {displayJ} joints</b>";
         }
     }
 
@@ -1548,7 +1611,6 @@ public class BuildUIController : MonoBehaviour
         PlayBuildButtonClickSfx();
         if (!IsToolAllowed()) return;
         SetStatsPanelVisible(!statsPanelVisible);
-        MarkBridgeDirty();
     }
 
     // Called only after BarCreator accepts an actual bridge-placement start.
@@ -1562,6 +1624,7 @@ public class BuildUIController : MonoBehaviour
         if (statsPanel == null) return;
         statsPanelRect = statsPanel.GetComponent<RectTransform>();
         statsPanelCanvasGroup = statsPanel.GetComponent<CanvasGroup>();
+        StyleStatsPanel();
         if (statsPanelRect != null)
         {
             statsPanelRestPosition = statsPanelRect.anchoredPosition;
@@ -1571,6 +1634,66 @@ public class BuildUIController : MonoBehaviour
         statsPanelProgress = 0f;
         statsPanel.SetActive(false);
         ApplyStatsPanelVisual(0f);
+    }
+
+    private void StyleStatsPanel()
+    {
+        if (statsPanelRect == null) return;
+
+        bool showSafetyRow = factorOfSafetyText != null;
+        statsPanelRect.sizeDelta = new Vector2(471f, showSafetyRow ? 370f : 330f);
+        Image background = statsPanel.GetComponent<Image>();
+        if (background != null)
+        {
+            background.color = new Color(0.045f, 0.09f, 0.19f, 0.92f);
+            background.raycastTarget = false;
+        }
+
+        float rowOffset = showSafetyRow ? 20f : 0f;
+        StyleStatLine(targetCargoWeightText, 88f + rowOffset);
+        StyleStatLine(totalLengthText, 48f + rowOffset);
+        StyleStatLine(membersCountText, 8f + rowOffset);
+        StyleStatLine(deadLoadText, -32f + rowOffset);
+        StyleStatLine(estimatedCapacityText, -72f + rowOffset);
+        StyleStatLine(efficiencyRatioText, -112f + rowOffset);
+        StyleStatLine(factorOfSafetyText, -152f + rowOffset);
+
+        Transform existingHeading = statsPanel.transform.Find("BridgeStatsHeading");
+        if (existingHeading == null)
+        {
+            GameObject headingObject = new GameObject("BridgeStatsHeading", typeof(RectTransform));
+            headingObject.transform.SetParent(statsPanel.transform, false);
+            TextMeshProUGUI heading = headingObject.AddComponent<TextMeshProUGUI>();
+            if (totalLengthText != null) heading.font = totalLengthText.font;
+            heading.text = "BRIDGE STATS";
+            heading.fontSize = 27f;
+            heading.fontStyle = FontStyles.Bold;
+            heading.color = new Color(1f, 0.77f, 0.42f, 1f);
+            heading.alignment = TextAlignmentOptions.Center;
+            heading.enableWordWrapping = false;
+            heading.raycastTarget = false;
+            RectTransform headingRect = heading.rectTransform;
+            headingRect.anchorMin = headingRect.anchorMax = new Vector2(0.5f, 0.5f);
+            headingRect.anchoredPosition = new Vector2(0f, showSafetyRow ? 157f : 137f);
+            headingRect.sizeDelta = new Vector2(420f, 36f);
+        }
+    }
+
+    private static void StyleStatLine(TextMeshProUGUI label, float y)
+    {
+        if (label == null) return;
+        RectTransform rect = label.rectTransform;
+        rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = new Vector2(0f, y);
+        rect.sizeDelta = new Vector2(420f, 36f);
+        label.fontSize = 22f;
+        label.enableAutoSizing = false;
+        label.enableWordWrapping = false;
+        label.overflowMode = TextOverflowModes.Ellipsis;
+        label.fontStyle = FontStyles.Normal;
+        label.color = new Color(0.98f, 0.95f, 0.88f, 1f);
+        label.alignment = TextAlignmentOptions.MidlineLeft;
+        label.raycastTarget = false;
     }
 
     private void ResetStatsPanel()
@@ -1597,6 +1720,12 @@ public class BuildUIController : MonoBehaviour
         statsPanelVisible = visible;
         if (statsPanelAnimation != null) StopCoroutine(statsPanelAnimation);
         if (visible) statsPanel.SetActive(true);
+        if (visible)
+        {
+            RequestCapacityEstimate();
+            UpdateStatsUI();
+        }
+        else CancelCapacityEstimate();
         if (statsPanelCanvasGroup != null)
             statsPanelCanvasGroup.blocksRaycasts = false; // Readout only; never block building.
         statsPanelAnimation = StartCoroutine(AnimateStatsPanel(visible));
