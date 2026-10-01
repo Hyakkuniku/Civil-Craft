@@ -34,6 +34,7 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
     
     private bool isMaterialAllowed = true;
     private bool hasReachedQuantityLimit = false;
+    private bool isMaterialHidden;
 
     private void Awake()
     {
@@ -71,8 +72,9 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
 
     public void EvaluateMaterialRestriction()
     {
-        isMaterialAllowed = true; 
+        isMaterialAllowed = buttonMaterial != null;
         hasReachedQuantityLimit = false;
+        isMaterialHidden = buttonMaterial == null;
         bool isTutorial = false; 
         bool isExplicitlyHidden = false;
 
@@ -87,7 +89,7 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
                 MaterialAllowance allowanceData = null;
                 foreach (var allowance in contract.allowedMaterials)
                 {
-                    if (allowance.material == buttonMaterial)
+                    if (allowance != null && allowance.material == buttonMaterial)
                     {
                         allowanceData = allowance;
                         break;
@@ -96,7 +98,7 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
 
                 bool isNaturallyAllowed = allowanceData != null;
                 bool isUnlockedByPurchase = false;
-                if (PlayerDataManager.Instance != null)
+                if (PlayerDataManager.Instance != null && buttonMaterial != null)
                 {
                     isUnlockedByPurchase = PlayerDataManager.Instance.IsMaterialUnlockedForContract(contract.ContractID, buttonMaterial.name);
                 }
@@ -121,7 +123,7 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
                     if (badgeContainer != null) badgeContainer.SetActive(true);
                     if (quantityText != null)
                     {
-                        int remainingPieces = allowanceData.maxPieces - currentCount;
+                        int remainingPieces = Mathf.Max(0, allowanceData.maxPieces - currentCount);
                         quantityText.text = remainingPieces.ToString(); 
                     }
                 }
@@ -135,8 +137,10 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
                 if (badgeContainer != null) badgeContainer.SetActive(false);
             }
         }
+        else if (badgeContainer != null) badgeContainer.SetActive(false);
 
-        if (isExplicitlyHidden || (isTutorial && !isMaterialAllowed))
+        isMaterialHidden |= isExplicitlyHidden || (isTutorial && !isMaterialAllowed);
+        if (isMaterialHidden)
         {
             if (BuildUIController.Instance != null && BuildUIController.Instance.barCreator != null &&
                 BuildUIController.Instance.barCreator.activeMaterial == buttonMaterial)
@@ -159,7 +163,9 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
             }
         }
 
-        if ((!isMaterialAllowed || hasReachedQuantityLimit) && isCurrentlySelected && BuildUIController.Instance != null)
+        if ((!isMaterialAllowed || hasReachedQuantityLimit) && BuildUIController.Instance != null &&
+            BuildUIController.Instance.barCreator != null &&
+            BuildUIController.Instance.barCreator.activeMaterial == buttonMaterial)
         {
             BuildUIController.Instance.barCreator.SetActiveMaterial(null);
         }
@@ -167,8 +173,10 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
 
     private void HandleMaterialChanged(BridgeMaterialSO newMaterial)
     {
-        bool isDeleting = BuildUIController.Instance != null && BuildUIController.Instance.barCreator.isDeleteMode;
-        bool shouldBeSelected = !isDeleting && (newMaterial == buttonMaterial) && isMaterialAllowed && !hasReachedQuantityLimit;
+        bool isDeleting = BuildUIController.Instance != null && BuildUIController.Instance.barCreator != null &&
+                          BuildUIController.Instance.barCreator.isDeleteMode;
+        bool shouldBeSelected = !isDeleting && !isMaterialHidden && buttonMaterial != null &&
+                                (newMaterial == buttonMaterial) && isMaterialAllowed && !hasReachedQuantityLimit;
 
         if (shouldBeSelected != isCurrentlySelected)
         {
@@ -193,7 +201,9 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
 
     public void OnPointerClick(PointerEventData eventData)
     {
-        // --- THE FIX: Removed the tutorial locking so players can click freely ---
+        // Contract/purchase/usage state may have changed since OnEnable.
+        EvaluateMaterialRestriction();
+        if (isMaterialHidden) return;
 
         if (!isMaterialAllowed)
         {

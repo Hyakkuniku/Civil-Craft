@@ -379,8 +379,7 @@ public class BuildUIController : MonoBehaviour
         
         BuildCameraController cam = FindObjectOfType<BuildCameraController>();
         if (cam != null) cam.ReturnToBuildView();
-        RefreshSimulationButtonLock();
-        RefreshMaterialPanelVisibility();
+        RefreshContractBuildUI();
     }
 
     private void HideExitBuildModeButtonDuringSimulation()
@@ -431,6 +430,7 @@ public class BuildUIController : MonoBehaviour
         materialButtons = FindObjectsOfType<MaterialButtonTrigger>(true);
         foreach (var b in materialButtons)
         {
+            if (b.gameObject.scene != gameObject.scene) continue;
             b.EvaluateMaterialRestriction();
         }
         RefreshMaterialPanelVisibility();
@@ -444,7 +444,7 @@ public class BuildUIController : MonoBehaviour
         {
             foreach (MaterialButtonTrigger button in materialButtons)
             {
-                if (button == null) continue;
+                if (button == null || button.gameObject.scene != gameObject.scene) continue;
                 ScrollRect scroll = button.GetComponentInParent<ScrollRect>(true);
                 if (scroll == null || scroll.name != "MaterialsScrollPanel") continue;
                 materialsPanel = scroll.gameObject;
@@ -618,13 +618,18 @@ public class BuildUIController : MonoBehaviour
         {
             for (int i = 0; i < button.onClick.GetPersistentEventCount(); i++)
             {
-                if (button.onClick.GetPersistentMethodName(i) == handlerName)
+                if (button.onClick.GetPersistentMethodName(i) == handlerName &&
+                    button.onClick.GetPersistentTarget(i) == this)
                 {
                     Transform layoutItem = button.transform;
                     RectTransform toolsPanel = EffectiveToolsPanel;
                     if (toolsPanel != null && layoutItem.IsChildOf(toolsPanel))
                     {
-                        while (layoutItem.parent != null && layoutItem.parent != toolsPanel)
+                        // The authored dock now has a shared Content row. Hide
+                        // only this button (or its single-button wrapper), never
+                        // that row: a later allowed tool would reveal every tool.
+                        while (layoutItem.parent != null && layoutItem.parent != toolsPanel &&
+                               layoutItem.parent.GetComponentsInChildren<Button>(true).Length == 1)
                             layoutItem = layoutItem.parent;
                     }
                     return layoutItem.gameObject;
@@ -1578,9 +1583,12 @@ public class BuildUIController : MonoBehaviour
         LogAction("Selection Cleared");
     }
 
-    // --- THE FIX: Removed tool locking here so players can use tools freely ---
-    private bool IsToolAllowed()
+    private bool IsToolAllowed(BuildModeTool tool)
     {
+        ContractSO contract = GameManager.Instance != null ? GameManager.Instance.CurrentContract : null;
+        if (contract != null && contract.IsToolHidden(tool) && !forcedVisibleTools.Contains(tool))
+            return false;
+
         GameObject clickedObject = UnityEngine.EventSystems.EventSystem.current?.currentSelectedGameObject;
         BuildTutorialDirector director = BuildTutorialDirector.Instance;
 
@@ -1602,17 +1610,17 @@ public class BuildUIController : MonoBehaviour
         return true;
     }
 
-    public void OnToggleSelectModeButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed()) return; if (barCreator != null) barCreator.ToggleSelectMode(); }
-    public void OnToggleMoveModeButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed() || IsTopologyEditBlockedDuringTracing()) return; if (barCreator != null) barCreator.ToggleMoveMode(); }
-    public void OnToggleDeleteModeButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed() || IsTopologyEditBlockedDuringTracing()) return; if (barCreator != null) barCreator.ToggleDeleteMode(); }
-    public void OnToggleGridButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed()) return; if (barCreator != null) barCreator.ToggleGrid(); }
-    public void OnCancelDrawingButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed()) return; if (barCreator != null) barCreator.CancelCreation(); }
-    public void OnExitBuildModeButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed()) return; if (GameManager.Instance != null) GameManager.Instance.ExitBuildMode(); }
-    public void OnResetCameraButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed()) return; BuildCameraController camCtrl = FindObjectOfType<BuildCameraController>(); if (camCtrl != null) camCtrl.ResetCameraRotation(); }
+    public void OnToggleSelectModeButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed(BuildModeTool.Select)) return; if (barCreator != null) barCreator.ToggleSelectMode(); }
+    public void OnToggleMoveModeButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed(BuildModeTool.Move) || IsTopologyEditBlockedDuringTracing()) return; if (barCreator != null) barCreator.ToggleMoveMode(); }
+    public void OnToggleDeleteModeButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed(BuildModeTool.Delete) || IsTopologyEditBlockedDuringTracing()) return; if (barCreator != null) barCreator.ToggleDeleteMode(); }
+    public void OnToggleGridButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed(BuildModeTool.Grid)) return; if (barCreator != null) barCreator.ToggleGrid(); }
+    public void OnCancelDrawingButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed(BuildModeTool.CancelDrawing)) return; if (barCreator != null) barCreator.CancelCreation(); }
+    public void OnExitBuildModeButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed(BuildModeTool.ExitBuildMode)) return; if (GameManager.Instance != null) GameManager.Instance.ExitBuildMode(); }
+    public void OnResetCameraButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed(BuildModeTool.ResetCamera)) return; BuildCameraController camCtrl = FindObjectOfType<BuildCameraController>(); if (camCtrl != null) camCtrl.ResetCameraRotation(); }
     public void OnToggleStatsButtonClicked()
     {
         PlayBuildButtonClickSfx();
-        if (!IsToolAllowed()) return;
+        if (!IsToolAllowed(BuildModeTool.Statistics)) return;
         SetStatsPanelVisible(!statsPanelVisible);
     }
 
@@ -1787,26 +1795,26 @@ public class BuildUIController : MonoBehaviour
             return;
         }
 
-        if (!IsToolAllowed() || IsTopologyEditBlockedDuringTracing()) return;
+        if (!IsToolAllowed(BuildModeTool.Cut) || IsTopologyEditBlockedDuringTracing()) return;
         if (ClipboardManager.Instance != null && barCreator != null)
             ClipboardManager.Instance.CutSelected(barCreator.GetSelectedPoints());
     }
-    public void OnCopyButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed()) return; if (ClipboardManager.Instance != null && barCreator != null) ClipboardManager.Instance.CopySelected(barCreator.GetSelectedPoints()); }
-    public void OnPasteButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed()) return; if (ClipboardManager.Instance != null) ClipboardManager.Instance.StampPaste(); }
+    public void OnCopyButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed(BuildModeTool.Copy)) return; if (ClipboardManager.Instance != null && barCreator != null) ClipboardManager.Instance.CopySelected(barCreator.GetSelectedPoints()); }
+    public void OnPasteButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed(BuildModeTool.Paste)) return; if (ClipboardManager.Instance != null) ClipboardManager.Instance.StampPaste(); }
     public void OnUndoButtonClicked()
     {
         PlayBuildButtonClickSfx();
         BuildTutorialDirector director = BuildTutorialDirector.Instance;
         if (director == null || !director.IsAwaitingInvalidBarUndo)
         {
-            if (!IsToolAllowed()) return;
+            if (!IsToolAllowed(BuildModeTool.Undo)) return;
         }
 
         if (CommandManager.Instance != null) CommandManager.Instance.Undo();
         if (director != null) director.NotifyUndoCompleted();
     }
-    public void OnRedoButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed()) return; if (CommandManager.Instance != null) CommandManager.Instance.Redo(); }
-    public void OnDeleteSelectedButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed() || IsTopologyEditBlockedDuringTracing()) return; if (barCreator != null) barCreator.DeleteSelected(); }
+    public void OnRedoButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed(BuildModeTool.Redo)) return; if (CommandManager.Instance != null) CommandManager.Instance.Redo(); }
+    public void OnDeleteSelectedButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed(BuildModeTool.DeleteSelected) || IsTopologyEditBlockedDuringTracing()) return; if (barCreator != null) barCreator.DeleteSelected(); }
 
     public void OnToggleSimulationButtonClicked() 
     { 
@@ -1819,7 +1827,7 @@ public class BuildUIController : MonoBehaviour
     { 
         if (barCreator != null && barCreator.IsAutoDrawing) return;
         PlayBuildButtonClickSfx();
-        if (!IsToolAllowed()) return;
+        if (!IsToolAllowed(BuildModeTool.Simulate)) return;
 
         BuildTutorialDirector director = BuildTutorialDirector.Instance;
         if (director != null && !director.CanStartSimulation)
@@ -2019,6 +2027,7 @@ public class BuildUIController : MonoBehaviour
 
     public void OnMaterialSelected(BridgeMaterialSO newMaterial) 
     { 
+        if (!CanSelectMaterial(newMaterial)) return;
         PlayBuildButtonClickSfx();
         if (BuildTutorialDirector.Instance != null && BuildTutorialDirector.Instance.IsAwaitingInvalidBarUndo)
         {
@@ -2036,6 +2045,27 @@ public class BuildUIController : MonoBehaviour
             if (BuildTutorialDirector.Instance != null)
                 BuildTutorialDirector.Instance.OnMaterialClicked(newMaterial);
         } 
+    }
+
+    // Validate at the action boundary as well as in the material button. A
+    // cached pointer state or callback from a previous contract must not allow
+    // a hidden/locked material, or one whose piece allowance is exhausted.
+    public bool CanSelectMaterial(BridgeMaterialSO material)
+    {
+        if (material == null) return false;
+        ContractSO contract = GameManager.Instance != null ? GameManager.Instance.CurrentContract : null;
+        if (contract == null) return true;
+        if (contract.IsMaterialHidden(material)) return false;
+        if (contract.allowedMaterials == null || contract.allowedMaterials.Count == 0) return true;
+
+        foreach (MaterialAllowance allowance in contract.allowedMaterials)
+        {
+            if (allowance == null || allowance.material != material) continue;
+            return allowance.maxPieces <= 0 || GetMaterialUsageCount(material) < allowance.maxPieces;
+        }
+
+        return PlayerDataManager.Instance != null &&
+               PlayerDataManager.Instance.IsMaterialUnlockedForContract(contract.ContractID, material.name);
     }
 
     public void PlayBuildButtonClickSfx()
