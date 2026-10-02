@@ -34,9 +34,10 @@ public sealed class FusionHostWorldBridgeSync : MonoBehaviour
     private GameObject guestRoot;
     private GameObject pointPrefab;
     private string challengeSiteName;
+    private bool challengeBridgesHidden;
     private readonly Dictionary<GameObject, bool> bridgeVisibilityBeforeChallenge = new Dictionary<GameObject, bool>();
 
-    public void SetChallengeSiteVisibility(string siteName)
+    public void SetChallengeSiteVisibility(string siteName, bool hideAllBridges = false)
     {
         if (siteName == null)
         {
@@ -45,13 +46,14 @@ public sealed class FusionHostWorldBridgeSync : MonoBehaviour
             bridgeVisibilityBeforeChallenge.Clear();
         }
         challengeSiteName = siteName;
+        challengeBridgesHidden = siteName != null && hideAllBridges;
         if (siteName == null) return;
         foreach (GuestLocation location in guestLocations.Values)
         {
             if (location.Visual == null) continue;
             GameObject root = location.Visual.Root;
             if (!bridgeVisibilityBeforeChallenge.ContainsKey(root)) bridgeVisibilityBeforeChallenge.Add(root, root.activeSelf);
-            root.SetActive(location.Snapshot.Name == siteName);
+            root.SetActive(!challengeBridgesHidden && location.Snapshot.Name == siteName);
         }
     }
 
@@ -146,9 +148,13 @@ public sealed class FusionHostWorldBridgeSync : MonoBehaviour
 
     private void CaptureHostWorld()
     {
+        // Challenge visibility is temporary. Do not publish hidden saved-world
+        // colliders or a private player's draft as changes to the completed world.
+        if (MultiplayerChallengeLobbyUI.IsChallengeActive ||
+            (GameManager.Instance != null && GameManager.Instance.IsSessionChallengeBuild)) return;
         foreach (BuildLocation location in FindObjectsOfType<BuildLocation>(true))
         {
-            if (location == null || location.gameObject.scene != SceneManager.GetActiveScene()) continue;
+            if (location == null || location.IsSessionChallengeLocation || location.gameObject.scene != SceneManager.GetActiveScene()) continue;
             if (!locationIds.TryGetValue(location, out int id))
             {
                 id = ++nextLocationId;
@@ -311,7 +317,7 @@ public sealed class FusionHostWorldBridgeSync : MonoBehaviour
             location.Visual?.Dispose();
             location.Visual = replacement;
             if (challengeSiteName != null) bridgeVisibilityBeforeChallenge[replacement.Root] = true;
-            replacement.Root.SetActive(challengeSiteName == null || location.Snapshot.Name == challengeSiteName);
+            replacement.Root.SetActive(!challengeBridgesHidden && (challengeSiteName == null || location.Snapshot.Name == challengeSiteName));
             pendingRender.Remove(id);
             geometryChanged = true;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD

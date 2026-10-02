@@ -79,6 +79,25 @@ public class CommandManager : MonoBehaviour
 
     private Stack<HistoryAction> undoStack = new Stack<HistoryAction>();
     private Stack<HistoryAction> redoStack = new Stack<HistoryAction>();
+    private Stack<HistoryAction> worldUndoStack, worldRedoStack;
+
+    public void BeginSessionHistory()
+    {
+        if (worldUndoStack != null) throw new System.InvalidOperationException("A session history is already active.");
+        worldUndoStack = undoStack;
+        worldRedoStack = redoStack;
+        undoStack = new Stack<HistoryAction>();
+        redoStack = new Stack<HistoryAction>();
+    }
+
+    public void EndSessionHistory()
+    {
+        if (worldUndoStack == null) return;
+        ClearHistory();
+        undoStack = worldUndoStack;
+        redoStack = worldRedoStack;
+        worldUndoStack = worldRedoStack = null;
+    }
 
     private void Awake() { Instance = this; }
 

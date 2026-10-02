@@ -96,6 +96,8 @@ public static class HostWorldBridgeSyncValidation
             ValidateWaveEmote(fixture.transform, report);
             ValidateChallengeLobby(fixture.transform, report);
             ValidateChallengeReadiness(report);
+            ValidateChallengeBuildPolicy(report);
+            ValidateChallengeWorkspace(fixture.transform, report);
             ValidateChallengeLanding(fixture.transform, report);
 
             HostWorldBridgeSnapshot captured = FusionHostWorldBridgeSync.CaptureLocation(site);
@@ -532,7 +534,8 @@ public static class HostWorldBridgeSyncValidation
                 throw new InvalidOperationException("Countdown advanced before deadline/both arrivals/both readiness, or restarted a finished challenge.");
             checks += 2;
         }
-        Require(checks == 3840, "3,840 readiness/phase assertions pass across both owners, outsiders, revisions, arrival and ready combinations.", report);
+        Require(checks == Enum.GetValues(typeof(MultiplayerChallengePhase)).Length * 640,
+            $"{checks:N0} readiness/phase assertions pass across both owners, outsiders, revisions, arrival and ready combinations.", report);
         var cycle = new MultiplayerChallengeState
         { Revision = 7, Guest = guest, Phase = MultiplayerChallengePhase.Lobby, HostArrived = true, GuestArrived = true };
         Require(MultiplayerChallengeRules.TrySetReady(ref cycle, guest, host, 7, true) &&
@@ -551,6 +554,151 @@ public static class HostWorldBridgeSyncValidation
             !cycle.Deadline.IsRunning && !MultiplayerChallengeRules.TryFinishCountdown(ref cycle, true) &&
             !MultiplayerChallengeRules.TrySetReady(ref cycle, guest, host, 7, false),
             "A fresh countdown finishes once; delayed Unready cannot reopen the completed lobby.", report);
+    }
+
+    private static void ValidateChallengeBuildPolicy(StringBuilder report)
+    {
+        PlayerRef host = PlayerRef.FromIndex(0), guest = PlayerRef.FromIndex(1), outsider = PlayerRef.FromIndex(2);
+        int checks = 0;
+        foreach (MultiplayerChallengePhase phase in Enum.GetValues(typeof(MultiplayerChallengePhase)))
+        foreach (PlayerRef player in new[] { host, guest, outsider })
+        foreach (int revision in new[] { 6, 7, 8 })
+        for (int arrived = 0; arrived < 4; arrived++)
+        for (int ready = 0; ready < 4; ready++)
+        for (int prepared = 0; prepared < 4; prepared++)
+        {
+            var state = new MultiplayerChallengeState
+            {
+                Revision = 7, Guest = guest, Phase = phase,
+                HostArrived = (arrived & 1) != 0, GuestArrived = (arrived & 2) != 0,
+                HostReady = (ready & 1) != 0, GuestReady = (ready & 2) != 0,
+                HostBuilding = (prepared & 1) != 0, GuestBuilding = (prepared & 2) != 0
+            };
+            bool allowed = phase == MultiplayerChallengePhase.ReadyToBuild && player != outsider &&
+                revision == 7 && arrived == 3 && ready == 3;
+            bool wasPrepared = player == host ? (prepared & 1) != 0 : (prepared & 2) != 0;
+            bool changed = allowed && !wasPrepared;
+            if (MultiplayerChallengeRules.CanPrepareBuild(state, player, host, revision) != allowed ||
+                MultiplayerChallengeRules.TryPrepareBuild(ref state, player, host, revision) != changed)
+                throw new InvalidOperationException("Build acknowledgement accepted a stale, unready or unauthorized participant.");
+            bool hostPrepared = changed && player == host || (prepared & 1) != 0;
+            bool guestPrepared = changed && player == guest || (prepared & 2) != 0;
+            if ((bool)state.HostBuilding != hostPrepared || (bool)state.GuestBuilding != guestPrepared ||
+                state.Phase != (changed && hostPrepared && guestPrepared ? MultiplayerChallengePhase.Building : phase))
+                throw new InvalidOperationException("Build started before both independent workspaces were acknowledged.");
+            checks += 2;
+        }
+        Require(checks == Enum.GetValues(typeof(MultiplayerChallengePhase)).Length * 1152,
+            $"{checks:N0} preparation/owner assertions pass; both build acknowledgements are required before editing.", report);
+    }
+
+    private static void ValidateChallengeWorkspace(Transform fixture, StringBuilder report)
+    {
+        ContractSO definition = ScriptableObject.CreateInstance<ContractSO>();
+        definition.name = "Workspace Validation Contract";
+        definition.contractID = "VALIDATION_REAL_WORLD";
+        definition.budget = 1234;
+        definition.isTutorialContract = definition.isTimeAttack = definition.autoCollectReward = true;
+        definition.hiddenTools.Add(BuildModeTool.ExitBuildMode);
+        BuildLocation source = Child("Workspace Source Site", fixture).AddComponent<BuildLocation>();
+        source.activeContract = definition;
+        Point start = Child("World Start", fixture).AddComponent<Point>();
+        Point end = Child("World End", fixture).AddComponent<Point>();
+        start.transform.position = new Vector3(20, 3, -8);
+        end.transform.position = new Vector3(35, 3, -8);
+        start.isAnchor = end.isAnchor = true;
+        start.AssignOwner(source); end.AssignOwner(source);
+        source.startingAnchors.Add(start); source.endingAnchors.Add(end);
+        Bar saved = Child("World Saved Bar", fixture).AddComponent<Bar>();
+        saved.enabled = false;
+        saved.startPoint = start; saved.endPoint = end; saved.AssignOwner(source);
+        start.ConnectedBars.Add(saved); end.ConnectedBars.Add(saved);
+        source.bakedBars.Add(saved); source.bakedPoints.Add(start); source.bakedPoints.Add(end);
+        Vector3 savedStart = start.transform.position, savedEnd = end.transform.position;
+        BarCreator creator = Child("Workspace Creator", fixture).AddComponent<BarCreator>();
+        creator.pointToInstantiate = Child("Workspace Node Prefab", fixture);
+        creator.pointToInstantiate.AddComponent<Point>();
+        creator.barToInstantiate = Child("Workspace Bar Prefab", fixture);
+        creator.barToInstantiate.AddComponent<Bar>();
+        Transform previousPoints = creator.pointParent = Child("World Nodes Parent", fixture).transform;
+        Transform previousBars = creator.barParent = Child("World Bars Parent", fixture).transform;
+        var commands = Child("Workspace Undo Manager", fixture).AddComponent<CommandManager>();
+        FieldInfo singleton = typeof(CommandManager).GetField("<Instance>k__BackingField", BindingFlags.Static | BindingFlags.NonPublic);
+        CommandManager previousCommands = CommandManager.Instance;
+        singleton.SetValue(null, commands);
+        FieldInfo undoField = typeof(CommandManager).GetField("undoStack", BindingFlags.Instance | BindingFlags.NonPublic);
+        FieldInfo redoField = typeof(CommandManager).GetField("redoStack", BindingFlags.Instance | BindingFlags.NonPublic);
+        object worldUndo = undoField.GetValue(commands), worldRedo = redoField.GetValue(commands);
+        var clipboard = creator.gameObject.AddComponent<ClipboardManager>();
+        typeof(ClipboardManager).GetField("barCreator", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(clipboard, creator);
+        FieldInfo clipboardSingleton = typeof(ClipboardManager).GetField("<Instance>k__BackingField", BindingFlags.Static | BindingFlags.NonPublic);
+        ClipboardManager previousClipboard = ClipboardManager.Instance;
+        clipboardSingleton.SetValue(null, clipboard);
+        FieldInfo copiedPointsField = typeof(ClipboardManager).GetField("copiedRelativePoints", BindingFlags.Instance | BindingFlags.NonPublic);
+        object worldClipboard = copiedPointsField.GetValue(clipboard);
+        ((List<Vector3>)worldClipboard).Add(Vector3.right * 5);
+        var remembered = new HistoryAction { isBuildEvent = true };
+        remembered.affectedObjects.Add(saved.gameObject);
+        ((Stack<HistoryAction>)worldRedo).Push(remembered);
+        ChallengeBuildWorkspace workspace = null;
+        try
+        {
+            workspace = ChallengeBuildWorkspace.Create(source, definition, creator, 7, 2);
+            Require(workspace.Location != source && workspace.Location.IsSessionChallengeLocation &&
+                workspace.Location.SessionChallengeRevision == 7 && workspace.Location.bakedBars.Count == 0 &&
+                workspace.Location.bakedPoints.Count == 0 && workspace.Root.GetComponentsInChildren<Bar>(true).Length == 0,
+                "Competition starts empty in a dedicated runtime location, not the world's baked lists.", report);
+            Point ownStart = workspace.Location.startingAnchors[0], ownEnd = workspace.Location.endingAnchors[0];
+            Require(ownStart != start && ownEnd != end && ownStart.transform.position == savedStart && ownEnd.transform.position == savedEnd &&
+                ownStart.OwnerLocation == workspace.Location && ownEnd.OwnerLocation == workspace.Location &&
+                ownStart.ConnectedBars.Count == 0 && ownEnd.ConnectedBars.Count == 0 &&
+                start.ConnectedBars.Contains(saved) && end.ConnectedBars.Contains(saved),
+                "Copied anchors match the challenge span but share no graph links or ownership with the saved bridge.", report);
+            Require(!saved.gameObject.activeSelf && !start.gameObject.activeSelf && !end.gameObject.activeSelf &&
+                creator.pointParent.IsChildOf(workspace.Root.transform) && creator.barParent.IsChildOf(workspace.Root.transform) && !creator.enabled,
+                "Saved geometry is hidden and builder parents are private; input is gated pending both acknowledgements." +
+                $" (bar={saved.gameObject.activeSelf}, start={start.gameObject.activeSelf}, end={end.gameObject.activeSelf}, " +
+                $"pointsPrivate={creator.pointParent.IsChildOf(workspace.Root.transform)}, barsPrivate={creator.barParent.IsChildOf(workspace.Root.transform)}, creatorEnabled={creator.enabled})", report);
+            ContractSO session = workspace.Location.activeContract;
+            Require(session != definition && session.budget == definition.budget && !session.isTutorialContract &&
+                !session.isTimeAttack && !session.autoCollectReward && !session.countsTowardMapAchievements &&
+                session.ContractID.StartsWith(ChallengeBuildWorkspace.ContractPrefix) &&
+                session.IsToolHidden(BuildModeTool.Simulate) && !session.IsToolHidden(BuildModeTool.Paste) &&
+                !session.IsToolHidden(BuildModeTool.ExitBuildMode) && definition.isTutorialContract && definition.isTimeAttack,
+                "Runtime contract keeps the same budget, disables testing/rewards/tutorials, and never changes the story asset.", report);
+            Require(!ReferenceEquals(undoField.GetValue(commands), worldUndo) &&
+                !ReferenceEquals(redoField.GetValue(commands), worldRedo) && ((Stack<HistoryAction>)worldRedo).Count == 1,
+                "Competition undo/redo stacks are separate; remembered world redo pieces are not destroyed.", report);
+            Require(!ReferenceEquals(copiedPointsField.GetValue(clipboard), worldClipboard) &&
+                ((List<Vector3>)copiedPointsField.GetValue(clipboard)).Count == 0 && ((List<Vector3>)worldClipboard).Count == 1,
+                "Competition clipboard starts empty; story clipboard data is retained separately.", report);
+            Point edited = Child("Own Edited Node", creator.pointParent).AddComponent<Point>();
+            edited.AssignOwner(workspace.Location, true);
+            edited.transform.position = savedStart + Vector3.right * 3;
+            edited.gameObject.SetActive(false); // Delete/Undo in the private graph.
+            Require(start.transform.position == savedStart && end.transform.position == savedEnd &&
+                source.bakedBars.Count == 1 && source.bakedBars[0] == saved && source.bakedPoints.Count == 2,
+                "Editing/deleting a private node cannot move or replace the host's bridge objects or collections.", report);
+            var data = Child("Workspace Save Guard", fixture).AddComponent<PlayerDataManager>();
+            var physics = Child("Workspace Bake Guard", fixture).AddComponent<BridgePhysicsManager>();
+            Require(!workspace.Location.LoadSavedBridge() && !physics.BakeBridge(session) &&
+                !data.SaveBridgeData(session.ContractID, new List<Point> { ownStart, ownEnd }, new List<Bar>(), 0, 0),
+                "Session contracts cannot load, bake or persist a bridge even through direct public calls.", report);
+            workspace.Dispose();
+            Require(saved != null && saved.gameObject.activeSelf && start.gameObject.activeSelf && end.gameObject.activeSelf &&
+                creator.pointParent == previousPoints && creator.barParent == previousBars && creator.enabled &&
+                ReferenceEquals(undoField.GetValue(commands), worldUndo) && ReferenceEquals(redoField.GetValue(commands), worldRedo) &&
+                ReferenceEquals(copiedPointsField.GetValue(clipboard), worldClipboard) && ((List<Vector3>)worldClipboard).Count == 1 &&
+                ((Stack<HistoryAction>)worldRedo).Count == 1 && start.ConnectedBars.Contains(saved) && end.ConnectedBars.Contains(saved),
+                "Disposing restores original visibility, construction parents, graph links and exact world undo/redo stacks.", report);
+        }
+        finally
+        {
+            workspace?.Dispose();
+            singleton.SetValue(null, previousCommands);
+            clipboardSingleton.SetValue(null, previousClipboard);
+            Object.DestroyImmediate(definition);
+        }
     }
 
     private static void ValidateChallengeLanding(Transform fixture, StringBuilder report)

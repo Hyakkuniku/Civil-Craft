@@ -444,6 +444,8 @@ public class LevelCompleteManager : MonoBehaviour
     /// </summary>
     public void CompleteLevelForVehicle(ContractSO currentContract, LiveLoadVehicle finishingVehicle)
     {
+        if (MultiplayerChallengeLobbyUI.IsChallengeActive ||
+            (GameManager.Instance != null && GameManager.Instance.IsSessionChallengeBuild)) return;
         if (levelAlreadyCompleted) return;
 
         levelAlreadyCompleted = true;
@@ -1167,6 +1169,8 @@ public class LevelCompleteManager : MonoBehaviour
 
     public void SaveAndBakeBridge()
     {
+        if (MultiplayerChallengeLobbyUI.IsChallengeActive ||
+            (GameManager.Instance != null && GameManager.Instance.IsSessionChallengeBuild)) return;
         if (IsMultiplayerScene)
         {
             Debug.LogWarning("[Multiplayer] Bridge saving is disabled in this scene.", this);
@@ -1345,6 +1349,8 @@ public class LevelCompleteManager : MonoBehaviour
 
     public void SaveBridgeForSession()
     {
+        if (MultiplayerChallengeLobbyUI.IsChallengeActive ||
+            (GameManager.Instance != null && GameManager.Instance.IsSessionChallengeBuild)) return;
         if (!IsMultiplayerScene || FusionConnectionManager.Instance == null ||
             !FusionConnectionManager.Instance.IsHosting)
         {

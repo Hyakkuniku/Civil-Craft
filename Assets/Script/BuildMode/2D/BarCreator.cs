@@ -864,6 +864,8 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
     public void OnPointerDown(PointerEventData eventData)
     {
+        if (GameManager.Instance != null && GameManager.Instance.IsSessionChallengeBuild &&
+            !GameManager.Instance.CanEditSessionChallengeBuild) return;
         pointerDownOpenedVehicleInspection = false;
         if (IsAutoDrawing) return;
         if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building) return;

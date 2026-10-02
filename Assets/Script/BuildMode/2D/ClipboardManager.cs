@@ -40,6 +40,28 @@ public class ClipboardManager : MonoBehaviour
     
     private List<Vector3> copiedRelativePoints = new List<Vector3>();
     private List<CopiedBarInfo> copiedBars = new List<CopiedBarInfo>();
+    private List<Vector3> worldCopiedPoints;
+    private List<CopiedBarInfo> worldCopiedBars;
+
+    public void BeginSessionClipboard()
+    {
+        if (worldCopiedPoints != null) throw new System.InvalidOperationException("A session clipboard is already active.");
+        CancelPasteMode();
+        worldCopiedPoints = copiedRelativePoints;
+        worldCopiedBars = copiedBars;
+        copiedRelativePoints = new List<Vector3>();
+        copiedBars = new List<CopiedBarInfo>();
+    }
+
+    public void EndSessionClipboard()
+    {
+        if (worldCopiedPoints == null) return;
+        CancelPasteMode();
+        copiedRelativePoints = worldCopiedPoints;
+        copiedBars = worldCopiedBars;
+        worldCopiedPoints = null;
+        worldCopiedBars = null;
+    }
     private List<GameObject> ghostPastePoints = new List<GameObject>();
     private List<Bar> ghostPasteBars = new List<Bar>();
     

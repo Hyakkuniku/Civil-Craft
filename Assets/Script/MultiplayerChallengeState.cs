@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using Fusion;
 using UnityEngine;
 
-public enum MultiplayerChallengePhase { None, Invited, Teleporting, Lobby, Countdown, ReadyToBuild }
-public enum MultiplayerChallengeResult { None, Declined, Cancelled, TimedOut, TravelFailed, PlayerLeft }
+public enum MultiplayerChallengePhase { None, Invited, Teleporting, Lobby, Countdown, ReadyToBuild, Building }
+public enum MultiplayerChallengeResult { None, Declined, Cancelled, TimedOut, TravelFailed, PlayerLeft, BuildSetupFailed }
 
 /// <summary>Session-only challenge state. Never added to either player's saved data.</summary>
 public struct MultiplayerChallengeState : INetworkStruct
@@ -14,10 +14,13 @@ public struct MultiplayerChallengeState : INetworkStruct
     public MultiplayerChallengeResult Result;
     public PlayerRef Guest;
     public NetworkString<_256> SiteKey;
+    public NetworkString<_128> ContractKey;
     public NetworkBool HostArrived;
     public NetworkBool GuestArrived;
     public NetworkBool HostReady;
     public NetworkBool GuestReady;
+    public NetworkBool HostBuilding;
+    public NetworkBool GuestBuilding;
     public TickTimer Deadline;
 }
 
@@ -57,6 +60,21 @@ public static class MultiplayerChallengeRules
             !state.HostArrived || !state.GuestArrived || !state.HostReady || !state.GuestReady) return false;
         state.Phase = MultiplayerChallengePhase.ReadyToBuild;
         state.Deadline = default;
+        return true;
+    }
+
+    public static bool CanPrepareBuild(MultiplayerChallengeState state, PlayerRef player, PlayerRef host, int revision) =>
+        state.Revision == revision && state.Phase == MultiplayerChallengePhase.ReadyToBuild &&
+        state.HostArrived && state.GuestArrived && state.HostReady && state.GuestReady &&
+        (player == host || player == state.Guest);
+
+    public static bool TryPrepareBuild(ref MultiplayerChallengeState state, PlayerRef player, PlayerRef host, int revision)
+    {
+        if (!CanPrepareBuild(state, player, host, revision)) return false;
+        if (player == host) { if (state.HostBuilding) return false; state.HostBuilding = true; }
+        else { if (state.GuestBuilding) return false; state.GuestBuilding = true; }
+        if (state.HostBuilding && state.GuestBuilding)
+        { state.Phase = MultiplayerChallengePhase.Building; state.Deadline = default; }
         return true;
     }
 

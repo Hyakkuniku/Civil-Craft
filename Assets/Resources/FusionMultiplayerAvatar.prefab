@@ -75,3 +75,4 @@ MonoBehaviour:
   challengeInvitationSeconds: 30
   challengeTravelSeconds: 20
   challengeCountdownSeconds: 3
+  challengeBuildSetupSeconds: 15

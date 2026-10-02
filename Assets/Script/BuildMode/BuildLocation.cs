@@ -5,6 +5,16 @@ using System.Collections.Generic;
 
 public class BuildLocation : Interactable 
 {
+    public bool IsSessionChallengeLocation { get; private set; }
+    public int SessionChallengeRevision { get; private set; }
+    public string SessionSourceSiteKey { get; private set; }
+
+    public void InitializeSessionChallenge(int revision, string sourceKey)
+    {
+        IsSessionChallengeLocation = true;
+        SessionChallengeRevision = revision;
+        SessionSourceSiteKey = sourceKey;
+    }
     [Header("Player-Carried Live Load")]
     [Tooltip("Exact scene cargo required for this location's player-carried contract test.")]
     public CargoItem testCargo;
@@ -120,6 +130,7 @@ public class BuildLocation : Interactable
 
     private void Awake()
     {
+        if (IsSessionChallengeLocation) return;
         if (buildModeOnlyStarterBridge == null)
             buildModeOnlyStarterBridge = FindStarterBridgeAtAnchors();
         HideBuildModeOnlyStarterBridge();
@@ -136,6 +147,7 @@ public class BuildLocation : Interactable
 
     private void Start()
     {
+        if (IsSessionChallengeLocation) return; // Never hydrate a competition from story saves.
 #if UNITY_EDITOR
         long startupStarted = System.Diagnostics.Stopwatch.GetTimestamp();
         long sectionStarted = startupStarted;
@@ -203,6 +215,7 @@ public class BuildLocation : Interactable
 
     private void Update()
     {
+        if (IsSessionChallengeLocation) return; // No story timers, contract locks or tutorials.
         if (gameObject.scene.name == "Multiplayer" &&
             FusionConnectionManager.Instance != null &&
             FusionConnectionManager.Instance.IsClientConnected)
@@ -306,6 +319,7 @@ public class BuildLocation : Interactable
 
     public void DeleteBakedBridge()
     {
+        if (IsSessionChallengeLocation || MultiplayerChallengeLobbyUI.IsChallengeActive) return;
         foreach (Bar b in bakedBars) { if (b != null) Destroy(b.gameObject); }
         
         foreach (Point p in bakedPoints) 
@@ -1321,6 +1335,7 @@ public class BuildLocation : Interactable
 
     public bool LoadSavedBridge()
     {
+        if (IsSessionChallengeLocation) return false;
         if (FusionConnectionManager.Instance != null &&
             FusionConnectionManager.Instance.IsGuestInHostWorld) return false;
         if (gameObject.scene.name == "Multiplayer") return false;

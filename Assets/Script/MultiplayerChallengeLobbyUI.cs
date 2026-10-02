@@ -49,6 +49,19 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
     private bool readyRequestPending, requestedReady;
     private int readyRequestRevision;
     private float readyRequestTime;
+    private ChallengeBuildWorkspace buildWorkspace;
+    private int buildRevision = int.MinValue;
+    private bool? lastBuildEditingEnabled;
+
+    public static void RequestCancelActiveChallenge()
+    {
+        FusionConnectionManager connection = FusionConnectionManager.Instance;
+        if (connection == null || connection.Runner == null || !connection.Runner.IsRunning) return;
+        FusionMultiplayerAvatar host = FusionMultiplayerAvatar.FindHost(connection.Runner);
+        if (host == null || !host.IsChallengeBusy || !connection.Runner.TryGetPlayerObject(connection.Runner.LocalPlayer,
+            out NetworkObject obj) || obj == null || !obj.IsValid) return;
+        obj.GetComponent<FusionMultiplayerAvatar>()?.CancelChallenge(host.ChallengeState.Revision);
+    }
 
     public static bool IsChallengeActive
     {
@@ -195,17 +208,10 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
             }
             return;
         }
-        if (state.Phase == MultiplayerChallengePhase.ReadyToBuild)
+        if (state.Phase == MultiplayerChallengePhase.ReadyToBuild || state.Phase == MultiplayerChallengePhase.Building)
         {
             readyRequestPending = false;
-            // Keep world isolation and input capture. Competitive bridge editing
-            // is deliberately not entered until the separate session builds exist.
-            ShowPanel(challengePanel);
-            SetInvitationControls(false, false, true);
-            challengeTitle.text = "READY TO BUILD";
-            challengeMessage.text = $"Both players are ready at {(site != null ? site.name : "the bridge")}.\n" +
-                "Countdown complete. Competitive building is not enabled yet.\nClose to return to the world.";
-            if (portraitCamera != null) portraitCamera.enabled = false;
+            UpdateChallengeBuilding(state, site);
             return;
         }
         // Arrival acknowledgements and host pose validation gate the lobby.
@@ -229,6 +235,60 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
         if (readyButtonLabel != null) readyButtonLabel.text = readyRequestPending ? "UPDATING..." :
             localReady ? (countingDown ? "CANCEL READY" : "UNREADY") : "READY";
         RefreshPortraits(guestAvatar);
+    }
+
+    private void UpdateChallengeBuilding(MultiplayerChallengeState state, BuildLocation site)
+    {
+        if (buildRevision != state.Revision)
+        {
+            buildRevision = state.Revision;
+            bool prepared = false;
+            try
+            {
+                if (site == null || motor == null || GameManager.Instance == null)
+                    throw new System.InvalidOperationException("The challenge build location or local player is missing.");
+                ContractSO definition = ChallengeBuildWorkspace.ResolveContract(site, state.ContractKey.ToString());
+                BarCreator creator = FindObjectOfType<BarCreator>(true);
+                ClosePanelForBuild(); // Restore the authored build Canvas; retain input/return-pose capture.
+                buildWorkspace = ChallengeBuildWorkspace.Create(site, definition, creator, state.Revision, boundRunner.LocalPlayer.RawEncoded);
+                prepared = GameManager.Instance.EnterSessionChallengeBuild(buildWorkspace.Location, motor.transform);
+                if (!prepared) throw new System.InvalidOperationException("Session Build Mode entry was rejected.");
+                bridgeSync?.SetChallengeSiteVisibility(MultiplayerChallengeRules.SiteKey(site), true);
+            }
+            catch (System.Exception error)
+            {
+                prepared = false;
+                GameManager.Instance?.ExitSessionChallengeBuild();
+                buildWorkspace?.Dispose();
+                buildWorkspace = null;
+                Debug.LogWarning("[Challenge build] " + error.Message + " Saved bridges were not changed.", this);
+                ShowPanel(challengePanel);
+                SetInvitationControls(false, false, true);
+                challengeTitle.text = "BUILD SETUP FAILED";
+                challengeMessage.text = "Waiting for the host to cancel safely. Your saved bridges are unchanged.";
+            }
+            local.ReportChallengeBuildPrepared(state.Revision, prepared);
+        }
+        if (buildWorkspace == null) return;
+        bool editing = state.Phase == MultiplayerChallengePhase.Building && GameManager.Instance != null &&
+            GameManager.Instance.CanEditSessionChallengeBuild;
+        if (lastBuildEditingEnabled != editing)
+        {
+            lastBuildEditingEnabled = editing;
+            buildWorkspace.SetEditingEnabled(editing);
+            BuildUIController.Instance?.ShowSessionBuildStatus(!editing);
+        }
+    }
+
+    private void ClosePanelForBuild()
+    {
+        if (openPanel != null)
+        {
+            if (UIPanelCoordinator.Instance != null) UIPanelCoordinator.Instance.ClosePanel(openPanel);
+            else openPanel.SetActive(false);
+        }
+        openPanel = null;
+        if (portraitCamera != null) portraitCamera.enabled = false;
     }
 
     private FusionMultiplayerAvatar GetAvatar(PlayerRef player)
@@ -424,6 +484,10 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
 
     private void RestoreWorld()
     {
+        GameManager.Instance?.ExitSessionChallengeBuild();
+        buildWorkspace?.Dispose();
+        buildWorkspace = null;
+        lastBuildEditingEnabled = null;
         isolation.Dispose();
         bridgeSync?.SetChallengeSiteVisibility(null);
         bridgeSync = null;
@@ -439,6 +503,7 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
 
     private void CloseView()
     {
+        buildRevision = int.MinValue;
         readyRequestPending = false;
         if (readyButton != null) readyButton.interactable = false;
         RestoreWorld();
@@ -467,6 +532,7 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
             case MultiplayerChallengeResult.TimedOut: return "The challenge timed out before both players arrived.";
             case MultiplayerChallengeResult.TravelFailed: return "A safe landing point could not be confirmed. No bridge was changed.";
             case MultiplayerChallengeResult.PlayerLeft: return "The other player left the session.";
+            case MultiplayerChallengeResult.BuildSetupFailed: return "Both build views could not be prepared. Your saved bridges are unchanged.";
             default: return "The challenge was cancelled. Your saved bridges are unchanged.";
         }
     }

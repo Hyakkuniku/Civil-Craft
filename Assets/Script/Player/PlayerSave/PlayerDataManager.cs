@@ -1761,6 +1761,9 @@ public class PlayerDataManager : MonoBehaviour
     public bool SaveBridgeData(string contractId, List<Point> points, List<Bar> bars, float totalSpent, float maxStress,
         ContractStarResult starResult = null)
     {
+        if (MultiplayerChallengeLobbyUI.IsChallengeActive ||
+            (GameManager.Instance != null && GameManager.Instance.IsSessionChallengeBuild) ||
+            (contractId != null && contractId.StartsWith(ChallengeBuildWorkspace.ContractPrefix, StringComparison.Ordinal))) return false;
         if (FusionConnectionManager.Instance != null &&
             FusionConnectionManager.Instance.IsGuestSaveProtected) return false;
         if (SceneManager.GetActiveScene().name == "Multiplayer") return false;
@@ -2118,6 +2121,9 @@ public class PlayerDataManager : MonoBehaviour
 
     public void DeleteSavedBridge(string contractId)
     {
+        if (MultiplayerChallengeLobbyUI.IsChallengeActive ||
+            (GameManager.Instance != null && GameManager.Instance.IsSessionChallengeBuild) ||
+            (contractId != null && contractId.StartsWith(ChallengeBuildWorkspace.ContractPrefix, StringComparison.Ordinal))) return;
         if (FusionConnectionManager.Instance != null &&
             FusionConnectionManager.Instance.IsGuestSaveProtected) return;
         if (SceneManager.GetActiveScene().name == "Multiplayer") return;

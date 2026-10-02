@@ -953,6 +953,8 @@ public class BridgePhysicsManager : MonoBehaviour
 
     public void ActivatePhysics()
     {
+        if (MultiplayerChallengeLobbyUI.IsChallengeActive ||
+            (GameManager.Instance != null && GameManager.Instance.IsSessionChallengeBuild)) return;
         if (isSimulating || pendingSimulationStart) return;
         HadBrokenPartsThisRun = false;
         HasLiveLoadEngagedThisRun = false;
@@ -1346,6 +1348,9 @@ public class BridgePhysicsManager : MonoBehaviour
 
     public bool BakeBridge(ContractSO contract = null)
     {
+        if (MultiplayerChallengeLobbyUI.IsChallengeActive ||
+            (GameManager.Instance != null && GameManager.Instance.IsSessionChallengeBuild) ||
+            (contract != null && contract.ContractID.StartsWith(ChallengeBuildWorkspace.ContractPrefix, StringComparison.Ordinal))) return false;
         HashSet<Point> bakePoints = new HashSet<Point>();
         HashSet<Bar> bakeBars = new HashSet<Bar>();
 

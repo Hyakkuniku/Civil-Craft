@@ -488,6 +488,12 @@ public class BuildUIController : MonoBehaviour
         return target != null && target.IsChildOf(panel);
     }
 
+    public void ShowSessionBuildStatus(bool waiting)
+    {
+        ShowTimer(true);
+        if (timerText != null) timerText.text = waiting ? "Waiting for both builders..." : "YOUR BRIDGE — SESSION ONLY";
+    }
+
     public void ShowTimer(bool isVisible)
     {
         if (timerPanel != null && timerPanel.activeSelf != isVisible)
@@ -572,6 +578,11 @@ public class BuildUIController : MonoBehaviour
 
             bool shouldHide = contract != null && contract.IsToolHidden(tool) &&
                               !forcedVisibleTools.Contains(tool);
+            if (GameManager.Instance != null && GameManager.Instance.IsSessionChallengeBuild)
+            {
+                if (tool == BuildModeTool.Simulate) shouldHide = true;
+                else if (tool == BuildModeTool.ExitBuildMode) shouldHide = false;
+            }
             toolObject.SetActive(!shouldHide);
             if (shouldHide) contractHiddenToolObjects.Add(toolObject);
         }
@@ -767,6 +778,8 @@ public class BuildUIController : MonoBehaviour
 
     public void PromptUnlockMaterial(MaterialButtonTrigger btn)
     {
+        if (GameManager.Instance != null && GameManager.Instance.IsSessionChallengeBuild)
+        { LogAction("This material is not allowed in the challenge. Purchases are disabled."); return; }
         pendingUnlockButton = btn;
         if (unlockMaterialPanel != null && btn != null)
         {
@@ -778,6 +791,7 @@ public class BuildUIController : MonoBehaviour
 
     public void ConfirmUnlockMaterial()
     {
+        if (GameManager.Instance != null && GameManager.Instance.IsSessionChallengeBuild) { CancelUnlockMaterial(); return; }
         if (pendingUnlockButton != null && GameManager.Instance != null && GameManager.Instance.CurrentContract != null)
         {
             int cost = pendingUnlockButton.buttonMaterial.unlockCost;
@@ -1585,6 +1599,9 @@ public class BuildUIController : MonoBehaviour
 
     private bool IsToolAllowed(BuildModeTool tool)
     {
+        if (GameManager.Instance != null && GameManager.Instance.IsSessionChallengeBuild &&
+            ((tool != BuildModeTool.ExitBuildMode && !GameManager.Instance.CanEditSessionChallengeBuild) ||
+             tool == BuildModeTool.Simulate)) return false;
         ContractSO contract = GameManager.Instance != null ? GameManager.Instance.CurrentContract : null;
         if (contract != null && contract.IsToolHidden(tool) && !forcedVisibleTools.Contains(tool))
             return false;

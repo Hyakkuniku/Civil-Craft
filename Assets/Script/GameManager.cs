@@ -7,7 +7,7 @@ using TMPro;
 using UnityEngine.UI;
 
 [DefaultExecutionOrder(-100)]
-public class GameManager : MonoBehaviour
+public partial class GameManager : MonoBehaviour
 {
     public static GameManager Instance { get; private set; }
 
@@ -35,6 +35,7 @@ public class GameManager : MonoBehaviour
 
     public bool TryBeginCargoTest(BridgePhysicsManager physics)
     {
+        if (IsSessionChallengeBuild) return false;
         if (CurrentState != GameState.Building || isTransitioning || IsCargoTestActive ||
             physics == null || currentPlayerTransform == null || ActiveBuildLocation == null) return false;
         CargoItem cargo = ActiveBuildLocation.testCargo;
@@ -316,6 +317,7 @@ public class GameManager : MonoBehaviour
 
     private void OnDisable()
     {
+        if (IsSessionChallengeBuild) ExitSessionChallengeBuild();
         isTransitioning = false;
         RestoreDecorativeCanyons();
         RestoreCapturedStates(buildLocationStateBeforeBuildMode);
@@ -586,6 +588,11 @@ public class GameManager : MonoBehaviour
 
     public void ExitBuildMode()
     {
+        if (IsSessionChallengeBuild)
+        {
+            MultiplayerChallengeLobbyUI.RequestCancelActiveChallenge();
+            return;
+        }
         if (IsCargoTestActive) { CancelCargoTest(); return; }
         BridgePhysicsManager physicsManager = FindObjectOfType<BridgePhysicsManager>();
         if (physicsManager != null && physicsManager.IsSimulationActive)
