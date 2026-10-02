@@ -74,3 +74,4 @@ MonoBehaviour:
   waveCooldown: 1
   challengeInvitationSeconds: 30
   challengeTravelSeconds: 20
+  challengeCountdownSeconds: 3

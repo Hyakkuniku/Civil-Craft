@@ -8,6 +8,7 @@ public sealed partial class FusionMultiplayerAvatar
     [Networked] public MultiplayerChallengeState ChallengeState { get; private set; }
     [SerializeField, Min(5f)] private float challengeInvitationSeconds = 30f;
     [SerializeField, Min(5f)] private float challengeTravelSeconds = 20f;
+    [SerializeField, Range(1f, 10f)] private float challengeCountdownSeconds = 3f;
     private int pendingArrivalRevision;
     private bool pendingArrival;
     private BuildLocation authorityChallengeSite;
@@ -115,6 +116,31 @@ public sealed partial class FusionMultiplayerAvatar
         pendingArrival = true;
     }
 
+    public void SetChallengeReady(int revision, bool ready)
+    {
+        if (Object == null || !Object.IsValid || !HasInputAuthority) return;
+        RPC_SetChallengeReady(revision, ready);
+    }
+
+    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority, Channel = RpcChannel.Reliable)]
+    private void RPC_SetChallengeReady(int revision, bool ready)
+    {
+        FusionMultiplayerAvatar host = FindHost(Runner);
+        if (host == null || !host.HasStateAuthority) return;
+        FusionConnectionManager connection = FusionConnectionManager.Instance;
+        if (connection == null || connection.Runner != Runner || !connection.IsHostWorldSession || connection.IsNetworkSceneLoading ||
+            !host.AreChallengeParticipantsAtSite()) return;
+        MultiplayerChallengeState state = host.ChallengeState;
+        // Readiness cannot undo a countdown which has already finished on the
+        // server clock but is still being displayed in a delayed client snapshot.
+        if (state.Phase == MultiplayerChallengePhase.Countdown && state.Deadline.ExpiredOrNotRunning(Runner)) return;
+        if (!MultiplayerChallengeRules.TrySetReady(ref state, Object.InputAuthority,
+            host.Object.InputAuthority, revision, ready)) return;
+        if (state.Phase == MultiplayerChallengePhase.Countdown)
+            state.Deadline = TickTimer.CreateFromSeconds(Runner, Mathf.Clamp(host.challengeCountdownSeconds, 1f, 10f));
+        host.ChallengeState = state;
+    }
+
     public void CancelChallenge(int revision)
     {
         if (Object == null || !Object.IsValid || !HasInputAuthority) return;
@@ -139,7 +165,9 @@ public sealed partial class FusionMultiplayerAvatar
         if (!guestPresent) EndChallenge(MultiplayerChallengeResult.PlayerLeft);
         else if (connection == null || !connection.IsHostWorldSession || connection.IsNetworkSceneLoading)
             EndChallenge(MultiplayerChallengeResult.Cancelled);
-        else if (ChallengeState.Phase != MultiplayerChallengePhase.Lobby && ChallengeState.Deadline.ExpiredOrNotRunning(Runner))
+        else if ((ChallengeState.Phase == MultiplayerChallengePhase.Invited ||
+                  ChallengeState.Phase == MultiplayerChallengePhase.Teleporting) &&
+                 ChallengeState.Deadline.ExpiredOrNotRunning(Runner))
             EndChallenge(MultiplayerChallengeResult.TimedOut);
         else if (ChallengeState.Phase == MultiplayerChallengePhase.Teleporting)
         {
@@ -160,6 +188,32 @@ public sealed partial class FusionMultiplayerAvatar
             if ((bool)state.HostArrived != (bool)ChallengeState.HostArrived || (bool)state.GuestArrived != (bool)ChallengeState.GuestArrived ||
                 state.Phase != ChallengeState.Phase) ChallengeState = state;
         }
+        else if (ChallengeState.Phase == MultiplayerChallengePhase.Lobby ||
+                 ChallengeState.Phase == MultiplayerChallengePhase.Countdown ||
+                 ChallengeState.Phase == MultiplayerChallengePhase.ReadyToBuild)
+        {
+            if (!AreChallengeParticipantsAtSite())
+            { EndChallenge(MultiplayerChallengeResult.Cancelled); return; }
+            if (ChallengeState.Phase != MultiplayerChallengePhase.Countdown) return;
+            MultiplayerChallengeState state = ChallengeState;
+            if (!state.HostReady || !state.GuestReady || !state.Deadline.IsRunning)
+            { EndChallenge(MultiplayerChallengeResult.Cancelled); return; }
+            if (MultiplayerChallengeRules.TryFinishCountdown(ref state, state.Deadline.Expired(Runner)))
+                ChallengeState = state;
+        }
+    }
+
+    private bool AreChallengeParticipantsAtSite()
+    {
+        if (authorityChallengeSite == null || !ChallengeState.HostArrived || !ChallengeState.GuestArrived) return false;
+        return IsChallengeParticipantAtSite(Object.InputAuthority) && IsChallengeParticipantAtSite(ChallengeState.Guest);
+    }
+
+    private bool IsChallengeParticipantAtSite(PlayerRef player)
+    {
+        if (!Runner.TryGetPlayerObject(player, out NetworkObject obj) || obj == null || !obj.IsValid) return false;
+        var avatar = obj.GetComponent<FusionMultiplayerAvatar>();
+        return avatar != null && avatar.PoseReady && MultiplayerChallengeLobbyUI.IsAtSite(authorityChallengeSite, avatar.Position);
     }
 
     private void EndChallenge(MultiplayerChallengeResult result)
@@ -168,6 +222,7 @@ public sealed partial class FusionMultiplayerAvatar
         state.Phase = MultiplayerChallengePhase.None;
         state.Result = result;
         state.HostArrived = state.GuestArrived = false;
+        state.HostReady = state.GuestReady = false;
         state.Deadline = default;
         ChallengeState = state;
     }

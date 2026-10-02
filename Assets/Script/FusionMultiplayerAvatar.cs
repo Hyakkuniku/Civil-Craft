@@ -268,7 +268,6 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
     private void Update()
     {
         if (Runner == null || !Runner.IsRunning) return;
-        UpdateChallengeAuthority();
         if (FusionConnectionManager.Instance == null ||
             !FusionConnectionManager.Instance.IsAvatarScene)
         {
@@ -405,6 +404,9 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
 
     public override void FixedUpdateNetwork()
     {
+        // Challenge deadlines and phase transitions run on the authoritative
+        // Fusion tick, independent of either player's render frame rate.
+        if (Runner.IsForward) UpdateChallengeAuthority();
         if (HasInputAuthority && HasStateAuthority && Runner.IsServer && pendingCompletionDirty)
         {
             HostCompletion = pendingCompletion;

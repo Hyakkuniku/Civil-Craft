@@ -22,6 +22,7 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
     [SerializeField] private TMP_Text hostName;
     [SerializeField] private TMP_Text guestName;
     [SerializeField] private Button readyButton;
+    [SerializeField] private TMP_Text readyButtonLabel;
     [Header("Authored portrait stage")]
     [SerializeField] private Camera portraitCamera;
     [SerializeField] private RawImage portraitImage;
@@ -45,6 +46,9 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
     private FusionHostWorldBridgeSync bridgeSync;
     private string resolvedSiteKey;
     private BuildLocation resolvedSite;
+    private bool readyRequestPending, requestedReady;
+    private int readyRequestRevision;
+    private float readyRequestTime;
 
     public static bool IsChallengeActive
     {
@@ -86,6 +90,21 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
 
     public void AcceptChallenge() { local?.RespondToChallenge(host != null ? host.ChallengeState.Revision : -1, true); }
     public void DeclineChallenge() { local?.RespondToChallenge(host != null ? host.ChallengeState.Revision : -1, false); }
+    public void ToggleReady()
+    {
+        if (host == null || local == null || boundRunner == null || readyRequestPending) return;
+        MultiplayerChallengeState state = host.ChallengeState;
+        bool ready = boundRunner.LocalPlayer == host.Object.InputAuthority ? (bool)state.HostReady : (bool)state.GuestReady;
+        if (!MultiplayerChallengeRules.CanSetReady(state, boundRunner.LocalPlayer,
+            host.Object.InputAuthority, state.Revision, !ready)) return;
+        requestedReady = !ready;
+        readyRequestRevision = state.Revision;
+        readyRequestTime = Time.unscaledTime;
+        readyRequestPending = true;
+        if (readyButton != null) readyButton.interactable = false;
+        local.SetChallengeReady(state.Revision, requestedReady);
+    }
+
     public void CancelOrClose()
     {
         if (host != null && host.IsChallengeBusy) local?.CancelChallenge(host.ChallengeState.Revision);
@@ -124,6 +143,7 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
         MultiplayerChallengeState state = host.ChallengeState;
         if (state.Phase == MultiplayerChallengePhase.None)
         {
+            readyRequestPending = false;
             RestoreWorld();
             if (state.Result != MultiplayerChallengeResult.None && state.Revision != dismissedRevision)
             {
@@ -175,13 +195,39 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
             }
             return;
         }
-        // Arrival acknowledgements and host pose validation gate this phase.
+        if (state.Phase == MultiplayerChallengePhase.ReadyToBuild)
+        {
+            readyRequestPending = false;
+            // Keep world isolation and input capture. Competitive bridge editing
+            // is deliberately not entered until the separate session builds exist.
+            ShowPanel(challengePanel);
+            SetInvitationControls(false, false, true);
+            challengeTitle.text = "READY TO BUILD";
+            challengeMessage.text = $"Both players are ready at {(site != null ? site.name : "the bridge")}.\n" +
+                "Countdown complete. Competitive building is not enabled yet.\nClose to return to the world.";
+            if (portraitCamera != null) portraitCamera.enabled = false;
+            return;
+        }
+        // Arrival acknowledgements and host pose validation gate the lobby.
         ShowPanel(lobbyPanel);
         lobbyTitle.text = $"CHALLENGE LOBBY — {(site != null ? site.name : "Bridge")} ";
-        lobbyStatus.text = "Both players arrived. Building and Ready are not enabled in this milestone.";
-        hostName.text = host.MapPlayerName + (host == local ? " (YOU)" : " (HOST)");
+        bool countingDown = state.Phase == MultiplayerChallengePhase.Countdown;
+        float remaining = state.Deadline.RemainingTime(boundRunner) ?? 0f;
+        lobbyStatus.text = countingDown
+            ? (remaining > 0f ? $"Starting in {Mathf.CeilToInt(remaining)}..." : "Waiting for the host's start confirmation...")
+            : "Select Ready when you are prepared. Both players must be ready to start.";
+        hostName.text = host.MapPlayerName + (host == local ? " (YOU)" : " (HOST)") +
+            ((bool)state.HostReady ? "\nREADY" : "\nNOT READY");
         FusionMultiplayerAvatar guestAvatar = GetAvatar(state.Guest);
-        guestName.text = (guestAvatar != null ? guestAvatar.MapPlayerName : "Guest") + (guestAvatar == local ? " (YOU)" : " (GUEST)");
+        guestName.text = (guestAvatar != null ? guestAvatar.MapPlayerName : "Guest") + (guestAvatar == local ? " (YOU)" : " (GUEST)") +
+            ((bool)state.GuestReady ? "\nREADY" : "\nNOT READY");
+        bool localReady = host == local ? (bool)state.HostReady : (bool)state.GuestReady;
+        if (readyRequestPending && (readyRequestRevision != state.Revision || localReady == requestedReady ||
+            Time.unscaledTime - readyRequestTime >= 3f)) readyRequestPending = false;
+        if (readyButton != null) readyButton.interactable = !readyRequestPending &&
+            MultiplayerChallengeRules.CanSetReady(state, boundRunner.LocalPlayer, host.Object.InputAuthority, state.Revision, !localReady);
+        if (readyButtonLabel != null) readyButtonLabel.text = readyRequestPending ? "UPDATING..." :
+            localReady ? (countingDown ? "CANCEL READY" : "UNREADY") : "READY";
         RefreshPortraits(guestAvatar);
     }
 
@@ -393,6 +439,8 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
 
     private void CloseView()
     {
+        readyRequestPending = false;
+        if (readyButton != null) readyButton.interactable = false;
         RestoreWorld();
         if (openPanel != null)
         {

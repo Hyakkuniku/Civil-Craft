@@ -95,6 +95,7 @@ public static class HostWorldBridgeSyncValidation
             ValidatePlayerMapMarkers(fixture.transform, report);
             ValidateWaveEmote(fixture.transform, report);
             ValidateChallengeLobby(fixture.transform, report);
+            ValidateChallengeReadiness(report);
             ValidateChallengeLanding(fixture.transform, report);
 
             HostWorldBridgeSnapshot captured = FusionHostWorldBridgeSync.CaptureLocation(site);
@@ -469,13 +470,87 @@ public static class HostWorldBridgeSyncValidation
         Require(scene.Contains("m_Name: Challenge_UI") && scene.Contains("m_Name: Lobby_UI_Panel") &&
             scene.Contains("guid: 64996c73e45b4b9cba62a18d5cb74b47") && scene.Contains("m_Name: CustomizedPlayerPortraits"),
             "Challenge and lobby controls are authored in the existing Canyon scene, including the character portrait display.", report);
-        foreach (string method in new[] { "SendChallenge", "AcceptChallenge", "DeclineChallenge", "CancelOrClose" })
+        foreach (string method in new[] { "SendChallenge", "AcceptChallenge", "DeclineChallenge", "CancelOrClose", "ToggleReady" })
             Require(scene.Contains("m_MethodName: " + method), "Authored challenge button calls " + method + ".", report);
         int readyStart = scene.IndexOf("--- !u!114 &900000000000010067", StringComparison.Ordinal);
         int readyEnd = scene.IndexOf("--- !u!", readyStart + 1, StringComparison.Ordinal);
         string ready = scene.Substring(readyStart, readyEnd - readyStart);
-        Require(ready.Contains("m_Interactable: 0") && ready.Contains("m_Calls: []"),
-            "Ready is visibly reserved for the next milestone and cannot begin building or saving.", report);
+        Require(ready.Contains("m_Interactable: 0") && ready.Contains("m_MethodName: ToggleReady") &&
+            ready.Contains("m_Target: {fileID: 900000000000000105}") &&
+            scene.Contains("readyButtonLabel: {fileID: 900000000000010071}"),
+            "Authored Ready button targets the lobby service, has its authored label, and starts disabled outside a challenge.", report);
+    }
+
+    private static void ValidateChallengeReadiness(StringBuilder report)
+    {
+        PlayerRef host = PlayerRef.FromIndex(0), guest = PlayerRef.FromIndex(1), outsider = PlayerRef.FromIndex(2);
+        int checks = 0;
+        foreach (MultiplayerChallengePhase phase in Enum.GetValues(typeof(MultiplayerChallengePhase)))
+        foreach (PlayerRef player in new[] { host, guest, outsider })
+        foreach (int revision in new[] { 6, 7, 8 })
+        foreach (bool requested in new[] { false, true })
+        for (int arrived = 0; arrived < 4; arrived++)
+        for (int ready = 0; ready < 4; ready++)
+        {
+            var state = new MultiplayerChallengeState
+            {
+                Revision = 7, Guest = guest, Phase = phase,
+                HostArrived = (arrived & 1) != 0, GuestArrived = (arrived & 2) != 0,
+                HostReady = (ready & 1) != 0, GuestReady = (ready & 2) != 0
+            };
+            bool allowed = revision == 7 && arrived == 3 && player != outsider &&
+                (phase == MultiplayerChallengePhase.Lobby || (phase == MultiplayerChallengePhase.Countdown && !requested));
+            bool current = player == host ? (ready & 1) != 0 : (ready & 2) != 0;
+            bool changed = allowed && current != requested;
+            if (MultiplayerChallengeRules.CanSetReady(state, player, host, revision, requested) != allowed ||
+                MultiplayerChallengeRules.TrySetReady(ref state, player, host, revision, requested) != changed)
+                throw new InvalidOperationException($"Ready gate failed: {phase}/{player}/rev={revision}/arrived={arrived}/ready={ready}/request={requested}");
+            bool expectedHost = changed && player == host ? requested : (ready & 1) != 0;
+            bool expectedGuest = changed && player == guest ? requested : (ready & 2) != 0;
+            MultiplayerChallengePhase expectedPhase = changed
+                ? (expectedHost && expectedGuest ? MultiplayerChallengePhase.Countdown : MultiplayerChallengePhase.Lobby) : phase;
+            if ((bool)state.HostReady != expectedHost || (bool)state.GuestReady != expectedGuest || state.Phase != expectedPhase ||
+                state.Revision != 7 || state.Guest != guest || (bool)state.HostArrived != ((arrived & 1) != 0) ||
+                (bool)state.GuestArrived != ((arrived & 2) != 0))
+                throw new InvalidOperationException("Ready request changed the other player, arrival, revision or wrong phase.");
+            checks += 2;
+        }
+        foreach (MultiplayerChallengePhase phase in Enum.GetValues(typeof(MultiplayerChallengePhase)))
+        foreach (bool expired in new[] { false, true })
+        for (int arrived = 0; arrived < 4; arrived++)
+        for (int ready = 0; ready < 4; ready++)
+        {
+            var state = new MultiplayerChallengeState
+            {
+                Revision = 7, Guest = guest, Phase = phase,
+                HostArrived = (arrived & 1) != 0, GuestArrived = (arrived & 2) != 0,
+                HostReady = (ready & 1) != 0, GuestReady = (ready & 2) != 0
+            };
+            bool finished = phase == MultiplayerChallengePhase.Countdown && expired && arrived == 3 && ready == 3;
+            if (MultiplayerChallengeRules.TryFinishCountdown(ref state, expired) != finished ||
+                state.Phase != (finished ? MultiplayerChallengePhase.ReadyToBuild : phase))
+                throw new InvalidOperationException("Countdown advanced before deadline/both arrivals/both readiness, or restarted a finished challenge.");
+            checks += 2;
+        }
+        Require(checks == 3840, "3,840 readiness/phase assertions pass across both owners, outsiders, revisions, arrival and ready combinations.", report);
+        var cycle = new MultiplayerChallengeState
+        { Revision = 7, Guest = guest, Phase = MultiplayerChallengePhase.Lobby, HostArrived = true, GuestArrived = true };
+        Require(MultiplayerChallengeRules.TrySetReady(ref cycle, guest, host, 7, true) &&
+            cycle.Phase == MultiplayerChallengePhase.Lobby && !cycle.HostReady && cycle.GuestReady,
+            "Guest Ready alone cannot start the countdown or ready the host.", report);
+        Require(MultiplayerChallengeRules.TrySetReady(ref cycle, host, host, 7, true) &&
+            cycle.Phase == MultiplayerChallengePhase.Countdown && !MultiplayerChallengeRules.TryFinishCountdown(ref cycle, false),
+            "Both Ready enters a countdown, not an immediate build/start.", report);
+        Require(!MultiplayerChallengeRules.TrySetReady(ref cycle, guest, host, 7, true),
+            "Duplicate Ready messages do not restart or extend the countdown.", report);
+        Require(MultiplayerChallengeRules.TrySetReady(ref cycle, guest, host, 7, false) &&
+            cycle.Phase == MultiplayerChallengePhase.Lobby && cycle.HostReady && !cycle.GuestReady && !cycle.Deadline.IsRunning,
+            "Unready cancels the countdown, preserves the other owner's readiness, and returns to waiting.", report);
+        Require(MultiplayerChallengeRules.TrySetReady(ref cycle, guest, host, 7, true) &&
+            MultiplayerChallengeRules.TryFinishCountdown(ref cycle, true) && cycle.Phase == MultiplayerChallengePhase.ReadyToBuild &&
+            !cycle.Deadline.IsRunning && !MultiplayerChallengeRules.TryFinishCountdown(ref cycle, true) &&
+            !MultiplayerChallengeRules.TrySetReady(ref cycle, guest, host, 7, false),
+            "A fresh countdown finishes once; delayed Unready cannot reopen the completed lobby.", report);
     }
 
     private static void ValidateChallengeLanding(Transform fixture, StringBuilder report)
