@@ -10,7 +10,7 @@ using UnityEngine.SceneManagement;
 [DisallowMultipleComponent]
 public sealed class FusionHostWorldBridgeSync : MonoBehaviour
 {
-    private const int MessageTag = 0x43434252;
+    internal const int MessageTag = 0x43434252;
     [SerializeField, Min(0.25f)] private float captureInterval = 1f;
     [SerializeField] private bool logBridgeDiagnostics;
     private NetworkRunner runner;

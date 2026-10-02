@@ -1,19 +1,54 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using Fusion;
+using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
 
 /// <summary>Runs inside the existing isolated preview-scene validator, never a saved world.</summary>
 public static class ChallengeSubmissionValidation
 {
+    private static double nextCheck;
+    [InitializeOnLoadMethod]
+    private static void Watch()
+    { EditorApplication.update -= CheckRequest; EditorApplication.update += CheckRequest; }
+    private static void CheckRequest()
+    {
+        if (EditorApplication.timeSinceStartup < nextCheck) return;
+        nextCheck = EditorApplication.timeSinceStartup + 2;
+        const string request = "Temp/challenge-submission-recovery-validation.request";
+        if (!File.Exists(request) || EditorApplication.isCompiling || EditorApplication.isUpdating ||
+            EditorApplication.isPlayingOrWillChangePlaymode) return;
+        File.Delete(request);
+        var report = new StringBuilder();
+        var scene = EditorSceneManager.NewPreviewScene();
+        var fixture = new GameObject("Isolated Submission Recovery Checks"); fixture.SetActive(false);
+        SceneManager.MoveGameObjectToScene(fixture, scene);
+        try
+        {
+            Run(fixture.transform, report);
+            report.AppendLine("PASS: isolated native Unity checks complete; live host/guest replay remains required.");
+            Debug.Log("[Challenge submission validation] PASS: Temp/ChallengeSubmissionRecoveryValidation.txt");
+        }
+        catch (Exception error) { report.AppendLine("FAIL: " + error); Debug.LogException(error); }
+        finally
+        {
+            Object.DestroyImmediate(fixture); EditorSceneManager.ClosePreviewScene(scene);
+            File.WriteAllText("Temp/ChallengeSubmissionRecoveryValidation.txt", report.ToString());
+        }
+    }
+
     public static void Run(Transform fixture, StringBuilder report)
     {
         ValidatePolicies(report);
         ValidateGraphs(fixture, report);
+        ValidateCanonicalAnchors(fixture, report);
         ValidateAuthoredMaterialCapture(fixture, report);
         ValidateAuthoredUI(report);
     }
@@ -68,6 +103,23 @@ public static class ChallengeSubmissionValidation
             cycle.Phase == MultiplayerChallengePhase.SubmissionsReady && cycle.HostSubmittedCost == 90 && cycle.GuestSubmittedCost == 80 &&
             !MultiplayerChallengeRules.CanSubmit(cycle, host, host, 9), "Both submissions failed to close the editing phase.");
         Pass(report, "Guest-first submission leaves the host editing; duplicates cannot replace accepted designs; both accepted advances once.");
+        var retry = typeof(FusionChallengeSubmissionSync).GetMethod("CanRetrySubmission", BindingFlags.Static | BindingFlags.NonPublic);
+        var retryState = new MultiplayerChallengeState { Phase = MultiplayerChallengePhase.Building, Revision = 9, Guest = guest,
+            HostArrived = true, GuestArrived = true, HostReady = true, GuestReady = true, HostBuilding = true, GuestBuilding = true };
+        Func<MultiplayerChallengeState, int, bool, bool, int, float, bool> canRetry = (state, revision, pending, packet, sends, now) =>
+            (bool)retry.Invoke(null, new object[] { state, guest, host, revision, pending, packet, sends, now, 3f });
+        Check(canRetry(retryState, 9, true, true, 1, 3f) && canRetry(retryState, 9, true, true, 2, 6f) &&
+            !canRetry(retryState, 9, true, true, 3, 9f) && !canRetry(retryState, 9, true, true, 1, 2.99f) &&
+            !canRetry(retryState, 8, true, true, 1, 3f) && !canRetry(retryState, 9, false, true, 1, 3f) &&
+            !canRetry(retryState, 9, true, false, 1, 3f) && !canRetry(retryState, 9, true, true, 0, 3f),
+            "Submission retries ignore the timer, packet, attempt limit, revision or reply state.");
+        retryState.HostSubmitted = true;
+        Check(canRetry(retryState, 9, true, true, 1, 3f), "Host submission blocks guest recovery.");
+        retryState.GuestSubmitted = true;
+        Check(!canRetry(retryState, 9, true, true, 1, 3f), "An accepted guest design keeps retransmitting.");
+        retryState.GuestSubmitted = false; retryState.Phase = MultiplayerChallengePhase.PreparingTest;
+        Check(!canRetry(retryState, 9, true, true, 1, 3f), "Submission retry escapes Building.");
+        Pass(report, "Submission recovery is limited to 3 sends, spaced by its timer, requires a frozen packet/current revision, allows host-first builds, and stops on guest acceptance or phase changes.");
         Check(ChallengeBridgeSubmissionRules.Message(ChallengeSubmissionError.EmptyBridge) == "Place bridge members before submitting.",
             "The empty-bridge placement prompt was removed.");
         foreach (ChallengeSubmissionError error in new[] { ChallengeSubmissionError.InvalidPacket, ChallengeSubmissionError.InvalidAnchors,
@@ -78,6 +130,54 @@ public static class ChallengeSubmissionValidation
             ChallengeSubmissionError.Busy, ChallengeSubmissionError.WrongChallenge })
             Check(!string.IsNullOrEmpty(ChallengeBridgeSubmissionRules.Message(error)), "A submission/session status was hidden with design warnings.");
         Pass(report, "Empty submissions retain the placement prompt; all other design-validation banners are hidden. Accepted, already-locked, busy and closed-session statuses remain visible; message visibility does not bypass host authority.");
+    }
+
+    private static void ValidateCanonicalAnchors(Transform fixture, StringBuilder report)
+    {
+        var definition = ScriptableObject.CreateInstance<ContractSO>();
+        var road = ScriptableObject.CreateInstance<BridgeMaterialSO>();
+        road.name = "Anchor Canonicalization Road"; road.costPerMeter = 10; road.isRoad = true;
+        definition.allowedMaterials.Add(new MaterialAllowance { material = road });
+        BuildLocation guestSite = Child("Unupdated Guest Vance Site", fixture).AddComponent<BuildLocation>();
+        BuildLocation hostSite = Child("Updated Host Vance Site", fixture).AddComponent<BuildLocation>();
+        Vector3[] authored = { new Vector3(486.473f, 29.234f, -14.363f), new Vector3(486.473f, 21.280f, -14.363f),
+            new Vector3(566.473f, 29.234f, -14.363f), new Vector3(566.473f, 21.280f, -14.363f) };
+        for (int i = 0; i < authored.Length; i++)
+        {
+            Point guestAnchor = Child("Guest Anchor " + i, fixture).AddComponent<Point>();
+            guestAnchor.Runtime = false; guestAnchor.isAnchor = true; guestAnchor.transform.position = authored[i];
+            Point hostAnchor = Child("Host Anchor " + i, fixture).AddComponent<Point>();
+            hostAnchor.Runtime = false; hostAnchor.isAnchor = true; hostAnchor.transform.position = Vector3Int.RoundToInt(authored[i]);
+            (i < 2 ? guestSite.startingAnchors : guestSite.endingAnchors).Add(guestAnchor);
+            (i < 2 ? hostSite.startingAnchors : hostSite.endingAnchors).Add(hostAnchor);
+        }
+        BarCreator creator = Child("Canonical Anchor Creator", fixture).AddComponent<BarCreator>();
+        creator.pointToInstantiate = Child("Canonical Node Prefab", fixture); creator.pointToInstantiate.AddComponent<Point>();
+        creator.barToInstantiate = Child("Canonical Member Prefab", fixture); creator.barToInstantiate.AddComponent<Bar>();
+        ChallengeBuildWorkspace workspace = null;
+        try
+        {
+            workspace = ChallengeBuildWorkspace.Create(guestSite, definition, creator, 31, 2);
+            var own = ChallengeBridgeSubmissionRules.GetAnchors(workspace.Location);
+            var originals = ChallengeBridgeSubmissionRules.GetAnchors(guestSite);
+            for (int i = 0; i < own.Count; i++)
+                Check(own[i].transform.position == (Vector3)Vector3Int.RoundToInt(authored[i]) &&
+                    originals[i].transform.position == authored[i], "Private anchor canonicalization changed the saved world or retained unsnapped positions.");
+            Bar member = Child("Own Canonical Road", workspace.BarRoot).AddComponent<Bar>();
+            member.AssignOwner(workspace.Location, true); member.materialData = road; member.startPoint = own[0]; member.endPoint = own[2];
+            var graph = ChallengeBridgeSubmissionCodec.Decode(ChallengeBridgeSubmissionCodec.Encode(ChallengeBridgeSubmissionRules.Capture(workspace)));
+            var catalog = new Dictionary<string, BridgeMaterialSO> { { road.Id, road } };
+            Check(ChallengeBridgeSubmissionRules.Validate(graph, hostSite, definition, catalog, -10, out float hostCost) == ChallengeSubmissionError.None &&
+                ChallengeBridgeSubmissionRules.Validate(graph, workspace.Location, definition, catalog, -10, out float guestCost) == ChallengeSubmissionError.None &&
+                hostCost == guestCost && hostCost == 800f, "Real logged Vance coordinates fail host admission or change pricing.");
+            var changed = graph.Nodes[0]; changed.Position.x += .05f; graph.Nodes[0] = changed;
+            Check(ChallengeBridgeSubmissionRules.Validate(graph, hostSite, definition, catalog, -10, out _) == ChallengeSubmissionError.InvalidAnchors,
+                "Canonicalization weakened host anchor checks.");
+            originals[0].Runtime = true;
+            Check(ChallengeBridgeSubmissionRules.ChallengeAnchorPosition(originals[0]) == authored[0], "A deliberately fractional runtime anchor was rounded.");
+            Pass(report, "Logged Vance guest fractional anchors and host grid-snapped anchors produce identical private geometry/pricing; moved anchors still fail at 1cm tolerance; runtime fractional anchors and all saved-world transforms are preserved.");
+        }
+        finally { workspace?.Dispose(); Object.DestroyImmediate(definition); Object.DestroyImmediate(road); }
     }
 
     private static void ValidateGraphs(Transform fixture, StringBuilder report)

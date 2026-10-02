@@ -517,7 +517,7 @@ public class BuildUIController : MonoBehaviour
 
     private void Update()
     {
-        if (useKeyboardShortcuts)
+        if (useKeyboardShortcuts && !SessionChatUI.IsOpen)
         {
             if (WasKeyPressedThisFrame(simulateKey)) OnSimulateButtonClicked();
             if (WasKeyPressedThisFrame(restartKey)) OnRestartButtonClicked();

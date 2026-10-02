@@ -135,7 +135,7 @@ public sealed class ChallengeBuildWorkspace : IDisposable
     {
         if (source == null) throw new InvalidOperationException("A challenge anchor reference is missing.");
         if (copies.TryGetValue(source, out Point existing)) return existing;
-        GameObject clone = Object.Instantiate(source.gameObject, source.transform.position, source.transform.rotation, parent);
+        GameObject clone = Object.Instantiate(source.gameObject, ChallengeBridgeSubmissionRules.ChallengeAnchorPosition(source), source.transform.rotation, parent);
         clone.name = "Own Anchor — " + source.name;
         clone.transform.localScale = source.transform.lossyScale;
         foreach (MonoBehaviour script in clone.GetComponentsInChildren<MonoBehaviour>(true)) script.enabled = script is Point;

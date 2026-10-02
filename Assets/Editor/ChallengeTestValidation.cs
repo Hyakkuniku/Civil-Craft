@@ -4,15 +4,191 @@ using System.IO;
 using System.Reflection;
 using System.Text;
 using Fusion;
+using Fusion.Sockets;
 using TMPro;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
 
 public static class ChallengeTestValidation
 {
+    private static double nextPreparationCheck;
+    [InitializeOnLoadMethod]
+    private static void WatchGuestPreparation()
+    {
+        EditorApplication.update -= CheckGuestPreparation;
+        EditorApplication.update += CheckGuestPreparation;
+    }
+    private static void CheckGuestPreparation()
+    {
+        if (EditorApplication.timeSinceStartup < nextPreparationCheck) return;
+        nextPreparationCheck = EditorApplication.timeSinceStartup + 2;
+        const string request = "Temp/challenge-guest-introduction-order-validation.request";
+        if (!File.Exists(request) || EditorApplication.isCompiling || EditorApplication.isUpdating) return;
+        bool hasScene = false;
+        foreach (var ui in Resources.FindObjectsOfTypeAll<MultiplayerChallengeLobbyUI>())
+            if (ui.gameObject.scene.name == "CanyonCrossing") { hasScene = true; break; }
+        File.Delete(request);
+        var report = new StringBuilder();
+        try
+        {
+            ValidateGuestPreparationOrdering(report);
+            ValidateChunkTransfer(report);
+            ValidatePolicies(report);
+            if (!EditorApplication.isPlayingOrWillChangePlaymode) ValidateReliableRouting(report);
+            // The packet/state checks operate on value copies only and are safe
+            // even in Play Mode. Object/scene fixture checks require Play stopped.
+            if (hasScene && !EditorApplication.isPlayingOrWillChangePlaymode) HostWorldBridgeSyncValidation.Validate();
+            report.AppendLine("PASS: Native Unity preparation-order checks complete; live two-peer introductions still need a play test.");
+            File.WriteAllText("Temp/ChallengeGuestPreparationValidation.txt", report.ToString());
+            Debug.Log("[Challenge preparation validation] PASS. Report: Temp/ChallengeGuestPreparationValidation.txt");
+        }
+        catch (Exception error)
+        {
+            report.AppendLine("FAIL: " + error);
+            File.WriteAllText("Temp/ChallengeGuestPreparationValidation.txt", report.ToString());
+            Debug.LogException(error);
+        }
+    }
     public static void Run(Transform fixture, StringBuilder report)
-    { ValidatePolicies(report); ValidateIsolatedRunAndView(fixture, report); ValidateResultsTextFit(fixture, report); }
+    { ValidatePolicies(report); ValidateGuestPreparationOrdering(report); ValidateChunkTransfer(report); ValidateReliableRouting(report); ValidateIsolatedRunAndView(fixture, report); ValidateResultsTextFit(fixture, report); }
+
+    public static void ValidateChunkTransfer(StringBuilder report)
+    {
+        // Invoke the production assembler, not a duplicate implementation.
+        Type type = typeof(FusionChallengeTestSync).Assembly.GetType("ChallengeTestPacketAssembly", true);
+        MethodInfo add = type.GetMethod("Add", BindingFlags.Instance | BindingFlags.NonPublic);
+        MethodInfo clear = type.GetMethod("Clear", BindingFlags.Instance | BindingFlags.NonPublic);
+        int chunkBytes = (int)type.GetField("ChunkBytes", BindingFlags.Static | BindingFlags.NonPublic).GetRawConstantValue();
+        int maxBytes = (int)type.GetField("MaximumBytes", BindingFlags.Static | BindingFlags.NonPublic).GetRawConstantValue();
+        object assembly = Activator.CreateInstance(type, true);
+        Func<int, int, int, int, byte[], byte[]> push = (rev, test, total, offset, chunk) =>
+        {
+            var args = new object[] { rev, test, total, offset, chunk, null };
+            Check((bool)add.Invoke(assembly, args), "Valid RPC transfer chunk was rejected.");
+            return (byte[])args[5];
+        };
+        foreach (int size in new[] { 1, 319, 320, 321, 497, 4097, maxBytes })
+        {
+            clear.Invoke(assembly, null);
+            var original = new byte[size]; for (int i = 0; i < size; i++) original[i] = (byte)(i * 31);
+            byte[] complete = null;
+            int chunks = (size + chunkBytes - 1) / chunkBytes;
+            // Reverse arrival order, with identical duplicates and a missing
+            // first chunk: no descriptor may be exposed before all bytes exist.
+            for (int slot = chunks - 1; slot >= 0; slot--)
+            {
+                int offset = slot * chunkBytes;
+                var chunk = new byte[Math.Min(chunkBytes, size - offset)]; Array.Copy(original, offset, chunk, 0, chunk.Length);
+                complete = push(27, 1, size, offset, chunk);
+                if (slot > 0) Check(complete == null, "Partial RPC packet was published.");
+                Check(push(27, 1, size, offset, chunk) == null, "Duplicate chunk published twice.");
+            }
+            Check(complete != null && complete.Length == original.Length, "Complete RPC packet missing.");
+            for (int i = 0; i < size; i++) Check(complete[i] == original[i], "Chunk reassembly changed the bridge bytes.");
+        }
+        clear.Invoke(assembly, null);
+        Func<int, int, int, int, byte[], bool> rejects = (rev, test, total, offset, chunk) =>
+            !(bool)add.Invoke(assembly, new object[] { rev, test, total, offset, chunk, null });
+        Check(rejects(0, 1, 1, 0, new byte[1]) && rejects(1, 3, 1, 0, new byte[1]) &&
+            rejects(1, 1, maxBytes + 1, 0, new byte[320]) && rejects(1, 1, 100, -1, new byte[100]) &&
+            rejects(1, 1, 100, 1, new byte[99]) && rejects(1, 1, 100, 0, new byte[101]) &&
+            rejects(1, 1, 100, 0, null), "Malformed RPC chunk accepted.");
+        push(27, 1, 640, 0, new byte[320]);
+        var changed = new byte[320]; changed[0] = 1;
+        Check(rejects(27, 1, 640, 0, changed) && rejects(27, 1, 641, 320, new byte[320]), "Conflicting retry changed immutable bytes/size.");
+        Check(push(27, 2, 1, 0, new byte[] { 9 })[0] == 9 && push(28, 1, 1, 0, new byte[] { 8 })[0] == 8,
+            "Next test/revision reused old assembly.");
+        report.AppendLine("PASS: Production reliable RPC assembler round-trips 1..maximum-sized bridge/final packets, including the reported 497-byte descriptor; reverse arrival, duplicates, missing chunks, conflicts, malformed bounds and test/revision isolation pass. Live Photon delivery still requires two-peer testing.");
+    }
+
+    public static void ValidateReliableRouting(StringBuilder report)
+    {
+        var scene = EditorSceneManager.NewPreviewScene();
+        var root = new GameObject("Reliable Callback Routing Check"); root.SetActive(false);
+        SceneManager.MoveGameObjectToScene(root, scene);
+        var other = new GameObject("Other Runner Routing Check"); other.SetActive(false);
+        SceneManager.MoveGameObjectToScene(other, scene);
+        try
+        {
+            NetworkRunner runner = root.AddComponent<NetworkRunner>();
+            FusionSessionCallbacks callbacks = root.AddComponent<FusionSessionCallbacks>();
+            typeof(FusionSessionCallbacks).GetMethod("Awake", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(callbacks, null);
+            var cache = typeof(FusionSessionCallbacks).GetField("challengeTests", BindingFlags.NonPublic | BindingFlags.Instance);
+            Check(cache.GetValue(callbacks) == null, "Fixture did not reproduce the missing Awake-cached test receiver.");
+            FusionChallengeTestSync receiver = root.AddComponent<FusionChallengeTestSync>();
+            typeof(FusionChallengeTestSync).GetMethod("Awake", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(receiver, null);
+            callbacks.OnReliableDataReceived(runner, PlayerRef.FromIndex(1), ReliableKey.FromInts(FusionChallengeTestSync.MessageTag, 1, 27, 1), new byte[] { 1, 2, 3 });
+            var receipt = typeof(FusionChallengeTestSync).GetField("presentationReceipt", BindingFlags.NonPublic | BindingFlags.Instance);
+            Check(ReferenceEquals(cache.GetValue(callbacks), receiver) && ((string)receipt.GetValue(receiver)).StartsWith("callback:27/1/3B"),
+                "A descriptor is silently lost when the receiver was added after callback Awake.");
+            var foreign = other.AddComponent<FusionChallengeTestSync>();
+            cache.SetValue(callbacks, foreign);
+            callbacks.OnReliableDataReceived(runner, PlayerRef.FromIndex(1), ReliableKey.FromInts(FusionChallengeTestSync.MessageTag, 3, 27, 1), new byte[] { 1 });
+            Check(ReferenceEquals(cache.GetValue(callbacks), receiver) && (string)receipt.GetValue(foreign) == "none",
+                "A recovery request routes through a stale or different-runner receiver.");
+            var presentation = typeof(FusionChallengeTestSync).GetField("pendingPresentation", BindingFlags.NonPublic | BindingFlags.Instance);
+            Check(presentation.GetValue(receiver) == null, "Routing a packet on a stopped runner bypasses lifecycle validation.");
+            report.AppendLine("PASS: Actual reliable callback dispatch reaches the correct runner's test handler with a missing/stale Awake cache; both descriptor and recovery-request tags route independently; stopped-runner lifecycle checks still reject view construction. No Photon room was created.");
+        }
+        finally { Object.DestroyImmediate(root); Object.DestroyImmediate(other); EditorSceneManager.ClosePreviewScene(scene); }
+    }
+
+    private static void ValidateGuestPreparationOrdering(StringBuilder report)
+    {
+        var policy = typeof(FusionChallengeTestSync).GetMethod("CanBufferTestPacket", BindingFlags.Static | BindingFlags.NonPublic);
+        Func<MultiplayerChallengeState, int, int, bool, bool> accepts = (state, revision, index, final) =>
+            (bool)policy.Invoke(null, new object[] { state, revision, index, final });
+        var guestState = new MultiplayerChallengeState { Revision = 27, Phase = MultiplayerChallengePhase.Building };
+        // Reproduce the transport ordering: descriptor FIRST, state snapshot later.
+        // Previously the receive phase gate discarded this reliable transfer forever.
+        Check(accepts(guestState, 27, 1, false), "Guest discarded test 1 while its snapshot still showed Building.");
+        Check(!accepts(guestState, 26, 1, false) && !accepts(guestState, 28, 1, false) &&
+            !accepts(guestState, 27, 2, false) && !accepts(guestState, 27, 1, true), "Early buffering admits stale/future challenges or premature final frames.");
+        guestState.Phase = MultiplayerChallengePhase.SubmissionsReady;
+        Check(accepts(guestState, 27, 1, false), "SubmissionsReady lost its pending descriptor.");
+        guestState.Phase = MultiplayerChallengePhase.PreparingTest; guestState.TestIndex = 1;
+        Check(accepts(guestState, 27, 1, false) && accepts(guestState, 27, 1, true) && accepts(guestState, 27, 2, false) &&
+            !accepts(guestState, 27, 2, true), "First preparation loses a buffered next descriptor or admits its premature final frame.");
+        guestState.Phase = MultiplayerChallengePhase.Testing;
+        Check(accepts(guestState, 27, 2, false) && !accepts(guestState, 27, 2, true), "Next-test transfer ordering is broken.");
+        guestState.Phase = MultiplayerChallengePhase.PreparingTest; guestState.TestIndex = 2;
+        Check(accepts(guestState, 27, 2, false) && !accepts(guestState, 27, 1, false) && !accepts(guestState, 27, 1, true),
+            "Old test packets can replace the second view.");
+        foreach (MultiplayerChallengePhase phase in new[] { MultiplayerChallengePhase.None, MultiplayerChallengePhase.Invited,
+            MultiplayerChallengePhase.Teleporting, MultiplayerChallengePhase.Lobby, MultiplayerChallengePhase.Countdown,
+            MultiplayerChallengePhase.ReadyToBuild, MultiplayerChallengePhase.TestResults })
+        {
+            guestState.Phase = phase;
+            Check(!accepts(guestState, 27, 1, false) && !accepts(guestState, 27, 2, true), "Packets escape the active test lifecycle: " + phase);
+        }
+        report.AppendLine("PASS: Guest descriptor-before-state race is reproduced and accepted while Building/SubmissionsReady; preparing/testing and next-test ordering pass. Wrong revisions, old tests, premature final frames and out-of-lifecycle packets remain rejected. Physics still requires guest view readiness.");
+        var servePolicy = typeof(FusionChallengeTestSync).GetMethod("CanServePresentation", BindingFlags.Static | BindingFlags.NonPublic);
+        PlayerRef guest = PlayerRef.FromIndex(1), stranger = PlayerRef.FromIndex(2);
+        Func<MultiplayerChallengeState, PlayerRef, int, int, int, int, bool> serves = (state, sender, rev, test, cachedRev, cachedTest) =>
+            (bool)servePolicy.Invoke(null, new object[] { state, sender, rev, test, cachedRev, cachedTest });
+        guestState = new MultiplayerChallengeState { Revision = 27, Guest = guest, Phase = MultiplayerChallengePhase.PreparingTest, TestIndex = 1 };
+        Check(serves(guestState, guest, 27, 1, 27, 1), "Guest cannot recover the missed first descriptor after entering preparation.");
+        Check(!serves(guestState, stranger, 27, 1, 27, 1) && !serves(guestState, PlayerRef.None, 27, 1, 27, 1) &&
+            !serves(guestState, guest, 26, 1, 27, 1) && !serves(guestState, guest, 27, 2, 27, 1) &&
+            !serves(guestState, guest, 27, 1, 26, 1) && !serves(guestState, guest, 27, 1, 27, 2),
+            "Descriptor recovery leaks another participant, revision, or test's cache.");
+        var before = guestState;
+        Check(!MultiplayerChallengeRules.TryStartTest(ref before, 27, 1), "Requesting a descriptor bypasses view readiness.");
+        guestState.GuestTestViewReady = true;
+        Check(!serves(guestState, guest, 27, 1, 27, 1), "Descriptor retransmission continues after acknowledgement.");
+        guestState.GuestTestViewReady = false; guestState.TestIndex = 2;
+        Check(serves(guestState, guest, 27, 2, 27, 2) && !serves(guestState, guest, 27, 1, 27, 1), "Second test recovery reuses the first design.");
+        foreach (MultiplayerChallengePhase phase in Enum.GetValues(typeof(MultiplayerChallengePhase)))
+        {
+            if (phase == MultiplayerChallengePhase.PreparingTest) continue;
+            guestState.Phase = phase;
+            Check(!serves(guestState, guest, 27, 2, 27, 2), "View recovery is allowed outside preparation: " + phase);
+        }
+        report.AppendLine("PASS: Missed descriptor recovery serves only the authenticated guest's current prepared test; rejects stale caches, revisions, indices, strangers and all other phases; stops after readiness and never releases physics on a request alone.");
+    }
 
     public static void ValidatePolicies(StringBuilder report)
     {
@@ -193,6 +369,8 @@ public static class ChallengeTestValidation
         BarCreator creator = Child("Sequential Test Creator", fixture).AddComponent<BarCreator>();
         creator.pointToInstantiate = Child("Sequential Test Point Prefab", fixture); creator.pointToInstantiate.AddComponent<Point>();
         creator.barToInstantiate = Child("Sequential Test Bar Prefab", fixture); creator.barToInstantiate.AddComponent<Bar>();
+        creator.pointToInstantiate.AddComponent<Rigidbody>().isKinematic = false;
+        creator.barToInstantiate.AddComponent<Rigidbody>().isKinematic = false;
         BridgePhysicsManager settings = Child("Sequential Test Original Physics", fixture).AddComponent<BridgePhysicsManager>();
         settings.physicsSolverIterations = 52; settings.physicsSolverVelocityIterations = 24; settings.settleFramesAmount = 71;
         LiveLoadVehicle vehicle = Child("Sequential Test Original Vehicle", fixture).AddComponent<LiveLoadVehicle>();
@@ -247,6 +425,15 @@ public static class ChallengeTestValidation
             Check(ChallengeBridgeSubmissionRules.Validate(graph, site, definition, catalog, -10, out float submittedCost) == ChallengeSubmissionError.None &&
                 submittedCost == 30f, "An over-budget non-empty draft with a loose node was rejected before reconstruction.");
             run = ChallengeBridgeTestRun.Create(graph, site, definition, creator, settings, vehicle, 77, 12, 1);
+            foreach (Bar preparedBar in run.Bars)
+                Check(preparedBar.GetComponent<Rigidbody>().isKinematic, "Copied dynamic bars can fall during the name introduction.");
+            foreach (Point preparedPoint in run.Root.GetComponentsInChildren<Point>(true))
+            {
+                Rigidbody body = preparedPoint.GetComponent<Rigidbody>();
+                Check(body == null || body.isKinematic, "Copied dynamic points can fall during the name introduction.");
+            }
+            Check(!run.Physics.IsSimulationActive, "Preparing a view started its physics before both peers were ready.");
+            report.AppendLine("PASS: Dynamic point/bar prefab bodies are held kinematic before the introduction; no simulation starts during view preparation.");
             Check(run.Physics != settings && run.Vehicle != vehicle && run.Location != site && run.Physics.IsSessionChallengeTest &&
                 run.Physics.SessionTestVehicle == run.Vehicle && run.Vehicle.physicsManager == run.Physics &&
                 run.Physics.physicsSolverIterations == 52 && run.Physics.physicsSolverVelocityIterations == 24 && run.Physics.settleFramesAmount == 71 &&

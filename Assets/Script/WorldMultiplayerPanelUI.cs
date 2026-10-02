@@ -63,6 +63,7 @@ public sealed class WorldMultiplayerPanelUI : MonoBehaviour
     public void Open()
     {
         if (panel == null || !CanOpen || inputCaptured) return;
+        SessionChatUI.CloseForTransition(gameObject.scene);
         foreach (PlayerMotor candidate in FindObjectsOfType<PlayerMotor>(true))
             if (candidate.gameObject.scene == gameObject.scene) { motor = candidate; break; }
         if (motor != null)

@@ -110,6 +110,8 @@ public static class HostWorldBridgeSyncValidation
             ValidateChallengeWorkspace(fixture.transform, report);
             ChallengeUIValidation.Run(fixture.transform, report);
             WorldMultiplayerPanelValidation.Run(fixture.transform, report);
+            SessionChatValidation.Run(fixture.transform, report);
+            MultiplayerHUDVisibilityValidation.Run(fixture.transform, report);
             ChallengeSubmissionValidation.Run(fixture.transform, report);
             BridgeConstructionValidation.Run(fixture.transform, report);
             ChallengeTestValidation.Run(fixture.transform, report);
@@ -1048,7 +1050,7 @@ public static class ChallengeUIValidation
                 Canvas.ForceUpdateCanvases(); ValidateFit(preview);
             }
             Object.DestroyImmediate(preview);
-            foreach (string panel in new[] { "ChallengeSubmitConfirmation", "ChallengeSubmissionStatus", "Challenge_UI", "ChallengeTestIntroduction", "ChallengeLeaveBuildConfirmation", "Lobby_UI_Panel", "WorldMultiplayerPanel", "WorldKickConfirmation", "WorldTurnOffConfirmation" })
+            foreach (string panel in new[] { "ChallengeSubmitConfirmation", "ChallengeSubmissionStatus", "Challenge_UI", "ChallengeTestIntroduction", "ChallengeLeaveBuildConfirmation", "Lobby_UI_Panel", "WorldMultiplayerPanel", "WorldKickConfirmation", "WorldTurnOffConfirmation", "SessionChatPanel" })
             {
                 var original = Resources.FindObjectsOfTypeAll<GameObject>().First(obj => obj.name == panel &&
                     obj.scene.IsValid() && obj.scene.name == "CanyonCrossing");
@@ -1074,6 +1076,7 @@ public static class ChallengeUIValidation
                     Text(preview, "Test Introduction Player").text = "Guest Engineer";
                 }
                 if (panel == "Lobby_UI_Panel") RenderLobbyPortraits(preview, env.transform, lobbyTargets, report);
+                if (panel == "SessionChatPanel") SessionChatValidation.FormatPreview(preview);
                 if (panel == "WorldMultiplayerPanel")
                 {
                     Capture(camera, target, "Temp/WorldMultiplayerOfflineAuthoredPreview.png", ref picture);
@@ -1154,6 +1157,12 @@ public static class ChallengeUIValidation
             model.SetActive(true);
         }
         stage.SetActive(true);
+        Transform hostAnchor = stage.GetComponentsInChildren<Transform>(true).First(t => t.name ==
+            ((Transform)typeof(MultiplayerChallengeLobbyUI).GetField("hostPortraitAnchor", fields).GetValue(authored)).name);
+        Transform guestAnchor = stage.GetComponentsInChildren<Transform>(true).First(t => t.name ==
+            ((Transform)typeof(MultiplayerChallengeLobbyUI).GetField("guestPortraitAnchor", fields).GetValue(authored)).name);
+        var framing = typeof(MultiplayerChallengeLobbyUI).GetMethod("FramePortraitColumns", BindingFlags.Static | BindingFlags.NonPublic);
+        framing.Invoke(null, new object[] { camera, hostAnchor, guestAnchor, aspect });
         foreach (Animator animator in stage.GetComponentsInChildren<Animator>())
         {
             animator.applyRootMotion = false; animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
@@ -1204,9 +1213,29 @@ public static class ChallengeUIValidation
                     if (x < target.width / 2) left++; else right++;
                 }
             Check(left > 100 && right > 100, "Lobby render is blank or missing a player.");
+            foreach (float narrowAspect in new[] { 1.4f, 2f, 3.5f })
+            {
+                framing.Invoke(null, new object[] { camera, hostAnchor, guestAnchor, narrowAspect });
+                try { begin.Invoke(scope, arguments); RenderPortraitCamera(camera, target); }
+                finally { end.Invoke(scope, arguments); }
+                Color32[] narrowPixels = ReadPortraitPixels(target);
+                int minX = target.width, maxX = -1;
+                for (int y = 0; y < target.height; y++)
+                    for (int x = 0; x < target.width; x++)
+                        if (narrowPixels[y * target.width + x].a > 12)
+                        { minX = Mathf.Min(minX, x); maxX = Mathf.Max(maxX, x); }
+                Check(minX > 0 && maxX < target.width - 1 && maxX > minX,
+                    $"Lobby portrait sides are cropped at image aspect {narrowAspect}.");
+                Check(Mathf.Abs(camera.WorldToViewportPoint(hostAnchor.position).x - .25f) < .001f &&
+                    Mathf.Abs(camera.WorldToViewportPoint(guestAnchor.position).x - .75f) < .001f,
+                    "Portrait anchors do not match the two name columns.");
+            }
+            framing.Invoke(null, new object[] { camera, hostAnchor, guestAnchor, aspect });
+            try { begin.Invoke(scope, arguments); RenderPortraitCamera(camera, target); }
+            finally { end.Invoke(scope, arguments); }
         }
         finally { RenderTexture.active = previous; Object.DestroyImmediate(sample); }
-        report.AppendLine("PASS: Authored lobby renders both full-body models, preserves transparent RGBA background, and leaves transparent margins around the visible silhouettes (no cropped head/feet).");
+        report.AppendLine("PASS: Authored lobby renders both full-body models with transparent RGBA margins; camera/anchors keep both models centred in their columns without side clipping at portrait-image aspects 1.4, 2 and 3.5.");
     }
 
     private static void RenderPortraitCamera(Camera camera, RenderTexture target)

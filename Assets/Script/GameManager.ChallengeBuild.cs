@@ -14,7 +14,8 @@ public partial class GameManager
                 host.ChallengeState.Revision == ActiveBuildLocation.SessionChallengeRevision &&
                 !MultiplayerChallengeRules.HasSubmitted(host.ChallengeState, connection.Runner.LocalPlayer, host.Object.InputAuthority) &&
                 !(connection.Runner.GetComponent<FusionChallengeSubmissionSync>()?.LocalEditingLocked ?? false) &&
-                !MultiplayerChallengeLobbyUI.IsSubmissionConfirmationOpen && !MultiplayerChallengeLobbyUI.IsLeaveConfirmationOpen;
+                !MultiplayerChallengeLobbyUI.IsSubmissionConfirmationOpen && !MultiplayerChallengeLobbyUI.IsLeaveConfirmationOpen &&
+                !SessionChatUI.IsOpen;
         }
     }
 

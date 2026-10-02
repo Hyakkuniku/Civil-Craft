@@ -110,10 +110,31 @@ public sealed class FusionSessionCallbacks : MonoBehaviour, INetworkRunnerCallba
     public void OnReliableDataReceived(NetworkRunner runner, PlayerRef player,
         ReliableKey key, ReadOnlySpan<byte> data)
     {
-        worldBridges?.OnReliableData(player, key, data);
-        challengeSubmissions?.OnReliableData(player, key, data);
-        challengeTests?.OnReliableData(player, key, data);
+        // Route by protocol, and resolve on the ACTUAL callback runner. An
+        // Awake-only cached reference can be absent after component addition or
+        // editor reload; null-conditional forwarding then silently loses every
+        // descriptor AND recovery request. Other protocol handlers must never
+        // prevent a test packet reaching its receiver.
+        key.GetInts(out int tag, out _, out _, out _);
+        switch (tag)
+        {
+            case FusionChallengeTestSync.MessageTag:
+                challengeTests = ResolveTestReceiver(runner);
+                if (challengeTests != null) challengeTests.OnReliableData(player, key, data);
+                else Debug.LogError("[Challenge transfer routing] Test receiver is missing on the callback runner.", this);
+                break;
+            case FusionChallengeSubmissionSync.MessageTag:
+                challengeSubmissions = runner.GetComponent<FusionChallengeSubmissionSync>();
+                challengeSubmissions?.OnReliableData(player, key, data);
+                break;
+            case FusionHostWorldBridgeSync.MessageTag:
+                worldBridges = runner.GetComponent<FusionHostWorldBridgeSync>();
+                worldBridges?.OnReliableData(player, key, data);
+                break;
+        }
     }
+    internal static FusionChallengeTestSync ResolveTestReceiver(NetworkRunner callbackRunner) =>
+        callbackRunner != null ? callbackRunner.GetComponent<FusionChallengeTestSync>() : null;
     public void OnReliableDataProgress(NetworkRunner runner, PlayerRef player,
         ReliableKey key, float progress) { }
     public void OnSceneLoadStart(NetworkRunner runner)

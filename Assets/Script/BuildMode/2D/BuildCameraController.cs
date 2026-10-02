@@ -87,6 +87,7 @@ public class BuildCameraController : MonoBehaviour
 
     private void Update()
     {
+        if (SessionChatUI.IsOpen) return;
         if (GameManager.Instance == null || GameManager.Instance.CurrentState != GameManager.GameState.Building) 
         {
             isInitialized = false; 

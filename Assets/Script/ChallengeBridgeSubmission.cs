@@ -80,6 +80,13 @@ public static class ChallengeBridgeSubmissionCodec
 
 public static class ChallengeBridgeSubmissionRules
 {
+    // Point.Update snaps non-runtime authored points to the integer grid in
+    // Play Mode. Hidden world anchors may never get that Update on a guest.
+    // Competition copies and host admission must use the same placement without
+    // mutating either saved world or relaxing anchor identity/position checks.
+    public static Vector3 ChallengeAnchorPosition(Point anchor) => anchor.Runtime
+        ? anchor.transform.position : (Vector3)Vector3Int.RoundToInt(anchor.transform.position);
+
     public static List<Point> GetAnchors(BuildLocation site)
     {
         var anchors = new List<Point>();
@@ -164,13 +171,13 @@ public static class ChallengeBridgeSubmissionRules
             if (!Finite(node.Position) || node.Anchor < -1 || node.Anchor >= anchors.Count) return ChallengeSubmissionError.InvalidNodes;
             if (node.Anchor >= 0)
             {
-                if (!presentAnchors.Add(node.Anchor) || Vector3.Distance(node.Position, anchors[node.Anchor].transform.position) > 0.01f)
+                if (!presentAnchors.Add(node.Anchor) || Vector3.Distance(node.Position, ChallengeAnchorPosition(anchors[node.Anchor])) > 0.01f)
                     return ChallengeSubmissionError.InvalidAnchors;
             }
             else
             {
                 bool samePlane = false;
-                foreach (Point anchor in anchors) if (Mathf.Abs(node.Position.z - anchor.transform.position.z) <= depthTolerance + 0.001f) { samePlane = true; break; }
+                foreach (Point anchor in anchors) if (Mathf.Abs(node.Position.z - ChallengeAnchorPosition(anchor).z) <= depthTolerance + 0.001f) { samePlane = true; break; }
                 if (!samePlane) return ChallengeSubmissionError.InvalidNodes;
             }
         }

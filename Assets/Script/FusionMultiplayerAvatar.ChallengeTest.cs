@@ -67,6 +67,33 @@ public sealed partial class FusionMultiplayerAvatar
     {
         if (CanRunChallengeTests) RPC_ChallengeTestMotion(revision, index, chunk);
     }
+    // Unlike large-data callbacks, these messages are attached to the already
+    // replicated host avatar. Each payload stays below Fusion's 512-byte limit.
+    internal void PublishChallengeTestPacket(PlayerRef guest, int revision, int index, int kind, int total, int offset, byte[] chunk)
+    {
+        if (!CanRunChallengeTests || guest != ChallengeState.Guest)
+            throw new System.InvalidOperationException("The host no longer has authority to send this test view.");
+        var result = RPC_ChallengeTestPacket(guest, revision, index, kind, total, offset, chunk);
+        if ((result.SendMessageResult & RpcSendMessageResult.MaskSent) == 0)
+            throw new System.InvalidOperationException("Test view RPC was not sent: " + result.SendMessageResult);
+    }
+    [Rpc(RpcSources.StateAuthority, RpcTargets.Proxies, Channel = RpcChannel.Reliable, TickAligned = false, InvokeLocal = false)]
+    private RpcInvokeInfo RPC_ChallengeTestPacket([RpcTarget] PlayerRef guest, int revision, int index, int kind, int total, int offset, byte[] chunk)
+    {
+        if (IsSessionHost && Runner != null && !Runner.IsServer && Runner.LocalPlayer == guest)
+            Runner.GetComponent<FusionChallengeTestSync>()?.ReceiveTestPacketChunk(revision, index, kind, total, offset, chunk);
+        return default;
+    }
+    internal void RequestChallengeTestPresentation(int revision, int index)
+    {
+        if (Object != null && Object.IsValid && HasInputAuthority)
+            RPC_RequestChallengeTestPresentation(revision, index);
+    }
+    [Rpc(RpcSources.InputAuthority, RpcTargets.StateAuthority, Channel = RpcChannel.Reliable, TickAligned = false)]
+    private void RPC_RequestChallengeTestPresentation(int revision, int index)
+    {
+        Runner.GetComponent<FusionChallengeTestSync>()?.ReceivePresentationRequest(Object.InputAuthority, revision, index);
+    }
     [Rpc(RpcSources.StateAuthority, RpcTargets.Proxies, Channel = RpcChannel.Unreliable, TickAligned = false, InvokeLocal = false)]
     private void RPC_ChallengeTestMotion(int revision, int index, byte[] chunk)
     {

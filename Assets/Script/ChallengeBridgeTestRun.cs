@@ -86,12 +86,28 @@ public sealed class ChallengeBridgeTestRun : IDisposable
             run.Vehicle.vehicleInfoPanel = null;
             run.Vehicle.ConfigureSessionChallengeTest(weight);
             run.Physics.ConfigureSessionChallengeTest(run.Location, run.Vehicle);
+            run.HoldBridgeForPreparation();
             vehicleObject.SetActive(true);
             run.Root.SetActive(true); // Awake before Start; the vehicle subscribes on the following frame.
             foreach (var obstacle in vehicleObject.GetComponentsInChildren<UnityEngine.AI.NavMeshObstacle>(true)) obstacle.enabled = false;
             return run;
         }
         catch { run.Dispose(); throw; }
+    }
+
+    private void HoldBridgeForPreparation()
+    {
+        // Copied point/bar prefabs can carry dynamic Rigidbody components from
+        // an earlier test. No gravity/settling is allowed during the name panel.
+        // ActivatePhysics's existing setup/release path owns the later transition.
+        foreach (Point point in Root.GetComponentsInChildren<Point>(true)) HoldBody(point.GetComponent<Rigidbody>());
+        foreach (Bar bar in Bars) HoldBody(bar.GetComponent<Rigidbody>());
+    }
+    private static void HoldBody(Rigidbody body)
+    {
+        if (body == null) return;
+        if (!body.isKinematic) { body.velocity = Vector3.zero; body.angularVelocity = Vector3.zero; }
+        body.isKinematic = true;
     }
 
     private static void StripScriptsExcept<T>(GameObject obj) where T : MonoBehaviour

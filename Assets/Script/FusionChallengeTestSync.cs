@@ -11,7 +11,9 @@ using UnityEngine;
 public sealed class FusionChallengeTestSync : MonoBehaviour
 {
     public const int MessageTag = 0x43435453;
-    private const int PresentationMessage = 1, FinalFrameMessage = 2;
+    private const int PresentationMessage = 1, FinalFrameMessage = 2, RequestPresentationMessage = 3;
+    private const float PresentationRequestInterval = 2f;
+    private const int MaximumPresentationRequests = 3;
     [SerializeField, Range(5f, 30f)] private float viewPreparationSeconds = 20f;
     [Tooltip("Minimum on-screen introduction before each test, on BOTH peers. Physics remains paused until the guest acknowledges it.")]
     [SerializeField, Range(1f, 8f)] private float testIntroductionSeconds = 3f;
@@ -38,6 +40,19 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
     private bool workspaceWasActive;
     private MultiplayerChallengeLobbyUI presentationUI;
     private bool guestIntroductionPending;
+    private byte[] preparedPresentation;
+    private float nextPresentationRequest, nextPresentationResend;
+    private int presentationRequestIndex, presentationRequests;
+    private readonly ChallengeTestPacketAssembly presentationAssembly = new ChallengeTestPacketAssembly();
+    private readonly ChallengeTestPacketAssembly finalAssembly = new ChallengeTestPacketAssembly();
+    private Coroutine outgoingPacket;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    private int diagnosticIndex;
+    private float diagnosticStartedAt;
+    private bool diagnosticReported;
+    private string presentationReceipt = "none";
+    private int presentationSends, receivedPresentationRequests;
+#endif
 
     private void Awake() { runner = GetComponent<NetworkRunner>(); }
     private bool ResolveChallenge()
@@ -52,7 +67,11 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
     {
         if (!ResolveChallenge()) { Clear(); return; }
         var state = host.ChallengeState;
-        if (bound && revision != state.Revision) Clear();
+        if (bound && revision != state.Revision)
+        {
+            Clear();
+            if (!ResolveChallenge()) return;
+        }
         if (state.Phase != MultiplayerChallengePhase.SubmissionsReady && !MultiplayerChallengeRules.IsTestPhase(state.Phase)) return;
         if (!bound)
         {
@@ -64,6 +83,7 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
             workspaceWasActive = workspace.Root.activeSelf;
             workspace.SetEditingEnabled(false); workspace.Root.SetActive(false);
         }
+        TracePreparationWait(state);
         if (runner.IsServer)
         {
             if (state.Phase == MultiplayerChallengePhase.SubmissionsReady && !preparing)
@@ -89,12 +109,17 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
         }
         else
         {
+            // Name presentation follows replicated preparation, not descriptor
+            // arrival. Readiness still requires BOTH a prepared view and the intro.
+            bool introductionComplete = state.Phase == MultiplayerChallengePhase.PreparingTest && ShowIntroduction(state);
             if (pendingPresentation != null && state.Phase == MultiplayerChallengePhase.PreparingTest && pendingPresentationIndex == state.TestIndex)
                 PrepareGuestView(state);
+            if (state.Phase == MultiplayerChallengePhase.PreparingTest && (view == null || index != state.TestIndex))
+                RequestMissingPresentation(state);
             // Readiness includes an actually visible introduction. Late descriptor
             // delivery never shortens the guest's time to read whose bridge is next.
             if (guestIntroductionPending && state.Phase == MultiplayerChallengePhase.PreparingTest && state.TestIndex == index &&
-                view != null && ShowIntroduction(state) && LocalAvatar() != null)
+                view != null && introductionComplete && LocalAvatar() != null)
             {
                 guestIntroductionPending = false;
                 LocalAvatar().ReportChallengeTestView(revision, index, true, false);
@@ -104,10 +129,117 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
         }
     }
 
+    private void RequestMissingPresentation(MultiplayerChallengeState state)
+    {
+        if (presentationRequestIndex != state.TestIndex)
+        {
+            presentationRequestIndex = state.TestIndex;
+            presentationRequests = 0;
+            nextPresentationRequest = Time.unscaledTime + PresentationRequestInterval;
+        }
+        if (presentationRequests >= MaximumPresentationRequests || Time.unscaledTime < nextPresentationRequest) return;
+        presentationRequests++;
+        nextPresentationRequest = Time.unscaledTime + PresentationRequestInterval;
+        LocalAvatar()?.RequestChallengeTestPresentation(revision, state.TestIndex);
+    }
+
+    private void SendPreparedPresentation()
+    {
+        QueueTestPacket(PresentationMessage, preparedPresentation);
+        nextPresentationResend = Time.unscaledTime + PresentationRequestInterval;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        presentationSends++;
+#endif
+    }
+
+    private void QueueTestPacket(int kind, byte[] packet)
+    {
+        if (outgoingPacket != null) return; // Do not restart a large transfer on a retry.
+        if (packet == null || packet.Length == 0 || packet.Length > ChallengeTestPacketAssembly.MaximumBytes)
+            throw new InvalidDataException("Invalid test transfer size.");
+        outgoingPacket = StartCoroutine(SendTestPacket(kind, packet, revision, index));
+    }
+    private IEnumerator SendTestPacket(int kind, byte[] packet, int packetRevision, int packetIndex)
+    {
+        // Pace only large designs: up to 1280 payload bytes each 20ms. Movement
+        // retains its existing unreliable channel and bandwidth/tick settings.
+        for (int offset = 0, batch = 0; offset < packet.Length; offset += ChallengeTestPacketAssembly.ChunkBytes)
+        {
+            if (!ResolveChallenge() || revision != packetRevision || index != packetIndex) break;
+            int length = Math.Min(ChallengeTestPacketAssembly.ChunkBytes, packet.Length - offset);
+            var chunk = new byte[length]; Buffer.BlockCopy(packet, offset, chunk, 0, length);
+            try { host.PublishChallengeTestPacket(host.ChallengeState.Guest, packetRevision, packetIndex, kind, packet.Length, offset, chunk); }
+            catch (Exception error) { FailSetup(error); break; }
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            if (offset == 0)
+                Debug.Log($"[Challenge test transfer] sent kind={kind} revision={packetRevision} index={packetIndex} bytes={packet.Length} via reliable RPC", this);
+#endif
+            if (++batch == 4 && offset + length < packet.Length)
+            { batch = 0; yield return new WaitForSecondsRealtime(0.02f); }
+        }
+        // Always yield once: StartCoroutine must assign its handle before cleanup.
+        yield return null;
+        outgoingPacket = null;
+    }
+
+    internal void ReceivePresentationRequest(PlayerRef sender, int receivedRevision, int receivedIndex)
+    {
+        if (!ResolveChallenge() || !runner.IsServer) return;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        receivedPresentationRequests++;
+#endif
+        if (preparedPresentation != null &&
+            CanServePresentation(host.ChallengeState, sender, receivedRevision, receivedIndex, revision, index) &&
+            Time.unscaledTime >= nextPresentationResend)
+            SendPreparedPresentation();
+    }
+
+    internal void ReceiveTestPacketChunk(int receivedRevision, int receivedIndex, int kind, int total, int offset, byte[] chunk)
+    {
+        if (runner == null || runner.IsServer || !ResolveChallenge() ||
+            (kind != PresentationMessage && kind != FinalFrameMessage) ||
+            !CanBufferTestPacket(host.ChallengeState, receivedRevision, receivedIndex, kind == FinalFrameMessage)) return;
+        // A new revision can arrive before Update retires the previous workspace.
+        if (bound && revision != receivedRevision)
+        { Clear(); if (!ResolveChallenge()) return; }
+        var assembly = kind == PresentationMessage ? presentationAssembly : finalAssembly;
+        if (!assembly.Add(receivedRevision, receivedIndex, total, offset, chunk, out byte[] packet)) return;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (kind == PresentationMessage)
+            presentationReceipt = $"rpc:{receivedRevision}/{receivedIndex}/{assembly.ReceivedBytes}/{total}B";
+#endif
+        if (packet == null) return;
+        OnReliableData(runner.LocalPlayer, ReliableKey.FromInts(MessageTag, kind, receivedRevision, receivedIndex), packet);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        Debug.Log($"[Challenge test transfer] received kind={kind} revision={receivedRevision} index={receivedIndex} bytes={packet.Length} via reliable RPC", this);
+#endif
+    }
+
+    [System.Diagnostics.Conditional("UNITY_EDITOR"), System.Diagnostics.Conditional("DEVELOPMENT_BUILD")]
+    private void TracePreparationWait(MultiplayerChallengeState state)
+    {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (state.Phase != MultiplayerChallengePhase.PreparingTest) return;
+        if (diagnosticIndex != state.TestIndex)
+        { diagnosticIndex = state.TestIndex; diagnosticStartedAt = Time.unscaledTime; diagnosticReported = false; }
+        if (diagnosticReported || Time.unscaledTime - diagnosticStartedAt < 6f) return;
+        diagnosticReported = true;
+        var local = LocalAvatar();
+        Debug.LogWarning($"[Challenge preparation wait] host={runner.IsServer} revision={revision} index={index} stateIndex={state.TestIndex} " +
+            $"hostRun={run != null} preparing={preparing} spectator={view != null} bufferedBytes={pendingPresentation?.Length ?? 0} " +
+            $"bufferedIndex={pendingPresentationIndex} guestIntroPending={guestIntroductionPending} guestReady={state.GuestTestViewReady} " +
+            $"descriptorBytes={preparedPresentation?.Length ?? 0} requests={presentationRequests} receipt={presentationReceipt} " +
+            $"descriptorSends={presentationSends} receivedRequests={receivedPresentationRequests} " +
+            $"localAuthority={local != null && local.HasInputAuthority} physicsActive={run != null && run.Physics.IsSimulationActive} " +
+            (presentationUI != null ? presentationUI.TestIntroductionDiagnostic : "introUI=missing"), this);
+#endif
+    }
+
     private void BeginPreparation(int nextIndex)
     {
         if (!host.PrepareChallengeTest(revision, nextIndex, viewPreparationSeconds + IntroductionDuration)) return;
         index = nextIndex; preparing = true; started = resultRecorded = frozen = finalConfirmed = false;
+        preparedPresentation = null; nextPresentationResend = 0f;
         sequence = cursor = 0; nextMotionTime = nextProgressTime = 0f;
         run?.Dispose(); run = null;
         StartCoroutine(PrepareHostRun());
@@ -164,7 +296,11 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
                 VehiclePoses = new HostWorldBridgePose[run.Vehicle.wheelObjects.Length + 1] };
             descriptor.VehiclePoses[0] = HostWorldBridgePose.World(run.Vehicle.transform);
             for (int i = 0; i < run.Vehicle.wheelObjects.Length; i++) descriptor.VehiclePoses[i + 1] = HostWorldBridgePose.World(run.Vehicle.wheelObjects[i].transform);
-            runner.SendReliableDataToPlayer(host.ChallengeState.Guest, ReliableKey.FromInts(MessageTag, PresentationMessage, revision, index), descriptor.Encode());
+            // Keep the immutable view until this test ends. A transport callback
+            // may precede the guest's matching snapshot; it can explicitly pull
+            // the same view after reaching PreparingTest instead of timing out.
+            preparedPresentation = descriptor.Encode();
+            SendPreparedPresentation();
             preparing = false; motionEpoch = Time.unscaledTime; motionCredit = 0f;
         }
         catch (Exception error) { FailSetup(error); }
@@ -225,7 +361,7 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
             try
             {
                 var chunks = CaptureFinalFrame();
-                runner.SendReliableDataToPlayer(host.ChallengeState.Guest, ReliableKey.FromInts(MessageTag, FinalFrameMessage, revision, index), chunks);
+                QueueTestPacket(FinalFrameMessage, chunks);
             }
             catch (Exception error) { FailSetup(error); }
         }
@@ -260,15 +396,59 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
     public void OnReliableData(PlayerRef sender, ReliableKey key, ReadOnlySpan<byte> data)
     {
         key.GetInts(out int tag, out int kind, out int receivedRevision, out int receivedIndex);
-        if (tag != MessageTag || runner == null || runner.IsServer || !ResolveChallenge() || host.ChallengeState.Revision != receivedRevision ||
-            (receivedIndex != 1 && receivedIndex != 2) || data.Length > HostWorldBridgeSnapshotCodec.MaxPacketBytes + 4096 ||
-            (host.ChallengeState.Phase != MultiplayerChallengePhase.SubmissionsReady && !MultiplayerChallengeRules.IsTestPhase(host.ChallengeState.Phase))) return;
-        // A reliable packet may arrive before the corresponding network-state tick.
-        // Retain at most the next descriptor/final frame, scoped by revision/index.
-        if (kind == PresentationMessage && receivedIndex >= host.ChallengeState.TestIndex)
+        if (tag != MessageTag || runner == null) return;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (!runner.IsServer && kind == PresentationMessage)
+            presentationReceipt = $"callback:{receivedRevision}/{receivedIndex}/{data.Length}B";
+#endif
+        if (!ResolveChallenge())
+        {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            if (!runner.IsServer && kind == PresentationMessage) presentationReceipt += ":inactive-challenge";
+#endif
+            return;
+        }
+        if (runner.IsServer)
+        {
+            if (kind == RequestPresentationMessage && data.Length == 1 && data[0] == 1)
+                ReceivePresentationRequest(sender, receivedRevision, receivedIndex);
+            return;
+        }
+        if (
+            (kind != PresentationMessage && kind != FinalFrameMessage) || data.Length == 0 ||
+            data.Length > HostWorldBridgeSnapshotCodec.MaxPacketBytes + 4096 ||
+            !CanBufferTestPacket(host.ChallengeState, receivedRevision, receivedIndex, kind == FinalFrameMessage))
+        {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            if (kind == PresentationMessage) presentationReceipt += $":rejected-state={host.ChallengeState.Phase}/{host.ChallengeState.Revision}/{host.ChallengeState.TestIndex}";
+#endif
+            return;
+        }
+        // Reliable transfers and replicated snapshots have independent timing.
+        // The first descriptor can arrive while the guest still sees Building.
+        // Keep it until PreparingTest; never construct a view or release physics
+        // based on an early packet alone. Fusion Host/Client callbacks identify
+        // the server connection with the client's PlayerRef, not the host's ID.
+        if (kind == PresentationMessage && !(view != null && index == receivedIndex))
         { pendingPresentation = data.ToArray(); pendingPresentationIndex = receivedIndex; }
-        else if (kind == FinalFrameMessage && receivedIndex >= host.ChallengeState.TestIndex)
+        else if (kind == FinalFrameMessage)
         { pendingFinal = data.ToArray(); pendingFinalIndex = receivedIndex; }
+    }
+
+    internal static bool CanServePresentation(MultiplayerChallengeState state, PlayerRef sender, int receivedRevision,
+        int receivedIndex, int preparedRevision, int preparedIndex) =>
+        sender == state.Guest && sender != PlayerRef.None && state.Phase == MultiplayerChallengePhase.PreparingTest &&
+        !state.GuestTestViewReady && receivedRevision == state.Revision && receivedRevision == preparedRevision &&
+        (receivedIndex == 1 || receivedIndex == 2) && receivedIndex == state.TestIndex && receivedIndex == preparedIndex;
+
+    internal static bool CanBufferTestPacket(MultiplayerChallengeState state, int receivedRevision, int receivedIndex, bool finalFrame)
+    {
+        if (state.Revision != receivedRevision || (receivedIndex != 1 && receivedIndex != 2)) return false;
+        if (state.Phase == MultiplayerChallengePhase.Building || state.Phase == MultiplayerChallengePhase.SubmissionsReady)
+            return !finalFrame && state.TestIndex == 0 && receivedIndex == 1;
+        if (state.Phase != MultiplayerChallengePhase.PreparingTest && state.Phase != MultiplayerChallengePhase.Testing) return false;
+        return receivedIndex == state.TestIndex ||
+            (!finalFrame && state.TestIndex == 1 && receivedIndex == 2);
     }
     private byte[] CaptureFinalFrame()
     {
@@ -325,16 +505,59 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
     }
     public void Clear()
     {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        diagnosticIndex = 0; diagnosticReported = false; presentationReceipt = "none";
+        presentationSends = receivedPresentationRequests = 0;
+#endif
         StopAllCoroutines();
+        outgoingPacket = null; presentationAssembly.Clear(); finalAssembly.Clear();
         run?.Dispose(); run = null; view?.Dispose(); view = null;
         if (workspace != null && workspace.Root != null) workspace.Root.SetActive(workspaceWasActive);
         foreach (var entry in vehicleVisibility) if (entry.Key != null) entry.Key.SetActive(entry.Value);
         vehicleVisibility.Clear(); workspace = null; vehicleSource = null; settings = null; host = null;
         presentationUI = null; guestIntroductionPending = false;
         pendingPresentation = pendingFinal = null;
+        preparedPresentation = null; presentationRequests = presentationRequestIndex = 0;
+        nextPresentationRequest = nextPresentationResend = 0f;
         bound = preparing = started = resultRecorded = frozen = finalConfirmed = false;
         revision = index = sequence = cursor = 0;
     }
     private void OnDisable() { Clear(); }
     private void OnDestroy() { Clear(); }
+}
+
+/// <summary>One bounded immutable transfer per test/kind; duplicate chunks are idempotent.</summary>
+internal sealed class ChallengeTestPacketAssembly
+{
+    internal const int ChunkBytes = 320;
+    internal const int MaximumBytes = HostWorldBridgeSnapshotCodec.MaxPacketBytes + 4096;
+    private byte[] bytes;
+    private bool[] received;
+    private int revision, index, count;
+    internal int ReceivedBytes { get; private set; }
+    internal bool Add(int rev, int test, int total, int offset, byte[] chunk, out byte[] packet)
+    {
+        packet = null;
+        if (rev <= 0 || (test != 1 && test != 2) || total <= 0 || total > MaximumBytes ||
+            offset < 0 || offset >= total || offset % ChunkBytes != 0 || chunk == null ||
+            chunk.Length != Math.Min(ChunkBytes, total - offset)) return false;
+        if (bytes == null || revision != rev || index != test)
+        {
+            Clear(); revision = rev; index = test;
+            bytes = new byte[total]; received = new bool[(total + ChunkBytes - 1) / ChunkBytes];
+        }
+        if (bytes.Length != total) return false;
+        int slot = offset / ChunkBytes;
+        if (received[slot])
+        {
+            for (int i = 0; i < chunk.Length; i++) if (bytes[offset + i] != chunk[i]) return false;
+            return true;
+        }
+        Buffer.BlockCopy(chunk, 0, bytes, offset, chunk.Length);
+        received[slot] = true; count++; ReceivedBytes += chunk.Length;
+        if (count == received.Length) packet = bytes;
+        return true;
+    }
+    internal void Clear()
+    { bytes = null; received = null; revision = index = count = ReceivedBytes = 0; }
 }

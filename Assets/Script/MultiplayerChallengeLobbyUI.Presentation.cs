@@ -32,6 +32,10 @@ public sealed partial class MultiplayerChallengeLobbyUI
     internal static bool IntroductionElapsed(float shownAt, float now, float seconds) =>
         shownAt >= 0f && now >= shownAt && now - shownAt >= seconds;
 
+    internal string TestIntroductionDiagnostic => $"introActive={testIntroductionPanel != null && testIntroductionPanel.activeInHierarchy} " +
+        $"introAge={(introductionShownAt < 0f ? -1f : Time.unscaledTime - introductionShownAt):0.00}s " +
+        $"introRevision={introductionRevision} introIndex={introductionIndex}";
+
     private void RefreshTestPresentation(MultiplayerChallengeState state)
     {
         if (state.Phase != MultiplayerChallengePhase.PreparingTest) HideTestIntroduction();

@@ -443,6 +443,7 @@ public sealed partial class MultiplayerChallengeLobbyUI : MonoBehaviour
     private void ShowPanel(GameObject panel)
     {
         if (panel == null || openPanel == panel) return;
+        SessionChatUI.CloseForTransition(gameObject.scene);
         WorldMultiplayerPanelUI.CloseForChallenge(gameObject.scene);
         if (openPanel != null)
         {
@@ -574,25 +575,39 @@ public sealed partial class MultiplayerChallengeLobbyUI : MonoBehaviour
     private void RefreshPortraits(FusionMultiplayerAvatar guest)
     {
         if (portraitCamera == null || portraitImage == null || hostPortraitAnchor == null || guestPortraitAnchor == null) return;
-        if (portraitTexture == null)
+        if (portraitTexture == null) Canvas.ForceUpdateCanvases();
+        Rect display = portraitImage.rectTransform.rect;
+        float aspect = display.height > 0f ? Mathf.Max(0.25f, display.width / display.height) : 2f;
+        int height = Mathf.Clamp(Mathf.RoundToInt(768f / aspect), 128, 1024);
+        if (portraitTexture == null || portraitTexture.height != height)
         {
             // Match the authored display rectangle rather than stretching the
             // players on different screen aspect ratios.
-            Canvas.ForceUpdateCanvases();
-            Rect display = portraitImage.rectTransform.rect;
-            float aspect = display.height > 0f ? display.width / display.height : 2f;
-            int height = Mathf.Clamp(Mathf.RoundToInt(768f / Mathf.Max(0.5f, aspect)), 128, 1024);
+            if (portraitTexture != null) { portraitCamera.targetTexture = null; portraitTexture.Release(); Destroy(portraitTexture); }
             portraitTexture = new RenderTexture(768, height, 16, RenderTextureFormat.ARGB32)
             { name = "Challenge Lobby Portraits (Session Only)", hideFlags = HideFlags.DontSave };
             portraitTexture.Create();
             portraitCamera.targetTexture = portraitTexture;
             portraitImage.texture = portraitTexture;
         }
+        FramePortraitColumns(portraitCamera, hostPortraitAnchor, guestPortraitAnchor, aspect);
         portraitCamera.enabled = true;
         if (Time.unscaledTime < nextPortraitRefresh) return;
         nextPortraitRefresh = Time.unscaledTime + 0.5f;
         RefreshPortrait(host, hostPortraitAnchor, ref hostPortrait, ref hostAppearance);
         RefreshPortrait(guest, guestPortraitAnchor, ref guestPortrait, ref guestAppearance);
+    }
+
+    // The authored stage/light/height stay unchanged. Horizontal anchor spacing
+    // follows the RawImage, not Screen.aspect or a fixed world-space +/-2.9.
+    internal static void FramePortraitColumns(Camera camera, Transform hostAnchor, Transform guestAnchor, float aspect)
+    {
+        if (camera == null || hostAnchor == null || guestAnchor == null || !camera.orthographic) return;
+        camera.aspect = Mathf.Max(0.25f, aspect);
+        float offset = camera.orthographicSize * camera.aspect * 0.5f;
+        Vector3 right = camera.transform.right, origin = camera.transform.position;
+        hostAnchor.position += right * (-offset - Vector3.Dot(hostAnchor.position - origin, right));
+        guestAnchor.position += right * (offset - Vector3.Dot(guestAnchor.position - origin, right));
     }
 
     private static void RefreshPortrait(FusionMultiplayerAvatar avatar, Transform anchor, ref GameObject portrait, ref string appearance)
