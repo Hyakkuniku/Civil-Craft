@@ -43,10 +43,15 @@ public class ModeSelectionManager : MonoBehaviour
     private Coroutine cameraCoroutine;
     [Header("Scene Presentation References")]
     [SerializeField] private TMP_Text modeHeading, modeDescription;
+    [SerializeField] private TMP_Text modeKicker, modeHint;
     [SerializeField] private CanvasGroup descriptionGroup;
+    [SerializeField] private Vector2 storyCardMin = new Vector2(.04f, .27f), storyCardMax = new Vector2(.32f, .77f);
+    [SerializeField] private Vector2 multiplayerCardMin = new Vector2(.68f, .27f), multiplayerCardMax = new Vector2(.96f, .77f);
     private Coroutine presentationCoroutine;
 
     [Header("Multiplayer Entry")]
+    [Tooltip("Only joining is available here. Players host from their world's Multiplayer panel.")]
+    [SerializeField] private bool joinOnly = true;
     [Tooltip("Enable to test Photon Fusion Host/Join. Leave off until Fusion avatars are verified; Relay remains available as fallback.")]
     [SerializeField] private bool useFusionNetworking;
     [SerializeField] private string multiplayerSceneName = "CanyonCrossing";
@@ -192,7 +197,7 @@ public class ModeSelectionManager : MonoBehaviour
         }
     }
 
-    /// <summary>Opens the authored Host/Join panel in the Mode Selection scene.</summary>
+    /// <summary>Opens the authored join-code panel in the Mode Selection scene.</summary>
     public void OpenMultiplayerPanel()
     {
         if (multiplayerEntryPanel == null || multiplayerEntryGroup == null)
@@ -203,6 +208,7 @@ public class ModeSelectionManager : MonoBehaviour
 
         ResetMultiplayerEntryPresentation(true);
         multiplayerEntryPanel.SetActive(true);
+        if (joinOnly) BeginJoinCodeEntry();
         if (previousButton != null) previousButton.SetActive(false);
         if (nextButton != null) nextButton.SetActive(false);
 
@@ -250,6 +256,9 @@ public class ModeSelectionManager : MonoBehaviour
 
     public async void HostMultiplayer()
     {
+        // Prevent an old serialized button/event from starting a menu-hosted
+        // world. In-world hosting uses WorldMultiplayerPanelUI independently.
+        if (joinOnly) { OpenMultiplayerPanel(); return; }
         if (hostStartInProgress) return;
 
         if (hostCodeReady)
@@ -363,22 +372,7 @@ public class ModeSelectionManager : MonoBehaviour
 
         if (!joinCodeEntryReady)
         {
-            joinCodeEntryReady = true;
-            PlayerPrefs.DeleteKey(roomCodePreferenceKey);
-
-            if (multiplayerPromptText != null)
-                multiplayerPromptText.text = "ENTER THE ROOM CODE CREATED BY PLAYER 1.";
-            if (hostButtonObject != null) hostButtonObject.SetActive(false);
-            if (roomCodeInput != null)
-            {
-                roomCodeInput.gameObject.SetActive(true);
-                roomCodeInput.enabled = true;
-                roomCodeInput.interactable = true;
-                roomCodeInput.readOnly = false;
-                roomCodeInput.text = string.Empty;
-                FocusRoomCodeInputNextFrame();
-            }
-            if (joinButtonLabel != null) joinButtonLabel.text = "CONNECT";
+            BeginJoinCodeEntry();
             return;
         }
 
@@ -462,6 +456,25 @@ public class ModeSelectionManager : MonoBehaviour
         }
     }
 
+    private void BeginJoinCodeEntry()
+    {
+        joinCodeEntryReady = true;
+        PlayerPrefs.DeleteKey(roomCodePreferenceKey);
+        if (multiplayerPromptText != null)
+            multiplayerPromptText.text = "Enter your friend's <b>6-character room code</b> to join their world.";
+        if (hostButtonObject != null) hostButtonObject.SetActive(false);
+        if (roomCodeInput != null)
+        {
+            roomCodeInput.gameObject.SetActive(true);
+            roomCodeInput.enabled = true;
+            roomCodeInput.interactable = true;
+            roomCodeInput.readOnly = false;
+            roomCodeInput.text = string.Empty;
+            FocusRoomCodeInputNextFrame();
+        }
+        if (joinButtonLabel != null) joinButtonLabel.text = "JOIN WORLD";
+    }
+
     private void ShowJoinError(string message)
     {
         preserveClientForSceneTransition = false;
@@ -469,7 +482,7 @@ public class ModeSelectionManager : MonoBehaviour
         PlayerPrefs.DeleteKey(hostPreferenceKey);
         PlayerPrefs.Save();
         if (multiplayerPromptText != null) multiplayerPromptText.text = message;
-        if (joinButtonLabel != null) joinButtonLabel.text = "CONNECT";
+        if (joinButtonLabel != null) joinButtonLabel.text = joinOnly ? "JOIN WORLD" : "CONNECT";
         if (roomCodeInput != null) roomCodeInput.interactable = true;
         FocusRoomCodeInputNextFrame();
     }
@@ -528,6 +541,11 @@ public class ModeSelectionManager : MonoBehaviour
         // otherwise it can reclaim selection from the newly revealed input.
         yield return null;
 
+        // Join-only entry opens the code field during the panel fade. Wait for
+        // its CanvasGroup to become interactable before selecting the caret.
+        while (multiplayerEntryCoroutine != null && multiplayerEntryGroup != null && !multiplayerEntryGroup.interactable)
+            yield return null;
+
         if (roomCodeInput != null && roomCodeInput.gameObject.activeInHierarchy)
         {
             if (EventSystem.current != null)
@@ -574,7 +592,7 @@ public class ModeSelectionManager : MonoBehaviour
         SetHostButtonInteractable(true);
         SetJoinButtonInteractable(true);
         if (joinButtonLabel != null) joinButtonLabel.text = "JOIN GAME";
-        if (hostButtonObject != null) hostButtonObject.SetActive(true);
+        if (hostButtonObject != null) hostButtonObject.SetActive(!joinOnly);
         if (joinButtonObject != null) joinButtonObject.SetActive(true);
         if (roomCodeInput != null)
         {
@@ -688,18 +706,22 @@ public class ModeSelectionManager : MonoBehaviour
         ModeData mode = modes[currentIndex];
         bool multiplayer = mode.modeName.ToLowerInvariant().Contains("multi");
         if (modeHeading != null) modeHeading.text = mode.modeName.ToUpperInvariant();
+        if (modeKicker != null) modeKicker.text = multiplayer ? "PLAY TOGETHER" : "YOUR ADVENTURE";
+        if (modeHint != null) modeHint.text = multiplayer
+            ? "Want to host? Start Story, then turn on Multiplayer in your world."
+            : "Your world. Your bridges. Your progress.";
         if (modeDescription != null)
         {
             modeDescription.text = !string.IsNullOrWhiteSpace(mode.description) ? mode.description :
-                multiplayer ? "Bring your friends along. Choose multiplayer to begin your next building adventure together." :
+                multiplayer ? "Join a friend's world, explore together, and compete in bridge-building challenges." :
                 "Explore the canyon, meet its people and take on bridge-building contracts. Learn, build and connect the community at your own pace.";
         }
         if (descriptionGroup != null)
         {
             // Occupy the inactive navigation side: Story left, Multiplayer right.
             RectTransform card = (RectTransform)descriptionGroup.transform;
-            card.anchorMin = new Vector2(multiplayer ? .69f : .04f, .32f);
-            card.anchorMax = new Vector2(multiplayer ? .96f : .31f, .75f);
+            card.anchorMin = multiplayer ? multiplayerCardMin : storyCardMin;
+            card.anchorMax = multiplayer ? multiplayerCardMax : storyCardMax;
             card.anchoredPosition = Vector2.zero;
             card.sizeDelta = Vector2.zero;
             if (presentationCoroutine != null) StopCoroutine(presentationCoroutine);
