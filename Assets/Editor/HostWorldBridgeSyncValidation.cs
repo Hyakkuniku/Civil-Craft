@@ -2,8 +2,10 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Text.RegularExpressions;
 using Fusion;
 using TMPro;
 using UnityEditor;
@@ -106,6 +108,7 @@ public static class HostWorldBridgeSyncValidation
             ValidateChallengeReadiness(report);
             ValidateChallengeBuildPolicy(report);
             ValidateChallengeWorkspace(fixture.transform, report);
+            ChallengeUIValidation.Run(fixture.transform, report);
             ChallengeSubmissionValidation.Run(fixture.transform, report);
             BridgeConstructionValidation.Run(fixture.transform, report);
             ChallengeTestValidation.Run(fixture.transform, report);
@@ -919,4 +922,195 @@ public static class HostWorldBridgeSyncValidation
         { report.AppendLine("PASS: " + message); return; }
         throw new InvalidOperationException(message);
     }
+}
+/// <summary>Read-only authored-scene checks and disposable UI previews, never saves a scene.</summary>
+public static class ChallengeUIValidation
+{
+    private static double nextRequestCheck;
+    [InitializeOnLoadMethod]
+    private static void WatchRequestedPreview()
+    {
+        EditorApplication.update -= RunRequestedPreview;
+        EditorApplication.update += RunRequestedPreview;
+    }
+    private static void RunRequestedPreview()
+    {
+        if (EditorApplication.timeSinceStartup < nextRequestCheck) return;
+        nextRequestCheck = EditorApplication.timeSinceStartup + 2;
+        const string request = "Temp/challenge-ui-validation.request";
+        if (!File.Exists(request) || EditorApplication.isCompiling || EditorApplication.isUpdating ||
+            EditorApplication.isPlayingOrWillChangePlaymode || AuthoredResults() == null) return;
+        File.Delete(request);
+        HostWorldBridgeSyncValidation.Validate();
+    }
+    private static GameObject AuthoredResults() => Resources.FindObjectsOfTypeAll<GameObject>().FirstOrDefault(obj =>
+        obj.name == "ChallengeResultsPanel" && obj.scene.IsValid() && obj.scene.name == "CanyonCrossing");
+    public static void Run(Transform fixture, StringBuilder report)
+    {
+        string scene = File.ReadAllText("Assets/Scenes/CanyonCrossing.unity");
+        Func<string, string> block = id => Regex.Match(scene, @"(?ms)^--- !u!\d+ &" + id + @"\r?\n.*?(?=^--- !u!|\z)").Value;
+        string service = block("900000000000000105");
+        foreach (string field in new[] { "submissionStatusBody", "submissionStatusHeader", "submissionConfirmPanel", "confirmSubmitButton",
+            "resultsPanel", "resultsWinner", "resultsRules", "resultsHostName", "resultsGuestName", "resultsHostScore",
+            "resultsGuestScore", "resultsHostDetails", "resultsGuestDetails" })
+        {
+            string id = Regex.Match(service, @"(?m)^  " + field + @": \{fileID: (\d+)\}").Groups[1].Value;
+            Check(id.Length > 0 && block(id).Length > 0, "Missing authored presentation reference: " + field);
+            if (field == "submissionConfirmPanel" || field == "resultsPanel" || field == "submissionStatusBody")
+                Check(block(id).Contains("m_IsActive: 0"), field + " appears in single-player.");
+        }
+        foreach (string method in new[] { "ToggleSubmissionStatus", "ConfirmSubmitBridge", "CancelSubmissionConfirmation" })
+            Check(scene.Contains("m_MethodName: " + method), "Missing authored button handler: " + method);
+        Check(block("900000000000011011").Contains("m_AnchorMin: {x: 0.155, y: 1}") &&
+            block("900000000000011011").Contains("m_AnchorMax: {x: 0.375, y: 1}"), "Player status escaped its authored top-left slot.");
+        var plain = typeof(MultiplayerChallengeLobbyUI).GetMethod("PlainText", BindingFlags.Static | BindingFlags.NonPublic);
+        Check((string)plain.Invoke(null, new object[] { "<color=red>IGN</color>" }) == "‹color=red›IGN‹/color›",
+            "Player names can inject rich-text formatting.");
+        report.AppendLine("PASS: Authored player dropdown, modal confirmation and separate results references are intact, persistently wired and hidden outside challenges; formatted IGNs are escaped.");
+        ValidateControls(fixture, report);
+        var source = AuthoredResults();
+        if (source == null)
+        {
+            report.AppendLine("NOTE: Reload CanyonCrossing to run the visual previews of the newly authored objects; disk references passed.");
+            return;
+        }
+        var env = new GameObject("Challenge UI Preview (Temporary)", typeof(RectTransform), typeof(Canvas));
+        SceneManager.MoveGameObjectToScene(env, fixture.gameObject.scene);
+        RenderTexture target = null;
+        Texture2D picture = null;
+        try
+        {
+            var canvas = env.GetComponent<Canvas>(); canvas.renderMode = RenderMode.WorldSpace;
+            env.GetComponent<RectTransform>().sizeDelta = new Vector2(1920, 1080);
+            var cameraObj = new GameObject("UI Preview Camera (Temporary)", typeof(Camera));
+            cameraObj.transform.SetParent(env.transform, false);
+            var camera = cameraObj.GetComponent<Camera>();
+            camera.orthographic = true; camera.orthographicSize = 540; camera.aspect = 1920f / 1080;
+            camera.transform.localPosition = new Vector3(0, 0, -1000);
+            camera.nearClipPlane = 0.1f; camera.farClipPlane = 2000;
+            camera.cullingMask = 1 << 31; camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.backgroundColor = new Color(0.16f, 0.3f, 0.74f); camera.enabled = false;
+            canvas.worldCamera = camera;
+            target = new RenderTexture(1280, 720, 24); target.Create(); camera.targetTexture = target;
+            GameObject preview = Object.Instantiate(source, env.transform, false);
+            preview.SetActive(true); SetLayer(preview);
+            Text(preview, "Winner").text = "<b><color=#79500F>WINNER: Guest Engineer</color></b>";
+            Text(preview, "Scoring Rules").text = "<b>40% COST / 60% STRENGTH</b>  •  Budget <b>₱150,000</b>";
+            Text(preview, "Host Results Name").text = "Host Engineer  <size=70%>(HOST)</size>";
+            Text(preview, "Guest Results Name").text = "Guest Engineer  <size=70%>(GUEST)</size>";
+            Text(preview, "Host Score").text = "<b>0.00</b><size=45%> / 100</size>";
+            Text(preview, "Guest Score").text = "<b>29.39</b><size=45%> / 100</size>";
+            var details = typeof(MultiplayerChallengeLobbyUI).GetMethod("ResultsDetails", BindingFlags.Static | BindingFlags.NonPublic);
+            Text(preview, "Host Test Details").text = (string)details.Invoke(null, new object[] { ChallengeTestOutcome.Collapsed, 64955f, 150000f, 1f });
+            Text(preview, "Guest Test Details").text = (string)details.Invoke(null, new object[] { ChallengeTestOutcome.Crossed, 92221f, 150000f, 0.767f });
+            Capture(camera, target, "Temp/ChallengeResultsAuthoredPreview.png", ref picture);
+            ValidateFit(preview);
+            foreach (string who in new[] { "Host", "Guest" }) Text(preview, who + " Results Name").text = new string('W', 32);
+            foreach (float budget in new[] { 150000f, 200000f })
+            {
+                Text(preview, "Winner").text = "<b>WINNER: " + new string('W', 32) + "</b>";
+                Text(preview, "Guest Test Details").text = (string)details.Invoke(null,
+                    new object[] { ChallengeTestOutcome.Crossed, 92221f, budget, 0.767f });
+                Canvas.ForceUpdateCanvases(); ValidateFit(preview);
+            }
+            Object.DestroyImmediate(preview);
+            foreach (string panel in new[] { "ChallengeSubmitConfirmation", "ChallengeSubmissionStatus", "Challenge_UI" })
+            {
+                var original = Resources.FindObjectsOfTypeAll<GameObject>().First(obj => obj.name == panel &&
+                    obj.scene.IsValid() && obj.scene.name == "CanyonCrossing");
+                preview = Object.Instantiate(original, env.transform, false); preview.SetActive(true); SetLayer(preview);
+                if (panel == "ChallengeSubmissionStatus")
+                {
+                    foreach (Transform child in preview.GetComponentsInChildren<Transform>(true))
+                        if (child.name == "Player Status Details") child.gameObject.SetActive(true);
+                    Text(preview, "Label").text = "<b>PLAYERS  1/2 SUBMITTED  −</b>";
+                    preview.GetComponentsInChildren<TMP_Text>(true).First(text => text.gameObject.name == "Label" &&
+                        text != Text(preview, "Label")).text = "Host Engineer: <b><color=#376F42>SUBMITTED</color></b>\nGuest Engineer: <b>BUILDING</b>\n\n<b>YOUR BRIDGE IS LOCKED</b>\nWaiting for your opponent.";
+                }
+                if (panel == "Challenge_UI")
+                {
+                    Text(preview, "ChallengeTitle").text = "BRIDGE CHALLENGE";
+                    Text(preview, "ChallengeMessage").text = "<b>Host Engineer</b> challenges you at <b>Factory Bridge</b>.\nAccept to travel to the lobby.\n<b><color=#98601C>23 seconds remaining.</color></b>";
+                    foreach (Transform child in preview.GetComponentsInChildren<Transform>(true))
+                        if (child.name == "CancelInvitationButton") child.gameObject.SetActive(false);
+                }
+                Capture(camera, target, "Temp/" + panel + "AuthoredPreview.png", ref picture);
+                ValidateFit(preview);
+                if (panel == "ChallengeSubmissionStatus")
+                {
+                    TMP_Text detail = preview.GetComponentsInChildren<TMP_Text>(true).First(text => text.gameObject.name == "Label" &&
+                        text != Text(preview, "Label"));
+                    detail.text = new string('W', 32) + ": <b>SUBMITTED</b>\n" + new string('W', 32) +
+                        ": <b>BUILDING</b>\n\n<b>YOUR BRIDGE IS LOCKED</b>\nWaiting for your opponent.";
+                    ValidateFit(preview);
+                }
+                Object.DestroyImmediate(preview);
+            }
+            report.AppendLine("PASS: Actual authored UI renders in isolated previews; result names up to 32 characters, metrics, invitation, confirmation and expanded player status fit their authored rectangles.");
+        }
+        finally
+        {
+            if (picture != null) Object.DestroyImmediate(picture);
+            if (target != null) { target.Release(); Object.DestroyImmediate(target); }
+            Object.DestroyImmediate(env);
+        }
+    }
+
+    private static void ValidateControls(Transform fixture, StringBuilder report)
+    {
+        var obj = new GameObject("Challenge Presentation Controls (Temporary)"); obj.transform.SetParent(fixture, false);
+        var controller = obj.AddComponent<MultiplayerChallengeLobbyUI>();
+        var body = new GameObject("Status Body (Temporary)", typeof(RectTransform)); body.transform.SetParent(obj.transform, false); body.SetActive(false);
+        var panel = new GameObject("Confirmation (Temporary)"); panel.transform.SetParent(obj.transform, false); panel.SetActive(false);
+        const BindingFlags privateFields = BindingFlags.Instance | BindingFlags.NonPublic;
+        typeof(MultiplayerChallengeLobbyUI).GetField("submissionStatusBody", privateFields).SetValue(controller, body);
+        typeof(MultiplayerChallengeLobbyUI).GetField("submissionConfirmPanel", privateFields).SetValue(controller, panel);
+        FieldInfo owner = typeof(MultiplayerChallengeLobbyUI).GetField("presentationOwner", BindingFlags.Static | BindingFlags.NonPublic);
+        object previousOwner = owner.GetValue(null);
+        Vector2 size = body.GetComponent<RectTransform>().sizeDelta;
+        try
+        {
+            owner.SetValue(null, controller);
+            controller.ToggleSubmissionStatus(); Check(body.activeSelf, "Status did not expand.");
+            controller.ToggleSubmissionStatus(); Check(!body.activeSelf && body.GetComponent<RectTransform>().sizeDelta == size,
+                "Status did not collapse or modified its authored layout.");
+            controller.ConfirmSubmitBridge(); Check(!panel.activeSelf, "An unopened confirmation submitted a bridge.");
+            panel.SetActive(true);
+            Check(MultiplayerChallengeLobbyUI.IsSubmissionConfirmationOpen, "Open confirmation failed to block editing.");
+            controller.CancelSubmissionConfirmation();
+            Check(!panel.activeSelf && !MultiplayerChallengeLobbyUI.IsSubmissionConfirmationOpen, "Cancel failed to close the editing gate.");
+            panel.SetActive(true);
+            typeof(MultiplayerChallengeLobbyUI).GetField("confirmationRevision", privateFields).SetValue(controller, 7);
+            controller.ConfirmSubmitBridge();
+            Check(!panel.activeSelf, "An expired/unbound confirmation did not close safely without submitting.");
+            report.AppendLine("PASS: Player status expands/collapses without changing authored geometry; cancel restores the editing gate; unopened and unbound confirmations cannot submit a bridge.");
+        }
+        finally { owner.SetValue(null, previousOwner); Object.DestroyImmediate(obj); }
+    }
+
+    private static TMP_Text Text(GameObject root, string name) => root.GetComponentsInChildren<TMP_Text>(true).First(t => t.gameObject.name == name);
+    private static void SetLayer(GameObject root) { foreach (Transform t in root.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = 31; }
+    private static void ValidateFit(GameObject root)
+    {
+        Canvas.ForceUpdateCanvases();
+        foreach (TMP_Text text in root.GetComponentsInChildren<TMP_Text>())
+        {
+            text.ForceMeshUpdate();
+            Check(!text.isTextOverflowing, "Authored UI text overflows: " + text.gameObject.name);
+        }
+    }
+    private static void Capture(Camera camera, RenderTexture target, string path, ref Texture2D image)
+    {
+        Canvas.ForceUpdateCanvases(); camera.Render();
+        RenderTexture previous = RenderTexture.active;
+        try
+        {
+            RenderTexture.active = target;
+            if (image == null) image = new Texture2D(target.width, target.height, TextureFormat.RGB24, false);
+            image.ReadPixels(new Rect(0, 0, target.width, target.height), 0, 0); image.Apply();
+            File.WriteAllBytes(path, image.EncodeToPNG());
+        }
+        finally { RenderTexture.active = previous; }
+    }
+    private static void Check(bool value, string error) { if (!value) throw new InvalidOperationException(error); }
 }

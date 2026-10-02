@@ -6,7 +6,7 @@ using UnityEngine.UI;
 
 /// <summary>Controls scene-authored panels and visual-only character previews.</summary>
 [DisallowMultipleComponent]
-public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
+public sealed partial class MultiplayerChallengeLobbyUI : MonoBehaviour
 {
     [Header("Authored UI")]
     [SerializeField] private GameObject challengePanel;
@@ -58,7 +58,6 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
     private int buildRevision = int.MinValue;
     private bool? lastBuildEditingEnabled;
     internal ChallengeBuildWorkspace LocalBuildWorkspace => buildWorkspace;
-    private Vector2 submissionCardSize, submissionCardPosition;
     private int testCameraRevision = int.MinValue;
     private TMP_Text invitationCloseLabel;
     private string invitationCloseOriginalLabel;
@@ -86,10 +85,9 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
 
     private void Awake()
     {
+        InitializeAuthoredPresentation();
         invitationCloseLabel = invitationCloseButton != null ? invitationCloseButton.GetComponentInChildren<TMP_Text>(true) : null;
         invitationCloseOriginalLabel = invitationCloseLabel != null ? invitationCloseLabel.text : null;
-        if (submissionStatusPanel != null && submissionStatusPanel.transform is RectTransform card)
-        { submissionCardSize = card.sizeDelta; submissionCardPosition = card.anchoredPosition; }
         if (challengePanel != null) challengePanel.SetActive(false);
         if (lobbyPanel != null) lobbyPanel.SetActive(false);
         if (challengeOfferButton != null) challengeOfferButton.gameObject.SetActive(false);
@@ -150,8 +148,7 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
         { CancelOrClose(); return; }
         if (buildWorkspace == null || boundRunner == null || GameManager.Instance == null ||
             !GameManager.Instance.CanEditSessionChallengeBuild) return;
-        boundRunner.GetComponent<FusionChallengeSubmissionSync>()?.SubmitLocalBridge(buildWorkspace);
-        RefreshSubmissionControls(host.ChallengeState);
+        OpenSubmissionConfirmation();
     }
 
     private void Update()
@@ -211,8 +208,8 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
             string siteName = site != null ? site.name : "build location";
             float seconds = state.Deadline.RemainingTime(boundRunner) ?? 0f;
             challengeMessage.text = guest
-                ? $"{host.MapPlayerName} challenges you at {siteName}.\nAccept to travel to the lobby.\n{Mathf.CeilToInt(seconds)} seconds remaining."
-                : $"Waiting for {GetAvatar(state.Guest)?.MapPlayerName ?? "guest"} to accept at {siteName}.\n{Mathf.CeilToInt(seconds)} seconds remaining.";
+                ? $"{Emphasis(host.MapPlayerName)} challenges you at {Emphasis(siteName)}.\nAccept to travel to the lobby.\n{Emphasis(Mathf.CeilToInt(seconds) + " seconds remaining", "98601C")}."
+                : $"Waiting for {Emphasis(GetAvatar(state.Guest)?.MapPlayerName ?? "guest")} at {Emphasis(siteName)}.\n{Emphasis(Mathf.CeilToInt(seconds) + " seconds remaining", "98601C")}.";
             return;
         }
         if (state.Phase == MultiplayerChallengePhase.Teleporting)
@@ -242,29 +239,25 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
             UpdateChallengeBuilding(state, site);
             if (state.Phase == MultiplayerChallengePhase.TestResults)
             {
-                ShowPanel(challengePanel);
-                SetInvitationControls(false, false, true);
-                if (invitationCloseLabel != null) invitationCloseLabel.text = "RETURN TO WORLD";
-                challengeTitle.text = "CHALLENGE RESULTS";
-                challengeMessage.text = CompetitionResultsMessage(state, host.MapPlayerName,
-                    GetAvatar(state.Guest)?.MapPlayerName ?? "Guest");
+                ShowPanel(resultsPanel);
+                RefreshResultsPresentation(state, host.MapPlayerName, GetAvatar(state.Guest)?.MapPlayerName ?? "Guest");
                 if (submissionStatusPanel != null) submissionStatusPanel.SetActive(false);
             }
             return;
         }
         // Arrival acknowledgements and host pose validation gate the lobby.
         ShowPanel(lobbyPanel);
-        lobbyTitle.text = $"CHALLENGE LOBBY — {(site != null ? site.name : "Bridge")} ";
+        lobbyTitle.text = $"CHALLENGE LOBBY — {PlainText(site != null ? site.name : "Bridge")}";
         bool countingDown = state.Phase == MultiplayerChallengePhase.Countdown;
         float remaining = state.Deadline.RemainingTime(boundRunner) ?? 0f;
         lobbyStatus.text = countingDown
-            ? (remaining > 0f ? $"Starting in {Mathf.CeilToInt(remaining)}..." : "Waiting for the host's start confirmation...")
-            : "Select Ready when you are prepared. Both players must be ready to start.";
-        hostName.text = host.MapPlayerName + (host == local ? " (YOU)" : " (HOST)") +
-            ((bool)state.HostReady ? "\nREADY" : "\nNOT READY");
+            ? (remaining > 0f ? $"Starting in {Emphasis(Mathf.CeilToInt(remaining).ToString(), "98601C")}..." : "Waiting for the host's start confirmation...")
+            : "Select <b>Ready</b> when prepared. <b>Both players</b> must be ready to start.";
+        hostName.text = PlainText(host.MapPlayerName) + (host == local ? " (YOU)" : " (HOST)") +
+            ((bool)state.HostReady ? "\n" + Emphasis("READY", "376F42") : "\nNOT READY");
         FusionMultiplayerAvatar guestAvatar = GetAvatar(state.Guest);
-        guestName.text = (guestAvatar != null ? guestAvatar.MapPlayerName : "Guest") + (guestAvatar == local ? " (YOU)" : " (GUEST)") +
-            ((bool)state.GuestReady ? "\nREADY" : "\nNOT READY");
+        guestName.text = PlainText(guestAvatar != null ? guestAvatar.MapPlayerName : "Guest") + (guestAvatar == local ? " (YOU)" : " (GUEST)") +
+            ((bool)state.GuestReady ? "\n" + Emphasis("READY", "376F42") : "\nNOT READY");
         bool localReady = host == local ? (bool)state.HostReady : (bool)state.GuestReady;
         if (readyRequestPending && (readyRequestRevision != state.Revision || localReady == requestedReady ||
             Time.unscaledTime - readyRequestTime >= 3f)) readyRequestPending = false;
@@ -334,6 +327,7 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
         bool testing = MultiplayerChallengeRules.IsTestPhase(state.Phase);
         bool results = state.Phase == MultiplayerChallengePhase.TestResults;
         bool sending = transfer != null && transfer.IsSending;
+        RefreshBuildCardPresentation(state, submitted, sending, transfer?.LocalMessage);
         submitBridgeButton.gameObject.SetActive(buildWorkspace != null);
         if (submissionStatusPanel != null) submissionStatusPanel.SetActive(buildWorkspace != null);
         submitBridgeButton.interactable = buildWorkspace != null && GameManager.Instance != null &&
@@ -342,35 +336,31 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
             sending ? "SUBMITTING..." : "SUBMIT BRIDGE";
         if (submissionStatusText != null)
         {
-            string status = ready ? "BOTH BRIDGES SUBMITTED\nPreparing tests in submission order..."
-                : submitted ? "YOUR BRIDGE IS LOCKED\nWaiting for your opponent to submit."
+            string status = ready ? Emphasis("BOTH SUBMITTED", "376F42") + "\nTests run in submission order."
+                : submitted ? Emphasis("YOUR BRIDGE IS LOCKED", "376F42") + "\nWaiting for your opponent."
                 : state.Phase == MultiplayerChallengePhase.ReadyToBuild ? "Waiting for both build views..."
                 : !string.IsNullOrEmpty(transfer?.LocalMessage) ? transfer.LocalMessage
-                : "Build your bridge, then Submit. Accepted designs cannot be edited.";
-            string players = $"{host.MapPlayerName}: {(state.HostSubmitted ? "SUBMITTED" : "BUILDING")}   |   " +
-                $"{GetAvatar(state.Guest)?.MapPlayerName ?? "Guest"}: {(state.GuestSubmitted ? "SUBMITTED" : "BUILDING")}";
-            submissionStatusText.text = status + "\n" + players;
+                : "Build, then <b>Submit</b> to lock your design.";
+            string players = $"{PlainText(host.MapPlayerName)}: {BuildStatus(state.HostSubmitted)}\n" +
+                $"{PlainText(GetAvatar(state.Guest)?.MapPlayerName ?? "Guest")}: {BuildStatus(state.GuestSubmitted)}";
+            submissionStatusText.text = players + "\n\n" + status;
             if (testing)
             {
                 string hostPlayer = host.MapPlayerName;
                 string guestPlayer = GetAvatar(state.Guest)?.MapPlayerName ?? "Guest";
                 string testedPlayer = MultiplayerChallengeRules.TestsHostBridge(state) ? hostPlayer : guestPlayer;
                 ChallengeTestOutcome outcome = MultiplayerChallengeRules.TestsHostBridge(state) ? state.HostTestOutcome : state.GuestTestOutcome;
+                string stress = Emphasis((state.TestStress * 100f).ToString("0.0") + "%", "98601C");
                 submissionStatusText.text = results
                     ? CompetitionResultsMessage(state, hostPlayer, guestPlayer)
                     : state.Phase == MultiplayerChallengePhase.PreparingTest
-                        ? $"PREPARING TEST {state.TestIndex} / 2 — {testedPlayer}\nWaiting for both test views. First submission is tested first."
-                        : $"TEST {state.TestIndex} / 2 — {testedPlayer}\n" +
-                          (outcome == ChallengeTestOutcome.None ? $"{state.TestElapsed:0.0}s   |   Stress {state.TestStress * 100f:0.0}%"
+                        ? $"{Emphasis("PREPARING TEST " + state.TestIndex + " / 2")}\n{PlainText(testedPlayer)}\nWaiting for both test views."
+                        : $"{Emphasis("TEST " + state.TestIndex + " / 2")} — {PlainText(testedPlayer)}\n" +
+                          (outcome == ChallengeTestOutcome.None ? $"{state.TestElapsed:0.0}s   |   Stress {stress}"
                               : TestOutcomeLabel(outcome) + " — showing the completed test to both players...");
             }
         }
-        if (submissionStatusPanel != null && submissionStatusPanel.transform is RectTransform card)
-        {
-            card.sizeDelta = testing ? new Vector2(submissionCardSize.x, results ? 172f : 100f) : submissionCardSize;
-            card.anchoredPosition = testing ? new Vector2(submissionCardPosition.x, -180f) : submissionCardPosition;
-        }
-        // Replace the challenge's small timer status with the larger authored submission card.
+        // Layout is scene-authored. Runtime only updates data and visibility.
         BuildUIController.Instance?.ShowTimer(false);
     }
 
@@ -579,6 +569,7 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
 
     private void RestoreWorld()
     {
+        ResetAuthoredPresentation();
         if (invitationCloseLabel != null) invitationCloseLabel.text = invitationCloseOriginalLabel;
         if (submitBridgeButton != null) { submitBridgeButton.interactable = false; submitBridgeButton.gameObject.SetActive(false); }
         if (submissionStatusPanel != null) submissionStatusPanel.SetActive(false);

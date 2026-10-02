@@ -151,27 +151,28 @@ public static class ChallengeTestValidation
         try
         {
             var text = obj.GetComponent<TextMeshProUGUI>();
-            // Match the authored Challenge_UI message font, bold style and minimum auto-size.
+            // Match the separate authored result-card details font/minimum auto-size.
             text.font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(AssetDatabase.GUIDToAssetPath("aaadb7eb00eeee74799e9edce7312ddb"));
             Check(text.font != null, "The authored challenge popup font is missing.");
-            text.fontSize = 13; text.enableAutoSizing = false; text.fontStyle = FontStyles.Bold;
+            text.fontSize = 18; text.enableAutoSizing = false; text.fontStyle = FontStyles.Normal;
             var state = new MultiplayerChallengeState { Winner = ChallengeWinner.Guest, ChallengeBudget = 200000,
                 HostTestOutcome = ChallengeTestOutcome.Crossed, GuestTestOutcome = ChallengeTestOutcome.Crossed,
                 HostSubmittedCost = 100000, GuestSubmittedCost = 140000, HostPeakStress = 0.3f, GuestPeakStress = 0.15f,
                 HostScoreHundredths = 6200, GuestScoreHundredths = 6300 };
-            var formatter = typeof(MultiplayerChallengeLobbyUI).GetMethod("CompetitionResultsMessage", BindingFlags.Static | BindingFlags.NonPublic);
-            foreach (Vector2 resolution in new[] { new Vector2(1920, 1080), new Vector2(1280, 720) })
+            var formatter = typeof(MultiplayerChallengeLobbyUI).GetMethod("ResultsDetails", BindingFlags.Static | BindingFlags.NonPublic);
+            foreach (float canvasScale in new[] { 1f, 1280f / 1920f })
                 foreach (bool failed in new[] { false, true })
                 {
                     state.Winner = failed ? ChallengeWinner.NoWinner : ChallengeWinner.Guest;
                     state.HostTestOutcome = state.GuestTestOutcome = failed ? ChallengeTestOutcome.TimeLimit : ChallengeTestOutcome.Crossed;
-                    string message = (string)formatter.Invoke(null, new object[] { state, new string('W', 32), new string('M', 32) });
-                    // Existing authored card fills 60% x 58%, with message anchors 8–92% x 34–74%.
-                    Vector2 measured = text.GetPreferredValues(message, resolution.x * 0.60f * 0.84f, float.PositiveInfinity);
-                    float available = resolution.y * 0.58f * 0.40f;
-                    Check(measured.y <= available, $"Results overflow the authored popup at {resolution}: {measured.y:0.0}px > {available:0.0}px.");
+                    string message = (string)formatter.Invoke(null, new object[] { state.HostTestOutcome, state.HostSubmittedCost,
+                        state.ChallengeBudget, state.HostPeakStress });
+                    // Canvas reference is 1920x1080; scale preserves the authored card hierarchy.
+                    Vector2 measured = text.GetPreferredValues(message, (1920 * 0.84f - 20) * 0.45f * 0.89f, float.PositiveInfinity) * canvasScale;
+                    float available = (1080 * 0.85f - 20) * 0.435f * 0.535f * canvasScale;
+                    Check(measured.y <= available, $"Result metrics overflow at scale {canvasScale}: {measured.y:0.0}px > {available:0.0}px.");
                 }
-            report.AppendLine("PASS: Winner and no-winner results with long IGNs fit the existing authored popup's message area at 1920x1080 and 1280x720 using its real font/minimum auto-size; no new UI controls or scene edits are required.");
+            report.AppendLine("PASS: Successful and failed result metrics fit the new scene-authored comparison cards at 1920x1080 and 1280x720 using their actual font/minimum auto-size; scores and names have separate authored fields.");
         }
         finally { Object.DestroyImmediate(obj); }
     }
