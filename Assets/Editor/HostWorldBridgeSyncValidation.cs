@@ -109,6 +109,7 @@ public static class HostWorldBridgeSyncValidation
             ValidateChallengeBuildPolicy(report);
             ValidateChallengeWorkspace(fixture.transform, report);
             ChallengeUIValidation.Run(fixture.transform, report);
+            WorldMultiplayerPanelValidation.Run(fixture.transform, report);
             ChallengeSubmissionValidation.Run(fixture.transform, report);
             BridgeConstructionValidation.Run(fixture.transform, report);
             ChallengeTestValidation.Run(fixture.transform, report);
@@ -1047,7 +1048,7 @@ public static class ChallengeUIValidation
                 Canvas.ForceUpdateCanvases(); ValidateFit(preview);
             }
             Object.DestroyImmediate(preview);
-            foreach (string panel in new[] { "ChallengeSubmitConfirmation", "ChallengeSubmissionStatus", "Challenge_UI", "ChallengeTestIntroduction", "ChallengeLeaveBuildConfirmation", "Lobby_UI_Panel" })
+            foreach (string panel in new[] { "ChallengeSubmitConfirmation", "ChallengeSubmissionStatus", "Challenge_UI", "ChallengeTestIntroduction", "ChallengeLeaveBuildConfirmation", "Lobby_UI_Panel", "WorldMultiplayerPanel", "WorldKickConfirmation", "WorldTurnOffConfirmation" })
             {
                 var original = Resources.FindObjectsOfTypeAll<GameObject>().First(obj => obj.name == panel &&
                     obj.scene.IsValid() && obj.scene.name == "CanyonCrossing");
@@ -1073,6 +1074,12 @@ public static class ChallengeUIValidation
                     Text(preview, "Test Introduction Player").text = "Guest Engineer";
                 }
                 if (panel == "Lobby_UI_Panel") RenderLobbyPortraits(preview, env.transform, lobbyTargets, report);
+                if (panel == "WorldMultiplayerPanel")
+                {
+                    Capture(camera, target, "Temp/WorldMultiplayerOfflineAuthoredPreview.png", ref picture);
+                    ValidateFit(preview);
+                    WorldMultiplayerPanelValidation.FormatOnlinePreview(preview);
+                }
                 Capture(camera, target, "Temp/" + panel + "AuthoredPreview.png", ref picture);
                 ValidateFit(preview);
                 if (panel == "ChallengeTestIntroduction")

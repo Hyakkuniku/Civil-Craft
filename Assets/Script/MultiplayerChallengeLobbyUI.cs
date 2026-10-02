@@ -443,6 +443,7 @@ public sealed partial class MultiplayerChallengeLobbyUI : MonoBehaviour
     private void ShowPanel(GameObject panel)
     {
         if (panel == null || openPanel == panel) return;
+        WorldMultiplayerPanelUI.CloseForChallenge(gameObject.scene);
         if (openPanel != null)
         {
             if (UIPanelCoordinator.Instance != null) UIPanelCoordinator.Instance.ClosePanel(openPanel);

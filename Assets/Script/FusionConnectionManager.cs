@@ -26,11 +26,13 @@ public sealed class FusionConnectionManager : MonoBehaviour
     private bool guestVisitedHostWorld;
     private bool guestSaveProtected;
     private bool networkSceneLoading;
+    private Task pendingShutdown = Task.CompletedTask;
     private static bool pendingHostLeftNotice;
 
     public static FusionConnectionManager Instance { get; private set; }
     public NetworkRunner Runner => runner;
     public bool IsNetworkSceneLoading => networkSceneLoading;
+    public bool IsSessionStopping => !pendingShutdown.IsCompleted;
     public string HostJoinCode { get; private set; }
     public bool IsHosting => runner != null && runner.IsRunning && runner.IsServer;
     public bool IsClientConnected => runner != null && runner.IsRunning && runner.IsClient && !runner.IsServer;
@@ -108,8 +110,22 @@ public sealed class FusionConnectionManager : MonoBehaviour
         if (IsGuestInHostWorld) guestVisitedHostWorld = true;
     }
 
-    public async Task<string> StartHostAsync()
+    public Task<string> StartHostAsync() => StartHostSessionAsync(null);
+
+    /// <summary>Publish the already-loaded story world; Fusion takes it over without reloading the host.</summary>
+    public Task<string> StartHostFromCurrentWorldAsync()
     {
+        Scene world = SceneManager.GetActiveScene();
+        if (world.name != HostWorldSceneName || world.buildIndex < 0)
+            throw new InvalidOperationException("Open Canyon Crossing before turning on multiplayer.");
+        var scenes = new NetworkSceneInfo();
+        scenes.AddSceneRef(SceneRef.FromIndex(world.buildIndex), LoadSceneMode.Single);
+        return StartHostSessionAsync(scenes);
+    }
+
+    private async Task<string> StartHostSessionAsync(NetworkSceneInfo? initialScene)
+    {
+        if (IsSessionStopping) throw new InvalidOperationException("Wait for the previous session to finish closing.");
         if (IsHosting) return HostJoinCode;
         if (runner != null) throw new InvalidOperationException("A Fusion session is already starting or running.");
 
@@ -117,6 +133,7 @@ public sealed class FusionConnectionManager : MonoBehaviour
         int version = ++operationVersion;
         string roomCode = CreateRoomCode();
         NetworkRunner newRunner = CreateRunner();
+        networkSceneLoading = initialScene.HasValue;
         try
         {
             StartGameResult result = await newRunner.StartGame(new StartGameArgs
@@ -126,6 +143,7 @@ public sealed class FusionConnectionManager : MonoBehaviour
                 PlayerCount = 2,
                 IsOpen = true,
                 IsVisible = false,
+                Scene = initialScene,
                 SceneManager = newRunner.GetComponent<NetworkSceneManagerDefault>(),
                 CustomPhotonAppSettings = BuildPhotonSettings()
             });
@@ -137,13 +155,43 @@ public sealed class FusionConnectionManager : MonoBehaviour
         }
         catch
         {
+            if (runner == newRunner) networkSceneLoading = false;
             await ShutdownRunnerAsync(newRunner);
             throw;
         }
     }
 
+    public bool TryGetGuest(out PlayerRef guest, out NetworkObject avatar)
+    {
+        guest = PlayerRef.None; avatar = null;
+        if (!IsHosting) return false;
+        foreach (PlayerRef player in runner.ActivePlayers)
+        {
+            if (player == runner.LocalPlayer) continue;
+            guest = player;
+            runner.TryGetPlayerObject(player, out avatar);
+            return true;
+        }
+        return false;
+    }
+
+    internal static bool CanKickPlayer(bool isHost, PlayerRef host, PlayerRef target, bool connected) =>
+        isHost && target != PlayerRef.None && target != host && connected;
+
+    public bool TryKickGuest(PlayerRef target, NetworkObject expectedAvatar)
+    {
+        if (!IsHostWorldSession || networkSceneLoading || !TryGetGuest(out PlayerRef guest, out NetworkObject avatar) ||
+            !CanKickPlayer(IsHosting, runner.LocalPlayer, target, guest == target) ||
+            expectedAvatar == null || avatar != expectedAvatar || !expectedAvatar.IsValid) return false;
+        // Fusion enforces server authority. This only disconnects this guest;
+        // the normal PlayerLeft path restores challenge state and world visuals.
+        runner.Disconnect(target);
+        return true;
+    }
+
     public async Task JoinAsync(string roomCode)
     {
+        if (IsSessionStopping) throw new InvalidOperationException("Wait for the previous session to finish closing.");
         if (runner != null) throw new InvalidOperationException("A Fusion session is already starting or running.");
         if (string.IsNullOrWhiteSpace(roomCode)) throw new ArgumentException("Enter a room code.", nameof(roomCode));
 
@@ -199,6 +247,19 @@ public sealed class FusionConnectionManager : MonoBehaviour
 
     public void StopSession()
     {
+        _ = StopSessionAsync();
+    }
+
+    /// <summary>Close hosting without loading another scene or writing world progress.</summary>
+    public Task StopHostingWorldAsync()
+    {
+        if (!IsHosting || !IsHostWorldSession || networkSceneLoading)
+            throw new InvalidOperationException("Only the active world host can turn off multiplayer.");
+        return StopSessionAsync();
+    }
+
+    private Task StopSessionAsync()
+    {
         bool wasHostWorldGuest = guestVisitedHostWorld || IsGuestInHostWorld;
         guestVisitedHostWorld = false;
         if (wasHostWorldGuest) BeginGuestWorldExit();
@@ -208,7 +269,8 @@ public sealed class FusionConnectionManager : MonoBehaviour
         networkSceneLoading = false;
         NetworkRunner oldRunner = runner;
         runner = null;
-        if (oldRunner != null) _ = ShutdownRunnerAsync(oldRunner);
+        if (oldRunner != null) pendingShutdown = ShutdownRunnerAsync(oldRunner);
+        return pendingShutdown;
     }
 
     public void HandleHostDisconnected(NetworkRunner disconnectedRunner, bool alreadyShutDown)
