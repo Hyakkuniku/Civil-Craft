@@ -13,6 +13,7 @@ public sealed class ChallengeBuildWorkspace : IDisposable
     public BarCreator Creator { get; private set; }
     public Transform PointRoot { get; private set; }
     public Transform BarRoot { get; private set; }
+    public GameObject LoadPreview { get; private set; }
     private ContractSO contract;
     private Transform originalPointParent, originalBarParent;
     private bool originalCreatorEnabled;
@@ -111,6 +112,25 @@ public sealed class ChallengeBuildWorkspace : IDisposable
         catch { workspace.Dispose(); throw; }
     }
 
+    public void ShowLoadPreview(LiveLoadVehicle vehicle)
+    {
+        if (vehicle == null || vehicle.assignedContract == null || Root == null || LoadPreview != null) return;
+        // Mesh-only: no original Awake/Start, cargo interactions, colliders,
+        // Rigidbody, vehicle AI or simulation events can run in Build Mode.
+        LoadPreview = HostWorldBridgeVisual.CopyMeshes(vehicle.gameObject, Root.transform);
+        LoadPreview.name = "Challenge Live Load Preview";
+        vehicle.GetSessionTestStartPose(out Vector3 position, out Quaternion rotation);
+        LoadPreview.transform.SetPositionAndRotation(position, rotation);
+        LoadPreview.transform.localScale = vehicle.transform.lossyScale;
+        LoadPreview.SetActive(true); // Saved-world vehicles may currently be hidden.
+        foreach (MeshRenderer renderer in LoadPreview.GetComponentsInChildren<MeshRenderer>(true))
+            renderer.enabled = true;
+        foreach (LiveLoadVehicle original in Object.FindObjectsOfType<LiveLoadVehicle>(true))
+            if (!original.IsSessionChallengeTestVehicle && original.gameObject.scene == vehicle.gameObject.scene &&
+                original.assignedContract != null && original.assignedContract.ContractID == vehicle.assignedContract.ContractID)
+                HideWorldObject(original.gameObject);
+    }
+
     private Point CopyAnchor(Point source, Transform parent, Dictionary<Point, Point> copies)
     {
         if (source == null) throw new InvalidOperationException("A challenge anchor reference is missing.");
@@ -182,6 +202,7 @@ public sealed class ChallengeBuildWorkspace : IDisposable
         Location = null;
         Creator = null;
         PointRoot = BarRoot = null;
+        LoadPreview = null;
         contract = null;
     }
 

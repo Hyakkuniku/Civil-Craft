@@ -17,6 +17,8 @@ public struct MultiplayerChallengeState : INetworkStruct
     public NetworkString<_256> SiteKey;
     public NetworkString<_128> ContractKey;
     public float ChallengeBudget;
+    public NetworkString<_256> ChallengeVehicleKey;
+    public float ChallengeVehicleWeight;
     public NetworkBool HostArrived;
     public NetworkBool GuestArrived;
     public NetworkBool HostReady;

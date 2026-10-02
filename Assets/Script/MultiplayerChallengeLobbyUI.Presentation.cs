@@ -6,6 +6,45 @@ using UnityEngine.UI;
 // scene. This controller only changes content, visibility and existing input gates.
 public sealed partial class MultiplayerChallengeLobbyUI
 {
+    [Header("Authored live load and test introduction")]
+    [SerializeField] private GameObject testIntroductionPanel;
+    [SerializeField] private TMP_Text testIntroductionTitle;
+    [SerializeField] private TMP_Text testIntroductionPlayer;
+    [SerializeField] private TMP_Text liveLoadLabel;
+    private int introductionRevision = int.MinValue, introductionIndex;
+    private float introductionShownAt = -1f;
+
+    internal bool PresentTestIntroduction(MultiplayerChallengeState state, string playerName, float seconds)
+    {
+        if (testIntroductionPanel == null || state.Phase != MultiplayerChallengePhase.PreparingTest) return false;
+        if (testIntroductionTitle != null) testIntroductionTitle.text = $"BRIDGE TEST {state.TestIndex} / 2";
+        if (testIntroductionPlayer != null) testIntroductionPlayer.text = PlainText(playerName);
+        testIntroductionPanel.SetActive(true);
+        if (!testIntroductionPanel.activeInHierarchy) { introductionShownAt = -1f; return false; }
+        if (introductionShownAt < 0f || introductionRevision != state.Revision || introductionIndex != state.TestIndex)
+        {
+            introductionRevision = state.Revision; introductionIndex = state.TestIndex;
+            introductionShownAt = Time.unscaledTime;
+        }
+        return Time.unscaledTime - introductionShownAt >= seconds;
+    }
+
+    private void RefreshTestPresentation(MultiplayerChallengeState state)
+    {
+        if (state.Phase != MultiplayerChallengePhase.PreparingTest) HideTestIntroduction();
+        if (liveLoadLabel != null)
+        {
+            bool building = buildWorkspace != null && !MultiplayerChallengeRules.IsTestPhase(state.Phase);
+            liveLoadLabel.gameObject.SetActive(building && state.ChallengeVehicleWeight > 0f);
+            liveLoadLabel.text = "LIVE LOAD\n" + Emphasis(state.ChallengeVehicleWeight.ToString("N0") + " kg", "F2CD80");
+        }
+    }
+
+    private void HideTestIntroduction()
+    {
+        if (testIntroductionPanel != null) testIntroductionPanel.SetActive(false);
+        introductionShownAt = -1f; introductionRevision = int.MinValue; introductionIndex = 0;
+    }
     [Header("Authored collapsible player status")]
     [SerializeField] private GameObject submissionStatusBody;
     [SerializeField] private TMP_Text submissionStatusHeader;
@@ -93,6 +132,8 @@ public sealed partial class MultiplayerChallengeLobbyUI
 
     private void ResetAuthoredPresentation()
     {
+        HideTestIntroduction();
+        if (liveLoadLabel != null) liveLoadLabel.gameObject.SetActive(false);
         CancelSubmissionConfirmation();
         statusExpanded = false;
         lastSubmissionNotice = null;

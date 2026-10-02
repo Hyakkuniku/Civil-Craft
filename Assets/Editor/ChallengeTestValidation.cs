@@ -213,6 +213,26 @@ public static class ChallengeTestValidation
         try
         {
             definition.budget = 1f; // A poor/over-budget draft still reaches isolated physics.
+            Check(ChallengeTestDescriptor.SelectVehicle(site, definition) == vehicle &&
+                ChallengeTestDescriptor.ResolveVehicle(ChallengeTestDescriptor.VehiclePath(vehicle), site.gameObject.scene) == vehicle,
+                "Build preview and physics disagreed on the authored contract vehicle.");
+            bool originalVehicleActive = vehicle.gameObject.activeSelf;
+            Vector3 originalVehiclePosition = vehicle.transform.position;
+            using (var previewWorkspace = ChallengeBuildWorkspace.Create(site, definition, creator, 12, 1))
+            {
+                previewWorkspace.ShowLoadPreview(vehicle);
+                GameObject preview = previewWorkspace.LoadPreview;
+                Check(preview != null && preview.activeInHierarchy && preview.GetComponentsInChildren<MeshRenderer>(true).Length > 0 &&
+                    preview.GetComponentsInChildren<MonoBehaviour>(true).Length == 0 && preview.GetComponentsInChildren<Rigidbody>(true).Length == 0 &&
+                    preview.GetComponentsInChildren<Collider>(true).Length == 0, "Live load preview is invisible or contains gameplay/physics.");
+                Check(preview.transform.position == originalVehiclePosition && !vehicle.gameObject.activeSelf &&
+                    !vehicle.IsDriving && !settings.IsSimulationActive, "Preview moved the original truck or started physics.");
+                previewWorkspace.Root.SetActive(false);
+                Check(!preview.activeInHierarchy, "Build load preview remained visible alongside the test vehicle.");
+            }
+            Check(vehicle.gameObject.activeSelf == originalVehicleActive && vehicle.transform.position == originalVehiclePosition,
+                "Disposing the build preview failed to restore original vehicle visibility/pose.");
+            report.AppendLine("PASS: Contract truck resolves identically for building/testing; disposable visible mesh preview has no scripts, Rigidbody or colliders, hides for testing and restores the world vehicle without moving/driving it.");
             Check(ChallengeBridgeSubmissionRules.Validate(graph, site, definition, catalog, -10, out float submittedCost) == ChallengeSubmissionError.None &&
                 submittedCost == 30f, "An over-budget non-empty draft with a loose node was rejected before reconstruction.");
             run = ChallengeBridgeTestRun.Create(graph, site, definition, creator, settings, vehicle, 77, 12, 1);

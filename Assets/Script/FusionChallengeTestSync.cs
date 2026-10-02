@@ -13,6 +13,8 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
     public const int MessageTag = 0x43435453;
     private const int PresentationMessage = 1, FinalFrameMessage = 2;
     [SerializeField, Range(5f, 30f)] private float viewPreparationSeconds = 20f;
+    [Tooltip("Minimum on-screen introduction before each test, on BOTH peers. Physics remains paused until the guest acknowledges it.")]
+    [SerializeField, Range(1f, 8f)] private float testIntroductionSeconds = 3f;
     [SerializeField, Range(5f, 30f)] private float finalAcknowledgementSeconds = 15f;
     [SerializeField, Range(30f, 600f)] private float maximumTestSeconds = 120f;
     [SerializeField, Range(0.5f, 5f)] private float resultObservationSeconds = 2f;
@@ -34,6 +36,8 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
     private byte[] pendingPresentation, pendingFinal;
     private int pendingPresentationIndex, pendingFinalIndex;
     private bool workspaceWasActive;
+    private MultiplayerChallengeLobbyUI presentationUI;
+    private bool guestIntroductionPending;
 
     private void Awake() { runner = GetComponent<NetworkRunner>(); }
     private bool ResolveChallenge()
@@ -53,6 +57,7 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
         if (!bound)
         {
             var ui = FindObjectOfType<MultiplayerChallengeLobbyUI>(true);
+            presentationUI = ui;
             workspace = ui != null ? ui.LocalBuildWorkspace : null;
             if (workspace == null || workspace.Root == null || workspace.Location.SessionChallengeRevision != state.Revision) return;
             bound = true; revision = state.Revision;
@@ -66,7 +71,8 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
             if (state.Phase == MultiplayerChallengePhase.PreparingTest)
             {
                 if (state.Deadline.ExpiredOrNotRunning(runner)) { host.FailChallengeTest("Both test views could not be prepared in time."); return; }
-                if (!preparing && run != null && state.GuestTestViewReady && !started && host.StartChallengeTest(revision, index))
+                bool introductionComplete = !preparing && run != null && ShowIntroduction(state);
+                if (introductionComplete && state.GuestTestViewReady && !started && host.StartChallengeTest(revision, index))
                 {
                     try { started = true; run.Physics.ActivatePhysics(); }
                     catch (Exception error) { FailSetup(error); }
@@ -85,6 +91,14 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
         {
             if (pendingPresentation != null && state.Phase == MultiplayerChallengePhase.PreparingTest && pendingPresentationIndex == state.TestIndex)
                 PrepareGuestView(state);
+            // Readiness includes an actually visible introduction. Late descriptor
+            // delivery never shortens the guest's time to read whose bridge is next.
+            if (guestIntroductionPending && state.Phase == MultiplayerChallengePhase.PreparingTest && state.TestIndex == index &&
+                view != null && ShowIntroduction(state) && LocalAvatar() != null)
+            {
+                guestIntroductionPending = false;
+                LocalAvatar().ReportChallengeTestView(revision, index, true, false);
+            }
             if (pendingFinal != null && pendingFinalIndex == index && view != null && state.TestIndex == index)
                 ApplyFinalView();
         }
@@ -92,11 +106,22 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
 
     private void BeginPreparation(int nextIndex)
     {
-        if (!host.PrepareChallengeTest(revision, nextIndex, viewPreparationSeconds)) return;
+        if (!host.PrepareChallengeTest(revision, nextIndex, viewPreparationSeconds + IntroductionDuration)) return;
         index = nextIndex; preparing = true; started = resultRecorded = frozen = finalConfirmed = false;
         sequence = cursor = 0; nextMotionTime = nextProgressTime = 0f;
         run?.Dispose(); run = null;
         StartCoroutine(PrepareHostRun());
+    }
+    private float IntroductionDuration => ChallengeTestMotionCodec.Finite(testIntroductionSeconds)
+        ? Mathf.Clamp(testIntroductionSeconds, 1f, 8f) : 3f;
+    private bool ShowIntroduction(MultiplayerChallengeState state)
+    {
+        if (presentationUI == null) return false;
+        string playerName = host.MapPlayerName;
+        if (!MultiplayerChallengeRules.TestsHostBridge(state))
+            playerName = runner.TryGetPlayerObject(state.Guest, out NetworkObject obj) && obj != null
+                ? obj.GetComponent<FusionMultiplayerAvatar>()?.MapPlayerName ?? "Guest" : "Guest";
+        return presentationUI.PresentTestIntroduction(state, playerName, IntroductionDuration);
     }
     private IEnumerator PrepareHostRun()
     {
@@ -109,17 +134,11 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
                 throw new InvalidOperationException("This milestone supports vehicle crossings; this location has no vehicle test.");
             if (vehicleSource == null)
             {
-                foreach (var candidate in FindObjectsOfType<LiveLoadVehicle>(true))
-                {
-                    if (candidate.IsSessionChallengeTestVehicle || candidate.gameObject.scene != site.gameObject.scene || candidate.assignedContract == null ||
-                        candidate.assignedContract.ContractID != definition.ContractID) continue;
-                    if (vehicleSource == null || candidate.gameObject.activeInHierarchy && !vehicleSource.gameObject.activeInHierarchy ||
-                        candidate.gameObject.activeInHierarchy == vehicleSource.gameObject.activeInHierarchy &&
-                        string.CompareOrdinal(ChallengeTestDescriptor.VehiclePath(candidate), ChallengeTestDescriptor.VehiclePath(vehicleSource)) < 0)
-                        vehicleSource = candidate;
-                }
+                vehicleSource = ChallengeTestDescriptor.ResolveVehicle(state.ChallengeVehicleKey.ToString(), site.gameObject.scene);
                 if (vehicleSource == null) throw new InvalidOperationException("No authored vehicle matches this challenge contract.");
-                testWeight = vehicleSource.GetSessionTestWeight(); // Freeze identical loaded weight for BOTH designs, before hiding the world vehicle.
+                testWeight = state.ChallengeVehicleWeight; // Same host-frozen loaded mass shown during building, for BOTH designs.
+                if (!ChallengeTestMotionCodec.Finite(testWeight) || testWeight <= 0f)
+                    throw new InvalidOperationException("The challenge live load weight is invalid.");
                 foreach (var candidate in FindObjectsOfType<BridgePhysicsManager>(true))
                     if (!candidate.IsSessionChallengeTest && candidate.gameObject.scene == site.gameObject.scene) { settings = candidate; break; }
             }
@@ -162,6 +181,7 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
     private void PrepareGuestView(MultiplayerChallengeState state)
     {
         byte[] packet = pendingPresentation; pendingPresentation = null;
+        guestIntroductionPending = false;
         view?.Dispose(); view = null; index = state.TestIndex;
         try
         {
@@ -169,12 +189,13 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
             BuildLocation site = MultiplayerChallengeRules.ResolveSite(state.SiteKey.ToString());
             ContractSO definition = ChallengeBuildWorkspace.ResolveContract(site, state.ContractKey.ToString());
             if (site == null || definition == null || descriptor.Bridge.Name != state.SiteKey.ToString() || descriptor.Bridge.Nodes.Count != 0 ||
+                descriptor.VehicleKey != state.ChallengeVehicleKey.ToString() || descriptor.Weight != state.ChallengeVehicleWeight ||
                 descriptor.Bridge.Bars.Count != (MultiplayerChallengeRules.TestsHostBridge(state) ? state.HostSubmittedBars : state.GuestSubmittedBars))
                 throw new InvalidDataException("The test view does not match the accepted bridge.");
             HideWorldVehicles(site, definition);
             BridgePhysicsManager guestSettings = FindObjectOfType<BridgePhysicsManager>(true);
             view = new ChallengeBridgeTestView(descriptor, site, workspace.Creator, ChallengeBridgeSubmissionRules.CreateMaterialCatalog(definition), guestSettings);
-            LocalAvatar()?.ReportChallengeTestView(revision, index, true, false);
+            guestIntroductionPending = true;
         }
         catch (Exception error)
         {
@@ -212,7 +233,7 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
     private void LateUpdate()
     {
         if (view != null) view.Render(spectatorInterpolationSeconds);
-        if (!bound || run == null || preparing || frozen || runner == null || !runner.IsServer || host == null || !host.IsChallengeBusy) return;
+        if (!bound || !started || run == null || preparing || frozen || runner == null || !runner.IsServer || host == null || !host.IsChallengeBusy) return;
         motionCredit = Mathf.Min(maximumMotionBytesPerSecond * 0.15f, motionCredit + Time.unscaledDeltaTime * maximumMotionBytesPerSecond);
         if (Time.unscaledTime < nextMotionTime || run.MotionTargets.Count == 0) return;
         if (cursor == 0) sequence = unchecked(sequence + 1);
@@ -309,6 +330,7 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
         if (workspace != null && workspace.Root != null) workspace.Root.SetActive(workspaceWasActive);
         foreach (var entry in vehicleVisibility) if (entry.Key != null) entry.Key.SetActive(entry.Value);
         vehicleVisibility.Clear(); workspace = null; vehicleSource = null; settings = null; host = null;
+        presentationUI = null; guestIntroductionPending = false;
         pendingPresentation = pendingFinal = null;
         bound = preparing = started = resultRecorded = frozen = finalConfirmed = false;
         revision = index = sequence = cursor = 0;

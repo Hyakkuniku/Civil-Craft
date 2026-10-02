@@ -282,6 +282,13 @@ public sealed partial class MultiplayerChallengeLobbyUI : MonoBehaviour
                 BarCreator creator = FindObjectOfType<BarCreator>(true);
                 ClosePanelForBuild(); // Restore the authored build Canvas; retain input/return-pose capture.
                 buildWorkspace = ChallengeBuildWorkspace.Create(site, definition, creator, state.Revision, boundRunner.LocalPlayer.RawEncoded);
+                if (definition.liveLoadMode == ContractSO.LiveLoadMode.Vehicle)
+                {
+                    LiveLoadVehicle vehicle = ChallengeTestDescriptor.ResolveVehicle(state.ChallengeVehicleKey.ToString(), site.gameObject.scene);
+                    if (vehicle == null || !ChallengeTestMotionCodec.Finite(state.ChallengeVehicleWeight) || state.ChallengeVehicleWeight <= 0f)
+                        throw new System.InvalidOperationException("The challenge live load preview could not be prepared.");
+                    buildWorkspace.ShowLoadPreview(vehicle);
+                }
                 prepared = GameManager.Instance.EnterSessionChallengeBuild(buildWorkspace.Location, motor.transform);
                 if (!prepared) throw new System.InvalidOperationException("Session Build Mode entry was rejected.");
                 bridgeSync?.SetChallengeSiteVisibility(MultiplayerChallengeRules.SiteKey(site), true);
@@ -319,6 +326,7 @@ public sealed partial class MultiplayerChallengeLobbyUI : MonoBehaviour
 
     private void RefreshSubmissionControls(MultiplayerChallengeState state)
     {
+        RefreshTestPresentation(state);
         if (submitBridgeButton == null || boundRunner == null || host == null) return;
         FusionChallengeSubmissionSync transfer = boundRunner.GetComponent<FusionChallengeSubmissionSync>();
         bool submitted = MultiplayerChallengeRules.HasSubmitted(state, boundRunner.LocalPlayer, host.Object.InputAuthority) ||

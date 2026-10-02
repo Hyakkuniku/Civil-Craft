@@ -55,6 +55,10 @@ public sealed partial class FusionMultiplayerAvatar
                 obj != null && obj.IsValid && obj.GetComponent<FusionMultiplayerAvatar>() is FusionMultiplayerAvatar avatar &&
                 avatar.IsAvatarPoseReady) guest = player;
         if (guest == PlayerRef.None) return false;
+        LiveLoadVehicle vehicle = ChallengeTestDescriptor.SelectVehicle(site, site.activeContract);
+        string vehicleKey = vehicle != null ? ChallengeTestDescriptor.VehiclePath(vehicle) : string.Empty;
+        if (vehicleKey.Length > 256 || vehicle != null &&
+            ChallengeTestDescriptor.ResolveVehicle(vehicleKey, site.gameObject.scene) != vehicle) return false;
         authorityChallengeSite = site;
         foreach (PlayerRef player in Runner.ActivePlayers)
             if (Runner.TryGetPlayerObject(player, out NetworkObject obj) && obj != null)
@@ -68,6 +72,8 @@ public sealed partial class FusionMultiplayerAvatar
             Guest = guest, SiteKey = MultiplayerChallengeRules.SiteKey(site),
             ContractKey = site.activeContract.ContractID,
             ChallengeBudget = site.activeContract.budget,
+            ChallengeVehicleKey = vehicleKey,
+            ChallengeVehicleWeight = vehicle != null ? vehicle.GetSessionTestWeight() : 0f,
             Deadline = TickTimer.CreateFromSeconds(Runner, challengeInvitationSeconds)
         };
         return true;

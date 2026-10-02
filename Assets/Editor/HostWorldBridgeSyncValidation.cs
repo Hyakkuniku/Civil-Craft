@@ -951,12 +951,13 @@ public static class ChallengeUIValidation
         Func<string, string> block = id => Regex.Match(scene, @"(?ms)^--- !u!\d+ &" + id + @"\r?\n.*?(?=^--- !u!|\z)").Value;
         string service = block("900000000000000105");
         foreach (string field in new[] { "submissionStatusBody", "submissionStatusHeader", "submissionConfirmPanel", "confirmSubmitButton",
+            "testIntroductionPanel", "testIntroductionTitle", "testIntroductionPlayer", "liveLoadLabel",
             "resultsPanel", "resultsWinner", "resultsRules", "resultsHostName", "resultsGuestName", "resultsHostScore",
             "resultsGuestScore", "resultsHostDetails", "resultsGuestDetails" })
         {
             string id = Regex.Match(service, @"(?m)^  " + field + @": \{fileID: (\d+)\}").Groups[1].Value;
             Check(id.Length > 0 && block(id).Length > 0, "Missing authored presentation reference: " + field);
-            if (field == "submissionConfirmPanel" || field == "resultsPanel" || field == "submissionStatusBody")
+            if (field == "submissionConfirmPanel" || field == "resultsPanel" || field == "submissionStatusBody" || field == "testIntroductionPanel")
                 Check(block(id).Contains("m_IsActive: 0"), field + " appears in single-player.");
         }
         foreach (string method in new[] { "ToggleSubmissionStatus", "ConfirmSubmitBridge", "CancelSubmissionConfirmation" })
@@ -1014,7 +1015,7 @@ public static class ChallengeUIValidation
                 Canvas.ForceUpdateCanvases(); ValidateFit(preview);
             }
             Object.DestroyImmediate(preview);
-            foreach (string panel in new[] { "ChallengeSubmitConfirmation", "ChallengeSubmissionStatus", "Challenge_UI" })
+            foreach (string panel in new[] { "ChallengeSubmitConfirmation", "ChallengeSubmissionStatus", "Challenge_UI", "ChallengeTestIntroduction" })
             {
                 var original = Resources.FindObjectsOfTypeAll<GameObject>().First(obj => obj.name == panel &&
                     obj.scene.IsValid() && obj.scene.name == "CanyonCrossing");
@@ -1034,8 +1035,18 @@ public static class ChallengeUIValidation
                     foreach (Transform child in preview.GetComponentsInChildren<Transform>(true))
                         if (child.name == "CancelInvitationButton") child.gameObject.SetActive(false);
                 }
+                if (panel == "ChallengeTestIntroduction")
+                {
+                    Text(preview, "Test Introduction Title").text = "BRIDGE TEST 1 / 2";
+                    Text(preview, "Test Introduction Player").text = "Guest Engineer";
+                }
                 Capture(camera, target, "Temp/" + panel + "AuthoredPreview.png", ref picture);
                 ValidateFit(preview);
+                if (panel == "ChallengeTestIntroduction")
+                {
+                    Text(preview, "Test Introduction Player").text = new string('W', 32);
+                    ValidateFit(preview);
+                }
                 if (panel == "ChallengeSubmissionStatus")
                 {
                     TMP_Text detail = preview.GetComponentsInChildren<TMP_Text>(true).First(text => text.gameObject.name == "Label" &&
@@ -1083,6 +1094,31 @@ public static class ChallengeUIValidation
             typeof(MultiplayerChallengeLobbyUI).GetField("confirmationRevision", privateFields).SetValue(controller, 7);
             controller.ConfirmSubmitBridge();
             Check(!panel.activeSelf, "An expired/unbound confirmation did not close safely without submitting.");
+            // Move the isolated controller out of the inactive fixture so this
+            // exercises the actual on-screen timer, not only activeSelf.
+            controller.enabled = false;
+            obj.transform.SetParent(null, false);
+            var intro = new GameObject("Test Introduction (Temporary)"); intro.transform.SetParent(obj.transform, false);
+            typeof(MultiplayerChallengeLobbyUI).GetField("testIntroductionPanel", privateFields).SetValue(controller, intro);
+            var present = typeof(MultiplayerChallengeLobbyUI).GetMethod("PresentTestIntroduction", privateFields);
+            var shownAt = typeof(MultiplayerChallengeLobbyUI).GetField("introductionShownAt", privateFields);
+            var refresh = typeof(MultiplayerChallengeLobbyUI).GetMethod("RefreshTestPresentation", privateFields);
+            var state = new MultiplayerChallengeState { Revision = 8, TestIndex = 1, Phase = MultiplayerChallengePhase.PreparingTest };
+            Check(!(bool)present.Invoke(controller, new object[] { state, "Guest Engineer", 3f }) && intro.activeInHierarchy,
+                "First test skipped its visible introduction.");
+            shownAt.SetValue(controller, Time.unscaledTime - 3.1f);
+            Check((bool)present.Invoke(controller, new object[] { state, "Guest Engineer", 3f }), "Read introduction never released readiness.");
+            state.TestIndex = 2;
+            Check(!(bool)present.Invoke(controller, new object[] { state, "Host Engineer", 3f }), "Second test reused the first introduction timer.");
+            state.Phase = MultiplayerChallengePhase.Testing;
+            refresh.Invoke(controller, new object[] { state });
+            Check(!intro.activeSelf && !(bool)present.Invoke(controller, new object[] { state, "Host Engineer", 3f }),
+                "Introduction remained visible during simulation or appeared outside preparation.");
+            state.Phase = MultiplayerChallengePhase.PreparingTest;
+            obj.SetActive(false);
+            shownAt.SetValue(controller, Time.unscaledTime - 10f);
+            Check(!(bool)present.Invoke(controller, new object[] { state, "Host Engineer", 3f }), "A hidden Canvas counted as a read introduction.");
+            report.AppendLine("PASS: Both tests require their own visible introduction timer; inactive UI cannot release readiness; simulation hides the panel. No physics or reliable-message rates were changed.");
             report.AppendLine("PASS: Player status expands/collapses without changing authored geometry; cancel restores the editing gate; unopened and unbound confirmations cannot submit a bridge.");
         }
         finally { owner.SetValue(null, previousOwner); Object.DestroyImmediate(obj); }

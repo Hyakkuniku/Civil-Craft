@@ -27,6 +27,22 @@ public sealed class ChallengeTestDescriptor
         }
         return match;
     }
+    // The preview and physics test must select the same authored truck. Prefer
+    // the active contract truck, then a deterministic path for hidden saved trucks.
+    public static LiveLoadVehicle SelectVehicle(BuildLocation site, ContractSO definition)
+    {
+        if (site == null || definition == null || definition.liveLoadMode != ContractSO.LiveLoadMode.Vehicle) return null;
+        LiveLoadVehicle match = null;
+        foreach (var candidate in Resources.FindObjectsOfTypeAll<LiveLoadVehicle>())
+        {
+            if (candidate.IsSessionChallengeTestVehicle || candidate.gameObject.scene != site.gameObject.scene ||
+                candidate.assignedContract == null || candidate.assignedContract.ContractID != definition.ContractID) continue;
+            if (match == null || candidate.gameObject.activeInHierarchy && !match.gameObject.activeInHierarchy ||
+                candidate.gameObject.activeInHierarchy == match.gameObject.activeInHierarchy &&
+                string.CompareOrdinal(VehiclePath(candidate), VehiclePath(match)) < 0) match = candidate;
+        }
+        return match;
+    }
     public byte[] Encode()
     {
         byte[] bridge = HostWorldBridgeSnapshotCodec.Encode(Bridge);
