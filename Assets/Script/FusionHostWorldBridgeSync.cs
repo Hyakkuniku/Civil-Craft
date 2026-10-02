@@ -33,6 +33,27 @@ public sealed class FusionHostWorldBridgeSync : MonoBehaviour
     private readonly HashSet<string> missingMaterials = new HashSet<string>();
     private GameObject guestRoot;
     private GameObject pointPrefab;
+    private string challengeSiteName;
+    private readonly Dictionary<GameObject, bool> bridgeVisibilityBeforeChallenge = new Dictionary<GameObject, bool>();
+
+    public void SetChallengeSiteVisibility(string siteName)
+    {
+        if (siteName == null)
+        {
+            foreach (var entry in bridgeVisibilityBeforeChallenge)
+                if (entry.Key != null) entry.Key.SetActive(entry.Value);
+            bridgeVisibilityBeforeChallenge.Clear();
+        }
+        challengeSiteName = siteName;
+        if (siteName == null) return;
+        foreach (GuestLocation location in guestLocations.Values)
+        {
+            if (location.Visual == null) continue;
+            GameObject root = location.Visual.Root;
+            if (!bridgeVisibilityBeforeChallenge.ContainsKey(root)) bridgeVisibilityBeforeChallenge.Add(root, root.activeSelf);
+            root.SetActive(location.Snapshot.Name == siteName);
+        }
+    }
 
     private sealed class HostLocation
     {
@@ -289,7 +310,8 @@ public sealed class FusionHostWorldBridgeSync : MonoBehaviour
                 materials, pointPrefab, guestRoot.transform);
             location.Visual?.Dispose();
             location.Visual = replacement;
-            replacement.Root.SetActive(true);
+            if (challengeSiteName != null) bridgeVisibilityBeforeChallenge[replacement.Root] = true;
+            replacement.Root.SetActive(challengeSiteName == null || location.Snapshot.Name == challengeSiteName);
             pendingRender.Remove(id);
             geometryChanged = true;
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
@@ -319,7 +341,9 @@ public sealed class FusionHostWorldBridgeSync : MonoBehaviour
 
     public static HostWorldBridgeSnapshot CaptureLocation(BuildLocation location)
     {
-        var snapshot = new HostWorldBridgeSnapshot { Name = location.name };
+        // The existing name slot carries an authored site path. Two workbenches
+        // with the same leaf name must not both remain visible in a challenge.
+        var snapshot = new HostWorldBridgeSnapshot { Name = MultiplayerChallengeRules.SiteKey(location) };
         foreach (Bar bar in location.bakedBars)
         {
             if (bar == null || bar.materialData == null) continue;
@@ -393,6 +417,7 @@ public sealed class FusionHostWorldBridgeSync : MonoBehaviour
 
     private void ClearVisuals()
     {
+        SetChallengeSiteVisibility(null);
         if (guestRoot == null) return;
         foreach (GuestLocation location in guestLocations.Values)
         { location.Visual?.Dispose(); location.Visual = null; }

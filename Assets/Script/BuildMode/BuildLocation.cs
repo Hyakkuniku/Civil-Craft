@@ -267,6 +267,7 @@ public class BuildLocation : Interactable
 
     public void TryEnterBuildMode()
     {
+        if (MultiplayerChallengeLobbyUI.IsChallengeActive) return;
         if (FusionConnectionManager.Instance != null &&
             FusionConnectionManager.Instance.IsGuestInHostWorld) return;
         if (gameObject.scene.name == "Multiplayer" &&
@@ -342,6 +343,7 @@ public class BuildLocation : Interactable
     /// </summary>
     public bool BeginBridgeRedesign()
     {
+        if (MultiplayerChallengeLobbyUI.IsChallengeActive) return false;
         if (FusionConnectionManager.Instance != null &&
             FusionConnectionManager.Instance.IsGuestInHostWorld) return false;
         if (isRedesigningBridge || bakedBars.Count == 0 || IsRedesignBlockedByNPCTravel)

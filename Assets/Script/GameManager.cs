@@ -290,6 +290,7 @@ public class GameManager : MonoBehaviour
     public float fadeDuration = 0.25f;
 
     private BuildLocation pendingRedoLocation;
+    public BuildLocation PendingRedoLocation => pendingRedoLocation;
     private bool isTransitioning = false; 
     private readonly Dictionary<GameObject, bool> uiStateBeforeBuildMode = new Dictionary<GameObject, bool>();
     private readonly Dictionary<GameObject, bool> uiStateBeforeRedo = new Dictionary<GameObject, bool>();
@@ -429,6 +430,7 @@ public class GameManager : MonoBehaviour
 
     public bool EnterBuildMode(BuildLocation location, Transform player)
     {
+        if (MultiplayerChallengeLobbyUI.IsChallengeActive) return false;
         if (FusionConnectionManager.Instance != null &&
             FusionConnectionManager.Instance.IsGuestInHostWorld) return false;
         if (gameObject.scene.name == "Multiplayer" &&
@@ -822,6 +824,7 @@ public class GameManager : MonoBehaviour
         Button redesignButton = null;
         Button cancelButton = null;
         Button tutorialButton = null;
+        Button challengeButton = null;
 
         foreach (TMP_Text label in redoConfirmPanel.GetComponentsInChildren<TMP_Text>(true))
         {
@@ -861,7 +864,9 @@ public class GameManager : MonoBehaviour
             if (button == null) continue;
 
             string buttonName = button.gameObject.name;
-            if (buttonName.IndexOf("tutorial", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            if (buttonName.IndexOf("challenge", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                challengeButton = button;
+            else if (buttonName.IndexOf("tutorial", System.StringComparison.OrdinalIgnoreCase) >= 0)
                 tutorialButton = button;
             else if (buttonName.IndexOf("confirm", System.StringComparison.OrdinalIgnoreCase) >= 0)
                 redesignButton = button;
@@ -879,6 +884,30 @@ public class GameManager : MonoBehaviour
         }
 
         LayoutRedoConfirmationButtons(redesignButton, tutorialButton, cancelButton, showTutorialReplay);
+        bool showChallenge = challengeButton != null && MultiplayerChallengeLobbyUI.CanOfferChallenge(location);
+        if (challengeButton != null) challengeButton.gameObject.SetActive(showChallenge);
+        if (showChallenge)
+        {
+            if (showTutorialReplay)
+            {
+                SetRedoButtonRect(redesignButton, 0.025f, 0.25f);
+                SetRedoButtonRect(tutorialButton, 0.265f, 0.49f);
+                SetRedoButtonRect(challengeButton, 0.505f, 0.73f);
+                SetRedoButtonRect(cancelButton, 0.745f, 0.97f);
+            }
+            else
+            {
+                SetRedoButtonRect(redesignButton, 0.04f, 0.31f);
+                SetRedoButtonRect(challengeButton, 0.35f, 0.65f);
+                SetRedoButtonRect(cancelButton, 0.69f, 0.96f);
+            }
+        }
+    }
+
+    public void RefreshMultiplayerChallengeOffer()
+    {
+        if (redoConfirmPanel != null && redoConfirmPanel.activeInHierarchy)
+            RefreshRedoConfirmationCopy(pendingRedoLocation);
     }
 
     private static void LayoutRedoConfirmationButtons(

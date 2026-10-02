@@ -71,3 +71,6 @@ MonoBehaviour:
   hostMaxPlaybackSpeed: 1.5
   remoteTeleportDistance: 8
   logMovementDiagnostics: 1
+  waveCooldown: 1
+  challengeInvitationSeconds: 30
+  challengeTravelSeconds: 20

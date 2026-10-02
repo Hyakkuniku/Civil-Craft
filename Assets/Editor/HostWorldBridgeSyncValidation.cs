@@ -94,6 +94,8 @@ public static class HostWorldBridgeSyncValidation
             ValidateGuestTravelPolicy(site, report);
             ValidatePlayerMapMarkers(fixture.transform, report);
             ValidateWaveEmote(fixture.transform, report);
+            ValidateChallengeLobby(fixture.transform, report);
+            ValidateChallengeLanding(fixture.transform, report);
 
             HostWorldBridgeSnapshot captured = FusionHostWorldBridgeSync.CaptureLocation(site);
             Require(captured.Bars.Count == 1 && captured.Bars[0].Parts.Count == 2,
@@ -348,7 +350,7 @@ public static class HostWorldBridgeSyncValidation
                 foreach (AnimatorCondition condition in transition.conditions)
                     if (condition.parameter == "Wave" && condition.mode == AnimatorConditionMode.IfNot) exit = true;
             if (destination == "walk" && !transition.hasExitTime) walk = true;
-            if (destination == "sprint" && !transition.hasExitTime) sprint = true;
+            if (destination == "Sprint" && !transition.hasExitTime) sprint = true;
             if (destination == "jump" && !transition.hasExitTime) jump = true;
         }
         Require(entry && exit && walk && sprint && jump,
@@ -366,6 +368,11 @@ public static class HostWorldBridgeSyncValidation
                 sceneText.Contains("button: {fileID: 397172065}"),
             "Existing EmoteButton has a persistent authored On Click target, script and Button reference.", report);
         var ui = Child("Inactive Wave Button", fixture).AddComponent<MultiplayerEmoteButton>();
+        // An inactive preview fixture does not run Awake; match the authored
+        // scene's explicit Button assignment instead of relying on that callback.
+        var uiSerialized = new SerializedObject(ui);
+        uiSerialized.FindProperty("button").objectReferenceValue = ui.GetComponent<Button>();
+        uiSerialized.ApplyModifiedPropertiesWithoutUndo();
         ui.PlayWave();
         Require(!ui.GetComponent<Button>().interactable,
             "Wave button safely rejects clicks without a running multiplayer owner avatar.", report);
@@ -408,6 +415,120 @@ public static class HostWorldBridgeSyncValidation
             for (int i = 0; i < 12; i++) animator.Update(0.05f);
             Require(animator.GetCurrentAnimatorStateInfo(0).IsName("idle"),
                 "Clearing the movement-interrupted wave does not restart it when walking stops.", report);
+        }
+        finally { Object.DestroyImmediate(rig); }
+    }
+
+    private static void ValidateChallengeLobby(Transform fixture, StringBuilder report)
+    {
+        PlayerRef host = PlayerRef.FromIndex(0), guest = PlayerRef.FromIndex(1), outsider = PlayerRef.FromIndex(2);
+        var state = new MultiplayerChallengeState { Revision = 7, Guest = guest, Phase = MultiplayerChallengePhase.Invited };
+        Require(MultiplayerChallengeRules.CanRespond(state, guest, 7) &&
+            !MultiplayerChallengeRules.CanRespond(state, host, 7) &&
+            !MultiplayerChallengeRules.CanRespond(state, outsider, 7) &&
+            !MultiplayerChallengeRules.CanRespond(state, guest, 6),
+            "Challenge accepts only the invited guest's current invitation response.", report);
+        state.Phase = MultiplayerChallengePhase.Teleporting;
+        Require(!MultiplayerChallengeRules.CanRespond(state, guest, 7) &&
+            MultiplayerChallengeRules.CanArrive(state, host, host, 7) &&
+            MultiplayerChallengeRules.CanArrive(state, guest, host, 7) &&
+            !MultiplayerChallengeRules.CanArrive(state, outsider, host, 7) &&
+            !MultiplayerChallengeRules.CanArrive(state, guest, host, 6),
+            "Challenge arrival rejects stale revisions and non-participants.", report);
+        state.Phase = MultiplayerChallengePhase.Lobby;
+        Require(!MultiplayerChallengeRules.CanArrive(state, guest, host, 7),
+            "Late arrival messages cannot restart an already-open lobby.", report);
+
+        BuildLocation selected = Child("Selected Challenge Site", fixture).AddComponent<BuildLocation>();
+        BuildLocation other = Child("Other Challenge Site", fixture).AddComponent<BuildLocation>();
+        GameObject selectedRoot = Child("Selected BuildRoot", selected.transform);
+        GameObject otherRoot = Child("Other BuildRoot", other.transform);
+        selected.buildSiteVisualRoots.Add(selectedRoot);
+        other.buildSiteVisualRoots.Add(otherRoot);
+        selectedRoot.SetActive(false);
+        otherRoot.SetActive(true);
+        int selectedBars = selected.bakedBars.Count, otherBars = other.bakedBars.Count;
+        using (var visibility = new ChallengeSiteIsolation())
+        {
+            visibility.ShowOnly(selected, new[] { selected, other });
+            Require(selectedRoot.activeSelf && !otherRoot.activeSelf && selected.gameObject.activeSelf && other.gameObject.activeSelf,
+                "Challenge lobby shows only the chosen build root without disabling the site controllers.", report);
+            Require(selected.bakedBars.Count == selectedBars && other.bakedBars.Count == otherBars &&
+                !selected.IsRedesigningBridge && !other.IsRedesigningBridge,
+                "Lobby site isolation never enters redesign or changes bridge collections.", report);
+        }
+        Require(!selectedRoot.activeSelf && otherRoot.activeSelf,
+            "Leaving the challenge restores exact original build-root visibility.", report);
+        string key = MultiplayerChallengeRules.SiteKey(selected);
+        Require(!string.IsNullOrEmpty(key) && key != MultiplayerChallengeRules.SiteKey(other),
+            "Challenge site identifiers distinguish authored locations without runtime instance IDs.", report);
+        Require(!MultiplayerChallengeLobbyUI.CanOfferChallenge(selected) && !MultiplayerChallengeLobbyUI.IsChallengeActive,
+            "Single-player cannot send multiplayer challenges or enter the challenge lobby.", report);
+
+        string scene = File.ReadAllText("Assets/Scenes/CanyonCrossing.unity");
+        Require(scene.Contains("m_Name: Challenge_UI") && scene.Contains("m_Name: Lobby_UI_Panel") &&
+            scene.Contains("guid: 64996c73e45b4b9cba62a18d5cb74b47") && scene.Contains("m_Name: CustomizedPlayerPortraits"),
+            "Challenge and lobby controls are authored in the existing Canyon scene, including the character portrait display.", report);
+        foreach (string method in new[] { "SendChallenge", "AcceptChallenge", "DeclineChallenge", "CancelOrClose" })
+            Require(scene.Contains("m_MethodName: " + method), "Authored challenge button calls " + method + ".", report);
+        int readyStart = scene.IndexOf("--- !u!114 &900000000000010067", StringComparison.Ordinal);
+        int readyEnd = scene.IndexOf("--- !u!", readyStart + 1, StringComparison.Ordinal);
+        string ready = scene.Substring(readyStart, readyEnd - readyStart);
+        Require(ready.Contains("m_Interactable: 0") && ready.Contains("m_Calls: []"),
+            "Ready is visibly reserved for the next milestone and cannot begin building or saving.", report);
+    }
+
+    private static void ValidateChallengeLanding(Transform fixture, StringBuilder report)
+    {
+        var rig = new GameObject("Challenge Landing Physics (Temporary)");
+        SceneManager.MoveGameObjectToScene(rig, fixture.gameObject.scene);
+        rig.transform.position = new Vector3(1000, 0, 1000);
+        try
+        {
+            // Gameplay scripts remain under the inactive fixture; only the
+            // temporary colliders and travel anchor are active for native physics.
+            BuildLocation site = Child("Landing Site", fixture).AddComponent<BuildLocation>();
+            site.fastTravelTarget = Child("Fast Travel Target", rig.transform).transform;
+            site.fastTravelTarget.localPosition = Vector3.up;
+            var controller = Child("Landing Controller", rig.transform).AddComponent<CharacterController>();
+            controller.height = 2.93f;
+            controller.radius = 0.78f;
+            controller.center = new Vector3(0, 0.65f, 0);
+            controller.transform.localScale = Vector3.one * 0.6f;
+            controller.transform.position = site.fastTravelTarget.position;
+            var floor = Child("Default Layer Ground", rig.transform).AddComponent<BoxCollider>();
+            floor.size = new Vector3(12, 0.5f, 12);
+            floor.center = new Vector3(0, -0.25f, 0);
+            Physics.SyncTransforms();
+            Require(MultiplayerChallengeLobbyUI.TryResolveLanding(site, controller, false, out Vector3 host),
+                "Challenge lands at the authored fast-travel anchor on Default-layer ground without any NavMesh.", report);
+            float feet = host.y + (controller.center.y - controller.height * 0.5f) * 0.6f;
+            Require(Mathf.Abs(feet - 0.05f) < 0.001f &&
+                Mathf.Abs(host.x - site.fastTravelTarget.position.x) < 0.001f &&
+                Mathf.Abs(host.z - site.fastTravelTarget.position.z) < 0.001f,
+                "Landing preserves the target's horizontal position and accounts for scaled controller centre/feet.", report);
+            Require(MultiplayerChallengeLobbyUI.TryResolveLanding(site, controller, true, out Vector3 guest) &&
+                Vector3.Distance(host, guest) >= 1.99f && MultiplayerChallengeLobbyUI.IsAtSite(site, guest),
+                "Guest has a nearby distinct supported landing within the host's arrival-validation range.", report);
+            var wall = Child("Blocked Landing", rig.transform).AddComponent<BoxCollider>();
+            wall.size = new Vector3(12, 4, 12);
+            wall.center = new Vector3(0, 2, 0);
+            Require(!MultiplayerChallengeLobbyUI.TryResolveLanding(site, controller, false, out _) &&
+                !MultiplayerChallengeLobbyUI.TryResolveLanding(site, controller, true, out _),
+                "Landing still rejects obstructed body/headroom for both participants.", report);
+            wall.enabled = false;
+            floor.enabled = false;
+            Require(!MultiplayerChallengeLobbyUI.TryResolveLanding(site, controller, false, out _),
+                "An unsupported fast-travel target cannot land over empty air.", report);
+            floor.enabled = true;
+            floor.isTrigger = true;
+            Require(!MultiplayerChallengeLobbyUI.TryResolveLanding(site, controller, false, out _),
+                "A trigger is not accepted as solid landing support.", report);
+            floor.isTrigger = false;
+            site.navigationTarget = site.fastTravelTarget.gameObject;
+            site.fastTravelTarget = null;
+            Require(MultiplayerChallengeLobbyUI.TryResolveLanding(site, controller, false, out _),
+                "Locations without a fast-travel anchor retain the navigation-target fallback.", report);
         }
         finally { Object.DestroyImmediate(rig); }
     }

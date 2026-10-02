@@ -11,7 +11,8 @@ public sealed class HostWorldBridgeVisual : IDisposable
     public HostWorldBridgeVisual(HostWorldBridgeSnapshot snapshot,
         IReadOnlyDictionary<string, BridgeMaterialSO> materials, GameObject pointPrefab, Transform parent)
     {
-        Root = new GameObject(snapshot.Name + " (Host Bridge, Read Only)");
+        string label = Uri.UnescapeDataString(snapshot.Name.Substring(snapshot.Name.LastIndexOf('/') + 1));
+        Root = new GameObject(label + " (Host Bridge, Read Only)");
         Root.SetActive(false);
         Root.transform.SetParent(parent, false);
         try

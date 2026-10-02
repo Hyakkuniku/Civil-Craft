@@ -7,7 +7,7 @@ using UnityEngine.AI;
 using UnityEngine.SceneManagement;
 
 /// <summary>A Fusion proxy for the existing locally controlled scene Player.</summary>
-public sealed class FusionMultiplayerAvatar : NetworkBehaviour
+public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
 {
     private const float AppearanceCheckInterval = 0.5f;
     private const float BridgeNodeSyncInterval = 0.2f;
@@ -233,6 +233,7 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
 
     public override void Spawned()
     {
+        if (HasStateAuthority) IsSessionHost = HasInputAuthority;
         lastPublishedPlayerName = null;
         ResetRemotePoseBuffer();
         if (HasInputAuthority)
@@ -267,6 +268,7 @@ public sealed class FusionMultiplayerAvatar : NetworkBehaviour
     private void Update()
     {
         if (Runner == null || !Runner.IsRunning) return;
+        UpdateChallengeAuthority();
         if (FusionConnectionManager.Instance == null ||
             !FusionConnectionManager.Instance.IsAvatarScene)
         {
