@@ -939,7 +939,18 @@ public static class ChallengeUIValidation
         nextRequestCheck = EditorApplication.timeSinceStartup + 2;
         const string request = "Temp/challenge-ui-validation.request";
         if (!File.Exists(request) || EditorApplication.isCompiling || EditorApplication.isUpdating ||
-            EditorApplication.isPlayingOrWillChangePlaymode || AuthoredResults() == null) return;
+            EditorApplication.isPlayingOrWillChangePlaymode || AuthoredResults() == null ||
+            !Resources.FindObjectsOfTypeAll<GameObject>().Any(obj => obj.name == "ChallengeLeaveBuildConfirmation" &&
+                obj.scene.name == "CanyonCrossing")) return;
+        var lobby = Resources.FindObjectsOfTypeAll<MultiplayerChallengeLobbyUI>().FirstOrDefault(ui =>
+            ui.gameObject.scene.name == "CanyonCrossing");
+        if (lobby == null || typeof(MultiplayerChallengeLobbyUI).GetField("portraitLight", BindingFlags.Instance |
+            BindingFlags.NonPublic).GetValue(lobby) == null) return; // Wait for the authored lighting reference to reload.
+        var key = (Light)typeof(MultiplayerChallengeLobbyUI).GetField("portraitLight", BindingFlags.Instance |
+            BindingFlags.NonPublic).GetValue(lobby);
+        var camera = (Camera)typeof(MultiplayerChallengeLobbyUI).GetField("portraitCamera", BindingFlags.Instance |
+            BindingFlags.NonPublic).GetValue(lobby);
+        if (camera == null || Vector3.Dot(key.transform.forward, camera.transform.forward) < 0.8f) return;
         File.Delete(request);
         HostWorldBridgeSyncValidation.Validate();
     }
@@ -950,17 +961,31 @@ public static class ChallengeUIValidation
         string scene = File.ReadAllText("Assets/Scenes/CanyonCrossing.unity");
         Func<string, string> block = id => Regex.Match(scene, @"(?ms)^--- !u!\d+ &" + id + @"\r?\n.*?(?=^--- !u!|\z)").Value;
         string service = block("900000000000000105");
+        Check(service.Contains("portraitLight: {fileID: 900000000000010101}"), "Authored portrait key light is not wired.");
+        Check(block("900000000000010101").Contains("m_Enabled: 0") &&
+            block("900000000000010101").Contains("m_RenderingLayerMask: 128") &&
+            block("900000000000010102").Contains("m_RenderingLayers: 128"),
+            "Booth key light must be portrait-only and disabled outside its camera pass.");
+        foreach (string preset in new[] { "Performant", "Balanced", "HighFidelity" })
+            Check(File.ReadAllText("Assets/Settings/URP-" + preset + ".asset").Contains("m_SupportsLightLayers: 1"),
+                preset + " does not support portrait light isolation.");
+        foreach (Match light in Regex.Matches(scene, @"(?ms)^--- !u!108 &(?<id>\d+)\r?\n.*?(?=^--- !u!|\z)"))
+            if (light.Groups["id"].Value != "900000000000010101")
+                Check((uint.Parse(Regex.Match(light.Value, @"m_RenderingLayerMask: (\d+)").Groups[1].Value) & 128u) == 0,
+                    "A world light includes the reserved Lobby Portrait rendering layer.");
+        ValidatePortraitLightingScope(fixture, report);
         foreach (string field in new[] { "submissionStatusBody", "submissionStatusHeader", "submissionConfirmPanel", "confirmSubmitButton",
-            "testIntroductionPanel", "testIntroductionTitle", "testIntroductionPlayer", "liveLoadLabel",
+            "testIntroductionPanel", "testIntroductionTitle", "testIntroductionPlayer", "liveLoadLabel", "leaveBuildConfirmPanel",
             "resultsPanel", "resultsWinner", "resultsRules", "resultsHostName", "resultsGuestName", "resultsHostScore",
             "resultsGuestScore", "resultsHostDetails", "resultsGuestDetails" })
         {
             string id = Regex.Match(service, @"(?m)^  " + field + @": \{fileID: (\d+)\}").Groups[1].Value;
             Check(id.Length > 0 && block(id).Length > 0, "Missing authored presentation reference: " + field);
-            if (field == "submissionConfirmPanel" || field == "resultsPanel" || field == "submissionStatusBody" || field == "testIntroductionPanel")
+            if (field == "submissionConfirmPanel" || field == "resultsPanel" || field == "submissionStatusBody" ||
+                field == "testIntroductionPanel" || field == "leaveBuildConfirmPanel")
                 Check(block(id).Contains("m_IsActive: 0"), field + " appears in single-player.");
         }
-        foreach (string method in new[] { "ToggleSubmissionStatus", "ConfirmSubmitBridge", "CancelSubmissionConfirmation" })
+        foreach (string method in new[] { "ToggleSubmissionStatus", "ConfirmSubmitBridge", "CancelSubmissionConfirmation", "ConfirmLeaveBuild", "CancelLeaveBuild" })
             Check(scene.Contains("m_MethodName: " + method), "Missing authored button handler: " + method);
         Check(block("900000000000011011").Contains("m_AnchorMin: {x: 0.155, y: 1}") &&
             block("900000000000011011").Contains("m_AnchorMax: {x: 0.375, y: 1}"), "Player status escaped its authored top-left slot.");
@@ -969,6 +994,10 @@ public static class ChallengeUIValidation
             "Player names can inject rich-text formatting.");
         report.AppendLine("PASS: Authored player dropdown, modal confirmation and separate results references are intact, persistently wired and hidden outside challenges; formatted IGNs are escaped.");
         ValidateControls(fixture, report);
+        Check(block("900000000000010098").Contains("m_BackGroundColor: {r: 0, g: 0, b: 0, a: 0}") &&
+            block("900000000000010098").Contains("orthographic size: 1.7") &&
+            block("900000000000010097").Contains("m_LocalPosition: {x: 0, y: 1.4, z: 4}"),
+            "Authored lobby camera lost transparency/full-body headroom.");
         var source = AuthoredResults();
         if (source == null)
         {
@@ -976,9 +1005,11 @@ public static class ChallengeUIValidation
             return;
         }
         var env = new GameObject("Challenge UI Preview (Temporary)", typeof(RectTransform), typeof(Canvas));
+        env.layer = 31; // World-space Canvas batching uses the Canvas object's layer.
         SceneManager.MoveGameObjectToScene(env, fixture.gameObject.scene);
         RenderTexture target = null;
         Texture2D picture = null;
+        var lobbyTargets = new List<RenderTexture>();
         try
         {
             var canvas = env.GetComponent<Canvas>(); canvas.renderMode = RenderMode.WorldSpace;
@@ -986,6 +1017,7 @@ public static class ChallengeUIValidation
             var cameraObj = new GameObject("UI Preview Camera (Temporary)", typeof(Camera));
             cameraObj.transform.SetParent(env.transform, false);
             var camera = cameraObj.GetComponent<Camera>();
+            camera.scene = fixture.gameObject.scene;
             camera.orthographic = true; camera.orthographicSize = 540; camera.aspect = 1920f / 1080;
             camera.transform.localPosition = new Vector3(0, 0, -1000);
             camera.nearClipPlane = 0.1f; camera.farClipPlane = 2000;
@@ -1015,7 +1047,7 @@ public static class ChallengeUIValidation
                 Canvas.ForceUpdateCanvases(); ValidateFit(preview);
             }
             Object.DestroyImmediate(preview);
-            foreach (string panel in new[] { "ChallengeSubmitConfirmation", "ChallengeSubmissionStatus", "Challenge_UI", "ChallengeTestIntroduction" })
+            foreach (string panel in new[] { "ChallengeSubmitConfirmation", "ChallengeSubmissionStatus", "Challenge_UI", "ChallengeTestIntroduction", "ChallengeLeaveBuildConfirmation", "Lobby_UI_Panel" })
             {
                 var original = Resources.FindObjectsOfTypeAll<GameObject>().First(obj => obj.name == panel &&
                     obj.scene.IsValid() && obj.scene.name == "CanyonCrossing");
@@ -1040,6 +1072,7 @@ public static class ChallengeUIValidation
                     Text(preview, "Test Introduction Title").text = "BRIDGE TEST 1 / 2";
                     Text(preview, "Test Introduction Player").text = "Guest Engineer";
                 }
+                if (panel == "Lobby_UI_Panel") RenderLobbyPortraits(preview, env.transform, lobbyTargets, report);
                 Capture(camera, target, "Temp/" + panel + "AuthoredPreview.png", ref picture);
                 ValidateFit(preview);
                 if (panel == "ChallengeTestIntroduction")
@@ -1063,8 +1096,186 @@ public static class ChallengeUIValidation
         {
             if (picture != null) Object.DestroyImmediate(picture);
             if (target != null) { target.Release(); Object.DestroyImmediate(target); }
+            foreach (RenderTexture texture in lobbyTargets) { texture.Release(); Object.DestroyImmediate(texture); }
             Object.DestroyImmediate(env);
         }
+    }
+
+    private static void RenderLobbyPortraits(GameObject lobby, Transform parent, List<RenderTexture> targets, StringBuilder report)
+    {
+        const BindingFlags fields = BindingFlags.Instance | BindingFlags.NonPublic;
+        var authored = Resources.FindObjectsOfTypeAll<MultiplayerChallengeLobbyUI>().First(ui =>
+            ui.gameObject.scene.IsValid() && ui.gameObject.scene.name == "CanyonCrossing");
+        var sourceCamera = (Camera)typeof(MultiplayerChallengeLobbyUI).GetField("portraitCamera", fields).GetValue(authored);
+        GameObject stage = Object.Instantiate(sourceCamera.transform.parent.gameObject, parent, false);
+        stage.SetActive(false); // Character clones cannot run source gameplay callbacks.
+        var camera = stage.GetComponentInChildren<Camera>(true); camera.enabled = false;
+        camera.scene = parent.gameObject.scene;
+        var raw = lobby.GetComponentsInChildren<RawImage>(true).First(image => image.name == "CustomizedPlayerPortraits");
+        Canvas.ForceUpdateCanvases();
+        float aspect = raw.rectTransform.rect.width / raw.rectTransform.rect.height;
+        var target = new RenderTexture(768, Mathf.Clamp(Mathf.RoundToInt(768f / aspect), 128, 1024), 16, RenderTextureFormat.ARGB32);
+        targets.Add(target); target.Create(); camera.targetTexture = target; camera.aspect = aspect; raw.texture = target;
+        var motor = Resources.FindObjectsOfTypeAll<PlayerMotor>().FirstOrDefault(player => player.gameObject.scene.name == "CanyonCrossing" &&
+            player.transform.Find("NewCharacterModel") != null);
+        if (motor == null) { report.AppendLine("NOTE: No authored player model was loaded for lobby framing preview."); return; }
+        Transform source = motor.transform.Find("NewCharacterModel");
+        foreach (string field in new[] { "hostPortraitAnchor", "guestPortraitAnchor" })
+        {
+            var sourceAnchor = (Transform)typeof(MultiplayerChallengeLobbyUI).GetField(field, fields).GetValue(authored);
+            Transform anchor = stage.GetComponentsInChildren<Transform>(true).First(t => t.name == sourceAnchor.name);
+            GameObject model = Object.Instantiate(source.gameObject, anchor, false);
+            model.transform.localPosition = Vector3.zero; model.transform.localRotation = Quaternion.identity;
+            model.transform.localScale = source.lossyScale;
+            foreach (Transform node in model.GetComponentsInChildren<Transform>(true)) node.gameObject.layer = 31;
+            foreach (MonoBehaviour behaviour in model.GetComponentsInChildren<MonoBehaviour>(true)) behaviour.enabled = false;
+            foreach (Collider collider in model.GetComponentsInChildren<Collider>(true)) collider.enabled = false;
+            foreach (Rigidbody body in model.GetComponentsInChildren<Rigidbody>(true)) { body.isKinematic = true; body.detectCollisions = false; }
+            foreach (Renderer renderer in model.GetComponentsInChildren<Renderer>(true))
+            {
+                typeof(MultiplayerChallengeLobbyUI).GetMethod("ConfigurePortraitRenderer", BindingFlags.Static | BindingFlags.NonPublic)
+                    .Invoke(null, new object[] { renderer });
+                renderer.forceRenderingOff = false;
+                if (renderer.gameObject.activeSelf) renderer.enabled = true;
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                if (renderer is SkinnedMeshRenderer skinned)
+                {
+                    skinned.updateWhenOffscreen = true;
+                    skinned.forceMatrixRecalculationPerRender = true;
+                }
+            }
+            model.SetActive(true);
+        }
+        stage.SetActive(true);
+        foreach (Animator animator in stage.GetComponentsInChildren<Animator>())
+        {
+            animator.applyRootMotion = false; animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+            animator.Play("Base Layer.idle", 0, 0f); animator.Update(0f);
+        }
+        // Use the production sun scope; the inactive fixture never subscribes to live callbacks.
+        var scopeObject = new GameObject("Portrait Lighting Scope (Temporary)");
+        scopeObject.transform.SetParent(parent, false); scopeObject.SetActive(false);
+        var scope = scopeObject.AddComponent<MultiplayerChallengeLobbyUI>();
+        typeof(MultiplayerChallengeLobbyUI).GetField("portraitCamera", fields).SetValue(scope, camera);
+        var keyLight = stage.GetComponentInChildren<Light>(true);
+        typeof(MultiplayerChallengeLobbyUI).GetField("portraitLight", fields).SetValue(scope, keyLight);
+        var begin = typeof(MultiplayerChallengeLobbyUI).GetMethod("BeginPortraitLighting", fields);
+        var end = typeof(MultiplayerChallengeLobbyUI).GetMethod("EndPortraitLighting", fields);
+        object[] arguments = { default(UnityEngine.Rendering.ScriptableRenderContext), camera };
+        Check(Vector3.Dot(keyLight.transform.forward, camera.transform.forward) > 0.8f,
+            "Lobby key light illuminates the backs rather than the camera-facing fronts.");
+        Quaternion authoredRotation = keyLight.transform.localRotation;
+        Color32[] backlit;
+        try
+        {
+            keyLight.transform.localRotation = new Quaternion(0.408f, -0.235f, 0.109f, 0.875f).normalized;
+            begin.Invoke(scope, arguments); RenderPortraitCamera(camera, target); backlit = ReadPortraitPixels(target);
+        }
+        finally { end.Invoke(scope, arguments); keyLight.transform.localRotation = authoredRotation; }
+        try { begin.Invoke(scope, arguments); RenderPortraitCamera(camera, target); }
+        finally { end.Invoke(scope, arguments); }
+        RenderTexture previous = RenderTexture.active;
+        var sample = new Texture2D(target.width, target.height, TextureFormat.RGBA32, false);
+        try
+        {
+            RenderTexture.active = target; sample.ReadPixels(new Rect(0, 0, target.width, target.height), 0, 0); sample.Apply();
+            File.WriteAllBytes("Temp/ChallengeLobbyPortraitsPreview.png", sample.EncodeToPNG());
+            Check(sample.GetPixel(0, 0).a < 0.01f, "Lobby portrait target has an opaque background.");
+            Color32[] pixels = sample.GetPixels32(); int left = 0, right = 0;
+            float beforeBrightness = PortraitBrightness(backlit), afterBrightness = PortraitBrightness(pixels);
+            Check(beforeBrightness > 0f && afterBrightness > beforeBrightness * 1.15f,
+                $"Frontal portrait light failed to brighten rendered models: before={beforeBrightness:F3}, after={afterBrightness:F3}.");
+            report.AppendLine($"PASS: Rendered portrait brightness improves from {beforeBrightness:F3} (backlit control) to {afterBrightness:F3} (authored frontal key); no world light is enabled by the check.");
+            for (int y = 0; y < target.height; y++)
+                for (int x = 0; x < target.width; x++)
+                {
+                    if (pixels[y * target.width + x].a <= 12) continue;
+                    // Measure the rendered silhouette rather than BakeMesh's
+                    // imported-armature coordinate system/animation bounds.
+                    Check(x > 0 && x < target.width - 1 && y > 0 && y < target.height - 1,
+                        "Lobby portrait silhouette touches the image edge (cropped head/feet).");
+                    if (x < target.width / 2) left++; else right++;
+                }
+            Check(left > 100 && right > 100, "Lobby render is blank or missing a player.");
+        }
+        finally { RenderTexture.active = previous; Object.DestroyImmediate(sample); }
+        report.AppendLine("PASS: Authored lobby renders both full-body models, preserves transparent RGBA background, and leaves transparent margins around the visible silhouettes (no cropped head/feet).");
+    }
+
+    private static void RenderPortraitCamera(Camera camera, RenderTexture target)
+    {
+        // Camera.Render alone does not prove URP lighting works. Use the same
+        // pipeline/shader path as Play Mode for this brightness regression.
+        var request = new UnityEngine.Rendering.Universal.UniversalRenderPipeline.SingleCameraRequest { destination = target };
+        Check(UnityEngine.Rendering.RenderPipeline.SupportsRenderRequest(camera, request), "URP portrait rendering is unavailable.");
+        UnityEngine.Rendering.RenderPipeline.SubmitRenderRequest(camera, request);
+    }
+
+    private static Color32[] ReadPortraitPixels(RenderTexture target)
+    {
+        RenderTexture previous = RenderTexture.active;
+        var texture = new Texture2D(target.width, target.height, TextureFormat.RGBA32, false);
+        try
+        {
+            RenderTexture.active = target; texture.ReadPixels(new Rect(0, 0, target.width, target.height), 0, 0); texture.Apply();
+            return texture.GetPixels32();
+        }
+        finally { RenderTexture.active = previous; Object.DestroyImmediate(texture); }
+    }
+
+    private static float PortraitBrightness(Color32[] pixels)
+    {
+        double total = 0; int count = 0;
+        foreach (Color32 pixel in pixels)
+        {
+            if (pixel.a < 230) continue;
+            total += (0.2126 * pixel.r + 0.7152 * pixel.g + 0.0722 * pixel.b) / 255.0; count++;
+        }
+        Check(count > 100, "Portrait brightness cannot be measured from an empty render.");
+        return (float)(total / count);
+    }
+
+    private static void ValidatePortraitLightingScope(Transform fixture, StringBuilder report)
+    {
+        const BindingFlags fields = BindingFlags.Instance | BindingFlags.NonPublic;
+        var obj = new GameObject("Portrait Lighting Validation (Temporary)"); obj.SetActive(false);
+        obj.transform.SetParent(fixture, false);
+        var controller = obj.AddComponent<MultiplayerChallengeLobbyUI>();
+        var camera = obj.AddComponent<Camera>(); camera.enabled = false;
+        var other = new GameObject("World Camera (Temporary)", typeof(Camera)); other.transform.SetParent(obj.transform, false);
+        other.GetComponent<Camera>().enabled = false;
+        var lightRoot = new GameObject("Portrait Key Validation (Temporary)");
+        SceneManager.MoveGameObjectToScene(lightRoot, fixture.gameObject.scene);
+        var key = lightRoot.AddComponent<Light>(); key.type = LightType.Directional; key.enabled = false;
+        typeof(MultiplayerChallengeLobbyUI).GetField("portraitCamera", fields).SetValue(controller, camera);
+        typeof(MultiplayerChallengeLobbyUI).GetField("portraitLight", fields).SetValue(controller, key);
+        var begin = typeof(MultiplayerChallengeLobbyUI).GetMethod("BeginPortraitLighting", fields);
+        var end = typeof(MultiplayerChallengeLobbyUI).GetMethod("EndPortraitLighting", fields);
+        var restore = typeof(MultiplayerChallengeLobbyUI).GetMethod("RestorePortraitLighting", fields);
+        Light worldSun = RenderSettings.sun;
+        try
+        {
+            object[] arguments = { default(UnityEngine.Rendering.ScriptableRenderContext), other.GetComponent<Camera>() };
+            begin.Invoke(controller, arguments);
+            Check(RenderSettings.sun == worldSun && !key.enabled, "World camera inherited portrait lighting.");
+            arguments[1] = camera; begin.Invoke(controller, arguments);
+            Check(RenderSettings.sun == key && key.enabled, "Portrait camera did not select its authored key light.");
+            end.Invoke(controller, new object[] { default(UnityEngine.Rendering.ScriptableRenderContext), other.GetComponent<Camera>() });
+            Check(RenderSettings.sun == key, "Another camera prematurely cleared portrait lighting.");
+            end.Invoke(controller, arguments);
+            Check(RenderSettings.sun == worldSun && !key.enabled, "Portrait render failed to restore the world sun/key visibility.");
+            begin.Invoke(controller, arguments); restore.Invoke(controller, null);
+            Check(RenderSettings.sun == worldSun && !key.enabled, "Portrait cleanup leaked lighting into the world.");
+            var cube = GameObject.CreatePrimitive(PrimitiveType.Cube); cube.transform.SetParent(obj.transform, false);
+            var renderer = cube.GetComponent<Renderer>();
+            typeof(MultiplayerChallengeLobbyUI).GetMethod("ConfigurePortraitRenderer", BindingFlags.Static | BindingFlags.NonPublic)
+                .Invoke(null, new object[] { renderer });
+            Check(renderer.renderingLayerMask == 128 && renderer.lightProbeUsage == UnityEngine.Rendering.LightProbeUsage.Off &&
+                renderer.reflectionProbeUsage == UnityEngine.Rendering.ReflectionProbeUsage.Off,
+                "Portrait copies still receive world light/probe layers.");
+            report.AppendLine("PASS: All quality presets support the reserved portrait layer; world lights exclude it; only portrait renderers lose world probes. Portrait camera selects its own main light and restores the world sun/key visibility after rendering or cleanup.");
+        }
+        finally { restore.Invoke(controller, null); RenderSettings.sun = worldSun; Object.DestroyImmediate(lightRoot); Object.DestroyImmediate(obj); }
     }
 
     private static void ValidateControls(Transform fixture, StringBuilder report)
@@ -1106,8 +1317,10 @@ public static class ChallengeUIValidation
             var state = new MultiplayerChallengeState { Revision = 8, TestIndex = 1, Phase = MultiplayerChallengePhase.PreparingTest };
             Check(!(bool)present.Invoke(controller, new object[] { state, "Guest Engineer", 3f }) && intro.activeInHierarchy,
                 "First test skipped its visible introduction.");
-            shownAt.SetValue(controller, Time.unscaledTime - 3.1f);
-            Check((bool)present.Invoke(controller, new object[] { state, "Guest Engineer", 3f }), "Read introduction never released readiness.");
+            var elapsed = typeof(MultiplayerChallengeLobbyUI).GetMethod("IntroductionElapsed", BindingFlags.Static | BindingFlags.NonPublic);
+            Check(!(bool)elapsed.Invoke(null, new object[] { 10f, 12.99f, 3f }) &&
+                (bool)elapsed.Invoke(null, new object[] { 10f, 13f, 3f }) &&
+                !(bool)elapsed.Invoke(null, new object[] { -1f, 100f, 3f }), "Introduction did not observe its configured duration.");
             state.TestIndex = 2;
             Check(!(bool)present.Invoke(controller, new object[] { state, "Host Engineer", 3f }), "Second test reused the first introduction timer.");
             state.Phase = MultiplayerChallengePhase.Testing;
@@ -1119,6 +1332,17 @@ public static class ChallengeUIValidation
             shownAt.SetValue(controller, Time.unscaledTime - 10f);
             Check(!(bool)present.Invoke(controller, new object[] { state, "Host Engineer", 3f }), "A hidden Canvas counted as a read introduction.");
             report.AppendLine("PASS: Both tests require their own visible introduction timer; inactive UI cannot release readiness; simulation hides the panel. No physics or reliable-message rates were changed.");
+            var leave = new GameObject("Leave Confirmation (Temporary)"); leave.transform.SetParent(obj.transform, false);
+            typeof(MultiplayerChallengeLobbyUI).GetField("leaveBuildConfirmPanel", privateFields).SetValue(controller, leave);
+            leave.SetActive(true);
+            Check(MultiplayerChallengeLobbyUI.IsLeaveConfirmationOpen, "Leave confirmation did not gate editing.");
+            controller.CancelLeaveBuild();
+            Check(!leave.activeSelf && !MultiplayerChallengeLobbyUI.IsLeaveConfirmationOpen, "Staying failed to release the leave editing gate.");
+            leave.SetActive(true);
+            typeof(MultiplayerChallengeLobbyUI).GetField("leaveConfirmationRevision", privateFields).SetValue(controller, 8);
+            controller.ConfirmLeaveBuild();
+            Check(!leave.activeSelf, "An unbound leave confirmation did not close safely.");
+            report.AppendLine("PASS: Leave confirmation gates editing; Stay restores it; an unbound confirmation cannot send cancellation. Solo ExitBuildMode still uses its original branch.");
             report.AppendLine("PASS: Player status expands/collapses without changing authored geometry; cancel restores the editing gate; unopened and unbound confirmations cannot submit a bridge.");
         }
         finally { owner.SetValue(null, previousOwner); Object.DestroyImmediate(obj); }
@@ -1144,6 +1368,8 @@ public static class ChallengeUIValidation
             RenderTexture.active = target;
             if (image == null) image = new Texture2D(target.width, target.height, TextureFormat.RGB24, false);
             image.ReadPixels(new Rect(0, 0, target.width, target.height), 0, 0); image.Apply();
+            Color32[] pixels = image.GetPixels32(); Color32 first = pixels[0];
+            Check(pixels.Any(pixel => !pixel.Equals(first)), "Authored UI preview rendered only the background.");
             File.WriteAllBytes(path, image.EncodeToPNG());
         }
         finally { RenderTexture.active = previous; }

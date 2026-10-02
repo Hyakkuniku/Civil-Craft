@@ -217,7 +217,14 @@ public static class ChallengeTestValidation
                 ChallengeTestDescriptor.ResolveVehicle(ChallengeTestDescriptor.VehiclePath(vehicle), site.gameObject.scene) == vehicle,
                 "Build preview and physics disagreed on the authored contract vehicle.");
             bool originalVehicleActive = vehicle.gameObject.activeSelf;
+            // FindObjectsOfType deliberately excludes Editor preview scenes.
+            // Match the visibility scan's scope without moving this fixture into
+            // the user's loaded world or enabling its gameplay components.
+            bool originalVehicleDiscoverable = Array.IndexOf(Object.FindObjectsOfType<LiveLoadVehicle>(true), vehicle) >= 0;
             Vector3 originalVehiclePosition = vehicle.transform.position;
+            var previewPose = new object[] { Vector3.zero, Quaternion.identity };
+            typeof(LiveLoadVehicle).GetMethod("GetSessionTestStartPose", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(vehicle, previewPose);
+            Vector3 previewStartPosition = (Vector3)previewPose[0];
             using (var previewWorkspace = ChallengeBuildWorkspace.Create(site, definition, creator, 12, 1))
             {
                 previewWorkspace.ShowLoadPreview(vehicle);
@@ -225,14 +232,18 @@ public static class ChallengeTestValidation
                 Check(preview != null && preview.activeInHierarchy && preview.GetComponentsInChildren<MeshRenderer>(true).Length > 0 &&
                     preview.GetComponentsInChildren<MonoBehaviour>(true).Length == 0 && preview.GetComponentsInChildren<Rigidbody>(true).Length == 0 &&
                     preview.GetComponentsInChildren<Collider>(true).Length == 0, "Live load preview is invisible or contains gameplay/physics.");
-                Check(preview.transform.position == originalVehiclePosition && !vehicle.gameObject.activeSelf &&
-                    !vehicle.IsDriving && !settings.IsSimulationActive, "Preview moved the original truck or started physics.");
+                Check(preview.transform.position == previewStartPosition && vehicle.transform.position == originalVehiclePosition &&
+                    vehicle.gameObject.activeSelf == (originalVehicleActive && !originalVehicleDiscoverable) &&
+                    !vehicle.IsDriving && !settings.IsSimulationActive,
+                    $"Preview changed the world: preview={preview.transform.position}, expectedStart={previewStartPosition}, " +
+                    $"original={vehicle.transform.position}, expectedOriginal={originalVehiclePosition}, " +
+                    $"originalActive={vehicle.gameObject.activeSelf}, driving={vehicle.IsDriving}, physics={settings.IsSimulationActive}.");
                 previewWorkspace.Root.SetActive(false);
                 Check(!preview.activeInHierarchy, "Build load preview remained visible alongside the test vehicle.");
             }
             Check(vehicle.gameObject.activeSelf == originalVehicleActive && vehicle.transform.position == originalVehiclePosition,
                 "Disposing the build preview failed to restore original vehicle visibility/pose.");
-            report.AppendLine("PASS: Contract truck resolves identically for building/testing; disposable visible mesh preview has no scripts, Rigidbody or colliders, hides for testing and restores the world vehicle without moving/driving it.");
+            report.AppendLine("PASS: Contract truck resolves identically for building/testing; disposable visible mesh preview has no scripts, Rigidbody or colliders, hides for testing and restores original visibility without moving/driving the truck. Visibility scan respects Unity's exclusion of isolated Editor preview-scene objects.");
             Check(ChallengeBridgeSubmissionRules.Validate(graph, site, definition, catalog, -10, out float submittedCost) == ChallengeSubmissionError.None &&
                 submittedCost == 30f, "An over-budget non-empty draft with a loose node was rejected before reconstruction.");
             run = ChallengeBridgeTestRun.Create(graph, site, definition, creator, settings, vehicle, 77, 12, 1);

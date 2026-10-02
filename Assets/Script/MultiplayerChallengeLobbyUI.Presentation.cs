@@ -26,8 +26,11 @@ public sealed partial class MultiplayerChallengeLobbyUI
             introductionRevision = state.Revision; introductionIndex = state.TestIndex;
             introductionShownAt = Time.unscaledTime;
         }
-        return Time.unscaledTime - introductionShownAt >= seconds;
+        return IntroductionElapsed(introductionShownAt, Time.unscaledTime, seconds);
     }
+
+    internal static bool IntroductionElapsed(float shownAt, float now, float seconds) =>
+        shownAt >= 0f && now >= shownAt && now - shownAt >= seconds;
 
     private void RefreshTestPresentation(MultiplayerChallengeState state)
     {
@@ -51,6 +54,12 @@ public sealed partial class MultiplayerChallengeLobbyUI
     [Header("Authored submission confirmation")]
     [SerializeField] private GameObject submissionConfirmPanel;
     [SerializeField] private Button confirmSubmitButton;
+    [Header("Authored leave Build Mode confirmation")]
+    [SerializeField] private GameObject leaveBuildConfirmPanel;
+    private int leaveConfirmationRevision = int.MinValue;
+    private MultiplayerChallengePhase leaveConfirmationPhase;
+    public static bool IsLeaveConfirmationOpen => presentationOwner != null &&
+        presentationOwner.leaveBuildConfirmPanel != null && presentationOwner.leaveBuildConfirmPanel.activeSelf;
     [Header("Authored challenge results")]
     [SerializeField] private GameObject resultsPanel;
     [SerializeField] private TMP_Text resultsWinner;
@@ -100,6 +109,39 @@ public sealed partial class MultiplayerChallengeLobbyUI
         lastBuildEditingEnabled = null; // Restore editing through the existing authoritative gate.
     }
 
+    private void OpenLeaveBuildConfirmation(MultiplayerChallengeState state)
+    {
+        if (leaveBuildConfirmPanel == null || buildWorkspace == null || host == null ||
+            state.Phase == MultiplayerChallengePhase.None || state.Phase == MultiplayerChallengePhase.TestResults) return;
+        CancelSubmissionConfirmation();
+        leaveConfirmationRevision = state.Revision;
+        leaveConfirmationPhase = state.Phase;
+        leaveBuildConfirmPanel.SetActive(true);
+        buildWorkspace.SetEditingEnabled(false);
+        lastBuildEditingEnabled = false;
+    }
+
+    public void CancelLeaveBuild()
+    {
+        if (leaveBuildConfirmPanel != null) leaveBuildConfirmPanel.SetActive(false);
+        leaveConfirmationRevision = int.MinValue;
+        lastBuildEditingEnabled = null;
+    }
+
+    public void ConfirmLeaveBuild()
+    {
+        if (!IsLeaveConfirmationOpen || leaveConfirmationRevision == int.MinValue) return;
+        int revision = leaveConfirmationRevision;
+        MultiplayerChallengePhase phase = leaveConfirmationPhase;
+        CancelLeaveBuild();
+        // A closed/replaced challenge or an intervening phase transition must not
+        // cancel a new challenge using an old confirmation.
+        if (host == null || local == null || boundRunner == null || !boundRunner.IsRunning ||
+            host.ChallengeState.Revision != revision || host.ChallengeState.Phase != phase ||
+            GameManager.Instance == null || !GameManager.Instance.IsSessionChallengeBuild) return;
+        local.CancelChallenge(revision); // Existing authenticated host RPC owns cleanup.
+    }
+
     public void ConfirmSubmitBridge()
     {
         if (!IsSubmissionConfirmationOpen || confirmationRevision == int.MinValue) return;
@@ -113,6 +155,8 @@ public sealed partial class MultiplayerChallengeLobbyUI
 
     private void RefreshBuildCardPresentation(MultiplayerChallengeState state, bool submitted, bool sending, string notice)
     {
+        if (IsLeaveConfirmationOpen && (state.Revision != leaveConfirmationRevision || state.Phase != leaveConfirmationPhase))
+            CancelLeaveBuild();
         if (IsSubmissionConfirmationOpen && (state.Revision != confirmationRevision ||
             state.Phase != MultiplayerChallengePhase.Building || submitted || sending)) CancelSubmissionConfirmation();
         // A new placement/session prompt must be visible even if the player had
@@ -135,6 +179,7 @@ public sealed partial class MultiplayerChallengeLobbyUI
         HideTestIntroduction();
         if (liveLoadLabel != null) liveLoadLabel.gameObject.SetActive(false);
         CancelSubmissionConfirmation();
+        CancelLeaveBuild();
         statusExpanded = false;
         lastSubmissionNotice = null;
         if (submissionStatusBody != null) submissionStatusBody.SetActive(false);

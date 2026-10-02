@@ -590,7 +590,7 @@ public partial class GameManager : MonoBehaviour
     {
         if (IsSessionChallengeBuild)
         {
-            MultiplayerChallengeLobbyUI.RequestCancelActiveChallenge();
+            MultiplayerChallengeLobbyUI.RequestLeaveChallengeBuild();
             return;
         }
         if (IsCargoTestActive) { CancelCargoTest(); return; }

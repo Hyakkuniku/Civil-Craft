@@ -1,6 +1,7 @@
 using Fusion;
 using TMPro;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
@@ -30,6 +31,8 @@ public sealed partial class MultiplayerChallengeLobbyUI : MonoBehaviour
     [SerializeField] private GameObject submissionStatusPanel;
     [Header("Authored portrait stage")]
     [SerializeField] private Camera portraitCamera;
+    [SerializeField] private Light portraitLight;
+    internal const uint PortraitRenderingLayerMask = 1u << 7;
     [SerializeField] private RawImage portraitImage;
     [SerializeField] private Transform hostPortraitAnchor;
     [SerializeField] private Transform guestPortraitAnchor;
@@ -48,6 +51,8 @@ public sealed partial class MultiplayerChallengeLobbyUI : MonoBehaviour
     private GameObject hostPortrait, guestPortrait;
     private string hostAppearance, guestAppearance;
     private RenderTexture portraitTexture;
+    private Light previousPortraitSun;
+    private bool portraitLightingScoped, portraitLightWasEnabled;
     private FusionHostWorldBridgeSync bridgeSync;
     private string resolvedSiteKey;
     private BuildLocation resolvedSite;
@@ -62,14 +67,18 @@ public sealed partial class MultiplayerChallengeLobbyUI : MonoBehaviour
     private TMP_Text invitationCloseLabel;
     private string invitationCloseOriginalLabel;
 
-    public static void RequestCancelActiveChallenge()
+    public static void RequestLeaveChallengeBuild()
     {
         FusionConnectionManager connection = FusionConnectionManager.Instance;
         if (connection == null || connection.Runner == null || !connection.Runner.IsRunning) return;
         FusionMultiplayerAvatar host = FusionMultiplayerAvatar.FindHost(connection.Runner);
         if (host == null || !host.IsChallengeBusy || !connection.Runner.TryGetPlayerObject(connection.Runner.LocalPlayer,
             out NetworkObject obj) || obj == null || !obj.IsValid) return;
-        obj.GetComponent<FusionMultiplayerAvatar>()?.CancelChallenge(host.ChallengeState.Revision);
+        var ui = FindObjectOfType<MultiplayerChallengeLobbyUI>(true);
+        if (ui == null) return;
+        if (IsSubmissionConfirmationOpen) { ui.CancelSubmissionConfirmation(); return; }
+        if (IsLeaveConfirmationOpen) { ui.CancelLeaveBuild(); return; }
+        ui.OpenLeaveBuildConfirmation(host.ChallengeState);
     }
 
     public static bool IsChallengeActive
@@ -95,6 +104,40 @@ public sealed partial class MultiplayerChallengeLobbyUI : MonoBehaviour
         if (submitBridgeButton != null) { submitBridgeButton.interactable = false; submitBridgeButton.gameObject.SetActive(false); }
         if (submissionStatusPanel != null) submissionStatusPanel.SetActive(false);
         if (portraitCamera != null) portraitCamera.enabled = false;
+    }
+
+    private void OnEnable()
+    {
+        RenderPipelineManager.beginCameraRendering += BeginPortraitLighting;
+        RenderPipelineManager.endCameraRendering += EndPortraitLighting;
+    }
+
+    private void BeginPortraitLighting(ScriptableRenderContext context, Camera camera)
+    {
+        if (camera != portraitCamera || portraitLight == null || !portraitLight.gameObject.activeInHierarchy) return;
+        // URP otherwise picks the world's sun as its one main directional light,
+        // even for this camera. Scope our authored key light to this render only;
+        // this also works when the Performant preset disables additional lights.
+        if (portraitLightingScoped) return;
+        previousPortraitSun = RenderSettings.sun;
+        portraitLightWasEnabled = portraitLight.enabled;
+        portraitLightingScoped = true;
+        portraitLight.enabled = true;
+        RenderSettings.sun = portraitLight;
+    }
+
+    private void EndPortraitLighting(ScriptableRenderContext context, Camera camera)
+    {
+        if (camera == portraitCamera) RestorePortraitLighting();
+    }
+
+    private void RestorePortraitLighting()
+    {
+        if (!portraitLightingScoped) return;
+        RenderSettings.sun = previousPortraitSun;
+        if (portraitLight != null) portraitLight.enabled = portraitLightWasEnabled;
+        previousPortraitSun = null;
+        portraitLightingScoped = false;
     }
 
     public static bool CanOfferChallenge(BuildLocation site)
@@ -538,7 +581,7 @@ public sealed partial class MultiplayerChallengeLobbyUI : MonoBehaviour
             Rect display = portraitImage.rectTransform.rect;
             float aspect = display.height > 0f ? display.width / display.height : 2f;
             int height = Mathf.Clamp(Mathf.RoundToInt(768f / Mathf.Max(0.5f, aspect)), 128, 1024);
-            portraitTexture = new RenderTexture(768, height, 16)
+            portraitTexture = new RenderTexture(768, height, 16, RenderTextureFormat.ARGB32)
             { name = "Challenge Lobby Portraits (Session Only)", hideFlags = HideFlags.DontSave };
             portraitTexture.Create();
             portraitCamera.targetTexture = portraitTexture;
@@ -562,6 +605,7 @@ public sealed partial class MultiplayerChallengeLobbyUI : MonoBehaviour
         if (portrait == null) return;
         foreach (Renderer renderer in portrait.GetComponentsInChildren<Renderer>(true))
         {
+            ConfigurePortraitRenderer(renderer);
             if (renderer.gameObject.activeInHierarchy) renderer.enabled = true;
             renderer.forceRenderingOff = false;
             renderer.allowOcclusionWhenDynamic = false;
@@ -573,6 +617,14 @@ public sealed partial class MultiplayerChallengeLobbyUI : MonoBehaviour
                 skinned.forceMatrixRecalculationPerRender = true;
             }
         }
+    }
+
+    internal static void ConfigurePortraitRenderer(Renderer renderer)
+    {
+        // Only visual clones use this mask; gameplay avatars keep world lighting.
+        renderer.renderingLayerMask = PortraitRenderingLayerMask;
+        renderer.lightProbeUsage = LightProbeUsage.Off;
+        renderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
     }
 
     private void RestoreWorld()
@@ -676,9 +728,16 @@ public sealed partial class MultiplayerChallengeLobbyUI : MonoBehaviour
         }
     }
 
-    private void OnDisable() { CloseView(); }
+    private void OnDisable()
+    {
+        RenderPipelineManager.beginCameraRendering -= BeginPortraitLighting;
+        RenderPipelineManager.endCameraRendering -= EndPortraitLighting;
+        RestorePortraitLighting();
+        CloseView();
+    }
     private void OnDestroy()
     {
+        RestorePortraitLighting();
         CloseView();
         if (portraitCamera != null) portraitCamera.targetTexture = null;
         if (portraitImage != null) portraitImage.texture = null;
