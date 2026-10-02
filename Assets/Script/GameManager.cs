@@ -759,7 +759,7 @@ public partial class GameManager : MonoBehaviour
 
     public bool IsInBuildMode() => CurrentState == GameState.Building;
 
-    private void HideDecorativeCanyons()
+    private void HideDecorativeCanyons(BuildLocation preserveSite = null)
     {
         RestoreDecorativeCanyons();
         if (decorativeCanyonsToHide == null) return;
@@ -771,6 +771,8 @@ public partial class GameManager : MonoBehaviour
             {
                 // Overlapping parent/child entries must not overwrite the original state.
                 if (visual == null || canyonRenderingStateBeforeBuildMode.ContainsKey(visual)) continue;
+                if (preserveSite != null && preserveSite.buildSiteVisualRoots != null &&
+                    preserveSite.buildSiteVisualRoots.Exists(root => root != null && visual.transform.IsChildOf(root.transform))) continue;
                 canyonRenderingStateBeforeBuildMode.Add(visual, visual.forceRenderingOff);
                 visual.forceRenderingOff = true;
             }

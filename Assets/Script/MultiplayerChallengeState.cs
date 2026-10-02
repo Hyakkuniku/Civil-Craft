@@ -16,6 +16,7 @@ public struct MultiplayerChallengeState : INetworkStruct
     public PlayerRef Guest;
     public NetworkString<_256> SiteKey;
     public NetworkString<_128> ContractKey;
+    public float ChallengeBudget;
     public NetworkBool HostArrived;
     public NetworkBool GuestArrived;
     public NetworkBool HostReady;
@@ -40,6 +41,9 @@ public struct MultiplayerChallengeState : INetworkStruct
     public float GuestCrossingSeconds;
     public float HostPeakStress;
     public float GuestPeakStress;
+    public int HostScoreHundredths;
+    public int GuestScoreHundredths;
+    public ChallengeWinner Winner;
     public NetworkString<_256> TestSetupMessage;
     public TickTimer Deadline;
 }
@@ -163,7 +167,15 @@ public static class MultiplayerChallengeRules
     public static bool TryFinishTests(ref MultiplayerChallengeState state, int revision)
     {
         if (state.Revision != revision || state.Phase != MultiplayerChallengePhase.Testing || state.TestIndex != 2 ||
-            state.HostTestOutcome == ChallengeTestOutcome.None || state.GuestTestOutcome == ChallengeTestOutcome.None) return false;
+            !state.HostSubmitted || !state.GuestSubmitted ||
+            state.HostTestOutcome == ChallengeTestOutcome.None || state.GuestTestOutcome == ChallengeTestOutcome.None ||
+            !ChallengeCompetitionScoring.ValidMeasurements(state.ChallengeBudget, state.HostSubmittedCost, state.HostPeakStress) ||
+            !ChallengeCompetitionScoring.ValidMeasurements(state.ChallengeBudget, state.GuestSubmittedCost, state.GuestPeakStress)) return false;
+        var host = ChallengeCompetitionScoring.Grade(state.HostTestOutcome, state.HostSubmittedCost, state.ChallengeBudget, state.HostPeakStress);
+        var guest = ChallengeCompetitionScoring.Grade(state.GuestTestOutcome, state.GuestSubmittedCost, state.ChallengeBudget, state.GuestPeakStress);
+        state.HostScoreHundredths = host.Hundredths;
+        state.GuestScoreHundredths = guest.Hundredths;
+        state.Winner = ChallengeCompetitionScoring.Compare(host, guest);
         state.Phase = MultiplayerChallengePhase.TestResults; return true;
     }
 

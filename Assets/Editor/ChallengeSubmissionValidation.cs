@@ -68,6 +68,16 @@ public static class ChallengeSubmissionValidation
             cycle.Phase == MultiplayerChallengePhase.SubmissionsReady && cycle.HostSubmittedCost == 90 && cycle.GuestSubmittedCost == 80 &&
             !MultiplayerChallengeRules.CanSubmit(cycle, host, host, 9), "Both submissions failed to close the editing phase.");
         Pass(report, "Guest-first submission leaves the host editing; duplicates cannot replace accepted designs; both accepted advances once.");
+        Check(ChallengeBridgeSubmissionRules.Message(ChallengeSubmissionError.EmptyBridge) == "Place bridge members before submitting.",
+            "The empty-bridge placement prompt was removed.");
+        foreach (ChallengeSubmissionError error in new[] { ChallengeSubmissionError.InvalidPacket, ChallengeSubmissionError.InvalidAnchors,
+            ChallengeSubmissionError.InvalidNodes, ChallengeSubmissionError.InvalidMembers, ChallengeSubmissionError.InvalidMaterial,
+            ChallengeSubmissionError.MaterialLimit, ChallengeSubmissionError.OverBudget })
+            Check(string.IsNullOrEmpty(ChallengeBridgeSubmissionRules.Message(error)), "A non-empty design still shows an invalid-bridge warning.");
+        foreach (ChallengeSubmissionError error in new[] { ChallengeSubmissionError.None, ChallengeSubmissionError.AlreadySubmitted,
+            ChallengeSubmissionError.Busy, ChallengeSubmissionError.WrongChallenge })
+            Check(!string.IsNullOrEmpty(ChallengeBridgeSubmissionRules.Message(error)), "A submission/session status was hidden with design warnings.");
+        Pass(report, "Empty submissions retain the placement prompt; all other design-validation banners are hidden. Accepted, already-locked, busy and closed-session statuses remain visible; message visibility does not bypass host authority.");
     }
 
     private static void ValidateGraphs(Transform fixture, StringBuilder report)
@@ -111,36 +121,54 @@ public static class ChallengeSubmissionValidation
             TestMutation(packet, validate, g => { var n = g.Nodes[0]; n.Position.x += 1; g.Nodes[0] = n; }, ChallengeSubmissionError.InvalidAnchors);
             TestMutation(packet, validate, g => { var n = g.Nodes[1]; n.Anchor = 0; g.Nodes[1] = n; }, ChallengeSubmissionError.InvalidAnchors);
             TestMutation(packet, validate, g => { var n = g.Nodes[2]; n.Position.y = float.NaN; g.Nodes[2] = n; }, ChallengeSubmissionError.InvalidNodes);
-            TestMutation(packet, validate, g => { var n = g.Nodes[2]; n.Position.z += 1; g.Nodes[2] = n; }, ChallengeSubmissionError.InvalidNodes);
+            TestMutation(packet, validate, g => { var n = g.Nodes[2]; n.Position.z += 2; g.Nodes[2] = n; }, ChallengeSubmissionError.InvalidNodes);
+            TestMutation(packet, validate, g => { var n = g.Nodes[2]; n.Position.z += 0.9f; g.Nodes[2] = n; }, ChallengeSubmissionError.None);
+            var depthGraph = ChallengeBridgeSubmissionCodec.Decode(packet);
+            var depthNode = depthGraph.Nodes[2]; depthNode.Position.z += 0.4f; depthGraph.Nodes[2] = depthNode;
+            Check(ChallengeBridgeSubmissionRules.Validate(depthGraph, source, definition, catalog, -10, out _, 0.1f) ==
+                ChallengeSubmissionError.InvalidNodes, "Admission ignored the configured builder depth tolerance.");
+            end.transform.position += Vector3.forward * 0.4f;
+            var endNode = depthGraph.Nodes[1]; endNode.Position = end.transform.position; depthGraph.Nodes[1] = endNode;
+            Check(validate(depthGraph) == ChallengeSubmissionError.None, "Slightly non-coplanar authored banks were rejected.");
+            end.transform.position = new Vector3(35, 3, -8);
+            Pass(report, "Builder-permitted snap depth and non-coplanar authored banks submit; configured tighter depth, altered anchors and genuinely off-plane nodes still fail safely.");
             TestMutation(packet, validate, g => { var b = g.Bars[0]; b.End = 999; g.Bars[0] = b; }, ChallengeSubmissionError.InvalidMembers);
             TestMutation(packet, validate, g => { var b = g.Bars[0]; b.End = b.Start; g.Bars[0] = b; }, ChallengeSubmissionError.InvalidMembers);
-            TestMutation(packet, validate, g => { var b = g.Bars[0]; b.End = 1; g.Bars[0] = b; }, ChallengeSubmissionError.InvalidMembers);
+            TestMutation(packet, validate, g => { var b = g.Bars[0]; b.End = 1; g.Bars[0] = b; }, ChallengeSubmissionError.None);
             TestMutation(packet, validate, g => { var b = g.Bars[0]; b.Material = "UnapprovedPrefabPath"; g.Bars[0] = b; }, ChallengeSubmissionError.InvalidMaterial);
             definition.hiddenMaterials.Add(road); Check(validate(graph) == ChallengeSubmissionError.InvalidMaterial, "Hidden material was accepted."); definition.hiddenMaterials.Clear();
-            definition.allowedMaterials[0].maxPieces = 2; Check(validate(graph) == ChallengeSubmissionError.MaterialLimit, "Piece limit was ignored."); definition.allowedMaterials[0].maxPieces = 3;
-            TestMutation(packet, validate, g => g.Bars.Add(g.Bars[0]), ChallengeSubmissionError.MaterialLimit);
+            definition.allowedMaterials[0].maxPieces = 2; Check(validate(graph) == ChallengeSubmissionError.None, "Piece count blocked simulation."); definition.allowedMaterials[0].maxPieces = 3;
+            TestMutation(packet, validate, g => g.Bars.Add(g.Bars[0]), ChallengeSubmissionError.None);
             definition.allowedMaterials[0].maxPieces = 0;
-            TestMutation(packet, validate, g => g.Bars.Add(g.Bars[0]), ChallengeSubmissionError.InvalidMembers);
+            TestMutation(packet, validate, g => g.Bars.Add(g.Bars[0]), ChallengeSubmissionError.None);
             definition.allowedMaterials[0].maxPieces = 3;
-            definition.budget = 149; Check(validate(graph) == ChallengeSubmissionError.OverBudget, "Host budget was ignored."); definition.budget = 150;
-            TestMutation(packet, validate, g => { var b = g.Bars[0]; b.Material = dual.Id; g.Bars[0] = b; }, ChallengeSubmissionError.OverBudget);
+            definition.budget = 149; Check(validate(graph) == ChallengeSubmissionError.None, "Over-budget design was rejected before simulation."); definition.budget = 150;
+            TestMutation(packet, validate, g => { var b = g.Bars[0]; b.Material = dual.Id; g.Bars[0] = b; }, ChallengeSubmissionError.None);
             definition.budget = 200;
             var dualGraph = ChallengeBridgeSubmissionCodec.Decode(packet); var dualBar = dualGraph.Bars[0]; dualBar.Material = dual.Id; dualGraph.Bars[0] = dualBar;
             Check(ChallengeBridgeSubmissionRules.Validate(dualGraph, source, definition, catalog, -10, out cost) == ChallengeSubmissionError.None &&
                 Mathf.Abs(cost - 200) < 0.001f, "Dual-member cost was not doubled."); definition.budget = 150;
             road.maxLength = 4.8f; Check(validate(graph) == ChallengeSubmissionError.None, "Existing +0.2m snap tolerance was changed."); road.maxLength = 6;
             road.maxLength = float.PositiveInfinity; Check(validate(graph) == ChallengeSubmissionError.None, "Authored unlimited member length was rejected.");
-            foreach (float limit in new[] { float.NaN, float.NegativeInfinity, -1f })
-            { road.maxLength = limit; Check(validate(graph) == ChallengeSubmissionError.InvalidMembers, "Invalid material length limit was accepted."); }
+            road.maxLength = 1f; Check(validate(graph) == ChallengeSubmissionError.None, "Span limit blocked a safe finite member from simulation.");
             road.maxLength = 6;
-            road.isPier = true; Check(validate(graph) == ChallengeSubmissionError.InvalidMembers, "A nonvertical/nonfoundation pier was accepted."); road.isPier = false;
+            road.isPier = true; Check(validate(graph) == ChallengeSubmissionError.None, "Unusual pier placement was rejected before simulation."); road.isPier = false;
             var pierGraph = new ChallengeBridgeSubmission();
             pierGraph.Nodes.AddRange(graph.Nodes.GetRange(0, 2));
             pierGraph.Nodes.Add(new ChallengeSubmittedNode { Position = new Vector3(25, -10, -8), Anchor = -1 });
             pierGraph.Nodes.Add(new ChallengeSubmittedNode { Position = new Vector3(25, -5, -8), Anchor = -1 });
             pierGraph.Bars.Add(new ChallengeSubmittedBar { Start = 2, End = 3, Material = road.Id }); road.isPier = true;
             Check(validate(pierGraph) == ChallengeSubmissionError.None, "An existing legal pier foundation was rejected."); road.isPier = false;
-            Pass(report, "Host rules reject empty graphs, moved/duplicate anchors, NaNs, off-plane nodes, foreign endpoints, duplicate/overlong members, forbidden materials, quantity excess and over-budget designs; dual costs and existing snap/pier rules are preserved.");
+            TestMutation(packet, validate, g => g.Nodes.Add(new ChallengeSubmittedNode { Position = new Vector3(22, 9, -8), Anchor = -1 }), ChallengeSubmissionError.None);
+            TestMutation(packet, validate, g => g.Bars.RemoveRange(1, 2), ChallengeSubmissionError.None);
+            var disconnected = ChallengeBridgeSubmissionCodec.Decode(packet);
+            disconnected.Bars.RemoveAt(2); disconnected.Bars.RemoveAt(0);
+            Check(validate(disconnected) == ChallengeSubmissionError.None, "A floating/disconnected member was rejected before simulation.");
+            TestMutation(packet, validate, g => { var n = g.Nodes[2]; n.Position = g.Nodes[3].Position; g.Nodes[2] = n; }, ChallengeSubmissionError.InvalidMembers);
+            foreach (float badPrice in new[] { -1f, float.NaN, float.PositiveInfinity })
+            { road.costPerMeter = badPrice; Check(validate(graph) == ChallengeSubmissionError.InvalidMembers, "Unsafe material pricing reached simulation."); }
+            road.costPerMeter = 10f;
+            Pass(report, "Non-empty incomplete/disconnected bridges, loose nodes, overlapping/overlong members, unusual piers, quantity excess and over-budget drafts are accepted for simulation. Empty graphs, altered anchors, nonfinite/off-plane data, foreign/degenerate endpoints and forbidden materials are still rejected; host pricing is unchanged.");
             var truncated = new byte[packet.Length - 1]; Array.Copy(packet, truncated, truncated.Length); RejectPacket(truncated);
             var trailing = new byte[packet.Length + 1]; Array.Copy(packet, trailing, packet.Length); RejectPacket(trailing);
             byte[] badVersion = (byte[])packet.Clone(); badVersion[0] = 99; RejectPacket(badVersion);
@@ -273,6 +301,10 @@ public static class ChallengeSubmissionValidation
                     new Dictionary<string, BridgeMaterialSO> { { material.Id, material } }, 3f, out float cost) == ChallengeSubmissionError.None &&
                     Mathf.Abs(cost - 3f * material.costPerMeter * (material.isDualBeam ? 2 : 1)) < 0.01f,
                     "Captured authored member failed host rules or authoritative pricing: " + path);
+                var receipt = BridgeConstructionReceipt.Capture(workspace.Location,
+                    workspace.Root.GetComponentsInChildren<Bar>(true), includeDisabled: true);
+                Check(Mathf.Abs(receipt.TotalCost - cost) < 0.01f,
+                    "Completion receipt differs from authored construction pricing: " + path);
                 // Missing endpoints on the actual logical object must still fail.
                 bar.endPoint = null;
                 bool rejected = false;
@@ -281,7 +313,7 @@ public static class ChallengeSubmissionValidation
                 Object.DestroyImmediate(obj);
                 tested++;
             }
-            Pass(report, $"Actual authored prefabs: {tested} materials captured/encoded/host-validated as one logical member each with correct cost, excluding {visualBars} nested visual Bars; malformed logical endpoints still rejected with editing frozen.");
+            Pass(report, $"Actual authored prefabs: {tested} materials captured/encoded/host-validated and receipt-priced as one logical member each with correct cost, excluding {visualBars} nested visual Bars; malformed logical endpoints still rejected with editing frozen.");
         }
         finally { workspace?.Dispose(); Object.DestroyImmediate(definition); }
     }

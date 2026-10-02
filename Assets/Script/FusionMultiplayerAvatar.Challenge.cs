@@ -40,6 +40,7 @@ public sealed partial class FusionMultiplayerAvatar
             sceneMotor != null && !CargoItem.IsCarriedBy(sceneMotor.transform) &&
             (TutorialManager.Instance == null || !TutorialManager.Instance.IsTutorialActive) &&
             MultiplayerChallengeRules.IsCompletedHostSite(site) &&
+            ChallengeCompetitionScoring.ValidMeasurements(site.activeContract.budget, 0f, 0f) &&
             site.activeContract.ContractID.Length <= 128 &&
             MultiplayerChallengeRules.SiteKey(site).Length <= 256 &&
             MultiplayerChallengeRules.ResolveSite(MultiplayerChallengeRules.SiteKey(site)) == site;
@@ -66,6 +67,7 @@ public sealed partial class FusionMultiplayerAvatar
             Revision = unchecked(ChallengeState.Revision + 1), Phase = MultiplayerChallengePhase.Invited,
             Guest = guest, SiteKey = MultiplayerChallengeRules.SiteKey(site),
             ContractKey = site.activeContract.ContractID,
+            ChallengeBudget = site.activeContract.budget,
             Deadline = TickTimer.CreateFromSeconds(Runner, challengeInvitationSeconds)
         };
         return true;
@@ -276,6 +278,9 @@ public sealed partial class FusionMultiplayerAvatar
         state.TestElapsed = state.TestStress = 0f;
         state.HostTestOutcome = state.GuestTestOutcome = ChallengeTestOutcome.None;
         state.HostCrossingSeconds = state.GuestCrossingSeconds = state.HostPeakStress = state.GuestPeakStress = 0f;
+        state.ChallengeBudget = 0f;
+        state.HostScoreHundredths = state.GuestScoreHundredths = 0;
+        state.Winner = ChallengeWinner.Pending;
         state.Deadline = default;
         ChallengeState = state;
     }

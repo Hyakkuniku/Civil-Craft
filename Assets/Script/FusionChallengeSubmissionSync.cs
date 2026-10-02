@@ -26,7 +26,7 @@ public sealed class FusionChallengeSubmissionSync : MonoBehaviour
     public bool IsSending => pending;
     public bool IsLocallyAccepted => locallyAccepted;
     public string LocalMessage => pending && Time.unscaledTime - pendingSince >= slowTransferNoticeSeconds
-        ? "Still waiting for host validation. Your bridge stays locked; you can cancel the challenge."
+        ? "Still waiting for host confirmation. Your bridge stays locked; you can cancel the challenge."
         : localMessage;
 
     private void Awake() { runner = GetComponent<NetworkRunner>(); }
@@ -66,7 +66,7 @@ public sealed class FusionChallengeSubmissionSync : MonoBehaviour
             host.Object.InputAuthority, workspace.Location.SessionChallengeRevision)) return;
         pending = true; pendingSince = Time.unscaledTime;
         pendingAttempt = attempt = attempt == int.MaxValue ? 1 : attempt + 1;
-        localMessage = "Submitting bridge for host validation...";
+        localMessage = "Submitting bridge...";
         workspace.Creator.CancelAllModes();
         workspace.Creator.SetActiveMaterial(null); // Hide a pier preview as well as unfinished drawing/paste ghosts.
         workspace.SetEditingEnabled(false);
@@ -86,8 +86,9 @@ public sealed class FusionChallengeSubmissionSync : MonoBehaviour
             ChallengeBridgeSubmission graph = ChallengeBridgeSubmissionRules.Capture(workspace);
             ContractSO contract = workspace.Location.activeContract;
             ChallengeSubmissionError error = ChallengeBridgeSubmissionRules.Validate(graph, workspace.Location, contract,
-                ChallengeBridgeSubmissionRules.CreateMaterialCatalog(contract), workspace.Creator.pierBaseY, out _);
-            if (error != ChallengeSubmissionError.None) { ApplyReply(revision, request, error); yield break; }
+                ChallengeBridgeSubmissionRules.CreateMaterialCatalog(contract), workspace.Creator.pierBaseY, out _, workspace.Creator.nodeSnapDepthTolerance);
+            if (error != ChallengeSubmissionError.None)
+            { LogRejectedSubmission("local admission", error, graph, workspace.Location); ApplyReply(revision, request, error); yield break; }
             packet = ChallengeBridgeSubmissionCodec.Encode(graph);
         }
         catch (Exception error) when (error is InvalidDataException || error is ArgumentException)
@@ -143,8 +144,10 @@ public sealed class FusionChallengeSubmissionSync : MonoBehaviour
             ContractSO contract = ChallengeBuildWorkspace.ResolveContract(site, host.ChallengeState.ContractKey.ToString());
             BarCreator creator = FindObjectOfType<BarCreator>(true);
             ChallengeSubmissionError error = ChallengeBridgeSubmissionRules.Validate(graph, site, contract,
-                ChallengeBridgeSubmissionRules.CreateMaterialCatalog(contract), creator != null ? creator.pierBaseY : -10f, out float cost);
-            if (error != ChallengeSubmissionError.None) { Reply(sender, revision, request, error); return; }
+                ChallengeBridgeSubmissionRules.CreateMaterialCatalog(contract), creator != null ? creator.pierBaseY : -10f, out float cost,
+                creator != null ? creator.nodeSnapDepthTolerance : 1f);
+            if (error != ChallengeSubmissionError.None)
+            { LogRejectedSubmission("host admission", error, graph, site); Reply(sender, revision, request, error); return; }
             byte[] immutablePacket = ChallengeBridgeSubmissionCodec.Encode(graph);
             if (!host.TryAcceptValidatedChallengeBridge(sender, revision, cost, graph.Bars.Count))
             { Reply(sender, revision, request, ChallengeSubmissionError.WrongChallenge); return; }
@@ -153,6 +156,24 @@ public sealed class FusionChallengeSubmissionSync : MonoBehaviour
         }
         catch (Exception error) when (error is InvalidDataException || error is EndOfStreamException || error is ArgumentException)
         { LogRejectedGraph("host decode", error); Reply(sender, revision, request, ChallengeSubmissionError.InvalidPacket); }
+    }
+
+    [System.Diagnostics.Conditional("UNITY_EDITOR"), System.Diagnostics.Conditional("DEVELOPMENT_BUILD")]
+    private void LogRejectedSubmission(string stage, ChallengeSubmissionError error, ChallengeBridgeSubmission graph, BuildLocation site)
+    {
+        if (error == ChallengeSubmissionError.EmptyBridge) return;
+        string anchors = string.Empty;
+        var authored = ChallengeBridgeSubmissionRules.GetAnchors(site);
+        for (int i = 0; i < graph.Nodes.Count && anchors.Length < 900; i++)
+        {
+            var node = graph.Nodes[i];
+            if (node.Anchor >= 0 && node.Anchor < authored.Count)
+                anchors += $" anchor[{node.Anchor}] submitted={node.Position.ToString("F3")} host={authored[node.Anchor].transform.position.ToString("F3")};";
+        }
+        float minZ = float.PositiveInfinity, maxZ = float.NegativeInfinity;
+        foreach (var node in graph.Nodes) { minZ = Mathf.Min(minZ, node.Position.z); maxZ = Mathf.Max(maxZ, node.Position.z); }
+        Debug.LogWarning($"[Challenge submission] {stage}: {error}; site={MultiplayerChallengeRules.SiteKey(site)} " +
+            $"nodes={graph.Nodes.Count} bars={graph.Bars.Count} depth={minZ:F3}..{maxZ:F3}.{anchors}", this);
     }
 
     [System.Diagnostics.Conditional("UNITY_EDITOR"), System.Diagnostics.Conditional("DEVELOPMENT_BUILD")]

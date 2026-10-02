@@ -1119,6 +1119,11 @@ public class BuildUIController : MonoBehaviour
 
     private void RecalculateStaticBridge(bool reuseTopology)
     {
+        RecalculateStaticBridge(reuseTopology, GameManager.Instance != null ? GameManager.Instance.ActiveBuildLocation : null);
+    }
+
+    private void RecalculateStaticBridge(bool reuseTopology, BuildLocation targetLocation, IEnumerable<Bar> candidates = null)
+    {
         // A drag changes member lengths, not which bars or points exist. Reuse
         // the last topology so budget checks avoid a scene-wide object search.
         if (!reuseTopology || uniqueBars.Count == 0)
@@ -1126,15 +1131,11 @@ public class BuildUIController : MonoBehaviour
             uniqueBars.Clear();
             activePoints.Clear();
 
-            BuildLocation targetLocation = GameManager.Instance != null
-                ? GameManager.Instance.ActiveBuildLocation
-                : null;
-
             // Bar ownership is authoritative. Walking Point.ConnectedBars could use
             // stale links left by a disabled/saved bridge or include another ravine.
-            foreach (Bar bar in FindObjectsOfType<Bar>(true))
+            foreach (Bar bar in candidates ?? FindObjectsOfType<Bar>(true))
             {
-                if (bar == null || !bar.gameObject.activeInHierarchy || !bar.enabled ||
+                if (!BridgeConstructionReceipt.IsLogicalMember(bar) || !bar.gameObject.activeInHierarchy || !bar.enabled ||
                     bar.materialData == null ||
                     (barCreator != null && barCreator.IsCreating && barCreator.currentBar == bar) ||
                     (targetLocation != null && !targetLocation.Owns(bar)))
@@ -1165,7 +1166,7 @@ public class BuildUIController : MonoBehaviour
         {
             if (barCreator != null && barCreator.currentBar == b && barCreator.IsCreating) continue;
             
-            cachedBaseCost += b.GetCost();
+            cachedBaseCost += BridgeConstructionReceipt.ConstructionCost(b);
 
             if (b.materialData != null)
             {

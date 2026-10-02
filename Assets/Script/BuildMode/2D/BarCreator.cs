@@ -1628,8 +1628,8 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         bar.gameObject.SetActive(false); 
         Point p1 = bar.startPoint;
         Point p2 = bar.endPoint;
-        if (p1 != null && p1.ConnectedBars.Count == 0 && p1.Runtime && p1.gameObject.activeSelf) { currentAction.affectedObjects.Add(p1.gameObject); p1.gameObject.SetActive(false); }
-        if (p2 != null && p2.ConnectedBars.Count == 0 && p2.Runtime && p2.gameObject.activeSelf) { currentAction.affectedObjects.Add(p2.gameObject); p2.gameObject.SetActive(false); }
+        if (p1 != null && p1.ConnectedBars.Count == 0 && p1.Runtime && !p1.IsScenePlacedAnchor && p1.gameObject.activeSelf) { currentAction.affectedObjects.Add(p1.gameObject); p1.gameObject.SetActive(false); }
+        if (p2 != null && p2.ConnectedBars.Count == 0 && p2.Runtime && !p2.IsScenePlacedAnchor && p2.gameObject.activeSelf) { currentAction.affectedObjects.Add(p2.gameObject); p2.gameObject.SetActive(false); }
         if (p1 != null && p1.gameObject.activeSelf) p1.EvaluateAnchorState();
         if (p2 != null && p2.gameObject.activeSelf) p2.EvaluateAnchorState();
         if (BuildUIController.Instance != null) BuildUIController.Instance.MarkBridgeDirty();
@@ -1637,7 +1637,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
     public void DeletePoint(Point p, HistoryAction currentAction)
     {
-        if (p == null || !p.Runtime || !p.gameObject.activeSelf) return; 
+        if (p == null || !p.Runtime || p.IsScenePlacedAnchor || !p.gameObject.activeSelf) return;
         
         cachedBarsToTransfer.Clear();
         cachedBarsToTransfer.AddRange(p.ConnectedBars);
@@ -1973,7 +1973,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             // Pier placement always starts at the configured foundation height.
             // Both endpoints become anchored through the active pier connection;
             // neither is promoted to a permanent scene anchor.
-            currentStartPoint.originalIsAnchor = false;
+            if (!currentStartPoint.IsSessionAnchor) currentStartPoint.originalIsAnchor = false;
             currentStartPoint.isAnchor = true;
             currentStartPoint.UpdateMaterial();
 

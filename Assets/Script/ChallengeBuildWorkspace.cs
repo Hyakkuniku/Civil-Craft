@@ -72,6 +72,10 @@ public sealed class ChallengeBuildWorkspace : IDisposable
             location.activeContract = workspace.contract;
             location.locationCamera = source.locationCamera;
             location.gridImage = source.gridImage;
+            // Keep the authored environment metadata on the runtime proxy, so
+            // build-mode decoration hiding cannot suppress this selected site.
+            location.buildSiteVisualRoots = new List<GameObject>(source.buildSiteVisualRoots ?? new List<GameObject>());
+            if (!location.buildSiteVisualRoots.Exists(root => root != null)) location.buildSiteVisualRoots.Add(source.gameObject);
             location.cameraPositionOffset = source.GetDesiredCameraPosition(); // Root is at world origin.
             location.cameraLookAtOffset = source.transform.position + source.cameraLookAtOffset;
             var points = new GameObject("Own Nodes").transform;

@@ -579,7 +579,16 @@ public class LevelCompleteManager : MonoBehaviour
 
         }
 
-        float totalCalculatedCost = 0f;
+        BuildLocation receiptLocation = completedLocation;
+        if (receiptLocation == null && currentContract != null)
+            foreach (BuildLocation location in FindObjectsOfType<BuildLocation>(true))
+                if (location.gameObject.scene == gameObject.scene && location.activeContract == currentContract)
+                { receiptLocation = location; break; }
+        BridgeConstructionReceipt constructionReceipt;
+        if (cachedPhysicsManager == null || !cachedPhysicsManager.TryGetConstructionReceipt(receiptLocation, out constructionReceipt))
+            constructionReceipt = BridgeConstructionReceipt.Capture(receiptLocation, FindObjectsOfType<Bar>(true), includeDisabled: true);
+        // Accounting cannot depend on whether the authored receipt widgets exist.
+        float totalCalculatedCost = constructionReceipt.TotalCost;
 
         if (receiptContentParent != null && receiptRowPrefab != null)
         {
@@ -588,83 +597,7 @@ public class LevelCompleteManager : MonoBehaviour
                 if (guestReceiptPlaceholder == null || child.gameObject != guestReceiptPlaceholder)
                     Destroy(child.gameObject);
 
-            Dictionary<BridgeMaterialSO, float> materialUsage = new Dictionary<BridgeMaterialSO, float>();
-            HashSet<Bar> countedBars = new HashSet<Bar>();
-
-            foreach (Point p in Point.AllPoints)
-            {
-                if (!p.gameObject.activeSelf || !p.enabled) continue;
-                foreach (Bar b in p.ConnectedBars)
-                {
-                    if (b != null && b.gameObject.activeSelf && b.materialData != null && !countedBars.Contains(b))
-                    {
-                        countedBars.Add(b);
-                    }
-                }
-            }
-
-            if (currentContract != null)
-            {
-                BuildLocation targetLoc = null;
-                BuildLocation[] allLocs = Resources.FindObjectsOfTypeAll<BuildLocation>();
-                foreach (var loc in allLocs)
-                {
-                    if (loc.gameObject.scene.name != null && loc.activeContract == currentContract)
-                    {
-                        targetLoc = loc;
-                        break;
-                    }
-                }
-
-                if (targetLoc != null)
-                {
-                    foreach (Bar b in targetLoc.bakedBars)
-                    {
-                        if (b != null && b.materialData != null && !countedBars.Contains(b)) countedBars.Add(b);
-                    }
-
-                    HashSet<Point> visitedPoints = new HashSet<Point>();
-                    Queue<Point> queue = new Queue<Point>();
-
-                    foreach (Point anchor in targetLoc.startingAnchors)
-                    {
-                        if (anchor != null) { visitedPoints.Add(anchor); queue.Enqueue(anchor); }
-                    }
-                    foreach (Point anchor in targetLoc.endingAnchors)
-                    {
-                        if (anchor != null && !visitedPoints.Contains(anchor)) { visitedPoints.Add(anchor); queue.Enqueue(anchor); }
-                    }
-
-                    while (queue.Count > 0)
-                    {
-                        Point current = queue.Dequeue();
-                        foreach (Bar b in current.ConnectedBars)
-                        {
-                            if (b != null && b.gameObject.activeSelf && b.materialData != null && !countedBars.Contains(b))
-                            {
-                                countedBars.Add(b);
-
-                                Point neighbor = (b.startPoint == current) ? b.endPoint : b.startPoint;
-                                if (neighbor != null && !visitedPoints.Contains(neighbor))
-                                {
-                                    visitedPoints.Add(neighbor);
-                                    queue.Enqueue(neighbor);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            foreach (Bar b in countedBars)
-            {
-                if (!materialUsage.ContainsKey(b.materialData)) materialUsage[b.materialData] = 0f;
-                int multiplier = b.materialData.isDualBeam ? 2 : 1;
-                materialUsage[b.materialData] += (b.currentLength * multiplier);
-                totalCalculatedCost += (b.currentLength * b.materialData.costPerMeter * multiplier);
-            }
-
-            foreach (var kvp in materialUsage)
+            foreach (var kvp in constructionReceipt.MaterialMeters)
             {
                 GameObject rowObj = Instantiate(receiptRowPrefab, receiptContentParent);
                 ReceiptRowUI rowUI = rowObj.GetComponent<ReceiptRowUI>();
@@ -683,7 +616,6 @@ public class LevelCompleteManager : MonoBehaviour
         int baseExpReward = currentContract != null ? currentContract.expReward : 0;
 
         float finalCost = totalCalculatedCost;
-        if (finalCost == 0f && BuildUIController.Instance != null) finalCost = BuildUIController.Instance.GetTotalCost();
 
         lastFinalCost = finalCost;
 

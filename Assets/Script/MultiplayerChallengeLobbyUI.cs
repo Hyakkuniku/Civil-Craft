@@ -60,6 +60,8 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
     internal ChallengeBuildWorkspace LocalBuildWorkspace => buildWorkspace;
     private Vector2 submissionCardSize, submissionCardPosition;
     private int testCameraRevision = int.MinValue;
+    private TMP_Text invitationCloseLabel;
+    private string invitationCloseOriginalLabel;
 
     public static void RequestCancelActiveChallenge()
     {
@@ -84,6 +86,8 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
 
     private void Awake()
     {
+        invitationCloseLabel = invitationCloseButton != null ? invitationCloseButton.GetComponentInChildren<TMP_Text>(true) : null;
+        invitationCloseOriginalLabel = invitationCloseLabel != null ? invitationCloseLabel.text : null;
         if (submissionStatusPanel != null && submissionStatusPanel.transform is RectTransform card)
         { submissionCardSize = card.sizeDelta; submissionCardPosition = card.anchoredPosition; }
         if (challengePanel != null) challengePanel.SetActive(false);
@@ -236,6 +240,16 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
         {
             readyRequestPending = false;
             UpdateChallengeBuilding(state, site);
+            if (state.Phase == MultiplayerChallengePhase.TestResults)
+            {
+                ShowPanel(challengePanel);
+                SetInvitationControls(false, false, true);
+                if (invitationCloseLabel != null) invitationCloseLabel.text = "RETURN TO WORLD";
+                challengeTitle.text = "CHALLENGE RESULTS";
+                challengeMessage.text = CompetitionResultsMessage(state, host.MapPlayerName,
+                    GetAvatar(state.Guest)?.MapPlayerName ?? "Guest");
+                if (submissionStatusPanel != null) submissionStatusPanel.SetActive(false);
+            }
             return;
         }
         // Arrival acknowledgements and host pose validation gate the lobby.
@@ -328,7 +342,7 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
             sending ? "SUBMITTING..." : "SUBMIT BRIDGE";
         if (submissionStatusText != null)
         {
-            string status = ready ? "BOTH BRIDGES VALIDATED\nPreparing tests in submission order..."
+            string status = ready ? "BOTH BRIDGES SUBMITTED\nPreparing tests in submission order..."
                 : submitted ? "YOUR BRIDGE IS LOCKED\nWaiting for your opponent to submit."
                 : state.Phase == MultiplayerChallengePhase.ReadyToBuild ? "Waiting for both build views..."
                 : !string.IsNullOrEmpty(transfer?.LocalMessage) ? transfer.LocalMessage
@@ -343,9 +357,7 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
                 string testedPlayer = MultiplayerChallengeRules.TestsHostBridge(state) ? hostPlayer : guestPlayer;
                 ChallengeTestOutcome outcome = MultiplayerChallengeRules.TestsHostBridge(state) ? state.HostTestOutcome : state.GuestTestOutcome;
                 submissionStatusText.text = results
-                    ? "BOTH BRIDGES TESTED — SESSION ONLY\n" +
-                      TestSummary(hostPlayer, state.HostTestOutcome, state.HostSubmittedCost, state.HostPeakStress, state.HostCrossingSeconds) + "\n" +
-                      TestSummary(guestPlayer, state.GuestTestOutcome, state.GuestSubmittedCost, state.GuestPeakStress, state.GuestCrossingSeconds)
+                    ? CompetitionResultsMessage(state, hostPlayer, guestPlayer)
                     : state.Phase == MultiplayerChallengePhase.PreparingTest
                         ? $"PREPARING TEST {state.TestIndex} / 2 — {testedPlayer}\nWaiting for both test views. First submission is tested first."
                         : $"TEST {state.TestIndex} / 2 — {testedPlayer}\n" +
@@ -381,6 +393,7 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
 
     private void SetInvitationControls(bool accept, bool decline, bool close)
     {
+        if (invitationCloseLabel != null) invitationCloseLabel.text = invitationCloseOriginalLabel;
         if (acceptButton != null) acceptButton.gameObject.SetActive(accept);
         if (declineButton != null) declineButton.gameObject.SetActive(decline);
         if (invitationCloseButton != null) invitationCloseButton.gameObject.SetActive(close);
@@ -566,6 +579,7 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
 
     private void RestoreWorld()
     {
+        if (invitationCloseLabel != null) invitationCloseLabel.text = invitationCloseOriginalLabel;
         if (submitBridgeButton != null) { submitBridgeButton.interactable = false; submitBridgeButton.gameObject.SetActive(false); }
         if (submissionStatusPanel != null) submissionStatusPanel.SetActive(false);
         if (buildWorkspace != null && boundRunner != null)
@@ -629,8 +643,27 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
         }
     }
 
-    private static string TestSummary(string name, ChallengeTestOutcome outcome, float cost, float peak, float seconds) =>
-        $"{name}: {TestOutcomeLabel(outcome)}  |  Cost ₱{cost:N0}\nPeak stress {peak * 100f:0.0}%  |  {(outcome == ChallengeTestOutcome.Crossed ? "Crossing" : "Test duration")} {seconds:0.0}s";
+    internal static string CompetitionResultsMessage(MultiplayerChallengeState state, string hostPlayer, string guestPlayer)
+    {
+        string winner = state.Winner == ChallengeWinner.Host ? "WINNER: " + hostPlayer :
+            state.Winner == ChallengeWinner.Guest ? "WINNER: " + guestPlayer :
+            state.Winner == ChallengeWinner.Draw ? "DRAW — equal scores" :
+            state.Winner == ChallengeWinner.NoWinner ? "NO WINNER — neither bridge qualified" : "Awaiting host results...";
+        return winner + $"\n40% COST / 60% STRENGTH — Budget ₱{state.ChallengeBudget:N0}\n" +
+            CompetitionPlayerSummary(hostPlayer, state.HostTestOutcome, state.HostSubmittedCost, state.ChallengeBudget,
+                state.HostPeakStress, state.HostScoreHundredths) + "\n" +
+            CompetitionPlayerSummary(guestPlayer, state.GuestTestOutcome, state.GuestSubmittedCost, state.ChallengeBudget,
+                state.GuestPeakStress, state.GuestScoreHundredths);
+    }
+
+    private static string CompetitionPlayerSummary(string name, ChallengeTestOutcome outcome, float cost, float budget, float peak, int scoreHundredths)
+    {
+        var score = ChallengeCompetitionScoring.Grade(outcome, cost, budget, peak);
+        string status = outcome == ChallengeTestOutcome.Crossed && !score.Qualified ? "NOT QUALIFIED — OVER BUDGET" : TestOutcomeLabel(outcome);
+        return $"{name}: {status}\nCost ₱{cost:N0} | Peak stress {peak * 100f:0.0}%\n" +
+            (score.Qualified ? $"Cost {score.CostPercent:0.00}% / Strength {score.StrengthPercent:0.00}% → SCORE {scoreHundredths / 100.0:0.00} / 100"
+                : "SCORE 0.00 / 100 — not eligible to win");
+    }
     private static string TestOutcomeLabel(ChallengeTestOutcome outcome)
     {
         switch (outcome)

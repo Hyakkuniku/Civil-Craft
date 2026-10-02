@@ -12,7 +12,11 @@ public class Point : MonoBehaviour
     [System.NonSerialized] public bool isAnchorHighlighted;
     [System.NonSerialized] private bool isTutorialHighlighted;
     public bool IsTutorialHighlighted => isTutorialHighlighted;
-    public bool IsScenePlacedAnchor => originalIsAnchor;
+    // Session anchors are instantiated at runtime, but belong to the authored
+    // site. A pier's legacy runtime cleanup must not demote or delete them.
+    public bool IsSessionAnchor => ownerLocation != null && ownerLocation.IsSessionChallengeLocation &&
+        (ownerLocation.startingAnchors.Contains(this) || ownerLocation.endingAnchors.Contains(this));
+    public bool IsScenePlacedAnchor => originalIsAnchor || IsSessionAnchor;
     
     [HideInInspector] public bool originalIsAnchor = false;
     private bool hasInitializedAnchor = false;
@@ -28,7 +32,7 @@ public class Point : MonoBehaviour
     /// A scene anchor is permanent. A pier-supported node is anchored only while
     /// at least one active pier remains connected to it.
     /// </summary>
-    public bool IsPermanentAnchor => originalIsAnchor || HasActivePierSupport();
+    public bool IsPermanentAnchor => IsScenePlacedAnchor || HasActivePierSupport();
 
     [SerializeField, HideInInspector] private BuildLocation ownerLocation;
     public BuildLocation OwnerLocation => ownerLocation;

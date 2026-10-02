@@ -66,7 +66,7 @@ public partial class GameManager
             ? location.locationCamera.transform.rotation : location.GetDesiredCameraRotation());
         if (location.locationCamera != null) { mainCamera.enabled = false; location.locationCamera.enabled = true; }
         CaptureAndHide(uiElementsToHide, uiStateBeforeBuildMode);
-        HideDecorativeCanyons();
+        HideDecorativeCanyons(location);
         foreach (GameObject ui in buildModeUIElements) if (ui != null) ui.SetActive(true);
         InvokeEventSafely(OnEnterBuildMode);
         if (BuildUIController.Instance != null)

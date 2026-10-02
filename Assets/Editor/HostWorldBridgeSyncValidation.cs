@@ -107,6 +107,7 @@ public static class HostWorldBridgeSyncValidation
             ValidateChallengeBuildPolicy(report);
             ValidateChallengeWorkspace(fixture.transform, report);
             ChallengeSubmissionValidation.Run(fixture.transform, report);
+            BridgeConstructionValidation.Run(fixture.transform, report);
             ChallengeTestValidation.Run(fixture.transform, report);
             ValidateChallengeLanding(fixture.transform, report);
 
@@ -454,24 +455,38 @@ public static class HostWorldBridgeSyncValidation
 
         BuildLocation selected = Child("Selected Challenge Site", fixture).AddComponent<BuildLocation>();
         BuildLocation other = Child("Other Challenge Site", fixture).AddComponent<BuildLocation>();
-        GameObject selectedRoot = Child("Selected BuildRoot", selected.transform);
-        GameObject otherRoot = Child("Other BuildRoot", other.transform);
+        // Keep visual roots separate from the inactive manager fixture, just as
+        // authored environment roots can be separate from a workbench controller.
+        var environment = new GameObject("Isolation Environment (Temporary)");
+        SceneManager.MoveGameObjectToScene(environment, fixture.gameObject.scene);
+        GameObject selectedRoot = Child("Selected BuildRoot", environment.transform);
+        GameObject otherRoot = Child("Other BuildRoot", environment.transform);
+        GameObject sharedParent = Child("Inactive Shared Container", environment.transform);
+        GameObject sharedRoot = Child("Shared Site Visual", sharedParent.transform);
+        sharedParent.SetActive(false);
         selected.buildSiteVisualRoots.Add(selectedRoot);
+        selected.buildSiteVisualRoots.Add(sharedRoot);
         other.buildSiteVisualRoots.Add(otherRoot);
+        other.buildSiteVisualRoots.Add(sharedRoot);
         selectedRoot.SetActive(false);
         otherRoot.SetActive(true);
         int selectedBars = selected.bakedBars.Count, otherBars = other.bakedBars.Count;
-        using (var visibility = new ChallengeSiteIsolation())
+        foreach (BuildLocation[] order in new[] { new[] { selected, other }, new[] { other, selected } })
         {
-            visibility.ShowOnly(selected, new[] { selected, other });
-            Require(selectedRoot.activeSelf && !otherRoot.activeSelf && selected.gameObject.activeSelf && other.gameObject.activeSelf,
-                "Challenge lobby shows only the chosen build root without disabling the site controllers.", report);
-            Require(selected.bakedBars.Count == selectedBars && other.bakedBars.Count == otherBars &&
-                !selected.IsRedesigningBridge && !other.IsRedesigningBridge,
-                "Lobby site isolation never enters redesign or changes bridge collections.", report);
+            using (var visibility = new ChallengeSiteIsolation())
+            {
+                visibility.ShowOnly(selected, order);
+                Require(selectedRoot.activeInHierarchy && sharedRoot.activeInHierarchy && !otherRoot.activeSelf &&
+                    selected.gameObject.activeSelf && other.gameObject.activeSelf && !fixture.gameObject.activeSelf,
+                    "Chosen visuals, shared roots and inactive containers resolve independently of site iteration order; unrelated roots remain hidden.", report);
+                Require(selected.bakedBars.Count == selectedBars && other.bakedBars.Count == otherBars &&
+                    !selected.IsRedesigningBridge && !other.IsRedesigningBridge,
+                    "Lobby site isolation never enters redesign or changes bridge collections.", report);
+            }
+            Require(!selectedRoot.activeSelf && otherRoot.activeSelf && !sharedParent.activeSelf && sharedRoot.activeSelf,
+                "Leaving the challenge restores exact original root and ancestor visibility.", report);
         }
-        Require(!selectedRoot.activeSelf && otherRoot.activeSelf,
-            "Leaving the challenge restores exact original build-root visibility.", report);
+        ValidateChallengeDecorationVisibility(fixture, selected, selectedRoot, otherRoot, report);
         string key = MultiplayerChallengeRules.SiteKey(selected);
         Require(!string.IsNullOrEmpty(key) && key != MultiplayerChallengeRules.SiteKey(other),
             "Challenge site identifiers distinguish authored locations without runtime instance IDs.", report);
@@ -491,6 +506,29 @@ public static class HostWorldBridgeSyncValidation
             ready.Contains("m_Target: {fileID: 900000000000000105}") &&
             scene.Contains("readyButtonLabel: {fileID: 900000000000010071}"),
             "Authored Ready button targets the lobby service, has its authored label, and starts disabled outside a challenge.", report);
+    }
+
+    private static void ValidateChallengeDecorationVisibility(Transform fixture, BuildLocation selected,
+        GameObject selectedRoot, GameObject otherRoot, StringBuilder report)
+    {
+        GameManager manager = Child("Decoration Policy Manager", fixture).AddComponent<GameManager>();
+        Renderer selectedRenderer = selectedRoot.AddComponent<MeshRenderer>();
+        Renderer otherRenderer = otherRoot.AddComponent<MeshRenderer>();
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        typeof(GameManager).GetField("decorativeCanyonsToHide", flags).SetValue(manager,
+            new List<GameObject> { selectedRoot, otherRoot });
+        MethodInfo hide = typeof(GameManager).GetMethod("HideDecorativeCanyons", flags);
+        MethodInfo restore = typeof(GameManager).GetMethod("RestoreDecorativeCanyons", flags);
+        hide.Invoke(manager, new object[] { selected });
+        Require(!selectedRenderer.forceRenderingOff && otherRenderer.forceRenderingOff,
+            "Challenge build entry preserves selected site renderers while hiding unrelated decoration.", report);
+        restore.Invoke(manager, null);
+        Require(!selectedRenderer.forceRenderingOff && !otherRenderer.forceRenderingOff,
+            "Challenge decoration visibility restores original renderer states.", report);
+        hide.Invoke(manager, new object[] { null });
+        Require(selectedRenderer.forceRenderingOff && otherRenderer.forceRenderingOff,
+            "Single-player retains its existing decoration-hiding policy.", report);
+        restore.Invoke(manager, null);
     }
 
     private static void ValidateChallengeReadiness(StringBuilder report)
@@ -612,6 +650,8 @@ public static class HostWorldBridgeSyncValidation
         definition.hiddenTools.Add(BuildModeTool.ExitBuildMode);
         BuildLocation source = Child("Workspace Source Site", fixture).AddComponent<BuildLocation>();
         source.activeContract = definition;
+        GameObject siteVisual = Child("Authored Workspace Visual", fixture);
+        source.buildSiteVisualRoots.Add(siteVisual);
         Point start = Child("World Start", fixture).AddComponent<Point>();
         Point end = Child("World End", fixture).AddComponent<Point>();
         start.transform.position = new Vector3(20, 3, -8);
@@ -654,6 +694,9 @@ public static class HostWorldBridgeSyncValidation
         try
         {
             workspace = ChallengeBuildWorkspace.Create(source, definition, creator, 7, 2);
+            Require(workspace.Location.buildSiteVisualRoots.Contains(siteVisual) &&
+                !ReferenceEquals(workspace.Location.buildSiteVisualRoots, source.buildSiteVisualRoots),
+                "Session workspace retains authored visual roots in its own list without changing the source site.", report);
             Require(workspace.Location != source && workspace.Location.IsSessionChallengeLocation &&
                 workspace.Location.SessionChallengeRevision == 7 && workspace.Location.bakedBars.Count == 0 &&
                 workspace.Location.bakedPoints.Count == 0 && workspace.Root.GetComponentsInChildren<Bar>(true).Length == 0,

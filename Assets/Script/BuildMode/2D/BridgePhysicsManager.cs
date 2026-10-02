@@ -428,6 +428,13 @@ public partial class BridgePhysicsManager : MonoBehaviour
 
     private HashSet<Point> simPoints = new HashSet<Point>();
     private HashSet<Bar> simBars = new HashSet<Bar>();
+    private BridgeConstructionReceipt constructionReceipt;
+    private BuildLocation receiptLocation;
+    public bool TryGetConstructionReceipt(BuildLocation location, out BridgeConstructionReceipt receipt)
+    {
+        receipt = constructionReceipt;
+        return receipt != null && location != null && receiptLocation == location;
+    }
 
     private List<Point> deterministicPoints = new List<Point>();
     private List<Bar> deterministicBars = new List<Bar>();
@@ -1016,6 +1023,11 @@ public partial class BridgePhysicsManager : MonoBehaviour
             b.preSimRot = b.transform.rotation;
         }
 
+        // Bill the submitted construction, not rope stretch/physics deformation
+        // at the finish line. The same immutable receipt drives rows and stars.
+        receiptLocation = SimulationLocation;
+        constructionReceipt = BridgeConstructionReceipt.Capture(receiptLocation, deterministicBars);
+
         ApplyDeterministicPhysicsSettings();
         Physics.SyncTransforms();
 
@@ -1073,6 +1085,8 @@ public partial class BridgePhysicsManager : MonoBehaviour
     public void StopPhysicsAndReset()
     {
         if (!isSimulating && !pendingSimulationStart) return;
+        constructionReceipt = null;
+        receiptLocation = null;
         
         isSimulating = false;
         pendingSimulationStart = false;

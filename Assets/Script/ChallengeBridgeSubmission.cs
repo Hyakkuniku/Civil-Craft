@@ -140,21 +140,25 @@ public static class ChallengeBridgeSubmissionRules
         return catalog;
     }
 
-    // Runs identically on a local draft for helpful feedback and on the host for authority.
-    // The host always uses its own site, contract and material assets, not the client's clone.
+    // Admission checks only data safety, authored anchors and legal materials.
+    // Incomplete/weak/disconnected/over-budget construction is judged by the
+    // simulation and final scoring, not rejected before either player can test it.
+    // The host always prices its own material assets, never a client-provided cost.
     public static ChallengeSubmissionError Validate(ChallengeBridgeSubmission graph, BuildLocation site, ContractSO definition,
-        IReadOnlyDictionary<string, BridgeMaterialSO> catalog, float pierBaseY, out float cost)
+        IReadOnlyDictionary<string, BridgeMaterialSO> catalog, float pierBaseY, out float cost, float nodeDepthTolerance = 1f)
     {
         cost = 0f;
         if (graph == null || site == null || definition == null || catalog == null) return ChallengeSubmissionError.WrongChallenge;
         if (graph.Nodes.Count > ChallengeBridgeSubmissionCodec.MaxNodes || graph.Bars.Count > ChallengeBridgeSubmissionCodec.MaxBars)
             return ChallengeSubmissionError.InvalidPacket;
         if (graph.Bars.Count == 0) return ChallengeSubmissionError.EmptyBridge;
+        // Match the actual builder's snap-depth tolerance instead of demanding
+        // perfectly coplanar authored banks, foundations and snapped endpoints.
+        float depthTolerance = Finite(nodeDepthTolerance) ? Mathf.Max(nodeDepthTolerance, 0.01f) : 1f;
         List<Point> anchors = GetAnchors(site);
         if (anchors.Count == 0 || site.startingAnchors.Count == 0 || site.endingAnchors.Count == 0)
             return ChallengeSubmissionError.InvalidAnchors;
         var presentAnchors = new HashSet<int>();
-        var usedNodes = new bool[graph.Nodes.Count];
         foreach (var node in graph.Nodes)
         {
             if (!Finite(node.Position) || node.Anchor < -1 || node.Anchor >= anchors.Count) return ChallengeSubmissionError.InvalidNodes;
@@ -166,13 +170,11 @@ public static class ChallengeBridgeSubmissionRules
             else
             {
                 bool samePlane = false;
-                foreach (Point anchor in anchors) if (Mathf.Abs(node.Position.z - anchor.transform.position.z) <= 0.01f) { samePlane = true; break; }
+                foreach (Point anchor in anchors) if (Mathf.Abs(node.Position.z - anchor.transform.position.z) <= depthTolerance + 0.001f) { samePlane = true; break; }
                 if (!samePlane) return ChallengeSubmissionError.InvalidNodes;
             }
         }
         if (presentAnchors.Count != anchors.Count) return ChallengeSubmissionError.InvalidAnchors;
-        var materialCounts = new Dictionary<string, int>();
-        var members = new HashSet<string>();
         double totalCost = 0;
         foreach (var bar in graph.Bars)
         {
@@ -187,28 +189,16 @@ public static class ChallengeBridgeSubmissionRules
                     if (allowed != null && allowed.material == material) { allowance = allowed; break; }
                 if (allowance == null) return ChallengeSubmissionError.InvalidMaterial;
             }
-            int count = materialCounts.TryGetValue(bar.Material, out int oldCount) ? oldCount + 1 : 1;
-            materialCounts[bar.Material] = count;
-            if (allowance != null && allowance.maxPieces > 0 && count > allowance.maxPieces) return ChallengeSubmissionError.MaterialLimit;
-            string member = Math.Min(bar.Start, bar.End) + ":" + Math.Max(bar.Start, bar.End) + ":" + bar.Material;
-            if (!members.Add(member)) return ChallengeSubmissionError.InvalidMembers;
             Vector3 start = graph.Nodes[bar.Start].Position, end = graph.Nodes[bar.End].Position;
             float length = Vector3.Distance(start, end);
-            // Match existing node-snap tolerance (FinishBarCreation allows +0.2m).
-            // RopeMaterial intentionally uses +Infinity for unlimited length.
-            // Positions are already finite/bounded; NaN or a negative limit is invalid.
-            if (float.IsNaN(material.maxLength) || material.maxLength < 0f || !Finite(material.costPerMeter) || material.costPerMeter < 0f ||
-                length < 0.099f || length > material.maxLength + 0.201f || Mathf.Abs(start.z - end.z) > 0.01f)
+            // Degenerate/non-planar members are unsafe to reconstruct. Material
+            // span limits and pier placement are builder rules, not admission gates.
+            if (!Finite(material.costPerMeter) || material.costPerMeter < 0f ||
+                length < 0.0001f || Mathf.Abs(start.z - end.z) > depthTolerance + 0.001f)
                 return ChallengeSubmissionError.InvalidMembers;
-            if (material.isPier && (Mathf.Abs(start.x - end.x) > 0.01f ||
-                Mathf.Abs(Mathf.Min(start.y, end.y) - pierBaseY) > 0.01f)) return ChallengeSubmissionError.InvalidMembers;
-            usedNodes[bar.Start] = usedNodes[bar.End] = true;
             totalCost += (double)length * material.costPerMeter * (material.isDualBeam ? 2 : 1);
         }
-        for (int i = 0; i < usedNodes.Length; i++)
-            if (!usedNodes[i] && graph.Nodes[i].Anchor < 0) return ChallengeSubmissionError.InvalidNodes;
-        if (!Finite(definition.budget) || definition.budget < 0f || totalCost > definition.budget + 0.01)
-            return ChallengeSubmissionError.OverBudget;
+        if (totalCost > float.MaxValue) return ChallengeSubmissionError.InvalidMembers;
         cost = (float)totalCost;
         return ChallengeSubmissionError.None;
     }
@@ -221,18 +211,15 @@ public static class ChallengeBridgeSubmissionRules
     {
         switch (error)
         {
-            case ChallengeSubmissionError.None: return "Bridge validated. Waiting for your opponent.";
+            case ChallengeSubmissionError.None: return "Bridge submitted. Waiting for your opponent.";
             case ChallengeSubmissionError.EmptyBridge: return "Place bridge members before submitting.";
-            case ChallengeSubmissionError.InvalidAnchors: return "The challenge anchors are missing, duplicated or moved.";
-            case ChallengeSubmissionError.InvalidNodes: return "A node is outside the build plane, unused or invalid.";
-            case ChallengeSubmissionError.InvalidMembers: return "Check member endpoints, lengths and pier foundations.";
-            case ChallengeSubmissionError.InvalidMaterial: return "A material is not allowed in this challenge.";
-            case ChallengeSubmissionError.MaterialLimit: return "Your bridge exceeds a material's piece limit.";
-            case ChallengeSubmissionError.OverBudget: return "Your bridge exceeds the challenge budget.";
             case ChallengeSubmissionError.AlreadySubmitted: return "Your accepted bridge is already locked.";
             case ChallengeSubmissionError.Busy: return "Please wait briefly before submitting again.";
             case ChallengeSubmissionError.WrongChallenge: return "This challenge is no longer accepting your bridge.";
-            default: return "The bridge could not be read. Check your design and try again.";
+            // Only an empty design gets a design-warning banner. Validation still
+            // rejects malformed/unauthorized graphs and unlocks rejected drafts;
+            // the authored status card returns to its normal building instructions.
+            default: return string.Empty;
         }
     }
 }

@@ -4,13 +4,15 @@ using System.IO;
 using System.Reflection;
 using System.Text;
 using Fusion;
+using TMPro;
+using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
 public static class ChallengeTestValidation
 {
     public static void Run(Transform fixture, StringBuilder report)
-    { ValidatePolicies(report); ValidateIsolatedRunAndView(fixture, report); }
+    { ValidatePolicies(report); ValidateIsolatedRunAndView(fixture, report); ValidateResultsTextFit(fixture, report); }
 
     public static void ValidatePolicies(StringBuilder report)
     {
@@ -18,6 +20,7 @@ public static class ChallengeTestValidation
         foreach (bool guestFirst in new[] { false, true })
         {
             var state = new MultiplayerChallengeState { Revision = 12, Phase = MultiplayerChallengePhase.Building, Guest = guest,
+                ChallengeBudget = 1000,
                 HostArrived = true, GuestArrived = true, HostReady = true, GuestReady = true, HostBuilding = true, GuestBuilding = true };
             var first = guestFirst ? guest : host; var second = guestFirst ? host : guest;
             Check(MultiplayerChallengeRules.TryAcceptSubmission(ref state, first, host, 12, 100, 1), "First submission rejected.");
@@ -54,8 +57,123 @@ public static class ChallengeTestValidation
                 state.Phase == MultiplayerChallengePhase.TestResults, "Both outcomes failed to finish after the final-view gate.");
             Check(state.HostTestOutcome == (guestFirst ? ChallengeTestOutcome.Collapsed : ChallengeTestOutcome.Crossed) &&
                 state.GuestTestOutcome == (guestFirst ? ChallengeTestOutcome.Crossed : ChallengeTestOutcome.Collapsed), "Result ownership swapped.");
+            Check(state.Winner == (guestFirst ? ChallengeWinner.Guest : ChallengeWinner.Host) &&
+                (guestFirst ? state.GuestScoreHundredths : state.HostScoreHundredths) > 0 &&
+                (guestFirst ? state.HostScoreHundredths : state.GuestScoreHundredths) == 0,
+                "The successful owner did not receive the authoritative winner/score.");
+            copy = state;
+            Check(!MultiplayerChallengeRules.TryFinishTests(ref copy, 12) && copy.Winner == state.Winner &&
+                copy.HostScoreHundredths == state.HostScoreHundredths && copy.GuestScoreHundredths == state.GuestScoreHundredths,
+                "A duplicate finish replaced published results.");
         }
         report.AppendLine("PASS: Host-first AND guest-first submissions test in authoritative order only after both submit; each test waits for guest readiness; stale/duplicate results cannot overwrite either design; results follow both tests.");
+        ValidateCompetitionScoring(report);
+    }
+
+    private static void ValidateCompetitionScoring(StringBuilder report)
+    {
+        var host = ChallengeCompetitionScoring.Grade(ChallengeTestOutcome.Crossed, 100000, 200000, 0.30f);
+        var guest = ChallengeCompetitionScoring.Grade(ChallengeTestOutcome.Crossed, 140000, 200000, 0.15f);
+        Check(host.Qualified && guest.Qualified && host.Hundredths == 6200 && guest.Hundredths == 6300 &&
+            ChallengeCompetitionScoring.Compare(host, guest) == ChallengeWinner.Guest &&
+            ChallengeCompetitionScoring.Compare(guest, host) == ChallengeWinner.Host,
+            "40% cost / 60% strength example did not score 62 versus 63 symmetrically.");
+        var low = ChallengeCompetitionScoring.Grade(ChallengeTestOutcome.Crossed, 200000, 200000, 1f);
+        Check(low.Qualified && low.Hundredths == 0 && ChallengeCompetitionScoring.Compare(low, low) == ChallengeWinner.Draw,
+            "Two eligible zero scores should draw, not become no-winner.");
+        foreach (ChallengeTestOutcome failure in new[] { ChallengeTestOutcome.Collapsed, ChallengeTestOutcome.Fell,
+            ChallengeTestOutcome.Stalled, ChallengeTestOutcome.TimeLimit })
+        {
+            var failed = ChallengeCompetitionScoring.Grade(failure, 0, 200000, 0);
+            Check(!failed.Qualified && failed.Hundredths == 0 &&
+                ChallengeCompetitionScoring.Compare(failed, low) == ChallengeWinner.Guest &&
+                ChallengeCompetitionScoring.Compare(low, failed) == ChallengeWinner.Host &&
+                ChallengeCompetitionScoring.Compare(failed, failed) == ChallengeWinner.NoWinner,
+                "A cheap failed bridge defeated a successful bridge, or both failures awarded a winner.");
+        }
+        var over = ChallengeCompetitionScoring.Grade(ChallengeTestOutcome.Crossed, 200001, 200000, 0);
+        Check(!over.Qualified && over.Hundredths == 0 && ChallengeCompetitionScoring.Compare(over, low) == ChallengeWinner.Guest,
+            "An over-budget bridge qualified for a win.");
+        Check(ChallengeCompetitionScoring.Compare(host, host) == ChallengeWinner.Draw &&
+            ChallengeCompetitionScoring.Grade(ChallengeTestOutcome.Crossed, 100000, 200000, 0.300001f).Hundredths == host.Hundredths,
+            "Displayed equal scores used hidden precision as a tie-breaker.");
+        int checks = 0;
+        foreach (float budget in new[] { 1000f, 200000f })
+            foreach (float costFraction in new[] { 0f, 0.25f, 0.5f, 0.7f, 0.85f, 1f })
+                foreach (float stress in new[] { 0f, 0.15f, 0.3f, 0.6f, 1f, 1.5f })
+                {
+                    var score = ChallengeCompetitionScoring.Grade(ChallengeTestOutcome.Crossed, budget * costFraction, budget, stress);
+                    var dearer = ChallengeCompetitionScoring.Grade(ChallengeTestOutcome.Crossed, budget * costFraction + 1f, budget, stress);
+                    var weaker = ChallengeCompetitionScoring.Grade(ChallengeTestOutcome.Crossed, budget * costFraction, budget, stress + 0.01f);
+                    Check(score.Qualified && score.Hundredths >= 0 && score.Hundredths <= 10000 &&
+                        dearer.Hundredths <= score.Hundredths && weaker.Hundredths <= score.Hundredths,
+                        "Cost/strength scoring was out of bounds or rewarded increased cost/stress.");
+                    checks++;
+                }
+        var state = new MultiplayerChallengeState { Revision = 10, Phase = MultiplayerChallengePhase.Testing, TestIndex = 2,
+            HostSubmitted = true, GuestSubmitted = true, ChallengeBudget = 200000,
+            HostSubmittedCost = 100000, GuestSubmittedCost = 140000,
+            HostTestOutcome = ChallengeTestOutcome.Crossed, GuestTestOutcome = ChallengeTestOutcome.Crossed,
+            HostPeakStress = 0.30f, GuestPeakStress = 0.15f };
+        foreach (float bad in new[] { -1f, float.NaN, float.PositiveInfinity, float.NegativeInfinity })
+        {
+            var invalid = state; invalid.ChallengeBudget = bad;
+            Check(!MultiplayerChallengeRules.TryFinishTests(ref invalid, 10), "Invalid budget published results.");
+            invalid = state; invalid.HostSubmittedCost = bad;
+            Check(!MultiplayerChallengeRules.TryFinishTests(ref invalid, 10), "Invalid cost published results.");
+            invalid = state; invalid.GuestPeakStress = bad;
+            Check(!MultiplayerChallengeRules.TryFinishTests(ref invalid, 10), "Invalid stress published results.");
+        }
+        var zeroBudget = state; zeroBudget.ChallengeBudget = 0;
+        Check(!MultiplayerChallengeRules.TryFinishTests(ref zeroBudget, 10), "Zero budget produced a free score.");
+        var stale = state;
+        Check(!MultiplayerChallengeRules.TryFinishTests(ref stale, 9) && stale.Winner == ChallengeWinner.Pending,
+            "A stale finish assigned a winner.");
+        Check(MultiplayerChallengeRules.TryFinishTests(ref state, 10) && state.Winner == ChallengeWinner.Guest &&
+            state.HostScoreHundredths == 6200 && state.GuestScoreHundredths == 6300,
+            "Host finish did not publish the frozen-budget winner and scores together.");
+        var formatter = typeof(MultiplayerChallengeLobbyUI).GetMethod("CompetitionResultsMessage", BindingFlags.Static | BindingFlags.NonPublic);
+        string message = (string)formatter.Invoke(null, new object[] { state, "Host IGN", "Guest IGN" });
+        Check(message.Contains("WINNER: Guest IGN") && message.Contains("Host IGN") && message.Contains("40% COST / 60% STRENGTH") &&
+            message.Contains("SCORE 62") && message.Contains("SCORE 63"), "Authored results omit winner, IGN, weights or published scores.");
+        state.Winner = ChallengeWinner.Draw;
+        Check(((string)formatter.Invoke(null, new object[] { state, "Host IGN", "Guest IGN" })).StartsWith("DRAW"), "Draw label is missing.");
+        state.Winner = ChallengeWinner.NoWinner; state.HostTestOutcome = state.GuestTestOutcome = ChallengeTestOutcome.Fell;
+        Check(((string)formatter.Invoke(null, new object[] { state, "Host IGN", "Guest IGN" })).Contains("NO WINNER"), "No-winner label is missing.");
+        report.AppendLine($"PASS: 40% cost / 60% strength scores 62 vs 63 from the agreed example; {checks} bounded/monotonic score cases pass. Successful crossings always beat failures; over-budget designs cannot win; both failures give no winner; visible-score ties draw.");
+        report.AppendLine("PASS: Host publishes the frozen budget, winner and two scores in the final state; invalid/stale/duplicate results are rejected. Authored popup formatter includes both IGNs, outcome, prices, stress, weight breakdown and winner/draw/no-winner labels.");
+    }
+
+    private static void ValidateResultsTextFit(Transform fixture, StringBuilder report)
+    {
+        var obj = new GameObject("Competition Results Typography (Temporary)", typeof(RectTransform), typeof(TextMeshProUGUI));
+        obj.transform.SetParent(fixture, false);
+        try
+        {
+            var text = obj.GetComponent<TextMeshProUGUI>();
+            // Match the authored Challenge_UI message font, bold style and minimum auto-size.
+            text.font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(AssetDatabase.GUIDToAssetPath("aaadb7eb00eeee74799e9edce7312ddb"));
+            Check(text.font != null, "The authored challenge popup font is missing.");
+            text.fontSize = 13; text.enableAutoSizing = false; text.fontStyle = FontStyles.Bold;
+            var state = new MultiplayerChallengeState { Winner = ChallengeWinner.Guest, ChallengeBudget = 200000,
+                HostTestOutcome = ChallengeTestOutcome.Crossed, GuestTestOutcome = ChallengeTestOutcome.Crossed,
+                HostSubmittedCost = 100000, GuestSubmittedCost = 140000, HostPeakStress = 0.3f, GuestPeakStress = 0.15f,
+                HostScoreHundredths = 6200, GuestScoreHundredths = 6300 };
+            var formatter = typeof(MultiplayerChallengeLobbyUI).GetMethod("CompetitionResultsMessage", BindingFlags.Static | BindingFlags.NonPublic);
+            foreach (Vector2 resolution in new[] { new Vector2(1920, 1080), new Vector2(1280, 720) })
+                foreach (bool failed in new[] { false, true })
+                {
+                    state.Winner = failed ? ChallengeWinner.NoWinner : ChallengeWinner.Guest;
+                    state.HostTestOutcome = state.GuestTestOutcome = failed ? ChallengeTestOutcome.TimeLimit : ChallengeTestOutcome.Crossed;
+                    string message = (string)formatter.Invoke(null, new object[] { state, new string('W', 32), new string('M', 32) });
+                    // Existing authored card fills 60% x 58%, with message anchors 8–92% x 34–74%.
+                    Vector2 measured = text.GetPreferredValues(message, resolution.x * 0.60f * 0.84f, float.PositiveInfinity);
+                    float available = resolution.y * 0.58f * 0.40f;
+                    Check(measured.y <= available, $"Results overflow the authored popup at {resolution}: {measured.y:0.0}px > {available:0.0}px.");
+                }
+            report.AppendLine("PASS: Winner and no-winner results with long IGNs fit the existing authored popup's message area at 1920x1080 and 1280x720 using its real font/minimum auto-size; no new UI controls or scene edits are required.");
+        }
+        finally { Object.DestroyImmediate(obj); }
     }
 
     private static void ValidateIsolatedRunAndView(Transform fixture, StringBuilder report)
@@ -85,6 +203,7 @@ public static class ChallengeTestValidation
         var graph = new ChallengeBridgeSubmission();
         graph.Nodes.Add(new ChallengeSubmittedNode { Position = start.transform.position, Anchor = 0 });
         graph.Nodes.Add(new ChallengeSubmittedNode { Position = end.transform.position, Anchor = 1 });
+        graph.Nodes.Add(new ChallengeSubmittedNode { Position = new Vector3(41, 5, -8), Anchor = -1 });
         graph.Bars.Add(new ChallengeSubmittedBar { Start = 0, End = 1, Material = material.Id });
         var catalog = new Dictionary<string, BridgeMaterialSO> { { material.Id, material } };
         ChallengeBridgeTestRun run = null; ChallengeBridgeTestView view = null;
@@ -92,6 +211,9 @@ public static class ChallengeTestValidation
         float maximumDelta = Time.maximumDeltaTime;
         try
         {
+            definition.budget = 1f; // A poor/over-budget draft still reaches isolated physics.
+            Check(ChallengeBridgeSubmissionRules.Validate(graph, site, definition, catalog, -10, out float submittedCost) == ChallengeSubmissionError.None &&
+                submittedCost == 30f, "An over-budget non-empty draft with a loose node was rejected before reconstruction.");
             run = ChallengeBridgeTestRun.Create(graph, site, definition, creator, settings, vehicle, 77, 12, 1);
             Check(run.Physics != settings && run.Vehicle != vehicle && run.Location != site && run.Physics.IsSessionChallengeTest &&
                 run.Physics.SessionTestVehicle == run.Vehicle && run.Vehicle.physicsManager == run.Physics &&
@@ -147,6 +269,15 @@ public static class ChallengeTestValidation
             run.Physics.ActivatePhysics();
             Check(run.Physics.IsSimulationActive && !settings.IsSimulationActive && !vehicle.IsDriving,
                 "Physics startup reached the story manager or world vehicle.");
+            Check(run.Physics.TryGetConstructionReceipt(run.Location, out var receipt) && receipt.TotalCost == 30 &&
+                !run.Physics.TryGetConstructionReceipt(site, out _),
+                "Physics startup did not freeze the scoped construction cost before simulation.");
+            run.Bars[0].currentLength = 1000;
+            Check(receipt.TotalCost == 30, "Simulation deformation changed the frozen construction receipt.");
+            Check(!ChallengeCompetitionScoring.Grade(ChallengeTestOutcome.Crossed, submittedCost, definition.budget, 0).Qualified,
+                "Accepting a draft for simulation also allowed an over-budget win.");
+            report.AppendLine("PASS: A non-empty over-budget draft with a loose node reaches actual isolated physics startup with its full host-computed cost; accepting simulation does not qualify it for a win or modify story progress.");
+            report.AppendLine("PASS: Physics startup freezes the 3m/30-cost construction receipt for its own site, rejects receipts for other sites, and deformation cannot change that cost.");
             report.AppendLine("PASS: Disposable host graph copies original solver/settling/vehicle settings and frozen load; original physics, vehicle, anchors and baked lists remain unchanged; bake is blocked.");
             report.AppendLine("PASS: Guest baseline is visual only, with no gameplay scripts, Rigidbody or collider; motion and deforming-rope endpoints round-trip within Fusion's RPC limit, reject malformed chunks and ignore late snapshots.");
         }

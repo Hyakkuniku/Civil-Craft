@@ -129,7 +129,7 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
             if (submissions == null || !submissions.TryGetAcceptedBridge(owner, revision, out var graph, out _))
                 throw new InvalidOperationException("The accepted bridge packet is unavailable.");
             if (ChallengeBridgeSubmissionRules.Validate(graph, site, definition, ChallengeBridgeSubmissionRules.CreateMaterialCatalog(definition),
-                workspace.Creator.pierBaseY, out _) != ChallengeSubmissionError.None)
+                workspace.Creator.pierBaseY, out _, workspace.Creator.nodeSnapDepthTolerance) != ChallengeSubmissionError.None)
                 throw new InvalidOperationException("The accepted bridge no longer matches the challenge definition.");
             run = ChallengeBridgeTestRun.Create(graph, site, definition, workspace.Creator, settings, vehicleSource, testWeight, revision, index);
         }
