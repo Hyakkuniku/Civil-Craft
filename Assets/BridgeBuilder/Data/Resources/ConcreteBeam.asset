@@ -1,0 +1,49 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d6617cda65e2ddd49ac84cabbc41a409, type: 3}
+  m_Name: ConcreteBeam
+  m_EditorClassIdentifier: 
+  materialId: ConcreteBeam
+  displayName: Concrete Beam
+  introductionDescription: A reinforced concrete support beam for heavier road decks.
+    Concrete carries compression and steel reinforcement carries tension. Connect
+    matching beam pairs to the road joints and fixed anchors using triangles or piers.
+  introductionImage: {fileID: 0}
+  almanacDescription: Reinforced concrete beams support the Concrete Road deck and
+    transfer its weight and vehicle loads to anchored joints or piers. Use triangular
+    bracing and short supported spans; an unanchored beam cannot support a bridge
+    just by touching it. Each placement creates two side beams, so its price and mass
+    are doubled. Stronger than timber, but heavier and more expensive. Long flat
+    spans can still fail without a continuous load path. These properties are game
+    balance values, not real-world engineering ratings.
+  almanacImage: {fileID: 0}
+  costPerMeter: 600
+  massPerMeter: 90
+  maxLength: 10
+  maxTension: 400000
+  maxCompression: 2100000
+  useSpring: 0
+  spring: 5000
+  damper: 50
+  isRope: 0
+  isRoad: 0
+  isPier: 0
+  pierBucklingReferenceLength: 10
+  pierBucklingExponent: 2
+  pierMinimumCompressionMultiplier: 0.15
+  unlockCost: 1000
+  materialIcon: {fileID: 21300000, guid: d5a222f78463c874e83a77423e84e6ce, type: 3}
+  segmentPrefab: {fileID: 1104487842813336505, guid: 7976eae3251987142975aa2504070e87, type: 3}
+  pierCapPrefab: {fileID: 0}
+  gizmoColor: {r: 0.75, g: 0.78, b: 0.8, a: 1}
+  isDualBeam: 1
+  zOffset: 3.3

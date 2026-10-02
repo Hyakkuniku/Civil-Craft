@@ -18,13 +18,18 @@ MonoBehaviour:
     carries pulling forces while the concrete carries much larger compression loads,
     and its shorter placement length makes careful support important.
   introductionImage: {fileID: 0}
-  almanacDescription: 
+  almanacDescription: A reinforced concrete driving deck with higher tensile capacity
+    than timber roads. Connect it to triangulated beams or supported piers; a flat
+    unsupported deck can still collapse. Its reinforcement carries tension while
+    the concrete carries compression. Heavier and more expensive than wood, with
+    a 10 m placement limit. Mass and strength are balanced gameplay values, not
+    real-world engineering ratings.
   almanacImage: {fileID: 0}
   costPerMeter: 650
-  massPerMeter: 243
+  massPerMeter: 180
   maxLength: 10
-  maxTension: 142000
-  maxCompression: 1550000
+  maxTension: 320000
+  maxCompression: 2000000
   useSpring: 0
   spring: 5000
   damper: 50

@@ -19,6 +19,7 @@ MonoBehaviour:
   cargoUnlockAfterDialoguePhaseIndex: -1
   cargoLoadedNPCPhaseId: 
   contractID: TUT_CONTRACT2
+  hideFromLeaderboard: 0
   efficiencyStarBudgetRatio: 0.85
   strengthStarMaxStress: 60
   contractMap: 0
@@ -49,7 +50,7 @@ MonoBehaviour:
   winCondition: 0
   requiredIntactTime: 10
   goldReward: 500
-  expReward: 1000
+  expReward: 150
   offerDialogue:
     name: Professor Bhan
     sentences:

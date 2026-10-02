@@ -57,6 +57,14 @@ public partial class BridgePhysicsManager : MonoBehaviour
     [Tooltip("Angular damping for moving bridge bars and nodes. Higher values reduce violent spinning after a member breaks.")]
     [Min(0f)] [SerializeField] private float visualAngularDrag = 1.5f;
 
+    [Header("Deformation Damage")]
+    [Tooltip("Sustained solid-member stretch or joint separation as a fraction of its placed length. This is a gameplay deformation limit, not an engineering strain rating.")]
+    [Range(.01f, .2f)] public float solidDeformationLimit = .04f;
+    [Tooltip("Allowed change from the authored angle between connected road pieces. Normal slopes and rigid bridge rotation do not count as damage.")]
+    [Range(5f, 45f)] public float roadJointDeformationDegrees = 15f;
+    [Tooltip("Seconds excessive deformation must persist before a member physically detaches. Brief solver/contact jitter does not break a member.")]
+    [Min(.1f)] public float deformationBreakDelay = .35f;
+
     [Header("Stress Sampling")]
     [Tooltip("Number of fixed-physics samples used by the current-stress display. This is a rolling average, never a stored maximum.")]
     [Min(1)] public int stressSmoothingFrames = 10;
@@ -455,6 +463,7 @@ public partial class BridgePhysicsManager : MonoBehaviour
     private bool deterministicStructureStable;
     private bool deterministicRuntimeStateApplied;
     private bool deterministicRuntimeStateReusable;
+    private bool remainingMemberAnalysisDirty;
     private int lastDeterministicSampleIndex = -1;
     private float lastDeterministicLoadFactor = float.NaN;
     private float currentVisualMaxStress;
@@ -734,6 +743,16 @@ public partial class BridgePhysicsManager : MonoBehaviour
 
         if (isSimulating && !lockStressTracking)
         {
+            if (remainingMemberAnalysisDirty) RebuildRemainingMemberAnalysis();
+            // Geometry changes even when the vehicle has not moved to a new
+            // immutable load sample. Run this before the sample-cache early return.
+            foreach (BarStressHandler handler in activeStressHandlers)
+            {
+                if (handler == null) continue;
+                handler.EvaluateDeformationDamage(Time.fixedDeltaTime);
+                peakStressThisRun = Mathf.Max(peakStressThisRun, handler.currentStructuralStressPercent);
+                peakDisplayedStressThisRun = Mathf.Max(peakDisplayedStressThisRun, Mathf.Clamp01(handler.currentStressPercent));
+            }
             using (RuntimeStressMarker.Auto())
             {
             bool hasDeterministicStress = deterministicStressResult != null &&
@@ -991,6 +1010,7 @@ public partial class BridgePhysicsManager : MonoBehaviour
         lockStressTracking = false;
         deterministicRuntimeStateApplied = false;
         deterministicRuntimeStateReusable = false;
+        remainingMemberAnalysisDirty = false;
         lastDeterministicSampleIndex = -1;
         lastDeterministicLoadFactor = float.NaN;
         currentVisualMaxStress = 0f;
@@ -1309,6 +1329,32 @@ public partial class BridgePhysicsManager : MonoBehaviour
                 "[BridgePhysicsManager] Deterministic live load has no matching active vehicle or valid road span. " +
                 "Only the bridge's dead load will be evaluated until the setup is corrected.", this);
         }
+    }
+
+    public void NotifyMemberDetached()
+    {
+        remainingMemberAnalysisDirty = true;
+        deterministicRuntimeStateReusable = false;
+    }
+
+    private void RebuildRemainingMemberAnalysis()
+    {
+        remainingMemberAnalysisDirty = false;
+        if (!useDeterministicStressAnalysis) return;
+        List<Bar> remaining = new List<Bar>(deterministicBars.Count);
+        foreach (Bar bar in deterministicBars)
+            if (bar != null && bar.enabled && bar.gameObject.activeInHierarchy && !IsBrokenMember(bar))
+                remaining.Add(bar);
+        float loadKg = sessionTestVehicle != null ? sessionTestVehicle.TotalTestWeight :
+            LiveLoadVehicle.GetContractTestWeight(SimulationContract);
+        // Preserve authored geometry for repeatable force calculations, but remove
+        // detached members. The visual deformation monitor handles actual motion.
+        deterministicStressResult = DeterministicBridgeStressSolver.Analyze(
+            deterministicPoints, remaining, loadKg, displayLiveLoadStressOnly,
+            deterministicLoadSamples, true);
+        deterministicStructureStable = deterministicStressResult != null && deterministicStressResult.IsStructurallyStable;
+        deterministicRuntimeStateApplied = false;
+        deterministicRuntimeStateReusable = false;
     }
 
     private void GetDeterministicLoadState(out int sampleIndex, out float loadFactor)
@@ -1942,6 +1988,19 @@ public partial class BridgePhysicsManager : MonoBehaviour
         joint.breakForce = Mathf.Infinity;
         joint.breakTorque = Mathf.Infinity;
 
+        // Nodes are connection handles (normally 0.5kg), not structural members.
+        // A 10m concrete bar can weigh 1800kg. Solving that 3600:1 joint without
+        // conditioning lets the light node race away from the bar and injects
+        // correction energy into the entire truss. Keep the joint's effective
+        // mass ratio within 10:1; leave already-balanced connections unchanged.
+        // Both bodies are held kinematic during setup, so do not gate this on
+        // isKinematic: free nodes become dynamic at the controlled release tick.
+        // This affects only visual PhysX constraints, never material mass, cost,
+        // deterministic stress, or failure capacity.
+        joint.massScale = 1f;
+        joint.connectedMassScale = Mathf.Clamp(
+            nodeBody.mass * 10f / Mathf.Max(0.001f, barBody.mass), 0.00001f, 1f);
+
         // Both local anchors are derived from the exact same world point. Their
         // world positions therefore coincide before either body is released.
         joint.anchor = barBody.transform.InverseTransformPoint(worldAnchor);
@@ -2095,6 +2154,17 @@ public class BarStressHandler : MonoBehaviour
     private float settledDeadLoadForce = 0f;
     private bool canTrackStress = false; 
     private bool isCurrentlyInTension;
+    private float deformationExposure;
+    private float deformationWarningRatio;
+    private float forceDisplayedRatio;
+    private struct RoadBendConnection
+    {
+        public Point shared, ownOther, neighborOther;
+        public Bar neighbor;
+        public BarStressHandler neighborHandler;
+        public float initialAngle;
+    }
+    private RoadBendConnection[] roadBends = Array.Empty<RoadBendConnection>();
 
     private Queue<float> forceHistory = new Queue<float>();
     private Queue<float> settlingForceHistory = new Queue<float>();
@@ -2123,6 +2193,8 @@ public class BarStressHandler : MonoBehaviour
         {
             string memberName = material != null ? material.GetDisplayName() : "Structural member";
             string cause = string.IsNullOrWhiteSpace(FailureCause) ? "excessive force" : FailureCause;
+            if (FailureSource == "sustained physical deformation")
+                return $"{memberName} failed from {cause.ToLowerInvariant()} after sustained deformation.";
             float percent = Mathf.Max(1f, currentStructuralStressPercent) * 100f;
             return $"{memberName} failed from {cause.ToLowerInvariant()} at {percent:0.#}% of capacity.";
         }
@@ -2178,6 +2250,8 @@ public class BarStressHandler : MonoBehaviour
         smoothingFrames = manager != null ? Mathf.Max(1, manager.stressSmoothingFrames) : 10;
         
         restLength = Vector3.Distance(p1.transform.position, p2.transform.position);
+        deformationExposure = deformationWarningRatio = forceDisplayedRatio = 0f;
+        CacheRoadBends();
         isCurrentlyInTension = false;
         currentStressPercent = 0f;
         currentStructuralStressPercent = 0f;
@@ -2272,6 +2346,8 @@ public class BarStressHandler : MonoBehaviour
     {
         canTrackStress = true;
         CacheJointsIfNeeded();
+        for (int i = 0; i < roadBends.Length; i++)
+            roadBends[i].neighborHandler = roadBends[i].neighbor != null ? roadBends[i].neighbor.GetComponent<BarStressHandler>() : null;
 
         // The bridge has already settled for BridgePhysicsManager.settleFramesAmount
         // fixed steps. Average the final settling samples so one arbitrary PhysX
@@ -2285,6 +2361,82 @@ public class BarStressHandler : MonoBehaviour
         forceHistory.Clear();
         for (int i = 0; i < smoothingFrames; i++)
             forceHistory.Enqueue(settledDeadLoadForce);
+    }
+
+    private void CacheRoadBends()
+    {
+        if (material == null || !material.isRoad)
+        { roadBends = Array.Empty<RoadBendConnection>(); return; }
+        List<RoadBendConnection> connections = new List<RoadBendConnection>();
+        CacheRoadBendsAt(p1, p2, connections);
+        CacheRoadBendsAt(p2, p1, connections);
+        roadBends = connections.ToArray();
+    }
+    private void CacheRoadBendsAt(Point shared, Point ownOther, List<RoadBendConnection> connections)
+    {
+        foreach (Bar neighbor in shared.ConnectedBars)
+        {
+            if (neighbor == null || neighbor == myBar || neighbor.materialData == null || !neighbor.materialData.isRoad) continue;
+            Point other = neighbor.startPoint == shared ? neighbor.endPoint : neighbor.endPoint == shared ? neighbor.startPoint : null;
+            if (other == null || other == ownOther) continue;
+            connections.Add(new RoadBendConnection {
+                shared = shared, ownOther = ownOther, neighborOther = other, neighbor = neighbor,
+                initialAngle = Vector3.Angle(ownOther.transform.position - shared.transform.position, other.transform.position - shared.transform.position)
+            });
+        }
+    }
+
+    public void EvaluateDeformationDamage(float deltaTime)
+    {
+        if (!canTrackStress || isBroken || material == null || p1 == null || p2 == null ||
+            manager == null || BridgePhysicsManager.DebugInvincibleBridge) return;
+        float length = Vector3.Distance(p1.transform.position, p2.transform.position);
+        float ratio;
+        string cause;
+        if (material.isRope)
+        {
+            // Ropes may sag and go slack freely. Only excessive tensile extension
+            // counts, using the actual spring and existing rope tension capacity.
+            float spring = ropeJoint != null ? ropeJoint.spring : material.spring;
+            ratio = Mathf.Max(0f, length - restLength) * Mathf.Max(0f, spring) / Mathf.Max(1f, material.maxTension);
+            cause = "Tension (Rope overstretched)";
+        }
+        else
+        {
+            float limit = Mathf.Max(.01f, manager.solidDeformationLimit);
+            ratio = Mathf.Abs(length - restLength) / Mathf.Max(.1f, restLength) / limit;
+            CacheJointsIfNeeded();
+            if (joints != null)
+                foreach (Joint joint in joints)
+                    if (joint != null && joint.connectedBody != null)
+                        ratio = Mathf.Max(ratio, Vector3.Distance(joint.transform.TransformPoint(joint.anchor),
+                            joint.connectedBody.transform.TransformPoint(joint.connectedAnchor)) / Mathf.Max(.1f, restLength) / limit);
+            cause = "Excessive deformation (Connection pulled apart)";
+            foreach (RoadBendConnection bend in roadBends)
+            {
+                if (bend.shared == null || bend.ownOther == null || bend.neighborOther == null ||
+                    bend.neighbor == null || !bend.neighbor.gameObject.activeInHierarchy ||
+                    (bend.neighborHandler != null && bend.neighborHandler.isBroken)) continue;
+                float angle = Vector3.Angle(bend.ownOther.transform.position - bend.shared.transform.position,
+                    bend.neighborOther.transform.position - bend.shared.transform.position);
+                float bendRatio = Mathf.Abs(angle - bend.initialAngle) / Mathf.Max(5f, manager.roadJointDeformationDegrees);
+                if (bendRatio > ratio) { ratio = bendRatio; cause = "Excessive deformation (Road joint folded)"; }
+            }
+        }
+        // Show damage, but never report capacity failure until the real break.
+        // Otherwise LevelFailedManager would force a break before confirmation.
+        deformationWarningRatio = Mathf.Min(.95f, ratio);
+        float displayed = Mathf.Max(forceDisplayedRatio, deformationWarningRatio);
+        if (!Mathf.Approximately(currentStressPercent, displayed)) stressVisualDirty = true;
+        currentStressPercent = displayed;
+        deformationExposure = ratio >= 1f ? deformationExposure + Mathf.Max(0f, deltaTime) : 0f;
+        if (deformationExposure < Mathf.Max(.1f, manager.deformationBreakDelay)) return;
+        currentStructuralStressPercent = Mathf.Max(currentStructuralStressPercent, ratio);
+        Joint breakingJoint = material.isRope ? ropeJoint : joints != null && joints.Length > 0 ? joints[0] : null;
+        // Deformation is a separate gameplay failure mode, not a fabricated
+        // Newton reading from a quasi-static force sample.
+        BreakBar(cause, material.isRope ? Mathf.Max(0f, length - restLength) * Mathf.Max(0f, material.spring) : 0f,
+            breakingJoint, "sustained physical deformation");
     }
 
     public void SampleSettlingForce()
@@ -2460,6 +2612,8 @@ public class BarStressHandler : MonoBehaviour
             currentStressPercent = Mathf.Round(rawPercent * 1000f) / 1000f;
         }
 
+        forceDisplayedRatio = currentStressPercent;
+        currentStressPercent = Mathf.Max(forceDisplayedRatio, deformationWarningRatio);
         if (!Mathf.Approximately(previousDisplayedStress, currentStressPercent))
             stressVisualDirty = true;
 
@@ -2478,7 +2632,8 @@ public class BarStressHandler : MonoBehaviour
         if (!canTrackStress || isBroken || material == null) return;
 
         isCurrentlyInTension = isTension;
-        float nextDisplayedStress = Mathf.Max(0f, displayedRatio);
+        forceDisplayedRatio = Mathf.Max(0f, displayedRatio);
+        float nextDisplayedStress = Mathf.Max(deformationWarningRatio, forceDisplayedRatio);
         bool displayedStressChanged =
             !Mathf.Approximately(currentStressPercent, nextDisplayedStress);
         currentStressPercent = nextDisplayedStress;
@@ -2569,6 +2724,7 @@ public class BarStressHandler : MonoBehaviour
         visualStressPercent = Mathf.Max(1f, visualStressPercent);
 
         ReleaseAllFailedMemberConnections(brokenJoint);
+        if (manager != null) manager.NotifyMemberDetached();
         WakeVisualBodiesAtFailure();
         
         // A snapped rope is already visibly detached and animated by its line.

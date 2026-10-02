@@ -132,7 +132,8 @@ public static class DeterministicBridgeStressSolver
         IList<Bar> sourceBars,
         float liveLoadKg,
         bool displayLiveLoadOnly,
-        int requestedSampleCount)
+        int requestedSampleCount,
+        bool usePreSimulationPositions = false)
     {
         if (sourcePoints == null || sourceBars == null) return null;
 
@@ -143,7 +144,7 @@ public static class DeterministicBridgeStressSolver
             Point point = sourcePoints[i];
             if (point == null || nodeIndices.ContainsKey(point)) continue;
 
-            Vector3 position = point.transform.position;
+            Vector3 position = usePreSimulationPositions ? point.preSimPos : point.transform.position;
             NodeData node = new NodeData
             {
                 Point = point,
