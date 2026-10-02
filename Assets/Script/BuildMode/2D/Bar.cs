@@ -341,6 +341,7 @@ public class Bar : MonoBehaviour
     private readonly List<LineRenderer> ropeSimulationLines = new List<LineRenderer>();
     private bool ropeSimulationVisualActive;
     private float ropeSimulationRestLength;
+    internal float SessionSpectatorRopeLength => ropeSimulationRestLength > 0f ? ropeSimulationRestLength : currentLength;
     private const int RopeCurvePoints = 17;
     private static readonly Color RopeLineColor = new Color(0.72f, 0.43f, 0.25f, 1f);
     private static Shader ropeSimulationShader;

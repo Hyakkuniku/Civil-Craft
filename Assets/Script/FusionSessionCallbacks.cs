@@ -10,11 +10,15 @@ public sealed class FusionSessionCallbacks : MonoBehaviour, INetworkRunnerCallba
 {
     private NetworkObject avatarPrefab;
     private FusionHostWorldBridgeSync worldBridges;
+    private FusionChallengeSubmissionSync challengeSubmissions;
+    private FusionChallengeTestSync challengeTests;
 
     private void Awake()
     {
         avatarPrefab = Resources.Load<NetworkObject>("FusionMultiplayerAvatar");
         worldBridges = GetComponent<FusionHostWorldBridgeSync>();
+        challengeSubmissions = GetComponent<FusionChallengeSubmissionSync>();
+        challengeTests = GetComponent<FusionChallengeTestSync>();
     }
 
     public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
@@ -55,6 +59,8 @@ public sealed class FusionSessionCallbacks : MonoBehaviour, INetworkRunnerCallba
 
     public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
     {
+        challengeTests?.Clear();
+        challengeSubmissions?.Clear();
         worldBridges?.OnPlayerLeft(player);
         if (runner.IsServer && runner.TryGetPlayerObject(player, out NetworkObject avatar) &&
             avatar != null)
@@ -65,6 +71,8 @@ public sealed class FusionSessionCallbacks : MonoBehaviour, INetworkRunnerCallba
 
     public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason)
     {
+        challengeTests?.Clear();
+        challengeSubmissions?.Clear();
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         LogGuestDisconnect(runner, $"shutdown={shutdownReason}");
 #endif
@@ -73,6 +81,8 @@ public sealed class FusionSessionCallbacks : MonoBehaviour, INetworkRunnerCallba
     public void OnConnectedToServer(NetworkRunner runner) { }
     public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason)
     {
+        challengeTests?.Clear();
+        challengeSubmissions?.Clear();
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         LogGuestDisconnect(runner, $"reason={reason}");
 #endif
@@ -101,11 +111,15 @@ public sealed class FusionSessionCallbacks : MonoBehaviour, INetworkRunnerCallba
         ReliableKey key, ReadOnlySpan<byte> data)
     {
         worldBridges?.OnReliableData(player, key, data);
+        challengeSubmissions?.OnReliableData(player, key, data);
+        challengeTests?.OnReliableData(player, key, data);
     }
     public void OnReliableDataProgress(NetworkRunner runner, PlayerRef player,
         ReliableKey key, float progress) { }
     public void OnSceneLoadStart(NetworkRunner runner)
     {
+        challengeTests?.Clear();
+        challengeSubmissions?.Clear();
         FusionConnectionManager.Instance?.HandleSceneLoadStarted(runner);
         worldBridges?.OnSceneLoading();
     }

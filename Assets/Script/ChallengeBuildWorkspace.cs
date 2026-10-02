@@ -11,6 +11,8 @@ public sealed class ChallengeBuildWorkspace : IDisposable
     public GameObject Root { get; private set; }
     public BuildLocation Location { get; private set; }
     public BarCreator Creator { get; private set; }
+    public Transform PointRoot { get; private set; }
+    public Transform BarRoot { get; private set; }
     private ContractSO contract;
     private Transform originalPointParent, originalBarParent;
     private bool originalCreatorEnabled;
@@ -76,6 +78,8 @@ public sealed class ChallengeBuildWorkspace : IDisposable
             points.SetParent(workspace.Root.transform, false);
             var bars = new GameObject("Own Bars").transform;
             bars.SetParent(workspace.Root.transform, false);
+            workspace.PointRoot = points;
+            workspace.BarRoot = bars;
             var copies = new Dictionary<Point, Point>();
             foreach (Point anchor in source.startingAnchors)
                 location.startingAnchors.Add(workspace.CopyAnchor(anchor, points, copies));
@@ -173,6 +177,7 @@ public sealed class ChallengeBuildWorkspace : IDisposable
         Root = null;
         Location = null;
         Creator = null;
+        PointRoot = BarRoot = null;
         contract = null;
     }
 

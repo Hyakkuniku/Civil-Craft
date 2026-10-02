@@ -5,7 +5,7 @@ using Unity.Profiling;
 using UnityEngine.Rendering;
 
 [DefaultExecutionOrder(-50)] 
-public class BridgePhysicsManager : MonoBehaviour
+public partial class BridgePhysicsManager : MonoBehaviour
 {
     private static readonly ProfilerMarker PhysicsGraphMarker =
         new ProfilerMarker("CivilCraft.Simulation.PhysicsGraph");
@@ -123,9 +123,7 @@ public class BridgePhysicsManager : MonoBehaviour
     {
         get
         {
-            ContractSO contract = GameManager.Instance != null
-                ? GameManager.Instance.CurrentContract
-                : null;
+            ContractSO contract = SimulationContract;
             return contract == null || contract.liveLoadMode != ContractSO.LiveLoadMode.Vehicle ||
                    HasLiveLoadEngagedThisRun;
         }
@@ -170,8 +168,7 @@ public class BridgePhysicsManager : MonoBehaviour
             Vector3 position = bar.startPoint != null && bar.endPoint != null
                 ? (bar.startPoint.transform.position + bar.endPoint.transform.position) * 0.5f
                 : bar.transform.position;
-            BuildLocation location = GameManager.Instance != null
-                ? GameManager.Instance.ActiveBuildLocation : null;
+            BuildLocation location = SimulationLocation;
             Camera buildCamera = location != null ? location.locationCamera : null;
             if (buildCamera != null)
                 position -= buildCamera.transform.forward * breakParticleCameraOffset;
@@ -467,12 +464,10 @@ public class BridgePhysicsManager : MonoBehaviour
         roadProgress = 0f;
         loadFactor = 0f;
 
-        ContractSO contract = GameManager.Instance != null
-            ? GameManager.Instance.CurrentContract
-            : null;
+        ContractSO contract = SimulationContract;
         LiveLoadVehicle vehicle = deterministicLiveLoadVehicle != null
             ? deterministicLiveLoadVehicle
-            : LiveLoadVehicle.FindActiveForContract(contract);
+            : (sessionTestVehicle != null ? sessionTestVehicle : LiveLoadVehicle.FindActiveForContract(contract));
         if (vehicle == null || !TryResolveRoadSpan()) return false;
 
         float vehicleMinX;
@@ -631,6 +626,7 @@ public class BridgePhysicsManager : MonoBehaviour
 
     private void Start()
     {
+        if (IsSessionChallengeTest) return; // This isolated manager has no story/UI listeners.
         if (GameManager.Instance != null)
         {
             GameManager.Instance.OnEnterBuildMode.AddListener(HandleEnterBuildMode);
@@ -641,6 +637,8 @@ public class BridgePhysicsManager : MonoBehaviour
     private void OnDestroy()
     {
         RestoreGlobalPhysicsSettings();
+        if (IsSessionChallengeTest && sharedRoadPhysicsMat != null)
+        { if (Application.isPlaying) Destroy(sharedRoadPhysicsMat); else DestroyImmediate(sharedRoadPhysicsMat); }
 
         if (GameManager.Instance != null)
         {
@@ -895,9 +893,7 @@ public class BridgePhysicsManager : MonoBehaviour
         outPoints = new HashSet<Point>();
         outBars = new HashSet<Bar>();
 
-        BuildLocation activeLocation = GameManager.Instance != null
-            ? GameManager.Instance.ActiveBuildLocation
-            : null;
+        BuildLocation activeLocation = SimulationLocation;
 
         foreach (Point p in Point.AllPoints)
         {
@@ -953,8 +949,8 @@ public class BridgePhysicsManager : MonoBehaviour
 
     public void ActivatePhysics()
     {
-        if (MultiplayerChallengeLobbyUI.IsChallengeActive ||
-            (GameManager.Instance != null && GameManager.Instance.IsSessionChallengeBuild)) return;
+        if (!IsSessionChallengeTest && (MultiplayerChallengeLobbyUI.IsChallengeActive ||
+            (GameManager.Instance != null && GameManager.Instance.IsSessionChallengeBuild))) return;
         if (isSimulating || pendingSimulationStart) return;
         HadBrokenPartsThisRun = false;
         HasLiveLoadEngagedThisRun = false;
@@ -965,10 +961,10 @@ public class BridgePhysicsManager : MonoBehaviour
         // Build locations may contain endpoint ramps saved by older revisions.
         // Clear those legacy invisible colliders before releasing the bridge.
         BridgeAbutmentAligner activeAbutmentAligner = null;
-        if (GameManager.Instance != null && GameManager.Instance.ActiveBuildLocation != null)
+        if (SimulationLocation != null)
         {
             activeAbutmentAligner =
-                GameManager.Instance.ActiveBuildLocation.GetComponent<BridgeAbutmentAligner>();
+                SimulationLocation.GetComponent<BridgeAbutmentAligner>();
             if (activeAbutmentAligner != null &&
                 !activeAbutmentAligner.RefreshRuntimeApproaches(out string approachReport))
             {
@@ -1262,9 +1258,9 @@ public class BridgePhysicsManager : MonoBehaviour
 
         deterministicAnalysisPrepared = true;
 
-        ContractSO contract = GameManager.Instance != null ? GameManager.Instance.CurrentContract : null;
-        float liveLoadKg = LiveLoadVehicle.GetContractTestWeight(contract);
-        deterministicLiveLoadVehicle = LiveLoadVehicle.FindActiveForContract(contract);
+        ContractSO contract = SimulationContract;
+        float liveLoadKg = sessionTestVehicle != null ? sessionTestVehicle.TotalTestWeight : LiveLoadVehicle.GetContractTestWeight(contract);
+        deterministicLiveLoadVehicle = sessionTestVehicle != null ? sessionTestVehicle : LiveLoadVehicle.FindActiveForContract(contract);
         bool hasRoadSpan = TryResolveRoadSpan();
         deterministicStressResult = DeterministicBridgeStressSolver.Analyze(
             deterministicPoints,
@@ -1348,6 +1344,7 @@ public class BridgePhysicsManager : MonoBehaviour
 
     public bool BakeBridge(ContractSO contract = null)
     {
+        if (IsSessionChallengeTest) return false;
         if (MultiplayerChallengeLobbyUI.IsChallengeActive ||
             (GameManager.Instance != null && GameManager.Instance.IsSessionChallengeBuild) ||
             (contract != null && contract.ContractID.StartsWith(ChallengeBuildWorkspace.ContractPrefix, StringComparison.Ordinal))) return false;

@@ -11,7 +11,9 @@ public partial class GameManager
             if (!IsSessionChallengeBuild || connection == null || !connection.IsHostWorldSession || connection.IsNetworkSceneLoading) return false;
             FusionMultiplayerAvatar host = FusionMultiplayerAvatar.FindHost(connection.Runner);
             return host != null && host.ChallengeState.Phase == MultiplayerChallengePhase.Building &&
-                host.ChallengeState.Revision == ActiveBuildLocation.SessionChallengeRevision;
+                host.ChallengeState.Revision == ActiveBuildLocation.SessionChallengeRevision &&
+                !MultiplayerChallengeRules.HasSubmitted(host.ChallengeState, connection.Runner.LocalPlayer, host.Object.InputAuthority) &&
+                !(connection.Runner.GetComponent<FusionChallengeSubmissionSync>()?.LocalEditingLocked ?? false);
         }
     }
 

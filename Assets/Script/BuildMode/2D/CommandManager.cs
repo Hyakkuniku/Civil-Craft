@@ -122,6 +122,8 @@ public class CommandManager : MonoBehaviour
 
     public void Undo()
     {
+        if (GameManager.Instance != null && GameManager.Instance.IsSessionChallengeBuild &&
+            !GameManager.Instance.CanEditSessionChallengeBuild) return;
         BarCreator barCreator = FindObjectOfType<BarCreator>();
         if (barCreator != null && (barCreator.isSimulating || undoStack.Count == 0 || (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building))) return;
         
@@ -154,6 +156,8 @@ public class CommandManager : MonoBehaviour
 
     public void Redo()
     {
+        if (GameManager.Instance != null && GameManager.Instance.IsSessionChallengeBuild &&
+            !GameManager.Instance.CanEditSessionChallengeBuild) return;
         BarCreator barCreator = FindObjectOfType<BarCreator>();
         if (barCreator != null && (barCreator.isSimulating || redoStack.Count == 0 || (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building))) return;
         

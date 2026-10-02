@@ -112,6 +112,8 @@ public class ClipboardManager : MonoBehaviour
 
     public void CopySelected(List<Point> ignoredPointsParam)
     {
+        if (GameManager.Instance != null && GameManager.Instance.IsSessionChallengeBuild &&
+            !GameManager.Instance.CanEditSessionChallengeBuild) return;
         // Also protect against callers populating the public selection directly.
         barCreator.selectedPoints.RemoveAll(p => p == null || p.IsScenePlacedAnchor);
         if (barCreator.selectedPoints.Count == 0 && barCreator.selectedBars.Count == 0) return;
@@ -207,6 +209,8 @@ public class ClipboardManager : MonoBehaviour
     
     public void CutSelected(List<Point> ignoredPointsParam)
     {
+        if (GameManager.Instance != null && GameManager.Instance.IsSessionChallengeBuild &&
+            !GameManager.Instance.CanEditSessionChallengeBuild) return;
         barCreator.selectedPoints.RemoveAll(p => p == null || p.IsScenePlacedAnchor);
         if (barCreator.selectedPoints.Count == 0 && barCreator.selectedBars.Count == 0) return;
         
@@ -341,6 +345,8 @@ public class ClipboardManager : MonoBehaviour
 
     public void StampPaste()
     {
+        if (GameManager.Instance != null && GameManager.Instance.IsSessionChallengeBuild &&
+            !GameManager.Instance.CanEditSessionChallengeBuild) return;
         if (!isPasteMode) return;
 
         BuildTutorialDirector tutorialDirector = BuildTutorialDirector.Instance;
@@ -443,6 +449,8 @@ public class ClipboardManager : MonoBehaviour
 
     private void ExecutePaste()
     {
+        if (GameManager.Instance != null && GameManager.Instance.IsSessionChallengeBuild &&
+            !GameManager.Instance.CanEditSessionChallengeBuild) { CancelPasteMode(); return; }
         HistoryAction pasteAction = new HistoryAction { isBuildEvent = true };
         List<Point> newRealPoints = new List<Point>();
         bool placedAnyBar = false;

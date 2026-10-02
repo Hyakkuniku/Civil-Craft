@@ -23,6 +23,35 @@ public class LiveLoadVehicle : Interactable
 
     [Header("Open World Settings")]
     public ContractSO assignedContract; 
+    [NonSerialized] private float sessionTestWeight;
+    private PhysicMaterial sessionChassisMaterial;
+    public bool IsSessionChallengeTestVehicle => sessionTestWeight > 0f;
+    internal void ConfigureSessionChallengeTest(float weight)
+    {
+        if (float.IsNaN(weight) || float.IsInfinity(weight) || weight <= 0f)
+            throw new InvalidOperationException("Invalid challenge test vehicle weight.");
+        sessionTestWeight = weight;
+    }
+    internal void GetSessionTestStartPose(out Vector3 position, out Quaternion rotation)
+    {
+        if (rb == null) { position = transform.position; rotation = transform.rotation; return; }
+        position = authoredStartPosition; rotation = authoredStartRotation;
+        if (resetToStartPointBeforeSimulation && startPoint != null) GetWaypointPose(startPoint, out position, out rotation);
+    }
+    internal float GetSessionTestWeight()
+    {
+        // A saved-world truck may be hidden. Its payload must not become weightless
+        // merely because activeInHierarchy is false while preparing a replay.
+        float payload = 0f;
+        foreach (VehicleCargoSlot slot in GetComponentsInChildren<VehicleCargoSlot>(true))
+        {
+            CargoItem cargo = slot.LoadedCargo;
+            if (cargo == null && !AllowsCargo && slot.acceptedCargo != null && slot.acceptedCargo.transform.IsChildOf(slot.transform))
+                cargo = slot.acceptedCargo;
+            if (cargo != null && cargo.gameObject.activeSelf && cargo.transform.IsChildOf(transform)) payload += Mathf.Max(0f, cargo.cargoWeight);
+        }
+        return Mathf.Max(0.01f, (assignedContract != null ? assignedContract.liveLoadWeight : vehicleMass) + payload);
+    }
     private readonly List<VehicleCargoSlot> cargoSlots = new List<VehicleCargoSlot>();
     [Header("Smart Cargo Loading")]
     [Tooltip("Creates one comfortable truck-level loading interaction instead of requiring the player to reach each small slot.")]
@@ -33,7 +62,7 @@ public class LiveLoadVehicle : Interactable
     public bool UsesSmartCargoLoadingZone => smartCargoLoadingZone != null && smartCargoLoadingZone.isActiveAndEnabled;
     public bool AllowsCargo => assignedContract != null &&
         assignedContract.liveLoadMode == ContractSO.LiveLoadMode.Vehicle && assignedContract.allowVehicleCargo;
-    public bool CanChangeCargo => isActiveAndEnabled && !isRemoteMultiplayerRepresentation && AllowsCargo && !isDriving &&
+    public bool CanChangeCargo => !IsSessionChallengeTestVehicle && isActiveAndEnabled && !isRemoteMultiplayerRepresentation && AllowsCargo && !isDriving &&
         (physicsManager == null || !physicsManager.IsSimulationActive) &&
         (GameManager.Instance == null || GameManager.Instance.CurrentState == GameManager.GameState.Normal);
     public int LoadedCargoCount
@@ -72,7 +101,7 @@ public class LiveLoadVehicle : Interactable
             return total;
         }
     }
-    public float TotalTestWeight => Mathf.Max(0.01f,
+    public float TotalTestWeight => IsSessionChallengeTestVehicle ? sessionTestWeight : Mathf.Max(0.01f,
         (assignedContract != null ? assignedContract.liveLoadWeight : vehicleMass) + PayloadWeight);
     public void RegisterCargoSlot(VehicleCargoSlot slot)
     {
@@ -401,6 +430,7 @@ public class LiveLoadVehicle : Interactable
         // meshes, so a body corner cannot catch a flexing road seam.
         Collider chassisCol = null;
         PhysicMaterial slipMat = new PhysicMaterial("ChassisSlip");
+        if (IsSessionChallengeTestVehicle) sessionChassisMaterial = slipMat;
         slipMat.dynamicFriction = 0f;
         slipMat.staticFriction = 0f;
         slipMat.bounciness = 0f;
@@ -608,8 +638,11 @@ public class LiveLoadVehicle : Interactable
 
     private void Start()
     {
-        ReuseSceneInspectionPanelIfUnassigned();
-        CreateSmartCargoLoadingZone();
+        if (!IsSessionChallengeTestVehicle)
+        {
+            ReuseSceneInspectionPanelIfUnassigned();
+            CreateSmartCargoLoadingZone();
+        }
 
         if (physicsManager != null)
         {
@@ -620,7 +653,7 @@ public class LiveLoadVehicle : Interactable
 
         // PlayerDataManager loads persistent data in Awake, before any Start call,
         // so completed live loads can be hidden before the first rendered frame.
-        if (!visibleForBuildReplay && HasSavedBridgeForAssignedContract())
+        if (!IsSessionChallengeTestVehicle && !visibleForBuildReplay && HasSavedBridgeForAssignedContract())
         {
             HideForSavedBridge();
         }
@@ -708,6 +741,11 @@ public class LiveLoadVehicle : Interactable
 
     private void OnDestroy()
     {
+        if (IsSessionChallengeTestVehicle)
+        {
+            if (sessionChassisMaterial != null) Destroy(sessionChassisMaterial);
+            if (wheelMat != null) Destroy(wheelMat);
+        }
         DisposeBuildModeInspectionOutline();
         if (activeInspectionVehicle == this)
             activeInspectionVehicle = null;
@@ -1120,6 +1158,8 @@ public class LiveLoadVehicle : Interactable
 
     private bool CanParticipateInCurrentSimulation()
     {
+        if (physicsManager != null && physicsManager.IsSessionChallengeTest)
+            return physicsManager.SessionTestVehicle == this && IsSessionChallengeTestVehicle;
         ContractSO currentContract = GameManager.Instance != null
             ? GameManager.Instance.CurrentContract
             : null;
@@ -1142,6 +1182,7 @@ public class LiveLoadVehicle : Interactable
 
     protected override void Intract()
     {
+        if (IsSessionChallengeTestVehicle) return;
         LessonTrigger lessonTrigger = GetComponent<LessonTrigger>();
         if (lessonTrigger != null && lessonTrigger.ReplaceExistingInteraction &&
             lessonTrigger.TryShowLesson())

@@ -1384,6 +1384,11 @@ public class BuildUIController : MonoBehaviour
         float baseCost = GetTotalCost();
         float previewCost = 0f;
         if (barCreator != null && barCreator.IsCreating && barCreator.currentBar != null) previewCost = barCreator.currentBar.GetCost();
+        if (TryGetChallengeTestState(out var testState))
+        {
+            baseCost = MultiplayerChallengeRules.TestsHostBridge(testState) ? testState.HostSubmittedCost : testState.GuestSubmittedCost;
+            previewCost = 0f;
+        }
         
         int totalProjectedCost = Mathf.RoundToInt(baseCost + previewCost);
 
@@ -1510,12 +1515,13 @@ public class BuildUIController : MonoBehaviour
 
     private void UpdateStressUI()
     {
-        if (physicsManager != null && physicsManager.isSimulating)
+        bool sessionTest = TryGetChallengeTestState(out var testState);
+        if (sessionTest || physicsManager != null && physicsManager.isSimulating)
         {
             // The in-test visualizer follows the current smoothed load so players
             // can see stress rise and fall as the vehicle crosses the bridge. The
             // manager still records the run peak separately for result scoring.
-            float currentStress = physicsManager.GetMaxBridgeStress();
+            float currentStress = sessionTest ? testState.TestStress : physicsManager.GetMaxBridgeStress();
             float previousFill = Mathf.Max(0f, lastStressFillAmount);
             float displayedStress = Mathf.MoveTowards(previousFill, currentStress,
                 Mathf.Max(0.1f, stressFillAnimationSpeed) * Time.unscaledDeltaTime);
@@ -1587,6 +1593,17 @@ public class BuildUIController : MonoBehaviour
     public void SetSelectionPanelActive(bool isActive)
     {
         if (selectionActionPanel != null) selectionActionPanel.SetActive(isActive);
+    }
+
+    private static bool TryGetChallengeTestState(out MultiplayerChallengeState state)
+    {
+        state = default;
+        if (GameManager.Instance == null || !GameManager.Instance.IsSessionChallengeBuild) return false;
+        var connection = FusionConnectionManager.Instance;
+        if (connection == null || !connection.IsHostWorldSession) return false;
+        var host = FusionMultiplayerAvatar.FindHost(connection.Runner);
+        if (host == null || !MultiplayerChallengeRules.IsTestPhase(host.ChallengeState.Phase)) return false;
+        state = host.ChallengeState; return true;
     }
 
     public void OnCloseSelectionPanelButtonClicked()

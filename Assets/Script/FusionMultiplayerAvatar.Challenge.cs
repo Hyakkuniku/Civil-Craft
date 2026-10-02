@@ -175,7 +175,7 @@ public sealed partial class FusionMultiplayerAvatar
         FusionMultiplayerAvatar host = FindHost(Runner);
         if (host == null || !host.HasStateAuthority || host.ChallengeState.Revision != revision || !host.IsChallengeBusy) return;
         if (Object.InputAuthority == host.Object.InputAuthority || Object.InputAuthority == host.ChallengeState.Guest)
-            host.EndChallenge(MultiplayerChallengeResult.Cancelled);
+            host.EndChallenge(host.ChallengeState.Phase == MultiplayerChallengePhase.TestResults ? MultiplayerChallengeResult.None : MultiplayerChallengeResult.Cancelled);
     }
 
     private void UpdateChallengeAuthority()
@@ -213,7 +213,8 @@ public sealed partial class FusionMultiplayerAvatar
         else if (ChallengeState.Phase == MultiplayerChallengePhase.Lobby ||
                  ChallengeState.Phase == MultiplayerChallengePhase.Countdown ||
                  ChallengeState.Phase == MultiplayerChallengePhase.ReadyToBuild ||
-                 ChallengeState.Phase == MultiplayerChallengePhase.Building)
+                 ChallengeState.Phase == MultiplayerChallengePhase.Building ||
+                 ChallengeState.Phase == MultiplayerChallengePhase.SubmissionsReady || MultiplayerChallengeRules.IsTestPhase(ChallengeState.Phase))
         {
             if (!AreChallengeParticipantsAtSite())
             { EndChallenge(MultiplayerChallengeResult.Cancelled); return; }
@@ -238,6 +239,20 @@ public sealed partial class FusionMultiplayerAvatar
         return IsChallengeParticipantAtSite(Object.InputAuthority) && IsChallengeParticipantAtSite(ChallengeState.Guest);
     }
 
+    // Called only by the host's reliable-data receiver after validating the complete graph.
+    public bool TryAcceptValidatedChallengeBridge(PlayerRef player, int revision, float cost, int bars)
+    {
+        if (Object == null || !Object.IsValid || !IsSessionHost || !HasStateAuthority || Runner == null || !Runner.IsServer ||
+            !AreChallengeParticipantsAtSite()) return false;
+        FusionConnectionManager connection = FusionConnectionManager.Instance;
+        if (connection == null || connection.Runner != Runner || !connection.IsHostWorldSession || connection.IsNetworkSceneLoading)
+            return false;
+        MultiplayerChallengeState state = ChallengeState;
+        if (!MultiplayerChallengeRules.TryAcceptSubmission(ref state, player, Object.InputAuthority, revision, cost, bars)) return false;
+        ChallengeState = state;
+        return true;
+    }
+
     private bool IsChallengeParticipantAtSite(PlayerRef player)
     {
         if (!Runner.TryGetPlayerObject(player, out NetworkObject obj) || obj == null || !obj.IsValid) return false;
@@ -253,6 +268,14 @@ public sealed partial class FusionMultiplayerAvatar
         state.HostArrived = state.GuestArrived = false;
         state.HostReady = state.GuestReady = false;
         state.HostBuilding = state.GuestBuilding = false;
+        state.HostSubmitted = state.GuestSubmitted = false;
+        state.HostSubmittedCost = state.GuestSubmittedCost = 0f;
+        state.HostSubmittedBars = state.GuestSubmittedBars = 0;
+        state.HostSubmissionOrder = state.GuestSubmissionOrder = state.TestIndex = 0;
+        state.GuestTestViewReady = false;
+        state.TestElapsed = state.TestStress = 0f;
+        state.HostTestOutcome = state.GuestTestOutcome = ChallengeTestOutcome.None;
+        state.HostCrossingSeconds = state.GuestCrossingSeconds = state.HostPeakStress = state.GuestPeakStress = 0f;
         state.Deadline = default;
         ChallengeState = state;
     }

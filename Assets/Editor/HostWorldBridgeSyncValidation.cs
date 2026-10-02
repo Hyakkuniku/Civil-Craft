@@ -19,19 +19,27 @@ public static class HostWorldBridgeSyncValidation
 {
     private const string RequestPath = "Temp/host-world-bridge-validation.request";
     private const string ReportPath = "Temp/HostWorldBridgeSyncValidation.txt";
+    private static double nextRequestedCheck;
     private delegate void ReceiveBridgePacket(PlayerRef connectionPlayer, int id, int revision, ReadOnlySpan<byte> data);
 
     [InitializeOnLoadMethod]
     private static void RunRequestedCheck()
     {
-        EditorApplication.delayCall += () =>
+        EditorApplication.delayCall += CheckRequestedValidation;
+        EditorApplication.update -= CheckRequestedValidation;
+        EditorApplication.update += CheckRequestedValidation;
+    }
+
+    private static void CheckRequestedValidation()
+    {
+        if (EditorApplication.timeSinceStartup < nextRequestedCheck) return;
+        nextRequestedCheck = EditorApplication.timeSinceStartup + 2;
+        if (!EditorApplication.isCompiling && !EditorApplication.isUpdating &&
+            !EditorApplication.isPlayingOrWillChangePlaymode && File.Exists(RequestPath))
         {
-            if (!EditorApplication.isPlayingOrWillChangePlaymode && File.Exists(RequestPath))
-            {
-                File.Delete(RequestPath);
-                Validate();
-            }
-        };
+            File.Delete(RequestPath);
+            Validate();
+        }
     }
 
     [MenuItem("Civil Craft/Multiplayer/Validate Host World Bridge Sync")]
@@ -98,6 +106,8 @@ public static class HostWorldBridgeSyncValidation
             ValidateChallengeReadiness(report);
             ValidateChallengeBuildPolicy(report);
             ValidateChallengeWorkspace(fixture.transform, report);
+            ChallengeSubmissionValidation.Run(fixture.transform, report);
+            ChallengeTestValidation.Run(fixture.transform, report);
             ValidateChallengeLanding(fixture.transform, report);
 
             HostWorldBridgeSnapshot captured = FusionHostWorldBridgeSync.CaptureLocation(site);

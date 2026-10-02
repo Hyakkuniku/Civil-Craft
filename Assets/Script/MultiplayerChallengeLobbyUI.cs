@@ -23,6 +23,11 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
     [SerializeField] private TMP_Text guestName;
     [SerializeField] private Button readyButton;
     [SerializeField] private TMP_Text readyButtonLabel;
+    [Header("Authored challenge build controls")]
+    [SerializeField] private Button submitBridgeButton;
+    [SerializeField] private TMP_Text submitBridgeLabel;
+    [SerializeField] private TMP_Text submissionStatusText;
+    [SerializeField] private GameObject submissionStatusPanel;
     [Header("Authored portrait stage")]
     [SerializeField] private Camera portraitCamera;
     [SerializeField] private RawImage portraitImage;
@@ -52,6 +57,9 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
     private ChallengeBuildWorkspace buildWorkspace;
     private int buildRevision = int.MinValue;
     private bool? lastBuildEditingEnabled;
+    internal ChallengeBuildWorkspace LocalBuildWorkspace => buildWorkspace;
+    private Vector2 submissionCardSize, submissionCardPosition;
+    private int testCameraRevision = int.MinValue;
 
     public static void RequestCancelActiveChallenge()
     {
@@ -76,10 +84,14 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
 
     private void Awake()
     {
+        if (submissionStatusPanel != null && submissionStatusPanel.transform is RectTransform card)
+        { submissionCardSize = card.sizeDelta; submissionCardPosition = card.anchoredPosition; }
         if (challengePanel != null) challengePanel.SetActive(false);
         if (lobbyPanel != null) lobbyPanel.SetActive(false);
         if (challengeOfferButton != null) challengeOfferButton.gameObject.SetActive(false);
         if (readyButton != null) readyButton.interactable = false;
+        if (submitBridgeButton != null) { submitBridgeButton.interactable = false; submitBridgeButton.gameObject.SetActive(false); }
+        if (submissionStatusPanel != null) submissionStatusPanel.SetActive(false);
         if (portraitCamera != null) portraitCamera.enabled = false;
     }
 
@@ -128,6 +140,16 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
         }
     }
 
+    public void SubmitBridge()
+    {
+        if (host != null && host.ChallengeState.Phase == MultiplayerChallengePhase.TestResults)
+        { CancelOrClose(); return; }
+        if (buildWorkspace == null || boundRunner == null || GameManager.Instance == null ||
+            !GameManager.Instance.CanEditSessionChallengeBuild) return;
+        boundRunner.GetComponent<FusionChallengeSubmissionSync>()?.SubmitLocalBridge(buildWorkspace);
+        RefreshSubmissionControls(host.ChallengeState);
+    }
+
     private void Update()
     {
         FusionConnectionManager connection = FusionConnectionManager.Instance;
@@ -163,7 +185,8 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
                 ShowPanel(challengePanel);
                 SetInvitationControls(false, false, true);
                 challengeTitle.text = "CHALLENGE ENDED";
-                challengeMessage.text = ResultMessage(state.Result);
+                challengeMessage.text = state.Result == MultiplayerChallengeResult.TestSetupFailed
+                    ? state.TestSetupMessage.ToString() + "\nYour saved bridges are unchanged." : ResultMessage(state.Result);
             }
             else CloseView();
             return;
@@ -208,7 +231,8 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
             }
             return;
         }
-        if (state.Phase == MultiplayerChallengePhase.ReadyToBuild || state.Phase == MultiplayerChallengePhase.Building)
+        if (state.Phase == MultiplayerChallengePhase.ReadyToBuild || state.Phase == MultiplayerChallengePhase.Building ||
+            state.Phase == MultiplayerChallengePhase.SubmissionsReady || MultiplayerChallengeRules.IsTestPhase(state.Phase))
         {
             readyRequestPending = false;
             UpdateChallengeBuilding(state, site);
@@ -270,6 +294,11 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
             local.ReportChallengeBuildPrepared(state.Revision, prepared);
         }
         if (buildWorkspace == null) return;
+        if (MultiplayerChallengeRules.IsTestPhase(state.Phase) && testCameraRevision != state.Revision)
+        {
+            testCameraRevision = state.Revision;
+            FindObjectOfType<BuildCameraController>(true)?.GoToSimulationView();
+        }
         bool editing = state.Phase == MultiplayerChallengePhase.Building && GameManager.Instance != null &&
             GameManager.Instance.CanEditSessionChallengeBuild;
         if (lastBuildEditingEnabled != editing)
@@ -278,6 +307,59 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
             buildWorkspace.SetEditingEnabled(editing);
             BuildUIController.Instance?.ShowSessionBuildStatus(!editing);
         }
+        RefreshSubmissionControls(state);
+    }
+
+    private void RefreshSubmissionControls(MultiplayerChallengeState state)
+    {
+        if (submitBridgeButton == null || boundRunner == null || host == null) return;
+        FusionChallengeSubmissionSync transfer = boundRunner.GetComponent<FusionChallengeSubmissionSync>();
+        bool submitted = MultiplayerChallengeRules.HasSubmitted(state, boundRunner.LocalPlayer, host.Object.InputAuthority) ||
+            (transfer != null && transfer.IsLocallyAccepted);
+        bool ready = state.Phase == MultiplayerChallengePhase.SubmissionsReady;
+        bool testing = MultiplayerChallengeRules.IsTestPhase(state.Phase);
+        bool results = state.Phase == MultiplayerChallengePhase.TestResults;
+        bool sending = transfer != null && transfer.IsSending;
+        submitBridgeButton.gameObject.SetActive(buildWorkspace != null);
+        if (submissionStatusPanel != null) submissionStatusPanel.SetActive(buildWorkspace != null);
+        submitBridgeButton.interactable = buildWorkspace != null && GameManager.Instance != null &&
+            (results || GameManager.Instance.CanEditSessionChallengeBuild && transfer != null);
+        if (submitBridgeLabel != null) submitBridgeLabel.text = results ? "RETURN TO WORLD" : testing ? $"TEST {state.TestIndex} / 2" : ready ? "BOTH SUBMITTED" : submitted ? "SUBMITTED" :
+            sending ? "SUBMITTING..." : "SUBMIT BRIDGE";
+        if (submissionStatusText != null)
+        {
+            string status = ready ? "BOTH BRIDGES VALIDATED\nPreparing tests in submission order..."
+                : submitted ? "YOUR BRIDGE IS LOCKED\nWaiting for your opponent to submit."
+                : state.Phase == MultiplayerChallengePhase.ReadyToBuild ? "Waiting for both build views..."
+                : !string.IsNullOrEmpty(transfer?.LocalMessage) ? transfer.LocalMessage
+                : "Build your bridge, then Submit. Accepted designs cannot be edited.";
+            string players = $"{host.MapPlayerName}: {(state.HostSubmitted ? "SUBMITTED" : "BUILDING")}   |   " +
+                $"{GetAvatar(state.Guest)?.MapPlayerName ?? "Guest"}: {(state.GuestSubmitted ? "SUBMITTED" : "BUILDING")}";
+            submissionStatusText.text = status + "\n" + players;
+            if (testing)
+            {
+                string hostPlayer = host.MapPlayerName;
+                string guestPlayer = GetAvatar(state.Guest)?.MapPlayerName ?? "Guest";
+                string testedPlayer = MultiplayerChallengeRules.TestsHostBridge(state) ? hostPlayer : guestPlayer;
+                ChallengeTestOutcome outcome = MultiplayerChallengeRules.TestsHostBridge(state) ? state.HostTestOutcome : state.GuestTestOutcome;
+                submissionStatusText.text = results
+                    ? "BOTH BRIDGES TESTED — SESSION ONLY\n" +
+                      TestSummary(hostPlayer, state.HostTestOutcome, state.HostSubmittedCost, state.HostPeakStress, state.HostCrossingSeconds) + "\n" +
+                      TestSummary(guestPlayer, state.GuestTestOutcome, state.GuestSubmittedCost, state.GuestPeakStress, state.GuestCrossingSeconds)
+                    : state.Phase == MultiplayerChallengePhase.PreparingTest
+                        ? $"PREPARING TEST {state.TestIndex} / 2 — {testedPlayer}\nWaiting for both test views. First submission is tested first."
+                        : $"TEST {state.TestIndex} / 2 — {testedPlayer}\n" +
+                          (outcome == ChallengeTestOutcome.None ? $"{state.TestElapsed:0.0}s   |   Stress {state.TestStress * 100f:0.0}%"
+                              : TestOutcomeLabel(outcome) + " — showing the completed test to both players...");
+            }
+        }
+        if (submissionStatusPanel != null && submissionStatusPanel.transform is RectTransform card)
+        {
+            card.sizeDelta = testing ? new Vector2(submissionCardSize.x, results ? 172f : 100f) : submissionCardSize;
+            card.anchoredPosition = testing ? new Vector2(submissionCardPosition.x, -180f) : submissionCardPosition;
+        }
+        // Replace the challenge's small timer status with the larger authored submission card.
+        BuildUIController.Instance?.ShowTimer(false);
     }
 
     private void ClosePanelForBuild()
@@ -484,10 +566,20 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
 
     private void RestoreWorld()
     {
+        if (submitBridgeButton != null) { submitBridgeButton.interactable = false; submitBridgeButton.gameObject.SetActive(false); }
+        if (submissionStatusPanel != null) submissionStatusPanel.SetActive(false);
+        if (buildWorkspace != null && boundRunner != null)
+        {
+            var tests = boundRunner.GetComponent<FusionChallengeTestSync>();
+            if (tests != null) tests.Clear(); // Restore/dispose tests before restoring the saved-world visibility.
+            var submission = boundRunner.GetComponent<FusionChallengeSubmissionSync>();
+            if (submission != null) submission.Clear();
+        }
         GameManager.Instance?.ExitSessionChallengeBuild();
         buildWorkspace?.Dispose();
         buildWorkspace = null;
         lastBuildEditingEnabled = null;
+        testCameraRevision = int.MinValue;
         isolation.Dispose();
         bridgeSync?.SetChallengeSiteVisibility(null);
         bridgeSync = null;
@@ -534,6 +626,21 @@ public sealed class MultiplayerChallengeLobbyUI : MonoBehaviour
             case MultiplayerChallengeResult.PlayerLeft: return "The other player left the session.";
             case MultiplayerChallengeResult.BuildSetupFailed: return "Both build views could not be prepared. Your saved bridges are unchanged.";
             default: return "The challenge was cancelled. Your saved bridges are unchanged.";
+        }
+    }
+
+    private static string TestSummary(string name, ChallengeTestOutcome outcome, float cost, float peak, float seconds) =>
+        $"{name}: {TestOutcomeLabel(outcome)}  |  Cost ₱{cost:N0}\nPeak stress {peak * 100f:0.0}%  |  {(outcome == ChallengeTestOutcome.Crossed ? "Crossing" : "Test duration")} {seconds:0.0}s";
+    private static string TestOutcomeLabel(ChallengeTestOutcome outcome)
+    {
+        switch (outcome)
+        {
+            case ChallengeTestOutcome.Crossed: return "SUCCESSFUL CROSSING";
+            case ChallengeTestOutcome.Collapsed: return "BRIDGE COLLAPSED";
+            case ChallengeTestOutcome.Fell: return "VEHICLE FELL";
+            case ChallengeTestOutcome.Stalled: return "VEHICLE STALLED";
+            case ChallengeTestOutcome.TimeLimit: return "TEST TIME LIMIT";
+            default: return "TESTING";
         }
     }
 

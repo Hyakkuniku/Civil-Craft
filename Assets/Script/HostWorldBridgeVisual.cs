@@ -128,7 +128,7 @@ public sealed class HostWorldBridgeVisual : IDisposable
     }
     private static float DivideScale(float value, float parent) => Mathf.Abs(parent) > 0.00001f ? value / parent : value;
 
-    private static GameObject CopyMeshes(GameObject source, Transform parent)
+    internal static GameObject CopyMeshes(GameObject source, Transform parent, Dictionary<Transform, Transform> map = null)
     {
         // Do not Instantiate the original gameplay prefab: even disabling its
         // scripts afterward allows their Awake/OnEnable callbacks to run.
@@ -138,6 +138,7 @@ public sealed class HostWorldBridgeVisual : IDisposable
         copy.transform.localPosition = source.transform.localPosition;
         copy.transform.localRotation = source.transform.localRotation;
         copy.transform.localScale = source.transform.localScale;
+        if (map != null) map.Add(source.transform, copy.transform);
         MeshFilter sourceFilter = source.GetComponent<MeshFilter>();
         MeshRenderer sourceRenderer = source.GetComponent<MeshRenderer>();
         if (sourceFilter != null && sourceRenderer != null)
@@ -149,7 +150,7 @@ public sealed class HostWorldBridgeVisual : IDisposable
             renderer.receiveShadows = sourceRenderer.receiveShadows;
             renderer.enabled = sourceRenderer.enabled;
         }
-        foreach (Transform child in source.transform) CopyMeshes(child.gameObject, copy.transform);
+        foreach (Transform child in source.transform) CopyMeshes(child.gameObject, copy.transform, map);
         copy.SetActive(source.activeSelf);
         return copy;
     }
