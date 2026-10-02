@@ -36,6 +36,7 @@ public static class ChallengeTestValidation
         {
             ValidateGuestPreparationOrdering(report);
             ValidateChunkTransfer(report);
+            ValidateRpcSendResult(report);
             ValidatePolicies(report);
             if (!EditorApplication.isPlayingOrWillChangePlaymode) ValidateReliableRouting(report);
             // The packet/state checks operate on value copies only and are safe
@@ -53,7 +54,27 @@ public static class ChallengeTestValidation
         }
     }
     public static void Run(Transform fixture, StringBuilder report)
-    { ValidatePolicies(report); ValidateGuestPreparationOrdering(report); ValidateChunkTransfer(report); ValidateReliableRouting(report); ValidateIsolatedRunAndView(fixture, report); ValidateResultsTextFit(fixture, report); }
+    { ValidatePolicies(report); ValidateGuestPreparationOrdering(report); ValidateChunkTransfer(report); ValidateRpcSendResult(report); ValidateReliableRouting(report); ValidateIsolatedRunAndView(fixture, report); ValidateResultsTextFit(fixture, report); }
+
+    public static void ValidateRpcSendResult(StringBuilder report)
+    {
+        MethodInfo method = typeof(FusionMultiplayerAvatar).GetMethod("ChallengeTestRpcWasSent", BindingFlags.Static | BindingFlags.NonPublic);
+        Func<RpcSendMessageResult, bool> sent = value => (bool)method.Invoke(null, new object[] { value });
+        Check((int)RpcSendMessageResult.Sent == 0 && sent(RpcSendMessageResult.Sent),
+            "Fusion's successful zero-valued Sent result aborts the test transfer.");
+        int successes = 0, failures = 0;
+        foreach (RpcSendMessageResult value in Enum.GetValues(typeof(RpcSendMessageResult)))
+        {
+            string name = value.ToString();
+            if (name.StartsWith("Mask", StringComparison.Ordinal)) continue;
+            if (value == RpcSendMessageResult.Sent || (name.StartsWith("Sent", StringComparison.Ordinal)))
+            { Check(sent(value), "Successful Fusion send rejected: " + name); successes++; }
+            else
+            { Check(!sent(value), "Failed Fusion send accepted: " + name); failures++; }
+        }
+        Check(!sent(RpcSendMessageResult.MaskSent | RpcSendMessageResult.MaskNotSent), "Conflicting failure flags accepted.");
+        report.AppendLine($"PASS: Installed Fusion RPC send results: zero-valued Sent and {successes} successful enum entries accepted; {failures} failure entries and conflicting failure flags rejected. Successful sends no longer cancel the challenge; readiness still requires actual guest receipt.");
+    }
 
     public static void ValidateChunkTransfer(StringBuilder report)
     {

@@ -74,9 +74,14 @@ public sealed partial class FusionMultiplayerAvatar
         if (!CanRunChallengeTests || guest != ChallengeState.Guest)
             throw new System.InvalidOperationException("The host no longer has authority to send this test view.");
         var result = RPC_ChallengeTestPacket(guest, revision, index, kind, total, offset, chunk);
-        if ((result.SendMessageResult & RpcSendMessageResult.MaskSent) == 0)
+        if (!ChallengeTestRpcWasSent(result.SendMessageResult))
             throw new System.InvalidOperationException("Test view RPC was not sent: " + result.SendMessageResult);
     }
+    // Installed Fusion returns Sent=0 for a successful RPC. MaskSent only
+    // covers the legacy routed results; zero is NOT a failed send.
+    internal static bool ChallengeTestRpcWasSent(RpcSendMessageResult result) =>
+        result == RpcSendMessageResult.Sent ||
+        ((result & RpcSendMessageResult.MaskSent) != 0 && (result & RpcSendMessageResult.MaskNotSent) == 0);
     [Rpc(RpcSources.StateAuthority, RpcTargets.Proxies, Channel = RpcChannel.Reliable, TickAligned = false, InvokeLocal = false)]
     private RpcInvokeInfo RPC_ChallengeTestPacket([RpcTarget] PlayerRef guest, int revision, int index, int kind, int total, int offset, byte[] chunk)
     {
