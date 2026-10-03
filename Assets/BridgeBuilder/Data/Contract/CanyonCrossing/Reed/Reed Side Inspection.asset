@@ -19,6 +19,7 @@ MonoBehaviour:
   cargoUnlockAfterDialoguePhaseIndex: -1
   cargoLoadedNPCPhaseId: 
   contractID: ReedSideInspection
+  hideFromLeaderboard: 0
   efficiencyStarBudgetRatio: 0.85
   strengthStarMaxStress: 60
   contractMap: 0
@@ -41,6 +42,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 4524a3fc876c6b640a735e6808fe1271, type: 2}
   - {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
   - {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
+  - {fileID: 11400000, guid: 9377a255283b8cc499761c693baf53dd, type: 2}
   enforceMaxStress: 0
   maxAllowedStress: 100
   isTimeAttack: 0

@@ -18,7 +18,7 @@ MonoBehaviour:
   cargoUnlockProgressionId: 
   cargoUnlockAfterDialoguePhaseIndex: -1
   cargoLoadedNPCPhaseId: 
-  contractID: 
+  contractID: MarshID
   hideFromLeaderboard: 0
   efficiencyStarBudgetRatio: 0.85
   strengthStarMaxStress: 60
@@ -28,14 +28,22 @@ MonoBehaviour:
   isTutorialContract: 0
   autoCollectReward: 0
   featureUnlockRewards: []
-  clientName: Mayor
+  clientName: Marsh
   jobDescription: We need a bridge across this ravine!
-  budget: 2000
-  liveLoadWeight: 50
-  bridgeSpan: 30
-  allowedMaterials: []
+  budget: 325000
+  liveLoadWeight: 3000
+  bridgeSpan: 80
+  allowedMaterials:
+  - material: {fileID: 11400000, guid: 57a46c6632dd61b4094902963cf1c5be, type: 2}
+    maxPieces: 0
+  - material: {fileID: 11400000, guid: 9377a255283b8cc499761c693baf53dd, type: 2}
+    maxPieces: 0
   hiddenTools: 
-  hiddenMaterials: []
+  hiddenMaterials:
+  - {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
+  - {fileID: 11400000, guid: 4524a3fc876c6b640a735e6808fe1271, type: 2}
+  - {fileID: 11400000, guid: b98aa9ba752ac28449feebc76f256bf2, type: 2}
+  - {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
   enforceMaxStress: 0
   maxAllowedStress: 100
   isTimeAttack: 0
@@ -45,14 +53,39 @@ MonoBehaviour:
   goldReward: 500
   expReward: 100
   offerDialogue:
-    name: 
-    sentences: []
+    name: Marsh
+    sentences:
+    - "There\u2019s a residential district on the other side of the waterway. "
+    - The people can already reach <b><#E09500>Central Riverside</color></b>, but
+      they have to pass through another district first.
+    - That makes the trip longer than it needs to be.
+    - A crossing here would give them a much more direct connection.
+    - "But there\u2019s one more thing to consider. "
+    - <b><#E09500>Boats also pass through this waterway</color></b>.
+    - <b><#E09500>So whatever you build has to leave enough room for them to pass
+      underneath. </color></b>.
+    - "This project uses a different kind of bridge from the ones you\u2019ve built
+      before."
+    - <b><#E09500>It needs to work for both the road above and the waterway below</color></b>.
+    - During the test, make sure the vehicle can cross safely and the boat can still
+      pass underneath.
+    - <b><#E09500>Take a close look at the shape of the new bridge components and
+      the space you leave below the roadway</color></b>.
+    - "If you\u2019re ready, I can give you the contract"
   continueOfferDialogue:
-    name: 
+    name: Marsh
     sentences: []
   reminderDialogue:
-    name: 
-    sentences: []
+    name: Marsh
+    sentences:
+    - 'This crossing should make the other area easier to reach. '
+    - "<b><#E09500>Pay attention to the bridge\u2019s shape and supports while you
+      build</color></b>."
   finishedContractDialogue:
-    name: 
-    sentences: []
+    name: Marsh
+    sentences:
+    - That should make things a lot easier around here.
+    - The residents now have a much more direct way to the main road.
+    - "That\u2019s a good start for your first project here, {PlayerName}."
+    - "I\u2019m sure you\u2019ll probably come across more projects as you explore
+      Town River. \r\n"

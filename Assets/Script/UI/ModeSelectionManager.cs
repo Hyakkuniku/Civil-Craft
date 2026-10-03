@@ -79,6 +79,54 @@ public class ModeSelectionManager : MonoBehaviour
     private bool preserveClientForSceneTransition;
     private string activeHostRoomCode;
     private bool? displayedHostGuestJoined;
+    private PlayerDataManager unlockData;
+
+    private void OnEnable() { BindUnlockData(); }
+    private void OnDisable() { UnbindUnlockData(); }
+
+    private void BindUnlockData()
+    {
+        UnbindUnlockData();
+        unlockData = PlayerDataManager.Instance;
+        if (unlockData != null) unlockData.OnFeatureUnlocksChanged += RefreshMultiplayerUnlock;
+        RefreshMultiplayerUnlock();
+    }
+
+    private void UnbindUnlockData()
+    {
+        if (unlockData != null) unlockData.OnFeatureUnlocksChanged -= RefreshMultiplayerUnlock;
+        unlockData = null;
+    }
+
+    private static bool IsMultiplayerMode(ModeData mode) => mode != null &&
+        !string.IsNullOrEmpty(mode.modeName) && mode.modeName.IndexOf("multi", StringComparison.OrdinalIgnoreCase) >= 0;
+
+    private void RefreshMultiplayerUnlock()
+    {
+        bool unlocked = MultiplayerProgressionGate.IsUnlocked;
+        if (modes == null) return;
+        for (int i = 0; i < modes.Length; i++)
+        {
+            ModeData mode = modes[i];
+            if (!IsMultiplayerMode(mode) || mode.uiButton == null) continue;
+            mode.uiButton.SetActive(unlocked && i == currentIndex);
+            Button button = mode.uiButton.GetComponent<Button>();
+            if (button != null) button.interactable = unlocked;
+        }
+        if (currentIndex < 0 || currentIndex >= modes.Length || !IsMultiplayerMode(modes[currentIndex])) return;
+        if (modeKicker != null) modeKicker.text = unlocked ? "PLAY TOGETHER" : "LOCKED";
+        if (modeHint != null) modeHint.text = unlocked
+            ? "Want to host? Start Story, then turn on Multiplayer in your world."
+            : MultiplayerProgressionGate.LockedMessage;
+    }
+
+    private bool RequireMultiplayerUnlock()
+    {
+        if (MultiplayerProgressionGate.IsUnlocked) return true;
+        RefreshMultiplayerUnlock();
+        if (multiplayerPromptText != null) multiplayerPromptText.text = MultiplayerProgressionGate.LockedMessage;
+        return false;
+    }
 
     void Start()
     {
@@ -126,6 +174,7 @@ public class ModeSelectionManager : MonoBehaviour
 
     private void Update()
     {
+        if (unlockData != PlayerDataManager.Instance) BindUnlockData();
         if (hostCodeReady && multiplayerEntryPanel != null &&
             multiplayerEntryPanel.activeInHierarchy)
             RefreshHostGuestStatus();
@@ -133,6 +182,7 @@ public class ModeSelectionManager : MonoBehaviour
 
     private void OnDestroy()
     {
+        UnbindUnlockData();
         if (roomCodeInput != null)
             roomCodeInput.onSubmit.RemoveListener(HandleRoomCodeSubmitted);
 
@@ -200,6 +250,7 @@ public class ModeSelectionManager : MonoBehaviour
     /// <summary>Opens the authored join-code panel in the Mode Selection scene.</summary>
     public void OpenMultiplayerPanel()
     {
+        if (!RequireMultiplayerUnlock()) return;
         if (multiplayerEntryPanel == null || multiplayerEntryGroup == null)
         {
             Debug.LogError("Assign the authored Multiplayer Entry Panel and its CanvasGroup.", this);
@@ -256,6 +307,7 @@ public class ModeSelectionManager : MonoBehaviour
 
     public async void HostMultiplayer()
     {
+        if (!RequireMultiplayerUnlock()) return;
         // Prevent an old serialized button/event from starting a menu-hosted
         // world. In-world hosting uses WorldMultiplayerPanelUI independently.
         if (joinOnly) { OpenMultiplayerPanel(); return; }
@@ -368,6 +420,7 @@ public class ModeSelectionManager : MonoBehaviour
 
     public async void JoinMultiplayer()
     {
+        if (!RequireMultiplayerUnlock()) return;
         if (joinStartInProgress) return;
 
         if (!joinCodeEntryReady)
@@ -697,7 +750,9 @@ public class ModeSelectionManager : MonoBehaviour
         // Update individual mode buttons
         for (int i = 0; i < modes.Length; i++)
         {
-            if (modes[i].uiButton != null) modes[i].uiButton.SetActive(i == currentIndex);
+            if (modes[i].uiButton != null)
+                modes[i].uiButton.SetActive(i == currentIndex &&
+                    (!IsMultiplayerMode(modes[i]) || MultiplayerProgressionGate.IsUnlocked));
         }
 
         // Hide/Show Next and Previous buttons based on the current index limits
@@ -710,6 +765,7 @@ public class ModeSelectionManager : MonoBehaviour
         if (modeHint != null) modeHint.text = multiplayer
             ? "Want to host? Start Story, then turn on Multiplayer in your world."
             : "Your world. Your bridges. Your progress.";
+        RefreshMultiplayerUnlock();
         if (modeDescription != null)
         {
             modeDescription.text = !string.IsNullOrWhiteSpace(mode.description) ? mode.description :

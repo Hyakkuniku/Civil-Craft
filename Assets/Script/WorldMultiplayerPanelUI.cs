@@ -53,9 +53,16 @@ public sealed class WorldMultiplayerPanelUI : MonoBehaviour
         if (hostName != null) hostName.richText = false;
         if (guestName != null) guestName.richText = false;
         if (kickGuestName != null) kickGuestName.richText = false;
+        RefreshOpenButton();
     }
 
-    private bool CanOpen => gameObject.scene.name == FusionConnectionManager.HostWorldSceneName &&
+    // Keep session management available to an already-connected visitor/host.
+    private bool HasMultiplayerAccess => MultiplayerProgressionGate.IsUnlocked ||
+        (FusionConnectionManager.Instance?.IsHosting ?? false) ||
+        (FusionConnectionManager.Instance?.IsClientConnected ?? false);
+
+    private bool CanOpen => HasMultiplayerAccess &&
+        gameObject.scene.name == FusionConnectionManager.HostWorldSceneName &&
         (GameManager.Instance == null || GameManager.Instance.CurrentState == GameManager.GameState.Normal &&
             !GameManager.Instance.IsTransitioning) && !MultiplayerChallengeLobbyUI.IsChallengeActive &&
         !(FusionConnectionManager.Instance?.IsNetworkSceneLoading ?? false);
@@ -107,7 +114,7 @@ public sealed class WorldMultiplayerPanelUI : MonoBehaviour
 
     private void Update()
     {
-        if (openButton != null) openButton.interactable = CanOpen;
+        RefreshOpenButton();
         if (!inputCaptured) return;
         if (MultiplayerChallengeLobbyUI.IsChallengeActive ||
             GameManager.Instance != null && (GameManager.Instance.CurrentState != GameManager.GameState.Normal || GameManager.Instance.IsTransitioning) ||
@@ -124,6 +131,14 @@ public sealed class WorldMultiplayerPanelUI : MonoBehaviour
         RefreshView();
     }
 
+    private void RefreshOpenButton()
+    {
+        if (openButton == null) return;
+        bool visible = HasMultiplayerAccess;
+        if (openButton.gameObject.activeSelf != visible) openButton.gameObject.SetActive(visible);
+        openButton.interactable = CanOpen;
+    }
+
     private static bool EscapePressed()
     {
 #if ENABLE_INPUT_SYSTEM
@@ -137,7 +152,7 @@ public sealed class WorldMultiplayerPanelUI : MonoBehaviour
 
     public async void TurnOnMultiplayer()
     {
-        if (starting || stopping || !inputCaptured || !CanOpen) return;
+        if (starting || stopping || !inputCaptured || !CanOpen || !MultiplayerProgressionGate.IsUnlocked) return;
         FusionConnectionManager connection = FusionConnectionManager.GetOrCreate();
         if (connection.IsHosting || connection.IsClientConnected || connection.IsSessionStopping) { RefreshView(); return; }
         starting = true; notice = null; RefreshView();
@@ -248,7 +263,7 @@ public sealed class WorldMultiplayerPanelUI : MonoBehaviour
         bool joined = hosting && guest != PlayerRef.None;
         if (joined && guest != lastJoinedGuest) notice = null;
         lastJoinedGuest = joined ? guest : PlayerRef.None;
-        if (turnOnButton != null) { turnOnButton.gameObject.SetActive(!online && !shuttingDown); turnOnButton.interactable = !starting && !shuttingDown; }
+        if (turnOnButton != null) { turnOnButton.gameObject.SetActive(!online && !shuttingDown && MultiplayerProgressionGate.IsUnlocked); turnOnButton.interactable = !starting && !shuttingDown && MultiplayerProgressionGate.IsUnlocked; }
         if (turnOffButton != null) { turnOffButton.gameObject.SetActive(hosting || shuttingDown); turnOffButton.interactable = hosting && !loading && !shuttingDown; }
         if (turnOffLabel != null) turnOffLabel.text = shuttingDown ? "CLOSING ROOM..." : "TURN OFF MULTIPLAYER";
         if (turnOnLabel != null) turnOnLabel.text = starting ? "CREATING ROOM..." : "TURN ON MULTIPLAYER";
@@ -266,6 +281,7 @@ public sealed class WorldMultiplayerPanelUI : MonoBehaviour
             starting ? "Creating your <b>private online room</b>..." :
             visiting ? "You are visiting the host's world. Only the host can manage this session." :
             hosting ? "<color=#376F42><b>MULTIPLAYER ON</b></color>  •  " + (joined ? "2 / 2 PLAYERS" : "1 / 2 PLAYERS") :
+            !MultiplayerProgressionGate.IsUnlocked ? MultiplayerProgressionGate.LockedMessage :
             "Invite a friend into <b>your world</b>. Turn on multiplayer to get a join code.";
     }
 

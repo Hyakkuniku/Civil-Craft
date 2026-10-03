@@ -19,6 +19,7 @@ MonoBehaviour:
   cargoUnlockAfterDialoguePhaseIndex: -1
   cargoLoadedNPCPhaseId: 
   contractID: SilasMainContract
+  hideFromLeaderboard: 0
   efficiencyStarBudgetRatio: 0.85
   strengthStarMaxStress: 60
   contractMap: 0

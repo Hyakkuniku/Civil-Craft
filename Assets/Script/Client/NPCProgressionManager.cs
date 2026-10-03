@@ -697,15 +697,18 @@ public class NPCProgressionManager : MonoBehaviour
 
     /// <summary>
     /// Repairs saves that reached a later phase before a queued Collect popup
-    /// committed the preceding phase's permanent feature reward.
+    /// committed the preceding phase's permanent feature reward. Also repairs
+    /// a completed final dialogue without requiring a subsequent phase.
     /// </summary>
     private void RestoreMissedPhaseFeatureUnlocks(int resolvedPhaseIndex)
     {
         if (PlayerDataManager.Instance == null || phases == null) return;
 
-        int completedPhaseCount = Mathf.Clamp(resolvedPhaseIndex, 0, phases.Count);
+        int completedPhaseCount = Mathf.Clamp(resolvedPhaseIndex + 1, 0, phases.Count);
         for (int i = 0; i < completedPhaseCount; i++)
         {
+            // Merely arriving at the current phase must not grant its reward.
+            if (i == resolvedPhaseIndex && !HasCompletedPhaseDialogue(i)) continue;
             NPCProgressionPhase completedPhase = phases[i];
             if (completedPhase == null ||
                 string.IsNullOrWhiteSpace(completedPhase.unlockFeatureIdAfterDialogue) ||

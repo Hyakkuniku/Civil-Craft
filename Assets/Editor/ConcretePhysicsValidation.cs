@@ -2,65 +2,65 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Threading.Tasks;
 using UnityEditor;
-using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using Object = UnityEngine.Object;
 
 /// <summary>Runs actual bridge rigidbodies in an isolated local PhysX scene.</summary>
-[InitializeOnLoad]
 public static class ConcretePhysicsValidation
 {
-    private const string Version = "CivilCraft.Concrete.Physics.v2";
-    static ConcretePhysicsValidation()
-    {
-        EditorApplication.delayCall += TryValidate;
-        EditorApplication.playModeStateChanged += state => {
-            if (state == PlayModeStateChange.EnteredPlayMode) EditorApplication.delayCall += TryValidate;
-        };
-    }
-    private static void TryValidate()
-    {
-        // Local-physics SceneManager.CreateScene is only supported in Play Mode.
-        // The test scene is isolated and destroyed before the next game update.
-        if (!EditorApplication.isPlaying || SessionState.GetBool(Version, false)) return;
-        if (EditorApplication.isUpdating || EditorApplication.isCompiling)
-        { EditorApplication.delayCall += TryValidate; return; }
-        if (Validate()) SessionState.SetBool(Version, true);
-    }
+    private static bool running;
+
+    // This destructive regression test is opt-in, never a Play Mode/reload hook.
     [MenuItem("Tools/Civil Craft/Validate Concrete Physics")]
-    public static void Run()
+    public static async void Run()
     {
-        if (EditorApplication.isPlaying) Validate();
-        else Debug.Log("[Concrete Physics] Enter Play Mode to run the isolated PhysX validation.");
+        if (running) return;
+        if (!EditorApplication.isPlaying || EditorApplication.isCompiling)
+        {
+            Debug.Log("[Concrete Physics] Enter Play Mode to run the isolated PhysX validation.");
+            return;
+        }
+        running = true;
+        try { await Validate(); }
+        finally { running = false; }
     }
-    private static bool Validate()
+    private static async Task<bool> Validate()
     {
         try
         {
-            RunTruss(false);
-            RunTruss(true);
+            await RunTruss(false);
+            if (!EditorApplication.isPlaying) return false;
+            await RunTruss(true);
+            Debug.Log("[Concrete Physics] PASS: conditioned truss stability and sequential test-scene cleanup.");
             return true;
         }
+        catch (OperationCanceledException) { return false; }
         catch (Exception e) { Debug.LogError("[Concrete Physics] " + e); return false; }
     }
     private static void Call(BridgePhysicsManager manager, string method, params object[] args)
     {
         typeof(BridgePhysicsManager).GetMethod(method, BindingFlags.Instance | BindingFlags.NonPublic).Invoke(manager, args);
     }
-    private static void RunTruss(bool conditioned)
+    private static async Task RunTruss(bool conditioned)
     {
         BridgeMaterialSO road = AssetDatabase.LoadAssetAtPath<BridgeMaterialSO>("Assets/BridgeBuilder/Data/Resources/Concrete Road.asset");
         BridgeMaterialSO beam = AssetDatabase.LoadAssetAtPath<BridgeMaterialSO>("Assets/BridgeBuilder/Data/Resources/ConcreteBeam.asset");
         if (road == null || beam == null) throw new InvalidOperationException("Materials missing.");
-        Scene scene = SceneManager.CreateScene("Concrete Physics Validation", new CreateSceneParameters(LocalPhysicsMode.Physics3D));
-        GameObject root = new GameObject("Isolated Concrete Truss");
-        SceneManager.MoveGameObjectToScene(root, scene);
+        // A previous unload/domain reload must never reserve the next test's name.
+        Scene scene = SceneManager.CreateScene("Concrete Physics Validation " + Guid.NewGuid().ToString("N"),
+            new CreateSceneParameters(LocalPhysicsMode.Physics3D));
+        GameObject root = null;
+        PhysicMaterial testRoadGrip = null;
         try
         {
+            root = new GameObject("Isolated Concrete Truss") { hideFlags = HideFlags.HideInHierarchy | HideFlags.DontSave };
+            SceneManager.MoveGameObjectToScene(root, scene);
             BridgePhysicsManager manager = root.AddComponent<BridgePhysicsManager>();
             manager.enabled = false;
+            testRoadGrip = (PhysicMaterial)typeof(BridgePhysicsManager)
+                .GetField("sharedRoadPhysicsMat", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(manager);
             List<Point> points = new List<Point>();
             List<Bar> bars = new List<Bar>();
             Point MakePoint(float x, float y, bool anchor)
@@ -111,15 +111,32 @@ public static class ConcretePhysicsValidation
             {
                 physics.Simulate(.02f);
                 foreach (Joint joint in joints)
+                {
+                    if (joint == null || joint.connectedBody == null) continue;
                     maxGap = Mathf.Max(maxGap, Vector3.Distance(joint.transform.TransformPoint(joint.anchor), joint.connectedBody.transform.TransformPoint(joint.connectedAnchor)));
+                }
                 foreach (Rigidbody body in bodies)
-                    if (!body.isKinematic) maxSpeed = Mathf.Max(maxSpeed, body.velocity.magnitude);
+                    if (body != null && !body.isKinematic) maxSpeed = Mathf.Max(maxSpeed, body.velocity.magnitude);
             }
-            Debug.Log($"[Concrete Physics] {(conditioned ? "Conditioned" : "Legacy")} 50m truss: max joint separation={maxGap:0.000}m, max speed={maxSpeed:0.00}m/s over 6s.");
+            Debug.Log($"[Concrete Physics] {(conditioned ? "Conditioned" : "Legacy (deliberately unconditioned comparison)")} 50m truss: max joint separation={maxGap:0.000}m, max speed={maxSpeed:0.00}m/s over 6s.");
             if (conditioned && (maxGap > .3f || maxSpeed > 5f || float.IsNaN(maxGap)))
                 throw new InvalidOperationException("Conditioned concrete truss still unstable.");
         }
-        finally { Object.DestroyImmediate(root); SceneManager.UnloadSceneAsync(scene); }
+        finally
+        {
+            // Disable immediately, then let Unity destroy the scene's objects safely.
+            // Await the actual unload before running another test; DestroyImmediate
+            // in Play Mode can invalidate an Inspector's serialized targets.
+            if (root != null) root.SetActive(false);
+            if (scene.IsValid() && scene.isLoaded && EditorApplication.isPlaying)
+            {
+                AsyncOperation unload = SceneManager.UnloadSceneAsync(scene);
+                while (unload != null && !unload.isDone && EditorApplication.isPlaying)
+                    await Task.Yield();
+            }
+            if (testRoadGrip != null && EditorApplication.isPlaying)
+                UnityEngine.Object.Destroy(testRoadGrip);
+        }
     }
 }
 #endif
