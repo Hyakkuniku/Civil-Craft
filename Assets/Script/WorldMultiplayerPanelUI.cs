@@ -32,7 +32,12 @@ public sealed class WorldMultiplayerPanelUI : MonoBehaviour
     [SerializeField] private TMP_Text turnOffLabel;
     [SerializeField] private GameObject turnOffConfirmation;
     [SerializeField] private Button confirmTurnOffButton;
+    [SerializeField] private Button leaveButton;
+    [SerializeField] private TMP_Text leaveLabel;
+    [SerializeField] private GameObject leaveConfirmation;
+    [SerializeField] private Button confirmLeaveButton;
     private bool starting, stopping, inputCaptured;
+    private bool leaving;
     private float nextRefresh;
     private PlayerMotor motor;
     private InputManager input;
@@ -40,6 +45,7 @@ public sealed class WorldMultiplayerPanelUI : MonoBehaviour
     private string notice;
     private NetworkRunner kickRunner;
     private NetworkRunner turnOffRunner;
+    private NetworkRunner leaveRunner;
     private NetworkObject kickAvatar;
     private PlayerRef kickPlayer = PlayerRef.None;
     private PlayerRef lastJoinedGuest = PlayerRef.None;
@@ -49,6 +55,7 @@ public sealed class WorldMultiplayerPanelUI : MonoBehaviour
         if (panel != null) panel.SetActive(false);
         if (kickConfirmation != null) kickConfirmation.SetActive(false);
         if (turnOffConfirmation != null) turnOffConfirmation.SetActive(false);
+        if (leaveConfirmation != null) leaveConfirmation.SetActive(false);
         // IGNs must never be interpreted as TMP markup.
         if (hostName != null) hostName.richText = false;
         if (guestName != null) guestName.richText = false;
@@ -61,7 +68,7 @@ public sealed class WorldMultiplayerPanelUI : MonoBehaviour
         (FusionConnectionManager.Instance?.IsHosting ?? false) ||
         (FusionConnectionManager.Instance?.IsClientConnected ?? false);
 
-    private bool CanOpen => HasMultiplayerAccess &&
+    private bool CanOpen => HasMultiplayerAccess && !stopping && !LoadingScreenManager.IsLoading &&
         gameObject.scene.name == FusionConnectionManager.HostWorldSceneName &&
         (GameManager.Instance == null || GameManager.Instance.CurrentState == GameManager.GameState.Normal &&
             !GameManager.Instance.IsTransitioning) && !MultiplayerChallengeLobbyUI.IsChallengeActive &&
@@ -93,6 +100,7 @@ public sealed class WorldMultiplayerPanelUI : MonoBehaviour
     {
         CancelKick();
         CancelTurnOff();
+        CancelLeave();
         if (panel != null)
         {
             if (UIPanelCoordinator.Instance != null) UIPanelCoordinator.Instance.ClosePanel(panel);
@@ -122,7 +130,8 @@ public sealed class WorldMultiplayerPanelUI : MonoBehaviour
         if (EscapePressed())
         {
             if (stopping) return;
-            if (turnOffConfirmation != null && turnOffConfirmation.activeSelf) CancelTurnOff();
+            if (leaveConfirmation != null && leaveConfirmation.activeSelf) CancelLeave();
+            else if (turnOffConfirmation != null && turnOffConfirmation.activeSelf) CancelTurnOff();
             else if (kickConfirmation != null && kickConfirmation.activeSelf) CancelKick(); else Close();
             return;
         }
@@ -217,6 +226,47 @@ public sealed class WorldMultiplayerPanelUI : MonoBehaviour
         turnOffRunner = null;
     }
 
+    public void RequestLeave()
+    {
+        FusionConnectionManager connection = FusionConnectionManager.Instance;
+        if (starting || stopping || !inputCaptured || leaveConfirmation == null || connection == null ||
+            !connection.IsClientConnected || !connection.IsHostWorldSession || connection.IsNetworkSceneLoading ||
+            connection.IsSessionStopping) return;
+        CancelKick(); CancelTurnOff();
+        leaveRunner = connection.Runner;
+        leaveConfirmation.SetActive(true);
+    }
+
+    public async void ConfirmLeave()
+    {
+        FusionConnectionManager connection = FusionConnectionManager.Instance;
+        if (stopping || !inputCaptured || leaveConfirmation == null || !leaveConfirmation.activeSelf ||
+            connection == null || connection.Runner != leaveRunner || !connection.IsClientConnected ||
+            !connection.IsHostWorldSession || connection.IsNetworkSceneLoading || connection.IsSessionStopping) return;
+        stopping = leaving = true;
+        CancelLeave(); notice = null;
+        try
+        {
+            // The persistent connection service owns shutdown and navigation,
+            // even if this scene panel is destroyed during the return transition.
+            var exit = connection.LeaveHostWorldAsync();
+            RefreshView();
+            await exit;
+        }
+        catch (Exception exception)
+        {
+            Debug.LogWarning($"[World multiplayer] Could not leave session: {exception.Message}", this);
+            if (this != null) notice = "Could not leave multiplayer. Please try again.";
+        }
+        finally { if (this != null) { stopping = leaving = false; RefreshView(); } }
+    }
+
+    public void CancelLeave()
+    {
+        if (leaveConfirmation != null) leaveConfirmation.SetActive(false);
+        leaveRunner = null;
+    }
+
     public void ConfirmKick()
     {
         if (!inputCaptured || kickConfirmation == null || !kickConfirmation.activeSelf) return;
@@ -246,6 +296,8 @@ public sealed class WorldMultiplayerPanelUI : MonoBehaviour
             connection != null ? connection.HostJoinCode : null, GuestName(avatar));
         if (turnOffConfirmation != null && turnOffConfirmation.activeSelf &&
             (!hosting || connection.Runner != turnOffRunner || loading)) CancelTurnOff();
+        if (leaveConfirmation != null && leaveConfirmation.activeSelf &&
+            (!visiting || connection.Runner != leaveRunner || loading || shuttingDown)) CancelLeave();
         if (kickConfirmation != null && kickConfirmation.activeSelf)
         {
             bool same = hosting && connection.Runner == kickRunner && guest == kickPlayer && avatar == kickAvatar && avatar != null;
@@ -264,22 +316,26 @@ public sealed class WorldMultiplayerPanelUI : MonoBehaviour
         if (joined && guest != lastJoinedGuest) notice = null;
         lastJoinedGuest = joined ? guest : PlayerRef.None;
         if (turnOnButton != null) { turnOnButton.gameObject.SetActive(!online && !shuttingDown && MultiplayerProgressionGate.IsUnlocked); turnOnButton.interactable = !starting && !shuttingDown && MultiplayerProgressionGate.IsUnlocked; }
-        if (turnOffButton != null) { turnOffButton.gameObject.SetActive(hosting || shuttingDown); turnOffButton.interactable = hosting && !loading && !shuttingDown; }
+        if (turnOffButton != null) { turnOffButton.gameObject.SetActive(hosting || shuttingDown && !leaving); turnOffButton.interactable = hosting && !loading && !shuttingDown; }
+        if (leaveButton != null) { leaveButton.gameObject.SetActive(visiting || leaving); leaveButton.interactable = visiting && !loading && !shuttingDown; }
+        if (leaveLabel != null) leaveLabel.text = leaving ? "LEAVING..." : "LEAVE MULTIPLAYER";
         if (turnOffLabel != null) turnOffLabel.text = shuttingDown ? "CLOSING ROOM..." : "TURN OFF MULTIPLAYER";
         if (turnOnLabel != null) turnOnLabel.text = starting ? "CREATING ROOM..." : "TURN ON MULTIPLAYER";
-        if (codeCard != null) codeCard.SetActive(!visiting);
+        if (codeCard != null) codeCard.SetActive(!visiting && !leaving);
         if (codeText != null) codeText.text = hosting ? joinCode ?? "..." : starting ? "CREATING..." : "NOT ACTIVE";
-        if (hostRow != null) hostRow.SetActive(!visiting);
+        if (hostRow != null) hostRow.SetActive(!visiting && !leaving);
         if (hostName != null) hostName.text = PlayerDataManager.Instance?.CurrentData?.playerName ?? "Engineer";
         if (guestRow != null) guestRow.SetActive(joined);
         if (guestName != null) guestName.text = guestDisplayName;
         if (waitingLabel != null) waitingLabel.SetActive(hosting && !joined);
         if (kickButton != null) kickButton.interactable = joined && avatar != null && avatar.IsValid && !loading && !shuttingDown;
         if (confirmTurnOffButton != null) confirmTurnOffButton.interactable = hosting && !loading && !shuttingDown;
+        if (confirmLeaveButton != null) confirmLeaveButton.interactable = visiting && !loading && !shuttingDown;
         if (statusText != null) statusText.text = !string.IsNullOrEmpty(notice) ? notice :
+            leaving ? "Leaving multiplayer and returning to <b>Mode Selection</b>..." :
             shuttingDown ? "Closing your <b>online room</b>..." :
             starting ? "Creating your <b>private online room</b>..." :
-            visiting ? "You are visiting the host's world. Only the host can manage this session." :
+            visiting ? "You are visiting the host's world. Select <b>Leave Multiplayer</b> to return to Mode Selection." :
             hosting ? "<color=#376F42><b>MULTIPLAYER ON</b></color>  •  " + (joined ? "2 / 2 PLAYERS" : "1 / 2 PLAYERS") :
             !MultiplayerProgressionGate.IsUnlocked ? MultiplayerProgressionGate.LockedMessage :
             "Invite a friend into <b>your world</b>. Turn on multiplayer to get a join code.";

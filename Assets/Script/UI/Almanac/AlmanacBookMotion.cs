@@ -61,6 +61,8 @@ public sealed class AlmanacBookMotion : MonoBehaviour
     {
         if (IsTurning) yield break;
         IsTurning = true;
+        // Shared accepted turn: rejected rapid clicks and initial population stay silent.
+        if (manager != null) manager.PlayPageFlipSound();
         int token = ++revision;
         Sheet lifting = Capture(forward ? oldRight : oldLeft, !forward);
         Capture(forward ? oldLeft : oldRight, forward);

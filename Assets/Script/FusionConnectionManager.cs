@@ -258,6 +258,45 @@ public sealed class FusionConnectionManager : MonoBehaviour
         return StopSessionAsync();
     }
 
+    internal static bool CanLeaveHostWorld(bool visiting, bool inHostWorld, bool loading, bool shuttingDown) =>
+        visiting && inHostWorld && !loading && !shuttingDown;
+
+    /// <summary>Leave only this guest's visit, preserving the host's room and the guest's story save.</summary>
+    public Task LeaveHostWorldAsync()
+    {
+        bool loading = networkSceneLoading || LoadingScreenManager.IsLoading;
+        if (!CanLeaveHostWorld(IsClientConnected, IsHostWorldSession, loading, IsSessionStopping))
+            throw new InvalidOperationException("Only a connected guest in the host's world can leave multiplayer.");
+        NetworkSceneManagerDefault sceneManager = runner.GetComponent<NetworkSceneManagerDefault>();
+        // IsBusy accesses Runner.Config. Check initialization before querying it.
+        if (sceneManager != null && (sceneManager.Runner != runner || sceneManager.IsBusy))
+            throw new InvalidOperationException("Wait for the current multiplayer scene transition to finish.");
+
+        // Intentional leaves must not reuse a stale host-disconnected notification.
+        // StopSessionAsync latches guest-save protection before detaching the runner.
+        pendingHostLeftNotice = false;
+        Task shutdown = StopSessionAsync();
+        int exitVersion = operationVersion;
+        return ReturnAfterGuestLeaveAsync(shutdown, exitVersion);
+    }
+
+    private async Task ReturnAfterGuestLeaveAsync(Task shutdown, int exitVersion)
+    {
+        await shutdown;
+        // A separate scene transition can begin while shutdown is awaiting Fusion.
+        // Let it finish rather than competing with the persistent loading screen.
+        // Fusion clears its scene manager's Runner during shutdown, so never query
+        // that component's IsBusy afterward (it accesses Runner.Config).
+        while (this != null && Instance == this && operationVersion == exitVersion && runner == null &&
+            LoadingScreenManager.IsLoading)
+            await Task.Yield();
+
+        if (this == null || Instance != this || operationVersion != exitVersion || runner != null ||
+            SceneManager.GetActiveScene().name != HostWorldSceneName) return;
+
+        LoadingScreenManager.LoadScene(ModeSelectionSceneName);
+    }
+
     private Task StopSessionAsync()
     {
         bool wasHostWorldGuest = guestVisitedHostWorld || IsGuestInHostWorld;

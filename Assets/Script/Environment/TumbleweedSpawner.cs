@@ -33,7 +33,8 @@ public sealed class TumbleweedSpawner : MonoBehaviour
     [SerializeField] private LayerMask groundLayers = ~0;
     [Min(0.1f)] [SerializeField] private float groundProbeHeight = 3f;
     [Min(0.1f)] [SerializeField] private float groundProbeDepth = 8f;
-    [SerializeField] private float groundOffset = 0.2f;
+    [Tooltip("Clearance below the rendered mesh. Bounds determine its actual pivot height.")]
+    [Range(0f, 0.02f)] [SerializeField] private float groundOffset = 0.01f;
     [Min(0.1f)] [SerializeField] private float groundFollowSpeed = 8f;
 
     [Header("Motion Variation")]

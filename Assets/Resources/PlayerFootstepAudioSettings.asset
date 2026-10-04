@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c408fe951e404508a1f59ec34baa0031, type: 3}
+  m_Name: PlayerFootstepAudioSettings
+  m_EditorClassIdentifier: 
+  walkingClip: {fileID: 8300000, guid: 0745d0af0e5df2046b8c9c262111d4d7, type: 3}
+  runningClip: {fileID: 8300000, guid: 56d57f92e9163904989d07477709f4f0, type: 3}
+  output: {fileID: -1157879735568590382, guid: 842026f4aa4a40c45a58164f3ab562be, type: 2}
+  walkingVolume: 0.8
+  runningVolume: 0.9
+  fadeSeconds: 0.08
+  minimumMovementSpeed: 0.15
+  remoteMinDistance: 3
+  remoteMaxDistance: 18
+  teleportDistance: 8

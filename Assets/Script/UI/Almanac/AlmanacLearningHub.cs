@@ -583,6 +583,7 @@ public sealed class AlmanacLearningHub : MonoBehaviour
                 }, incomingLeft == leftDetail);
             yield break;
         }
+        manager.PlayPageFlipSound();
         GameObject[] outgoing = { outgoingLeft, outgoingRight };
         GameObject[] incoming = { incomingLeft, incomingRight };
 

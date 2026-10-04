@@ -8,6 +8,7 @@ public class PlayerMotor : MonoBehaviour
     public event System.Action Jumped;
 
     private CharacterController controller;
+    private PlayerMovementAudio movementAudio;
     private Vector3 playerVelocity;
     private Vector3 previousFixedPosition;
     private Vector3 currentFixedPosition;
@@ -18,6 +19,7 @@ public class PlayerMotor : MonoBehaviour
 
     public void ResetTestMotion()
     {
+        movementAudio?.StopImmediately();
         playerVelocity = Vector3.zero;
         ResetRenderMotion();
     }
@@ -139,6 +141,7 @@ public class PlayerMotor : MonoBehaviour
     private void Start()
     {
         controller = GetComponent<CharacterController>();
+        movementAudio = PlayerMovementAudio.Attach(gameObject, false);
         visualRoot = transform.Find("NewCharacterModel");
         if (visualRoot != null) visualRootBaseLocalPosition = visualRoot.localPosition;
         ResetRenderMotion();
@@ -250,10 +253,15 @@ public class PlayerMotor : MonoBehaviour
         currentFixedPosition = transform.position;
         lastMotionFixedTime = Time.fixedTime;
         hasFixedMotion = true;
+        Vector3 actualMovement = currentFixedPosition - beforeMove;
+        actualMovement.y = 0f;
+        movementAudio?.SetLocalMovement(actualMovement.magnitude / Mathf.Max(0.0001f, Time.deltaTime),
+            isSprinting, controller.isGrounded && playerVelocity.y <= 0f, moveAmount > 0.1f);
     }
 
     private void OnDisable()
     {
+        movementAudio?.StopImmediately();
         ResetRenderMotion();
         isSprinting = false;
         if (playerAnimator != null)
@@ -268,6 +276,7 @@ public class PlayerMotor : MonoBehaviour
         if (TutorialManager.Instance != null && TutorialManager.Instance.IsJumpLocked) return;
         if (isGrounded)
         {
+            movementAudio?.StopImmediately();
             playerVelocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
 
             // --- NEW: Fire the Jump trigger in the Animator! ---

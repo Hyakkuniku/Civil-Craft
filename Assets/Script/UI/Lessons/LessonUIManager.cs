@@ -156,6 +156,7 @@ public sealed class LessonUIManager : MonoBehaviour
         else
             lessonPanel.SetActive(true);
 
+        lessonPanel.GetComponent<LearningPopupLayout>()?.RefreshContent();
         lessonPanel.transform.SetAsLastSibling();
 
         if (!wasAlreadyOpen)

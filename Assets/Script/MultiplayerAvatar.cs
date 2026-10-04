@@ -48,6 +48,7 @@ public sealed class MultiplayerAvatar : NetworkBehaviour
     private Animator sceneAnimator;
     private GameObject visualContainer;
     private Animator remoteAnimator;
+    private PlayerMovementAudio remoteMovementAudio;
     private List<CosmeticModelBinding> remoteBindings;
     private List<CosmeticItem> remoteHats;
     private string lastAppliedAppearance;
@@ -61,6 +62,8 @@ public sealed class MultiplayerAvatar : NetworkBehaviour
     {
         if (IsOwner)
             PlayerCosmetics.LoadoutChanged += PublishAppearance;
+        else
+            remoteMovementAudio = PlayerMovementAudio.Attach(gameObject, true);
     }
 
     public override void OnNetworkDespawn()
@@ -79,7 +82,11 @@ public sealed class MultiplayerAvatar : NetworkBehaviour
 
     private void Update()
     {
-        if (!IsSpawned) return;
+        if (!IsSpawned)
+        {
+            remoteMovementAudio?.StopImmediately();
+            return;
+        }
 
         if (SceneManager.GetActiveScene().name != MultiplayerSceneName)
         {
@@ -108,6 +115,8 @@ public sealed class MultiplayerAvatar : NetworkBehaviour
         if (visualContainer == null) CreateRemoteVisual();
         ApplyRemoteAppearance();
         ApplyRemoteAnimation();
+        remoteMovementAudio?.SetRemoteMovement(moveSpeed.Value, sprinting.Value,
+            grounded.Value && visualContainer != null && visualContainer.activeInHierarchy);
     }
 
     private void FindScenePlayer()
@@ -353,6 +362,7 @@ public sealed class MultiplayerAvatar : NetworkBehaviour
 
     private void DestroyRemoteVisual()
     {
+        remoteMovementAudio?.StopImmediately();
         if (visualContainer != null)
             Destroy(visualContainer);
         visualContainer = null;

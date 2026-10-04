@@ -208,6 +208,7 @@ public sealed partial class MultiplayerChallengeLobbyUI
             state.ChallengeBudget, state.HostPeakStress);
         if (resultsGuestDetails != null) resultsGuestDetails.text = ResultsDetails(state.GuestTestOutcome, state.GuestSubmittedCost,
             state.ChallengeBudget, state.GuestPeakStress);
+        RefreshResultPortraits(state);
     }
 
     internal static string ScoreLabel(int hundredths) => $"<b>{hundredths / 100.0:0.00}</b><size=45%> / 100</size>";

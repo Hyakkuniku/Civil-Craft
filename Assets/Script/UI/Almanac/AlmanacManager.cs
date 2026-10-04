@@ -62,6 +62,12 @@ public class AlmanacManager : MonoBehaviour
     public float frameRate = 0.03f; 
     private bool isAnimating = false;
 
+    [Header("Almanac Audio")]
+    [Tooltip("SFX ID in AudioManager, played when the book opens or closes.")]
+    [SerializeField] private string openAlmanacSfxId = "OpenAlamanac";
+    [Tooltip("SFX ID in AudioManager, played once per accepted paper turn.")]
+    [SerializeField] private string pageFlipSfxId = "PageFlip";
+
     [Header("Tutorial Integration")]
     public TutorialSequence onFirstOpenTutorial;
     [SerializeField] private TutorialSequence onContractsTabUnlockedTutorial;
@@ -954,6 +960,10 @@ public class AlmanacManager : MonoBehaviour
 
     private IEnumerator PlayBookAnimation(bool opening)
     {
+        if (AudioManager.Instance != null &&
+            !string.IsNullOrWhiteSpace(openAlmanacSfxId))
+            AudioManager.Instance.PlaySFX(openAlmanacSfxId);
+
         if (animationPanel == null || animationImage == null ||
             bookOpenFrames == null || bookOpenFrames.Length == 0)
         {
@@ -1073,6 +1083,7 @@ public class AlmanacManager : MonoBehaviour
             TryStartSelectedTabUnlockTutorial(requestedCategory.tabType);
             yield break;
         }
+        PlayPageFlipSound();
         List<TabPageVisual> outgoing = CaptureSpreadVisuals(outgoingCategory, currentSpreadIndex);
         float outgoingDuration = Mathf.Max(0.04f, tabSwitchDuration * 0.42f);
         float incomingDuration = Mathf.Max(0.06f, tabSwitchDuration * 0.58f);
@@ -1320,6 +1331,7 @@ public class AlmanacManager : MonoBehaviour
             yield break;
         }
 
+        PlayPageFlipSound();
         bool leftChanges = GetClampedIndex(currentCat.leftPages, currentSpreadIndex) != GetClampedIndex(currentCat.leftPages, nextSpread);
         bool rightChanges = GetClampedIndex(currentCat.rightPages, currentSpreadIndex) != GetClampedIndex(currentCat.rightPages, nextSpread);
 
@@ -1407,6 +1419,13 @@ public class AlmanacManager : MonoBehaviour
         int safeIndex = GetClampedIndex(pageList, requestedIndex);
         if (safeIndex != -1) return pageList[safeIndex];
         return null; 
+    }
+
+    /// <summary>Shared by paper animations and legacy page-transition fallbacks.</summary>
+    public void PlayPageFlipSound()
+    {
+        if (AudioManager.Instance != null && !string.IsNullOrWhiteSpace(pageFlipSfxId))
+            AudioManager.Instance.PlaySFX(pageFlipSfxId);
     }
 
     public void EnableVirtualPagination(System.Action<bool> callback)

@@ -86,6 +86,7 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
     private Animator sceneAnimator;
     private GameObject visualContainer;
     private Animator remoteAnimator;
+    private PlayerMovementAudio remoteMovementAudio;
     private List<CosmeticModelBinding> remoteBindings;
     private List<CosmeticItem> remoteHats;
     private string lastPublishedAppearance;
@@ -169,8 +170,8 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
 
     public string MapPlayerName => Object != null && Object.IsValid ? PlayerName : "Player";
 
-    public bool CanWave => localWaveActive ||
-        (Time.unscaledTime >= nextLocalWaveTime && IsWavePoseAllowed);
+    public bool CanWave => !localReaction.IsPlaying && (localWaveActive ||
+        (Time.unscaledTime >= nextLocalWaveTime && IsWavePoseAllowed));
 
     private bool IsWavePoseAllowed
     {
@@ -219,7 +220,7 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
     {
         FusionConnectionManager connection = FusionConnectionManager.Instance;
         if (!HasStateAuthority || connection == null || connection.Runner != Runner) return;
-        if (active && (!connection.IsAvatarScene || connection.IsNetworkSceneLoading)) return;
+        if (active && (!connection.IsAvatarScene || connection.IsNetworkSceneLoading || ResultReactionPlaying)) return;
         // One reliable message per start/stop, not one per animation cycle.
         // Persistent snapshot state also gives late joiners the current emote.
         IsWaving = active;
@@ -238,6 +239,8 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
         ResetRemotePoseBuffer();
         if (HasInputAuthority)
             PlayerCosmetics.LoadoutChanged += PublishAppearance;
+        else
+            remoteMovementAudio = PlayerMovementAudio.Attach(gameObject, true);
     }
 
     public override void Despawned(NetworkRunner runner, bool hasState)
@@ -267,7 +270,11 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
 
     private void Update()
     {
-        if (Runner == null || !Runner.IsRunning) return;
+        if (Runner == null || !Runner.IsRunning)
+        {
+            remoteMovementAudio?.StopImmediately();
+            return;
+        }
         if (FusionConnectionManager.Instance == null ||
             !FusionConnectionManager.Instance.IsAvatarScene)
         {
@@ -288,6 +295,7 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
         if (sceneMotor == null) FindScenePlayer();
         if (HasInputAuthority)
         {
+            UpdateLocalChallengeReaction();
             if (localWaveActive && !IsWavePoseAllowed) SetLocalWave(false);
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             if (logMovementDiagnostics)
@@ -323,6 +331,9 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
         if (visualContainer == null) CreateRemoteVisual();
         ApplyRemoteAppearance();
         ApplyRemoteAnimation();
+        remoteMovementAudio?.SetRemoteMovement(MoveSpeed, Sprinting,
+            Grounded && hasRenderedRemotePose && visualContainer != null &&
+            visualContainer.activeInHierarchy && !ResultReactionPlaying);
     }
 
     public override void Render()
@@ -406,7 +417,7 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
     {
         // Challenge deadlines and phase transitions run on the authoritative
         // Fusion tick, independent of either player's render frame rate.
-        if (Runner.IsForward) UpdateChallengeAuthority();
+        if (Runner.IsForward) { UpdateChallengeAuthority(); UpdateChallengeReactionAuthority(); }
         if (HasInputAuthority && HasStateAuthority && Runner.IsServer && pendingCompletionDirty)
         {
             HostCompletion = pendingCompletion;
@@ -1298,6 +1309,8 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
     private void BindSceneMotor(PlayerMotor motor)
     {
         if (sceneMotor == motor) return;
+        StopLocalChallengeReaction();
+        returnedWorldRevision = 0;
         if (localWaveActive) SetLocalWave(false);
         if (sceneMotor != null) sceneMotor.Jumped -= OnLocalJump;
         sceneMotor = motor;
@@ -1306,6 +1319,7 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
 
     private void OnLocalJump()
     {
+        StopLocalChallengeReaction();
         localJumpSequence++;
         if (localWaveActive) SetLocalWave(false);
     }
@@ -1523,7 +1537,8 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
         remoteAnimator.SetFloat(SpeedParameter, MoveSpeed);
         remoteAnimator.SetBool(SprintParameter, Sprinting);
         remoteAnimator.SetBool(GroundedParameter, Grounded);
-        PlayWaveAnimation(remoteAnimator, IsWaving && Grounded && MoveSpeed < 0.1f);
+        bool reacting = ApplyRemoteChallengeReaction();
+        PlayWaveAnimation(remoteAnimator, !reacting && IsWaving && Grounded && MoveSpeed < 0.1f);
         if (lastObservedJumpSequence != JumpSequence)
         {
             lastObservedJumpSequence = JumpSequence;
@@ -1533,6 +1548,8 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
 
     private void DestroyRemoteVisual()
     {
+        remoteMovementAudio?.StopImmediately();
+        remoteReaction.Stop(); remotePlayedReactionRevision = 0;
         if (visualContainer != null) Destroy(visualContainer);
         visualContainer = null;
         remoteAnimator = null;

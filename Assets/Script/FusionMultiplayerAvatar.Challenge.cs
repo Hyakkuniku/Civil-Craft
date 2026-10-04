@@ -271,6 +271,7 @@ public sealed partial class FusionMultiplayerAvatar
     private void EndChallenge(MultiplayerChallengeResult result)
     {
         MultiplayerChallengeState state = ChallengeState;
+        QueueCompletedChallengeReactions(state, result);
         state.Phase = MultiplayerChallengePhase.None;
         state.Result = result;
         state.HostArrived = state.GuestArrived = false;

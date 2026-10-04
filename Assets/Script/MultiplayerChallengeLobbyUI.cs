@@ -232,7 +232,14 @@ public sealed partial class MultiplayerChallengeLobbyUI : MonoBehaviour
                 challengeMessage.text = state.Result == MultiplayerChallengeResult.TestSetupFailed
                     ? state.TestSetupMessage.ToString() + "\nYour saved bridges are unchanged." : ResultMessage(state.Result);
             }
-            else CloseView();
+            else
+            {
+                CloseView();
+                // Includes camera/pose/input restoration. Each peer gates its
+                // own scene player and the visible remote avatar on this point.
+                foreach (PlayerRef player in boundRunner.ActivePlayers)
+                    GetAvatar(player)?.MarkChallengeReturnedToWorld(state.Revision);
+            }
             return;
         }
         string siteKey = state.SiteKey.ToString();
@@ -572,12 +579,14 @@ public sealed partial class MultiplayerChallengeLobbyUI : MonoBehaviour
         motor.GetComponent<PlayerLook>()?.SnapToFollowTarget();
     }
 
-    private void RefreshPortraits(FusionMultiplayerAvatar guest)
+    private void RefreshPortraits(FusionMultiplayerAvatar guest, RawImage displayImage = null, bool splitColumns = false)
     {
-        if (portraitCamera == null || portraitImage == null || hostPortraitAnchor == null || guestPortraitAnchor == null) return;
+        if (displayImage == null) displayImage = portraitImage;
+        if (portraitCamera == null || displayImage == null || hostPortraitAnchor == null || guestPortraitAnchor == null) return;
+        if (!splitColumns) ResetResultPortraitReactions();
         if (portraitTexture == null) Canvas.ForceUpdateCanvases();
-        Rect display = portraitImage.rectTransform.rect;
-        float aspect = display.height > 0f ? Mathf.Max(0.25f, display.width / display.height) : 2f;
+        Rect display = displayImage.rectTransform.rect;
+        float aspect = display.height > 0f ? Mathf.Max(0.25f, display.width / display.height * (splitColumns ? 2f : 1f)) : 2f;
         int height = Mathf.Clamp(Mathf.RoundToInt(768f / aspect), 128, 1024);
         if (portraitTexture == null || portraitTexture.height != height)
         {
@@ -588,8 +597,10 @@ public sealed partial class MultiplayerChallengeLobbyUI : MonoBehaviour
             { name = "Challenge Lobby Portraits (Session Only)", hideFlags = HideFlags.DontSave };
             portraitTexture.Create();
             portraitCamera.targetTexture = portraitTexture;
-            portraitImage.texture = portraitTexture;
         }
+        if (portraitImage != null) portraitImage.texture = portraitTexture;
+        if (resultsHostPortrait != null) resultsHostPortrait.texture = portraitTexture;
+        if (resultsGuestPortrait != null) resultsGuestPortrait.texture = portraitTexture;
         FramePortraitColumns(portraitCamera, hostPortraitAnchor, guestPortraitAnchor, aspect);
         portraitCamera.enabled = true;
         if (Time.unscaledTime < nextPortraitRefresh) return;
@@ -645,6 +656,7 @@ public sealed partial class MultiplayerChallengeLobbyUI : MonoBehaviour
 
     private void RestoreWorld()
     {
+        ResetResultPortraitReactions();
         ResetAuthoredPresentation();
         if (invitationCloseLabel != null) invitationCloseLabel.text = invitationCloseOriginalLabel;
         if (submitBridgeButton != null) { submitBridgeButton.interactable = false; submitBridgeButton.gameObject.SetActive(false); }
@@ -757,6 +769,8 @@ public sealed partial class MultiplayerChallengeLobbyUI : MonoBehaviour
         CloseView();
         if (portraitCamera != null) portraitCamera.targetTexture = null;
         if (portraitImage != null) portraitImage.texture = null;
+        if (resultsHostPortrait != null) resultsHostPortrait.texture = null;
+        if (resultsGuestPortrait != null) resultsGuestPortrait.texture = null;
         if (portraitTexture != null) { portraitTexture.Release(); Destroy(portraitTexture); }
     }
 }

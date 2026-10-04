@@ -16,6 +16,8 @@ public class NameRegistrationUI : MonoBehaviour
     public GameObject confirmationPanel;
     [Tooltip("The text that asks 'Are you sure your name is X?'")]
     public TextMeshProUGUI confirmationText;
+    [Tooltip("Optional authored name highlight; older panels retain their original confirmation text.")]
+    public TMP_Text confirmationNameText;
 
     // --- THE FIX: List of Canvases to turn off ---
     [Header("UI to Hide")]
@@ -80,8 +82,13 @@ public class NameRegistrationUI : MonoBehaviour
         // Update the text to show what they typed
         if (confirmationText != null)
         {
-            confirmationText.text = $"Are you sure your name is {pendingName}?";
+            confirmationText.text = confirmationNameText != null
+                ? "This is how Bhan and other engineers will know you."
+                : $"Are you sure your name is {pendingName}?";
         }
+        // Display the name literally: typed rich-text tags are not UI markup.
+        if (confirmationNameText != null)
+        { confirmationNameText.richText = false; confirmationNameText.text = pendingName; }
     }
 
     // Link this to your Confirmation Panel's "Yes" button!

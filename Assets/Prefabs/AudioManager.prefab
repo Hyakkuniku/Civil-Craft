@@ -56,6 +56,16 @@ MonoBehaviour:
     pitch: 1
     randomPitchRange: 0
   soundEffects:
+  - id: OpenAlamanac
+    clip: {fileID: 8300000, guid: efc38b1f1596123459172e4dbbebe494, type: 3}
+    volume: 0.7
+    pitch: 1
+    randomPitchRange: 0
+  - id: PageFlip
+    clip: {fileID: 8300000, guid: 575a26cc237cd2c4c88eb7c82db26570, type: 3}
+    volume: 0.65
+    pitch: 1
+    randomPitchRange: 0
   - id: Walk
     clip: {fileID: 8300000, guid: f5f7ddf680784d248921d058aa9ae6ab, type: 3}
     volume: 0.5

@@ -78,6 +78,9 @@ public sealed class TumbleweedSpawnArea : MonoBehaviour
             Mathf.Max(0.01f, Mathf.Abs(size.x)) * 0.5f,
             Mathf.Max(0.01f, Mathf.Abs(size.y)) * 0.5f,
             Mathf.Max(0.01f, Mathf.Abs(size.z)) * 0.5f);
+        Bounds worldBounds = WorldBounds;
+        float probeTop = worldBounds.max.y + Mathf.Max(0.1f, groundProbeHeight);
+        float probeDistance = probeTop - worldBounds.min.y + Mathf.Max(0.2f, groundProbeDepth);
 
         for (int attempt = 0; attempt < Mathf.Max(1, attempts); attempt++)
         {
@@ -85,16 +88,11 @@ public sealed class TumbleweedSpawnArea : MonoBehaviour
                 Random.Range(-halfSize.x, halfSize.x),
                 halfSize.y,
                 Random.Range(-halfSize.z, halfSize.z));
-            Vector3 probeOrigin = transform.TransformPoint(localPoint) +
-                                  Vector3.up * Mathf.Max(0.1f, groundProbeHeight);
+            Vector3 probeOrigin = transform.TransformPoint(localPoint);
+            probeOrigin.y = probeTop;
 
-            if (!Physics.Raycast(
-                    probeOrigin,
-                    Vector3.down,
-                    out RaycastHit hit,
-                    Mathf.Max(0.2f, groundProbeDepth + groundProbeHeight + size.y),
-                    groundLayers,
-                    QueryTriggerInteraction.Ignore))
+            if (!TumbleweedGroundProbe.TryFindGround(probeOrigin, probeDistance, groundLayers,
+                    null, out RaycastHit hit))
             {
                 continue;
             }

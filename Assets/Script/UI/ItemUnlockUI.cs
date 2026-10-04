@@ -30,6 +30,10 @@ public class ItemUnlockUI : MonoBehaviour
     [Tooltip("The Collect button at the bottom")]
     public Button collectButton;
 
+    [Header("Material Introduction Reader")]
+    [Tooltip("Scene-authored reader for materials only. Cosmetic Collect rewards keep their original panel.")]
+    public LearningPopupLayout materialPopup;
+
     // --- NEW: UI Hiding Logic ---
     [Header("HUD Management")]
     [Tooltip("Drag UI elements here (like the Minimap or HUD Canvas) that should hide while this is open.")]
@@ -40,6 +44,7 @@ public class ItemUnlockUI : MonoBehaviour
     private System.Action onCollectCallback;
     private BridgeMaterialSO pendingMaterialToDiscover;
     private bool collectButtonBound;
+    private bool materialCloseBound;
     private bool rewardVisible;
     private readonly Queue<RewardRequest> pendingRewards = new Queue<RewardRequest>();
     private TextMeshProUGUI collectButtonText;
@@ -69,6 +74,12 @@ public class ItemUnlockUI : MonoBehaviour
         Instance = this;
         if (popupPanel != null) popupPanel.SetActive(false);
         BindCollectButton();
+        if (materialPopup != null && materialPopup.dismissButton != null)
+        {
+            materialPopup.dismissButton.onClick.AddListener(OnCollectClicked);
+            materialCloseBound = true;
+            materialPopup.gameObject.SetActive(false);
+        }
         CacheDefaultLayout();
     }
 
@@ -76,6 +87,8 @@ public class ItemUnlockUI : MonoBehaviour
     {
         if (collectButtonBound && collectButton != null)
             collectButton.onClick.RemoveListener(OnCollectClicked);
+        if (materialCloseBound && materialPopup != null && materialPopup.dismissButton != null)
+            materialPopup.dismissButton.onClick.RemoveListener(OnCollectClicked);
         if (Instance == this) Instance = null;
 
     }
@@ -156,6 +169,17 @@ public class ItemUnlockUI : MonoBehaviour
             }
         }
 
+        if (request.useMaterialLayout && materialPopup != null)
+        {
+            if (popupPanel != null) popupPanel.SetActive(false);
+            materialPopup.SetContent(request.itemName, request.itemIcon,
+                request.materialToDiscover != null ? request.materialToDiscover.PopupDescription : request.detailsText);
+            materialPopup.gameObject.SetActive(true);
+            materialPopup.transform.SetAsLastSibling();
+            return;
+        }
+        if (materialPopup != null) materialPopup.gameObject.SetActive(false);
+
         // Set the visuals. Material introductions use the same hand-made panel,
         // but expand the text area and use a non-collecting acknowledgement button.
         if (request.useMaterialLayout)
@@ -187,8 +211,10 @@ public class ItemUnlockUI : MonoBehaviour
 
     private void OnCollectClicked()
     {
+        if (!rewardVisible) return;
         // Hide the panel
         if (popupPanel != null) popupPanel.SetActive(false);
+        if (materialPopup != null) materialPopup.gameObject.SetActive(false);
 
         // --- NEW: Restore background UI ---
         foreach (GameObject ui in temporarilyHiddenUI)

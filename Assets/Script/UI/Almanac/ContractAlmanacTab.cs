@@ -203,6 +203,7 @@ public class ContractAlmanacTab : MonoBehaviour
             pageTransition = null;
             yield break;
         }
+        if (AlmanacManager.Instance != null) AlmanacManager.Instance.PlayPageFlipSound();
         yield return AnimateElements(1f, 0f, 0f, -direction * pageSlideDistance * 0.55f,
             pageTransitionDuration * 0.42f);
 

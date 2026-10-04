@@ -13,7 +13,7 @@ public static class ConcreteBeamSetup
     private const string MaterialPath = "Assets/BridgeBuilder/Data/Resources/ConcreteBeam.asset";
     private const string SelectedPath = "Assets/Elements/UI/bm_ui/concrete beam selected.png";
     private const string PrefabPath = "Assets/Prefabs/BuildingMode/MANAGERS AND CANVASES.prefab";
-    private const string VersionKey = "CivilCraft.ConcreteBeam.Authored.v2";
+    private const string VersionKey = "CivilCraft.ConcreteBeam.Authored.v3";
     private const string BalanceVersionKey = "CivilCraft.ConcreteMaterials.Balance.v1";
     static ConcreteBeamSetup()
     {
@@ -88,7 +88,7 @@ public static class ConcreteBeamSetup
         ValidateVisual(material);
         ValidateConcreteDeckSupport(material);
         if (ready) SessionState.SetBool(VersionKey, true);
-        Debug.Log("[Concrete Beam] Material buttons authored with selected/unselected pictures. Existing contract allowances are unchanged.");
+        Debug.Log("[Concrete Beam] Material buttons authored with undistorted selected/unselected pictures. Existing contract allowances are unchanged.");
     }
     private static bool ConfigureButton(GameObject root, BridgeMaterialSO material, Sprite selected)
     {
@@ -115,7 +115,11 @@ public static class ConcreteBeamSetup
             existing.buttonMaterial = material;
             // Instance cloning remaps the wrapper, badge, and image references.
         }
-        if (!created && existing.defaultSprite == material.materialIcon && existing.selectedOutlineSprite == selected) return false;
+        bool layoutChanged = ConfigureIconLayout(existing);
+        if (!created && !layoutChanged && existing.defaultSprite == material.materialIcon &&
+            existing.selectedOutlineSprite == selected && existing.buttonImage != null &&
+            existing.buttonImage.sprite == material.materialIcon && existing.buttonImage.preserveAspect &&
+            existing.buttonImage.color == Color.white) return false;
         existing.defaultSprite = material.materialIcon;
         existing.selectedOutlineSprite = selected;
         if (existing.buttonImage != null)
@@ -139,6 +143,77 @@ public static class ConcreteBeamSetup
             serialized.ApplyModifiedPropertiesWithoutUndo();
         }
         EditorUtility.SetDirty(existing);
+        return true;
+    }
+
+    private static bool ConfigureIconLayout(MaterialButtonTrigger trigger)
+    {
+        RectTransform rect = trigger.transform as RectTransform;
+        if (rect == null || rect.parent == null) return false;
+        bool changed = EnsureIndividualWrapper(trigger);
+
+        // The legacy dock deliberately counter-scales its 160x30 slots. Image's
+        // preserveAspect runs BEFORE those parent scales, squeezing square art
+        // into a sliver. Cancel the inherited skew on this icon, while keeping
+        // exactly the same slot bounds, selection lift, and scrollbar spacing.
+        Vector3 inherited = Vector3.one;
+        for (Transform parent = rect.parent; parent != null; parent = parent.parent)
+        {
+            Canvas canvas = parent.GetComponent<Canvas>();
+            // A disabled screen-space canvas can serialize a zero scale in
+            // Edit Mode; its uniform screen scale does not affect the ratio.
+            if (canvas != null && canvas.isRootCanvas && canvas.renderMode != RenderMode.WorldSpace) break;
+            inherited = Vector3.Scale(inherited, parent.localScale);
+        }
+        if (Mathf.Abs(inherited.x) < .0001f || Mathf.Abs(inherited.y) < .0001f) return changed;
+        Vector3 scale = new Vector3(Mathf.Abs(inherited.y / inherited.x), 1f, 1f);
+        Vector2 size = new Vector2(rect.rect.width * rect.localScale.x / scale.x,
+            rect.rect.height * rect.localScale.y);
+        if ((rect.localScale - scale).sqrMagnitude < .000001f &&
+            (rect.rect.size - size).sqrMagnitude < .000001f) return changed;
+
+        rect.localScale = scale;
+        rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, size.x);
+        rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, size.y);
+        EditorUtility.SetDirty(rect);
+        return true;
+    }
+
+    private static bool EnsureIndividualWrapper(MaterialButtonTrigger trigger)
+    {
+        RectTransform source = trigger.transform.parent as RectTransform;
+        if (source == null || source.GetComponent<LayoutElement>() == null ||
+            source.parent == null || source.parent.GetComponent<HorizontalLayoutGroup>() == null ||
+            source.GetComponentsInChildren<MaterialButtonTrigger>(true).Length <= 1) return false;
+
+        // Older shared prefabs cloned only the button inside Timber Beam's slot.
+        // Give Concrete Beam its own slot so neither icon nor contract hiding
+        // shares the timber wrapper.
+        GameObject wrapper = new GameObject("Concrete Beam", typeof(RectTransform), typeof(LayoutElement));
+        wrapper.layer = trigger.gameObject.layer;
+        RectTransform target = wrapper.transform as RectTransform;
+        target.SetParent(source.parent, false);
+        target.SetSiblingIndex(source.GetSiblingIndex() + 1);
+        target.anchorMin = source.anchorMin;
+        target.anchorMax = source.anchorMax;
+        target.pivot = source.pivot;
+        target.sizeDelta = source.sizeDelta;
+        target.anchoredPosition3D = source.anchoredPosition3D;
+        target.localRotation = source.localRotation;
+        target.localScale = source.localScale;
+        LayoutElement from = source.GetComponent<LayoutElement>();
+        LayoutElement to = wrapper.GetComponent<LayoutElement>();
+        to.ignoreLayout = from.ignoreLayout;
+        to.minWidth = from.minWidth;
+        to.minHeight = from.minHeight;
+        to.preferredWidth = from.preferredWidth;
+        to.preferredHeight = from.preferredHeight;
+        to.flexibleWidth = from.flexibleWidth;
+        to.flexibleHeight = from.flexibleHeight;
+        to.layoutPriority = from.layoutPriority;
+        trigger.transform.SetParent(target, false);
+        trigger.parentWrapper = wrapper;
+        EditorUtility.SetDirty(trigger);
         return true;
     }
     private static void ValidateVisual(BridgeMaterialSO material)
