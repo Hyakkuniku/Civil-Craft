@@ -13,6 +13,8 @@ public sealed class ChallengeBridgeTestRun : IDisposable
     public LiveLoadVehicle Vehicle { get; private set; }
     public readonly List<Bar> Bars = new List<Bar>();
     public readonly List<Transform> MotionTargets = new List<Transform>();
+    public readonly List<BoatBridgeCrossing> Boats = new List<BoatBridgeCrossing>();
+    public readonly List<string> BoatKeys = new List<string>();
     private ContractSO contract;
     private float belowRouteTime, stallTime, bestProgress;
     private bool reachedBridge;
@@ -66,6 +68,10 @@ public sealed class ChallengeBridgeTestRun : IDisposable
                 obj.SetActive(true);
                 Bar bar = obj.GetComponent<Bar>(); bar.enabled = true;
                 bar.AssignOwner(run.Location, true); bar.Initialize(catalog[record.Material]);
+                // Some visual prefabs contain legacy Bar components. Only the
+                // graph member owns endpoints/physics; its nested meshes do not.
+                foreach (MonoBehaviour script in obj.GetComponentsInChildren<MonoBehaviour>(true))
+                    if (script != bar) Object.DestroyImmediate(script);
                 bar.startPoint = points[record.Start]; bar.endPoint = points[record.End];
                 bar.NormalizeEndpointOrder();
                 run.Bars.Add(bar);
@@ -86,6 +92,21 @@ public sealed class ChallengeBridgeTestRun : IDisposable
             run.Vehicle.vehicleInfoPanel = null;
             run.Vehicle.ConfigureSessionChallengeTest(weight);
             run.Physics.ConfigureSessionChallengeTest(run.Location, run.Vehicle);
+            foreach (BoatBridgeCrossing source in ChallengeTestDescriptor.SelectBoats(site, definition))
+            {
+                source.GetSessionTestStartPose(out Vector3 boatPosition, out Quaternion boatRotation);
+                GameObject boatObject = Object.Instantiate(source.gameObject, boatPosition, boatRotation, run.Root.transform);
+                boatObject.transform.localScale = source.transform.lossyScale;
+                StripScriptsExcept<BoatBridgeCrossing>(boatObject);
+                BoatBridgeCrossing boat = boatObject.GetComponent<BoatBridgeCrossing>();
+                boat.ConfigureSessionChallengeTest(run.Physics, run.Location, run.contract);
+                boat.enabled = true;
+                // Obstacles are transform-driven; copied rigidbodies must not
+                // fall or compete with their authored crossing motion.
+                foreach (Rigidbody body in boatObject.GetComponentsInChildren<Rigidbody>(true)) HoldBody(body);
+                boatObject.SetActive(true);
+                run.Boats.Add(boat); run.BoatKeys.Add(ChallengeTestDescriptor.ObjectPath(source.transform));
+            }
             run.HoldBridgeForPreparation();
             vehicleObject.SetActive(true);
             run.Root.SetActive(true); // Awake before Start; the vehicle subscribes on the following frame.
@@ -133,6 +154,7 @@ public sealed class ChallengeBridgeTestRun : IDisposable
         }
         MotionTargets.Add(Vehicle.transform);
         foreach (GameObject wheel in Vehicle.wheelObjects) MotionTargets.Add(wheel.transform);
+        foreach (BoatBridgeCrossing boat in Boats) MotionTargets.Add(boat.transform);
         return snapshot;
     }
 
@@ -191,7 +213,7 @@ public sealed class ChallengeBridgeTestRun : IDisposable
         if (Root != null) { Root.SetActive(false); Destroy(Root); }
         if (contract != null) Destroy(contract);
         Root = null; Location = null; Physics = null; Vehicle = null; contract = null;
-        Bars.Clear(); MotionTargets.Clear();
+        Bars.Clear(); MotionTargets.Clear(); Boats.Clear(); BoatKeys.Clear();
     }
     private static void Destroy(Object obj) { if (Application.isPlaying) Object.Destroy(obj); else Object.DestroyImmediate(obj); }
 }

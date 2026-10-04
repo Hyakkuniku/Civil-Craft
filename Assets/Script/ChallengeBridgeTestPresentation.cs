@@ -10,11 +10,38 @@ public sealed class ChallengeTestDescriptor
     public string VehicleKey;
     public float Weight;
     public HostWorldBridgePose[] VehiclePoses; // Body followed by the authored wheels.
+    public const int MaxBoats = 8;
+    public const int MaxPacketBytes = HostWorldBridgeSnapshotCodec.MaxPacketBytes + 32768;
+    public string[] BoatKeys = Array.Empty<string>();
+    public HostWorldBridgePose[] BoatPoses = Array.Empty<HostWorldBridgePose>();
     public static string VehiclePath(LiveLoadVehicle vehicle)
+        => ObjectPath(vehicle.transform);
+    public static string ObjectPath(Transform transform)
     {
         var names = new List<string>();
-        for (Transform node = vehicle.transform; node != null; node = node.parent) names.Add(Uri.EscapeDataString(node.name));
+        for (Transform node = transform; node != null; node = node.parent) names.Add(Uri.EscapeDataString(node.name));
         names.Reverse(); return string.Join("/", names);
+    }
+    public static List<BoatBridgeCrossing> SelectBoats(BuildLocation site, ContractSO definition)
+    {
+        var boats = new List<BoatBridgeCrossing>();
+        foreach (var boat in Resources.FindObjectsOfTypeAll<BoatBridgeCrossing>())
+            if (!boat.IsSessionChallengeTestBoat && boat.enabled && boat.gameObject.scene == site.gameObject.scene &&
+                boat.assignedContract != null && boat.assignedContract.ContractID == definition.ContractID) boats.Add(boat);
+        boats.Sort((a, b) => string.CompareOrdinal(ObjectPath(a.transform), ObjectPath(b.transform)));
+        if (boats.Count > MaxBoats) throw new InvalidDataException("Too many authored challenge boats.");
+        return boats;
+    }
+    public static BoatBridgeCrossing ResolveBoat(string key, UnityEngine.SceneManagement.Scene scene)
+    {
+        BoatBridgeCrossing match = null;
+        foreach (var boat in Resources.FindObjectsOfTypeAll<BoatBridgeCrossing>())
+        {
+            if (boat.IsSessionChallengeTestBoat || boat.gameObject.scene != scene || ObjectPath(boat.transform) != key) continue;
+            if (match != null) return null;
+            match = boat;
+        }
+        return match;
     }
     public static LiveLoadVehicle ResolveVehicle(string key, UnityEngine.SceneManagement.Scene scene)
     {
@@ -49,21 +76,31 @@ public sealed class ChallengeTestDescriptor
         using (var stream = new MemoryStream())
         using (var writer = new BinaryWriter(stream, Encoding.UTF8, true))
         {
-            writer.Write(1); writer.Write(bridge.Length); writer.Write(bridge);
+            writer.Write(2); writer.Write(bridge.Length); writer.Write(bridge);
             writer.Write(VehicleKey); writer.Write(Weight); writer.Write(VehiclePoses.Length);
             foreach (var pose in VehiclePoses)
             { ChallengeTestMotionCodec.WriteVector(writer, pose.Position); ChallengeTestMotionCodec.WriteRotation(writer, pose.Rotation); ChallengeTestMotionCodec.WriteVector(writer, pose.Scale); }
-            if (stream.Length > HostWorldBridgeSnapshotCodec.MaxPacketBytes + 4096) throw new InvalidDataException("Test presentation is too large.");
+            if (BoatKeys.Length != BoatPoses.Length || BoatKeys.Length > MaxBoats) throw new InvalidDataException("Invalid test boats.");
+            writer.Write(BoatKeys.Length);
+            for (int i = 0; i < BoatKeys.Length; i++)
+            {
+                writer.Write(BoatKeys[i]);
+                var pose = BoatPoses[i];
+                ChallengeTestMotionCodec.WriteVector(writer, pose.Position);
+                ChallengeTestMotionCodec.WriteRotation(writer, pose.Rotation);
+                ChallengeTestMotionCodec.WriteVector(writer, pose.Scale);
+            }
+            if (stream.Length > MaxPacketBytes) throw new InvalidDataException("Test presentation is too large.");
             return stream.ToArray();
         }
     }
     public static ChallengeTestDescriptor Decode(ReadOnlySpan<byte> data)
     {
-        if (data.Length < 16 || data.Length > HostWorldBridgeSnapshotCodec.MaxPacketBytes + 4096) throw new InvalidDataException("Invalid test presentation size.");
+        if (data.Length < 16 || data.Length > MaxPacketBytes) throw new InvalidDataException("Invalid test presentation size.");
         using (var stream = new MemoryStream(data.ToArray(), false))
         using (var reader = new BinaryReader(stream, new UTF8Encoding(false, true)))
         {
-            if (reader.ReadInt32() != 1) throw new InvalidDataException("Invalid test presentation version.");
+            if (reader.ReadInt32() != 2) throw new InvalidDataException("Invalid test presentation version.");
             int size = reader.ReadInt32();
             if (size < 0 || size > HostWorldBridgeSnapshotCodec.MaxPacketBytes || size > stream.Length - stream.Position)
                 throw new InvalidDataException("Invalid test bridge size.");
@@ -71,10 +108,23 @@ public sealed class ChallengeTestDescriptor
             if (descriptor.VehicleKey.Length == 0 || descriptor.VehicleKey.Length > 2048 ||
                 !ChallengeTestMotionCodec.Finite(descriptor.Weight) || descriptor.Weight <= 0f) throw new InvalidDataException("Invalid test vehicle.");
             int count = reader.ReadInt32();
-            if (count < 1 || count > 33 || count * 40L != stream.Length - stream.Position) throw new InvalidDataException("Invalid test wheel count.");
+            if (count < 1 || count > 33 || count * 40L + 4 > stream.Length - stream.Position) throw new InvalidDataException("Invalid test wheel count.");
             descriptor.VehiclePoses = new HostWorldBridgePose[count];
             for (int i = 0; i < count; i++) descriptor.VehiclePoses[i] = new HostWorldBridgePose
             { Position = ChallengeTestMotionCodec.ReadVector(reader), Rotation = ChallengeTestMotionCodec.ReadRotation(reader), Scale = ChallengeTestMotionCodec.ReadVector(reader) };
+            count = reader.ReadInt32();
+            if (count < 0 || count > MaxBoats) throw new InvalidDataException("Invalid test boat count.");
+            descriptor.BoatKeys = new string[count]; descriptor.BoatPoses = new HostWorldBridgePose[count];
+            var keys = new HashSet<string>(StringComparer.Ordinal);
+            for (int i = 0; i < count; i++)
+            {
+                string key = reader.ReadString();
+                if (key.Length == 0 || key.Length > 2048 || !keys.Add(key)) throw new InvalidDataException("Invalid test boat key.");
+                descriptor.BoatKeys[i] = key;
+                descriptor.BoatPoses[i] = new HostWorldBridgePose { Position = ChallengeTestMotionCodec.ReadVector(reader),
+                    Rotation = ChallengeTestMotionCodec.ReadRotation(reader), Scale = ChallengeTestMotionCodec.ReadVector(reader) };
+            }
+            if (stream.Position != stream.Length) throw new InvalidDataException("Unexpected test presentation data.");
             return descriptor;
         }
     }
@@ -95,16 +145,19 @@ public sealed class ChallengeTestMotionChunk
 public static class ChallengeTestMotionCodec
 {
     public const int TargetsPerChunk = 8;
-    public const int MaxTargets = ChallengeBridgeSubmissionCodec.MaxBars + 33;
-    public static byte[] Encode(int sequence, int offset, float time, IReadOnlyList<Transform> targets, IReadOnlyList<Bar> bars)
+    public const int MaxTargets = ChallengeBridgeSubmissionCodec.MaxBars + 33 + ChallengeTestDescriptor.MaxBoats;
+    public static byte[] Encode(int sequence, int offset, float time, IReadOnlyList<Transform> targets, IReadOnlyList<Bar> bars,
+        int wheelCount = -1, IReadOnlyList<BoatBridgeCrossing> boats = null)
     {
+        if (wheelCount < 0) wheelCount = targets.Count - bars.Count - 1;
+        int boatStart = bars.Count + 1 + wheelCount;
         int count = Mathf.Min(TargetsPerChunk, targets.Count - offset);
         if (count <= 0 || targets.Count > MaxTargets || bars.Count > ChallengeBridgeSubmissionCodec.MaxBars)
             throw new InvalidDataException("Invalid test motion targets.");
         using (var stream = new MemoryStream())
         using (var writer = new BinaryWriter(stream))
         {
-            writer.Write((byte)2); writer.Write(sequence); writer.Write((ushort)offset); writer.Write((byte)count);
+            writer.Write((byte)3); writer.Write(sequence); writer.Write((ushort)offset); writer.Write((byte)count);
             writer.Write((ushort)targets.Count); writer.Write((ushort)bars.Count); writer.Write(time);
             for (int i = offset; i < offset + count; i++)
             {
@@ -116,11 +169,21 @@ public static class ChallengeTestMotionCodec
                     WriteVector(writer, bars[i].StartPosition); WriteVector(writer, bars[i].EndPosition);
                     writer.Write(bars[i].SessionSpectatorRopeLength);
                 }
+                else if (i > bars.Count && i < boatStart)
+                {
+                    // Wheels travel with the chassis even if its packet arrives
+                    // before theirs. Independent world-space interpolation made
+                    // child wheels lag behind, wobble and detach from the truck.
+                    Transform body = targets[bars.Count];
+                    WriteVector(writer, body.InverseTransformPoint(targets[i].position));
+                    WriteRotation(writer, Quaternion.Inverse(body.rotation) * targets[i].rotation);
+                }
                 else { WriteVector(writer, targets[i].position); WriteRotation(writer, targets[i].rotation); }
                 BarStressHandler stress = i < bars.Count ? bars[i].GetComponent<BarStressHandler>() : null;
                 ushort value = stress != null ? (ushort)Mathf.RoundToInt(Mathf.Clamp01(stress.VisualStressPercent) * 16383f) : (ushort)0;
                 if (rope) value |= 0x4000;
                 if (stress != null && stress.isBroken) value |= 0x8000;
+                if (i >= boatStart && boats != null && !boats[i - boatStart].SessionTestVisible) value |= 0x8000;
                 writer.Write(value);
             }
             return stream.ToArray();
@@ -132,7 +195,7 @@ public static class ChallengeTestMotionCodec
         using (var stream = new MemoryStream(bytes, false))
         using (var reader = new BinaryReader(stream))
         {
-            if (reader.ReadByte() != 2) throw new InvalidDataException("Invalid motion version.");
+            if (reader.ReadByte() != 3) throw new InvalidDataException("Invalid motion version.");
             var chunk = new ChallengeTestMotionChunk { Sequence = reader.ReadInt32(), Offset = reader.ReadUInt16() };
             int count = reader.ReadByte();
             chunk.TotalTargets = reader.ReadUInt16(); chunk.TotalBars = reader.ReadUInt16(); chunk.Time = reader.ReadSingle();
@@ -191,7 +254,10 @@ public sealed class ChallengeBridgeTestView : IDisposable
     public int TargetCount => targets.Count;
     private readonly List<Transform> targets = new List<Transform>();
     private readonly List<Renderer[]> memberRenderers = new List<Renderer[]>();
-    private readonly Dictionary<Renderer, Color> originalColors = new Dictionary<Renderer, Color>();
+    private readonly Dictionary<Renderer, Color[]> originalColors = new Dictionary<Renderer, Color[]>();
+    private readonly Dictionary<int, Renderer[]> boatRenderers = new Dictionary<int, Renderer[]>();
+    private readonly Dictionary<Renderer, bool> boatRendererStates = new Dictionary<Renderer, bool>();
+    private int vehicleIndex, boatStart;
     private readonly Dictionary<int, LineRenderer[]> ropes = new Dictionary<int, LineRenderer[]>();
     private Material ropeMaterial;
     private Sample[] samples;
@@ -232,8 +298,14 @@ public sealed class ChallengeBridgeTestView : IDisposable
                 Transform member = Root.transform.GetChild(i); targets.Add(member);
                 Renderer[] renderers = member.GetComponentsInChildren<Renderer>(true); memberRenderers.Add(renderers);
                 foreach (Renderer renderer in renderers)
-                    originalColors[renderer] = renderer.sharedMaterial != null && renderer.sharedMaterial.HasProperty("_BaseColor")
-                        ? renderer.sharedMaterial.GetColor("_BaseColor") : Color.white;
+                {
+                    Material[] slots = renderer.sharedMaterials;
+                    var colors = new Color[slots.Length];
+                    for (int slot = 0; slot < slots.Length; slot++)
+                        colors[slot] = slots[slot] != null && slots[slot].HasProperty("_BaseColor") ? slots[slot].GetColor("_BaseColor") :
+                            slots[slot] != null && slots[slot].HasProperty("_Color") ? slots[slot].GetColor("_Color") : Color.white;
+                    originalColors[renderer] = colors;
+                }
                 BridgeMaterialSO material = materials[descriptor.Bridge.Bars[i].MaterialId];
                 if (material.isRope)
                 {
@@ -263,14 +335,43 @@ public sealed class ChallengeBridgeTestView : IDisposable
             }
             var map = new Dictionary<Transform, Transform>();
             GameObject vehicle = HostWorldBridgeVisual.CopyMeshes(source.gameObject, Root.transform, map);
+            // The host's Awake can normalize an oversized FBX physics root.
+            // An inactive guest source has not necessarily done so. Preserve
+            // world-sized body meshes before assigning the host's root scale.
+            Vector3 sourceScale = source.transform.lossyScale, bodyScale = descriptor.VehiclePoses[0].Scale;
+            Vector3 normalization = new Vector3(ScaleRatio(sourceScale.x, bodyScale.x),
+                ScaleRatio(sourceScale.y, bodyScale.y), ScaleRatio(sourceScale.z, bodyScale.z));
+            foreach (Transform child in vehicle.transform)
+            {
+                child.localPosition = Vector3.Scale(child.localPosition, normalization);
+                child.localScale = Vector3.Scale(child.localScale, normalization);
+            }
             vehicle.SetActive(true); targets.Add(vehicle.transform);
             foreach (GameObject wheel in source.wheelObjects) targets.Add(map[wheel.transform]);
+            vehicleIndex = descriptor.Bridge.Bars.Count;
+            boatStart = vehicleIndex + descriptor.VehiclePoses.Length;
             for (int i = 0; i < descriptor.VehiclePoses.Length; i++)
             {
                 Transform target = targets[descriptor.Bridge.Bars.Count + i]; var pose = descriptor.VehiclePoses[i];
                 target.SetPositionAndRotation(pose.Position, pose.Rotation);
                 Vector3 scale = target.parent.lossyScale;
                 target.localScale = new Vector3(pose.Scale.x / scale.x, pose.Scale.y / scale.y, pose.Scale.z / scale.z);
+            }
+            // Flatten only the visual wheel parents. Physics axle objects are
+            // absent on spectators and may differ between initialized editors.
+            for (int i = vehicleIndex + 1; i < boatStart; i++) targets[i].SetParent(vehicle.transform, true);
+            for (int i = 0; i < descriptor.BoatKeys.Length; i++)
+            {
+                BoatBridgeCrossing boatSource = ChallengeTestDescriptor.ResolveBoat(descriptor.BoatKeys[i], site.gameObject.scene);
+                if (boatSource == null) throw new InvalidDataException("The guest's authored boat does not match the host.");
+                GameObject boat = HostWorldBridgeVisual.CopyMeshes(boatSource.gameObject, Root.transform);
+                var pose = descriptor.BoatPoses[i];
+                boat.transform.SetPositionAndRotation(pose.Position, pose.Rotation); boat.transform.localScale = pose.Scale;
+                boat.SetActive(true);
+                Renderer[] meshes = boat.GetComponentsInChildren<Renderer>(true);
+                boatRenderers.Add(targets.Count, meshes);
+                foreach (Renderer renderer in meshes) boatRendererStates.Add(renderer, renderer.enabled);
+                targets.Add(boat.transform);
             }
             warning = settings != null ? settings.warningColor : Color.yellow;
             critical = settings != null ? settings.criticalColor : Color.red;
@@ -300,14 +401,22 @@ public sealed class ChallengeBridgeTestView : IDisposable
             sample.HistoryCount = Mathf.Min(HistoryCapacity, sample.HistoryCount + 1);
             sample.Time = chunk.Time; sample.RopeLength = chunk.RopeLengths[j];
             sample.Sequence = chunk.Sequence; sample.Received = true; samples[index] = sample;
+            if (boatRenderers.TryGetValue(index, out var boatMeshes))
+                foreach (Renderer renderer in boatMeshes) renderer.enabled = boatRendererStates[renderer] && (chunk.Stress[j] & 0x8000) == 0;
             if (index >= memberRenderers.Count) continue;
             if (ropes.ContainsKey(index)) { foreach (Renderer renderer in memberRenderers[index]) renderer.enabled = false; continue; }
             float stress = (chunk.Stress[j] & 0x3fff) / 16383f;
             foreach (Renderer renderer in memberRenderers[index])
             {
-                Color color = (chunk.Stress[j] & 0x8000) != 0 ? broken : stress < 0.5f
-                    ? Color.Lerp(originalColors[renderer], warning, stress * 2f) : Color.Lerp(warning, critical, (stress - 0.5f) * 2f);
-                renderer.GetPropertyBlock(block); block.SetColor("_BaseColor", color); block.SetColor("_Color", color); renderer.SetPropertyBlock(block);
+                Color[] colors = originalColors[renderer];
+                for (int slot = 0; slot < colors.Length; slot++)
+                {
+                    Color color = (chunk.Stress[j] & 0x8000) != 0 ? broken : stress < 0.5f
+                        ? Color.Lerp(colors[slot], warning, stress * 2f) : Color.Lerp(warning, critical, (stress - 0.5f) * 2f);
+                    color.a = colors[slot].a;
+                    block.Clear(); renderer.GetPropertyBlock(block, slot);
+                    block.SetColor("_BaseColor", color); block.SetColor("_Color", color); renderer.SetPropertyBlock(block, slot);
+                }
             }
         }
     }
@@ -327,7 +436,11 @@ public sealed class ChallengeBridgeTestView : IDisposable
                 previous = next;
             }
             float blend = next.Time > previous.Time ? Mathf.Clamp01((renderTime - previous.Time) / (next.Time - previous.Time)) : 1f;
-            targets[i].SetPositionAndRotation(Vector3.Lerp(previous.Position, next.Position, blend), Quaternion.Slerp(previous.Rotation, next.Rotation, blend));
+            Vector3 position = Vector3.Lerp(previous.Position, next.Position, blend);
+            Quaternion rotation = Quaternion.Slerp(previous.Rotation, next.Rotation, blend);
+            if (i > vehicleIndex && i < boatStart)
+            { targets[i].localPosition = position; targets[i].localRotation = rotation; }
+            else targets[i].SetPositionAndRotation(position, rotation);
             if (ropes.TryGetValue(i, out var lines))
             {
                 Vector3 start = targets[i].position;
@@ -341,18 +454,19 @@ public sealed class ChallengeBridgeTestView : IDisposable
                     float offset = line.transform.localPosition.z;
                     for (int point = 0; point < 17; point++)
                     {
-                        float t = point / 16f; Vector3 position = Vector3.Lerp(start, end, t);
-                        position.y -= 4f * sag * t * (1f - t); position.z = start.z + offset;
-                        line.SetPosition(point, position);
+                        float t = point / 16f; Vector3 curvePosition = Vector3.Lerp(start, end, t);
+                        curvePosition.y -= 4f * sag * t * (1f - t); curvePosition.z = start.z + offset;
+                        line.SetPosition(point, curvePosition);
                     }
                 }
             }
         }
     }
     public void CompleteFinalFrame() { finalPose = true; Render(0f); }
+    private static float ScaleRatio(float value, float scale) => Mathf.Abs(scale) > 0.00001f ? value / scale : 1f;
     public void Dispose()
     {
-        geometry?.Dispose(); geometry = null; targets.Clear(); memberRenderers.Clear(); originalColors.Clear(); ropes.Clear();
+        geometry?.Dispose(); geometry = null; targets.Clear(); memberRenderers.Clear(); originalColors.Clear(); ropes.Clear(); boatRenderers.Clear(); boatRendererStates.Clear();
         samples = null; history = null;
         if (ropeMaterial != null)
         { if (Application.isPlaying) UnityEngine.Object.Destroy(ropeMaterial); else UnityEngine.Object.DestroyImmediate(ropeMaterial); }

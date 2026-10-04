@@ -135,6 +135,9 @@ public static class ChallengeBridgeSubmissionRules
         var catalog = new Dictionary<string, BridgeMaterialSO>(StringComparer.Ordinal);
         var ambiguous = new HashSet<string>();
         var candidates = new HashSet<BridgeMaterialSO>(Resources.FindObjectsOfTypeAll<BridgeMaterialSO>());
+        // A guest need not have selected the sender's material locally. Resolve
+        // the full shipped catalog, not just assets incidentally loaded by its UI.
+        foreach (var material in Resources.LoadAll<BridgeMaterialSO>(string.Empty)) candidates.Add(material);
         if (definition != null && definition.allowedMaterials != null)
             foreach (var allowance in definition.allowedMaterials) if (allowance?.material != null) candidates.Add(allowance.material);
         foreach (var material in candidates)

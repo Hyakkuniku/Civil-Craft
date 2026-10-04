@@ -25,6 +25,24 @@ public static class ChallengeTestValidation
     {
         if (EditorApplication.timeSinceStartup < nextPreparationCheck) return;
         nextPreparationCheck = EditorApplication.timeSinceStartup + 2;
+        const string contentRequest = "Temp/challenge-simulation-content-v2-validation.request";
+        if (File.Exists(contentRequest) && !EditorApplication.isCompiling && !EditorApplication.isUpdating &&
+            !EditorApplication.isPlayingOrWillChangePlaymode)
+        {
+            File.Delete(contentRequest);
+            var contentReport = new StringBuilder();
+            try
+            {
+                ValidateSimulationContent(contentReport);
+                ValidateChunkTransfer(contentReport);
+                ValidateRpcSendResult(contentReport);
+                contentReport.AppendLine("PASS: Isolated Unity content checks complete. Live Photon/two-peer driving still requires a play test.");
+                Debug.Log("[Challenge simulation content validation] PASS. Report: Temp/ChallengeSimulationContentValidation.txt");
+            }
+            catch (Exception error) { contentReport.AppendLine("FAIL: " + error); Debug.LogException(error); }
+            File.WriteAllText("Temp/ChallengeSimulationContentValidation.txt", contentReport.ToString());
+            return;
+        }
         const string request = "Temp/challenge-guest-introduction-order-validation.request";
         if (!File.Exists(request) || EditorApplication.isCompiling || EditorApplication.isUpdating) return;
         bool hasScene = false;
@@ -535,6 +553,223 @@ public static class ChallengeTestValidation
         catch (Exception error) when (error is InvalidDataException || error is EndOfStreamException) { return; }
         throw new InvalidOperationException("Invalid motion was accepted.");
     }
+    private static void ValidateSimulationContent(StringBuilder report)
+    {
+        var scene = EditorSceneManager.NewPreviewScene();
+        var fixture = new GameObject("Simulation Content Check (Temporary)"); fixture.SetActive(false);
+        SceneManager.MoveGameObjectToScene(fixture, scene);
+        ContractSO definition = ScriptableObject.CreateInstance<ContractSO>();
+        definition.contractID = "CONTENT_CHECK_ONLY"; definition.liveLoadWeight = 2000;
+        ChallengeBridgeTestRun run = null; ChallengeBridgeTestView view = null;
+        try
+        {
+            var materials = new List<BridgeMaterialSO>();
+            foreach (string guid in AssetDatabase.FindAssets("t:BridgeMaterialSO", new[] { "Assets/BridgeBuilder/Data/Resources" }))
+                materials.Add(AssetDatabase.LoadAssetAtPath<BridgeMaterialSO>(AssetDatabase.GUIDToAssetPath(guid)));
+            materials.Sort((a, b) => string.CompareOrdinal(a.Id, b.Id));
+            Check(materials.Count >= 6, "The real construction-material catalog is missing.");
+            BuildLocation site = Child("Content Site", fixture.transform).AddComponent<BuildLocation>(); site.activeContract = definition;
+            Point start = Child("Start", fixture.transform).AddComponent<Point>(); start.transform.position = new Vector3(40, 3, -8);
+            Point end = Child("End", fixture.transform).AddComponent<Point>(); end.transform.position = new Vector3(44, 3, -8);
+            site.startingAnchors.Add(start); site.endingAnchors.Add(end);
+            BarCreator creator = Child("Creator", fixture.transform).AddComponent<BarCreator>();
+            creator.pointToInstantiate = Child("Point Prefab", fixture.transform); creator.pointToInstantiate.AddComponent<Point>();
+            creator.barToInstantiate = Child("Bar Prefab", fixture.transform); creator.barToInstantiate.AddComponent<Bar>();
+            BridgePhysicsManager settings = Child("Original Physics", fixture.transform).AddComponent<BridgePhysicsManager>();
+            LiveLoadVehicle vehicle = Child("Original Truck", fixture.transform).AddComponent<LiveLoadVehicle>();
+            vehicle.assignedContract = definition; vehicle.physicsManager = settings;
+            vehicle.startPoint = start.transform; vehicle.endPoint = end.transform; vehicle.transform.position = start.transform.position;
+            vehicle.wheelObjects = new GameObject[4];
+            for (int i = 0; i < 4; i++)
+            {
+                GameObject wheel = GameObject.CreatePrimitive(PrimitiveType.Cylinder); wheel.name = "Wheel " + i;
+                wheel.transform.SetParent(vehicle.transform, false);
+                wheel.transform.localPosition = new Vector3(i < 2 ? -1 : 1, 0, i % 2 == 0 ? -1 : 1);
+                wheel.transform.localScale = new Vector3(0.5f, 0.08f, 0.5f); wheel.transform.localRotation = Quaternion.Euler(0, 0, 90);
+                vehicle.wheelObjects[i] = wheel;
+            }
+            GameObject boatObject = GameObject.CreatePrimitive(PrimitiveType.Cube); boatObject.name = "Original Boat";
+            boatObject.transform.SetParent(fixture.transform, false); boatObject.transform.position = new Vector3(40, -10, 8);
+            BoatBridgeCrossing boat = boatObject.AddComponent<BoatBridgeCrossing>(); boat.assignedContract = definition;
+            SetPrivate(boat, "useManualHull", true); SetPrivate(boat, "physicsManager", settings);
+            InvokePrivate(boat, "Awake");
+            Vector3 originalBoatPosition = boat.transform.position;
+            var graph = new ChallengeBridgeSubmission();
+            graph.Nodes.Add(new ChallengeSubmittedNode { Position = start.transform.position, Anchor = 0 });
+            graph.Nodes.Add(new ChallengeSubmittedNode { Position = end.transform.position, Anchor = 1 });
+            foreach (BridgeMaterialSO material in materials)
+            {
+                definition.allowedMaterials.Add(new MaterialAllowance { material = material });
+                int first = graph.Nodes.Count;
+                Vector3 p = new Vector3(40 + first * 5, 3, -8);
+                graph.Nodes.Add(new ChallengeSubmittedNode { Position = p, Anchor = -1 });
+                graph.Nodes.Add(new ChallengeSubmittedNode { Position = p + (material.isPier ? Vector3.up : Vector3.right) * 4, Anchor = -1 });
+                graph.Bars.Add(new ChallengeSubmittedBar { Start = first, End = first + 1, Material = material.Id });
+            }
+            var catalog = ChallengeBridgeSubmissionRules.CreateMaterialCatalog(definition);
+            run = ChallengeBridgeTestRun.Create(graph, site, definition, creator, settings, vehicle, 2000, 98, 1);
+            Check(run.Boats.Count == 1 && run.Boats[0] != boat && run.Boats[0].IsSessionChallengeTestBoat,
+                "The authored contract boat was not cloned into the isolated test.");
+            var descriptor = new ChallengeTestDescriptor { Bridge = run.CapturePresentation("Content/Bridge"),
+                VehicleKey = ChallengeTestDescriptor.VehiclePath(vehicle), Weight = 2000,
+                VehiclePoses = new HostWorldBridgePose[5], BoatKeys = run.BoatKeys.ToArray(),
+                BoatPoses = new[] { HostWorldBridgePose.World(run.Boats[0].transform) } };
+            descriptor.VehiclePoses[0] = HostWorldBridgePose.World(run.Vehicle.transform);
+            for (int i = 0; i < 4; i++) descriptor.VehiclePoses[i + 1] = HostWorldBridgePose.World(run.Vehicle.wheelObjects[i].transform);
+            var decoded = ChallengeTestDescriptor.Decode(descriptor.Encode());
+            view = new ChallengeBridgeTestView(decoded, site, creator, catalog, settings);
+            var targets = (List<Transform>)typeof(ChallengeBridgeTestView).GetField("targets", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(view);
+            for (int i = 0; i < materials.Count; i++)
+            {
+                var record = decoded.Bridge.Bars[i];
+                Check(record.MaterialId == materials[i].Id && record.Parts.Count >= 1, "No captured parts for " + materials[i].Id);
+                MeshFilter[] hostMeshes = VisibleMeshes(run.Bars[i].transform);
+                MeshFilter[] guestMeshes = VisibleMeshes(targets[i]);
+                Check(hostMeshes.Length > 0 && guestMeshes.Length == hostMeshes.Length,
+                    $"{materials[i].Id}: host has {hostMeshes.Length} visible meshes; guest has {guestMeshes.Length}.");
+                for (int mesh = 0; mesh < hostMeshes.Length; mesh++)
+                {
+                    Renderer hostMesh = hostMeshes[mesh].GetComponent<Renderer>(), guestMesh = guestMeshes[mesh].GetComponent<Renderer>();
+                    Check(hostMeshes[mesh].sharedMesh == guestMeshes[mesh].sharedMesh &&
+                        Vector3.Distance(hostMesh.bounds.center, guestMesh.bounds.center) < 0.01f &&
+                        Vector3.Distance(hostMesh.bounds.size, guestMesh.bounds.size) < 0.01f,
+                        "Captured geometry does not match the actual " + materials[i].Id + " prefab.");
+                    Check(hostMesh.sharedMaterials.Length == guestMesh.sharedMaterials.Length, "A sub-material slot was lost.");
+                    for (int slot = 0; slot < hostMesh.sharedMaterials.Length; slot++)
+                        Check(hostMesh.sharedMaterials[slot] == guestMesh.sharedMaterials[slot], "A road/item sub-material was replaced.");
+                }
+                report.AppendLine($"PASS: {materials[i].GetDisplayName()} ({materials[i].Id}) transfers {record.Parts.Count} parts / {guestMeshes.Length} visible meshes with identical bounds and every material slot.");
+            }
+            Check(view.Root.GetComponentsInChildren<MonoBehaviour>(true).Length == 0 && view.Root.GetComponentsInChildren<Rigidbody>(true).Length == 0 &&
+                view.Root.GetComponentsInChildren<Collider>(true).Length == 0, "Guest test includes gameplay/physics components.");
+            int bodyIndex = run.Bars.Count, boatIndex = bodyIndex + 5;
+            for (int offset = 0; offset < run.MotionTargets.Count; offset += ChallengeTestMotionCodec.TargetsPerChunk)
+                view.Receive(ChallengeTestMotionCodec.Decode(ChallengeTestMotionCodec.Encode(1, offset, 1,
+                    run.MotionTargets, run.Bars, 4, run.Boats)));
+            view.Render(0);
+            Vector3 localWheel = targets[bodyIndex + 1].localPosition;
+            var bodyOnly = new ChallengeTestMotionChunk { Sequence = 2, Offset = bodyIndex, TotalTargets = view.TargetCount, TotalBars = run.Bars.Count, Time = 2,
+                Positions = new[] { run.Vehicle.transform.position + Vector3.right * 5 }, Rotations = new[] { run.Vehicle.transform.rotation },
+                Stress = new ushort[1], RopeEnds = new Vector3[1], RopeLengths = new float[1] };
+            view.Receive(bodyOnly); view.Render(0);
+            Check(Vector3.Distance(targets[bodyIndex + 1].localPosition, localWheel) < 0.001f &&
+                Vector3.Distance(targets[bodyIndex + 1].position, targets[bodyIndex].TransformPoint(localWheel)) < 0.001f,
+                "A dropped wheel packet detaches it when the chassis advances.");
+            report.AppendLine("PASS: All four wheels stay chassis-relative when a chassis-only packet arrives; dropped/delayed wheel packets do not displace the wheel centers.");
+            foreach (GameObject wheel in vehicle.wheelObjects)
+            {
+                Vector3 axis = (Vector3)typeof(LiveLoadVehicle).GetMethod("ResolveWheelAxleAxis", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .Invoke(vehicle, new object[] { wheel, wheel.transform });
+                Check(Mathf.Abs(Vector3.Dot(wheel.transform.TransformDirection(axis), wheel.transform.up)) > 0.999f,
+                    "Imported rotated wheel does not spin about its mesh axle.");
+            }
+            report.AppendLine("PASS: Rotated, non-uniformly scaled wheel meshes resolve their thin axle axis rather than rotating about a fixed unrelated axis.");
+            BoatBridgeCrossing testBoat = run.Boats[0]; SetPrivate(testBoat, "travelDistance", 0.1f);
+            InvokePrivate(testBoat, "Awake"); InvokePrivate(testBoat, "OnEnable");
+            run.Physics.isSimulating = true;
+            var started = (Action)typeof(BridgePhysicsManager).GetField("OnSimulationStarted", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(run.Physics);
+            Check(started != null, "The isolated boat did not subscribe to its test manager."); started();
+            Vector3 before = testBoat.transform.position; InvokePrivate(testBoat, "FixedUpdate");
+            Check(Vector3.Distance(testBoat.transform.position, before) > 0.001f && boat.transform.position == originalBoatPosition && !settings.isSimulating,
+                "The boat does not move in an isolated simulation, or moves the world boat.");
+            for (int offset = 0; offset < run.MotionTargets.Count; offset += ChallengeTestMotionCodec.TargetsPerChunk)
+                view.Receive(ChallengeTestMotionCodec.Decode(ChallengeTestMotionCodec.Encode(3, offset, 3,
+                    run.MotionTargets, run.Bars, 4, run.Boats)));
+            view.Render(0);
+            Check(Vector3.Distance(targets[boatIndex].position, testBoat.transform.position) < 0.001f,
+                "Guest did not replay the moving host boat.");
+            for (int tick = 0; tick < 10; tick++) InvokePrivate(testBoat, "FixedUpdate");
+            for (int offset = 0; offset < run.MotionTargets.Count; offset += ChallengeTestMotionCodec.TargetsPerChunk)
+                view.Receive(ChallengeTestMotionCodec.Decode(ChallengeTestMotionCodec.Encode(4, offset, 4,
+                    run.MotionTargets, run.Bars, 4, run.Boats)));
+            view.CompleteFinalFrame();
+            foreach (Renderer renderer in targets[boatIndex].GetComponentsInChildren<Renderer>(true))
+                Check(!renderer.enabled, "Guest boat remains visible after its crossing finishes.");
+            report.AppendLine("PASS: Isolated boat subscribes to the actual test-start event, advances on fixed ticks, replays its pose/finished visibility on the guest, and never moves the original world boat.");
+            ValidateUninitializedVehicleScale(descriptor, site, creator, catalog, settings, vehicle, run, report);
+            ValidateAuthoredVehicleRigs(fixture.transform, settings, report);
+            ValidateIsolatedRunAndView(fixture.transform, report);
+        }
+        finally { view?.Dispose(); run?.Dispose(); Object.DestroyImmediate(definition); EditorSceneManager.ClosePreviewScene(scene); }
+    }
+    private static MeshFilter[] VisibleMeshes(Transform root)
+    {
+        var meshes = new List<MeshFilter>();
+        foreach (var mesh in root.GetComponentsInChildren<MeshFilter>(true))
+        {
+            Renderer renderer = mesh.GetComponent<Renderer>();
+            if (mesh.sharedMesh != null && renderer != null && renderer.enabled && mesh.gameObject.activeInHierarchy) meshes.Add(mesh);
+        }
+        return meshes.ToArray();
+    }
+    private static void ValidateAuthoredVehicleRigs(Transform fixture, BridgePhysicsManager settings, StringBuilder report)
+    {
+        int checkedRigs = 0, checkedWheels = 0;
+        foreach (string guid in AssetDatabase.FindAssets("t:Prefab", new[] { "Assets/Elements/Vehicles/Prefab", "Assets/Prefabs/Vehicles" }))
+        {
+            GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(AssetDatabase.GUIDToAssetPath(guid));
+            if (prefab.GetComponent<LiveLoadVehicle>() == null) continue;
+            GameObject clone = Object.Instantiate(prefab, fixture);
+            try
+            {
+                LiveLoadVehicle vehicle = clone.GetComponent<LiveLoadVehicle>(); vehicle.physicsManager = settings;
+                typeof(LiveLoadVehicle).GetMethod("ConfigureSessionChallengeTest", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(vehicle, new object[] { 2000f });
+                InvokePrivate(vehicle, "Awake"); InvokePrivate(vehicle, "BuildWheelPhysics");
+                int wheels = 0;
+                foreach (HingeJoint hinge in clone.GetComponentsInChildren<HingeJoint>(true))
+                {
+                    Check(hinge.connectedBody == clone.GetComponent<Rigidbody>() && !hinge.autoConfigureConnectedAnchor && !hinge.enableCollision,
+                        "Authored wheel hinge is not explicitly pinned to its chassis.");
+                    Check(Vector3.Distance(hinge.transform.TransformPoint(hinge.anchor),
+                        hinge.connectedBody.transform.TransformPoint(hinge.connectedAnchor)) < 0.001f,
+                        "Wheel hinge anchors disagree on " + prefab.name);
+                    Check(Mathf.Abs(hinge.axis.magnitude - 1f) < 0.001f, "Wheel axle is not normalized.");
+                    wheels++;
+                }
+                Check(wheels == vehicle.wheelObjects.Length && wheels > 0, "Not every authored wheel gets one hinge on " + prefab.name);
+                checkedRigs++; checkedWheels += wheels;
+                report.AppendLine($"PASS: {prefab.name}: {wheels} authored wheels use explicit matching hinge anchors and normalized mesh-aware axles.");
+            }
+            finally { Object.DestroyImmediate(clone); }
+        }
+        Check(checkedRigs >= 3 && checkedWheels >= 12, "Actual vehicle prefabs were not checked.");
+    }
+    private static void ValidateUninitializedVehicleScale(ChallengeTestDescriptor descriptor, BuildLocation site, BarCreator creator,
+        IReadOnlyDictionary<string, BridgeMaterialSO> catalog, BridgePhysicsManager settings, LiveLoadVehicle source,
+        ChallengeBridgeTestRun run, StringBuilder report)
+    {
+        GameObject body = GameObject.CreatePrimitive(PrimitiveType.Cube); body.name = "Oversized FBX Body";
+        body.transform.SetParent(source.transform, false); body.transform.localScale = Vector3.one * 0.01f;
+        GameObject hostBody = Object.Instantiate(body, run.Vehicle.transform);
+        Vector3 originalScale = source.transform.localScale;
+        source.transform.localScale = Vector3.one * 100;
+        foreach (Transform child in run.Vehicle.transform)
+        { child.localPosition *= 100; child.localScale *= 100; }
+        try
+        {
+            descriptor.VehiclePoses[0] = HostWorldBridgePose.World(run.Vehicle.transform);
+            for (int i = 0; i < 4; i++) descriptor.VehiclePoses[i + 1] = HostWorldBridgePose.World(run.Vehicle.wheelObjects[i].transform);
+            using (var scaledView = new ChallengeBridgeTestView(ChallengeTestDescriptor.Decode(descriptor.Encode()), site, creator, catalog, settings))
+            {
+                Transform guestBody = scaledView.Root.transform.GetChild(run.Bars.Count).Find(body.name);
+                Check(guestBody != null && Vector3.Distance(guestBody.GetComponent<Renderer>().bounds.size, hostBody.GetComponent<Renderer>().bounds.size) < 0.01f,
+                    "An uninitialized oversized guest FBX shrinks when applying the normalized host physics-root pose.");
+                Check(Vector3.Distance(guestBody.GetComponent<Renderer>().bounds.center, hostBody.GetComponent<Renderer>().bounds.center) < 0.01f,
+                    "Physics-root normalization displaces the guest vehicle body.");
+            }
+            report.AppendLine("PASS: An inactive 100x imported guest vehicle matches the initialized host's normalized body size/position without running guest gameplay scripts.");
+        }
+        finally
+        {
+            source.transform.localScale = originalScale;
+            foreach (Transform child in run.Vehicle.transform) { child.localPosition /= 100; child.localScale /= 100; }
+            Object.DestroyImmediate(body); Object.DestroyImmediate(hostBody);
+        }
+    }
+    private static void SetPrivate(object target, string name, object value)
+        => target.GetType().GetField(name, BindingFlags.NonPublic | BindingFlags.Instance).SetValue(target, value);
+    private static void InvokePrivate(object target, string name)
+        => target.GetType().GetMethod(name, BindingFlags.NonPublic | BindingFlags.Instance).Invoke(target, null);
     private static GameObject Child(string name, Transform parent) { var obj = new GameObject(name); obj.transform.SetParent(parent, false); return obj; }
     private static void Check(bool pass, string message) { if (!pass) throw new InvalidOperationException(message); }
 }

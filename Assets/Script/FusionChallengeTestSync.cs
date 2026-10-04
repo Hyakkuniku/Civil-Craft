@@ -293,9 +293,11 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
         {
             var descriptor = new ChallengeTestDescriptor { Bridge = run.CapturePresentation(host.ChallengeState.SiteKey.ToString()),
                 VehicleKey = ChallengeTestDescriptor.VehiclePath(vehicleSource), Weight = testWeight,
-                VehiclePoses = new HostWorldBridgePose[run.Vehicle.wheelObjects.Length + 1] };
+                VehiclePoses = new HostWorldBridgePose[run.Vehicle.wheelObjects.Length + 1],
+                BoatKeys = run.BoatKeys.ToArray(), BoatPoses = new HostWorldBridgePose[run.Boats.Count] };
             descriptor.VehiclePoses[0] = HostWorldBridgePose.World(run.Vehicle.transform);
             for (int i = 0; i < run.Vehicle.wheelObjects.Length; i++) descriptor.VehiclePoses[i + 1] = HostWorldBridgePose.World(run.Vehicle.wheelObjects[i].transform);
+            for (int i = 0; i < run.Boats.Count; i++) descriptor.BoatPoses[i] = HostWorldBridgePose.World(run.Boats[i].transform);
             // Keep the immutable view until this test ends. A transport callback
             // may precede the guest's matching snapshot; it can explicitly pull
             // the same view after reaching PreparingTest instead of timing out.
@@ -312,6 +314,11 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
             if (vehicle.IsSessionChallengeTestVehicle || vehicle.gameObject.scene != site.gameObject.scene || vehicle.assignedContract == null ||
                 vehicle.assignedContract.ContractID != definition.ContractID || vehicleVisibility.ContainsKey(vehicle.gameObject)) continue;
             vehicleVisibility.Add(vehicle.gameObject, vehicle.gameObject.activeSelf); vehicle.gameObject.SetActive(false);
+        }
+        foreach (var boat in ChallengeTestDescriptor.SelectBoats(site, definition))
+        {
+            if (vehicleVisibility.ContainsKey(boat.gameObject)) continue;
+            vehicleVisibility.Add(boat.gameObject, boat.gameObject.activeSelf); boat.gameObject.SetActive(false);
         }
     }
     private void PrepareGuestView(MultiplayerChallengeState state)
@@ -376,7 +383,8 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
         int messages = 0;
         while (cursor < run.MotionTargets.Count && messages++ < 16)
         {
-            byte[] chunk = ChallengeTestMotionCodec.Encode(sequence, cursor, Time.unscaledTime - motionEpoch, run.MotionTargets, run.Bars);
+            byte[] chunk = ChallengeTestMotionCodec.Encode(sequence, cursor, Time.unscaledTime - motionEpoch,
+                run.MotionTargets, run.Bars, run.Vehicle.wheelObjects.Length, run.Boats);
             float chargedBytes = chunk.Length + 64; // Include an allowance for Fusion/transport headers.
             if (motionCredit < chargedBytes) return;
             motionCredit -= chargedBytes;
@@ -460,7 +468,8 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
             writer.Write(count);
             for (int offset = 0; offset < run.MotionTargets.Count; offset += ChallengeTestMotionCodec.TargetsPerChunk)
             {
-                byte[] chunk = ChallengeTestMotionCodec.Encode(sequence, offset, Time.unscaledTime - motionEpoch, run.MotionTargets, run.Bars);
+                byte[] chunk = ChallengeTestMotionCodec.Encode(sequence, offset, Time.unscaledTime - motionEpoch,
+                    run.MotionTargets, run.Bars, run.Vehicle.wheelObjects.Length, run.Boats);
                 writer.Write(chunk.Length); writer.Write(chunk);
             }
             return stream.ToArray();
@@ -530,7 +539,7 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
 internal sealed class ChallengeTestPacketAssembly
 {
     internal const int ChunkBytes = 320;
-    internal const int MaximumBytes = HostWorldBridgeSnapshotCodec.MaxPacketBytes + 4096;
+    internal const int MaximumBytes = ChallengeTestDescriptor.MaxPacketBytes;
     private byte[] bytes;
     private bool[] received;
     private int revision, index, count;

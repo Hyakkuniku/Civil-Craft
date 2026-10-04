@@ -68,6 +68,25 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
     private Vector3 crossingDirection;
     private float distanceTraveled;
     private float lastImpactDistance = float.NegativeInfinity;
+    private BuildLocation sessionTestLocation;
+    public bool IsSessionChallengeTestBoat => sessionTestLocation != null;
+    internal bool SessionTestVisible => !finishedCrossing;
+
+    // Configure the inactive disposable clone, never the authored world boat.
+    internal void ConfigureSessionChallengeTest(BridgePhysicsManager manager, BuildLocation location, ContractSO contract)
+    {
+        if (manager == null || location == null || !location.IsSessionChallengeLocation || contract == null)
+            throw new System.InvalidOperationException("Invalid isolated boat context.");
+        sessionTestLocation = location;
+        assignedContract = contract;
+        physicsManager = manager;
+    }
+
+    internal void GetSessionTestStartPose(out Vector3 position, out Quaternion rotation)
+    {
+        position = boatRenderers != null ? authoredPosition : transform.position;
+        rotation = boatRenderers != null ? authoredRotation : transform.rotation;
+    }
 
     private bool HasTravelDirection => travelDirection.sqrMagnitude > 0.000001f;
 
@@ -176,7 +195,7 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
 
     private void Update()
     {
-        bool showOutline = !finishedCrossing && !moving && HasTravelDirection &&
+        bool showOutline = !IsSessionChallengeTestBoat && !finishedCrossing && !moving && HasTravelDirection &&
             GameManager.Instance != null &&
             GameManager.Instance.CurrentState == GameManager.GameState.Building &&
             !GameManager.Instance.IsTransitioning &&
@@ -199,9 +218,11 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
 
     private void HandleSimulationStarted()
     {
-        if (!MatchesContract(assignedContract,
-                GameManager.Instance != null ? GameManager.Instance.CurrentContract : null) ||
-            GameManager.Instance.ActiveBuildLocation == null)
+        BuildLocation location = sessionTestLocation != null ? sessionTestLocation :
+            (GameManager.Instance != null ? GameManager.Instance.ActiveBuildLocation : null);
+        ContractSO current = sessionTestLocation != null ? sessionTestLocation.activeContract :
+            (GameManager.Instance != null ? GameManager.Instance.CurrentContract : null);
+        if (location == null || !MatchesContract(assignedContract, current))
             return;
 
         if (!HasTravelDirection)
@@ -210,7 +231,7 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
             return;
         }
 
-        activeLocation = GameManager.Instance.ActiveBuildLocation;
+        activeLocation = location;
         CacheBridgeColliders();
         finishedCrossing = false;
         SetBoatVisible(true);
@@ -255,9 +276,7 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
     private void FixedUpdate()
     {
         if (!moving || subscribedManager == null || !subscribedManager.isSimulating ||
-            activeLocation == null || GameManager.Instance == null ||
-            GameManager.Instance.ActiveBuildLocation != activeLocation ||
-            !MatchesContract(assignedContract, GameManager.Instance.CurrentContract) ||
+            activeLocation == null || !HasCurrentSimulationContext() ||
             !HasTravelDirection)
             return;
 
@@ -297,6 +316,14 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
         SetMeshQueriesActive(false);
         finishedCrossing = true;
         SetBoatVisible(false);
+    }
+
+    private bool HasCurrentSimulationContext()
+    {
+        if (sessionTestLocation != null)
+            return activeLocation == sessionTestLocation && MatchesContract(assignedContract, sessionTestLocation.activeContract);
+        return GameManager.Instance != null && GameManager.Instance.ActiveBuildLocation == activeLocation &&
+            MatchesContract(assignedContract, GameManager.Instance.CurrentContract);
     }
 
     private bool TryBreakWithBox(Vector3 previousCenter)

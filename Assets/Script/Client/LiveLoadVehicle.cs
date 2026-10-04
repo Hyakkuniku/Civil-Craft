@@ -291,6 +291,8 @@ public class LiveLoadVehicle : Interactable
     public float wheelRadius = 0.4f;
     public float wheelMass = 50f;
     public Vector3 spinAxis = new Vector3(1, 0, 0); 
+    [Tooltip("Align the hinge to the wheel mesh's thin axle dimension, including imported child rotations. The authored Spin Axis still controls spin direction.")]
+    [SerializeField] private bool alignWheelAxisToMesh = true;
 
     [Header("Finish Braking")]
     [Min(0f)] public float brakeTorque = 3000f;
@@ -398,6 +400,7 @@ public class LiveLoadVehicle : Interactable
         public HingeJoint hinge;
         public Vector3 originalLocalPos;
         public Quaternion originalLocalRot;
+        public Vector3 axleAxis;
     }
     private List<WheelData> wheels = new List<WheelData>();
 
@@ -482,6 +485,7 @@ public class LiveLoadVehicle : Interactable
             wd.physObj = physWheel;
             wd.originalLocalPos = physWheel.transform.localPosition;
             wd.originalLocalRot = physWheel.transform.localRotation;
+            wd.axleAxis = ResolveWheelAxleAxis(visualWheel, physWheel.transform);
 
             Collider oldCol = visualWheel.GetComponent<Collider>();
             if (oldCol != null) Destroy(oldCol);
@@ -743,8 +747,16 @@ public class LiveLoadVehicle : Interactable
     {
         if (IsSessionChallengeTestVehicle)
         {
-            if (sessionChassisMaterial != null) Destroy(sessionChassisMaterial);
-            if (wheelMat != null) Destroy(wheelMat);
+            if (Application.isPlaying)
+            {
+                if (sessionChassisMaterial != null) Destroy(sessionChassisMaterial);
+                if (wheelMat != null) Destroy(wheelMat);
+            }
+            else
+            {
+                if (sessionChassisMaterial != null) DestroyImmediate(sessionChassisMaterial);
+                if (wheelMat != null) DestroyImmediate(wheelMat);
+            }
         }
         DisposeBuildModeInspectionOutline();
         if (activeInspectionVehicle == this)
@@ -781,7 +793,11 @@ public class LiveLoadVehicle : Interactable
             {
                 w.hinge = w.physObj.AddComponent<HingeJoint>();
                 w.hinge.connectedBody = rb;
-                w.hinge.axis = spinAxis; 
+                w.hinge.axis = w.axleAxis;
+                w.hinge.anchor = Vector3.zero;
+                w.hinge.autoConfigureConnectedAnchor = false;
+                w.hinge.connectedAnchor = rb.transform.InverseTransformPoint(w.physObj.transform.position);
+                w.hinge.enableCollision = false;
                 
                 JointMotor motor = w.hinge.motor;
                 motor.force = engineTorque; 
@@ -795,6 +811,26 @@ public class LiveLoadVehicle : Interactable
                 foreach (Collider chassisCollider in chassisColliders)
                     Physics.IgnoreCollision(chassisCollider, wheelCol, true);
         }
+    }
+
+    private Vector3 ResolveWheelAxleAxis(GameObject visualWheel, Transform axle)
+    {
+        Vector3 authored = spinAxis.sqrMagnitude > 0.000001f ? spinAxis.normalized : Vector3.right;
+        if (!alignWheelAxisToMesh) return authored;
+        MeshFilter mesh = visualWheel.GetComponentInChildren<MeshFilter>();
+        if (mesh == null || mesh.sharedMesh == null) return authored;
+        Vector3 size = mesh.sharedMesh.bounds.size;
+        Vector3 scale = mesh.transform.lossyScale;
+        size = new Vector3(Mathf.Abs(size.x * scale.x), Mathf.Abs(size.y * scale.y), Mathf.Abs(size.z * scale.z));
+        int thin = size.y < size.x ? 1 : 0;
+        if (size.z < size[thin]) thin = 2;
+        // Do not guess for cubes/ambiguous decorative meshes.
+        float diameter = Mathf.Min(size[(thin + 1) % 3], size[(thin + 2) % 3]);
+        if (diameter < 0.0001f || size[thin] > diameter * 0.8f) return authored;
+        Vector3 local = thin == 0 ? Vector3.right : thin == 1 ? Vector3.up : Vector3.forward;
+        Vector3 axis = axle.InverseTransformDirection(mesh.transform.TransformDirection(local)).normalized;
+        if (Vector3.Dot(axis, authored) < 0f) axis = -axis;
+        return axis;
     }
 
     private bool IsVisualWheelCollider(Collider candidate)

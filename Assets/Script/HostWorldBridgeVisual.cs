@@ -130,6 +130,28 @@ public sealed class HostWorldBridgeVisual : IDisposable
 
     internal static GameObject CopyMeshes(GameObject source, Transform parent, Dictionary<Transform, Transform> map = null)
     {
+        var copies = map ?? new Dictionary<Transform, Transform>();
+        GameObject root = CopyMeshHierarchy(source, parent, copies);
+        // Some construction/vehicle prefabs use skinned submeshes. Resolve bones
+        // after the entire hierarchy exists; never retain source-scene bones.
+        foreach (SkinnedMeshRenderer sourceRenderer in source.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+        {
+            var renderer = copies[sourceRenderer.transform].gameObject.AddComponent<SkinnedMeshRenderer>();
+            renderer.sharedMesh = sourceRenderer.sharedMesh;
+            Transform[] bones = sourceRenderer.bones;
+            for (int i = 0; i < bones.Length; i++)
+                bones[i] = bones[i] != null && copies.TryGetValue(bones[i], out var bone) ? bone : null;
+            renderer.bones = bones;
+            if (sourceRenderer.rootBone != null && copies.TryGetValue(sourceRenderer.rootBone, out var rootBone)) renderer.rootBone = rootBone;
+            renderer.localBounds = sourceRenderer.localBounds;
+            renderer.updateWhenOffscreen = true;
+            CopyRendererAppearance(sourceRenderer, renderer);
+        }
+        return root;
+    }
+
+    private static GameObject CopyMeshHierarchy(GameObject source, Transform parent, Dictionary<Transform, Transform> map)
+    {
         // Do not Instantiate the original gameplay prefab: even disabling its
         // scripts afterward allows their Awake/OnEnable callbacks to run.
         var copy = new GameObject(source.name);
@@ -145,14 +167,24 @@ public sealed class HostWorldBridgeVisual : IDisposable
         {
             copy.AddComponent<MeshFilter>().sharedMesh = sourceFilter.sharedMesh;
             MeshRenderer renderer = copy.AddComponent<MeshRenderer>();
-            renderer.sharedMaterials = sourceRenderer.sharedMaterials;
-            renderer.shadowCastingMode = sourceRenderer.shadowCastingMode;
-            renderer.receiveShadows = sourceRenderer.receiveShadows;
-            renderer.enabled = sourceRenderer.enabled;
+            CopyRendererAppearance(sourceRenderer, renderer);
         }
-        foreach (Transform child in source.transform) CopyMeshes(child.gameObject, copy.transform, map);
+        foreach (Transform child in source.transform) CopyMeshHierarchy(child.gameObject, copy.transform, map);
         copy.SetActive(source.activeSelf);
         return copy;
+    }
+
+    private static void CopyRendererAppearance(Renderer source, Renderer copy)
+    {
+        copy.sharedMaterials = source.sharedMaterials;
+        copy.shadowCastingMode = source.shadowCastingMode;
+        copy.receiveShadows = source.receiveShadows;
+        copy.enabled = source.enabled;
+        copy.renderingLayerMask = source.renderingLayerMask;
+        var properties = new MaterialPropertyBlock();
+        source.GetPropertyBlock(properties); copy.SetPropertyBlock(properties);
+        for (int slot = 0; slot < source.sharedMaterials.Length; slot++)
+        { properties.Clear(); source.GetPropertyBlock(properties, slot); copy.SetPropertyBlock(properties, slot); }
     }
 
     public void Dispose()
