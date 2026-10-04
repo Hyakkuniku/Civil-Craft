@@ -42,6 +42,9 @@ public class PauseManager : MonoBehaviour
     [Tooltip("The exact name of your Mode Selection scene.")]
     public string modeSelectionSceneName = "ModeSelection";
 
+    [Tooltip("The exact name of your Main Menu scene.")]
+    public string mainMenuSceneName = "Main Menu";
+
     [HideInInspector] public bool isPaused = false;
 
     private RectTransform pauseRect;
@@ -353,6 +356,23 @@ public class PauseManager : MonoBehaviour
 
     private void FinishReturnToModeSelection()
     {
+        FinishReturnToScene(modeSelectionSceneName);
+    }
+
+    public void ReturnToMainMenu()
+    {
+        if (isClosingPause) return;
+        if (pausePanel != null && pausePanel.activeInHierarchy && closeDuration > 0f)
+        {
+            PlayCloseMotion(() => FinishReturnToScene(mainMenuSceneName));
+            return;
+        }
+
+        FinishReturnToScene(mainMenuSceneName);
+    }
+
+    private void FinishReturnToScene(string sceneName)
+    {
         // CRITICAL: Always reset time scale before loading a new scene, or the next scene will be frozen!
         Time.timeScale = 1f; 
         
@@ -365,7 +385,7 @@ public class PauseManager : MonoBehaviour
             FusionConnectionManager.Instance.IsAvatarScene)
             FusionConnectionManager.Instance.StopSession();
 
-        LoadingScreenManager.LoadScene(modeSelectionSceneName);
+        LoadingScreenManager.LoadScene(sceneName);
     }
 
     private void PlayOpenMotion()

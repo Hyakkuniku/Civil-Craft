@@ -11837,6 +11837,7 @@ MonoBehaviour:
   allGameContracts:
   - {fileID: 11400000, guid: d16ef45202a457f43bc02f4d7e730647, type: 2}
   - {fileID: 11400000, guid: 511cf4b78fcb2ee4aa7169008e424b48, type: 2}
+  - {fileID: 11400000, guid: 7bd1a236dfb47f54e96257d2d3d48be1, type: 2}
   - {fileID: 11400000, guid: 1f93c961d5b0ced468282419d064a7d3, type: 2}
   - {fileID: 11400000, guid: 08ef0a30971b46d18d7752fdf9b5470f, type: 2}
   - {fileID: 11400000, guid: b2c3c504e3cdd4043b4bfad718fccd86, type: 2}
@@ -19517,6 +19518,9 @@ MonoBehaviour:
   constrainVisualBridgeToPlane: 1
   visualLinearDrag: 0.5
   visualAngularDrag: 1.5
+  solidDeformationLimit: 0.04
+  roadJointDeformationDegrees: 15
+  deformationBreakDelay: 0.35
   stressSmoothingFrames: 10
   stressDirectionDeadZone: 0.0005
   displayLiveLoadStressOnly: 1
