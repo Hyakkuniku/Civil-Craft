@@ -11,7 +11,7 @@ using UnityEngine.UI;
 /// Scene-authored leaderboard UI. Rows and controls are saved in Mode Selection;
 /// only their contents change at runtime. No client-side statistic writes occur.
 /// </summary>
-public sealed class LeaderboardPanelUI : MonoBehaviour
+public sealed partial class LeaderboardPanelUI : MonoBehaviour
 {
     private const int TopCount = 15;
 
@@ -41,6 +41,7 @@ public sealed class LeaderboardPanelUI : MonoBehaviour
 
     private void Awake()
     {
+        InitializeMultiplayerBoard();
         if (openButton != null) openButton.onClick.AddListener(Open);
         if (closeButton != null) closeButton.onClick.AddListener(Close);
         if (contractDropdown != null) contractDropdown.onValueChanged.AddListener(OnSelectionChanged);
@@ -52,6 +53,7 @@ public sealed class LeaderboardPanelUI : MonoBehaviour
 
     private void OnDestroy()
     {
+        RemoveMultiplayerBoardListeners();
         ++requestGeneration;
         if (openButton != null) openButton.onClick.RemoveListener(Open);
         if (closeButton != null) closeButton.onClick.RemoveListener(Close);
@@ -91,7 +93,7 @@ public sealed class LeaderboardPanelUI : MonoBehaviour
     {
         yield return null;
         if (panel != null && panel.activeSelf && contractDropdown != null)
-            contractDropdown.interactable = true;
+            contractDropdown.interactable = !multiplayerSelected;
         dropdownReadyCoroutine = null;
     }
 
@@ -151,6 +153,9 @@ public sealed class LeaderboardPanelUI : MonoBehaviour
     {
         int generation = ++requestGeneration;
         ClearRows();
+        ClearMultiplayerRows();
+        ApplyBoardVisibility();
+        if (multiplayerSelected) { RefreshMultiplayer(generation); return; }
         ContractSO contract = SelectedContract;
         bool strongest = IsStrongest;
         if (descriptionText != null)

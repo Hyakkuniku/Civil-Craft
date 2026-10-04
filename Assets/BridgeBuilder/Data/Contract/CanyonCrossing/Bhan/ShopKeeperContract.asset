@@ -30,8 +30,8 @@ MonoBehaviour:
   featureUnlockRewards: []
   clientName: Professor Bhan
   jobDescription: Build a safe bridge connecting the shop to Canyonville.
-  budget: 750000
-  liveLoadWeight: 10000
+  budget: 75000
+  liveLoadWeight: 1000
   bridgeSpan: 50
   allowedMaterials:
   - material: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}

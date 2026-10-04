@@ -1,7 +1,9 @@
 # Civil Craft PlayFab backend — development setup
 
 This folder contains the legacy PlayFab CloudScript handlers
-`submitBridgeRunV1` and `syncDashboardV1`. Unity continues to read the top 15
+`submitBridgeRunV1` and `syncDashboardV1`, plus the deployed development
+multiplayer handlers `submitMultiplayerResultV1` and
+`getMultiplayerLeaderboardV1`. Unity continues to read the single-player top 15
 through the existing `LeaderboardPanelUI`, while the dashboard handler writes
 the private website projection and summary statistics. Client statistic writes
 remain disabled.
@@ -27,8 +29,9 @@ was made live.
 Revision 7 immediately superseded it with backward-compatible optional portrait
 fields, so installed builds that predate portrait upload can still call
 `syncDashboardV1`. Revision 8 then made missing portrait fields preserve any
-metadata already published by a newer build. Revision 8 is the current live
-revision.
+metadata already published by a newer build. On October 5, 2026, revision 9
+was uploaded and deployed with `submitMultiplayerResultV1` and
+`getMultiplayerLeaderboardV1`. Revision 9 is the current live revision.
 The Unity submit flag is enabled in Canyon Crossing and Bhan House, and
 explicitly disabled in Multiplayer. A signed-in SilasContract completion
 reached `submitBridgeRunV1`; both of its live boards show two player entries,
@@ -36,11 +39,12 @@ and each entry decodes to the same cost/stress pair in both tabs. The remaining
 controlled checks are worse/better redesigns, guest/offline submissions, and
 mobile-build gameplay.
 
-1. Run `node Backend/PlayFab/leaderboardCloudScript.test.js` and
-   `node Backend/PlayFab/dashboardCloudScript.test.js` locally.
+1. Run `node Backend/PlayFab/leaderboardCloudScript.test.js`,
+   `node Backend/PlayFab/dashboardCloudScript.test.js`, and
+   `node Backend/PlayFab/multiplayerCloudScript.test.js` locally.
 2. Before uploading, compare the currently live revision with the preserved
    handlers in `mergedCloudScript.dev.js` in case another developer changed it.
-   Upload **that merged file**, never either feature-only handler alone.
+   Upload **that merged file**, never a feature-only handler alone.
 3. If a new playable contract is added later, create its `CC_E_<hash>` and
    `CC_S_<hash>` legacy statistic definitions with **Max** aggregation and no
    automatic reset. The names are listed in the `ccLeaderboardContracts` table
@@ -67,3 +71,114 @@ modified client could still submit plausible false results. A fully trusted
 leaderboard requires server-side reconstruction and simulation of each bridge.
 Network failures are logged but not yet queued for retry, so a player may need
 to save a successful redesign after reconnecting.
+
+## Development multiplayer leaderboard — revision 9 deployed
+
+The multiplayer handlers are appended to `mergedCloudScript.dev.js` as the
+exact contents of `multiplayerCloudScript.js`. The existing sample/Photon,
+single-player leaderboard, and dashboard handlers are preserved. On October 5,
+2026, the Development title (17FA03) was verified to have revision 8 live. Its
+source matched the preserved prefix of the merged file. Revision 9 was uploaded
+without deployment and its full source was checked against the local merged
+file, including all 16 existing handlers and both new multiplayer handlers.
+
+The three legacy statistic definitions `CC_MP_Wins`, `CC_MP_Losses`, and
+`CC_MP_Draws` were created and individually verified with Maximum aggregation
+and manual reset. **Allow client to post player statistics** remained disabled.
+An authenticated, non-scoring `getMultiplayerLeaderboardV1({})` probe against
+staged revision 9 succeeded with an empty board, zero personal totals, two
+PlayFab API reads, no HTTP requests, and no CloudScript error. Revision 9 was
+then deployed and the UI confirmed **Revision 9 (live)**. The same read-only
+probe also succeeded after deployment with no error. No synthetic match
+results were submitted and no existing player scores were reset or modified.
+The remaining gameplay check is a completed match between two signed-in
+accounts, followed by a leaderboard refresh in Unity.
+
+For another title, create **all three** legacy
+statistic definitions `CC_MP_Wins`, `CC_MP_Losses`, and `CC_MP_Draws` with
+**Maximum** aggregation and **Manual** reset (no automatic reset). Maximum is
+required: Sum would double-count every receipt replay, and Last could replace a
+newer total with an older concurrent snapshot. Keep **Allow client to post
+player statistics** disabled. Use the authenticated CloudScript handlers; no
+developer secret or direct client statistic write belongs in Unity.
+
+`submitMultiplayerResultV1` accepts:
+
+```json
+{
+  "matchId": "f17da9a3c1534dc99f92029e2893d738",
+  "opponentId": "OTHER_PLAYFAB_ID",
+  "outcome": "win"
+}
+```
+
+Generate one unique GUID per match, formatted with 32 hexadecimal characters
+and no dashes. The two signed-in participants each submit their own result with
+the same match ID; the caller's authenticated `currentPlayerId` is the only
+account whose data or statistics may be updated. `outcome` is exactly `win`,
+`loss`, or `draw`; the opponent must be a nonempty different PlayFab ID. Submitted
+totals or a submitted caller ID are not used. An accepted response contains
+`accepted`, `duplicate`, the canonical lowercase `matchId`, and
+`personal: { wins, losses, draws }`.
+
+Each account retains a server-only `UserInternalData` receipt under
+`CC_MP_MATCH_<matchId>`. Sequential duplicate submissions preserve the receipt;
+conflicting reuse of the ID is rejected. The handler persists the receipt first,
+reads **every** prefixed receipt, and publishes the resulting cumulative totals
+with `ForceUpdate: false`. It never increments a stored statistic counter. If
+the statistic update fails after receipt persistence, retry the **same** match
+ID, opponent, and outcome: the duplicate is accepted and the statistics are
+published again without adding another match. Invalid or corrupt receipts and
+storage/API failures propagate as errors; receipts are not evicted or silently
+ignored to make a request succeed.
+
+`getMultiplayerLeaderboardV1` requires a signed-in session and accepts `{}`.
+It reads the Top 15 from `CC_MP_Wins`, obtains each player's wins/losses/draws,
+and returns:
+
+```json
+{
+  "entries": [
+    { "rank": 1, "playerId": "PLAYFAB_ID", "displayName": "Engineer",
+      "wins": 3, "losses": 1, "draws": 2 }
+  ],
+  "personal": { "wins": 3, "losses": 1, "draws": 2 }
+}
+```
+
+Ranks are one-based, the server leaderboard orders entries by wins, and personal
+totals are always for the caller even when they are outside the Top 15. The
+client calculates `winRate = wins / (wins + losses) * 100`, displaying `—` when there
+are no decided matches; draws are excluded. Missing individual statistics are
+zero. A PlayFab `StatisticNotFound` error returns an empty board/zero totals;
+other errors remain visible. This read handler is also an authenticated,
+non-scoring deployment probe, but an empty response does not verify the required
+statistic definitions or aggregation configuration.
+
+This is a **development, client-reported** leaderboard. PlayFab authenticates
+who submitted each result; the bridge simulation and reported match outcome
+still run on the clients. This handler does not verify a Photon room, verify an
+opponent's claim, or prove an authoritative match result.
+
+Distinct GUIDs use separate receipt keys, so overlapping matches do not overwrite
+each other's records. Maximum aggregation prevents older total snapshots from
+lowering published statistics. However, the legacy internal-data update API has
+no create-only/compare-and-set operation. Two simultaneously conflicting claims
+for the **same** account and GUID can race; post-write confirmation detects a
+visible mismatch but is not a transaction. Keep one immutable result per GUID
+in the client. A production service should provide transactional match receipts
+and authoritative match verification before claiming that guarantee.
+
+The ledger deliberately grows with lifetime matches and is read in full on each
+submission. User-data size/key quotas, CloudScript execution limits, and the
+additional per-player reads for a Top 15 may eventually require migration to a
+transactional match service and a durable aggregate. Do not fix capacity by
+truncating/deleting receipts: that permits old IDs to count again and loses the
+source of lifetime totals. Do not reset these statistics independently of their
+ledger; the next submission would restore lifetime totals. Any migration or
+season reset must retain durable deduplication and establish an explicit receipt
+generation/baseline with matching statistic versions.
+
+API references: [internal-data reads](https://learn.microsoft.com/en-us/rest/api/playfab/server/player-data-management/get-user-internal-data),
+[internal-data updates](https://learn.microsoft.com/en-us/rest/api/playfab/server/player-data-management/update-user-internal-data),
+and [CloudScript error shapes](https://learn.microsoft.com/en-us/xbox/playfab/live-service-management/service-gateway/automation/cloudscript/handling-errors-in-cloudscript).

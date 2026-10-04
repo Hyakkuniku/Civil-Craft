@@ -50,10 +50,11 @@ public sealed partial class FusionMultiplayerAvatar
     {
         if (!CanInvite(site)) return false;
         PlayerRef guest = PlayerRef.None;
+        FusionMultiplayerAvatar guestAvatar = null;
         foreach (PlayerRef player in Runner.ActivePlayers)
             if (player != Object.InputAuthority && Runner.TryGetPlayerObject(player, out NetworkObject obj) &&
                 obj != null && obj.IsValid && obj.GetComponent<FusionMultiplayerAvatar>() is FusionMultiplayerAvatar avatar &&
-                avatar.IsAvatarPoseReady) guest = player;
+                avatar.IsAvatarPoseReady) { guest = player; guestAvatar = avatar; }
         if (guest == PlayerRef.None) return false;
         LiveLoadVehicle vehicle = ChallengeTestDescriptor.SelectVehicle(site, site.activeContract);
         string vehicleKey = vehicle != null ? ChallengeTestDescriptor.VehiclePath(vehicle) : string.Empty;
@@ -69,6 +70,9 @@ public sealed partial class FusionMultiplayerAvatar
         ChallengeState = new MultiplayerChallengeState
         {
             Revision = unchecked(ChallengeState.Revision + 1), Phase = MultiplayerChallengePhase.Invited,
+            MatchId = System.Guid.NewGuid().ToString("N"),
+            HostAccountId = MultiplayerResultReportingService.AuthenticatedAccountId,
+            GuestAccountId = guestAvatar != null ? guestAvatar.AuthenticatedPlayFabId.ToString() : string.Empty,
             Guest = guest, SiteKey = MultiplayerChallengeRules.SiteKey(site),
             ContractKey = site.activeContract.ContractID,
             ChallengeBudget = site.activeContract.budget,
@@ -271,6 +275,7 @@ public sealed partial class FusionMultiplayerAvatar
     private void EndChallenge(MultiplayerChallengeResult result)
     {
         MultiplayerChallengeState state = ChallengeState;
+        CaptureCompletedMultiplayerResult(state, result);
         QueueCompletedChallengeReactions(state, result);
         state.Phase = MultiplayerChallengePhase.None;
         state.Result = result;

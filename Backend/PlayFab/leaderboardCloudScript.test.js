@@ -107,7 +107,7 @@ assert.deepEqual(Object.keys(mergedSandbox.handlers).sort(), [
     "handlePlayStreamEventAndProfile", "completedLevel", "updatePlayerMove",
     "unlockHighSkillContent", "RoomCreated", "RoomJoined", "RoomLeft",
     "RoomClosed", "RoomPropertyUpdated", "RoomEventRaised", "submitBridgeRunV1",
-    "syncDashboardV1"
+    "syncDashboardV1", "submitMultiplayerResultV1", "getMultiplayerLeaderboardV1"
 ].sort(), "Merged revision must preserve every existing live handler");
 assert.deepEqual(Object.keys(mergedSandbox.ccLeaderboardContracts).sort(),
     Object.keys(sandbox.ccLeaderboardContracts).sort());

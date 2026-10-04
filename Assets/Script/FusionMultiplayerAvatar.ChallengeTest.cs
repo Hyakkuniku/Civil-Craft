@@ -31,7 +31,11 @@ public sealed partial class FusionMultiplayerAvatar
     {
         if (!CanRunChallengeTests) return;
         var state = ChallengeState;
-        if (MultiplayerChallengeRules.TryFinishTests(ref state, revision)) ChallengeState = state;
+        if (MultiplayerChallengeRules.TryFinishTests(ref state, revision))
+        {
+            ChallengeState = state;
+            CaptureCompletedMultiplayerResult(state, MultiplayerChallengeResult.None);
+        }
         else if (state.Revision == revision && state.Phase == MultiplayerChallengePhase.Testing && state.TestIndex == 2)
             FailChallengeTest("The host could not verify the final budget and stress measurements.");
     }

@@ -235,6 +235,9 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
     public override void Spawned()
     {
         if (HasStateAuthority) IsSessionHost = HasInputAuthority;
+        lastPublishedAccountId = null;
+        nextAccountIdentityCheck = 0f;
+        if (HasInputAuthority) PublishAuthenticatedAccountIdentity();
         lastPublishedPlayerName = null;
         ResetRemotePoseBuffer();
         if (HasInputAuthority)
@@ -275,6 +278,8 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
             remoteMovementAudio?.StopImmediately();
             return;
         }
+        if (Object != null && Object.IsValid && HasInputAuthority)
+            ObserveCompletedMultiplayerResults();
         if (FusionConnectionManager.Instance == null ||
             !FusionConnectionManager.Instance.IsAvatarScene)
         {

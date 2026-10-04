@@ -11,6 +11,9 @@ public enum ChallengeTestOutcome { None, Crossed, Collapsed, Fell, Stalled, Time
 public struct MultiplayerChallengeState : INetworkStruct
 {
     public int Revision;
+    public NetworkString<_32> MatchId;
+    public NetworkString<_64> HostAccountId;
+    public NetworkString<_64> GuestAccountId;
     public MultiplayerChallengePhase Phase;
     public MultiplayerChallengeResult Result;
     public PlayerRef Guest;

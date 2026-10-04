@@ -197,16 +197,26 @@ public sealed class CozyModalLayout : MonoBehaviour
 
     private void LayoutLeaderboard(float u)
     {
+        bool hasCategories = Find(card, "Leaderboard Category Tabs") != null;
+        if (hasCategories)
+        {
+            Top(Find(card, "Leaderboard Category Tabs"), 120f*u, 120f*u, 80f*u, 64f*u);
+            foreach (Button tab in Find(card, "Leaderboard Category Tabs").GetComponentsInChildren<Button>(true))
+                foreach (TMP_Text label in tab.GetComponentsInChildren<TMP_Text>(true)) Text(label, 28f*u, true);
+        }
         TMP_Dropdown dropdown = card.GetComponentInChildren<TMP_Dropdown>(true);
         if (dropdown != null)
         {
-            FractionTop(dropdown.transform as RectTransform, .14f, .86f, 80f*u, 72f*u, 0f);
+            FractionTop(dropdown.transform as RectTransform, hasCategories ? .04f : .14f, hasCategories ? .46f : .86f,
+                (hasCategories ? 162f : 80f)*u, 72f*u, 0f);
             StyleDropdown(dropdown, u);
         }
         RectTransform efficient = Find(card, "Most Efficient Toggle");
         RectTransform strongest = Find(card, "Strongest Toggle");
-        FractionTop(efficient, .14f, .48f, 168f*u, 68f*u, 0f);
-        FractionTop(strongest, .54f, .86f, 168f*u, 68f*u, 0f);
+        FractionTop(efficient, hasCategories ? .48f : .14f, hasCategories ? .72f : .48f,
+            (hasCategories ? 164f : 168f)*u, 68f*u, 0f);
+        FractionTop(strongest, hasCategories ? .73f : .54f, hasCategories ? .97f : .86f,
+            (hasCategories ? 164f : 168f)*u, 68f*u, 0f);
         StyleChoice(efficient, u); StyleChoice(strongest, u);
         Top(Find(card, "Ranking Description"), 32f*u, 32f*u, 246f*u, 38f*u);
         Label("Ranking Description", 26f*u, false);
@@ -232,6 +242,7 @@ public sealed class CozyModalLayout : MonoBehaviour
         Stretch(Find(card, "Leaderboard Status"), 60f*u, bottom+30f*u, 60f*u, top+90f*u);
         Label("Leaderboard Status", 28f*u, false);
         Bottom(Find(card, "Personal Best"), 32f*u, 32f*u, 68f*u, 46f*u);
+        if (hasCategories) Bottom(Find(card, "Personal Best"), 32f*u, 240f*u, 68f*u, 46f*u);
         Label("Personal Best", 28f*u, true);
         Bottom(Find(card, "Top 15 Footer"), 32f*u, 32f*u, 24f*u, 32f*u);
         Label("Top 15 Footer", 24f*u, false);
@@ -254,6 +265,59 @@ public sealed class CozyModalLayout : MonoBehaviour
         ScrollRect scroll = viewport != null ? viewport.GetComponent<ScrollRect>() : null;
         if (scroll != null) { scroll.decelerationRate = .12f; scroll.scrollSensitivity = 40f; }
         if (scroll != null && scroll.content != null) LayoutRebuilder.ForceRebuildLayoutImmediate(scroll.content);
+        if (hasCategories) LayoutMultiplayerLeaderboard(u, top, bottom);
+    }
+
+    private void LayoutMultiplayerLeaderboard(float u, float top, float bottom)
+    {
+        Top(Find(card, "Multiplayer Board Guide"), 48f*u, 48f*u, 162f*u, 72f*u);
+        Label("Multiplayer Board Guide", 28f*u, false);
+        RectTransform header = Find(card, "Multiplayer Column Header");
+        Top(header, 42f*u, 42f*u, top+8f*u, 56f*u);
+        Paint(header, TitleCream);
+        StyleMultiplayerColumns(header, u, true);
+        RectTransform viewport = Find(card, "Multiplayer Leaderboard Viewport");
+        Stretch(viewport, 44f*u, bottom+10f*u, 70f*u, top+74f*u);
+        RectTransform scrollbar = Find(card, "Multiplayer Leaderboard Scrollbar");
+        if (scrollbar != null)
+        {
+            scrollbar.anchorMin = new Vector2(1f, 0f); scrollbar.anchorMax = Vector2.one;
+            scrollbar.offsetMin = new Vector2(-58f*u, bottom+14f*u);
+            scrollbar.offsetMax = new Vector2(-42f*u, -top-78f*u);
+        }
+        foreach (MultiplayerLeaderboardRowUI row in card.GetComponentsInChildren<MultiplayerLeaderboardRowUI>(true))
+        {
+            RectTransform rect = row.transform as RectTransform;
+            rect.sizeDelta = new Vector2(rect.sizeDelta.x, 66f*u);
+            LayoutElement element = row.GetComponent<LayoutElement>();
+            if (element != null) element.minHeight = element.preferredHeight = 66f*u;
+            StyleMultiplayerColumns(rect, u, false);
+        }
+        Bottom(Find(card, "Refresh Rankings"), 32f*u, 32f*u, 68f*u, 46f*u);
+        FractionBottom(Find(card, "Refresh Rankings"), .85f, .97f, 68f*u, 46f*u);
+        Label("Refresh Rankings Label", 24f*u, true);
+        Label("Top 15 Footer", 21f*u, false);
+        ScrollRect scroll = viewport != null ? viewport.GetComponent<ScrollRect>() : null;
+        if (scroll != null && scroll.content != null) LayoutRebuilder.ForceRebuildLayoutImmediate(scroll.content);
+    }
+
+    private void StyleMultiplayerColumns(RectTransform row, float u, bool header)
+    {
+        if (row == null) return;
+        foreach (TMP_Text label in row.GetComponentsInChildren<TMP_Text>(true))
+        {
+            string name = label.name;
+            float left = 0f, right = .09f;
+            if (name.Contains("Builder")) { left = .10f; right = .46f; }
+            else if (name.Contains("Win Rate")) { left = .46f; right = .65f; }
+            else if (name.Contains("Wins")) { left = .65f; right = .82f; }
+            else if (name.Contains("Losses")) { left = .82f; right = 1f; }
+            RectTransform rect = label.rectTransform;
+            rect.anchorMin = new Vector2(left, 0f); rect.anchorMax = new Vector2(right, 1f);
+            rect.offsetMin = new Vector2(12f*u, 4f*u); rect.offsetMax = new Vector2(-12f*u, -4f*u);
+            Text(label, (header ? 26f : 30f)*u, true);
+            label.alignment = name.Contains("Builder") ? TextAlignmentOptions.MidlineLeft : TextAlignmentOptions.Center;
+        }
     }
 
     private void StyleColumns(RectTransform row, float u, bool header)
@@ -382,5 +446,11 @@ public sealed class CozyModalLayout : MonoBehaviour
         if (rect == null) return;
         rect.anchorMin = new Vector2(left, 1f); rect.anchorMax = new Vector2(right, 1f);
         rect.offsetMin = new Vector2(inset, -top-height); rect.offsetMax = new Vector2(-inset, -top);
+    }
+    private static void FractionBottom(RectTransform rect, float left, float right, float bottom, float height)
+    {
+        if (rect == null) return;
+        rect.anchorMin = new Vector2(left, 0f); rect.anchorMax = new Vector2(right, 0f);
+        rect.offsetMin = new Vector2(0f, bottom); rect.offsetMax = new Vector2(0f, bottom+height);
     }
 }
