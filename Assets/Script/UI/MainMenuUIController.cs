@@ -41,6 +41,7 @@ public class MainMenuUIController : MonoBehaviour
     [SerializeField] private SceneController sceneController;
     [SerializeField] private SettingsManager settingsManager;
     [SerializeField] private AchievementUIManager achievementManager;
+    [SerializeField] private ShopManager shopManager;
     [SerializeField] private PlayFabAuthManager authManager;
     [Tooltip("The existing authentication canvas in the Main Menu scene.")]
     [SerializeField] private GameObject authCanvas;
@@ -80,6 +81,7 @@ public class MainMenuUIController : MonoBehaviour
             dropdownCanvasGroup = dropdownPanel.GetComponent<CanvasGroup>();
 
         ResolveFeatureButtons();
+        ResolveShopManager();
     }
 
     private void Start()
@@ -195,6 +197,34 @@ public class MainMenuUIController : MonoBehaviour
         // caused the coordinator to restore an active but transparent,
         // non-interactable dropdown when the Achievement panel closed.
         achievementManager.OpenPanel();
+    }
+
+    public void OnStoreClicked()
+    {
+        // Visibility is not authorization: also guard programmatic/stale clicks.
+        if (PlayerDataManager.Instance == null ||
+            !PlayerDataManager.Instance.IsFeatureUnlocked(storeFeatureId))
+        {
+            RefreshUnlockableButtons();
+            return;
+        }
+
+        ResolveShopManager();
+        if (shopManager != null) shopManager.OpenShop();
+        else Debug.LogError("MainMenuUIController: the scene-authored ShopManager is not assigned.", this);
+        // The panel coordinator hides/restores the menu beneath the Shop.
+        // Do not start a competing dropdown close animation here.
+    }
+
+    private void ResolveShopManager()
+    {
+        if (shopManager != null) return;
+        foreach (ShopManager candidate in FindObjectsOfType<ShopManager>(true))
+        {
+            if (candidate.gameObject.scene != gameObject.scene) continue;
+            shopManager = candidate;
+            break;
+        }
     }
 
     public void OnLoginClicked()
