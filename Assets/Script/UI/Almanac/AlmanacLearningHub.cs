@@ -123,7 +123,8 @@ public sealed class AlmanacLearningHub : MonoBehaviour
     private static List<Transform> SnapshotChildren(Transform parent)
     {
         List<Transform> children = new List<Transform>();
-        foreach (Transform child in parent) children.Add(child);
+        foreach (Transform child in parent)
+            if (child.name != "AuthoredPaperFurniture") children.Add(child);
         return children;
     }
 
@@ -145,8 +146,8 @@ public sealed class AlmanacLearningHub : MonoBehaviour
     {
         leftHome = CreateRect("Introduction", leftPage).gameObject;
         rightHome = CreateRect("LibraryIndex", rightPage).gameObject;
-        CenterInPage(leftHome.transform as RectTransform, 70f, 52f, 700f);
-        CenterInPage(rightHome.transform as RectTransform, 42f, 62f, 700f);
+        InsetPage(leftHome.transform as RectTransform, 54f, 42f);
+        InsetPage(rightHome.transform as RectTransform, 42f, 54f);
 
         RectTransform intro = leftHome.transform as RectTransform;
         bool isLessons = contentType == AlmanacLearningContent.Lessons;
@@ -174,7 +175,9 @@ public sealed class AlmanacLearningHub : MonoBehaviour
         TMP_Text purpose = CreateText("Purpose", intro, purposeCopy,
             21f, FontStyles.Normal, Ink, TextAlignmentOptions.TopLeft);
         purpose.enableWordWrapping = true;
-        purpose.lineSpacing = 8f;
+        purpose.enableAutoSizing = true;
+        purpose.fontSizeMin = 17f; purpose.fontSizeMax = 21f;
+        purpose.lineSpacing = 3f;
         SetTop(purpose.rectTransform, 182f, 106f);
 
         if (isLessons)
@@ -347,7 +350,8 @@ public sealed class AlmanacLearningHub : MonoBehaviour
         layout.preferredHeight = 70f;
 
         Image background = card.gameObject.AddComponent<Image>();
-        background.color = unlocked ? CardTint : LockedTint;
+        // A contents entry printed on paper, not a separate dashboard card.
+        background.color = unlocked ? new Color(0.66f, 0.36f, 0.13f, 0.06f) : new Color(0.63f, 0.58f, 0.52f, 0.04f);
         Button button = card.gameObject.AddComponent<Button>();
         button.targetGraphic = background;
         button.interactable = unlocked;
@@ -363,12 +367,12 @@ public sealed class AlmanacLearningHub : MonoBehaviour
 
         RectTransform stripe = CreateImage("Accent", card, unlocked ? Accent : MutedInk).rectTransform;
         stripe.anchorMin = Vector2.zero;
-        stripe.anchorMax = new Vector2(0f, 1f);
-        stripe.pivot = new Vector2(0f, 0.5f);
+        stripe.anchorMax = new Vector2(1f, 0f);
+        stripe.pivot = new Vector2(0.5f, 0f);
         stripe.anchoredPosition = Vector2.zero;
-        stripe.sizeDelta = new Vector2(5f, 0f);
+        stripe.sizeDelta = new Vector2(0f, 1f);
 
-        float textLeft = icon != null ? 78f : 18f;
+        float textLeft = icon != null ? 108f : 56f;
         if (icon != null)
         {
             Image thumbnail = CreateImage("Thumbnail", card, unlocked ? Color.white : new Color(0.55f, 0.55f, 0.55f, 1f));
@@ -377,26 +381,27 @@ public sealed class AlmanacLearningHub : MonoBehaviour
             thumbnail.rectTransform.anchorMin = new Vector2(0f, 0.5f);
             thumbnail.rectTransform.anchorMax = new Vector2(0f, 0.5f);
             thumbnail.rectTransform.pivot = new Vector2(0f, 0.5f);
-            thumbnail.rectTransform.anchoredPosition = new Vector2(17f, 0f);
-            thumbnail.rectTransform.sizeDelta = new Vector2(50f, 50f);
+            thumbnail.rectTransform.anchoredPosition = new Vector2(56f, 0f);
+            thumbnail.rectTransform.sizeDelta = new Vector2(40f, 40f);
         }
 
         TMP_Text numberText = CreateText("Number", card, number, 13f, FontStyles.Bold,
-            unlocked ? Accent : MutedInk, TextAlignmentOptions.BottomLeft);
+            unlocked ? Accent : MutedInk, TextAlignmentOptions.MidlineLeft);
         numberText.rectTransform.anchorMin = Vector2.zero;
-        numberText.rectTransform.anchorMax = Vector2.one;
-        numberText.rectTransform.offsetMin = new Vector2(textLeft, 34f);
-        numberText.rectTransform.offsetMax = new Vector2(-84f, -7f);
+        numberText.rectTransform.anchorMax = new Vector2(0f, 1f);
+        numberText.rectTransform.pivot = new Vector2(0f, .5f);
+        numberText.rectTransform.anchoredPosition = new Vector2(8f, 0f);
+        numberText.rectTransform.sizeDelta = new Vector2(42f, 0f);
 
         TMP_Text titleText = CreateText("Title", card, title, 19f, FontStyles.Normal,
-            unlocked ? Ink : MutedInk, TextAlignmentOptions.TopLeft);
+            unlocked ? Ink : MutedInk, TextAlignmentOptions.MidlineLeft);
         titleText.enableAutoSizing = true;
         titleText.fontSizeMin = 15f;
         titleText.fontSizeMax = 19f;
         titleText.rectTransform.anchorMin = Vector2.zero;
         titleText.rectTransform.anchorMax = Vector2.one;
         titleText.rectTransform.offsetMin = new Vector2(textLeft, 7f);
-        titleText.rectTransform.offsetMax = new Vector2(-82f, -31f);
+        titleText.rectTransform.offsetMax = new Vector2(-82f, -7f);
 
         TMP_Text state = CreateText("State", card, unlocked ? "OPEN" : "LOCKED", 12f,
             FontStyles.Bold, unlocked ? Accent : MutedInk, TextAlignmentOptions.MidlineRight);
@@ -411,8 +416,8 @@ public sealed class AlmanacLearningHub : MonoBehaviour
     {
         leftDetail = CreateRect("DetailLeft", leftPage).gameObject;
         rightDetail = CreateRect("DetailRight", rightPage).gameObject;
-        CenterInPage(leftDetail.transform as RectTransform, 70f, 52f, 700f);
-        CenterInPage(rightDetail.transform as RectTransform, 42f, 62f, 700f);
+        InsetPage(leftDetail.transform as RectTransform, 54f, 42f);
+        InsetPage(rightDetail.transform as RectTransform, 42f, 54f);
 
         RectTransform left = leftDetail.transform as RectTransform;
         Button back = CreateTextButton("BackToIndex", left, "<  RETURN TO INDEX", 15f, BackToIndex);
@@ -444,8 +449,10 @@ public sealed class AlmanacLearningHub : MonoBehaviour
         detailFactsText = CreateText("Facts", left, string.Empty, 16f, FontStyles.Normal,
             Ink, TextAlignmentOptions.TopLeft);
         detailFactsText.enableWordWrapping = true;
-        detailFactsText.lineSpacing = 7f;
-        SetTop(detailFactsText.rectTransform, 425f, 120f);
+        detailFactsText.enableAutoSizing = true;
+        detailFactsText.fontSizeMin = 14f; detailFactsText.fontSizeMax = 16f;
+        detailFactsText.lineSpacing = 2f;
+        SetTop(detailFactsText.rectTransform, 425f, 160f);
 
         RectTransform right = rightDetail.transform as RectTransform;
         TMP_Text notesKicker = CreateText("Kicker", right, "FIELD NOTES", 15f,
@@ -508,11 +515,11 @@ public sealed class AlmanacLearningHub : MonoBehaviour
         if (material == null || !MaterialDiscoverySaveManager.IsDiscovered(material) || isTransitioning) return;
         string description = material.AlmanacDescription;
         string facts =
-            "COST / METER    P" + material.costPerMeter.ToString("0") + "\n" +
-            "MASS / METER    " + material.GetPlacedMassPerMeter().ToString("0.##") + " kg\n" +
-            "MAX LENGTH      " + material.maxLength.ToString("0.##") + " m\n" +
-            "TENSION LIMIT   " + material.maxTension.ToString("N0") + " N\n" +
-            "COMPRESSION     " + (material.isRope ? "Tension only" : material.maxCompression.ToString("N0") + " N");
+            "<b>COST / METER</b>    <color=#A85C21>P" + material.costPerMeter.ToString("0") + "</color>\n" +
+            "<b>MASS / METER</b>    " + material.GetPlacedMassPerMeter().ToString("0.##") + " kg\n" +
+            "<b>MAX LENGTH</b>      " + material.maxLength.ToString("0.##") + " m\n" +
+            "<b>TENSION LIMIT</b>   " + material.maxTension.ToString("N0") + " N\n" +
+            "<b>COMPRESSION</b>     " + (material.isRope ? "Tension only" : material.maxCompression.ToString("N0") + " N");
         PopulateDetail("BUILDING MATERIAL", material.GetDisplayName(), material.AlmanacImage,
             description, facts);
         StartCoroutine(TransitionToDetail());
@@ -566,6 +573,16 @@ public sealed class AlmanacLearningHub : MonoBehaviour
         GameObject incomingLeft,
         GameObject incomingRight)
     {
+        if (manager.BookMotion != null)
+        {
+            yield return manager.BookMotion.Turn(leftPage.parent, rightPage.parent,
+                leftPage.parent, rightPage.parent, () =>
+                {
+                    outgoingLeft.SetActive(false); outgoingRight.SetActive(false);
+                    incomingLeft.SetActive(true); incomingRight.SetActive(true);
+                }, incomingLeft == leftDetail);
+            yield break;
+        }
         GameObject[] outgoing = { outgoingLeft, outgoingRight };
         GameObject[] incoming = { incomingLeft, incomingRight };
 
@@ -731,13 +748,12 @@ public sealed class AlmanacLearningHub : MonoBehaviour
         rect.offsetMax = new Vector2(-right, -top);
     }
 
-    private static void CenterInPage(RectTransform rect, float left, float right, float height)
+    private static void InsetPage(RectTransform rect, float left, float right)
     {
-        rect.anchorMin = new Vector2(0f, 0.5f);
-        rect.anchorMax = new Vector2(1f, 0.5f);
-        rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.anchoredPosition = new Vector2((left - right) * 0.5f, 0f);
-        rect.sizeDelta = new Vector2(-(left + right), height);
+        // Reserve real running-head/folio margins instead of centring a fixed
+        // 700px card that could extend over the paper at shorter aspect ratios.
+        rect.pivot = new Vector2(.5f, .5f);
+        Stretch(rect, left, right, 52f, 64f);
     }
 
     private static void SetTop(RectTransform rect, float top, float height)

@@ -747,6 +747,8 @@ public class ShopManager : MonoBehaviour
         }
 
         RefreshTabVisuals();
+        // Replay the authored catalogue reveal after the grid has settled.
+        if (itemGridContent != null) itemGridContent.GetComponentInParent<AuthoredUIReveal>()?.Play();
     }
 
     public void ShowCategory(int categoryIndex)

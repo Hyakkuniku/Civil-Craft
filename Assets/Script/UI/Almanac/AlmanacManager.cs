@@ -100,6 +100,8 @@ public class AlmanacManager : MonoBehaviour
     public Button prevButton;
     public Button nextButton;
     public float flipDuration = 0.25f; 
+    [SerializeField] private AlmanacBookMotion bookMotion;
+    public AlmanacBookMotion BookMotion => bookMotion;
 
     [HideInInspector] public bool useVirtualPagination = false;
     [HideInInspector] public bool virtualHasNext = false;
@@ -152,6 +154,7 @@ public class AlmanacManager : MonoBehaviour
         if (newAlertIcon != null) newAlertIcon.SetActive(false);
 
         InitializeBook();
+        if (bookMotion != null) bookMotion.Bind(this);
         EnsureTabUnlockTutorialDrafts();
     }
 
@@ -429,11 +432,13 @@ public class AlmanacManager : MonoBehaviour
             {
                 foreach (Transform child in cat.leftPageZone)
                 {
+                    if (child.name == "AuthoredPaperFurniture") continue;
                     cat.leftPages.Add(child.gameObject);
                     child.gameObject.SetActive(false);
                     
                     RectTransform pageRect = child.GetComponent<RectTransform>();
-                    if (pageRect != null) pageRect.pivot = new Vector2(1f, 0.5f);
+                    if (pageRect != null && bookMotion == null)
+                        AlmanacBookMotion.SetPivotWithoutMoving(pageRect, new Vector2(1f, 0.5f));
                 }
             }
 
@@ -441,11 +446,13 @@ public class AlmanacManager : MonoBehaviour
             {
                 foreach (Transform child in cat.rightPageZone)
                 {
+                    if (child.name == "AuthoredPaperFurniture") continue;
                     cat.rightPages.Add(child.gameObject);
                     child.gameObject.SetActive(false);
                     
                     RectTransform pageRect = child.GetComponent<RectTransform>();
-                    if (pageRect != null) pageRect.pivot = new Vector2(0f, 0.5f);
+                    if (pageRect != null && bookMotion == null)
+                        AlmanacBookMotion.SetPivotWithoutMoving(pageRect, new Vector2(0f, 0.5f));
                 }
             }
         }
@@ -894,6 +901,7 @@ public class AlmanacManager : MonoBehaviour
     private IEnumerator CloseAlmanacRoutine(System.Action afterClosed)
     {
         isAnimating = true;
+        if (bookMotion != null) bookMotion.Cancel();
 
         if (almanacCanvas != null) almanacCanvas.SetActive(false);
 
@@ -1042,6 +1050,7 @@ public class AlmanacManager : MonoBehaviour
     {
         if (index < 0 || index >= categories.Count || index == currentCategoryIndex ||
             isSwitchingCategory || isFlipping || isAnimating ||
+            (bookMotion != null && bookMotion.IsTurning) ||
             !IsSupportedCategory(categories[index]))
             return;
 
@@ -1053,6 +1062,17 @@ public class AlmanacManager : MonoBehaviour
         isSwitchingCategory = true;
 
         AlmanacCategory outgoingCategory = categories[currentCategoryIndex];
+        AlmanacCategory requestedCategory = categories[index];
+        // All chapters now use the same spine-anchored paper turn, including Profile.
+        if (bookMotion != null)
+        {
+            yield return bookMotion.Turn(outgoingCategory.leftPageZone, outgoingCategory.rightPageZone,
+                requestedCategory.leftPageZone, requestedCategory.rightPageZone,
+                () => ApplyCategorySelection(index), index > currentCategoryIndex);
+            isSwitchingCategory = false;
+            TryStartSelectedTabUnlockTutorial(requestedCategory.tabType);
+            yield break;
+        }
         List<TabPageVisual> outgoing = CaptureSpreadVisuals(outgoingCategory, currentSpreadIndex);
         float outgoingDuration = Mathf.Max(0.04f, tabSwitchDuration * 0.42f);
         float incomingDuration = Mathf.Max(0.06f, tabSwitchDuration * 0.58f);
@@ -1257,7 +1277,7 @@ public class AlmanacManager : MonoBehaviour
 
     private void TurnPage(bool goingForward)
     {
-        if (isSwitchingCategory) return;
+        if (isSwitchingCategory || (bookMotion != null && bookMotion.IsTurning)) return;
 
         if (useVirtualPagination)
         {
@@ -1285,6 +1305,20 @@ public class AlmanacManager : MonoBehaviour
         isFlipping = true;
         AlmanacCategory currentCat = categories[currentCategoryIndex];
         int nextSpread = currentSpreadIndex + (goingForward ? 1 : -1);
+
+        if (bookMotion != null)
+        {
+            yield return bookMotion.Turn(currentCat.leftPageZone, currentCat.rightPageZone,
+                currentCat.leftPageZone, currentCat.rightPageZone, () =>
+                {
+                    ToggleSpread(currentSpreadIndex, false);
+                    currentSpreadIndex = nextSpread;
+                    ToggleSpread(currentSpreadIndex, true);
+                }, goingForward);
+            UpdatePaginationButtons();
+            isFlipping = false;
+            yield break;
+        }
 
         bool leftChanges = GetClampedIndex(currentCat.leftPages, currentSpreadIndex) != GetClampedIndex(currentCat.leftPages, nextSpread);
         bool rightChanges = GetClampedIndex(currentCat.rightPages, currentSpreadIndex) != GetClampedIndex(currentCat.rightPages, nextSpread);

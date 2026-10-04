@@ -5,8 +5,8 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Global, queued achievement toast. It builds a lightweight overlay at runtime,
-/// so every scene receives notifications without duplicating scene UI setup.
+/// Global, queued achievement toast using authored UI. Dialogue takes priority;
+/// notifications wait or pause until its closing animation has finished.
 /// </summary>
 [DisallowMultipleComponent]
 public sealed class AchievementPopupNotification : MonoBehaviour
@@ -39,32 +39,32 @@ public sealed class AchievementPopupNotification : MonoBehaviour
     [Min(0.25f)] [SerializeField] private float visibleDuration = 3.5f;
 
     [Header("Position")]
-    [SerializeField] private Vector2 visiblePosition = new Vector2(0f, -36f);
-    [SerializeField] private Vector2 hiddenPosition = new Vector2(0f, 190f);
+    [SerializeField] private Vector2 visiblePosition = new Vector2(0f, 28f);
+    [SerializeField] private Vector2 hiddenPosition = new Vector2(0f, -180f);
 
     [Header("Achievement Colors")]
-    [SerializeField] private Color backgroundColor = new Color(0.18f, 0.12f, 0.10f, 0.97f);
-    [SerializeField] private Color accentColor = new Color(0.93f, 0.66f, 0.24f, 1f);
-    [SerializeField] private Color primaryTextColor = new Color(1f, 0.94f, 0.78f, 1f);
-    [SerializeField] private Color secondaryTextColor = new Color(0.88f, 0.82f, 0.70f, 1f);
+    [SerializeField] private Color backgroundColor = new Color32(249, 235, 206, 255);
+    [SerializeField] private Color accentColor = new Color32(155, 88, 20, 255);
+    [SerializeField] private Color primaryTextColor = new Color32(87, 55, 31, 255);
+    [SerializeField] private Color secondaryTextColor = new Color32(118, 89, 64, 255);
 
     [Header("Feature Unlock Colors")]
-    [SerializeField] private Color featureBackgroundColor = new Color(0.08f, 0.20f, 0.22f, 0.97f);
-    [SerializeField] private Color featureAccentColor = new Color(0.27f, 0.84f, 0.72f, 1f);
-    [SerializeField] private Color featurePrimaryTextColor = new Color(0.88f, 1f, 0.96f, 1f);
-    [SerializeField] private Color featureSecondaryTextColor = new Color(0.67f, 0.91f, 0.85f, 1f);
+    [SerializeField] private Color featureBackgroundColor = new Color32(249, 235, 206, 255);
+    [SerializeField] private Color featureAccentColor = new Color32(69, 122, 76, 255);
+    [SerializeField] private Color featurePrimaryTextColor = new Color32(87, 55, 31, 255);
+    [SerializeField] private Color featureSecondaryTextColor = new Color32(118, 89, 64, 255);
 
     [Header("Cosmetic Unlock Colors")]
-    [SerializeField] private Color cosmeticBackgroundColor = new Color(0.19f, 0.11f, 0.24f, 0.97f);
-    [SerializeField] private Color cosmeticAccentColor = new Color(0.79f, 0.52f, 0.96f, 1f);
-    [SerializeField] private Color cosmeticPrimaryTextColor = new Color(0.98f, 0.92f, 1f, 1f);
-    [SerializeField] private Color cosmeticSecondaryTextColor = new Color(0.86f, 0.75f, 0.92f, 1f);
+    [SerializeField] private Color cosmeticBackgroundColor = new Color32(249, 235, 206, 255);
+    [SerializeField] private Color cosmeticAccentColor = new Color32(128, 82, 118, 255);
+    [SerializeField] private Color cosmeticPrimaryTextColor = new Color32(87, 55, 31, 255);
+    [SerializeField] private Color cosmeticSecondaryTextColor = new Color32(118, 89, 64, 255);
 
     [Header("Almanac Update Colors")]
-    [SerializeField] private Color almanacBackgroundColor = new Color(0.20f, 0.14f, 0.08f, 0.97f);
-    [SerializeField] private Color almanacAccentColor = new Color(0.88f, 0.61f, 0.25f, 1f);
-    [SerializeField] private Color almanacPrimaryTextColor = new Color(1f, 0.95f, 0.82f, 1f);
-    [SerializeField] private Color almanacSecondaryTextColor = new Color(0.91f, 0.82f, 0.65f, 1f);
+    [SerializeField] private Color almanacBackgroundColor = new Color32(249, 235, 206, 255);
+    [SerializeField] private Color almanacAccentColor = new Color32(168, 92, 33, 255);
+    [SerializeField] private Color almanacPrimaryTextColor = new Color32(87, 55, 31, 255);
+    [SerializeField] private Color almanacSecondaryTextColor = new Color32(118, 89, 64, 255);
 
     private readonly Queue<PopupRequest> pendingNotifications = new Queue<PopupRequest>();
     private Coroutine notificationRoutine;
@@ -83,10 +83,10 @@ public sealed class AchievementPopupNotification : MonoBehaviour
     [SerializeField] private TMP_Text headingText;
     [SerializeField] private TMP_Text achievementNameText;
     [SerializeField] private TMP_Text rewardText;
-    private Image rewardCoinIcon;
-    private Image rewardExperienceIcon;
-    private TMP_Text rewardCoinValueText;
-    private TMP_Text rewardExperienceValueText;
+    [SerializeField] private Image rewardCoinIcon;
+    [SerializeField] private Image rewardExperienceIcon;
+    [SerializeField] private TMP_Text rewardCoinValueText;
+    [SerializeField] private TMP_Text rewardExperienceValueText;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStaticState()
@@ -173,8 +173,8 @@ public sealed class AchievementPopupNotification : MonoBehaviour
     }
 
     /// <summary>
-    /// Reuses the guaranteed achievement overlay for permanent feature rewards,
-    /// while applying a distinct teal presentation and heading.
+    /// Reuses the queued achievement overlay for permanent feature rewards,
+    /// with its own accent and heading.
     /// </summary>
     public static void NotifyFeatureUnlock(string featureName, Sprite icon = null)
     {
@@ -267,16 +267,18 @@ public sealed class AchievementPopupNotification : MonoBehaviour
     {
         while (pendingNotifications.Count > 0)
         {
+            // Do not dequeue until the whole conversation (including its close) is clear.
+            while (DialogueManager.IsAnyDialogueVisible) yield return null;
             PopupRequest request = pendingNotifications.Dequeue();
             Populate(request);
             ForceAbsoluteOverlay();
             popupRoot.SetActive(true);
             popupRoot.transform.SetAsLastSibling();
             popupGroup.alpha = 0f;
-            popupRect.anchoredPosition = hiddenPosition;
+            popupRect.anchoredPosition = SafePosition(hiddenPosition);
 
             yield return AnimatePopup(hiddenPosition, visiblePosition, 0f, 1f);
-            yield return new WaitForSecondsRealtime(visibleDuration);
+            yield return HoldPopup();
             yield return AnimatePopup(visiblePosition, hiddenPosition, 1f, 0f);
 
             popupRoot.SetActive(false);
@@ -293,16 +295,38 @@ public sealed class AchievementPopupNotification : MonoBehaviour
         while (elapsed < duration)
         {
             ForceAbsoluteOverlay();
+            if (DialogueManager.IsAnyDialogueVisible) { yield return null; continue; }
             elapsed += Time.unscaledDeltaTime;
             float normalized = Mathf.Clamp01(elapsed / duration);
             float eased = normalized * normalized * (3f - 2f * normalized);
-            popupRect.anchoredPosition = Vector2.LerpUnclamped(from, to, eased);
+            popupRect.anchoredPosition = Vector2.LerpUnclamped(SafePosition(from), SafePosition(to), eased);
             popupGroup.alpha = Mathf.LerpUnclamped(fromAlpha, toAlpha, eased);
             yield return null;
         }
 
-        popupRect.anchoredPosition = to;
+        popupRect.anchoredPosition = SafePosition(to);
         popupGroup.alpha = toAlpha;
+    }
+
+    private IEnumerator HoldPopup()
+    {
+        float elapsed = 0f;
+        while (elapsed < visibleDuration)
+        {
+            ForceAbsoluteOverlay();
+            popupRect.anchoredPosition = SafePosition(visiblePosition);
+            if (!DialogueManager.IsAnyDialogueVisible) elapsed += Time.unscaledDeltaTime;
+            yield return null;
+        }
+    }
+
+    private Vector2 SafePosition(Vector2 position)
+    {
+        float scale = popupCanvas != null ? Mathf.Max(.01f, popupCanvas.scaleFactor) : 1f;
+        Rect safe = Screen.safeArea;
+        position.x += (safe.center.x - Screen.width * .5f) / scale;
+        if (position.y >= 0f) position.y += Mathf.Max(0f, safe.yMin) / scale;
+        return position;
     }
 
     /// <summary>
@@ -315,7 +339,9 @@ public sealed class AchievementPopupNotification : MonoBehaviour
         if (popupCanvas == null) popupCanvas = GetComponent<Canvas>();
         if (popupCanvas == null) return;
 
-        popupCanvas.enabled = true;
+        // Suppress even if dialogue opened after the coroutine/LateUpdate this frame.
+        // The queue and animation clock remain intact; no conversation input is consumed.
+        popupCanvas.enabled = !DialogueManager.IsAnyDialogueVisible;
         popupCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
         popupCanvas.worldCamera = null;
         popupCanvas.overrideSorting = true;
@@ -402,7 +428,7 @@ public sealed class AchievementPopupNotification : MonoBehaviour
 
         if (backgroundImage != null) backgroundImage.color = selectedBackground;
         if (accentImage != null) accentImage.color = selectedAccent;
-        if (popupOutline != null) popupOutline.effectColor = selectedAccent;
+        if (popupOutline != null) popupOutline.effectColor = primaryTextColor;
         if (headingText != null)
         {
             headingText.text = isAlmanacUpdate
@@ -464,14 +490,19 @@ public sealed class AchievementPopupNotification : MonoBehaviour
     private void EnsureRewardIcons()
     {
         if (popupRoot == null) return;
-        rewardCoinIcon = EnsurePopupRewardIcon(
-            "RewardCoinIcon", CurrencyIconKind.Coin, new Vector2(250f, -44f));
-        rewardExperienceIcon = EnsurePopupRewardIcon(
-            "RewardExperienceIcon", CurrencyIconKind.Experience, new Vector2(390f, -44f));
-        rewardCoinValueText = EnsurePopupRewardValue(
-            "RewardCoinValue", new Vector2(268f, -111f));
-        rewardExperienceValueText = EnsurePopupRewardValue(
-            "RewardExperienceValue", new Vector2(408f, -111f));
+        // Reward graphics are authored with the panel, never created while playing.
+        if (rewardCoinIcon == null) rewardCoinIcon = FindPopupComponent<Image>("RewardCoinIcon");
+        if (rewardExperienceIcon == null) rewardExperienceIcon = FindPopupComponent<Image>("RewardExperienceIcon");
+        if (rewardCoinValueText == null) rewardCoinValueText = FindPopupComponent<TMP_Text>("RewardCoinValue");
+        if (rewardExperienceValueText == null) rewardExperienceValueText = FindPopupComponent<TMP_Text>("RewardExperienceValue");
+        if (rewardCoinIcon != null && rewardCoinIcon.sprite == null) rewardCoinIcon.sprite = CurrencyIconCatalog.Get(CurrencyIconKind.Coin);
+        if (rewardExperienceIcon != null && rewardExperienceIcon.sprite == null) rewardExperienceIcon.sprite = CurrencyIconCatalog.Get(CurrencyIconKind.Experience);
+    }
+
+    private T FindPopupComponent<T>(string name) where T : Component
+    {
+        Transform child = popupRoot.transform.Find(name);
+        return child != null ? child.GetComponent<T>() : null;
     }
 
     private void ApplyAchievementRewardLayout(PopupRequest request)
@@ -529,50 +560,6 @@ public sealed class AchievementPopupNotification : MonoBehaviour
         if (rewardExperienceIcon != null) rewardExperienceIcon.gameObject.SetActive(false);
         if (rewardCoinValueText != null) rewardCoinValueText.gameObject.SetActive(false);
         if (rewardExperienceValueText != null) rewardExperienceValueText.gameObject.SetActive(false);
-    }
-
-    private Image EnsurePopupRewardIcon(string name, CurrencyIconKind kind, Vector2 position)
-    {
-        Image image = CurrencyIconCatalog.EnsureIcon(
-            popupRoot.transform, name, kind,
-            new Vector2(0f, 0.5f), new Vector2(0f, 0.5f));
-        if (image == null) return null;
-        RectTransform rect = image.rectTransform;
-        rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.anchoredPosition = position;
-        rect.sizeDelta = new Vector2(25f, 25f);
-        return image;
-    }
-
-    private TMP_Text EnsurePopupRewardValue(string name, Vector2 position)
-    {
-        Transform existing = popupRoot.transform.Find(name);
-        TMP_Text text;
-        if (existing != null)
-        {
-            text = existing.GetComponent<TMP_Text>();
-        }
-        else
-        {
-            GameObject valueObject = new GameObject(
-                name, typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
-            valueObject.transform.SetParent(popupRoot.transform, false);
-            text = valueObject.GetComponent<TMP_Text>();
-        }
-
-        if (rewardText != null) text.font = rewardText.font;
-        text.fontSize = 22f;
-        text.enableAutoSizing = true;
-        text.fontSizeMin = 16f;
-        text.fontSizeMax = 22f;
-        text.fontStyle = FontStyles.Bold;
-        text.alignment = TextAlignmentOptions.MidlineLeft;
-        text.enableWordWrapping = false;
-        text.overflowMode = TextOverflowModes.Ellipsis;
-        text.raycastTarget = false;
-        ConfigurePopupTextRect(text, position, new Vector2(110f, 30f));
-        text.gameObject.SetActive(false);
-        return text;
     }
 
     private static void ConfigurePopupTextRect(TMP_Text text, Vector2 topLeft, Vector2 size)

@@ -46,11 +46,22 @@ public sealed class CharacterCustomizationController : MonoBehaviour
     [SerializeField] private List<CosmeticDefinition> cosmetics = new List<CosmeticDefinition>();
     [SerializeField] private List<CosmeticCategoryTabBinding> categoryTabs = new List<CosmeticCategoryTabBinding>();
     [SerializeField] private List<CosmeticOptionButton> optionSlots = new List<CosmeticOptionButton>();
-    [SerializeField] private List<CosmeticColorButtonBinding> colorSlots = new List<CosmeticColorButtonBinding>();
+    [HideInInspector, SerializeField] private List<CosmeticColorButtonBinding> colorSlots = new List<CosmeticColorButtonBinding>();
+
+    [Header("Authored Item Editor")]
+    [SerializeField] private GameObject itemListPanel;
+    [SerializeField] private GameObject selectedItemPanel;
+    [SerializeField] private TMP_Text selectedItemTitle;
+    [SerializeField] private TMP_Text materialHint;
+    [SerializeField] private TMP_Text accessoryActionLabel;
+    [SerializeField] private Image selectedItemIcon;
+    [HideInInspector, SerializeField] private TMP_Dropdown materialDropdown;
+    [SerializeField] private List<CosmeticMaterialColorRow> materialColorRows = new List<CosmeticMaterialColorRow>();
+    [SerializeField] private ScrollRect materialColorScroll;
+    [SerializeField] private Button accessoryActionButton;
+    private List<CosmeticBindingUtility.MaterialSlot> selectedMaterials = new List<CosmeticBindingUtility.MaterialSlot>();
 
     private readonly Dictionary<Button, UnityEngine.Events.UnityAction> tabActions =
-        new Dictionary<Button, UnityEngine.Events.UnityAction>();
-    private readonly Dictionary<Button, UnityEngine.Events.UnityAction> colorActions =
         new Dictionary<Button, UnityEngine.Events.UnityAction>();
 
     private CosmeticLoadoutData originalLoadout;
@@ -152,8 +163,6 @@ public sealed class CharacterCustomizationController : MonoBehaviour
     {
         foreach (var entry in tabActions)
             if (entry.Key != null) entry.Key.onClick.RemoveListener(entry.Value);
-        foreach (var entry in colorActions)
-            if (entry.Key != null) entry.Key.onClick.RemoveListener(entry.Value);
     }
 
     public void OpenCustomization()
@@ -173,6 +182,7 @@ public sealed class CharacterCustomizationController : MonoBehaviour
         previewLoadout = originalLoadout.Clone();
         ApplyDefaultSelections(previewLoadout);
 
+        if (sharedPortrait != null) sharedPortrait.GetComponent<AlmanacPortraitFit>()?.FitNow();
         CapturePortraitLayout();
 
         if (customizationPanel != null)
@@ -225,6 +235,7 @@ public sealed class CharacterCustomizationController : MonoBehaviour
 
     public void ShowCategory(CosmeticCategory category)
     {
+        CloseItemEditor();
         currentCategory = category;
         if (categoryTitle != null) categoryTitle.text = category.ToString().ToUpperInvariant();
 
@@ -253,10 +264,9 @@ public sealed class CharacterCustomizationController : MonoBehaviour
         selectedDefinition = definition;
         if (definition.category == CosmeticCategory.Accessories)
         {
-            bool isNone = string.Equals(definition.PermanentID, "Accessory_None",
-                StringComparison.OrdinalIgnoreCase);
-            bool equip = isNone || !previewLoadout.IsAccessoryEquipped(definition.PermanentID);
-            previewLoadout.SetAccessoryEquipped(definition.PermanentID, equip);
+            // Opening an already-equipped item's editor must not unequip it.
+            // Removal is a separate, explicit action in the item panel.
+            previewLoadout.SetAccessoryEquipped(definition.PermanentID, true);
         }
         else
         {
@@ -264,15 +274,85 @@ public sealed class CharacterCustomizationController : MonoBehaviour
         }
         ApplyPreview();
         ShowCategory(definition.category);
+        selectedDefinition = definition;
+        OpenItemEditor();
     }
 
-    private void SelectColor(int index)
+    private void OpenItemEditor()
+    {
+        if (selectedDefinition == null || selectedItemPanel == null) return;
+        if (itemListPanel != null) itemListPanel.SetActive(false);
+        selectedItemPanel.SetActive(true);
+        if (selectedItemTitle != null) selectedItemTitle.text = selectedDefinition.displayName;
+        if (selectedItemIcon != null)
+        {
+            selectedItemIcon.sprite = selectedDefinition.icon;
+            selectedItemIcon.enabled = selectedDefinition.icon != null;
+            selectedItemIcon.preserveAspect = true;
+        }
+        CosmeticModelBinding binding = previewMirror != null ? previewMirror.cosmeticBindings.Find(item =>
+            item != null && string.Equals(item.cosmeticID, selectedDefinition.PermanentID,
+                StringComparison.OrdinalIgnoreCase)) : null;
+        selectedMaterials = CosmeticBindingUtility.GetMaterialSlots(binding);
+        if (selectedMaterials.Count > materialColorRows.Count)
+            Debug.LogError("[Customization] Author more color rows for this item's materials.", this);
+        if (materialHint != null) materialHint.text = selectedMaterials.Count == 0
+            ? "This item has no colors to edit."
+            : "Pick a color for each part. Changes stay in your preview until Save Look.";
+        UpdateAccessoryAction();
+        RefreshColorSlots();
+        if (materialColorScroll != null)
+        {
+            Canvas.ForceUpdateCanvases();
+            LayoutRebuilder.ForceRebuildLayoutImmediate(materialColorScroll.content);
+            materialColorScroll.StopMovement();
+            materialColorScroll.verticalNormalizedPosition = 1;
+        }
+    }
+
+    public void CloseItemEditor()
+    {
+        if (selectedItemPanel != null) selectedItemPanel.SetActive(false);
+        if (itemListPanel != null) itemListPanel.SetActive(true);
+        selectedMaterials.Clear();
+    }
+
+    public void ToggleSelectedAccessory()
+    {
+        if (previewLoadout == null || selectedDefinition == null ||
+            selectedDefinition.category != CosmeticCategory.Accessories || !IsUnlocked(selectedDefinition)) return;
+        previewLoadout.SetAccessoryEquipped(selectedDefinition.PermanentID,
+            !previewLoadout.IsAccessoryEquipped(selectedDefinition.PermanentID));
+        ApplyPreview();
+        UpdateAccessoryAction();
+    }
+
+    public void ResetItemColors()
+    {
+        if (previewLoadout == null || selectedDefinition == null) return;
+        foreach (var slot in selectedMaterials)
+            previewLoadout.SetMaterialColor(selectedDefinition.PermanentID, slot.Key, Color.clear);
+        ApplyPreview(); RefreshColorSlots();
+    }
+
+    private void UpdateAccessoryAction()
+    {
+        bool accessory = selectedDefinition != null && selectedDefinition.category == CosmeticCategory.Accessories &&
+            !string.Equals(selectedDefinition.PermanentID, "Accessory_None", StringComparison.OrdinalIgnoreCase);
+        if (accessoryActionButton != null) accessoryActionButton.gameObject.SetActive(accessory);
+        if (accessoryActionLabel != null && accessory)
+            accessoryActionLabel.text = previewLoadout.IsAccessoryEquipped(selectedDefinition.PermanentID) ? "UNEQUIP ITEM" : "EQUIP ITEM";
+    }
+
+    private void SelectMaterialColor(int materialIndex, int index)
     {
         if (previewLoadout == null || selectedDefinition == null ||
             selectedDefinition.availableColors == null ||
-            index < 0 || index >= selectedDefinition.availableColors.Length) return;
+            index < 0 || index >= selectedDefinition.availableColors.Length ||
+            materialIndex < 0 || materialIndex >= selectedMaterials.Count) return;
 
-        previewLoadout.SetColor(currentCategory, selectedDefinition.availableColors[index]);
+        previewLoadout.SetMaterialColor(selectedDefinition.PermanentID,
+            selectedMaterials[materialIndex].Key, selectedDefinition.availableColors[index]);
         ApplyPreview();
         RefreshColorSlots();
     }
@@ -347,21 +427,17 @@ public sealed class CharacterCustomizationController : MonoBehaviour
     private void RefreshColorSlots()
     {
         Color[] colors = selectedDefinition != null ? selectedDefinition.availableColors : null;
-        Color selectedColor = previewLoadout != null
-            ? previewLoadout.GetColor(currentCategory)
-            : Color.clear;
-
-        for (int i = 0; i < colorSlots.Count; i++)
+        for (int i = 0; i < materialColorRows.Count; i++)
         {
-            CosmeticColorButtonBinding slot = colorSlots[i];
-            if (slot == null || slot.button == null) continue;
-            bool visible = colors != null && i < colors.Length;
-            slot.button.gameObject.SetActive(visible);
+            CosmeticMaterialColorRow row = materialColorRows[i];
+            if (row == null) continue;
+            bool visible = i < selectedMaterials.Count;
+            row.gameObject.SetActive(visible);
             if (!visible) continue;
-            if (slot.colorImage != null)
-                slot.colorImage.color = colors[i].a <= 0.001f ? Color.white : colors[i];
-            if (slot.selectedVisual != null)
-                slot.selectedVisual.SetActive(ColorDistance(colors[i], selectedColor) < 0.02f);
+            Color selected = previewLoadout != null && selectedDefinition != null
+                ? previewLoadout.GetMaterialColor(selectedDefinition.PermanentID, selectedMaterials[i].Key, currentCategory)
+                : Color.clear;
+            row.Bind(i, colors, selected, SelectMaterialColor);
         }
     }
 
@@ -369,6 +445,9 @@ public sealed class CharacterCustomizationController : MonoBehaviour
     {
         if (initialized) return;
         initialized = true;
+        if (materialDropdown != null) materialDropdown.gameObject.SetActive(false);
+        foreach (var old in colorSlots)
+            if (old != null && old.button != null) old.button.gameObject.SetActive(false);
 
         foreach (CosmeticCategoryTabBinding tab in categoryTabs)
         {
@@ -379,15 +458,6 @@ public sealed class CharacterCustomizationController : MonoBehaviour
             tabActions[tab.button] = action;
         }
 
-        for (int i = 0; i < colorSlots.Count; i++)
-        {
-            CosmeticColorButtonBinding slot = colorSlots[i];
-            if (slot == null || slot.button == null) continue;
-            int captured = i;
-            UnityEngine.Events.UnityAction action = () => SelectColor(captured);
-            slot.button.onClick.AddListener(action);
-            colorActions[slot.button] = action;
-        }
     }
 
     private IEnumerator TransitionToCustomization()
@@ -398,10 +468,10 @@ public sealed class CharacterCustomizationController : MonoBehaviour
 
         Vector2 startPosition = sharedPortrait != null ? sharedPortrait.anchoredPosition : Vector2.zero;
         Vector2 startSize = sharedPortrait != null ? sharedPortrait.sizeDelta : Vector2.zero;
-        GetLayerRect(customizationPortraitAnchor, out Vector2 targetPosition, out _);
-        // The same RawImage must keep the Profile dimensions. Resizing it to a
-        // tall wardrobe frame changes its aspect and makes the model look stretched.
-        Vector2 targetSize = startSize;
+        GetLayerRect(customizationPortraitAnchor, out Vector2 targetPosition, out Vector2 availableSize);
+        // Fit the shared image without changing its aspect ratio. The authored
+        // wardrobe frame is responsive and can be narrower than the Profile.
+        Vector2 targetSize = FitPortraitSize(availableSize);
 
         float elapsed = 0f;
         while (elapsed < transitionDuration)
@@ -456,6 +526,7 @@ public sealed class CharacterCustomizationController : MonoBehaviour
         Vector2 startPosition = sharedPortrait != null ? sharedPortrait.anchoredPosition : Vector2.zero;
         Vector2 startSize = sharedPortrait != null ? sharedPortrait.sizeDelta : Vector2.zero;
         GetLayerRect(profilePortraitAnchor, out Vector2 targetPosition, out Vector2 targetSize);
+        targetSize = FitPortraitSize(targetSize);
 
         float elapsed = 0f;
         while (elapsed < transitionDuration)
@@ -551,7 +622,18 @@ public sealed class CharacterCustomizationController : MonoBehaviour
         sharedPortrait.sizeDelta = portraitOriginalSizeDelta;
         sharedPortrait.localScale = portraitOriginalLocalScale;
         sharedPortrait.localRotation = portraitOriginalLocalRotation;
+        sharedPortrait.GetComponent<AlmanacPortraitFit>()?.FitNow();
         if (transitionLayer != null) transitionLayer.gameObject.SetActive(false);
+    }
+
+    private Vector2 FitPortraitSize(Vector2 available)
+    {
+        RawImage image = sharedPortrait != null ? sharedPortrait.GetComponent<RawImage>() : null;
+        float aspect = image != null && image.texture != null
+            ? (float)image.texture.width / Mathf.Max(1, image.texture.height)
+            : sharedPortrait != null && sharedPortrait.rect.height > 0 ? sharedPortrait.rect.width / sharedPortrait.rect.height : 1f;
+        return available.x / Mathf.Max(.01f, available.y) > aspect
+            ? new Vector2(available.y * aspect, available.y) : new Vector2(available.x, available.x / Mathf.Max(.01f, aspect));
     }
 
     private void GetLayerRect(RectTransform source, out Vector2 position, out Vector2 size)

@@ -9,6 +9,26 @@ using UnityEngine.EventSystems;
 public class DialogueManager : MonoBehaviour
 {
     private static Sprite skipRoundedSprite;
+    private static readonly HashSet<DialogueManager> knownManagers = new HashSet<DialogueManager>();
+
+    /// <summary>Includes the closing animation so bottom-screen toasts never cover a conversation.</summary>
+    public static bool IsAnyDialogueVisible
+    {
+        get
+        {
+            foreach (DialogueManager manager in knownManagers)
+                if (manager != null &&
+                    ((manager.isActiveAndEnabled && manager.isDialogueActive) ||
+                     (manager.dialogueBox != null && manager.dialogueBox.activeInHierarchy))) return true;
+            return false;
+        }
+    }
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetDialogueVisibility() { knownManagers.Clear(); }
+
+    private void OnEnable() { knownManagers.Add(this); }
+    private void OnDestroy() { knownManagers.Remove(this); }
 
     public TextMeshProUGUI nameText;
     public TextMeshProUGUI dialogueText;
@@ -166,6 +186,7 @@ public class DialogueManager : MonoBehaviour
         Transform speakerTransform = null)
     {
         if (dialogue == null) return;
+        knownManagers.Add(this);
         bool wasAlreadyActive = isDialogueActive;
 
         SetActiveSpeaker(speakerAnimator);

@@ -192,6 +192,17 @@ public class ContractAlmanacTab : MonoBehaviour
     private IEnumerator ChangeContractRoutine(int nextIndex, float direction)
     {
         isChangingPage = true;
+        AlmanacBookMotion motion = AlmanacManager.Instance != null ? AlmanacManager.Instance.BookMotion : null;
+        if (motion != null)
+        {
+            Transform left = snapshotCaptionText.transform.parent.parent;
+            Transform right = titleText.transform.parent.parent;
+            yield return motion.Turn(left, right, left, right,
+                () => { currentIndex = nextIndex; DisplayContract(currentIndex); }, direction > 0f);
+            isChangingPage = false;
+            pageTransition = null;
+            yield break;
+        }
         yield return AnimateElements(1f, 0f, 0f, -direction * pageSlideDistance * 0.55f,
             pageTransitionDuration * 0.42f);
 
@@ -347,10 +358,16 @@ public class ContractAlmanacTab : MonoBehaviour
         if (leftPage != null && rightPage != null && leftPage != rightPage &&
             leftPage.parent == rightPage.parent)
         {
-            SetNormalizedRect(leftPage, new Vector2(0.025f, 0.04f), new Vector2(0.49f, 0.96f));
-            SetNormalizedRect(rightPage, new Vector2(0.51f, 0.04f), new Vector2(0.975f, 0.90f));
-            SetNormalizedRect(leftRoot, Vector2.zero, Vector2.one);
-            SetNormalizedRect(rightRoot, Vector2.zero, Vector2.one);
+            if (AlmanacManager.Instance == null || AlmanacManager.Instance.BookMotion == null)
+            {
+                SetNormalizedRect(leftPage, new Vector2(0.02f, 0.04f), new Vector2(0.498f, 0.96f));
+                SetNormalizedRect(rightPage, new Vector2(0.502f, 0.04f), new Vector2(0.98f, 0.96f));
+            }
+            bool paperLayout = leftPage.GetComponent<AlmanacPaperImage>() != null;
+            Vector2 contentMin = paperLayout ? new Vector2(.025f, .04f) : Vector2.zero;
+            Vector2 contentMax = paperLayout ? new Vector2(.975f, .90f) : Vector2.one;
+            SetNormalizedRect(leftRoot, contentMin, contentMax);
+            SetNormalizedRect(rightRoot, contentMin, contentMax);
         }
 
         if (photoFrame != null)
@@ -750,6 +767,7 @@ public class ContractAlmanacTab : MonoBehaviour
     private void PlayEntranceAnimation()
     {
         if (!isActiveAndEnabled || !gameObject.activeInHierarchy || isChangingPage) return;
+        if (AlmanacManager.Instance != null && AlmanacManager.Instance.BookMotion != null) return;
         if (pageTransition != null) StopCoroutine(pageTransition);
         SetAnimatedElements(0f, pageSlideDistance * 0.45f);
         pageTransition = StartCoroutine(EntranceRoutine());

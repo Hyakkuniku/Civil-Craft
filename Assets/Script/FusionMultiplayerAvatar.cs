@@ -1342,7 +1342,8 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
     private void PublishAppearance(CosmeticLoadoutData loadout)
     {
         if (!HasInputAuthority || loadout == null) return;
-        string json = JsonUtility.ToJson(loadout);
+        // Do not send color choices for unequipped wardrobe items.
+        string json = JsonUtility.ToJson(loadout.EquippedAppearanceCopy());
         if (json == lastPublishedAppearance) return;
         if (Encoding.UTF8.GetByteCount(json) > 1900)
         {

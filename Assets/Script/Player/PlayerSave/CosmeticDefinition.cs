@@ -12,6 +12,15 @@ public enum CosmeticCategory
 }
 
 [Serializable]
+public sealed class CosmeticMaterialColor
+{
+    public string itemID;
+    public string slot;
+    // Compact, lossless Color32 RGBA. 00000000 explicitly restores authored color.
+    public string rgba;
+}
+
+[Serializable]
 public class CosmeticLoadoutData
 {
     private static readonly HashSet<string> HeadwearAccessoryIDs = new HashSet<string>(
@@ -37,6 +46,42 @@ public class CosmeticLoadoutData
     public Color shirtColor = Color.clear;
     public Color pantsColor = Color.clear;
     public Color shoesColor = Color.clear;
+
+    // Optional extension: old saves retain their category colors until edited.
+    public List<CosmeticMaterialColor> materialColors = new List<CosmeticMaterialColor>();
+
+    public Color GetMaterialColor(string itemID, string slot, CosmeticCategory category)
+    {
+        CosmeticMaterialColor saved = materialColors?.Find(entry => entry != null &&
+            string.Equals(entry.itemID, itemID, StringComparison.OrdinalIgnoreCase) && entry.slot == slot);
+        if (saved != null && ColorUtility.TryParseHtmlString("#" + saved.rgba, out Color color))
+            return color;
+        return GetColor(category);
+    }
+
+    public void SetMaterialColor(string itemID, string slot, Color color)
+    {
+        if (string.IsNullOrWhiteSpace(itemID) || string.IsNullOrWhiteSpace(slot)) return;
+        if (materialColors == null) materialColors = new List<CosmeticMaterialColor>();
+        CosmeticMaterialColor saved = materialColors.Find(entry => entry != null &&
+            string.Equals(entry.itemID, itemID, StringComparison.OrdinalIgnoreCase) && entry.slot == slot);
+        if (saved == null)
+        {
+            saved = new CosmeticMaterialColor { itemID = itemID, slot = slot };
+            materialColors.Add(saved);
+        }
+        saved.rgba = ColorUtility.ToHtmlStringRGBA(color);
+    }
+
+    public CosmeticLoadoutData EquippedAppearanceCopy()
+    {
+        CosmeticLoadoutData copy = Clone();
+        if (copy.materialColors != null)
+            copy.materialColors.RemoveAll(entry => entry == null ||
+                !(copy.IsAccessoryEquipped(entry.itemID) || entry.itemID == copy.hairID ||
+                  entry.itemID == copy.shirtID || entry.itemID == copy.pantsID || entry.itemID == copy.shoesID));
+        return copy;
+    }
 
     public CosmeticLoadoutData Clone()
     {

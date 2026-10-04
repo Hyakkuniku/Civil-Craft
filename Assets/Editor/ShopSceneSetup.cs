@@ -299,6 +299,9 @@ public static class ShopSceneSetup
 
     private static void UpgradeShopPanel(GameObject panel, ShopManager manager)
     {
+        // This panel has already been upgraded by the authored UI migration.
+        // Automatic legacy setup must not overwrite the saved responsive layout.
+        if (FindRecursive(panel.transform, "AuthoredShopFrame") != null) return;
         TMP_FontAsset font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(FontPath);
         UpgradeWardrobeTabs(panel, manager);
 

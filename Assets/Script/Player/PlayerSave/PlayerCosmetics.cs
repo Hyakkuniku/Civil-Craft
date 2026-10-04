@@ -89,7 +89,6 @@ public static class CosmeticBindingUtility
             }
         }
 
-        Color accessoryColor = loadout.GetColor(CosmeticCategory.Accessories);
         for (int i = 0; i < bindings.Count; i++)
         {
             CosmeticModelBinding binding = bindings[i];
@@ -104,8 +103,8 @@ public static class CosmeticBindingUtility
                 model.SetActive(true);
                 if (HeadwearIDs.Contains(binding.cosmeticID?.Trim() ?? string.Empty))
                     FitHeadwearOverHair(model);
-                ApplyColor(model, accessoryColor);
             }
+            ApplyMaterialColors(binding, loadout);
         }
 
         foreach (KeyValuePair<CosmeticCategory, CosmeticModelBinding> choice in selected)
@@ -113,13 +112,12 @@ public static class CosmeticBindingUtility
             CosmeticModelBinding binding = choice.Value;
             if (binding == null || binding.models == null) continue;
 
-            Color color = loadout.GetColor(choice.Key);
             foreach (GameObject model in binding.models)
             {
                 if (model == null) continue;
                 model.SetActive(true);
-                ApplyColor(model, color);
             }
+            ApplyMaterialColors(binding, loadout);
         }
     }
 
@@ -141,35 +139,76 @@ public static class CosmeticBindingUtility
             model.transform.localScale = originalScale;
     }
 
-    private static void ApplyColor(GameObject model, Color color)
+    public sealed class MaterialSlot
     {
-        Renderer[] renderers = model.GetComponentsInChildren<Renderer>(true);
-        foreach (Renderer renderer in renderers)
-        {
-            // Wardrobe pieces use separate skinned meshes, including skins
-            // generated after import. Their saved bounds do not necessarily
-            // cover the animated pose. Recalculate them so a close camera
-            // cannot cull a visible shirt/hat while the body remains visible.
-            if (renderer is SkinnedMeshRenderer skinned)
-                skinned.updateWhenOffscreen = true;
+        public string Key;
+        public string Label;
+        public Material Material;
+        public readonly List<MaterialTarget> Targets = new List<MaterialTarget>();
+    }
 
-            Material[] materials = renderer.sharedMaterials;
-            for (int index = 0; index < materials.Length; index++)
+    public struct MaterialTarget
+    {
+        public Renderer Renderer;
+        public int Index;
+    }
+
+    // Same imported material used on several meshes (e.g. front/back hair)
+    // shares one control. Distinct materials always remain distinct controls.
+    // The first model/renderer/slot index is stable across prefab and avatar copies.
+    public static List<MaterialSlot> GetMaterialSlots(CosmeticModelBinding binding)
+    {
+        var result = new List<MaterialSlot>();
+        var byMaterial = new Dictionary<Material, MaterialSlot>();
+        if (binding?.models == null) return result;
+        for (int modelIndex = 0; modelIndex < binding.models.Count; modelIndex++)
+        {
+            GameObject model = binding.models[modelIndex];
+            if (model == null) continue;
+            Renderer[] renderers = model.GetComponentsInChildren<Renderer>(true);
+            for (int rendererIndex = 0; rendererIndex < renderers.Length; rendererIndex++)
             {
-                Material material = materials[index];
-                if (material == null) continue;
+                Renderer renderer = renderers[rendererIndex];
+                Material[] materials = renderer.sharedMaterials;
+                for (int index = 0; index < materials.Length; index++)
+                {
+                    Material material = materials[index];
+                    if (material == null) continue;
+                    if (!byMaterial.TryGetValue(material, out MaterialSlot slot))
+                    {
+                        slot = new MaterialSlot { Key = modelIndex + "." + rendererIndex + "." + index,
+                            Label = material.name.Replace(" (Instance)", string.Empty).Replace('_', ' '), Material = material };
+                        byMaterial.Add(material, slot); result.Add(slot);
+                    }
+                    slot.Targets.Add(new MaterialTarget { Renderer = renderer, Index = index });
+                }
+            }
+        }
+        return result;
+    }
+
+    private static void ApplyMaterialColors(CosmeticModelBinding binding, CosmeticLoadoutData loadout)
+    {
+        foreach (MaterialSlot slot in GetMaterialSlots(binding))
+        {
+            Color color = loadout.GetMaterialColor(binding.cosmeticID, slot.Key, binding.category);
+            Material material = slot.Material;
+            foreach (MaterialTarget target in slot.Targets)
+            {
+                Renderer renderer = target.Renderer;
+                if (renderer is SkinnedMeshRenderer skinned) skinned.updateWhenOffscreen = true;
                 if (color.a <= 0.001f)
                 {
                     // Clear the wardrobe override so the original imported
                     // material colors are used again.
-                    renderer.SetPropertyBlock(null, index);
+                    renderer.SetPropertyBlock(null, target.Index);
                     continue;
                 }
                 MaterialPropertyBlock block = new MaterialPropertyBlock();
-                renderer.GetPropertyBlock(block, index);
+                renderer.GetPropertyBlock(block, target.Index);
                 if (material.HasProperty(BaseColor)) block.SetColor(BaseColor, color);
                 else if (material.HasProperty(ColorProperty)) block.SetColor(ColorProperty, color);
-                renderer.SetPropertyBlock(block, index);
+                renderer.SetPropertyBlock(block, target.Index);
             }
         }
     }
