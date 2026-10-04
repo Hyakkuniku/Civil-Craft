@@ -116,11 +116,14 @@ public sealed class DashboardSyncService : MonoBehaviour
     };
 
     private PlayerDataManager dataManager;
+    private CloudSaveManager cloudSave;
     private bool dirty = true;
     private bool inFlight;
     private float nextAttemptTime;
     private int revision;
     private string lastPublishedSignature;
+    private int observedSessionGeneration = int.MinValue;
+    private string observedAccountId;
 
     public bool IsSyncing => inFlight;
     public string LastSyncError { get; private set; }
@@ -128,6 +131,7 @@ public sealed class DashboardSyncService : MonoBehaviour
     private void Awake()
     {
         dataManager = GetComponent<PlayerDataManager>();
+        cloudSave = GetComponent<CloudSaveManager>();
         if (dataManager != null)
             dataManager.OnSaveCommitted += RequestSync;
         nextAttemptTime = Time.realtimeSinceStartup;
@@ -148,16 +152,34 @@ public sealed class DashboardSyncService : MonoBehaviour
 
     private void Update()
     {
+        ObserveAccountSession();
         if (!dirty || inFlight || dataManager == null || dataManager.CurrentData == null ||
+            cloudSave == null || !cloudSave.CanPublishDashboard ||
             Time.realtimeSinceStartup < nextAttemptTime ||
             !PlayFabClientAPI.IsClientLoggedIn())
             return;
 
-        PlayFabAuthManager auth = PlayFabAuthManager.Instance;
-        if (auth == null || !auth.IsCloudSaveReady || auth.IsGuestSelected)
-            return;
-
         Publish(BuildPayload(dataManager, DateTime.UtcNow));
+    }
+
+    private void ObserveAccountSession()
+    {
+        if (cloudSave == null ||
+            (observedSessionGeneration == cloudSave.SessionGeneration &&
+             string.Equals(observedAccountId, cloudSave.ActiveAccountId,
+                 StringComparison.Ordinal))) return;
+
+        observedSessionGeneration = cloudSave.SessionGeneration;
+        observedAccountId = cloudSave.ActiveAccountId;
+        // The same progress still needs publishing when a different account or
+        // a new login session selects it. Previous callbacks must not mark this
+        // session clean or interfere with its next request.
+        lastPublishedSignature = null;
+        LastSyncError = null;
+        inFlight = false;
+        dirty = true;
+        revision++;
+        nextAttemptTime = Time.realtimeSinceStartup;
     }
 
     private void Publish(DashboardPayload payload)
@@ -170,6 +192,8 @@ public sealed class DashboardSyncService : MonoBehaviour
         }
 
         int submittedRevision = revision;
+        int submittedSession = cloudSave.SessionGeneration;
+        string submittedAccount = cloudSave.ActiveAccountId;
         inFlight = true;
         var parameters = new Dictionary<string, object>
         {
@@ -200,10 +224,19 @@ public sealed class DashboardSyncService : MonoBehaviour
             GeneratePlayStreamEvent = false
         }, result =>
         {
+            if (!IsCurrentSession(submittedSession, submittedAccount)) return;
             inFlight = false;
             if (result == null || result.Error != null)
             {
-                ScheduleRetry(result?.Error?.Message ?? "PlayFab returned no dashboard result.");
+                ScheduleRetry(DescribeCloudScriptFailure(result));
+                return;
+            }
+            if (!(result.FunctionResult is IDictionary<string, object> response) ||
+                !response.TryGetValue("accepted", out object accepted) ||
+                !(accepted is bool acceptedValue) || !acceptedValue)
+            {
+                ScheduleRetry("CloudScript did not acknowledge the dashboard projection " +
+                    "(revision " + result.Revision + ").");
                 return;
             }
 
@@ -214,9 +247,81 @@ public sealed class DashboardSyncService : MonoBehaviour
             Debug.Log("[DashboardSync] Player dashboard projection published.", this);
         }, error =>
         {
+            if (!IsCurrentSession(submittedSession, submittedAccount)) return;
             inFlight = false;
-            ScheduleRetry(error.ErrorMessage);
+            // Error identifiers are sufficient to diagnose gateway failures
+            // without printing request bodies, session tickets, or URLs.
+            ScheduleRetry("PlayFab request failed: " + error.Error + ".");
         });
+    }
+
+    private bool IsCurrentSession(int submittedSession, string submittedAccount)
+    {
+        return this != null && cloudSave != null &&
+            submittedSession == cloudSave.SessionGeneration &&
+            string.Equals(submittedAccount, cloudSave.ActiveAccountId,
+                StringComparison.Ordinal);
+    }
+
+    private static string DescribeCloudScriptFailure(ExecuteCloudScriptResult result)
+    {
+        if (result == null) return "PlayFab returned no dashboard result.";
+        var message = new StringBuilder("CloudScript revision ")
+            .Append(result.Revision).Append(" failed: ")
+            .Append(DiagnosticIdentifier(result.Error?.Error));
+        if (result.Logs != null)
+        {
+            foreach (LogStatement entry in result.Logs)
+            {
+                if (entry == null || !string.Equals(entry.Level, "Error",
+                        StringComparison.OrdinalIgnoreCase) ||
+                    !(entry.Data is IDictionary<string, object> details)) continue;
+
+                // PlayFab API error logs can contain the entire request. Read
+                // only API/error identifiers and the numerical error code.
+                if (DiagnosticMember(details, "apiErrorInfo") is
+                    IDictionary<string, object> apiErrorInfo) details = apiErrorInfo;
+                object api = DiagnosticMember(details, "api") ??
+                    DiagnosticMember(details, "apiName");
+                object failure = DiagnosticMember(details, "apiError") ??
+                    DiagnosticMember(details, "error");
+                var apiError = failure as IDictionary<string, object>;
+                object errorName = apiError != null
+                    ? DiagnosticMember(apiError, "error") : failure;
+                object errorCode = DiagnosticMember(apiError ?? details, "errorCode");
+                string apiName = DiagnosticIdentifier(api);
+                string apiErrorName = DiagnosticIdentifier(errorName);
+                bool hasErrorCode = errorCode is byte || errorCode is short ||
+                    errorCode is int || errorCode is long || errorCode is float ||
+                    errorCode is double || errorCode is decimal;
+                if (apiName.Length == 0 && apiErrorName.Length == 0 && !hasErrorCode) continue;
+                message.Append("; API ").Append(apiName.Length > 0 ? apiName : "unknown")
+                    .Append(": ").Append(apiErrorName.Length > 0 ? apiErrorName : "error");
+                if (hasErrorCode)
+                    message.Append(" (").Append(errorCode).Append(')');
+            }
+        }
+        return message.Append('.').ToString();
+    }
+
+    private static object DiagnosticMember(IDictionary<string, object> data, string key)
+    {
+        if (data == null) return null;
+        foreach (KeyValuePair<string, object> item in data)
+            if (string.Equals(item.Key, key, StringComparison.OrdinalIgnoreCase))
+                return item.Value;
+        return null;
+    }
+
+    private static string DiagnosticIdentifier(object value)
+    {
+        if (!(value is string text) || text.Length == 0 || text.Length > 96)
+            return string.Empty;
+        foreach (char character in text)
+            if (!char.IsLetterOrDigit(character) && character != '_' &&
+                character != '/' && character != '-' && character != '.')
+                return string.Empty;
+        return text;
     }
 
     private void ScheduleRetry(string message)

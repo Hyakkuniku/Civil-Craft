@@ -123,6 +123,7 @@ public class PauseManager : MonoBehaviour
 
     public void TogglePause()
     {
+        if (SettingsManager.TryCancelLogoutConfirmation()) return;
         DiagnosePauseInvocation();
         if (isClosingPause) return;
         // If the settings panel is open, pressing Escape should just close settings, not unpause the whole game yet.

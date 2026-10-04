@@ -2,6 +2,10 @@ using UnityEngine;
 using UnityEngine.Audio;
 using UnityEngine.UI;
 using TMPro;
+using UnityEngine.EventSystems;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
 
 public class SettingsManager : MonoBehaviour
 {
@@ -51,6 +55,19 @@ public class SettingsManager : MonoBehaviour
     public TMP_Text accountActionButtonText;
     public Button accountActionButton;
     public Button logoutButton;
+    [Tooltip("Inactive scene-authored confirmation. Never create a logout dialog at runtime.")]
+    public AuthoredSaveChoiceDialog logoutConfirmation;
+    public Button logoutStayButton;
+
+    private bool logoutPending;
+    private GameObject selectionBeforeLogout;
+    private static int logoutBackHandledFrame = -1;
+
+    public bool IsLogoutConfirmationOpen => logoutPending && logoutConfirmation != null &&
+        logoutConfirmation.gameObject.activeInHierarchy;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetLogoutBackState() => logoutBackHandledFrame = -1;
 
     private void Start()
     {
@@ -109,6 +126,7 @@ public class SettingsManager : MonoBehaviour
     public void OpenSettings()
     {
         if (settingsPanel == null) return;
+        CancelLogout();
         LoadSettings();
         RefreshAccountUI();
         if (UIPanelCoordinator.Instance != null) UIPanelCoordinator.Instance.OpenPanel(settingsPanel);
@@ -117,6 +135,7 @@ public class SettingsManager : MonoBehaviour
 
     public void CloseSettings()
     {
+        CancelLogout();
         if (settingsPanel == null) return;
         if (UIPanelCoordinator.Instance != null) UIPanelCoordinator.Instance.ClosePanel(settingsPanel);
         else settingsPanel.SetActive(false);
@@ -317,9 +336,91 @@ public class SettingsManager : MonoBehaviour
 
     public void LogoutAccount()
     {
+        if (logoutPending) return;
         if (authManager == null) authManager = FindObjectOfType<PlayFabAuthManager>(true);
+        if (authManager == null || (!authManager.IsPlayerLoggedIn && !authManager.IsGuestSelected))
+        {
+            RefreshAccountUI();
+            return;
+        }
+        if (logoutConfirmation == null)
+        {
+            Debug.LogError("SettingsManager: the scene-authored logout confirmation is missing. You remain signed in.", this);
+            return;
+        }
+
+        selectionBeforeLogout = EventSystem.current != null
+            ? EventSystem.current.currentSelectedGameObject : null;
+        logoutPending = logoutConfirmation.Show("LOG OUT?",
+            "Sign out of this session?\n\nYour saved progress stays on this device.\nSign in again to return to your account.",
+            "STAY", "LOG OUT", CancelLogout, ConfirmLogout);
+        if (!IsLogoutConfirmationOpen)
+        {
+            CancelLogout();
+            return;
+        }
+        if (EventSystem.current != null && logoutStayButton != null)
+            EventSystem.current.SetSelectedGameObject(logoutStayButton.gameObject);
+    }
+
+    public void ConfirmLogout()
+    {
+        // Also protects against a stale callback, a direct Inspector call, or a double tap.
+        if (!IsLogoutConfirmationOpen) return;
+        CancelLogout();
         if (authManager != null) authManager.LogoutToSignedOutState();
         RefreshAccountUI();
+        if (EventSystem.current != null && accountActionButton != null &&
+            accountActionButton.isActiveAndEnabled && accountActionButton.interactable)
+            EventSystem.current.SetSelectedGameObject(accountActionButton.gameObject);
+    }
+
+    public void CancelLogout()
+    {
+        logoutPending = false;
+        if (logoutConfirmation != null) logoutConfirmation.Hide();
+        if (EventSystem.current != null && selectionBeforeLogout != null &&
+            selectionBeforeLogout.activeInHierarchy)
+            EventSystem.current.SetSelectedGameObject(selectionBeforeLogout);
+        selectionBeforeLogout = null;
+    }
+
+    /// <summary>Consumes Back once so the same press does not also dismiss Settings or Pause.</summary>
+    public static bool TryCancelLogoutConfirmation()
+    {
+        if (logoutBackHandledFrame == Time.frameCount) return true;
+        foreach (SettingsManager manager in FindObjectsOfType<SettingsManager>(true))
+        {
+            if (!manager.IsLogoutConfirmationOpen) continue;
+            manager.CancelLogout();
+            logoutBackHandledFrame = Time.frameCount;
+            return true;
+        }
+        return false;
+    }
+
+    private void Update()
+    {
+        if (!logoutPending) return;
+        if (!IsLogoutConfirmationOpen)
+        {
+            CancelLogout();
+            return;
+        }
+#if ENABLE_INPUT_SYSTEM
+        bool backPressed = (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame) ||
+            (Gamepad.current != null && Gamepad.current.buttonEast.wasPressedThisFrame);
+#elif ENABLE_LEGACY_INPUT_MANAGER
+        bool backPressed = Input.GetKeyDown(KeyCode.Escape);
+#else
+        bool backPressed = false;
+#endif
+        if (backPressed) TryCancelLogoutConfirmation();
+    }
+
+    private void OnDisable()
+    {
+        CancelLogout();
     }
 
     public void RefreshAccountUI()

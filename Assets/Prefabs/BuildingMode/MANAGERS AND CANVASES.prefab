@@ -12691,6 +12691,8 @@ MonoBehaviour:
   animationImage: {fileID: 0}
   bookOpenFrames: []
   frameRate: 0.03
+  openAlmanacSfxId: OpenAlamanac
+  pageFlipSfxId: PageFlip
   onFirstOpenTutorial: {fileID: 0}
   onContractsTabUnlockedTutorial: {fileID: 0}
   onLessonsTabUnlockedTutorial: {fileID: 0}
@@ -15217,6 +15219,7 @@ MonoBehaviour:
   rotationSpeed: 12
   jumpHeight: 1.5
   airSpeedMultiplier: 0.55
+  jumpSfxId: Jump
   playerWeight: 500
 --- !u!114 &6977182336504864842
 MonoBehaviour:

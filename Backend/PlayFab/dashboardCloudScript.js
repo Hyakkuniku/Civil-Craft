@@ -5,6 +5,24 @@
 // present in the game or browser.
 
 var ccDashboardMaxJsonLength = 10000;
+var ccDashboardMaxDataUpdates = 10;
+
+// The title allows at most ten player-data updates in one API request.
+// Keep the existing website keys, but send bounded additive batches.
+function ccDashboardWritePrivateData(data) {
+    var keys = Object.keys(data);
+    for (var offset = 0; offset < keys.length; offset += ccDashboardMaxDataUpdates) {
+        var batch = {};
+        for (var index = offset;
+            index < keys.length && index < offset + ccDashboardMaxDataUpdates; index++)
+            batch[keys[index]] = data[keys[index]];
+        server.UpdateUserData({
+            PlayFabId: currentPlayerId,
+            Data: batch,
+            Permission: "Private"
+        });
+    }
+}
 
 function ccDashboardInteger(value, name, minimum, maximum) {
     if (typeof value !== "number" || !isFinite(value) ||
@@ -92,8 +110,7 @@ handlers.syncDashboardV1 = function (args, context) {
             args.achievementProgress, "achievementProgress", true),
         EquippedCosmetics: ccDashboardJson(
             args.equippedCosmetics, "equippedCosmetics", false),
-        AlmanacProgress: ccDashboardJson(args.almanacProgress, "almanacProgress", false),
-        CharacterSyncedAt: new Date().toISOString()
+        AlmanacProgress: ccDashboardJson(args.almanacProgress, "almanacProgress", false)
     };
     // Older installed clients do not send portrait fields. In that case leave
     // any portrait uploaded by a newer build untouched.
@@ -103,11 +120,7 @@ handlers.syncDashboardV1 = function (args, context) {
         data.CharacterPortraitChecksum = portraitChecksum;
     }
 
-    server.UpdateUserData({
-        PlayFabId: currentPlayerId,
-        Data: data,
-        Permission: "Private"
-    });
+    ccDashboardWritePrivateData(data);
     server.UpdatePlayerStatistics({
         PlayFabId: currentPlayerId,
         Statistics: [
@@ -118,6 +131,11 @@ handlers.syncDashboardV1 = function (args, context) {
         ],
         ForceUpdate: false
     });
+
+    // Publish the completion marker only after all data and statistics succeed.
+    // A failed batch must propagate so the client retries the entire projection.
+    // Batches are not a transaction; this marker is a freshness signal only.
+    ccDashboardWritePrivateData({ CharacterSyncedAt: new Date().toISOString() });
 
     return { accepted: true, schemaVersion: 1 };
 };

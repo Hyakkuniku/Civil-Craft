@@ -71,6 +71,14 @@ public sealed class CloudSaveManager : MonoBehaviour
     public bool IsSyncing => inFlight;
     public bool HasConflict => showingConflict;
     public bool IsAccountActive => !string.IsNullOrEmpty(accountId);
+    public string ActiveAccountId => accountId;
+    public int SessionGeneration => generation;
+    // A selected account is not ready until its startup save choice has been
+    // approved. Resume may approve the cached save after a network failure;
+    // strict save choices must succeed before dependent publishers can run.
+    public bool IsSessionReady { get; private set; }
+    public bool CanPublishDashboard => IsAccountActive && IsSessionReady &&
+        !showingConflict && !suspendSyncForConflict;
     public string LastSyncError { get; private set; }
 
     private void Awake()
@@ -99,6 +107,7 @@ public sealed class CloudSaveManager : MonoBehaviour
         conflictBackedUp = false;
         CloseConflictOverlay();
         startupComplete = null;
+        IsSessionReady = false;
         accountId = null;
         entity = null;
         conflictingCloudJson = null;
@@ -483,6 +492,7 @@ public sealed class CloudSaveManager : MonoBehaviour
         strictStartup = false;
         hadLocalSaveAtLogin = true;
         LastSyncError = null;
+        IsSessionReady = true;
         nextSyncTime = Time.realtimeSinceStartup + SaveDebounceSeconds;
         Action<bool> ready = startupComplete;
         startupComplete = null;
@@ -498,6 +508,7 @@ public sealed class CloudSaveManager : MonoBehaviour
         nextSyncTime = Time.realtimeSinceStartup + RetrySeconds;
         Action<bool> ready = startupComplete;
         startupComplete = null;
+        if (ready != null) IsSessionReady = !strictStartup;
         ready?.Invoke(!strictStartup);
     }
 
@@ -570,6 +581,7 @@ public sealed class CloudSaveManager : MonoBehaviour
             suspendSyncForConflict = true;
             inFlight = false;
             LastSyncError = "Device and online saves differ. The online save was not replaced.";
+            IsSessionReady = true;
             Action<bool> ready = startupComplete;
             startupComplete = null;
             ready?.Invoke(true);

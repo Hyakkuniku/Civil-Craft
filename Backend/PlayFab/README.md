@@ -31,7 +31,8 @@ fields, so installed builds that predate portrait upload can still call
 `syncDashboardV1`. Revision 8 then made missing portrait fields preserve any
 metadata already published by a newer build. On October 5, 2026, revision 9
 was uploaded and deployed with `submitMultiplayerResultV1` and
-`getMultiplayerLeaderboardV1`. Revision 9 is the current live revision.
+`getMultiplayerLeaderboardV1`. Later on October 5, revision 10 was deployed
+to fix dashboard publishing; revision 10 is the current live revision.
 The Unity submit flag is enabled in Canyon Crossing and Bhan House, and
 explicitly disabled in Multiplayer. A signed-in SilasContract completion
 reached `submitBridgeRunV1`; both of its live boards show two player entries,
@@ -178,6 +179,58 @@ source of lifetime totals. Do not reset these statistics independently of their
 ledger; the next submission would restore lifetime totals. Any migration or
 season reset must retain durable deduplication and establish an explicit receipt
 generation/baseline with matching statistic versions.
+
+## Dashboard sync repair — revision 10 deployed
+
+The website could load the account name/profile but showed **Awaiting game
+sync** for progress. Unity logged repeated CloudScript API failures and the
+player's Title Player Data had no dashboard projection. The title's **Settings
+→ Limits → Data Storage** showed a maximum of **10 player-data updates per
+request**; the previous handler submitted 13 keys (16 with portrait metadata)
+in one `UpdateUserData` call.
+
+Revision 10 keeps the same private keys and schema. It sends at most ten keys
+per call (10 + 5 with portrait metadata), writes the four summary statistics,
+then writes `CharacterSyncedAt` separately after success. Any failure propagates
+and Unity retries the full projection. These additive API writes are not an
+atomic transaction; the timestamp is a completion/freshness signal, not snapshot
+isolation. No website source or PlayFab permissions were changed.
+
+`DashboardSyncService` now uses the persistent `CloudSaveManager` session rather
+than the Main Menu's scene-bound authentication component. It waits for the
+startup save choice, blocks unresolved or deliberately retained divergent
+device saves, resets its publish cache per login/account, and ignores old-session
+callbacks. A success requires `accepted: true`; failures report safe API/error
+identifiers without printing credentials or raw requests.
+
+Before upload, live revision 9 matched the local merged source. Staged revision
+10 was verified against the complete local file with all 18 handlers preserved.
+An invalid-schema dashboard probe was rejected with zero PlayFab API/HTTP calls,
+so no synthetic player progress was written. The browser then confirmed
+**Revision 10 (live)**.
+
+Verification passed: dashboard tests against both the feature and merged
+scripts (including a strict ten-key API mock, failed batch/statistic retries,
+optional portrait fields, and account routing), multiplayer tests, Unity 2022.3
+Roslyn compilation, managed readiness/session/diagnostic checks, and diff checks.
+The separate existing single-player leaderboard test still fails because a
+`MarshID` contract asset is not in the existing server allowlist; that
+configuration was left unchanged by this dashboard repair.
+
+To verify real progress end to end:
+
+1. Stop Unity Play Mode and allow compilation to finish, then start from Main
+   Menu and sign into the same account as the website. An installed build must
+   be rebuilt to include the game-side repair.
+2. Let account-save loading finish and wait at least 5–10 seconds after the last
+   save. Login publishes existing progress; completing a bridge or saving a
+   wardrobe look also requests a refresh.
+3. Confirm Unity logs `[DashboardSync] Player dashboard projection published.`
+4. In PlayFab, check **Players → that account → Player Data → Title** for
+   `BridgesCompleted`, `MapProgress`, and `CharacterSyncedAt`, then click
+   **Refresh** on the website dashboard.
+
+This final gameplay/website check remains pending until the updated game runs.
 
 API references: [internal-data reads](https://learn.microsoft.com/en-us/rest/api/playfab/server/player-data-management/get-user-internal-data),
 [internal-data updates](https://learn.microsoft.com/en-us/rest/api/playfab/server/player-data-management/update-user-internal-data),
