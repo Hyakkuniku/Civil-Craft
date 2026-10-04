@@ -170,6 +170,7 @@ public class NPCProgressionManager : MonoBehaviour
     [Header("Required References")]
     [SerializeField] private NPCContractGiver contractGiver;
     [SerializeField] private NavMeshAgent navMeshAgent;
+    private NPCMovementAudio movementAudio;
     private int configuredNavigationAreaMask = NavMesh.AllAreas;
     private Vector3 resolvedNavMeshDestination;
     private bool hasResolvedNavMeshDestination;
@@ -449,6 +450,7 @@ public class NPCProgressionManager : MonoBehaviour
         if (navMeshAgent != null) configuredNavigationAreaMask = navMeshAgent.areaMask;
         if (animator == null) animator = GetComponentInChildren<Animator>();
         if (dialogueManager == null) dialogueManager = FindObjectOfType<DialogueManager>();
+        movementAudio = NPCMovementAudio.Attach(gameObject);
 
         if (movementMode == NPCProgressionMovementMode.Waypoints && navMeshAgent != null)
         {
@@ -2875,6 +2877,7 @@ public class NPCProgressionManager : MonoBehaviour
 
     private void SetMovementAnimation(bool moving, bool running)
     {
+        movementAudio?.SetMovement(moving, running);
         if (animator == null) return;
 
         bool hasRunningParameter = HasBoolParameter(runningBoolParameter);

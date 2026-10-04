@@ -27,12 +27,14 @@ public class NPCWalker : MonoBehaviour
     public UnityEvent onMovementFailed;
 
     private NavMeshAgent agent;
+    private NPCMovementAudio movementAudio;
     private Coroutine walkRoutine;
     private Vector3 resolvedDestination;
 
     private void Awake()
     {
         agent = GetComponent<NavMeshAgent>();
+        movementAudio = NPCMovementAudio.Attach(gameObject);
         if (agent != null && agent.isActiveAndEnabled && agent.isOnNavMesh)
         {
             agent.isStopped = true; 
@@ -67,6 +69,7 @@ public class NPCWalker : MonoBehaviour
             yield break;
         }
 
+        movementAudio?.SetMovement(true);
         if (animator != null) 
             animator.SetBool(walkAnimParameter, true);
 
@@ -128,6 +131,7 @@ public class NPCWalker : MonoBehaviour
 
     private void RecoverAtDestination()
     {
+        movementAudio?.SetMovement(false);
         if (targetDestination == null)
         {
             FinishWalk(false);
@@ -213,6 +217,7 @@ public class NPCWalker : MonoBehaviour
 
     private void FinishWalk(bool arrived)
     {
+        movementAudio?.SetMovement(false);
         if (animator != null && !string.IsNullOrWhiteSpace(walkAnimParameter))
             animator.SetBool(walkAnimParameter, false);
 
@@ -235,6 +240,7 @@ public class NPCWalker : MonoBehaviour
 
     private void OnDisable()
     {
+        movementAudio?.SetMovement(false);
         if (walkRoutine != null)
         {
             StopCoroutine(walkRoutine);

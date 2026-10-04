@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.Audio;
 
-/// <summary>Shared clip and mixer wiring for scene players and multiplayer proxies.</summary>
+/// <summary>Shared clip and mixer wiring for players, NPCs, and multiplayer proxies.</summary>
 [CreateAssetMenu(menuName = "Civil Craft/Audio/Player Footsteps")]
 public sealed class PlayerFootstepAudioSettings : ScriptableObject
 {

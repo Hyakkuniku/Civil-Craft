@@ -56,6 +56,11 @@ MonoBehaviour:
     pitch: 1
     randomPitchRange: 0
   soundEffects:
+  - id: Jump
+    clip: {fileID: 8300000, guid: 5f2d7e043b0e568428c846adee8cc268, type: 3}
+    volume: 0.8
+    pitch: 1
+    randomPitchRange: 0
   - id: OpenAlamanac
     clip: {fileID: 8300000, guid: efc38b1f1596123459172e4dbbebe494, type: 3}
     volume: 0.7

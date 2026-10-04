@@ -1,8 +1,8 @@
 using UnityEngine;
 
 /// <summary>
-/// Two reusable loops, driven by actual locomotion. Remote players reuse the
-/// existing replicated pose/animation state; no per-footstep network traffic.
+/// Two reusable loops, driven by actual locomotion. NPCs and remote players
+/// use visible root travel; remote players reuse replicated animation state.
 /// </summary>
 [DisallowMultipleComponent]
 [DefaultExecutionOrder(100)]

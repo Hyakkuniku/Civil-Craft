@@ -133,7 +133,9 @@ public class PlayerMotor : MonoBehaviour
     
     [Header("Jumping")]
     public float jumpHeight = 1.5f;
-    [Range(0f, 1f)] public float airSpeedMultiplier = 0.4f; 
+    [Range(0f, 1f)] public float airSpeedMultiplier = 0.4f;
+    [Tooltip("SFX ID in AudioManager, played once when a jump is accepted.")]
+    [SerializeField] private string jumpSfxId = "Jump";
 
     [Header("Physics Interaction")]
     public float playerWeight = 500f; 
@@ -273,8 +275,12 @@ public class PlayerMotor : MonoBehaviour
 
     public void Jump()
     {
+        if (!isActiveAndEnabled || controller == null || !controller.enabled ||
+            Time.timeScale <= 0f || AudioListener.pause) return;
         if (TutorialManager.Instance != null && TutorialManager.Instance.IsJumpLocked) return;
-        if (isGrounded)
+        // The controller can still report grounded during takeoff. Consume only
+        // the first press, rather than replaying the sound and restarting the jump.
+        if (isGrounded && playerVelocity.y <= 0f)
         {
             movementAudio?.StopImmediately();
             playerVelocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
@@ -284,6 +290,9 @@ public class PlayerMotor : MonoBehaviour
             {
                 playerAnimator.SetTrigger("Jump");
             }
+
+            if (AudioManager.Instance != null && !string.IsNullOrWhiteSpace(jumpSfxId))
+                AudioManager.Instance.PlaySFX(jumpSfxId);
 
             Jumped?.Invoke();
         }
