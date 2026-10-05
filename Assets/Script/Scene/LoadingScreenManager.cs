@@ -585,6 +585,10 @@ public sealed class LoadingScreenManager : MonoBehaviour
         previewCamera.clearFlags = CameraClearFlags.SolidColor;
         previewCamera.backgroundColor = new Color(0f, 0f, 0f, 0f);
         previewCamera.cullingMask = 1 << PreviewLayer;
+        // The loading character lives outside the destination world. Its camera
+        // must not use that scene's baked occlusion data when activation occurs.
+        previewCamera.useOcclusionCulling = false;
+        previewCamera.aspect = (float)previewTexture.width / previewTexture.height;
         previewCamera.fieldOfView = 30f;
         previewCamera.nearClipPlane = assets != null && assets.playerPreviewNearClipPlane > 0f
             ? Mathf.Clamp(assets.playerPreviewNearClipPlane, 0.01f, 0.05f)
@@ -684,7 +688,6 @@ public sealed class LoadingScreenManager : MonoBehaviour
         preview.BeginRunning(assets != null ? assets.playerAnimatorController : null);
 
         FramePreviewModel();
-        KeepPreviewSkinnedMeshesUpdating();
         previewCamera.enabled = true;
     }
 
@@ -800,6 +803,7 @@ public sealed class LoadingScreenManager : MonoBehaviour
         foreach (Renderer renderer in clone.GetComponentsInChildren<Renderer>(true))
         {
             renderer.enabled = true;
+            renderer.forceRenderingOff = false;
             renderer.shadowCastingMode = ShadowCastingMode.On;
             renderer.allowOcclusionWhenDynamic = false;
 
@@ -812,29 +816,36 @@ public sealed class LoadingScreenManager : MonoBehaviour
 
     private void FramePreviewModel()
     {
-        Renderer[] renderers = previewModel.GetComponentsInChildren<Renderer>(true);
         Bounds bounds = default;
-        bool hasVisibleRenderer = false;
-        foreach (Renderer renderer in renderers)
+        LoadingPlayerPreview preview = previewModel.GetComponent<LoadingPlayerPreview>();
+        bool hasVisibleRenderer = preview != null && preview.TryGetPreviewBounds(out bounds);
+        // Framing uses the whole running cycle's actual geometry, not the larger
+        // per-renderer culling overrides used to keep modular garments visible.
+        if (!hasVisibleRenderer)
         {
-            if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy)
-                continue;
-            if (!hasVisibleRenderer)
+            foreach (Renderer renderer in previewModel.GetComponentsInChildren<Renderer>(true))
             {
-                bounds = renderer.bounds;
-                hasVisibleRenderer = true;
+                if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy)
+                    continue;
+                if (!hasVisibleRenderer)
+                {
+                    bounds = renderer.bounds;
+                    hasVisibleRenderer = true;
+                }
+                else bounds.Encapsulate(renderer.bounds);
             }
-            else bounds.Encapsulate(renderer.bounds);
         }
         if (!hasVisibleRenderer) return;
 
         Vector3 center = previewStage.InverseTransformPoint(bounds.center);
-        float height = Mathf.Max(1f, bounds.size.y);
-        float distance = height / (2f * Mathf.Tan(previewCamera.fieldOfView * 0.5f * Mathf.Deg2Rad));
-        distance *= 1.08f;
+        float halfFovTangent = Mathf.Tan(previewCamera.fieldOfView * 0.5f * Mathf.Deg2Rad);
+        float distance = Mathf.Max(Mathf.Max(1f, bounds.size.y) * 0.5f / halfFovTangent,
+            bounds.extents.x / (halfFovTangent * Mathf.Max(0.01f, previewCamera.aspect)));
+        distance = distance * 1.08f + bounds.extents.z;
 
-        previewCamera.transform.localPosition = center + new Vector3(0f, height * 0.04f, -distance);
-        previewCamera.transform.LookAt(previewStage.TransformPoint(center + Vector3.up * height * 0.03f));
+        previewCamera.transform.localPosition = center + new Vector3(0f, 0f, -distance);
+        previewCamera.transform.LookAt(previewStage.TransformPoint(center));
+        previewCamera.farClipPlane = Mathf.Max(50f, distance + bounds.extents.z + 1f);
 
         // Height-based framing alone can put a deep hat or other accessory in
         // front of the near plane. Move back only if the visible outfit's bounds
@@ -848,19 +859,6 @@ public sealed class LoadingScreenManager : MonoBehaviour
         float minimumDepth = previewCamera.nearClipPlane + 0.02f;
         if (nearestDepth < minimumDepth)
             previewCamera.transform.position -= forward * (minimumDepth - nearestDepth);
-    }
-
-    private void KeepPreviewSkinnedMeshesUpdating()
-    {
-        // The imported shirt/pants bounds can miss this separate running
-        // animation, so Unity culls only those garments and leaves a bare rig.
-        // This affects the small, temporary loading preview, not gameplay models.
-        foreach (SkinnedMeshRenderer renderer in previewModel.GetComponentsInChildren<SkinnedMeshRenderer>(true))
-        {
-            if (!renderer.gameObject.activeInHierarchy || !renderer.enabled) continue;
-            renderer.updateWhenOffscreen = true;
-            renderer.forceMatrixRecalculationPerRender = true;
-        }
     }
 
     private void ReleasePreviewModel()
