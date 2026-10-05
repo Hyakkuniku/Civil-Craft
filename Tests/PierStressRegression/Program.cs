@@ -94,6 +94,18 @@ static class Program
             Check(Same(pierOnly,DeterministicBridgeStressSolver.Analyze(points,bars,1000,true,11)), "Repeat differs.");
         Console.WriteLine("PASS: 100 repeated analyses match every stress and direction sample.");
 
+        // Bridge Stats supplies HashSet snapshots. Reordering those inputs must
+        // not change matrix assembly, road-joint load selection, or result order.
+        var shuffledPoints = new List<Point>(points);
+        shuffledPoints.Reverse();
+        var shuffledBars = new List<Bar>(bars);
+        shuffledBars.Reverse();
+        var shuffled = DeterministicBridgeStressSolver.Analyze(
+            shuffledPoints, shuffledBars, 1000, true, 11);
+        Check(Same(pierOnly, shuffled),
+            "Equivalent bridge input order changed deterministic stress results.");
+        Console.WriteLine("PASS: shuffled Bridge Stats inputs produce identical deterministic results.");
+
         pierMaterial.maxCompression = 5000;
         var overload = DeterministicBridgeStressSolver.Analyze(points,bars,1000,true,11);
         overload.TryGetStress(pier,5,out _,out ratio,out tension);

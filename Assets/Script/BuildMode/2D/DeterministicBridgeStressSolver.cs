@@ -137,12 +137,19 @@ public static class DeterministicBridgeStressSolver
     {
         if (sourcePoints == null || sourceBars == null) return null;
 
+        // Callers commonly own their bridge topology in HashSets. HashSet
+        // enumeration order is not a structural property and can change after
+        // editing, reloading, or building for another platform. Canonicalize the
+        // inputs here so every consumer (simulation and Bridge Stats) assembles
+        // the same matrix and resolves road-joint load ties the same way.
+        List<Point> orderedPoints = GetCanonicalPoints(sourcePoints, usePreSimulationPositions);
+        List<Bar> orderedBars = GetCanonicalBars(sourceBars, usePreSimulationPositions);
+
         List<NodeData> nodes = new List<NodeData>();
         Dictionary<Point, int> nodeIndices = new Dictionary<Point, int>();
-        for (int i = 0; i < sourcePoints.Count; i++)
+        for (int i = 0; i < orderedPoints.Count; i++)
         {
-            Point point = sourcePoints[i];
-            if (point == null || nodeIndices.ContainsKey(point)) continue;
+            Point point = orderedPoints[i];
 
             Vector3 position = usePreSimulationPositions ? point.preSimPos : point.transform.position;
             NodeData node = new NodeData
@@ -157,9 +164,9 @@ public static class DeterministicBridgeStressSolver
         }
 
         List<MemberData> members = new List<MemberData>();
-        for (int i = 0; i < sourceBars.Count; i++)
+        for (int i = 0; i < orderedBars.Count; i++)
         {
-            Bar bar = sourceBars[i];
+            Bar bar = orderedBars[i];
             if (bar == null || !bar.enabled || !bar.gameObject.activeInHierarchy ||
                 bar.materialData == null || bar.startPoint == null || bar.endPoint == null ||
                 !nodeIndices.TryGetValue(bar.startPoint, out int nodeA) ||
@@ -391,6 +398,89 @@ public static class DeterministicBridgeStressSolver
             peakDisplayed,
             peakStructural,
             isStructurallyStable);
+    }
+
+    private static List<Point> GetCanonicalPoints(
+        IList<Point> sourcePoints,
+        bool usePreSimulationPositions)
+    {
+        List<Point> points = new List<Point>(sourcePoints.Count);
+        HashSet<Point> seen = new HashSet<Point>();
+        for (int i = 0; i < sourcePoints.Count; i++)
+        {
+            Point point = sourcePoints[i];
+            if (point != null && seen.Add(point)) points.Add(point);
+        }
+
+        points.Sort((a, b) => ComparePoints(a, b, usePreSimulationPositions));
+        return points;
+    }
+
+    private static List<Bar> GetCanonicalBars(
+        IList<Bar> sourceBars,
+        bool usePreSimulationPositions)
+    {
+        List<Bar> bars = new List<Bar>(sourceBars.Count);
+        HashSet<Bar> seen = new HashSet<Bar>();
+        for (int i = 0; i < sourceBars.Count; i++)
+        {
+            Bar bar = sourceBars[i];
+            if (bar != null && seen.Add(bar)) bars.Add(bar);
+        }
+
+        bars.Sort((a, b) => CompareBars(a, b, usePreSimulationPositions));
+        return bars;
+    }
+
+    private static int CompareBars(Bar a, Bar b, bool usePreSimulationPositions)
+    {
+        if (ReferenceEquals(a, b)) return 0;
+
+        Point aFirst = a.startPoint;
+        Point aSecond = a.endPoint;
+        if (ComparePoints(aFirst, aSecond, usePreSimulationPositions) > 0)
+        {
+            aFirst = a.endPoint;
+            aSecond = a.startPoint;
+        }
+
+        Point bFirst = b.startPoint;
+        Point bSecond = b.endPoint;
+        if (ComparePoints(bFirst, bSecond, usePreSimulationPositions) > 0)
+        {
+            bFirst = b.endPoint;
+            bSecond = b.startPoint;
+        }
+
+        int comparison = ComparePoints(aFirst, bFirst, usePreSimulationPositions);
+        if (comparison != 0) return comparison;
+        comparison = ComparePoints(aSecond, bSecond, usePreSimulationPositions);
+        if (comparison != 0) return comparison;
+
+        string aMaterialId = a.materialData != null ? a.materialData.Id : string.Empty;
+        string bMaterialId = b.materialData != null ? b.materialData.Id : string.Empty;
+        return string.Compare(aMaterialId, bMaterialId, StringComparison.Ordinal);
+    }
+
+    private static int ComparePoints(Point a, Point b, bool usePreSimulationPositions)
+    {
+        if (ReferenceEquals(a, b)) return 0;
+        if (a == null) return -1;
+        if (b == null) return 1;
+
+        Vector3 aPosition = usePreSimulationPositions ? a.preSimPos : a.transform.position;
+        Vector3 bPosition = usePreSimulationPositions ? b.preSimPos : b.transform.position;
+        int comparison = QuantizeMetres(aPosition.x).CompareTo(QuantizeMetres(bPosition.x));
+        if (comparison != 0) return comparison;
+        comparison = QuantizeMetres(aPosition.y).CompareTo(QuantizeMetres(bPosition.y));
+        if (comparison != 0) return comparison;
+        comparison = QuantizeMetres(aPosition.z).CompareTo(QuantizeMetres(bPosition.z));
+        if (comparison != 0) return comparison;
+
+        // At equal coordinates, authored supports sort before runtime joints.
+        // Valid bridges merge coincident runtime joints, so no transient Unity
+        // instance ID is used as a cross-run tie breaker.
+        return b.IsScenePlacedAnchor.CompareTo(a.IsScenePlacedAnchor);
     }
 
     private static void EnqueueNode(int index, bool[] included, Queue<int> queue)

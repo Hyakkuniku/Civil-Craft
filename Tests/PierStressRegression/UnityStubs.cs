@@ -27,6 +27,7 @@ namespace UnityEngine
 public class Point
 {
     public UnityEngine.Transform transform = new UnityEngine.Transform();
+    public UnityEngine.Vector3 preSimPos;
     public bool originalIsAnchor, isAnchor;
     public bool IsScenePlacedAnchor => originalIsAnchor;
 }

@@ -324,6 +324,7 @@ public class BuildUIController : MonoBehaviour
 
     private void OnDestroy()
     {
+        CancelCapacityEstimate();
         if (GameManager.Instance != null)
         {
             GameManager.Instance.OnEnterBuildMode.RemoveListener(RefreshContractBuildUI);
@@ -338,6 +339,7 @@ public class BuildUIController : MonoBehaviour
 
     private void HandleSimulationBegan()
     {
+        CancelCapacityEstimate();
         simulationInProgressForUI = true;
         RefreshSimulationButtonLock();
         temporarilyHiddenSimUI.Clear();
@@ -1207,6 +1209,7 @@ public class BuildUIController : MonoBehaviour
     private void RequestCapacityEstimate()
     {
         CancelCapacityEstimate();
+        if (physicsManager != null && physicsManager.IsSimulationActive) return;
         capacityEstimatePending = true;
         // Let the panel begin its entrance animation before the first solve.
         capacityEstimateCoroutine = StartCoroutine(EstimateBridgeCapacityOverFrames());
@@ -1350,10 +1353,10 @@ public class BuildUIController : MonoBehaviour
             
             if (factorOfSafetyText != null)
             {
-                if (capacityEstimatePending) factorOfSafetyText.text = "<color=#F2BF72>SAFETY</color>  Calculating...";
-                else if (estimatedFoS >= 2.0f) factorOfSafetyText.text = $"<color=#F2BF72>SAFETY</color>  <color=#83DBA6><b>{estimatedFoS:F2} · Safe</b></color>";
-                else if (estimatedFoS >= 1.0f) factorOfSafetyText.text = $"<color=#F2BF72>SAFETY</color>  <color=#FFE088><b>{estimatedFoS:F2} · Risky</b></color>";
-                else factorOfSafetyText.text = $"<color=#F2BF72>SAFETY</color>  <color=#FF9284><b>{estimatedFoS:F2} · Will Fail</b></color>";
+                if (capacityEstimatePending) factorOfSafetyText.text = "<color=#F2BF72>EST. SAFETY</color>  Calculating...";
+                else if (estimatedFoS >= 2.0f) factorOfSafetyText.text = $"<color=#F2BF72>EST. SAFETY</color>  <color=#83DBA6><b>{estimatedFoS:F2}</b></color>";
+                else if (estimatedFoS >= 1.0f) factorOfSafetyText.text = $"<color=#F2BF72>EST. SAFETY</color>  <color=#FFE088><b>{estimatedFoS:F2}</b></color>";
+                else factorOfSafetyText.text = $"<color=#F2BF72>EST. SAFETY</color>  <color=#FF9284><b>{estimatedFoS:F2} · Below target</b></color>";
             }
         }
 
@@ -1717,6 +1720,10 @@ public class BuildUIController : MonoBehaviour
         StyleStatLine(efficiencyRatioText, -112f + rowOffset);
         StyleStatLine(factorOfSafetyText, -152f + rowOffset);
 
+        // Hide the detail row left by the removed physics-based load check.
+        Transform obsoleteCapacityDetail = statsPanel.transform.Find("CapacityTestDetail");
+        if (obsoleteCapacityDetail != null) obsoleteCapacityDetail.gameObject.SetActive(false);
+
         Transform existingHeading = statsPanel.transform.Find("BridgeStatsHeading");
         if (existingHeading == null)
         {
@@ -1735,6 +1742,10 @@ public class BuildUIController : MonoBehaviour
             headingRect.anchorMin = headingRect.anchorMax = new Vector2(0.5f, 0.5f);
             headingRect.anchoredPosition = new Vector2(0f, showSafetyRow ? 157f : 137f);
             headingRect.sizeDelta = new Vector2(420f, 36f);
+        }
+        else if (existingHeading is RectTransform existingHeadingRect)
+        {
+            existingHeadingRect.anchoredPosition = new Vector2(0f, showSafetyRow ? 157f : 137f);
         }
     }
 
@@ -1899,6 +1910,7 @@ public class BuildUIController : MonoBehaviour
             }
             if (barCreator != null) { barCreator.CancelAllModes(); barCreator.isSimulating = true; } 
             SetSelectionPanelActive(false);
+            CancelCapacityEstimate();
             physicsManager.ActivatePhysics(); 
             LogAction("Simulation Started");
         } 
