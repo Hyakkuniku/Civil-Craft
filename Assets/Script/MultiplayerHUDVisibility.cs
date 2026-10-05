@@ -7,8 +7,10 @@ public sealed class MultiplayerHUDVisibility : MonoBehaviour
 {
     [SerializeField] private GameObject emoteButton;
     [SerializeField] private GameObject chatButton;
-    [Tooltip("Build Canvas branches except the bridge-test introduction, plus multiplayer utility controls.")]
+    [Tooltip("Build Canvas branches except the introduction and simulation owner card, plus multiplayer utility controls.")]
     [SerializeField] private CanvasGroup[] testHiddenGroups;
+    [Tooltip("The authored stress gauge stays hidden during the introduction, then is visible for every simulation viewer.")]
+    [SerializeField] private CanvasGroup testStressGroup;
     private struct GroupState
     {
         public CanvasGroup group;
@@ -17,6 +19,7 @@ public sealed class MultiplayerHUDVisibility : MonoBehaviour
     }
     private readonly List<GroupState> previous = new List<GroupState>();
     private bool? wasOnline;
+    private bool testReadoutsVisible;
 
     private void Awake() { ApplyVisibility(false, false); }
     private void LateUpdate()
@@ -27,6 +30,7 @@ public sealed class MultiplayerHUDVisibility : MonoBehaviour
             ? FusionMultiplayerAvatar.FindHost(connection.Runner) : null;
         bool testing = host != null && GameManager.Instance != null && GameManager.Instance.IsSessionChallengeBuild &&
             MultiplayerChallengeRules.IsTestPhase(host.ChallengeState.Phase);
+        testReadoutsVisible = testing && host.ChallengeState.Phase == MultiplayerChallengePhase.Testing;
         ApplyVisibility(online, testing);
     }
 
@@ -52,9 +56,10 @@ public sealed class MultiplayerHUDVisibility : MonoBehaviour
         foreach (GroupState state in previous)
             if (state.group != null)
             {
-                state.group.alpha = 0f;
-                state.group.interactable = false;
-                state.group.blocksRaycasts = false;
+                bool readout = state.group == testStressGroup && testReadoutsVisible;
+                state.group.alpha = readout ? state.alpha : 0f;
+                state.group.interactable = readout && state.interactable;
+                state.group.blocksRaycasts = readout && state.blocksRaycasts;
             }
     }
 
@@ -69,5 +74,5 @@ public sealed class MultiplayerHUDVisibility : MonoBehaviour
             }
         previous.Clear();
     }
-    private void OnDisable() { RestoreGroups(); wasOnline = null; }
+    private void OnDisable() { RestoreGroups(); wasOnline = null; testReadoutsVisible = false; }
 }

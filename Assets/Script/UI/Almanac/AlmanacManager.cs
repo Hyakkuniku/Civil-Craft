@@ -37,6 +37,8 @@ public class AlmanacCategory
 public class AlmanacManager : MonoBehaviour
 {
     public static AlmanacManager Instance { get; private set; }
+    /// <summary>Raised after the book closes and its HUD/input restoration has finished.</summary>
+    public event System.Action OnAlmanacClosed;
     public GameObject Panel => almanacCanvas;
     public bool IsOpenAndReady => almanacCanvas != null &&
         almanacCanvas.activeInHierarchy && !isAnimating;
@@ -931,6 +933,7 @@ public class AlmanacManager : MonoBehaviour
 
         isAnimating = false;
         afterClosed?.Invoke();
+        OnAlmanacClosed?.Invoke();
     }
 
     private void CaptureAndDisableMenuInput()

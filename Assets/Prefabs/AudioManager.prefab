@@ -56,6 +56,11 @@ MonoBehaviour:
     pitch: 1
     randomPitchRange: 0
   soundEffects:
+  - id: BuildModeEnter
+    clip: {fileID: 8300000, guid: 6802928f11ef4979ba3884a65c8b4577, type: 3}
+    volume: 1
+    pitch: 1
+    randomPitchRange: 0
   - id: PauseOpen
     clip: {fileID: 8300000, guid: cf66ba778e4e42ea8c6a8b8d3fb12a8d, type: 3}
     volume: 0.85

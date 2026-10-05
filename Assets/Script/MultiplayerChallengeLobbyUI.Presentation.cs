@@ -11,12 +11,16 @@ public sealed partial class MultiplayerChallengeLobbyUI
     [SerializeField] private TMP_Text testIntroductionTitle;
     [SerializeField] private TMP_Text testIntroductionPlayer;
     [SerializeField] private TMP_Text liveLoadLabel;
+    [Header("Authored simulation owner HUD")]
+    [SerializeField] private GameObject testOwnerPanel;
+    [SerializeField] private TMP_Text testOwnerName;
     private int introductionRevision = int.MinValue, introductionIndex;
     private float introductionShownAt = -1f;
 
     internal bool PresentTestIntroduction(MultiplayerChallengeState state, string playerName, float seconds)
     {
         if (testIntroductionPanel == null || state.Phase != MultiplayerChallengePhase.PreparingTest) return false;
+        if (testOwnerPanel != null) testOwnerPanel.SetActive(false);
         if (testIntroductionTitle != null) testIntroductionTitle.text = $"BRIDGE TEST {state.TestIndex} / 2";
         if (testIntroductionPlayer != null) testIntroductionPlayer.text = PlainText(playerName);
         testIntroductionPanel.SetActive(true);
@@ -39,12 +43,26 @@ public sealed partial class MultiplayerChallengeLobbyUI
     private void RefreshTestPresentation(MultiplayerChallengeState state)
     {
         if (state.Phase != MultiplayerChallengePhase.PreparingTest) HideTestIntroduction();
+        string owner = state.Phase == MultiplayerChallengePhase.Testing
+            ? MultiplayerChallengeRules.TestsHostBridge(state)
+                ? host?.MapPlayerName ?? "Host"
+                : GetAvatar(state.Guest)?.MapPlayerName ?? "Guest"
+            : string.Empty;
+        RefreshTestOwnerHUD(state, owner);
         if (liveLoadLabel != null)
         {
             bool building = buildWorkspace != null && !MultiplayerChallengeRules.IsTestPhase(state.Phase);
             liveLoadLabel.gameObject.SetActive(building && state.ChallengeVehicleWeight > 0f);
             liveLoadLabel.text = "LIVE LOAD\n" + Emphasis(state.ChallengeVehicleWeight.ToString("N0") + " kg", "F2CD80");
         }
+    }
+
+    internal void RefreshTestOwnerHUD(MultiplayerChallengeState state, string playerName)
+    {
+        bool visible = state.Phase == MultiplayerChallengePhase.Testing && state.TestIndex >= 1 && state.TestIndex <= 2;
+        if (testOwnerName != null)
+            testOwnerName.text = visible ? Emphasis(string.IsNullOrWhiteSpace(playerName) ? "Engineer" : playerName, "79500F") : string.Empty;
+        if (testOwnerPanel != null && testOwnerPanel.activeSelf != visible) testOwnerPanel.SetActive(visible);
     }
 
     private void HideTestIntroduction()
@@ -181,6 +199,7 @@ public sealed partial class MultiplayerChallengeLobbyUI
     private void ResetAuthoredPresentation()
     {
         HideTestIntroduction();
+        RefreshTestOwnerHUD(default, string.Empty);
         if (liveLoadLabel != null) liveLoadLabel.gameObject.SetActive(false);
         CancelSubmissionConfirmation();
         CancelLeaveBuild();

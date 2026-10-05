@@ -67300,6 +67300,7 @@ MonoBehaviour:
   decorativeCanyonsToHide: []
   redoConfirmPanel: {fileID: 958456519141442972}
   extraElementsToHideOnRedo: []
+  enterBuildModeSfxId: BuildModeEnter
   transitionFader: {fileID: 0}
   fadeDuration: 0.25
 --- !u!114 &6546353928708746189

@@ -964,6 +964,12 @@ public class PlayFabAuthManager : MonoBehaviour
             return;
         }
 
+        if (!PlayerNamePolicy.TryValidate(trimmedUser, out string nameError))
+        {
+            SetFeedbackMessage(nameError, errorColor);
+            return;
+        }
+
         if (registerConfirmPassword != null && registerPassword.text != registerConfirmPassword.text)
         {
             SetFeedbackMessage("Passwords do not match.", errorColor);
@@ -987,7 +993,8 @@ public class PlayFabAuthManager : MonoBehaviour
             RequireBothUsernameAndEmail = true 
         };
 
-        PlayFabClientAPI.RegisterPlayFabUser(request, OnRegisterSuccess, OnRegisterError);
+        PlayFabClientAPI.RegisterPlayFabUser(request,
+            result => OnRegisterSuccess(result, trimmedUser), OnRegisterError);
     }
 
     public void OnForgotPasswordButtonClicked()
@@ -1022,7 +1029,14 @@ public class PlayFabAuthManager : MonoBehaviour
 
     public void SubmitNewDisplayName(string newName)
     {
-        var request = new UpdateUserTitleDisplayNameRequest { DisplayName = newName.Trim() };
+        string trimmedName = (newName ?? string.Empty).Trim();
+        if (!PlayerNamePolicy.TryValidate(trimmedName, out string nameError))
+        {
+            SetFeedbackMessage(nameError, errorColor);
+            return;
+        }
+
+        var request = new UpdateUserTitleDisplayNameRequest { DisplayName = trimmedName };
         PlayFabClientAPI.UpdateUserTitleDisplayName(request, 
             result => {
                 loggedInPlayerName = result.DisplayName;
@@ -1309,18 +1323,25 @@ public class PlayFabAuthManager : MonoBehaviour
         MainMenuAuthenticationSucceeded?.Invoke();
     }
 
-    private void OnRegisterSuccess(RegisterPlayFabUserResult result)
+    private void OnRegisterSuccess(RegisterPlayFabUserResult result, string registeredName)
     {
+        registeredName = (registeredName ?? string.Empty).Trim();
+        if (!PlayerNamePolicy.TryValidate(registeredName, out string nameError))
+        {
+            SetFeedbackMessage(nameError, errorColor);
+            return;
+        }
+
         SetFeedbackMessage("Registration Successful!", successColor);
         
-        var displayNameRequest = new UpdateUserTitleDisplayNameRequest { DisplayName = registerUsername.text.Trim() };
+        var displayNameRequest = new UpdateUserTitleDisplayNameRequest { DisplayName = registeredName };
         PlayFabClientAPI.UpdateUserTitleDisplayName(displayNameRequest, 
             nameResult => Debug.Log("Name set to: " + nameResult.DisplayName), 
             nameError => Debug.LogWarning("Failed to set display name: " + nameError.ErrorMessage));
 
         registerPassword.text = "";
         if (registerConfirmPassword != null) registerConfirmPassword.text = ""; 
-        loginUsername.text = registerUsername.text.Trim(); 
+        loginUsername.text = registeredName;
         
         // We removed the AddOrUpdateContactEmailRequest so it no longer attempts to trigger a verification email!
 

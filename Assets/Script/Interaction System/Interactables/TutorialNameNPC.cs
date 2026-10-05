@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -48,6 +49,9 @@ public class TutorialNameNPC : Interactable
     private bool isCompletingHouseInteraction = false;
     private bool isWalkingAway = false; // --- NEW: Tracks if the NPC is leaving ---
     private Dialogue fallbackReviewAlmanacDialogue;
+    private bool isReviewingWithBhan;
+    private AlmanacManager requiredReviewBook;
+    private Coroutine reviewContinuation;
 
     private void Awake()
     {
@@ -59,7 +63,7 @@ public class TutorialNameNPC : Interactable
     private void Update()
     {
         // --- THE FIX: Stop updating the prompt once they start walking ---
-        if (isCompletingHouseInteraction || isWalkingAway)
+        if (isCompletingHouseInteraction || isWalkingAway || isReviewingWithBhan)
         {
             promptMessage = "";
             return;
@@ -79,7 +83,7 @@ public class TutorialNameNPC : Interactable
     protected override void Intract()
     {
         // --- THE FIX: Block interaction if they are walking away ---
-        if (isCompletingHouseInteraction || isWalkingAway) return;
+        if (isCompletingHouseInteraction || isWalkingAway || isReviewingWithBhan) return;
 
         if (dialogueManager == null) return;
 
@@ -115,6 +119,8 @@ public class TutorialNameNPC : Interactable
             // reminder instead of allowing the reward/exit flow to run early.
             if (!HasCompletedRequiredAlmanacTutorial())
             {
+                isReviewingWithBhan = true;
+                promptMessage = "";
                 dialogueManager.StartDialogue(
                     GetReviewAlmanacDialogue(),
                     OpenAlmanacForRequiredReview,
@@ -123,18 +129,22 @@ public class TutorialNameNPC : Interactable
                 return;
             }
 
-            isCompletingHouseInteraction = true;
-            promptMessage = "";
-
-            if (rewardDialogue != null)
-                dialogueManager.StartDialogue(
-                    rewardDialogue,
-                    ShowRewardThenFinalDialogue,
-                    npcAnimator,
-                    transform);
-            else
-                ShowRewardThenFinalDialogue();
+            BeginHouseCompletion();
         }
+    }
+
+    private void BeginHouseCompletion()
+    {
+        if (!IsInteractionAvailable || isCompletingHouseInteraction || isWalkingAway ||
+            !HasCompletedRequiredAlmanacTutorial()) return;
+
+        isCompletingHouseInteraction = true;
+        promptMessage = "";
+        if (dialogueManager != null && rewardDialogue != null)
+            dialogueManager.StartDialogue(
+                rewardDialogue, ShowRewardThenFinalDialogue, npcAnimator, transform);
+        else
+            ShowRewardThenFinalDialogue();
     }
 
     private void ShowRewardThenFinalDialogue()
@@ -236,6 +246,9 @@ public class TutorialNameNPC : Interactable
     {
         if (AlmanacManager.Instance != null)
         {
+            DetachRequiredReviewBook();
+            requiredReviewBook = AlmanacManager.Instance;
+            requiredReviewBook.OnAlmanacClosed += HandleRequiredReviewClosed;
             // A normal HUD-button click advances Sequence_House through the
             // TutorialManager's tracked-button listener. Bhan opens the book
             // directly, so perform the equivalent quest synchronization first.
@@ -244,13 +257,63 @@ public class TutorialNameNPC : Interactable
             if (TutorialManager.Instance != null)
                 TutorialManager.Instance.ShowFinalStepIfPlaying(houseTutorialId);
 
-            AlmanacManager.Instance.OpenAlmanac();
+            requiredReviewBook.OpenAlmanac();
             return;
         }
 
+        isReviewingWithBhan = false;
         Debug.LogWarning(
             "[TutorialNameNPC] The Almanac is required, but no AlmanacManager is available.",
             this);
+    }
+
+    private void HandleRequiredReviewClosed()
+    {
+        // Only a review requested by this conversation continues automatically.
+        // Opening the Almanac normally elsewhere still requires returning to Bhan.
+        DetachRequiredReviewBook();
+        if (isReviewingWithBhan && reviewContinuation == null && isActiveAndEnabled)
+            reviewContinuation = StartCoroutine(ContinueHouseAfterRequiredReview());
+    }
+
+    private IEnumerator ContinueHouseAfterRequiredReview()
+    {
+        // A zero-frame book animation can close before the tutorial's tracked
+        // close-button listener runs. Wait for the complete click dispatch before
+        // checking the mandatory review, and never replace another conversation.
+        yield return null;
+        while (DialogueManager.IsAnyDialogueVisible) yield return null;
+
+        reviewContinuation = null;
+        if (TryConsumeRequiredReviewCompletion()) BeginHouseCompletion();
+    }
+
+    private bool TryConsumeRequiredReviewCompletion()
+    {
+        bool shouldContinue = isReviewingWithBhan && IsInteractionAvailable &&
+            !isCompletingHouseInteraction && !isWalkingAway &&
+            PlayerDataManager.Instance != null && PlayerDataManager.Instance.CurrentData != null &&
+            PlayerDataManager.Instance.CurrentData.hasAlmanac &&
+            !string.IsNullOrWhiteSpace(PlayerDataManager.Instance.CurrentData.playerName) &&
+            PlayerDataManager.Instance.CurrentData.playerName != "Guest" &&
+            HasCompletedRequiredAlmanacTutorial();
+        isReviewingWithBhan = false;
+        return shouldContinue;
+    }
+
+    private void DetachRequiredReviewBook()
+    {
+        if (requiredReviewBook != null)
+            requiredReviewBook.OnAlmanacClosed -= HandleRequiredReviewClosed;
+        requiredReviewBook = null;
+    }
+
+    private void OnDisable()
+    {
+        DetachRequiredReviewBook();
+        if (reviewContinuation != null) StopCoroutine(reviewContinuation);
+        reviewContinuation = null;
+        isReviewingWithBhan = false;
     }
 
     private void CompleteHouseTutorialSafely()

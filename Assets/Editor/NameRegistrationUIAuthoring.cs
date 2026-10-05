@@ -65,7 +65,7 @@ public static class NameRegistrationUIAuthoring
             foreach (var action in actions) Check(JsonUtility.ToJson(action.Key.onClick) == action.Value, "A registration button action changed.");
             EditorUtility.SetDirty(ui); EditorSceneManager.MarkSceneDirty(scene);
             Check(EditorSceneManager.SaveScene(scene), "Could not save the authored Bhan registration UI.");
-            report.AppendLine("PASS: Saved entry/confirmation panels with existing cream/brown artwork, Bekind font and gold primary actions. Original input references, unrestricted name entry, HUD hiding, button targets and Bhan OnNameRegistered event preserved.");
+            report.AppendLine("PASS: Saved entry/confirmation panels with existing cream/brown artwork, Bekind font and gold primary actions. Original input references, plain-name validation, HUD hiding, button targets and Bhan OnNameRegistered event preserved.");
             report.AppendLine("NOTE: No ConfirmNameYes, save, dialogue callback or real registration was executed. Live tutorial/keyboard check still required.");
             File.WriteAllText(Report, report.ToString());
             Debug.Log("[Name registration UI] Authored themed panels and isolated layout/registration-presentation checks passed.");
@@ -228,7 +228,7 @@ public static class NameRegistrationUIAuthoring
                 fixture.nameInputPanel.SetActive(true); fixture.confirmationPanel.SetActive(false);
                 fixture.nameInputField.SetTextWithoutNotify(""); ValidateFit(fixture.nameInputPanel);
                 Capture(camera, target, "Temp/NameRegistrationEntry_" + size.x + "x" + size.y + ".png");
-                foreach (string name in new[] { "  Ada Engineer  ", "  ", new string('W', 32), "<b>Ada</b>", new string('W', 120) })
+                foreach (string name in new[] { "  Ada Engineer  ", "  ", new string('W', 32), new string('W', 120) })
                 {
                     fixture.nameInputField.SetTextWithoutNotify(name); fixture.SubmitName();
                     string expected = string.IsNullOrWhiteSpace(name) ? "Engineer" : name.Trim();
@@ -239,8 +239,18 @@ public static class NameRegistrationUIAuthoring
                     fixture.ConfirmNameNo(); Check(fixture.nameInputPanel.activeSelf && !fixture.confirmationPanel.activeSelf && fixture.nameInputField.text == name,
                         "Edit Name loses the entered value or fails to reopen the field.");
                 }
+                TMP_Text hint = fixture.nameInputPanel.GetComponentsInChildren<TMP_Text>(true)
+                    .Single(text => text.name == "Registration Name Hint");
+                foreach (string name in new[] { "<#BF40BF>Ada", "Ada#BF40BF", "<b>Ada</b>", ".dev_Ada", ".DEV_Ada" })
+                {
+                    fixture.nameInputField.SetTextWithoutNotify(name); fixture.SubmitName();
+                    Check(!PlayerNamePolicy.TryValidate(name, out string error) && hint.text == error &&
+                        fixture.nameInputPanel.activeSelf && !fixture.confirmationPanel.activeSelf &&
+                        fixture.nameInputField.text == name, "Invalid names must retain input and show a plain-name error.");
+                    ValidateFit(fixture.nameInputPanel);
+                }
                 Release(target); target = null;
-                report.AppendLine("PASS: " + size + " entry/confirmation layout, trim/blank-name fallback, literal markup, 32/120-character confirmation, retained text on Edit Name and untouched save/dialogue flow.");
+                report.AppendLine("PASS: " + size + " entry/confirmation layout, trim/blank-name fallback, hex/markup/reserved-name rejection, 32/120-character confirmation, retained text on Edit Name and untouched save/dialogue flow.");
             }
         }
         finally { Release(target); EditorSceneManager.ClosePreviewScene(scene); }

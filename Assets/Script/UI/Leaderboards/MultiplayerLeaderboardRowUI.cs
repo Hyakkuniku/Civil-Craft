@@ -24,8 +24,8 @@ public sealed class MultiplayerLeaderboardRowUI : MonoBehaviour
         if (rankText != null) rankText.text = rank.ToString();
         if (builderText != null)
         {
-            builderText.richText = false;
-            builderText.text = (string.IsNullOrWhiteSpace(builder) ? "Engineer" : builder) + (isYou ? " (YOU)" : "");
+            builderText.richText = true;
+            builderText.text = LeaderboardNameFormatting.Format(builder, isYou);
             builderText.fontStyle = FontStyles.Bold;
         }
         if (winRateText != null) winRateText.text = FormatWinRate(wins, losses);

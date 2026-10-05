@@ -9,6 +9,14 @@ public class DoorTransition : MonoBehaviour
     [Tooltip("The exact name of the Spawn Point object in the NEXT scene")]
     public string spawnPointNameInNextScene;
 
+    [Header("Arrival Progress (optional)")]
+    [Tooltip("Lesson saved only after the player successfully reaches this door's destination spawn point.")]
+    public string arrivalLessonId;
+    [Tooltip("Interaction prompt used after that arrival has been saved. Empty preserves the authored prompt.")]
+    public string completedPromptMessage;
+    [Tooltip("Optional later lesson that proves players with older saves already reached the destination.")]
+    public string legacyCompletedLessonId;
+
     [Header("Tutorial Lock")]
     [Tooltip("If checked, the player cannot use this door until UnlockDoor() is called.")]
     public bool isLocked = false; 
@@ -18,11 +26,22 @@ public class DoorTransition : MonoBehaviour
 
     // --- NEW: Reference to the Interactable component ---
     private Interactable myInteractable;
+    private string originalPromptMessage;
+    private static string pendingArrivalScene;
+    private static string pendingArrivalSpawnPoint;
+    private static string pendingArrivalLessonId;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStaticState()
+    {
+        ClearPendingArrival();
+    }
 
     private void Awake()
     {
         // Grab the Interactable component on this door
         myInteractable = GetComponent<Interactable>();
+        if (myInteractable != null) originalPromptMessage = myInteractable.promptMessage;
     }
 
     private void Start()
@@ -41,6 +60,8 @@ public class DoorTransition : MonoBehaviour
         {
             myInteractable.enabled = !isLocked; 
         }
+
+        RefreshPrompt();
     }
 
     public void EnterDoor()
@@ -57,19 +78,81 @@ public class DoorTransition : MonoBehaviour
             return;
         }
 
-        // 1. Save the destination
-        PlayerSpawnManager.targetSpawnPointName = spawnPointNameInNextScene;
+        if (LoadingScreenManager.IsLoading) return;
 
-        // 2. Find YOUR SceneController and tell it to load the scene
+        // A new route replaces any unconsumed arrival; failed loads cannot
+        // leave an old quest marker waiting to complete in a later scene.
+        ClearPendingArrival();
+        PlayerSpawnManager.targetSpawnPointName = "";
         SceneController sceneController = FindObjectOfType<SceneController>();
         if (sceneController != null)
         {
+            PlayerSpawnManager.targetSpawnPointName = spawnPointNameInNextScene;
             sceneController.LoadScene(sceneToLoad);
+            if (LoadingScreenManager.IsLoading)
+                QueuePendingArrival(sceneToLoad, spawnPointNameInNextScene, arrivalLessonId);
+            else
+                PlayerSpawnManager.targetSpawnPointName = "";
         }
         else
         {
             Debug.LogError("No SceneController found in this scene! Please add one.");
         }
+    }
+
+    public void RefreshPrompt()
+    {
+        if (myInteractable == null) return;
+        PlayerData data = PlayerDataManager.Instance != null
+            ? PlayerDataManager.Instance.CurrentData : null;
+        myInteractable.promptMessage = ResolvePromptMessage(
+            data, originalPromptMessage, arrivalLessonId,
+            completedPromptMessage, legacyCompletedLessonId);
+    }
+
+    public static string ResolvePromptMessage(
+        PlayerData data, string originalPromptMessage, string arrivalLessonId,
+        string completedPromptMessage, string legacyCompletedLessonId)
+    {
+        if (string.IsNullOrWhiteSpace(arrivalLessonId) ||
+            string.IsNullOrWhiteSpace(completedPromptMessage) || data?.completedLessons == null)
+            return originalPromptMessage;
+
+        bool arrived = data.completedLessons.Contains(arrivalLessonId.Trim()) ||
+            (!string.IsNullOrWhiteSpace(legacyCompletedLessonId) &&
+             data.completedLessons.Contains(legacyCompletedLessonId.Trim()));
+        return arrived ? completedPromptMessage : originalPromptMessage;
+    }
+
+    public static void QueuePendingArrival(
+        string destinationScene, string destinationSpawnPoint, string lessonId)
+    {
+        ClearPendingArrival();
+        if (string.IsNullOrWhiteSpace(destinationScene) ||
+            string.IsNullOrWhiteSpace(destinationSpawnPoint) || string.IsNullOrWhiteSpace(lessonId))
+            return;
+
+        pendingArrivalScene = destinationScene;
+        pendingArrivalSpawnPoint = destinationSpawnPoint;
+        pendingArrivalLessonId = lessonId.Trim();
+    }
+
+    public static bool TryConsumePendingArrival(
+        string arrivedScene, string arrivedSpawnPoint, out string lessonId)
+    {
+        bool matches = !string.IsNullOrEmpty(pendingArrivalLessonId) &&
+            string.Equals(pendingArrivalScene, arrivedScene, System.StringComparison.Ordinal) &&
+            string.Equals(pendingArrivalSpawnPoint, arrivedSpawnPoint, System.StringComparison.Ordinal);
+        lessonId = matches ? pendingArrivalLessonId : null;
+        ClearPendingArrival();
+        return matches;
+    }
+
+    public static void ClearPendingArrival()
+    {
+        pendingArrivalScene = null;
+        pendingArrivalSpawnPoint = null;
+        pendingArrivalLessonId = null;
     }
 
     // A public method we can call from our Tutorial Events!

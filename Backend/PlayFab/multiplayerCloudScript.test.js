@@ -255,6 +255,12 @@ function verifyImplementation(script) {
     assert.equal(leaderboard.calls.filter(call => call.name === "GetPlayerStatistics").length, 2);
     assert.equal(leaderboard.calls.some(call => call.name.startsWith("Update")), false,
         "Reading a board must never modify scores or receipts");
+    const coloredName = "<#BF40BF>.dev_hyakkimaru";
+    leaderboard.hooks.getLeaderboard = () => ({ Leaderboard: [
+        { PlayFabId: "top-player", Position: 0, DisplayName: coloredName }
+    ] });
+    assert.equal(leaderboard.read({}).entries[0].displayName, coloredName,
+        "PlayFab name hex color tags must reach the client unchanged");
     leaderboard.hooks.getLeaderboard = () => ({ Leaderboard: Array.from({ length: 15 }, (_, i) => ({
         PlayFabId: "player-" + i, Position: i, DisplayName: "Engineer " + i
     })) });

@@ -210,6 +210,10 @@ public sealed class LoadingScreenManager : MonoBehaviour
         if (operation == null)
         {
             Debug.LogError($"[LoadingScreen] Unity could not start loading '{sceneName}'.", this);
+            // A failed door load is not an arrival. Do not let a later scene
+            // load inherit its spawn target or complete its arrival lesson.
+            DoorTransition.ClearPendingArrival();
+            PlayerSpawnManager.targetSpawnPointName = "";
             SetVisible(false, true);
             ReleasePreviewModel();
             isLoading = false;

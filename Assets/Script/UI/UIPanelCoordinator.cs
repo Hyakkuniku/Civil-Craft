@@ -42,6 +42,7 @@ public class UIPanelCoordinator : MonoBehaviour
     private int lastScreenWidth = -1;
     private int lastScreenHeight = -1;
     private Rect lastSafeArea;
+    private float lastScreenDpi = -1f;
 
     /// <summary>
     /// True while any full-screen/modal panel is being coordinated. Lightweight
@@ -97,11 +98,12 @@ public class UIPanelCoordinator : MonoBehaviour
 
     private void LateUpdate()
     {
-        // Reapply only after an orientation/resolution/safe-area change. This keeps
+        // Reapply only after an orientation/resolution/safe-area/density change. This keeps
         // the controls clear of notches without doing layout work every frame.
         if (lastScreenWidth == Screen.width &&
             lastScreenHeight == Screen.height &&
-            lastSafeArea == Screen.safeArea)
+            lastSafeArea == Screen.safeArea &&
+            lastScreenDpi.Equals(Screen.dpi))
         {
             return;
         }
@@ -115,6 +117,7 @@ public class UIPanelCoordinator : MonoBehaviour
         lastScreenWidth = Screen.width;
         lastScreenHeight = Screen.height;
         lastSafeArea = Screen.safeArea;
+        lastScreenDpi = Screen.dpi;
     }
 
     public bool IsOpen(GameObject panel)
@@ -528,17 +531,7 @@ internal static class GameplayMobileUILayout
     {
         if (rect == null) return;
         NormalizeAccessButtonContainer(rect);
-
-        GetSafeInsets(rect, out _, out float top, out float safeCenterOffset);
-        float half = ButtonSize * 0.5f;
-        rect.anchorMin = new Vector2(0.5f, 1f);
-        rect.anchorMax = new Vector2(0.5f, 1f);
-        rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.sizeDelta = new Vector2(ButtonSize, ButtonSize);
-        rect.localScale = Vector3.one;
-        rect.anchoredPosition = new Vector2(
-            safeCenterOffset,
-            -(top + EdgeMargin + half));
+        GameplayPauseButtonLayout.Apply(rect);
     }
 
     private static void NormalizeAccessButtonContainer(RectTransform button)

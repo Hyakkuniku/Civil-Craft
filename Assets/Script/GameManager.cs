@@ -283,6 +283,10 @@ public partial class GameManager : MonoBehaviour
     [Tooltip("Add things here that you want hidden ONLY when the Redo Panel is open (Optional)")]
     public List<GameObject> extraElementsToHideOnRedo = new List<GameObject>(); 
     
+    [Header("Build Mode Audio")]
+    [Tooltip("AudioManager SFX ID played once when the blueprint camera transition begins.")]
+    [SerializeField] private string enterBuildModeSfxId = "BuildModeEnter";
+
     // --- NEW: CINEMATIC FADER ---
     [Header("Cinematic Transition Fader")]
     [Tooltip("Drag a CanvasGroup attached to a full-screen black panel here.")]
@@ -498,6 +502,9 @@ public partial class GameManager : MonoBehaviour
         if (motor != null) motor.enabled = false;
 
         CaptureAndHide(uiElementsToHide, uiStateBeforeBuildMode);
+
+        if (AudioManager.Instance != null && !string.IsNullOrWhiteSpace(enterBuildModeSfxId))
+            AudioManager.Instance.PlaySFX(enterBuildModeSfxId);
 
         // 2. Unparent and animate the Main Camera down to the blueprint
         if (mainCamera != null)

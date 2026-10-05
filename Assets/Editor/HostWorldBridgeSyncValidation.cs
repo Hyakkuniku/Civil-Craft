@@ -978,14 +978,14 @@ public static class ChallengeUIValidation
                     "A world light includes the reserved Lobby Portrait rendering layer.");
         ValidatePortraitLightingScope(fixture, report);
         foreach (string field in new[] { "submissionStatusBody", "submissionStatusHeader", "submissionConfirmPanel", "confirmSubmitButton",
-            "testIntroductionPanel", "testIntroductionTitle", "testIntroductionPlayer", "liveLoadLabel", "leaveBuildConfirmPanel",
+            "testIntroductionPanel", "testIntroductionTitle", "testIntroductionPlayer", "testOwnerPanel", "testOwnerName", "liveLoadLabel", "leaveBuildConfirmPanel",
             "resultsPanel", "resultsWinner", "resultsRules", "resultsHostName", "resultsGuestName", "resultsHostScore",
             "resultsGuestScore", "resultsHostDetails", "resultsGuestDetails" })
         {
             string id = Regex.Match(service, @"(?m)^  " + field + @": \{fileID: (\d+)\}").Groups[1].Value;
             Check(id.Length > 0 && block(id).Length > 0, "Missing authored presentation reference: " + field);
             if (field == "submissionConfirmPanel" || field == "resultsPanel" || field == "submissionStatusBody" ||
-                field == "testIntroductionPanel" || field == "leaveBuildConfirmPanel")
+                field == "testIntroductionPanel" || field == "testOwnerPanel" || field == "leaveBuildConfirmPanel")
                 Check(block(id).Contains("m_IsActive: 0"), field + " appears in single-player.");
         }
         foreach (string method in new[] { "ToggleSubmissionStatus", "ConfirmSubmitBridge", "CancelSubmissionConfirmation", "ConfirmLeaveBuild", "CancelLeaveBuild" })

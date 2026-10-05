@@ -30,6 +30,11 @@ public class NameRegistrationUI : MonoBehaviour
     public UnityEvent onNameConfirmed;
 
     private string pendingName = "";
+    private bool nameAwaitingConfirmation;
+    private TMP_Text nameFeedback;
+    private string normalHint;
+    private Color normalHintColor;
+    private bool normalHintRichText;
 
     private void Start()
     {
@@ -40,6 +45,9 @@ public class NameRegistrationUI : MonoBehaviour
     // Call this from the DialogueTrigger's new event!
     public void ShowNamePrompt()
     {
+        pendingName = string.Empty;
+        nameAwaitingConfirmation = false;
+        SetNameFeedback(null);
         if (confirmationPanel != null) confirmationPanel.SetActive(false);
         if (nameInputPanel != null) nameInputPanel.SetActive(true);
         if (nameInputField != null) nameInputField.text = "";
@@ -67,13 +75,23 @@ public class NameRegistrationUI : MonoBehaviour
     // Link this to your Input Panel's "Submit" button!
     public void SubmitName()
     {
-        pendingName = nameInputField.text.Trim();
+        if (nameInputField == null) return;
+        string proposedName = nameInputField.text.Trim();
         
         // Fallback just in case they leave it completely blank
-        if (string.IsNullOrEmpty(pendingName)) 
+        if (string.IsNullOrEmpty(proposedName))
         {
-            pendingName = "Engineer"; 
+            proposedName = "Engineer";
         }
+
+        if (!PlayerNamePolicy.TryValidate(proposedName, out string error))
+        {
+            RejectName(error);
+            return;
+        }
+        pendingName = proposedName;
+        nameAwaitingConfirmation = true;
+        SetNameFeedback(null);
 
         // Hide the input, show the confirmation
         if (nameInputPanel != null) nameInputPanel.SetActive(false);
@@ -94,6 +112,17 @@ public class NameRegistrationUI : MonoBehaviour
     // Link this to your Confirmation Panel's "Yes" button!
     public void ConfirmNameYes()
     {
+        if (!PlayerNamePolicy.TryValidate(pendingName, out string error))
+        {
+            RejectName(error);
+            return;
+        }
+        if (!nameAwaitingConfirmation)
+        {
+            RejectName("Please submit your name before confirming it.");
+            return;
+        }
+        nameAwaitingConfirmation = false;
         // Save it permanently!
         if (PlayerDataManager.Instance != null)
         {
@@ -125,8 +154,37 @@ public class NameRegistrationUI : MonoBehaviour
     // Link this to your Confirmation Panel's "No" button!
     public void ConfirmNameNo()
     {
+        nameAwaitingConfirmation = false;
         // Go back to the input panel
         if (confirmationPanel != null) confirmationPanel.SetActive(false);
         if (nameInputPanel != null) nameInputPanel.SetActive(true);
+    }
+
+    private void RejectName(string error)
+    {
+        pendingName = string.Empty;
+        nameAwaitingConfirmation = false;
+        if (confirmationPanel != null) confirmationPanel.SetActive(false);
+        if (nameInputPanel != null) nameInputPanel.SetActive(true);
+        SetNameFeedback(error);
+    }
+
+    private void SetNameFeedback(string error)
+    {
+        // Reuse the scene-authored hint; never create a runtime error panel.
+        if (nameFeedback == null && nameInputPanel != null)
+            foreach (TMP_Text label in nameInputPanel.GetComponentsInChildren<TMP_Text>(true))
+                if (label.name == "Registration Name Hint")
+                {
+                    nameFeedback = label;
+                    normalHint = label.text;
+                    normalHintColor = label.color;
+                    normalHintRichText = label.richText;
+                    break;
+                }
+        if (nameFeedback == null) return;
+        nameFeedback.text = error ?? normalHint;
+        nameFeedback.color = error == null ? normalHintColor : new Color32(164, 54, 37, 255);
+        nameFeedback.richText = error == null && normalHintRichText;
     }
 }

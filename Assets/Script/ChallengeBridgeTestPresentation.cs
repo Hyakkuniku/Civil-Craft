@@ -259,6 +259,7 @@ public sealed class ChallengeBridgeTestView : IDisposable
     private readonly Dictionary<Renderer, bool> boatRendererStates = new Dictionary<Renderer, bool>();
     private int vehicleIndex, boatStart;
     private readonly Dictionary<int, LineRenderer[]> ropes = new Dictionary<int, LineRenderer[]>();
+    private static readonly Color RopeColor = new Color(0.72f, 0.43f, 0.25f, 1f);
     private Material ropeMaterial;
     private Sample[] samples;
     private const int HistoryCapacity = 12;
@@ -314,7 +315,7 @@ public sealed class ChallengeBridgeTestView : IDisposable
                     if (ropeMaterial == null)
                     {
                         ropeMaterial = new Material(shader);
-                        ropeMaterial.SetColor("_BaseColor", new Color(0.72f, 0.43f, 0.25f, 1f));
+                        ropeMaterial.SetColor("_BaseColor", RopeColor);
                     }
                     var lines = new LineRenderer[material.isDualBeam ? 2 : 1];
                     float width = renderers.Length > 0 ? Mathf.Clamp(renderers[0].bounds.size.y * 1.65f, 0.16f, 0.3f) : 0.16f;
@@ -404,21 +405,39 @@ public sealed class ChallengeBridgeTestView : IDisposable
             if (boatRenderers.TryGetValue(index, out var boatMeshes))
                 foreach (Renderer renderer in boatMeshes) renderer.enabled = boatRendererStates[renderer] && (chunk.Stress[j] & 0x8000) == 0;
             if (index >= memberRenderers.Count) continue;
-            if (ropes.ContainsKey(index)) { foreach (Renderer renderer in memberRenderers[index]) renderer.enabled = false; continue; }
             float stress = (chunk.Stress[j] & 0x3fff) / 16383f;
+            bool isBroken = (chunk.Stress[j] & 0x8000) != 0;
+            if (ropes.TryGetValue(index, out var lines))
+            {
+                foreach (Renderer renderer in memberRenderers[index]) renderer.enabled = false;
+                // Each rope shares the spectator material; override its renderer
+                // so one loaded/broken strand cannot recolor every other rope.
+                Color color = StressColor(RopeColor, stress, isBroken);
+                foreach (LineRenderer line in lines)
+                {
+                    block.Clear(); line.GetPropertyBlock(block);
+                    block.SetColor("_BaseColor", color); line.SetPropertyBlock(block);
+                }
+                continue;
+            }
             foreach (Renderer renderer in memberRenderers[index])
             {
                 Color[] colors = originalColors[renderer];
                 for (int slot = 0; slot < colors.Length; slot++)
                 {
-                    Color color = (chunk.Stress[j] & 0x8000) != 0 ? broken : stress < 0.5f
-                        ? Color.Lerp(colors[slot], warning, stress * 2f) : Color.Lerp(warning, critical, (stress - 0.5f) * 2f);
-                    color.a = colors[slot].a;
+                    Color color = StressColor(colors[slot], stress, isBroken);
                     block.Clear(); renderer.GetPropertyBlock(block, slot);
                     block.SetColor("_BaseColor", color); block.SetColor("_Color", color); renderer.SetPropertyBlock(block, slot);
                 }
             }
         }
+    }
+    private Color StressColor(Color original, float stress, bool isBroken)
+    {
+        Color color = isBroken ? broken : stress < 0.5f
+            ? Color.Lerp(original, warning, stress * 2f) : Color.Lerp(warning, critical, (stress - 0.5f) * 2f);
+        color.a = original.a;
+        return color;
     }
     public void Render(float interpolationSeconds)
     {

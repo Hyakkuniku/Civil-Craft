@@ -6,6 +6,12 @@ public class PlayerSpawnManager : MonoBehaviour
     // A static string survives scene loads! It remembers our target door.
     public static string targetSpawnPointName = "";
 
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStaticState()
+    {
+        targetSpawnPointName = "";
+    }
+
     [Header("Saved Spawn Safety")]
     [Tooltip("Reject a saved position that is not close to the scene's walkable navigation surface. This prevents old saves from reopening inside canyon collision.")]
     [SerializeField] private bool validateSavedSpawnAgainstNavMesh = true;
@@ -26,18 +32,36 @@ public class PlayerSpawnManager : MonoBehaviour
 
             if (spawnPoint != null)
             {
+                bool controllerWasEnabled = cc != null && cc.enabled;
                 if (cc != null) cc.enabled = false;
 
                 transform.position = spawnPoint.transform.position;
                 transform.rotation = spawnPoint.transform.rotation;
 
-                if (cc != null) cc.enabled = true;
+                if (cc != null) cc.enabled = controllerWasEnabled;
+
+                // Only a successful named spawn in the expected destination
+                // proves the player actually followed the NPC out of the house.
+                if (spawnPoint.scene == gameObject.scene &&
+                    DoorTransition.TryConsumePendingArrival(
+                        gameObject.scene.name, targetSpawnPointName, out string arrivalLessonId) &&
+                    PlayerDataManager.Instance != null && PlayerDataManager.Instance.CurrentData != null &&
+                    gameObject.scene.name != "Multiplayer" &&
+                    !(FusionConnectionManager.Instance != null &&
+                      (FusionConnectionManager.Instance.IsGuestSaveProtected ||
+                       FusionConnectionManager.Instance.IsGuestInHostWorld)))
+                {
+                    PlayerDataManager.Instance.CompleteLesson(arrivalLessonId);
+                }
+
+                DoorTransition.ClearPendingArrival();
                 
                 targetSpawnPointName = ""; 
             }
             else
             {
                 Debug.LogWarning("Could not find a spawn point named: " + targetSpawnPointName);
+                DoorTransition.ClearPendingArrival();
             }
         }
         // SCENARIO 2: We are loading the game, let's check if we have a saved position here!
@@ -62,11 +86,12 @@ public class PlayerSpawnManager : MonoBehaviour
                         return;
                     }
 
+                    bool controllerWasEnabled = cc != null && cc.enabled;
                     if (cc != null) cc.enabled = false;
 
                     transform.position = savedPosition;
 
-                    if (cc != null) cc.enabled = true;
+                    if (cc != null) cc.enabled = controllerWasEnabled;
                 }
             }
         }

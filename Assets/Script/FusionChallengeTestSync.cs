@@ -397,7 +397,8 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
 
     public void ReceiveMotion(int receivedRevision, int receivedIndex, byte[] packet)
     {
-        if (runner == null || runner.IsServer || !bound || view == null || receivedRevision != revision || receivedIndex != index) return;
+        if (runner == null || runner.IsServer || !bound || view == null || receivedRevision != revision || receivedIndex != index ||
+            !ResolveChallenge() || !CanApplyTestMotion(host.ChallengeState, receivedRevision, receivedIndex, revision, index)) return;
         try { view.Receive(ChallengeTestMotionCodec.Decode(packet)); }
         catch (Exception error) when (error is InvalidDataException || error is EndOfStreamException) { /* Drop invalid motion; no gameplay state comes from it. */ }
     }
@@ -447,6 +448,11 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
         int receivedIndex, int preparedRevision, int preparedIndex) =>
         sender == state.Guest && sender != PlayerRef.None && state.Phase == MultiplayerChallengePhase.PreparingTest &&
         !state.GuestTestViewReady && receivedRevision == state.Revision && receivedRevision == preparedRevision &&
+        (receivedIndex == 1 || receivedIndex == 2) && receivedIndex == state.TestIndex && receivedIndex == preparedIndex;
+
+    internal static bool CanApplyTestMotion(MultiplayerChallengeState state, int receivedRevision, int receivedIndex,
+        int preparedRevision, int preparedIndex) =>
+        state.Phase == MultiplayerChallengePhase.Testing && receivedRevision == state.Revision && receivedRevision == preparedRevision &&
         (receivedIndex == 1 || receivedIndex == 2) && receivedIndex == state.TestIndex && receivedIndex == preparedIndex;
 
     internal static bool CanBufferTestPacket(MultiplayerChallengeState state, int receivedRevision, int receivedIndex, bool finalFrame)
