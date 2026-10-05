@@ -1,0 +1,16 @@
+# Environment Builder
+
+Open **Tools > Civil Craft > Environment Builder**. The older **Tools > Civil Craft > Prefab Brush** remains a separate generic brush. Environment Builder edits the current scene; save the scene yourself when finished.
+
+1. Choose **Canyon Parent**. Painted props become direct children of this transform. Check **Surface Mesh** and choose the actual canyon mesh transform if needed; imported FBX roots can have their mesh on a child.
+2. The selected surface needs its own enabled, non-trigger 3D collider. For a canyon mesh with a MeshFilter and MeshRenderer, click **Add / Enable Surface Collider** to add an undoable, non-convex MeshCollider to that mesh, or configure and enable its existing MeshCollider. This happens only when you click the button. Placement raycasts only colliders directly on this surface, so existing props cannot become new painting surfaces.
+3. Assign project prefab assets to palette slots and select one slot. Each page has ten slots, selected with **1–9, 0** in Scene view while painting is enabled. Empty slots do not place anything. Page controls expose additional slots.
+4. Set stroke spacing, scatter radius, surface offset, yaw, uniform scale range and **Maximum Surface Slope** (default 60 degrees), then enable painting. Click to place the selected prefab; drag to place it again after the cursor moves the configured spacing. Random yaw, surface alignment and bounds seating are optional. Surface hits steeper than the maximum slope are ignored.
+
+In Scene view, **Q / E** rotate yaw by 15 degrees, **Shift+Q / Shift+E** rotate it by 90 degrees, and **Esc** stops painting. **Alt**, right mouse and middle mouse retain scene navigation. **Ctrl+Z** undoes the whole click-and-drag stroke. Painting is disabled in Play Mode and Prefab Mode.
+
+Instances retain their prefab connections and authored scale. Uniform scale multiplies the prefab's authored world size. Positive, uniform canyon-parent scale is supported: the builder uses world-space placement and undoable parenting so the parent does not multiply that intended size. For a canyon with nonuniform scale, use an unscaled scene group as **Canyon Parent** and keep the scaled mesh as its child, selected in **Surface Mesh**.
+
+Palette profiles are optional. Create one with **Assets > Create > Civil Craft > Environment Palette**, or use **Save As** in the builder. Selecting an asset in the **Palette Profile** project picker loads its prefab slots and brush settings. Use **Reload Profile** to load it again and **Save Profile** to write current settings to it. Profiles include the maximum slope setting, contain no scene parent or surface references and are never updated automatically.
+
+For dirt paths, choose a surface that has a MeshFilter and MeshRenderer, then click **Add / Edit Dirt Paths**. Painting stops before the path tools open. This adds an undoable CanyonDirtPaths component on that surface, sets its canyon reference to the same transform and assigns **Civil Craft/Canyon Dirt Surface**. If the component already exists, the action opens its Inspector. Edit paths there using the existing path tools. The builder does not generate map layouts or save the scene automatically.

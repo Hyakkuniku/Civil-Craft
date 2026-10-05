@@ -21,14 +21,14 @@ MonoBehaviour:
   almanacDescription: Reinforced concrete beams support the Concrete Road deck and
     transfer its weight and vehicle loads to anchored joints or piers. Use triangular
     bracing and short supported spans; an unanchored beam cannot support a bridge
-    just by touching it. Each placement creates two side beams, so its price and mass
-    are doubled. Stronger than timber, but heavier and more expensive. Long flat
-    spans can still fail without a continuous load path. These properties are game
-    balance values, not real-world engineering ratings.
+    just by touching it. Each placement creates two side beams, so its price and
+    mass are doubled. Stronger than timber, but heavier and more expensive. Long
+    flat spans can still fail without a continuous load path. These properties are
+    game balance values, not real-world engineering ratings.
   almanacImage: {fileID: 0}
   costPerMeter: 600
   massPerMeter: 90
-  maxLength: 10
+  maxLength: 15
   maxTension: 400000
   maxCompression: 2100000
   useSpring: 0
@@ -42,7 +42,8 @@ MonoBehaviour:
   pierMinimumCompressionMultiplier: 0.15
   unlockCost: 1000
   materialIcon: {fileID: 21300000, guid: d5a222f78463c874e83a77423e84e6ce, type: 3}
-  segmentPrefab: {fileID: 1104487842813336505, guid: 7976eae3251987142975aa2504070e87, type: 3}
+  segmentPrefab: {fileID: 1104487842813336505, guid: 7976eae3251987142975aa2504070e87,
+    type: 3}
   pierCapPrefab: {fileID: 0}
   gizmoColor: {r: 0.75, g: 0.78, b: 0.8, a: 1}
   isDualBeam: 1
