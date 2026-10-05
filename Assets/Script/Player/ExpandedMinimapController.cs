@@ -47,6 +47,12 @@ public sealed class ExpandedMinimapController : MonoBehaviour
     [SerializeField, Min(0.05f)] private float animationDuration = 0.3f;
     [SerializeField] private AnimationCurve animationCurve = null;
 
+    [Header("Map Audio")]
+    [Tooltip("AudioManager SFX ID played when the map starts expanding.")]
+    [SerializeField] private string openMapSfxId = "MapOpen";
+    [Tooltip("AudioManager SFX ID played when the map starts closing.")]
+    [SerializeField] private string closeMapSfxId = "MapClose";
+
     [Header("Map Navigation")]
     [SerializeField, Min(1f)] private float minimumZoom = 3f;
     [SerializeField, Min(2f)] private float maximumZoom = 180f;
@@ -126,6 +132,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
     private bool inputCaptured;
     private bool isExpanded;
     private bool isAnimating;
+    private bool isOpeningMapAnimation;
     private Coroutine animationRoutine;
     private UIPanelCoordinator mapCoordinator;
     private bool mapSessionActive;
@@ -1586,7 +1593,13 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
     private void StartMapAnimation(bool opening)
     {
+        // Repeated close presses must not restart the transition or its sound.
+        if (isAnimating && isOpeningMapAnimation == opening) return;
         if (animationRoutine != null) StopCoroutine(animationRoutine);
+        isOpeningMapAnimation = opening;
+        string sfxId = opening ? openMapSfxId : closeMapSfxId;
+        if (AudioManager.Instance != null && !string.IsNullOrWhiteSpace(sfxId))
+            AudioManager.Instance.PlaySFX(sfxId);
         animationRoutine = StartCoroutine(AnimateMap(opening));
     }
 

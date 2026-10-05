@@ -42,6 +42,9 @@ public sealed class LoadingScreenManager : MonoBehaviour
     private CanvasGroup canvasGroup;
     private Image progressFill;
     private RectTransform progressTrack;
+    private RectTransform progressShadow;
+    private RectTransform loadingTipPanel;
+    private RectTransform loadingTipShadow;
     private TextMeshProUGUI percentageText;
     private TextMeshProUGUI tipText;
     private RawImage playerImage;
@@ -56,6 +59,8 @@ public sealed class LoadingScreenManager : MonoBehaviour
     private LoadingScreenAssets assets;
     private bool isLoading;
     private int lastDisplayedPercent = -1;
+    private float currentProgress;
+    private float lastLayoutWidth = -1f;
 #if UNITY_EDITOR
     private AsyncOperation observedSceneLoad;
     private float previousLoadingFrameTime;
@@ -125,6 +130,16 @@ public sealed class LoadingScreenManager : MonoBehaviour
 
         if (roundedUiSprite != null) Destroy(roundedUiSprite);
         if (roundedUiTexture != null) Destroy(roundedUiTexture);
+    }
+
+    private void OnEnable()
+    {
+        Canvas.willRenderCanvases += UpdatePresentationLayout;
+    }
+
+    private void OnDisable()
+    {
+        Canvas.willRenderCanvases -= UpdatePresentationLayout;
     }
 
     private void BeginLoad(string sceneName)
@@ -447,7 +462,7 @@ public sealed class LoadingScreenManager : MonoBehaviour
 
         Canvas canvas = presentationRoot.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = short.MaxValue - 10;
+        canvas.sortingOrder = short.MaxValue;
 
         CanvasScaler scaler = presentationRoot.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
@@ -476,6 +491,7 @@ public sealed class LoadingScreenManager : MonoBehaviour
             new Color32(61, 45, 34, 26),
             new Vector2(1416f, 46f),
             new Vector2(0f, 64f));
+        progressShadow = barShadow;
         Image barShadowImage = barShadow.GetComponent<Image>();
         barShadowImage.sprite = roundedUiSprite;
         barShadowImage.type = Image.Type.Sliced;
@@ -532,6 +548,7 @@ public sealed class LoadingScreenManager : MonoBehaviour
             new Color32(61, 45, 34, 18),
             new Vector2(1180f, 96f),
             new Vector2(0f, -143f));
+        loadingTipShadow = tipShadow;
         Image tipShadowImage = tipShadow.GetComponent<Image>();
         tipShadowImage.sprite = roundedUiSprite;
         tipShadowImage.type = Image.Type.Sliced;
@@ -542,6 +559,7 @@ public sealed class LoadingScreenManager : MonoBehaviour
             new Color32(250, 243, 231, 255),
             new Vector2(1170f, 92f),
             new Vector2(0f, -137f));
+        loadingTipPanel = tipPanel;
         Image tipPanelImage = tipPanel.GetComponent<Image>();
         tipPanelImage.sprite = roundedUiSprite;
         tipPanelImage.type = Image.Type.Sliced;
@@ -685,6 +703,7 @@ public sealed class LoadingScreenManager : MonoBehaviour
 
         LoadingPlayerPreview preview = previewModel.GetComponent<LoadingPlayerPreview>();
         if (preview == null) preview = previewModel.AddComponent<LoadingPlayerPreview>();
+        preview.BindPreviewCamera(previewCamera);
         preview.BeginRunning(assets != null ? assets.playerAnimatorController : null);
 
         FramePreviewModel();
@@ -880,6 +899,8 @@ public sealed class LoadingScreenManager : MonoBehaviour
     private void SetProgress(float progress)
     {
         progress = Mathf.Clamp01(progress);
+        currentProgress = progress;
+        UpdatePresentationLayout();
         if (progressFill != null)
         {
             RectTransform fillRect = progressFill.rectTransform;
@@ -896,11 +917,41 @@ public sealed class LoadingScreenManager : MonoBehaviour
             lastDisplayedPercent = percent;
         }
 
+        UpdateRunnerPosition();
+    }
+
+    private void UpdatePresentationLayout()
+    {
+        if (presentationRoot == null || progressTrack == null) return;
+        float canvasWidth = ((RectTransform)presentationRoot.transform).rect.width;
+        if (canvasWidth <= 0f || Mathf.Abs(canvasWidth - lastLayoutWidth) < 0.1f) return;
+        lastLayoutWidth = canvasWidth;
+        float sideMargin = Mathf.Max(48f, canvasWidth * 0.1f);
+        float trackWidth = Mathf.Min(1400f, Mathf.Max(1f, canvasWidth - sideMargin * 2f));
+        progressTrack.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, trackWidth);
+        if (progressShadow != null)
+            progressShadow.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, trackWidth + 16f);
+        float tipWidth = Mathf.Min(1170f, Mathf.Max(1f, canvasWidth - 96f));
+        if (loadingTipPanel != null)
+            loadingTipPanel.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, tipWidth);
+        if (loadingTipShadow != null)
+            loadingTipShadow.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, tipWidth + 10f);
+        if (tipText != null)
+            tipText.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, Mathf.Max(1f, tipWidth - 90f));
+        UpdateRunnerPosition();
+    }
+
+    private void UpdateRunnerPosition()
+    {
         if (playerRect != null && progressTrack != null)
         {
             float halfWidth = progressTrack.rect.width * 0.5f;
+            // The runner is a full RawImage, not a point at the fill edge. Keep
+            // both ends inside the bar so tablets cannot crop its head or feet.
+            float endInset = playerRect.rect.width * 0.5f + 12f;
+            float travelExtent = Mathf.Max(0f, halfWidth - endInset);
             Vector2 runnerPosition = playerRect.anchoredPosition;
-            runnerPosition.x = Mathf.Lerp(-halfWidth, halfWidth, progress);
+            runnerPosition.x = Mathf.Lerp(-travelExtent, travelExtent, currentProgress);
             runnerPosition.y = progressTrack.anchoredPosition.y +
                                progressTrack.rect.height * 0.5f - 2f;
             playerRect.anchoredPosition = runnerPosition;

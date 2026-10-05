@@ -56,6 +56,21 @@ MonoBehaviour:
     pitch: 1
     randomPitchRange: 0
   soundEffects:
+  - id: PauseOpen
+    clip: {fileID: 8300000, guid: cf66ba778e4e42ea8c6a8b8d3fb12a8d, type: 3}
+    volume: 0.85
+    pitch: 1
+    randomPitchRange: 0
+  - id: MapOpen
+    clip: {fileID: 8300000, guid: 568049e14c7e4935bd5a24bd04f453a9, type: 3}
+    volume: 0.85
+    pitch: 1
+    randomPitchRange: 0
+  - id: MapClose
+    clip: {fileID: 8300000, guid: e8f2f205649e41b6a65f1b2050ff7a54, type: 3}
+    volume: 0.85
+    pitch: 1
+    randomPitchRange: 0
   - id: Jump
     clip: {fileID: 8300000, guid: 5f2d7e043b0e568428c846adee8cc268, type: 3}
     volume: 0.8

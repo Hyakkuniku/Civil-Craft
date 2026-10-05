@@ -34,6 +34,10 @@ public class PauseManager : MonoBehaviour
     [SerializeField, Range(0.8f, 1f)] private float entranceScale = 0.94f;
     [SerializeField, Min(0f)] private float entranceOffset = 18f;
 
+    [Header("Pause Audio")]
+    [Tooltip("AudioManager SFX ID played once when the pause menu opens.")]
+    [SerializeField] private string pauseOpenSfxId = "PauseOpen";
+
     [Header("Elements to Hide")]
     [Tooltip("Drag any game objects (like HUD elements) here that should disappear when paused.")]
     public GameObject[] objectsToHide; // --- NEW: Array of objects to hide ---
@@ -170,6 +174,9 @@ public class PauseManager : MonoBehaviour
             pausePanel.SetActive(true);
 
         PlayOpenMotion();
+        if (pausePanel != null && pausePanel.activeInHierarchy &&
+            AudioManager.Instance != null && !string.IsNullOrWhiteSpace(pauseOpenSfxId))
+            AudioManager.Instance.PlaySFX(pauseOpenSfxId);
 
         if (UIPanelCoordinator.Instance == null && objectsToHide != null)
         {

@@ -24,6 +24,37 @@ public sealed class LoadingPlayerPreview : MonoBehaviour
     private Renderer[] previewRenderers;
     private Bounds previewLocalBounds;
     private bool hasPreviewBounds;
+    private Camera previewCamera;
+
+    public void BindPreviewCamera(Camera camera)
+    {
+        previewCamera = camera;
+    }
+
+    private void OnEnable()
+    {
+        Camera.onPreCull += PrepareForCamera;
+        RenderPipelineManager.beginCameraRendering += OnBeginCameraRendering;
+    }
+
+    private void OnDisable()
+    {
+        Camera.onPreCull -= PrepareForCamera;
+        RenderPipelineManager.beginCameraRendering -= OnBeginCameraRendering;
+    }
+
+    private void OnBeginCameraRendering(ScriptableRenderContext context, Camera camera)
+    {
+        PrepareForCamera(camera);
+    }
+
+    internal void PrepareForCamera(Camera camera)
+    {
+        if (camera == null || camera != previewCamera || !isActiveAndEnabled) return;
+        // Skinning and other camera callbacks run after LateUpdate in a player
+        // build. Repair this preview only, immediately before its camera culls.
+        RefreshVisibility();
+    }
 
     public void BeginRunning(RuntimeAnimatorController fallbackController)
     {
@@ -186,12 +217,23 @@ public sealed class LoadingPlayerPreview : MonoBehaviour
             renderer.allowOcclusionWhenDynamic = false;
             if (renderer is SkinnedMeshRenderer skinned)
             {
-                skinned.updateWhenOffscreen = true;
+                // Automatic offscreen bounds are rebuilt by native skinning and
+                // can discard the common outfit envelope on mobile. The Animator
+                // always runs; our visible, stable bounds keep skinning active.
+                skinned.updateWhenOffscreen = false;
                 skinned.forceMatrixRecalculationPerRender = true;
+                // Android's performance preset limits Auto to two influences.
+                // Only this small preview uses four; gameplay quality is untouched.
+                skinned.quality = SkinQuality.Bone4;
                 // A world-space override avoids the different root-bone/mesh
                 // coordinate systems of modular cosmetics. Update it every frame
                 // so it also follows any movement of this preview's stage.
-                if (hasBounds) skinned.bounds = cullingBounds;
+                if (hasBounds)
+                {
+                    Transform boundsRoot = skinned.rootBone != null ? skinned.rootBone : skinned.transform;
+                    skinned.localBounds = TransformBounds(boundsRoot.worldToLocalMatrix, cullingBounds);
+                    skinned.bounds = cullingBounds;
+                }
             }
         }
     }
