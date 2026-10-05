@@ -45,6 +45,8 @@ public class MainMenuUIController : MonoBehaviour
     [SerializeField] private PlayFabAuthManager authManager;
     [Tooltip("The existing authentication canvas in the Main Menu scene.")]
     [SerializeField] private GameObject authCanvas;
+    [Tooltip("Inactive, scene-authored account actions for the Login tile when already signed in.")]
+    [SerializeField] private AuthoredNoticeDialog alreadyLoggedInNotice;
 
     [Header("Persistent Feature Buttons")]
     [Tooltip("The Store entry inside the dropdown. It is found automatically by name when left empty.")]
@@ -229,6 +231,18 @@ public class MainMenuUIController : MonoBehaviour
 
     public void OnLoginClicked()
     {
+        // Merely clicking Login must not change an authenticated session.
+        // Offer explicit account actions before opening authentication.
+        if (authManager != null && authManager.IsPlayerLoggedIn)
+        {
+            ShowAlreadyLoggedInNotice();
+            return;
+        }
+        BeginMenuAuthentication();
+    }
+
+    private void BeginMenuAuthentication()
+    {
         // Let the dropdown close underneath the full-screen authentication UI so
         // closing AuthCanvas returns the player to the original Main Menu state.
         HideMenuPanel();
@@ -248,6 +262,39 @@ public class MainMenuUIController : MonoBehaviour
         {
             Debug.LogError("MainMenuUIController: AuthCanvas is not assigned.", this);
         }
+    }
+
+    public void ShowAlreadyLoggedInNotice()
+    {
+        if (alreadyLoggedInNotice == null)
+        {
+            Debug.LogError("MainMenuUIController: the scene-authored already-logged-in notice is missing.", this);
+            return;
+        }
+        alreadyLoggedInNotice.Show("ALREADY LOGGED IN",
+            "You're already logged in.\nWhat would you like to do?",
+            SwitchAccountFromMenu, RequestLogoutFromMenu);
+    }
+
+    private void SwitchAccountFromMenu()
+    {
+        if (authManager == null || !authManager.IsPlayerLoggedIn) return;
+        // Reuse Settings' explicit account-switch flow. Merely opening the
+        // login panel does not sign out; its existing authentication/save-choice
+        // logic takes over only after the player submits credentials.
+        BeginMenuAuthentication();
+    }
+
+    private void RequestLogoutFromMenu()
+    {
+        if (authManager == null || !authManager.IsPlayerLoggedIn) return;
+        if (settingsManager == null || settingsManager.logoutConfirmation == null)
+        {
+            Debug.LogError("MainMenuUIController: the authored logout confirmation is not assigned. You remain signed in.", this);
+            return;
+        }
+        // Use the existing guarded confirmation; never sign out from this tile.
+        if (settingsManager.OpenAccountSettings()) settingsManager.LogoutAccount();
     }
 
     private void HandleAuthenticationSucceeded()

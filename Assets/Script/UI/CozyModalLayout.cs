@@ -164,7 +164,94 @@ public sealed class CozyModalLayout : MonoBehaviour
             controller.RefreshTabColors();
         }
         foreach (TMP_Dropdown dropdown in root.GetComponentsInChildren<TMP_Dropdown>(true)) StyleDropdown(dropdown, u);
+        LayoutAccountPage(root, u);
         LayoutRebuilder.ForceRebuildLayoutImmediate(root);
+    }
+
+    // Account is a compact status card rather than a list of setting rows.
+    // Fixed preferred heights in the original vertical stack could force its
+    // actions outside the page on shorter screens. Only existing authored
+    // RectTransforms are repositioned here; no UI is created at runtime.
+    private void LayoutAccountPage(RectTransform root, float u)
+    {
+        RectTransform account = Find(root, "AccountPage");
+        if (account == null) return;
+        VerticalLayoutGroup stack = account.GetComponent<VerticalLayoutGroup>();
+        if (stack != null) stack.enabled = false;
+        Stretch(account, 24f*u, 18f*u, 24f*u, 18f*u);
+
+        float inset = Mathf.Min(96f*u, account.rect.width*.075f);
+        RectTransform heading = Find(account, "Account Section Heading");
+        Top(heading, inset, inset, 0f, 44f*u);
+        TMP_Text headingText = heading != null ? heading.GetComponent<TMP_Text>() : null;
+        Text(headingText, 28f*u, true);
+        if (headingText != null) headingText.alignment = TextAlignmentOptions.MidlineLeft;
+
+        RectTransform statusFrame = Find(account, "Account Status Frame");
+        Stretch(statusFrame, inset, 148f*u, inset, 62f*u);
+        Paint(statusFrame, Cream); Border(statusFrame);
+        RectTransform status = Find(account, "AccountStatusText");
+        IgnoreLayout(status);
+        Stretch(status, inset+30f*u, 170f*u, inset+30f*u, 86f*u);
+        TMP_Text statusText = status != null ? status.GetComponent<TMP_Text>() : null;
+        if (statusText != null)
+        {
+            Text(statusText, 30f*u, false);
+            statusText.enableAutoSizing = true;
+            statusText.fontSizeMax = 30f*u; statusText.fontSizeMin = 22f*u;
+            statusText.enableWordWrapping = true; statusText.richText = true;
+            statusText.overflowMode = TextOverflowModes.Overflow;
+            statusText.alignment = TextAlignmentOptions.Center;
+            statusText.margin = Vector4.zero;
+            statusText.lineSpacing = 9f*u;
+        }
+
+        RectTransform actions = Find(account, "AccountActions");
+        IgnoreLayout(actions);
+        HorizontalLayoutGroup horizontal = actions != null ? actions.GetComponent<HorizontalLayoutGroup>() : null;
+        if (horizontal != null) horizontal.enabled = false;
+        Bottom(actions, inset, inset, 54f*u, 74f*u);
+        RectTransform signIn = Find(actions, "AccountActionButton"), logout = Find(actions, "LogoutButton");
+        LayoutAccountAction(signIn, 0f, .49f, Gold, u);
+        LayoutAccountAction(logout, .51f, 1f, Sand, u);
+
+        RectTransform guide = Find(account, "Account Save Guide");
+        Bottom(guide, inset, inset, 0f, 34f*u);
+        TMP_Text guideText = guide != null ? guide.GetComponent<TMP_Text>() : null;
+        Text(guideText, 22f*u, false);
+        if (guideText != null)
+        {
+            guideText.alignment = TextAlignmentOptions.Center;
+            guideText.enableAutoSizing = true;
+            guideText.fontSizeMax = 22f*u; guideText.fontSizeMin = 18f*u;
+            guideText.enableWordWrapping = true;
+        }
+    }
+
+    private void LayoutAccountAction(RectTransform rect, float left, float right, Color fill, float u)
+    {
+        if (rect == null) return;
+        IgnoreLayout(rect);
+        rect.anchorMin = new Vector2(left, 0f); rect.anchorMax = new Vector2(right, 1f);
+        rect.pivot = Vector2.one*.5f;
+        rect.offsetMin = rect.offsetMax = Vector2.zero;
+        rect.localScale = Vector3.one;
+        Paint(rect, fill); Border(rect);
+        TMP_Text label = rect.GetComponentInChildren<TMP_Text>(true);
+        if (label == null) return;
+        Stretch(label.rectTransform, 18f*u, 10f*u, 18f*u, 10f*u);
+        Text(label, 28f*u, true);
+        label.alignment = TextAlignmentOptions.Center;
+        label.enableAutoSizing = true;
+        label.fontSizeMax = 28f*u; label.fontSizeMin = 21f*u;
+        label.enableWordWrapping = true; label.overflowMode = TextOverflowModes.Overflow;
+    }
+
+    private static void IgnoreLayout(RectTransform rect)
+    {
+        if (rect == null) return;
+        LayoutElement element = rect.GetComponent<LayoutElement>();
+        if (element != null) element.ignoreLayout = true;
     }
 
     private void LayoutAchievements(float u)

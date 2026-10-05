@@ -141,6 +141,23 @@ public class SettingsManager : MonoBehaviour
         else settingsPanel.SetActive(false);
     }
 
+    /// <summary>Shows the existing authored Account page, including its logout confirmation.</summary>
+    public bool OpenAccountSettings()
+    {
+        if (settingsPanel == null || accountStatusText == null) return false;
+        SettingsTabController tabs = settingsPanel.GetComponentInChildren<SettingsTabController>(true);
+        if (tabs == null || tabs.tabPanels == null) return false;
+        for (int index = 0; index < tabs.tabPanels.Length; index++)
+        {
+            GameObject page = tabs.tabPanels[index];
+            if (page == null || !accountStatusText.transform.IsChildOf(page.transform)) continue;
+            OpenSettings();
+            tabs.SwitchTab(index);
+            return settingsPanel.activeInHierarchy && page.activeInHierarchy;
+        }
+        return false;
+    }
+
     public void ToggleSettings()
     {
         if (settingsPanel == null) return;

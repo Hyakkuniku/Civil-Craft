@@ -26,10 +26,11 @@ public class SettingsTabController : MonoBehaviour
                 tabButtons[i].onClick.AddListener(() => SwitchTab(index));
         }
 
-        // Open the first tab by default
+        // Default to the first tab, but retain a page selected explicitly before
+        // this initially inactive panel receives its first Start callback.
         if (tabPanels != null && tabPanels.Length > 0)
         {
-            SwitchTab(0);
+            SwitchTab(activeTabIndex);
         }
     }
 
