@@ -362,7 +362,7 @@ public partial class BridgePhysicsManager : MonoBehaviour
             externalImpactInProgress = false;
         }
         if (broken > 0)
-            ReleaseUnsupportedRoadJoints(deterministicBars, deterministicPoints);
+            RefreshSupportAndReleaseUnsupportedRoads();
         return broken;
     }
 
@@ -464,6 +464,7 @@ public partial class BridgePhysicsManager : MonoBehaviour
     private bool deterministicRuntimeStateApplied;
     private bool deterministicRuntimeStateReusable;
     private bool remainingMemberAnalysisDirty;
+    private bool supportGraphDirty;
     private int lastDeterministicSampleIndex = -1;
     private float lastDeterministicLoadFactor = float.NaN;
     private float currentVisualMaxStress;
@@ -743,6 +744,7 @@ public partial class BridgePhysicsManager : MonoBehaviour
 
         if (isSimulating && !lockStressTracking)
         {
+            if (supportGraphDirty) RefreshSupportAndReleaseUnsupportedRoads();
             if (remainingMemberAnalysisDirty) RebuildRemainingMemberAnalysis();
             // Geometry changes even when the vehicle has not moved to a new
             // immutable load sample. Run this before the sample-cache early return.
@@ -1011,6 +1013,7 @@ public partial class BridgePhysicsManager : MonoBehaviour
         deterministicRuntimeStateApplied = false;
         deterministicRuntimeStateReusable = false;
         remainingMemberAnalysisDirty = false;
+        supportGraphDirty = false;
         lastDeterministicSampleIndex = -1;
         lastDeterministicLoadFactor = float.NaN;
         currentVisualMaxStress = 0f;
@@ -1334,7 +1337,16 @@ public partial class BridgePhysicsManager : MonoBehaviour
     public void NotifyMemberDetached()
     {
         remainingMemberAnalysisDirty = true;
+        supportGraphDirty = true;
         deterministicRuntimeStateReusable = false;
+    }
+
+    private void RefreshSupportAndReleaseUnsupportedRoads()
+    {
+        supportGraphDirty = false;
+        foreach (Point point in deterministicPoints)
+            if (point != null) point.RefreshAnchorState();
+        ReleaseUnsupportedRoadJoints(deterministicBars, deterministicPoints);
     }
 
     private void RebuildRemainingMemberAnalysis()

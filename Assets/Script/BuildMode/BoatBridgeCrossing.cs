@@ -381,6 +381,11 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
     {
         if (bar == null) return false;
         CollectImpactArea(bar, impactPoint);
+        return BreakCollectedMembers(impactPoint);
+    }
+
+    private bool BreakCollectedMembers(Vector3 impactPoint)
+    {
         if (subscribedManager.BreakMembersFromExternalImpact(impactedBars,
                 "boat impact") == 0) return false;
 
@@ -388,6 +393,51 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
         ApplyLocalImpactDeflection(impactPoint);
         lastImpactDistance = distanceTraveled;
         return true;
+    }
+
+    private bool TryBreakHullContactArea(
+        Bar struckPier,
+        Bounds hullBounds,
+        Vector3 impactPoint)
+    {
+        impactedBars.Clear();
+        impactedDistances.Clear();
+        impactedBars.Add(struckPier);
+        impactedDistances.Add(0f);
+
+        foreach (BarStressHandler member in subscribedManager.activeStressHandlers)
+        {
+            Bar candidate = member != null ? member.Bar : null;
+            if (candidate == null || candidate == struckPier || member.isBroken ||
+                !activeLocation.Owns(candidate) || candidate.startPoint == null ||
+                candidate.endPoint == null) continue;
+
+            if (!TryGetSegmentBoundsContact(
+                    candidate.startPoint.transform.position,
+                    candidate.endPoint.transform.position,
+                    hullBounds,
+                    out Vector3 contactPoint)) continue;
+
+            // Preserve the directly struck pier, then prioritize road pieces
+            // actually passing through the hull. This prevents nearby braces
+            // from consuming the configured damage limit before the deck that
+            // is visibly intersecting the boat can be released.
+            float distanceSquared = (contactPoint - impactPoint).sqrMagnitude;
+            float score = candidate.materialData != null && candidate.materialData.isRoad
+                ? distanceSquared * 0.001f
+                : 1f + distanceSquared;
+            int index = 1;
+            while (index < impactedDistances.Count &&
+                   impactedDistances[index] <= score) index++;
+            if (index >= maxBrokenMembers) continue;
+            impactedBars.Insert(index, candidate);
+            impactedDistances.Insert(index, score);
+            if (impactedBars.Count <= maxBrokenMembers) continue;
+            impactedBars.RemoveAt(maxBrokenMembers);
+            impactedDistances.RemoveAt(maxBrokenMembers);
+        }
+
+        return BreakCollectedMembers(impactPoint);
     }
 
     private void CollectImpactArea(Bar struckBar, Vector3 impactPoint)
@@ -629,7 +679,8 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
                         sampledHullBounds,
                         out Vector3 impactPoint)) continue;
 
-                if (TryBreakBarAtPoint(pier, impactPoint)) return true;
+                if (TryBreakHullContactArea(
+                        pier, sampledHullBounds, impactPoint)) return true;
             }
         }
 

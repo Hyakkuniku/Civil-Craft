@@ -201,6 +201,11 @@ public class Point : MonoBehaviour
             if (!bar.gameObject.activeInHierarchy || bar.materialData == null || !bar.materialData.isPier)
                 continue;
 
+            // A failed pier remains active so its body can fall and be shown to
+            // the player, but it must no longer make either endpoint an anchor.
+            BarStressHandler stress = bar.GetComponent<BarStressHandler>();
+            if (stress != null && stress.isBroken) continue;
+
             if (bar.startPoint == this || bar.endPoint == this)
                 return true;
         }
