@@ -8,7 +8,7 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Scene-authored leaderboard UI. Rows and controls are saved in Mode Selection;
+/// Scene-authored leaderboard UI. Rows and controls are saved in their scene;
 /// only their contents change at runtime. No client-side statistic writes occur.
 /// </summary>
 public sealed partial class LeaderboardPanelUI : MonoBehaviour
@@ -65,11 +65,52 @@ public sealed partial class LeaderboardPanelUI : MonoBehaviour
     public void Open()
     {
         if (panel == null) return;
+        PopulateContracts();
+        OpenPreparedPanel();
+    }
+
+    /// <summary>
+    /// Opens the solo board for the contract that produced a completion result.
+    /// Selection happens before opening so a prior multiplayer/category choice
+    /// cannot request an unrelated leaderboard.
+    /// </summary>
+    public bool OpenForContract(ContractSO contract)
+    {
+        if (!TrySelectContract(contract)) return false;
+        OpenPreparedPanel();
+        return true;
+    }
+
+    // Kept separate from opening/refreshing so selection can be verified offline.
+    internal bool TrySelectContract(ContractSO contract)
+    {
+        if (panel == null || contractDropdown == null || contract == null ||
+            contract.hideFromLeaderboard || string.IsNullOrWhiteSpace(contract.ContractID) ||
+            contract.ContractID.StartsWith(ChallengeBuildWorkspace.ContractPrefix,
+                StringComparison.Ordinal)) return false;
+
+        PopulateContracts(contract);
+        if (SelectedContract == null || !string.Equals(SelectedContract.ContractID,
+            contract.ContractID, StringComparison.Ordinal)) return false;
+
+        ++requestGeneration;
+        multiplayerSelected = false;
+        if (strongestToggle != null) strongestToggle.SetIsOnWithoutNotify(false);
+        if (efficientToggle != null) efficientToggle.SetIsOnWithoutNotify(true);
+        if (strongestToggle != null)
+            strongestToggle.GetComponent<LeaderboardToggleStyle>()?.RefreshState();
+        if (efficientToggle != null)
+            efficientToggle.GetComponent<LeaderboardToggleStyle>()?.RefreshState();
+        ApplyBoardVisibility();
+        return true;
+    }
+
+    private void OpenPreparedPanel()
+    {
         // TMP_Dropdown initializes its popup tween in Start, one frame after an
         // inactive modal first becomes active. A same-frame tap otherwise throws.
         if (contractDropdown != null) contractDropdown.interactable = false;
         panel.SetActive(true);
-        PopulateContracts();
         Refresh();
         if (dropdownReadyCoroutine != null) StopCoroutine(dropdownReadyCoroutine);
         dropdownReadyCoroutine = StartCoroutine(EnableDropdownAfterStart());
@@ -77,16 +118,28 @@ public sealed partial class LeaderboardPanelUI : MonoBehaviour
 
     public void Close()
     {
+        CancelPendingRequest();
+        if (panelMotion != null && panelMotion.isActiveAndEnabled)
+            panelMotion.Close();
+        else if (panel != null)
+            panel.SetActive(false);
+    }
+
+    /// <summary>Dismisses a nested leaderboard when its completion result closes.</summary>
+    public void CloseImmediately()
+    {
+        CancelPendingRequest();
+        if (panel != null) panel.SetActive(false);
+    }
+
+    private void CancelPendingRequest()
+    {
         ++requestGeneration;
         if (dropdownReadyCoroutine != null)
         {
             StopCoroutine(dropdownReadyCoroutine);
             dropdownReadyCoroutine = null;
         }
-        if (panelMotion != null && panelMotion.isActiveAndEnabled)
-            panelMotion.Close();
-        else if (panel != null)
-            panel.SetActive(false);
     }
 
     private IEnumerator EnableDropdownAfterStart()
@@ -97,15 +150,20 @@ public sealed partial class LeaderboardPanelUI : MonoBehaviour
         dropdownReadyCoroutine = null;
     }
 
-    private void PopulateContracts()
+    private void PopulateContracts(ContractSO requestedContract = null)
     {
         if (contractDropdown == null) return;
-        string selectedId = SelectedContract != null ? SelectedContract.ContractID : null;
+        string selectedId = requestedContract != null ? requestedContract.ContractID :
+            SelectedContract != null ? SelectedContract.ContractID : null;
         displayedContracts.Clear();
         HashSet<string> seen = new HashSet<string>(StringComparer.Ordinal);
         AddContracts(contracts, seen);
         if (PlayerDataManager.Instance != null)
             AddContracts(PlayerDataManager.Instance.allGameContracts, seen);
+        // The completed site is authoritative even if its contract has not yet
+        // been added to the authored catalog (for example, a newly added level).
+        if (requestedContract != null)
+            AddContracts(new[] { requestedContract }, seen);
 
         displayedContracts.Sort((a, b) => string.Compare(a.name, b.name,
             StringComparison.OrdinalIgnoreCase));

@@ -111,6 +111,9 @@ public class LevelCompleteManager : MonoBehaviour
     [Header("Online Leaderboard (Development)")]
     [SerializeField, Tooltip("Enable only after submitBridgeRunV1 is deployed to PlayFab and both statistics per contract use Max aggregation. Offline or guest runs are not submitted.")]
     private bool submitSavedRunsToLeaderboard;
+    [SerializeField, Tooltip("Scene-authored leaderboard opened for the contract shown in this completion report.")]
+    private LeaderboardPanelUI completedLocationLeaderboard;
+    private Button completedLocationLeaderboardButton;
 
     public TMP_FontAsset ReceiptFont { get; private set; }
     public Transform receiptContentParent; 
@@ -607,6 +610,7 @@ public class LevelCompleteManager : MonoBehaviour
 
         SimulationLessonPresenter.HideForResultOverlay();
         UIReservedRegionLayout.NotifyLayoutChanging();
+        UpdateCompletedLocationLeaderboardButton();
         if (levelCompletePanel != null) levelCompletePanel.SetActive(true);
         if (AudioManager.Instance != null)
             AudioManager.Instance.PlaySFX("Level_Complete");
@@ -898,6 +902,7 @@ public class LevelCompleteManager : MonoBehaviour
         guestReceiptPlaceholder = receiptContentParent != null
             ? receiptContentParent.Find("Host Bridge Receipt")?.gameObject : null;
         costPercentageText = null;
+        completedLocationLeaderboardButton = FindUI<Button>(paper, "Leaderboard");
 
         for (int i = 0; i < 3; i++)
         {
@@ -1057,31 +1062,59 @@ public class LevelCompleteManager : MonoBehaviour
         receiptBalanceText = CompletionReceiptLayout.Label(receipt,"Remaining","",.08f,.145f,.92f,.203f,25,font,TextAlignmentOptions.MidlineRight);
         receiptStampText = CompletionReceiptLayout.Label(receipt,"Budget Stamp","WITHIN BUDGET",.10f,.067f,.90f,.125f,25,font,TextAlignmentOptions.Center);
         costPercentageText = null; // No unexplained percentage or stress progress bar.
-        feedbackText = CompletionReceiptLayout.Label(paper,"Feedback","",.025f,.028f,.47f,.11f,26,font);
+        feedbackText = CompletionReceiptLayout.Label(paper,"Feedback","",.025f,.028f,.355f,.11f,26,font);
+        completedLocationLeaderboardButton = CompletionReceiptLayout.Button(paper,"Leaderboard",.375f,.025f,.55f,.11f,
+            new Color32(239,220,184,255),font,OpenCompletedLocationLeaderboard);
+        TextMeshProUGUI leaderboardLabel = completedLocationLeaderboardButton.GetComponentInChildren<TextMeshProUGUI>();
+        if (leaderboardLabel != null)
+        {
+            leaderboardLabel.fontSize = 28f;
+            leaderboardLabel.fontSizeMax = 28f;
+            leaderboardLabel.fontSizeMin = 20f;
+        }
         if (IsMultiplayerScene)
         {
-            multiplayerBackButton = CompletionReceiptLayout.Button(paper,"Back to Build",.49f,.025f,.69f,.11f,
+            multiplayerBackButton = CompletionReceiptLayout.Button(paper,"Back to Build",.57f,.025f,.70f,.11f,
                 new Color32(239,214,170,255),font,RetrySimulation);
-            multiplayerSaveButton = CompletionReceiptLayout.Button(paper,"Save for Session",.71f,.025f,.975f,.11f,
+            multiplayerSaveButton = CompletionReceiptLayout.Button(paper,"Save for Session",.72f,.025f,.975f,.11f,
                 new Color32(228,157,44,255),font,SaveBridgeForSession);
             guestWaitingText = CompletionReceiptLayout.Label(paper,"Guest Waiting",
-                "Waiting for host to save or retry...",.49f,.025f,.975f,.11f,
+                "Waiting for host to save or retry...",.57f,.025f,.975f,.11f,
                 25,font,TextAlignmentOptions.Center);
             guestWaitingText.gameObject.SetActive(false);
             completionSaveTutorialTarget = null;
         }
         else
         {
-            CompletionReceiptLayout.Button(paper,"Retry",.49f,.025f,.69f,.11f,
+            CompletionReceiptLayout.Button(paper,"Retry",.57f,.025f,.70f,.11f,
                 new Color32(239,214,170,255),font,RetrySimulation);
             Button saveButton = CompletionReceiptLayout.Button(
-                paper,"Save & Continue",.71f,.025f,.975f,.11f,
+                paper,"Save & Continue",.72f,.025f,.975f,.11f,
                 new Color32(228,157,44,255),font,SaveAndBakeBridge);
             completionSaveTutorialTarget = saveButton.transform as RectTransform;
         }
         safe.gameObject.AddComponent<CompletionEntranceMotion>().Configure(frame,receipt,photoFrame);
     }
 #endif
+
+    private void UpdateCompletedLocationLeaderboardButton()
+    {
+        if (completedLocationLeaderboardButton != null)
+            completedLocationLeaderboardButton.gameObject.SetActive(
+                completedLocationLeaderboard != null && activeContract != null &&
+                !activeContract.hideFromLeaderboard && !string.IsNullOrWhiteSpace(activeContract.ContractID));
+    }
+
+    public void OpenCompletedLocationLeaderboard()
+    {
+        if (levelCompletePanel == null || !levelCompletePanel.activeInHierarchy ||
+            IsFirstCompletionTutorialBlockingActions()) return;
+        // Use the report's captured contract, not a mutable current build selection.
+        // Opening rankings must not finalize, reset or save the successful design.
+        if (completedLocationLeaderboard == null ||
+            !completedLocationLeaderboard.OpenForContract(activeContract))
+            Debug.LogWarning("[LevelCompleteManager] This completion report has no available location leaderboard.", this);
+    }
 
     public void RetrySimulation()
     {
@@ -1326,6 +1359,18 @@ public class LevelCompleteManager : MonoBehaviour
             levelCompletePanel == null || guestSessionCompletionVisible) return;
 
         guestSessionCompletionVisible = true;
+        activeContract = null;
+        foreach (BuildLocation location in FindObjectsOfType<BuildLocation>(true))
+        {
+            if (location != null && location.gameObject.scene == gameObject.scene &&
+                location.activeContract != null &&
+                FusionMultiplayerAvatar.StableHash(location.activeContract.ContractID) == result.ContractHash)
+            {
+                activeContract = location.activeContract;
+                break;
+            }
+        }
+        UpdateCompletedLocationLeaderboardButton();
         temporarilyHiddenPanels.Clear();
         foreach (GameObject ui in uiElementsToHide)
         {
@@ -1601,6 +1646,7 @@ public class LevelCompleteManager : MonoBehaviour
 
     public void ClosePanel()
     {
+        if (completedLocationLeaderboard != null) completedLocationLeaderboard.CloseImmediately();
         if (levelCompletePanel != null) levelCompletePanel.SetActive(false);
 
         foreach (GameObject ui in temporarilyHiddenPanels)
