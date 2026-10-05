@@ -194,6 +194,8 @@ public class PlayerMotor : MonoBehaviour
     public void ProcessMove(Vector2 input)
     {
         if (!isActiveAndEnabled || controller == null || !controller.enabled) return;
+        // Keep gravity/grounding active while only the recording camera moves.
+        if (RecordingCameraShortcut.BlocksMovement(this)) input = Vector2.zero;
         Vector3 beforeMove = transform.position;
         previousFixedPosition = beforeMove;
         input = Vector2.ClampMagnitude(input, 1f);
@@ -276,6 +278,7 @@ public class PlayerMotor : MonoBehaviour
     public void Jump()
     {
         if (!isActiveAndEnabled || controller == null || !controller.enabled ||
+            RecordingCameraShortcut.BlocksMovement(this) ||
             Time.timeScale <= 0f || AudioListener.pause) return;
         if (TutorialManager.Instance != null && TutorialManager.Instance.IsJumpLocked) return;
         // The controller can still report grounded during takeoff. Consume only

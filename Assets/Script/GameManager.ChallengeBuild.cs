@@ -41,6 +41,8 @@ public partial class GameManager
             (connection.Runner.LocalPlayer != host.Object.InputAuthority && connection.Runner.LocalPlayer != host.ChallengeState.Guest)) return false;
         if (mainCamera == null) return false;
 
+        // Capture the gameplay camera, not a detached recording shot, for the return view.
+        RecordingCameraShortcut.ReturnToPlayerForGameplayTransition();
         CurrentState = GameState.Building;
         ActiveBuildLocation = location;
         CurrentContract = location.activeContract;

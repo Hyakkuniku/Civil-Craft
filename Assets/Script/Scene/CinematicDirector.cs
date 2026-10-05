@@ -152,6 +152,8 @@ public class CinematicDirector : MonoBehaviour
 
     private IEnumerator CinematicRoutine()
     {
+        // Authored cinematics must inherit the ordinary gameplay return pose.
+        RecordingCameraShortcut.ReturnToPlayerForGameplayTransition();
         isPlaying = true;
         OnCinematicStarted?.Invoke();
 

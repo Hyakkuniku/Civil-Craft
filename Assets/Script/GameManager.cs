@@ -461,6 +461,8 @@ public partial class GameManager : MonoBehaviour
 
     private IEnumerator EnterBuildModeRoutine(BuildLocation location, Transform player)
     {
+        // Release the recording shot before the build transition captures its return pose.
+        RecordingCameraShortcut.ReturnToPlayerForGameplayTransition();
         isTransitioning = true;
         try
         {

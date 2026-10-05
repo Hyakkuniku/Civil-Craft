@@ -81,6 +81,7 @@ public class PlayerLook : MonoBehaviour
         // Lock orbit input only. Do not accumulate hidden yaw/pitch that would
         // suddenly rotate the camera when the tutorial unlocks looking.
         if (!canLook || cam == null || followTarget == null ||
+            RecordingCameraShortcut.OverridesLook(this) ||
             (TutorialManager.Instance != null && TutorialManager.Instance.IsLookLocked)) return;
 
         float mouseX = input.x;
@@ -101,6 +102,7 @@ public class PlayerLook : MonoBehaviour
 
     private void LateUpdate()
     {
+        if (RecordingCameraShortcut.OverridesLook(this)) return;
         // DO NOT move the camera if Build Mode is active and took control!
         if (!canLook || cam == null || followTarget == null)
         {
@@ -116,8 +118,11 @@ public class PlayerLook : MonoBehaviour
     /// <summary>Refresh the orbit camera after teleporting, even while input is locked.</summary>
     public void SnapToFollowTarget()
     {
+        if (RecordingCameraShortcut.OverridesLook(this)) return;
         UpdateCameraPosition(true);
     }
+
+    internal void ReleaseOrbitForRecording() => RestoreNearClipPlane();
 
     private void OnDisable()
     {

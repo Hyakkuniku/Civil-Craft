@@ -105,12 +105,13 @@ public class InputManager : MonoBehaviour
 
     public Vector2 ReadMovementInput()
     {
-        return IsPlayerInputEnabled ? onFoot.Movement.ReadValue<Vector2>() : Vector2.zero;
+        return IsPlayerInputEnabled && !RecordingCameraShortcut.BlocksMovement(this)
+            ? onFoot.Movement.ReadValue<Vector2>() : Vector2.zero;
     }
 
     public Vector2 ReadLookInput()
     {
-        if (!IsPlayerInputEnabled) return Vector2.zero;
+        if (!IsPlayerInputEnabled || RecordingCameraShortcut.OverridesLook(look)) return Vector2.zero;
         Vector2 lookInput = Vector2.zero;
 
         // TouchLookInput owns mobile swipes. On desktop, only sample the Look action's
@@ -173,6 +174,7 @@ public class InputManager : MonoBehaviour
 
     private void ApplyCursorState()
     {
+        if (RecordingCameraShortcut.OwnsFreeCameraCursor(this)) return;
         bool shouldLock = lockCursorForMouseLook &&
                           !IsUsingMobileControls &&
                           Mouse.current != null &&
@@ -180,7 +182,7 @@ public class InputManager : MonoBehaviour
                           isActiveAndEnabled &&
                           onFoot.enabled &&
                           look != null &&
-                          look.canLook;
+                          look.canLook && !RecordingCameraShortcut.OverridesLook(look);
 
         if (shouldLock)
         {

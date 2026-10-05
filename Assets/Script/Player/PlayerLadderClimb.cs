@@ -94,6 +94,7 @@ public class PlayerLadderClimb : MonoBehaviour
     // --- MOBILE INPUT INTEGRATION ---
     private float GetVerticalInput()
     {
+        if (RecordingCameraShortcut.BlocksMovement(this)) return 0f;
         if (inputManager != null)
         {
             // We read the exact same Vector2 your PlayerMotor uses, but we only grab the 'y' (Up/Down) axis!
