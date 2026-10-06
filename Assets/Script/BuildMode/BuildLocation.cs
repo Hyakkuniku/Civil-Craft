@@ -130,6 +130,7 @@ public class BuildLocation : Interactable
 
     private void Awake()
     {
+        BuildGridRendering.Ensure(gridImage);
         if (IsSessionChallengeLocation) return;
         if (buildModeOnlyStarterBridge == null)
             buildModeOnlyStarterBridge = FindStarterBridgeAtAnchors();
@@ -676,7 +677,7 @@ public class BuildLocation : Interactable
         RestoreUnfinishedBridgeDraft();
 
         BarCreator barCreator = FindObjectOfType<BarCreator>(true);
-        if (gridImage != null) gridImage.enabled = (barCreator != null && barCreator.isGridSnappingEnabled);
+        SetGridVisualActive(barCreator != null && barCreator.isGridSnappingEnabled);
 
         MagnifyingGlassController magnifier = FindObjectOfType<MagnifyingGlassController>(true);
         if (magnifier != null) magnifier.RefreshForActiveBuildLocation();
@@ -1164,7 +1165,11 @@ public class BuildLocation : Interactable
     }
 
     public bool IsGridVisualActive => gridImage != null && gridImage.enabled;
-    public void SetGridVisualActive(bool isActive) { if (gridImage != null) gridImage.enabled = isActive; }
+    public void SetGridVisualActive(bool isActive)
+    {
+        BuildGridRendering.Ensure(gridImage);
+        if (gridImage != null) gridImage.enabled = isActive;
+    }
 
     public bool Owns(Point point)
     {
