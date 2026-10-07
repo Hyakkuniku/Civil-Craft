@@ -327,6 +327,8 @@ public class Bar : MonoBehaviour
 
     [SerializeField, HideInInspector] private BuildLocation ownerLocation;
     public BuildLocation OwnerLocation => ownerLocation;
+    // Runtime-only identity: a held clipboard copy is a visual, not construction.
+    public bool IsConstructionPreview { get; private set; }
 
     [HideInInspector] public Vector3 preSimPos;
     [HideInInspector] public Quaternion preSimRot;
@@ -417,6 +419,14 @@ public class Bar : MonoBehaviour
         {
             baseLength = Mathf.Max(0.01f, savedLength);
         }
+    }
+
+    public void MarkAsConstructionPreview()
+    {
+        IsConstructionPreview = true;
+        // ClipboardManager explicitly drives the mesh/length updates. Keep this
+        // visual out of normal bar behaviour without hiding its renderers.
+        enabled = false;
     }
 
     public void AssignOwner(BuildLocation location, bool overwriteExisting = false)

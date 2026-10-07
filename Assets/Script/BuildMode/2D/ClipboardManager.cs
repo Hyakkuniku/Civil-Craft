@@ -621,6 +621,7 @@ public class ClipboardManager : MonoBehaviour
             GameObject gb = Instantiate(barCreator.barToInstantiate, barCreator.barParent);
             gb.name = "GhostPasteBar";
             Bar bar = gb.GetComponent<Bar>();
+            bar.MarkAsConstructionPreview();
             bar.Initialize(cb.mat);
             ghostPasteBars.Add(bar);
         }

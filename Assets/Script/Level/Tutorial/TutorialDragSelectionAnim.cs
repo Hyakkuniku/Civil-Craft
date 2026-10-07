@@ -313,9 +313,16 @@ public class TutorialDragSelectionAnim : MonoBehaviour
             : new Bounds(Vector3.zero, Vector3.one);
 
         visualRenderers = GetComponentsInChildren<Renderer>(true);
+        // The transparent selection demonstration must render after the solid
+        // blueprint backdrop, just like the tutorial's reference bridge.
+        // Configure once; keep its authored alpha, depth test and visibility rules.
+        TutorialGhostRendering rendering = TutorialGhostRendering.Ensure(gameObject);
         authoredRendererStates = new bool[visualRenderers.Length];
         for (int i = 0; i < visualRenderers.Length; i++)
+        {
             authoredRendererStates[i] = visualRenderers[i] != null && visualRenderers[i].enabled;
+            rendering.Configure(visualRenderers[i]);
+        }
 
         initialized = true;
 

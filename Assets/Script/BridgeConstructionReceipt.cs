@@ -8,14 +8,14 @@ public sealed class BridgeConstructionReceipt
     public IReadOnlyDictionary<BridgeMaterialSO, float> MaterialMeters => materialMeters;
     public float TotalCost { get; private set; }
 
-    public static bool IsLogicalMember(Bar bar) => bar != null &&
+    public static bool IsLogicalMember(Bar bar) => bar != null && !bar.IsConstructionPreview &&
         (bar.transform.parent == null || bar.transform.parent.GetComponentInParent<Bar>() == null);
 
     public static float ConstructionLength(Bar bar) => bar.startPoint != null && bar.endPoint != null
         ? Vector3.Distance(bar.startPoint.transform.position, bar.endPoint.transform.position)
         : Mathf.Max(0f, bar.currentLength);
 
-    public static float ConstructionCost(Bar bar) => bar != null && bar.materialData != null
+    public static float ConstructionCost(Bar bar) => bar != null && !bar.IsConstructionPreview && bar.materialData != null
         ? ConstructionLength(bar) * bar.materialData.costPerMeter * (bar.materialData.isDualBeam ? 2 : 1) : 0f;
 
     public static BridgeConstructionReceipt Capture(BuildLocation location, IEnumerable<Bar> candidates,

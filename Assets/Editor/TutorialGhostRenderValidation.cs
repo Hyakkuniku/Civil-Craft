@@ -54,7 +54,7 @@ public static class TutorialGhostRenderValidation
             return;
         }
         running = true;
-        var report = new StringBuilder("RUNNING: Isolated authored ghost material / blueprint render regression.\n");
+        var report = new StringBuilder("RUNNING: Isolated authored ghost and selection indicator / blueprint render regression.\n");
         var scenes = new Dictionary<int, SceneState>();
         for (int i = 0; i < SceneManager.sceneCount; i++)
         {
@@ -202,6 +202,9 @@ public static class TutorialGhostRenderValidation
             Check(left.sharedMaterial == source && right.sharedMaterial == source && owned == null,
                 "Teardown failed to restore original renderer materials or release copies.");
             report.AppendLine("PASS: Bhan 1/2-style containers are isolated; repeated/replayed Configure reuses copies, source shader/keywords/alpha/depth/texture remain intact, non-ghost slots untouched, and teardown restores only owned slots.");
+            first.SetActive(false);
+            root.SetActive(false);
+            ValidateSelectionIndicator(preview, camera, canvas, originals, report);
             passed = true;
         }
         catch (Exception exception)
@@ -244,6 +247,106 @@ public static class TutorialGhostRenderValidation
             File.WriteAllText(ReportPath, report.ToString());
             if (passed) Debug.Log("[Tutorial ghost rendering] PASS. Report: " + ReportPath);
         }
+    }
+
+    private static void ValidateSelectionIndicator(Scene scene, Camera camera, Canvas canvas,
+        Dictionary<Material, string> originals, StringBuilder report)
+    {
+        Material source = AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/LOCKED.mat");
+        Check(source != null && source.shader != null && source.renderQueue == 3000,
+            "The authored selection indicator material must exist at queue 3000.");
+        originals.Add(source, EditorJsonUtility.ToJson(source));
+        FieldInfo activeField = typeof(TutorialDragSelectionAnim).GetField("activeIndicator", BindingFlags.NonPublic | BindingFlags.Static);
+        Check(activeField != null, "Selection indicator active-instance field missing.");
+        object originalActive = activeField.GetValue(null);
+        GameObject parent = NewRoot("Selection indicator fixture", scene);
+        Component rendering = null;
+        try
+        {
+            Renderer visual = Cube(scene, parent.transform, "Authored selection cube", new Vector3(-3f, 0f, 0f), source);
+            visual.transform.localRotation = Quaternion.Euler(0f, 0f, 12f);
+            Vector3 position = visual.transform.localPosition, scale = visual.transform.localScale;
+            Quaternion rotation = visual.transform.localRotation;
+            Renderer authoredHidden = Cube(scene, visual.transform, "Intentionally hidden child", Vector3.zero, source);
+            authoredHidden.enabled = false;
+            // Physics is not under test. Check only colliders retained by the
+            // preview primitives; do not mix 2D/3D colliders on one object.
+            Collider[] fixtureColliders = visual.GetComponentsInChildren<Collider>(true);
+            Collider2D[] fixtureColliders2D = visual.GetComponentsInChildren<Collider2D>(true);
+            Color32[] before = Render(camera, canvas, "Temp/TutorialSelectionRender_before.png");
+            Check(Distance(Pixel(before, 185, 180), Pixel(before, 320, 180)) < 8,
+                "Selection fixture does not reproduce the hidden queue-3000 indicator.");
+            TutorialDragSelectionAnim indicator = visual.gameObject.AddComponent<TutorialDragSelectionAnim>();
+            InvokePrivate(indicator, "OnEnable");
+            InvokePrivate(indicator, "Start"); // Calls the real CaptureAuthoredTransform integration.
+            rendering = indicator.GetComponent<TutorialGhostRendering>();
+            Material owned = visual.sharedMaterial;
+            Check(rendering != null && owned != source && owned.renderQueue == TutorialGhostRendering.GhostRenderQueue,
+                "Selection animation Start did not configure its renderer above the blueprint.");
+            Check(owned.shader == source.shader && owned.GetColor("_BaseColor") == source.GetColor("_BaseColor") &&
+                owned.GetFloat("_ZWrite") == source.GetFloat("_ZWrite"), "Selection shader/alpha/depth settings changed.");
+            Check(indicator.FinalSceneScale == scale && visual.transform.localScale == scale * indicator.startScaleMultiplier,
+                "Selection animation lost the authored scale or initial growth multiplier.");
+            foreach (Collider collider in fixtureColliders)
+                Check(collider == null || !collider.enabled, "Selection demonstration 3D collider remains enabled.");
+            foreach (Collider2D collider in fixtureColliders2D)
+                Check(collider == null || !collider.enabled, "Selection demonstration 2D collider remains enabled.");
+            Check(!authoredHidden.enabled && authoredHidden.sharedMaterial == owned,
+                "Selection integration did not preserve authored hidden visuals/shared-copy reuse.");
+            InvokePrivate(indicator, "ApplyGrowth", 1f);
+            Color32[] shown = Render(camera, canvas, "Temp/TutorialSelectionRender_after.png");
+            Check(Distance(Pixel(before, 185, 180), Pixel(shown, 185, 180)) > 15,
+                "The real selection animation remains hidden in the orthographic URP render.");
+            TutorialDragSelectionAnim.NotifySelectionDragStarted();
+            Check(!visual.enabled && !authoredHidden.enabled, "The selection example did not hide while the player drags.");
+            Color32[] dragging = Render(camera, canvas, "Temp/TutorialSelectionRender_dragging.png");
+            Check(Distance(Pixel(before, 185, 180), Pixel(dragging, 185, 180)) < 8,
+                "Selection example remains visible while the player draws their own selection.");
+            // Exercise only the failed-drag recovery, without touching a real
+            // BarCreator, tutorial singleton, selection graph, or step events.
+            InvokePrivate(indicator, "RestoreAfterFailedSelection");
+            Check(visual.enabled && !authoredHidden.enabled && visual.transform.localScale == scale * indicator.startScaleMultiplier,
+                "Failed selection did not restart the example and restore only authored-visible renderers.");
+            InvokePrivate(indicator, "ApplyGrowth", 1f);
+            Color32[] restored = Render(camera, canvas, "Temp/TutorialSelectionRender_restored.png");
+            Check(Distance(Pixel(shown, 185, 180), Pixel(restored, 185, 180)) < 8,
+                "Failed-selection recovery did not restore the visible animated reference.");
+            for (int i = 0; i < 3; i++)
+            {
+                indicator.Hide();
+                Check(!indicator.gameObject.activeSelf && visual.transform.localPosition == position &&
+                    visual.transform.localScale == scale && Quaternion.Angle(visual.transform.localRotation, rotation) < .001f,
+                    "Hide did not restore the selection cube's authored final transform.");
+                indicator.Show();
+                Check(visual.enabled && !authoredHidden.enabled && visual.sharedMaterial == owned &&
+                    indicator.GetComponents<TutorialGhostRendering>().Length == 1, "Selection replay changed visibility or duplicated its render owner/material.");
+                InvokePrivate(indicator, "ApplyGrowth", 1f);
+                Check(visual.transform.localScale == scale && visual.transform.localPosition == position,
+                    "Selection replay growth no longer reaches the authored final volume.");
+            }
+            DestroyOwner(rendering);
+            rendering = null;
+            Check(visual.sharedMaterial == source && authoredHidden.sharedMaterial == source && owned == null,
+                "Selection render owner teardown did not restore source material slots/release its copy.");
+            report.AppendLine("PASS: Actual LOCKED-material selection animation reproduces hidden-before, visible-after, hidden-during-player-drag and visible-after-failed-drag renders. Show/Hide replay retains one material copy and authored final volume; authored-disabled visuals remain hidden and any existing fixture colliders are disabled.");
+        }
+        finally
+        {
+            try
+            {
+                if (rendering == null) rendering = parent.GetComponentInChildren<TutorialGhostRendering>(true);
+                if (rendering != null) DestroyOwner(rendering);
+                Object.DestroyImmediate(parent);
+            }
+            finally { activeField.SetValue(null, originalActive); }
+        }
+    }
+
+    private static void InvokePrivate(object target, string methodName, params object[] arguments)
+    {
+        MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.NonPublic | BindingFlags.Instance);
+        Check(method != null, "Selection animation method missing: " + methodName);
+        method.Invoke(target, arguments);
     }
 
     private static GameObject NewRoot(string name, Scene scene)
