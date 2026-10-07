@@ -21,6 +21,11 @@ public sealed class AuthoredNoticeDialog : MonoBehaviour
 
     public bool IsVisible => gameObject.activeInHierarchy;
 
+    private void OnEnable()
+    {
+        UIReservedRegionLayout.Register(transform as RectTransform);
+    }
+
     public bool Show(string title, string message, Action onSwitchAccount, Action onLogout)
     {
         if (titleText == null || messageText == null || closeButton == null ||
@@ -82,6 +87,7 @@ public sealed class AuthoredNoticeDialog : MonoBehaviour
 
     private void OnDisable()
     {
+        UIReservedRegionLayout.Unregister(transform as RectTransform);
         ClearActions();
         RestoreSelection();
     }

@@ -5,8 +5,8 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Global, queued achievement toast using authored UI. Dialogue takes priority;
-/// notifications wait or pause until its closing animation has finished.
+/// Global, queued passive toast using authored UI. Important panels take priority;
+/// a toast uses clear space at the top or waits without losing its readable time.
 /// </summary>
 [DisallowMultipleComponent]
 public sealed class AchievementPopupNotification : MonoBehaviour
@@ -39,8 +39,20 @@ public sealed class AchievementPopupNotification : MonoBehaviour
     [Min(0.25f)] [SerializeField] private float visibleDuration = 3.5f;
 
     [Header("Position")]
+    [Tooltip("Horizontal offset from safe-area center and inset from its top edge, in Canvas units.")]
     [SerializeField] private Vector2 visiblePosition = new Vector2(0f, 28f);
     [SerializeField] private Vector2 hiddenPosition = new Vector2(0f, -180f);
+    [Tooltip("Safe-area inset in Canvas units. The notification never moves into the central play area.")]
+    [SerializeField, Min(0f)] private float screenEdgeMargin = 16f;
+    [Tooltip("Space kept between the notification and visible controls/panels, in Canvas units.")]
+    [SerializeField, Min(0f)] private float protectedPanelGap = 12f;
+    private Vector2 settledPosition;
+    private bool hasSettledPlacement;
+    private Vector2 preferredScreenCenter;
+    private int preferredScreenWidth = -1, preferredScreenHeight = -1;
+    private Rect preferredSafeArea, preferredPopupBounds;
+    private float preferredCanvasScale = -1f;
+    private float nextPlacementRetryTime;
 
     [Header("Achievement Colors")]
     [SerializeField] private Color backgroundColor = new Color32(249, 235, 206, 255);
@@ -122,6 +134,9 @@ public sealed class AchievementPopupNotification : MonoBehaviour
         }
 
         popupRoot.SetActive(false);
+        foreach (Graphic graphic in popupRoot.GetComponentsInChildren<Graphic>(true))
+            graphic.raycastTarget = false;
+        UIReservedRegionLayout.Register(popupRect);
         while (deferredNotifications.Count > 0)
             QueueNotification(deferredNotifications.Dequeue());
     }
@@ -130,16 +145,21 @@ public sealed class AchievementPopupNotification : MonoBehaviour
     {
         Canvas.willRenderCanvases -= ForceAbsoluteOverlay;
         Canvas.willRenderCanvases += ForceAbsoluteOverlay;
+        UIReservedRegionLayout.LayoutChanging -= ResetPlacementRetry;
+        UIReservedRegionLayout.LayoutChanging += ResetPlacementRetry;
     }
 
     private void OnDisable()
     {
         Canvas.willRenderCanvases -= ForceAbsoluteOverlay;
+        UIReservedRegionLayout.LayoutChanging -= ResetPlacementRetry;
     }
 
     private void OnDestroy()
     {
         Canvas.willRenderCanvases -= ForceAbsoluteOverlay;
+        UIReservedRegionLayout.LayoutChanging -= ResetPlacementRetry;
+        UIReservedRegionLayout.Unregister(popupRect);
         if (Instance == this) Instance = null;
     }
 
@@ -205,7 +225,7 @@ public sealed class AchievementPopupNotification : MonoBehaviour
         });
     }
 
-    /// <summary>Shows a guaranteed top-most toast for newly saved Almanac content.</summary>
+    /// <summary>Queues a passive toast for newly saved Almanac content.</summary>
     public static void NotifyAlmanacEntry(
         string entryName,
         string entryType,
@@ -267,44 +287,51 @@ public sealed class AchievementPopupNotification : MonoBehaviour
     {
         while (pendingNotifications.Count > 0)
         {
-            // Do not dequeue until the whole conversation (including its close) is clear.
-            while (DialogueManager.IsAnyDialogueVisible) yield return null;
+            // Measure the existing card invisibly before consuming the queue entry.
+            // UI changes cannot drop an unlock or use up its readable duration.
+            popupGroup.alpha = 0f;
+            popupRoot.SetActive(true);
+            hasSettledPlacement = false;
+            nextPlacementRetryTime = 0f;
+            while (!TryPresentPopup())
+            {
+                ForceAbsoluteOverlay();
+                yield return null;
+            }
             PopupRequest request = pendingNotifications.Dequeue();
             Populate(request);
             ForceAbsoluteOverlay();
-            popupRoot.SetActive(true);
             popupRoot.transform.SetAsLastSibling();
-            popupGroup.alpha = 0f;
-            popupRect.anchoredPosition = SafePosition(hiddenPosition);
 
-            yield return AnimatePopup(hiddenPosition, visiblePosition, 0f, 1f);
+            yield return AnimatePopup(0f, 1f);
             yield return HoldPopup();
-            yield return AnimatePopup(visiblePosition, hiddenPosition, 1f, 0f);
+            yield return AnimatePopup(1f, 0f);
 
             popupRoot.SetActive(false);
+            popupRect.anchoredPosition = SafePosition(hiddenPosition);
             yield return new WaitForSecondsRealtime(0.12f);
         }
 
         notificationRoutine = null;
     }
 
-    private IEnumerator AnimatePopup(Vector2 from, Vector2 to, float fromAlpha, float toAlpha)
+    private IEnumerator AnimatePopup(float fromAlpha, float toAlpha)
     {
         float elapsed = 0f;
         float duration = Mathf.Max(0.05f, slideDuration);
         while (elapsed < duration)
         {
             ForceAbsoluteOverlay();
-            if (DialogueManager.IsAnyDialogueVisible) { yield return null; continue; }
+            if (!popupCanvas.enabled) { yield return null; continue; }
             elapsed += Time.unscaledDeltaTime;
             float normalized = Mathf.Clamp01(elapsed / duration);
             float eased = normalized * normalized * (3f - 2f * normalized);
-            popupRect.anchoredPosition = Vector2.LerpUnclamped(SafePosition(from), SafePosition(to), eased);
+            // Fade at the settled clear position: a slide across the HUD would
+            // temporarily cover controls even though its final position is safe.
             popupGroup.alpha = Mathf.LerpUnclamped(fromAlpha, toAlpha, eased);
             yield return null;
         }
 
-        popupRect.anchoredPosition = SafePosition(to);
         popupGroup.alpha = toAlpha;
     }
 
@@ -314,11 +341,69 @@ public sealed class AchievementPopupNotification : MonoBehaviour
         while (elapsed < visibleDuration)
         {
             ForceAbsoluteOverlay();
-            popupRect.anchoredPosition = SafePosition(visiblePosition);
-            if (!DialogueManager.IsAnyDialogueVisible) elapsed += Time.unscaledDeltaTime;
+            if (popupCanvas.enabled) elapsed += Time.unscaledDeltaTime;
             yield return null;
         }
     }
+
+    private static bool PriorityUIVisible =>
+        DialogueManager.IsAnyDialogueVisible || LoadingScreenManager.IsLoading ||
+        UIReservedRegionLayout.IsLayoutTransitioning || SessionChatUI.IsOpen || TouchScreenKeyboard.visible ||
+        MultiplayerChallengeLobbyUI.IsSubmissionConfirmationOpen ||
+        MultiplayerChallengeLobbyUI.IsLeaveConfirmationOpen ||
+        (UIPanelCoordinator.Instance != null && UIPanelCoordinator.Instance.HasOpenPanel) ||
+        (PauseManager.Instance != null && PauseManager.Instance.isPaused) ||
+        (LessonUIManager.Instance != null && LessonUIManager.Instance.IsOpen) ||
+        (GameManager.Instance != null && GameManager.Instance.IsTransitioning) ||
+        (FusionConnectionManager.Instance != null && FusionConnectionManager.Instance.IsNetworkSceneLoading) ||
+        (ClipboardManager.Instance != null && ClipboardManager.Instance.overrideConfirmPanel != null &&
+         ClipboardManager.Instance.overrideConfirmPanel.activeInHierarchy);
+
+    private bool TryPresentPopup()
+    {
+        if (PriorityUIVisible || popupRoot == null || !popupRoot.activeSelf ||
+            popupRect == null || popupCanvas == null) return false;
+        // A busy build HUD can leave the top occupied for a long time. Retry
+        // that search at 8 Hz, while priority changes still suppress immediately.
+        if (Time.unscaledTime < nextPlacementRetryTime) return false;
+
+        float scale = Mathf.Max(.01f, popupCanvas.scaleFactor);
+        Rect safe = Screen.safeArea;
+        if (safe.width <= 0f || safe.height <= 0f)
+            safe = new Rect(0f, 0f, Screen.width, Screen.height);
+        if (preferredScreenWidth != Screen.width || preferredScreenHeight != Screen.height ||
+            preferredSafeArea != safe || preferredPopupBounds != popupRect.rect ||
+            !Mathf.Approximately(preferredCanvasScale, scale))
+        {
+            bool measured = UIReservedRegionLayout.TryGetScreenRect(popupRect, out Rect bounds);
+            if (!measured) return false;
+            // Older scene/prefab cards are bottom-anchored. Position from measured
+            // screen bounds instead, so they still appear at the top without
+            // rewriting authored anchors or saving scenes.
+            float topInset = Mathf.Max(screenEdgeMargin, Mathf.Abs(visiblePosition.y)) * scale;
+            preferredScreenCenter = new Vector2(safe.center.x + visiblePosition.x * scale,
+                safe.yMax - topInset - bounds.height * .5f);
+            preferredScreenWidth = Screen.width;
+            preferredScreenHeight = Screen.height;
+            preferredSafeArea = safe;
+            preferredPopupBounds = popupRect.rect;
+            preferredCanvasScale = scale;
+        }
+
+        if (hasSettledPlacement) popupRect.anchoredPosition = settledPosition;
+        if (!UIReservedRegionLayout.TryFindTopEdgePlacement(popupRect, preferredScreenCenter,
+                hasSettledPlacement, screenEdgeMargin * scale, protectedPanelGap * scale,
+                out Vector2 center) || !UIReservedRegionLayout.TrySetScreenCenter(popupRect, center))
+        {
+            nextPlacementRetryTime = Time.unscaledTime + .12f;
+            return false;
+        }
+        settledPosition = popupRect.anchoredPosition;
+        hasSettledPlacement = true;
+        return true;
+    }
+
+    private void ResetPlacementRetry() => nextPlacementRetryTime = 0f;
 
     private Vector2 SafePosition(Vector2 position)
     {
@@ -331,17 +416,14 @@ public sealed class AchievementPopupNotification : MonoBehaviour
 
     /// <summary>
     /// Reasserted immediately before Canvas rendering and every visible frame.
-    /// This protects the toast from modal managers that disable/sort canvases
-    /// after the achievement was queued.
+    /// Priority state and actual panel/control bounds are rechecked at render time
+    /// too, so a panel opened later in this frame still takes precedence.
     /// </summary>
     private void ForceAbsoluteOverlay()
     {
         if (popupCanvas == null) popupCanvas = GetComponent<Canvas>();
         if (popupCanvas == null) return;
 
-        // Suppress even if dialogue opened after the coroutine/LateUpdate this frame.
-        // The queue and animation clock remain intact; no conversation input is consumed.
-        popupCanvas.enabled = !DialogueManager.IsAnyDialogueVisible;
         popupCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
         popupCanvas.worldCamera = null;
         popupCanvas.overrideSorting = true;
@@ -352,6 +434,7 @@ public sealed class AchievementPopupNotification : MonoBehaviour
         // this canvas persists between scenes, one bad source scene would make
         // every later notification run correctly but remain invisible.
         transform.localScale = Vector3.one;
+        popupCanvas.enabled = TryPresentPopup();
 
         if (popupGroup != null)
         {

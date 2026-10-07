@@ -1,5 +1,8 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
+using UnityEngine.InputSystem.OnScreen;
+using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Screen-space reservations shared by scene-authored tutorial panels, inspection
@@ -12,6 +15,10 @@ public static class UIReservedRegionLayout
     private static readonly HashSet<RectTransform> reservedRects = new HashSet<RectTransform>();
     private static readonly List<Rect> occupiedScreenRects = new List<Rect>(8);
     private static readonly Vector3[] worldCorners = new Vector3[4];
+    private static readonly List<float> edgeCandidateYs = new List<float>(16);
+    private static Selectable[] selectableBuffer = new Selectable[32];
+    private static readonly List<RectTransform> touchControlRegions = new List<RectTransform>(4);
+    private static bool touchControlsCached;
     private static float transitionUntil;
     public static event System.Action LayoutChanging;
 
@@ -21,6 +28,10 @@ public static class UIReservedRegionLayout
         transitionUntil = 0f;
         reservedRects.Clear();
         occupiedScreenRects.Clear();
+        touchControlRegions.Clear();
+        touchControlsCached = false;
+        SceneManager.sceneLoaded -= InvalidateTouchControls;
+        SceneManager.sceneLoaded += InvalidateTouchControls;
         LayoutChanging = null;
     }
 
@@ -57,13 +68,145 @@ public static class UIReservedRegionLayout
         if (rect == null || !rect.gameObject.activeInHierarchy) return false;
 
         bool hasCanvas = false;
+        bool checkParentOpacity = true;
+        float opacity = 1f;
         for (Transform parent = rect; parent != null; parent = parent.parent)
         {
+            if (checkParentOpacity && parent.TryGetComponent(out CanvasGroup group))
+            {
+                opacity *= group.alpha;
+                if (opacity <= .001f) return false;
+                if (group.ignoreParentGroups) checkParentOpacity = false;
+            }
             if (!parent.TryGetComponent(out Canvas canvas)) continue;
             hasCanvas = true;
             if (!canvas.isActiveAndEnabled) return false;
         }
         return hasCanvas;
+    }
+
+    /// <summary>
+    /// A passive notification uses only the top screen edge, never the bottom or
+    /// central play area. Registered panels and active controls take priority.
+    /// Geometry can be measured while the item's own CanvasGroup is faded out.
+    /// </summary>
+    public static bool TryFindTopEdgePlacement(RectTransform item, Vector2 preferredCenter,
+        bool keepCurrentIfSafe, float edgeMarginPixels, float regionGapPixels,
+        out Vector2 chosenCenter)
+    {
+        chosenCenter = preferredCenter;
+        if (!TryGetScreenRect(item, out Rect itemRect)) return false;
+        Rect safe = Screen.safeArea;
+        if (safe.width <= 0f || safe.height <= 0f)
+            safe = new Rect(0f, 0f, Screen.width, Screen.height);
+        float edge = Mathf.Max(0f, edgeMarginPixels);
+        safe = Rect.MinMaxRect(safe.xMin + edge, safe.yMin + edge,
+            safe.xMax - edge, safe.yMax - edge);
+        float halfWidth = itemRect.width * .5f, halfHeight = itemRect.height * .5f;
+        if (safe.width < itemRect.width || safe.height < itemRect.height) return false;
+
+        float gap = Mathf.Max(0f, regionGapPixels);
+        GatherReservations(item, gap);
+        GatherActiveControls(item, gap);
+        GatherTouchControls(item, gap);
+        BuildUIController buildUI = BuildUIController.Instance;
+        if (buildUI != null && buildUI.actionLogText != null && buildUI.actionLogText.enabled &&
+            !string.IsNullOrEmpty(buildUI.actionLogText.text))
+            AddReservation(item, buildUI.actionLogText.rectTransform, gap);
+
+        if (keepCurrentIfSafe && FitsTopEdge(itemRect.center, halfWidth, halfHeight, safe))
+        {
+            chosenCenter = itemRect.center;
+            return true;
+        }
+        Vector2 preferred = new Vector2(
+            Mathf.Clamp(preferredCenter.x, safe.xMin + halfWidth, safe.xMax - halfWidth),
+            Mathf.Clamp(preferredCenter.y, safe.yMin + halfHeight, safe.yMax - halfHeight));
+        if (FitsTopEdge(preferred, halfWidth, halfHeight, safe))
+        {
+            chosenCenter = preferred;
+            return true;
+        }
+
+        edgeCandidateYs.Clear();
+        edgeCandidateYs.Add(preferred.y);
+        edgeCandidateYs.Add(safe.yMax - halfHeight);
+        foreach (Rect occupied in occupiedScreenRects)
+        {
+            edgeCandidateYs.Add(occupied.yMax + halfHeight + 1f);
+            edgeCandidateYs.Add(occupied.yMin - halfHeight - 1f);
+        }
+        bool found = false;
+        float bestDistance = float.PositiveInfinity;
+        for (int column = 0; column < 3; column++)
+        {
+            float x = column == 0 ? preferred.x : column == 1
+                ? safe.xMin + halfWidth : safe.xMax - halfWidth;
+            foreach (float y in edgeCandidateYs)
+            {
+                Vector2 candidate = new Vector2(x, y);
+                if (!FitsTopEdge(candidate, halfWidth, halfHeight, safe)) continue;
+                float distance = (candidate - preferredCenter).sqrMagnitude;
+                if (found && distance >= bestDistance) continue;
+                found = true;
+                bestDistance = distance;
+                chosenCenter = candidate;
+            }
+        }
+        return found;
+    }
+
+    private static bool FitsTopEdge(Vector2 center, float halfWidth, float halfHeight, Rect safe)
+    {
+        float band = safe.height * .30f;
+        bool atEdge = center.y - halfHeight >= safe.yMax - band - .5f;
+        return atEdge && Fits(center, halfWidth, halfHeight, safe);
+    }
+
+    private static void GatherActiveControls(RectTransform item, float gap)
+    {
+        int count = Selectable.allSelectableCount;
+        if (selectableBuffer.Length < count)
+            selectableBuffer = new Selectable[Mathf.NextPowerOfTwo(count)];
+        count = Selectable.AllSelectablesNoAlloc(selectableBuffer);
+        for (int index = 0; index < count; index++)
+        {
+            Selectable control = selectableBuffer[index];
+            if (control != null) AddReservation(item, control.transform as RectTransform, gap);
+            selectableBuffer[index] = null;
+        }
+    }
+
+    private static void AddReservation(RectTransform item, RectTransform region, float gap)
+    {
+        if (region == null || region == item || region.IsChildOf(item) || item.IsChildOf(region) ||
+            !IsRenderable(region) || !TryGetScreenRect(region, out Rect bounds)) return;
+        occupiedScreenRects.Add(Expand(bounds, gap));
+    }
+
+    private static void InvalidateTouchControls(Scene scene, LoadSceneMode mode)
+    {
+        touchControlsCached = false;
+    }
+
+    private static void GatherTouchControls(RectTransform item, float gap)
+    {
+        if (!touchControlsCached)
+        {
+            touchControlRegions.Clear();
+            // Joysticks are not Selectables. Discover their small visible bounds
+            // once per loaded scene, not with an object search every frame.
+            foreach (OnScreenStick stick in Object.FindObjectsOfType<OnScreenStick>(true))
+            {
+                RectTransform rect = stick.transform as RectTransform;
+                RectTransform parent = rect != null ? rect.parent as RectTransform : null;
+                if (parent != null && parent.GetComponent<Canvas>() == null &&
+                    parent.GetComponent<Image>() != null) rect = parent;
+                if (rect != null) touchControlRegions.Add(rect);
+            }
+            touchControlsCached = true;
+        }
+        foreach (RectTransform region in touchControlRegions) AddReservation(item, region, gap);
     }
 
     public static bool TryGetScreenRect(RectTransform rect, out Rect screenRect)

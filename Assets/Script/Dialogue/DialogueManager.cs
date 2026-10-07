@@ -11,6 +11,17 @@ public class DialogueManager : MonoBehaviour
     private static Sprite skipRoundedSprite;
     private static readonly HashSet<DialogueManager> knownManagers = new HashSet<DialogueManager>();
 
+    /// <summary>Input remains owned by a running conversation, not its closing animation.</summary>
+    public static bool IsAnyDialogueActive
+    {
+        get
+        {
+            foreach (DialogueManager manager in knownManagers)
+                if (manager != null && manager.isActiveAndEnabled && manager.isDialogueActive) return true;
+            return false;
+        }
+    }
+
     /// <summary>Includes the closing animation so bottom-screen toasts never cover a conversation.</summary>
     public static bool IsAnyDialogueVisible
     {
@@ -101,6 +112,7 @@ public class DialogueManager : MonoBehaviour
         playerInteract = FindObjectOfType<PlayerInteract>();
         playerUI = FindObjectOfType<PlayerUI>();
         ResolveDialogueBox();
+        PreserveDialogueAnimationState();
         ApplyLandscapeMobileLayout();
         EnsureSkipDialogueButton();
 
@@ -194,6 +206,7 @@ public class DialogueManager : MonoBehaviour
             ResolveSpeakerTransform(speakerAnimator, speakerTransform));
 
         ResolveDialogueBox();
+        PreserveDialogueAnimationState();
         ApplyReadableDialogueStyle();
         EnsureSkipDialogueButton();
         if (hideDialogueCoroutine != null)
@@ -233,6 +246,8 @@ public class DialogueManager : MonoBehaviour
 
     public void DisplayNextSentence ()
     {
+        if (!isDialogueActive || IsPaused) return;
+
         if (isTyping)
         {
             if (typingCoroutine != null) StopCoroutine(typingCoroutine);
@@ -269,10 +284,14 @@ public class DialogueManager : MonoBehaviour
 
         for (int i = 0; i <= totalVisibleCharacters; i++)
         {
+            // Multiplayer pause does not freeze the world's time scale. Keep
+            // this conversation's typewriter at the same character regardless.
+            while (IsPaused) yield return null;
             dialogueText.maxVisibleCharacters = i;
             yield return cachedTypingWait; 
         }
 
+        while (IsPaused) yield return null;
         isTyping = false;
     }
 
@@ -307,7 +326,7 @@ public class DialogueManager : MonoBehaviour
     /// <summary>Ends the complete current dialogue and invokes its completion flow once.</summary>
     public void SkipDialogue()
     {
-        if (!isDialogueActive) return;
+        if (!isDialogueActive || IsPaused) return;
 
         if (typingCoroutine != null)
         {
@@ -519,8 +538,12 @@ public class DialogueManager : MonoBehaviour
 
     private IEnumerator HideDialogueBoxAfterClose()
     {
-        if (closeHideDelay > 0f)
-            yield return new WaitForSecondsRealtime(closeHideDelay);
+        float elapsed = 0f;
+        while (elapsed < closeHideDelay || IsPaused)
+        {
+            if (!IsPaused) elapsed += Time.unscaledDeltaTime;
+            yield return null;
+        }
 
         if (dialogueBox != null)
             dialogueBox.SetActive(false);
@@ -532,6 +555,17 @@ public class DialogueManager : MonoBehaviour
         if (dialogueBox == null && animator != null)
             dialogueBox = animator.gameObject;
     }
+
+    private void PreserveDialogueAnimationState()
+    {
+        // Modal panels temporarily deactivate this box. Its controller defaults
+        // to the closed state, so preserve the current animation and isOpen bool
+        // instead of resetting an ongoing conversation when Pause closes.
+        if (animator != null)
+            animator.keepAnimatorStateOnDisable = true;
+    }
+
+    private static bool IsPaused => PauseManager.Instance != null && PauseManager.Instance.isPaused;
 
     private void EnsureSkipDialogueButton()
     {
@@ -798,6 +832,11 @@ public sealed class DialogueHoldToSkip : MonoBehaviour,
 
     private void Update()
     {
+        if (PauseManager.Instance != null && PauseManager.Instance.isPaused)
+        {
+            ResetHold();
+            return;
+        }
         if (!holding || completed || button == null || !button.IsInteractable()) return;
 
         heldTime += Time.unscaledDeltaTime;

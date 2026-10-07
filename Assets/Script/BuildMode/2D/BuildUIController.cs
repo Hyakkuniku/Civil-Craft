@@ -1028,6 +1028,15 @@ public class BuildUIController : MonoBehaviour
 
     private void RegisterActionLogProtectedRegions()
     {
+        UIReservedRegionLayout.Register(statsPanel != null
+            ? statsPanel.transform as RectTransform : null);
+        UIReservedRegionLayout.Register(liveBeamStatsPanel != null
+            ? liveBeamStatsPanel.transform as RectTransform : null);
+        UIReservedRegionLayout.Register(unlockMaterialPanel != null
+            ? unlockMaterialPanel.transform as RectTransform : null);
+        UIReservedRegionLayout.Register(timerPanel != null
+            ? timerPanel.transform as RectTransform : null);
+        UIReservedRegionLayout.Register(GetStressReadoutRegion());
         UIReservedRegionLayout.Register(EffectiveToolsPanel);
         UIReservedRegionLayout.Register(selectionActionPanel != null
             ? selectionActionPanel.transform as RectTransform : null);
@@ -1049,6 +1058,15 @@ public class BuildUIController : MonoBehaviour
 
     private void UnregisterActionLogProtectedRegions()
     {
+        UIReservedRegionLayout.Unregister(statsPanel != null
+            ? statsPanel.transform as RectTransform : null);
+        UIReservedRegionLayout.Unregister(liveBeamStatsPanel != null
+            ? liveBeamStatsPanel.transform as RectTransform : null);
+        UIReservedRegionLayout.Unregister(unlockMaterialPanel != null
+            ? unlockMaterialPanel.transform as RectTransform : null);
+        UIReservedRegionLayout.Unregister(timerPanel != null
+            ? timerPanel.transform as RectTransform : null);
+        UIReservedRegionLayout.Unregister(GetStressReadoutRegion());
         UIReservedRegionLayout.Unregister(EffectiveToolsPanel);
         UIReservedRegionLayout.Unregister(selectionActionPanel != null
             ? selectionActionPanel.transform as RectTransform : null);
@@ -1066,6 +1084,19 @@ public class BuildUIController : MonoBehaviour
         if (actionLogProtectedRegions == null) return;
         foreach (RectTransform region in actionLogProtectedRegions)
             UIReservedRegionLayout.Unregister(region);
+    }
+
+    private RectTransform GetStressReadoutRegion()
+    {
+        if (stressText == null) return null;
+        // Reserve the complete card, not just its inset label, without treating
+        // a full-screen Canvas wrapper as occupied when a scene has no card.
+        for (Transform parent = stressText.transform.parent; parent != null; parent = parent.parent)
+        {
+            if (parent.GetComponent<Canvas>() != null) break;
+            if (parent.GetComponent<Image>() != null) return parent as RectTransform;
+        }
+        return stressText.rectTransform;
     }
 
     private bool RefreshPreferredActionLogCenter()

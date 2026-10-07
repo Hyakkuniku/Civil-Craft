@@ -64,6 +64,8 @@ public class BuildTutorialDirector : MonoBehaviour
     [Min(0.01f)] public float pierXTolerance = 0.2f;
     [Tooltip("Release snap distance for the free endpoint. The starting endpoint must already match.")]
     [Min(0.01f)] public float snapTolerance = 0.5f;
+    [Tooltip("Maximum small translation of an old baked blueprint to match this site's live anchors. Does not move anchors or loosen tracing validation.")]
+    [SerializeField, Min(0.01f)] private float blueprintAnchorAlignmentDistance = 1.25f;
 
     [Header("Selection / Copy-Paste Tutorial")]
     [SerializeField] private string selectionTutorialLesson = "Sequence_Build2";
@@ -436,6 +438,7 @@ public class BuildTutorialDirector : MonoBehaviour
             }
         }
 
+        AlignGhostBlueprintToAnchors(activeTraceState.parent != null ? activeTraceState.parent.gameObject : null, activeGhosts);
         activeTraceState.completed = false;
         ResetGhostVisualState(activeTraceState);
 
@@ -491,19 +494,108 @@ public class BuildTutorialDirector : MonoBehaviour
 
         ghostContainer.SetActive(true);
         Transform root = ghostContainer.transform;
+        TutorialGhostRendering rendering = TutorialGhostRendering.Ensure(ghostContainer);
         GhostSegment[] ghosts = ghostContainer.GetComponentsInChildren<GhostSegment>(true);
         foreach (GhostSegment ghost in ghosts)
         {
             if (ghost == null) continue;
 
-            Transform current = ghost.transform;
-            while (current != null)
-            {
-                current.gameObject.SetActive(true);
-                if (current == root) break;
-                current = current.parent;
-            }
+            ActivateGhostPath(ghost.transform, root);
+            RestoreGhostRenderers(ghost.transform, rendering);
         }
+
+        foreach (Transform child in ghostContainer.GetComponentsInChildren<Transform>(true))
+        {
+            if (!child.name.Contains("Ghost_Point")) continue;
+            ActivateGhostPath(child, root);
+            RestoreGhostRenderers(child, rendering);
+        }
+    }
+
+    private static void ActivateGhostPath(Transform child, Transform root)
+    {
+        for (Transform current = child; current != null; current = current.parent)
+        {
+            current.gameObject.SetActive(true);
+            if (current == root) break;
+        }
+    }
+
+    private static void RestoreGhostRenderers(Transform root, TutorialGhostRendering rendering)
+    {
+        foreach (Renderer visual in root.GetComponentsInChildren<Renderer>(true))
+        {
+            ActivateGhostPath(visual.transform, root);
+            visual.enabled = true;
+            visual.forceRenderingOff = false;
+            rendering.Configure(visual);
+        }
+    }
+
+    private void AlignGhostBlueprintToAnchors(GameObject container, GhostSegment[] ghosts)
+    {
+        BuildLocation location = GameManager.Instance != null ? GameManager.Instance.ActiveBuildLocation : null;
+        if (container == null || location == null || container.scene != location.gameObject.scene) return;
+        var anchors = new List<Point>();
+        if (location.startingAnchors != null) anchors.AddRange(location.startingAnchors);
+        if (location.endingAnchors != null) anchors.AddRange(location.endingAnchors);
+        if (!TryGetBlueprintAnchorOffset(ghosts, anchors, blueprintAnchorAlignmentDistance,
+                Mathf.Max(.01f, endpointTolerance * .5f), out Vector3 offset)) return;
+
+        // Baked endpoint data is world-space, while mesh/point visuals inherit the
+        // container transform. Move both together; real bridge geometry stays put.
+        container.transform.position += offset;
+        foreach (GhostSegment ghost in ghosts)
+        {
+            if (ghost == null) continue;
+            ghost.startPos += offset;
+            ghost.endPos += offset;
+        }
+    }
+
+    private static bool TryGetBlueprintAnchorOffset(GhostSegment[] ghosts, List<Point> anchors,
+        float maximumDistance, float residualTolerance, out Vector3 offset)
+    {
+        offset = Vector3.zero;
+        if (ghosts == null || anchors == null || maximumDistance <= 0f) return false;
+        var endpoints = new HashSet<Vector3>();
+        foreach (GhostSegment ghost in ghosts)
+        {
+            if (ghost == null) continue;
+            endpoints.Add(ghost.startPos);
+            endpoints.Add(ghost.endPos);
+        }
+        var usedAnchors = new HashSet<Point>();
+        var usedEndpoints = new HashSet<Vector3>();
+        var corrections = new List<Vector3>();
+        foreach (Point anchor in anchors)
+        {
+            if (anchor == null || !usedAnchors.Add(anchor)) continue;
+            float bestDistance = maximumDistance;
+            Vector3 closest = Vector3.zero;
+            bool found = false;
+            foreach (Vector3 endpoint in endpoints)
+            {
+                if (usedEndpoints.Contains(endpoint)) continue;
+                float distance = Vector3.Distance(anchor.transform.position, endpoint);
+                if (distance > bestDistance) continue;
+                bestDistance = distance;
+                closest = endpoint;
+                found = true;
+            }
+            if (!found) continue;
+            usedEndpoints.Add(closest);
+            corrections.Add(anchor.transform.position - closest);
+        }
+        // One anchor cannot distinguish the intended bridge from a nearby ghost.
+        // Contradictory endpoints indicate a changed span, not a safe translation.
+        if (corrections.Count < 2) return false;
+        foreach (Vector3 correction in corrections) offset += correction;
+        offset /= corrections.Count;
+        foreach (Vector3 correction in corrections)
+            if (Vector3.Distance(correction, offset) > residualTolerance)
+            { offset = Vector3.zero; return false; }
+        return offset.sqrMagnitude > .000001f;
     }
 
     public void OnMaterialClicked(BridgeMaterialSO clickedMaterial)
@@ -747,9 +839,10 @@ public class BuildTutorialDirector : MonoBehaviour
 
         if (ghostContainer != null)
         {
-            ghostContainer.SetActive(true);
+            ActivateGhostHierarchy(ghostContainer);
             MakeGhostContainerNonBlocking(ghostContainer.transform);
             pasteTargetGhosts = ghostContainer.GetComponentsInChildren<GhostSegment>(true);
+            AlignGhostBlueprintToAnchors(ghostContainer, pasteTargetGhosts);
             foreach (GhostSegment ghost in pasteTargetGhosts)
                 if (ghost != null) ghost.gameObject.SetActive(true);
         }
@@ -1280,7 +1373,7 @@ public class BuildTutorialDirector : MonoBehaviour
 
         if (targetState.parent != null)
         {
-            targetState.parent.gameObject.SetActive(true);
+            ActivateGhostHierarchy(targetState.parent.gameObject);
             MakeGhostContainerNonBlocking(targetState.parent);
         }
 

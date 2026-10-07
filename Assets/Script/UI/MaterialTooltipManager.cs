@@ -31,6 +31,9 @@ public class MaterialTooltipManager : MonoBehaviour
     {
         Instance = this;
         if (tooltipPanel == null) return;
+        // Visibility is controlled by alpha, not activation. Reserve the authored
+        // card once; the shared layout ignores it while its CanvasGroup is hidden.
+        UIReservedRegionLayout.Register(tooltipPanel.transform as RectTransform);
         tooltipCanvasGroup = tooltipPanel.GetComponent<CanvasGroup>();
         if (tooltipCanvasGroup == null) tooltipCanvasGroup = tooltipPanel.AddComponent<CanvasGroup>();
         tooltipCanvasGroup.interactable = false;
@@ -40,6 +43,13 @@ public class MaterialTooltipManager : MonoBehaviour
         // Keep the authored hierarchy warm so opening it does not activate a
         // whole TMP/layout tree on the same frame as a touch.
         tooltipPanel.SetActive(true);
+    }
+
+    private void OnDestroy()
+    {
+        UIReservedRegionLayout.Unregister(tooltipPanel != null
+            ? tooltipPanel.transform as RectTransform : null);
+        if (Instance == this) Instance = null;
     }
 
     private void StyleMaterialCard()

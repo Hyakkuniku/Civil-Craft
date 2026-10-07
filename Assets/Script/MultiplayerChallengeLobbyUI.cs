@@ -95,6 +95,14 @@ public sealed partial class MultiplayerChallengeLobbyUI : MonoBehaviour
     private void Awake()
     {
         InitializeAuthoredPresentation();
+        // These lightweight overlays do not open through UIPanelCoordinator.
+        // Their authored bounds still take priority over queued notifications.
+        UIReservedRegionLayout.Register(testIntroductionPanel != null
+            ? testIntroductionPanel.transform as RectTransform : null);
+        UIReservedRegionLayout.Register(testOwnerPanel != null
+            ? testOwnerPanel.transform as RectTransform : null);
+        UIReservedRegionLayout.Register(submissionStatusPanel != null
+            ? submissionStatusPanel.transform as RectTransform : null);
         invitationCloseLabel = invitationCloseButton != null ? invitationCloseButton.GetComponentInChildren<TMP_Text>(true) : null;
         invitationCloseOriginalLabel = invitationCloseLabel != null ? invitationCloseLabel.text : null;
         if (challengePanel != null) challengePanel.SetActive(false);
@@ -765,6 +773,12 @@ public sealed partial class MultiplayerChallengeLobbyUI : MonoBehaviour
     }
     private void OnDestroy()
     {
+        UIReservedRegionLayout.Unregister(testIntroductionPanel != null
+            ? testIntroductionPanel.transform as RectTransform : null);
+        UIReservedRegionLayout.Unregister(testOwnerPanel != null
+            ? testOwnerPanel.transform as RectTransform : null);
+        UIReservedRegionLayout.Unregister(submissionStatusPanel != null
+            ? submissionStatusPanel.transform as RectTransform : null);
         RestorePortraitLighting();
         CloseView();
         if (portraitCamera != null) portraitCamera.targetTexture = null;

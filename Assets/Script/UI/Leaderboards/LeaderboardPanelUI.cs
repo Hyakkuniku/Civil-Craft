@@ -49,10 +49,12 @@ public sealed partial class LeaderboardPanelUI : MonoBehaviour
         if (strongestToggle != null) strongestToggle.onValueChanged.AddListener(OnRankingChanged);
         if (panel != null) panelMotion = panel.GetComponent<LeaderboardPanelMotion>();
         if (panel != null) panel.SetActive(false);
+        UIReservedRegionLayout.Register(panel != null ? panel.transform as RectTransform : null);
     }
 
     private void OnDestroy()
     {
+        UIReservedRegionLayout.Unregister(panel != null ? panel.transform as RectTransform : null);
         RemoveMultiplayerBoardListeners();
         ++requestGeneration;
         if (openButton != null) openButton.onClick.RemoveListener(Open);

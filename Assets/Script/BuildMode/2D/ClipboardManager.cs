@@ -77,6 +77,15 @@ public class ClipboardManager : MonoBehaviour
         Instance = this; 
         barCreator = GetComponent<BarCreator>();
         if (overrideConfirmPanel != null) overrideConfirmPanel.SetActive(false);
+        UIReservedRegionLayout.Register(overrideConfirmPanel != null
+            ? overrideConfirmPanel.transform as RectTransform : null);
+    }
+
+    private void OnDestroy()
+    {
+        UIReservedRegionLayout.Unregister(overrideConfirmPanel != null
+            ? overrideConfirmPanel.transform as RectTransform : null);
+        if (Instance == this) Instance = null;
     }
 
     private void Update()

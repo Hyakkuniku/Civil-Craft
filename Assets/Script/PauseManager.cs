@@ -240,12 +240,14 @@ public class PauseManager : MonoBehaviour
             }
         }
 
-        // Re-enable player movement and camera look
+        // Pause is an overlay, not the end of a conversation. Closing it must
+        // not release the movement/look lock still owned by the dialogue.
+        bool resumePlayerControls = !DialogueManager.IsAnyDialogueActive;
         InputManager inputObj = FindObjectOfType<InputManager>();
         if (inputObj != null) 
         {
-            inputObj.SetPlayerInputEnable(true);
-            inputObj.SetLookEnabled(true);
+            inputObj.SetPlayerInputEnable(resumePlayerControls);
+            inputObj.SetLookEnabled(resumePlayerControls);
         }
 
         ResetPanelVisuals();

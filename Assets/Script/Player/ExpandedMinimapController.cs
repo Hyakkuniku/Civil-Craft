@@ -40,6 +40,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
     [SerializeField] private Camera minimapCamera;
     [SerializeField] private MinimapFollow minimapFollow;
     [SerializeField] private Button enlargeButton;
+    private RectTransform reservedMinimapRegion;
 
     [Header("Expanded Layout")]
     [SerializeField] private Vector2 expandedAnchorMin = new Vector2(0.04f, 0.06f);
@@ -192,6 +193,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
         if (minimapCamera == null)
             minimapCamera = GetComponent<Camera>();
+        RegisterMinimapRegion();
     }
 
     private void Start()
@@ -211,6 +213,8 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
     private void OnDestroy()
     {
+        UIReservedRegionLayout.Unregister(reservedMinimapRegion);
+        reservedMinimapRegion = null;
         ClearRemotePlayerMarkers();
         CancelMapSession();
         ClearWorldTravelFade();
@@ -424,6 +428,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         }
 
         if (minimapPanel == null) return;
+        RegisterMinimapRegion();
 
         owningCanvas = minimapPanel.GetComponentInParent<Canvas>(true);
         if (mapImage == null)
@@ -465,6 +470,14 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         EnsureMarkerLayer();
         EnsureControls();
         if (!mapSessionActive) SetExpandedControlsVisible(false);
+    }
+
+    private void RegisterMinimapRegion()
+    {
+        if (reservedMinimapRegion == minimapPanel) return;
+        UIReservedRegionLayout.Unregister(reservedMinimapRegion);
+        reservedMinimapRegion = minimapPanel;
+        UIReservedRegionLayout.Register(reservedMinimapRegion);
     }
 
     private Button CreateInvisibleExpandButton()

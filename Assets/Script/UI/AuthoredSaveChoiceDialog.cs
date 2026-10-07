@@ -21,6 +21,16 @@ public sealed class AuthoredSaveChoiceDialog : MonoBehaviour
 
     public bool IsVisible => gameObject.activeSelf;
 
+    private void OnEnable()
+    {
+        UIReservedRegionLayout.Register(transform as RectTransform);
+    }
+
+    private void OnDisable()
+    {
+        UIReservedRegionLayout.Unregister(transform as RectTransform);
+    }
+
     public bool Show(string title, string message, string leftText, string rightText,
         Action onLeft, Action onRight)
     {
