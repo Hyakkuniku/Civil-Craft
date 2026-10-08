@@ -149,7 +149,7 @@ public sealed class AlmanacLearningHub : MonoBehaviour
         InsetPage(leftHome.transform as RectTransform, 54f, 42f);
         InsetPage(rightHome.transform as RectTransform, 42f, 54f);
 
-        RectTransform intro = leftHome.transform as RectTransform;
+        RectTransform intro = CreateIntroductionScroll(leftHome.transform as RectTransform);
         bool isLessons = contentType == AlmanacLearningContent.Lessons;
         string archiveLabel = isLessons ? "LEARNING ARCHIVE" : "MATERIAL ARCHIVE";
         string archiveTitle = isLessons ? "Engineering\nLessons" : "Builder's\nMaterials";
@@ -157,69 +157,98 @@ public sealed class AlmanacLearningHub : MonoBehaviour
             ? "A working record of the engineering ideas you discover while designing and testing structures."
             : "A practical catalogue of every construction material you discover, including its strengths and limits.";
 
-        TMP_Text kicker = CreateText("Kicker", intro, "CIVIL CRAFT  /  " + archiveLabel, 15f,
+        TMP_Text kicker = CreateText("Kicker", intro, "CIVIL CRAFT  /  " + archiveLabel, 22f,
             FontStyles.Bold, Accent, TextAlignmentOptions.MidlineLeft);
-        SetTop(kicker.rectTransform, 0f, 28f);
+        SetTop(kicker.rectTransform, 0f, 32f);
 
         TMP_Text title = CreateText("Title", intro, archiveTitle, 42f,
             FontStyles.Bold, Ink, TextAlignmentOptions.TopLeft);
         title.enableAutoSizing = true;
-        title.fontSizeMin = 32f;
+        title.fontSizeMin = 34f;
         title.fontSizeMax = 42f;
         title.lineSpacing = -8f;
-        SetTop(title.rectTransform, 36f, 110f);
+        SetTop(title.rectTransform, 40f, 110f);
 
         RectTransform rule = CreateImage("Rule", intro, Accent).rectTransform;
-        SetTop(rule, 158f, 3f);
+        SetTop(rule, 166f, 3f);
 
         TMP_Text purpose = CreateText("Purpose", intro, purposeCopy,
-            21f, FontStyles.Normal, Ink, TextAlignmentOptions.TopLeft);
+            24f, FontStyles.Normal, Ink, TextAlignmentOptions.TopLeft);
         purpose.enableWordWrapping = true;
-        purpose.enableAutoSizing = true;
-        purpose.fontSizeMin = 17f; purpose.fontSizeMax = 21f;
+        purpose.enableAutoSizing = false;
         purpose.lineSpacing = 3f;
-        SetTop(purpose.rectTransform, 182f, 106f);
+        SetTop(purpose.rectTransform, 184f, 110f);
 
         if (isLessons)
         {
             CreateGuideRow(intro, 310f, "01", "REVIEW", "Return to important concepts whenever you need them.");
-            CreateGuideRow(intro, 380f, "02", "OBSERVE", "Recognize forces and behavior in your structures.");
-            CreateGuideRow(intro, 450f, "03", "APPLY", "Turn each principle into a stronger design.");
+            CreateGuideRow(intro, 416f, "02", "OBSERVE", "Recognize forces and behavior in your structures.");
+            CreateGuideRow(intro, 522f, "03", "APPLY", "Turn each principle into a stronger design.");
         }
         else
         {
             CreateGuideRow(intro, 310f, "01", "INSPECT", "Learn what each discovered material can do.");
-            CreateGuideRow(intro, 380f, "02", "COMPARE", "Review cost, mass, length, and force limits.");
-            CreateGuideRow(intro, 450f, "03", "CHOOSE", "Match the right material to each structural job.");
+            CreateGuideRow(intro, 416f, "02", "COMPARE", "Review cost, mass, length, and force limits.");
+            CreateGuideRow(intro, 522f, "03", "CHOOSE", "Match the right material to each structural job.");
         }
 
         TMP_Text hint = CreateText("Hint", intro,
             isLessons
                 ? "Choose an unlocked lesson on the right page to begin."
-                : "Choose a discovered material on the right page to begin.", 16f,
+                : "Choose a discovered material on the right page to begin.", 22f,
             FontStyles.Italic, MutedInk, TextAlignmentOptions.BottomLeft);
         hint.rectTransform.anchorMin = Vector2.zero;
         hint.rectTransform.anchorMax = new Vector2(1f, 0f);
         hint.rectTransform.pivot = new Vector2(0.5f, 0f);
         hint.rectTransform.anchoredPosition = Vector2.zero;
-        hint.rectTransform.sizeDelta = new Vector2(0f, 34f);
+        hint.rectTransform.sizeDelta = new Vector2(0f, 54f);
 
         RectTransform index = rightHome.transform as RectTransform;
-        TMP_Text indexKicker = CreateText("Kicker", index, archiveLabel, 15f,
+        TMP_Text indexKicker = CreateText("Kicker", index, archiveLabel, 22f,
             FontStyles.Bold, Accent, TextAlignmentOptions.MidlineLeft);
-        SetTop(indexKicker.rectTransform, 0f, 24f);
+        SetTop(indexKicker.rectTransform, 0f, 32f);
 
         TMP_Text indexTitle = CreateText("Title", index,
             isLessons ? "Choose a lesson to review" : "Choose a material to inspect", 28f,
             FontStyles.Bold, Ink, TextAlignmentOptions.MidlineLeft);
         indexTitle.enableAutoSizing = true;
-        indexTitle.fontSizeMin = 22f;
+        indexTitle.fontSizeMin = 24f;
         indexTitle.fontSizeMax = 28f;
-        SetTop(indexTitle.rectTransform, 28f, 54f);
+        SetTop(indexTitle.rectTransform, 36f, 58f);
 
         RectTransform indexRule = CreateImage("Rule", index, Accent).rectTransform;
-        SetTop(indexRule, 88f, 2f);
-        BuildIndexScroll(index, 106f);
+        SetTop(indexRule, 104f, 2f);
+        BuildIndexScroll(index, 122f);
+    }
+
+    private RectTransform CreateIntroductionScroll(RectTransform parent)
+    {
+        // The handwriting keeps its readable size on short screens. Only the
+        // printed introduction scrolls; the surrounding paper stays unchanged.
+        ScrollRect scroll = parent.gameObject.AddComponent<ScrollRect>();
+        scroll.horizontal = false;
+        scroll.vertical = true;
+        scroll.movementType = ScrollRect.MovementType.Clamped;
+        scroll.scrollSensitivity = 28f;
+
+        RectTransform viewport = CreateRect("Viewport", parent);
+        Stretch(viewport, 0f, 0f, 0f, 0f);
+        AddSwipeTarget(viewport);
+        viewport.gameObject.AddComponent<RectMask2D>();
+
+        RectTransform content = CreateRect("IntroductionContent", viewport);
+        content.anchorMin = new Vector2(0f, 1f);
+        content.anchorMax = Vector2.one;
+        content.pivot = new Vector2(0.5f, 1f);
+        content.anchoredPosition = Vector2.zero;
+        content.sizeDelta = new Vector2(0f, 684f);
+        LayoutElement layout = content.gameObject.AddComponent<LayoutElement>();
+        layout.minHeight = layout.preferredHeight = 684f;
+        ContentSizeFitter fitter = content.gameObject.AddComponent<ContentSizeFitter>();
+        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        scroll.viewport = viewport;
+        scroll.content = content;
+        return content;
     }
 
     private void BuildIndexScroll(RectTransform parent, float top)
@@ -238,6 +267,7 @@ public sealed class AlmanacLearningHub : MonoBehaviour
 
         RectTransform viewport = CreateRect("Viewport", scrollRoot);
         Stretch(viewport, 0f, 0f, 0f, 0f);
+        AddSwipeTarget(viewport);
         viewport.gameObject.AddComponent<RectMask2D>();
 
         RectTransform content = CreateRect("Content", viewport);
@@ -332,9 +362,9 @@ public sealed class AlmanacLearningHub : MonoBehaviour
     private void CreateSectionLabel(RectTransform parent, string label, int count)
     {
         TMP_Text section = CreateText(label + "_Section", parent,
-            label + "   " + count, 15f, FontStyles.Bold, MutedInk, TextAlignmentOptions.BottomLeft);
+            label + "   " + count, 22f, FontStyles.Bold, MutedInk, TextAlignmentOptions.BottomLeft);
         LayoutElement element = section.gameObject.AddComponent<LayoutElement>();
-        element.preferredHeight = 32f;
+        element.preferredHeight = 40f;
     }
 
     private void CreateIndexButton(
@@ -347,7 +377,7 @@ public sealed class AlmanacLearningHub : MonoBehaviour
     {
         RectTransform card = CreateRect(title + "_Entry", parent);
         LayoutElement layout = card.gameObject.AddComponent<LayoutElement>();
-        layout.preferredHeight = 70f;
+        layout.preferredHeight = 104f;
 
         Image background = card.gameObject.AddComponent<Image>();
         // A contents entry printed on paper, not a separate dashboard card.
@@ -372,7 +402,7 @@ public sealed class AlmanacLearningHub : MonoBehaviour
         stripe.anchoredPosition = Vector2.zero;
         stripe.sizeDelta = new Vector2(0f, 1f);
 
-        float textLeft = icon != null ? 108f : 56f;
+        float textLeft = icon != null ? 126f : 64f;
         if (icon != null)
         {
             Image thumbnail = CreateImage("Thumbnail", card, unlocked ? Color.white : new Color(0.55f, 0.55f, 0.55f, 1f));
@@ -381,35 +411,37 @@ public sealed class AlmanacLearningHub : MonoBehaviour
             thumbnail.rectTransform.anchorMin = new Vector2(0f, 0.5f);
             thumbnail.rectTransform.anchorMax = new Vector2(0f, 0.5f);
             thumbnail.rectTransform.pivot = new Vector2(0f, 0.5f);
-            thumbnail.rectTransform.anchoredPosition = new Vector2(56f, 0f);
-            thumbnail.rectTransform.sizeDelta = new Vector2(40f, 40f);
+            thumbnail.rectTransform.anchoredPosition = new Vector2(64f, 0f);
+            thumbnail.rectTransform.sizeDelta = new Vector2(48f, 48f);
         }
 
-        TMP_Text numberText = CreateText("Number", card, number, 13f, FontStyles.Bold,
+        TMP_Text numberText = CreateText("Number", card, number, 22f, FontStyles.Bold,
             unlocked ? Accent : MutedInk, TextAlignmentOptions.MidlineLeft);
         numberText.rectTransform.anchorMin = Vector2.zero;
         numberText.rectTransform.anchorMax = new Vector2(0f, 1f);
         numberText.rectTransform.pivot = new Vector2(0f, .5f);
         numberText.rectTransform.anchoredPosition = new Vector2(8f, 0f);
-        numberText.rectTransform.sizeDelta = new Vector2(42f, 0f);
+        numberText.rectTransform.sizeDelta = new Vector2(48f, 0f);
 
-        TMP_Text titleText = CreateText("Title", card, title, 19f, FontStyles.Normal,
-            unlocked ? Ink : MutedInk, TextAlignmentOptions.MidlineLeft);
+        TMP_Text titleText = CreateText("Title", card, title, 28f, FontStyles.Normal,
+            unlocked ? Ink : MutedInk, TextAlignmentOptions.TopLeft);
         titleText.enableAutoSizing = true;
-        titleText.fontSizeMin = 15f;
-        titleText.fontSizeMax = 19f;
+        titleText.fontSizeMin = 24f;
+        titleText.fontSizeMax = 28f;
+        titleText.enableWordWrapping = true;
         titleText.rectTransform.anchorMin = Vector2.zero;
         titleText.rectTransform.anchorMax = Vector2.one;
-        titleText.rectTransform.offsetMin = new Vector2(textLeft, 7f);
-        titleText.rectTransform.offsetMax = new Vector2(-82f, -7f);
+        titleText.rectTransform.offsetMin = new Vector2(textLeft, 36f);
+        titleText.rectTransform.offsetMax = new Vector2(-16f, -8f);
 
-        TMP_Text state = CreateText("State", card, unlocked ? "OPEN" : "LOCKED", 12f,
-            FontStyles.Bold, unlocked ? Accent : MutedInk, TextAlignmentOptions.MidlineRight);
-        state.rectTransform.anchorMin = new Vector2(1f, 0f);
-        state.rectTransform.anchorMax = Vector2.one;
-        state.rectTransform.pivot = new Vector2(1f, 0.5f);
-        state.rectTransform.anchoredPosition = new Vector2(-14f, 0f);
-        state.rectTransform.sizeDelta = new Vector2(68f, 36f);
+        // Keep the status below the larger title rather than competing for its width.
+        TMP_Text state = CreateText("State", card, unlocked ? "OPEN" : "LOCKED", 22f,
+            FontStyles.Bold, unlocked ? Accent : MutedInk, TextAlignmentOptions.MidlineLeft);
+        state.rectTransform.anchorMin = Vector2.zero;
+        state.rectTransform.anchorMax = new Vector2(1f, 0f);
+        state.rectTransform.pivot = new Vector2(0.5f, 0f);
+        state.rectTransform.offsetMin = new Vector2(textLeft, 4f);
+        state.rectTransform.offsetMax = new Vector2(-16f, 32f);
     }
 
     private void BuildDetailSpread()
@@ -420,52 +452,52 @@ public sealed class AlmanacLearningHub : MonoBehaviour
         InsetPage(rightDetail.transform as RectTransform, 42f, 54f);
 
         RectTransform left = leftDetail.transform as RectTransform;
-        Button back = CreateTextButton("BackToIndex", left, "<  RETURN TO INDEX", 15f, BackToIndex);
+        Button back = CreateTextButton("BackToIndex", left, "<  RETURN TO INDEX", 22f, BackToIndex);
         RectTransform backRect = back.transform as RectTransform;
         backRect.anchorMin = new Vector2(0f, 1f);
         backRect.anchorMax = new Vector2(0f, 1f);
         backRect.pivot = new Vector2(0f, 1f);
         backRect.anchoredPosition = Vector2.zero;
-        backRect.sizeDelta = new Vector2(190f, 38f);
+        backRect.sizeDelta = new Vector2(300f, 60f);
 
-        detailTypeText = CreateText("Type", left, "LESSON", 15f, FontStyles.Bold,
+        detailTypeText = CreateText("Type", left, "LESSON", 22f, FontStyles.Bold,
             Accent, TextAlignmentOptions.MidlineLeft);
-        SetTop(detailTypeText.rectTransform, 54f, 24f);
+        SetTop(detailTypeText.rectTransform, 70f, 30f);
 
-        detailTitleText = CreateText("Title", left, string.Empty, 37f, FontStyles.Bold,
+        detailTitleText = CreateText("Title", left, string.Empty, 42f, FontStyles.Bold,
             Ink, TextAlignmentOptions.TopLeft);
         detailTitleText.enableAutoSizing = true;
-        detailTitleText.fontSizeMin = 25f;
-        detailTitleText.fontSizeMax = 37f;
-        SetTop(detailTitleText.rectTransform, 82f, 92f);
+        detailTitleText.fontSizeMin = 34f;
+        detailTitleText.fontSizeMax = 42f;
+        SetTop(detailTitleText.rectTransform, 108f, 100f);
 
         Image imageFrame = CreateImage("ImageFrame", left, CardTint);
         detailImageFrame = imageFrame.gameObject;
-        SetTop(imageFrame.rectTransform, 185f, 225f);
+        SetTop(imageFrame.rectTransform, 220f, 190f);
         detailImage = CreateImage("Image", imageFrame.rectTransform, Color.white);
         detailImage.preserveAspect = true;
         Stretch(detailImage.rectTransform, 14f, 14f, 14f, 14f);
 
-        detailFactsText = CreateText("Facts", left, string.Empty, 16f, FontStyles.Normal,
+        detailFactsText = CreateText("Facts", left, string.Empty, 24f, FontStyles.Normal,
             Ink, TextAlignmentOptions.TopLeft);
         detailFactsText.enableWordWrapping = true;
         detailFactsText.enableAutoSizing = true;
-        detailFactsText.fontSizeMin = 14f; detailFactsText.fontSizeMax = 16f;
-        detailFactsText.lineSpacing = 2f;
-        SetTop(detailFactsText.rectTransform, 425f, 160f);
+        detailFactsText.fontSizeMin = 22f; detailFactsText.fontSizeMax = 24f;
+        detailFactsText.lineSpacing = 3f;
+        SetTop(detailFactsText.rectTransform, 426f, 210f);
 
         RectTransform right = rightDetail.transform as RectTransform;
-        TMP_Text notesKicker = CreateText("Kicker", right, "FIELD NOTES", 15f,
+        TMP_Text notesKicker = CreateText("Kicker", right, "FIELD NOTES", 22f,
             FontStyles.Bold, Accent, TextAlignmentOptions.MidlineLeft);
-        SetTop(notesKicker.rectTransform, 0f, 26f);
+        SetTop(notesKicker.rectTransform, 0f, 32f);
 
-        TMP_Text notesTitle = CreateText("Title", right, "What to remember", 29f,
+        TMP_Text notesTitle = CreateText("Title", right, "What to remember", 36f,
             FontStyles.Bold, Ink, TextAlignmentOptions.MidlineLeft);
-        SetTop(notesTitle.rectTransform, 31f, 52f);
+        SetTop(notesTitle.rectTransform, 40f, 56f);
 
         RectTransform rule = CreateImage("Rule", right, Accent).rectTransform;
-        SetTop(rule, 91f, 2f);
-        CreateDetailScroll(right, 116f);
+        SetTop(rule, 106f, 2f);
+        CreateDetailScroll(right, 128f);
     }
 
     private void CreateDetailScroll(RectTransform parent, float top)
@@ -484,12 +516,15 @@ public sealed class AlmanacLearningHub : MonoBehaviour
 
         RectTransform viewport = CreateRect("Viewport", scrollRoot);
         Stretch(viewport, 0f, 0f, 0f, 0f);
+        AddSwipeTarget(viewport);
         viewport.gameObject.AddComponent<RectMask2D>();
 
-        detailDescriptionText = CreateText("Description", viewport, string.Empty, 20f,
+        detailDescriptionText = CreateText("Description", viewport, string.Empty, 28f,
             FontStyles.Normal, Ink, TextAlignmentOptions.TopLeft);
         detailDescriptionText.enableWordWrapping = true;
-        detailDescriptionText.lineSpacing = 10f;
+        // Long notes extend the existing scroll, never shrink the handwriting.
+        detailDescriptionText.enableAutoSizing = false;
+        detailDescriptionText.lineSpacing = 7f;
         detailDescriptionText.rectTransform.anchorMin = new Vector2(0f, 1f);
         detailDescriptionText.rectTransform.anchorMax = Vector2.one;
         detailDescriptionText.rectTransform.pivot = new Vector2(0.5f, 1f);
@@ -533,7 +568,7 @@ public sealed class AlmanacLearningHub : MonoBehaviour
         detailFactsText.text = facts;
         detailImage.sprite = image;
         detailImageFrame.SetActive(image != null);
-        detailFactsText.rectTransform.anchoredPosition = new Vector2(0f, image != null ? -425f : -195f);
+        detailFactsText.rectTransform.anchoredPosition = new Vector2(0f, image != null ? -426f : -220f);
         Canvas.ForceUpdateCanvases();
         detailScroll.StopMovement();
         detailScroll.verticalNormalizedPosition = 1f;
@@ -675,17 +710,18 @@ public sealed class AlmanacLearningHub : MonoBehaviour
 
     private void CreateGuideRow(RectTransform parent, float top, string number, string heading, string body)
     {
-        TMP_Text numberText = CreateText("Guide_" + number, parent, number, 16f,
+        TMP_Text numberText = CreateText("Guide_" + number, parent, number, 24f,
             FontStyles.Bold, Accent, TextAlignmentOptions.TopLeft);
-        SetTop(numberText.rectTransform, top, 54f);
+        SetTop(numberText.rectTransform, top, 96f);
         numberText.rectTransform.anchorMax = new Vector2(0.12f, 1f);
 
         TMP_Text text = CreateText("GuideText_" + number, parent,
-            "<b>" + heading + "</b>\n" + body, 16f, FontStyles.Normal, Ink,
+            "<b>" + heading + "</b>\n" + body, 24f, FontStyles.Normal, Ink,
             TextAlignmentOptions.TopLeft);
         text.enableWordWrapping = true;
-        text.lineSpacing = 4f;
-        SetTop(text.rectTransform, top, 60f);
+        text.enableAutoSizing = false;
+        text.lineSpacing = 3f;
+        SetTop(text.rectTransform, top, 96f);
         text.rectTransform.anchorMin = new Vector2(0.14f, 1f);
     }
 
@@ -729,6 +765,7 @@ public sealed class AlmanacLearningHub : MonoBehaviour
         text.color = color;
         text.alignment = alignment;
         text.raycastTarget = false;
+        AlmanacTypography.ApplyFont(text);
         return text;
     }
 
@@ -739,6 +776,13 @@ public sealed class AlmanacLearningHub : MonoBehaviour
         image.color = color;
         image.raycastTarget = false;
         return image;
+    }
+
+    private static void AddSwipeTarget(RectTransform viewport)
+    {
+        Image target = viewport.gameObject.AddComponent<Image>();
+        target.color = Color.clear;
+        target.raycastTarget = true;
     }
 
     private static void Stretch(RectTransform rect, float left, float right, float bottom, float top)

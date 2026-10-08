@@ -49,6 +49,8 @@ public class ContractAlmanacTab : MonoBehaviour
     private ContractSO displayedContract;
     private Image coinRewardIcon;
     private Image experienceRewardIcon;
+    private ScrollRect descriptionScroll;
+    private RectTransform descriptionScrollRoot;
 
     private sealed class AnimatedElement
     {
@@ -294,6 +296,7 @@ public class ContractAlmanacTab : MonoBehaviour
 
         if (pageCounterText != null)
             pageCounterText.text = "PROJECT  " + (index + 1).ToString("00") + "  /  " + completedContractsList.Count.ToString("00");
+        ResetDescriptionScroll();
 
         // Tell the Almanac Manager if the virtual buttons should be greyed out!
         if (AlmanacManager.Instance != null)
@@ -319,6 +322,7 @@ public class ContractAlmanacTab : MonoBehaviour
         if (titleText != null) titleText.text = "No completed contracts yet";
         if (clientText != null) clientText.text = "";
         if (descriptionText != null) descriptionText.text = "Complete a contract to add its project record and bridge photograph to this archive.";
+        ResetDescriptionScroll();
         if (rewardsText != null) rewardsText.text = "";
         SetRewardIconsActive(false);
         
@@ -390,35 +394,36 @@ public class ContractAlmanacTab : MonoBehaviour
         Stretch(snapshotRect, 14f, 14f, 14f, 14f);
         snapshotImage.raycastTarget = false;
 
-        ConfigureText(snapshotCaptionText, 32f, 25f, 36f, FontStyles.Bold,
+        ConfigureText(snapshotCaptionText, 36f, 30f, 40f, FontStyles.Bold,
             TextAlignmentOptions.Top, Ink);
         SetNormalizedRect(snapshotCaptionText.rectTransform,
             new Vector2(0.12f, 0.12f), new Vector2(0.88f, 0.28f));
 
-        ConfigureText(titleText, 44f, 31f, 46f, FontStyles.Bold,
+        ConfigureText(titleText, 46f, 36f, 48f, FontStyles.Bold,
             TextAlignmentOptions.TopLeft, Ink);
         SetNormalizedRect(titleText.rectTransform,
             new Vector2(0.11f, 0.75f), new Vector2(0.92f, 0.90f));
 
-        ConfigureText(clientText, 18f, 15f, 20f, FontStyles.Bold,
+        ConfigureText(clientText, 26f, 24f, 28f, FontStyles.Bold,
             TextAlignmentOptions.TopLeft, Accent);
         SetNormalizedRect(clientText.rectTransform,
             new Vector2(0.11f, 0.66f), new Vector2(0.92f, 0.73f));
 
-        ConfigureText(descriptionText, 27f, 21f, 30f, FontStyles.Normal,
+        ConfigureText(descriptionText, 30f, 30f, 30f, FontStyles.Normal,
             TextAlignmentOptions.TopLeft, Ink);
+        descriptionText.enableAutoSizing = false;
         descriptionText.enableWordWrapping = true;
-        descriptionText.lineSpacing = 7f;
-        SetNormalizedRect(descriptionText.rectTransform,
-            new Vector2(0.11f, 0.39f), new Vector2(0.90f, 0.59f));
+        descriptionText.lineSpacing = 6f;
+        descriptionText.paragraphSpacing = 8f;
+        EnsureDescriptionScroll(rightRoot);
 
-        ConfigureText(rewardsText, 21f, 17f, 23f, FontStyles.Normal,
+        ConfigureText(rewardsText, 26f, 24f, 28f, FontStyles.Normal,
             TextAlignmentOptions.MidlineLeft, Ink);
         SetNormalizedRect(rewardsText.rectTransform,
             new Vector2(0.14f, 0.19f), new Vector2(0.52f, 0.31f));
         EnsureRewardIcons();
 
-        ConfigureText(pageCounterText, 16f, 14f, 18f, FontStyles.Bold,
+        ConfigureText(pageCounterText, 24f, 22f, 24f, FontStyles.Bold,
             TextAlignmentOptions.BottomRight, MutedInk);
         SetNormalizedRect(pageCounterText.rectTransform,
             new Vector2(0.56f, 0.07f), new Vector2(0.90f, 0.13f));
@@ -434,7 +439,7 @@ public class ContractAlmanacTab : MonoBehaviour
         RegisterAnimatedElement(snapshotCaptionText.rectTransform);
         RegisterAnimatedElement(titleText.rectTransform);
         RegisterAnimatedElement(clientText.rectTransform);
-        RegisterAnimatedElement(descriptionText.rectTransform);
+        RegisterAnimatedElement(descriptionScrollRoot);
         RegisterAnimatedElement(rewardsText.rectTransform);
         RegisterAnimatedElement(starPresentationRoot);
         if (seeInMapButton != null)
@@ -464,6 +469,55 @@ public class ContractAlmanacTab : MonoBehaviour
             experienceRewardIcon.gameObject.SetActive(active && experienceRewardIcon.sprite != null);
     }
 
+    private void EnsureDescriptionScroll(RectTransform parent)
+    {
+        if (parent == null || descriptionText == null) return;
+        GameObject root = new GameObject("ContractBriefScroll_Runtime", typeof(RectTransform),
+            typeof(ScrollRect));
+        root.layer = parent.gameObject.layer;
+        descriptionScrollRoot = root.GetComponent<RectTransform>();
+        descriptionScrollRoot.SetParent(parent, false);
+        SetNormalizedRect(descriptionScrollRoot,
+            new Vector2(0.11f, 0.37f), new Vector2(0.90f, 0.59f));
+
+        GameObject viewportObject = new GameObject("Viewport", typeof(RectTransform),
+            typeof(CanvasRenderer), typeof(Image), typeof(RectMask2D));
+        viewportObject.layer = parent.gameObject.layer;
+        RectTransform viewport = viewportObject.GetComponent<RectTransform>();
+        viewport.SetParent(descriptionScrollRoot, false);
+        Stretch(viewport, 0f, 8f, 0f, 0f);
+        viewportObject.GetComponent<Image>().color = Color.clear;
+
+        RectTransform content = descriptionText.rectTransform;
+        content.SetParent(viewport, false);
+        content.anchorMin = new Vector2(0f, 1f);
+        content.anchorMax = Vector2.one;
+        content.pivot = new Vector2(.5f, 1f);
+        content.anchoredPosition = Vector2.zero;
+        content.sizeDelta = Vector2.zero;
+        descriptionText.overflowMode = TextOverflowModes.Overflow;
+        ContentSizeFitter fitter = descriptionText.GetComponent<ContentSizeFitter>();
+        if (fitter == null) fitter = descriptionText.gameObject.AddComponent<ContentSizeFitter>();
+        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        descriptionScroll = root.GetComponent<ScrollRect>();
+        descriptionScroll.viewport = viewport;
+        descriptionScroll.content = content;
+        descriptionScroll.horizontal = false;
+        descriptionScroll.vertical = true;
+        descriptionScroll.movementType = ScrollRect.MovementType.Clamped;
+        descriptionScroll.scrollSensitivity = 30f;
+        ResetDescriptionScroll();
+    }
+
+    private void ResetDescriptionScroll()
+    {
+        if (descriptionScroll == null) return;
+        descriptionScroll.StopMovement();
+        descriptionScroll.content.anchoredPosition = Vector2.zero;
+        descriptionScroll.verticalNormalizedPosition = 1f;
+    }
+
     private void LateUpdate()
     {
         if (snapshotImage == null || !snapshotImage.isActiveAndEnabled || snapshotImage.texture == null) return;
@@ -491,7 +545,7 @@ public class ContractAlmanacTab : MonoBehaviour
     {
         RectTransform decor = CreateDecorRoot(parent, "ContractPhotoDecor_Runtime");
         CreateDecorText(decor, "ArchiveLabel", "COMPLETED WORK  /  FIELD RECORD", fontTemplate,
-            new Vector2(0.10f, 0.80f), new Vector2(0.90f, 0.85f), 15f,
+            new Vector2(0.10f, 0.80f), new Vector2(0.90f, 0.85f), 22f,
             FontStyles.Bold, Accent, TextAlignmentOptions.MidlineLeft);
         CreateDecorImage(decor, "Rule", new Vector2(0.10f, 0.785f),
             new Vector2(0.90f, 0.789f), Accent);
@@ -501,14 +555,14 @@ public class ContractAlmanacTab : MonoBehaviour
     {
         RectTransform decor = CreateDecorRoot(parent, "ContractDetailsDecor_Runtime");
         CreateDecorText(decor, "RecordLabel", "PROJECT RECORD  /  COMPLETE", fontTemplate,
-            new Vector2(0.11f, 0.91f), new Vector2(0.92f, 0.96f), 15f,
+            new Vector2(0.11f, 0.91f), new Vector2(0.92f, 0.96f), 22f,
             FontStyles.Bold, Accent, TextAlignmentOptions.MidlineLeft);
         CreateDecorImage(decor, "TitleMarker", new Vector2(0.075f, 0.755f),
             new Vector2(0.084f, 0.90f), Accent);
         CreateDecorImage(decor, "HeaderRule", new Vector2(0.11f, 0.635f),
             new Vector2(0.90f, 0.639f), new Color(Accent.r, Accent.g, Accent.b, 0.45f));
         CreateDecorText(decor, "BriefLabel", "PROJECT BRIEF", fontTemplate,
-            new Vector2(0.11f, 0.59f), new Vector2(0.90f, 0.64f), 14f,
+            new Vector2(0.11f, 0.59f), new Vector2(0.90f, 0.64f), 22f,
             FontStyles.Bold, MutedInk, TextAlignmentOptions.MidlineLeft);
 
         CreateDecorImage(decor, "RewardCard", new Vector2(0.075f, 0.17f),
@@ -528,7 +582,7 @@ public class ContractAlmanacTab : MonoBehaviour
         SetNormalizedRect(starPresentationRoot, new Vector2(0.565f, 0.17f), new Vector2(0.92f, 0.33f));
 
         starSummaryText = CreateRuntimeText(starPresentationRoot, "BestResult", "BEST RESULT   0 / 3",
-            fontTemplate, new Vector2(0.08f, 0.68f), new Vector2(0.92f, 0.96f), 14f,
+            fontTemplate, new Vector2(0.08f, 0.68f), new Vector2(0.92f, 0.96f), 22f,
             FontStyles.Bold, MutedInk, TextAlignmentOptions.Center);
 
         for (int i = 0; i < starIcons.Length; i++)
@@ -575,7 +629,7 @@ public class ContractAlmanacTab : MonoBehaviour
         seeInMapButton.onClick.AddListener(OpenDisplayedContractInMap);
 
         CreateRuntimeText(buttonRect, "Label", "SEE IN MAP", fontTemplate,
-            Vector2.zero, Vector2.one, 18f, FontStyles.Bold, Color.white,
+            Vector2.zero, Vector2.one, 26f, FontStyles.Bold, Color.white,
             TextAlignmentOptions.Center);
     }
 
@@ -599,12 +653,13 @@ public class ContractAlmanacTab : MonoBehaviour
         text.text = value;
         text.fontSize = size;
         text.enableAutoSizing = true;
-        text.fontSizeMin = Mathf.Max(10f, size - 4f);
+        text.fontSizeMin = Mathf.Max(20f, size - 4f);
         text.fontSizeMax = size;
         text.fontStyle = style;
         text.color = color;
         text.alignment = alignment;
         text.raycastTarget = false;
+        AlmanacTypography.ApplyFont(text);
         return text;
     }
 
@@ -713,6 +768,7 @@ public class ContractAlmanacTab : MonoBehaviour
         text.color = color;
         text.alignment = alignment;
         text.raycastTarget = false;
+        AlmanacTypography.ApplyFont(text);
     }
 
     private static void ConfigureText(TMP_Text text, float size, float minSize, float maxSize,
@@ -727,6 +783,7 @@ public class ContractAlmanacTab : MonoBehaviour
         text.alignment = alignment;
         text.color = color;
         text.raycastTarget = false;
+        AlmanacTypography.ApplyFont(text);
     }
 
     private static void SetNormalizedRect(RectTransform rect, Vector2 anchorMin, Vector2 anchorMax)

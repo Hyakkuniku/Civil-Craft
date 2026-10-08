@@ -414,6 +414,7 @@ public class AlmanacManager : MonoBehaviour
 
     private void InitializeBook()
     {
+        AlmanacTypography.ApplyExistingBook(this);
         InitializeLearningHubs();
 
         for (int i = 0; i < categories.Count; i++)

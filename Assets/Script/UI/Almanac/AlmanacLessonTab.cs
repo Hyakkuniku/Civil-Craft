@@ -227,9 +227,9 @@ public sealed class AlmanacLessonTab : MonoBehaviour
             SetAnchors(heading.rectTransform, new Vector2(0f, 0f), new Vector2(0.66f, 1f),
                 Vector2.zero, Vector2.zero);
 
-            progressText = CreateText("Progress", header, string.Empty, 15f,
+            progressText = CreateText("Progress", header, string.Empty, 22f,
                 FontStyles.Normal, mutedInkColor, TextAlignmentOptions.MidlineRight);
-            SetAnchors(progressText.rectTransform, new Vector2(0.55f, 0f), Vector2.one,
+            SetAnchors(progressText.rectTransform, new Vector2(0.68f, 0f), Vector2.one,
                 Vector2.zero, Vector2.zero);
 
             RectTransform rule = CreateImage("Rule", header, accentColor).rectTransform;
@@ -286,28 +286,29 @@ public sealed class AlmanacLessonTab : MonoBehaviour
         RectTransform content = CreateRect("ReaderContent", rightPage);
         SetAnchors(content, Vector2.zero, Vector2.one, new Vector2(42f, 34f), new Vector2(-42f, -30f));
 
-        readerKickerText = CreateText("Kicker", content, "SELECT A LESSON", 15f,
+        readerKickerText = CreateText("Kicker", content, "SELECT A LESSON", 22f,
             FontStyles.Bold, accentColor, TextAlignmentOptions.MidlineLeft);
-        SetTopRect(readerKickerText.rectTransform, 0f, 26f);
+        SetTopRect(readerKickerText.rectTransform, 0f, 32f);
+        readerKickerText.rectTransform.anchorMax = new Vector2(0.7f, 1f);
 
-        readerTitleText = CreateText("Title", content, "Lesson Journal", 32f,
+        readerTitleText = CreateText("Title", content, "Lesson Journal", 42f,
             FontStyles.Bold, inkColor, TextAlignmentOptions.MidlineLeft);
         readerTitleText.enableAutoSizing = true;
-        readerTitleText.fontSizeMin = 23f;
-        readerTitleText.fontSizeMax = 32f;
-        SetTopRect(readerTitleText.rectTransform, 30f, 56f);
+        readerTitleText.fontSizeMin = 34f;
+        readerTitleText.fontSizeMax = 42f;
+        SetTopRect(readerTitleText.rectTransform, 40f, 100f);
 
-        readerPageText = CreateText("PageNumber", content, string.Empty, 14f,
+        readerPageText = CreateText("PageNumber", content, string.Empty, 22f,
             FontStyles.Normal, mutedInkColor, TextAlignmentOptions.MidlineRight);
-        SetTopRect(readerPageText.rectTransform, 2f, 24f);
-        readerPageText.rectTransform.anchorMin = new Vector2(0.65f, 1f);
+        SetTopRect(readerPageText.rectTransform, 0f, 32f);
+        readerPageText.rectTransform.anchorMin = new Vector2(0.75f, 1f);
 
         RectTransform rule = CreateImage("Rule", content, accentColor).rectTransform;
-        SetTopRect(rule, 91f, 2f);
+        SetTopRect(rule, 150f, 2f);
 
         Image frame = CreateImage("ImageFrame", content, imageFrameColor);
         readerImageFrame = frame.gameObject;
-        SetTopRect(frame.rectTransform, 110f, 188f);
+        SetTopRect(frame.rectTransform, 170f, 188f);
 
         readerImage = CreateImage("LessonImage", frame.rectTransform, Color.white);
         readerImage.preserveAspect = true;
@@ -324,7 +325,7 @@ public sealed class AlmanacLessonTab : MonoBehaviour
         scrollRoot.anchorMin = Vector2.zero;
         scrollRoot.anchorMax = Vector2.one;
         scrollRoot.offsetMin = Vector2.zero;
-        scrollRoot.offsetMax = new Vector2(0f, -316f);
+        scrollRoot.offsetMax = new Vector2(0f, -376f);
 
         readerScrollRect = scrollRoot.gameObject.AddComponent<ScrollRect>();
         readerScrollRect.horizontal = false;
@@ -334,12 +335,16 @@ public sealed class AlmanacLessonTab : MonoBehaviour
 
         RectTransform viewport = CreateRect("Viewport", scrollRoot);
         SetAnchors(viewport, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        Image swipeTarget = viewport.gameObject.AddComponent<Image>();
+        swipeTarget.color = Color.clear;
+        swipeTarget.raycastTarget = true;
         viewport.gameObject.AddComponent<RectMask2D>();
 
         readerDescriptionText = CreateText("Description", viewport,
-            string.Empty, 20f, FontStyles.Normal, inkColor, TextAlignmentOptions.TopLeft);
+            string.Empty, 28f, FontStyles.Normal, inkColor, TextAlignmentOptions.TopLeft);
         readerDescriptionText.enableWordWrapping = true;
-        readerDescriptionText.lineSpacing = 10f;
+        readerDescriptionText.enableAutoSizing = false;
+        readerDescriptionText.lineSpacing = 7f;
         SetAnchors(readerDescriptionText.rectTransform, new Vector2(0f, 1f), Vector2.one,
             Vector2.zero, Vector2.zero);
         readerDescriptionText.rectTransform.pivot = new Vector2(0.5f, 1f);
@@ -407,7 +412,7 @@ public sealed class AlmanacLessonTab : MonoBehaviour
         readerImageFrame.SetActive(hasImage);
         readerImage.sprite = lesson.AlmanacImage;
         readerScrollRect.transform.GetComponent<RectTransform>().offsetMax =
-            new Vector2(0f, hasImage ? -316f : -110f);
+            new Vector2(0f, hasImage ? -376f : -170f);
 
         Canvas.ForceUpdateCanvases();
         readerScrollRect.StopMovement();
@@ -428,7 +433,7 @@ public sealed class AlmanacLessonTab : MonoBehaviour
             "New lessons are added as you explore and complete activities.";
         readerPageText.text = string.Empty;
         readerImageFrame.SetActive(false);
-        readerScrollRect.transform.GetComponent<RectTransform>().offsetMax = new Vector2(0f, -110f);
+        readerScrollRect.transform.GetComponent<RectTransform>().offsetMax = new Vector2(0f, -170f);
         readerScrollRect.verticalNormalizedPosition = 1f;
     }
 
@@ -471,6 +476,7 @@ public sealed class AlmanacLessonTab : MonoBehaviour
         text.color = color;
         text.alignment = alignment;
         text.raycastTarget = false;
+        AlmanacTypography.ApplyFont(text);
         return text;
     }
 
