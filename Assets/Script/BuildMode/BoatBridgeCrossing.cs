@@ -51,7 +51,6 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
     private readonly List<float> impactedDistances = new List<float>(8);
     private BridgePhysicsManager subscribedManager;
     private BuildLocation activeLocation;
-    private BridgeSelectionOutline buildModeOutline;
     private Renderer[] boatRenderers;
     private MeshCollider[] boatMeshColliders;
     private Bounds[] boatMeshWorldBounds;
@@ -149,6 +148,7 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
     {
         BindSimulationManager();
         LevelCompleteManager.SimulationSucceeded += HandleSimulationSucceeded;
+        if (Application.isPlaying) BoatWaterWake.Register(transform, boatRenderers);
     }
 
     private void Start()
@@ -160,17 +160,16 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
 
     private void OnDisable()
     {
+        BoatWaterWake.Unregister(transform);
         LevelCompleteManager.SimulationSucceeded -= HandleSimulationSucceeded;
         moving = false;
         SetMeshQueriesActive(false);
         UnbindSimulationManager();
-        DisposeOutline();
     }
 
     private void OnDestroy()
     {
         UnbindSimulationManager();
-        DisposeOutline();
     }
 
     private void BindSimulationManager()
@@ -191,21 +190,6 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
         subscribedManager.OnSimulationStarted -= HandleSimulationStarted;
         subscribedManager.OnSimulationStopped -= HandleSimulationStopped;
         subscribedManager = null;
-    }
-
-    private void Update()
-    {
-        bool showOutline = !IsSessionChallengeTestBoat && !finishedCrossing && !moving && HasTravelDirection &&
-            GameManager.Instance != null &&
-            GameManager.Instance.CurrentState == GameManager.GameState.Building &&
-            !GameManager.Instance.IsTransitioning &&
-            GameManager.Instance.ActiveBuildLocation != null &&
-            MatchesContract(assignedContract, GameManager.Instance.CurrentContract) &&
-            (subscribedManager == null || !subscribedManager.IsSimulationActive);
-
-        if (showOutline && buildModeOutline == null)
-            buildModeOutline = new BridgeSelectionOutline(transform);
-        buildModeOutline?.SetBuildModeVisualOnlyVisible(showOutline);
     }
 
     private static bool MatchesContract(ContractSO assigned, ContractSO current)
@@ -244,7 +228,6 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
         delayRemaining = startDelay;
         warnedFullQuery = false;
         moving = true;
-        buildModeOutline?.SetBuildModeVisualOnlyVisible(false);
     }
 
     private void HandleSimulationStopped()
@@ -256,7 +239,7 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
         delayRemaining = 0f;
         transform.SetPositionAndRotation(authoredPosition, authoredRotation);
         // Hide only after a crossing has finished during simulation. Returning
-        // to build mode restores the authored boat and its selection outline.
+        // to build mode restores the authored boat without a selection outline.
         finishedCrossing = false;
         SetBoatVisible(true);
     }
@@ -796,14 +779,6 @@ public sealed class BoatBridgeCrossing : MonoBehaviour
         for (int i = 0; i < boatRenderers.Length; i++)
             if (boatRenderers[i] != null)
                 boatRenderers[i].enabled = visible && authoredRendererStates[i];
-        if (!visible) buildModeOutline?.SetBuildModeVisualOnlyVisible(false);
-    }
-
-    private void DisposeOutline()
-    {
-        if (buildModeOutline == null) return;
-        buildModeOutline.Dispose();
-        buildModeOutline = null;
     }
 
     private void WarnIfQueryFilled(int count, int capacity)

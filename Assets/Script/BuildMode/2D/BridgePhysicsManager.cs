@@ -653,6 +653,7 @@ public partial class BridgePhysicsManager : MonoBehaviour
 
     private void OnDestroy()
     {
+        WaterImpact.UnregisterManager(this);
         RestoreGlobalPhysicsSettings();
         if (IsSessionChallengeTest && sharedRoadPhysicsMat != null)
         { if (Application.isPlaying) Destroy(sharedRoadPhysicsMat); else DestroyImmediate(sharedRoadPhysicsMat); }
@@ -1085,6 +1086,10 @@ public partial class BridgePhysicsManager : MonoBehaviour
         needsPhysicsRelease = true;
         currentSettleFrame = 0;
         pendingSimulationStart = true;
+        if (Application.isPlaying)
+            foreach (Bar bar in deterministicBars)
+                if (bar != null && !bar.IsConstructionPreview && bar.materialData != null && !bar.materialData.isRope)
+                    WaterImpact.Register(bar.transform, bar.GetComponentsInChildren<Renderer>(true), bar.GetComponent<Rigidbody>(), this);
     }
 
     private List<Collider> CollectStructuralColliders()
@@ -1114,6 +1119,7 @@ public partial class BridgePhysicsManager : MonoBehaviour
         isSimulating = false;
         pendingSimulationStart = false;
         ClearBreakParticles();
+        WaterImpact.UnregisterManager(this);
         OnSimulationStopped?.Invoke(); 
 
         RestoreActiveStressVisuals();
@@ -1589,6 +1595,7 @@ public partial class BridgePhysicsManager : MonoBehaviour
         if (DynamicNavMeshUpdater.Instance != null)
             DynamicNavMeshUpdater.Instance.UpdateWalkableNavMeshForLocation(targetLoc);
 
+        WaterImpact.UnregisterManager(this);
         OnSimulationStopped?.Invoke();
         return true;
     }

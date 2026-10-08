@@ -743,8 +743,11 @@ public class LiveLoadVehicle : Interactable
         return 1f / Mathf.Max(0.0001f, Mathf.Abs(scale));
     }
 
+    private void OnDisable() => WaterImpact.Unregister(transform);
+
     private void OnDestroy()
     {
+        WaterImpact.Unregister(transform);
         if (IsSessionChallengeTestVehicle)
         {
             if (Application.isPlaying)
@@ -1005,6 +1008,8 @@ public class LiveLoadVehicle : Interactable
         isBrakingAtFinish = false;
         settledAtFinishTimer = 0f;
         isDriving = true; 
+        if (Application.isPlaying)
+            WaterImpact.Register(transform, GetComponentsInChildren<Renderer>(true), rb, physicsManager);
     }
 
     private void IgnoreNonRoadBridgeContacts()
@@ -1440,6 +1445,7 @@ public class LiveLoadVehicle : Interactable
 
     public void StopAndReset()
     {
+        WaterImpact.Unregister(transform);
         isDriving = false;
         isBrakingAtFinish = false;
         settledAtFinishTimer = 0f;

@@ -1,6 +1,69 @@
 {
     "m_SerializedProperties": [
         {
+          "typeInfo": {
+            "fullName": "UnityEditor.ShaderGraph.Internal.Vector1ShaderProperty"
+          },
+          "JSONnodeData": "{\"m_Guid\":{\"m_GuidSerialized\":\"5ef155b4-e916-4244-a779-2b336db07b13\"},\"m_Name\":\"Impact Ripple Strength\",\"m_DefaultReferenceName\":\"_WaterImpactStrength\",\"m_OverrideReferenceName\":\"_WaterImpactStrength\",\"m_GeneratePropertyBlock\":true,\"m_Precision\":0,\"m_GPUInstanced\":false,\"m_Hidden\":false,\"m_Value\":0,\"m_FloatType\":1,\"m_RangeValues\":{\"x\":0,\"y\":1}}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.ShaderGraph.Internal.Vector1ShaderProperty"
+          },
+          "JSONnodeData": "{\"m_Guid\":{\"m_GuidSerialized\":\"0c0093c6-d7af-4aea-9759-0d50a0b52d43\"},\"m_Name\":\"Impact Dip Depth\",\"m_DefaultReferenceName\":\"_WaterDipDepth\",\"m_OverrideReferenceName\":\"_WaterDipDepth\",\"m_GeneratePropertyBlock\":true,\"m_Precision\":0,\"m_GPUInstanced\":false,\"m_Hidden\":false,\"m_Value\":0,\"m_FloatType\":1,\"m_RangeValues\":{\"x\":0,\"y\":2}}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.ShaderGraph.Internal.Vector1ShaderProperty"
+          },
+          "JSONnodeData": "{\"m_Guid\":{\"m_GuidSerialized\":\"a96b7f21-2847-4078-b1c5-9b49b23696b9\"},\"m_Name\":\"Impact Ripple Radius\",\"m_DefaultReferenceName\":\"_WaterImpactRadius\",\"m_OverrideReferenceName\":\"_WaterImpactRadius\",\"m_GeneratePropertyBlock\":true,\"m_Precision\":0,\"m_GPUInstanced\":false,\"m_Hidden\":false,\"m_Value\":4,\"m_FloatType\":1,\"m_RangeValues\":{\"x\":0.5,\"y\":12}}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.ShaderGraph.Internal.Vector1ShaderProperty"
+          },
+          "JSONnodeData": "{\"m_Guid\":{\"m_GuidSerialized\":\"a560cd2f-c6f0-4a86-b895-88fed665da08\"},\"m_Name\":\"Impact Recovery Time\",\"m_DefaultReferenceName\":\"_WaterImpactDuration\",\"m_OverrideReferenceName\":\"_WaterImpactDuration\",\"m_GeneratePropertyBlock\":true,\"m_Precision\":0,\"m_GPUInstanced\":false,\"m_Hidden\":false,\"m_Value\":1.8,\"m_FloatType\":1,\"m_RangeValues\":{\"x\":0.4,\"y\":4}}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.ShaderGraph.Internal.Vector1ShaderProperty"
+          },
+            "JSONnodeData": "{\"m_Guid\":{\"m_GuidSerialized\":\"03711b55-44a5-4e7c-abe7-dbcd4448c07d\"},\"m_Name\":\"Boat Ripple Strength\",\"m_DefaultReferenceName\":\"_BoatRippleStrength\",\"m_OverrideReferenceName\":\"_BoatRippleStrength\",\"m_GeneratePropertyBlock\":true,\"m_Precision\":0,\"m_GPUInstanced\":false,\"m_Hidden\":false,\"m_Value\":0,\"m_FloatType\":1,\"m_RangeValues\":{\"x\":0,\"y\":1}}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.ShaderGraph.Internal.Vector1ShaderProperty"
+          },
+          "JSONnodeData": "{\"m_Guid\":{\"m_GuidSerialized\":\"4d76382f-9b7b-4a64-ab83-cd25f9899936\"},\"m_Name\":\"Boat Wake Width\",\"m_DefaultReferenceName\":\"_BoatWakeWidth\",\"m_OverrideReferenceName\":\"_BoatWakeWidth\",\"m_GeneratePropertyBlock\":true,\"m_Precision\":0,\"m_GPUInstanced\":false,\"m_Hidden\":false,\"m_Value\":3,\"m_FloatType\":1,\"m_RangeValues\":{\"x\":0.25,\"y\":12}}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.ShaderGraph.Internal.Vector1ShaderProperty"
+          },
+          "JSONnodeData": "{\"m_Guid\":{\"m_GuidSerialized\":\"711f5deb-fcea-421c-bad1-df04bb45a7ec\"},\"m_Name\":\"Boat Wake Length\",\"m_DefaultReferenceName\":\"_BoatWakeLength\",\"m_OverrideReferenceName\":\"_BoatWakeLength\",\"m_GeneratePropertyBlock\":true,\"m_Precision\":0,\"m_GPUInstanced\":false,\"m_Hidden\":false,\"m_Value\":18,\"m_FloatType\":1,\"m_RangeValues\":{\"x\":1,\"y\":60}}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.ShaderGraph.Internal.Vector1ShaderProperty"
+          },
+          "JSONnodeData": "{\"m_Guid\":{\"m_GuidSerialized\":\"0ff81829-6d7e-4d73-ae23-9b6547e68b7c\"},\"m_Name\":\"Boat Ripple Spacing\",\"m_DefaultReferenceName\":\"_BoatRippleSpacing\",\"m_OverrideReferenceName\":\"_BoatRippleSpacing\",\"m_GeneratePropertyBlock\":true,\"m_Precision\":0,\"m_GPUInstanced\":false,\"m_Hidden\":false,\"m_Value\":2.5,\"m_FloatType\":1,\"m_RangeValues\":{\"x\":0.25,\"y\":12}}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.ShaderGraph.Internal.Vector1ShaderProperty"
+          },
+          "JSONnodeData": "{\"m_Guid\":{\"m_GuidSerialized\":\"d009a7fc-271c-4142-aad8-7d03f1f36df2\"},\"m_Name\":\"Boat Ripple Speed\",\"m_DefaultReferenceName\":\"_BoatRippleSpeed\",\"m_OverrideReferenceName\":\"_BoatRippleSpeed\",\"m_GeneratePropertyBlock\":true,\"m_Precision\":0,\"m_GPUInstanced\":false,\"m_Hidden\":false,\"m_Value\":2,\"m_FloatType\":1,\"m_RangeValues\":{\"x\":0,\"y\":10}}"
+        }
+        ,
+        {
             "typeInfo": {
                 "fullName": "UnityEditor.ShaderGraph.Internal.Vector1ShaderProperty"
             },
@@ -69,6 +132,97 @@
     ],
     "m_SerializedKeywords": [],
     "m_SerializableNodes": [
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.ShaderGraph.PositionNode"
+          },
+          "JSONnodeData": "{\"m_GuidSerialized\":\"77770943-f603-49a3-a319-82a72b8af98a\",\"m_GroupGuidSerialized\":\"\",\"m_Name\":\"Position\",\"m_NodeVersion\":0,\"m_DrawState\":{\"m_Expanded\":true,\"m_Position\":{\"serializedVersion\":\"2\",\"x\":760,\"y\":2470,\"width\":240,\"height\":103}},\"m_SerializableSlots\":[{\"typeInfo\":{\"fullName\":\"UnityEditor.ShaderGraph.Vector3MaterialSlot\"},\"JSONnodeData\":\"{\\n    \\\"m_Id\\\": 0,\\n    \\\"m_DisplayName\\\": \\\"Out\\\",\\n    \\\"m_SlotType\\\": 1,\\n    \\\"m_Priority\\\": 2147483647,\\n    \\\"m_Hidden\\\": false,\\n    \\\"m_ShaderOutputName\\\": \\\"Out\\\",\\n    \\\"m_StageCapability\\\": 3,\\n    \\\"m_Value\\\": {\\n        \\\"x\\\": 0,\\n        \\\"y\\\": 0,\\n        \\\"z\\\": 0\\n    },\\n    \\\"m_DefaultValue\\\": {\\n        \\\"x\\\": 0,\\n        \\\"y\\\": 0,\\n        \\\"z\\\": 0\\n    },\\n    \\\"m_Labels\\\": [\\n        \\\"X\\\",\\n        \\\"Y\\\",\\n        \\\"Z\\\"\\n    ]\\n}\"}],\"m_Precision\":1,\"m_PreviewExpanded\":false,\"m_CustomColors\":{\"m_SerializableColors\":[]},\"m_Space\":0,\"m_PositionSource\":0}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.ShaderGraph.PropertyNode"
+          },
+          "JSONnodeData": "{\"m_GuidSerialized\":\"ed5cb477-b46d-4129-8508-c7a523ed006e\",\"m_GroupGuidSerialized\":\"\",\"m_Name\":\"Property\",\"m_DrawState\":{\"m_Expanded\":true,\"m_Position\":{\"serializedVersion\":\"2\",\"x\":640.0,\"y\":1600.0,\"width\":240,\"height\":200}},\"m_SerializableSlots\":[{\"typeInfo\":{\"fullName\":\"UnityEditor.ShaderGraph.Vector1MaterialSlot\"},\"JSONnodeData\":\"{\\\"m_Id\\\":0,\\\"m_DisplayName\\\":\\\"Impact Ripple Strength\\\",\\\"m_SlotType\\\":1,\\\"m_Priority\\\":2147483647,\\\"m_Hidden\\\":false,\\\"m_ShaderOutputName\\\":\\\"Out\\\",\\\"m_StageCapability\\\":3,\\\"m_Value\\\":0,\\\"m_DefaultValue\\\":0,\\\"m_Labels\\\":[\\\"X\\\"]}\"}],\"m_Precision\":1,\"m_PreviewExpanded\":false,\"m_CustomColors\":{\"m_SerializableColors\":[]},\"m_PropertyGuidSerialized\":\"5ef155b4-e916-4244-a779-2b336db07b13\"}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.ShaderGraph.PropertyNode"
+          },
+          "JSONnodeData": "{\"m_GuidSerialized\":\"85cb17af-4db6-4f9c-bd9e-d34fc427ebf5\",\"m_GroupGuidSerialized\":\"\",\"m_Name\":\"Property\",\"m_DrawState\":{\"m_Expanded\":true,\"m_Position\":{\"serializedVersion\":\"2\",\"x\":640.0,\"y\":1800.0,\"width\":240,\"height\":200}},\"m_SerializableSlots\":[{\"typeInfo\":{\"fullName\":\"UnityEditor.ShaderGraph.Vector1MaterialSlot\"},\"JSONnodeData\":\"{\\\"m_Id\\\":0,\\\"m_DisplayName\\\":\\\"Impact Dip Depth\\\",\\\"m_SlotType\\\":1,\\\"m_Priority\\\":2147483647,\\\"m_Hidden\\\":false,\\\"m_ShaderOutputName\\\":\\\"Out\\\",\\\"m_StageCapability\\\":3,\\\"m_Value\\\":0,\\\"m_DefaultValue\\\":0,\\\"m_Labels\\\":[\\\"X\\\"]}\"}],\"m_Precision\":1,\"m_PreviewExpanded\":false,\"m_CustomColors\":{\"m_SerializableColors\":[]},\"m_PropertyGuidSerialized\":\"0c0093c6-d7af-4aea-9759-0d50a0b52d43\"}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.ShaderGraph.PropertyNode"
+          },
+          "JSONnodeData": "{\"m_GuidSerialized\":\"c49168f2-1562-4dd2-a9d1-54e887dceac6\",\"m_GroupGuidSerialized\":\"\",\"m_Name\":\"Property\",\"m_DrawState\":{\"m_Expanded\":true,\"m_Position\":{\"serializedVersion\":\"2\",\"x\":640.0,\"y\":2000.0,\"width\":240,\"height\":200}},\"m_SerializableSlots\":[{\"typeInfo\":{\"fullName\":\"UnityEditor.ShaderGraph.Vector1MaterialSlot\"},\"JSONnodeData\":\"{\\\"m_Id\\\":0,\\\"m_DisplayName\\\":\\\"Impact Ripple Radius\\\",\\\"m_SlotType\\\":1,\\\"m_Priority\\\":2147483647,\\\"m_Hidden\\\":false,\\\"m_ShaderOutputName\\\":\\\"Out\\\",\\\"m_StageCapability\\\":3,\\\"m_Value\\\":0,\\\"m_DefaultValue\\\":0,\\\"m_Labels\\\":[\\\"X\\\"]}\"}],\"m_Precision\":1,\"m_PreviewExpanded\":false,\"m_CustomColors\":{\"m_SerializableColors\":[]},\"m_PropertyGuidSerialized\":\"a96b7f21-2847-4078-b1c5-9b49b23696b9\"}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.ShaderGraph.PropertyNode"
+          },
+          "JSONnodeData": "{\"m_GuidSerialized\":\"eb5cba6a-70e9-4612-99ad-b6b74c8bcc50\",\"m_GroupGuidSerialized\":\"\",\"m_Name\":\"Property\",\"m_DrawState\":{\"m_Expanded\":true,\"m_Position\":{\"serializedVersion\":\"2\",\"x\":640.0,\"y\":2200.0,\"width\":240,\"height\":200}},\"m_SerializableSlots\":[{\"typeInfo\":{\"fullName\":\"UnityEditor.ShaderGraph.Vector1MaterialSlot\"},\"JSONnodeData\":\"{\\\"m_Id\\\":0,\\\"m_DisplayName\\\":\\\"Impact Recovery Time\\\",\\\"m_SlotType\\\":1,\\\"m_Priority\\\":2147483647,\\\"m_Hidden\\\":false,\\\"m_ShaderOutputName\\\":\\\"Out\\\",\\\"m_StageCapability\\\":3,\\\"m_Value\\\":0,\\\"m_DefaultValue\\\":0,\\\"m_Labels\\\":[\\\"X\\\"]}\"}],\"m_Precision\":1,\"m_PreviewExpanded\":false,\"m_CustomColors\":{\"m_SerializableColors\":[]},\"m_PropertyGuidSerialized\":\"a560cd2f-c6f0-4a86-b895-88fed665da08\"}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.ShaderGraph.CustomFunctionNode"
+          },
+          "JSONnodeData": "{\"m_GuidSerialized\":\"48941893-344d-4a28-9b5b-2c75ab88dbd8\",\"m_GroupGuidSerialized\":\"\",\"m_Name\":\"CCWaterImpactColor (Custom Function)\",\"m_DrawState\":{\"m_Expanded\":true,\"m_Position\":{\"serializedVersion\":\"2\",\"x\":1000.0,\"y\":1300.0,\"width\":240,\"height\":200}},\"m_SerializableSlots\":[{\"typeInfo\":{\"fullName\":\"UnityEditor.ShaderGraph.Vector4MaterialSlot\"},\"JSONnodeData\":\"{\\\"m_Id\\\":0,\\\"m_DisplayName\\\":\\\"OriginalColor\\\",\\\"m_SlotType\\\":0,\\\"m_Priority\\\":2147483647,\\\"m_Hidden\\\":false,\\\"m_ShaderOutputName\\\":\\\"OriginalColor\\\",\\\"m_StageCapability\\\":2,\\\"m_Value\\\":{\\\"x\\\":0,\\\"y\\\":0,\\\"z\\\":0,\\\"w\\\":0},\\\"m_DefaultValue\\\":{\\\"x\\\":0,\\\"y\\\":0,\\\"z\\\":0,\\\"w\\\":0},\\\"m_Labels\\\":[\\\"X\\\",\\\"Y\\\",\\\"Z\\\",\\\"W\\\"]}\"},{\"typeInfo\":{\"fullName\":\"UnityEditor.ShaderGraph.Vector3MaterialSlot\"},\"JSONnodeData\":\"{\\\"m_Id\\\":1,\\\"m_DisplayName\\\":\\\"PositionWS\\\",\\\"m_SlotType\\\":0,\\\"m_Priority\\\":2147483647,\\\"m_Hidden\\\":false,\\\"m_ShaderOutputName\\\":\\\"PositionWS\\\",\\\"m_StageCapability\\\":2,\\\"m_Value\\\":{\\\"x\\\":0,\\\"y\\\":0,\\\"z\\\":0},\\\"m_DefaultValue\\\":{\\\"x\\\":0,\\\"y\\\":0,\\\"z\\\":0},\\\"m_Labels\\\":[\\\"X\\\",\\\"Y\\\",\\\"Z\\\"]}\"},{\"typeInfo\":{\"fullName\":\"UnityEditor.ShaderGraph.Vector1MaterialSlot\"},\"JSONnodeData\":\"{\\\"m_Id\\\":2,\\\"m_DisplayName\\\":\\\"Strength\\\",\\\"m_SlotType\\\":0,\\\"m_Priority\\\":2147483647,\\\"m_Hidden\\\":false,\\\"m_ShaderOutputName\\\":\\\"Strength\\\",\\\"m_StageCapability\\\":2,\\\"m_Value\\\":0,\\\"m_DefaultValue\\\":0,\\\"m_Labels\\\":[\\\"X\\\"]}\"},{\"typeInfo\":{\"fullName\":\"UnityEditor.ShaderGraph.Vector1MaterialSlot\"},\"JSONnodeData\":\"{\\\"m_Id\\\":3,\\\"m_DisplayName\\\":\\\"DipDepth\\\",\\\"m_SlotType\\\":0,\\\"m_Priority\\\":2147483647,\\\"m_Hidden\\\":false,\\\"m_ShaderOutputName\\\":\\\"DipDepth\\\",\\\"m_StageCapability\\\":2,\\\"m_Value\\\":0,\\\"m_DefaultValue\\\":0,\\\"m_Labels\\\":[\\\"X\\\"]}\"},{\"typeInfo\":{\"fullName\":\"UnityEditor.ShaderGraph.Vector1MaterialSlot\"},\"JSONnodeData\":\"{\\\"m_Id\\\":4,\\\"m_DisplayName\\\":\\\"Radius\\\",\\\"m_SlotType\\\":0,\\\"m_Priority\\\":2147483647,\\\"m_Hidden\\\":false,\\\"m_ShaderOutputName\\\":\\\"Radius\\\",\\\"m_StageCapability\\\":2,\\\"m_Value\\\":0,\\\"m_DefaultValue\\\":0,\\\"m_Labels\\\":[\\\"X\\\"]}\"},{\"typeInfo\":{\"fullName\":\"UnityEditor.ShaderGraph.Vector1MaterialSlot\"},\"JSONnodeData\":\"{\\\"m_Id\\\":5,\\\"m_DisplayName\\\":\\\"Duration\\\",\\\"m_SlotType\\\":0,\\\"m_Priority\\\":2147483647,\\\"m_Hidden\\\":false,\\\"m_ShaderOutputName\\\":\\\"Duration\\\",\\\"m_StageCapability\\\":2,\\\"m_Value\\\":0,\\\"m_DefaultValue\\\":0,\\\"m_Labels\\\":[\\\"X\\\"]}\"},{\"typeInfo\":{\"fullName\":\"UnityEditor.ShaderGraph.Vector4MaterialSlot\"},\"JSONnodeData\":\"{\\\"m_Id\\\":6,\\\"m_DisplayName\\\":\\\"Color\\\",\\\"m_SlotType\\\":1,\\\"m_Priority\\\":2147483647,\\\"m_Hidden\\\":false,\\\"m_ShaderOutputName\\\":\\\"Color\\\",\\\"m_StageCapability\\\":2,\\\"m_Value\\\":{\\\"x\\\":0,\\\"y\\\":0,\\\"z\\\":0,\\\"w\\\":0},\\\"m_DefaultValue\\\":{\\\"x\\\":0,\\\"y\\\":0,\\\"z\\\":0,\\\"w\\\":0},\\\"m_Labels\\\":[\\\"X\\\",\\\"Y\\\",\\\"Z\\\",\\\"W\\\"]}\"}],\"m_Precision\":1,\"m_PreviewExpanded\":false,\"m_CustomColors\":{\"m_SerializableColors\":[]},\"m_NodeVersion\":1,\"m_SourceType\":0,\"m_FunctionName\":\"CCWaterImpactColor\",\"m_FunctionSource\":\"360b25cec3734a9ab55a5aff4988f2bd\",\"m_FunctionBody\":\"\"}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.ShaderGraph.CustomFunctionNode"
+          },
+            "JSONnodeData": "{\"m_GuidSerialized\":\"3345f05b-bf67-4052-adce-330199f2c68c\",\"m_GroupGuidSerialized\":\"\",\"m_Name\":\"CCWaterImpactVertex (Custom Function)\",\"m_DrawState\":{\"m_Expanded\":true,\"m_Position\":{\"serializedVersion\":\"2\",\"x\":1000.0,\"y\":2080.0,\"width\":240,\"height\":200}},\"m_SerializableSlots\":[{\"typeInfo\":{\"fullName\":\"UnityEditor.ShaderGraph.Vector3MaterialSlot\"},\"JSONnodeData\":\"{\\\"m_Id\\\":0,\\\"m_DisplayName\\\":\\\"OriginalPositionOS\\\",\\\"m_SlotType\\\":0,\\\"m_Priority\\\":2147483647,\\\"m_Hidden\\\":false,\\\"m_ShaderOutputName\\\":\\\"OriginalPositionOS\\\",\\\"m_StageCapability\\\":1,\\\"m_Value\\\":{\\\"x\\\":0,\\\"y\\\":0,\\\"z\\\":0},\\\"m_DefaultValue\\\":{\\\"x\\\":0,\\\"y\\\":0,\\\"z\\\":0},\\\"m_Labels\\\":[\\\"X\\\",\\\"Y\\\",\\\"Z\\\"]}\"},{\"typeInfo\":{\"fullName\":\"UnityEditor.ShaderGraph.Vector3MaterialSlot\"},\"JSONnodeData\":\"{\\\"m_Id\\\":1,\\\"m_DisplayName\\\":\\\"PositionWS\\\",\\\"m_SlotType\\\":0,\\\"m_Priority\\\":2147483647,\\\"m_Hidden\\\":false,\\\"m_ShaderOutputName\\\":\\\"PositionWS\\\",\\\"m_StageCapability\\\":1,\\\"m_Value\\\":{\\\"x\\\":0,\\\"y\\\":0,\\\"z\\\":0},\\\"m_DefaultValue\\\":{\\\"x\\\":0,\\\"y\\\":0,\\\"z\\\":0},\\\"m_Labels\\\":[\\\"X\\\",\\\"Y\\\",\\\"Z\\\"]}\"},{\"typeInfo\":{\"fullName\":\"UnityEditor.ShaderGraph.Vector1MaterialSlot\"},\"JSONnodeData\":\"{\\\"m_Id\\\":2,\\\"m_DisplayName\\\":\\\"DipDepth\\\",\\\"m_SlotType\\\":0,\\\"m_Priority\\\":2147483647,\\\"m_Hidden\\\":false,\\\"m_ShaderOutputName\\\":\\\"DipDepth\\\",\\\"m_StageCapability\\\":1,\\\"m_Value\\\":0,\\\"m_DefaultValue\\\":0,\\\"m_Labels\\\":[\\\"X\\\"]}\"},{\"typeInfo\":{\"fullName\":\"UnityEditor.ShaderGraph.Vector1MaterialSlot\"},\"JSONnodeData\":\"{\\\"m_Id\\\":3,\\\"m_DisplayName\\\":\\\"Radius\\\",\\\"m_SlotType\\\":0,\\\"m_Priority\\\":2147483647,\\\"m_Hidden\\\":false,\\\"m_ShaderOutputName\\\":\\\"Radius\\\",\\\"m_StageCapability\\\":1,\\\"m_Value\\\":0,\\\"m_DefaultValue\\\":0,\\\"m_Labels\\\":[\\\"X\\\"]}\"},{\"typeInfo\":{\"fullName\":\"UnityEditor.ShaderGraph.Vector1MaterialSlot\"},\"JSONnodeData\":\"{\\\"m_Id\\\":4,\\\"m_DisplayName\\\":\\\"Duration\\\",\\\"m_SlotType\\\":0,\\\"m_Priority\\\":2147483647,\\\"m_Hidden\\\":false,\\\"m_ShaderOutputName\\\":\\\"Duration\\\",\\\"m_StageCapability\\\":1,\\\"m_Value\\\":0,\\\"m_DefaultValue\\\":0,\\\"m_Labels\\\":[\\\"X\\\"]}\"},{\"typeInfo\":{\"fullName\":\"UnityEditor.ShaderGraph.Vector3MaterialSlot\"},\"JSONnodeData\":\"{\\\"m_Id\\\":5,\\\"m_DisplayName\\\":\\\"PositionOS\\\",\\\"m_SlotType\\\":1,\\\"m_Priority\\\":2147483647,\\\"m_Hidden\\\":false,\\\"m_ShaderOutputName\\\":\\\"PositionOS\\\",\\\"m_StageCapability\\\":1,\\\"m_Value\\\":{\\\"x\\\":0,\\\"y\\\":0,\\\"z\\\":0},\\\"m_DefaultValue\\\":{\\\"x\\\":0,\\\"y\\\":0,\\\"z\\\":0},\\\"m_Labels\\\":[\\\"X\\\",\\\"Y\\\",\\\"Z\\\"]}\"}],\"m_Precision\":1,\"m_PreviewExpanded\":false,\"m_CustomColors\":{\"m_SerializableColors\":[]},\"m_NodeVersion\":1,\"m_SourceType\":0,\"m_FunctionName\":\"CCWaterImpactVertex\",\"m_FunctionSource\":\"360b25cec3734a9ab55a5aff4988f2bd\",\"m_FunctionBody\":\"\"}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.ShaderGraph.PropertyNode"
+          },
+            "JSONnodeData": "{\"m_GuidSerialized\":\"b04f6970-46f8-436d-b101-75e010fc8430\",\"m_GroupGuidSerialized\":\"\",\"m_Name\":\"Property\",\"m_DrawState\":{\"m_Expanded\":true,\"m_Position\":{\"serializedVersion\":\"2\",\"x\":-200.0,\"y\":1000.0,\"width\":240,\"height\":200}},\"m_SerializableSlots\":[{\"typeInfo\":{\"fullName\":\"UnityEditor.ShaderGraph.Vector1MaterialSlot\"},\"JSONnodeData\":\"{\\\"m_Id\\\":0,\\\"m_DisplayName\\\":\\\"Boat Ripple Strength\\\",\\\"m_SlotType\\\":1,\\\"m_Priority\\\":2147483647,\\\"m_Hidden\\\":false,\\\"m_ShaderOutputName\\\":\\\"Out\\\",\\\"m_StageCapability\\\":3,\\\"m_Value\\\":0,\\\"m_DefaultValue\\\":0,\\\"m_Labels\\\":[\\\"X\\\"]}\"}],\"m_Precision\":1,\"m_PreviewExpanded\":false,\"m_CustomColors\":{\"m_SerializableColors\":[]},\"m_PropertyGuidSerialized\":\"03711b55-44a5-4e7c-abe7-dbcd4448c07d\"}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.ShaderGraph.PropertyNode"
+          },
+            "JSONnodeData": "{\"m_GuidSerialized\":\"1f2d8cc2-f17f-40f1-8696-461defed4a29\",\"m_GroupGuidSerialized\":\"\",\"m_Name\":\"Property\",\"m_DrawState\":{\"m_Expanded\":true,\"m_Position\":{\"serializedVersion\":\"2\",\"x\":-200.0,\"y\":1220.0,\"width\":240,\"height\":200}},\"m_SerializableSlots\":[{\"typeInfo\":{\"fullName\":\"UnityEditor.ShaderGraph.Vector1MaterialSlot\"},\"JSONnodeData\":\"{\\\"m_Id\\\":0,\\\"m_DisplayName\\\":\\\"Boat Wake Width\\\",\\\"m_SlotType\\\":1,\\\"m_Priority\\\":2147483647,\\\"m_Hidden\\\":false,\\\"m_ShaderOutputName\\\":\\\"Out\\\",\\\"m_StageCapability\\\":3,\\\"m_Value\\\":0,\\\"m_DefaultValue\\\":0,\\\"m_Labels\\\":[\\\"X\\\"]}\"}],\"m_Precision\":1,\"m_PreviewExpanded\":false,\"m_CustomColors\":{\"m_SerializableColors\":[]},\"m_PropertyGuidSerialized\":\"4d76382f-9b7b-4a64-ab83-cd25f9899936\"}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.ShaderGraph.PropertyNode"
+          },
+            "JSONnodeData": "{\"m_GuidSerialized\":\"3dc5e94b-318b-4dcc-8195-6ea336eb0875\",\"m_GroupGuidSerialized\":\"\",\"m_Name\":\"Property\",\"m_DrawState\":{\"m_Expanded\":true,\"m_Position\":{\"serializedVersion\":\"2\",\"x\":-200.0,\"y\":1440.0,\"width\":240,\"height\":200}},\"m_SerializableSlots\":[{\"typeInfo\":{\"fullName\":\"UnityEditor.ShaderGraph.Vector1MaterialSlot\"},\"JSONnodeData\":\"{\\\"m_Id\\\":0,\\\"m_DisplayName\\\":\\\"Boat Wake Length\\\",\\\"m_SlotType\\\":1,\\\"m_Priority\\\":2147483647,\\\"m_Hidden\\\":false,\\\"m_ShaderOutputName\\\":\\\"Out\\\",\\\"m_StageCapability\\\":3,\\\"m_Value\\\":0,\\\"m_DefaultValue\\\":0,\\\"m_Labels\\\":[\\\"X\\\"]}\"}],\"m_Precision\":1,\"m_PreviewExpanded\":false,\"m_CustomColors\":{\"m_SerializableColors\":[]},\"m_PropertyGuidSerialized\":\"711f5deb-fcea-421c-bad1-df04bb45a7ec\"}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.ShaderGraph.PropertyNode"
+          },
+            "JSONnodeData": "{\"m_GuidSerialized\":\"b2edb727-a27b-41cb-9b8a-7139e9a66965\",\"m_GroupGuidSerialized\":\"\",\"m_Name\":\"Property\",\"m_DrawState\":{\"m_Expanded\":true,\"m_Position\":{\"serializedVersion\":\"2\",\"x\":-200.0,\"y\":1660.0,\"width\":240,\"height\":200}},\"m_SerializableSlots\":[{\"typeInfo\":{\"fullName\":\"UnityEditor.ShaderGraph.Vector1MaterialSlot\"},\"JSONnodeData\":\"{\\\"m_Id\\\":0,\\\"m_DisplayName\\\":\\\"Boat Ripple Spacing\\\",\\\"m_SlotType\\\":1,\\\"m_Priority\\\":2147483647,\\\"m_Hidden\\\":false,\\\"m_ShaderOutputName\\\":\\\"Out\\\",\\\"m_StageCapability\\\":3,\\\"m_Value\\\":0,\\\"m_DefaultValue\\\":0,\\\"m_Labels\\\":[\\\"X\\\"]}\"}],\"m_Precision\":1,\"m_PreviewExpanded\":false,\"m_CustomColors\":{\"m_SerializableColors\":[]},\"m_PropertyGuidSerialized\":\"0ff81829-6d7e-4d73-ae23-9b6547e68b7c\"}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.ShaderGraph.PropertyNode"
+          },
+            "JSONnodeData": "{\"m_GuidSerialized\":\"0c835462-130d-45af-bafb-077236eb7c41\",\"m_GroupGuidSerialized\":\"\",\"m_Name\":\"Property\",\"m_DrawState\":{\"m_Expanded\":true,\"m_Position\":{\"serializedVersion\":\"2\",\"x\":-200.0,\"y\":1880.0,\"width\":240,\"height\":200}},\"m_SerializableSlots\":[{\"typeInfo\":{\"fullName\":\"UnityEditor.ShaderGraph.Vector1MaterialSlot\"},\"JSONnodeData\":\"{\\\"m_Id\\\":0,\\\"m_DisplayName\\\":\\\"Boat Ripple Speed\\\",\\\"m_SlotType\\\":1,\\\"m_Priority\\\":2147483647,\\\"m_Hidden\\\":false,\\\"m_ShaderOutputName\\\":\\\"Out\\\",\\\"m_StageCapability\\\":3,\\\"m_Value\\\":0,\\\"m_DefaultValue\\\":0,\\\"m_Labels\\\":[\\\"X\\\"]}\"}],\"m_Precision\":1,\"m_PreviewExpanded\":false,\"m_CustomColors\":{\"m_SerializableColors\":[]},\"m_PropertyGuidSerialized\":\"d009a7fc-271c-4142-aad8-7d03f1f36df2\"}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.ShaderGraph.CustomFunctionNode"
+          },
+          "JSONnodeData": "{\"m_GuidSerialized\":\"f231c3a6-57e9-44c4-ac43-0c705933450b\",\"m_GroupGuidSerialized\":\"\",\"m_Name\":\"CCBoatWaterRipple (Custom Function)\",\"m_DrawState\":{\"m_Expanded\":true,\"m_Position\":{\"serializedVersion\":\"2\",\"x\":360,\"y\":820,\"width\":240,\"height\":200}},\"m_SerializableSlots\":[{\"typeInfo\":{\"fullName\":\"UnityEditor.ShaderGraph.Vector4MaterialSlot\"},\"JSONnodeData\":\"{\\\"m_Id\\\":0,\\\"m_DisplayName\\\":\\\"OriginalColor\\\",\\\"m_SlotType\\\":0,\\\"m_Priority\\\":2147483647,\\\"m_Hidden\\\":false,\\\"m_ShaderOutputName\\\":\\\"OriginalColor\\\",\\\"m_StageCapability\\\":2,\\\"m_Value\\\":{\\\"x\\\":0,\\\"y\\\":0,\\\"z\\\":0,\\\"w\\\":0},\\\"m_DefaultValue\\\":{\\\"x\\\":0,\\\"y\\\":0,\\\"z\\\":0,\\\"w\\\":0},\\\"m_Labels\\\":[\\\"X\\\",\\\"Y\\\",\\\"Z\\\",\\\"W\\\"]}\"},{\"typeInfo\":{\"fullName\":\"UnityEditor.ShaderGraph.Vector3MaterialSlot\"},\"JSONnodeData\":\"{\\\"m_Id\\\":1,\\\"m_DisplayName\\\":\\\"PositionWS\\\",\\\"m_SlotType\\\":0,\\\"m_Priority\\\":2147483647,\\\"m_Hidden\\\":false,\\\"m_ShaderOutputName\\\":\\\"PositionWS\\\",\\\"m_StageCapability\\\":2,\\\"m_Value\\\":{\\\"x\\\":0,\\\"y\\\":0,\\\"z\\\":0},\\\"m_DefaultValue\\\":{\\\"x\\\":0,\\\"y\\\":0,\\\"z\\\":0},\\\"m_Labels\\\":[\\\"X\\\",\\\"Y\\\",\\\"Z\\\"]}\"},{\"typeInfo\":{\"fullName\":\"UnityEditor.ShaderGraph.Vector1MaterialSlot\"},\"JSONnodeData\":\"{\\\"m_Id\\\":2,\\\"m_DisplayName\\\":\\\"Strength\\\",\\\"m_SlotType\\\":0,\\\"m_Priority\\\":2147483647,\\\"m_Hidden\\\":false,\\\"m_ShaderOutputName\\\":\\\"Strength\\\",\\\"m_StageCapability\\\":2,\\\"m_Value\\\":0,\\\"m_DefaultValue\\\":0,\\\"m_Labels\\\":[\\\"X\\\"]}\"},{\"typeInfo\":{\"fullName\":\"UnityEditor.ShaderGraph.Vector1MaterialSlot\"},\"JSONnodeData\":\"{\\\"m_Id\\\":3,\\\"m_DisplayName\\\":\\\"Width\\\",\\\"m_SlotType\\\":0,\\\"m_Priority\\\":2147483647,\\\"m_Hidden\\\":false,\\\"m_ShaderOutputName\\\":\\\"Width\\\",\\\"m_StageCapability\\\":2,\\\"m_Value\\\":0,\\\"m_DefaultValue\\\":0,\\\"m_Labels\\\":[\\\"X\\\"]}\"},{\"typeInfo\":{\"fullName\":\"UnityEditor.ShaderGraph.Vector1MaterialSlot\"},\"JSONnodeData\":\"{\\\"m_Id\\\":4,\\\"m_DisplayName\\\":\\\"Length\\\",\\\"m_SlotType\\\":0,\\\"m_Priority\\\":2147483647,\\\"m_Hidden\\\":false,\\\"m_ShaderOutputName\\\":\\\"Length\\\",\\\"m_StageCapability\\\":2,\\\"m_Value\\\":0,\\\"m_DefaultValue\\\":0,\\\"m_Labels\\\":[\\\"X\\\"]}\"},{\"typeInfo\":{\"fullName\":\"UnityEditor.ShaderGraph.Vector1MaterialSlot\"},\"JSONnodeData\":\"{\\\"m_Id\\\":5,\\\"m_DisplayName\\\":\\\"Spacing\\\",\\\"m_SlotType\\\":0,\\\"m_Priority\\\":2147483647,\\\"m_Hidden\\\":false,\\\"m_ShaderOutputName\\\":\\\"Spacing\\\",\\\"m_StageCapability\\\":2,\\\"m_Value\\\":0,\\\"m_DefaultValue\\\":0,\\\"m_Labels\\\":[\\\"X\\\"]}\"},{\"typeInfo\":{\"fullName\":\"UnityEditor.ShaderGraph.Vector1MaterialSlot\"},\"JSONnodeData\":\"{\\\"m_Id\\\":6,\\\"m_DisplayName\\\":\\\"Speed\\\",\\\"m_SlotType\\\":0,\\\"m_Priority\\\":2147483647,\\\"m_Hidden\\\":false,\\\"m_ShaderOutputName\\\":\\\"Speed\\\",\\\"m_StageCapability\\\":2,\\\"m_Value\\\":0,\\\"m_DefaultValue\\\":0,\\\"m_Labels\\\":[\\\"X\\\"]}\"},{\"typeInfo\":{\"fullName\":\"UnityEditor.ShaderGraph.Vector1MaterialSlot\"},\"JSONnodeData\":\"{\\\"m_Id\\\":7,\\\"m_DisplayName\\\":\\\"Time\\\",\\\"m_SlotType\\\":0,\\\"m_Priority\\\":2147483647,\\\"m_Hidden\\\":false,\\\"m_ShaderOutputName\\\":\\\"Time\\\",\\\"m_StageCapability\\\":2,\\\"m_Value\\\":0,\\\"m_DefaultValue\\\":0,\\\"m_Labels\\\":[\\\"X\\\"]}\"},{\"typeInfo\":{\"fullName\":\"UnityEditor.ShaderGraph.Vector4MaterialSlot\"},\"JSONnodeData\":\"{\\\"m_Id\\\":8,\\\"m_DisplayName\\\":\\\"Color\\\",\\\"m_SlotType\\\":1,\\\"m_Priority\\\":2147483647,\\\"m_Hidden\\\":false,\\\"m_ShaderOutputName\\\":\\\"Color\\\",\\\"m_StageCapability\\\":2,\\\"m_Value\\\":{\\\"x\\\":0,\\\"y\\\":0,\\\"z\\\":0,\\\"w\\\":0},\\\"m_DefaultValue\\\":{\\\"x\\\":0,\\\"y\\\":0,\\\"z\\\":0,\\\"w\\\":0},\\\"m_Labels\\\":[\\\"X\\\",\\\"Y\\\",\\\"Z\\\",\\\"W\\\"]}\"}],\"m_Precision\":1,\"m_PreviewExpanded\":false,\"m_CustomColors\":{\"m_SerializableColors\":[]},\"m_NodeVersion\":1,\"m_SourceType\":0,\"m_FunctionName\":\"CCBoatWaterRipple\",\"m_FunctionSource\":\"70a5b108421d4e72a31701fc0e43dd36\",\"m_FunctionBody\":\"\"}"
+        }
+        ,
         {
             "typeInfo": {
                 "fullName": "UnityEditor.ShaderGraph.PositionNode"
@@ -305,6 +459,146 @@
     "m_StickyNotes": [],
     "m_SerializableEdges": [
         {
+          "typeInfo": {
+            "fullName": "UnityEditor.Graphing.Edge"
+          },
+          "JSONnodeData": "{\"m_OutputSlot\":{\"m_SlotId\":0,\"m_NodeGUIDSerialized\":\"77770943-f603-49a3-a319-82a72b8af98a\"},\"m_InputSlot\":{\"m_SlotId\":0,\"m_NodeGUIDSerialized\":\"3345f05b-bf67-4052-adce-330199f2c68c\"}}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.Graphing.Edge"
+          },
+          "JSONnodeData": "{\"m_OutputSlot\":{\"m_SlotId\":0,\"m_NodeGUIDSerialized\":\"ed5cb477-b46d-4129-8508-c7a523ed006e\"},\"m_InputSlot\":{\"m_SlotId\":2,\"m_NodeGUIDSerialized\":\"48941893-344d-4a28-9b5b-2c75ab88dbd8\"}}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.Graphing.Edge"
+          },
+          "JSONnodeData": "{\"m_OutputSlot\":{\"m_SlotId\":0,\"m_NodeGUIDSerialized\":\"85cb17af-4db6-4f9c-bd9e-d34fc427ebf5\"},\"m_InputSlot\":{\"m_SlotId\":3,\"m_NodeGUIDSerialized\":\"48941893-344d-4a28-9b5b-2c75ab88dbd8\"}}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.Graphing.Edge"
+          },
+            "JSONnodeData": "{\"m_OutputSlot\":{\"m_SlotId\":0,\"m_NodeGUIDSerialized\":\"85cb17af-4db6-4f9c-bd9e-d34fc427ebf5\"},\"m_InputSlot\":{\"m_SlotId\":2,\"m_NodeGUIDSerialized\":\"3345f05b-bf67-4052-adce-330199f2c68c\"}}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.Graphing.Edge"
+          },
+          "JSONnodeData": "{\"m_OutputSlot\":{\"m_SlotId\":0,\"m_NodeGUIDSerialized\":\"c49168f2-1562-4dd2-a9d1-54e887dceac6\"},\"m_InputSlot\":{\"m_SlotId\":4,\"m_NodeGUIDSerialized\":\"48941893-344d-4a28-9b5b-2c75ab88dbd8\"}}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.Graphing.Edge"
+          },
+            "JSONnodeData": "{\"m_OutputSlot\":{\"m_SlotId\":0,\"m_NodeGUIDSerialized\":\"c49168f2-1562-4dd2-a9d1-54e887dceac6\"},\"m_InputSlot\":{\"m_SlotId\":3,\"m_NodeGUIDSerialized\":\"3345f05b-bf67-4052-adce-330199f2c68c\"}}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.Graphing.Edge"
+          },
+          "JSONnodeData": "{\"m_OutputSlot\":{\"m_SlotId\":0,\"m_NodeGUIDSerialized\":\"eb5cba6a-70e9-4612-99ad-b6b74c8bcc50\"},\"m_InputSlot\":{\"m_SlotId\":5,\"m_NodeGUIDSerialized\":\"48941893-344d-4a28-9b5b-2c75ab88dbd8\"}}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.Graphing.Edge"
+          },
+            "JSONnodeData": "{\"m_OutputSlot\":{\"m_SlotId\":0,\"m_NodeGUIDSerialized\":\"eb5cba6a-70e9-4612-99ad-b6b74c8bcc50\"},\"m_InputSlot\":{\"m_SlotId\":4,\"m_NodeGUIDSerialized\":\"3345f05b-bf67-4052-adce-330199f2c68c\"}}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.Graphing.Edge"
+          },
+          "JSONnodeData": "{\"m_OutputSlot\":{\"m_SlotId\":8,\"m_NodeGUIDSerialized\":\"f231c3a6-57e9-44c4-ac43-0c705933450b\"},\"m_InputSlot\":{\"m_SlotId\":0,\"m_NodeGUIDSerialized\":\"48941893-344d-4a28-9b5b-2c75ab88dbd8\"}}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.Graphing.Edge"
+          },
+          "JSONnodeData": "{\"m_OutputSlot\":{\"m_SlotId\":0,\"m_NodeGUIDSerialized\":\"d62b2a93-37e4-468f-8ca2-de22688fb270\"},\"m_InputSlot\":{\"m_SlotId\":1,\"m_NodeGUIDSerialized\":\"48941893-344d-4a28-9b5b-2c75ab88dbd8\"}}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.Graphing.Edge"
+          },
+            "JSONnodeData": "{\"m_OutputSlot\":{\"m_SlotId\":0,\"m_NodeGUIDSerialized\":\"d62b2a93-37e4-468f-8ca2-de22688fb270\"},\"m_InputSlot\":{\"m_SlotId\":1,\"m_NodeGUIDSerialized\":\"3345f05b-bf67-4052-adce-330199f2c68c\"}}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.Graphing.Edge"
+          },
+            "JSONnodeData": "{\"m_OutputSlot\":{\"m_SlotId\":5,\"m_NodeGUIDSerialized\":\"3345f05b-bf67-4052-adce-330199f2c68c\"},\"m_InputSlot\":{\"m_SlotId\":9,\"m_NodeGUIDSerialized\":\"70a2f7ef-7265-4261-b7bc-d172c56557a3\"}}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.Graphing.Edge"
+          },
+          "JSONnodeData": "{\"m_OutputSlot\":{\"m_SlotId\":0,\"m_NodeGUIDSerialized\":\"b04f6970-46f8-436d-b101-75e010fc8430\"},\"m_InputSlot\":{\"m_SlotId\":2,\"m_NodeGUIDSerialized\":\"f231c3a6-57e9-44c4-ac43-0c705933450b\"}}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.Graphing.Edge"
+          },
+          "JSONnodeData": "{\"m_OutputSlot\":{\"m_SlotId\":0,\"m_NodeGUIDSerialized\":\"1f2d8cc2-f17f-40f1-8696-461defed4a29\"},\"m_InputSlot\":{\"m_SlotId\":3,\"m_NodeGUIDSerialized\":\"f231c3a6-57e9-44c4-ac43-0c705933450b\"}}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.Graphing.Edge"
+          },
+          "JSONnodeData": "{\"m_OutputSlot\":{\"m_SlotId\":0,\"m_NodeGUIDSerialized\":\"3dc5e94b-318b-4dcc-8195-6ea336eb0875\"},\"m_InputSlot\":{\"m_SlotId\":4,\"m_NodeGUIDSerialized\":\"f231c3a6-57e9-44c4-ac43-0c705933450b\"}}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.Graphing.Edge"
+          },
+          "JSONnodeData": "{\"m_OutputSlot\":{\"m_SlotId\":0,\"m_NodeGUIDSerialized\":\"b2edb727-a27b-41cb-9b8a-7139e9a66965\"},\"m_InputSlot\":{\"m_SlotId\":5,\"m_NodeGUIDSerialized\":\"f231c3a6-57e9-44c4-ac43-0c705933450b\"}}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.Graphing.Edge"
+          },
+          "JSONnodeData": "{\"m_OutputSlot\":{\"m_SlotId\":0,\"m_NodeGUIDSerialized\":\"0c835462-130d-45af-bafb-077236eb7c41\"},\"m_InputSlot\":{\"m_SlotId\":6,\"m_NodeGUIDSerialized\":\"f231c3a6-57e9-44c4-ac43-0c705933450b\"}}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.Graphing.Edge"
+          },
+          "JSONnodeData": "{\"m_OutputSlot\":{\"m_SlotId\":3,\"m_NodeGUIDSerialized\":\"729a2105-e823-4af6-a63e-5b473ea9b289\"},\"m_InputSlot\":{\"m_SlotId\":0,\"m_NodeGUIDSerialized\":\"f231c3a6-57e9-44c4-ac43-0c705933450b\"}}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.Graphing.Edge"
+          },
+          "JSONnodeData": "{\"m_OutputSlot\":{\"m_SlotId\":0,\"m_NodeGUIDSerialized\":\"d62b2a93-37e4-468f-8ca2-de22688fb270\"},\"m_InputSlot\":{\"m_SlotId\":1,\"m_NodeGUIDSerialized\":\"f231c3a6-57e9-44c4-ac43-0c705933450b\"}}"
+        }
+        ,
+        {
+          "typeInfo": {
+            "fullName": "UnityEditor.Graphing.Edge"
+          },
+          "JSONnodeData": "{\"m_OutputSlot\":{\"m_SlotId\":0,\"m_NodeGUIDSerialized\":\"7520c7bb-1ec8-417d-b21e-17ea717a312a\"},\"m_InputSlot\":{\"m_SlotId\":7,\"m_NodeGUIDSerialized\":\"f231c3a6-57e9-44c4-ac43-0c705933450b\"}}"
+        }
+        ,
+        {
             "typeInfo": {
                 "fullName": "UnityEditor.Graphing.Edge"
             },
@@ -482,7 +776,7 @@
             "typeInfo": {
                 "fullName": "UnityEditor.Graphing.Edge"
             },
-            "JSONnodeData": "{\n    \"m_OutputSlot\": {\n        \"m_SlotId\": 3,\n        \"m_NodeGUIDSerialized\": \"729a2105-e823-4af6-a63e-5b473ea9b289\"\n    },\n    \"m_InputSlot\": {\n        \"m_SlotId\": 0,\n        \"m_NodeGUIDSerialized\": \"795b5c65-49d2-4424-b464-8c48045323e8\"\n    }\n}"
+            "JSONnodeData": "{\n    \"m_OutputSlot\": {\n        \"m_SlotId\": 6,\n        \"m_NodeGUIDSerialized\": \"48941893-344d-4a28-9b5b-2c75ab88dbd8\"\n    },\n    \"m_InputSlot\": {\n        \"m_SlotId\": 0,\n        \"m_NodeGUIDSerialized\": \"795b5c65-49d2-4424-b464-8c48045323e8\"\n    }\n}"
         },
         {
             "typeInfo": {

@@ -38,6 +38,15 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
+    - _WaterImpactStrength: 0.65
+    - _WaterDipDepth: 0.45
+    - _WaterImpactRadius: 4
+    - _WaterImpactDuration: 1.8
+    - _BoatRippleStrength: 0.45
+    - _BoatWakeWidth: 3
+    - _BoatWakeLength: 18
+    - _BoatRippleSpacing: 2.5
+    - _BoatRippleSpeed: 2
     - Vector1_29A8EAB: 0.7
     - Vector1_3C2CF0EB: 0.0047
     - Vector1_53B9698E: 15

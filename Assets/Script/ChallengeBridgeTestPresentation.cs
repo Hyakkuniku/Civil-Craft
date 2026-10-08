@@ -257,6 +257,8 @@ public sealed class ChallengeBridgeTestView : IDisposable
     private readonly Dictionary<Renderer, Color[]> originalColors = new Dictionary<Renderer, Color[]>();
     private readonly Dictionary<int, Renderer[]> boatRenderers = new Dictionary<int, Renderer[]>();
     private readonly Dictionary<Renderer, bool> boatRendererStates = new Dictionary<Renderer, bool>();
+    private readonly List<Transform> wakeBoats = new List<Transform>();
+    private readonly List<Transform> impactSources = new List<Transform>();
     private int vehicleIndex, boatStart;
     private readonly Dictionary<int, LineRenderer[]> ropes = new Dictionary<int, LineRenderer[]>();
     private static readonly Color RopeColor = new Color(0.72f, 0.43f, 0.25f, 1f);
@@ -308,6 +310,12 @@ public sealed class ChallengeBridgeTestView : IDisposable
                     originalColors[renderer] = colors;
                 }
                 BridgeMaterialSO material = materials[descriptor.Bridge.Bars[i].MaterialId];
+                if (Application.isPlaying && !material.isRope)
+                {
+                    float length = renderers.Length > 0 ? renderers[0].bounds.size.magnitude : 1f;
+                    WaterImpact.Register(member, renderers, null, null, length * material.GetPlacedMassPerMeter());
+                    impactSources.Add(member);
+                }
                 if (material.isRope)
                 {
                     Shader shader = Resources.Load<Shader>("Shaders/RopeSimulation");
@@ -361,6 +369,11 @@ public sealed class ChallengeBridgeTestView : IDisposable
             // Flatten only the visual wheel parents. Physics axle objects are
             // absent on spectators and may differ between initialized editors.
             for (int i = vehicleIndex + 1; i < boatStart; i++) targets[i].SetParent(vehicle.transform, true);
+            if (Application.isPlaying)
+            {
+                WaterImpact.Register(vehicle.transform, vehicle.GetComponentsInChildren<Renderer>(true), null, null, descriptor.Weight);
+                impactSources.Add(vehicle.transform);
+            }
             for (int i = 0; i < descriptor.BoatKeys.Length; i++)
             {
                 BoatBridgeCrossing boatSource = ChallengeTestDescriptor.ResolveBoat(descriptor.BoatKeys[i], site.gameObject.scene);
@@ -370,6 +383,11 @@ public sealed class ChallengeBridgeTestView : IDisposable
                 boat.transform.SetPositionAndRotation(pose.Position, pose.Rotation); boat.transform.localScale = pose.Scale;
                 boat.SetActive(true);
                 Renderer[] meshes = boat.GetComponentsInChildren<Renderer>(true);
+                if (Application.isPlaying)
+                {
+                    BoatWaterWake.Register(boat.transform, meshes);
+                    wakeBoats.Add(boat.transform);
+                }
                 boatRenderers.Add(targets.Count, meshes);
                 foreach (Renderer renderer in meshes) boatRendererStates.Add(renderer, renderer.enabled);
                 targets.Add(boat.transform);
@@ -485,6 +503,10 @@ public sealed class ChallengeBridgeTestView : IDisposable
     private static float ScaleRatio(float value, float scale) => Mathf.Abs(scale) > 0.00001f ? value / scale : 1f;
     public void Dispose()
     {
+        foreach (Transform source in impactSources) WaterImpact.Unregister(source);
+        impactSources.Clear();
+        foreach (Transform boat in wakeBoats) BoatWaterWake.Unregister(boat);
+        wakeBoats.Clear();
         geometry?.Dispose(); geometry = null; targets.Clear(); memberRenderers.Clear(); originalColors.Clear(); ropes.Clear(); boatRenderers.Clear(); boatRendererStates.Clear();
         samples = null; history = null;
         if (ropeMaterial != null)

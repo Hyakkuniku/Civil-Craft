@@ -32,7 +32,7 @@ MonoBehaviour:
   jobDescription: Build the first crossing and make sure it can safely carry the
     cart.
   budget: 75000
-  liveLoadWeight: 7000
+  liveLoadWeight: 700
   bridgeSpan: 30
   allowedMaterials:
   - material: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
