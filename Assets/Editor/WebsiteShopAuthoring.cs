@@ -57,10 +57,9 @@ public static class WebsiteShopAuthoring
             if (opened && File.Exists(path))
             {
                 string saved = File.ReadAllText(path);
-                if (saved.Contains("currencyShopDialog: {fileID:") &&
-                    !saved.Contains("currencyShopDialog: {fileID: 0}") &&
-                    saved.Contains("m_MethodName: HandleAddDiamondsClicked") &&
-                    saved.Contains("m_MethodName: RefreshWalletBalances")) continue;
+                // Check resolved dialog/button targets, not unrelated matching text.
+                // A disconnected or disabled persistent callback is not a ship-ready scene.
+                if (WebsiteShopScenePolicy.CollectErrors(saved, File.ReadAllText(DialogPrefab)).Count == 0) continue;
             }
             if (opened) scene = EditorSceneManager.OpenScene(path, OpenSceneMode.Additive);
             bool wasDirty = scene.isDirty;
@@ -171,8 +170,15 @@ public static class WebsiteShopAuthoring
     private static bool Wire(Button button, ShopManager shop, string method)
     {
         if (button == null) return false;
-        if (Enumerable.Range(0, button.onClick.GetPersistentEventCount()).Any(index =>
-            button.onClick.GetPersistentTarget(index) == shop && button.onClick.GetPersistentMethodName(index) == method)) return false;
+        int matching = Enumerable.Range(0, button.onClick.GetPersistentEventCount()).Where(index =>
+            button.onClick.GetPersistentTarget(index) == shop && button.onClick.GetPersistentMethodName(index) == method).DefaultIfEmpty(-1).First();
+        if (matching >= 0)
+        {
+            if (button.onClick.GetPersistentListenerState(matching) != UnityEventCallState.Off) return false;
+            button.onClick.SetPersistentListenerState(matching, UnityEventCallState.RuntimeOnly);
+            EditorUtility.SetDirty(button);
+            return true;
+        }
         var callback = (UnityAction)Delegate.CreateDelegate(typeof(UnityAction), shop, method);
         UnityEventTools.AddPersistentListener(button.onClick, callback);
         EditorUtility.SetDirty(button);

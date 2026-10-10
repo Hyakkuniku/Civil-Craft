@@ -86,9 +86,12 @@ CanyonCrossing and Multiplayer. The existing authored dialog prefab is reused;
 player runtime never generates a replacement Canvas hierarchy.
 
 The authoring pass preserves already-dirty loaded scenes rather than force-saving
-them. **Save CanyonCrossing in Unity with Ctrl+S** to retain its new controls with
-your existing scene edits. If necessary, use **Tools → Civil Craft → Author Website
-Shop Buttons** after scripts finish compiling, then save the edited scenes.
+them. Use **Tools → Civil Craft → Author Website Shop Buttons** after scripts finish
+compiling, then explicitly save edited scenes. **Tools → Civil Craft → Validate
+Saved Website Shop Controls** verifies saved assets; the same validation runs
+before builds and rejects missing/disconnected dialog references, either plus
+button, disabled callbacks, missing refresh controls and omitted shop scenes.
+It does not save scenes, open a browser, request player data or make a purchase.
 
 ## Verification and deployment
 
@@ -96,6 +99,7 @@ Shop Buttons** after scripts finish compiling, then save the edited scenes.
 dotnet run --project Tests/GameWalletPolicy/GameWalletPolicy.csproj
 dotnet run --project Tests/GameWalletRecovery/GameWalletRecovery.csproj
 dotnet run --project Tests/CloudSaveWalletReadiness/CloudSaveWalletReadiness.csproj
+dotnet run --project Tests/GameWalletSceneShipping/GameWalletSceneShipping.csproj
 ```
 
 The recovery executable runs the real client synchronization coroutine against a
@@ -106,6 +110,13 @@ cutover are still required before shipping.
 The cloud-readiness executable also links the real `CloudSaveManager`, with
 scripted file-service responses. It covers failed Resume, strict-choice retries,
 successful source selection, conflicts and account-bound import reservations.
+
+The scene-shipping executable links the real Editor scene validation policy and
+checks all four on-disk scene assets, including wrong callback targets, disabled
+controls, missing dialogs and broken prefab references. Before first publication,
+it can also print a wallet-only candidate built from the committed baseline. This
+isolates authored additions from unrelated user scene edits without saving or
+staging anything; see `Tests/GameWalletSceneShipping/README.md`.
 
 The website fork includes `scripts/verify-game-catalog.mjs`, which can compare or
 print the canonical catalog directly from these game assets:

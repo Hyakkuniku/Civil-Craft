@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Assets/Editor/WebsiteShopScenePolicy.cs" Link="WebsiteShopScenePolicy.cs" />
+    <Compile Include="../../Assets/Editor/WalletAcceptanceBuildPath.cs" Link="WalletAcceptanceBuildPath.cs" />
+    <Compile Include="../../Assets/Editor/WalletAcceptanceCheckoutPolicy.cs" Link="WalletAcceptanceCheckoutPolicy.cs" />
+  </ItemGroup>
+</Project>
