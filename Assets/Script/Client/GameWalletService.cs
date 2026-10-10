@@ -326,7 +326,7 @@ public sealed class GameWalletService : MonoBehaviour
         return null;
     }
 
-    private void FailCoins(string message, long responseCode = 200, bool coinResponseVerified = true)
+    private void FailCoins(string message, long responseCode = 200, bool coinResponseVerified = true, bool refreshingDiamonds = false)
     {
         // Only a Coin-specific failure may retain the independent Diamond
         // value already verified for this account. Transport/auth failures
@@ -336,7 +336,9 @@ public sealed class GameWalletService : MonoBehaviour
             responseCode == 502 || responseCode == 504)
         { Fail(message); return; }
         CoinsAvailable = false;
-        WalletStatus = message + (DiamondsAvailable ? " Your synchronized Diamonds balance remains available." : "");
+        WalletStatus = message + (DiamondsAvailable ? refreshingDiamonds
+            ? " Refreshing Diamonds; showing the last verified balance."
+            : " Your synchronized Diamonds balance remains available." : "");
         nextAttempt = Time.unscaledTime + 30f;
         playerData?.NotifyWalletChanged();
     }
@@ -381,12 +383,16 @@ public sealed class GameWalletService : MonoBehaviour
             if (wallet.code != 200 || !TryWallet(wallet.body, out bool ready))
             {
                 string availability = WalletAvailabilityMessage(wallet);
-                if (availability == null) Fail(); else Fail(availability);
+                if (availability == null) Fail();
                 if (availability != null)
                 {
                     // A known, disabled Coin wallet may still expose the
                     // independent Diamond balance through this read-only API.
                     // Its legacy Coins fields are never a wallet authority.
+                    // Keep a verified same-session Diamond display while this
+                    // read is in flight; any failed read or scope change below
+                    // still invalidates it. Coins remain unavailable throughout.
+                    FailCoins(availability, wallet.code, true, true);
                     var currencies = new Reply();
                     yield return Request("GET", "/api/player/currencies", null, expectedAccount, expectedGeneration, currencies);
                     if (!IsCurrentSession(expectedAccount, expectedGeneration)) yield break;

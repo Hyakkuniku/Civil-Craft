@@ -87,6 +87,13 @@ Unknown errors, invalid/missing Diamond values, expired authentication, and chan
 account/title/session still fail closed. A verified Diamond zero is distinct from
 an unavailable read.
 
+While refreshing through a recognized Coin-paused response, an already verified
+Diamond balance for the same session stays visible until the independent read
+finishes. The status identifies that last verified value as refreshing. A first
+read never invents a balance; an actual Diamond read failure or session/account
+change still marks it unavailable. This avoids healthy-refresh flicker without
+enabling Coin spending or hiding an actual outage.
+
 The main website's opaque navigation links have a separate verified link-only
 capability. Visiting the main storefront therefore does not require activating
 the Coin wallet or making a migration/cutover attestation. This separation does

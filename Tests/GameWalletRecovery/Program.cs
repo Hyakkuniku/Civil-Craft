@@ -112,6 +112,21 @@ internal static class Program
                 string scope = changed;
                 Run($"independent Diamond {scope} change discards balance proof", () => IndependentDiamondScopeChangeAborts(scope));
             }
+            foreach (string availability in new[] { "coded-disabled", "legacy-disabled", "not-ready" }) {
+                string state = availability;
+                foreach (string count in new[] { "positive", "zero", "to-zero" }) {
+                    string balance = count;
+                    Run($"{state} {balance} refresh never temporarily hides confirmed same-session Diamonds", () => IndependentDiamondRefreshDoesNotFlicker(state, balance));
+                }
+            }
+            foreach (string failure in new[] { "null", "string", "overflow", "negative", "missing", "network", "401", "503", "malformed" }) {
+                string kind = failure;
+                Run($"independent Diamond refresh {kind} invalidates prior proof only after the failed read", () => FailedIndependentDiamondRefreshClearsProof(kind));
+            }
+            foreach (string changed in new[] { "generation", "account", "title" }) {
+                string scope = changed;
+                Run($"independent Diamond refresh {scope} invalidates prior proof at response boundary", () => IndependentDiamondRefreshScopeChangeClearsProof(scope));
+            }
             Console.WriteLine($"GameWalletRecovery: {passed} actual-service scenarios passed.");
             return 0;
         } catch (Exception error) {
@@ -1120,6 +1135,86 @@ internal static class Program
             fixture.Data.MirrorCount == 0 && fixture.Data.MergeCount == 0,
             "Changed account/generation/title cannot display another session's Diamond count or apply classic Coins");
         AssertReadOnlyUnavailableRequests();
+    }
+
+    private static void SeedIndependentDiamonds(Fixture fixture, long diamonds)
+    {
+        Reply("GET", "/api/game/wallet", AvailabilityError("coded-disabled"), 503);
+        Reply("GET", "/api/player/currencies", new { coins = 100500, diamonds });
+        fixture.Sync();
+        Check(fixture.Service.DiamondsAvailable && fixture.Service.DiamondBalance == diamonds && !fixture.Service.CoinsAvailable && !fixture.Service.CanSpendOnline,
+            "Precondition: a same-session independent Diamond balance is verified while Coins stay paused");
+    }
+
+    private static void IndependentDiamondRefreshDoesNotFlicker(string availability, string scenario)
+    {
+        using var fixture = new Fixture();
+        long previous = scenario == "zero" ? 0 : 25;
+        long current = scenario == "positive" ? 50 : 0;
+        SeedIndependentDiamonds(fixture, previous);
+        var observed = new List<(bool diamondsAvailable, long diamonds, bool coinsAvailable, bool canSpend, bool refreshing, string status)>();
+        fixture.Data.WalletNotification = () => observed.Add((fixture.Service.DiamondsAvailable, fixture.Service.DiamondBalance,
+            fixture.Service.CoinsAvailable, fixture.Service.CanSpendOnline, fixture.Service.IsRefreshing, fixture.Service.WalletStatus));
+        int first = UnityWebRequest.Requests.Count;
+        Reply("GET", "/api/game/wallet", AvailabilityError(availability), 503);
+        Reply("GET", "/api/player/currencies", new { coins = 100500, diamonds = current }, after: () => {
+            Check(fixture.Service.DiamondsAvailable && fixture.Service.DiamondBalance == previous && !fixture.Service.CoinsAvailable && !fixture.Service.CanSpendOnline,
+                "Until the new response is verified, a healthy refresh retains only the existing same-session Diamond display");
+        });
+        fixture.Sync();
+        Check(observed.Count >= 2 && observed.All(state => state.diamondsAvailable),
+            "Every UI notification must retain numeric Diamonds; final-state-only assertions would miss a temporary Unavailable flicker");
+        Check(observed.All(state => !state.coinsAvailable && !state.canSpend), "A Diamond refresh cannot make Coins available or authorize spending");
+        Check(observed.Any(state => state.refreshing && state.diamonds == previous && state.status.Contains("last verified", StringComparison.OrdinalIgnoreCase)),
+            "An in-flight refresh describes the retained number as the last verified balance");
+        Check(fixture.Service.DiamondBalance == current && observed.Last().diamonds == current && !fixture.Service.IsRefreshing,
+            "The new bounded count, including zero, replaces the prior count only after verification");
+        AssertReadOnlyUnavailableRequests(first);
+    }
+
+    private static void FailedIndependentDiamondRefreshClearsProof(string scenario)
+    {
+        using var fixture = new Fixture();
+        SeedIndependentDiamonds(fixture, 25);
+        var observed = new List<bool>();
+        fixture.Data.WalletNotification = () => observed.Add(fixture.Service.DiamondsAvailable);
+        int first = UnityWebRequest.Requests.Count;
+        Reply("GET", "/api/game/wallet", AvailabilityError("coded-disabled"), 503);
+        long code = scenario == "network" ? 0 : scenario == "401" ? 401 : scenario == "503" ? 503 : 200;
+        object diamonds = scenario switch {
+            "null" => null, "string" => "25", "overflow" => GameWalletPolicy.MaximumJsonInteger + 1,
+            "negative" => -1L, _ => 25L,
+        };
+        object body = scenario == "missing" ? new { coins = 100500 } : scenario == "malformed" ? new object[] { 25 } :
+            new { coins = 100500, diamonds };
+        Reply("GET", "/api/player/currencies", body, code, after: () => {
+            Check(fixture.Service.DiamondsAvailable && fixture.Service.DiamondBalance == 25 && !fixture.Service.CanSpendOnline,
+                "The old display may remain during an unfinished read, but never authorizes spending");
+        });
+        fixture.Sync();
+        Check(observed.Count >= 2 && observed.First() && !observed.Last() && !fixture.Service.DiamondsAvailable &&
+            !fixture.Service.CoinsAvailable && !fixture.Service.CanSpendOnline,
+            "An actual failed or malformed independent read clears prior availability instead of presenting stale proof as synchronized");
+        Check(fixture.Service.RequiresSignIn == (scenario == "401"), "Only authentication failure requires sign-in");
+        if (scenario == "401") Check(fixture.Service.WalletStatus.Contains("Sign in again") && !fixture.Service.WalletStatus.Contains("paused"),
+            "Session expiry has priority over Coin maintenance wording");
+        AssertReadOnlyUnavailableRequests(first);
+    }
+
+    private static void IndependentDiamondRefreshScopeChangeClearsProof(string scope)
+    {
+        using var fixture = new Fixture();
+        SeedIndependentDiamonds(fixture, 25);
+        var observed = new List<bool>();
+        fixture.Data.WalletNotification = () => observed.Add(fixture.Service.DiamondsAvailable);
+        int first = UnityWebRequest.Requests.Count;
+        Reply("GET", "/api/game/wallet", AvailabilityError("coded-disabled"), 503);
+        Reply("GET", "/api/player/currencies", new { coins = 100500, diamonds = 999 }, after: () => ChangeWalletScope(fixture, scope));
+        fixture.Sync();
+        Check(observed.Count >= 2 && observed.First() && !observed.Last() && !fixture.Service.DiamondsAvailable &&
+            !fixture.Service.CoinsAvailable && !fixture.Service.CanSpendOnline && fixture.Service.DiamondBalance != 999,
+            "A changed scope immediately invalidates old proof at the response boundary and cannot apply the other scope's number");
+        AssertReadOnlyUnavailableRequests(first);
     }
 
     private sealed class Fixture : IDisposable

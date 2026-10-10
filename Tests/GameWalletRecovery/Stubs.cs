@@ -148,7 +148,8 @@ public sealed class PlayerDataManager : UnityEngine.MonoBehaviour
     public string ActiveAccountId;
     public bool FailMirror, FailMerge, FailSave, SkipOwnershipMerge;
     public int MirrorCount, MergeCount, SaveCount, NotificationCount, AchievementCheckCount, AckCount;
-    public void NotifyWalletChanged() => NotificationCount++;
+    public Action WalletNotification;
+    public void NotifyWalletChanged() { NotificationCount++; WalletNotification?.Invoke(); }
     public void CheckAllAchievements() => AchievementCheckCount++;
     public bool TrySaveGame() { SaveCount++; if (FailSave) return false; OnSaveCommitted?.Invoke(); return true; }
     public bool TryApplyWalletSnapshot(int coins, long version, int? earned = null, int? spent = null)
