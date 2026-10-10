@@ -9,5 +9,6 @@
     <Compile Include="../../Assets/Editor/WebsiteShopScenePolicy.cs" Link="WebsiteShopScenePolicy.cs" />
     <Compile Include="../../Assets/Editor/WalletAcceptanceBuildPath.cs" Link="WalletAcceptanceBuildPath.cs" />
     <Compile Include="../../Assets/Editor/WalletAcceptanceCheckoutPolicy.cs" Link="WalletAcceptanceCheckoutPolicy.cs" />
+    <Compile Include="../../Assets/Editor/WalletAcceptanceFontPolicy.cs" Link="WalletAcceptanceFontPolicy.cs" />
   </ItemGroup>
 </Project>

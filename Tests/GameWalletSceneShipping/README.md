@@ -65,3 +65,22 @@ path too: Unity manages `-logFile` before the build entry point can run.
 The APK uses Development/AllowDebugging for device acceptance. It is not a signed
 production release. This helper does not install, upload, publish, open a browser,
 enable the wallet or request any payment/account action.
+
+## Reproducible TMP fallback baseline
+
+TMP3.0.7's build preprocessor clears Dynamic fonts with Clear Dynamic Data On Build
+enabled. The reviewed LiberationSans SDF fallback is committed with its generated
+glyph/character/rectangle cache and atlas pixels already cleared. Its source font,
+material, subasset IDs, Dynamic mode and Clear On Build setting remain unchanged.
+TMP therefore finds an already-empty atlas instead of modifying tracked inputs.
+
+Acceptance preflight checks ONLY that exact fallback path and protected-byte
+fingerprint. It is read-only: it never edits a font, switches off cache clearing,
+touches Internet Friends or exempts any file from the general Git clean guard.
+Changed source/config/material or regenerated cache requires review before building.
+The original-versus-Unity-generated proof can be checked without writing anything:
+
+```powershell
+dotnet run --project Tests/GameWalletSceneShipping/GameWalletSceneShipping.csproj -- `
+  '<absolute original checkout>' --verify-font-clear '<absolute Unity-cleared fallback asset>'
+```

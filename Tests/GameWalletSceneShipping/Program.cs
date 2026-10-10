@@ -3,6 +3,15 @@ using System.Text.RegularExpressions;
 
 string root = Path.GetFullPath(args.Length > 0 ? args[0] : Directory.GetCurrentDirectory());
 string prefab = File.ReadAllText(Path.Combine(root, "Assets/Prefabs/UI/AccountSaveChoiceDialog.prefab")).Replace("\r\n", "\n");
+if (args.Length == 3 && args[1] == "--verify-font-clear")
+{
+    string original = ReadCommitted(WalletAcceptanceFontPolicy.AssetPath);
+    string cleared = File.ReadAllText(args[2]);
+    if (!WalletAcceptanceFontPolicy.IsCanonicalClearOnly(original, cleared))
+        throw new InvalidOperationException("Font clear proof failed: generated cache clearing must preserve every non-cache byte and the exact reviewed font configuration.");
+    Console.WriteLine("PASS: exact LiberationSans canonical clear changes only generated cache fields; source/material/IDs/config preserved.");
+    return;
+}
 if (args.Length == 3 && args[1] == "--export-wallet-scene")
 {
     string path = args[2];
@@ -26,7 +35,7 @@ foreach (string metadataPath in Directory.EnumerateFiles(Path.Combine(root, "Ass
 }
 var editorGuids = new HashSet<string>(StringComparer.Ordinal);
 foreach (string editorSource in new[] { "WebsiteShopScenePolicy", "WebsiteShopBuildValidation", "WalletAcceptanceBuild",
-    "WalletAcceptanceBuildPath", "WalletAcceptanceCheckoutPolicy" })
+    "WalletAcceptanceBuildPath", "WalletAcceptanceCheckoutPolicy", "WalletAcceptanceFontPolicy" })
 {
     string path = Path.Combine(root, "Assets", "Editor", editorSource + ".cs.meta");
     string metadata = File.ReadAllText(path).Replace("\r\n", "\n");
@@ -36,8 +45,39 @@ foreach (string editorSource in new[] { "WebsiteShopScenePolicy", "WebsiteShopBu
     Check(metadataGuids.GetValueOrDefault(guid) == 1, editorSource + " metadata GUID must occur only once across Assets");
     editorGuids.Add(guid);
 }
-Check(editorGuids.Count == 5, "new Editor scripts must have five distinct Unity metadata GUIDs");
+Check(editorGuids.Count == 6, "new Editor scripts must have six distinct Unity metadata GUIDs");
 Check(!Regex.IsMatch("415a404b37f74d94b40d75763ff2c986d", @"\A[0-9a-f]{32}\z"), "33-character Unity GUID regression must be rejected");
+
+string canonicalFont = File.ReadAllText(Path.Combine(root, WalletAcceptanceFontPolicy.AssetPath)).Replace("\r\n", "\n");
+Check(WalletAcceptanceFontPolicy.CollectErrors(WalletAcceptanceFontPolicy.AssetPath, canonicalFont).Count == 0,
+    "exact reviewed dynamic fallback must have the canonical cleared cache");
+Check(WalletAcceptanceFontPolicy.CollectErrors("Assets/Resources/Fonts/Internet Friends SDF.asset", canonicalFont).Count > 0,
+    "font policy must never rewrite or approve the user's Internet Friends font");
+foreach (string invalidFont in new[] {
+    canonicalFont.Replace("m_GlyphTable: []", "m_GlyphTable:\n  - m_Index: 1"),
+    canonicalFont.Replace("m_CharacterTable: []", "m_CharacterTable:\n  - m_Unicode: 65"),
+    canonicalFont.Replace("m_UsedGlyphRects: []", "m_UsedGlyphRects:\n  - m_X: 0"),
+    canonicalFont.Replace("m_AtlasPopulationMode: 1", "m_AtlasPopulationMode: 0"),
+    canonicalFont.Replace("m_ClearDynamicDataOnBuild: 1", "m_ClearDynamicDataOnBuild: 0"),
+    canonicalFont.Replace("e3265ab4bf004d28a9537516768c1c75", new string('0', 32)),
+    canonicalFont.Replace("_FaceDilate: 0", "_FaceDilate: 1"),
+    canonicalFont.Replace("2180264", "2180265"),
+    canonicalFont.Replace("m_AtlasWidth: 512", "m_AtlasWidth: 1024"),
+    canonicalFont.Replace("  m_Width: 0\n", "  m_Width: 512\n"),
+    canonicalFont.Replace("  m_Height: 0\n", "  m_Height: 512\n"),
+    canonicalFont.Replace("  image data: 0\n", "  image data: 1\n"),
+    canonicalFont.Replace("  _typelessdata: \n", "  _typelessdata: 01\n"),
+    canonicalFont.Replace("m_GlyphTable: []", "m_GlyphTable: []\n  m_GlyphTable:\n  - m_Index: 1"),
+    canonicalFont.Replace("  image data: 0\n", "  image data: 0\n  image data: 1\n") })
+{
+    Check(invalidFont != canonicalFont, "canonical font rejection case must actually alter the input");
+    Check(WalletAcceptanceFontPolicy.CollectErrors(WalletAcceptanceFontPolicy.AssetPath, invalidFont).Count > 0,
+        "nonempty cache or changed protected font configuration must fail");
+}
+string populatedCache = canonicalFont.Replace("m_GlyphTable: []", "m_GlyphTable:\n  - m_Index: 1").Replace("  m_Width: 0\n", "  m_Width: 512\n");
+Check(WalletAcceptanceFontPolicy.IsCanonicalClearOnly(populatedCache, canonicalFont), "clearing only generated caches preserves the protected baseline");
+Check(!WalletAcceptanceFontPolicy.IsCanonicalClearOnly(populatedCache.Replace("_FaceDilate: 0", "_FaceDilate: 1"), canonicalFont),
+    "font clear proof must reject changes to non-cache material/config bytes");
 
 string acceptance = Path.Combine(root, "Builds", "WalletAcceptance", "CivilCraft-wallet-acceptance-policy-only-does-not-exist.apk");
 Check(WalletAcceptanceBuildPath.Validate(root, acceptance) == Path.GetFullPath(acceptance), "new local acceptance path must pass without creating a file");

@@ -28,6 +28,11 @@ public static class WalletAcceptanceBuild
         string project = Directory.GetParent(Application.dataPath).FullName;
         string output = WalletAcceptanceBuildPath.Validate(project, args[option + 1]);
         string commit = VerifyCleanCheckout(project);
+        string fallback = Path.Combine(project, WalletAcceptanceFontPolicy.AssetPath);
+        if (!File.Exists(fallback)) throw new BuildFailedException("Reviewed canonical TMP fallback baseline is missing.");
+        var fontErrors = WalletAcceptanceFontPolicy.CollectErrors(WalletAcceptanceFontPolicy.AssetPath, File.ReadAllText(fallback));
+        if (fontErrors.Count != 0)
+            throw new BuildFailedException("Canonical TMP fallback validation failed: " + string.Join("; ", fontErrors));
         WebsiteShopBuildValidation.ValidateSavedScenes();
         Directory.CreateDirectory(Path.GetDirectoryName(output));
         // Check again immediately before BuildPlayer. An existing/partial APK is
