@@ -17,6 +17,28 @@ void Check(bool condition, string description)
     checks++;
 }
 
+var metadataGuids = new Dictionary<string, int>(StringComparer.Ordinal);
+foreach (string metadataPath in Directory.EnumerateFiles(Path.Combine(root, "Assets"), "*.meta", SearchOption.AllDirectories))
+{
+    string metadata = File.ReadAllText(metadataPath).Replace("\r\n", "\n");
+    var match = Regex.Match(metadata, @"^guid: ([0-9a-f]{32})$", RegexOptions.Multiline);
+    if (match.Success) metadataGuids[match.Groups[1].Value] = metadataGuids.GetValueOrDefault(match.Groups[1].Value) + 1;
+}
+var editorGuids = new HashSet<string>(StringComparer.Ordinal);
+foreach (string editorSource in new[] { "WebsiteShopScenePolicy", "WebsiteShopBuildValidation", "WalletAcceptanceBuild",
+    "WalletAcceptanceBuildPath", "WalletAcceptanceCheckoutPolicy" })
+{
+    string path = Path.Combine(root, "Assets", "Editor", editorSource + ".cs.meta");
+    string metadata = File.ReadAllText(path).Replace("\r\n", "\n");
+    var match = Regex.Match(metadata, @"^guid: ([0-9a-f]{32})$", RegexOptions.Multiline);
+    Check(match.Success, editorSource + " must have a valid32-hex Unity metadata GUID");
+    string guid = match.Groups[1].Value;
+    Check(metadataGuids.GetValueOrDefault(guid) == 1, editorSource + " metadata GUID must occur only once across Assets");
+    editorGuids.Add(guid);
+}
+Check(editorGuids.Count == 5, "new Editor scripts must have five distinct Unity metadata GUIDs");
+Check(!Regex.IsMatch("415a404b37f74d94b40d75763ff2c986d", @"\A[0-9a-f]{32}\z"), "33-character Unity GUID regression must be rejected");
+
 string acceptance = Path.Combine(root, "Builds", "WalletAcceptance", "CivilCraft-wallet-acceptance-policy-only-does-not-exist.apk");
 Check(WalletAcceptanceBuildPath.Validate(root, acceptance) == Path.GetFullPath(acceptance), "new local acceptance path must pass without creating a file");
 foreach (string invalid in new[] { "relative.apk", Path.Combine(root, "CivilCraft-wallet-acceptance-outside.apk"),
