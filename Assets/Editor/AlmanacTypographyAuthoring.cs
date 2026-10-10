@@ -359,6 +359,14 @@ public static class AlmanacTypographyAuthoring
             { scroll.StopMovement(); scroll.verticalNormalizedPosition = 1f; }
             Canvas.ForceUpdateCanvases();
             ValidateMobileScrolling(owner, label, report);
+            AlmanacPhotoMount[] mounts = owner.Panel.GetComponentsInChildren<AlmanacPhotoMount>(false);
+            foreach (AlmanacPhotoMount mount in mounts)
+                if (mount.raycastTarget || mount.transform.parent.GetComponent<RawImage>() != null ||
+                    mount.transform.GetSiblingIndex() != mount.transform.parent.childCount - 1)
+                    throw new InvalidOperationException(label + ": picture tape blocks input, follows the shared portrait, or renders behind the picture.");
+            if ((label == "General" || label == "Contracts" || label.EndsWith("_Detail", StringComparison.Ordinal)) && mounts.Length == 0)
+                throw new InvalidOperationException(label + ": visible picture has no book tape.");
+            report.AppendLine("PICTURES: " + label + "; " + mounts.Length + " visible taped photo mounts, non-raycasting and frontmost.");
             int checkedText = 0;
             foreach (TMP_Text text in owner.Panel.GetComponentsInChildren<TMP_Text>(false))
             {

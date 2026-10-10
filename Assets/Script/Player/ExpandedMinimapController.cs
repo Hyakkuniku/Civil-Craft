@@ -17,6 +17,7 @@ using UnityEngine.UI;
 [DefaultExecutionOrder(100)] // Project markers after MinimapFollow moves the camera.
 public sealed class ExpandedMinimapController : MonoBehaviour
 {
+    private const string MapFontResource = "Fonts & Materials/Bekind Sans SDF";
     private sealed class MarkerView
     {
         public BuildLocation location;
@@ -433,13 +434,13 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         owningCanvas = minimapPanel.GetComponentInParent<Canvas>(true);
         if (mapImage == null)
             mapImage = minimapPanel.GetComponentInChildren<RawImage>(true);
-        if (uiFont == null)
-        {
-            TMP_Text existingText = minimapPanel.GetComponentInChildren<TMP_Text>(true);
-            if (existingText == null)
-                existingText = FindObjectOfType<TMP_Text>(true);
-            if (existingText != null) uiFont = existingText.font;
-        }
+        // Both map sizes share one explicit font. Sampling the first text in the
+        // scene could borrow Internet Friends from the Almanac after it opened.
+        // Resolve again to repair a cached font after an editor hot reload too.
+        uiFont = Resources.Load<TMP_FontAsset>(MapFontResource);
+        if (uiFont == null) uiFont = TMP_Settings.defaultFontAsset;
+        foreach (TMP_Text text in minimapPanel.GetComponentsInChildren<TMP_Text>(true))
+            ApplyMapFont(text);
 
         if (enlargeButton == null)
         {
@@ -470,6 +471,14 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         EnsureMarkerLayer();
         EnsureControls();
         if (!mapSessionActive) SetExpandedControlsVisible(false);
+    }
+
+    private void ApplyMapFont(TMP_Text text)
+    {
+        if (text == null || uiFont == null) return;
+        text.font = uiFont;
+        // Retaining another typeface's material would sample the wrong atlas.
+        text.fontSharedMaterial = uiFont.material;
     }
 
     private void RegisterMinimapRegion()
@@ -576,7 +585,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         label.fontStyle = FontStyles.Bold;
         label.color = Color.white;
         label.raycastTarget = false;
-        if (uiFont != null) label.font = uiFont;
+        ApplyMapFont(label);
 
         root.gameObject.SetActive(false);
         return root;
@@ -631,7 +640,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         title.fontSizeMin = 16f;
         title.fontSizeMax = 30f;
         title.raycastTarget = false;
-        if (uiFont != null) title.font = uiFont;
+        ApplyMapFont(title);
 
         controlsRoot.transform.SetAsLastSibling();
     }
@@ -680,7 +689,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         selectedLocationLabel.fontSizeMin = 13f;
         selectedLocationLabel.fontSizeMax = 26f;
         selectedLocationLabel.raycastTarget = false;
-        if (uiFont != null) selectedLocationLabel.font = uiFont;
+        ApplyMapFont(selectedLocationLabel);
 
         GameObject buttonObject = new GameObject(
             "LocationActionButton",
@@ -726,7 +735,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         locationActionLabel.fontSizeMin = 12f;
         locationActionLabel.fontSizeMax = 24f;
         locationActionLabel.raycastTarget = false;
-        if (uiFont != null) locationActionLabel.font = uiFont;
+        ApplyMapFont(locationActionLabel);
 
         GameObject divider = new GameObject("CompletedDetailsDivider", typeof(RectTransform), typeof(Image));
         divider.layer = minimapPanel.gameObject.layer;
@@ -745,7 +754,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         detailsRect.SetParent(locationActionRoot, false);
         Stretch(detailsRect, new Vector2(18f, 12f), new Vector2(-18f, -104f));
         completedLocationDetails = details.GetComponent<TextMeshProUGUI>();
-        if (uiFont != null) completedLocationDetails.font = uiFont;
+        ApplyMapFont(completedLocationDetails);
         completedLocationDetails.fontSize = 20f;
         completedLocationDetails.enableAutoSizing = true;
         completedLocationDetails.fontSizeMin = 17f;
@@ -794,7 +803,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         label.fontSize = 35f;
         label.fontStyle = FontStyles.Bold;
         label.raycastTarget = false;
-        if (uiFont != null) label.font = uiFont;
+        ApplyMapFont(label);
     }
 
     private void RebuildLocationMarkers()
@@ -872,7 +881,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         label.fontSizeMin = 12f;
         label.fontSizeMax = 24f;
         label.raycastTarget = false;
-        if (uiFont != null) label.font = uiFont;
+        ApplyMapFont(label);
 
         markers.Add(new MarkerView
         {

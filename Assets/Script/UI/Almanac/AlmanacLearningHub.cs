@@ -477,6 +477,7 @@ public sealed class AlmanacLearningHub : MonoBehaviour
         detailImage = CreateImage("Image", imageFrame.rectTransform, Color.white);
         detailImage.preserveAspect = true;
         Stretch(detailImage.rectTransform, 14f, 14f, 14f, 14f);
+        AlmanacPhotoMount.Ensure(imageFrame.rectTransform);
 
         detailFactsText = CreateText("Facts", left, string.Empty, 24f, FontStyles.Normal,
             Ink, TextAlignmentOptions.TopLeft);

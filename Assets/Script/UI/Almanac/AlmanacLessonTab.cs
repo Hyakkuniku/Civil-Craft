@@ -315,6 +315,7 @@ public sealed class AlmanacLessonTab : MonoBehaviour
         readerImage.raycastTarget = false;
         SetAnchors(readerImage.rectTransform, Vector2.zero, Vector2.one,
             new Vector2(10f, 10f), new Vector2(-10f, -10f));
+        AlmanacPhotoMount.Ensure(frame.rectTransform);
 
         CreateReaderScrollView(content);
     }

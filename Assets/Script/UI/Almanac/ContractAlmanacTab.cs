@@ -393,6 +393,7 @@ public class ContractAlmanacTab : MonoBehaviour
         snapshotRect.pivot = new Vector2(0.5f, 0.5f);
         Stretch(snapshotRect, 14f, 14f, 14f, 14f);
         snapshotImage.raycastTarget = false;
+        AlmanacPhotoMount.Ensure(photoFrame);
 
         ConfigureText(snapshotCaptionText, 36f, 30f, 40f, FontStyles.Bold,
             TextAlignmentOptions.Top, Ink);
