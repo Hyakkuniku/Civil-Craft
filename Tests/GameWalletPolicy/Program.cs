@@ -66,6 +66,17 @@ Check(!GameWalletPolicy.IsTerminalPurchaseRejection(503, operationId, operationI
 Check(GameWalletPolicy.TryCount(9007199254740991d, GameWalletPolicy.MaximumJsonInteger, out long large) && large == 9007199254740991L, "Maximum exact JSON integer retains every digit");
 Check(GameWalletPolicy.TryCount(2147483647L, int.MaxValue, out long maxCoins) && maxCoins == int.MaxValue, "Bounded maximum Coins accepted");
 Check(GameWalletPolicy.TryCount(0, int.MaxValue, out long zero) && zero == 0, "A real zero is a valid wallet balance");
+Check(GameWalletPolicy.TryCount(0UL, int.MaxValue, out long unsignedZero) && unsignedZero == 0, "PlayFab's unsigned zero is a real wallet balance");
+Check(GameWalletPolicy.TryCount(25UL, GameWalletPolicy.MaximumJsonInteger, out long unsignedDiamonds) && unsignedDiamonds == 25, "PlayFab's unsigned positive Diamond balance accepted");
+Check(GameWalletPolicy.TryCount((ulong)int.MaxValue, int.MaxValue, out long unsignedCoins) && unsignedCoins == int.MaxValue, "Unsigned Coins retain their int save limit");
+Check(GameWalletPolicy.TryCount((ulong)GameWalletPolicy.MaximumJsonInteger, GameWalletPolicy.MaximumJsonInteger, out long unsignedMaximum) && unsignedMaximum == GameWalletPolicy.MaximumJsonInteger, "Unsigned exact JSON maximum retains every digit");
+Check(GameWalletPolicy.TryCount(25U, int.MaxValue, out long smallUnsigned) && smallUnsigned == 25, "Unsigned int balances retain normal bounds");
+foreach (object unsignedOverflow in new object[] { 2147483648UL, uint.MaxValue, ulong.MaxValue })
+    Check(!GameWalletPolicy.TryCount(unsignedOverflow, int.MaxValue, out _), "Unsigned overflow must be rejected before a signed conversion");
+foreach (object jsonOverflow in new object[] { (ulong)GameWalletPolicy.MaximumJsonInteger + 1UL, (ulong)long.MaxValue, ulong.MaxValue })
+    Check(!GameWalletPolicy.TryCount(jsonOverflow, long.MaxValue, out _), "A caller's wider bound cannot permit inexact or overflowing unsigned JSON integers");
+foreach (object invalidBoundValue in new object[] { 0UL, 0U, 0L, 0d })
+    Check(!GameWalletPolicy.TryCount(invalidBoundValue, -1, out long rejected) && rejected == 0, "Negative count bounds fail closed for every numeric representation");
 foreach (object bad in new object[] { null, true, "1", -1, 0.5d, double.NaN, double.PositiveInfinity, 2147483648L, 0.1m })
     Check(!GameWalletPolicy.TryCount(bad, int.MaxValue, out _), "Malformed or overflowing balances cannot become available currency");
 

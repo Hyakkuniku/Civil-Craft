@@ -132,15 +132,6 @@ namespace PlayFab
         public static readonly Settings staticSettings = new();
     }
 }
-namespace PlayFab.Json
-{
-    public static class PlayFabSimpleJson
-    {
-        public static string SerializeObject(object value) => TestJson.Serialize(value);
-        public static object DeserializeObject(string value) => TestJson.Parse(value);
-    }
-}
-
 public sealed class PlayerData
 {
     public int gold, walletAuthorityVersion, lifetimeGoldEarned, lifetimeGoldSpent;

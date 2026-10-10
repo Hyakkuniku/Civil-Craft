@@ -8,5 +8,6 @@
   <ItemGroup>
     <Compile Include="../../Assets/Script/Client/GameWalletService.cs" Link="GameWalletService.cs" />
     <Compile Include="../../Assets/Script/Client/GameWalletModels.cs" Link="GameWalletModels.cs" />
+    <Compile Include="../../Assets/PlayFabSDK/Shared/Internal/SimpleJson.cs" Link="PlayFabSimpleJson.cs" />
   </ItemGroup>
 </Project>

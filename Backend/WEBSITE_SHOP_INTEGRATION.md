@@ -118,8 +118,12 @@ dotnet run --project Tests/CloudSaveWalletReadiness/CloudSaveWalletReadiness.csp
 dotnet run --project Tests/GameWalletSceneShipping/GameWalletSceneShipping.csproj
 ```
 
-The recovery executable runs the real client synchronization coroutine against a
-scripted transport and save doubles. It makes no PlayFab/payment requests and
+The recovery executable runs the real client synchronization coroutine and the
+checked-in PlayFab SDK JSON parser against a scripted transport and save doubles.
+The SDK returns nonnegative JSON integers as `ulong`; the wallet validates these
+against the currency-specific and JSON-safe bounds before any signed conversion.
+Parser regression tests include a real zero balance, positive balances and
+versions, and overflow/malformed values. It makes no PlayFab/payment requests and
 does not enable the wallet. Editor/Android acceptance and the reviewed website
 cutover are still required before shipping.
 

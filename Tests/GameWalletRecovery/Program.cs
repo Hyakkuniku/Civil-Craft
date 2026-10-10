@@ -12,6 +12,16 @@ internal static class Program
     private static int Main()
     {
         try {
+            Run("the production PlayFab JSON parser accepts bounded unsigned balances", ProductionJsonNumericBalances);
+            Run("the production parser mirrors full wallet balances, versions and lifetime counters", ProductionJsonWalletAndCounters);
+            foreach (string invalid in new[] { "coins-overflow", "diamonds-overflow", "version-overflow", "earned-overflow", "spent-overflow", "unsigned-overflow", "negative", "fraction", "string" }) {
+                string kind = invalid;
+                Run($"runtime-parser {kind} whole-wallet data cannot update balances or ownership", () => ProductionJsonInvalidWallet(kind));
+            }
+            foreach (string invalid in new[] { "overflow", "unsigned-overflow", "negative", "fraction", "string" }) {
+                string kind = invalid;
+                Run($"runtime-parser {kind} entitlement version cannot complete a pending purchase", () => ProductionJsonInvalidEntitlementVersion(kind));
+            }
             Run("paid ownership recovers before a rejected reward without losing the reward", PaidPurchaseBeforeRejectedReward);
             Run("held rewards are persisted but never sent or scheduled repeatedly", HeldRewardsDoNotSendOrSpin);
             foreach (string invalid in new[] { "empty", "stale", "wrong-target", "wrong-cosmetic", "missing-local-unlock" }) {
@@ -112,6 +122,97 @@ internal static class Program
 
     private static void Run(string title, Action test) { test(); passed++; Console.WriteLine("PASS " + title); }
     private static void Check(bool condition, string message) { if (!condition) throw new Exception(message); }
+
+    private static void ProductionJsonNumericBalances()
+    {
+        // Link the actual checked-in SDK parser: a signed-number test double
+        // would miss its ulong representation of nonnegative JSON integers.
+        var body = (IDictionary<string, object>)PlayFab.Json.PlayFabSimpleJson.DeserializeObject(
+            "{\"zero\":0,\"positive\":25,\"coinMax\":2147483647,\"jsonMax\":9007199254740991}");
+        foreach (string key in new[] { "zero", "positive", "coinMax", "jsonMax" })
+            Check(body[key] is ulong, "The runtime SDK parses nonnegative integers as ulong");
+        Check(GameWalletPolicy.TryCount(body["zero"], int.MaxValue, out long zero) && zero == 0,
+            "Runtime-parser zero must be accepted as a real balance");
+        Check(GameWalletPolicy.TryCount(body["positive"], GameWalletPolicy.MaximumJsonInteger, out long positive) && positive == 25,
+            "Runtime-parser positive Diamonds must be accepted");
+        Check(GameWalletPolicy.TryCount(body["coinMax"], int.MaxValue, out long coins) && coins == int.MaxValue,
+            "Runtime-parser Coin maximum remains bounded to the save's int range");
+        Check(GameWalletPolicy.TryCount(body["jsonMax"], GameWalletPolicy.MaximumJsonInteger, out long maximum) && maximum == GameWalletPolicy.MaximumJsonInteger,
+            "Runtime-parser maximum exact JSON integer preserves all digits");
+        var invalid = (IDictionary<string, object>)PlayFab.Json.PlayFabSimpleJson.DeserializeObject(
+            "{\"coinOverflow\":2147483648,\"jsonOverflow\":9007199254740992,\"unsignedOverflow\":18446744073709551615," +
+            "\"negative\":-1,\"fraction\":0.5,\"string\":\"25\",\"boolean\":true,\"null\":null}");
+        Check(invalid["unsignedOverflow"] is ulong maximumUnsigned && maximumUnsigned == ulong.MaxValue,
+            "Exercise the SDK's actual unsigned overflow representation");
+        Check(!GameWalletPolicy.TryCount(invalid["coinOverflow"], int.MaxValue, out _), "Runtime-parser Coins cannot exceed the int cache range");
+        foreach (string key in new[] { "jsonOverflow", "unsignedOverflow", "negative", "fraction", "string", "boolean", "null" })
+            Check(!GameWalletPolicy.TryCount(invalid[key], GameWalletPolicy.MaximumJsonInteger, out _), "Malformed runtime-parser counts remain rejected: " + key);
+    }
+
+    private static void ProductionJsonWalletAndCounters()
+    {
+        using var fixture = new Fixture();
+        var body = Wallet(int.MaxValue, GameWalletPolicy.MaximumJsonInteger);
+        body["diamonds"] = GameWalletPolicy.MaximumJsonInteger;
+        body["lifetimeGoldEarned"] = int.MaxValue;
+        body["lifetimeGoldSpent"] = int.MaxValue;
+        Reply("GET", "/api/game/wallet", body);
+        Reply("GET", "/api/game/entitlements", Entitlements(GameWalletPolicy.MaximumJsonInteger));
+        fixture.Sync();
+        Check(fixture.Service.CoinsAvailable && fixture.Service.CoinBalance == int.MaxValue && fixture.Data.CurrentData.gold == int.MaxValue,
+            "The actual runtime parser accepts bounded Coins and mirrors the verified cache");
+        Check(fixture.Service.DiamondsAvailable && fixture.Service.DiamondBalance == GameWalletPolicy.MaximumJsonInteger &&
+            fixture.Service.WalletVersion == GameWalletPolicy.MaximumJsonInteger && fixture.Data.CurrentData.walletCoinsVersion == GameWalletPolicy.MaximumJsonInteger,
+            "Unsigned wallet and entitlement versions preserve their exact count");
+        Check(fixture.Data.CurrentData.lifetimeGoldEarned == int.MaxValue && fixture.Data.CurrentData.lifetimeGoldSpent == int.MaxValue,
+            "Actual-parser lifetime statistics are validated and mirrored, never replaced by zero");
+        Check(UnityWebRequest.Requests.All(request => request.Method == "GET"), "Parser correction alone cannot request currency credits or spending");
+    }
+
+    private static void ProductionJsonInvalidWallet(string scenario)
+    {
+        using var fixture = new Fixture();
+        var body = Wallet();
+        switch (scenario) {
+            case "coins-overflow": body["coins"] = (ulong)int.MaxValue + 1UL; break;
+            case "diamonds-overflow": body["diamonds"] = (ulong)GameWalletPolicy.MaximumJsonInteger + 1UL; break;
+            case "version-overflow": body["version"] = (ulong)GameWalletPolicy.MaximumJsonInteger + 1UL; break;
+            case "earned-overflow": body["lifetimeGoldEarned"] = (ulong)int.MaxValue + 1UL; break;
+            case "spent-overflow": body["lifetimeGoldSpent"] = (ulong)int.MaxValue + 1UL; break;
+            case "unsigned-overflow": body["coins"] = ulong.MaxValue; break;
+            case "negative": body["coins"] = -1L; break;
+            case "fraction": body["coins"] = 0.5d; break;
+            case "string": body["coins"] = "900"; break;
+            default: throw new InvalidOperationException("Unexpected fixture");
+        }
+        Reply("GET", "/api/game/wallet", body);
+        fixture.Sync();
+        Check(!fixture.Service.CoinsAvailable && !fixture.Service.DiamondsAvailable && !fixture.Service.CanSpendOnline,
+            "An invalid runtime numeric field cannot make a whole wallet available");
+        Check(fixture.Data.CurrentData.gold == 123 && fixture.Data.MirrorCount == 0 && fixture.Data.MergeCount == 0 && UnityWebRequest.Requests.Count == 1,
+            "Reject malformed unsigned data before any save, entitlement or monetary request");
+    }
+
+    private static void ProductionJsonInvalidEntitlementVersion(string scenario)
+    {
+        using var fixture = new Fixture();
+        fixture.AddPending();
+        var body = Entitlements(6, new object[] { Shop() });
+        body["version"] = scenario switch {
+            "overflow" => (object)((ulong)GameWalletPolicy.MaximumJsonInteger + 1UL),
+            "unsigned-overflow" => ulong.MaxValue,
+            "negative" => -1L,
+            "fraction" => 6.5d,
+            "string" => "6",
+            _ => throw new InvalidOperationException("Unexpected fixture"),
+        };
+        Recovery(fixture, body);
+        fixture.Sync();
+        AssertPending(fixture);
+        Check(fixture.Callbacks.Count == 0 && fixture.Data.CurrentData.purchasedShopItemIds.Count == 0,
+            "An invalid runtime-parser version cannot create ownership or confirm the operation");
+        AssertNoDebitHttp();
+    }
     private static T Get<T>(GameWalletService service, string field) => (T)typeof(GameWalletService).GetField(field, PrivateInstance).GetValue(service);
     private static void Set(GameWalletService service, string field, object value) => typeof(GameWalletService).GetField(field, PrivateInstance).SetValue(service, value);
     private static object Invoke(GameWalletService service, string method, params object[] args) => typeof(GameWalletService).GetMethod(method, PrivateInstance).Invoke(service, args);

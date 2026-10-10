@@ -231,7 +231,17 @@ public static class GameWalletPolicy
     public static bool TryCount(object raw, long maximum, out long value)
     {
         value = 0;
-        if (raw is long integer) value = integer;
+        if (maximum < 0) return false;
+        // PlayFab's production SimpleJson parser uses ulong for every
+        // nonnegative integer token. Bound it before converting to long so
+        // an overflowing response cannot wrap into accepted currency.
+        if (raw is ulong unsigned)
+        {
+            if (unsigned > (ulong)maximum || unsigned > (ulong)MaximumJsonInteger) return false;
+            value = (long)unsigned;
+        }
+        else if (raw is uint unsignedSmall) value = unsignedSmall;
+        else if (raw is long integer) value = integer;
         else if (raw is int small) value = small;
         else if (raw is double number)
         {
