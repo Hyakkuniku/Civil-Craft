@@ -70,6 +70,38 @@ internal static class Program
             Run("SDK title casing changes preserve the same account scope", EquivalentTitleCasingIsAllowed);
             Run("approved legacy source readiness wakes a held opening without manual refresh", SourceReadinessAutomaticallyWakesImport);
             Run("startup readiness recovery wakes a held opening without repeated HTTP spin", StartupReadinessAutomaticallyWakesImport);
+            foreach (string selected in new[] { "coins", "diamonds" }) {
+                string currency = selected;
+                Run($"{currency} opens only one verified main-site link with header-only authentication", () => VerifiedShopLinkOpensMainSite(currency));
+                foreach (string state in new[] { "coded-disabled", "legacy-disabled", "not-ready" }) {
+                    string availability = state;
+                    Run($"{currency} {availability} preserves Coin operations and explains paused setup", () => KnownUnavailableShopAndWallet(currency, availability));
+                }
+                foreach (string invalid in new[] { "fork", "evil", "http", "expired" }) {
+                    string kind = invalid;
+                    Run($"{currency} {kind} link cannot open a browser", () => UnsafeShopLinkCannotOpen(currency, kind));
+                }
+                Run($"{currency} link recovers after a disabled response without a URL fallback", () => ShopLinkRecoversAfterSetup(currency));
+            }
+            foreach (string invalid in new[] { "unknown", "html", "wrong-code", "wrong-status", "numeric-code" }) {
+                string kind = invalid;
+                Run($"shop and wallet {kind} errors are not reflected or treated as setup evidence", () => UntrustedUnavailableResponse(kind));
+            }
+            Run("shop authentication failure takes precedence over maintenance wording", ShopAuthenticationFailureRequiresSignIn);
+            foreach (string changed in new[] { "generation", "account", "title" }) {
+                string scope = changed;
+                Run($"shop {scope} change discards links before browser opening or callbacks", () => ShopScopeChangeAborts(scope));
+            }
+            Run("known disabled wallet can show independent Diamonds without applying legacy Coins", () => IndependentDiamondsForDisabledWallet("valid"));
+            Run("independent verified zero Diamonds is a real balance, not a failure fallback", () => IndependentDiamondsForDisabledWallet("zero"));
+            foreach (string invalid in new[] { "null", "string", "overflow", "negative", "missing", "network", "401", "503", "malformed" }) {
+                string kind = invalid;
+                Run($"independent Diamond {kind} failure leaves both unavailable and Coins untouched", () => IndependentDiamondsForDisabledWallet(kind));
+            }
+            foreach (string changed in new[] { "generation", "account", "title" }) {
+                string scope = changed;
+                Run($"independent Diamond {scope} change discards balance proof", () => IndependentDiamondScopeChangeAborts(scope));
+            }
             Console.WriteLine($"GameWalletRecovery: {passed} actual-service scenarios passed.");
             return 0;
         } catch (Exception error) {
@@ -787,6 +819,206 @@ internal static class Program
         for (int i = 0; i < 10; i++) Invoke(fixture.Service, "Update");
         Check(fixture.Service.StartedCoroutines.Count == started && UnityWebRequest.Requests.Count == requests,
             "Stable source readiness after completion must not schedule repeat GETs or imports");
+    }
+
+    private static object AvailabilityError(string state) => state switch {
+        "legacy-disabled" => new { error = "Game wallet is not enabled." },
+        "not-ready" => new { code = "GAME_WALLET_NOT_READY", error = "private-provider-details-must-not-be-displayed" },
+        _ => new { code = "GAME_WALLET_DISABLED", error = "private-provider-details-must-not-be-displayed" },
+    };
+
+    private static object ShopLink(string currency, string invalid = null)
+    {
+        string target = "/dashboard/shop?currency=" + currency + "&gameLink=opaque-fixture-link";
+        string url = GameWalletPolicy.WebsiteOrigin + "/login?redirect=" + Uri.EscapeDataString(target);
+        if (invalid == "fork") url = "https://civil-craft-website.vercel.app/shop?currency=" + currency;
+        if (invalid == "evil") url = "https://civil-craft.vercel.app.evil.test/shop";
+        if (invalid == "http") url = "http://civil-craft.vercel.app/shop";
+        return new { url, expiresAt = DateTime.UtcNow.AddMinutes(invalid == "expired" ? -1 : 15).ToString("O") };
+    }
+
+    private static void AssertReadOnlyUnavailableRequests(int start = 0)
+    {
+        Check(UnityWebRequest.Requests.Skip(start).All(request =>
+            request.Method == "POST" && request.Path == "/api/game/shop-link" ||
+            request.Method == "GET" && (request.Path == "/api/game/wallet" || request.Path == "/api/player/currencies")),
+            "Setup unavailability cannot import, submit rewards, repair operations or debit currency");
+        Check(UnityWebRequest.Requests.All(request => request.Headers.TryGetValue("Authorization", out string header) &&
+            header == "Bearer fixture-session-ticket" && request.RedirectLimit == 0 && request.Timeout == 15 &&
+            !request.Url.Contains("fixture-session-ticket", StringComparison.Ordinal)),
+            "Every request keeps bounded transport and session tickets in the HTTPS header, never a URL");
+    }
+
+    private static void VerifiedShopLinkOpensMainSite(string currency)
+    {
+        using var fixture = new Fixture();
+        var callbacks = new List<(bool success, string error)>();
+        Check(fixture.Service.RequestShopLink(currency, (success, error) => callbacks.Add((success, error))), "Queue the selected storefront");
+        Check(!fixture.Service.RequestShopLink(currency, null), "Repeated clicks must not queue another browser opening");
+        Reply("POST", "/api/game/shop-link", ShopLink(currency));
+        Startup(fixture);
+        fixture.Sync();
+        Check(callbacks.Count == 1 && callbacks[0].success && callbacks[0].error == null && Application.OpenedUrls.Count == 1,
+            "The confirmed request opens exactly one verified URL and completes exactly one callback");
+        string opened = Application.OpenedUrls.Single();
+        Check(new Uri(opened).Host == "civil-craft.vercel.app" && Uri.UnescapeDataString(opened).Contains("currency=" + currency) &&
+            !opened.Contains("fixture-session-ticket", StringComparison.Ordinal), "Open the selected main-site storefront without exposing a login ticket");
+        var link = UnityWebRequest.Requests.Single(request => request.Path == "/api/game/shop-link");
+        Check((string)((IDictionary)TestJson.Parse(link.Body))["currency"] == currency && link.Headers["Authorization"] == "Bearer fixture-session-ticket",
+            "The account-bound link request carries only the selected currency in its body");
+    }
+
+    private static void KnownUnavailableShopAndWallet(string currency, string availability)
+    {
+        using var fixture = new Fixture();
+        Startup(fixture); fixture.Sync();
+        int first = UnityWebRequest.Requests.Count;
+        fixture.AddPending();
+        fixture.Data.CurrentData.walletRewardOutbox.Add(PendingContract());
+        var callbacks = new List<(bool success, string error)>();
+        Check(fixture.Service.RequestShopLink(currency, (success, error) => callbacks.Add((success, error))), "Queue a confirmed shop request");
+        Reply("POST", "/api/game/shop-link", AvailabilityError(availability), 503);
+        Reply("GET", "/api/game/wallet", AvailabilityError(availability), 503);
+        Reply("GET", "/api/player/currencies", new { coins = 100500, coinsAvailable = true, diamonds = (object)null });
+        fixture.Sync();
+        Check(callbacks.Count == 1 && !callbacks[0].success && callbacks[0].error.Contains("paused") &&
+            !callbacks[0].error.Contains("try again", StringComparison.OrdinalIgnoreCase) &&
+            !callbacks[0].error.Contains("private-provider", StringComparison.Ordinal), "Explain setup without generic retry or raw error reflection");
+        Check(Application.OpenedUrls.Count == 0 && fixture.Service.WalletStatus.Contains("paused", StringComparison.OrdinalIgnoreCase) &&
+            !fixture.Service.WalletStatus.Contains("private-provider", StringComparison.Ordinal), "No unbound URL fallback or provider details");
+        Check(!fixture.Service.CoinsAvailable && !fixture.Service.DiamondsAvailable && !fixture.Service.CanSpendOnline &&
+            fixture.Data.CurrentData.gold == 900 && fixture.Data.CurrentData.walletAuthorityVersion == 1 && fixture.Service.WalletVersion == 5 &&
+            fixture.Data.CurrentData.lifetimeGoldEarned == 300 && fixture.Data.CurrentData.lifetimeGoldSpent == 100,
+            "Retain the previous Coin cache/version/counters, never substitute zero or adopt classic Coins");
+        AssertPending(fixture);
+        Check(fixture.Persisted().rewards.Single().eventId == "contract:ShopKeeper", "Queued reward identity is preserved on disk");
+        AssertReadOnlyUnavailableRequests(first);
+    }
+
+    private static void UnsafeShopLinkCannotOpen(string currency, string invalid)
+    {
+        using var fixture = new Fixture();
+        var callbacks = new List<bool>();
+        fixture.Service.RequestShopLink(currency, (success, _) => callbacks.Add(success));
+        Reply("POST", "/api/game/shop-link", ShopLink(currency, invalid));
+        Startup(fixture); fixture.Sync();
+        Check(callbacks.Count == 1 && !callbacks[0] && Application.OpenedUrls.Count == 0, "Unsafe or expired links never open a browser");
+        Check(fixture.Service.CoinsAvailable && fixture.Service.DiamondsAvailable, "A rejected link does not replace a valid independently refreshed wallet");
+    }
+
+    private static void UntrustedUnavailableResponse(string scenario)
+    {
+        using var fixture = new Fixture();
+        object body = scenario switch {
+            "html" => "<html>private-provider-details-must-not-be-displayed</html>",
+            "wrong-code" => new { code = "UNKNOWN_STATE", error = "Game wallet is not enabled." },
+            "numeric-code" => new { code = 503, error = "Game wallet is not enabled." },
+            "wrong-status" => AvailabilityError("coded-disabled"),
+            _ => new { error = "private-provider-details-must-not-be-displayed" },
+        };
+        long code = scenario == "wrong-status" ? 502 : 503;
+        string callbackError = null;
+        fixture.Service.RequestShopLink("coins", (_, error) => callbackError = error);
+        Reply("POST", "/api/game/shop-link", body, code);
+        Reply("GET", "/api/game/wallet", body, code);
+        fixture.Sync();
+        Check(callbackError == "The website shop link is unavailable. Please try again." &&
+            !fixture.Service.WalletStatus.Contains("private-provider", StringComparison.Ordinal) &&
+            !fixture.Service.WalletStatus.Contains("not enabled", StringComparison.Ordinal), "Only allowlisted HTTP503 evidence receives setup wording");
+        Check(UnityWebRequest.Requests.Count == 2 && Application.OpenedUrls.Count == 0 && !fixture.Service.CoinsAvailable && !fixture.Service.DiamondsAvailable,
+            "Unknown/malformed errors cannot authorize the independent Diamond request or browser opening");
+        AssertReadOnlyUnavailableRequests();
+    }
+
+    private static void ShopAuthenticationFailureRequiresSignIn()
+    {
+        using var fixture = new Fixture();
+        string callbackError = null;
+        fixture.Service.RequestShopLink("coins", (_, error) => callbackError = error);
+        Reply("POST", "/api/game/shop-link", AvailabilityError("coded-disabled"), 401);
+        fixture.Sync();
+        Check(fixture.Service.RequiresSignIn && callbackError.Contains("Sign in again") && !callbackError.Contains("paused") &&
+            !fixture.Service.CoinsAvailable && !fixture.Service.DiamondsAvailable && Application.OpenedUrls.Count == 0 && UnityWebRequest.Requests.Count == 1,
+            "Authentication takes precedence and forbids follow-up requests or browser opening");
+    }
+
+    private static void ChangeWalletScope(Fixture fixture, string scope)
+    {
+        if (scope == "generation") fixture.Cloud.SessionGeneration++;
+        else if (scope == "account") fixture.Cloud.ActiveAccountId = "DEF456";
+        else PlayFab.PlayFabSettings.staticSettings.TitleId = "ABCDEF";
+    }
+
+    private static void ShopScopeChangeAborts(string scope)
+    {
+        using var fixture = new Fixture();
+        int callbacks = 0;
+        fixture.Service.RequestShopLink("diamonds", (_, _) => callbacks++);
+        Reply("POST", "/api/game/shop-link", ShopLink("diamonds"), after: () => ChangeWalletScope(fixture, scope));
+        fixture.Sync();
+        Check(callbacks == 0 && Application.OpenedUrls.Count == 0 && UnityWebRequest.Requests.Count == 1 &&
+            fixture.Data.MirrorCount == 0 && !fixture.Service.CoinsAvailable && !fixture.Service.DiamondsAvailable,
+            "A changed generation/account/title cannot consume the outgoing account's URL or wallet response");
+    }
+
+    private static void ShopLinkRecoversAfterSetup(string currency)
+    {
+        using var fixture = new Fixture();
+        var callbacks = new List<bool>();
+        fixture.Service.RequestShopLink(currency, (success, _) => callbacks.Add(success));
+        Reply("POST", "/api/game/shop-link", AvailabilityError("coded-disabled"), 503);
+        Reply("GET", "/api/game/wallet", AvailabilityError("coded-disabled"), 503);
+        Reply("GET", "/api/player/currencies", new { coins = 100500, diamonds = 25 });
+        fixture.Sync();
+        Check(Application.OpenedUrls.Count == 0 && !fixture.Service.CoinsAvailable && fixture.Service.DiamondsAvailable, "Disabled setup does not open a fallback URL");
+        fixture.Service.RequestShopLink(currency, (success, _) => callbacks.Add(success));
+        Reply("POST", "/api/game/shop-link", ShopLink(currency));
+        Startup(fixture); fixture.Sync();
+        Check(callbacks.SequenceEqual(new[] { false, true }) && Application.OpenedUrls.Count == 1 && fixture.Service.CoinsAvailable &&
+            fixture.Service.DiamondsAvailable && fixture.Service.CoinBalance == 900 && !fixture.Service.WalletStatus.Contains("paused"),
+            "An explicitly retried verified main-site link and ready wallet recover without sticky setup state");
+    }
+
+    private static void IndependentDiamondsForDisabledWallet(string scenario)
+    {
+        using var fixture = new Fixture();
+        Startup(fixture); fixture.Sync();
+        int first = UnityWebRequest.Requests.Count, mirrors = fixture.Data.MirrorCount, merges = fixture.Data.MergeCount;
+        Reply("GET", "/api/game/wallet", AvailabilityError("coded-disabled"), 503);
+        long responseCode = scenario == "network" ? 0 : scenario == "401" ? 401 : scenario == "503" ? 503 : 200;
+        object diamond = scenario switch {
+            "zero" => 0L, "null" => null, "string" => "25", "overflow" => GameWalletPolicy.MaximumJsonInteger + 1,
+            "negative" => -1L, _ => 25L,
+        };
+        object body = scenario == "missing" ? new { coins = 100500 } : scenario == "malformed" ? new object[] { 25 } :
+            new { coins = 100500, coinsAvailable = true, coinReadiness = "ready", diamonds = diamond };
+        Reply("GET", "/api/player/currencies", body, responseCode);
+        fixture.Sync();
+        bool valid = scenario == "valid" || scenario == "zero";
+        Check(fixture.Service.DiamondsAvailable == valid && !fixture.Service.CoinsAvailable && !fixture.Service.CanSpendOnline,
+            "Only a current, valid independent Diamond count may become available; signed-in Coin spending stays disabled");
+        Check(fixture.Data.CurrentData.gold == 900 && fixture.Service.CoinBalance == 900 && fixture.Service.WalletVersion == 5 &&
+            fixture.Data.CurrentData.walletCoinsVersion == 5 && fixture.Data.CurrentData.walletAuthorityVersion == 1 &&
+            fixture.Data.CurrentData.lifetimeGoldEarned == 300 && fixture.Data.CurrentData.lifetimeGoldSpent == 100 &&
+            fixture.Data.MirrorCount == mirrors && fixture.Data.MergeCount == merges, "Legacy endpoint Coin values and readiness cannot alter Coin authority, cache or counters");
+        if (valid) Check(fixture.Service.DiamondBalance == (scenario == "zero" ? 0 : 25) &&
+            fixture.Service.WalletStatus.Contains("synchronized Diamonds"), "A verified zero or positive count is displayed distinctly from unavailable");
+        Check(fixture.Service.RequiresSignIn == (scenario == "401"), "Only Diamond authentication failure demands sign-in and clears both flags");
+        if (scenario == "401") Check(fixture.Service.WalletStatus.Contains("Sign in again") && !fixture.Service.WalletStatus.Contains("paused"), "Sign-in status takes precedence over setup wording");
+        AssertReadOnlyUnavailableRequests(first);
+    }
+
+    private static void IndependentDiamondScopeChangeAborts(string scope)
+    {
+        using var fixture = new Fixture();
+        Reply("GET", "/api/game/wallet", AvailabilityError("coded-disabled"), 503);
+        Reply("GET", "/api/player/currencies", new { coins = 100500, diamonds = 999 }, after: () => ChangeWalletScope(fixture, scope));
+        fixture.Sync();
+        Check(!fixture.Service.CoinsAvailable && !fixture.Service.DiamondsAvailable && fixture.Service.DiamondBalance != 999 &&
+            fixture.Data.CurrentData.gold == 123 && fixture.Data.CurrentData.walletAuthorityVersion == 1 && fixture.Service.WalletVersion == 0 &&
+            fixture.Data.MirrorCount == 0 && fixture.Data.MergeCount == 0,
+            "Changed account/generation/title cannot display another session's Diamond count or apply classic Coins");
+        AssertReadOnlyUnavailableRequests();
     }
 
     private sealed class Fixture : IDisposable

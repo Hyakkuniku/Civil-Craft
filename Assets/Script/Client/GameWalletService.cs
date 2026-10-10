@@ -307,6 +307,25 @@ public sealed class GameWalletService : MonoBehaviour
     private static bool IsVerifiedCoinResponse(Reply reply) => reply != null && reply.body != null &&
         (reply.code == 200 || !string.IsNullOrWhiteSpace(Text(reply.body, "error")) && Text(reply.body, "error").Length <= 2000);
 
+    private static string WalletAvailabilityMessage(Reply reply, bool shopLink = false)
+    {
+        if (reply == null || reply.code != 503 || reply.body == null) return null;
+        // Only these server-owned states may produce a setup-specific message.
+        // Never reflect arbitrary server errors, tickets or provider details.
+        string code = Text(reply.body, "code");
+        bool disabled = code == "GAME_WALLET_DISABLED" ||
+            !reply.body.ContainsKey("code") && Text(reply.body, "error") == "Game wallet is not enabled.";
+        if (disabled)
+            return shopLink
+                ? "The Civil Craft website shop is paused while the online wallet is being prepared. No purchase was started."
+                : "The online wallet is not enabled yet. Purchases are paused while setup is completed. Your saved progress and queued rewards are preserved.";
+        if (code == "GAME_WALLET_NOT_READY")
+            return shopLink
+                ? "The Civil Craft website shop is paused while online wallet setup is being verified. No purchase was started."
+                : "Online wallet setup is still being verified. Purchases are paused. Your saved progress and queued rewards are preserved.";
+        return null;
+    }
+
     private void FailCoins(string message, long responseCode = 200, bool coinResponseVerified = true)
     {
         // Only a Coin-specific failure may retain the independent Diamond
@@ -353,12 +372,36 @@ public sealed class GameWalletService : MonoBehaviour
                 bool valid = link.code == 200 && link.body != null &&
                     GameWalletPolicy.IsAllowedShopUrl(Text(link.body, "url"), Text(link.body, "expiresAt"), DateTime.UtcNow);
                 if (valid) Application.OpenURL(Text(link.body, "url"));
-                callback?.Invoke(valid, valid ? null : RequiresSignIn ? WalletStatus : "The website shop link is unavailable. Please try again.");
+                callback?.Invoke(valid, valid ? null : RequiresSignIn ? WalletStatus :
+                    WalletAvailabilityMessage(link, true) ?? "The website shop link is unavailable. Please try again.");
             }
             var wallet = new Reply();
             yield return Request("GET", "/api/game/wallet", null, expectedAccount, expectedGeneration, wallet);
             if (!IsCurrentSession(expectedAccount, expectedGeneration)) yield break;
-            if (wallet.code != 200 || !TryWallet(wallet.body, out bool ready)) { Fail(); yield break; }
+            if (wallet.code != 200 || !TryWallet(wallet.body, out bool ready))
+            {
+                string availability = WalletAvailabilityMessage(wallet);
+                if (availability == null) Fail(); else Fail(availability);
+                if (availability != null)
+                {
+                    // A known, disabled Coin wallet may still expose the
+                    // independent Diamond balance through this read-only API.
+                    // Its legacy Coins fields are never a wallet authority.
+                    var currencies = new Reply();
+                    yield return Request("GET", "/api/player/currencies", null, expectedAccount, expectedGeneration, currencies);
+                    if (!IsCurrentSession(expectedAccount, expectedGeneration)) yield break;
+                    if (!RequiresSignIn && currencies.code == 200 && currencies.body != null &&
+                        NullableInteger(currencies.body, "diamonds", GameWalletPolicy.MaximumJsonInteger, out long? diamonds) && diamonds.HasValue)
+                    {
+                        DiamondsAvailable = true;
+                        DiamondBalance = diamonds.Value;
+                        WalletStatus = availability + " Your synchronized Diamonds balance remains available.";
+                        playerData?.NotifyWalletChanged();
+                    }
+                    else Fail(availability);
+                }
+                yield break;
+            }
             if (!ready)
             {
                 if (!GameWalletPolicy.CanImportLegacy(playerData.CurrentData.walletAuthorityVersion, ready))

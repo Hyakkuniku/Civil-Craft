@@ -76,7 +76,7 @@ namespace UnityEngine.Networking
     public sealed class UploadHandlerRaw : UploadHandler { public UploadHandlerRaw(byte[] value) { data = value; } }
     public sealed class UnityWebRequest : IDisposable
     {
-        public sealed record Recorded(string Method, string Path, string Body, IReadOnlyDictionary<string, string> Headers, int RedirectLimit, int Timeout);
+        public sealed record Recorded(string Method, string Path, string Body, IReadOnlyDictionary<string, string> Headers, int RedirectLimit, int Timeout, string Url);
         public sealed record Response(string Method, string Path, long Code, object Body, Action AfterResponse = null);
         public static readonly Queue<Response> Script = new();
         public static readonly List<Recorded> Requests = new();
@@ -104,7 +104,7 @@ namespace UnityEngine.Networking
                 served = true;
                 Uri uri = new(request.url);
                 string body = request.uploadHandler == null ? null : Encoding.UTF8.GetString(request.uploadHandler.data);
-                Requests.Add(new(request.method, uri.PathAndQuery, body, new Dictionary<string, string>(request.headers), request.redirectLimit, request.timeout));
+                Requests.Add(new(request.method, uri.PathAndQuery, body, new Dictionary<string, string>(request.headers), request.redirectLimit, request.timeout, request.url));
                 if (uri.Scheme != "https" || uri.Host != "civil-craft.vercel.app") throw new Exception("Unexpected request origin");
                 if (Script.Count == 0) throw new Exception($"Unscripted request: {request.method} {uri.PathAndQuery}");
                 Response next = Script.Dequeue();

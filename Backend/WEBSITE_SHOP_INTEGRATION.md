@@ -78,6 +78,22 @@ unavailable for spending. Authentication, actual connection/timeout failures,
 account changes and malformed whole-wallet responses still invalidate both
 availability flags; unavailable currencies are not displayed as zero balances.
 
+An explicitly disabled/not-ready Coin wallet now displays a fixed setup message
+instead of suggesting an endless generic retry. Only these known HTTP503 states
+permit a read-only `/api/player/currencies` request for the independent Diamond
+display. The client ignores that endpoint's classic Coins and checkout flags:
+it cannot import them, overwrite the Coin cache/counters, or authorize spending.
+Unknown errors, invalid/missing Diamond values, expired authentication, and changed
+account/title/session still fail closed. A verified Diamond zero is distinct from
+an unavailable read.
+
+The main website's opaque navigation links have a separate verified link-only
+capability. Visiting the main storefront therefore does not require activating
+the Coin wallet or making a migration/cutover attestation. This separation does
+not permit Coin checkout, grants, imports, or spending while those are disabled.
+Production links are restricted to `https://civil-craft.vercel.app`; there is no
+unbound URL fallback in the game and no session ticket in browser URLs.
+
 ## Authored controls
 
 `WebsiteShopAuthoring` authors the two plus controls, a Refresh balances button,
@@ -118,7 +134,7 @@ it can also print a wallet-only candidate built from the committed baseline. Thi
 isolates authored additions from unrelated user scene edits without saving or
 staging anything; see `Tests/GameWalletSceneShipping/README.md`.
 
-The website fork includes `scripts/verify-game-catalog.mjs`, which can compare or
+The main website includes `scripts/verify-game-catalog.mjs`, which can compare or
 print the canonical catalog directly from these game assets:
 
 ```powershell
