@@ -61,7 +61,8 @@ public class AlmanacPlayerStats : MonoBehaviour
 
         if (playerNameText != null) playerNameText.text = "Engineer: " + data.playerName;
         if (titleText != null) titleText.text = "Rank: " + data.GetTitle();
-        if (goldText != null) goldText.text = "Gold: " + data.gold.ToString("N0");
+        if (goldText != null) goldText.text = "Coins: " + CoinDisplay(data);
+        if (secondaryCurrencyText != null) secondaryCurrencyText.text = DiamondDisplay();
         if (expText != null) expText.text = "EXP: " + data.exp.ToString("N0");
         if (bridgesBuiltText != null) bridgesBuiltText.text = "Bridges Built: " + data.lifetimeBridgesBuilt;
         if (contractsCompletedText != null) contractsCompletedText.text = "Contracts Done: " + data.lifetimeContractsCompleted;
@@ -75,7 +76,7 @@ public class AlmanacPlayerStats : MonoBehaviour
 
         if (playerNameText != null) playerNameText.text = "Engineer: " + data.playerName;
         if (titleText != null) titleText.text = data.GetTitle();
-        if (goldText != null) goldText.text = data.gold.ToString("N0");
+        if (goldText != null) goldText.text = CoinDisplay(data);
         if (expText != null)
             expText.text = isMaxRank
                 ? data.exp.ToString("N0") + " EXP"
@@ -83,7 +84,7 @@ public class AlmanacPlayerStats : MonoBehaviour
         if (bridgesBuiltText != null) bridgesBuiltText.text = data.lifetimeBridgesBuilt.ToString("N0");
         if (contractsCompletedText != null)
             contractsCompletedText.text = data.lifetimeContractsCompleted.ToString("N0");
-        if (secondaryCurrencyText != null) secondaryCurrencyText.text = "0";
+        if (secondaryCurrencyText != null) secondaryCurrencyText.text = DiamondDisplay();
         if (totalGoldEarnedText != null)
             totalGoldEarnedText.text = "₱" + data.lifetimeGoldEarned.ToString("N0");
 
@@ -112,6 +113,20 @@ public class AlmanacPlayerStats : MonoBehaviour
                   " EXP to next rank";
 
         PopulateAchievementSummary(data);
+    }
+
+    private static string CoinDisplay(PlayerData data)
+    {
+        GameWalletService wallet = GameWalletService.Instance;
+        if (wallet == null || !wallet.HasSignedInAccount) return data.gold.ToString("N0");
+        return wallet.CoinsAvailable ? wallet.CoinBalance.ToString("N0") : "Unavailable";
+    }
+
+    private static string DiamondDisplay()
+    {
+        GameWalletService wallet = GameWalletService.Instance;
+        return wallet != null && wallet.DiamondsAvailable
+            ? wallet.DiamondBalance.ToString("N0") : "Unavailable";
     }
 
     public void OpenAchievementPanel()

@@ -56,12 +56,18 @@ public class PlayerDataManager : MonoBehaviour
     private string activeAccountId;
     private bool allowLegacyProgressPrefs = true;
     public string CurrentSavePath => saveFilePath;
+    public string ActiveAccountId => activeAccountId;
     private bool isCheckingAchievements = false; // Prevents infinite loops!
     private bool hasMigratedContractIdentifiers;
     private bool suppressAutomaticPositionSave;
     private Coroutine bridgePhotoWarmup;
     private int bridgePhotoWarmupRevision;
     private readonly HashSet<string> completionRecordsMissingBridge = new HashSet<string>();
+    // Build-catalog metadata, not player state. Retained by the persistent
+    // manager after a closed shop's scene/assets are unloaded.
+    private readonly Dictionary<string, string> walletCosmeticLinks = new Dictionary<string, string>(StringComparer.Ordinal);
+    private readonly HashSet<string> ambiguousWalletShopIds = new HashSet<string>(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> walletMaterialAliases = new Dictionary<string, string>(StringComparer.Ordinal);
     
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -98,6 +104,7 @@ public class PlayerDataManager : MonoBehaviour
             gameObject.AddComponent<DashboardSyncService>();
         if (GetComponent<CharacterPortraitUploadService>() == null)
             gameObject.AddComponent<CharacterPortraitUploadService>();
+        GameWalletService.EnsureAttached(this);
         RegisterContracts(Resources.FindObjectsOfTypeAll<ContractSO>());
         MigrateLegacyContractLocks();
         MigrateCompletedContractFeatureUnlocks();
@@ -653,6 +660,12 @@ public class PlayerDataManager : MonoBehaviour
 
     public void AddGold(int amount) 
     { 
+        if (UsesServerCoins)
+        {
+            Debug.LogWarning("[GameWallet] Arbitrary signed-in Coin grants are disabled; use a typed earned-reward event.", this);
+            return;
+        }
+        if (amount <= 0 || CurrentData == null || CurrentData.gold > int.MaxValue - amount) return;
         CurrentData.gold += amount; 
         CurrentData.lifetimeGoldEarned += amount; 
         SaveGame(); 
@@ -662,11 +675,19 @@ public class PlayerDataManager : MonoBehaviour
     
     public bool SpendGold(int amount) 
     { 
+        if (UsesServerCoins || amount < 0 || CurrentData == null) return false;
         if (CurrentData.gold >= amount) 
         { 
+            int previousGold = CurrentData.gold;
+            int previousSpent = CurrentData.lifetimeGoldSpent;
             CurrentData.gold -= amount; 
             CurrentData.lifetimeGoldSpent += amount; 
-            SaveGame(); 
+            if (!TrySaveGame())
+            {
+                CurrentData.gold = previousGold;
+                CurrentData.lifetimeGoldSpent = previousSpent;
+                return false;
+            }
             OnCurrencyChanged?.Invoke();
             CheckAllAchievements(); 
             return true; 
@@ -681,6 +702,237 @@ public class PlayerDataManager : MonoBehaviour
         SaveGame(); 
         OnCurrencyChanged?.Invoke();
         CheckAllAchievements(); 
+    }
+
+    public bool UsesServerCoins
+    {
+        get
+        {
+            CloudSaveManager cloud = GetComponent<CloudSaveManager>();
+            return GameWalletPolicy.UsesServerAuthority(cloud != null && cloud.IsAccountActive,
+                PlayerPrefs.GetInt("LoginChoice", 0) == 1);
+        }
+    }
+
+    private bool CanApplyWalletData
+    {
+        get
+        {
+            CloudSaveManager cloud = GetComponent<CloudSaveManager>();
+            return UsesServerCoins && cloud.CanPublishDashboard &&
+                GameWalletPolicy.SameAccount(activeAccountId, cloud.ActiveAccountId);
+        }
+    }
+
+    public void NotifyWalletChanged() => OnCurrencyChanged?.Invoke();
+
+    public bool TryApplyWalletSnapshot(int coins, long version, int? earned = null, int? spent = null)
+    {
+        if (!CanApplyWalletData || CurrentData == null || coins < 0 || version < 0) return false;
+        if (CurrentData.walletAuthorityVersion == 1 && CurrentData.gold == coins && CurrentData.walletCoinsVersion == version &&
+            (!earned.HasValue || earned.Value == CurrentData.lifetimeGoldEarned) &&
+            (!spent.HasValue || spent.Value == CurrentData.lifetimeGoldSpent)) return true;
+        int previousGold = CurrentData.gold, previousAuthority = CurrentData.walletAuthorityVersion;
+        int previousEarned = CurrentData.lifetimeGoldEarned, previousSpent = CurrentData.lifetimeGoldSpent;
+        long previousVersion = CurrentData.walletCoinsVersion;
+        CurrentData.gold = coins;
+        CurrentData.walletAuthorityVersion = 1;
+        CurrentData.walletCoinsVersion = version;
+        if (earned.HasValue) CurrentData.lifetimeGoldEarned = earned.Value;
+        if (spent.HasValue) CurrentData.lifetimeGoldSpent = spent.Value;
+        if (!TrySaveGame())
+        {
+            CurrentData.gold = previousGold;
+            CurrentData.walletAuthorityVersion = previousAuthority;
+            CurrentData.walletCoinsVersion = previousVersion;
+            CurrentData.lifetimeGoldEarned = previousEarned;
+            CurrentData.lifetimeGoldSpent = previousSpent;
+            return false;
+        }
+        OnCurrencyChanged?.Invoke();
+        return true;
+    }
+
+    public bool TryMergeWalletEntitlements(List<GameWalletShopEntitlement> shops, List<GameWalletMaterialEntitlement> materials)
+    {
+        if (!CanApplyWalletData || CurrentData == null || shops == null || materials == null) return false;
+        List<string> oldShops = CurrentData.purchasedShopItemIds;
+        List<string> oldCosmetics = CurrentData.unlockedCosmeticIDs;
+        List<string> oldMaterials = CurrentData.unlockedContractMaterials;
+        var nextShops = oldShops != null ? new List<string>(oldShops) : new List<string>();
+        var nextCosmetics = oldCosmetics != null ? new List<string>(oldCosmetics) : new List<string>();
+        var nextMaterials = oldMaterials != null ? new List<string>(oldMaterials) : new List<string>();
+        var added = new List<string>();
+        bool changed = false;
+        foreach (GameWalletShopEntitlement item in shops)
+        {
+            if (!nextShops.Contains(item.itemId)) { nextShops.Add(item.itemId); added.Add(item.itemId); changed = true; }
+            if (!nextCosmetics.Contains(item.cosmeticId)) { nextCosmetics.Add(item.cosmeticId); changed = true; }
+        }
+        foreach (GameWalletMaterialEntitlement item in materials)
+            if (!nextMaterials.Contains(item.saveKey)) { nextMaterials.Add(item.saveKey); changed = true; }
+        if (!changed) return true;
+        CurrentData.purchasedShopItemIds = nextShops;
+        CurrentData.unlockedCosmeticIDs = nextCosmetics;
+        CurrentData.unlockedContractMaterials = nextMaterials;
+        if (!TrySaveGame())
+        {
+            CurrentData.purchasedShopItemIds = oldShops;
+            CurrentData.unlockedCosmeticIDs = oldCosmetics;
+            CurrentData.unlockedContractMaterials = oldMaterials;
+            return false;
+        }
+        OnItemOwnershipChanged?.Invoke();
+        foreach (string id in added) OnShopItemPurchased?.Invoke(id);
+        OnCurrencyChanged?.Invoke();
+        return true;
+    }
+
+    // Read-only mappings for receipt recovery. A structurally valid response
+    // is not proof of the requested item's linked wardrobe/material unlock.
+    public string WalletCanonicalContractId(string id)
+    {
+        if (!GameWalletPolicy.IsSourceId(id)) return null;
+        return FindRegisteredContract(NormalizeContractIdentifier(id))?.ContractID;
+    }
+
+    public string WalletCosmeticIdForShopItem(string itemId)
+    {
+        if (!GameWalletPolicy.IsSourceId(itemId)) return null;
+        if (ShopManager.Instance != null) RegisterWalletShopDefinitions(ShopManager.Instance.AllItems);
+        if (!walletCosmeticLinks.ContainsKey(itemId)) RegisterWalletShopDefinitions(Resources.FindObjectsOfTypeAll<ShopItemData>());
+        return !ambiguousWalletShopIds.Contains(itemId) && walletCosmeticLinks.TryGetValue(itemId, out string cosmetic) ? cosmetic : null;
+    }
+
+    public void RegisterWalletShopDefinitions(IEnumerable<ShopItemData> items)
+    {
+        if (items == null) return;
+        foreach (ShopItemData item in items)
+        {
+            if (item == null || !GameWalletPolicy.IsSourceId(item.ItemId) || item.cosmeticDefinition == null ||
+                !GameWalletPolicy.IsSourceId(item.cosmeticDefinition.PermanentID)) continue;
+            string cosmetic = item.cosmeticDefinition.PermanentID;
+            if (walletCosmeticLinks.TryGetValue(item.ItemId, out string known) && known != cosmetic)
+                ambiguousWalletShopIds.Add(item.ItemId);
+            else walletCosmeticLinks[item.ItemId] = cosmetic;
+        }
+    }
+
+    public string WalletCanonicalMaterialId(string id)
+    {
+        if (!GameWalletPolicy.IsSourceId(id)) return null;
+        if (walletMaterialAliases.TryGetValue(id, out string known)) return known;
+        foreach (ContractSO contract in allGameContracts ?? new List<ContractSO>())
+        {
+            if (contract == null) continue;
+            if (contract.allowedMaterials != null)
+                foreach (MaterialAllowance allowance in contract.allowedMaterials) RegisterWalletMaterial(allowance?.material);
+            if (contract.hiddenMaterials != null)
+                foreach (BridgeMaterialSO material in contract.hiddenMaterials) RegisterWalletMaterial(material);
+        }
+        foreach (BridgeMaterialSO material in Resources.FindObjectsOfTypeAll<BridgeMaterialSO>()) RegisterWalletMaterial(material);
+        return walletMaterialAliases.TryGetValue(id, out known) ? known : null;
+    }
+
+    private void RegisterWalletMaterial(BridgeMaterialSO material)
+    {
+        if (material == null || !GameWalletPolicy.IsSourceId(material.Id)) return;
+        walletMaterialAliases[material.Id] = material.Id;
+        if (GameWalletPolicy.IsSourceId(material.name)) walletMaterialAliases[material.name] = material.Id;
+    }
+
+    public bool HasWalletPurchaseEntitlement(GameWalletPendingPurchase purchase)
+    {
+        if (CurrentData == null || !GameWalletPolicy.IsPurchase(purchase)) return false;
+        if (purchase.targetKind == "cosmetic")
+        {
+            string cosmetic = WalletCosmeticIdForShopItem(purchase.targetId);
+            return cosmetic != null && OwnsShopItem(purchase.targetId) &&
+                CurrentData.unlockedCosmeticIDs != null && CurrentData.unlockedCosmeticIDs.Contains(cosmetic);
+        }
+        string contract = WalletCanonicalContractId(purchase.contractId);
+        string materialId = WalletCanonicalMaterialId(purchase.targetId);
+        return contract != null && materialId != null && CurrentData.unlockedContractMaterials != null &&
+            IsMaterialUnlockedForContract(contract, materialId);
+    }
+
+    public bool AcknowledgeWalletRewards(List<string> delivered)
+    {
+        if (CurrentData?.walletRewardOutbox == null || delivered == null) return true;
+        List<GameWalletRewardEvent> previous = CurrentData.walletRewardOutbox;
+        var next = new List<GameWalletRewardEvent>(previous);
+        next.RemoveAll(reward => reward != null && delivered.Contains(reward.eventId));
+        if (next.Count == previous.Count) return true;
+        CurrentData.walletRewardOutbox = next;
+        if (!TrySaveGame()) { CurrentData.walletRewardOutbox = previous; return false; }
+        return true;
+    }
+
+    public void CaptureWalletContractReward(string contractId, double finalCost, int failureCount, int quotedAmount, int quotedExp)
+    {
+        if (CurrentData == null || string.IsNullOrWhiteSpace(contractId) || finalCost < 0 ||
+            double.IsNaN(finalCost) || double.IsInfinity(finalCost) || failureCount < 0) return;
+        contractId = NormalizeContractIdentifier(contractId);
+        // Redesigns of an already-collected job display zero pay, but must not
+        // overwrite the original queued attempt's financial evidence/quote.
+        if (HasContractCompletionRecord(contractId)) return;
+        if (CurrentData.walletContractEvidence == null) CurrentData.walletContractEvidence = new List<GameWalletContractEvidence>();
+        var captured = new GameWalletContractEvidence {
+            contractId = contractId,
+            evidence = new GameWalletRewardEvidence { finalCost = finalCost, failureCount = failureCount, quotedAmount = Mathf.Max(0, quotedAmount) },
+            hasExpQuote = true,
+            quotedExp = Mathf.Max(0, quotedExp)
+        };
+        CurrentData.walletContractEvidence.RemoveAll(item => item != null && item.contractId == contractId);
+        CurrentData.walletContractEvidence.Add(captured);
+        SaveGame();
+    }
+
+    private GameWalletContractEvidence FindWalletContractEvidence(string contractId) =>
+        CurrentData?.walletContractEvidence?.Find(item => item != null && item.contractId == contractId);
+
+    public GameWalletRewardEvent RepairCapturedWalletRewardQuote(GameWalletRewardEvent reward) =>
+        reward == null ? null : GameWalletPolicy.RepairCapturedRewardQuote(reward, FindWalletContractEvidence(reward.sourceId));
+
+    public GameWalletPayoutQuote ResolveContractPayout(string contractName, int memoryGold, int memoryExp,
+        bool hasMemory, int baseGold, int baseExp, bool tutorialReward = false)
+    {
+        string contractId = NormalizeContractIdentifier(contractName);
+        TrackedTask pending = CurrentData?.activeQuests?.Find(task => task != null && !task.isCompleted &&
+            task.isReadyToTurnIn && ContractIdentifiersMatch(task.contractName, contractId));
+        return GameWalletPolicy.ResolvePayout(FindWalletContractEvidence(contractId), pending != null,
+            pending != null ? pending.pendingGold : 0, pending != null ? pending.pendingExp : 0,
+            hasMemory, memoryGold, memoryExp, baseGold, baseExp, tutorialReward);
+    }
+
+    public bool TryGetCapturedContractPayout(string contractName, out int gold, out int exp)
+    {
+        ContractSO contract = FindRegisteredContract(NormalizeContractIdentifier(contractName));
+        GameWalletPayoutQuote quote = ResolveContractPayout(contractName, 0, 0, false,
+            contract != null ? contract.goldReward : 0, contract != null ? contract.expReward : 0);
+        gold = quote.gold;
+        exp = quote.exp;
+        return quote.fromCapture;
+    }
+
+    private GameWalletRewardEvent AddWalletReward(string kind, string sourceId, GameWalletRewardEvidence evidence)
+    {
+        if (CurrentData.walletRewardOutbox == null) CurrentData.walletRewardOutbox = new List<GameWalletRewardEvent>();
+        string eventId = kind + ":" + sourceId;
+        if (CurrentData.walletRewardOutbox.Exists(item => item != null && item.eventId == eventId)) return null;
+        var reward = new GameWalletRewardEvent { kind = kind, sourceId = sourceId, eventId = eventId, evidence = evidence };
+        if (!GameWalletPolicy.IsReward(reward)) return null;
+        CurrentData.walletRewardOutbox.Add(reward);
+        return reward;
+    }
+
+    private GameWalletRewardEvent AddWalletReward(GameWalletRewardEvent reward)
+    {
+        if (!GameWalletPolicy.IsReward(reward)) return null;
+        if (CurrentData.walletRewardOutbox == null) CurrentData.walletRewardOutbox = new List<GameWalletRewardEvent>();
+        if (CurrentData.walletRewardOutbox.Exists(item => item != null && item.eventId == reward.eventId)) return null;
+        CurrentData.walletRewardOutbox.Add(reward);
+        return reward;
     }
     
     public void AddBridgeBuilt() 
@@ -700,7 +952,8 @@ public class PlayerDataManager : MonoBehaviour
     public bool CompleteContract(
         string contractName,
         int goldReward = 0,
-        int expReward = 0)
+        int expReward = 0,
+        bool tutorialReward = false)
     {
         if (CurrentData == null || string.IsNullOrWhiteSpace(contractName)) return false;
         string contractId = NormalizeContractIdentifier(contractName);
@@ -720,6 +973,23 @@ public class PlayerDataManager : MonoBehaviour
         if (CurrentData.completedContracts.Exists(savedId =>
                 ContractIdentifiersMatch(savedId, contractId))) return false;
 
+        // The persisted attempt owns its quote. An NPC opening its Collect
+        // dialog after restart cannot substitute the volatile/base fallback.
+        GameWalletPayoutQuote payout = ResolveContractPayout(contractId, goldReward, expReward, true,
+            goldReward, expReward, tutorialReward);
+        goldReward = payout.gold;
+        expReward = payout.exp;
+        bool serverCoins = UsesServerCoins;
+        SavedBridgeData walletBridge = serverCoins ? GetSavedBridge(contractId) : null;
+        GameWalletRewardEvent proposedReward = serverCoins ? GameWalletPolicy.ContractReward(contractId,
+            FindWalletContractEvidence(contractId), payout, walletBridge != null ? walletBridge.totalSpent : 0d,
+            tutorialReward) : null;
+        if (serverCoins && proposedReward == null)
+        {
+            Debug.LogWarning("[GameWallet] Contract payout needs recovery; completion and its pending values were preserved.", this);
+            return false;
+        }
+
         int previousGold = CurrentData.gold;
         int previousExp = CurrentData.exp;
         int previousLifetimeGold = CurrentData.lifetimeGoldEarned;
@@ -729,12 +999,17 @@ public class PlayerDataManager : MonoBehaviour
         bool previousContractsAlert = CurrentData.hasUnreadContractsAlert;
         bool previousObjectiveAlert = CurrentData.hasUnreadObjectiveAlert;
         List<string> newlyUnlockedFeatureIds = AddContractFeatureUnlocks(contractId);
+        GameWalletRewardEvent queuedReward = null;
 
         CurrentData.completedContracts.Add(contractId);
         CurrentData.lifetimeContractsCompleted++;
-        CurrentData.gold += Mathf.Max(0, goldReward);
+        if (serverCoins)
+        {
+            queuedReward = AddWalletReward(proposedReward);
+        }
+        else CurrentData.gold += Mathf.Max(0, goldReward);
         CurrentData.exp += Mathf.Max(0, expReward);
-        CurrentData.lifetimeGoldEarned += Mathf.Max(0, goldReward);
+        if (!serverCoins) CurrentData.lifetimeGoldEarned += Mathf.Max(0, goldReward);
         CurrentData.lifetimeExpEarned += Mathf.Max(0, expReward);
         CurrentData.hasUnlockedContractsTab = true;
         CurrentData.hasUnreadContractsAlert = true;
@@ -751,6 +1026,7 @@ public class PlayerDataManager : MonoBehaviour
             CurrentData.hasUnlockedContractsTab = previousContractsTab;
             CurrentData.hasUnreadContractsAlert = previousContractsAlert;
             CurrentData.hasUnreadObjectiveAlert = previousObjectiveAlert;
+            if (queuedReward != null) CurrentData.walletRewardOutbox.Remove(queuedReward);
             foreach (string featureId in newlyUnlockedFeatureIds)
                 CurrentData.unlockedFeatureIds.Remove(featureId);
             return false;
@@ -1349,6 +1625,8 @@ public class PlayerDataManager : MonoBehaviour
         if (achievement == null || CurrentData == null ||
             string.IsNullOrWhiteSpace(achievement.achievementID)) return false;
         if (CurrentData.unlockedAchievements.Contains(achievement.achievementID)) return false;
+        bool serverCoins = UsesServerCoins;
+        string previousState = serverCoins ? JsonUtility.ToJson(CurrentData) : null;
 
         CurrentData.unlockedAchievements.Add(achievement.achievementID);
         if (CurrentData.achievementUnlocks == null)
@@ -1362,8 +1640,19 @@ public class PlayerDataManager : MonoBehaviour
         });
 
         // These methods also update the received-currency lifetime counters.
-        if (achievement.bonusGold > 0) AddGold(achievement.bonusGold);
-        if (achievement.bonusExp > 0) AddExp(achievement.bonusExp);
+        if (serverCoins)
+        {
+            AddWalletReward("achievement", achievement.achievementID, null);
+            // The server counts this earned reward when its durable event is
+            // accepted. Pending/offline rewards are not available currency.
+            CurrentData.exp += Mathf.Max(0, achievement.bonusExp);
+            CurrentData.lifetimeExpEarned += Mathf.Max(0, achievement.bonusExp);
+        }
+        else
+        {
+            if (achievement.bonusGold > 0) AddGold(achievement.bonusGold);
+            if (achievement.bonusExp > 0) AddExp(achievement.bonusExp);
+        }
 
         bool hasCosmeticReward = achievement.grantsCosmeticReward &&
                                  !string.IsNullOrWhiteSpace(achievement.rewardCosmeticID);
@@ -1375,7 +1664,16 @@ public class PlayerDataManager : MonoBehaviour
                 CurrentData.unlockedCosmeticIDs.Add(achievement.rewardCosmeticID);
         }
 
-        SaveGame();
+        if (serverCoins)
+        {
+            if (!TrySaveGame())
+            {
+                CurrentData = JsonUtility.FromJson<PlayerData>(previousState);
+                return false;
+            }
+            OnCurrencyChanged?.Invoke();
+        }
+        else SaveGame();
         OnAchievementUnlocked?.Invoke(achievement);
         AchievementPopupNotification.NotifyAchievement(achievement);
 
@@ -1758,6 +2056,32 @@ public class PlayerDataManager : MonoBehaviour
         return best;
     }
 
+    /// <summary>Guest-only atomic material payment and ownership transaction.</summary>
+    public bool TryPurchaseMaterialForContract(string contractName, string materialId, int price)
+    {
+        if (UsesServerCoins || CurrentData == null || price < 0 || CurrentData.gold < price ||
+            !GameWalletPolicy.IsSourceId(materialId) || string.IsNullOrWhiteSpace(contractName)) return false;
+        string contractId = NormalizeContractIdentifier(contractName);
+        if (IsMaterialUnlockedForContract(contractId, materialId)) return true;
+        List<string> previous = CurrentData.unlockedContractMaterials;
+        var owned = previous != null ? new List<string>(previous) : new List<string>();
+        owned.Add(contractId + "_" + materialId);
+        int oldGold = CurrentData.gold, oldSpent = CurrentData.lifetimeGoldSpent;
+        CurrentData.unlockedContractMaterials = owned;
+        CurrentData.gold -= price;
+        CurrentData.lifetimeGoldSpent += price;
+        if (!TrySaveGame())
+        {
+            CurrentData.unlockedContractMaterials = previous;
+            CurrentData.gold = oldGold;
+            CurrentData.lifetimeGoldSpent = oldSpent;
+            return false;
+        }
+        OnCurrencyChanged?.Invoke();
+        CheckAllAchievements();
+        return true;
+    }
+
     public bool SaveBridgeData(string contractId, List<Point> points, List<Bar> bars, float totalSpent, float maxStress,
         ContractStarResult starResult = null)
     {
@@ -2006,6 +2330,8 @@ public class PlayerDataManager : MonoBehaviour
     /// </summary>
     public bool TryPurchaseShopItem(string itemId, int price, bool allowRepeatPurchase)
     {
+        // Signed-in spending is performed only by the authoritative server.
+        if (UsesServerCoins) return false;
         if (CurrentData == null || string.IsNullOrWhiteSpace(itemId) || price < 0)
             return false;
 
@@ -2640,6 +2966,7 @@ public class PlayerDataManager : MonoBehaviour
 
     private void NotifyProfileChanged()
     {
+        GameWalletService.Instance?.RefreshWallet();
         StartBridgePhotoWarmup();
         OnCurrencyChanged?.Invoke();
         OnFeatureUnlocksChanged?.Invoke();

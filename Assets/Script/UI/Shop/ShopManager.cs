@@ -41,6 +41,15 @@ public class ShopManager : MonoBehaviour
     [SerializeField] private TMP_Text secondaryCurrencyText;
     [SerializeField] private string secondaryCurrencyPlaceholder = "0";
 
+    [Header("Website Currency Shop")]
+    [SerializeField] private AuthoredSaveChoiceDialog currencyShopDialog;
+    private bool currencyDialogPending;
+    private bool currencyDialogIsSignIn;
+    private bool websiteLinkPending;
+    private bool walletPurchasePending;
+    private string walletRequestAccount;
+    private int walletRequestGeneration;
+
     [Header("Purchase Confirmation")]
     [SerializeField] private GameObject purchaseConfirmationPanel;
     [SerializeField] private TMP_Text confirmationTitleText;
@@ -194,6 +203,23 @@ public class ShopManager : MonoBehaviour
 
     private void Update()
     {
+        if (currencyDialogPending || websiteLinkPending || walletPurchasePending)
+        {
+            CloudSaveManager cloud = PlayerDataManager.Instance != null ? PlayerDataManager.Instance.GetComponent<CloudSaveManager>() : null;
+            if (!string.Equals(walletRequestAccount, cloud?.ActiveAccountId, StringComparison.OrdinalIgnoreCase) ||
+                walletRequestGeneration != (cloud != null ? cloud.SessionGeneration : -1))
+            {
+                websiteLinkPending = walletPurchasePending = false;
+                CloseCurrencyShopChoice();
+            }
+        }
+        if (GameWalletService.Instance != null && GameWalletService.Instance.RequiresSignIn)
+        {
+            websiteLinkPending = walletPurchasePending = false;
+            if (currencyDialogPending && !currencyDialogIsSignIn) CloseCurrencyShopChoice();
+        }
+        if (currencyDialogPending && (currencyShopDialog == null || !currencyShopDialog.IsVisible))
+            currencyDialogPending = false;
         MonitorVestEquipTutorial();
         RefreshVestShopLock();
     }
@@ -213,6 +239,7 @@ public class ShopManager : MonoBehaviour
 
     private void OnDestroy()
     {
+        CloseCurrencyShopChoice();
         UnbindPlayerData();
         if (safetyVestPurchaseStep != null)
             safetyVestPurchaseStep.OnStepStart.RemoveListener(PrepareSafetyVestPurchaseStep);
@@ -263,6 +290,7 @@ public class ShopManager : MonoBehaviour
         HidePurchaseFeedback();
         UpdateCurrencyDisplay();
         ShowCategory(currentCategory);
+        GameWalletService.Instance?.RefreshWallet();
 
         if (openTutorialCoroutine != null)
             StopCoroutine(openTutorialCoroutine);
@@ -294,6 +322,7 @@ public class ShopManager : MonoBehaviour
 
         CancelPendingPurchase();
         HidePurchaseFeedback();
+        CloseCurrencyShopChoice();
 
         if (UIPanelCoordinator.Instance != null)
             UIPanelCoordinator.Instance.ClosePanel(shopPanel);
@@ -363,6 +392,8 @@ public class ShopManager : MonoBehaviour
 
     private bool CanBuySafetyVestNow()
     {
+        GameWalletService wallet = GameWalletService.Instance;
+        if (wallet != null && wallet.HasSignedInAccount && !wallet.CanSpendOnline) return false;
         ShopItemData vest = allItems.Find(item => item != null && item.ItemId == SafetyVestItemId);
         if (vest == null || boundPlayerData == null || boundPlayerData.CurrentData == null ||
             boundPlayerData.CurrentData.gold < vest.price)
@@ -821,14 +852,65 @@ public class ShopManager : MonoBehaviour
         bool modalOpen = (purchaseConfirmationPanel != null &&
                           purchaseConfirmationPanel.activeInHierarchy) ||
                          (purchaseFeedbackPanel != null &&
-                          purchaseFeedbackPanel.activeInHierarchy);
+                          purchaseFeedbackPanel.activeInHierarchy) ||
+                         (currencyShopDialog != null && currencyShopDialog.IsVisible);
         tutorial.SetPresentationSuppressed(onOpenTutorial, modalOpen);
     }
 
     public void HandleAddCurrencyClicked()
     {
-        Debug.Log("[ShopManager] Secondary currency purchase/reward flow is not configured yet.", this);
+        ShowCurrencyShopChoice("coins");
         onAddCurrencyClicked.Invoke();
+    }
+
+    public void HandleAddDiamondsClicked() => ShowCurrencyShopChoice("diamonds");
+
+    public void SetCurrencyShopDialog(AuthoredSaveChoiceDialog dialog) => currencyShopDialog = dialog;
+
+    public void RefreshWalletBalances() => GameWalletService.Instance?.RefreshWallet();
+
+    private void CaptureWalletRequestScope()
+    {
+        CloudSaveManager cloud = PlayerDataManager.Instance != null ? PlayerDataManager.Instance.GetComponent<CloudSaveManager>() : null;
+        walletRequestAccount = cloud?.ActiveAccountId;
+        walletRequestGeneration = cloud != null ? cloud.SessionGeneration : -1;
+    }
+
+    private void ShowCurrencyShopChoice(string currency)
+    {
+        if (currencyDialogPending || websiteLinkPending || currencyShopDialog == null) return;
+        GameWalletService wallet = GameWalletService.Instance;
+        bool signedIn = wallet != null && wallet.HasSignedInAccount && !wallet.RequiresSignIn;
+        currencyDialogIsSignIn = !signedIn;
+        CaptureWalletRequestScope();
+        currencyDialogPending = currencyShopDialog.Show(
+            signedIn ? "Open the Civil Craft Shop?" : "Sign in to purchase currency",
+            signedIn
+                ? "This will open the website in your browser. Sign in with the same Civil Craft account to complete a test purchase. No real money will be charged."
+                : "Sign in to your Civil Craft account before buying Coins or Diamonds. This keeps purchases linked to your player account.",
+            signedIn ? "Cancel" : "Not Now", signedIn ? "Open Shop" : "Sign In",
+            CloseCurrencyShopChoice,
+            () => {
+                if (!currencyDialogPending || currencyShopDialog == null || !currencyShopDialog.IsVisible) return;
+                CloseCurrencyShopChoice();
+                if (!signedIn) { GameWalletService.OfferMainMenuSignIn(); return; }
+                if (wallet == null || !wallet.HasSignedInAccount) return;
+                websiteLinkPending = true;
+                wallet.RequestShopLink(currency, (success, error) => {
+                    if (this == null) return;
+                    websiteLinkPending = false;
+                    if (!success) ShowPurchaseFeedback(error);
+                });
+            });
+        UpdateTutorialPresentationForModal();
+    }
+
+    public void CloseCurrencyShopChoice()
+    {
+        currencyDialogPending = false;
+        currencyDialogIsSignIn = false;
+        if (currencyShopDialog != null) currencyShopDialog.Hide();
+        UpdateTutorialPresentationForModal();
     }
 
     public bool IsOwned(ShopItemData item)
@@ -839,7 +921,10 @@ public class ShopManager : MonoBehaviour
 
     public bool CanInteractWithItem(ShopItemData item)
     {
-        return item != null && (!IsVestShopTutorialLocked || item.ItemId == SafetyVestItemId);
+        GameWalletService wallet = GameWalletService.Instance;
+        return item != null && !walletPurchasePending &&
+            (wallet == null || !wallet.HasSignedInAccount || wallet.CanSpendOnline) &&
+            (!IsVestShopTutorialLocked || item.ItemId == SafetyVestItemId);
     }
 
     public string FormatPrice(int price)
@@ -855,9 +940,19 @@ public class ShopManager : MonoBehaviour
             ? boundPlayerData.CurrentData.gold
             : 0;
         if (currencyText != null)
-            currencyText.text = $"{currencyPrefix}{amount:N0}";
+        {
+            GameWalletService wallet = GameWalletService.Instance;
+            currencyText.text = wallet != null && wallet.HasSignedInAccount
+                ? wallet.CoinsAvailable ? $"{currencyPrefix}{amount:N0}" : "Unavailable"
+                : $"{currencyPrefix}{amount:N0}";
+        }
         if (secondaryCurrencyText != null)
-            secondaryCurrencyText.text = secondaryCurrencyPlaceholder;
+        {
+            GameWalletService wallet = GameWalletService.Instance;
+            secondaryCurrencyText.text = wallet != null && wallet.HasSignedInAccount
+                ? wallet.DiamondsAvailable ? wallet.DiamondBalance.ToString("N0") : "Unavailable"
+                : "Sign in";
+        }
     }
 
     private void InitializeIfNeeded()
@@ -955,6 +1050,13 @@ public class ShopManager : MonoBehaviour
 
     private bool CanPurchase(ShopItemData item, out string rejection)
     {
+        GameWalletService wallet = GameWalletService.Instance;
+        if (walletPurchasePending || wallet != null && wallet.HasSignedInAccount && !wallet.CanSpendOnline)
+        {
+            rejection = walletPurchasePending ? "A purchase is awaiting confirmation. Please wait." :
+                "Signed-in purchases require a synchronized online wallet. Reconnect and try again.";
+            return false;
+        }
         if (item == null || string.IsNullOrWhiteSpace(item.ItemId))
         {
             rejection = "This shop item is not configured correctly.";
@@ -997,6 +1099,21 @@ public class ShopManager : MonoBehaviour
         if (!CanPurchase(item, out string rejection))
             return RejectPurchase(rejection);
 
+        GameWalletService wallet = GameWalletService.Instance;
+        if (wallet != null && wallet.HasSignedInAccount)
+        {
+            CaptureWalletRequestScope();
+            walletPurchasePending = true;
+            bool queued = wallet.PurchaseCosmetic(item.ItemId, (success, error) => {
+                if (this == null) return;
+                walletPurchasePending = false;
+                if (!success) { RejectPurchase(error); return; }
+                FinishPurchasePresentation(item);
+            });
+            if (!queued) walletPurchasePending = false;
+            return queued;
+        }
+
         if (!boundPlayerData.TryPurchaseShopItem(
                 item.ItemId,
                 item.price,
@@ -1011,6 +1128,12 @@ public class ShopManager : MonoBehaviour
             boundPlayerData.UnlockCosmeticReward(item.cosmeticDefinition.PermanentID, false);
         }
 
+        FinishPurchasePresentation(item);
+        return true;
+    }
+
+    private void FinishPurchasePresentation(ShopItemData item)
+    {
         Debug.Log($"[ShopManager] Purchased '{item.itemName}' for {FormatPrice(item.price)}.", item);
         onItemPurchased.Invoke(item);
         if (item.ItemId == SafetyVestItemId && ownedVestAdvanceCoroutine == null &&
@@ -1020,7 +1143,6 @@ public class ShopManager : MonoBehaviour
             ownedVestAdvanceCoroutine = StartCoroutine(AdvanceOwnedVestStep());
         RefreshVisibleCards();
         UpdateCurrencyDisplay();
-        return true;
     }
 
     private void PopulateConfirmation(ShopItemData item)
@@ -1052,6 +1174,7 @@ public class ShopManager : MonoBehaviour
         boundPlayerData = current;
         if (boundPlayerData != null)
         {
+            boundPlayerData.RegisterWalletShopDefinitions(allItems);
             boundPlayerData.OnCurrencyChanged += HandleCurrencyChanged;
             boundPlayerData.OnItemOwnershipChanged += RefreshVisibleCards;
         }

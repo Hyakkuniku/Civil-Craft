@@ -65,8 +65,12 @@ public sealed class CloudSaveManager : MonoBehaviour
     private float previousTimeScale;
     private StartMode startMode;
     private bool strictStartup;
+    // Save-selection intent outlives the one-shot login callback. A failed
+    // strict choice must not become a generic Resume on its next retry.
+    private bool startupSelectionPending;
     private bool suspendSyncForConflict;
     private bool auxiliaryFileOperationInProgress;
+    private bool legacyWalletImportInProgress;
 
     public bool IsSyncing => inFlight;
     public bool HasConflict => showingConflict;
@@ -77,6 +81,12 @@ public sealed class CloudSaveManager : MonoBehaviour
     // approved. Resume may approve the cached save after a network failure;
     // strict save choices must succeed before dependent publishers can run.
     public bool IsSessionReady { get; private set; }
+    // Offline Resume readiness is sufficient for gameplay/journaling, not for
+    // permanently importing an unverified legacy balance into the wallet.
+    public bool IsLegacyWalletImportSourceReady { get; private set; }
+    public bool CanImportLegacyWallet => IsAccountActive && IsSessionReady &&
+        IsLegacyWalletImportSourceReady && !showingConflict && !suspendSyncForConflict &&
+        !inFlight && !auxiliaryFileOperationInProgress;
     public bool CanPublishDashboard => IsAccountActive && IsSessionReady &&
         !showingConflict && !suspendSyncForConflict;
     public string LastSyncError { get; private set; }
@@ -102,12 +112,15 @@ public sealed class CloudSaveManager : MonoBehaviour
         retryRequired = false;
         suspendSyncForConflict = false;
         auxiliaryFileOperationInProgress = false;
+        legacyWalletImportInProgress = false;
         strictStartup = false;
+        startupSelectionPending = false;
         showingConflict = false;
         conflictBackedUp = false;
         CloseConflictOverlay();
         startupComplete = null;
         IsSessionReady = false;
+        IsLegacyWalletImportSourceReady = false;
         accountId = null;
         entity = null;
         conflictingCloudJson = null;
@@ -177,6 +190,7 @@ public sealed class CloudSaveManager : MonoBehaviour
 
         startMode = mode;
         strictStartup = mode != StartMode.Resume;
+        startupSelectionPending = true;
         accountId = login.PlayFabId;
         entity = new EntityKey
         {
@@ -201,7 +215,7 @@ public sealed class CloudSaveManager : MonoBehaviour
 
     private void Update()
     {
-        if (!IsAccountActive || inFlight || auxiliaryFileOperationInProgress ||
+        if (!IsAccountActive || inFlight || auxiliaryFileOperationInProgress || legacyWalletImportInProgress ||
             showingConflict || suspendSyncForConflict ||
             Time.realtimeSinceStartup < nextSyncTime ||
             !PlayFabClientAPI.IsClientLoggedIn()) return;
@@ -214,7 +228,7 @@ public sealed class CloudSaveManager : MonoBehaviour
 
     private void OnApplicationPause(bool paused)
     {
-        if (paused && IsAccountActive && !inFlight && !auxiliaryFileOperationInProgress &&
+        if (paused && IsAccountActive && !inFlight && !auxiliaryFileOperationInProgress && !legacyWalletImportInProgress &&
             !showingConflict && !suspendSyncForConflict &&
             PlayFabClientAPI.IsClientLoggedIn())
         {
@@ -225,7 +239,7 @@ public sealed class CloudSaveManager : MonoBehaviour
 
     private void SyncNow()
     {
-        if (inFlight || auxiliaryFileOperationInProgress || showingConflict || entity == null) return;
+        if (inFlight || auxiliaryFileOperationInProgress || legacyWalletImportInProgress || showingConflict || entity == null) return;
         inFlight = true;
         int requestGeneration = generation;
         PlayFabDataAPI.GetFiles(new GetFilesRequest { Entity = entity },
@@ -235,7 +249,7 @@ public sealed class CloudSaveManager : MonoBehaviour
                 if (result.Metadata == null ||
                     !result.Metadata.TryGetValue(CloudFileName, out GetFileMetadata metadata))
                 {
-                    if (startupComplete != null && startMode == StartMode.LoadOnline)
+                    if (startupSelectionPending && startMode == StartMode.LoadOnline)
                     {
                         Fail("The account's online save is no longer available.");
                         return;
@@ -277,7 +291,7 @@ public sealed class CloudSaveManager : MonoBehaviour
     {
         entityKey = null;
         if (!IsAccountActive || entity == null || inFlight || auxiliaryFileOperationInProgress ||
-            showingConflict || suspendSyncForConflict || !PlayFabClientAPI.IsClientLoggedIn())
+            legacyWalletImportInProgress || showingConflict || suspendSyncForConflict || !PlayFabClientAPI.IsClientLoggedIn())
             return false;
 
         auxiliaryFileOperationInProgress = true;
@@ -289,6 +303,23 @@ public sealed class CloudSaveManager : MonoBehaviour
     {
         auxiliaryFileOperationInProgress = false;
         nextSyncTime = Mathf.Min(nextSyncTime, Time.realtimeSinceStartup + 0.25f);
+    }
+
+    /// <summary>Hold the confirmed save source stable through one wallet import.</summary>
+    public bool TryBeginLegacyWalletImport(string expectedAccount, int expectedGeneration)
+    {
+        if (!CanImportLegacyWallet || legacyWalletImportInProgress || expectedGeneration != generation ||
+            !string.Equals(expectedAccount, accountId, StringComparison.OrdinalIgnoreCase)) return false;
+        legacyWalletImportInProgress = true;
+        return true;
+    }
+
+    public void EndLegacyWalletImport(string expectedAccount, int expectedGeneration)
+    {
+        // An outgoing HTTP coroutine must not unlock a new account/re-login's
+        // reservation after EndSession has advanced the generation.
+        if (expectedGeneration == generation && string.Equals(expectedAccount, accountId, StringComparison.OrdinalIgnoreCase))
+            legacyWalletImportInProgress = false;
     }
 
     private void ReceiveCloud(byte[] bytes, int profileVersion, int requestGeneration)
@@ -327,7 +358,7 @@ public sealed class CloudSaveManager : MonoBehaviour
         }
 
         string localHash = Hash(saveManager.GetCurrentDataJson());
-        if (startupComplete != null &&
+        if (startupSelectionPending &&
             (startMode == StartMode.StartFresh || startMode == StartMode.UseGuestSave ||
              startMode == StartMode.LoadLocalAccount))
         {
@@ -335,7 +366,7 @@ public sealed class CloudSaveManager : MonoBehaviour
             return;
         }
 
-        if (startupComplete != null && startMode == StartMode.LoadOnline)
+        if (startupSelectionPending && startMode == StartMode.LoadOnline)
         {
             if (hadLocalSaveAtLogin && localHash != cloud.sha256 &&
                 !PreserveConflictCopies(saveManager.GetCurrentDataJson(), cloud.playerDataJson))
@@ -396,6 +427,7 @@ public sealed class CloudSaveManager : MonoBehaviour
             conflictingCloudGeneration = requestGeneration;
             conflictingCloudNeedsEncryptionUpgrade = needsEncryptionUpgrade;
             showingConflict = true;
+            IsLegacyWalletImportSourceReady = false;
             inFlight = false;
             ShowConflictOverlay();
         }
@@ -490,9 +522,11 @@ public sealed class CloudSaveManager : MonoBehaviour
         inFlight = false;
         retryRequired = false;
         strictStartup = false;
+        startupSelectionPending = false;
         hadLocalSaveAtLogin = true;
         LastSyncError = null;
         IsSessionReady = true;
+        IsLegacyWalletImportSourceReady = true;
         nextSyncTime = Time.realtimeSinceStartup + SaveDebounceSeconds;
         Action<bool> ready = startupComplete;
         startupComplete = null;

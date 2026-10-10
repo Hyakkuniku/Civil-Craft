@@ -797,14 +797,31 @@ public class BuildUIController : MonoBehaviour
         if (pendingUnlockButton != null && GameManager.Instance != null && GameManager.Instance.CurrentContract != null)
         {
             int cost = pendingUnlockButton.buttonMaterial.unlockCost;
+            GameWalletService wallet = GameWalletService.Instance;
+            if (wallet != null && wallet.HasSignedInAccount)
+            {
+                string contractId = GameManager.Instance.CurrentContract.ContractID;
+                string materialId = pendingUnlockButton.buttonMaterial.Id;
+                wallet.PurchaseMaterial(contractId, materialId, (success, error) => {
+                    if (this == null) return;
+                    if (success) { RefreshAllMaterialButtons(); LogAction(materialId + " Unlocked!"); }
+                    else LogAction(error ?? "Material purchase is awaiting confirmation.");
+                });
+                if (unlockMaterialPanel != null) unlockMaterialPanel.SetActive(false);
+                pendingUnlockButton = null;
+                return;
+            }
             
             if (PlayerDataManager.Instance != null && PlayerDataManager.Instance.CurrentData.gold >= cost)
             {
-                PlayerDataManager.Instance.SpendGold(cost);
-                PlayerDataManager.Instance.UnlockMaterialForContract(
-                    GameManager.Instance.CurrentContract.ContractID,
-                    pendingUnlockButton.buttonMaterial.name);
-
+                if (!PlayerDataManager.Instance.TryPurchaseMaterialForContract(
+                        GameManager.Instance.CurrentContract.ContractID,
+                        pendingUnlockButton.buttonMaterial.Id, cost))
+                {
+                    LogAction("Could not save the material payment. No material was unlocked.");
+                    CancelUnlockMaterial();
+                    return;
+                }
                 RefreshAllMaterialButtons(); 
 
                 LogAction($"{pendingUnlockButton.buttonMaterial.name} Unlocked!");

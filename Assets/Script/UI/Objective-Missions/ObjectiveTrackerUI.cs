@@ -369,9 +369,14 @@ public class ObjectiveTrackerUI : MonoBehaviour
         
         if (taskToComplete != null && !taskToComplete.isCompleted)
         {
+            // Resolve before changing readiness: a saved, ready payout of zero
+            // is real data, not an invitation to replace it with the base pay.
+            GameWalletPayoutQuote payout = PlayerDataManager.Instance.ResolveContractPayout(
+                npc.contractToGive.ContractID, gold, exp, true,
+                npc.contractToGive.goldReward, npc.contractToGive.expReward, taskToComplete.isTutorial);
             taskToComplete.isReadyToTurnIn = true;
-            taskToComplete.pendingGold = gold;
-            taskToComplete.pendingExp = exp;
+            taskToComplete.pendingGold = payout.gold;
+            taskToComplete.pendingExp = payout.exp;
             
             taskToComplete.targetWaypointName = ""; 
             
@@ -410,7 +415,8 @@ public class ObjectiveTrackerUI : MonoBehaviour
                 bool completionSaved = PlayerDataManager.Instance.CompleteContract(
                     currentlySelectedTask.contractName,
                     goldReward,
-                    expReward);
+                    expReward,
+                    currentlySelectedTask.isTutorial);
 
                 if (!completionSaved &&
                     !PlayerDataManager.Instance.IsContractCompleted(currentlySelectedTask.contractName))

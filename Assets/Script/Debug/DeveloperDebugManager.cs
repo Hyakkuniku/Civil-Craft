@@ -1230,6 +1230,11 @@ public sealed class DeveloperDebugManager : MonoBehaviour
 
     public void AddSelectedCoins()
     {
+        if (PlayerDataManager.Instance != null && PlayerDataManager.Instance.UsesServerCoins)
+        {
+            SetStatus("Debug grants are guest-only. Signed-in Coins are owned by the server wallet.");
+            return;
+        }
         if (PlayerDataManager.Instance == null || PlayerDataManager.Instance.CurrentData == null)
         {
             SetStatus("PlayerDataManager is unavailable; coins could not be added.");

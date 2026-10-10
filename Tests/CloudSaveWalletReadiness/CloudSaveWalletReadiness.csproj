@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Assets/Script/Player/PlayerSave/CloudSaveManager.cs" Link="CloudSaveManager.cs" />
+    <Compile Include="../../Assets/Script/Client/GameWalletModels.cs" Link="GameWalletModels.cs" />
+  </ItemGroup>
+</Project>

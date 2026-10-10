@@ -373,16 +373,14 @@ public class NPCContractGiver : Interactable
     {
         if (ObjectiveTrackerUI.Instance != null && LevelCompleteManager.Instance != null)
         {
-            int gold = LevelCompleteManager.Instance.GetContractGold(contractToGive.ContractID);
-            int exp = LevelCompleteManager.Instance.GetContractExp(contractToGive.ContractID);
-            
-            if (gold == 0 && exp == 0) 
-            {
-                gold = contractToGive.goldReward;
-                exp = contractToGive.expReward;
-            }
-
-            ObjectiveTrackerUI.Instance.ShowCompleteButton(gold, exp, this);
+            bool hasMemory = LevelCompleteManager.Instance.TryGetContractPayout(contractToGive.ContractID,
+                out int gold, out int exp);
+            GameWalletPayoutQuote quote = PlayerDataManager.Instance != null
+                ? PlayerDataManager.Instance.ResolveContractPayout(contractToGive.ContractID, gold, exp,
+                    hasMemory, contractToGive.goldReward, contractToGive.expReward)
+                : GameWalletPolicy.ResolvePayout(null, false, 0, 0, hasMemory, gold, exp,
+                    contractToGive.goldReward, contractToGive.expReward);
+            ObjectiveTrackerUI.Instance.ShowCompleteButton(quote.gold, quote.exp, this);
         }
         TryAdvanceTutorial();
     }

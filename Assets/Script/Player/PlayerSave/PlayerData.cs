@@ -161,6 +161,12 @@ public class PlayerData
     public List<PlayerCargoDeliveryData> playerCargoDeliveries = new List<PlayerCargoDeliveryData>();
     public string playerName = "Guest";
     public int gold = 0;
+    // Signed-in Gold is only the last authoritative server Coins snapshot.
+    // Pending rewards never increase this cached, non-spendable-offline value.
+    public int walletAuthorityVersion;
+    public long walletCoinsVersion;
+    public List<GameWalletRewardEvent> walletRewardOutbox = new List<GameWalletRewardEvent>();
+    public List<GameWalletContractEvidence> walletContractEvidence = new List<GameWalletContractEvidence>();
     public int exp = 0;
     public bool hasAlmanac = false; 
     public bool hasUnreadAlmanacUnlockAlert = false;

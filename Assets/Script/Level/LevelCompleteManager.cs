@@ -354,6 +354,12 @@ public class LevelCompleteManager : MonoBehaviour
 
     public int GetContractGold(string contractName) { return contractGoldRewards.ContainsKey(contractName) ? contractGoldRewards[contractName] : 0; }
     public int GetContractExp(string contractName) { return contractExpRewards.ContainsKey(contractName) ? contractExpRewards[contractName] : 0; }
+    public bool TryGetContractPayout(string contractName, out int gold, out int exp)
+    {
+        bool hasGold = contractGoldRewards.TryGetValue(contractName, out gold);
+        bool hasExp = contractExpRewards.TryGetValue(contractName, out exp);
+        return hasGold && hasExp;
+    }
 
     public void MarkContractAsPaid(string contractName)
     {
@@ -711,6 +717,9 @@ public class LevelCompleteManager : MonoBehaviour
         {
             contractGoldRewards[currentContract.ContractID] = calculatedGold;
             contractExpRewards[currentContract.ContractID] = calculatedExp;
+            PlayerDataManager.Instance?.CaptureWalletContractReward(currentContract.ContractID,
+                finalCost, LevelFailedManager.Instance != null ? LevelFailedManager.Instance.currentFailCount : 0,
+                calculatedGold, calculatedExp);
         }
 
         if (goldEarnedText != null) 
