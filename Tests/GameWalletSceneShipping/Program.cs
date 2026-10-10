@@ -2,12 +2,12 @@ using System.Diagnostics;
 using System.Text.RegularExpressions;
 
 string root = Path.GetFullPath(args.Length > 0 ? args[0] : Directory.GetCurrentDirectory());
-string prefab = File.ReadAllText(Path.Combine(root, "Assets/Prefabs/UI/AccountSaveChoiceDialog.prefab"));
+string prefab = File.ReadAllText(Path.Combine(root, "Assets/Prefabs/UI/AccountSaveChoiceDialog.prefab")).Replace("\r\n", "\n");
 if (args.Length == 3 && args[1] == "--export-wallet-scene")
 {
     string path = args[2];
     if (!WebsiteShopScenePolicy.RequiredScenes.Contains(path)) throw new InvalidOperationException("Not an allowlisted wallet scene.");
-    Console.Write(WalletSceneDelta.Extract(ReadCommitted(path), File.ReadAllText(Path.Combine(root, path)), prefab));
+    Console.Write(WalletSceneDelta.Extract(ReadCommitted(path), File.ReadAllText(Path.Combine(root, path)).Replace("\r\n", "\n"), prefab));
     return;
 }
 int checks = 0;
@@ -51,7 +51,7 @@ foreach (var state in new[] {
 
 foreach (string path in WebsiteShopScenePolicy.RequiredScenes)
 {
-    string scene = File.ReadAllText(Path.Combine(root, path));
+    string scene = File.ReadAllText(Path.Combine(root, path)).Replace("\r\n", "\n");
     var errors = WebsiteShopScenePolicy.CollectErrors(scene, prefab);
     Check(errors.Count == 0, path + ": " + string.Join("; ", errors));
     Check(WebsiteShopScenePolicy.CollectErrors(Regex.Replace(scene, @"currencyShopDialog: \{fileID: -?\d+\}", "currencyShopDialog: {fileID: 0}"), prefab).Count > 0,
@@ -149,5 +149,5 @@ string ReadCommitted(string path)
     string error = process.StandardError.ReadToEnd();
     process.WaitForExit();
     if (process.ExitCode != 0) throw new InvalidOperationException("Cannot read committed baseline: " + error);
-    return text;
+    return text.Replace("\r\n", "\n");
 }
