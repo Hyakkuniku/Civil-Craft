@@ -1,0 +1,11 @@
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\WalletReadOnlyCheck\obj\editor-compile\Debug\netstandard2.1\EditorCompile.csproj.AssemblyReference.cache
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\WalletReadOnlyCheck\obj\editor-compile\Debug\netstandard2.1\EditorCompile.GeneratedMSBuildEditorConfig.editorconfig
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\WalletReadOnlyCheck\obj\editor-compile\Debug\netstandard2.1\EditorCompile.AssemblyInfoInputs.cache
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\WalletReadOnlyCheck\obj\editor-compile\Debug\netstandard2.1\EditorCompile.AssemblyInfo.cs
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\WalletReadOnlyCheck\obj\editor-compile\Debug\netstandard2.1\EditorCompile.csproj.CoreCompileInputs.cache
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\WalletReadOnlyCheck\obj\editor-compile\Debug\netstandard2.1\EditorCompile.sourcelink.json
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\WalletReadOnlyCheck\bin\editor-compile\netstandard2.1\EditorCompile.deps.json
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\WalletReadOnlyCheck\bin\editor-compile\netstandard2.1\EditorCompile.dll
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\WalletReadOnlyCheck\bin\editor-compile\netstandard2.1\EditorCompile.pdb
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\WalletReadOnlyCheck\obj\editor-compile\Debug\netstandard2.1\EditorCompile.dll
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\WalletReadOnlyCheck\obj\editor-compile\Debug\netstandard2.1\EditorCompile.pdb

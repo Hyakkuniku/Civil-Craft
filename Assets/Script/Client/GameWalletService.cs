@@ -35,6 +35,7 @@ public sealed class GameWalletService : MonoBehaviour
     private bool inFlight;
     private bool refreshRequested;
     private bool observedLegacySourceReady;
+    private bool verifiedLegacyAccount;
     private float nextAttempt;
     private float nextJournalAttempt;
     private string shopCurrency;
@@ -51,6 +52,11 @@ public sealed class GameWalletService : MonoBehaviour
     public bool HasSignedInAccount => GameWalletPolicy.UsesServerAuthority(cloud != null && cloud.IsAccountActive,
         PlayerPrefs.GetInt("LoginChoice", 0) == 1);
     public bool RequiresSignIn { get; private set; }
+    public bool UsesSharedCoins => HasSignedInAccount && !UsesLegacyCoins;
+    public bool UsesLegacyCoins => verifiedLegacyAccount && HasSignedInAccount && cloud != null &&
+        cloud.SessionGeneration == generation && GameWalletPolicy.SameAccount(cloud.ActiveAccountId, accountId) &&
+        playerData != null && GameWalletPolicy.SameAccount(playerData.ActiveAccountId, accountId) &&
+        playerData.CurrentData != null && playerData.CurrentData.walletAuthorityVersion == 0;
     public bool CoinsAvailable { get; private set; }
     public bool DiamondsAvailable { get; private set; }
     public long DiamondBalance { get; private set; }
@@ -143,6 +149,7 @@ public sealed class GameWalletService : MonoBehaviour
         CoinsAvailable = DiamondsAvailable = false;
         RequiresSignIn = false;
         observedLegacySourceReady = false;
+        verifiedLegacyAccount = false;
         lifetimeEarned = lifetimeSpent = null;
         WalletVersion = GameWalletPolicy.IsAccountId(selectedAccount) && playerData?.CurrentData != null
             ? Math.Max(0, playerData.CurrentData.walletCoinsVersion) : 0;
@@ -408,6 +415,13 @@ public sealed class GameWalletService : MonoBehaviour
                 }
                 yield break;
             }
+            if (UsesLegacyCoins)
+            {
+                WalletStatus = "Legacy development Coins. Website Coin purchases are not available for this account.";
+                nextAttempt = Time.unscaledTime + 30f;
+                playerData.NotifyWalletChanged();
+                yield break;
+            }
             if (!ready)
             {
                 if (!GameWalletPolicy.CanImportLegacy(playerData.CurrentData.walletAuthorityVersion, ready))
@@ -665,8 +679,14 @@ public sealed class GameWalletService : MonoBehaviour
         if (body == null || !body.TryGetValue("ready", out object value) || !(value is bool flag) ||
             !Integer(body, "version", GameWalletPolicy.MaximumJsonInteger, out long version)) return false;
         ready = flag;
+        string authority = Text(body, "coinAuthority");
+        if (!string.IsNullOrEmpty(authority) && authority != "legacy" && authority != "shared") return false;
+        bool legacy = authority == "legacy";
+        if (legacy && (ready || version != 0 || playerData?.CurrentData == null ||
+            playerData.CurrentData.walletAuthorityVersion != 0 || WalletVersion != 0)) return false;
         if (!NullableInteger(body, "coins", int.MaxValue, out long? coins) ||
             !NullableInteger(body, "diamonds", GameWalletPolicy.MaximumJsonInteger, out long? diamonds)) return false;
+        if (legacy && coins.HasValue) return false;
         if (ready && !coins.HasValue) return false;
         if (ready && !GameWalletPolicy.CanMirrorVersion(WalletVersion, version)) return false;
         if (!OptionalCounter(body, "lifetimeGoldEarned", out lifetimeEarned) ||
@@ -676,6 +696,7 @@ public sealed class GameWalletService : MonoBehaviour
         DiamondBalance = diamonds ?? 0;
         WalletVersion = version;
         CoinsAvailable = ready && coins.HasValue;
+        verifiedLegacyAccount = legacy;
         return true;
     }
 

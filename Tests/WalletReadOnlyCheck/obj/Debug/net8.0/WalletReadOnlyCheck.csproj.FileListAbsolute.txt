@@ -1,0 +1,15 @@
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\WalletReadOnlyCheck\bin\Debug\net8.0\WalletReadOnlyCheck.exe
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\WalletReadOnlyCheck\bin\Debug\net8.0\WalletReadOnlyCheck.deps.json
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\WalletReadOnlyCheck\bin\Debug\net8.0\WalletReadOnlyCheck.runtimeconfig.json
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\WalletReadOnlyCheck\bin\Debug\net8.0\WalletReadOnlyCheck.dll
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\WalletReadOnlyCheck\bin\Debug\net8.0\WalletReadOnlyCheck.pdb
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\WalletReadOnlyCheck\obj\Debug\net8.0\WalletReadOnlyCheck.GeneratedMSBuildEditorConfig.editorconfig
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\WalletReadOnlyCheck\obj\Debug\net8.0\WalletReadOnlyCheck.AssemblyInfoInputs.cache
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\WalletReadOnlyCheck\obj\Debug\net8.0\WalletReadOnlyCheck.AssemblyInfo.cs
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\WalletReadOnlyCheck\obj\Debug\net8.0\WalletReadOnlyCheck.csproj.CoreCompileInputs.cache
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\WalletReadOnlyCheck\obj\Debug\net8.0\WalletReadOnlyCheck.sourcelink.json
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\WalletReadOnlyCheck\obj\Debug\net8.0\WalletReadOnlyCheck.dll
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\WalletReadOnlyCheck\obj\Debug\net8.0\refint\WalletReadOnlyCheck.dll
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\WalletReadOnlyCheck\obj\Debug\net8.0\WalletReadOnlyCheck.pdb
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\WalletReadOnlyCheck\obj\Debug\net8.0\WalletReadOnlyCheck.genruntimeconfig.cache
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\WalletReadOnlyCheck\obj\Debug\net8.0\ref\WalletReadOnlyCheck.dll

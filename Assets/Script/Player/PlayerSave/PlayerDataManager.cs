@@ -709,7 +709,8 @@ public class PlayerDataManager : MonoBehaviour
         get
         {
             CloudSaveManager cloud = GetComponent<CloudSaveManager>();
-            return GameWalletPolicy.UsesServerAuthority(cloud != null && cloud.IsAccountActive,
+            return !(GameWalletService.Instance != null && GameWalletService.Instance.UsesLegacyCoins) &&
+                GameWalletPolicy.UsesServerAuthority(cloud != null && cloud.IsAccountActive,
                 PlayerPrefs.GetInt("LoginChoice", 0) == 1);
         }
     }

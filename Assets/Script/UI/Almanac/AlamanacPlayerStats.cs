@@ -118,7 +118,7 @@ public class AlmanacPlayerStats : MonoBehaviour
     private static string CoinDisplay(PlayerData data)
     {
         GameWalletService wallet = GameWalletService.Instance;
-        if (wallet == null || !wallet.HasSignedInAccount) return data.gold.ToString("N0");
+        if (wallet == null || !wallet.UsesSharedCoins) return data.gold.ToString("N0");
         return wallet.CoinsAvailable ? wallet.CoinBalance.ToString("N0") : "Unavailable";
     }
 

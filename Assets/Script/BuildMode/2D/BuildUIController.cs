@@ -798,7 +798,7 @@ public class BuildUIController : MonoBehaviour
         {
             int cost = pendingUnlockButton.buttonMaterial.unlockCost;
             GameWalletService wallet = GameWalletService.Instance;
-            if (wallet != null && wallet.HasSignedInAccount)
+            if (wallet != null && wallet.UsesSharedCoins)
             {
                 string contractId = GameManager.Instance.CurrentContract.ContractID;
                 string materialId = pendingUnlockButton.buttonMaterial.Id;

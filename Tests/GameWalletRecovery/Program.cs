@@ -12,6 +12,8 @@ internal static class Program
     private static int Main()
     {
         try {
+            Run("verified legacy authority preserves gold without import and resets on account switching", LegacyCohort);
+            Run("migrated saves cannot downgrade to legacy authority", RejectLegacyDowngrade);
             Run("the production PlayFab JSON parser accepts bounded unsigned balances", ProductionJsonNumericBalances);
             Run("the production parser mirrors full wallet balances, versions and lifetime counters", ProductionJsonWalletAndCounters);
             foreach (string invalid in new[] { "coins-overflow", "diamonds-overflow", "version-overflow", "earned-overflow", "spent-overflow", "unsigned-overflow", "negative", "fraction", "string" }) {
@@ -182,6 +184,28 @@ internal static class Program
         Check(fixture.Data.CurrentData.lifetimeGoldEarned == int.MaxValue && fixture.Data.CurrentData.lifetimeGoldSpent == int.MaxValue,
             "Actual-parser lifetime statistics are validated and mirrored, never replaced by zero");
         Check(UnityWebRequest.Requests.All(request => request.Method == "GET"), "Parser correction alone cannot request currency credits or spending");
+    }
+
+    private static void LegacyCohort()
+    {
+        using var fixture = new Fixture();
+        fixture.Data.CurrentData.walletAuthorityVersion = 0;
+        Reply("GET", "/api/game/wallet", new {ready=false,coins=(int?)null,diamonds=25,version=0,coinAuthority="legacy"});
+        fixture.Sync();
+        Check(fixture.Service.UsesLegacyCoins && !fixture.Service.UsesSharedCoins, "Explicit server authority selects legacy only");
+        Check(fixture.Data.CurrentData.gold == 123 && fixture.Service.DiamondBalance == 25, "Legacy gold and independent Diamonds are preserved");
+        Check(UnityWebRequest.Requests.All(r=>r.Method=="GET"), "Legacy response cannot trigger import or reward submission");
+        fixture.Cloud.SessionGeneration++;
+        Check(!fixture.Service.UsesLegacyCoins && fixture.Service.UsesSharedCoins, "Old legacy evidence cannot follow another session");
+    }
+
+    private static void RejectLegacyDowngrade()
+    {
+        using var fixture = new Fixture();
+        Reply("GET", "/api/game/wallet", new {ready=false,coins=(int?)null,diamonds=25,version=0,coinAuthority="legacy"});
+        fixture.Sync();
+        Check(!fixture.Service.UsesLegacyCoins && fixture.Service.UsesSharedCoins, "Migrated save remains server-authoritative");
+        Check(fixture.Data.CurrentData.gold==123, "Rejected downgrade never rewrites the balance");
     }
 
     private static void ProductionJsonInvalidWallet(string scenario)

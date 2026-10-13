@@ -393,7 +393,7 @@ public class ShopManager : MonoBehaviour
     private bool CanBuySafetyVestNow()
     {
         GameWalletService wallet = GameWalletService.Instance;
-        if (wallet != null && wallet.HasSignedInAccount && !wallet.CanSpendOnline) return false;
+        if (wallet != null && wallet.UsesSharedCoins && !wallet.CanSpendOnline) return false;
         ShopItemData vest = allItems.Find(item => item != null && item.ItemId == SafetyVestItemId);
         if (vest == null || boundPlayerData == null || boundPlayerData.CurrentData == null ||
             boundPlayerData.CurrentData.gold < vest.price)
@@ -923,7 +923,7 @@ public class ShopManager : MonoBehaviour
     {
         GameWalletService wallet = GameWalletService.Instance;
         return item != null && !walletPurchasePending &&
-            (wallet == null || !wallet.HasSignedInAccount || wallet.CanSpendOnline) &&
+            (wallet == null || !wallet.UsesSharedCoins || wallet.CanSpendOnline) &&
             (!IsVestShopTutorialLocked || item.ItemId == SafetyVestItemId);
     }
 
@@ -942,7 +942,7 @@ public class ShopManager : MonoBehaviour
         if (currencyText != null)
         {
             GameWalletService wallet = GameWalletService.Instance;
-            currencyText.text = wallet != null && wallet.HasSignedInAccount
+            currencyText.text = wallet != null && wallet.UsesSharedCoins
                 ? wallet.CoinsAvailable ? $"{currencyPrefix}{amount:N0}" : "Unavailable"
                 : $"{currencyPrefix}{amount:N0}";
         }
@@ -1051,7 +1051,7 @@ public class ShopManager : MonoBehaviour
     private bool CanPurchase(ShopItemData item, out string rejection)
     {
         GameWalletService wallet = GameWalletService.Instance;
-        if (walletPurchasePending || wallet != null && wallet.HasSignedInAccount && !wallet.CanSpendOnline)
+        if (walletPurchasePending || wallet != null && wallet.UsesSharedCoins && !wallet.CanSpendOnline)
         {
             rejection = walletPurchasePending ? "A purchase is awaiting confirmation. Please wait." :
                 "Signed-in purchases require a synchronized online wallet. Reconnect and try again.";
@@ -1100,7 +1100,7 @@ public class ShopManager : MonoBehaviour
             return RejectPurchase(rejection);
 
         GameWalletService wallet = GameWalletService.Instance;
-        if (wallet != null && wallet.HasSignedInAccount)
+        if (wallet != null && wallet.UsesSharedCoins)
         {
             CaptureWalletRequestScope();
             walletPurchasePending = true;
