@@ -249,6 +249,9 @@ public class UIPanelCoordinator : MonoBehaviour
         foreach (SettingsManager manager in FindObjectsOfType<SettingsManager>(true))
             AddUnique(managedPanels, manager.settingsPanel);
 
+        foreach (MainMenuUpdatesController updates in FindObjectsOfType<MainMenuUpdatesController>(true))
+            AddUnique(managedPanels, updates.panel);
+
         foreach (PauseManager manager in FindObjectsOfType<PauseManager>(true))
         {
             AddUnique(managedPanels, manager.pausePanel);
