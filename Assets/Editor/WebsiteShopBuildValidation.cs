@@ -7,7 +7,7 @@ using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
 
-/// <summary>Refuses to ship saved scenes without the authored currency controls.</summary>
+/// <summary>Requires the shared website-shop entry point and excludes retired currency controls.</summary>
 public sealed class WebsiteShopBuildValidation : IPreprocessBuildWithReport
 {
     public int callbackOrder => 10;
@@ -17,7 +17,7 @@ public sealed class WebsiteShopBuildValidation : IPreprocessBuildWithReport
     {
         List<string> errors = CollectErrors();
         if (errors.Count > 0) throw new BuildFailedException("Website shop scene validation failed:\n" + string.Join("\n", errors));
-        Debug.Log("[Website Shop] All four saved release scenes contain the reviewed dialog, Coins/Diamonds buttons and balance refresh. No account request or payment was made.");
+        Debug.Log("[Website Shop] All four saved release scenes retain the reviewed dialog and shared purchase button; the extra Diamonds button and manual balance refresh are inactive or absent. No account request or payment was made.");
     }
 
     public void OnPreprocessBuild(BuildReport report) => ValidateSavedScenes();

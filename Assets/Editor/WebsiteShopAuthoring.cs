@@ -2,7 +2,6 @@
 using System;
 using System.IO;
 using System.Linq;
-using TMPro;
 using UnityEditor;
 using UnityEditor.Events;
 using UnityEditor.SceneManagement;
@@ -73,7 +72,7 @@ public static class WebsiteShopAuthoring
                 // Preserve pre-existing unsaved edits. A loaded dirty scene is NEVER
                 // auto-saved or closed; its new authored UI can be saved with Ctrl+S.
                 if (opened || !wasDirty) EditorSceneManager.SaveScene(scene);
-                else Debug.Log("[Website Shop] Added purchase controls to " + scene.name + "; save the scene to keep them with your existing edits.");
+                else Debug.Log("[Website Shop] Updated purchase controls in " + scene.name + "; save the scene to keep them with your existing edits.");
             }
             catch (Exception error) { Debug.LogError("[Website Shop] " + path + ": " + error.Message); }
             finally { if (opened) EditorSceneManager.CloseScene(scene, true); }
@@ -104,66 +103,25 @@ public static class WebsiteShopAuthoring
         if (coin != null && coin.GetComponent<Button>() != null)
             changed |= Wire(coin.GetComponent<Button>(), shop, "HandleAddCurrencyClicked");
         Transform pill = Find(shop.transform, "SecondaryCurrencyPill");
-        if (pill == null) return changed;
-        Transform existing = pill.Find("AddDiamondsButton");
-        if (existing == null)
+        // Retain old serialized objects for compatibility, but never recreate
+        // these retired controls or include them in the visible/clickable UI.
+        foreach (Transform control in shop.transform.GetComponentsInChildren<Transform>(true))
+            if ((control.name == "AddDiamondsButton" || control.name == "RefreshCurrencyButton") &&
+                control.gameObject.activeSelf)
+            {
+                control.gameObject.SetActive(false);
+                EditorUtility.SetDirty(control.gameObject);
+                changed = true;
+            }
+        Transform amount = pill != null ? Find(pill, "SecondaryCurrencyText") : null;
+        if (amount is RectTransform amountRect &&
+            (!Mathf.Approximately(amountRect.anchorMax.x, .94f) || !Mathf.Approximately(amountRect.offsetMax.x, 0f)))
         {
-            GameObject control = new GameObject("AddDiamondsButton", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
-            control.layer = pill.gameObject.layer;
-            control.transform.SetParent(pill, false);
-            RectTransform rect = control.GetComponent<RectTransform>();
-            rect.anchorMin = new Vector2(.76f, .08f); rect.anchorMax = new Vector2(.98f, .92f);
-            rect.offsetMin = rect.offsetMax = Vector2.zero;
-            Image image = control.GetComponent<Image>();
-            image.color = new Color32(233, 161, 42, 255);
-            control.GetComponent<Button>().targetGraphic = image;
-            GameObject labelObject = new GameObject("Plus", typeof(RectTransform), typeof(TextMeshProUGUI));
-            labelObject.layer = control.layer; labelObject.transform.SetParent(control.transform, false);
-            RectTransform labelRect = labelObject.GetComponent<RectTransform>();
-            labelRect.anchorMin = Vector2.zero; labelRect.anchorMax = Vector2.one;
-            labelRect.offsetMin = labelRect.offsetMax = Vector2.zero;
-            TMP_Text label = labelObject.GetComponent<TMP_Text>();
-            TMP_Text existingText = pill.GetComponentInChildren<TMP_Text>(true);
-            label.font = existingText != null ? existingText.font : TMP_Settings.defaultFontAsset;
-            label.text = "+"; label.color = new Color32(76, 50, 31, 255);
-            label.fontSize = 28; label.fontStyle = FontStyles.Bold;
-            label.alignment = TextAlignmentOptions.Center; label.raycastTarget = false;
-            existing = control.transform;
-            Transform amount = Find(pill, "SecondaryCurrencyText");
-            if (amount is RectTransform amountRect)
-            { amountRect.anchorMax = new Vector2(.75f, amountRect.anchorMax.y); amountRect.offsetMax = new Vector2(-2, amountRect.offsetMax.y); }
+            amountRect.anchorMax = new Vector2(.94f, amountRect.anchorMax.y);
+            amountRect.offsetMax = new Vector2(0f, amountRect.offsetMax.y);
+            EditorUtility.SetDirty(amountRect);
             changed = true;
         }
-        changed |= Wire(existing.GetComponent<Button>(), shop, "HandleAddDiamondsClicked");
-        Transform refresh = pill.parent.Find("RefreshCurrencyButton");
-        if (refresh == null)
-        {
-            GameObject control = new GameObject("RefreshCurrencyButton", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
-            control.layer = pill.gameObject.layer;
-            control.transform.SetParent(pill.parent, false);
-            RectTransform rect = control.GetComponent<RectTransform>();
-            rect.anchorMin = new Vector2(.755f, .83f); rect.anchorMax = new Vector2(.925f, .875f);
-            rect.offsetMin = rect.offsetMax = Vector2.zero;
-            Image image = control.GetComponent<Image>();
-            image.color = new Color32(255, 248, 232, 255);
-            Image pillImage = pill.GetComponent<Image>();
-            if (pillImage != null) { image.sprite = pillImage.sprite; image.type = pillImage.type; }
-            control.GetComponent<Button>().targetGraphic = image;
-            GameObject labelObject = new GameObject("Label", typeof(RectTransform), typeof(TextMeshProUGUI));
-            labelObject.layer = control.layer; labelObject.transform.SetParent(control.transform, false);
-            RectTransform labelRect = labelObject.GetComponent<RectTransform>();
-            labelRect.anchorMin = Vector2.zero; labelRect.anchorMax = Vector2.one;
-            labelRect.offsetMin = labelRect.offsetMax = Vector2.zero;
-            TMP_Text label = labelObject.GetComponent<TMP_Text>();
-            TMP_Text sample = pill.GetComponentInChildren<TMP_Text>(true);
-            label.font = sample != null ? sample.font : TMP_Settings.defaultFontAsset;
-            label.text = "Refresh balances"; label.color = new Color32(76, 50, 31, 255);
-            label.fontSize = 20; label.enableAutoSizing = true; label.fontSizeMin = 14; label.fontSizeMax = 20;
-            label.alignment = TextAlignmentOptions.Center; label.raycastTarget = false;
-            refresh = control.transform;
-            changed = true;
-        }
-        changed |= Wire(refresh.GetComponent<Button>(), shop, "RefreshWalletBalances");
         return changed;
     }
 

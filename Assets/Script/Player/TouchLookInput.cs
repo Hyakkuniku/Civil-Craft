@@ -21,11 +21,19 @@ public class TouchLookInput : MonoBehaviour
         halfScreenWidth = Screen.width / 2f;
     }
 
-    void OnEnable() { EnhancedTouchSupport.Enable(); }
-    void OnDisable() { EnhancedTouchSupport.Disable(); }
+    void OnEnable() { rightFingerId = -1; EnhancedTouchSupport.Enable(); }
+    void OnDisable() { rightFingerId = -1; EnhancedTouchSupport.Disable(); }
 
     void Update()
     {
+        // Share the joystick's current left/right split after orientation or
+        // window-size changes; an old cached half could capture movement as look.
+        float currentHalfWidth = Screen.width * 0.5f;
+        if (halfScreenWidth != currentHalfWidth)
+        {
+            halfScreenWidth = currentHalfWidth;
+            rightFingerId = -1;
+        }
         foreach (var touch in Touch.activeTouches)
         {
             int fingerId = touch.finger.index;

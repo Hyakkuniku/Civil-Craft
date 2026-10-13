@@ -204,6 +204,8 @@ public static class UIReservedRegionLayout
                     parent.GetComponent<Image>() != null) rect = parent;
                 if (rect != null) touchControlRegions.Add(rect);
             }
+            foreach (MobileMovementJoystick stick in Object.FindObjectsOfType<MobileMovementJoystick>(true))
+                if (stick.BaseRect != null) touchControlRegions.Add(stick.BaseRect);
             touchControlsCached = true;
         }
         foreach (RectTransform region in touchControlRegions) AddReservation(item, region, gap);

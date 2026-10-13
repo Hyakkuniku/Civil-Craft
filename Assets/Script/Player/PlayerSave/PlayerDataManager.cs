@@ -13,6 +13,8 @@ public class PlayerDataManager : MonoBehaviour
     private const string AchievementsFeatureId = "achievements";
     private const string ActualBridgePhotoMarkerVersion = "actual-v1:";
     public const int MaxBridgePhotoBytes = 8 * 1024 * 1024;
+    public const string TutorialSafetyVestItemId = "shop_cosmetic_Accessory_SafetyVest";
+    public const string TutorialSafetyVestCosmeticId = "Accessory_SafetyVest";
 
     public static PlayerDataManager Instance { get; private set; }
     public PlayerData CurrentData { get; private set; }
@@ -2323,6 +2325,43 @@ public class PlayerDataManager : MonoBehaviour
                CurrentData.purchasedShopItemIds != null &&
                !string.IsNullOrWhiteSpace(itemId) &&
                CurrentData.purchasedShopItemIds.Contains(itemId);
+    }
+
+    public bool OwnsTutorialSafetyVest => OwnsShopItem(TutorialSafetyVestItemId) &&
+        IsCosmeticUnlocked(TutorialSafetyVestCosmeticId);
+
+    /// <summary>
+    /// One-time tutorial equipment, not a Coin purchase. Works in the active
+    /// account/guest save offline; never queues a debit or changes wallet data.
+    /// No caller-supplied IDs or prices can turn this into a generic free shop.
+    /// </summary>
+    public bool TryClaimTutorialSafetyVest()
+    {
+        if (CurrentData == null || FusionConnectionManager.Instance != null &&
+            FusionConnectionManager.Instance.IsGuestSaveProtected) return false;
+        if (OwnsTutorialSafetyVest) return true;
+
+        List<string> previousShops = CurrentData.purchasedShopItemIds;
+        List<string> previousCosmetics = CurrentData.unlockedCosmeticIDs;
+        var shops = previousShops != null ? new List<string>(previousShops) : new List<string>();
+        var cosmetics = previousCosmetics != null ? new List<string>(previousCosmetics) : new List<string>();
+        bool addedShop = !OwnsShopItem(TutorialSafetyVestItemId);
+        if (addedShop) shops.Add(TutorialSafetyVestItemId);
+        if (!IsCosmeticUnlocked(TutorialSafetyVestCosmeticId)) cosmetics.Add(TutorialSafetyVestCosmeticId);
+        CurrentData.purchasedShopItemIds = shops;
+        CurrentData.unlockedCosmeticIDs = cosmetics;
+        if (!TrySaveGame())
+        {
+            CurrentData.purchasedShopItemIds = previousShops;
+            CurrentData.unlockedCosmeticIDs = previousCosmetics;
+            return false;
+        }
+
+        // Ownership and wardrobe access are published only after both are saved.
+        // Equipping and SAVE LOOK remain explicit steps of the tutorial.
+        OnItemOwnershipChanged?.Invoke();
+        if (addedShop) OnShopItemPurchased?.Invoke(TutorialSafetyVestItemId);
+        return true;
     }
 
     /// <summary>

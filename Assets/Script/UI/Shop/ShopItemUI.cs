@@ -79,7 +79,7 @@ public class ShopItemUI : MonoBehaviour
             priceText.text = owned
                 ? "OWNED"
                 : owner != null && item != null
-                    ? owner.FormatPrice(item.price)
+                    ? owner.FormatItemPrice(item)
                     : "--";
         }
 
@@ -88,7 +88,7 @@ public class ShopItemUI : MonoBehaviour
             priceCoinIcon.sprite = CurrencyIconCatalog.Get(CurrencyIconKind.Coin);
             priceCoinIcon.preserveAspect = true;
             priceCoinIcon.raycastTarget = false;
-            priceCoinIcon.gameObject.SetActive(valid && !owned && priceCoinIcon.sprite != null);
+            priceCoinIcon.gameObject.SetActive(valid && !owned && !owner.IsFreeTutorialItem(item) && priceCoinIcon.sprite != null);
         }
 
         if (buyButton != null)

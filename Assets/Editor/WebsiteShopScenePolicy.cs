@@ -75,8 +75,16 @@ public static class WebsiteShopScenePolicy
                 errors.Add(prefix + "dialog does not resolve to the reviewed AccountSaveChoiceDialog prefab.");
             string shopObject = Reference(shop, "m_GameObject");
             CheckButton("AddCurrencyButton", "HandleAddCurrencyClicked");
-            CheckButton("AddDiamondsButton", "HandleAddDiamondsClicked");
-            CheckButton("RefreshCurrencyButton", "RefreshWalletBalances");
+            CheckRetiredControl("AddDiamondsButton");
+            CheckRetiredControl("RefreshCurrencyButton");
+
+            void CheckRetiredControl(string controlName)
+            {
+                foreach (Document control in documents.Where(document => document.Type == "1" &&
+                    Name(document) == controlName && IsUnder(document.Id, shopObject, transforms, byId)))
+                    if (!control.Text.Contains("  m_IsActive: 0\n"))
+                        errors.Add(prefix + controlName + " is retired and must be absent or saved inactive.");
+            }
 
             void CheckButton(string controlName, string method)
             {

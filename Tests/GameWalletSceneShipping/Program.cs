@@ -26,6 +26,11 @@ void Check(bool condition, string description)
     checks++;
 }
 
+// Focused UI regressions can run independently of the separate APK acceptance
+// font/cache baseline. The default command still enforces every acceptance check.
+bool shopControlsOnly = args.Length == 2 && args[1] == "--shop-controls-only";
+if (!shopControlsOnly)
+{
 var metadataGuids = new Dictionary<string, int>(StringComparer.Ordinal);
 foreach (string metadataPath in Directory.EnumerateFiles(Path.Combine(root, "Assets"), "*.meta", SearchOption.AllDirectories))
 {
@@ -110,6 +115,7 @@ foreach (var state in new[] {
     catch (InvalidOperationException) { rejected = true; }
     Check(rejected, "uncommitted, dirty, untracked or unverifiable acceptance checkout must fail");
 }
+}
 
 foreach (string path in WebsiteShopScenePolicy.RequiredScenes)
 {
@@ -118,25 +124,33 @@ foreach (string path in WebsiteShopScenePolicy.RequiredScenes)
     Check(errors.Count == 0, path + ": " + string.Join("; ", errors));
     Check(WebsiteShopScenePolicy.CollectErrors(Regex.Replace(scene, @"currencyShopDialog: \{fileID: -?\d+\}", "currencyShopDialog: {fileID: 0}"), prefab).Count > 0,
         path + " missing dialog must fail");
-    foreach (string method in new[] { "HandleAddCurrencyClicked", "HandleAddDiamondsClicked", "RefreshWalletBalances" })
+    foreach (string method in new[] { "HandleAddCurrencyClicked" })
         Check(WebsiteShopScenePolicy.CollectErrors(scene.Replace("m_MethodName: " + method, "m_MethodName: MissingCallback"), prefab).Count > 0,
             path + " missing " + method + " must fail");
     var documents = WebsiteShopScenePolicy.ReadDocuments(scene);
     var shop = documents.Single(document => document.Text.Contains("m_Script: {fileID: 11500000, guid: " + WebsiteShopScenePolicy.ShopScriptGuid + ","));
-    var diamond = documents.Single(document => document.Text.Contains("m_MethodName: HandleAddDiamondsClicked\n"));
-    string wrongTarget = diamond.Text.Replace("m_Target: {fileID: " + shop.Id + "}", "m_Target: {fileID: 0}");
-    Check(WebsiteShopScenePolicy.CollectErrors(scene.Replace(diamond.Text, wrongTarget), prefab).Count > 0, path + " wrong account-shop callback target must fail");
-    Check(WebsiteShopScenePolicy.CollectErrors(scene.Replace(diamond.Text, diamond.Text.Replace("m_CallState: 2", "m_CallState: 0")), prefab).Count > 0,
+    var coin = documents.Single(document => document.Text.Contains("m_MethodName: HandleAddCurrencyClicked\n"));
+    string wrongTarget = coin.Text.Replace("m_Target: {fileID: " + shop.Id + "}", "m_Target: {fileID: 0}");
+    Check(WebsiteShopScenePolicy.CollectErrors(scene.Replace(coin.Text, wrongTarget), prefab).Count > 0, path + " wrong account-shop callback target must fail");
+    Check(WebsiteShopScenePolicy.CollectErrors(scene.Replace(coin.Text, coin.Text.Replace("m_CallState: 2", "m_CallState: 0")), prefab).Count > 0,
         path + " disabled persistent callback must fail");
-    Check(WebsiteShopScenePolicy.CollectErrors(scene.Replace(diamond.Text, diamond.Text.Replace("m_Interactable: 1", "m_Interactable: 0")), prefab).Count > 0,
-        path + " disabled Diamond control must fail");
-    var diamondObject = documents.Single(document => document.Id == WebsiteShopScenePolicy.Reference(diamond, "m_GameObject"));
-    Check(WebsiteShopScenePolicy.CollectErrors(scene.Replace(diamondObject.Text, diamondObject.Text.Replace("m_IsActive: 1", "m_IsActive: 0")), prefab).Count > 0,
-        path + " inactive Diamond control must fail");
+    Check(WebsiteShopScenePolicy.CollectErrors(scene.Replace(coin.Text, coin.Text.Replace("m_Interactable: 1", "m_Interactable: 0")), prefab).Count > 0,
+        path + " disabled shared purchase control must fail");
+    var coinObject = documents.Single(document => document.Id == WebsiteShopScenePolicy.Reference(coin, "m_GameObject"));
+    Check(WebsiteShopScenePolicy.CollectErrors(scene.Replace(coinObject.Text, coinObject.Text.Replace("m_IsActive: 1", "m_IsActive: 0")), prefab).Count > 0,
+        path + " inactive shared purchase control must fail");
+    foreach (var retired in documents.Where(document => document.Type == "1" &&
+        (WebsiteShopScenePolicy.Name(document) == "AddDiamondsButton" || WebsiteShopScenePolicy.Name(document) == "RefreshCurrencyButton")))
+        Check(WebsiteShopScenePolicy.CollectErrors(scene.Replace(retired.Text, retired.Text.Replace("m_IsActive: 0", "m_IsActive: 1")), prefab).Count > 0,
+            path + " retired " + WebsiteShopScenePolicy.Name(retired) + " must not become visible again");
     Check(WebsiteShopScenePolicy.CollectErrors(scene, Regex.Replace(prefab, @"titleText: \{fileID: -?\d+\}", "titleText: {fileID: 0}")).Count > 0,
         path + " broken dialog prefab must fail");
     string committed = ReadCommitted(path);
-    if (WebsiteShopScenePolicy.CollectErrors(committed, prefab).Count > 0)
+    // The first-shipping exporter is not an updater for already-shipped scenes.
+    // A retired UI control in the committed baseline must not trigger that path.
+    var committedShop = WebsiteShopScenePolicy.ReadDocuments(committed).Single(document =>
+        document.Text.Contains("m_Script: {fileID: 11500000, guid: " + WebsiteShopScenePolicy.ShopScriptGuid + ","));
+    if (WebsiteShopScenePolicy.Reference(committedShop, "currencyShopDialog") == "0")
     {
         string isolated = WalletSceneDelta.Extract(committed, scene, prefab);
         Check(WebsiteShopScenePolicy.CollectErrors(isolated, prefab).Count == 0, path + " isolated wallet-only scene must pass");
@@ -150,6 +164,22 @@ foreach (string path in WebsiteShopScenePolicy.RequiredScenes)
     }
     Console.WriteLine("PASS: " + path + " saved authored controls and rejection cases");
 }
+string shopAuthoring = File.ReadAllText(Path.Combine(root, "Assets/Editor/WebsiteShopAuthoring.cs"));
+Check(!shopAuthoring.Contains("new GameObject(\"AddDiamondsButton\"", StringComparison.Ordinal) &&
+    !shopAuthoring.Contains("new GameObject(\"RefreshCurrencyButton\"", StringComparison.Ordinal),
+    "Editor authoring must not recreate retired shop controls after refresh");
+string shopRuntime = File.ReadAllText(Path.Combine(root, "Assets/Script/UI/Shop/ShopManager.cs"));
+Check(shopRuntime.Contains("HideRetiredCurrencyControls();", StringComparison.Ordinal) &&
+    shopRuntime.Contains("control.gameObject.SetActive(false)", StringComparison.Ordinal),
+    "Older scene copies must also hide retired controls at runtime");
+Check(shopRuntime.Contains("GameWalletService.Instance?.RefreshWallet();", StringComparison.Ordinal),
+    "Opening the shop must retain automatic wallet refresh");
+Check(shopRuntime.Contains("ShowCurrencyShopChoice(\"coins\")", StringComparison.Ordinal),
+    "The remaining purchase button must retain its website-shop entry point");
+string walletRuntime = File.ReadAllText(Path.Combine(root, "Assets/Script/Client/GameWalletService.cs"));
+Check(walletRuntime.Contains("OnApplicationFocus(bool focused) { if (focused) RefreshWallet(); }", StringComparison.Ordinal) &&
+    walletRuntime.Contains("OnApplicationPause(bool paused) { if (!paused) RefreshWallet(); }", StringComparison.Ordinal),
+    "Returning from the website must retain automatic balance refresh");
 Console.WriteLine("PASS: " + checks + " saved scene shipping checks; no Unity, PlayFab, browser or payment request was made.");
 
 void AuditWalletOnlyDelta(string path, string original, string isolated)
@@ -183,8 +213,8 @@ void AuditWalletOnlyDelta(string path, string original, string isolated)
             string IgnoreAmountLayout(string value) => Regex.Replace(value, @"^  (m_AnchorMax|m_AnchoredPosition|m_SizeDelta):.*\n", "", RegexOptions.Multiline);
             Check(document.Type == "224" && IgnoreAmountLayout(replacement) == IgnoreAmountLayout(document.Text),
                 path + " Diamond amount may change only its reviewed three layout fields");
-            Check(replacement.Contains("  m_AnchorMax: {x: 0.75, y: 1}\n") && replacement.Contains("  m_AnchoredPosition: {x: -1, y: 0}\n") &&
-                replacement.Contains("  m_SizeDelta: {x: -2, y: 0}\n"), path + " Diamond amount layout must match authored plus-button space");
+            Check(replacement.Contains("  m_AnchorMax: {x: 0.94, y: 1}\n") && replacement.Contains("  m_AnchoredPosition: {x: 0, y: 0}\n") &&
+                replacement.Contains("  m_SizeDelta: {x: 0, y: 0}\n"), path + " Diamond amount must reclaim the removed plus-button space");
             description = "RectTransform: Diamond amount layout only";
         }
         Console.WriteLine("AUDIT: " + path + " &" + document.Id + " " + description);

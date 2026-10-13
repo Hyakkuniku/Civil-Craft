@@ -44,6 +44,8 @@ public class SettingsManager : MonoBehaviour
 
     [Header("Gameplay")]
     public Toggle hapticsToggle;
+    [Tooltip("On: joystick stays in its authored position. Off: start movement anywhere on the left and the joystick follows your touch.")]
+    public Toggle fixedJoystickToggle;
     [Range(0.5f, 2f)] public float defaultCameraSensitivity = 1f;
     public Slider cameraSensitivitySlider;
     public TMP_Text cameraSensitivityText;
@@ -103,6 +105,9 @@ public class SettingsManager : MonoBehaviour
 
         if (hapticsToggle != null) 
             hapticsToggle.onValueChanged.AddListener(SetHaptics);
+
+        if (fixedJoystickToggle != null)
+            fixedJoystickToggle.onValueChanged.AddListener(SetFixedJoystick);
 
         if (cameraSensitivitySlider != null)
             cameraSensitivitySlider.onValueChanged.AddListener(SetCameraSensitivity);
@@ -293,6 +298,11 @@ public class SettingsManager : MonoBehaviour
         if (useHaptics) TriggerVibration();
     }
 
+    public void SetFixedJoystick(bool isFixed)
+    {
+        MobileJoystickSettings.SetFixed(isFixed);
+    }
+
     public void SetCameraSensitivity(float multiplier)
     {
         float clamped = Mathf.Clamp(multiplier, 0.5f, 2f);
@@ -332,6 +342,7 @@ public class SettingsManager : MonoBehaviour
         PlayerPrefs.SetInt("FrameRateOption", 1);
         PlayerPrefs.SetInt("FrameRateCap", 60);
         PlayerPrefs.SetInt("UseHaptics", 1);
+        MobileJoystickSettings.SetFixed(true);
         PlayerPrefs.SetFloat("CameraSensitivity", defaultCameraSensitivity);
         PlayerPrefs.SetInt("InvertLookY", 0);
         PlayerPrefs.Save();
@@ -543,6 +554,9 @@ public class SettingsManager : MonoBehaviour
             hapticsToggle.SetIsOnWithoutNotify(PlayerPrefs.GetInt("UseHaptics", 1) == 1);
         }
 
+        if (fixedJoystickToggle != null)
+            fixedJoystickToggle.SetIsOnWithoutNotify(MobileJoystickSettings.IsFixed);
+
         float cameraSensitivity = PlayerPrefs.GetFloat("CameraSensitivity", defaultCameraSensitivity);
         if (cameraSensitivitySlider != null)
             cameraSensitivitySlider.SetValueWithoutNotify(cameraSensitivity);
@@ -582,4 +596,23 @@ public class SettingsManager : MonoBehaviour
         PlayerPrefs.SetInt(AudioStartupMigrationKey, 1);
         PlayerPrefs.Save();
     }
+}
+
+/// <summary>Device-local movement preference shared by scene-authored settings and joystick controls.</summary>
+public static class MobileJoystickSettings
+{
+    public const string PreferenceKey = "FixedJoystick";
+    public static bool IsFixed => PlayerPrefs.GetInt(PreferenceKey, 1) == 1;
+    public static event System.Action<bool> Changed;
+
+    public static void SetFixed(bool isFixed)
+    {
+        bool changed = IsFixed != isFixed;
+        PlayerPrefs.SetInt(PreferenceKey, isFixed ? 1 : 0);
+        PlayerPrefs.Save();
+        if (changed) Changed?.Invoke(isFixed);
+    }
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetListeners() => Changed = null;
 }

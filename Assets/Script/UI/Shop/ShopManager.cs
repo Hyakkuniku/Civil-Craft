@@ -28,8 +28,8 @@ public class ShopManager : MonoBehaviour
     // A new lesson ID is intentional: older saves may have completed the
     // optional vest prompt without buying it.
     private const string SafetyVestFollowupLessonId = "Sequence_Shop_SafetyVest_Purchase";
-    private const string SafetyVestItemId = "shop_cosmetic_Accessory_SafetyVest";
-    private const string SafetyVestCosmeticId = "Accessory_SafetyVest";
+    private const string SafetyVestItemId = PlayerDataManager.TutorialSafetyVestItemId;
+    private const string SafetyVestCosmeticId = PlayerDataManager.TutorialSafetyVestCosmeticId;
     private const string SafetyVestEquipLessonId = "Sequence_Shop_SafetyVest_Equip";
 
     public static ShopManager Instance { get; private set; }
@@ -106,6 +106,7 @@ public class ShopManager : MonoBehaviour
     private CharacterCustomizationController customizationController;
     private bool initialized;
     private bool appliedVestShopLock;
+    private PlayerData failedSafetyVestClaimData;
 
     public GameObject Panel => shopPanel;
     public IReadOnlyList<ShopItemData> AllItems => allItems;
@@ -272,7 +273,9 @@ public class ShopManager : MonoBehaviour
         }
 
         InitializeIfNeeded();
+        HideRetiredCurrencyControls();
         BindPlayerData();
+        failedSafetyVestClaimData = null;
 
         if (shopPanel == null)
         {
@@ -359,7 +362,7 @@ public class ShopManager : MonoBehaviour
             if (originalOpenTutorialSteps.Length > 2)
             {
                 TutorialStep itemStep = originalOpenTutorialSteps[2];
-                itemStep.message = "Each card shows its <b><#E09500>PRICE</color></b>. For this walkthrough, only the Safety Vest can be purchased.";
+                itemStep.message = "Each card shows its <b><#E09500>PRICE</color></b>. Your tutorial Safety Vest is <b>FREE</b>, even offline. Claim it before shopping for other items.";
                 itemStep.usePointer = false;
             }
         }
@@ -392,11 +395,12 @@ public class ShopManager : MonoBehaviour
 
     private bool CanBuySafetyVestNow()
     {
-        GameWalletService wallet = GameWalletService.Instance;
-        if (wallet != null && wallet.UsesSharedCoins && !wallet.CanSpendOnline) return false;
         ShopItemData vest = allItems.Find(item => item != null && item.ItemId == SafetyVestItemId);
-        if (vest == null || boundPlayerData == null || boundPlayerData.CurrentData == null ||
-            boundPlayerData.CurrentData.gold < vest.price)
+        // A storage failure must let the player leave without completing the
+        // lesson. Reopening the shop lets them retry the same free claim.
+        if (boundPlayerData == null || boundPlayerData.CurrentData == null ||
+            ReferenceEquals(failedSafetyVestClaimData, boundPlayerData.CurrentData) ||
+            !IsFreeTutorialItem(vest) || !IsOwned(vest) && !CanPurchase(vest, out _))
             return false;
 
         foreach (ShopItemUI card in cardPool)
@@ -424,9 +428,9 @@ public class ShopManager : MonoBehaviour
         shopCloseStep = originalOpenTutorialSteps[originalOpenTutorialSteps.Length - 1];
 
         ShopItemData vest = allItems.Find(item => item != null && item.ItemId == SafetyVestItemId);
-        if (vest == null)
+        if (!IsFreeTutorialItem(vest))
         {
-            Debug.LogWarning("[ShopManager] Safety Vest is missing from the shop catalog; its tutorial step was not added.", this);
+            Debug.LogWarning("[ShopManager] Tutorial Safety Vest is missing or misconfigured; its tutorial step was not added.", this);
             onOpenTutorial.lessonName = ShopIntroLessonId;
             onOpenTutorial.tutorialSteps = originalOpenTutorialSteps;
             return;
@@ -436,7 +440,7 @@ public class ShopManager : MonoBehaviour
         {
             safetyVestPurchaseStep = new TutorialStep
             {
-                message = "Buy the <b><#E09500>SAFETY VEST</color></b> in Accessories. Confirm the purchase to continue. Short on coins? Close the Shop and return later.",
+                message = "Claim your <b><#E09500>FREE SAFETY VEST</color></b> in Accessories. Confirm to continue. This tutorial item costs no Coins and works offline.",
                 screenPosition = TutorialPosition.LowCenter,
                 showNextButton = false,
                 canSkip = false,
@@ -448,7 +452,7 @@ public class ShopManager : MonoBehaviour
         }
         EnsureVestEquipSteps();
 
-        bool ownsVest = boundPlayerData != null && boundPlayerData.OwnsShopItem(SafetyVestItemId);
+        bool ownsVest = boundPlayerData != null && boundPlayerData.OwnsTutorialSafetyVest;
         bool wearsVest = IsSafetyVestSavedEquipped();
         bool finishedIntro = boundPlayerData != null &&
             boundPlayerData.CurrentData.completedLessons.Contains(ShopIntroLessonId);
@@ -681,7 +685,7 @@ public class ShopManager : MonoBehaviour
             break;
         }
 
-        if (boundPlayerData != null && boundPlayerData.OwnsShopItem(SafetyVestItemId) &&
+        if (boundPlayerData != null && boundPlayerData.OwnsTutorialSafetyVest &&
             ownedVestAdvanceCoroutine == null)
             ownedVestAdvanceCoroutine = StartCoroutine(AdvanceOwnedVestStep());
     }
@@ -691,7 +695,8 @@ public class ShopManager : MonoBehaviour
         yield return null;
         ownedVestAdvanceCoroutine = null;
         TutorialManager tutorial = TutorialManager.Instance;
-        if (tutorial != null && tutorial.IsPlayingSequence(onOpenTutorial) &&
+        if (boundPlayerData != null && boundPlayerData.OwnsTutorialSafetyVest &&
+            tutorial != null && tutorial.IsPlayingSequence(onOpenTutorial) &&
             tutorial.CurrentStep == safetyVestPurchaseStep)
             tutorial.ShowNextStep();
     }
@@ -916,14 +921,32 @@ public class ShopManager : MonoBehaviour
     public bool IsOwned(ShopItemData item)
     {
         BindPlayerData();
-        return item != null && boundPlayerData != null && boundPlayerData.OwnsShopItem(item.ItemId);
+        return item != null && boundPlayerData != null && (IsFreeTutorialItem(item)
+            ? boundPlayerData.OwnsTutorialSafetyVest : boundPlayerData.OwnsShopItem(item.ItemId));
+    }
+
+    // This single starter item is free both online and offline. Matching the
+    // linked cosmetic/category prevents accidentally granting another product.
+    public bool IsFreeTutorialItem(ShopItemData item)
+    {
+        return item != null && item.ItemId == SafetyVestItemId &&
+            !item.canPurchaseMultipleTimes && item.category == ShopCategory.Accessory &&
+            item.cosmeticDefinition != null &&
+            item.cosmeticDefinition.PermanentID == SafetyVestCosmeticId &&
+            item.cosmeticDefinition.category == CosmeticCategory.Accessories;
+    }
+
+    public string FormatItemPrice(ShopItemData item)
+    {
+        return IsFreeTutorialItem(item) ? "FREE" : FormatPrice(item.price);
     }
 
     public bool CanInteractWithItem(ShopItemData item)
     {
         GameWalletService wallet = GameWalletService.Instance;
         return item != null && !walletPurchasePending &&
-            (wallet == null || !wallet.UsesSharedCoins || wallet.CanSpendOnline) &&
+            (IsFreeTutorialItem(item) || wallet == null || !wallet.UsesSharedCoins || wallet.CanSpendOnline) &&
+            (FusionConnectionManager.Instance == null || !FusionConnectionManager.Instance.IsGuestSaveProtected) &&
             (!IsVestShopTutorialLocked || item.ItemId == SafetyVestItemId);
     }
 
@@ -955,11 +978,29 @@ public class ShopManager : MonoBehaviour
         }
     }
 
+    private void HideRetiredCurrencyControls()
+    {
+        if (shopPanel == null) return;
+        // Older saved scenes or a hot-reloaded session may still contain these
+        // controls. Hide only their GameObjects, never their currency readouts.
+        foreach (Transform control in shopPanel.GetComponentsInChildren<Transform>(true))
+            if (control.name == "AddDiamondsButton" || control.name == "RefreshCurrencyButton")
+                control.gameObject.SetActive(false);
+        if (secondaryCurrencyText != null && secondaryCurrencyText.transform.parent != null &&
+            secondaryCurrencyText.transform.parent.name == "SecondaryCurrencyPill")
+        {
+            RectTransform amount = secondaryCurrencyText.rectTransform;
+            amount.anchorMax = new Vector2(.94f, amount.anchorMax.y);
+            amount.offsetMax = new Vector2(0f, amount.offsetMax.y);
+        }
+    }
+
     private void InitializeIfNeeded()
     {
         if (initialized) return;
         initialized = true;
         currentCategory = defaultCategory;
+        HideRetiredCurrencyControls();
 
         string[] categoryLabels = { "ACCESSORY", "HAIRSTYLE", "SHIRT", "PANTS", "SHOES" };
 
@@ -1051,7 +1092,8 @@ public class ShopManager : MonoBehaviour
     private bool CanPurchase(ShopItemData item, out string rejection)
     {
         GameWalletService wallet = GameWalletService.Instance;
-        if (walletPurchasePending || wallet != null && wallet.UsesSharedCoins && !wallet.CanSpendOnline)
+        if (walletPurchasePending || !IsFreeTutorialItem(item) &&
+            wallet != null && wallet.UsesSharedCoins && !wallet.CanSpendOnline)
         {
             rejection = walletPurchasePending ? "A purchase is awaiting confirmation. Please wait." :
                 "Signed-in purchases require a synchronized online wallet. Reconnect and try again.";
@@ -1065,7 +1107,7 @@ public class ShopManager : MonoBehaviour
 
         if (IsVestShopTutorialLocked && item.ItemId != SafetyVestItemId)
         {
-            rejection = "Buy and equip the Safety Vest before shopping for other items.";
+            rejection = "Claim and equip the free Safety Vest before shopping for other items.";
             return false;
         }
 
@@ -1075,13 +1117,19 @@ public class ShopManager : MonoBehaviour
             return false;
         }
 
-        if (!item.canPurchaseMultipleTimes && boundPlayerData.OwnsShopItem(item.ItemId))
+        if (FusionConnectionManager.Instance != null && FusionConnectionManager.Instance.IsGuestSaveProtected)
+        {
+            rejection = "Return to your own game before changing your wardrobe ownership.";
+            return false;
+        }
+
+        if (!item.canPurchaseMultipleTimes && IsOwned(item))
         {
             rejection = $"{item.itemName} is already owned.";
             return false;
         }
 
-        if (boundPlayerData.CurrentData.gold < item.price)
+        if (!IsFreeTutorialItem(item) && boundPlayerData.CurrentData.gold < item.price)
         {
             rejection = $"You do not have enough money for {item.itemName}.\n" +
                         $"You have {FormatPrice(boundPlayerData.CurrentData.gold)}, " +
@@ -1098,6 +1146,19 @@ public class ShopManager : MonoBehaviour
         BindPlayerData();
         if (!CanPurchase(item, out string rejection))
             return RejectPurchase(rejection);
+
+        if (IsFreeTutorialItem(item))
+        {
+            if (!boundPlayerData.TryClaimTutorialSafetyVest())
+            {
+                failedSafetyVestClaimData = boundPlayerData.CurrentData;
+                return RejectPurchase("Could not save your free Safety Vest. No Coins were charged. " +
+                    "You can close the Shop and return to retry.");
+            }
+            failedSafetyVestClaimData = null;
+            FinishPurchasePresentation(item);
+            return true;
+        }
 
         GameWalletService wallet = GameWalletService.Instance;
         if (wallet != null && wallet.UsesSharedCoins)
@@ -1134,7 +1195,7 @@ public class ShopManager : MonoBehaviour
 
     private void FinishPurchasePresentation(ShopItemData item)
     {
-        Debug.Log($"[ShopManager] Purchased '{item.itemName}' for {FormatPrice(item.price)}.", item);
+        Debug.Log($"[ShopManager] Acquired '{item.itemName}' for {FormatItemPrice(item)}.", item);
         onItemPurchased.Invoke(item);
         if (item.ItemId == SafetyVestItemId && ownedVestAdvanceCoroutine == null &&
             TutorialManager.Instance != null &&
@@ -1147,12 +1208,18 @@ public class ShopManager : MonoBehaviour
 
     private void PopulateConfirmation(ShopItemData item)
     {
+        bool freeTutorialItem = IsFreeTutorialItem(item);
         if (confirmationTitleText != null)
-            confirmationTitleText.text = $"BUY {item.itemName.ToUpperInvariant()}?";
+            confirmationTitleText.text = $"{(freeTutorialItem ? "CLAIM" : "BUY")} {item.itemName.ToUpperInvariant()}?";
         if (confirmationDescriptionText != null)
-            confirmationDescriptionText.text = item.description;
+            confirmationDescriptionText.text = freeTutorialItem
+                ? "Your one-time tutorial Safety Vest is free. Works offline; no Coins will be charged. Equip it in the Almanac and save your look."
+                : item.description;
         if (confirmationPriceText != null)
-            confirmationPriceText.text = FormatPrice(item.price);
+            confirmationPriceText.text = FormatItemPrice(item);
+        if (purchaseConfirmationPanel != null)
+            foreach (Transform control in purchaseConfirmationPanel.GetComponentsInChildren<Transform>(true))
+                if (control.name == "ConfirmationCoinIcon") control.gameObject.SetActive(!freeTutorialItem);
         if (confirmationIconImage != null)
         {
             Sprite displayIcon = item.cosmeticDefinition != null && item.cosmeticDefinition.icon != null

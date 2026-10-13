@@ -18,5 +18,5 @@ MonoBehaviour:
   icon: {fileID: 0}
   category: 0
   cosmeticDefinition: {fileID: 11400000, guid: a3ef68c70f1243a409630f5a87da038a, type: 2}
-  price: 100
+  price: 2500
   canPurchaseMultipleTimes: 0

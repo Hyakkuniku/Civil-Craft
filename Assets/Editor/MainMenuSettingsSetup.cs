@@ -14,6 +14,13 @@ public static class MainMenuSettingsSetup
     private const string ScenePath = "Assets/Scenes/Main Menu.unity";
     private const string GeneratedRootName = "SettingsContentRoot";
     private const string BekindFontPath = "Assets/TextMesh Pro/Resources/Fonts & Materials/Bekind Sans SDF.asset";
+    private static readonly string[] FixedJoystickScenePaths =
+    {
+        ScenePath, "Assets/Scenes/CanyonCrossing.unity", "Assets/Scenes/BHAN HOUSE.unity",
+        "Assets/Scenes/Multiplayer/Multiplayer.unity"
+    };
+    private static bool authoringFixedJoystick;
+    private const string FixedJoystickLabel = "Fixed Joystick\n<size=62%>Off: move anywhere on the left; joystick follows your touch.</size>";
 
     private static readonly Color Ink = Hex("4B3022");
     private static readonly Color Cream = Hex("F7F0DE");
@@ -25,6 +32,7 @@ public static class MainMenuSettingsSetup
     static MainMenuSettingsSetup()
     {
         EditorApplication.delayCall += CloseStrayMainMenuScene;
+        EditorApplication.delayCall += TryAuthorFixedJoystick;
         EditorApplication.playModeStateChanged -= HandlePlayModeChanged;
         EditorApplication.playModeStateChanged += HandlePlayModeChanged;
     }
@@ -33,7 +41,63 @@ public static class MainMenuSettingsSetup
     {
         if (state == PlayModeStateChange.ExitingEditMode)
             CloseStrayMainMenuScene();
+        else if (state == PlayModeStateChange.EnteredEditMode)
+            EditorApplication.delayCall += TryAuthorFixedJoystick;
+    }
 
+    [MenuItem("Tools/Civil Craft/Author Fixed Joystick Setting")]
+    public static void AuthorFixedJoystickSetting() => TryAuthorFixedJoystick();
+
+    private static void TryAuthorFixedJoystick()
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode || authoringFixedJoystick) return;
+        if (EditorApplication.isCompiling || EditorApplication.isUpdating)
+        {
+            EditorApplication.delayCall += TryAuthorFixedJoystick;
+            return;
+        }
+
+        // Extend existing authored Gameplay pages only. Do not regenerate a settings
+        // panel, alter its other controls, or save unrelated edits in a dirty scene.
+        Scene previous = SceneManager.GetActiveScene();
+        authoringFixedJoystick = true;
+        try
+        {
+            foreach (string path in FixedJoystickScenePaths)
+            {
+                if (!System.IO.File.Exists(path)) continue;
+                Scene scene = SceneManager.GetSceneByPath(path);
+                bool opened = !scene.IsValid() || !scene.isLoaded;
+                if (opened) scene = EditorSceneManager.OpenScene(path, OpenSceneMode.Additive);
+                bool wasDirty = scene.isDirty;
+                try
+                {
+                    bool changed = false;
+                    foreach (GameObject root in scene.GetRootGameObjects())
+                    foreach (SettingsManager manager in root.GetComponentsInChildren<SettingsManager>(true))
+                        changed |= EnsureFixedJoystickSetting(manager.settingsPanel, manager);
+                    if (!changed) continue;
+                    EditorSceneManager.MarkSceneDirty(scene);
+                    if (opened || !wasDirty) EditorSceneManager.SaveScene(scene);
+                    else Debug.Log("[Settings] Fixed Joystick was added to " + scene.name +
+                        "; save the scene to keep it with your existing edits.");
+                }
+                catch (System.Exception error)
+                {
+                    Debug.LogError("[Settings] Could not author Fixed Joystick in " + path + ": " + error.Message);
+                }
+                finally
+                {
+                    if (opened && scene.IsValid() && scene.isLoaded)
+                        EditorSceneManager.CloseScene(scene, true);
+                }
+            }
+        }
+        finally
+        {
+            if (previous.IsValid() && previous.isLoaded) SceneManager.SetActiveScene(previous);
+            authoringFixedJoystick = false;
+        }
     }
 
     private static void CloseStrayMainMenuScene()
@@ -141,9 +205,10 @@ public static class MainMenuSettingsSetup
             else
             {
                 bool fontChanged = ApplyBekindFont(settingsPanel);
+                bool joystickChanged = EnsureFixedJoystickSetting(settingsPanel, manager);
                 WireManagerFromPanel(manager, settingsPanel, scene);
                 settingsPanel.SetActive(false);
-                return fontChanged;
+                return fontChanged || joystickChanged;
             }
         }
 
@@ -218,6 +283,7 @@ public static class MainMenuSettingsSetup
         Toggle invertLook = CreateToggle(
             CreateSettingRow(gameplayPage, "InvertLookRow", "Invert Vertical Camera", false),
             "InvertLookYToggle");
+        Toggle fixedJoystick = CreateFixedJoystickToggle(gameplayPage);
 
         RectTransform accountPage = CreatePage(pageBackground, "AccountPage");
         TextMeshProUGUI accountStatus = CreateText(
@@ -287,6 +353,7 @@ public static class MainMenuSettingsSetup
         Assign(serializedManager, "shadowsToggle", shadows);
         Assign(serializedManager, "frameRateDropdown", frameRate);
         Assign(serializedManager, "hapticsToggle", haptics);
+        Assign(serializedManager, "fixedJoystickToggle", fixedJoystick);
         Assign(serializedManager, "cameraSensitivitySlider", sensitivity);
         Assign(serializedManager, "cameraSensitivityText", sensitivityValue);
         Assign(serializedManager, "invertLookYToggle", invertLook);
@@ -428,6 +495,7 @@ public static class MainMenuSettingsSetup
             changed = true;
         }
 
+        changed |= EnsureFixedJoystickSetting(mobilePanel, manager);
         WireManagerFromPanel(manager, mobilePanel, scene);
         changed |= ApplyBekindFont(mobilePanel);
 
@@ -486,6 +554,7 @@ public static class MainMenuSettingsSetup
         Assign(serializedManager, "shadowsToggle", FindPanelComponent<Toggle>(panel, "ShadowsToggle"));
         Assign(serializedManager, "frameRateDropdown", FindPanelComponent<TMP_Dropdown>(panel, "FrameRateDropdown"));
         Assign(serializedManager, "hapticsToggle", FindPanelComponent<Toggle>(panel, "HapticsToggle"));
+        Assign(serializedManager, "fixedJoystickToggle", FindPanelComponent<Toggle>(panel, "FixedJoystickToggle"));
         Assign(serializedManager, "cameraSensitivitySlider", FindPanelComponent<Slider>(panel, "CameraSensitivitySlider"));
         Assign(serializedManager, "cameraSensitivityText", FindPanelComponent<TMP_Text>(panel, "CameraSensitivitySliderGroup", "Value"));
         Assign(serializedManager, "invertLookYToggle", FindPanelComponent<Toggle>(panel, "InvertLookYToggle"));
@@ -502,6 +571,55 @@ public static class MainMenuSettingsSetup
         WireButton(FindPanelComponent<Button>(panel, "CloseButton"), manager.CloseSettings);
         WireButton(FindPanelComponent<Button>(panel, "RestoreDefaultsButton"), manager.RestoreCozyDefaults);
         WireButton(FindPanelComponent<Button>(panel, "ApplySettingsButton"), manager.ApplyAndClose);
+    }
+
+    private static bool EnsureFixedJoystickSetting(GameObject panel, SettingsManager manager)
+    {
+        if (panel == null || manager == null) return false;
+        SerializedObject serializedManager = new SerializedObject(manager);
+        SerializedProperty property = serializedManager.FindProperty("fixedJoystickToggle");
+        if (property == null) return false; // Wait for the runtime assembly to import.
+        Transform gameplayPage = FindChildRecursive(panel.transform, "GameplayPage");
+        if (gameplayPage == null) return false;
+
+        Toggle toggle = FindChildRecursive(gameplayPage, "FixedJoystickToggle")?.GetComponent<Toggle>();
+        bool changed = false;
+        if (toggle == null)
+        {
+            Transform row = FindChildRecursive(gameplayPage, "FixedJoystickRow");
+            if (row == null)
+                toggle = CreateFixedJoystickToggle(gameplayPage);
+            else
+            {
+                toggle = CreateToggle(row, "FixedJoystickToggle");
+                toggle.SetIsOnWithoutNotify(true);
+            }
+            SetLayerRecursively(toggle.transform.parent.gameObject, panel.layer);
+            changed = true;
+        }
+        if (property.objectReferenceValue != toggle)
+        {
+            property.objectReferenceValue = toggle;
+            serializedManager.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(manager);
+            changed = true;
+        }
+        TMP_Text label = toggle.transform.parent.Find("Label")?.GetComponent<TMP_Text>();
+        if (label != null && label.text != FixedJoystickLabel)
+        {
+            label.text = FixedJoystickLabel;
+            EditorUtility.SetDirty(label);
+            changed = true;
+        }
+        return changed;
+    }
+
+    private static Toggle CreateFixedJoystickToggle(Transform gameplayPage)
+    {
+        RectTransform row = CreateSettingRow(gameplayPage, "FixedJoystickRow", FixedJoystickLabel, true);
+        Toggle toggle = CreateToggle(row, "FixedJoystickToggle");
+        toggle.SetIsOnWithoutNotify(true);
+        return toggle;
     }
 
     private static bool ApplyBekindFont(GameObject root)
