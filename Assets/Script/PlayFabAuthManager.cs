@@ -51,7 +51,7 @@ public class PlayFabAuthManager : MonoBehaviour
     public TextMeshProUGUI playerNameDisplay; 
 
     [Header("Login Inputs")]
-    [Tooltip("Players can enter either their Username OR their Email here.")]
+    [Tooltip("Username must match its registered capitalization. Email login is unchanged.")]
     public TMP_InputField loginUsername;
     public TMP_InputField loginPassword;
 
@@ -901,7 +901,8 @@ public class PlayFabAuthManager : MonoBehaviour
             return;
         }
 
-        string inputId = loginUsername.text.Trim(); 
+        var attempt = new PlayFabUsernameLoginPolicy(loginUsername.text);
+        string inputId = attempt.Identifier;
 
         if (string.IsNullOrEmpty(inputId) || string.IsNullOrEmpty(loginPassword.text))
         {
@@ -922,11 +923,10 @@ public class PlayFabAuthManager : MonoBehaviour
             }
         };
 
-        bool isEmailLogin = inputId.Contains("@");
         manualLoginInProgress = true;
         int generation = ++authenticationGeneration;
 
-        if (isEmailLogin)
+        if (attempt.IsEmailLogin)
         {
             var request = new LoginWithEmailAddressRequest
             {
@@ -935,7 +935,7 @@ public class PlayFabAuthManager : MonoBehaviour
                 InfoRequestParameters = infoParams
             };
             PlayFabClientAPI.LoginWithEmailAddress(request,
-                result => OnLoginSuccess(result, generation),
+                result => OnLoginSuccess(result, generation, attempt),
                 error => OnLoginError(error, generation));
         }
         else
@@ -947,13 +947,19 @@ public class PlayFabAuthManager : MonoBehaviour
                 InfoRequestParameters = infoParams
             };
             PlayFabClientAPI.LoginWithPlayFab(request,
-                result => OnLoginSuccess(result, generation),
+                result => OnLoginSuccess(result, generation, attempt),
                 error => OnLoginError(error, generation));
         }
     }
 
     public void OnRegisterButtonClicked()
     {
+        // Do not replace the SDK session while a submitted username is being verified.
+        if (manualLoginInProgress || IsAutomaticLoginInProgress)
+        {
+            SetFeedbackMessage("Finishing sign-in. Please wait before registering an account.", processColor);
+            return;
+        }
         string trimmedUser = registerUsername.text.Trim();
         string trimmedEmail = registerEmail.text.Trim();
 
@@ -1051,9 +1057,9 @@ public class PlayFabAuthManager : MonoBehaviour
     // PLAYFAB SUCCESS/ERROR CALLBACKS
     // ────────────────────────────────────────────────
 
-    private void OnLoginSuccess(LoginResult result, int generation)
+    private void OnLoginSuccess(LoginResult result, int generation, PlayFabUsernameLoginPolicy attempt)
     {
-        if (generation != authenticationGeneration) return;
+        if (this == null || generation != authenticationGeneration) return;
         // A successful account switch replaces the PlayFab credentials. Stop
         // the previous account's pending sync before any further API calls.
         CloudSaveManager previousCloud = PlayerDataManager.Instance != null
@@ -1061,20 +1067,85 @@ public class PlayFabAuthManager : MonoBehaviour
         if (previousCloud != null) previousCloud.EndSession();
         IsCloudSaveReady = false;
         loginPassword.text = string.Empty;
-        string inputId = loginUsername.text.Trim();
-        bool isEmailLogin = inputId.Contains("@");
-
-        if (!isEmailLogin && result.InfoResultPayload != null && result.InfoResultPayload.AccountInfo != null)
+        if (result == null || attempt == null || string.IsNullOrWhiteSpace(result.PlayFabId))
         {
-            if (result.InfoResultPayload.AccountInfo.Username != inputId)
-            {
-                SetFeedbackMessage("Login Failed: Username is case-sensitive. Please check your capitalization.", errorColor);
-                manualLoginInProgress = false;
-                PlayFabClientAPI.ForgetAllCredentials(); 
-                return;
-            }
+            RejectUsernameLogin(PlayFabUsernameLoginPolicy.VerificationError, generation);
+            return;
         }
 
+        if (attempt.IsEmailLogin) { AcceptVerifiedManualLogin(result, generation); return; }
+
+        UserAccountInfo account = result.InfoResultPayload?.AccountInfo;
+        if (account != null && !string.IsNullOrWhiteSpace(account.PlayFabId) &&
+            !string.Equals(account.PlayFabId, result.PlayFabId, StringComparison.Ordinal))
+        {
+            RejectUsernameLogin(PlayFabUsernameLoginPolicy.VerificationError, generation);
+            return;
+        }
+        PlayFabUsernameVerification verification = attempt.Verify(account?.Username);
+        if (verification == PlayFabUsernameVerification.RequiresAccountInfo)
+        {
+            VerifySubmittedUsername(result, generation, attempt);
+            return;
+        }
+        FinishUsernameVerification(result, generation, verification);
+    }
+
+    private void VerifySubmittedUsername(LoginResult result, int generation, PlayFabUsernameLoginPolicy attempt)
+    {
+        // Missing optional login payload must not bypass capitalization checks.
+        // Fetch the authenticated account by ID, never by a mutable input/display name.
+        if (string.IsNullOrWhiteSpace(result.SessionTicket))
+        {
+            RejectUsernameLogin(PlayFabUsernameLoginPolicy.VerificationError, generation);
+            return;
+        }
+        SetFeedbackMessage("Verifying username...", processColor);
+        var context = new PlayFabAuthenticationContext { ClientSessionTicket = result.SessionTicket,
+            PlayFabId = result.PlayFabId };
+        var request = new GetAccountInfoRequest { PlayFabId = result.PlayFabId, AuthenticationContext = context };
+        PlayFabClientAPI.GetAccountInfo(request, info =>
+        {
+            if (this == null || generation != authenticationGeneration) return;
+            UserAccountInfo account = info?.AccountInfo;
+            if (account == null || !string.Equals(account.PlayFabId, result.PlayFabId, StringComparison.Ordinal))
+            {
+                RejectUsernameLogin(PlayFabUsernameLoginPolicy.VerificationError, generation);
+                return;
+            }
+            FinishUsernameVerification(result, generation, attempt.Verify(account.Username));
+        }, error =>
+        {
+            if (this == null || generation != authenticationGeneration) return;
+            RejectUsernameLogin(PlayFabUsernameLoginPolicy.VerificationError, generation);
+        });
+    }
+
+    private void FinishUsernameVerification(LoginResult result, int generation, PlayFabUsernameVerification verification)
+    {
+        if (this == null || generation != authenticationGeneration) return;
+        if (verification != PlayFabUsernameVerification.Matches)
+        {
+            RejectUsernameLogin(verification == PlayFabUsernameVerification.Mismatch
+                ? PlayFabUsernameLoginPolicy.CapitalizationError : PlayFabUsernameLoginPolicy.VerificationError,
+                generation);
+            return;
+        }
+        AcceptVerifiedManualLogin(result, generation);
+    }
+
+    private void RejectUsernameLogin(string message, int generation)
+    {
+        if (this == null || generation != authenticationGeneration) return;
+        manualLoginInProgress = false;
+        IsCloudSaveReady = false;
+        PlayFabClientAPI.ForgetAllCredentials();
+        SetFeedbackMessage(message, errorColor);
+    }
+
+    private void AcceptVerifiedManualLogin(LoginResult result, int generation)
+    {
+        if (this == null || generation != authenticationGeneration) return;
         // Inspect saves before linking this device: canceling the choice must
         // leave both the guest slot and the remembered account untouched.
         loggedInPlayerName = string.Empty;
@@ -1206,13 +1277,9 @@ public class PlayFabAuthManager : MonoBehaviour
         PlayerPrefs.Save();
 
         isGuest = false;
-        if ((mode == CloudSaveManager.StartMode.StartFresh ||
-             mode == CloudSaveManager.StartMode.UseGuestSave) &&
-            PlayerDataManager.Instance?.CurrentData != null)
-        {
-            PlayerDataManager.Instance.CurrentData.playerName = welcomeName;
-            PlayerDataManager.Instance.SaveGame();
-        }
+        // This is the account greeting, not an engineer-name confirmation.
+        // Fresh saves stay "Guest" until Bhan's prompt is confirmed. Imported
+        // guest saves and returning account saves keep their chosen name.
         UpdatePlayerNameDisplay();
         CloudSaveManager cloud = PlayerDataManager.Instance != null
             ? PlayerDataManager.Instance.GetComponent<CloudSaveManager>() : null;

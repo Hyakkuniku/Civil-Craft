@@ -392,11 +392,11 @@ public class PlayerDataManager : MonoBehaviour
                 Debug.LogWarning("[PlayerDataManager] Recovered player data from the backup save.", this);
         }
 
+        // Account display names are for sign-in greetings, not proof that Bhan
+        // has confirmed an engineer's name. Only a genuinely new save starts
+        // unnamed; names from existing guest/account/cloud saves stay intact.
         if (CurrentData == null)
-            CurrentData = new PlayerData
-            {
-                playerName = PlayerPrefs.GetString("SavedPlayerName", "Guest")
-            };
+            CurrentData = new PlayerData();
 
         NormalizeLoadedData();
         if (persistOnLoad) SaveGame();
