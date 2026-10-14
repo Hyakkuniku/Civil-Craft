@@ -1,0 +1,151 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace UnityEngine.SceneManagement
+{
+    public struct Scene : IEquatable<Scene>
+    {
+        public string name;
+        public int handle;
+        public bool isLoaded;
+        public Scene(string name, int handle = 1, bool loaded = true) { this.name = name; this.handle = handle; isLoaded = loaded; }
+        public bool IsValid() => handle > 0;
+        public bool Equals(Scene other) => handle == other.handle;
+        public override bool Equals(object value) => value is Scene scene && Equals(scene);
+        public override int GetHashCode() => handle;
+        public static bool operator ==(Scene left, Scene right) => left.Equals(right);
+        public static bool operator !=(Scene left, Scene right) => !left.Equals(right);
+    }
+}
+
+namespace UnityEngine
+{
+    [AttributeUsage(AttributeTargets.Class)] public sealed class DisallowMultipleComponent : Attribute { }
+    [AttributeUsage(AttributeTargets.Class)] public sealed class RequireComponent : Attribute { public RequireComponent(Type value) { } }
+    [AttributeUsage(AttributeTargets.Class)] public sealed class DefaultExecutionOrder : Attribute { public DefaultExecutionOrder(int value) { } }
+    [AttributeUsage(AttributeTargets.Field)] public sealed class SerializeField : Attribute { }
+    [AttributeUsage(AttributeTargets.Field)] public sealed class HideInInspector : Attribute { }
+    [AttributeUsage(AttributeTargets.Field)] public sealed class Header : Attribute { public Header(string value) { } }
+    [AttributeUsage(AttributeTargets.Field)] public sealed class Tooltip : Attribute { public Tooltip(string value) { } }
+    [AttributeUsage(AttributeTargets.Method)] public sealed class RuntimeInitializeOnLoadMethod : Attribute { public RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType type) { } }
+    public enum RuntimeInitializeLoadType { SubsystemRegistration }
+
+    public class Object
+    {
+        public bool Destroyed;
+        public string name;
+        public static bool operator ==(Object left, Object right)
+        {
+            bool leftNull = ReferenceEquals(left, null) || left.Destroyed;
+            bool rightNull = ReferenceEquals(right, null) || right.Destroyed;
+            return leftNull || rightNull ? leftNull && rightNull : ReferenceEquals(left, right);
+        }
+        public static bool operator !=(Object left, Object right) => !(left == right);
+        public static implicit operator bool(Object value) => value != null;
+        public override bool Equals(object value) => ReferenceEquals(this, value);
+        public override int GetHashCode() => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(this);
+    }
+    public class GameObject : Object
+    {
+        public UnityEngine.SceneManagement.Scene scene;
+        public bool activeInHierarchy = true;
+        public readonly Transform transform;
+        private readonly List<Component> components = new();
+        public GameObject(UnityEngine.SceneManagement.Scene scene) { this.scene = scene; transform = new Transform(this); }
+        public T Attach<T>() where T : Component, new() { T value = new T { gameObject = this }; components.Add(value); return value; }
+        public T GetComponent<T>() where T : Component => components.OfType<T>().FirstOrDefault(value => !value.Destroyed);
+    }
+    public class Component : Object
+    {
+        public GameObject gameObject;
+        public Transform transform => gameObject.transform;
+        public T GetComponent<T>() where T : Component => gameObject.GetComponent<T>();
+        public bool TryGetComponent<T>(out T value) where T : Component { value = GetComponent<T>(); return value != null; }
+    }
+    public class Behaviour : Component
+    {
+        public bool enabled = true;
+        public bool isActiveAndEnabled => !Destroyed && enabled && gameObject != null && gameObject.activeInHierarchy;
+    }
+    public class MonoBehaviour : Behaviour { }
+    public class Transform
+    {
+        public readonly GameObject gameObject;
+        public Vector3 position;
+        public Vector3 localScale = Vector3.one;
+        public float yaw;
+        public Transform(GameObject gameObject) { this.gameObject = gameObject; }
+        public Vector3 TransformPoint(Vector3 local)
+        {
+            Vector3 scaled = new Vector3(local.x * localScale.x, local.y * localScale.y, local.z * localScale.z);
+            double radians = yaw * Math.PI / 180d;
+            return position + new Vector3((float)(scaled.x * Math.Cos(radians) + scaled.z * Math.Sin(radians)), scaled.y,
+                (float)(-scaled.x * Math.Sin(radians) + scaled.z * Math.Cos(radians)));
+        }
+        public Vector3 InverseTransformPoint(Vector3 world)
+        {
+            Vector3 value = world - position;
+            double radians = -yaw * Math.PI / 180d;
+            return new Vector3((float)(value.x * Math.Cos(radians) + value.z * Math.Sin(radians)) / localScale.x,
+                value.y / localScale.y, (float)(-value.x * Math.Sin(radians) + value.z * Math.Cos(radians)) / localScale.z);
+        }
+    }
+    public struct Vector3
+    {
+        public float x, y, z;
+        public Vector3(float x, float y, float z) { this.x = x; this.y = y; this.z = z; }
+        public static Vector3 zero => new(0f, 0f, 0f);
+        public static Vector3 one => new(1f, 1f, 1f);
+        public static Vector3 operator +(Vector3 left, Vector3 right) => new(left.x + right.x, left.y + right.y, left.z + right.z);
+        public static Vector3 operator -(Vector3 left, Vector3 right) => new(left.x - right.x, left.y - right.y, left.z - right.z);
+    }
+    public static class Mathf { public static float Abs(float value) => Math.Abs(value); }
+    public class RenderTexture : Object { }
+    public class MeshRenderer : Component { }
+    public class OcclusionArea : Component
+    {
+        public Vector3 center;
+        public Vector3 size = new(20f, 20f, 20f);
+    }
+    public class Camera : Behaviour
+    {
+        public bool useOcclusionCulling = true;
+        public bool orthographic;
+        public RenderTexture targetTexture;
+        public int cullingMask = 123;
+        public float nearClipPlane = .3f, farClipPlane = 1000f, fieldOfView = 60f;
+        public float[] layerCullDistances = new float[32];
+        public bool layerCullSpherical;
+        public static event Action<Camera> onPreCull;
+        public static int CallbackCount => onPreCull?.GetInvocationList().Length ?? 0;
+        public static void InvokePreCull(Camera value) => onPreCull?.Invoke(value);
+    }
+}
+
+namespace UnityEngine.Rendering
+{
+    public struct ScriptableRenderContext { }
+    public static class RenderPipelineManager
+    {
+        public static event Action<ScriptableRenderContext, UnityEngine.Camera> beginCameraRendering;
+        public static int CallbackCount => beginCameraRendering?.GetInvocationList().Length ?? 0;
+        public static void InvokeBegin(UnityEngine.Camera value) => beginCameraRendering?.Invoke(default, value);
+    }
+}
+
+public class GameManager : UnityEngine.MonoBehaviour
+{
+    public enum GameState { Normal, Building, CargoTesting }
+    public static GameManager Instance;
+    public UnityEngine.Camera MainCamera;
+    public GameState CurrentState = GameState.Normal;
+    public bool IsTransitioning;
+}
+public static class LoadingScreenManager { public static bool IsLoading; }
+public static class DevelopmentPerformanceSettings
+{
+    public static bool? OcclusionOverride;
+    public static void Register(CanyonOcclusionProfile value) { }
+    public static void Unregister(CanyonOcclusionProfile value) { }
+}

@@ -1,0 +1,3 @@
+# Recoverable local Unity bake backups are not imported assets or source changes.
+*
+!.gitignore

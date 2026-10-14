@@ -73,6 +73,7 @@ public class SettingsManager : MonoBehaviour
 
     private void Start()
     {
+        DevelopmentPerformanceSettings.Ensure(this);
         LoadSettings();
 
         // Hook up UI listeners automatically
@@ -131,6 +132,7 @@ public class SettingsManager : MonoBehaviour
     public void OpenSettings()
     {
         if (settingsPanel == null) return;
+        DevelopmentPerformanceSettings.Ensure(this);
         CancelLogout();
         LoadSettings();
         RefreshAccountUI();

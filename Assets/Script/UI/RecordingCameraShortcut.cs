@@ -14,6 +14,7 @@ public sealed class RecordingCameraShortcut : MonoBehaviour
     [SerializeField, Min(0f)] private float movementSmoothTime = .12f;
     private PlayerLook localLook;
     private Camera recordingCamera;
+    private Camera occlusionSuspendedCamera;
     private Transform originalParent;
     private Vector3 shotPosition, velocity;
     private Quaternion shotRotation;
@@ -46,7 +47,11 @@ public sealed class RecordingCameraShortcut : MonoBehaviour
         SceneManager.activeSceneChanged -= ActiveSceneChanged;
         ReturnToPlayer(false);
     }
-    private void OnDestroy() { if (instance == this) instance = null; }
+    private void OnDestroy()
+    {
+        ReturnToPlayer(false);
+        if (instance == this) instance = null;
+    }
     private void ActiveSceneChanged(Scene previous, Scene next) => ReturnToPlayer(false);
     private void OnApplicationFocus(bool focused)
     {
@@ -147,6 +152,9 @@ public sealed class RecordingCameraShortcut : MonoBehaviour
         if (Mode != CameraMode.FollowPlayer || look == null || look.cam == null) return false;
         localLook = look;
         recordingCamera = look.cam;
+        // Suspend before orbit release/reparenting can leave the baked player view.
+        occlusionSuspendedCamera = recordingCamera;
+        CanyonCameraOcclusionPolicy.SetSuspended(occlusionSuspendedCamera, this, true);
         look.ReleaseOrbitForRecording();
         originalParent = recordingCamera.transform.parent;
         nearClip = recordingCamera.nearClipPlane;
@@ -200,18 +208,35 @@ public sealed class RecordingCameraShortcut : MonoBehaviour
     }
     public void ReturnToPlayer(bool snapToPlayer = true)
     {
-        if (Mode == CameraMode.FollowPlayer) return;
+        if (Mode == CameraMode.FollowPlayer)
+        {
+            ReleaseOcclusionSuspension();
+            return;
+        }
         Mode = CameraMode.FollowPlayer;
         velocity = Vector3.zero;
-        if (recordingCamera != null)
+        try
         {
-            recordingCamera.transform.SetParent(originalParent, true);
-            recordingCamera.nearClipPlane = nearClip;
+            if (recordingCamera != null)
+            {
+                recordingCamera.transform.SetParent(originalParent, true);
+                recordingCamera.nearClipPlane = nearClip;
+            }
+            RestoreCursor();
+            if (snapToPlayer && localLook != null && localLook.isActiveAndEnabled)
+                localLook.SnapToFollowTarget();
         }
-        RestoreCursor();
-        if (snapToPlayer && localLook != null && localLook.isActiveAndEnabled)
-            localLook.SnapToFollowTarget();
-        localLook = null; recordingCamera = null; originalParent = null;
+        finally
+        {
+            // Use the originally suspended camera even if the player camera changed.
+            ReleaseOcclusionSuspension();
+            localLook = null; recordingCamera = null; originalParent = null;
+        }
+    }
+    private void ReleaseOcclusionSuspension()
+    {
+        CanyonCameraOcclusionPolicy.SetSuspended(occlusionSuspendedCamera, this, false);
+        occlusionSuspendedCamera = null;
     }
     private void RestoreCursor() { Cursor.lockState = originalCursorLock; Cursor.visible = originalCursorVisible; }
     private static void ReleaseCursor() { Cursor.lockState = CursorLockMode.None; Cursor.visible = true; }

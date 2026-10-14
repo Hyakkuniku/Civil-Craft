@@ -223,6 +223,7 @@ public sealed class CharacterPortraitUploadService : MonoBehaviour
             GameObject cameraObject = new GameObject("Portrait Camera");
             cameraObject.transform.SetParent(stage.transform, true);
             Camera portraitCamera = cameraObject.AddComponent<Camera>();
+            portraitCamera.useOcclusionCulling = false;
             portraitCamera.clearFlags = CameraClearFlags.SolidColor;
             portraitCamera.backgroundColor = new Color(0f, 0f, 0f, 0f);
             portraitCamera.cullingMask = 1 << PortraitLayer;

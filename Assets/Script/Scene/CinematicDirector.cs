@@ -96,6 +96,12 @@ public class CinematicDirector : MonoBehaviour
     private Quaternion originalCamLocalRot;
     private bool isPlaying = false;
     public bool IsPlaying => isPlaying;
+    private Camera occlusionSuspendedCamera;
+    private uint occlusionSuspensionVersion;
+    private Camera capturedShotCamera;
+    private InputManager capturedShotInput;
+    private PlayerMotor capturedShotMotor;
+    private bool shotMovementBefore, shotLookBefore, shotMotorBefore;
 
     private bool isFloatParam = false;
     private bool isParamCached = false;
@@ -155,27 +161,59 @@ public class CinematicDirector : MonoBehaviour
         // Authored cinematics must inherit the ordinary gameplay return pose.
         RecordingCameraShortcut.ReturnToPlayerForGameplayTransition();
         isPlaying = true;
+        if (cinematicCamera == null) cinematicCamera = Camera.main;
+        uint suspensionVersion = ++occlusionSuspensionVersion;
+        occlusionSuspendedCamera = cinematicCamera;
+        // Event listeners and UI setup may begin moving the camera immediately.
+        CanyonCameraOcclusionPolicy.SetSuspended(occlusionSuspendedCamera, this, true);
+        try
+        {
+            yield return CinematicRoutineCore(suspensionVersion);
+        }
+        finally
+        {
+            // A completion listener can synchronously start another cinematic.
+            // The older routine must not release the newer routine's suspension.
+            if (suspensionVersion == occlusionSuspensionVersion)
+                ReleaseOcclusionSuspension();
+        }
+    }
+
+    private IEnumerator CinematicRoutineCore(uint suspensionVersion)
+    {
         OnCinematicStarted?.Invoke();
+        if (!isActiveAndEnabled || !isPlaying || suspensionVersion != occlusionSuspensionVersion) yield break;
+        RefreshOcclusionSuspension(suspensionVersion);
 
         BeginCinematicUIIsolation();
 
         InputManager inputObj = FindObjectOfType<InputManager>();
         if (inputObj != null)
         {
+            capturedShotInput = inputObj;
+            shotMovementBefore = inputObj.IsPlayerInputEnabled;
+            shotLookBefore = inputObj.IsLookInputEnabled;
             inputObj.SetPlayerInputEnable(false);
             inputObj.SetLookEnabled(false);
         }
 
         PlayerMotor motor = FindObjectOfType<PlayerMotor>();
-        if (motor != null) motor.enabled = false;
+        if (motor != null)
+        {
+            capturedShotMotor = motor;
+            shotMotorBefore = motor.enabled;
+            motor.enabled = false;
+        }
 
         if (cinematicCamera == null) cinematicCamera = Camera.main;
+        RefreshOcclusionSuspension(suspensionVersion);
 
         if (cinematicCamera != null)
         {
             originalCamParent = cinematicCamera.transform.parent;
             originalCamLocalPos = cinematicCamera.transform.localPosition;
             originalCamLocalRot = cinematicCamera.transform.localRotation;
+            capturedShotCamera = cinematicCamera;
             cinematicCamera.transform.SetParent(null);
         }
 
@@ -196,7 +234,11 @@ public class CinematicDirector : MonoBehaviour
             cinematicCamera.transform.SetParent(originalCamParent);
             cinematicCamera.transform.localPosition = originalCamLocalPos;
             cinematicCamera.transform.localRotation = originalCamLocalRot;
+            capturedShotCamera = null;
         }
+
+        if (suspensionVersion == occlusionSuspensionVersion)
+            ReleaseOcclusionSuspension();
 
         if (motor != null) motor.enabled = true;
 
@@ -205,6 +247,8 @@ public class CinematicDirector : MonoBehaviour
             inputObj.SetPlayerInputEnable(true);
             inputObj.SetLookEnabled(true);
         }
+        capturedShotInput = null;
+        capturedShotMotor = null;
 
         // --- NEW: Guarantee the bridge info canvas turns off when the cinematic ends ---
         if (bridgeInfoCanvas != null) bridgeInfoCanvas.SetActive(false);
@@ -249,10 +293,61 @@ public class CinematicDirector : MonoBehaviour
 
     private void OnDisable()
     {
-        // Coroutines stop immediately when this component is disabled. Never leave
-        // the HUD/canvases in their cinematic state if that happens mid-shot.
+        // Disabling a MonoBehaviour alone does not stop its coroutines. Stop
+        // this director's shots before releasing the camera's culling guard.
+        ++occlusionSuspensionVersion;
+        StopAllCoroutines();
         EndCinematicUIIsolation();
         isPlaying = false;
+        RestoreCancelledShot();
+        ReleaseOcclusionSuspension();
+    }
+
+    private void RestoreCancelledShot()
+    {
+        // Cancellation must restore the captured pose before culling can resume.
+        if (capturedShotCamera != null)
+        {
+            capturedShotCamera.transform.SetParent(originalCamParent, false);
+            capturedShotCamera.transform.localPosition = originalCamLocalPos;
+            capturedShotCamera.transform.localRotation = originalCamLocalRot;
+        }
+        capturedShotCamera = null;
+        bool mayRestore = gameObject.scene.isLoaded && !DialogueManager.IsAnyDialogueActive && !QuizUIManager.IsAnyQuizActive &&
+            (PauseManager.Instance == null || !PauseManager.Instance.isPaused) &&
+            (GameManager.Instance == null || (!GameManager.Instance.IsTransitioning && GameManager.Instance.CurrentState == GameManager.GameState.Normal)) &&
+            (UIPanelCoordinator.Instance == null || !UIPanelCoordinator.Instance.HasOpenPanel);
+        if (mayRestore && capturedShotInput != null)
+        {
+            capturedShotInput.SetPlayerInputEnable(shotMovementBefore);
+            capturedShotInput.SetLookEnabled(shotLookBefore);
+        }
+        if (mayRestore && capturedShotMotor != null) capturedShotMotor.enabled = shotMotorBefore;
+        capturedShotInput = null;
+        capturedShotMotor = null;
+    }
+
+    private void OnDestroy()
+    {
+        ReleaseOcclusionSuspension();
+    }
+
+    private void ReleaseOcclusionSuspension()
+    {
+        CanyonCameraOcclusionPolicy.SetSuspended(occlusionSuspendedCamera, this, false);
+        occlusionSuspendedCamera = null;
+    }
+
+    private void RefreshOcclusionSuspension(uint suspensionVersion)
+    {
+        if (suspensionVersion != occlusionSuspensionVersion || !isActiveAndEnabled || !isPlaying) return;
+        if (cinematicCamera == null) cinematicCamera = Camera.main;
+        if (occlusionSuspendedCamera == cinematicCamera) return;
+        // Start/UI callbacks may replace the authored camera. Never release a
+        // newer sequence's owner when an older coroutine is still unwinding.
+        CanyonCameraOcclusionPolicy.SetSuspended(occlusionSuspendedCamera, this, false);
+        occlusionSuspendedCamera = cinematicCamera;
+        CanyonCameraOcclusionPolicy.SetSuspended(occlusionSuspendedCamera, this, true);
     }
 
     private void BeginCinematicUIIsolation()

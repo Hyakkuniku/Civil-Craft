@@ -199,6 +199,7 @@ public sealed class MinimapUnlockController : MonoBehaviour
         SceneManager.MoveGameObjectToScene(cameraObject, scene);
 
         Camera camera = cameraObject.AddComponent<Camera>();
+        camera.useOcclusionCulling = false;
         camera.clearFlags = CameraClearFlags.SolidColor;
         camera.backgroundColor = new Color(0.192f, 0.302f, 0.475f, 0f);
         camera.orthographic = true;

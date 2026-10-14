@@ -47,6 +47,8 @@ public class MinimapFollow : MonoBehaviour
     {
         if (!TryGetComponent(out Camera minimapCamera)) return;
         mapCamera = minimapCamera;
+        // Both map views need complete scenery, independent of gameplay visibility.
+        minimapCamera.useOcclusionCulling = false;
         waterCameraData = minimapCamera.GetUniversalAdditionalCameraData();
         previousDepthOption = waterCameraData.requiresDepthOption;
         // Shoreline foam needs depth, not a color copy of the minimap.

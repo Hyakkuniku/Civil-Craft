@@ -1,0 +1,303 @@
+using System;
+using System.Reflection;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.SceneManagement;
+using Object = UnityEngine.Object;
+
+public static class Scenarios
+{
+    private static int checks;
+    private static readonly Scene Canyon = new("CanyonCrossing", 1);
+    private static readonly Scene Other = new("Main Menu", 2);
+
+    private sealed class Fixture
+    {
+        public readonly Camera camera;
+        public readonly CanyonCameraOcclusionPolicy policy;
+        public readonly CanyonOcclusionProfile profile;
+        public readonly GameManager manager;
+        public readonly OcclusionArea area;
+        public Fixture(bool original = true)
+        {
+            InvokeStatic("ResetForNewSession");
+            camera = new GameObject(Canyon).Attach<Camera>();
+            camera.useOcclusionCulling = original;
+            policy = camera.gameObject.Attach<CanyonCameraOcclusionPolicy>();
+            profile = new GameObject(Canyon).Attach<CanyonOcclusionProfile>();
+            profile.gameplayCamera = camera;
+            profile.bakeVerified = true;
+            profile.bakedData = new Object();
+            area = new GameObject(Canyon).Attach<OcclusionArea>();
+            profile.viewVolumes = new[] { area };
+            manager = new GameObject(Canyon).Attach<GameManager>();
+            manager.MainCamera = camera;
+            GameManager.Instance = manager;
+            LoadingScreenManager.IsLoading = false;
+            policy.Configure(profile, CanyonCameraOcclusionPolicy.CameraRole.Gameplay);
+            Invoke(policy, "OnEnable");
+        }
+        public void Ready() { profile.enableGameplayOcclusion = true; policy.RefreshPolicy(); }
+        public void Dispose()
+        {
+            policy.enabled = false;
+            Invoke(policy, "OnDisable");
+            Invoke(policy, "OnDestroy");
+            policy.Destroyed = true;
+            GameManager.Instance = null;
+            LoadingScreenManager.IsLoading = false;
+        }
+    }
+
+    public static int Run()
+    {
+#if DEVELOPMENT_BUILD
+        DefaultsAndEligibility();
+        MultipleCameras();
+        Coverage();
+        Suspensions();
+        CallbacksAndLifecycle();
+        Invariants();
+        DevelopmentOverride();
+#else
+        Fixture release = new();
+        release.Ready();
+        Expect(!release.camera.useOcclusionCulling, "Release builds must stay off even with the saved Inspector switch on.");
+        DevelopmentPerformanceSettings.OcclusionOverride = true;
+        release.policy.RefreshPolicy();
+        Expect(!release.camera.useOcclusionCulling && !release.profile.OcclusionRequested, "Release builds cannot accept a leftover development override.");
+        DevelopmentPerformanceSettings.OcclusionOverride = null;
+        release.Dispose();
+#endif
+        FrameCadence();
+        return checks;
+    }
+
+    private static void FrameCadence()
+    {
+        var sample = new FrameRateSample();
+        Expect(!sample.Add(0, .5f) && !sample.Add(float.NaN, .5f) && !sample.Add(float.PositiveInfinity, .5f), "Invalid frame durations must not pollute the counter.");
+        for (int i = 0; i < 60; i++) sample.Add(1f / 60f, .5f);
+        Expect(Math.Abs(sample.Fps - 60) < .001 && Math.Abs(sample.Milliseconds - 1000d / 60d) < .001, "Counter must report wall-clock 60 FPS / 16.7 ms, including when paused.");
+        sample.Reset();
+        Expect(sample.Fps == 0 && sample.Milliseconds == 0, "Showing the counter again starts a fresh sample.");
+        sample.Add(.01f, .045f); sample.Add(.03f, .045f); sample.Add(.01f, .045f);
+        Expect(Math.Abs(sample.Fps - 60) < .001, "Variable frames use total frames / elapsed time, not averaged reciprocals.");
+    }
+
+    private static void DevelopmentOverride()
+    {
+        Fixture f = new();
+        DevelopmentPerformanceSettings.OcclusionOverride = true;
+        f.policy.RefreshPolicy();
+        Expect(f.camera.useOcclusionCulling && !f.profile.enableGameplayOcclusion, "Development ON must enable eligible culling without changing the saved switch.");
+        f.profile.bakeVerified = false; f.policy.RefreshPolicy();
+        Expect(!f.camera.useOcclusionCulling, "Development toggle cannot bypass missing bake validation.");
+        f.profile.bakeVerified = true; f.camera.transform.position = new Vector3(10000, 0, 0); f.policy.RefreshPolicy();
+        Expect(!f.camera.useOcclusionCulling, "Development toggle cannot bypass coverage.");
+        f.camera.transform.position = Vector3.zero; f.profile.enableGameplayOcclusion = true;
+        DevelopmentPerformanceSettings.OcclusionOverride = false; f.policy.RefreshPolicy();
+        Expect(!f.camera.useOcclusionCulling && f.profile.enableGameplayOcclusion, "Development OFF overrides without editing the authored switch.");
+        DevelopmentPerformanceSettings.OcclusionOverride = null; f.policy.RefreshPolicy();
+        Expect(f.camera.useOcclusionCulling, "Session reset restores the authored behavior.");
+        f.Dispose();
+    }
+
+    private static void DefaultsAndEligibility()
+    {
+        Fixture f = new();
+        Expect(!f.profile.enableGameplayOcclusion && !f.camera.useOcclusionCulling, "Default rollout must remain off.");
+        f.Ready(); Expect(f.camera.useOcclusionCulling, "Verified normal gameplay within coverage is eligible.");
+        Reject(f, () => f.profile.enableGameplayOcclusion = false, () => f.profile.enableGameplayOcclusion = true, "Master switch");
+        Reject(f, () => f.profile.bakeVerified = false, () => f.profile.bakeVerified = true, "Unverified bake");
+        Object data = f.profile.bakedData;
+        Reject(f, () => f.profile.bakedData = null, () => f.profile.bakedData = data, "Missing bake data");
+        Reject(f, () => data.Destroyed = true, () => data.Destroyed = false, "Deleted bake asset");
+        Reject(f, () => f.profile.enabled = false, () => f.profile.enabled = true, "Disabled profile");
+        Reject(f, () => f.profile.gameObject.activeInHierarchy = false, () => f.profile.gameObject.activeInHierarchy = true, "Inactive profile");
+        Reject(f, () => f.policy.enabled = false, () => f.policy.enabled = true, "Disabled policy");
+        Reject(f, () => f.camera.enabled = false, () => f.camera.enabled = true, "Disabled camera");
+        Reject(f, () => f.camera.gameObject.activeInHierarchy = false, () => f.camera.gameObject.activeInHierarchy = true, "Inactive camera hierarchy");
+        Reject(f, () => f.camera.orthographic = true, () => f.camera.orthographic = false, "Orthographic camera");
+        Reject(f, () => f.camera.targetTexture = new RenderTexture(), () => f.camera.targetTexture = null, "Render-texture camera");
+        Reject(f, () => f.profile.gameplayCamera = null, () => f.profile.gameplayCamera = f.camera, "No explicitly owned gameplay camera");
+        Reject(f, () => f.profile.gameplayCamera = new GameObject(Canyon).Attach<Camera>(), () => f.profile.gameplayCamera = f.camera, "Different profile camera");
+        Reject(f, () => f.profile.gameObject.scene = Other, () => f.profile.gameObject.scene = Canyon, "Foreign profile scene");
+        Reject(f, () => f.camera.gameObject.scene = Other, () => f.camera.gameObject.scene = Canyon, "Wrong target scene");
+        Reject(f, () => f.camera.gameObject.scene = new Scene("CanyonCrossing", 0), () => f.camera.gameObject.scene = Canyon, "Invalid scene");
+        Reject(f, () => f.camera.gameObject.scene = new Scene("CanyonCrossing", 1, false), () => f.camera.gameObject.scene = Canyon, "Unloaded scene");
+        Reject(f, () => GameManager.Instance = null, () => GameManager.Instance = f.manager, "No game manager");
+        Reject(f, () => f.manager.enabled = false, () => f.manager.enabled = true, "Inactive game manager");
+        Reject(f, () => f.manager.gameObject.scene = Other, () => f.manager.gameObject.scene = Canyon, "Foreign game manager");
+        Reject(f, () => f.manager.MainCamera = null, () => f.manager.MainCamera = f.camera, "Unmatched main camera");
+        foreach (GameManager.GameState state in new[] { GameManager.GameState.Building, GameManager.GameState.CargoTesting })
+            Reject(f, () => f.manager.CurrentState = state, () => f.manager.CurrentState = GameManager.GameState.Normal, state.ToString());
+        Reject(f, () => f.manager.IsTransitioning = true, () => f.manager.IsTransitioning = false, "Transition");
+        Reject(f, () => LoadingScreenManager.IsLoading = true, () => LoadingScreenManager.IsLoading = false, "Loading overlay");
+        Reject(f, () => f.profile.viewVolumes = null, () => f.profile.viewVolumes = new[] { f.area }, "Missing coverage");
+        f.Dispose();
+        Fixture absentProfile = new();
+        absentProfile.policy.Configure(null, CanyonCameraOcclusionPolicy.CameraRole.Gameplay);
+        Expect(!absentProfile.camera.useOcclusionCulling, "Gameplay role without profile must fail open.");
+        absentProfile.Dispose();
+    }
+
+    private static void MultipleCameras()
+    {
+        Fixture f = new(); f.Ready();
+        string[] roles = { "Minimap", "ExpandedMap", "Build", "Simulation", "Magnifier", "BridgeCapture", "UI", "Portrait", "Loading" };
+        foreach (string label in roles)
+        {
+            Camera other = new GameObject(Canyon).Attach<Camera>();
+            other.name = label;
+            other.targetTexture = label.Contains("Map") || label == "Portrait" ? new RenderTexture() : null;
+            other.orthographic = label.Contains("Map");
+            var policy = other.gameObject.Attach<CanyonCameraOcclusionPolicy>();
+            policy.Configure(f.profile, CanyonCameraOcclusionPolicy.CameraRole.Excluded);
+            Invoke(policy, "OnEnable");
+            Expect(!other.useOcclusionCulling && f.camera.useOcclusionCulling, label + " cannot affect gameplay or inherit baked culling.");
+            other.useOcclusionCulling = true;
+            Camera.InvokePreCull(other);
+            Expect(!other.useOcclusionCulling, label + " manually rendered camera must reset to excluded.");
+            policy.Configure(f.profile, CanyonCameraOcclusionPolicy.CameraRole.Gameplay);
+            Expect(!other.useOcclusionCulling, label + " incorrect Gameplay role still cannot bypass explicit camera identity.");
+            policy.enabled = false; Invoke(policy, "OnDisable"); Invoke(policy, "OnDestroy"); policy.Destroyed = true;
+        }
+        Camera unowned = new GameObject(Canyon).Attach<Camera>();
+        CanyonCameraOcclusionPolicy.SetSuspended(unowned, new Object(), true);
+        Expect(unowned.useOcclusionCulling && unowned.GetComponent<CanyonCameraOcclusionPolicy>() == null,
+            "Suspension helper must not install policy or mutate unrelated cameras.");
+        CanyonCameraOcclusionPolicy.SetSuspended(null, new Object(), true);
+        Expect(f.camera.useOcclusionCulling, "Null static helper must be harmless.");
+        f.Dispose();
+    }
+
+    private static void Coverage()
+    {
+        Fixture f = new(); f.Ready();
+        Expect(f.profile.ContainsCameraPosition(new Vector3(10f, 10f, 10f)), "Inclusive area edge remains in covered view volume.");
+        foreach (Vector3 point in new[] { new Vector3(10.01f, 0f, 0f), new Vector3(0f, -10.01f, 0f), new Vector3(0f, 0f, 10.01f),
+            new Vector3(float.NaN, 0f, 0f), new Vector3(0f, float.PositiveInfinity, 0f), new Vector3(0f, 0f, float.NegativeInfinity) })
+            Expect(!f.profile.ContainsCameraPosition(point), "Outside or nonfinite point is not covered.");
+        Reject(f, () => f.camera.transform.position = new Vector3(100f, 0f, 0f), () => f.camera.transform.position = Vector3.zero, "Camera outside coverage");
+        Reject(f, () => f.area.gameObject.activeInHierarchy = false, () => f.area.gameObject.activeInHierarchy = true, "Inactive view volume");
+        Reject(f, () => f.area.gameObject.scene = Other, () => f.area.gameObject.scene = Canyon, "Foreign view volume");
+        foreach (Vector3 size in new[] { Vector3.zero, new Vector3(-1f, 20f, 20f), new Vector3(20f, 0f, 20f), new Vector3(20f, 20f, float.NaN),
+            new Vector3(float.PositiveInfinity, 20f, 20f) })
+            Reject(f, () => f.area.size = size, () => f.area.size = new Vector3(20f, 20f, 20f), "Invalid view bounds");
+        Reject(f, () => f.area.center = new Vector3(float.NaN, 0f, 0f), () => f.area.center = Vector3.zero, "Invalid view center");
+        OcclusionArea second = new GameObject(Canyon).Attach<OcclusionArea>();
+        second.transform.position = new Vector3(100f, 0f, 0f);
+        f.profile.viewVolumes = new[] { null, f.area, second };
+        f.camera.transform.position = new Vector3(100f, 0f, 0f); f.policy.RefreshPolicy();
+        Expect(f.camera.useOcclusionCulling, "A second valid configured volume supplies coverage.");
+        f.area.transform.position = new Vector3(12f, 8f, -30f);
+        f.area.transform.localScale = new Vector3(2f, 3f, .5f);
+        f.area.transform.yaw = 37f;
+        f.area.center = new Vector3(3f, -2f, 1f);
+        f.area.size = new Vector3(12f, 10f, 8f);
+        Random random = new(8216);
+        for (int sample = 0; sample < 300; sample++)
+        {
+            Vector3 local = f.area.center + new Vector3((float)random.NextDouble() * 10f - 5f, (float)random.NextDouble() * 8f - 4f, (float)random.NextDouble() * 6f - 3f);
+            Expect(f.profile.ContainsCameraPosition(f.area.transform.TransformPoint(local)), "Rotated/scaled local interior remains covered.");
+            local.x = f.area.center.x + 6.1f + (float)random.NextDouble() * 2f;
+            Expect(!f.profile.ContainsCameraPosition(f.area.transform.TransformPoint(local)), "Rotated/scaled local exterior remains excluded.");
+        }
+        f.Dispose();
+    }
+
+    private static void Suspensions()
+    {
+        Fixture f = new(); f.Ready();
+        Object recording = new(), cinematic = new();
+        f.policy.SetSuspended(recording, true);
+        Expect(!f.camera.useOcclusionCulling, "Recording suspension disables gameplay culling.");
+        f.policy.SetSuspended(recording, true);
+        f.policy.SetSuspended(cinematic, true);
+        f.policy.SetSuspended(recording, false);
+        Expect(!f.camera.useOcclusionCulling, "Releasing one owner cannot enable while another owns suspension.");
+        f.policy.SetSuspended(cinematic, false);
+        Expect(f.camera.useOcclusionCulling, "Duplicate suspend by one owner is idempotent, not reference counted.");
+        f.policy.SetSuspended(null, true); f.policy.SetSuspended(new Object(), false);
+        Expect(f.camera.useOcclusionCulling, "Unknown releases and null owners do not suspend.");
+        CanyonCameraOcclusionPolicy.SetSuspended(f.camera, recording, true);
+        Expect(!f.camera.useOcclusionCulling, "Static helper resolves owned policy.");
+        recording.Destroyed = true; f.policy.RefreshPolicy();
+        Expect(f.camera.useOcclusionCulling, "Destroyed owner is automatically pruned.");
+        f.policy.SetSuspended(cinematic, true); cinematic.Destroyed = true;
+        Invoke(f.policy, "LateUpdate");
+        Expect(f.camera.useOcclusionCulling, "Destroyed owner clears on gameplay update without external release.");
+        Object sceneOwner = new(); f.policy.SetSuspended(sceneOwner, true);
+        f.manager.CurrentState = GameManager.GameState.Building;
+        f.policy.SetSuspended(sceneOwner, false);
+        Expect(!f.camera.useOcclusionCulling, "Owner release never bypasses current gameplay state.");
+        f.manager.CurrentState = GameManager.GameState.Normal; f.policy.RefreshPolicy();
+        Expect(f.camera.useOcclusionCulling, "Returning to ordinary eligible gameplay restores culling.");
+        f.Dispose();
+    }
+
+    private static void CallbacksAndLifecycle()
+    {
+        Fixture f = new(); f.Ready();
+        Expect(Camera.CallbackCount == 1 && RenderPipelineManager.CallbackCount == 1, "One callback each despite repeated Configure/OnEnable.");
+        Invoke(f.policy, "OnEnable"); Invoke(f.policy, "OnEnable");
+        Expect(Camera.CallbackCount == 1 && RenderPipelineManager.CallbackCount == 1, "Repeated enable cannot double subscribe.");
+        f.camera.transform.position = new Vector3(50f, 0f, 0f); Camera.InvokePreCull(f.camera);
+        Expect(!f.camera.useOcclusionCulling, "Built-in rendering reevaluates late camera movement before culling.");
+        f.camera.transform.position = Vector3.zero; RenderPipelineManager.InvokeBegin(f.camera);
+        Expect(f.camera.useOcclusionCulling, "SRP rendering reevaluates eligibility independently.");
+        f.policy.SetSuspended(new Object(), true);
+        InvokeStatic("ResetForNewSession");
+        Expect(!f.camera.useOcclusionCulling && Camera.CallbackCount == 1 && RenderPipelineManager.CallbackCount == 1,
+            "No-domain/no-scene-reload startup is fail open and keeps one callback each.");
+        Camera.InvokePreCull(f.camera);
+        Expect(f.camera.useOcclusionCulling, "Surviving policy has no stale previous-session suspension.");
+        InvokeStatic("ResetForNewSession"); InvokeStatic("ResetForNewSession");
+        Expect(Camera.CallbackCount == 1 && RenderPipelineManager.CallbackCount == 1, "Repeated session resets remain idempotent.");
+        f.policy.enabled = false; Invoke(f.policy, "OnDisable");
+        Expect(!f.camera.useOcclusionCulling && Camera.CallbackCount == 0 && RenderPipelineManager.CallbackCount == 0,
+            "Last disabled policy immediately fails open and releases static subscriptions.");
+        f.policy.enabled = true; Invoke(f.policy, "OnEnable");
+        Expect(f.camera.useOcclusionCulling, "Reenable uses current conditions.");
+        f.Dispose();
+        Expect(!f.camera.useOcclusionCulling, "Destroy fails open even when the original camera value was enabled.");
+        Fixture originallyOff = new(false); originallyOff.Ready(); originallyOff.Dispose();
+        Expect(!originallyOff.camera.useOcclusionCulling, "Destroy never invents an enabled native switch.");
+        Fixture destroyed = new(); destroyed.Ready(); destroyed.policy.Destroyed = true;
+        InvokeStatic("ResetForNewSession");
+        Expect(Camera.CallbackCount == 0 && RenderPipelineManager.CallbackCount == 0, "Destroyed surviving registry entries are removed before rebinding.");
+        GameManager.Instance = null;
+    }
+
+    private static void Invariants()
+    {
+        Fixture f = new();
+        int mask = f.camera.cullingMask;
+        float near = f.camera.nearClipPlane, far = f.camera.farClipPlane, fov = f.camera.fieldOfView;
+        float[] distances = f.camera.layerCullDistances;
+        distances[10] = 82f; f.camera.layerCullSpherical = true;
+        for (int i = 0; i < 100; i++)
+        {
+            f.profile.enableGameplayOcclusion = i % 2 == 0;
+            f.policy.RefreshPolicy();
+            Expect(f.camera.enabled && f.camera.gameObject.activeInHierarchy && f.camera.targetTexture == null && !f.camera.orthographic &&
+                f.camera.cullingMask == mask && f.camera.nearClipPlane == near && f.camera.farClipPlane == far && f.camera.fieldOfView == fov &&
+                ReferenceEquals(f.camera.layerCullDistances, distances) && distances[10] == 82f && f.camera.layerCullSpherical,
+                "Policy toggles never change activation, layers, distances, render textures, projection or clip/FOV settings.");
+        }
+        f.Dispose();
+    }
+
+    private static void Reject(Fixture fixture, Action change, Action restore, string label)
+    {
+        change(); fixture.policy.RefreshPolicy(); Expect(!fixture.camera.useOcclusionCulling, label + " must fail open.");
+        restore(); fixture.policy.RefreshPolicy(); Expect(fixture.camera.useOcclusionCulling, label + " restores only when all conditions are valid.");
+    }
+    private static void Expect(bool condition, string message)
+    {
+        checks++; if (!condition) throw new InvalidOperationException(message);
+    }
+    private static void Invoke(object target, string name) => target.GetType().GetMethod(name, BindingFlags.NonPublic | BindingFlags.Instance).Invoke(target, null);
+    private static void InvokeStatic(string name) => typeof(CanyonCameraOcclusionPolicy).GetMethod(name, BindingFlags.NonPublic | BindingFlags.Static).Invoke(null, null);
+}

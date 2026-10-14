@@ -14,7 +14,7 @@ using UnityEngine;
 using UnityEngine.InputSystem.OnScreen;
 using UnityEngine.SceneManagement;
 
-/// <summary>Replaces the movement writer only; existing joystick art and HUD remain authored.</summary>
+/// <summary>Explicitly authors the movement writer; existing joystick art and HUD remain authored.</summary>
 [InitializeOnLoad]
 public static class MobileJoystickAuthoring
 {
@@ -34,38 +34,20 @@ public static class MobileJoystickAuthoring
 
     static MobileJoystickAuthoring()
     {
-        EditorApplication.delayCall += TryAuthor;
+        // Scene migration is opt-in. Domain reloads and scene opens must not scan or
+        // rewrite every joystick scene (or schedule other scene authoring tools).
         EditorApplication.update += CheckRequest;
-        EditorSceneManager.sceneOpened += SceneOpened;
     }
 
     private static bool Busy => running || EditorApplication.isCompiling ||
         EditorApplication.isUpdating || EditorApplication.isPlayingOrWillChangePlaymode ||
         BuildPipeline.isBuildingPlayer || PrefabStageUtility.GetCurrentPrefabStage() != null;
 
-    private static void SceneOpened(Scene scene, OpenSceneMode mode)
-    {
-        if (!running && RequiredScenes.Contains(scene.path))
-            EditorApplication.delayCall += TryAuthor;
-    }
-
     private static void CheckRequest()
     {
         if (EditorApplication.timeSinceStartup < nextRequestCheck) return;
         nextRequestCheck = EditorApplication.timeSinceStartup + 1d;
         if (!Busy && File.Exists(RequestPath)) AuthorAll();
-    }
-
-    private static void TryAuthor()
-    {
-        if (EditorApplication.isPlayingOrWillChangePlaymode || running || BuildPipeline.isBuildingPlayer ||
-            PrefabStageUtility.GetCurrentPrefabStage() != null) return;
-        if (EditorApplication.isCompiling || EditorApplication.isUpdating)
-        {
-            EditorApplication.delayCall += TryAuthor;
-            return;
-        }
-        AuthorAll();
     }
 
     [MenuItem("Tools/Civil Craft/Author Fixed and Floating Joysticks")]
