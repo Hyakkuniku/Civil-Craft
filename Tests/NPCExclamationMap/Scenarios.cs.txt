@@ -1,0 +1,82 @@
+using System;
+
+public struct Vector2
+{
+    public float x, y;
+    public Vector2(float x, float y) { this.x = x; this.y = y; }
+    public static Vector2 zero => new Vector2(0f, 0f);
+}
+public struct Vector3
+{
+    public float x, y, z;
+    public Vector3(float x, float y, float z) { this.x = x; this.y = y; this.z = z; }
+    public static Vector3 one => new Vector3(1f, 1f, 1f);
+}
+public struct Rect
+{
+    public float x, y, width, height;
+    public Rect(float x, float y, float width, float height) { this.x = x; this.y = y; this.width = width; this.height = height; }
+}
+public static class Mathf
+{
+    public static float Abs(float value) => Math.Abs(value);
+    public static float Max(float a, float b) => Math.Max(a, b);
+}
+public static class MapScenarios
+{
+    private static int checks;
+    private static void Check(bool valid, string message) { checks++; if (!valid) throw new Exception(message); }
+    private static bool Close(float value, float expected) => Math.Abs(value - expected) < 0.002f;
+    // ACTUAL_METHODS
+
+    public static int Run()
+    {
+        Rect rect = new Rect(-160f, -100f, 320f, 200f);
+        Rect full = new Rect(0f, 0f, 1f, 1f);
+        Check(TryProjectNPCMapPoint(new Vector3(0.5f, 0.5f, 20f), rect, full, out Vector2 center) && Close(center.x, 0f) && Close(center.y, 0f), "Centered NPC.");
+        foreach (float x in new[] { 0f, 0.1f, 0.25f, 0.5f, 0.75f, 0.9f, 1f })
+        foreach (float y in new[] { 0f, 0.1f, 0.25f, 0.5f, 0.75f, 0.9f, 1f })
+        foreach (Rect viewportUV in new[] { full, new Rect(0.25f, 0.25f, 0.5f, 0.5f), new Rect(1f, 0f, -1f, 1f), new Rect(0f, 1f, 1f, -1f) })
+        {
+            float u = (x - viewportUV.x) / viewportUV.width;
+            float v = (y - viewportUV.y) / viewportUV.height;
+            bool expected = u >= 0f && u <= 1f && v >= 0f && v <= 1f;
+            bool valid = TryProjectNPCMapPoint(new Vector3(x, y, 5f), rect, viewportUV, out Vector2 point);
+            Check(valid == expected, "Crop/flip visibility.");
+            if (expected) Check(Close(point.x, (u - 0.5f) * rect.width) && Close(point.y, (v - 0.5f) * rect.height), "Crop/flip correct position.");
+        }
+        foreach (Vector3 outside in new[] {
+            new Vector3(-0.01f, 0.5f, 10f), new Vector3(1.01f, 0.5f, 10f),
+            new Vector3(0.5f, -0.01f, 10f), new Vector3(0.5f, 1.01f, 10f),
+            new Vector3(0.5f, 0.5f, 0f), new Vector3(0.5f, 0.5f, -1f),
+            new Vector3(float.NaN, 0.5f, 1f), new Vector3(0.5f, float.PositiveInfinity, 1f),
+            new Vector3(0.5f, 0.5f, float.NaN) })
+        {
+            Check(!TryProjectNPCMapPoint(outside, rect, full, out Vector2 point), "Offscreen/behind/invalid NPC must not be clamped.");
+            Check(Close(point.x, 0f) && Close(point.y, 0f), "Rejected projection has safe zero output.");
+        }
+        Check(!TryProjectNPCMapPoint(new Vector3(-0.2f, 0.5f, 10f), rect, new Rect(-1f, 0f, 3f, 1f), out _), "UV extension must not invent off-camera NPCs.");
+        foreach (Rect invalid in new[] { new Rect(0f, 0f, 0f, 1f), new Rect(0f, 0f, 1f, 0f), new Rect(float.NaN, 0f, 1f, 1f), new Rect(0f, 0f, float.PositiveInfinity, 1f) })
+            Check(!TryProjectNPCMapPoint(new Vector3(0.5f, 0.5f, 1f), rect, invalid, out _), "Invalid UV rejects safely.");
+        foreach (Rect invalid in new[] { new Rect(0f, 0f, 0f, 100f), new Rect(0f, 0f, 100f, -1f), new Rect(0f, 0f, float.NaN, 1f) })
+            Check(!TryProjectNPCMapPoint(new Vector3(0.5f, 0.5f, 1f), invalid, full, out _), "Invalid map rect rejects safely.");
+        foreach (float pixels in new[] { 16f, 22f, 28f, 32f, 42f, 64f })
+        foreach (float scale in new[] { 0.25f, 0.5f, 1f, 2f, 3f })
+        foreach (float parentX in new[] { 0.5f, 1f, 2f })
+        foreach (float parentY in new[] { 0.5f, 1f, 3f })
+        foreach (float canvasWorld in new[] { 0.5f, 1f, 2f })
+        {
+            Vector2 size = GetNPCMarkerCanvasSize(pixels, scale,
+                new Vector3(parentX * canvasWorld, parentY * canvasWorld, 1f),
+                new Vector3(canvasWorld, canvasWorld, 1f));
+            Check(Close(size.x * scale * parentX, pixels) && Close(size.y * scale * parentY, pixels), "Physical pixel size is stable across canvas and parent scaling.");
+        }
+        Vector2 fallback = GetNPCMarkerCanvasSize(float.NaN, float.NaN, Vector3.one, Vector3.one);
+        Check(Close(fallback.x, 22f) && Close(fallback.y, 22f), "Invalid settings use the compact readable default.");
+        Vector2 minimum = GetNPCMarkerCanvasSize(1f, 1f, Vector3.one, Vector3.one);
+        Check(Close(minimum.x, 16f) && Close(minimum.y, 16f), "Size cannot become unreadably tiny.");
+        Vector2 mirrored = GetNPCMarkerCanvasSize(42f, 2f, new Vector3(-2f, -3f, 1f), Vector3.one);
+        Check(Close(mirrored.x * 4f, 42f) && Close(mirrored.y * 6f, 42f), "Mirrored parent scaling preserves positive dimensions.");
+        return checks;
+    }
+}

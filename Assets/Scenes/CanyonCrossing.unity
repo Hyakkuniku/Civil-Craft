@@ -160306,6 +160306,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -160365,6 +160366,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -160429,6 +160431,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -160486,6 +160489,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 11400000, guid: 9de353268b31b6d4aac7964bf7b8676c, type: 2}
     targetBuildLocation: {fileID: 4247076027259698586}
     linkedCargo: {fileID: 0}
@@ -160537,6 +160541,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -160595,6 +160600,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -160659,6 +160665,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -160723,6 +160730,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -160739,6 +160747,8 @@ MonoBehaviour:
         - "You\u2019ll now have access to <b><#E09500>Rope</color> </b>."
       material: {fileID: 11400000, guid: 4524a3fc876c6b640a735e6808fe1271, type: 2}
       materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
     - stepType: 0
       dialogue:
         name: Silas
@@ -160750,6 +160760,8 @@ MonoBehaviour:
         - Use the available materials and support points carefully.
       material: {fileID: 0}
       materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
     dialoguePrompt: Talk to Silas
     playDialogueOnArrival: 1
     repeatDialogue: 0
@@ -160793,6 +160805,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 11400000, guid: 511cf4b78fcb2ee4aa7169008e424b48, type: 2}
     targetBuildLocation: {fileID: 4247076026978126500}
     linkedCargo: {fileID: 0}
@@ -160844,6 +160857,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -160909,6 +160923,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -328548,6 +328563,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -328616,6 +328632,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -328680,6 +328697,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 1
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -328699,6 +328717,8 @@ MonoBehaviour:
           available for this project.
       material: {fileID: 0}
       materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
     - stepType: 1
       dialogue:
         name: Professor Bhan
@@ -328709,6 +328729,8 @@ MonoBehaviour:
         - Vehicles and other loads travel across this component.
       material: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
       materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
     - stepType: 1
       dialogue:
         name: Professor Bhan
@@ -328716,6 +328738,8 @@ MonoBehaviour:
         - You'll also need <b><#E09500>Wood Supports</color></b> to hold up the bridge.
       material: {fileID: 11400000, guid: b98aa9ba752ac28449feebc76f256bf2, type: 2}
       materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
     - stepType: 0
       dialogue:
         name: Professor Bhan
@@ -328727,6 +328751,8 @@ MonoBehaviour:
         - When you're ready, follow me to introduce the <b><#E09500>contract</color></b>.
       material: {fileID: 0}
       materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 0
     repeatDialogue: 0
@@ -328794,6 +328820,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 1
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 11400000, guid: d58e962a84aed8944ad5741d6404b861, type: 2}
     targetBuildLocation: {fileID: 2406797540332427003}
     linkedCargo: {fileID: 0}
@@ -328848,6 +328875,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -328929,6 +328957,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -328951,12 +328980,16 @@ MonoBehaviour:
           for this project.
       material: {fileID: 0}
       materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
     - stepType: 1
       dialogue:
         name: Professor Bhan
         sentences: []
       material: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
       materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 0
     repeatDialogue: 1
@@ -329012,6 +329045,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 11400000, guid: 5edc8d91db6f6014190820a7c01cea37, type: 2}
     targetBuildLocation: {fileID: 358124909}
     linkedCargo: {fileID: 0}
@@ -329064,6 +329098,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -329128,6 +329163,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -329231,6 +329267,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 11400000, guid: b2c3c504e3cdd4043b4bfad718fccd86, type: 2}
     targetBuildLocation: {fileID: 1708492244}
     linkedCargo: {fileID: 0}
@@ -329294,6 +329331,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -329358,6 +329396,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -329453,6 +329492,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -329553,6 +329593,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -329617,6 +329658,72 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
+    contract: {fileID: 0}
+    targetBuildLocation: {fileID: 0}
+    linkedCargo: {fileID: 0}
+    cinematicAfterOffer: {fileID: 0}
+    phaseDialogue:
+      name: Professor Bhan
+      sentences:
+      - Explore the City and Find Reed
+    optionalDialogueSequence: []
+    dialoguePrompt: Talk to Professor Bhan
+    playDialogueOnArrival: 0
+    repeatDialogue: 0
+    enableIdleRoaming: 0
+    unlockFeatureIdAfterDialogue: 
+    featureUnlockDisplayName: 
+    featureUnlockIcon: {fileID: 0}
+    showFeatureCollectPopup: 0
+    materialIntroduction: {fileID: 0}
+    materialIntroductions: []
+    materialIntroductionButtonLabel: GOT IT
+    introduceMaterialOnlyOnce: 0
+    onMaterialIntroductionClosed:
+      m_PersistentCalls:
+        m_Calls: []
+    onMaterialIntroductionClosedPhaseMove:
+      npc: {fileID: 0}
+      phaseId: 
+    onDialogueFinished:
+      m_PersistentCalls:
+        m_Calls: []
+    onDialogueFinishedPhaseMove:
+      npc: {fileID: 0}
+      phaseId: 
+    onNPCInteracted:
+      m_PersistentCalls:
+        m_Calls: []
+    onNPCInteractedPhaseMove:
+      npc: {fileID: 0}
+      phaseId: 
+    invokeInteractionEventOnlyOnce: 0
+    onNPCArrived:
+      m_PersistentCalls:
+        m_Calls:
+        - m_Target: {fileID: 650395262}
+          m_TargetAssemblyTypeName: 
+          m_MethodName: 
+          m_Mode: 0
+          m_Arguments:
+            m_ObjectArgument: {fileID: 0}
+            m_ObjectArgumentAssemblyTypeName: 
+            m_IntArgument: 0
+            m_FloatArgument: 0
+            m_StringArgument: 
+            m_BoolArgument: 0
+          m_CallState: 2
+    onNPCArrivedPhaseMove:
+      npc: {fileID: 0}
+      phaseId: 
+  - phaseId: Delete
+    targetLocation: {fileID: 0}
+    teleportToTargetLocation: 0
+    travelWaypoints: []
+    useGroundedWaypoints: 0
+    running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -334516,7 +334623,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -36.000183, y: 0}
+  m_AnchoredPosition: {x: -36.000366, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &660994319
@@ -436685,6 +436792,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -436738,6 +436846,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -436795,6 +436904,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -436856,6 +436966,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -788783,6 +788894,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -788846,6 +788958,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -788910,6 +789023,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -788968,6 +789082,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -789040,6 +789155,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 11400000, guid: b8ce50ba6d905d9449faec73f3fa007a, type: 2}
     targetBuildLocation: {fileID: 570591466}
     linkedCargo: {fileID: 0}
@@ -789115,6 +789231,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -789180,6 +789297,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 11400000, guid: e8c4a3554dc04105b9bb0ecfa923fd13, type: 2}
     targetBuildLocation: {fileID: 2538111117941395569}
     linkedCargo: {fileID: 0}
@@ -947691,8 +947809,8 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1870683347}
   m_HandleRect: {fileID: 1870683345}
   m_Direction: 0
-  m_Value: -0.000000801461
-  m_Size: 0.5676823
+  m_Value: -0.00000073467237
+  m_Size: 0.5676822
   m_NumberOfSteps: 0
   m_OnValueChanged:
     m_PersistentCalls:
@@ -986710,6 +986828,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -986770,6 +986889,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -986834,6 +986954,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -986851,12 +986972,16 @@ MonoBehaviour:
 '
       material: {fileID: 11400000, guid: 9377a255283b8cc499761c693baf53dd, type: 2}
       materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
     - stepType: 1
       dialogue:
         name: Marsh
         sentences: []
       material: {fileID: 11400000, guid: 57a46c6632dd61b4094902963cf1c5be, type: 2}
       materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
     dialoguePrompt: Talk to Marsh
     playDialogueOnArrival: 1
     repeatDialogue: 0
@@ -986900,6 +987025,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 1
     contract: {fileID: 11400000, guid: 7bd1a236dfb47f54e96257d2d3d48be1, type: 2}
     targetBuildLocation: {fileID: 1984790326}
     linkedCargo: {fileID: 0}
@@ -1087072,7 +1087198,7 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 13.8
+  m_fontSize: 12.05
   m_fontSizeBase: 20
   m_fontWeight: 400
   m_enableAutoSizing: 1

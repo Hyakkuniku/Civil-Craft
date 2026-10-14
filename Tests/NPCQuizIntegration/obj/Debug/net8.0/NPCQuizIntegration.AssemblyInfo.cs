@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("NPCQuizIntegration")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+8795a442991a6f9b72bb255dd78f006fa8a0b74d")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+0b27e5dc52a148b646bc3ea5db7cba0223007f84")]
 [assembly: System.Reflection.AssemblyProductAttribute("NPCQuizIntegration")]
 [assembly: System.Reflection.AssemblyTitleAttribute("NPCQuizIntegration")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

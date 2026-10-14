@@ -1,0 +1,136 @@
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.UI;
+
+namespace UnityEngine
+{
+    public struct Vector2
+    {
+        public float x, y;
+        public Vector2(float x, float y) { this.x = x; this.y = y; }
+        public float sqrMagnitude => x * x + y * y;
+        public static Vector2 zero => new Vector2(0f, 0f);
+        public static Vector2 down => new Vector2(0f, -1f);
+        public static Vector2 operator +(Vector2 a, Vector2 b) => new Vector2(a.x + b.x, a.y + b.y);
+        public static Vector2 operator *(Vector2 a, float scale) => new Vector2(a.x * scale, a.y * scale);
+    }
+    public struct Vector3
+    {
+        public float x, y, z;
+        public Vector3(float x, float y, float z) { this.x = x; this.y = y; this.z = z; }
+        public float sqrMagnitude => x * x + y * y + z * z;
+        public static Vector3 operator -(Vector3 a, Vector3 b) => new Vector3(a.x - b.x, a.y - b.y, a.z - b.z);
+        public static Vector3 zero => new Vector3(0f, 0f, 0f);
+    }
+    public static class Mathf
+    {
+        public static float Max(float a, float b) => Math.Max(a, b);
+        public static float Abs(float value) => Math.Abs(value);
+        public static float Min(float a, float b) => Math.Min(a, b);
+        public const float PI = (float)Math.PI;
+        public static float Cos(float angle) => (float)Math.Cos(angle);
+        public static float Sin(float angle) => (float)Math.Sin(angle);
+    }
+    public sealed class Transform { public Vector3 position; }
+    public struct Rect
+    {
+        public float x, y, width, height;
+        public Rect(float x, float y, float width, float height) { this.x = x; this.y = y; this.width = width; this.height = height; }
+        public Vector2 center => new Vector2(x + width * .5f, y + height * .5f);
+    }
+    public struct Color32
+    {
+        public byte r, g, b, a;
+        public Color32(byte r, byte g, byte b, byte a) { this.r = r; this.g = g; this.b = b; this.a = a; }
+    }
+}
+namespace UnityEngine.UI
+{
+    public sealed class RectTransform { public Rect rect; }
+    public class MaskableGraphic
+    {
+        public bool raycastTarget = true;
+        public RectTransform rectTransform = new RectTransform();
+        protected virtual void Awake() { }
+        protected virtual void OnPopulateMesh(VertexHelper mesh) { }
+    }
+    public sealed class VertexHelper
+    {
+        public readonly List<Vector2> Positions = new List<Vector2>();
+        public readonly List<Color32> Colors = new List<Color32>();
+        public readonly List<int> Indices = new List<int>();
+        public int currentVertCount => Positions.Count;
+        public void Clear() { Positions.Clear(); Colors.Clear(); Indices.Clear(); }
+        public void AddVert(Vector2 position, Color32 color, Vector2 uv) { Positions.Add(position); Colors.Add(color); }
+        public void AddTriangle(int a, int b, int c) { Indices.Add(a); Indices.Add(b); Indices.Add(c); }
+    }
+}
+public sealed class Scene
+{
+    public bool valid = true, isLoaded = true;
+    public bool IsValid() => valid;
+}
+public sealed class GameObject { public Scene scene = new Scene(); }
+public sealed class FusionConnectionManager
+{
+    public static FusionConnectionManager Instance;
+    public bool IsGuestInHostWorld;
+}
+public sealed class NPCProgressionPhase
+{
+    public bool showExclamationMark;
+    public Transform targetLocation;
+}
+public enum NPCProgressionMovementMode { NavMesh, Waypoints }
+public sealed class NPCProgressionManager
+{
+    public bool phaseHasArrived;
+    public object movementRoutine;
+    public bool isActiveAndEnabled = true;
+    public GameObject gameObject = new GameObject();
+    public List<NPCProgressionPhase> phases = new List<NPCProgressionPhase>();
+    public int currentPhaseIndex;
+    public Transform transform = new Transform();
+    public Vector3 authoredStartPosition;
+    public float arrivalPadding = .05f, waypointArrivalDistance = .1f;
+    public NPCProgressionMovementMode movementMode;
+    public bool GroundProbeSucceeds;
+    public float GroundProbeHeight;
+    public int GroundProbeCount;
+    private bool TryProjectWaypointToGround(Vector3 position, out Vector3 grounded)
+    {
+        GroundProbeCount++;
+        grounded = new Vector3(position.x, GroundProbeHeight, position.z);
+        return GroundProbeSucceeds;
+    }
+
+    // ACTUAL_NPC_POLICY
+
+    public bool Reached(int index) => HasReachedPhaseDestination(index);
+    public void Activate(int index)
+    {
+        currentPhaseIndex = index;
+        phaseHasArrived = HasReachedPhaseDestination(index);
+    }
+    public void BeginTravel() { phaseHasArrived = false; movementRoutine = new object(); }
+    public void FinishTravel(int index) { movementRoutine = null; Activate(index); }
+}
+public sealed class NPCExclamationGraphic : MaskableGraphic
+{
+    // ACTUAL_GRAPHIC
+    public NPCExclamationGraphic() { Awake(); }
+    public VertexHelper Render(Rect rect)
+    {
+        rectTransform.rect = rect;
+        VertexHelper mesh = new VertexHelper();
+        OnPopulateMesh(mesh);
+        return mesh;
+    }
+}
+public static class MapProjection
+{
+    // ACTUAL_MAP_PROJECTION
+    public static Vector2 Size(float pixels, float scale, Vector3 layer, Vector3 canvas) => GetNPCMarkerCanvasSize(pixels, scale, layer, canvas);
+    public static bool Project(Vector3 viewport, Rect area, Rect uv, out Vector2 output) => TryProjectNPCMapPoint(viewport, area, uv, out output);
+}

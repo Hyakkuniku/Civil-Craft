@@ -55,6 +55,9 @@ public class NPCProgressionPhase
     [Tooltip("Use the NPC sprint animation instead of walking while travelling into this phase and while idle roaming in this phase.")]
     public bool running;
 
+    [Tooltip("Show a visible exclamation mark above this NPC and on the minimap/expanded map only after it arrives at this phase's destination. Hidden during phase travel. Uncheck to hide it; talking alone does not clear it.")]
+    public bool showExclamationMark;
+
     [Tooltip("Contract offered by the existing NPCContractGiver in this phase.")]
     public ContractSO contract;
 
@@ -280,6 +283,7 @@ public class NPCProgressionManager : MonoBehaviour
     private int arrivalDialogueVersion;
     private bool isInvokingPhaseDialogueFinished;
     private int currentPhaseIndex = -1;
+    private bool phaseHasArrived;
     private bool subscribedToCompletion;
     private bool manualLinkTraversalActive;
     private bool savedAgentUpdatePosition;
@@ -296,6 +300,10 @@ public class NPCProgressionManager : MonoBehaviour
         ? name
         : $"{name} ({progressionSaveId})";
     public bool IsTravelling => movementRoutine != null;
+    public bool ShouldShowExclamationMark => phaseHasArrived && !IsTravelling &&
+        isActiveAndEnabled && gameObject.scene.IsValid() && gameObject.scene.isLoaded &&
+        CurrentPhase != null && CurrentPhase.showExclamationMark &&
+        !(FusionConnectionManager.Instance != null && FusionConnectionManager.Instance.IsGuestInHostWorld);
     public static bool IsAnyNPCTravelling
     {
         get
@@ -429,6 +437,7 @@ public class NPCProgressionManager : MonoBehaviour
             navMeshAgent.ResetPath();
         }
 
+        phaseHasArrived = false;
         SetWalkingAnimation(false);
         if (!PlaceAtPhase(phaseIndex)) return false;
 
@@ -474,6 +483,12 @@ public class NPCProgressionManager : MonoBehaviour
 
     private void OnEnable()
     {
+        if (Application.isPlaying)
+        {
+            NPCExclamationMarker marker = GetComponent<NPCExclamationMarker>();
+            if (marker == null) marker = gameObject.AddComponent<NPCExclamationMarker>();
+            marker.Initialize(this);
+        }
         ActiveManagers.Add(this);
         if (contractGiver != null)
         {
@@ -786,6 +801,7 @@ public class NPCProgressionManager : MonoBehaviour
 
     private IEnumerator RepositionForCargoTurnIn(int destinationPhaseIndex)
     {
+        phaseHasArrived = false;
         CancelOrderedOptionalSequence();
         // ExitBuildMode runs asynchronously after Save & Continue. Keep Bhan hidden
         // behind that transition, then place him beside the delivered cargo while
@@ -802,6 +818,7 @@ public class NPCProgressionManager : MonoBehaviour
         SetWalkingAnimation(false);
         RestoreAgentAfterLinkTraversal(false);
         movementRoutine = null;
+        phaseHasArrived = HasReachedPhaseDestination(currentPhaseIndex);
         if (contractGiver != null)
             contractGiver.SetProgressionInteractionLocked(false);
     }
@@ -821,6 +838,7 @@ public class NPCProgressionManager : MonoBehaviour
         // Bhan is already standing at this phase's destination because the cargo
         // hand-in repositioned him there. Commit the next phase immediately, but
         // wait for the reward/task panel to close before opening arrival dialogue.
+        phaseHasArrived = false;
         SaveProgressionState(nextPhaseIndex, true);
         PlaceAtPhase(nextPhaseIndex);
         if (contractGiver != null)
@@ -933,6 +951,7 @@ public class NPCProgressionManager : MonoBehaviour
 
     private IEnumerator MoveToPhaseRoutine(int nextPhaseIndex)
     {
+        phaseHasArrived = false;
         arrivalDialogueVersion++;
         CancelOrderedOptionalSequence();
         StopIdleRoaming();
@@ -2024,6 +2043,7 @@ public class NPCProgressionManager : MonoBehaviour
 
     private void CompleteArrival(int phaseIndex)
     {
+        phaseHasArrived = false;
         if (navMeshAgent != null) navMeshAgent.areaMask = configuredNavigationAreaMask;
         if (navMeshAgent != null && navMeshAgent.enabled && navMeshAgent.isOnNavMesh)
         {
@@ -2080,6 +2100,7 @@ public class NPCProgressionManager : MonoBehaviour
             // left the NPC stranded at its last NavMesh corner. Restore the
             // departure phase instead, matching the progression we save.
             PlaceAtPhase(currentPhaseIndex);
+            phaseHasArrived = HasReachedPhaseDestination(currentPhaseIndex);
             SaveProgressionState(currentPhaseIndex, false);
         }
     }
@@ -2151,6 +2172,34 @@ public class NPCProgressionManager : MonoBehaviour
         return true;
     }
 
+    private bool HasReachedPhaseDestination(int phaseIndex)
+    {
+        if (phases == null || phaseIndex < 0 || phaseIndex >= phases.Count || phases[phaseIndex] == null) return false;
+        Transform target = phases[phaseIndex].targetLocation;
+        Vector3 destination = authoredStartPosition;
+        if (target != null && target != transform) destination = target.position;
+        else if (target == null)
+        {
+            // Targetless phases stay at the last authored destination, exactly
+            // as PlaceAtPhase does. A self-marker uses the original scene pose.
+            for (int previous = phaseIndex - 1; previous >= 0; previous--)
+            {
+                Transform previousTarget = phases[previous]?.targetLocation;
+                if (previousTarget == null) continue;
+                if (previousTarget != transform) destination = previousTarget.position;
+                break;
+            }
+        }
+        // Waypoint placement grounds an authored marker even if it is several
+        // units above the terrain. Compare with that same grounded destination.
+        if (target != null && movementMode == NPCProgressionMovementMode.Waypoints &&
+            TryProjectWaypointToGround(destination, out Vector3 groundedDestination))
+            destination.y = groundedDestination.y;
+        Vector3 delta = transform.position - destination;
+        float tolerance = Mathf.Max(.25f, arrivalPadding + waypointArrivalDistance);
+        return new Vector2(delta.x, delta.z).sqrMagnitude <= tolerance * tolerance && Mathf.Abs(delta.y) <= 1.5f;
+    }
+
     private bool TrySampleLocalNavMesh(Vector3 position, out NavMeshHit hit)
     {
         hit = default;
@@ -2191,6 +2240,7 @@ public class NPCProgressionManager : MonoBehaviour
         CancelOrderedOptionalSequence();
         int arrivalVersion = ++arrivalDialogueVersion;
         currentPhaseIndex = phaseIndex;
+        phaseHasArrived = HasReachedPhaseDestination(phaseIndex);
         NPCProgressionPhase phase = phases[phaseIndex];
         if (phase == null) return;
 

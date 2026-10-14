@@ -1,0 +1,243 @@
+public static class Scenarios
+{
+    private static int assertions;
+    public static int Run()
+    {
+        EligibilityMatrix();
+        DestinationResolution();
+        ArrivalLifecycle();
+        GraphicGeometry();
+        MapProjectionAndSize();
+        return assertions;
+    }
+
+    private static NPCProgressionManager Create()
+    {
+        FusionConnectionManager.Instance = null;
+        NPCProgressionManager manager = new NPCProgressionManager();
+        manager.phases.Add(new NPCProgressionPhase { showExclamationMark = true, targetLocation = new Transform { position = new Vector3(10f, 2f, 20f) } });
+        return manager;
+    }
+
+    private static void EligibilityMatrix()
+    {
+        // Every eligibility bit is independently necessary. No active checkbox
+        // can expose an in-transit, unloaded, disabled, or foreign-host NPC.
+        for (int bits = 0; bits < 128; bits++)
+        {
+            NPCProgressionManager manager = Create();
+            bool arrived = (bits & 1) != 0;
+            bool travelling = (bits & 2) != 0;
+            bool enabled = (bits & 4) != 0;
+            bool valid = (bits & 8) != 0;
+            bool loaded = (bits & 16) != 0;
+            bool guest = (bits & 32) != 0;
+            bool checkedPhase = (bits & 64) != 0;
+            manager.phaseHasArrived = arrived;
+            manager.movementRoutine = travelling ? new object() : null;
+            manager.isActiveAndEnabled = enabled;
+            manager.gameObject.scene.valid = valid;
+            manager.gameObject.scene.isLoaded = loaded;
+            manager.phases[0].showExclamationMark = checkedPhase;
+            FusionConnectionManager.Instance = new FusionConnectionManager { IsGuestInHostWorld = guest };
+            Expect(manager.ShouldShowExclamationMark == (arrived && !travelling && enabled && valid && loaded && !guest && checkedPhase), "Eligibility bits " + bits);
+        }
+        NPCProgressionManager invalid = Create();
+        invalid.phaseHasArrived = true;
+        invalid.currentPhaseIndex = -1;
+        Expect(!invalid.ShouldShowExclamationMark, "No marker before a phase exists");
+        invalid.currentPhaseIndex = invalid.phases.Count;
+        Expect(!invalid.ShouldShowExclamationMark, "No marker after sequence end");
+        invalid.currentPhaseIndex = 0;
+        invalid.phases[0] = null;
+        Expect(!invalid.ShouldShowExclamationMark, "No marker for missing phase");
+    }
+
+    private static void DestinationResolution()
+    {
+        NPCProgressionManager manager = Create();
+        Expect(!manager.Reached(-1), "Invalid negative phase is not arrived");
+        Expect(!manager.Reached(1), "Out of range phase is not arrived");
+        manager.transform.position = new Vector3(10f, 2f, 20f);
+        Expect(manager.Reached(0), "Exact destination is arrived");
+        manager.transform.position = new Vector3(10.24f, 2f, 20f);
+        Expect(manager.Reached(0), "Minimum .25m radius allows grounded placement");
+        manager.transform.position = new Vector3(10.26f, 2f, 20f);
+        Expect(!manager.Reached(0), "Unarrived nearby NPC is excluded");
+        manager.transform.position = new Vector3(10f, 3.49f, 20f);
+        Expect(manager.Reached(0), "Ground projection within 1.5m is allowed");
+        manager.transform.position = new Vector3(10f, 3.51f, 20f);
+        Expect(!manager.Reached(0), "Wrong-floor marker is excluded");
+        manager.arrivalPadding = .3f;
+        manager.waypointArrivalDistance = .2f;
+        manager.transform.position = new Vector3(10.49f, 2f, 20f);
+        Expect(manager.Reached(0), "Configured route tolerance is honored");
+        manager.transform.position = new Vector3(10.51f, 2f, 20f);
+        Expect(!manager.Reached(0), "Configured route tolerance remains bounded");
+
+        manager = Create();
+        manager.authoredStartPosition = new Vector3(3f, 1f, 4f);
+        manager.phases[0].targetLocation = null;
+        manager.transform.position = manager.authoredStartPosition;
+        Expect(manager.Reached(0), "Targetless first phase uses authored spawn");
+        manager.transform.position = Vector3.zero;
+        Expect(!manager.Reached(0), "Targetless first phase is not anywhere in world");
+        manager.phases[0].targetLocation = manager.transform;
+        Expect(!manager.Reached(0), "Self marker cannot follow a displaced NPC and claim arrival");
+        manager.transform.position = manager.authoredStartPosition;
+        Expect(manager.Reached(0), "Self marker returns to authored spawn");
+
+        manager = Create();
+        manager.authoredStartPosition = Vector3.zero;
+        manager.phases.Add(new NPCProgressionPhase { showExclamationMark = true });
+        manager.phases.Add(new NPCProgressionPhase { showExclamationMark = true });
+        manager.transform.position = new Vector3(10f, 2f, 20f);
+        Expect(manager.Reached(2), "Targetless later phase inherits last authored destination");
+        manager.transform.position = manager.authoredStartPosition;
+        Expect(!manager.Reached(2), "Later targetless phase does not return to initial spawn");
+        manager.phases[0].targetLocation = manager.transform;
+        Expect(manager.Reached(2), "Inherited legacy self marker resolves authored start");
+        manager.phases[0] = null;
+        Expect(manager.Reached(2), "Null earlier phase safely falls through to authored spawn");
+        manager.phases[2] = null;
+        Expect(!manager.Reached(2), "Missing active phase never arrived");
+
+        manager = Create();
+        manager.movementMode = NPCProgressionMovementMode.Waypoints;
+        manager.phases[0].targetLocation.position = new Vector3(10f, 12f, 20f);
+        manager.transform.position = new Vector3(10f, 2f, 20f);
+        manager.GroundProbeSucceeds = true;
+        manager.GroundProbeHeight = 2f;
+        Expect(manager.Reached(0), "Waypoint arrival compares actual ground below elevated authored marker");
+        Expect(manager.GroundProbeCount == 1, "Waypoint destination uses the ground-projection boundary");
+        manager.GroundProbeSucceeds = false;
+        Expect(!manager.Reached(0), "Missing ground falls back to authored height rather than inventing arrival");
+        manager.transform.position = manager.phases[0].targetLocation.position;
+        Expect(manager.Reached(0), "Missing ground preserves authored placement semantics");
+        manager.GroundProbeSucceeds = true;
+        manager.movementMode = NPCProgressionMovementMode.NavMesh;
+        manager.GroundProbeCount = 0;
+        manager.transform.position = new Vector3(10f, 2f, 20f);
+        Expect(!manager.Reached(0), "NavMesh arrival does not substitute waypoint grounding");
+        Expect(manager.GroundProbeCount == 0, "NavMesh eligibility avoids unnecessary terrain projection");
+    }
+
+    private static void ArrivalLifecycle()
+    {
+        NPCProgressionManager manager = Create();
+        manager.transform.position = Vector3.zero;
+        manager.Activate(0);
+        Expect(!manager.ShouldShowExclamationMark, "Activation while not placed is not arrival");
+        manager.transform.position = manager.phases[0].targetLocation.position;
+        manager.Activate(0);
+        Expect(manager.ShouldShowExclamationMark, "Placed active phase exposes marker");
+        manager.isActiveAndEnabled = false;
+        Expect(!manager.ShouldShowExclamationMark, "Disabled arrived NPC hidden");
+        manager.isActiveAndEnabled = true;
+        Expect(manager.ShouldShowExclamationMark, "Re-enabled arrived NPC restores marker");
+        manager.BeginTravel();
+        Expect(!manager.ShouldShowExclamationMark, "Travel hides departed phase immediately");
+        manager.movementRoutine = null;
+        Expect(!manager.ShouldShowExclamationMark, "Interrupted travel remains unarrived even after coroutine stops");
+        manager.FinishTravel(0);
+        Expect(manager.ShouldShowExclamationMark, "Arrival restores marker");
+        manager.phases.Add(new NPCProgressionPhase { showExclamationMark = false, targetLocation = new Transform { position = new Vector3(30f, 2f, 20f) } });
+        manager.BeginTravel();
+        manager.transform.position = manager.phases[1].targetLocation.position;
+        manager.FinishTravel(1);
+        Expect(!manager.ShouldShowExclamationMark, "Arrived unchecked phase is hidden");
+        manager.phases[1].showExclamationMark = true;
+        Expect(manager.ShouldShowExclamationMark, "Current phase checkbox can be enabled live");
+        FusionConnectionManager.Instance = new FusionConnectionManager { IsGuestInHostWorld = true };
+        Expect(!manager.ShouldShowExclamationMark, "Visiting guest cannot see own progression cue");
+    }
+
+    private static void GraphicGeometry()
+    {
+        NPCExclamationGraphic graphic = new NPCExclamationGraphic();
+        Expect(!graphic.raycastTarget, "Badge never becomes a clickable obstacle");
+        foreach (float size in new[] { 16f, 22f, 28f, 32f, 42f, 56f, 112f })
+        {
+            VertexHelper mesh = graphic.Render(new Rect(-size * .5f, -size * .5f, size, size));
+            Expect(mesh.Positions.Count == 94, "Simple bounded vertex count at size " + size);
+            Expect(mesh.Indices.Count == 258, "Stable triangle count at size " + size);
+            bool sawGold = false, sawInk = false;
+            foreach (int index in mesh.Indices)
+                Expect(index >= 0 && index < mesh.Positions.Count, "All triangles reference real vertices");
+            for (int i = 0; i < mesh.Positions.Count; i++)
+            {
+                Vector2 position = mesh.Positions[i];
+                Expect(!float.IsNaN(position.x) && !float.IsNaN(position.y), "No invalid mesh point");
+                Expect(Math.Abs(position.x) <= size * .5f + .001f && Math.Abs(position.y) <= size * .5f + .001f,
+                    "Mesh fits declared badge area");
+                Color32 color = mesh.Colors[i];
+                Expect(color.a == 255, "Every badge vertex is opaque");
+                sawGold |= color.r == 255 && color.g == 198 && color.b == 55;
+                sawInk |= color.r == 65 && color.g == 40 && color.b == 25;
+            }
+            Expect(sawGold && sawInk, "Contrasting ring/field/glyph colors present");
+            if (size == 22f || size == 28f || size == 32f)
+            {
+                // Actual vector mesh: two 30-vertex discs precede the four-vertex bar,
+                // then the 30-vertex dot. These minimum physical-pixel dimensions
+                // keep the reduced marker distinguishable without a font glyph.
+                float barWidth = mesh.Positions[62].x - mesh.Positions[60].x;
+                float barHeight = mesh.Positions[61].y - mesh.Positions[60].y;
+                float dotDiameter = 2f * (mesh.Positions[65].x - mesh.Positions[64].x);
+                float rim = mesh.Positions[1].x - mesh.Positions[31].x;
+                Expect(barWidth >= 3f && barHeight >= 7.5f, "Reduced badge retains a substantial exclamation bar");
+                Expect(dotDiameter >= 3f, "Reduced badge retains a separated readable dot");
+                Expect(rim >= 1.7f, "Reduced badge retains a high-contrast outer outline");
+            }
+        }
+        Expect(graphic.Render(new Rect(0f, 0f, 0f, 42f)).Positions.Count == 0,
+            "Zero-area badge has no stale mesh");
+    }
+
+    private static void MapProjectionAndSize()
+    {
+        Vector3 one = new Vector3(1f, 1f, 1f);
+        foreach (float pixels in new[] { 16f, 22f, 28f, 32f, 42f, 56f })
+            foreach (float canvasScale in new[] { .3f, .5f, 1f, 1.5f, 2f, 3f })
+                foreach (float relative in new[] { .2f, .5f, 1f, 1.4f, 2f })
+                {
+                    Vector2 size = MapProjection.Size(pixels, canvasScale,
+                        new Vector3(relative, relative, 1f), one);
+                    Expect(Math.Abs(size.x * canvasScale * relative - pixels) < .001f,
+                        "NPC map badge stays constant screen pixels horizontally");
+                    Expect(Math.Abs(size.y * canvasScale * relative - pixels) < .001f,
+                        "NPC map badge stays constant screen pixels vertically");
+                }
+        Vector2 nonuniform = MapProjection.Size(42f, 2f, new Vector3(2f, .5f, 1f), one);
+        Expect(Math.Abs(nonuniform.x - 10.5f) < .001f && Math.Abs(nonuniform.y - 42f) < .001f,
+            "Nonuniform map scaling preserves round screen badge");
+        Vector2 safe = MapProjection.Size(float.NaN, float.PositiveInfinity,
+            new Vector3(float.NaN, float.NegativeInfinity, 1f), one);
+        Expect(safe.x == 22f && safe.y == 22f, "Malformed sizing inputs safely fall back to compact size");
+
+        Rect area = new Rect(0f, 0f, 200f, 100f), uv = new Rect(0f, 0f, 1f, 1f);
+        Vector2 point;
+        Expect(MapProjection.Project(new Vector3(.5f, .5f, 1f), area, uv, out point) && point.x == 0f && point.y == 0f,
+            "NPC at map center projects to local center");
+        Expect(MapProjection.Project(new Vector3(.25f, .75f, 1f), area, uv, out point) && point.x == -50f && point.y == 25f,
+            "NPC marker matches actual map location");
+        foreach (Vector3 outside in new[] { new Vector3(-.01f, .5f, 1f), new Vector3(1.01f, .5f, 1f),
+            new Vector3(.5f, -.01f, 1f), new Vector3(.5f, 1.01f, 1f), new Vector3(.5f, .5f, 0f),
+            new Vector3(.5f, .5f, -1f), new Vector3(float.NaN, .5f, 1f), new Vector3(.5f, float.PositiveInfinity, 1f) })
+            Expect(!MapProjection.Project(outside, area, uv, out point), "Off-map/invalid NPC must never be clamped to a false edge location");
+        Expect(MapProjection.Project(new Vector3(.25f, .75f, 1f), area, new Rect(.25f, .25f, .5f, .5f), out point) &&
+            point.x == -100f && point.y == 50f, "Cropped map texture UV matches marker position");
+        Expect(!MapProjection.Project(new Vector3(.1f, .5f, 1f), area, new Rect(.25f, .25f, .5f, .5f), out point),
+            "UV crop excludes NPC outside visible image");
+        Expect(!MapProjection.Project(new Vector3(.5f, .5f, 1f), new Rect(0f, 0f, 0f, 100f), uv, out point),
+            "Invalid image area cannot expose misplaced marker");
+        Expect(!MapProjection.Project(new Vector3(.5f, .5f, 1f), area, new Rect(0f, 0f, 0f, 1f), out point),
+            "Invalid UV extent cannot expose misplaced marker");
+    }
+
+    private static void Expect(bool condition, string message)
+    {
+        assertions++;
+        if (!condition) throw new InvalidOperationException(message);
+    }
+}

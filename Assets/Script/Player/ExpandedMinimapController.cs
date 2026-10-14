@@ -35,6 +35,12 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         public TMP_Text Label;
     }
 
+    private sealed class NPCMarkerView
+    {
+        public NPCProgressionManager npc;
+        public RectTransform root;
+    }
+
     [Header("Scene References (auto-detected when empty)")]
     [SerializeField] private RectTransform minimapPanel;
     [SerializeField] private RawImage mapImage;
@@ -71,6 +77,12 @@ public sealed class ExpandedMinimapController : MonoBehaviour
     [SerializeField] private Color activeLocationColor = new Color(1f, 0.82f, 0.12f, 1f);
     [SerializeField] private Color navigationLocationColor = new Color(0.15f, 0.72f, 0.92f, 1f);
 
+    [Header("NPC Exclamation Markers")]
+    [Tooltip("Readable physical screen-pixel diameter in the corner minimap, independent of map zoom.")]
+    [SerializeField, Min(16f)] private float compactNPCMarkerPixels = 22f;
+    [Tooltip("Readable physical screen-pixel diameter in the expanded map, independent of map zoom.")]
+    [SerializeField, Min(16f)] private float expandedNPCMarkerPixels = 28f;
+
     [Header("Location Actions")]
     [Tooltip("Applied only when a Build Location does not have an explicit Fast Travel Target.")]
     [SerializeField] private Vector3 fallbackFastTravelOffset = new Vector3(0f, 1f, 0f);
@@ -87,6 +99,8 @@ public sealed class ExpandedMinimapController : MonoBehaviour
     private PlayerLook fastTravelPlayerLook;
 
     private readonly List<MarkerView> markers = new List<MarkerView>();
+    private readonly List<NPCMarkerView> npcMarkers = new List<NPCMarkerView>();
+    private readonly HashSet<NPCProgressionManager> discoveredNPCs = new HashSet<NPCProgressionManager>();
     private readonly Dictionary<PlayerRef, RemotePlayerMarker> remotePlayerMarkers =
         new Dictionary<PlayerRef, RemotePlayerMarker>();
     private readonly HashSet<PlayerRef> visibleRemotePlayers = new HashSet<PlayerRef>();
@@ -95,6 +109,8 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         new Dictionary<BuildLocation, List<ContractSO>>();
     private bool guestContractCatalogReady;
     private RectTransform markerLayer;
+    private RectTransform npcMarkerLayer;
+    private float nextNPCMarkerSearch;
     private RectTransform playerMarker;
     private RectTransform playerMarkerArrow;
     private Transform playerMarkerTarget;
@@ -216,6 +232,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
     {
         UIReservedRegionLayout.Unregister(reservedMinimapRegion);
         reservedMinimapRegion = null;
+        ClearNPCExclamationMarkers();
         ClearRemotePlayerMarkers();
         CancelMapSession();
         ClearWorldTravelFade();
@@ -230,6 +247,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
     private void OnDisable()
     {
+        ClearNPCExclamationMarkers();
         ClearRemotePlayerMarkers();
         CancelMapSession();
     }
@@ -270,9 +288,11 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         // Maintain the normal orbit pose throughout arrival, not just once at teleport.
         if (isFastTraveling && fastTravelPlayerLook != null)
             fastTravelPlayerLook.SnapToFollowTarget();
+        // NPC badges track the current camera pose even while the map changes
+        // size/rotation. Their phase/arrival gate is evaluated every frame.
         // Compact markers must track world positions too, especially after a
         // teleport. Otherwise the last projected position follows the HUD.
-        if (isAnimating) return;
+        if (isAnimating) { UpdateNPCExclamationMarkers(); return; }
         UpdateMarkerPositions();
     }
 
@@ -935,7 +955,182 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
         UpdatePlayerMarker(rect);
         UpdateRemotePlayerMarkers(rect, refreshMetadata);
+        UpdateNPCExclamationMarkers();
         UpdateLocationActionPanel();
+    }
+
+    private void UpdateNPCExclamationMarkers()
+    {
+        bool mapVisible = isActiveAndEnabled && minimapPanel != null &&
+                          minimapPanel.gameObject.activeInHierarchy && mapImage != null &&
+                          mapImage.isActiveAndEnabled && mapImage.texture != null &&
+                          minimapCamera != null && minimapCamera.isActiveAndEnabled;
+        if (!mapVisible)
+        {
+            if (npcMarkerLayer != null) npcMarkerLayer.gameObject.SetActive(false);
+            return;
+        }
+
+        if (Time.unscaledTime >= nextNPCMarkerSearch)
+        {
+            nextNPCMarkerSearch = Time.unscaledTime + 0.5f;
+            RefreshNPCExclamationCandidates();
+        }
+        EnsureNPCExclamationLayer();
+        if (npcMarkerLayer == null) return;
+        npcMarkerLayer.gameObject.SetActive(true);
+
+        Rect imageRect = mapImage.rectTransform.rect;
+        Rect uvRect = mapImage.uvRect;
+        float pixels = isExpanded || isAnimating ? expandedNPCMarkerPixels : compactNPCMarkerPixels;
+        Vector2 markerSize = GetNPCMarkerCanvasSize(pixels,
+            owningCanvas != null ? owningCanvas.scaleFactor : 1f,
+            npcMarkerLayer.lossyScale, owningCanvas != null ? owningCanvas.transform.lossyScale : Vector3.one);
+        foreach (NPCMarkerView marker in npcMarkers)
+        {
+            NPCProgressionManager npc = marker.npc;
+            bool visible = npc != null && npc.isActiveAndEnabled && npc.gameObject.activeInHierarchy &&
+                           npc.gameObject.scene == gameObject.scene && npc.ShouldShowExclamationMark;
+            Vector2 position = Vector2.zero;
+            if (visible)
+            {
+                // A moving/rotating/zooming orthographic camera is the source
+                // of truth. The RawImage can crop or flip its render texture.
+                Vector3 viewport = minimapCamera.WorldToViewportPoint(npc.transform.position);
+                visible = TryProjectNPCMapPoint(viewport, imageRect, uvRect, out position);
+            }
+            if (!visible)
+            {
+                if (marker.root != null) marker.root.gameObject.SetActive(false);
+                continue;
+            }
+            if (marker.root == null) marker.root = CreateNPCExclamationMapMarker(npc);
+            marker.root.gameObject.SetActive(true);
+            marker.root.anchoredPosition = position;
+            marker.root.sizeDelta = markerSize;
+        }
+    }
+
+    private void RefreshNPCExclamationCandidates()
+    {
+        discoveredNPCs.Clear();
+        foreach (NPCProgressionManager npc in FindObjectsOfType<NPCProgressionManager>())
+        {
+            if (npc == null || !npc.isActiveAndEnabled || npc.gameObject.scene != gameObject.scene) continue;
+            discoveredNPCs.Add(npc);
+            bool known = false;
+            foreach (NPCMarkerView marker in npcMarkers)
+            {
+                if (marker.npc != npc) continue;
+                known = true;
+                break;
+            }
+            if (!known) npcMarkers.Add(new NPCMarkerView { npc = npc });
+        }
+        for (int i = npcMarkers.Count - 1; i >= 0; i--)
+        {
+            NPCMarkerView marker = npcMarkers[i];
+            if (marker.npc != null && discoveredNPCs.Contains(marker.npc)) continue;
+            DestroyOwnedNPCMarker(marker.root);
+            npcMarkers.RemoveAt(i);
+        }
+    }
+
+    private void EnsureNPCExclamationLayer()
+    {
+        if (mapImage == null) return;
+        if (npcMarkerLayer == null)
+        {
+            // Own only this layer; never adopt/delete authored or another
+            // controller's objects by name. Masking contains edge badges.
+            GameObject layer = new GameObject("NPCExclamationMarkers", typeof(RectTransform),
+                typeof(CanvasGroup), typeof(RectMask2D));
+            layer.layer = mapImage.gameObject.layer;
+            npcMarkerLayer = layer.GetComponent<RectTransform>();
+            npcMarkerLayer.SetParent(mapImage.rectTransform, false);
+            Stretch(npcMarkerLayer, Vector2.zero, Vector2.zero);
+            CanvasGroup group = layer.GetComponent<CanvasGroup>();
+            group.interactable = false;
+            group.blocksRaycasts = false;
+        }
+        // Badges sit above location/player labels within the map image. The
+        // real map controls/action panel remain later siblings of the RawImage.
+        if (markerLayer != null && markerLayer.parent == npcMarkerLayer.parent)
+        {
+            int markerIndex = markerLayer.GetSiblingIndex();
+            int iconIndex = npcMarkerLayer.GetSiblingIndex();
+            // Removing an earlier sibling shifts the location layer left.
+            int desiredIndex = markerIndex + (iconIndex > markerIndex ? 1 : 0);
+            if (iconIndex != desiredIndex) npcMarkerLayer.SetSiblingIndex(desiredIndex);
+        }
+    }
+
+    private RectTransform CreateNPCExclamationMapMarker(NPCProgressionManager npc)
+    {
+        GameObject marker = new GameObject("NPCMarker_" + npc.name, typeof(RectTransform),
+            typeof(CanvasRenderer), typeof(NPCExclamationGraphic));
+        marker.layer = npcMarkerLayer.gameObject.layer;
+        RectTransform root = marker.GetComponent<RectTransform>();
+        root.SetParent(npcMarkerLayer, false);
+        root.anchorMin = root.anchorMax = new Vector2(0.5f, 0.5f);
+        root.pivot = new Vector2(0.5f, 0.5f);
+        marker.GetComponent<NPCExclamationGraphic>().raycastTarget = false;
+        return root;
+    }
+
+    private static bool TryProjectNPCMapPoint(Vector3 viewport, Rect imageRect, Rect uvRect,
+        out Vector2 anchoredPosition)
+    {
+        anchoredPosition = Vector2.zero;
+        if (!IsFiniteNPCMapValue(viewport.x) || !IsFiniteNPCMapValue(viewport.y) ||
+            !IsFiniteNPCMapValue(viewport.z) || viewport.z <= 0f ||
+            viewport.x < 0f || viewport.x > 1f || viewport.y < 0f || viewport.y > 1f ||
+            !IsFiniteNPCMapValue(imageRect.width) || !IsFiniteNPCMapValue(imageRect.height) ||
+            imageRect.width <= 0f || imageRect.height <= 0f ||
+            !IsFiniteNPCMapValue(uvRect.x) || !IsFiniteNPCMapValue(uvRect.y) ||
+            !IsFiniteNPCMapValue(uvRect.width) || !IsFiniteNPCMapValue(uvRect.height) ||
+            Mathf.Abs(uvRect.width) < 0.0001f || Mathf.Abs(uvRect.height) < 0.0001f)
+            return false;
+
+        float x = (viewport.x - uvRect.x) / uvRect.width;
+        float y = (viewport.y - uvRect.y) / uvRect.height;
+        if (x < 0f || x > 1f || y < 0f || y > 1f) return false;
+        anchoredPosition = new Vector2((x - 0.5f) * imageRect.width, (y - 0.5f) * imageRect.height);
+        return true; // Never clamp an off-screen NPC to a false map location.
+    }
+
+    private static Vector2 GetNPCMarkerCanvasSize(float screenPixels, float canvasScaleFactor,
+        Vector3 layerWorldScale, Vector3 canvasWorldScale)
+    {
+        float pixels = IsFiniteNPCMapValue(screenPixels) ? Mathf.Max(16f, screenPixels) : 22f;
+        float canvasScale = IsFiniteNPCMapValue(canvasScaleFactor) ? Mathf.Max(0.01f, canvasScaleFactor) : 1f;
+        float relativeX = Mathf.Abs(layerWorldScale.x) / Mathf.Max(0.0001f, Mathf.Abs(canvasWorldScale.x));
+        float relativeY = Mathf.Abs(layerWorldScale.y) / Mathf.Max(0.0001f, Mathf.Abs(canvasWorldScale.y));
+        if (!IsFiniteNPCMapValue(relativeX)) relativeX = 1f;
+        if (!IsFiniteNPCMapValue(relativeY)) relativeY = 1f;
+        return new Vector2(pixels / (canvasScale * Mathf.Max(0.01f, relativeX)),
+            pixels / (canvasScale * Mathf.Max(0.01f, relativeY)));
+    }
+
+    private static bool IsFiniteNPCMapValue(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
+
+    private void ClearNPCExclamationMarkers()
+    {
+        // Disable immediately even though Play Mode destruction is deferred.
+        // Only the owned layer is removed; existing map markers are untouched.
+        DestroyOwnedNPCMarker(npcMarkerLayer);
+        npcMarkerLayer = null;
+        npcMarkers.Clear();
+        discoveredNPCs.Clear();
+        nextNPCMarkerSearch = 0f;
+    }
+
+    private static void DestroyOwnedNPCMarker(RectTransform root)
+    {
+        if (root == null) return;
+        root.gameObject.SetActive(false);
+        if (Application.isPlaying) Destroy(root.gameObject);
+        else DestroyImmediate(root.gameObject);
     }
 
     private void UpdatePlayerMarker(Rect rect)
