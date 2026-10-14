@@ -55,11 +55,23 @@ namespace UnityEngine
         public static void OpenURL(string url) => OpenedUrls.Add(url);
     }
     public static class Time { public static float realtimeSinceStartup, unscaledTime; }
+    public static class PlayerPrefs { public static int Choice; public static int GetInt(string key, int fallback) => Choice; }
+    public static class JsonUtility
+    {
+        public static T FromJson<T>(string json) => System.Text.Json.JsonSerializer.Deserialize<T>(json, new System.Text.Json.JsonSerializerOptions { IncludeFields = true });
+    }
     public static class Debug
     {
         public static readonly List<string> Warnings = new();
         public static void LogWarning(object message) => Warnings.Add(message?.ToString());
     }
+}
+
+namespace PlayFab
+{
+    public static class PlayFabClientAPI { public static bool LoggedIn; public static bool IsClientLoggedIn() => LoggedIn; }
+    public sealed class MessageTestPlayer { public string ClientSessionTicket, PlayFabId; }
+    public static class PlayFabSettings { public static MessageTestPlayer staticPlayer = new(); }
 }
 
 namespace UnityEditor
@@ -167,6 +179,7 @@ namespace UnityEngine.UI
 {
     public sealed class Button
     {
+        public UnityEngine.GameObject gameObject = new();
         public bool interactable = true;
         public readonly UnityEngine.Events.UnityEvent onClick = new();
     }

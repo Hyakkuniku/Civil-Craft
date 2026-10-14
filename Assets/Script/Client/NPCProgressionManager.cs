@@ -284,6 +284,7 @@ public class NPCProgressionManager : MonoBehaviour
     private bool isInvokingPhaseDialogueFinished;
     private int currentPhaseIndex = -1;
     private bool phaseHasArrived;
+    private readonly List<Renderer> markerPresenceRenderers = new List<Renderer>(8);
     private bool subscribedToCompletion;
     private bool manualLinkTraversalActive;
     private bool savedAgentUpdatePosition;
@@ -303,7 +304,26 @@ public class NPCProgressionManager : MonoBehaviour
     public bool ShouldShowExclamationMark => phaseHasArrived && !IsTravelling &&
         isActiveAndEnabled && gameObject.scene.IsValid() && gameObject.scene.isLoaded &&
         CurrentPhase != null && CurrentPhase.showExclamationMark &&
-        !(FusionConnectionManager.Instance != null && FusionConnectionManager.Instance.IsGuestInHostWorld);
+        !(FusionConnectionManager.Instance != null && FusionConnectionManager.Instance.IsGuestInHostWorld) &&
+        HasPresentNPCVisual();
+
+    private bool HasPresentNPCVisual()
+    {
+        if (!NPCSpawnConditionMonitor.CanShowNPCAttentionMarker(transform)) return false;
+        // A progression holder may stay active while its model is hidden. Check
+        // the current hierarchy without allocating arrays or using isVisible:
+        // an NPC off the gameplay camera can still be present on the minimap.
+        GetComponentsInChildren(true, markerPresenceRenderers);
+        foreach (Renderer renderer in markerPresenceRenderers)
+        {
+            if (renderer == null || !renderer.enabled || renderer.forceRenderingOff ||
+                !renderer.gameObject.activeInHierarchy || renderer.GetComponent<TMPro.TMP_Text>() != null) continue;
+            if (renderer is SkinnedMeshRenderer skinned && skinned.sharedMesh != null) return true;
+            if (renderer is MeshRenderer && renderer.TryGetComponent(out MeshFilter filter) &&
+                filter.sharedMesh != null) return true;
+        }
+        return false;
+    }
     public static bool IsAnyNPCTravelling
     {
         get

@@ -278,6 +278,8 @@ public static class MainMenuUpdatesAuthoring
         TMP_Text available = Label(face.transform, "AvailableVersion", "Available: checking...", 25);
         TMP_Text status = Label(face.transform, "UpdateStatus", "Checking for release notes...", 25);
         Button close = Button(face.transform, "UpdatesClose", "CLOSE", Sand);
+        Button releasesTab = Button(face.transform, "ReleasesTab", "RELEASE UPDATES", Gold);
+        Button messagesTab = Button(face.transform, "MessagesTab", "PRIVATE MESSAGES", Sand);
         Button retry = Button(face.transform, "UpdatesRetry", "RETRY", Sand);
         Button download = Button(face.transform, "UpdatesDownload", "DOWNLOAD", Gold);
         download.interactable = false;
@@ -315,11 +317,12 @@ public static class MainMenuUpdatesAuthoring
         SetCanvasOrder(panelCanvas, 32000);
         controller.updatesButton = entry; controller.panel = panel; controller.badge = badge.gameObject;
         controller.closeButton = close; controller.retryButton = retry; controller.downloadButton = download;
+        controller.releasesTabButton = releasesTab; controller.messagesTabButton = messagesTab;
         controller.releaseTitleText = title; controller.releaseDateText = date; controller.notesText = notes;
         controller.installedVersionText = installed; controller.availableVersionText = available; controller.statusText = status;
         controller.notesScroll = scroll;
         WireLayout(layout, entry.gameObject, panel);
-        layout.authoredVersion = 1;
+        layout.authoredVersion = 2;
         EditorUtility.SetDirty(controller); EditorUtility.SetDirty(layout);
     }
 
@@ -335,6 +338,7 @@ public static class MainMenuUpdatesAuthoring
         layout.installedVersion = Find(panel.transform, "InstalledVersion"); layout.availableVersion = Find(panel.transform, "AvailableVersion");
         layout.status = Find(panel.transform, "UpdateStatus"); layout.retry = Find(panel.transform, "UpdatesRetry");
         layout.download = Find(panel.transform, "UpdatesDownload"); layout.close = Find(panel.transform, "UpdatesClose");
+        layout.releasesTab = Find(panel.transform, "ReleasesTab"); layout.messagesTab = Find(panel.transform, "MessagesTab");
         layout.notesScroll = layout.notesViewport.GetComponent<ScrollRect>();
         layout.notesText = Find(panel.transform, "ReleaseNotes").GetComponent<TMP_Text>();
     }
@@ -356,7 +360,7 @@ public static class MainMenuUpdatesAuthoring
             "Plain-text scrollable notes wiring is incomplete.");
         Check(controller.panel.GetComponent<Image>().raycastTarget && controller.panel.GetComponent<CanvasGroup>().blocksRaycasts,
             "Updates modal must block clicks through to the menu.");
-        foreach (Button button in new[] { controller.updatesButton, controller.closeButton, controller.retryButton, controller.downloadButton })
+        foreach (Button button in new[] { controller.updatesButton, controller.closeButton, controller.retryButton, controller.downloadButton, controller.releasesTabButton, controller.messagesTabButton })
             Check(button != null && button.onClick.GetPersistentEventCount() == 0, "Updates button has stale persistent callbacks.");
         foreach (TMP_Text text in controller.panel.GetComponentsInChildren<TMP_Text>(true))
             Check(text.font != null && text.font.name == "Bekind Sans SDF" && !text.richText && !text.raycastTarget,
@@ -439,13 +443,15 @@ public static class MainMenuUpdatesAuthoring
                 foreach (TMP_Text text in panel.GetComponentsInChildren<TMP_Text>()) text.ForceMeshUpdate();
                 Inside(layout.card, canvasObject.transform as RectTransform, "Updates card leaves the preview safe bounds.");
                 foreach (RectTransform rect in new[] { layout.heading, layout.releaseTitle, layout.releaseDate, layout.installedVersion,
-                    layout.availableVersion, layout.notesViewport, layout.status, layout.close, layout.retry, layout.download })
+                    layout.availableVersion, layout.notesViewport, layout.status, layout.close, layout.retry, layout.download, layout.releasesTab, layout.messagesTab })
                     Inside(rect, layout.surface, "Updates control leaves the card: " + rect.name);
                 Check(layout.notesContent.rect.height > layout.notesViewport.rect.height, "Long release notes are not scrollable.");
                 Check(!layout.notesText.richText && layout.notesText.text.Contains("<b>"), "Remote markup was interpreted as rich text.");
                 Check(!Bounds(layout.retry, layout.surface).Overlaps(Bounds(layout.download, layout.surface)), "Updates action buttons overlap.");
                 Check(!Bounds(layout.notesViewport, layout.surface).Overlaps(Bounds(layout.status, layout.surface)), "Release notes overlap the status.");
                 Check(!Bounds(layout.heading, layout.surface).Overlaps(Bounds(layout.close, layout.surface)), "Close button overlaps the panel heading.");
+                Check(!Bounds(layout.releasesTab, layout.surface).Overlaps(Bounds(layout.messagesTab, layout.surface)), "Updates tabs overlap.");
+                Check(!Bounds(layout.releasesTab, layout.surface).Overlaps(Bounds(layout.releaseTitle, layout.surface)), "Tabs overlap content heading.");
                 RectTransform scrollHandle = layout.scrollbar.GetComponent<Scrollbar>().handleRect;
                 Inside(scrollHandle, layout.scrollbar, "Scrollbar handle leaves its narrow rail.");
                 Check(!Bounds(scrollHandle, layout.surface).Overlaps(Bounds(layout.availableVersion, layout.surface)) &&

@@ -51,11 +51,12 @@ public sealed partial class LeaderboardPanelUI
     }
     public void SelectStoryBoard() { multiplayerSelected = false; Refresh(); }
     public void SelectMultiplayerBoard() { multiplayerSelected = true; Refresh(); }
-    public void RefreshRankings() { if (panel != null && panel.activeSelf) Refresh(); }
+    public void RefreshRankings() { if (panel != null && panel.activeSelf) BeginContractVisibilityRequest(); }
 
     private void ApplyBoardVisibility()
     {
         if (contractDropdown != null) contractDropdown.gameObject.SetActive(!multiplayerSelected);
+        if (contractDropdown != null) contractDropdown.interactable = StorySelectorReady;
         if (efficientToggle != null) efficientToggle.gameObject.SetActive(!multiplayerSelected);
         if (strongestToggle != null) strongestToggle.gameObject.SetActive(!multiplayerSelected);
         if (storyColumnHeader != null) storyColumnHeader.SetActive(!multiplayerSelected);

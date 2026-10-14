@@ -19,7 +19,7 @@ using Object = UnityEngine.Object;
 /// <summary>Opt-in detached rendering and native hit tests; never starts NPC progression or saves a scene.</summary>
 public static class NPCExclamationValidation
 {
-    private const string Request = "Temp/npc-exclamation-validation-v4.request";
+    private const string Request = "Temp/npc-exclamation-validation-v5.request";
     private const string Report = "Temp/NPCExclamationValidation.txt";
     private const BindingFlags Flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
     private static bool running;
@@ -63,6 +63,8 @@ public static class NPCExclamationValidation
         }
         var activeManagers = (HashSet<NPCProgressionManager>)Field(typeof(NPCProgressionManager), "ActiveManagers").GetValue(null);
         NPCProgressionManager[] managersBefore = activeManagers.ToArray();
+        var spawnRegistry = (HashSet<NPCSpawnerCondition>)Field(typeof(NPCSpawnConditionMonitor), "conditions").GetValue(null);
+        NPCSpawnerCondition[] spawnConditionsBefore = spawnRegistry.ToArray();
         FieldInfo fusionSingleton = Field(typeof(FusionConnectionManager), "<Instance>k__BackingField");
         object fusionBefore = fusionSingleton.GetValue(null);
         var report = new StringBuilder();
@@ -71,9 +73,13 @@ public static class NPCExclamationValidation
         {
             // Synchronous Edit Mode fixture only: do not inspect an unrelated live guest session.
             fusionSingleton.SetValue(null, null);
+            // Clear before creating fixtures; existing spawn gates are restored
+            // synchronously without evaluating rules, firing events or saving.
+            spawnRegistry.Clear();
             preview = EditorSceneManager.NewPreviewScene();
             NPCProgressionManager npc = SyntheticNPC(preview);
             ValidateArrival(npc, report);
+            ValidatePresence(preview, npc, spawnRegistry, report);
             ValidateProjection(report);
             ValidateHUDSourceGuard(report);
             Vector2Int[] sizes = { new Vector2Int(1280, 720), new Vector2Int(1024, 768), new Vector2Int(1920, 1080) };
@@ -83,6 +89,8 @@ public static class NPCExclamationValidation
         finally
         {
             if (preview.IsValid()) EditorSceneManager.ClosePreviewScene(preview);
+            spawnRegistry.Clear();
+            foreach (NPCSpawnerCondition condition in spawnConditionsBefore) spawnRegistry.Add(condition);
             fusionSingleton.SetValue(null, fusionBefore);
             Selection.objects = selection;
             Selection.activeObject = selected;
@@ -93,8 +101,9 @@ public static class NPCExclamationValidation
                 pair.Key.GetRootGameObjects().SequenceEqual(pair.Value.Item2), "A source scene changed during detached marker validation.");
         Check(SceneManager.GetActiveScene() == active, "The original active scene changed.");
         Check(activeManagers.SetEquals(managersBefore), "The live NPC registry changed.");
+        Check(spawnRegistry.SetEquals(spawnConditionsBefore), "The live spawn-condition registry changed.");
         Check(ReferenceEquals(fusionSingleton.GetValue(null), fusionBefore), "The live multiplayer owner changed.");
-        report.Insert(0, "PASS: detached NPC arrival gate, native vector rendering, physical sizes, map projection, HUD overlap exclusion and click-through checks.\n");
+        report.Insert(0, "PASS: detached NPC arrival/presence/spawn gates, native vector rendering, physical sizes, map projection, HUD overlap exclusion and click-through checks.\n");
         report.AppendLine("NOTE: No progression activation, coroutine, player input, save, account, network, scene save or released story changes ran.");
         return report.ToString();
     }
@@ -106,6 +115,14 @@ public static class NPCExclamationValidation
         SceneManager.MoveGameObjectToScene(root, scene);
         NavMeshAgent agent = root.AddComponent<NavMeshAgent>();
         agent.enabled = false;
+        GameObject visualParent = new GameObject("Detached NPC model parent");
+        SceneManager.MoveGameObjectToScene(visualParent, scene);
+        visualParent.transform.SetParent(root.transform, false);
+        GameObject model = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        model.name = "Detached NPC cube model";
+        SceneManager.MoveGameObjectToScene(model, scene);
+        model.transform.SetParent(visualParent.transform, false);
+        Object.DestroyImmediate(model.GetComponent<Collider>());
         NPCProgressionManager npc = root.AddComponent<NPCProgressionManager>();
         Set(npc, "phases", new List<NPCProgressionPhase>
         {
@@ -148,6 +165,152 @@ public static class NPCExclamationValidation
             "Native arrival fixture must not run a movement coroutine.");
         report.AppendLine("PASS: checkbox defaults off; unarrived, unchecked, absent-phase and disabled/inactive NPCs are hidden; checked arrived NPC is visible. Travelling guard is source-checked without starting a coroutine.");
     }
+
+    private static void ValidatePresence(Scene scene, NPCProgressionManager npc,
+        HashSet<NPCSpawnerCondition> spawnRegistry, StringBuilder report)
+    {
+        Transform visualParent = npc.transform.Find("Detached NPC model parent");
+        GameObject model = visualParent.Find("Detached NPC cube model").gameObject;
+        MeshRenderer renderer = model.GetComponent<MeshRenderer>();
+        Material[] materials = renderer.sharedMaterials;
+        MeshFilter filter = model.GetComponent<MeshFilter>();
+        Mesh mesh = filter.sharedMesh;
+        GameObject conditionObject = null, sibling = null, textObject = null;
+        SkinnedMeshRenderer skinned = null;
+        SpriteRenderer sprite = null;
+        try
+        {
+            Check(Present(npc) && npc.ShouldShowExclamationMark, "An arrived NPC with an active model did not show its markers.");
+            model.SetActive(false);
+            Check(!Present(npc) && !npc.ShouldShowExclamationMark, "A hidden NPC model still showed world/map markers.");
+            model.SetActive(true);
+            renderer.enabled = false;
+            Check(!Present(npc) && !npc.ShouldShowExclamationMark, "A disabled model renderer still showed world/map markers.");
+            renderer.enabled = true;
+            renderer.forceRenderingOff = true;
+            Check(!Present(npc) && !npc.ShouldShowExclamationMark, "A force-hidden model renderer still showed world/map markers.");
+            renderer.forceRenderingOff = false;
+            visualParent.gameObject.SetActive(false);
+            Check(!Present(npc) && !npc.ShouldShowExclamationMark, "An inactive visual parent still showed world/map markers.");
+            visualParent.gameObject.SetActive(true);
+            filter.sharedMesh = null;
+            Check(!Present(npc) && !npc.ShouldShowExclamationMark, "An empty MeshFilter still made the NPC model present.");
+            filter.sharedMesh = mesh;
+            Object.DestroyImmediate(filter); filter = null;
+            Check(!Present(npc) && !npc.ShouldShowExclamationMark, "A MeshRenderer without a MeshFilter still made the NPC model present.");
+            filter = model.AddComponent<MeshFilter>(); filter.sharedMesh = mesh;
+            Object.DestroyImmediate(renderer);
+            renderer = null;
+            Check(!Present(npc) && !npc.ShouldShowExclamationMark, "A model without a MeshRenderer still showed world/map markers.");
+            sprite = model.AddComponent<SpriteRenderer>();
+            Check(!Present(npc), "A non-model SpriteRenderer falsely made the NPC present.");
+            Object.DestroyImmediate(sprite); sprite = null;
+            textObject = new GameObject("Detached NPC label only", typeof(RectTransform));
+            SceneManager.MoveGameObjectToScene(textObject, scene);
+            textObject.transform.SetParent(npc.transform, false);
+            textObject.AddComponent<TMPro.TextMeshPro>();
+            Check(textObject.GetComponent<MeshRenderer>() != null && !Present(npc), "A TMP label falsely made a missing NPC model present.");
+            Object.DestroyImmediate(textObject); textObject = null;
+            skinned = model.AddComponent<SkinnedMeshRenderer>();
+            Check(!Present(npc) && !npc.ShouldShowExclamationMark, "An empty SkinnedMeshRenderer still made the NPC model present.");
+            skinned.sharedMesh = mesh;
+            Check(Present(npc), "An active SkinnedMeshRenderer model was not recognized.");
+            skinned.enabled = false;
+            Check(!Present(npc), "A disabled skinned model was still recognized as present.");
+            skinned.enabled = true;
+            skinned.forceRenderingOff = true;
+            Check(!Present(npc), "A force-hidden skinned model was still recognized as present.");
+            Object.DestroyImmediate(skinned); skinned = null;
+            renderer = model.AddComponent<MeshRenderer>();
+            renderer.sharedMaterials = materials;
+
+            conditionObject = new GameObject("Detached read-only spawn gate");
+            conditionObject.SetActive(false);
+            SceneManager.MoveGameObjectToScene(conditionObject, scene);
+            NPCSpawnerCondition condition = conditionObject.AddComponent<NPCSpawnerCondition>();
+            condition.npcRoot = npc.gameObject;
+            condition.waitForManualSpawn = true;
+            conditionObject.SetActive(true);
+            spawnRegistry.Add(condition);
+            int shown = 0, hidden = 0;
+            condition.onShown.AddListener(() => shown++);
+            condition.onHidden.AddListener(() => hidden++);
+            Check(!condition.CanShowAttentionMarkerFor(null) && !NPCSpawnConditionMonitor.CanShowNPCAttentionMarker(null),
+                "A null NPC was accepted by the presence/spawn gates.");
+            Check(!condition.CanShowAttentionMarkerFor(npc.transform) && !Present(npc) && !npc.ShouldShowExclamationMark,
+                "An unresolved wait-for-manual-spawn NPC showed markers before spawning.");
+            condition.waitForManualSpawn = false;
+            Check(!condition.CanShowAttentionMarkerFor(npc.transform) && !npc.ShouldShowExclamationMark,
+                "Unresolved automatic spawn rules falsely confirmed an authored-active NPC.");
+            Set(condition, "manualOverride", 1);
+            Check(condition.CanShowAttentionMarkerFor(npc.transform) && npc.ShouldShowExclamationMark,
+                "A positive manual spawn override did not permit a present NPC's markers.");
+            Set(condition, "manualOverride", -1);
+            Check(!condition.CanShowAttentionMarkerFor(npc.transform) && !npc.ShouldShowExclamationMark,
+                "A negative manual spawn override still permitted an NPC marker.");
+            Set(condition, "manualOverride", 0);
+            Set(condition, "evaluated", true);
+            Set(condition, "lastRuleVisibility", true);
+            Check(condition.CanShowAttentionMarkerFor(npc.transform) && npc.ShouldShowExclamationMark,
+                "Evaluated allowed spawn rules did not permit a present NPC's markers.");
+            Set(condition, "lastRuleVisibility", false);
+            Check(!condition.CanShowAttentionMarkerFor(npc.transform) && !npc.ShouldShowExclamationMark,
+                "Evaluated denied spawn rules still permitted an NPC marker.");
+            condition.enabled = false;
+            Check(condition.CanShowAttentionMarkerFor(npc.transform) && npc.ShouldShowExclamationMark,
+                "A deliberately disabled/debug-bypassed spawn component still denied the marker.");
+            condition.enabled = true;
+
+            sibling = new GameObject("Unrelated controlled sibling");
+            SceneManager.MoveGameObjectToScene(sibling, scene);
+            condition.npcRoot = sibling;
+            Check(condition.CanShowAttentionMarkerFor(npc.transform) && npc.ShouldShowExclamationMark,
+                "An unrelated controlled sibling's denied spawn rules hid this NPC's markers.");
+            condition.npcRoot = model;
+            Check(!condition.CanShowAttentionMarkerFor(npc.transform) && !npc.ShouldShowExclamationMark,
+                "A controlled visual descendant's denied spawn rules were ignored.");
+            Set(condition, "manualOverride", 1);
+            Check(condition.CanShowAttentionMarkerFor(npc.transform) && npc.ShouldShowExclamationMark,
+                "A controlled visual descendant did not recover after a positive manual override.");
+            model.SetActive(false);
+            Check(!condition.CanShowAttentionMarkerFor(npc.transform) && !npc.ShouldShowExclamationMark,
+                "A manual override falsely made an inactive controlled visual present.");
+            model.SetActive(true);
+            Check(condition.CanShowAttentionMarkerFor(npc.transform) && npc.ShouldShowExclamationMark,
+                "Markers did not recover after restoring the controlled visual.");
+            Check(shown == 0 && hidden == 0 && !(bool)Field(typeof(NPCSpawnerCondition), "pendingVisibilitySave").GetValue(condition) &&
+                Field(typeof(NPCSpawnerCondition), "restoredVisibilityData").GetValue(condition) == null &&
+                (bool)Field(typeof(NPCSpawnerCondition), "evaluated").GetValue(condition) &&
+                !(bool)Field(typeof(NPCSpawnerCondition), "lastRuleVisibility").GetValue(condition) &&
+                (int)Field(typeof(NPCSpawnerCondition), "manualOverride").GetValue(condition) == 1,
+                "Read-only presence/spawn queries mutated visibility, evaluated rules, dispatched events or queued a save.");
+            report.AppendLine("PASS: real native shared marker gate requires active MeshRenderer/SkinnedMeshRenderer NPC visuals, not TMP labels/SpriteRenderers; hidden, missing, disabled, force-hidden and inactive-parent models suppress both marker paths. Read-only spawn gates honor unresolved/manual/evaluated states and controlled hierarchy, ignore unrelated siblings, recover after visibility restoration and do not evaluate/save/dispatch visibility events.");
+        }
+        finally
+        {
+            if (conditionObject != null)
+            {
+                spawnRegistry.Remove(conditionObject.GetComponent<NPCSpawnerCondition>());
+                Object.DestroyImmediate(conditionObject);
+            }
+            if (sibling != null) Object.DestroyImmediate(sibling);
+            if (textObject != null) Object.DestroyImmediate(textObject);
+            if (skinned != null) Object.DestroyImmediate(skinned);
+            if (sprite != null) Object.DestroyImmediate(sprite);
+            visualParent.gameObject.SetActive(true);
+            model.SetActive(true);
+            if (filter == null) filter = model.AddComponent<MeshFilter>();
+            filter.sharedMesh = mesh;
+            if (renderer == null) renderer = model.AddComponent<MeshRenderer>();
+            renderer.enabled = true;
+            renderer.forceRenderingOff = false;
+            renderer.sharedMaterials = materials;
+            Check(spawnRegistry.Count == 0, "Detached spawn-condition fixture leaked a registry entry.");
+        }
+        Check(Present(npc) && npc.ShouldShowExclamationMark, "The original detached model/gate state was not restored.");
+    }
+
+    private static bool Present(NPCProgressionManager npc) => (bool)Call(npc, "HasPresentNPCVisual");
 
     private static void ValidateProjection(StringBuilder report)
     {

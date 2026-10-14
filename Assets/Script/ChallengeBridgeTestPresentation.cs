@@ -268,6 +268,15 @@ public sealed class ChallengeBridgeTestView : IDisposable
     private PoseFrame[] history;
     private float latestTime, latestArrival;
     private bool finalPose, hasTimeline;
+    private VehicleSimulationLoop vehicleAudio;
+    private VehicleSimulationSound vehicleSound;
+    private bool vehicleAudioStopped;
+    private Vector3 previousVehicleAudioPosition;
+    private bool hasVehicleAudioPosition;
+    private float lastVehicleSampleArrival = float.NegativeInfinity;
+    private float lastVehicleAudioMotion = float.NegativeInfinity;
+    private const float VehicleAudioMotionGrace = 0.25f;
+    private const float VehicleAudioStreamTimeout = 0.5f;
     private Color warning, critical, broken;
     private readonly MaterialPropertyBlock block = new MaterialPropertyBlock();
     private struct Sample
@@ -356,6 +365,8 @@ public sealed class ChallengeBridgeTestView : IDisposable
                 child.localScale = Vector3.Scale(child.localScale, normalization);
             }
             vehicle.SetActive(true); targets.Add(vehicle.transform);
+            vehicleSound = source.SimulationSound;
+            vehicleAudio = new VehicleSimulationLoop(vehicle.transform);
             foreach (GameObject wheel in source.wheelObjects) targets.Add(map[wheel.transform]);
             vehicleIndex = descriptor.Bridge.Bars.Count;
             boatStart = vehicleIndex + descriptor.VehiclePoses.Length;
@@ -420,6 +431,7 @@ public sealed class ChallengeBridgeTestView : IDisposable
             sample.HistoryCount = Mathf.Min(HistoryCapacity, sample.HistoryCount + 1);
             sample.Time = chunk.Time; sample.RopeLength = chunk.RopeLengths[j];
             sample.Sequence = chunk.Sequence; sample.Received = true; samples[index] = sample;
+            if (index == vehicleIndex) lastVehicleSampleArrival = Time.unscaledTime;
             if (boatRenderers.TryGetValue(index, out var boatMeshes))
                 foreach (Renderer renderer in boatMeshes) renderer.enabled = boatRendererStates[renderer] && (chunk.Stress[j] & 0x8000) == 0;
             if (index >= memberRenderers.Count) continue;
@@ -457,7 +469,7 @@ public sealed class ChallengeBridgeTestView : IDisposable
         color.a = original.a;
         return color;
     }
-    public void Render(float interpolationSeconds)
+    public void Render(float interpolationSeconds, bool audioPaused = false)
     {
         if (finalPose) interpolationSeconds = 0f;
         float renderTime = latestTime + Time.unscaledTime - latestArrival - interpolationSeconds;
@@ -498,11 +510,42 @@ public sealed class ChallengeBridgeTestView : IDisposable
                 }
             }
         }
+        RefreshVehicleAudio(audioPaused);
     }
+    private void RefreshVehicleAudio(bool audioPaused)
+    {
+        if (vehicleAudio == null) return;
+        bool paused = audioPaused || !Application.isFocused || AudioListener.pause || Time.timeScale <= 0f;
+        bool fresh = hasTimeline && !finalPose && !vehicleAudioStopped && vehicleIndex < targets.Count &&
+            targets[vehicleIndex] != null && samples[vehicleIndex].Received &&
+            Time.unscaledTime - lastVehicleSampleArrival <= VehicleAudioStreamTimeout;
+        if (!fresh)
+        {
+            hasVehicleAudioPosition = false;
+            lastVehicleAudioMotion = float.NegativeInfinity;
+            vehicleAudio.Stop();
+            return;
+        }
+        Vector3 position = targets[vehicleIndex].position;
+        Vector3 displacement = hasVehicleAudioPosition ? position - previousVehicleAudioPosition : Vector3.zero;
+        previousVehicleAudioPosition = position;
+        hasVehicleAudioPosition = !paused;
+        displacement.y = 0f;
+        // Ignore settling and teleports. Only the visible vehicle's actual travel
+        // may start its loop; preparing the mesh-only view must remain silent.
+        float speed = Time.unscaledDeltaTime > 0.0001f ? displacement.magnitude / Time.unscaledDeltaTime : 0f;
+        if (!paused && ChallengeTestMotionCodec.Finite(speed) && speed >= 0.05f && displacement.sqrMagnitude < 25f)
+            lastVehicleAudioMotion = Time.unscaledTime;
+        bool moving = Time.unscaledTime - lastVehicleAudioMotion <= VehicleAudioMotionGrace;
+        vehicleAudio.Tick(vehicleSound, moving, paused);
+    }
+    internal void SuspendAudio() => vehicleAudio?.Suspend();
+    internal void StopAudio() { vehicleAudioStopped = true; vehicleAudio?.Stop(); }
     public void CompleteFinalFrame() { finalPose = true; Render(0f); }
     private static float ScaleRatio(float value, float scale) => Mathf.Abs(scale) > 0.00001f ? value / scale : 1f;
     public void Dispose()
     {
+        vehicleAudio?.Dispose(); vehicleAudio = null; vehicleSound = null;
         foreach (Transform source in impactSources) WaterImpact.Unregister(source);
         impactSources.Clear();
         foreach (Transform boat in wakeBoats) BoatWaterWake.Unregister(boat);

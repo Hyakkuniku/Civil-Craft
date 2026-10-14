@@ -8,7 +8,7 @@ using TMPro;
 
 [DefaultExecutionOrder(-40)] 
 [RequireComponent(typeof(Rigidbody))]
-public class LiveLoadVehicle : Interactable 
+public partial class LiveLoadVehicle : Interactable
 {
     [Header("Vehicle Information UI")]
     public string vehicleName = "Heavy Transport";
@@ -743,10 +743,16 @@ public class LiveLoadVehicle : Interactable
         return 1f / Mathf.Max(0.0001f, Mathf.Abs(scale));
     }
 
-    private void OnDisable() => WaterImpact.Unregister(transform);
+    private void OnDisable()
+    {
+        StopSimulationAudio();
+        WaterImpact.Unregister(transform);
+    }
 
     private void OnDestroy()
     {
+        simulationAudio?.Dispose();
+        simulationAudio = null;
         WaterImpact.Unregister(transform);
         if (IsSessionChallengeTestVehicle)
         {
@@ -902,6 +908,7 @@ public class LiveLoadVehicle : Interactable
 
     private void HandleSettlePhaseStarted()
     {
+        StopSimulationAudio();
         if (!CanParticipateInCurrentSimulation() || IsPlayerCargoContract()) return;
         participatingInCurrentSimulation = true;
 
@@ -1008,6 +1015,7 @@ public class LiveLoadVehicle : Interactable
         isBrakingAtFinish = false;
         settledAtFinishTimer = 0f;
         isDriving = true; 
+        BeginSimulationAudio();
         if (Application.isPlaying)
             WaterImpact.Register(transform, GetComponentsInChildren<Renderer>(true), rb, physicsManager);
     }
@@ -1140,6 +1148,7 @@ public class LiveLoadVehicle : Interactable
     public void SetRemoteMultiplayerRepresentation(bool remote)
     {
         isRemoteMultiplayerRepresentation = remote;
+        if (remote) StopSimulationAudio();
     }
 
     private void HideForSavedBridge()
@@ -1155,6 +1164,7 @@ public class LiveLoadVehicle : Interactable
 
     private void ResetForBuildReplay()
     {
+        StopSimulationAudio();
         isDriving = false;
         hasReachedEnd = false;
         isParkedAtFinish = false;
@@ -1431,6 +1441,7 @@ public class LiveLoadVehicle : Interactable
 
     public void BeginFinishBraking()
     {
+        StopSimulationAudio();
         if (rb == null || rb.isKinematic || isBrakingAtFinish || isParkedAtFinish) return;
 
         isDriving = false;
@@ -1445,6 +1456,7 @@ public class LiveLoadVehicle : Interactable
 
     public void StopAndReset()
     {
+        StopSimulationAudio();
         WaterImpact.Unregister(transform);
         isDriving = false;
         isBrakingAtFinish = false;
@@ -1544,6 +1556,7 @@ public class LiveLoadVehicle : Interactable
 
     public void EmergencyStop()
     {
+        StopSimulationAudio();
         isDriving = false;
         currentMotorSpeed = 0f;
         foreach (var w in wheels)

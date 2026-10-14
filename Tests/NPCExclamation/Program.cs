@@ -20,7 +20,9 @@ internal static class Program
         string scenarios = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Scenarios.cs.txt"));
         string extracted = Property(manager, "ShouldShowExclamationMark") + Property(manager, "CurrentPhase") +
             Property(manager, "IsTravelling") + Method(manager, "CanRunLocalProgression") +
-            Method(manager, "HasReachedPhaseDestination");
+            Method(manager, "HasReachedPhaseDestination") + Method(manager, "HasPresentNPCVisual");
+        ClassDeclarationSyntax spawnMonitor = ReadClass(root, "Assets/Script/Interaction System/Interactables/NPCSpawnConditionMonitor.cs", "NPCSpawnConditionMonitor");
+        ClassDeclarationSyntax spawner = ReadClass(root, "Assets/Script/Interaction System/Interactables/NPCSpawnerCondition.cs", "NPCSpawnerCondition");
         ClassDeclarationSyntax graphic = ReadClass(root, "Assets/Script/UI/NPCExclamationGraphic.cs", "NPCExclamationGraphic");
         ClassDeclarationSyntax map = ReadClass(root, "Assets/Script/Player/ExpandedMinimapController.cs", "ExpandedMinimapController");
         ClassDeclarationSyntax reservations = ReadClass(root, "Assets/Script/UI/UIReservedRegionLayout.cs", "UIReservedRegionLayout");
@@ -31,10 +33,13 @@ internal static class Program
             Method(reservations, "Expand") + Method(reservations, "Register") + Method(reservations, "Unregister");
         int checks = Execute(boundary.Replace("// ACTUAL_NPC_POLICY", extracted)
             .Replace("// ACTUAL_GRAPHIC", mesh).Replace("// ACTUAL_MAP_PROJECTION", projection)
-            .Replace("// ACTUAL_HUD_RESERVATIONS", hudOverlap) + scenarios);
+            .Replace("// ACTUAL_HUD_RESERVATIONS", hudOverlap)
+            .Replace("// ACTUAL_SPAWN_MONITOR", Method(spawnMonitor, "CanShowNPCAttentionMarker") + Method(spawnMonitor, "Register") + Method(spawnMonitor, "Unregister"))
+            .Replace("// ACTUAL_SPAWNER_PRESENCE", Method(spawner, "CanShowAttentionMarkerFor")) + scenarios);
         CheckLifecycle(manager, phase);
         CheckVisualBoundaries(root);
-        Console.WriteLine($"PASS: {checks} actual-source eligibility/destination/geometry/HUD-reservation assertions and {guards} lifecycle/visual boundary guards. No Unity session, accounts, scenes, saves, or network access.");
+        CheckPresenceBoundaries(manager, spawnMonitor, spawner);
+        Console.WriteLine($"PASS: {checks} actual-source eligibility/destination/model-presence/spawn-readiness/geometry/HUD-reservation assertions and {guards} lifecycle/visual boundary guards. No Unity session, accounts, scenes, saves, or network access.");
     }
 
     private static void CheckLifecycle(ClassDeclarationSyntax manager, ClassDeclarationSyntax phase)
@@ -124,6 +129,28 @@ internal static class Program
         Assembly assembly = Assembly.Load(stream.ToArray());
         try { return (int)assembly.GetType("Scenarios").GetMethod("Run").Invoke(null, null); }
         catch (TargetInvocationException exception) { throw new InvalidOperationException("Actual NPC marker policy failed.", exception.InnerException); }
+    }
+
+    private static void CheckPresenceBoundaries(ClassDeclarationSyntax manager, ClassDeclarationSyntax monitor, ClassDeclarationSyntax spawner)
+    {
+        Require(Property(manager, "ShouldShowExclamationMark").Contains("HasPresentNPCVisual()"),
+            "All marker consumers must share actual NPC model/spawn presence, not merely an arrived manager component.");
+        string presence = Method(manager, "HasPresentNPCVisual");
+        Require(presence.Contains("NPCSpawnConditionMonitor.CanShowNPCAttentionMarker(transform)"),
+            "Startup/manual rule gates must be resolved before an NPC marker can appear.");
+        Require(presence.Contains("GetComponentsInChildren(true, markerPresenceRenderers)"),
+            "Presence checks must revisit current children, including hidden roots, without stale renderer discovery.");
+        Require(!presence.Contains(".isVisible") && !presence.Contains("Camera.") && !presence.Contains("WorldToViewportPoint"),
+            "A spawned NPC outside the main camera still needs its minimap marker; rendering-camera visibility cannot determine presence.");
+        Require(presence.Contains("MeshRenderer") && presence.Contains("SkinnedMeshRenderer") && presence.Contains("forceRenderingOff") &&
+            presence.Contains("TMPro.TMP_Text"), "Only enabled NPC model renderers count; nonmodel particles, text, and forced-hidden meshes do not.");
+        Require(presence.Contains("sharedMesh != null") && presence.Contains("TryGetComponent(out MeshFilter"),
+            "Empty renderer placeholders and missing model meshes cannot count as spawned visuals.");
+        Require(Method(monitor, "CanShowNPCAttentionMarker").Contains("CanShowAttentionMarkerFor(npc)"),
+            "Every related registered spawn condition must authorize attention markers.");
+        string readiness = Method(spawner, "CanShowAttentionMarkerFor");
+        Require(!readiness.Contains("Evaluate(") && !readiness.Contains("EvaluateNow(") && !readiness.Contains("Save") && !readiness.Contains("ApplyVisibility("),
+            "Reading spawn readiness must never trigger spawn events or save progression.");
     }
 
     private static string Property(ClassDeclarationSyntax type, string name) => type.Members.OfType<PropertyDeclarationSyntax>()

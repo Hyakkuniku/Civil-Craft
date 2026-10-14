@@ -197,6 +197,7 @@ internal static partial class Program
         var controller = new MainMenuUpdatesController
         {
             updatesButton = new Button(), closeButton = new Button(), retryButton = new Button(), downloadButton = new Button(),
+            releasesTabButton = new Button(), messagesTabButton = new Button(),
             panel = new GameObject(), badge = new GameObject(), notesScroll = new ScrollRect(),
             releaseTitleText = new TMP_Text(), releaseDateText = new TMP_Text(), notesText = new TMP_Text(), installedVersionText = new TMP_Text(), availableVersionText = new TMP_Text(), statusText = new TMP_Text()
         };
@@ -218,6 +219,34 @@ internal static partial class Program
         Check(controller.panel.activeSelf && UIPanelCoordinator.Instance.Opens == 1, "Explicit Updates click delegates modal opening to existing coordinator.");
         Check(controller.notesScroll.verticalNormalizedPosition == 1f, "Each newly opened notes panel starts at top.");
         Check(service.StartedCoroutines.Count == 0, "Opening fresh notes does not refetch.");
+        var inbox = service.gameObject.GetComponent<PlayerMessagesService>();
+        Check(inbox.StartedCoroutines.Count == 0 && !controller.messagesTabButton.gameObject.activeSelf, "Guest inbox tab is hidden and sends no request.");
+        PlayFab.PlayFabClientAPI.LoggedIn = true; PlayerPrefs.Choice = 2;
+        PlayFab.PlayFabSettings.staticPlayer.PlayFabId = "AAA";
+        PlayFab.PlayFabSettings.staticPlayer.ClientSessionTicket = "ticket-A";
+        Invoke(inbox, "Update");
+        void CompleteInbox(string body)
+        {
+            UnityWebRequest.Script.Enqueue(new(200, body));
+            foreach (IEnumerator routine in inbox.StartedCoroutines.ToArray()) Drain(routine);
+            inbox.StartedCoroutines.Clear();
+        }
+        CompleteInbox("{\"messages\":[]}");
+        Check(!controller.messagesTabButton.gameObject.activeSelf, "Confirmed empty inbox hides private tab.");
+        inbox.Refresh();
+        CompleteInbox("{\"messages\":[{\"title\":\"Notice\",\"body\":\"For you\"}]}");
+        Check(controller.messagesTabButton.gameObject.activeSelf && controller.notesText.text.Contains("Joystick"), "New message reveals tab without replacing release notes.");
+        controller.messagesTabButton.onClick.Invoke();
+        Check(controller.releaseTitleText.text == "Private Messages" && !controller.notesText.text.Contains("Joystick"), "Private tab does not mix public release content into inbox.");
+        Check(controller.installedVersionText.text == "" && !controller.downloadButton.interactable, "Private tab does not show release versions or enable download.");
+        controller.retryButton.onClick.Invoke();
+        Check(service.StartedCoroutines.Count == 0, "Private Retry never refetches releases.");
+        controller.releasesTabButton.onClick.Invoke();
+        Check(controller.notesText.text.Contains("Joystick") && !controller.notesText.text.Contains("For you"), "Release tab never displays private text.");
+        controller.ShowMessages();
+        CompleteInbox("{\"messages\":[]}");
+        Check(!controller.messagesTabButton.gameObject.activeSelf && controller.notesText.text.Contains("Joystick"), "Deleting last message hides tab and returns to releases.");
+        PlayFab.PlayFabClientAPI.LoggedIn = false; PlayerPrefs.Choice = 0;
         controller.closeButton.onClick.Invoke();
         Check(!controller.panel.activeSelf && UIPanelCoordinator.Instance.Closes == 1 && controller.badge.activeSelf, "Reading/closing notes does not clear available-update badge.");
         controller.downloadButton.onClick.Invoke();

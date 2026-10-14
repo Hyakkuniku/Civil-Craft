@@ -6,5 +6,7 @@ The suite extracts and compiles the real projection and physical-pixel sizing me
 
 HUD-reservation guards verify the current minimap panel is registered/released and
 the overhead badge's exclusion check is never applied to markers inside either map.
+Shared-policy guards require model/spawn readiness while keeping gameplay-camera
+culling independent from NPC presence on the map.
 
 It does not run Unity rendering, camera transforms, actual map gestures, player progress, accounts, or network calls. Native rendering/input and NPC arrival integration require the separate Unity check.

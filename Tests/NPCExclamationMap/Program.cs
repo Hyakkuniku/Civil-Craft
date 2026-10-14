@@ -38,6 +38,13 @@ internal static class Program
             Method("OnDestroy").Contains("UIReservedRegionLayout.Unregister(reservedMinimapRegion)"),
             "Minimap screen reservation must register after reference resolution and release on teardown.");
         Guard(update.Contains("npc.ShouldShowExclamationMark"), "Map badges must use the phase/arrival property.");
+        string progressionSource = File.ReadAllText(Path.Combine(FindRoot(), "Assets/Script/Client/NPCProgressionManager.cs"));
+        ClassDeclarationSyntax progression = CSharpSyntaxTree.ParseText(progressionSource).GetRoot().DescendantNodes()
+            .OfType<ClassDeclarationSyntax>().Single(node => node.Identifier.ValueText == "NPCProgressionManager");
+        string presenceProperty = progression.Members.OfType<PropertyDeclarationSyntax>()
+            .Single(node => node.Identifier.ValueText == "ShouldShowExclamationMark").ToFullString();
+        Guard(presenceProperty.Contains("HasPresentNPCVisual()"), "Map eligibility must include spawned model/rule readiness, not merely phase arrival.");
+        Guard(!update.Contains(".isVisible"), "The map marker must not disappear because its NPC is culled by the gameplay camera.");
         Guard(update.Contains("npc.gameObject.scene == gameObject.scene") && update.Contains("npc.isActiveAndEnabled"), "Map must filter inactive/foreign-scene NPCs.");
         Guard(update.Contains("WorldToViewportPoint(npc.transform.position)"), "NPC map positions must follow the current camera each frame.");
         Guard(update.Contains("mapImage.uvRect"), "Map projection must apply RawImage cropping/flipping.");

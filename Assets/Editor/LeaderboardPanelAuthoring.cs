@@ -8,8 +8,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
-/// <summary>Creates the leaderboard once as editable objects in Mode Selection.</summary>
-[InitializeOnLoad]
+/// <summary>Explicitly authors editable leaderboard objects in Mode Selection.</summary>
 public static class LeaderboardPanelAuthoring
 {
     private const string ScenePath = "Assets/Scenes/Mode Selection.unity";
@@ -25,25 +24,8 @@ public static class LeaderboardPanelAuthoring
     private static TMP_FontAsset font;
     private static Sprite rounded;
 
-    static LeaderboardPanelAuthoring()
-    {
-        EditorApplication.delayCall += TryAuthorOnce;
-        EditorApplication.playModeStateChanged += change =>
-        {
-            if (change == PlayModeStateChange.EnteredEditMode)
-                EditorApplication.delayCall += TryAuthorOnce;
-        };
-    }
-
     [MenuItem("Tools/Civil Craft/Author Mode Selection Leaderboard")]
     public static void AuthorFromMenu() => AuthorScene();
-
-    private static void TryAuthorOnce()
-    {
-        if (EditorApplication.isPlayingOrWillChangePlaymode || EditorApplication.isCompiling ||
-            EditorApplication.isUpdating) return;
-        AuthorScene();
-    }
 
     private static void AuthorScene()
     {

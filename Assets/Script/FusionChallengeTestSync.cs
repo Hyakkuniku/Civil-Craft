@@ -30,6 +30,8 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
     private ChallengeBridgeTestView view;
     private int revision, index, sequence, cursor;
     private bool bound, preparing, started, resultRecorded, frozen, finalConfirmed;
+    private bool audioApplicationPaused;
+    private bool audioApplicationFocused = true;
     private float resultTime, frozenTime, motionEpoch, nextMotionTime, motionCredit, nextProgressTime;
     private LiveLoadVehicle vehicleSource;
     private BridgePhysicsManager settings;
@@ -357,7 +359,10 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
         {
             var outcome = run.Step(Time.fixedDeltaTime, LevelFailedManager.Instance, maximumTestSeconds);
             if (outcome != ChallengeTestOutcome.None && host.RecordChallengeTest(revision, index, outcome, run.Elapsed, run.PeakStress))
-            { resultRecorded = true; resultTime = Time.unscaledTime; }
+            {
+                resultRecorded = true; resultTime = Time.unscaledTime;
+                run.Vehicle?.StopSimulationSound();
+            }
         }
         if (Time.unscaledTime >= nextProgressTime)
         { nextProgressTime = Time.unscaledTime + 0.1f; host.PublishChallengeTestProgress(run.Elapsed, run.Physics.GetMaxBridgeStress()); }
@@ -375,7 +380,17 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
     }
     private void LateUpdate()
     {
-        if (view != null) view.Render(spectatorInterpolationSeconds);
+        if (view != null)
+        {
+            if (host != null)
+            {
+                MultiplayerChallengeState state = host.ChallengeState;
+                if (state.Revision == revision && state.TestIndex == index &&
+                    (MultiplayerChallengeRules.TestsHostBridge(state) ? state.HostTestOutcome : state.GuestTestOutcome) != ChallengeTestOutcome.None)
+                    view.StopAudio();
+            }
+            view.Render(spectatorInterpolationSeconds, audioApplicationPaused || !audioApplicationFocused);
+        }
         if (!bound || !started || run == null || preparing || frozen || runner == null || !runner.IsServer || host == null || !host.IsChallengeBusy) return;
         motionCredit = Mathf.Min(maximumMotionBytesPerSecond * 0.15f, motionCredit + Time.unscaledDeltaTime * maximumMotionBytesPerSecond);
         if (Time.unscaledTime < nextMotionTime || run.MotionTargets.Count == 0) return;
@@ -536,6 +551,16 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
         nextPresentationRequest = nextPresentationResend = 0f;
         bound = preparing = started = resultRecorded = frozen = finalConfirmed = false;
         revision = index = sequence = cursor = 0;
+    }
+    private void OnApplicationPause(bool paused)
+    {
+        audioApplicationPaused = paused;
+        if (paused) view?.SuspendAudio();
+    }
+    private void OnApplicationFocus(bool focused)
+    {
+        audioApplicationFocused = focused;
+        if (!focused) view?.SuspendAudio();
     }
     private void OnDisable() { Clear(); }
     private void OnDestroy() { Clear(); }

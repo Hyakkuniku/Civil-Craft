@@ -31,8 +31,9 @@ public static class MainMenuSettingsSetup
 
     static MainMenuSettingsSetup()
     {
+        // Keep the existing stray-scene safeguard, but do not reopen four scenes
+        // to reauthor already-saved joystick UI after every Play Mode exit.
         EditorApplication.delayCall += CloseStrayMainMenuScene;
-        EditorApplication.delayCall += TryAuthorFixedJoystick;
         EditorApplication.playModeStateChanged -= HandlePlayModeChanged;
         EditorApplication.playModeStateChanged += HandlePlayModeChanged;
     }
@@ -41,8 +42,6 @@ public static class MainMenuSettingsSetup
     {
         if (state == PlayModeStateChange.ExitingEditMode)
             CloseStrayMainMenuScene();
-        else if (state == PlayModeStateChange.EnteredEditMode)
-            EditorApplication.delayCall += TryAuthorFixedJoystick;
     }
 
     [MenuItem("Tools/Civil Craft/Author Fixed Joystick Setting")]

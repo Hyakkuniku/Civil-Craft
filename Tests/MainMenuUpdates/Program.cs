@@ -15,6 +15,7 @@ internal static partial class Program
             TestVersionEligibility();
             TestRefreshPolicy();
             TestService();
+            TestPrivateMessages();
             if (!args.Contains("--runtime-only", StringComparer.Ordinal)) TestSourceShipping();
             else Console.WriteLine("Saved-scene shipping assertions skipped (--runtime-only); run the default command after Unity authoring is saved.");
             Console.WriteLine($"MainMenuUpdates: {checks} checks passed (actual production parser/policy/service/controller; engine/network/UI boundaries doubled, no Unity session, accounts or live requests).");

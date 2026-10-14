@@ -57,6 +57,7 @@ public sealed partial class LeaderboardPanelUI : MonoBehaviour
         UIReservedRegionLayout.Unregister(panel != null ? panel.transform as RectTransform : null);
         RemoveMultiplayerBoardListeners();
         ++requestGeneration;
+        CancelContractVisibilityRequest();
         if (openButton != null) openButton.onClick.RemoveListener(Open);
         if (closeButton != null) closeButton.onClick.RemoveListener(Close);
         if (contractDropdown != null) contractDropdown.onValueChanged.RemoveListener(OnSelectionChanged);
@@ -67,7 +68,7 @@ public sealed partial class LeaderboardPanelUI : MonoBehaviour
     public void Open()
     {
         if (panel == null) return;
-        PopulateContracts();
+        requestedCompletionContract = null;
         OpenPreparedPanel();
     }
 
@@ -79,6 +80,7 @@ public sealed partial class LeaderboardPanelUI : MonoBehaviour
     public bool OpenForContract(ContractSO contract)
     {
         if (!TrySelectContract(contract)) return false;
+        requestedCompletionContract = contract;
         OpenPreparedPanel();
         return true;
     }
@@ -91,7 +93,9 @@ public sealed partial class LeaderboardPanelUI : MonoBehaviour
             contract.ContractID.StartsWith(ChallengeBuildWorkspace.ContractPrefix,
                 StringComparison.Ordinal)) return false;
 
-        PopulateContracts(contract);
+        // Editor authoring validates exact local selection without opening the
+        // panel or contacting the website. Runtime opens still fetch fresh policy.
+        PopulateContracts(contract, false);
         if (SelectedContract == null || !string.Equals(SelectedContract.ContractID,
             contract.ContractID, StringComparison.Ordinal)) return false;
 
@@ -113,7 +117,7 @@ public sealed partial class LeaderboardPanelUI : MonoBehaviour
         // inactive modal first becomes active. A same-frame tap otherwise throws.
         if (contractDropdown != null) contractDropdown.interactable = false;
         panel.SetActive(true);
-        Refresh();
+        BeginContractVisibilityRequest();
         if (dropdownReadyCoroutine != null) StopCoroutine(dropdownReadyCoroutine);
         dropdownReadyCoroutine = StartCoroutine(EnableDropdownAfterStart());
     }
@@ -137,6 +141,7 @@ public sealed partial class LeaderboardPanelUI : MonoBehaviour
     private void CancelPendingRequest()
     {
         ++requestGeneration;
+        CancelContractVisibilityRequest();
         if (dropdownReadyCoroutine != null)
         {
             StopCoroutine(dropdownReadyCoroutine);
@@ -148,24 +153,24 @@ public sealed partial class LeaderboardPanelUI : MonoBehaviour
     {
         yield return null;
         if (panel != null && panel.activeSelf && contractDropdown != null)
-            contractDropdown.interactable = !multiplayerSelected;
+            contractDropdown.interactable = StorySelectorReady;
         dropdownReadyCoroutine = null;
     }
 
-    private void PopulateContracts(ContractSO requestedContract = null)
+    private void PopulateContracts(ContractSO requestedContract = null, bool applyVisibility = true)
     {
         if (contractDropdown == null) return;
         string selectedId = requestedContract != null ? requestedContract.ContractID :
             SelectedContract != null ? SelectedContract.ContractID : null;
         displayedContracts.Clear();
         HashSet<string> seen = new HashSet<string>(StringComparer.Ordinal);
-        AddContracts(contracts, seen);
+        AddContracts(contracts, seen, applyVisibility);
         if (PlayerDataManager.Instance != null)
-            AddContracts(PlayerDataManager.Instance.allGameContracts, seen);
+            AddContracts(PlayerDataManager.Instance.allGameContracts, seen, applyVisibility);
         // The completed site is authoritative even if its contract has not yet
         // been added to the authored catalog (for example, a newly added level).
         if (requestedContract != null)
-            AddContracts(new[] { requestedContract }, seen);
+            AddContracts(new[] { requestedContract }, seen, applyVisibility);
 
         displayedContracts.Sort((a, b) => string.Compare(a.name, b.name,
             StringComparison.OrdinalIgnoreCase));
@@ -184,13 +189,15 @@ public sealed partial class LeaderboardPanelUI : MonoBehaviour
         contractDropdown.RefreshShownValue();
     }
 
-    private void AddContracts(IEnumerable<ContractSO> source, HashSet<string> seen)
+    private void AddContracts(IEnumerable<ContractSO> source, HashSet<string> seen, bool applyVisibility)
     {
         if (source == null) return;
         foreach (ContractSO contract in source)
         {
             if (contract == null || contract.hideFromLeaderboard ||
                 string.IsNullOrWhiteSpace(contract.ContractID) ||
+                contract.ContractID.StartsWith(ChallengeBuildWorkspace.ContractPrefix, StringComparison.Ordinal) ||
+                applyVisibility && (visibleContractIds == null || !visibleContractIds.Contains(contract.ContractID)) ||
                 !seen.Add(contract.ContractID)) continue;
             displayedContracts.Add(contract);
         }
@@ -202,7 +209,12 @@ public sealed partial class LeaderboardPanelUI : MonoBehaviour
 
     private bool IsStrongest => strongestToggle != null && strongestToggle.isOn;
 
-    private void OnSelectionChanged(int _) => Refresh();
+    private void OnSelectionChanged(int _)
+    {
+        requestedCompletionContract = null;
+        completedContractUnavailable = false;
+        Refresh();
+    }
 
     private void OnRankingChanged(bool selected)
     {
@@ -216,6 +228,7 @@ public sealed partial class LeaderboardPanelUI : MonoBehaviour
         ClearMultiplayerRows();
         ApplyBoardVisibility();
         if (multiplayerSelected) { RefreshMultiplayer(generation); return; }
+        if (!ContractVisibilityReady()) return;
         ContractSO contract = SelectedContract;
         bool strongest = IsStrongest;
         if (descriptionText != null)
@@ -225,7 +238,7 @@ public sealed partial class LeaderboardPanelUI : MonoBehaviour
 
         if (contract == null)
         {
-            SetStatus("No contracts available.");
+            SetStatus("No contracts selected for leaderboard display.");
             if (personalBestText != null) personalBestText.text = string.Empty;
             return;
         }

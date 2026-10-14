@@ -2,7 +2,7 @@
 
 On an NPC's **NPCProgressionManager → Phases**, enable **Show Exclamation Mark** on the desired phase. Save your Inspector/scene change normally.
 
-The marker appears only after the NPC reaches that phase's destination. It stays hidden during walking, teleport dissolve, or interrupted travel. Restoring an arrived phase from a save also restores its marker. Idle roaming after arrival keeps the marker visible.
+The marker appears only after the NPC is actually spawned, its model is active, and it reaches that phase's destination. It stays hidden before spawn conditions finish resolving, before a manual spawn, after despawn, with a hidden/disabled model, during walking, teleport dissolve, or interrupted travel. Restoring an arrived phase from a save restores its marker only when that NPC is also present. Idle roaming after arrival keeps the marker visible.
 
 - Above the NPC: a 32-pixel, high-contrast gold exclamation badge projected above the character's head.
 - On the minimap: a 22-pixel badge at the NPC's position.

@@ -4,6 +4,8 @@ public static class Scenarios
     public static int Run()
     {
         EligibilityMatrix();
+        ModelPresence();
+        SpawnReadiness();
         DestinationResolution();
         ArrivalLifecycle();
         GraphicGeometry();
@@ -16,7 +18,9 @@ public static class Scenarios
     private static NPCProgressionManager Create()
     {
         FusionConnectionManager.Instance = null;
+        NPCSpawnConditionMonitor.Reset();
         NPCProgressionManager manager = new NPCProgressionManager();
+        manager.RenderedChildren.Add(Model());
         manager.phases.Add(new NPCProgressionPhase { showExclamationMark = true, targetLocation = new Transform { position = new Vector3(10f, 2f, 20f) } });
         return manager;
     }
@@ -53,6 +57,162 @@ public static class Scenarios
         invalid.currentPhaseIndex = 0;
         invalid.phases[0] = null;
         Expect(!invalid.ShouldShowExclamationMark, "No marker for missing phase");
+    }
+
+    private static void ModelPresence()
+    {
+        NPCProgressionManager npc = Create();
+        npc.phaseHasArrived = true;
+        Expect(npc.ShouldShowExclamationMark, "Spawned arrived model is eligible before either marker projects it");
+        npc.RenderedChildren.Clear();
+        Expect(!npc.ShouldShowExclamationMark, "An active progression holder without a spawned model cannot show any exclamation");
+        npc.RenderedChildren.Add(null);
+        Expect(!npc.ShouldShowExclamationMark, "A removed/destroyed model cannot leave a cached visible badge");
+        npc.RenderedChildren.Add(new ParticleSystemRenderer());
+        Expect(!npc.ShouldShowExclamationMark, "Particles or spawn effects cannot impersonate the NPC body");
+        MeshRenderer nameLabel = new MeshRenderer();
+        nameLabel.gameObject.transform.AddComponent(new TMPro.TMP_Text());
+        npc.RenderedChildren.Add(nameLabel);
+        Expect(!npc.ShouldShowExclamationMark, "A mesh-rendered name label does not count as a present NPC");
+        npc.RenderedChildren.Add(new Renderer());
+        Expect(!npc.ShouldShowExclamationMark, "An arbitrary non-model renderer cannot count as the NPC");
+        npc.RenderedChildren.Clear();
+        MeshRenderer emptyStatic = new MeshRenderer();
+        npc.RenderedChildren.Add(emptyStatic);
+        Expect(!npc.ShouldShowExclamationMark, "A placeholder MeshRenderer with no MeshFilter is not a present model");
+        emptyStatic.gameObject.transform.AddComponent(new MeshFilter());
+        Expect(!npc.ShouldShowExclamationMark, "A MeshFilter whose mesh is not loaded cannot show a premature marker");
+        npc.RenderedChildren.Clear();
+        SkinnedMeshRenderer emptySkinned = new SkinnedMeshRenderer();
+        npc.RenderedChildren.Add(emptySkinned);
+        Expect(!npc.ShouldShowExclamationMark, "A placeholder skinned model with no mesh cannot show a premature marker");
+        emptySkinned.sharedMesh = new Mesh();
+        Expect(npc.ShouldShowExclamationMark, "A loaded skinned mesh immediately counts as the spawned model");
+        emptySkinned.sharedMesh = null;
+        Expect(!npc.ShouldShowExclamationMark, "Removing the skinned mesh removes presence without destroying its component");
+
+        foreach (bool skinned in new[] { false, true })
+            for (int bits = 0; bits < 32; bits++)
+            {
+                npc.RenderedChildren.Clear();
+                Renderer model = Model(skinned);
+                model.enabled = (bits & 1) != 0;
+                model.forceRenderingOff = (bits & 2) != 0;
+                model.gameObject.activeInHierarchy = (bits & 4) != 0;
+                model.isVisible = (bits & 8) != 0;
+                bool labelOnly = (bits & 16) != 0;
+                if (labelOnly) model.gameObject.transform.AddComponent(new TMPro.TMP_Text());
+                npc.RenderedChildren.Add(model);
+                Expect(npc.ShouldShowExclamationMark == (model.enabled && !model.forceRenderingOff &&
+                    model.gameObject.activeInHierarchy && !labelOnly),
+                    "Present model eligibility is independent of camera culling; model type " + skinned + ", bits " + bits);
+            }
+
+        npc.RenderedChildren.Clear();
+        MeshRenderer body = (MeshRenderer)Model();
+        body.isVisible = false;
+        npc.RenderedChildren.Add(body);
+        Expect(npc.ShouldShowExclamationMark, "An NPC offscreen on the gameplay camera still appears on the map");
+        body.gameObject.activeInHierarchy = false;
+        Expect(!npc.ShouldShowExclamationMark, "A hidden model parent hides its model even while progression holder remains active");
+        body.gameObject.activeInHierarchy = true;
+        Expect(npc.ShouldShowExclamationMark, "Restoring a model parent immediately restores presence eligibility");
+        npc.gameObject.scene.isLoaded = false;
+        Expect(!npc.ShouldShowExclamationMark, "No presence marker survives scene unload");
+        npc.gameObject.scene.isLoaded = true;
+        npc.RenderedChildren.Clear();
+        Expect(!npc.ShouldShowExclamationMark, "Despawn removes a previously present model without needing a new phase");
+        npc.RenderedChildren.Add(Model(true));
+        Expect(npc.ShouldShowExclamationMark, "Respawn refreshes current children instead of trusting stale renderer discovery");
+        npc.RenderedChildren.Add(nameLabel);
+        Expect(npc.ShouldShowExclamationMark, "An auxiliary label does not invalidate an otherwise present body");
+    }
+
+    private static Renderer Model(bool skinned = false)
+    {
+        if (skinned) return new SkinnedMeshRenderer { sharedMesh = new Mesh() };
+        MeshRenderer mesh = new MeshRenderer();
+        mesh.gameObject.transform.AddComponent(new MeshFilter { sharedMesh = new Mesh() });
+        return mesh;
+    }
+
+    private static void SpawnReadiness()
+    {
+        NPCProgressionManager npc = Create();
+        npc.phaseHasArrived = true;
+        Expect(!NPCSpawnConditionMonitor.CanShowNPCAttentionMarker(null), "Missing/destroyed NPC never has spawn permission");
+        NPCSpawnerCondition gate = new NPCSpawnerCondition { npcRoot = npc.gameObject };
+        Expect(!gate.CanShowAttentionMarkerFor(null), "Spawner refuses missing NPC identity");
+        NPCSpawnConditionMonitor.Register(gate);
+        Expect(!npc.ShouldShowExclamationMark, "Authored-active NPC before initial spawn evaluation does not flash a marker");
+        gate.evaluated = true;
+        gate.lastRuleVisibility = false;
+        Expect(!npc.ShouldShowExclamationMark, "Waiting for manual SpawnNPC keeps the marker absent even if the model was authored active");
+        gate.manualOverride = 1;
+        Expect(npc.ShouldShowExclamationMark, "Manual spawn reveals a present model without waiting for automatic rules");
+        gate.manualOverride = -1;
+        Expect(!npc.ShouldShowExclamationMark, "Manual despawn vetoes the marker even before model hiding settles");
+        gate.manualOverride = 0;
+        gate.lastRuleVisibility = true;
+        Expect(npc.ShouldShowExclamationMark, "A successfully evaluated visible spawn rule authorizes the arrived model");
+        gate.lastRuleVisibility = false;
+        Expect(!npc.ShouldShowExclamationMark, "Changing spawn rules to hidden revokes eligibility immediately");
+        gate.enabled = false;
+        Expect(npc.ShouldShowExclamationMark, "An intentionally disabled debug gate bypasses rules when the NPC is actually visible");
+        gate.npcRoot.activeInHierarchy = false;
+        Expect(!npc.ShouldShowExclamationMark, "Disabled rules never resurrect a genuinely hidden controlled object");
+        gate.npcRoot.activeInHierarchy = true;
+
+        foreach (int manual in new[] { -1, 0, 1 })
+            for (int bits = 0; bits < 16; bits++)
+            {
+                gate.enabled = (bits & 1) != 0;
+                gate.evaluated = (bits & 2) != 0;
+                gate.lastRuleVisibility = (bits & 4) != 0;
+                gate.npcRoot.activeInHierarchy = (bits & 8) != 0;
+                gate.manualOverride = manual;
+                bool expected = gate.npcRoot.activeInHierarchy && (!gate.enabled || manual > 0 ||
+                    (manual == 0 && gate.evaluated && gate.lastRuleVisibility));
+                Expect(gate.CanShowAttentionMarkerFor(npc.transform) == expected, "Spawn authorization state matrix, bits " + bits + ", override " + manual);
+                Expect(npc.ShouldShowExclamationMark == expected, "Shared map/overhead property honors spawn authorization, bits " + bits + ", override " + manual);
+            }
+        npc.gameObject.activeInHierarchy = true;
+        gate.enabled = true;
+        gate.manualOverride = 1;
+        NPCSpawnConditionMonitor.AddDestroyedEntry();
+        Expect(npc.ShouldShowExclamationMark, "Destroyed registered spawn gates are harmless");
+
+        NPCSpawnerCondition unrelated = new NPCSpawnerCondition();
+        NPCSpawnConditionMonitor.Register(unrelated);
+        Expect(npc.ShouldShowExclamationMark, "An unrelated unevaluated spawner cannot hide another NPC's markers");
+        GameObject enclosingRoot = new GameObject();
+        npc.transform.parent = enclosingRoot.transform;
+        NPCSpawnerCondition enclosingGate = new NPCSpawnerCondition { npcRoot = enclosingRoot };
+        NPCSpawnConditionMonitor.Register(enclosingGate);
+        Expect(!npc.ShouldShowExclamationMark, "A controller of the containing NPC hierarchy vetoes pre-spawn markers");
+        enclosingGate.evaluated = enclosingGate.lastRuleVisibility = true;
+        Expect(npc.ShouldShowExclamationMark, "Every related containing gate must allow the NPC");
+        GameObject bodyChild = new GameObject();
+        bodyChild.transform.parent = npc.transform;
+        NPCSpawnerCondition bodyGate = new NPCSpawnerCondition { npcRoot = bodyChild };
+        NPCSpawnConditionMonitor.Register(bodyGate);
+        Expect(!npc.ShouldShowExclamationMark, "A separate controller of the NPC's model subtree vetoes pre-spawn markers");
+        bodyGate.manualOverride = 1;
+        Expect(npc.ShouldShowExclamationMark, "Shown model subtree plus shown containing hierarchy authorize the NPC");
+        bodyChild.activeInHierarchy = false;
+        Expect(!npc.ShouldShowExclamationMark, "Manual Spawn cannot ignore a still-hidden model hierarchy");
+        bodyChild.activeInHierarchy = true;
+        NPCSpawnConditionMonitor.Unregister(bodyGate);
+        Expect(npc.ShouldShowExclamationMark, "Removing a gate releases its old suppression without a domain reload");
+        NPCSpawnConditionMonitor.Unregister(enclosingGate);
+        NPCSpawnConditionMonitor.Unregister(gate);
+        npc.transform.parent = null;
+        NPCSpawnerCondition attachedGate = new NPCSpawnerCondition { gameObject = npc.gameObject };
+        NPCSpawnConditionMonitor.Register(attachedGate);
+        Expect(!npc.ShouldShowExclamationMark, "An attached spawner with no explicit npcRoot still protects its actual NPC");
+        attachedGate.evaluated = attachedGate.lastRuleVisibility = true;
+        Expect(npc.ShouldShowExclamationMark, "Attached spawned condition also supports implicit controlled object");
+        NPCSpawnConditionMonitor.Reset();
     }
 
     private static void DestinationResolution()

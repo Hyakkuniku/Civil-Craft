@@ -32,7 +32,7 @@ internal static partial class Program
         foreach (string name in new[] { "UpdatesButton", "UpdatesPanel", "NEW UPDATE" })
             Check(scene.Contains(name, StringComparison.Ordinal), "Saved main menu ships authored Updates UI: " + name);
         string controllerDocument = DocumentContaining(scene, scriptReference);
-        foreach (string field in new[] { "updatesButton", "closeButton", "retryButton", "downloadButton", "panel", "badge", "releaseTitleText", "releaseDateText", "notesText", "installedVersionText", "availableVersionText", "statusText", "notesScroll" })
+        foreach (string field in new[] { "updatesButton", "closeButton", "retryButton", "downloadButton", "releasesTabButton", "messagesTabButton", "panel", "badge", "releaseTitleText", "releaseDateText", "notesText", "installedVersionText", "availableVersionText", "statusText", "notesScroll" })
             Check(ReadReference(controllerDocument, field) != "0", "Saved Updates controller has a non-null authored reference: " + field);
         string managerId = ReadReference(controllerDocument, "m_GameObject");
         string manager = DocumentById(scene, managerId);

@@ -14217,6 +14217,7 @@ MonoBehaviour:
   shadowsToggle: {fileID: 1431221988}
   frameRateDropdown: {fileID: 982629766}
   hapticsToggle: {fileID: 750832445}
+  fixedJoystickToggle: {fileID: 0}
   defaultCameraSensitivity: 1
   cameraSensitivitySlider: {fileID: 1224470884}
   cameraSensitivityText: {fileID: 1443981087}

@@ -93,6 +93,17 @@ public class NPCSpawnerCondition : MonoBehaviour
     public bool HasManualOverride => manualOverride != 0;
     public bool IsShown => (npcRoot != null ? npcRoot : gameObject).activeSelf;
 
+    // Marker-only, read-only gate: an authored-active NPC is not confirmed
+    // spawned while its visibility rules are still waiting for player data.
+    public bool CanShowAttentionMarkerFor(Transform npc)
+    {
+        if (npc == null) return false;
+        Transform target = (npcRoot != null ? npcRoot : gameObject).transform;
+        if (target != npc && !npc.IsChildOf(target) && !target.IsChildOf(npc)) return true;
+        return target.gameObject.activeInHierarchy &&
+            (!enabled || manualOverride > 0 || (manualOverride == 0 && evaluated && lastRuleVisibility));
+    }
+
     private void OnEnable() { NPCSpawnConditionMonitor.Register(this); }
     private void Start() { EvaluateNow(); }
     private void OnDestroy() { NPCSpawnConditionMonitor.Unregister(this); }

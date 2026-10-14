@@ -24,6 +24,8 @@ public sealed class MainMenuUpdatesLayout : MonoBehaviour
     public RectTransform retry;
     public RectTransform download;
     public RectTransform close;
+    public RectTransform releasesTab;
+    public RectTransform messagesTab;
     public ScrollRect notesScroll;
     public TMP_Text notesText;
 
@@ -69,7 +71,10 @@ public sealed class MainMenuUpdatesLayout : MonoBehaviour
             Text(heading != null ? heading.GetComponent<TMP_Text>() : null, Mathf.Max(22f, 38f * u), true, TextAlignmentOptions.MidlineLeft);
             Place(close, Vector2.one, new Vector2(-110f * u, -48f * u), new Vector2(170f, 60f) * u);
             StyleButton(close, u);
-            Top(releaseTitle, 40f * u, 40f * u, 90f * u, 76f * u);
+            FractionTop(releasesTab, .028f, .49f, 82f * u, 54f * u);
+            FractionTop(messagesTab, .51f, .972f, 82f * u, 54f * u);
+            StyleButton(releasesTab, u); StyleButton(messagesTab, u);
+            Top(releaseTitle, 40f * u, 40f * u, 146f * u, 76f * u);
             TMP_Text title = releaseTitle != null ? releaseTitle.GetComponent<TMP_Text>() : null;
             Text(title, Mathf.Max(21f, 34f * u), true, TextAlignmentOptions.TopLeft);
             if (title != null)
@@ -80,18 +85,18 @@ public sealed class MainMenuUpdatesLayout : MonoBehaviour
                 title.fontSizeMin = Mathf.Max(18f, 25f * u);
                 title.overflowMode = TextOverflowModes.Ellipsis;
             }
-            Top(releaseDate, 40f * u, 40f * u, 171f * u, 34f * u);
+            Top(releaseDate, 40f * u, 40f * u, 227f * u, 34f * u);
             Text(releaseDate != null ? releaseDate.GetComponent<TMP_Text>() : null, Mathf.Max(18f, 25f * u), false, TextAlignmentOptions.MidlineLeft);
-            FractionTop(installedVersion, .028f, .49f, 209f * u, 46f * u);
-            FractionTop(availableVersion, .51f, .972f, 209f * u, 46f * u);
+            FractionTop(installedVersion, .028f, .49f, 265f * u, 46f * u);
+            FractionTop(availableVersion, .51f, .972f, 265f * u, 46f * u);
             Text(installedVersion != null ? installedVersion.GetComponent<TMP_Text>() : null, Mathf.Max(17f, 25f * u), false, TextAlignmentOptions.MidlineLeft);
             Text(availableVersion != null ? availableVersion.GetComponent<TMP_Text>() : null, Mathf.Max(17f, 25f * u), false, TextAlignmentOptions.MidlineRight);
-            Stretch(notesViewport, 40f * u, 204f * u, 76f * u, 270f * u);
+            Stretch(notesViewport, 40f * u, 204f * u, 76f * u, 326f * u);
             if (scrollbar != null)
             {
                 scrollbar.anchorMin = new Vector2(1f, 0f); scrollbar.anchorMax = Vector2.one;
                 scrollbar.offsetMin = new Vector2(-61f * u, 208f * u);
-                scrollbar.offsetMax = new Vector2(-43f * u, -274f * u);
+                scrollbar.offsetMax = new Vector2(-43f * u, -330f * u);
             }
             if (notesContent != null)
             {

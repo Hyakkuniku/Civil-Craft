@@ -45,7 +45,26 @@ namespace UnityEngine
             component = value as T;
             return found;
         }
+        public T GetComponent<T>() where T : class { TryGetComponent(out T component); return component; }
+        public bool IsChildOf(Transform ancestor)
+        {
+            for (Transform item = this; item != null; item = item.parent)
+                if (item == ancestor) return true;
+            return false;
+        }
     }
+    public class Renderer
+    {
+        public bool enabled = true, forceRenderingOff, isVisible;
+        public GameObject gameObject = new GameObject();
+        public T GetComponent<T>() where T : class => gameObject.transform.GetComponent<T>();
+        public bool TryGetComponent<T>(out T component) where T : class => gameObject.transform.TryGetComponent(out component);
+    }
+    public sealed class Mesh { }
+    public sealed class MeshFilter { public Mesh sharedMesh; }
+    public sealed class MeshRenderer : Renderer { }
+    public sealed class SkinnedMeshRenderer : Renderer { public Mesh sharedMesh; }
+    public sealed class ParticleSystemRenderer : Renderer { }
     public sealed class Canvas { public bool isActiveAndEnabled = true; }
     public sealed class CanvasGroup { public float alpha = 1f; public bool ignoreParentGroups; }
     public struct Rect
@@ -66,6 +85,7 @@ namespace UnityEngine
         public Color32(byte r, byte g, byte b, byte a) { this.r = r; this.g = g; this.b = b; this.a = a; }
     }
 }
+namespace TMPro { public class TMP_Text { } }
 namespace UnityEngine.UI
 {
     public sealed class RectTransform : Transform
@@ -97,7 +117,13 @@ public sealed class Scene
     public bool valid = true, isLoaded = true;
     public bool IsValid() => valid;
 }
-public sealed class GameObject { public Scene scene = new Scene(); public bool activeInHierarchy = true; }
+public sealed class GameObject
+{
+    public Scene scene = new Scene();
+    public bool activeInHierarchy = true;
+    private Transform objectTransform;
+    public Transform transform => objectTransform ?? (objectTransform = new Transform { gameObject = this });
+}
 public sealed class FusionConnectionManager
 {
     public static FusionConnectionManager Instance;
@@ -118,12 +144,21 @@ public sealed class NPCProgressionManager
     public List<NPCProgressionPhase> phases = new List<NPCProgressionPhase>();
     public int currentPhaseIndex;
     public Transform transform = new Transform();
+    public readonly List<Renderer> RenderedChildren = new List<Renderer>();
+    private readonly List<Renderer> markerPresenceRenderers = new List<Renderer>();
     public Vector3 authoredStartPosition;
     public float arrivalPadding = .05f, waypointArrivalDistance = .1f;
     public NPCProgressionMovementMode movementMode;
     public bool GroundProbeSucceeds;
     public float GroundProbeHeight;
     public int GroundProbeCount;
+    public NPCProgressionManager() { transform = gameObject.transform; }
+    private void GetComponentsInChildren(bool includeInactive, List<Renderer> result)
+    {
+        // Unity clears the supplied list before reporting the current subtree.
+        result.Clear();
+        result.AddRange(RenderedChildren);
+    }
     private bool TryProjectWaypointToGround(Vector3 position, out Vector3 grounded)
     {
         GroundProbeCount++;
@@ -141,6 +176,21 @@ public sealed class NPCProgressionManager
     }
     public void BeginTravel() { phaseHasArrived = false; movementRoutine = new object(); }
     public void FinishTravel(int index) { movementRoutine = null; Activate(index); }
+}
+public sealed class NPCSpawnerCondition
+{
+    public GameObject npcRoot;
+    public GameObject gameObject = new GameObject();
+    public bool enabled = true, evaluated, lastRuleVisibility;
+    public int manualOverride;
+    // ACTUAL_SPAWNER_PRESENCE
+}
+public static class NPCSpawnConditionMonitor
+{
+    private static readonly HashSet<NPCSpawnerCondition> conditions = new HashSet<NPCSpawnerCondition>();
+    // ACTUAL_SPAWN_MONITOR
+    public static void Reset() => conditions.Clear();
+    public static void AddDestroyedEntry() => conditions.Add(null);
 }
 public sealed class NPCExclamationGraphic : MaskableGraphic
 {

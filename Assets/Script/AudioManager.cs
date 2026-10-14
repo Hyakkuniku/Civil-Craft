@@ -88,6 +88,7 @@ public sealed class AudioManager : MonoBehaviour
     private string currentMusicId;
 
     public string CurrentMusicId => currentMusicId;
+    public AudioMixerGroup SfxOutput => sfxOutput;
     public bool IsMusicPlaying =>
         (firstMusicSource != null && firstMusicSource.isPlaying) ||
         (secondMusicSource != null && secondMusicSource.isPlaying);

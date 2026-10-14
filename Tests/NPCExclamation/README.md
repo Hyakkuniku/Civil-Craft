@@ -21,5 +21,12 @@ hidden maps, ancestor Canvas opacity, and disabled Canvases are tested directly.
 The overhead call-order guards require suppressing an intersecting world badge
 without moving it, changing map render order, or hiding the map's own markers.
 
+Presence tests compile the actual model-presence and spawn-condition-readiness
+methods. They cover startup waiting for rules/manual spawn, despawn/respawn,
+unrelated and nested controlled objects, disabled debug gates, renderer-hidden
+models, labels/particles that are not NPC bodies, and off-camera NPCs that must
+remain visible on the map. Component discovery and `activeInHierarchy` are engine
+boundary doubles; no real spawning, camera rendering, or player progress runs.
+
 Rendering size/contrast, occlusion, map clipping, and real navigation should still
 be checked in Unity; the standalone checks do not claim native rendering coverage.

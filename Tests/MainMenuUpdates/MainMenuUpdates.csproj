@@ -9,6 +9,7 @@
   <ItemGroup>
     <Compile Include="../../Assets/Script/Client/GameReleaseModels.cs" Link="GameReleaseModels.cs" />
     <Compile Include="../../Assets/Script/Client/GameReleaseService.cs" Link="GameReleaseService.cs" />
+    <Compile Include="../../Assets/Script/Client/PlayerMessagesService.cs" Link="PlayerMessagesService.cs" />
     <Compile Include="../../Assets/Script/UI/MainMenuUpdatesController.cs" Link="MainMenuUpdatesController.cs" />
     <Compile Include="../../Assets/PlayFabSDK/Shared/Internal/SimpleJson.cs" Link="PlayFabSimpleJson.cs" />
   </ItemGroup>

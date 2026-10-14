@@ -38,6 +38,16 @@ public sealed class NPCSpawnConditionMonitor : MonoBehaviour
     }
     public static void Unregister(NPCSpawnerCondition condition) { conditions.Remove(condition); }
 
+    public static bool CanShowNPCAttentionMarker(Transform npc)
+    {
+        if (npc == null) return false;
+        // Includes gates on a separate controller that controls the NPC/model
+        // through npcRoot. Unrelated spawn conditions never hide another NPC.
+        foreach (NPCSpawnerCondition condition in conditions)
+            if (condition != null && !condition.CanShowAttentionMarkerFor(npc)) return false;
+        return true;
+    }
+
     private void Update()
     {
         if (Time.unscaledTime < nextCheck) return;
