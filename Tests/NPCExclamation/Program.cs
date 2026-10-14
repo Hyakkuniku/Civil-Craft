@@ -23,14 +23,18 @@ internal static class Program
             Method(manager, "HasReachedPhaseDestination");
         ClassDeclarationSyntax graphic = ReadClass(root, "Assets/Script/UI/NPCExclamationGraphic.cs", "NPCExclamationGraphic");
         ClassDeclarationSyntax map = ReadClass(root, "Assets/Script/Player/ExpandedMinimapController.cs", "ExpandedMinimapController");
+        ClassDeclarationSyntax reservations = ReadClass(root, "Assets/Script/UI/UIReservedRegionLayout.cs", "UIReservedRegionLayout");
         string mesh = string.Join("\n", graphic.Members.OfType<FieldDeclarationSyntax>().Select(node => node.ToFullString())) +
             Method(graphic, "Awake") + Method(graphic, "OnPopulateMesh") + Method(graphic, "Disc") + Method(graphic, "Quad");
         string projection = Method(map, "GetNPCMarkerCanvasSize") + Method(map, "IsFiniteNPCMapValue") + Method(map, "TryProjectNPCMapPoint");
+        string hudOverlap = Method(reservations, "OverlapsVisibleReservation") + Method(reservations, "IsRenderable") +
+            Method(reservations, "Expand") + Method(reservations, "Register") + Method(reservations, "Unregister");
         int checks = Execute(boundary.Replace("// ACTUAL_NPC_POLICY", extracted)
-            .Replace("// ACTUAL_GRAPHIC", mesh).Replace("// ACTUAL_MAP_PROJECTION", projection) + scenarios);
+            .Replace("// ACTUAL_GRAPHIC", mesh).Replace("// ACTUAL_MAP_PROJECTION", projection)
+            .Replace("// ACTUAL_HUD_RESERVATIONS", hudOverlap) + scenarios);
         CheckLifecycle(manager, phase);
         CheckVisualBoundaries(root);
-        Console.WriteLine($"PASS: {checks} actual-source eligibility/destination assertions and {guards} lifecycle/visual boundary guards. No Unity session, accounts, scenes, saves, or network access.");
+        Console.WriteLine($"PASS: {checks} actual-source eligibility/destination/geometry/HUD-reservation assertions and {guards} lifecycle/visual boundary guards. No Unity session, accounts, scenes, saves, or network access.");
     }
 
     private static void CheckLifecycle(ClassDeclarationSyntax manager, ClassDeclarationSyntax phase)
@@ -75,12 +79,29 @@ internal static class Program
         string visual = File.ReadAllText(visualPath);
         Require(visual.Contains("const float diameter = 32f"), "Overhead badge must keep the reduced fixed-pixel default.");
         Require(visual.Contains("ShouldShowExclamationMark"), "Overhead must use the same phase eligibility as the map.");
+        ClassDeclarationSyntax overhead = ReadClass(root, "Assets/Script/Client/NPCExclamationMarker.cs", "NPCExclamationMarker");
+        MethodDeclarationSyntax overheadUpdate = overhead.Members.OfType<MethodDeclarationSyntax>()
+            .Single(node => node.Identifier.ValueText == "LateUpdate");
+        IfStatementSyntax overlapGate = overheadUpdate.DescendantNodes().OfType<IfStatementSyntax>()
+            .SingleOrDefault(node => node.Condition.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>()
+                .Any(call => call.Expression.ToString() == "UIReservedRegionLayout.OverlapsVisibleReservation"));
+        Require(overlapGate != null && overlapGate.Statement.DescendantNodesAndSelf().OfType<ReturnStatementSyntax>().Any() &&
+            overlapGate.Statement.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>().Any(call => call.Expression.ToString() == "Hide"),
+            "The overhead HUD intersection gate must immediately hide and return, not move the marker or alter map rendering.");
+        Require(overlapGate != null && overlapGate.SpanStart < overheadUpdate.DescendantNodes().OfType<AssignmentExpressionSyntax>()
+            .Single(node => node.Left.ToString() == "badge.anchoredPosition").SpanStart,
+            "HUD overlap must be resolved before applying the overhead position or restoring its Canvas.");
+        Require(Method(overhead, "LateUpdate").Contains("point.x - half, point.y - half") &&
+            Method(overhead, "LateUpdate").Contains("point.x + half, point.y + half"),
+            "Suppression must measure the entire physical badge, including edge/corner overlap outside its center.");
+        Require(overlapGate != null && overlapGate.Condition.ToString().Contains(", 2f"), "Overhead must leave the HUD's small physical-pixel separation margin.");
         Require(visual.Contains("raycastTarget = false"), "Overhead graphics must never intercept interactions.");
         Require(!visual.Contains("AddComponent<Collider") && !visual.Contains("AddComponent<BoxCollider") &&
             !visual.Contains("AddComponent<SphereCollider") && !visual.Contains("AddComponent<CapsuleCollider") &&
             !visual.Contains("AddComponent<MeshCollider"), "Marker must not create a physics obstacle.");
         string map = File.ReadAllText(Path.Combine(root, "Assets/Script/Player/ExpandedMinimapController.cs"));
         Require(map.Contains("ShouldShowExclamationMark"), "Small and expanded maps must honor actual arrival gating.");
+        Require(!map.Contains("OverlapsVisibleReservation("), "The map's own exclamation markers must remain visible inside the reserved minimap region.");
         Require(map.Contains("NPCExclamation"), "Map must maintain a dedicated NPC indicator instead of replacing contract markers.");
         Require(!map.Contains("AddComponent<Collider"), "Map overlay must not enter physics hit-testing.");
         Require(map.Contains("group.blocksRaycasts = false") && map.Contains("group.interactable = false"),

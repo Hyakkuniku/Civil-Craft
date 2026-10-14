@@ -10,7 +10,7 @@ The marker appears only after the NPC reaches that phase's destination. It stays
 
 No icon assignment or new shader is required. The graphics never block NPC/bridge selection. Existing map unlock rules and story phases remain unchanged, and old phases default to unchecked.
 
-The overhead badge hides during dialogue, Pause, fullscreen panels, and build/transition mode. The map badge appears only when the map is available and the NPC is inside its camera view. Visiting multiplayer guests do not gain host story markers from their own progression.
+The overhead badge hides during dialogue, Pause, fullscreen panels, and build/transition mode. It also hides whenever any part of its badge would overlap the visible minimap or another reserved HUD panel, returning when clear. Hidden HUD panels do not hide the overhead badge. The independent map badge remains visible when the map is available and the NPC is inside its camera view. Visiting multiplayer guests do not gain host story markers from their own progression.
 
 Talking does not automatically clear the checkbox. The marker follows the checked active phase; uncheck it or move to an unchecked phase to hide it.
 

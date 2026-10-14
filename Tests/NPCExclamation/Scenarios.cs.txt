@@ -8,6 +8,8 @@ public static class Scenarios
         ArrivalLifecycle();
         GraphicGeometry();
         MapProjectionAndSize();
+        HUDReservationGeometry();
+        HUDReservationVisibility();
         return assertions;
     }
 
@@ -233,6 +235,115 @@ public static class Scenarios
             "Invalid image area cannot expose misplaced marker");
         Expect(!MapProjection.Project(new Vector3(.5f, .5f, 1f), area, new Rect(0f, 0f, 0f, 1f), out point),
             "Invalid UV extent cannot expose misplaced marker");
+    }
+
+    private static RectTransform VisibleHUD(Rect bounds)
+    {
+        RectTransform rect = new RectTransform { ScreenBounds = bounds };
+        rect.AddComponent(new Canvas());
+        return rect;
+    }
+
+    private static void HUDReservationGeometry()
+    {
+        UIReservedRegionLayout.Reset();
+        Rect badge = new Rect(90f, 90f, 32f, 32f);
+        Expect(!UIReservedRegionLayout.OverlapsVisibleReservation(badge), "Unregistered HUD never hides an overhead marker");
+        UIReservedRegionLayout.Register(null);
+        Expect(!UIReservedRegionLayout.OverlapsVisibleReservation(badge), "Null registration cannot hide a marker");
+        RectTransform map = VisibleHUD(new Rect(100f, 100f, 200f, 150f));
+        UIReservedRegionLayout.Register(map);
+        UIReservedRegionLayout.Register(map);
+        Expect(UIReservedRegionLayout.OverlapsVisibleReservation(badge), "Corner intersection hides even when projected center is outside the map");
+        Expect(UIReservedRegionLayout.OverlapsVisibleReservation(new Rect(284f, 130f, 32f, 32f)), "The full right edge, not only the center, is protected");
+        Expect(UIReservedRegionLayout.OverlapsVisibleReservation(new Rect(130f, 234f, 32f, 32f)), "The full upper edge is protected");
+        Expect(UIReservedRegionLayout.OverlapsVisibleReservation(new Rect(140f, 140f, 32f, 32f)), "Badge entirely inside map is suppressed");
+        Expect(!UIReservedRegionLayout.OverlapsVisibleReservation(new Rect(60f, 120f, 32f, 32f)), "Unrelated world-space area stays visible");
+        Expect(!UIReservedRegionLayout.OverlapsVisibleReservation(new Rect(68f, 120f, 32f, 32f)), "Touching edge without padding has no pixel overlap");
+        Expect(UIReservedRegionLayout.OverlapsVisibleReservation(new Rect(68f, 120f, 32f, 32f), 2f), "Two-pixel safety padding protects a touching rim");
+        Expect(!UIReservedRegionLayout.OverlapsVisibleReservation(new Rect(66f, 120f, 32f, 32f), 2f), "Exactly separated safety margin is permitted");
+        Expect(UIReservedRegionLayout.OverlapsVisibleReservation(new Rect(66.1f, 120f, 32f, 32f), 2f), "A fractional-pixel safety-margin crossing is suppressed");
+        Expect(!UIReservedRegionLayout.OverlapsVisibleReservation(new Rect(66.1f, 120f, 32f, 32f), -2f), "Negative padding cannot shrink protected HUD bounds");
+        Expect(!UIReservedRegionLayout.OverlapsVisibleReservation(new Rect(150f, 150f, 0f, 32f)), "Zero-width candidate is safely ignored");
+        Expect(!UIReservedRegionLayout.OverlapsVisibleReservation(new Rect(150f, 150f, 32f, -1f)), "Negative-height candidate is safely ignored");
+        map.ScreenBounds = new Rect(600f, 400f, 200f, 150f);
+        Expect(!UIReservedRegionLayout.OverlapsVisibleReservation(badge), "Moving or resizing minimap releases its previous position without stale caching");
+        Expect(UIReservedRegionLayout.OverlapsVisibleReservation(new Rect(590f, 390f, 32f, 32f)), "Current minimap position is protected in the same frame");
+        map.BoundsValid = false;
+        Expect(!UIReservedRegionLayout.OverlapsVisibleReservation(new Rect(590f, 390f, 32f, 32f)), "Failed engine projection cannot invent reserved bounds");
+        map.BoundsValid = true;
+        UIReservedRegionLayout.Unregister(map);
+        Expect(!UIReservedRegionLayout.OverlapsVisibleReservation(new Rect(590f, 390f, 32f, 32f)), "One unregistration removes a repeatedly registered HUD");
+
+        Random random = new Random(310514);
+        foreach (Vector2 screen in new[] { new Vector2(1280f, 720f), new Vector2(1024f, 768f), new Vector2(1920f, 1080f), new Vector2(720f, 1280f) })
+        {
+            UIReservedRegionLayout.Reset();
+            Rect mapBounds = new Rect(screen.x - 230f, screen.y - 200f, 210f, 180f);
+            map = VisibleHUD(mapBounds);
+            UIReservedRegionLayout.Register(map);
+            for (int index = 0; index < 250; index++)
+            {
+                float centerX = mapBounds.xMin - 50f + (float)random.NextDouble() * (mapBounds.width + 100f);
+                float centerY = mapBounds.yMin - 50f + (float)random.NextDouble() * (mapBounds.height + 100f);
+                Rect candidate = new Rect(centerX - 16f, centerY - 16f, 32f, 32f);
+                bool expected = centerX + 16f > mapBounds.xMin - 2f && centerX - 16f < mapBounds.xMax + 2f &&
+                    centerY + 16f > mapBounds.yMin - 2f && centerY - 16f < mapBounds.yMax + 2f;
+                Expect(UIReservedRegionLayout.OverlapsVisibleReservation(candidate, 2f) == expected,
+                    "Physical-pixel minimap exclusion agrees with full-badge oracle on " + screen.x + "x" + screen.y);
+            }
+        }
+        UIReservedRegionLayout.Reset();
+    }
+
+    private static void HUDReservationVisibility()
+    {
+        UIReservedRegionLayout.Reset();
+        Rect candidate = new Rect(120f, 120f, 32f, 32f);
+        RectTransform map = VisibleHUD(new Rect(100f, 100f, 200f, 150f));
+        UIReservedRegionLayout.Register(map);
+        Expect(UIReservedRegionLayout.OverlapsVisibleReservation(candidate), "Visible minimap owns its screen area");
+        map.gameObject.activeInHierarchy = false;
+        Expect(!UIReservedRegionLayout.OverlapsVisibleReservation(candidate), "Hidden/locked minimap does not conceal the NPC badge");
+        map.gameObject.activeInHierarchy = true;
+        Expect(UIReservedRegionLayout.OverlapsVisibleReservation(candidate), "Showing map restores its screen reservation immediately");
+        map.TryGetComponent(out Canvas canvas);
+        canvas.isActiveAndEnabled = false;
+        Expect(!UIReservedRegionLayout.OverlapsVisibleReservation(candidate), "Disabled minimap Canvas does not reserve invisible screen space");
+        canvas.isActiveAndEnabled = true;
+        CanvasGroup mapGroup = new CanvasGroup { alpha = 0f };
+        map.AddComponent(mapGroup);
+        Expect(!UIReservedRegionLayout.OverlapsVisibleReservation(candidate), "Fully faded minimap does not hide the overhead badge");
+        mapGroup.alpha = .002f;
+        Expect(UIReservedRegionLayout.OverlapsVisibleReservation(candidate), "A still-rendered minimap retains exclusion");
+        mapGroup.alpha = .001f;
+        Expect(!UIReservedRegionLayout.OverlapsVisibleReservation(candidate), "Opacity at visibility threshold is excluded");
+        mapGroup.alpha = 1f;
+        Transform outer = new Transform();
+        CanvasGroup parentGroup = new CanvasGroup { alpha = 0f };
+        outer.AddComponent(parentGroup);
+        map.parent = outer;
+        Expect(!UIReservedRegionLayout.OverlapsVisibleReservation(candidate), "Invisible ancestor group hides the minimap reservation");
+        mapGroup.ignoreParentGroups = true;
+        Expect(UIReservedRegionLayout.OverlapsVisibleReservation(candidate), "Ignore-parent opacity keeps a genuinely visible map protected");
+        Canvas disabledParentCanvas = new Canvas { isActiveAndEnabled = false };
+        outer.AddComponent(disabledParentCanvas);
+        Expect(!UIReservedRegionLayout.OverlapsVisibleReservation(candidate), "Ignoring parent groups cannot override a disabled parent Canvas");
+        disabledParentCanvas.isActiveAndEnabled = true;
+        mapGroup.ignoreParentGroups = false;
+        parentGroup.alpha = .01f;
+        mapGroup.alpha = .01f;
+        Expect(!UIReservedRegionLayout.OverlapsVisibleReservation(candidate), "Combined ancestor opacity is evaluated, not each group alone");
+        UIReservedRegionLayout.Unregister(map);
+        RectTransform orphan = new RectTransform { ScreenBounds = map.ScreenBounds };
+        UIReservedRegionLayout.Register(orphan);
+        Expect(!UIReservedRegionLayout.OverlapsVisibleReservation(candidate), "Unrendered orphan rectangles never conceal NPC markers");
+        RectTransform secondMap = VisibleHUD(map.ScreenBounds);
+        UIReservedRegionLayout.Register(secondMap);
+        Expect(UIReservedRegionLayout.OverlapsVisibleReservation(candidate), "One visible reservation still protects HUD when another is invalid");
+        UIReservedRegionLayout.Unregister(secondMap);
+        Expect(!UIReservedRegionLayout.OverlapsVisibleReservation(candidate), "Teardown releases the visible map without needing domain reload");
+        UIReservedRegionLayout.Reset();
     }
 
     private static void Expect(bool condition, string message)

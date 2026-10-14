@@ -86,6 +86,24 @@ public static class UIReservedRegionLayout
     }
 
     /// <summary>
+    /// Tests a projected world badge against visible priority HUD panels (including
+    /// the minimap). Use the entire badge bounds, not just its center, so its edge
+    /// cannot spill over the HUD. Hidden panels do not reserve screen space.
+    /// </summary>
+    public static bool OverlapsVisibleReservation(Rect screenBounds, float gapPixels = 0f)
+    {
+        if (screenBounds.width <= 0f || screenBounds.height <= 0f) return false;
+        float gap = Mathf.Max(0f, gapPixels);
+        foreach (RectTransform reserved in reservedRects)
+        {
+            if (reserved == null || !IsRenderable(reserved) ||
+                !TryGetScreenRect(reserved, out Rect bounds)) continue;
+            if (screenBounds.Overlaps(Expand(bounds, gap))) return true;
+        }
+        return false;
+    }
+
+    /// <summary>
     /// A passive notification uses only the top screen edge, never the bottom or
     /// central play area. Registered panels and active controls take priority.
     /// Geometry can be measured while the item's own CanvasGroup is faded out.

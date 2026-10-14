@@ -19,7 +19,7 @@ using Object = UnityEngine.Object;
 /// <summary>Opt-in detached rendering and native hit tests; never starts NPC progression or saves a scene.</summary>
 public static class NPCExclamationValidation
 {
-    private const string Request = "Temp/npc-exclamation-validation-v3.request";
+    private const string Request = "Temp/npc-exclamation-validation-v4.request";
     private const string Report = "Temp/NPCExclamationValidation.txt";
     private const BindingFlags Flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
     private static bool running;
@@ -75,6 +75,7 @@ public static class NPCExclamationValidation
             NPCProgressionManager npc = SyntheticNPC(preview);
             ValidateArrival(npc, report);
             ValidateProjection(report);
+            ValidateHUDSourceGuard(report);
             Vector2Int[] sizes = { new Vector2Int(1280, 720), new Vector2Int(1024, 768), new Vector2Int(1920, 1080) };
             string[] names = { "phone", "tablet", "desktop" };
             for (int i = 0; i < sizes.Length; i++) ValidatePresentation(preview, npc, sizes[i], names[i], report);
@@ -93,7 +94,7 @@ public static class NPCExclamationValidation
         Check(SceneManager.GetActiveScene() == active, "The original active scene changed.");
         Check(activeManagers.SetEquals(managersBefore), "The live NPC registry changed.");
         Check(ReferenceEquals(fusionSingleton.GetValue(null), fusionBefore), "The live multiplayer owner changed.");
-        report.Insert(0, "PASS: detached NPC arrival gate, native vector rendering, physical sizes, map projection and click-through checks.\n");
+        report.Insert(0, "PASS: detached NPC arrival gate, native vector rendering, physical sizes, map projection, HUD overlap exclusion and click-through checks.\n");
         report.AppendLine("NOTE: No progression activation, coroutine, player input, save, account, network, scene save or released story changes ran.");
         return report.ToString();
     }
@@ -229,6 +230,7 @@ public static class NPCExclamationValidation
             foreach (Transform child in canvasObject.GetComponentsInChildren<Transform>(true)) child.gameObject.layer = 30;
             canvasObject.SetActive(true);
             Canvas.ForceUpdateCanvases();
+            ValidateHUDReservations(canvas, maps[1], badges, name, report);
             foreach (Graphic graphic in canvasObject.GetComponentsInChildren<Graphic>()) { graphic.SetAllDirty(); graphic.Rebuild(CanvasUpdate.PreRender); }
             Canvas.ForceUpdateCanvases(); Render(camera, target); Canvas.ForceUpdateCanvases();
             captured = ReadPixels(target);
@@ -276,6 +278,135 @@ public static class NPCExclamationValidation
             target.Release(); Object.DestroyImmediate(target);
         }
     }
+
+    private static void ValidateHUDSourceGuard(StringBuilder report)
+    {
+        string source = File.ReadAllText("Assets/Script/Client/NPCExclamationMarker.cs");
+        int bounds = source.IndexOf("Rect screenBounds = Rect.MinMaxRect(point.x - half, point.y - half,", StringComparison.Ordinal);
+        int exclusion = source.IndexOf("if (UIReservedRegionLayout.OverlapsVisibleReservation(screenBounds, 2f)) { Hide(); return; }", StringComparison.Ordinal);
+        int activation = source.IndexOf("if (!canvasObject.activeSelf) canvasObject.SetActive(true);", StringComparison.Ordinal);
+        Check(bounds >= 0 && source.Substring(bounds).Contains("point.x + half, point.y + half)"),
+            "Overhead exclusion must use the full badge bounds, not only its projected center.");
+        Check(exclusion > bounds && activation > exclusion,
+            "Overhead exclusion must hide and return before activating the badge Canvas.");
+        string mapSource = File.ReadAllText("Assets/Script/Player/ExpandedMinimapController.cs");
+        Check(!mapSource.Contains("OverlapsVisibleReservation"), "Map-specific badges must not exclude themselves from their map.");
+        report.AppendLine("PASS: real overhead source excludes its complete 32px bounds with a 2px HUD gap before activation; map-specific badges retain their independent path. No live LateUpdate or singleton input gates are invoked.");
+    }
+
+    private static void ValidateHUDReservations(Canvas canvas, ExpandedMinimapController controller,
+        List<NPCExclamationGraphic> badges, string name, StringBuilder report)
+    {
+        RawImage image = (RawImage)Field(typeof(ExpandedMinimapController), "mapImage").GetValue(controller);
+        RectTransform minimap = image.rectTransform;
+        var registry = (HashSet<RectTransform>)Field(typeof(UIReservedRegionLayout), "reservedRects").GetValue(null);
+        RectTransform[] reservationsBefore = registry.ToArray();
+        Vector3 positionBefore = minimap.anchoredPosition3D;
+        Vector3 scaleBefore = minimap.localScale;
+        Vector2 sizeBefore = minimap.sizeDelta;
+        bool activeBefore = minimap.gameObject.activeSelf;
+        bool canvasBefore = canvas.enabled;
+        int orderBefore = canvas.sortingOrder;
+        Vector2[] badgeSizes = badges.Select(badge => badge.rectTransform.sizeDelta).ToArray();
+        Vector3[] badgePositions = badges.Select(badge => badge.rectTransform.anchoredPosition3D).ToArray();
+        bool[] badgeActive = badges.Select(badge => badge.gameObject.activeSelf).ToArray();
+        CanvasGroup mapVisibility = null, ancestorVisibility = null;
+        try
+        {
+            // The fixture is synchronous and owns this detached Canvas. Use the
+            // existing registry directly so real LayoutChanging subscribers are
+            // not notified or asked to rearrange source-scene UI.
+            registry.Clear();
+            registry.Add(minimap);
+            Check(UIReservedRegionLayout.TryGetScreenRect(minimap, out Rect original), "Detached minimap has no native screen bounds.");
+            Check(Mathf.Abs(original.width - sizeBefore.x) < .1f && Mathf.Abs(original.height - sizeBefore.y) < .1f,
+                "Detached minimap physical geometry does not match its test resolution.");
+            Rect center = Bounds(original.center);
+            Check(UIReservedRegionLayout.OverlapsVisibleReservation(center), "A centered overhead badge can cover the minimap.");
+            Vector2 edgePoint = new Vector2(original.xMin - 8f, original.center.y);
+            Vector2 cornerPoint = new Vector2(original.xMin - 8f, original.yMin - 8f);
+            Check(!original.Contains(edgePoint) && UIReservedRegionLayout.OverlapsVisibleReservation(Bounds(edgePoint)),
+                "An overhead badge with its center outside can spill across a minimap edge.");
+            Check(!original.Contains(cornerPoint) && UIReservedRegionLayout.OverlapsVisibleReservation(Bounds(cornerPoint)),
+                "An overhead badge with its center outside can spill across a minimap corner.");
+            Rect onePixelGap = new Rect(original.xMax + 1f, original.center.y - 16f, 32f, 32f);
+            Check(!UIReservedRegionLayout.OverlapsVisibleReservation(onePixelGap) &&
+                UIReservedRegionLayout.OverlapsVisibleReservation(onePixelGap, 2f), "The 2px HUD safety gap is not respected.");
+            Rect outside = new Rect(original.xMax + 3f, original.center.y - 16f, 32f, 32f);
+            Check(!UIReservedRegionLayout.OverlapsVisibleReservation(outside, 2f), "An overhead badge outside the minimap is incorrectly hidden.");
+            Check(!UIReservedRegionLayout.OverlapsVisibleReservation(new Rect(original.xMax, original.center.y - 16f, 32f, 32f)),
+                "Non-overlapping edge contact must remain visible without padding.");
+            Check(!UIReservedRegionLayout.OverlapsVisibleReservation(new Rect(original.center, Vector2.zero)),
+                "An empty screen rectangle must not obscure gameplay.");
+
+            minimap.localScale = scaleBefore * .5f;
+            Canvas.ForceUpdateCanvases();
+            Check(UIReservedRegionLayout.TryGetScreenRect(minimap, out Rect scaled) &&
+                Mathf.Abs(scaled.width - original.width * .5f) < .1f && Mathf.Abs(scaled.height - original.height * .5f) < .1f,
+                "HUD exclusion did not measure the scaled minimap's physical geometry.");
+            Check(UIReservedRegionLayout.OverlapsVisibleReservation(Bounds(scaled.center)), "The scaled minimap center was not reserved.");
+            Check(!UIReservedRegionLayout.OverlapsVisibleReservation(new Rect(original.xMin + 2f, original.center.y - 16f, 32f, 32f), 2f),
+                "HUD exclusion uses stale minimap bounds after scaling.");
+            minimap.localScale = scaleBefore;
+            minimap.anchoredPosition3D = positionBefore + new Vector3(-original.width - 64f, 0f, 0f);
+            Canvas.ForceUpdateCanvases();
+            Check(UIReservedRegionLayout.TryGetScreenRect(minimap, out Rect moved) &&
+                Mathf.Abs(moved.center.x - original.center.x + original.width + 64f) < .1f,
+                "Detached minimap relocation did not update the native screen bounds.");
+            Check(!UIReservedRegionLayout.OverlapsVisibleReservation(center, 2f) &&
+                UIReservedRegionLayout.OverlapsVisibleReservation(Bounds(moved.center), 2f),
+                "HUD exclusion uses stale minimap bounds after repositioning.");
+            minimap.anchoredPosition3D = positionBefore;
+            Canvas.ForceUpdateCanvases();
+
+            minimap.gameObject.SetActive(false);
+            Check(!UIReservedRegionLayout.OverlapsVisibleReservation(center, 2f), "An inactive minimap incorrectly hides the overhead badge.");
+            minimap.gameObject.SetActive(true);
+            Check(UIReservedRegionLayout.OverlapsVisibleReservation(center, 2f), "A restored minimap did not reserve its screen bounds.");
+            mapVisibility = minimap.gameObject.AddComponent<CanvasGroup>();
+            mapVisibility.alpha = 0f;
+            Check(!UIReservedRegionLayout.OverlapsVisibleReservation(center, 2f), "A transparent minimap incorrectly hides the overhead badge.");
+            mapVisibility.alpha = 1f;
+            ancestorVisibility = canvas.gameObject.AddComponent<CanvasGroup>();
+            ancestorVisibility.alpha = 0f;
+            Check(!UIReservedRegionLayout.OverlapsVisibleReservation(center, 2f), "A hidden minimap parent incorrectly hides the overhead badge.");
+            mapVisibility.ignoreParentGroups = true;
+            Check(UIReservedRegionLayout.OverlapsVisibleReservation(center, 2f), "Visible ignore-parent-opacity minimap geometry was not reserved.");
+            mapVisibility.ignoreParentGroups = false;
+            ancestorVisibility.alpha = 1f;
+            canvas.enabled = false;
+            Check(!UIReservedRegionLayout.OverlapsVisibleReservation(center, 2f), "A disabled minimap Canvas incorrectly hides the overhead badge.");
+            canvas.enabled = true;
+            Check(UIReservedRegionLayout.OverlapsVisibleReservation(center, 2f), "Overhead exclusion did not recover after restoring the minimap Canvas.");
+            registry.Remove(minimap);
+            Check(!UIReservedRegionLayout.OverlapsVisibleReservation(center, 2f), "An unregistered minimap incorrectly hides the overhead badge.");
+            registry.Add(minimap);
+            Check(UIReservedRegionLayout.OverlapsVisibleReservation(center, 2f), "Overhead exclusion did not recover after restoring the minimap reservation.");
+
+            for (int i = 0; i < 2; i++)
+                Check(badges[i].gameObject.activeSelf == badgeActive[i] && badges[i].gameObject.activeInHierarchy &&
+                    badges[i].rectTransform.sizeDelta == badgeSizes[i] && badges[i].rectTransform.anchoredPosition3D == badgePositions[i] &&
+                    !badges[i].raycastTarget, "HUD exclusion changed an independent map-specific marker.");
+            Check(canvas.sortingOrder == orderBefore, "HUD exclusion altered the shared Canvas render order.");
+            report.AppendLine("PASS: " + name + ": real HUD geometry excludes centered, edge/corner-spilling 32px overhead badges plus 2px padding; tracks minimap movement/scaling; inactive/transparent/disabled/unregistered maps do not obstruct; restored maps recover. Compact/expanded map badges and Canvas order remain unchanged.");
+        }
+        finally
+        {
+            minimap.anchoredPosition3D = positionBefore;
+            minimap.localScale = scaleBefore;
+            minimap.sizeDelta = sizeBefore;
+            minimap.gameObject.SetActive(activeBefore);
+            canvas.enabled = canvasBefore;
+            if (mapVisibility != null) Object.DestroyImmediate(mapVisibility);
+            if (ancestorVisibility != null) Object.DestroyImmediate(ancestorVisibility);
+            registry.Clear();
+            foreach (RectTransform reservation in reservationsBefore) registry.Add(reservation);
+            Check(registry.SetEquals(reservationsBefore), "The live HUD reservation registry changed during detached validation.");
+            Canvas.ForceUpdateCanvases();
+        }
+    }
+
+    private static Rect Bounds(Vector2 center) => new Rect(center - Vector2.one * 16f, Vector2.one * 32f);
 
     private static void BuildMap(Scene scene, Canvas canvas, RectTransform parent, NPCProgressionManager npc, Texture texture,
         Vector2 center, Vector2 size, float pixels, List<ExpandedMinimapController> controllers,

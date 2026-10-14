@@ -50,6 +50,12 @@ public sealed class NPCExclamationMarker : MonoBehaviour
         float half = diameter * .5f;
         if (point.z <= 0f || point.x < viewport.xMin + half || point.x > viewport.xMax - half ||
             point.y < viewport.yMin + half || point.y > viewport.yMax - half) { Hide(); return; }
+        // The overhead Canvas is separate from the map's Canvas. Suppress a badge
+        // crossing the visible HUD instead of changing shared render orders or
+        // moving it away from the NPC. Map-specific badges remain independent.
+        Rect screenBounds = Rect.MinMaxRect(point.x - half, point.y - half,
+            point.x + half, point.y + half);
+        if (UIReservedRegionLayout.OverlapsVisibleReservation(screenBounds, 2f)) { Hide(); return; }
         RectTransform canvasRect = canvasObject.transform as RectTransform;
         if (!RectTransformUtility.ScreenPointToLocalPointInRectangle(canvasRect, point, null, out Vector2 local)) { Hide(); return; }
         badge.anchoredPosition = local;

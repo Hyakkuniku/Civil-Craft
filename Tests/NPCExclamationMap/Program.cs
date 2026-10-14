@@ -29,6 +29,14 @@ internal static class Program
         catch (TargetInvocationException exception) { throw new InvalidOperationException("Map checks failed.", exception.InnerException); }
         void Guard(bool valid, string message) { checks++; if (!valid) throw new InvalidOperationException(message); }
         string update = Method("UpdateNPCExclamationMarkers");
+        Guard(!update.Contains("OverlapsVisibleReservation(") && !source.Contains("OverlapsVisibleReservation("),
+            "The minimap's own NPC markers must not be hidden by the overhead HUD exclusion gate.");
+        string reserve = Method("RegisterMinimapRegion");
+        Guard(reserve.Contains("reservedMinimapRegion = minimapPanel") && reserve.Contains("UIReservedRegionLayout.Register(reservedMinimapRegion)"),
+            "The actual minimap panel must remain the protected HUD region; an icon-only or stale rectangle is insufficient.");
+        Guard(Method("Awake").Contains("RegisterMinimapRegion()") && Method("ResolveReferencesAndBuildUI").Contains("RegisterMinimapRegion()") &&
+            Method("OnDestroy").Contains("UIReservedRegionLayout.Unregister(reservedMinimapRegion)"),
+            "Minimap screen reservation must register after reference resolution and release on teardown.");
         Guard(update.Contains("npc.ShouldShowExclamationMark"), "Map badges must use the phase/arrival property.");
         Guard(update.Contains("npc.gameObject.scene == gameObject.scene") && update.Contains("npc.isActiveAndEnabled"), "Map must filter inactive/foreign-scene NPCs.");
         Guard(update.Contains("WorldToViewportPoint(npc.transform.position)"), "NPC map positions must follow the current camera each frame.");
@@ -52,7 +60,7 @@ internal static class Program
         Guard(Method("OnDisable").Contains("ClearNPCExclamationMarkers()") && Method("OnDestroy").Contains("ClearNPCExclamationMarkers()"), "Both disable/destroy must clean owned markers.");
         Guard(!Method("ClearNPCExclamationMarkers").Contains("Find") && !Method("DestroyOwnedNPCMarker").Contains("Find"), "Cleanup must never find/delete unrelated authored objects.");
         Guard(source.Contains("compactNPCMarkerPixels = 22f") && source.Contains("expandedNPCMarkerPixels = 28f"), "Compact readable fixed-pixel defaults required.");
-        Console.WriteLine($"PASS: {checks} NPC map projection, crop/flip, off-screen rejection, physical-pixel sizing, and lifecycle/source guards. Actual production methods with engine arithmetic doubles; no Unity session, player saves, accounts, or network touched.");
+        Console.WriteLine($"PASS: {checks} NPC map projection, crop/flip, off-screen rejection, physical-pixel sizing, reservation independence, and lifecycle/source guards. Actual production methods with engine arithmetic doubles; no Unity session, player saves, accounts, or network touched.");
     }
 
     private static string FindRoot()
