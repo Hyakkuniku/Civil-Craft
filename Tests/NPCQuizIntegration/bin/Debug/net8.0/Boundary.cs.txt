@@ -1,0 +1,38 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using UnityEngine;
+
+namespace UnityEngine
+{
+    public class ScriptableObject { }
+    public class Sprite { }
+    public class GameObject { public int scene; }
+    public static class Resources
+    {
+        public static object[] objects = Array.Empty<object>();
+        public static T[] FindObjectsOfTypeAll<T>() => objects.OfType<T>().ToArray();
+    }
+    [AttributeUsage(AttributeTargets.Field)] public sealed class TooltipAttribute : Attribute { public TooltipAttribute(string text) { } }
+    [AttributeUsage(AttributeTargets.Field)] public sealed class TextAreaAttribute : Attribute { public TextAreaAttribute(int min, int max) { } }
+    [AttributeUsage(AttributeTargets.Field)] public sealed class HideInInspector : Attribute { }
+    [AttributeUsage(AttributeTargets.Class)] public sealed class CreateAssetMenuAttribute : Attribute { public string fileName; public string menuName; }
+}
+public sealed class Dialogue { public string[] sentences; }
+public sealed class BridgeMaterialSO { }
+// ACTUAL_STEP_TYPE
+public sealed class NPCProgressionPhase
+{
+    public string phaseId = "phase";
+    public List<NPCOptionalDialogueStep> optionalDialogueSequence = new List<NPCOptionalDialogueStep>();
+}
+public sealed class NPCProgressionManager
+{
+    public string progressionSaveId = "npc";
+    public List<NPCProgressionPhase> phases = new List<NPCProgressionPhase>();
+    public GameObject gameObject = new GameObject { scene = 1 };
+    public static bool HasSequence(NPCProgressionPhase phase) => HasOrderedOptionalSequence(phase);
+    public static bool HasQuiz(NPCProgressionPhase phase) => PhaseContainsQuiz(phase);
+    public bool Validate(NPCProgressionPhase phase, out string error) => TryValidateOrderedQuizzes(phase, out error);
+    // ACTUAL_NPC_METHODS
+}

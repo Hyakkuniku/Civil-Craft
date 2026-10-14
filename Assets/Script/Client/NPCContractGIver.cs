@@ -32,6 +32,16 @@ public class NPCContractGiver : Interactable
     private string progressionLockedPrompt = "Moving to the next site...";
     private bool usesProgressionPhase;
     private string progressionIdlePrompt = string.Empty;
+    private bool progressionHandledCurrentInteraction;
+
+    /// <summary>Read-only acceptance state, including acceptance restored from the player's saved quests.</summary>
+    public bool HasAcceptedProgressionContract => usesProgressionPhase && contractToGive != null && hasGivenContract;
+
+    /// <summary>Called during OnNPCInteracted when progression opens its own pending quiz instead of the contract reminder.</summary>
+    public void SuppressCurrentInteractionForProgression()
+    {
+        progressionHandledCurrentInteraction = true;
+    }
 
     /// <summary>
     /// Runtime notification used by NPCProgressionManager. It deliberately stays
@@ -188,11 +198,12 @@ public class NPCContractGiver : Interactable
         if (isProgressionInteractionLocked || isAwaitingContractDecision) return;
 
         ContractSO interactionContract = contractToGive;
+        progressionHandledCurrentInteraction = false;
         OnNPCInteracted?.Invoke(this);
 
         // Interaction events may move this NPC to another phase. Do not start
         // a conversation for the newly assigned contract during the old call.
-        if (contractToGive != interactionContract || isProgressionInteractionLocked) return;
+        if (progressionHandledCurrentInteraction || contractToGive != interactionContract || isProgressionInteractionLocked) return;
         if (contractToGive == null) return;
 
         if (isLocked)

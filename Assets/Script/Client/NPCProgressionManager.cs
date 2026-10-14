@@ -10,11 +10,12 @@ public class NPCOptionalDialogueStep
 {
     public enum StepType
     {
-        Dialogue,
-        MaterialUnlock
+        Dialogue = 0,
+        MaterialUnlock = 1,
+        Quiz = 2
     }
 
-    [Tooltip("Choose whether this step opens dialogue or a material introduction/unlock panel.")]
+    [Tooltip("Choose whether this step opens dialogue, a material introduction/unlock panel, or a quiz.")]
     public StepType stepType = StepType.Dialogue;
 
     [Tooltip("Dialogue played for a Dialogue step.")]
@@ -25,6 +26,12 @@ public class NPCOptionalDialogueStep
 
     [Tooltip("Button label for this material step. Leave empty to use the phase label.")]
     public string materialButtonLabel;
+
+    [Tooltip("Questions shown by a Quiz step. All questions must be answered correctly before the sequence continues.")]
+    public QuizData quiz;
+
+    [Tooltip("Stable, unique ID for this Quiz step within its phase. Do not change it after release. The Inspector fills a missing ID when authoring a Quiz step.")]
+    public string quizStepId;
 }
 
 [System.Serializable]
@@ -65,7 +72,7 @@ public class NPCProgressionPhase
     [Tooltip("Optional dialogue for this phase. This is especially useful for travel-only phases with no Contract or Tutorial.")]
     public Dialogue phaseDialogue;
 
-    [Tooltip("Optional ordered flow played after a contract offer is accepted, or on interaction for a contract-free phase. Add Dialogue and Material Unlock entries in any order. When this list has usable entries, it replaces the legacy Phase Dialogue and Material Introduction fields below.")]
+    [Tooltip("Optional ordered flow played after a contract offer is accepted, or on interaction for a contract-free phase. Add Dialogue, Material Unlock, and Quiz entries in any order. When this list has usable entries (or an authored Quiz), it replaces the legacy fields below. Quiz-only phases need no Contract; clear the default feature reward if no reward is intended.")]
     public List<NPCOptionalDialogueStep> optionalDialogueSequence = new List<NPCOptionalDialogueStep>();
 
     [Tooltip("Interaction prompt shown while this contract-free phase is active.")]
@@ -267,6 +274,7 @@ public class NPCProgressionManager : MonoBehaviour
     private readonly HashSet<int> completedDialoguePhases = new HashSet<int>();
     private readonly HashSet<int> introducedMaterialPhases = new HashSet<int>();
     private readonly HashSet<int> runningOptionalSequencePhases = new HashSet<int>();
+    private int optionalSequenceVersion;
     private Coroutine movementRoutine;
     private Coroutine idleRoamingRoutine;
     private int arrivalDialogueVersion;
@@ -394,6 +402,8 @@ public class NPCProgressionManager : MonoBehaviour
         {
             return false;
         }
+
+        CancelOrderedOptionalSequence();
 
         // Debug warping intentionally bypasses normal lesson/progression spawn
         // gates. CanyonCrossing's NPCSpawnerCondition can disable this entire
@@ -577,6 +587,7 @@ public class NPCProgressionManager : MonoBehaviour
     private void OnDisable()
     {
         arrivalDialogueVersion++;
+        CancelOrderedOptionalSequence();
         if (navMeshAgent != null) navMeshAgent.areaMask = configuredNavigationAreaMask;
         ActiveManagers.Remove(this);
         if (contractGiver != null)
@@ -775,6 +786,7 @@ public class NPCProgressionManager : MonoBehaviour
 
     private IEnumerator RepositionForCargoTurnIn(int destinationPhaseIndex)
     {
+        CancelOrderedOptionalSequence();
         // ExitBuildMode runs asynchronously after Save & Continue. Keep Bhan hidden
         // behind that transition, then place him beside the delivered cargo while
         // retaining the current contract phase so the player can turn it in.
@@ -803,6 +815,8 @@ public class NPCProgressionManager : MonoBehaviour
             onProgressionFinished?.Invoke();
             return;
         }
+
+        CancelOrderedOptionalSequence();
 
         // Bhan is already standing at this phase's destination because the cargo
         // hand-in repositioned him there. Commit the next phase immediately, but
@@ -920,6 +934,7 @@ public class NPCProgressionManager : MonoBehaviour
     private IEnumerator MoveToPhaseRoutine(int nextPhaseIndex)
     {
         arrivalDialogueVersion++;
+        CancelOrderedOptionalSequence();
         StopIdleRoaming();
 
         // Commit the destination before the first movement frame. If the game is
@@ -2173,6 +2188,7 @@ public class NPCProgressionManager : MonoBehaviour
     {
         if (phaseIndex < 0 || phaseIndex >= phases.Count) return;
 
+        CancelOrderedOptionalSequence();
         int arrivalVersion = ++arrivalDialogueVersion;
         currentPhaseIndex = phaseIndex;
         NPCProgressionPhase phase = phases[phaseIndex];
@@ -2184,7 +2200,7 @@ public class NPCProgressionManager : MonoBehaviour
                 phase.contract,
                 phase.targetBuildLocation,
                 phase.linkedCargo,
-                phase.contract == null && phase.phaseDialogue != null
+                phase.contract == null && (IsUsableDialogue(phase.phaseDialogue) || HasOrderedOptionalSequence(phase))
                     ? phase.dialoguePrompt
                     : string.Empty);
             contractGiver.SetProgressionInteractionLocked(false);
@@ -2239,6 +2255,7 @@ public class NPCProgressionManager : MonoBehaviour
 
     private void HandleNPCInteracted(NPCContractGiver sender)
     {
+        if (!CanRunLocalProgression() || sender != contractGiver) return;
         // A manual interaction already satisfies this arrival. Cancel any
         // deferred automatic conversation so it cannot open again on close.
         arrivalDialogueVersion++;
@@ -2255,6 +2272,22 @@ public class NPCProgressionManager : MonoBehaviour
             phase.InvokeNPCInteracted();
         }
 
+        // Interaction events may move or disable this NPC. Never open a stale
+        // phase's dialogue/quiz using the newly activated phase index.
+        if (!CanRunLocalProgression() || IsTravelling || CurrentPhase != phase) return;
+
+        // Accepted contract phases normally play reminders on later taps. A
+        // cancelled/interrupted quiz must resume instead, also after reloading
+        // the accepted quest from disk. Claim only this interaction; no global
+        // giver lock can be left behind if the quiz is unavailable.
+        if (phase.contract != null && sender.HasAcceptedProgressionContract &&
+            PhaseContainsQuiz(phase) && !HasCompletedPhaseDialogue(currentPhaseIndex))
+        {
+            sender.SuppressCurrentInteractionForProgression();
+            TryStartOrderedOptionalSequence(currentPhaseIndex, phase);
+            return;
+        }
+
         // Contract phases already own their offer/reminder/completion dialogue.
         // Optional phase dialogue is therefore reserved for contract-free phases
         // so the two dialogue flows cannot open over each other.
@@ -2264,7 +2297,8 @@ public class NPCProgressionManager : MonoBehaviour
 
     private void TryStartPhaseDialogue(int phaseIndex, NPCProgressionPhase phase)
     {
-        if (phase == null) return;
+        if (phase == null || !CanRunLocalProgression() || IsTravelling ||
+            currentPhaseIndex != phaseIndex || CurrentPhase != phase) return;
         if (!phase.repeatDialogue && completedDialoguePhases.Contains(phaseIndex)) return;
 
         if (HasOrderedOptionalSequence(phase))
@@ -2354,7 +2388,8 @@ public class NPCProgressionManager : MonoBehaviour
 
     private void HandleOfferDialogueCompleted(NPCContractGiver giver)
     {
-        if (giver != contractGiver || currentPhaseIndex < 0 || currentPhaseIndex >= phases.Count)
+        if (!CanRunLocalProgression() || IsTravelling || giver != contractGiver ||
+            currentPhaseIndex < 0 || currentPhaseIndex >= phases.Count)
             return;
 
         NPCProgressionPhase phase = phases[currentPhaseIndex];
@@ -2382,25 +2417,45 @@ public class NPCProgressionManager : MonoBehaviour
                 return true;
             if (step.stepType == NPCOptionalDialogueStep.StepType.MaterialUnlock && step.material != null)
                 return true;
+            // An authored but invalid quiz still owns this sequence. Falling
+            // back to legacy dialogue would let it bypass the quiz and rewards.
+            if (step.stepType == NPCOptionalDialogueStep.StepType.Quiz)
+                return true;
         }
 
         return false;
     }
 
+    private static bool PhaseContainsQuiz(NPCProgressionPhase phase)
+    {
+        return phase?.optionalDialogueSequence != null && phase.optionalDialogueSequence.Exists(step =>
+            step != null && step.stepType == NPCOptionalDialogueStep.StepType.Quiz);
+    }
+
     private void TryStartOrderedOptionalSequence(int phaseIndex, NPCProgressionPhase phase)
     {
-        if (phase == null || !HasOrderedOptionalSequence(phase)) return;
+        if (phase == null || !CanRunLocalProgression() || IsTravelling ||
+            currentPhaseIndex != phaseIndex || CurrentPhase != phase ||
+            !HasOrderedOptionalSequence(phase)) return;
         if (!phase.repeatDialogue && completedDialoguePhases.Contains(phaseIndex)) return;
+        if (!TryValidateOrderedQuizzes(phase, out string error))
+        {
+            Debug.LogWarning($"[NPCProgressionManager] Phase '{phase.phaseId}' cannot start its quiz sequence: {error}", this);
+            return;
+        }
         if (!runningOptionalSequencePhases.Add(phaseIndex)) return;
+        int sequenceVersion = ++optionalSequenceVersion;
 
         bool showMaterialSteps =
             !phase.introduceMaterialOnlyOnce ||
             !introducedMaterialPhases.Contains(phaseIndex);
 
-        if (showMaterialSteps && phase.introduceMaterialOnlyOnce)
+        // Retain legacy once-per-visit timing. Quiz sequences defer this flag
+        // until completion so cancellation does not permanently skip steps.
+        if (showMaterialSteps && phase.introduceMaterialOnlyOnce && !PhaseContainsQuiz(phase))
             introducedMaterialPhases.Add(phaseIndex);
 
-        PlayOrderedOptionalStep(phaseIndex, phase, 0, showMaterialSteps, false);
+        PlayOrderedOptionalStep(phaseIndex, phase, 0, showMaterialSteps, false, sequenceVersion);
     }
 
     private void PlayOrderedOptionalStep(
@@ -2408,11 +2463,19 @@ public class NPCProgressionManager : MonoBehaviour
         NPCProgressionPhase phase,
         int stepIndex,
         bool showMaterialSteps,
-        bool displayedMaterial)
+        bool displayedMaterial,
+        int sequenceVersion)
     {
+        if (!IsCurrentOrderedSequence(phaseIndex, phase, sequenceVersion)) return;
+        if (!TryValidateOrderedQuizzes(phase, out string error))
+        {
+            StopOrderedOptionalSequence(phaseIndex, sequenceVersion);
+            Debug.LogWarning($"[NPCProgressionManager] Phase '{phase.phaseId}' quiz sequence stopped: {error}", this);
+            return;
+        }
         if (phase == null || phase.optionalDialogueSequence == null)
         {
-            FinishOrderedOptionalSequence(phaseIndex, phase, displayedMaterial);
+            StopOrderedOptionalSequence(phaseIndex, sequenceVersion);
             return;
         }
 
@@ -2454,13 +2517,52 @@ public class NPCProgressionManager : MonoBehaviour
                         phase,
                         nextStepIndex,
                         showMaterialSteps,
-                        displayedMaterial),
+                        displayedMaterial,
+                        sequenceVersion),
                     animator,
                     transform);
                 return;
             }
 
-            if (step.material == null || !showMaterialSteps)
+            if (step.stepType == NPCOptionalDialogueStep.StepType.Quiz)
+            {
+                int quizStepIndex = stepIndex;
+                string expectedProgressionId = progressionSaveId;
+                string expectedPhaseId = phase.phaseId;
+                string expectedStepId = step.quizStepId;
+                QuizData expectedQuiz = step.quiz;
+                QuizContext context = new QuizContext(expectedProgressionId, expectedPhaseId, expectedStepId);
+                bool opened = QuizUIManager.TryOpen(step.quiz, context, this, outcome =>
+                {
+                    if (!IsCurrentOrderedSequence(phaseIndex, phase, sequenceVersion)) return;
+                    bool sameStep = phase.optionalDialogueSequence != null &&
+                                    quizStepIndex < phase.optionalDialogueSequence.Count &&
+                                    phase.optionalDialogueSequence[quizStepIndex] == step &&
+                                    step.quiz == expectedQuiz &&
+                                    string.Equals(progressionSaveId, expectedProgressionId, System.StringComparison.Ordinal) &&
+                                    string.Equals(phase.phaseId, expectedPhaseId, System.StringComparison.Ordinal) &&
+                                    string.Equals(step.quizStepId, expectedStepId, System.StringComparison.Ordinal);
+                    if (outcome != QuizOutcome.Completed || !sameStep)
+                    {
+                        StopOrderedOptionalSequence(phaseIndex, sequenceVersion);
+                        return;
+                    }
+
+                    PlayOrderedOptionalStep(phaseIndex, phase, nextStepIndex,
+                        showMaterialSteps, displayedMaterial, sequenceVersion);
+                });
+                if (!opened)
+                {
+                    // TryOpen(false) does not invoke the callback. Keep the
+                    // phase available for retry without completing/rewarding it.
+                    StopOrderedOptionalSequence(phaseIndex, sequenceVersion);
+                    Debug.LogWarning($"[NPCProgressionManager] Phase '{phase.phaseId}' cannot open quiz step {stepIndex + 1}; quiz UI is unavailable or busy.", this);
+                }
+                return;
+            }
+
+            if (step.stepType != NPCOptionalDialogueStep.StepType.MaterialUnlock ||
+                step.material == null || !showMaterialSteps)
             {
                 stepIndex = nextStepIndex;
                 continue;
@@ -2485,21 +2587,27 @@ public class NPCProgressionManager : MonoBehaviour
                     phase,
                     nextStepIndex,
                     showMaterialSteps,
-                    true),
+                    true,
+                    sequenceVersion),
                 buttonLabel);
             return;
         }
 
-        FinishOrderedOptionalSequence(phaseIndex, phase, displayedMaterial);
+        FinishOrderedOptionalSequence(phaseIndex, phase, displayedMaterial, sequenceVersion);
     }
 
     private void FinishOrderedOptionalSequence(
         int phaseIndex,
         NPCProgressionPhase phase,
-        bool displayedMaterial)
+        bool displayedMaterial,
+        int sequenceVersion)
     {
+        if (!IsCurrentOrderedSequence(phaseIndex, phase, sequenceVersion)) return;
         runningOptionalSequencePhases.Remove(phaseIndex);
         if (phase == null) return;
+
+        if (displayedMaterial && phase.introduceMaterialOnlyOnce)
+            introducedMaterialPhases.Add(phaseIndex);
 
         MarkPhaseDialogueCompleted(phaseIndex, phase);
 
@@ -2517,7 +2625,103 @@ public class NPCProgressionManager : MonoBehaviour
 
         // This is intentionally last: events that move the NPC or advance the
         // phase now wait until the final authored dialogue/unlock step has closed.
-        phase.InvokeDialogueFinished();
+        if (CurrentPhase != phase || currentPhaseIndex != phaseIndex || IsTravelling ||
+            !CanRunLocalProgression()) return;
+        isInvokingPhaseDialogueFinished = true;
+        try
+        {
+            phase.InvokeDialogueFinished();
+        }
+        finally
+        {
+            isInvokingPhaseDialogueFinished = false;
+        }
+    }
+
+    private bool CanRunLocalProgression()
+    {
+        return isActiveAndEnabled && gameObject.scene.IsValid() && gameObject.scene.isLoaded &&
+               !(FusionConnectionManager.Instance != null &&
+                 FusionConnectionManager.Instance.IsGuestInHostWorld);
+    }
+
+    private bool IsCurrentOrderedSequence(int phaseIndex, NPCProgressionPhase phase, int sequenceVersion)
+    {
+        return CanRunLocalProgression() && !IsTravelling &&
+               sequenceVersion == optionalSequenceVersion &&
+               currentPhaseIndex == phaseIndex && CurrentPhase == phase &&
+               runningOptionalSequencePhases.Contains(phaseIndex);
+    }
+
+    private void StopOrderedOptionalSequence(int phaseIndex, int sequenceVersion)
+    {
+        if (sequenceVersion != optionalSequenceVersion) return;
+        runningOptionalSequencePhases.Remove(phaseIndex);
+        optionalSequenceVersion++;
+    }
+
+    private void CancelOrderedOptionalSequence()
+    {
+        // Invalidate before closing the quiz: its cancellation callback must
+        // not advance a phase that is moving, unloading, or being disabled.
+        optionalSequenceVersion++;
+        runningOptionalSequencePhases.Clear();
+        QuizUIManager.CancelOwnedSession(this);
+    }
+
+    private bool TryValidateOrderedQuizzes(NPCProgressionPhase phase, out string error)
+    {
+        error = string.Empty;
+        if (phase == null || phase.optionalDialogueSequence == null) return true;
+        HashSet<string> quizStepIds = new HashSet<string>(System.StringComparer.Ordinal);
+        bool hasQuiz = false;
+        foreach (NPCOptionalDialogueStep step in phase.optionalDialogueSequence)
+        {
+            if (step == null || step.stepType != NPCOptionalDialogueStep.StepType.Quiz) continue;
+            hasQuiz = true;
+            if (string.IsNullOrWhiteSpace(step.quizStepId))
+            {
+                error = "Every Quiz step needs a stable Quiz Step ID. Edit the step in the Inspector to create one.";
+                return false;
+            }
+            if (!quizStepIds.Add(step.quizStepId.Trim()))
+            {
+                error = $"Quiz Step ID '{step.quizStepId}' is duplicated in this phase.";
+                return false;
+            }
+            if (step.quiz == null)
+            {
+                error = $"Quiz step '{step.quizStepId}' has no Quiz Data asset.";
+                return false;
+            }
+            if (!step.quiz.TryValidate(out error)) return false;
+        }
+
+        if (!hasQuiz) return true;
+        if (string.IsNullOrWhiteSpace(progressionSaveId) || string.IsNullOrWhiteSpace(phase.phaseId))
+        {
+            error = "Quiz progress requires a stable NPC Progression Save ID and Phase ID.";
+            return false;
+        }
+        int matchingPhaseIds = 0;
+        foreach (NPCProgressionPhase authoredPhase in phases)
+            if (authoredPhase != null && string.Equals(authoredPhase.phaseId?.Trim(), phase.phaseId.Trim(), System.StringComparison.Ordinal))
+                matchingPhaseIds++;
+        if (matchingPhaseIds != 1)
+        {
+            error = $"Phase ID '{phase.phaseId}' is duplicated; quiz progress cannot safely identify the receiving phase.";
+            return false;
+        }
+        foreach (NPCProgressionManager manager in Resources.FindObjectsOfTypeAll<NPCProgressionManager>())
+        {
+            if (manager == null || manager == this || manager.gameObject.scene != gameObject.scene) continue;
+            if (string.Equals(manager.progressionSaveId?.Trim(), progressionSaveId.Trim(), System.StringComparison.Ordinal))
+            {
+                error = $"NPC Progression Save ID '{progressionSaveId}' is shared by another NPC in this scene.";
+                return false;
+            }
+        }
+        return true;
     }
 
     private void MarkPhaseDialogueCompleted(int phaseIndex, NPCProgressionPhase phase)

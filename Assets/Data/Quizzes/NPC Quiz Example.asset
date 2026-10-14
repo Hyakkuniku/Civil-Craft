@@ -1,0 +1,56 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8277db26963c4a7a81a4dcb5e6307197, type: 3}
+  m_Name: NPC Quiz Example
+  m_EditorClassIdentifier: 
+  quizId: civil-craft-npc-quiz-example-v1
+  title: Bridge Builder Practice
+  questions:
+  - questionId: stable-shape
+    prompt: Which shape is commonly used to keep a bridge frame stable?
+    choices:
+    - text: Triangle
+      image: {fileID: 0}
+      imageFingerprint: 
+    - text: Square
+      image: {fileID: 0}
+      imageFingerprint: 
+    - text: Circle
+      image: {fileID: 0}
+      imageFingerprint: 
+    correctChoiceIndex: 0
+    feedback: Triangles help a frame keep its shape.
+  - questionId: identify-beam
+    prompt: Which picture shows a wood beam?
+    choices:
+    - text: 
+      image: {fileID: 21300000, guid: 999161720269b2c43881339b86f9c2b6, type: 3}
+      imageFingerprint: 999161720269b2c43881339b86f9c2b6:21300000:34c7b7e3980de643bcfb25497a652dbc
+    - text: 
+      image: {fileID: 21300000, guid: 07f65aea806e3164282f9fc0f8d21a94, type: 3}
+      imageFingerprint: 07f65aea806e3164282f9fc0f8d21a94:21300000:4482ece1f67ad8fd09ac8112439feebc
+    correctChoiceIndex: 0
+    feedback: A beam supports the bridge structure.
+  - questionId: driving-surface
+    prompt: Which choice represents the part that vehicles drive across?
+    choices:
+    - text: A support beam
+      image: {fileID: 0}
+      imageFingerprint: 
+    - text: Wood road deck
+      image: {fileID: 21300000, guid: 07f65aea806e3164282f9fc0f8d21a94, type: 3}
+      imageFingerprint: 07f65aea806e3164282f9fc0f8d21a94:21300000:4482ece1f67ad8fd09ac8112439feebc
+    - text: 
+      image: {fileID: 21300000, guid: 999161720269b2c43881339b86f9c2b6, type: 3}
+      imageFingerprint: 999161720269b2c43881339b86f9c2b6:21300000:34c7b7e3980de643bcfb25497a652dbc
+    correctChoiceIndex: 1
+    feedback: The road deck provides a continuous driving surface.

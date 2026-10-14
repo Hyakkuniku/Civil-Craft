@@ -1,0 +1,154 @@
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+using UnityEngine;
+
+public static class Scenarios
+{
+    private static int checks;
+    private static void Check(bool value, string message) { checks++; if (!value) throw new InvalidOperationException(message); }
+    private static QuizData Make(int count = 3, int choices = 3)
+    {
+        QuizData quiz = new QuizData { quizId = "test-quiz", title = "Building safely" };
+        for (int i = 0; i < count; i++)
+        {
+            QuizQuestion question = new QuizQuestion { questionId = "q-" + i, prompt = "Question " + i, correctChoiceIndex = choices - 1 };
+            for (int choice = 0; choice < choices; choice++) question.choices.Add(new QuizChoice { text = "Choice " + choice });
+            quiz.questions.Add(question);
+        }
+        return quiz;
+    }
+    private static void ValidateEditor(QuizData quiz) => typeof(QuizData).GetMethod("OnValidate", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(quiz, null);
+    private static QuizContext Context(string step = "step") => new QuizContext("npc", "phase", step);
+    public static int Run()
+    {
+        for (int count = 1; count <= 32; count++)
+            for (int choices = 2; choices <= 9; choices++)
+            {
+                QuizData quiz = Make(count, choices);
+                Check(quiz.TryValidate(out _), "Variable question and choice counts validate.");
+                List<string> answers = new List<string>();
+                for (int i = 0; i < count; i++)
+                {
+                    Check(QuizProgressUtility.FirstUnresolvedQuestionIndex(quiz, answers) == i, "Resume uses first unresolved authored question.");
+                    Check(!QuizProgressUtility.AreAllQuestionsCorrect(quiz, answers), "Incomplete quiz not complete.");
+                    answers.Add(quiz.questions[i].questionId);
+                }
+                Check(QuizProgressUtility.FirstUnresolvedQuestionIndex(quiz, answers) == count, "All answered reaches completion.");
+                Check(QuizProgressUtility.AreAllQuestionsCorrect(quiz, answers), "All authored questions counted.");
+                Check(QuizProgressUtility.FirstUnresolvedQuestionIndex(quiz, new[] { "q-1", "q-2" }) == 0, "Out-of-order saved records cannot skip first question.");
+            }
+        InvalidContent();
+        FingerprintsAndIds();
+        SavesAndResume();
+        return checks;
+    }
+    private static void InvalidContent()
+    {
+        QuizData quiz = Make();
+        quiz.quizId = " "; Check(!quiz.TryValidate(out _), "Missing quiz ID rejected.");
+        quiz = Make(); quiz.title = null; Check(!quiz.TryValidate(out _), "Missing title rejected.");
+        quiz = Make(); quiz.questions = null; Check(!quiz.TryValidate(out _), "Missing question list rejected.");
+        quiz = Make(0); Check(!quiz.TryValidate(out _), "Empty quiz rejected.");
+        quiz = Make(); quiz.questions[0] = null; Check(!quiz.TryValidate(out _), "Null question rejected.");
+        quiz = Make(); quiz.questions[0].questionId = " "; Check(!quiz.TryValidate(out _), "Missing question ID rejected.");
+        quiz = Make(); quiz.questions[1].questionId = " q-0 "; Check(!quiz.TryValidate(out _), "Normalized duplicate IDs rejected.");
+        quiz = Make(); quiz.questions[0].prompt = " "; Check(!quiz.TryValidate(out _), "Missing prompt rejected.");
+        quiz = Make(); quiz.questions[0].choices = null; Check(!quiz.TryValidate(out _), "Missing choice list rejected.");
+        quiz = Make(1, 1); Check(!quiz.TryValidate(out _), "Single choice rejected.");
+        quiz = Make(); quiz.questions[0].correctChoiceIndex = -1; Check(!quiz.TryValidate(out _), "Negative correct index rejected.");
+        quiz.questions[0].correctChoiceIndex = 3; Check(!quiz.TryValidate(out _), "Past-end correct index rejected.");
+        quiz = Make(); quiz.questions[0].choices[0] = null; Check(!quiz.TryValidate(out _), "Null choice rejected.");
+        quiz = Make(); quiz.questions[0].choices[0].text = " "; Check(!quiz.TryValidate(out _), "Blank text choice rejected.");
+        quiz.questions[0].choices[0].image = new Sprite(); Check(!quiz.TryValidate(out _), "Unimported image identity rejected.");
+        ValidateEditor(quiz); Check(quiz.TryValidate(out _), "Image-only choice allowed.");
+        quiz.questions[0].choices[0].text = "Image caption"; Check(quiz.TryValidate(out _), "Image with caption allowed.");
+        Check(!new QuizContext(null, "phase", "step").IsValid && new QuizContext(null, "phase", "step").ProgressKey == "", "Missing context invalid.");
+        Check(Context().ProgressKey == new QuizContext(" npc ", " phase ", " step ").ProgressKey, "Whitespace-normalized context stable.");
+        Check(new QuizContext("a:b", "c", "d").ProgressKey != new QuizContext("a", "b:c", "d").ProgressKey, "Context separators do not collide.");
+        Check(!QuizProgressUtility.AreAllQuestionsCorrect(Make(0), null), "Empty list cannot complete.");
+    }
+    private static void FingerprintsAndIds()
+    {
+        QuizData quiz = Make();
+        string initial = quiz.ContentFingerprint;
+        Check(initial.Length == 64 && initial == quiz.ContentFingerprint, "Fingerprint deterministic SHA-256.");
+        quiz.title += "!"; Check(initial != quiz.ContentFingerprint, "Title edit changes content.");
+        quiz = Make(); quiz.questions[0].prompt += "!"; Check(initial != quiz.ContentFingerprint, "Prompt edit changes content.");
+        quiz = Make(); quiz.questions[0].feedback = "Explanation"; Check(initial != quiz.ContentFingerprint, "Feedback edit changes content.");
+        quiz = Make(); quiz.questions[0].correctChoiceIndex = 0; Check(initial != quiz.ContentFingerprint, "Correct answer edit changes content.");
+        quiz = Make(); quiz.questions[0].choices[0].text += "!"; Check(initial != quiz.ContentFingerprint, "Choice edit changes content.");
+        quiz = Make(); quiz.questions.Reverse(); Check(initial != quiz.ContentFingerprint, "Authored question order included.");
+        quiz = Make(); quiz.questions[0].choices.Reverse(); Check(initial != quiz.ContentFingerprint, "Authored choice order included.");
+        quiz = Make(); quiz.questions[0].choices[0].image = new Sprite(); ValidateEditor(quiz);
+        string image = quiz.ContentFingerprint;
+        quiz.questions[0].choices[0].image = new Sprite(); ValidateEditor(quiz);
+        Check(image == quiz.ContentFingerprint, "New runtime sprite object with same asset identity retains content.");
+        quiz.questions[0].choices[0].image.hash = "changed-texture"; ValidateEditor(quiz);
+        Check(image != quiz.ContentFingerprint, "Same sprite asset edited invalidates content.");
+        image = quiz.ContentFingerprint; quiz.questions[0].choices[0].image.localId++; ValidateEditor(quiz);
+        Check(image != quiz.ContentFingerprint, "Sprite subasset replacement changes content.");
+        quiz.quizId = null; quiz.questions[0].questionId = null; ValidateEditor(quiz);
+        string quizId = quiz.quizId, questionId = quiz.questions[0].questionId;
+        Check(!string.IsNullOrWhiteSpace(quizId) && !string.IsNullOrWhiteSpace(questionId), "Editor assigns missing stable IDs.");
+        ValidateEditor(quiz); Check(quiz.quizId == quizId && quiz.questions[0].questionId == questionId, "Editor never regenerates assigned IDs.");
+        quiz.questions[0].choices[0].image = null; ValidateEditor(quiz);
+        Check(quiz.questions[0].choices[0].imageFingerprint == "", "Removed sprite clears stale identity.");
+    }
+    private static void SavesAndResume()
+    {
+        QuizData quiz = Make(); QuizContext context = Context();
+        PlayerDataManager manager = new PlayerDataManager();
+        manager.CurrentData.gold = 987; manager.CurrentData.completedLessons.Add("lesson");
+        Check(manager.TryGetQuizProgress(quiz, context, out QuizProgressSaveData progress) && !progress.completed && progress.correctQuestionIds.Count == 0, "First launch reads empty progress.");
+        Check(manager.CurrentData.quizProgress.Count == 0 && manager.saves == 0, "Read does not create disk state.");
+        Check(manager.TrySaveQuizProgress(quiz, context, new[] { "q-0", "q-0" }, false, out _), "First answer commits.");
+        Check(manager.CurrentData.quizProgress[0].correctQuestionIds.Count == 1 && manager.committed[0].correctQuestionIds.Count == 1, "Duplicates deduplicated.");
+        manager.TryGetQuizProgress(quiz, context, out progress);
+        progress.correctQuestionIds.Add("q-1");
+        Check(manager.CurrentData.quizProgress[0].correctQuestionIds.Count == 1, "Read cannot mutate save.");
+        Check(!manager.TrySaveQuizProgress(quiz, context, new[] { "q-0" }, true, out _), "Unfinished completion rejected.");
+        Check(!manager.TrySaveQuizProgress(quiz, context, new[] { "unknown" }, false, out _), "Unknown answer IDs rejected.");
+        Check(manager.TrySaveQuizProgress(quiz, context, new[] { "q-1" }, false, out _), "Second answer commits.");
+        Check(manager.CurrentData.quizProgress[0].correctQuestionIds.Count == 2, "New save merges prior correct answers.");
+        Check(manager.TrySaveQuizProgress(quiz, context, null, false, out _), "Exit commit allowed.");
+        Check(manager.CurrentData.quizProgress[0].correctQuestionIds.Count == 2, "Leaving cannot erase answers.");
+        PlayerDataManager restart = new PlayerDataManager(); restart.CurrentData.quizProgress = manager.committed;
+        Check(restart.TryGetQuizProgress(quiz, context, out progress) && QuizProgressUtility.FirstUnresolvedQuestionIndex(quiz, progress.correctQuestionIds) == 2, "Restart resumes next unresolved question.");
+        Check(manager.TrySaveQuizProgress(quiz, context, new[] { "q-2" }, true, out _), "All questions finish.");
+        Check(manager.CurrentData.quizProgress[0].completed, "Completion stored before caller proceeds.");
+        Check(manager.TrySaveQuizProgress(quiz, context, null, false, out _) && manager.CurrentData.quizProgress[0].completed, "Repeated exit cannot revoke completed state.");
+        Check(manager.CurrentData.gold == 987 && manager.CurrentData.completedLessons.Count == 1, "Quiz saves leave gold and lessons unchanged.");
+        Check(manager.TrySaveQuizProgress(quiz, Context("other-step"), new[] { "q-0" }, false, out _), "Other step independent.");
+        QuizProgressSaveData other = manager.CurrentData.quizProgress.Find(record => record.progressKey == Context("other-step").ProgressKey);
+        quiz.questions[0].prompt += " Updated";
+        Check(manager.TryGetQuizProgress(quiz, context, out progress) && progress.correctQuestionIds.Count == 0 && !progress.completed, "Content change resumes empty quiz.");
+        Check(manager.CurrentData.quizProgress.Count == 2 && other.correctQuestionIds.Count == 1, "Reading edited quiz leaves all persisted records untouched.");
+        Check(manager.TrySaveQuizProgress(quiz, context, new[] { "q-0" }, false, out _), "New fingerprint committed.");
+        Check(manager.CurrentData.quizProgress.Count == 2 && manager.CurrentData.quizProgress.Find(record => record.progressKey == Context("other-step").ProgressKey).correctQuestionIds.Count == 1, "Content reset replaces only target entry.");
+        List<QuizProgressSaveData> before = manager.CurrentData.quizProgress;
+        manager.saveSucceeds = false; manager.saveHook = () => manager.CurrentData.gold++;
+        Check(!manager.TrySaveQuizProgress(quiz, context, new[] { "q-1" }, false, out string failure) && failure.Length > 0, "Save failure reported.");
+        Check(object.ReferenceEquals(before, manager.CurrentData.quizProgress) && manager.CurrentData.quizProgress.Find(record => record.progressKey == context.ProgressKey).correctQuestionIds.Count == 1, "Failure restores old quiz list only.");
+        Check(manager.CurrentData.gold == 988, "Failure does not roll back unrelated state.");
+        FusionConnectionManager.Instance = new FusionConnectionManager { IsGuestSaveProtected = true };
+        int calls = manager.saves;
+        Check(!manager.TrySaveQuizProgress(quiz, context, new[] { "q-1" }, false, out _) && manager.saves == calls, "Visitor cannot write host progress.");
+        Check(!manager.TryGetQuizProgress(quiz, context, out _), "Visitor cannot start host quiz.");
+        FusionConnectionManager.Instance = null;
+        Check(!manager.TrySaveQuizProgress(quiz, new QuizContext(), null, false, out _), "Missing context cannot save.");
+        Check(!manager.TrySaveQuizProgress(null, context, null, false, out _), "Missing asset cannot save.");
+        manager.CurrentData = null;
+        Check(!manager.TrySaveQuizProgress(quiz, context, null, false, out _) && !manager.TryGetQuizProgress(quiz, context, out _), "Missing player save safely unavailable.");
+        manager = new PlayerDataManager(); manager.CurrentData.quizProgress = null;
+        Check(manager.TryGetQuizProgress(quiz, context, out progress) && progress.correctQuestionIds.Count == 0, "Old null quiz field reads fresh.");
+        Check(manager.TrySaveQuizProgress(quiz, context, new[] { "q-0" }, false, out _), "Old null quiz field saves normally.");
+        manager.CurrentData.quizProgress[0].correctQuestionIds = null; manager.CurrentData.quizProgress[0].completed = true;
+        Check(manager.TryGetQuizProgress(quiz, context, out progress) && !progress.completed && progress.correctQuestionIds.Count == 0, "Malformed completion is not trusted.");
+        manager.CurrentData.quizProgress[0].correctQuestionIds = new List<string> { "q-0", "removed-question" };
+        manager.TryGetQuizProgress(quiz, context, out progress);
+        Check(progress.correctQuestionIds.Count == 1 && progress.correctQuestionIds[0] == "q-0", "Stale saved answer filtered.");
+        PlayerDataManager separateAccount = new PlayerDataManager();
+        Check(separateAccount.TryGetQuizProgress(quiz, context, out progress) && progress.correctQuestionIds.Count == 0, "Distinct profile data cannot inherit another player's quiz.");
+    }
+}

@@ -109,8 +109,10 @@ public class PauseManager : MonoBehaviour
     {
         DiagnosePauseTaps();
         // Toggle pause with the Escape key
-        bool pausePressed = (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame) ||
-                            (Gamepad.current != null && Gamepad.current.startButton.wasPressedThisFrame);
+        bool backPressed = Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame;
+        // A top-level quiz uses Back to leave; nested Pause/Settings still own it.
+        if (backPressed && QuizUIManager.TryHandleBack()) return;
+        bool pausePressed = backPressed || (Gamepad.current != null && Gamepad.current.startButton.wasPressedThisFrame);
 
         if (pausePressed)
         {
@@ -242,7 +244,7 @@ public class PauseManager : MonoBehaviour
 
         // Pause is an overlay, not the end of a conversation. Closing it must
         // not release the movement/look lock still owned by the dialogue.
-        bool resumePlayerControls = !DialogueManager.IsAnyDialogueActive;
+        bool resumePlayerControls = !DialogueManager.IsAnyDialogueActive && !QuizUIManager.IsAnyQuizActive;
         InputManager inputObj = FindObjectOfType<InputManager>();
         if (inputObj != null) 
         {
@@ -251,6 +253,13 @@ public class PauseManager : MonoBehaviour
         }
 
         ResetPanelVisuals();
+    }
+
+    internal void ResumeForQuizTeardown(GameObject quizPanel)
+    {
+        if (!isPaused || !QuizUIManager.IsAnyQuizActive || quizPanel == null ||
+            UIPanelCoordinator.Instance == null || !UIPanelCoordinator.Instance.ContainsPanel(quizPanel)) return;
+        FinishResumeGame();
     }
 
     public void RefreshPauseAvailability()

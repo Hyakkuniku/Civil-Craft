@@ -264,6 +264,9 @@ public class UIPanelCoordinator : MonoBehaviour
         foreach (LessonUIManager manager in FindObjectsOfType<LessonUIManager>(true))
             AddUnique(managedPanels, manager.Panel);
 
+        foreach (QuizUIManager manager in FindObjectsOfType<QuizUIManager>(true))
+            AddUnique(managedPanels, manager.Panel);
+
         foreach (AchievementUIManager manager in FindObjectsOfType<AchievementUIManager>(true))
             AddUnique(managedPanels, manager.achievementPanel);
 

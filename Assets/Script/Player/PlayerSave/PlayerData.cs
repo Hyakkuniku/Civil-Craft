@@ -231,6 +231,8 @@ public class PlayerData
     // Optional in older saves; populated from their latest saved bridge on first use.
     public List<ContractLeaderboardData> leaderboardRecords = new List<ContractLeaderboardData>();
     public List<NPCProgressionSaveData> npcProgressions = new List<NPCProgressionSaveData>();
+    // Quiz answers are independent from dialogue and lesson completion records.
+    public List<QuizProgressSaveData> quizProgress = new List<QuizProgressSaveData>();
     public List<NPCVisibilitySaveData> npcVisibility = new List<NPCVisibilitySaveData>();
     public List<string> completedLessonCloseActions = new List<string>();
     public List<string> armedLessonCloseActions = new List<string>();

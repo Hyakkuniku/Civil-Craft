@@ -85,6 +85,7 @@ public class InputManager : MonoBehaviour
     // INPUT_METHODS
 }
 public class PlayerInteract : MonoBehaviour { }
+public static class QuizUIManager { public static bool IsAnyQuizActive => false; }
 public class PlayerUI { public void UpdateButtons(List<Interactable> values) { } }
 public class Interactable { }
 public class TextValue

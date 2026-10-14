@@ -1,0 +1,77 @@
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+
+public static class Scenarios
+{
+    private static int checks;
+    private static void Check(bool value, string message) { checks++; if (!value) throw new InvalidOperationException(message); }
+    private static QuizData ValidQuiz()
+    {
+        return new QuizData { quizId = "quiz", title = "Quiz", questions = new List<QuizQuestion>
+        {
+            new QuizQuestion { questionId = "q", prompt = "Question", correctChoiceIndex = 1,
+                choices = new List<QuizChoice> { new QuizChoice { text = "A" }, new QuizChoice { text = "B" } } }
+        } };
+    }
+    private static NPCOptionalDialogueStep QuizStep(string id = "step") => new NPCOptionalDialogueStep
+    { stepType = NPCOptionalDialogueStep.StepType.Quiz, quizStepId = id, quiz = ValidQuiz() };
+    private static NPCProgressionManager NPC(NPCProgressionPhase phase)
+    {
+        Resources.objects = Array.Empty<object>();
+        return new NPCProgressionManager { phases = new List<NPCProgressionPhase> { phase } };
+    }
+    public static int Run()
+    {
+        Check((int)NPCOptionalDialogueStep.StepType.Dialogue == 0, "Released Dialogue enum stays zero.");
+        Check((int)NPCOptionalDialogueStep.StepType.MaterialUnlock == 1, "Released Material enum stays one.");
+        Check((int)NPCOptionalDialogueStep.StepType.Quiz == 2, "Quiz is appended rather than reordered.");
+        Check(!NPCProgressionManager.HasSequence(null), "Null phase is not an ordered flow.");
+        NPCProgressionPhase phase = new NPCProgressionPhase();
+        Check(!NPCProgressionManager.HasSequence(phase), "Empty ordered list is not a flow.");
+        phase.optionalDialogueSequence.Add(new NPCOptionalDialogueStep { dialogue = new Dialogue { sentences = new[] { "Hi" } } });
+        Check(NPCProgressionManager.HasSequence(phase), "Existing Dialogue flow detected.");
+        Check(!NPCProgressionManager.HasQuiz(phase), "Existing Dialogue not treated as quiz.");
+        phase.optionalDialogueSequence.Clear();
+        phase.optionalDialogueSequence.Add(new NPCOptionalDialogueStep { stepType = NPCOptionalDialogueStep.StepType.MaterialUnlock, material = new BridgeMaterialSO() });
+        Check(NPCProgressionManager.HasSequence(phase), "Existing Material flow detected.");
+        phase.optionalDialogueSequence[0].stepType = (NPCOptionalDialogueStep.StepType)99;
+        Check(!NPCProgressionManager.HasSequence(phase), "Unknown enum with material is not silently playable.");
+        phase.optionalDialogueSequence.Clear();
+        phase.optionalDialogueSequence.Add(new NPCOptionalDialogueStep { stepType = NPCOptionalDialogueStep.StepType.Quiz });
+        Check(NPCProgressionManager.HasSequence(phase), "Invalid authored quiz must still own sequence and block legacy fallback.");
+        Check(NPCProgressionManager.HasQuiz(phase), "Quiz-only phase detected.");
+        NPCProgressionManager npc = NPC(phase);
+        Check(!npc.Validate(phase, out _), "Missing quiz ID/asset blocks sequence.");
+        phase.optionalDialogueSequence[0] = QuizStep();
+        Check(npc.Validate(phase, out _), "Valid quiz-only phase allowed.");
+        phase.optionalDialogueSequence.Add(QuizStep("step-2"));
+        Check(npc.Validate(phase, out _), "Multiple uniquely identified Quiz steps allowed.");
+        phase.optionalDialogueSequence[1].quizStepId = " step ";
+        Check(!npc.Validate(phase, out _), "Whitespace-normalized duplicate IDs cannot collide in persisted context.");
+        phase.optionalDialogueSequence.RemoveAt(1);
+        phase.optionalDialogueSequence[0].quiz = null;
+        Check(!npc.Validate(phase, out _), "Missing quiz asset is blocking, not skipped.");
+        phase.optionalDialogueSequence[0].quiz = ValidQuiz();
+        phase.optionalDialogueSequence[0].quiz.questions[0].correctChoiceIndex = -1;
+        Check(!npc.Validate(phase, out _), "Invalid authored correct answer blocks NPC sequence.");
+        phase.optionalDialogueSequence[0].quiz = ValidQuiz();
+        phase.phaseId = " "; Check(!npc.Validate(phase, out _), "Missing phase identity rejected.");
+        phase.phaseId = "phase";
+        npc.progressionSaveId = " "; Check(!npc.Validate(phase, out _), "Missing progression identity rejected.");
+        npc.progressionSaveId = "npc";
+        npc.phases.Add(new NPCProgressionPhase { phaseId = " phase " });
+        Check(!npc.Validate(phase, out _), "Duplicate normalized Phase IDs rejected for quiz progress.");
+        npc.phases.RemoveAt(1);
+        NPCProgressionManager second = new NPCProgressionManager { progressionSaveId = " npc " };
+        Resources.objects = new object[] { npc, second };
+        Check(!npc.Validate(phase, out _), "Different NPCs in same scene must not share quiz context identity.");
+        second.gameObject.scene = 2;
+        Check(npc.Validate(phase, out _), "Independent scene copies do not count as same-scene authored collision.");
+        Resources.objects = Array.Empty<object>();
+        phase.optionalDialogueSequence[0].stepType = NPCOptionalDialogueStep.StepType.Dialogue;
+        phase.phaseId = null; npc.progressionSaveId = null;
+        Check(npc.Validate(phase, out _), "Legacy non-quiz phases retain their original authoring policy.");
+        return checks;
+    }
+}

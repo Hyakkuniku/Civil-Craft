@@ -312,7 +312,7 @@ public static class DialoguePauseResumeValidation
         string pauseSource = File.ReadAllText("Assets/Script/PauseManager.cs");
         Check(pauseSource.Contains("inputObj.SetPlayerInputEnable(false);") &&
               pauseSource.Contains("inputObj.SetLookEnabled(false);") &&
-              pauseSource.Contains("bool resumePlayerControls = !DialogueManager.IsAnyDialogueActive;") &&
+              pauseSource.Contains("bool resumePlayerControls = !DialogueManager.IsAnyDialogueActive && !QuizUIManager.IsAnyQuizActive;") &&
               pauseSource.Contains("inputObj.SetPlayerInputEnable(resumePlayerControls);") &&
               pauseSource.Contains("inputObj.SetLookEnabled(resumePlayerControls);"),
             "The native fixture's isolated Pause input handoff no longer matches production; update the fixture.");

@@ -1,0 +1,3 @@
+bin/
+obj/
+!NPCQuiz.csproj

@@ -2009,6 +2009,11 @@ public class PlayerDataManager : MonoBehaviour
         if (CurrentData.savedBridges == null) CurrentData.savedBridges = new List<SavedBridgeData>();
         if (CurrentData.npcProgressions == null) CurrentData.npcProgressions = new List<NPCProgressionSaveData>();
 
+        if (CurrentData.quizProgress == null) CurrentData.quizProgress = new List<QuizProgressSaveData>();
+        foreach (QuizProgressSaveData quizState in CurrentData.quizProgress)
+            if (quizState != null && quizState.correctQuestionIds == null)
+                quizState.correctQuestionIds = new List<string>();
+
         // Older saves only stored current EXP. Until EXP becomes spendable this
         // safely migrates it into the new lifetime "EXP Received" counter.
         CurrentData.lifetimeExpEarned = Mathf.Max(CurrentData.lifetimeExpEarned, CurrentData.exp);
@@ -2541,6 +2546,76 @@ public class PlayerDataManager : MonoBehaviour
         state.currentPhaseId = currentPhaseId ?? string.Empty;
         state.wasTravelling = wasTravelling;
         SaveGame();
+    }
+
+    /// <summary>Returns a detached quiz record; changed content resumes from an empty record.</summary>
+    public bool TryGetQuizProgress(QuizData quiz, QuizContext context, out QuizProgressSaveData progress)
+    {
+        progress = null;
+        if (CurrentData == null || quiz == null || context == null || !context.IsValid ||
+            !quiz.TryValidate(out _) || (FusionConnectionManager.Instance != null &&
+            FusionConnectionManager.Instance.IsGuestSaveProtected)) return false;
+
+        string fingerprint = quiz.ContentFingerprint;
+        QuizProgressSaveData saved = CurrentData.quizProgress?.Find(entry => entry != null &&
+            string.Equals(entry.progressKey, context.ProgressKey, StringComparison.Ordinal) &&
+            string.Equals(entry.quizId, quiz.quizId.Trim(), StringComparison.Ordinal));
+        if (saved == null || !string.Equals(saved.contentFingerprint, fingerprint, StringComparison.Ordinal))
+        {
+            progress = new QuizProgressSaveData { progressKey = context.ProgressKey,
+                quizId = quiz.quizId.Trim(), contentFingerprint = fingerprint };
+            return true;
+        }
+
+        progress = saved.Clone();
+        HashSet<string> correct = QuizProgressUtility.CreateAnswerSet(progress.correctQuestionIds);
+        progress.correctQuestionIds.Clear();
+        foreach (QuizQuestion question in quiz.questions)
+            if (correct.Contains(question.questionId.Trim())) progress.correctQuestionIds.Add(question.questionId.Trim());
+        progress.completed = saved.completed && QuizProgressUtility.AreAllQuestionsCorrect(quiz, progress.correctQuestionIds);
+        return true;
+    }
+
+    /// <summary>Commits only quiz progress and rolls back only that list if the normal save fails.</summary>
+    public bool TrySaveQuizProgress(QuizData quiz, QuizContext context,
+        IEnumerable<string> correctQuestionIds, bool completed, out string error)
+    {
+        error = string.Empty;
+        if (CurrentData == null) { error = "Player save is not ready."; return false; }
+        if (FusionConnectionManager.Instance != null && FusionConnectionManager.Instance.IsGuestSaveProtected)
+        { error = "Quizzes are unavailable while visiting another player's story."; return false; }
+        if (context == null || !context.IsValid) { error = "Quiz progression identity is missing."; return false; }
+        if (quiz == null) { error = "Quiz content is missing."; return false; }
+        if (!quiz.TryValidate(out error)) return false;
+
+        HashSet<string> validIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (QuizQuestion question in quiz.questions) validIds.Add(question.questionId.Trim());
+        HashSet<string> answers = QuizProgressUtility.CreateAnswerSet(correctQuestionIds);
+        foreach (string id in answers)
+            if (!validIds.Contains(id)) { error = "Quiz answer refers to a missing question."; return false; }
+        if (!TryGetQuizProgress(quiz, context, out QuizProgressSaveData record))
+        { error = "Quiz progress is unavailable."; return false; }
+        answers.UnionWith(record.correctQuestionIds);
+        if (completed && !QuizProgressUtility.AreAllQuestionsCorrect(quiz, answers))
+        { error = "Finish every quiz question before completing this phase."; return false; }
+
+        record.correctQuestionIds.Clear();
+        foreach (QuizQuestion question in quiz.questions)
+            if (answers.Contains(question.questionId.Trim())) record.correctQuestionIds.Add(question.questionId.Trim());
+        record.completed = record.completed || completed;
+
+        List<QuizProgressSaveData> previous = CurrentData.quizProgress;
+        List<QuizProgressSaveData> next = new List<QuizProgressSaveData>();
+        if (previous != null)
+            foreach (QuizProgressSaveData entry in previous)
+                if (entry != null && !(string.Equals(entry.progressKey, record.progressKey, StringComparison.Ordinal) &&
+                    string.Equals(entry.quizId, record.quizId, StringComparison.Ordinal))) next.Add(entry.Clone());
+        next.Add(record);
+        CurrentData.quizProgress = next;
+        if (TrySaveGame()) return true;
+        CurrentData.quizProgress = previous;
+        error = "Quiz progress could not be saved. Please try again.";
+        return false;
     }
 
     /// <summary>Keep guest and PlayFab accounts in separate on-device save slots.</summary>

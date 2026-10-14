@@ -1,0 +1,54 @@
+using System;
+using System.Collections.Generic;
+
+namespace UnityEngine
+{
+    public class ScriptableObject { }
+    public class Sprite { public string guid = "sprite-guid"; public long localId = 42; public string hash = "texture-hash"; }
+    [AttributeUsage(AttributeTargets.Field)] public sealed class TextAreaAttribute : Attribute { public TextAreaAttribute(int min, int max) { } }
+    [AttributeUsage(AttributeTargets.Field)] public sealed class HideInInspector : Attribute { }
+    [AttributeUsage(AttributeTargets.Field)] public sealed class TooltipAttribute : Attribute { public TooltipAttribute(string text) { } }
+    [AttributeUsage(AttributeTargets.Class)] public sealed class CreateAssetMenuAttribute : Attribute { public string fileName; public string menuName; }
+}
+namespace UnityEditor
+{
+    public static class AssetDatabase
+    {
+        private static UnityEngine.Sprite inspected;
+        public static bool TryGetGUIDAndLocalFileIdentifier(UnityEngine.Sprite sprite, out string guid, out long id)
+        { inspected = sprite; guid = sprite.guid; id = sprite.localId; return !string.IsNullOrEmpty(guid); }
+        public static string GetAssetPath(UnityEngine.Sprite sprite) { return sprite.guid; }
+        public static string GetAssetDependencyHash(string path) { return inspected.hash; }
+    }
+}
+public sealed class PlayerData
+{
+    public List<QuizProgressSaveData> quizProgress = new List<QuizProgressSaveData>();
+    public int gold;
+    public List<string> completedLessons = new List<string>();
+}
+public sealed class FusionConnectionManager
+{
+    public static FusionConnectionManager Instance;
+    public bool IsGuestSaveProtected;
+}
+public sealed class PlayerDataManager
+{
+    public PlayerData CurrentData = new PlayerData();
+    public bool saveSucceeds = true;
+    public int saves;
+    public Action saveHook;
+    public List<QuizProgressSaveData> committed;
+    public bool TrySaveGame()
+    {
+        saves++;
+        saveHook?.Invoke();
+        if (saveSucceeds)
+        {
+            committed = new List<QuizProgressSaveData>();
+            foreach (QuizProgressSaveData record in CurrentData.quizProgress) committed.Add(record.Clone());
+        }
+        return saveSucceeds;
+    }
+    // ACTUAL_SAVE_METHODS
+}

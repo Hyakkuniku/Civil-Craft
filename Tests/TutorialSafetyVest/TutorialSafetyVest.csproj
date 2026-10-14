@@ -7,6 +7,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../Assets/Script/Player/PlayerSave/PlayerData.cs" Link="PlayerData.cs" />
+    <Compile Include="../../Assets/Script/UI/Quizzes/QuizProgressSaveData.cs" Link="QuizProgressSaveData.cs" />
     <Compile Include="../../Assets/Script/Player/PlayerSave/CosmeticDefinition.cs" Link="CosmeticDefinition.cs" />
     <Compile Include="../../Assets/Script/UI/Shop/ShopItemData.cs" Link="ShopItemData.cs" />
     <Reference Include="Microsoft.CodeAnalysis">

@@ -1,0 +1,152 @@
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.EventSystems;
+
+public static class Scenarios
+{
+    private static int checks;
+    private static void Check(bool value, string message) { checks++; if (!value) throw new InvalidOperationException(message); }
+    private static object Call(QuizUIManager manager, string method, params object[] args)
+    {
+        try { return typeof(QuizUIManager).GetMethod(method, BindingFlags.NonPublic | BindingFlags.Instance).Invoke(manager, args); }
+        catch (TargetInvocationException exception) { throw exception.InnerException; }
+    }
+    private sealed class Fixture
+    {
+        public QuizData quiz;
+        public QuizContext context = new QuizContext("npc", "phase", "step");
+        public QuizUIManager manager;
+        public PlayerDataManager save;
+        public InputManager input;
+        public PlayerInteract interaction;
+        public Behaviour owner;
+        public List<QuizOutcome> results = new List<QuizOutcome>();
+        public bool controlsRestoredBeforeCallback;
+        public Fixture(int count = 2)
+        {
+            typeof(QuizUIManager).GetField("activeManager", BindingFlags.NonPublic | BindingFlags.Static).SetValue(null, null);
+            UnityEngine.Object.all.Clear(); Scene.unloaded.Clear(); Time.timeScale = 1; Time.unscaledTime = 0;
+            PauseManager.Instance = null; DialogueManager.IsAnyDialogueActive = false; FusionConnectionManager.Instance = null;
+            GameManager.Instance = new GameManager(); UIPanelCoordinator.Instance = new UIPanelCoordinator(); EventSystem.current = new EventSystem();
+            input = new InputManager(); interaction = new PlayerInteract { gameObject = input.gameObject };
+            save = new PlayerDataManager(); PlayerDataManager.Instance = save;
+            quiz = new QuizData { quizId = "quiz", title = "Safety" };
+            for (int i = 0; i < count; i++) quiz.questions.Add(new QuizQuestion
+            { questionId = "q" + i, prompt = "Question " + i, feedback = "Safety first.", correctChoiceIndex = 1,
+                choices = new List<QuizChoice> { new QuizChoice { text = "Wrong" }, new QuizChoice { text = "Right" } } });
+            owner = new Behaviour(); manager = new QuizUIManager { view = new QuizView() };
+            Call(manager, "Awake");
+        }
+        public bool Open(Action<QuizOutcome> more = null) => (bool)Call(manager, "Open", quiz, context, owner, owner.gameObject.scene,
+            new Action<QuizOutcome>(result => { results.Add(result); controlsRestoredBeforeCallback = input.movement && input.look && interaction.enabled; more?.Invoke(result); }));
+        public void Correct() { manager.view.Choose(1); manager.view.Submit(); }
+        public void FinishAll()
+        {
+            while (manager.view.shownQuestion >= 0) { Correct(); manager.view.Next(); }
+            manager.view.Finish();
+        }
+    }
+    public static int Run()
+    {
+        for (int count = 1; count <= 24; count++)
+        {
+            Fixture f = new Fixture(count);
+            Check(f.Open(), "Valid quiz opens.");
+            Check(QuizUIManager.IsAnyQuizActive && !f.input.movement && !f.input.look && !f.interaction.enabled && Time.timeScale == 1, "Quiz locks local controls without freezing world.");
+            f.manager.view.Submit(); Check(f.save.saves == 0 && f.manager.view.shownQuestion == 0, "Submit without selection does nothing.");
+            f.manager.view.Choose(0); f.manager.view.Submit();
+            Check(f.save.saves == 0 && f.manager.view.shownQuestion == 0 && !f.manager.view.correct, "Wrong answer neither saves nor advances.");
+            f.manager.view.Next(); Check(f.manager.view.shownQuestion == 0, "Wrong answer cannot skip with Next.");
+            for (int i = 0; i < count; i++)
+            {
+                f.Correct(); Check(f.save.saves == i + 1 && f.manager.view.shownQuestion == i, "Correct answer saves once and awaits Next.");
+                Check(f.manager.view.feedback == "Safety first.", "Presenter receives explanation without repeated Correct prefix.");
+                f.manager.view.Submit(); f.manager.view.Choose(0); f.manager.view.Submit();
+                Check(f.save.saves == i + 1, "Repeated submit/selection on locked question cannot duplicate save.");
+                f.manager.view.Next();
+                Check(f.manager.view.shownQuestion == (i == count - 1 ? -1 : i + 1), "Next follows dynamic question order/completion.");
+            }
+            Check(f.manager.view.completionShows == 1 && f.results.Count == 0, "Completion screen requires explicit Finish.");
+            f.manager.view.Finish(); f.manager.view.Finish(); Call(f.manager, "CloseSession", QuizOutcome.Completed);
+            Check(f.results.Count == 1 && f.results[0] == QuizOutcome.Completed && f.save.committed[0].completed, "Finish persists before exactly-once callback.");
+            Check(!QuizUIManager.IsAnyQuizActive && f.controlsRestoredBeforeCallback && !f.manager.Panel.activeSelf, "Controls restored and panel closed before continuation.");
+        }
+        ResumeAndSaveFailures(); PauseAndOwnership(); ControlsAndLifecycle();
+        return checks;
+    }
+    private static void ResumeAndSaveFailures()
+    {
+        Fixture f = new Fixture(3); f.save.TrySaveQuizProgress(f.quiz, f.context, new[] { "q0" }, false, out _);
+        Check(f.Open() && f.manager.view.shownQuestion == 1, "Opening resumes first unanswered saved question.");
+        f.Correct(); f.manager.view.Leave();
+        Check(f.results.Count == 1 && f.results[0] == QuizOutcome.Cancelled && f.save.committed[0].correctQuestionIds.Count == 2 && !f.save.committed[0].completed, "Durable leave keeps answers without completion.");
+        Check(f.Open() && f.manager.view.shownQuestion == 2, "Reopening resumes after leaving."); f.Correct(); f.manager.view.Next(); f.manager.view.Finish();
+        Check(f.Open() && f.manager.view.shownQuestion == -1, "Completed record opens completion, not invalid index."); f.manager.view.Finish();
+        Check(f.results.Count == 3 && f.results[2] == QuizOutcome.Completed, "Completed resumed session invokes once.");
+        f = new Fixture(1); Check(f.Open(), "Save failure fixture opened."); f.save.saveSucceeds = false; f.Correct();
+        Check(f.manager.view.saveErrors == 1 && f.save.committed.Count == 0 && f.results.Count == 0, "Failed correct answer remains pending and shows error.");
+        f.manager.view.Next(); f.manager.view.Finish(); Check(f.manager.view.shownQuestion == 0 && f.results.Count == 0, "Save failure blocks Next and Finish.");
+        f.save.saveSucceeds = true; f.manager.view.Retry();
+        Check(f.save.committed[0].correctQuestionIds.Count == 1 && f.manager.view.correct, "Retry commits answered question and restores feedback.");
+        f.manager.view.Next(); f.save.saveSucceeds = false; f.manager.view.Finish();
+        Check(f.results.Count == 0 && !f.save.committed[0].completed && f.manager.view.saveErrors == 2, "Failed completion never advances owner.");
+        f.save.saveSucceeds = true; f.manager.view.Retry(); f.manager.view.Retry();
+        Check(f.results.Count == 1 && f.results[0] == QuizOutcome.Completed && f.save.committed[0].completed, "Completion retry commits before exactly-once callback.");
+        f = new Fixture(2); f.Open(); f.Correct(); f.manager.view.Next(); f.save.saveSucceeds = false; f.Correct();
+        f.manager.view.Leave(); Check(f.manager.HasSession && f.results.Count == 0, "First unsaved leave shows loss warning instead of dismissing.");
+        f.manager.view.Leave(); Check(!f.manager.HasSession && f.results.Count == 1 && f.results[0] == QuizOutcome.Cancelled && f.save.committed[0].correctQuestionIds.Count == 1, "Confirmed unsaved leave retains only durable answers.");
+        f.save.saveSucceeds = true; Check(f.Open() && f.manager.view.shownQuestion == 1, "Failed answer not restored after reopening."); f.manager.view.Leave();
+        f = new Fixture(); f.save.CurrentData = null;
+        Check(!f.Open() && !f.manager.HasSession && !QuizUIManager.IsAnyQuizActive && f.results.Count == 0, "Unavailable read does not take ownership or callback.");
+    }
+    private static void PauseAndOwnership()
+    {
+        Fixture f = new Fixture(1); PauseManager.Instance = new PauseManager();
+        PauseManager.Instance.pausePanel.SetActive(false); PauseManager.Instance.settingsPanel.SetActive(false);
+        f.Open(); f.manager.view.Pause();
+        Check(PauseManager.Instance.isPaused && Time.timeScale == 0 && !f.manager.Panel.activeInHierarchy && f.manager.HasSession, "Pause hides view without cancelling manager.");
+        f.manager.view.Choose(1); f.manager.view.Submit();
+        Check(f.save.saves == 0 && !QuizUIManager.TryHandleBack(), "Hidden/paused quiz ignores input and Back.");
+        UIPanelCoordinator.Instance.OpenPanel(PauseManager.Instance.settingsPanel);
+        PauseManager.Instance.ResumeGame();
+        Check(!PauseManager.Instance.isPaused && Time.timeScale == 1 && f.manager.Panel.activeInHierarchy && !f.input.movement && !f.input.look && !f.interaction.enabled, "Actual Pause resume closes Settings while retaining quiz controls lock.");
+        f.FinishAll(); Check(f.input.movement && f.input.look && f.interaction.enabled, "Finishing after nested pause restores controls.");
+        f = new Fixture(); PauseManager.Instance = new PauseManager(); PauseManager.Instance.settingsPanel.SetActive(false); f.Open(); f.manager.view.Pause();
+        QuizUIManager.CancelOwnedSession(new Behaviour()); Check(f.manager.HasSession, "Different owner cannot cancel session.");
+        QuizUIManager.CancelOwnedSession(f.owner);
+        Check(f.results.Count == 1 && f.results[0] == QuizOutcome.Cancelled && !f.manager.HasSession && !PauseManager.Instance.isPaused && Time.timeScale == 1, "Owner cancellation during Pause unfreezes and cancels once.");
+        Check(f.input.movement && f.input.look && f.interaction.enabled && !UIPanelCoordinator.Instance.HasOpenPanel, "Forced paused cancellation clears overlays before restoring snapshot.");
+        QuizUIManager.CancelOwnedSession(f.owner); Check(f.results.Count == 1, "Repeated owner cancellation no duplicate callback.");
+        f = new Fixture(); f.Open(); GameObject overlay = new GameObject(); UIPanelCoordinator.Instance.OpenPanel(overlay);
+        Check(!QuizUIManager.TryHandleBack(), "Another top panel retains Back ownership.");
+        UIPanelCoordinator.Instance.ClosePanel(overlay); Check(QuizUIManager.TryHandleBack() && f.results.Count == 1, "Top quiz Back leaves session.");
+    }
+    private static void ControlsAndLifecycle()
+    {
+        Fixture f = new Fixture(1); f.input.movement = false; f.input.look = false; f.interaction.enabled = false; f.Open(); f.FinishAll();
+        Check(!f.input.movement && !f.input.look && !f.interaction.enabled, "Already-disabled controls never force-enabled by quiz.");
+        f = new Fixture(1); f.Open(result => { DialogueManager.IsAnyDialogueActive = true; f.input.SetPlayerInputEnable(false); f.input.SetLookEnabled(false); f.interaction.enabled = false; }); f.FinishAll();
+        Check(f.controlsRestoredBeforeCallback && !f.input.movement && !f.input.look && !f.interaction.enabled, "Follow-up dialogue can take its own lock after restoration.");
+        f = new Fixture(); f.Open(); f.owner.enabled = false; Call(f.manager, "Update");
+        Check(f.results.Count == 1 && f.results[0] == QuizOutcome.Cancelled, "Disabled owner cancels stale callbacks.");
+        f = new Fixture(); f.Open(); Scene.unloaded.Add(1); Call(f.manager, "Update");
+        Check(f.results.Count == 1 && f.results[0] == QuizOutcome.Cancelled && !f.input.movement, "Scene unload cancels without restoring unloaded controls.");
+        f = new Fixture(); f.Open(); f.quiz.questions[0].prompt += "changed"; Time.unscaledTime = 2; Call(f.manager, "Update");
+        Check(f.results.Count == 1 && f.results[0] == QuizOutcome.Unavailable, "Changed content cancels stale session.");
+        f = new Fixture(); f.Open(); f.save.CurrentData = new PlayerData(); Call(f.manager, "Update");
+        Check(f.results.Count == 1 && f.results[0] == QuizOutcome.Cancelled, "Profile replacement cancels before writing wrong account.");
+        f = new Fixture(); f.Open(); FusionConnectionManager.Instance = new FusionConnectionManager { IsGuestSaveProtected = true }; Call(f.manager, "Update");
+        Check(f.results.Count == 1 && f.results[0] == QuizOutcome.Cancelled && f.save.saves == 0, "Protected multiplayer visit cancels without story writes.");
+        f = new Fixture(); f.Open(); Call(f.manager, "OnDisable"); Call(f.manager, "OnDestroy");
+        Check(f.results.Count == 1 && f.results[0] == QuizOutcome.Cancelled, "Disable+destroy delivers only one cancellation.");
+        f = new Fixture(); f.Open(); GameManager.Instance.IsTransitioning = true; Call(f.manager, "CloseSession", QuizOutcome.Cancelled);
+        Check(!f.input.movement && !f.input.look && !f.interaction.enabled, "Scene transition lock not overridden by teardown.");
+        f = new Fixture(); GameObject selected = new GameObject(); EventSystem.current.currentSelectedGameObject = selected; f.Open(); f.manager.view.Leave();
+        Check(EventSystem.current.currentSelectedGameObject == selected, "Prior UI selection restored on close.");
+        f = new Fixture(); f.Open(); f.context.stepId = "changed-caller"; f.Correct();
+        Check(f.save.committed[0].progressKey == new QuizContext("npc", "phase", "step").ProgressKey, "Caller-owned context cannot change active save identity."); f.manager.view.Leave();
+    }
+}

@@ -1,0 +1,187 @@
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.EventSystems;
+using UnityEngine.InputSystem;
+
+namespace UnityEngine
+{
+    public class Object
+    {
+        public static List<Object> all = new List<Object>();
+        public Object() { all.Add(this); }
+        public static T[] FindObjectsOfType<T>() where T : Object => all.FindAll(item => item is T).ConvertAll(item => (T)item).ToArray();
+        public static T FindObjectOfType<T>() where T : Object => Array.Find(FindObjectsOfType<T>(), item => true);
+    }
+    public class ScriptableObject : Object { }
+    public class Sprite : Object { }
+    public class GameObject : Object
+    {
+        public string name;
+        public Scene scene = new Scene(1);
+        public bool activeSelf = true;
+        public bool activeInHierarchy => activeSelf;
+        public void SetActive(bool active) { activeSelf = active; }
+    }
+    public class Component : Object
+    {
+        public GameObject gameObject = new GameObject();
+        public T GetComponent<T>() where T : Component => Array.Find(FindObjectsOfType<T>(), item => item.gameObject == gameObject);
+    }
+    public class Behaviour : Component { public bool enabled = true; public bool isActiveAndEnabled => enabled && gameObject.activeInHierarchy; }
+    public class MonoBehaviour : Behaviour { }
+    public static class Time { public static float timeScale = 1f; public static float unscaledTime; }
+    public static class Application { public static bool isPlaying = true; }
+    public static class Debug { public static void LogWarning(string message, Object context = null) { } }
+    [AttributeUsage(AttributeTargets.Field)] public sealed class TextAreaAttribute : Attribute { public TextAreaAttribute(int min, int max) { } }
+    [AttributeUsage(AttributeTargets.Field)] public sealed class HideInInspector : Attribute { }
+    [AttributeUsage(AttributeTargets.Field)] public sealed class TooltipAttribute : Attribute { public TooltipAttribute(string text) { } }
+    [AttributeUsage(AttributeTargets.Class)] public sealed class CreateAssetMenuAttribute : Attribute { public string fileName; public string menuName; }
+}
+namespace UnityEngine.SceneManagement
+{
+    public struct Scene
+    {
+        public static HashSet<int> unloaded = new HashSet<int>();
+        public int id;
+        public Scene(int id) { this.id = id; }
+        public bool IsValid() => id > 0;
+        public bool isLoaded => IsValid() && !unloaded.Contains(id);
+        public static bool operator ==(Scene a, Scene b) => a.id == b.id;
+        public static bool operator !=(Scene a, Scene b) => a.id != b.id;
+        public override bool Equals(object other) => other is Scene scene && scene.id == id;
+        public override int GetHashCode() => id;
+    }
+}
+namespace UnityEngine.EventSystems
+{
+    public sealed class EventSystem
+    {
+        public static EventSystem current;
+        public GameObject currentSelectedGameObject;
+        public void SetSelectedGameObject(GameObject selection) { currentSelectedGameObject = selection; }
+    }
+}
+namespace UnityEngine.InputSystem
+{
+    public sealed class ButtonState { public bool wasPressedThisFrame; }
+    public sealed class Keyboard { public static Keyboard current; public ButtonState escapeKey = new ButtonState(); }
+    public sealed class Gamepad { public static Gamepad current; public ButtonState buttonEast = new ButtonState(); }
+}
+public sealed class InputManager : Behaviour
+{
+    public bool movement = true, look = true;
+    public bool IsPlayerInputEnabled => movement;
+    public bool IsLookInputEnabled => look;
+    public void SetPlayerInputEnable(bool value) { movement = value; }
+    public void SetLookEnabled(bool value) { look = value; }
+}
+public sealed class PlayerInteract : Behaviour { }
+public sealed class DialogueManager { public static bool IsAnyDialogueActive; }
+public sealed class GameManager
+{
+    public enum GameState { Normal, Building }
+    public static GameManager Instance;
+    public bool IsTransitioning;
+    public GameState CurrentState;
+}
+public sealed class FusionConnectionManager { public static FusionConnectionManager Instance; public bool IsGuestSaveProtected; }
+public sealed class PlayerData
+{
+    public List<QuizProgressSaveData> quizProgress = new List<QuizProgressSaveData>();
+    public int gold;
+}
+public sealed class PlayerDataManager
+{
+    public static PlayerDataManager Instance;
+    public PlayerData CurrentData = new PlayerData();
+    public bool saveSucceeds = true;
+    public int saves;
+    public Action saveHook;
+    public List<QuizProgressSaveData> committed = new List<QuizProgressSaveData>();
+    public bool TrySaveGame()
+    {
+        saves++;
+        saveHook?.Invoke();
+        if (!saveSucceeds) return false;
+        committed = new List<QuizProgressSaveData>();
+        foreach (QuizProgressSaveData record in CurrentData.quizProgress) committed.Add(record.Clone());
+        return true;
+    }
+    // ACTUAL_SAVE_METHODS
+}
+public sealed class QuizView : Behaviour
+{
+    public GameObject Panel = new GameObject();
+    public bool IsReady = true;
+    public int shownQuestion = -1, completionShows, feedbackShows, saveErrors, selection = -1;
+    public bool busy, correct;
+    public string feedback, error;
+    public event Action<int> ChoiceSelected;
+    public event Action SubmitRequested, NextRequested, FinishRequested, LeaveRequested, RetrySaveRequested, PauseRequested;
+    public void Reset() { selection = shownQuestion = -1; completionShows = feedbackShows = saveErrors = 0; }
+    public void SetSelection(int index) { selection = index; }
+    public void ShowQuestion(QuizData data, int index, IReadOnlyCollection<string> ids)
+    {
+        if (index < 0 || index >= data.QuestionCount) throw new InvalidOperationException("Controller passed invalid question index to view.");
+        shownQuestion = index; selection = -1;
+    }
+    public void ShowCompletion(QuizData data) { shownQuestion = -1; completionShows++; }
+    public void ShowFeedback(bool correct, string text) { this.correct = correct; feedback = text; feedbackShows++; }
+    public void ShowSaveError(string text) { error = text; saveErrors++; }
+    public void SetBusy(bool value) { busy = value; }
+    public void Choose(int index) { ChoiceSelected?.Invoke(index); }
+    public void Submit() { SubmitRequested?.Invoke(); }
+    public void Next() { NextRequested?.Invoke(); }
+    public void Finish() { FinishRequested?.Invoke(); }
+    public void Leave() { LeaveRequested?.Invoke(); }
+    public void Retry() { RetrySaveRequested?.Invoke(); }
+    public void Pause() { PauseRequested?.Invoke(); }
+}
+public sealed class UIPanelCoordinator
+{
+    public static UIPanelCoordinator Instance;
+    private readonly List<GameObject> panels = new List<GameObject>();
+    public bool HasOpenPanel => panels.Count > 0;
+    public void OpenPanel(GameObject panel)
+    {
+        if (panels.Count > 0) panels[panels.Count - 1].SetActive(false);
+        panels.Remove(panel); panels.Add(panel); panel.SetActive(true);
+    }
+    public void ClosePanel(GameObject panel)
+    {
+        if (panel != null) panel.SetActive(false);
+        panels.Remove(panel); if (panels.Count > 0) panels[panels.Count - 1].SetActive(true);
+    }
+    public bool IsOpen(GameObject panel) => panels.Contains(panel);
+    public bool ContainsPanel(GameObject panel) => panels.Contains(panel);
+    public bool IsTopPanel(GameObject panel) => panels.Count > 0 && panels[panels.Count - 1] == panel;
+}
+public sealed class AudioManager
+{
+    public static AudioManager Instance;
+    public void PauseMusic() { }
+    public void ResumeMusic() { }
+    public void PlaySFX(string id) { }
+}
+public sealed class PauseManager : MonoBehaviour
+{
+    public static PauseManager Instance;
+    public bool isPaused, isClosingPause, freezeTimeOnPause = true;
+    public float closeDuration;
+    public string pauseOpenSfxId;
+    public GameObject pausePanel = new GameObject(), settingsPanel = new GameObject();
+    public GameObject[] objectsToHide;
+    public bool IsPauseBlocked() => false;
+    public void RefreshPauseAvailability() { }
+    private void PlayOpenMotion() { }
+    private void PlayCloseMotion(Action completion) { completion(); }
+    private void StopPanelMotion() { }
+    private void ResetPanelVisuals() { }
+    // ACTUAL_PAUSE_METHODS
+}
+public sealed class QuizUIManager : MonoBehaviour
+{
+    // ACTUAL_QUIZ_MEMBERS
+}
