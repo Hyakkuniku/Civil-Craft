@@ -1,0 +1,172 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using UnityEngine;
+
+namespace UnityEngine
+{
+    public class GameObject
+    {
+        public int scene;
+        public bool activeSelf = true;
+        public bool activeInHierarchy => activeSelf;
+        public readonly Dictionary<Type, object> components = new Dictionary<Type, object>();
+        public void SetActive(bool value) { activeSelf = value; }
+        public T GetComponent<T>() where T : class => components.TryGetValue(typeof(T), out object value) ? value as T : null;
+    }
+    public class MonoBehaviour
+    {
+        public static readonly List<MonoBehaviour> World = new List<MonoBehaviour>();
+        public GameObject gameObject;
+        public Transform transform;
+        public bool enabled = true;
+        public bool isActiveAndEnabled => enabled && gameObject.activeInHierarchy;
+        public MonoBehaviour() { gameObject = new GameObject { scene = 1 }; transform = new Transform(gameObject); gameObject.components[GetType()] = this; World.Add(this); }
+        public T GetComponent<T>() where T : class => gameObject.GetComponent<T>();
+        public static T[] FindObjectsOfType<T>() where T : MonoBehaviour => World.OfType<T>().Where(value => value.gameObject.activeInHierarchy).ToArray();
+        public static T FindObjectOfType<T>() where T : MonoBehaviour => FindObjectsOfType<T>().FirstOrDefault();
+        public Coroutine StartCoroutine(IEnumerator enumerator) => new Coroutine();
+        public void StopCoroutine(Coroutine coroutine) { }
+    }
+    public class Transform
+    {
+        public GameObject gameObject;
+        public Transform(GameObject owner) { gameObject = owner; }
+        public T GetComponent<T>() where T : class => gameObject.GetComponent<T>();
+    }
+    public struct Vector2
+    {
+        public float x, y;
+        public Vector2(float x, float y) { this.x = x; this.y = y; }
+        public static Vector2 zero => new Vector2(0, 0);
+        public float sqrMagnitude => x * x + y * y;
+    }
+    public class Animator { public void SetBool(string key, bool value) { } }
+    public class Coroutine { }
+    public class WaitForSeconds { }
+    public static class Time { public static float timeScale = 1; }
+    public static class Application { public static bool isMobilePlatform; }
+}
+
+public class PlayerInput
+{
+    public readonly OnFootActions onFoot = new OnFootActions();
+    public class OnFootActions
+    {
+        public bool enabled = true;
+        public readonly ActionValue Movement = new ActionValue();
+        public readonly ActionValue Look = new ActionValue();
+        public void Enable() { enabled = true; }
+        public void Disable() { enabled = false; }
+    }
+}
+public class ActionValue { public T ReadValue<T>() => (T)(object)new Vector2(0.8f, 0.6f); }
+public class Mouse { public static Mouse current; public ButtonValue rightButton = new ButtonValue(); }
+public class ButtonValue { public bool isPressed = true; }
+public class Gamepad { public static Gamepad current; public StickValue rightStick = new StickValue(); }
+public class StickValue { public Vector2 ReadValue() => new Vector2(0.8f, 0.6f); }
+public class PlayerMotor { }
+public class PlayerLook { public bool canLook = true; }
+public static class RecordingCameraShortcut
+{
+    public static bool BlocksMovement(InputManager owner) => false;
+    public static bool OverridesLook(PlayerLook owner) => false;
+}
+public class InputManager : MonoBehaviour
+{
+    private PlayerInput playerInput;
+    public PlayerInput.OnFootActions onFoot;
+    private PlayerMotor motor;
+    private PlayerLook look;
+    public bool useMobileTouchControls;
+    public InputManager() { gameObject.components[typeof(PlayerLook)] = new PlayerLook(); EnsureInputInitialized(); }
+    private void ApplyCursorState() { }
+    // INPUT_METHODS
+}
+public class PlayerInteract : MonoBehaviour { }
+public class PlayerUI { public void UpdateButtons(List<Interactable> values) { } }
+public class Interactable { }
+public class TextValue
+{
+    public string text;
+    public int maxVisibleCharacters;
+    public TextInfo textInfo = new TextInfo();
+    public void ForceMeshUpdate() { textInfo.characterCount = text?.Length ?? 0; }
+}
+public class TextInfo { public int characterCount; }
+public class PlayerDataManager
+{
+    public static PlayerDataManager Instance;
+    public PlayerData CurrentData = new PlayerData();
+}
+public class PlayerData { public string playerName = "Fixture"; }
+public class Dialogue { public string name; public string[] sentences; }
+public class DialogueManager : MonoBehaviour
+{
+    private static readonly HashSet<DialogueManager> knownManagers = new HashSet<DialogueManager>();
+    private InputManager inputManager;
+    private PlayerInteract playerInteract;
+    private PlayerUI playerUI;
+    private Transform playerTransform;
+    private Action onDialogueEndCallback;
+    private Queue<string> sentences = new Queue<string>();
+    private bool isTyping;
+    private bool isDialogueActive;
+    private Coroutine typingCoroutine, hideDialogueCoroutine;
+    private WaitForSeconds cachedTypingWait;
+    private GameObject dialogueBox = new GameObject();
+    public Animator animator;
+    public TextValue nameText = new TextValue(), dialogueText = new TextValue();
+    public InputManager BoundInput => inputManager;
+    public bool Active => isDialogueActive;
+    public void Bind(InputManager input, PlayerInteract interaction, Transform player = null)
+    { inputManager = input; playerInteract = interaction; playerTransform = player; }
+    public void ResolveTransformForTest() { ResolvePlayerTransform(); }
+    private void SetActiveSpeaker(Animator speaker) { }
+    private static Transform ResolveSpeakerTransform(Animator speaker, Transform explicitTransform) => explicitTransform;
+    private void TurnParticipantsTowardEachOther(Transform speaker) { if (speaker != null) ResolvePlayerTransform(); }
+    private void ResolveDialogueBox() { }
+    private void PreserveDialogueAnimationState() { }
+    private void ApplyReadableDialogueStyle() { }
+    private void EnsureSkipDialogueButton() { }
+    private void SetSkipButtonVisible(bool value) { }
+    private void HideDialogueElements(bool value) { }
+    private void RestoreDialogueElements() { }
+    private void StopActiveSpeakerTalking() { }
+    private IEnumerator HideDialogueBoxAfterClose() { yield break; }
+    public static void ResetForTest() { knownManagers.Clear(); }
+    // DIALOGUE_METHODS
+}
+public class AudioManager
+{
+    public static AudioManager Instance;
+    public void PauseMusic() { }
+    public void ResumeMusic() { }
+    public void PlaySFX(string key) { }
+}
+public class UIPanelCoordinator
+{
+    public static UIPanelCoordinator Instance;
+    public void OpenPanel(GameObject panel) { panel.SetActive(true); }
+    public void ClosePanel(GameObject panel) { if (panel != null) panel.SetActive(false); }
+}
+public class PauseManager : MonoBehaviour
+{
+    public static PauseManager Instance;
+    public bool isPaused, isClosingPause;
+    public bool freezeTimeOnPause = true;
+    public float closeDuration;
+    public string pauseOpenSfxId;
+    public GameObject pausePanel = new GameObject(), settingsPanel;
+    public GameObject[] objectsToHide;
+    public bool BlockPause;
+    public PauseManager() { Instance = this; pausePanel.SetActive(false); }
+    private bool IsPauseBlocked() => BlockPause;
+    private void RefreshPauseAvailability() { }
+    private void PlayOpenMotion() { }
+    private void PlayCloseMotion(Action callback) { callback(); }
+    private void StopPanelMotion() { }
+    private void ResetPanelVisuals() { }
+    // PAUSE_METHODS
+}

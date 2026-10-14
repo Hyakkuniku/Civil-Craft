@@ -200,6 +200,7 @@ public class DialogueManager : MonoBehaviour
         if (dialogue == null) return;
         knownManagers.Add(this);
         bool wasAlreadyActive = isDialogueActive;
+        ResolvePlayerInput();
 
         SetActiveSpeaker(speakerAnimator);
         TurnParticipantsTowardEachOther(
@@ -302,6 +303,10 @@ public class DialogueManager : MonoBehaviour
         SetSkipButtonVisible(false);
         StopActiveSpeakerTalking();
 
+        // Older scenes (including Bhan House) have no serialized input binding.
+        // Pause may still have disabled the real player while this dialogue was
+        // running, so resolve the same player before releasing the dialogue lock.
+        ResolvePlayerInput();
         inputManager?.SetPlayerInputEnable(true);
         inputManager?.SetLookEnabled(true);
         if (playerInteract != null) playerInteract.enabled = true;
@@ -459,6 +464,7 @@ public class DialogueManager : MonoBehaviour
 
     private void ResolvePlayerTransform()
     {
+        ResolvePlayerInput();
         if (playerTransform != null) return;
 
         if (playerInteract == null)
@@ -469,10 +475,31 @@ public class DialogueManager : MonoBehaviour
             return;
         }
 
-        if (inputManager == null)
-            inputManager = FindObjectOfType<InputManager>();
         if (inputManager != null)
             playerTransform = inputManager.transform;
+    }
+
+    private void ResolvePlayerInput()
+    {
+        if (inputManager != null) return;
+
+        // The interaction component and InputManager normally share the local
+        // player root. Resolve this independently of speaker-facing: a dialogue
+        // without a speaker must still lock and restore movement/camera input.
+        if (playerInteract != null && playerInteract.gameObject.scene == gameObject.scene)
+            inputManager = playerInteract.GetComponent<InputManager>();
+        if (inputManager == null && playerTransform != null && playerTransform.gameObject.scene == gameObject.scene)
+            inputManager = playerTransform.GetComponent<InputManager>();
+        if (inputManager != null) return;
+
+        // Do not accidentally bind another loaded gameplay scene's player or
+        // a disabled remote-input component when the local player spawns later.
+        foreach (InputManager candidate in FindObjectsOfType<InputManager>())
+        {
+            if (!candidate.isActiveAndEnabled || candidate.gameObject.scene != gameObject.scene) continue;
+            inputManager = candidate;
+            break;
+        }
     }
 
     private static Transform ResolveSpeakerTransform(

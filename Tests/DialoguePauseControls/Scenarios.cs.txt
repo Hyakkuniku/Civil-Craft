@@ -1,0 +1,130 @@
+public static class Scenarios
+{
+    private static int checks;
+    private static void Check(bool value, string label)
+    { checks++; if (!value) throw new InvalidOperationException(label); }
+    private static void Reset()
+    {
+        MonoBehaviour.World.Clear(); DialogueManager.ResetForTest(); PauseManager.Instance = null;
+        AudioManager.Instance = null; UIPanelCoordinator.Instance = null; PlayerDataManager.Instance = null;
+        Time.timeScale = 1; Application.isMobilePlatform = false; Mouse.current = new Mouse(); Gamepad.current = null;
+    }
+    private static Dialogue Line() => new Dialogue { name = "Bhan", sentences = new[] { "Headless fixture." } };
+    private static PlayerInteract AttachInteraction(InputManager input)
+    {
+        var interaction = new PlayerInteract(); interaction.gameObject = input.gameObject; interaction.transform = input.transform;
+        input.gameObject.components[typeof(PlayerInteract)] = interaction; return interaction;
+    }
+    private static void Locked(InputManager input, PlayerInteract interaction, string label)
+    {
+        Check(!input.IsPlayerInputEnabled, label + " movement action disabled");
+        Check(!input.IsLookInputEnabled, label + " camera look disabled");
+        Check(input.ReadMovementInput().sqrMagnitude == 0, label + " movement sampling neutral");
+        Check(!interaction.enabled, label + " interaction disabled");
+    }
+    private static void Restored(InputManager input, PlayerInteract interaction, string label)
+    {
+        Check(input.IsPlayerInputEnabled, label + " movement action restored");
+        Check(input.IsLookInputEnabled, label + " camera look restored");
+        Check(input.ReadMovementInput().sqrMagnitude > 0, label + " movement sampling restored");
+        Check(input.ReadLookInput().sqrMagnitude > 0, label + " look sampling restored");
+        Check(interaction.enabled, label + " interaction restored");
+    }
+    private static void PauseCycles(PauseManager pause, DialogueManager dialogue, InputManager input, PlayerInteract interaction)
+    {
+        for (int cycle = 0; cycle < 3; cycle++)
+        {
+            pause.PauseGame(); Check(pause.isPaused && Time.timeScale == 0, "real PauseGame owns pause");
+            Locked(input, interaction, "paused " + cycle);
+            dialogue.SkipDialogue(); dialogue.DisplayNextSentence();
+            Check(dialogue.Active, "paused Skip and Next cannot finish dialogue");
+            pause.ResumeGame(); Check(!pause.isPaused && Time.timeScale == 1, "real ResumeGame clears pause");
+            Locked(input, interaction, "resumed active dialogue " + cycle);
+        }
+    }
+    public static int Run(bool previous)
+    {
+        checks = 0;
+        if (previous)
+        {
+            Reset(); var input = new InputManager(); var interaction = AttachInteraction(input);
+            var dialogue = new DialogueManager(); dialogue.Bind(null, interaction); var pause = new PauseManager();
+            int callbacks = 0; dialogue.StartDialogue(Line(), () => callbacks++);
+            Check(dialogue.BoundInput == null, "prior speakerless dialogue has no input binding");
+            PauseCycles(pause, dialogue, input, interaction);
+            dialogue.DisplayNextSentence();
+            Check(!dialogue.Active && callbacks == 1, "prior dialogue genuinely completed");
+            Check(!input.IsPlayerInputEnabled && !input.IsLookInputEnabled, "prior implementation reproduces stuck movement/look after actual EndDialogue");
+            Check(input.ReadMovementInput().sqrMagnitude == 0, "prior movement still unusable");
+            Check(interaction.enabled, "prior interaction alone restored");
+            return checks;
+        }
+        foreach (bool skip in new[] { false, true })
+        foreach (bool cachedTransform in new[] { false, true })
+        {
+            Reset(); var input = new InputManager(); var interaction = AttachInteraction(input);
+            var dialogue = new DialogueManager(); dialogue.Bind(null, interaction, cachedTransform ? input.transform : null);
+            var pause = new PauseManager { closeDuration = 0.1f }; int callbacks = 0;
+            dialogue.StartDialogue(Line(), () => callbacks++); Check(dialogue.BoundInput == input, "speakerless Start resolves input independently of facing");
+            Check(DialogueManager.IsAnyDialogueActive, "active dialogue registered"); Locked(input, interaction, "start");
+            PauseCycles(pause, dialogue, input, interaction);
+            if (skip) dialogue.SkipDialogue(); else dialogue.DisplayNextSentence();
+            Check(!dialogue.Active && !DialogueManager.IsAnyDialogueActive, "finish releases registry ownership");
+            Check(callbacks == 1, "completion callback exactly once"); Restored(input, interaction, "completed");
+            dialogue.SkipDialogue(); dialogue.DisplayNextSentence(); Check(callbacks == 1, "repeated completion ignored");
+        }
+        TestBinding(); TestLatePlayer(); TestChainedCallback(); TestNullAndInactive();
+        return checks;
+    }
+    private static void TestBinding()
+    {
+        Reset(); var otherScene = new InputManager(); otherScene.gameObject.scene = 2;
+        var disabledRemote = new InputManager(); disabledRemote.enabled = false;
+        var inactive = new InputManager(); inactive.gameObject.SetActive(false);
+        var local = new InputManager(); var dialogue = new DialogueManager();
+        dialogue.StartDialogue(Line()); Check(dialogue.BoundInput == local, "fallback excludes other scene, disabled remote and inactive input");
+        Check(otherScene.IsPlayerInputEnabled && disabledRemote.IsPlayerInputEnabled, "excluded inputs not changed");
+        dialogue.SkipDialogue(); Check(local.IsPlayerInputEnabled && local.IsLookInputEnabled, "fallback local restored");
+
+        Reset(); var explicitBinding = new InputManager(); explicitBinding.gameObject.scene = 2;
+        var interactingInput = new InputManager(); var interaction = AttachInteraction(interactingInput);
+        dialogue = new DialogueManager(); dialogue.Bind(explicitBinding, interaction);
+        dialogue.StartDialogue(Line()); Check(dialogue.BoundInput == explicitBinding, "authored nonnull binding preserved");
+        Check(!explicitBinding.IsPlayerInputEnabled && interactingInput.IsPlayerInputEnabled, "configured input used without replacement");
+        dialogue.SkipDialogue(); Check(explicitBinding.IsPlayerInputEnabled, "configured input restored");
+
+        Reset(); local = new InputManager(); dialogue = new DialogueManager(); dialogue.Bind(null, null, local.transform);
+        dialogue.ResolveTransformForTest(); Check(dialogue.BoundInput == local, "existing playerTransform early return still resolves input");
+    }
+    private static void TestLatePlayer()
+    {
+        Reset(); var dialogue = new DialogueManager(); dialogue.StartDialogue(Line());
+        Check(dialogue.BoundInput == null, "no input available at Start is safe");
+        var input = new InputManager(); var interaction = AttachInteraction(input); var pause = new PauseManager();
+        pause.PauseGame(); pause.ResumeGame(); Check(!input.IsPlayerInputEnabled && !input.IsLookInputEnabled, "late input locked by pause while dialogue active");
+        dialogue.DisplayNextSentence(); Check(dialogue.BoundInput == input, "End resolves late spawned same-scene input");
+        Check(input.IsPlayerInputEnabled && input.IsLookInputEnabled, "late input restored at completion");
+    }
+    private static void TestChainedCallback()
+    {
+        Reset(); var input = new InputManager(); var interaction = AttachInteraction(input);
+        var dialogue = new DialogueManager(); dialogue.Bind(null, interaction); int first = 0, second = 0;
+        dialogue.StartDialogue(Line(), () => { first++; dialogue.StartDialogue(Line(), () => second++); });
+        dialogue.SkipDialogue(); Check(first == 1 && second == 0 && dialogue.Active, "callback starts next dialogue immediately");
+        Locked(input, interaction, "callback-owned next dialogue");
+        var pause = new PauseManager(); PauseCycles(pause, dialogue, input, interaction);
+        dialogue.SkipDialogue(); Check(first == 1 && second == 1, "new callback not erased by previous EndDialogue");
+        Restored(input, interaction, "chain completed"); dialogue.SkipDialogue(); Check(second == 1, "new callback also exactly once");
+    }
+    private static void TestNullAndInactive()
+    {
+        Reset(); var input = new InputManager(); var dialogue = new DialogueManager(); dialogue.StartDialogue(null);
+        Check(!dialogue.Active && input.IsPlayerInputEnabled, "null dialogue does not lock controls");
+        dialogue.StartDialogue(Line()); dialogue.enabled = false;
+        Check(!DialogueManager.IsAnyDialogueActive, "registry ignores disabled dialogue manager");
+        dialogue.enabled = true; Check(DialogueManager.IsAnyDialogueActive, "registry sees enabled running dialogue");
+        dialogue.SkipDialogue(); Check(!DialogueManager.IsAnyDialogueActive, "skip releases active registry");
+        var pause = new PauseManager { BlockPause = true }; pause.PauseGame();
+        Check(!pause.isPaused && input.IsPlayerInputEnabled, "blocked pause does not mutate controls");
+    }
+}
