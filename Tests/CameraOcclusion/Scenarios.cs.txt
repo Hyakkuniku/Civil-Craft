@@ -99,7 +99,7 @@ public static class Scenarios
         DevelopmentPerformanceSettings.OcclusionOverride = false; f.policy.RefreshPolicy();
         Expect(!f.camera.useOcclusionCulling && f.profile.enableGameplayOcclusion, "Development OFF overrides without editing the authored switch.");
         DevelopmentPerformanceSettings.OcclusionOverride = null; f.policy.RefreshPolicy();
-        Expect(f.camera.useOcclusionCulling, "Session reset restores the authored behavior.");
+        Expect(f.camera.useOcclusionCulling, "Explicitly cleared override falls back to authored behavior (real sessions now start OFF).");
         f.Dispose();
     }
 

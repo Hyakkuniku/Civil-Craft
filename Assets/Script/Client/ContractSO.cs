@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
+using Unity.Profiling;
 
 [System.Serializable]
 public class MaterialAllowance
@@ -61,15 +62,49 @@ public class ContractSO : ScriptableObject
     [Tooltip("Optional phase ID the same NPC moves to once Minimum Loaded Cargo is reached. Empty means no automatic phase move.")]
     public string cargoLoadedNPCPhaseId;
 
+    // Cache identity only. Never cache the dialogue result or player save state:
+    // unlocking, account changes and rollback must be visible to the next query.
+    [System.NonSerialized] private NPCProgressionManager cachedCargoProgression;
+    [System.NonSerialized] private string cachedCargoProgressionId;
+    [System.NonSerialized] private int cachedCargoProgressionSession;
+    private static int cargoProgressionSession;
+    private static readonly ProfilerMarker CargoResolveMarker = new ProfilerMarker("Cargo.Progression.ResolveNPC");
+    private static readonly ProfilerMarker CargoDialogueMarker = new ProfilerMarker("Cargo.Progression.CheckDialogue");
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetCargoProgressionSession() { unchecked { cargoProgressionSession++; } }
+
+    private NPCProgressionManager ResolveCargoProgression()
+    {
+        using (CargoResolveMarker.Auto())
+        {
+            // Edit Mode tools must always see their current temporary/preview scene.
+            if (!Application.isPlaying)
+                return NPCProgressionManager.FindByProgressionSaveId(cargoUnlockProgressionId);
+            if (cachedCargoProgressionSession != cargoProgressionSession ||
+                cachedCargoProgressionId != cargoUnlockProgressionId || cachedCargoProgression == null ||
+                !cachedCargoProgression.gameObject.scene.IsValid() || !cachedCargoProgression.gameObject.scene.isLoaded ||
+                !string.Equals(cachedCargoProgression.ProgressionSaveId, cargoUnlockProgressionId.Trim(), System.StringComparison.Ordinal))
+            {
+                cachedCargoProgression = NPCProgressionManager.FindByProgressionSaveId(cargoUnlockProgressionId);
+                cachedCargoProgressionId = cargoUnlockProgressionId;
+                cachedCargoProgressionSession = cargoProgressionSession;
+            }
+            // No negative cache: a previously missing NPC can unlock interaction
+            // immediately after it spawns. Disabled story NPCs remain valid, as before.
+            return cachedCargoProgression;
+        }
+    }
+
     public bool IsCargoInteractionUnlocked()
     {
         if (string.IsNullOrWhiteSpace(cargoUnlockProgressionId) ||
             cargoUnlockAfterDialoguePhaseIndex < 0) return true;
 
-        NPCProgressionManager progression =
-            NPCProgressionManager.FindByProgressionSaveId(cargoUnlockProgressionId);
-        return progression != null &&
-               progression.HasCompletedPhaseDialogue(cargoUnlockAfterDialoguePhaseIndex);
+        NPCProgressionManager progression = ResolveCargoProgression();
+        using (CargoDialogueMarker.Auto())
+            return progression != null &&
+                   progression.HasCompletedPhaseDialogue(cargoUnlockAfterDialoguePhaseIndex);
     }
 
     public enum ContractMap

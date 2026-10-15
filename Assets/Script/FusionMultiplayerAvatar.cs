@@ -234,6 +234,9 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
 
     public override void Spawned()
     {
+        ClearChatBubble();
+        nextLocalChatTime = nextServerChatTime = 0f;
+        nextChatSequence = lastDeliveredChatSequence = 0;
         if (HasStateAuthority) IsSessionHost = HasInputAuthority;
         lastPublishedAccountId = null;
         nextAccountIdentityCheck = 0f;
@@ -248,6 +251,7 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
 
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
+        ClearChatBubble();
         PlayerCosmetics.LoadoutChanged -= PublishAppearance;
         BindSceneMotor(null);
         DestroyRemoteVisual();

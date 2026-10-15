@@ -18,7 +18,7 @@ public sealed class DevelopmentPerformanceSettings : MonoBehaviour
     }
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-    public static bool? OcclusionOverride { get; private set; }
+    public static bool? OcclusionOverride { get; private set; } = false;
     public static bool ShowFps { get; private set; }
     static CanyonOcclusionProfile activeProfile;
     static GameObject overlay;
@@ -27,7 +27,9 @@ public sealed class DevelopmentPerformanceSettings : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void ResetSession()
     {
-        OcclusionOverride = null;
+        // A12 baseline: start OFF even if the old Inspector test flag was saved on.
+        // The developer can still explicitly toggle ON for a controlled comparison.
+        OcclusionOverride = false;
         ShowFps = false;
         // Retain surviving references when domain/scene reload is disabled.
         if (overlay != null) overlay.SetActive(false);

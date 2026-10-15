@@ -1,0 +1,106 @@
+using System;
+using UnityEngine;
+
+public static class Scenarios
+{
+    private static int checks;
+    private static void Check(bool passed, string label) { checks++; if (!passed) throw new Exception(label); }
+    public static int Run()
+    {
+        MonoBehaviour.Registry.Clear();
+        PlayerDataManager.Instance = new PlayerDataManager();
+        LessonUIManager.Instance = new LessonUIManager();
+        FusionConnectionManager.Instance = new FusionConnectionManager();
+        GameManager.Instance = new GameManager();
+        var panel = new GameObject();
+        var camera = new Camera();
+        object texture = camera.targetTexture;
+        var controller = new MinimapUnlockController(panel, camera);
+        void Visibility(bool expected, string label)
+        {
+            controller.RefreshVisibility();
+            Check(panel.activeSelf == expected && camera.enabled == expected, label);
+            Check(ReferenceEquals(texture, camera.targetTexture), label + ": render texture preserved");
+        }
+        Visibility(false, "Locked player");
+        PlayerDataManager.Instance.Features.Add("minimap");
+        Visibility(true, "Feature-unlocked player");
+        PlayerDataManager.Instance.Features.Clear();
+        PlayerDataManager.Instance.CurrentData.hasUnlockedMinimap = true;
+        Visibility(true, "Legacy unlock");
+        PlayerDataManager.Instance.CurrentData = null;
+        Visibility(false, "Missing loaded player data");
+        PlayerDataManager.Instance = null;
+        Visibility(false, "Missing player manager");
+        FusionConnectionManager.Instance.IsGuestInHostWorld = true;
+        Visibility(true, "Guest map without local unlock or data");
+        LessonUIManager.Instance.IsOpen = true;
+        Visibility(false, "Lesson owns map visibility");
+        LessonUIManager.Instance.IsOpen = false;
+        GameManager.Instance.CurrentState = GameManager.GameState.Building;
+        Visibility(false, "Guest build still hides map");
+        GameManager.Instance.CurrentState = GameManager.GameState.CargoTesting;
+        Visibility(true, "Cargo testing restores overworld map");
+        GameManager.Instance = null;
+        Visibility(true, "Bootstrap without game manager");
+
+        PlayerDataManager.Instance = new PlayerDataManager();
+        PlayerDataManager.Instance.Features.Add("minimap");
+        FusionConnectionManager.Instance.IsGuestInHostWorld = false;
+        GameManager.Instance = new GameManager();
+        GameManager game = GameManager.Instance;
+        game.uiElementsToHide.Add(panel);
+        game.uiElementsToHide.Add(panel); // duplicate authored references are valid
+        var unrelated = new GameObject { activeSelf = false };
+        game.uiElementsToHide.Add(unrelated);
+        Visibility(true, "Starting overworld");
+        game.EnterBuild();
+        Check(game.SavedPanelState(panel), "Entry captures originally visible panel before refresh");
+        Check(!panel.activeSelf && !camera.enabled, "Build hides panel and separate camera");
+        game.EnterCargoTest();
+        Check(panel.activeSelf && camera.enabled && !unrelated.activeSelf, "Cargo view restores exact UI and map");
+        game.RestoreCargoBuild();
+        Check(!panel.activeSelf && !camera.enabled, "Returning to blueprint stops map camera");
+        game.ExitBuild();
+        Check(panel.activeSelf && camera.enabled && !unrelated.activeSelf, "Exit restores unlocked map and preserves unrelated inactive UI");
+        game.EnterChallenge();
+        Check(game.SavedPanelState(panel) && !panel.activeSelf && !camera.enabled, "Challenge entry captures and hides map");
+        game.ExitChallenge();
+        Check(panel.activeSelf && camera.enabled, "Challenge cleanup restores map");
+
+        PlayerDataManager.Instance.Features.Clear();
+        Visibility(false, "Lock remains respected after build sessions");
+        game.EnterBuild();
+        Check(!game.SavedPanelState(panel), "Locked panel original state captured false");
+        game.ExitBuild();
+        Check(!panel.activeSelf && !camera.enabled, "Build exit cannot grant minimap unlock");
+
+        var customPanel = new GameObject();
+        var customCamera = new Camera();
+        var custom = new MinimapUnlockController(customPanel, customCamera, "regional-map");
+        PlayerDataManager.Instance.Features.Add("regional-map");
+        custom.RefreshVisibility();
+        Check(customPanel.activeSelf && customCamera.enabled, "Custom feature ID respected");
+        var fallbackPanel = new GameObject();
+        var fallbackCamera = new Camera();
+        new MinimapUnlockController(fallbackPanel, fallbackCamera, "  ");
+        PlayerDataManager.Instance.Features.Add("minimap");
+        controller.enabled = false;
+        game.CurrentState = GameManager.GameState.Building;
+        MinimapUnlockController.RefreshAll();
+        Check(MonoBehaviour.LastIncludeInactive && !camera.enabled && !customCamera.enabled && !fallbackCamera.enabled,
+            "RefreshAll includes disabled controllers and applies build gate to every map");
+        game.CurrentState = GameManager.GameState.Normal;
+        MinimapUnlockController.RefreshAll();
+        Check(panel.activeSelf && camera.enabled && fallbackPanel.activeSelf && fallbackCamera.enabled,
+            "RefreshAll restores disabled controllers and default blank feature ID");
+
+        new MinimapUnlockController(null, new Camera()).RefreshVisibility();
+        new MinimapUnlockController(new GameObject(), null).RefreshVisibility();
+        new MinimapUnlockController(null, null).RefreshVisibility();
+        checks++;
+        Check(PlayerDataManager.Instance.FeatureWrites == 0, "All visibility changes leave persistent features untouched");
+        Check(ReferenceEquals(texture, camera.targetTexture), "Complete lifecycle preserves render texture");
+        return checks;
+    }
+}

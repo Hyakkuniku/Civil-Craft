@@ -67,6 +67,8 @@ public class PlayerMotor : MonoBehaviour
     [Header("Movement")]
     public float speed = 5f;
     [Header("Joystick Sprint")]
+    [Tooltip("Enable joystick start/stop thresholds for sprinting. Off uses the Run toggle whenever the player moves.")]
+    public bool useSprintThresholds = false;
     [Range(0.1f, 1f)] public float sprintStartThreshold = 0.85f;
     [Range(0f, 1f)] public float sprintStopThreshold = 0.7f;
     [Min(1f)] public float sprintSpeedMultiplier = 1.5f;
@@ -211,8 +213,9 @@ public class PlayerMotor : MonoBehaviour
             moveAmount = 0f;
         }
         bool runLocked = TutorialManager.Instance != null && TutorialManager.Instance.IsRunLocked;
-        isSprinting = runEnabled && !runLocked && !carrying && moveAmount > 0.1f && (isSprinting
-            ? moveAmount > stopThreshold : moveAmount >= startThreshold);
+        isSprinting = runEnabled && !runLocked && !carrying && moveAmount > 0.1f &&
+            (!useSprintThresholds || (isSprinting
+                ? moveAmount > stopThreshold : moveAmount >= startThreshold));
         Vector3 moveDirection = Vector3.zero;
 
         if (cameraTransform != null && (input.x != 0 || input.y != 0))

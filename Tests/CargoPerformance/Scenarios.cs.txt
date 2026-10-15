@@ -1,0 +1,66 @@
+using System;
+using UnityEngine;
+public static class Scenarios {
+ static int checks;
+ static void Check(bool ok,string why){checks++;if(!ok)throw new Exception(why);}
+ public static int Run(){
+  var c=new ContractSO();
+  Check(c.IsCargoInteractionUnlocked(),"Ungated contract");
+  c.cargoUnlockProgressionId="bhan"; Check(c.IsCargoInteractionUnlocked(),"Negative phase ungated");
+  c.cargoUnlockAfterDialoguePhaseIndex=2;
+  Check(!c.IsCargoInteractionUnlocked(),"Missing NPC locked");
+  var npc=new NPCProgressionManager{ProgressionSaveId="bhan"}; NPCProgressionManager.available=npc;
+  Check(!c.IsCargoInteractionUnlocked(),"Late-spawned NPC still locked before dialogue");
+  int before=NPCProgressionManager.lookups;
+  for(int i=0;i<1000;i++)Check(!c.IsCargoInteractionUnlocked(),"Locked answers remain live");
+  Check(NPCProgressionManager.lookups==before,"1000 queries must not rescan objects");
+  npc.completed=true;Check(c.IsCargoInteractionUnlocked(),"Dialogue completion immediate");
+  npc.completed=false;Check(!c.IsCargoInteractionUnlocked(),"Rollback/save switch immediately re-locks");
+  c.cargoUnlockAfterDialoguePhaseIndex=4;c.IsCargoInteractionUnlocked();Check(npc.lastPhase==4,"Phase edit checked live");
+  npc.destroyed=true;var replacement=new NPCProgressionManager{ProgressionSaveId="bhan",completed=true};NPCProgressionManager.available=replacement;
+  Check(c.IsCargoInteractionUnlocked() && replacement.checks==1,"Destroyed/respawned NPC resolved again");
+  replacement.gameObject.scene.isLoaded=false;var loaded=new NPCProgressionManager{ProgressionSaveId="bhan"};NPCProgressionManager.available=loaded;
+  Check(!c.IsCargoInteractionUnlocked() && loaded.checks==1,"Scene unload invalidates reference");
+  loaded.ProgressionSaveId="changed";var renamed=new NPCProgressionManager{ProgressionSaveId="bhan",completed=true};NPCProgressionManager.available=renamed;
+  Check(c.IsCargoInteractionUnlocked(),"Cached NPC ID changes invalidated");
+  c.cargoUnlockProgressionId="other";Check(!c.IsCargoInteractionUnlocked(),"Contract ID changes cannot reuse old NPC");
+  NPCProgressionManager.available=new NPCProgressionManager{ProgressionSaveId="other",completed=true};
+  Check(c.IsCargoInteractionUnlocked(),"Miss never negatively cached");
+  c.cargoUnlockProgressionId=" other ";Check(c.IsCargoInteractionUnlocked(),"Whitespace keeps original lookup semantics");
+  before=NPCProgressionManager.lookups;ContractSO.ResetSessionForTest();Check(c.IsCargoInteractionUnlocked() && NPCProgressionManager.lookups==before+1,"Reload-disabled session invalidates cache");
+  Application.isPlaying=false;before=NPCProgressionManager.lookups;c.IsCargoInteractionUnlocked();c.IsCargoInteractionUnlocked();
+  Check(NPCProgressionManager.lookups==before+2,"Editor tools do not keep preview-scene cache");
+  var schedule=new CargoOutlineRefreshSchedule();
+  Check(schedule.ShouldRefresh(0),"First refresh immediate");Check(!schedule.ShouldRefresh(.1f),"Visual throttle");Check(schedule.ShouldRefresh(.2f),"Refresh at deadline");
+  schedule.Reset();Check(schedule.ShouldRefresh(.21f),"Contract change/disable reset immediate");
+  Check(schedule.ShouldRefresh(0),"Time reset handled");Check(schedule.ShouldRefresh(100),"Long pause does not cause burst loop");Check(!schedule.ShouldRefresh(100),"At most once at same timestamp");
+  Application.isPlaying=true;
+  var cargo=new CargoOutlineBoundary();cargo.Tick(0);
+  Check(cargo.Outline==null && cargo.availabilityQueries==0,"Ungated cargo has no hint/checks");
+  cargo.playerCargoContract=c;cargo.Tick(0);
+  Check(cargo.Outline.visible && cargo.availabilityQueries==1,"Unlocked cargo creates hint immediately");
+  cargo.Tick(.05f);cargo.Tick(.1f);
+  Check(cargo.availabilityQueries==1 && cargo.Outline.submissions==3,"Skipped visual refresh still submits live outline");
+  NPCProgressionManager.available.completed=false;
+  Check(!cargo.IsInteractionAvailable,"Actual interaction re-locks before visual refresh");
+  cargo.Tick(.21f);Check(!cargo.Outline.visible,"Visual re-locks at refresh deadline");
+  NPCProgressionManager.available.completed=true;
+  Check(cargo.IsInteractionAvailable,"Actual interaction unlocks before visual refresh");
+  cargo.Tick(.42f);Check(cargo.Outline.visible,"Visual unlocks at deadline");
+  cargo.isHeld=true;cargo.Tick(.43f);Check(!cargo.Outline.visible,"Held cargo hides without waiting");
+  cargo.isHeld=false;cargo.Tick(.44f);Check(cargo.Outline.visible,"Dropped cargo refreshes immediately");
+  cargo.deliveryRestorePending=true;cargo.Tick(.45f);Check(!cargo.Outline.visible,"Restoring cargo hides immediately");
+  cargo.deliveryRestorePending=false;cargo.Tick(.46f);Check(cargo.Outline.visible,"Finished restore rechecks");
+  cargo.loadedSlot=new object();cargo.Tick(.47f);Check(!cargo.Outline.visible,"Loaded cargo hides immediately");
+  cargo.loadedSlot=null;cargo.Tick(.48f);Check(cargo.Outline.visible,"Cleared slot rechecks");
+  cargo.visitor=true;cargo.Tick(.49f);Check(!cargo.Outline.visible && !cargo.IsInteractionAvailable,"Visitor cannot use host cargo");
+  cargo.visitor=false;cargo.Tick(.5f);
+  var oldOutline=cargo.Outline;cargo.Disable();Check(oldOutline.disposed && cargo.Outline==null,"Disable disposes hint");
+  cargo.Tick(.51f);Check(cargo.Outline!=oldOutline && cargo.Outline.visible,"Re-enable creates and refreshes hint");
+  cargo.playerCargoContract=new ContractSO{cargoUnlockProgressionId="missing",cargoUnlockAfterDialoguePhaseIndex=0};
+  cargo.Tick(.52f);Check(!cargo.Outline.visible,"Contract replacement immediately invalidates hint");
+  cargo.playerCargoContract=c;cargo.Tick(.53f);Check(cargo.Outline.visible,"Contract restoration immediately refreshes");
+  cargo.enabled=false;cargo.Tick(.54f);Check(!cargo.Outline.visible,"Disabled interaction hides immediately");
+  return checks;
+ }
+}

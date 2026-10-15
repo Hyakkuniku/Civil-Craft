@@ -1,0 +1,60 @@
+using System;
+using UnityEngine;
+using Unity.Profiling;
+namespace UnityEngine {
+ public static class Application { public static bool isPlaying = true; }
+ public static class Time { public static float unscaledTime; }
+ public enum RuntimeInitializeLoadType { SubsystemRegistration }
+ public class RuntimeInitializeOnLoadMethodAttribute : Attribute { public RuntimeInitializeOnLoadMethodAttribute(RuntimeInitializeLoadType type) {} }
+ public class Object {
+  public bool destroyed;
+  public static bool operator ==(Object a, Object b) => ReferenceEquals(a,b) || ((ReferenceEquals(a,null) || a.destroyed) && (ReferenceEquals(b,null) || b.destroyed));
+  public static bool operator !=(Object a, Object b) => !(a==b);
+  public override bool Equals(object other) => ReferenceEquals(this,other);
+  public override int GetHashCode() => base.GetHashCode();
+ }
+ public class Scene { public bool valid=true, isLoaded=true; public bool IsValid()=>valid; }
+ public class GameObject { public Scene scene = new Scene(); }
+}
+namespace Unity.Profiling {
+ public struct ProfilerMarker { public ProfilerMarker(string name) {} public Scope Auto()=>new Scope(); public struct Scope:IDisposable { public void Dispose(){} } }
+}
+public class NPCProgressionManager : UnityEngine.Object {
+ public string ProgressionSaveId; public GameObject gameObject = new GameObject();
+ public bool completed; public int checks, lastPhase; public static NPCProgressionManager available; public static int lookups;
+ public bool HasCompletedPhaseDialogue(int phase) { checks++;lastPhase=phase;return completed; }
+ public static NPCProgressionManager FindByProgressionSaveId(string id) {lookups++; return available != null && available.ProgressionSaveId == id.Trim() ? available : null;}
+}
+public class ContractSO {
+ public string cargoUnlockProgressionId;
+ public int cargoUnlockAfterDialoguePhaseIndex = -1;
+ /*CONTRACT*/
+ public static void ResetSessionForTest() => ResetCargoProgressionSession();
+}
+public class Interactable {
+ public bool enabled=true, visitor;
+ public virtual bool IsInteractionAvailable => enabled && !visitor;
+}
+public class BridgeSelectionOutline {
+ public bool visible, disposed; public int submissions;
+ public BridgeSelectionOutline(object transform) {}
+ public void SetVisualOnlyVisible(bool value) { visible=value; submissions++; }
+ public void Dispose() { disposed=true; }
+}
+public class CargoOutlineBoundary : Interactable {
+ public ContractSO playerCargoContract;
+ private ContractSO outlineContract;
+ public bool isHeld, deliveryRestorePending;
+ public object loadedSlot, transform;
+ private bool outlineVisible;
+ private BridgeSelectionOutline pickupOutline;
+ private readonly CargoOutlineRefreshSchedule outlineRefresh=new CargoOutlineRefreshSchedule();
+ private static readonly ProfilerMarker OutlineRefreshMarker=new ProfilerMarker("test");
+ private static readonly ProfilerMarker OutlineSubmitMarker=new ProfilerMarker("test");
+ public bool allowed=true; public int availabilityQueries;
+ public override bool IsInteractionAvailable {get {availabilityQueries++;return base.IsInteractionAvailable && allowed && playerCargoContract.IsCargoInteractionUnlocked();}}
+ /*OUTLINE*/
+ public void Tick(float now) { Time.unscaledTime=now;UpdatePickupOutline(); }
+ public void Disable() { DisposePickupOutline(); }
+ public BridgeSelectionOutline Outline => pickupOutline;
+}

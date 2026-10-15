@@ -1,0 +1,59 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using UnityEngine;
+
+namespace UnityEngine
+{
+    public class GameObject
+    {
+        public bool activeSelf = true;
+        public void SetActive(bool value) => activeSelf = value;
+    }
+    public class Camera { public bool enabled = true; public object targetTexture = new object(); }
+    public class MonoBehaviour
+    {
+        public bool enabled = true;
+        public static readonly List<object> Registry = new List<object>();
+        public static bool LastIncludeInactive;
+        protected static T[] FindObjectsOfType<T>(bool includeInactive)
+        {
+            LastIncludeInactive = includeInactive;
+            return Registry.OfType<T>().Where(item => includeInactive || !(item is MonoBehaviour component) || component.enabled).ToArray();
+        }
+    }
+}
+public class PlayerData { public bool hasUnlockedMinimap; }
+public class PlayerDataManager
+{
+    public static PlayerDataManager Instance;
+    public PlayerData CurrentData = new PlayerData();
+    public readonly HashSet<string> Features = new HashSet<string>();
+    public int FeatureWrites;
+    public bool IsFeatureUnlocked(string feature) => Features.Contains(feature);
+    public void UnlockFeature(string feature) { FeatureWrites++; Features.Add(feature); }
+}
+public class FusionConnectionManager { public static FusionConnectionManager Instance; public bool IsGuestInHostWorld; }
+public class LessonUIManager { public static LessonUIManager Instance; public bool IsOpen; }
+public class MinimapUnlockController : MonoBehaviour
+{
+    private const string DefaultFeatureId = "minimap";
+    private GameObject minimapPanel;
+    private Camera minimapCamera;
+    private string requiredFeatureId = DefaultFeatureId;
+    public MinimapUnlockController(GameObject panel, Camera camera, string feature = "minimap")
+    { minimapPanel = panel; minimapCamera = camera; requiredFeatureId = feature; Registry.Add(this); }
+    /*MINIMAP*/
+}
+public class GameManager
+{
+    public enum GameState { Normal, Building, CargoTesting }
+    public static GameManager Instance;
+    public GameState CurrentState = GameState.Normal;
+    public List<GameObject> uiElementsToHide = new List<GameObject>();
+    private readonly Dictionary<GameObject, bool> uiStateBeforeBuildMode = new Dictionary<GameObject, bool>();
+    public bool SavedPanelState(GameObject panel) => uiStateBeforeBuildMode[panel];
+    /*SAVE_UI*/
+    /*IS_BUILDING*/
+    /*TRANSITIONS*/
+}

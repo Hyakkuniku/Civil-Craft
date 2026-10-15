@@ -70,6 +70,7 @@ public partial class GameManager
             ? location.locationCamera.transform.rotation : location.GetDesiredCameraRotation());
         if (location.locationCamera != null) { mainCamera.enabled = false; location.locationCamera.enabled = true; }
         CaptureAndHide(uiElementsToHide, uiStateBeforeBuildMode);
+        MinimapUnlockController.RefreshAll();
         HideDecorativeCanyons(location);
         foreach (GameObject ui in buildModeUIElements) if (ui != null) ui.SetActive(true);
         InvokeEventSafely(OnEnterBuildMode);
@@ -115,6 +116,7 @@ public partial class GameManager
             RestoreDecorativeCanyons();
             foreach (GameObject ui in buildModeUIElements) if (ui != null) ui.SetActive(false);
             RestoreCapturedStates(uiStateBeforeBuildMode);
+            MinimapUnlockController.RefreshAll();
             InvokeEventSafely(OnExitBuildMode);
             if (challengeMotor != null) challengeMotor.enabled = challengeMotorEnabled;
             if (challengeInteract != null) challengeInteract.enabled = challengeInteractEnabled;

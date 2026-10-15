@@ -132,6 +132,7 @@ public partial class GameManager : MonoBehaviour
         }
         // Do not invoke OnExitBuildMode: that would discard the simulation/draft.
         foreach (var entry in uiStateBeforeBuildMode) if (entry.Key != null) entry.Key.SetActive(entry.Value);
+        MinimapUnlockController.RefreshAll();
         SetCargoPlayerControl(true);
         if (ActiveBuildLocation.cargoTestCancelButton != null) ActiveBuildLocation.cargoTestCancelButton.SetActive(true);
         while (cargoTestPhysics != null && CurrentState == GameState.CargoTesting)
@@ -166,6 +167,7 @@ public partial class GameManager : MonoBehaviour
         CurrentState = GameState.Building;
         SetCargoPlayerControl(false);
         foreach (var entry in uiStateBeforeBuildMode) if (entry.Key != null) entry.Key.SetActive(false);
+        MinimapUnlockController.RefreshAll();
         foreach (var entry in cargoBuildUI) if (entry.Key != null) entry.Key.enabled = entry.Value;
         cargoBuildUI.Clear();
         SetOtherBuildLocationsVisibleForCargoTest(false);
@@ -504,6 +506,9 @@ public partial class GameManager : MonoBehaviour
         if (motor != null) motor.enabled = false;
 
         CaptureAndHide(uiElementsToHide, uiStateBeforeBuildMode);
+        // The map camera is separate from its panel. Stop its rendering only
+        // after capturing the overworld UI state needed on return.
+        MinimapUnlockController.RefreshAll();
 
         if (AudioManager.Instance != null && !string.IsNullOrWhiteSpace(enterBuildModeSfxId))
             AudioManager.Instance.PlaySFX(enterBuildModeSfxId);

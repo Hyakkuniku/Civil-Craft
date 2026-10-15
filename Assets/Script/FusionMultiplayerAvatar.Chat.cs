@@ -49,16 +49,45 @@ public sealed partial class FusionMultiplayerAvatar
         // A small server-side guard tolerates normal arrival jitter around the
         // one-second local cooldown while rejecting a modified client's flood.
         nextServerChatTime = Time.unscaledTime + 0.75f;
-        host.RPC_DeliverChat(++host.nextChatSequence, NormalizeMapPlayerName(MapPlayerName), body);
+        host.RPC_DeliverChat(++host.nextChatSequence, Object.InputAuthority, NormalizeMapPlayerName(MapPlayerName), body);
     }
 
     // One host-owned object sequences and broadcasts both players' messages.
     // Reliable RPCs are sent only on Send, never per frame or network tick.
     [Rpc(RpcSources.StateAuthority, RpcTargets.All, Channel = RpcChannel.Reliable)]
-    private void RPC_DeliverChat(int sequence, string name, string message)
+    private void RPC_DeliverChat(int sequence, PlayerRef sender, string name, string message)
     {
         if (!IsSessionHost || sequence <= lastDeliveredChatSequence) return;
         lastDeliveredChatSequence = sequence;
+        // Identity comes from the validated avatar, never from typed names. Do not
+        // replay a bubble later if its sender is no longer spawned on this client.
+        if (Runner != null && Runner.TryGetPlayerObject(sender, out NetworkObject player) &&
+            player != null && player.IsValid && player.TryGetComponent(out FusionMultiplayerAvatar avatar))
+        {
+            PlayerChatBubble bubble = avatar.GetComponent<PlayerChatBubble>();
+            if (bubble == null) bubble = avatar.gameObject.AddComponent<PlayerChatBubble>();
+            bubble.Show(avatar, message);
+        }
         ChatMessageReceived?.Invoke(Runner, sequence, name, message);
+    }
+
+    public bool TryGetChatAnchor(out Transform anchor)
+    {
+        anchor = null;
+        FusionConnectionManager connection = FusionConnectionManager.Instance;
+        if (Object == null || !Object.IsValid || Runner == null || !Runner.IsRunning ||
+            connection == null || connection.Runner != Runner || !connection.IsHostWorldSession ||
+            connection.IsNetworkSceneLoading) return false;
+        if (HasInputAuthority)
+            anchor = sceneMotor != null ? sceneMotor.transform : null;
+        else if (hasRenderedRemotePose && visualContainer != null && visualContainer.activeInHierarchy)
+            anchor = visualContainer.transform;
+        return anchor != null && anchor.gameObject.activeInHierarchy;
+    }
+
+    private void ClearChatBubble()
+    {
+        PlayerChatBubble bubble = GetComponent<PlayerChatBubble>();
+        if (bubble != null) bubble.Clear();
     }
 }

@@ -27,6 +27,7 @@ public sealed class SessionChatUI : MonoBehaviour
     private int unread;
     private float nextRefresh;
     public static bool IsOpen { get; private set; }
+    public TMP_FontAsset ChatFont => messages != null ? messages.font : TMP_Settings.defaultFontAsset;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetOpenState() { IsOpen = false; }

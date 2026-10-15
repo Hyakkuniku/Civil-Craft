@@ -1,4 +1,5 @@
 using UnityEngine;
+using Unity.Profiling;
 
 [DisallowMultipleComponent]
 public class CargoItem : Interactable
@@ -13,6 +14,13 @@ public class CargoItem : Interactable
     private Collider[] heldColliders;
     private bool[] colliderStates;
     private BridgeSelectionOutline pickupOutline;
+    private readonly CargoOutlineRefreshSchedule outlineRefresh = new CargoOutlineRefreshSchedule();
+    private ContractSO outlineContract;
+    private bool outlineVisible;
+    private static readonly ProfilerMarker AvailabilityMarker = new ProfilerMarker("Cargo.Availability");
+    private static readonly ProfilerMarker OutlineRefreshMarker = new ProfilerMarker("Cargo.Outline.Refresh");
+    private static readonly ProfilerMarker OutlineSubmitMarker = new ProfilerMarker("Cargo.Outline.Submit");
+    private static readonly ProfilerMarker HeldPoseMarker = new ProfilerMarker("Cargo.HeldPose");
     private static CargoItem heldCargo;
     public static CargoItem HeldCargo => heldCargo;
     [Tooltip("Player-carried contract owning this item. NPC contract assignment fills this automatically. Its cargo may only be delivered at that contract's drop location.")]
@@ -40,11 +48,17 @@ public class CargoItem : Interactable
     private CargoDropLocation deliveredLocation;
     private Coroutine vehicleLoadingRoutine;
     public CargoDropLocation DeliveredLocation => deliveredLocation;
-    public override bool IsInteractionAvailable => base.IsInteractionAvailable && IsProgressionInteractionUnlocked &&
-        IsCompatibleWithParentVehicle &&
-        !IsPermanentlyLoaded &&
-        !deliveryRestorePending && (!deliveredToLocation || HasAvailableStoryDestination()) &&
-        !(isHeld && RestrictsFreeDrop);
+    public override bool IsInteractionAvailable
+    {
+        get
+        {
+            using (AvailabilityMarker.Auto())
+                return base.IsInteractionAvailable && IsProgressionInteractionUnlocked &&
+                    IsCompatibleWithParentVehicle && !IsPermanentlyLoaded &&
+                    !deliveryRestorePending && (!deliveredToLocation || HasAvailableStoryDestination()) &&
+                    !(isHeld && RestrictsFreeDrop);
+        }
+    }
 
     // A copied truck can keep decorative crates from the previous contract.
     // They must not advertise themselves as pickup cargo for the new location.
@@ -419,9 +433,12 @@ public class CargoItem : Interactable
     {
         UpdatePickupOutline();
         if (!isHeld || leftHand == null || rightHand == null || carryAnimator == null) return;
-        Transform facing = carryAnimator.transform;
-        transform.SetPositionAndRotation((leftHand.position + rightHand.position) * .5f +
-            facing.rotation * handOffset, facing.rotation * Quaternion.Euler(heldRotation));
+        using (HeldPoseMarker.Auto())
+        {
+            Transform facing = carryAnimator.transform;
+            transform.SetPositionAndRotation((leftHand.position + rightHand.position) * .5f +
+                facing.rotation * handOffset, facing.rotation * Quaternion.Euler(heldRotation));
+        }
     }
 
     private void UpdatePickupOutline()
@@ -429,15 +446,35 @@ public class CargoItem : Interactable
         bool hasPhaseGate = playerCargoContract != null &&
             !string.IsNullOrWhiteSpace(playerCargoContract.cargoUnlockProgressionId) &&
             playerCargoContract.cargoUnlockAfterDialoguePhaseIndex >= 0;
-        bool shouldHighlight = hasPhaseGate && IsInteractionAvailable && !isHeld;
-
-        if (shouldHighlight && pickupOutline == null)
-            pickupOutline = new BridgeSelectionOutline(transform);
-        pickupOutline?.SetVisualOnlyVisible(shouldHighlight);
+        if (outlineContract != playerCargoContract)
+        {
+            outlineContract = playerCargoContract;
+            outlineRefresh.Reset();
+        }
+        // Only the visual hint is polled at 5 Hz. Pickup/loading/delivery continue
+        // to use live availability checks and never consult outlineVisible.
+        if (!hasPhaseGate || isHeld || deliveryRestorePending || loadedSlot != null || !base.IsInteractionAvailable)
+        {
+            outlineVisible = false;
+            outlineRefresh.Reset();
+        }
+        else if (outlineRefresh.ShouldRefresh(Time.unscaledTime))
+        {
+            using (OutlineRefreshMarker.Auto()) outlineVisible = IsInteractionAvailable;
+        }
+        using (OutlineSubmitMarker.Auto())
+        {
+            if (outlineVisible && pickupOutline == null)
+                pickupOutline = new BridgeSelectionOutline(transform);
+            pickupOutline?.SetVisualOnlyVisible(outlineVisible);
+        }
     }
 
     private void DisposePickupOutline()
     {
+        outlineVisible = false;
+        outlineContract = null;
+        outlineRefresh.Reset();
         if (pickupOutline == null) return;
         pickupOutline.Dispose();
         pickupOutline = null;

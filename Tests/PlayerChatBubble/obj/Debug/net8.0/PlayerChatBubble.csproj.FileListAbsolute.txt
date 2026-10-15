@@ -1,0 +1,15 @@
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\PlayerChatBubble\bin\Debug\net8.0\PlayerChatBubble.exe
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\PlayerChatBubble\bin\Debug\net8.0\PlayerChatBubble.deps.json
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\PlayerChatBubble\bin\Debug\net8.0\PlayerChatBubble.runtimeconfig.json
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\PlayerChatBubble\bin\Debug\net8.0\PlayerChatBubble.dll
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\PlayerChatBubble\bin\Debug\net8.0\PlayerChatBubble.pdb
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\PlayerChatBubble\obj\Debug\net8.0\PlayerChatBubble.GeneratedMSBuildEditorConfig.editorconfig
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\PlayerChatBubble\obj\Debug\net8.0\PlayerChatBubble.AssemblyInfoInputs.cache
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\PlayerChatBubble\obj\Debug\net8.0\PlayerChatBubble.AssemblyInfo.cs
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\PlayerChatBubble\obj\Debug\net8.0\PlayerChatBubble.csproj.CoreCompileInputs.cache
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\PlayerChatBubble\obj\Debug\net8.0\PlayerChatBubble.sourcelink.json
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\PlayerChatBubble\obj\Debug\net8.0\PlayerChatBubble.dll
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\PlayerChatBubble\obj\Debug\net8.0\refint\PlayerChatBubble.dll
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\PlayerChatBubble\obj\Debug\net8.0\PlayerChatBubble.pdb
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\PlayerChatBubble\obj\Debug\net8.0\PlayerChatBubble.genruntimeconfig.cache
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\PlayerChatBubble\obj\Debug\net8.0\ref\PlayerChatBubble.dll
