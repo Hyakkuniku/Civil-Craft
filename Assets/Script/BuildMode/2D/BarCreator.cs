@@ -41,7 +41,7 @@ public class AnchorAutoDrawRing : MaskableGraphic
     }
 }
 
-public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IDragHandler 
+public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IDragHandler
 {
     public event Action<BridgeMaterialSO> OnActiveMaterialChanged; 
 
@@ -246,6 +246,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
     private Vector2 GetPointerPosition()
     {
+        if (drawingPointerCaptured) return ReadDrawingPointer();
         if (Touch.activeTouches.Count > 0) return Touch.activeTouches[0].screenPosition;
         if (UnityEngine.InputSystem.Pointer.current != null) return UnityEngine.InputSystem.Pointer.current.position.ReadValue();
         return Vector2.zero;
@@ -387,6 +388,11 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
     private void Update()
     {
+        if (drawingPointerCaptured && !DrawingSessionIsValid())
+        {
+            CancelCreation();
+            return;
+        }
         if (IsAutoDrawing) return;
         if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building) return;
         if (isSimulating) return;
@@ -660,36 +666,31 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
         if (barCreationStarted && currentEndPoint != null && !isDeleteMode && !isSelectMode && !isMoveMode && !IsPasting)
         {
-            Vector2 screenPos = GetPointerPosition();
-            CheckForExistingPoint(screenPos, out Point hoveredNode, out Vector3 snapPos);
+            Vector2 rawPointer = GetPointerPosition();
+            UpdateDrawingGesture(rawPointer);
+            if (!DrawingGestureCanPlace && activeMaterial != null && !activeMaterial.isPier)
+            {
+                Vector3 start = currentStartPoint.transform.position;
+                currentEndPoint.transform.position = start;
+                currentBar.UpdateCreatingBar(start);
+                if (showMagnifierWhileDrawing && magnifyingGlass != null)
+                    magnifyingGlass.UpdateTrackedPosition(rawPointer, start);
+                return;
+            }
+            Vector2 screenPos = GetDrawingAimPosition(rawPointer);
+            CheckForDrawingPoint(screenPos, out Point hoveredNode, out Vector3 snapPos);
             if (UpdateAutoDrawConfirmation(hoveredNode)) return;
             Vector3 worldMousePos = GetWorldMousePosition(screenPos);
-            
-            Vector3 targetPos = CalculateTargetPosition(worldMousePos, hoveredNode, snapPos);
-
-            if (hoveredNode == null && activeMaterial != null && !activeMaterial.isPier)
+            if (activeMaterial != null && !activeMaterial.isPier)
             {
-                float minBarDist = 0.4f;
-                foreach (Point p in Point.AllPoints)
-                {
-                    if (!p.gameObject.activeSelf) continue;
-                    foreach (Bar b in p.ConnectedBars)
-                    {
-                        if (b != null && b.gameObject.activeSelf && b != currentBar && !b.materialData.isPier && b.startPoint != null && b.endPoint != null)
-                        {
-                            Vector3 closestOnBar = GetClosestPointOnLineSegment(targetPos, b.startPoint.transform.position, b.endPoint.transform.position);
-                            float dist = Vector3.Distance(targetPos, closestOnBar);
-                            if (dist < minBarDist &&
-                                Vector3.Distance(closestOnBar, b.startPoint.transform.position) > 0.2f &&
-                                Vector3.Distance(closestOnBar, b.endPoint.transform.position) > 0.2f)
-                            {
-                                minBarDist = dist;
-                                targetPos = closestOnBar;
-                            }
-                        }
-                    }
-                }
+                Vector3 resolved = ResolveDrawingEndpoint(worldMousePos, ref hoveredNode, snapPos, out _, out _);
+                currentEndPoint.transform.position = resolved;
+                currentBar.UpdateCreatingBar(resolved);
+                UpdateDrawingMagnifier(screenPos, resolved);
+                return;
             }
+
+            Vector3 targetPos = CalculateTargetPosition(worldMousePos, hoveredNode, snapPos);
 
             if (activeMaterial != null && activeMaterial.isPier)
             {
@@ -750,8 +751,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             currentEndPoint.transform.position = targetPos;
             currentBar.UpdateCreatingBar(targetPos);
 
-            if (showMagnifierWhileDrawing && magnifyingGlass != null)
-                magnifyingGlass.UpdateTrackedPosition(screenPos, targetPos);
+            UpdateDrawingMagnifier(screenPos, targetPos);
         }
     }
 
@@ -868,7 +868,8 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             !GameManager.Instance.CanEditSessionChallengeBuild) return;
         pointerDownOpenedVehicleInspection = false;
         if (IsAutoDrawing) return;
-        if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building) return;
+        if (GameManager.Instance != null &&
+            (GameManager.Instance.CurrentState != GameManager.GameState.Building || GameManager.Instance.IsTransitioning)) return;
         if (isSimulating || Touch.activeTouches.Count > 1) return;
         BuildTutorialDirector tutorialDirector = BuildTutorialDirector.Instance;
         if (tutorialDirector != null && tutorialDirector.IsAwaitingInvalidBarUndo)
@@ -1003,7 +1004,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             return;
         }
 
-        CheckForExistingPoint(screenPos, out Point existingNode, out Vector3 exactSnapPos);
+        CheckForDrawingPoint(screenPos, out Point existingNode, out Vector3 exactSnapPos);
         
         if (!barCreationStarted && eventData.button == PointerEventData.InputButton.Left && activeMaterial != null && !isSelectMode && !isMoveMode && !IsPasting && !isDeleteMode)
         {
@@ -1046,6 +1047,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 barCreationStarted = true; 
                 
                 if (ghostPierBar != null) ghostPierBar.gameObject.SetActive(false); 
+                CaptureDrawingPointer(eventData, startPos, false);
                 StartBarCreation(startPos);
             }
             else if (existingNode != null) 
@@ -1054,6 +1056,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
                 createdStartPoint = false;
                 barCreationStarted = true;
                 Tutorial3DIndicator.NotifyAnchorClicked(existingNode.transform);
+                CaptureDrawingPointer(eventData, exactSnapPos, true);
                 StartBarCreation(exactSnapPos);
             }
         }
@@ -1063,6 +1066,11 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     {
         if (pointerDownOpenedVehicleInspection) return;
         if (eventData.button != PointerEventData.InputButton.Left) return;
+        if (drawingPointerCaptured)
+        {
+            if (eventData.pointerId != drawingEventPointerId) return;
+            UpdateDrawingGesture(eventData.position);
+        }
 
         if (isDeleteMode && currentSwipeDeleteAction != null) PerformSwipeDelete(eventData.position);
         
@@ -1091,6 +1099,12 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         if (pointerDownOpenedVehicleInspection)
         {
             pointerDownOpenedVehicleInspection = false;
+            return;
+        }
+        if (drawingPointerCaptured && eventData.pointerId != drawingEventPointerId) return;
+        if (drawingPointerCaptured && !DrawingSessionIsValid())
+        {
+            CancelCreation();
             return;
         }
         if (IsAutoDrawing) return;
@@ -1221,8 +1235,14 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
         if (barCreationStarted && activeMaterial != null && eventData.button == PointerEventData.InputButton.Left && !isDeleteMode && !isSelectMode && !isMoveMode && !IsPasting)
         {
-            Vector2 screenPos = eventData.position;
-            CheckForExistingPoint(screenPos, out Point hoveredNode, out Vector3 exactSnapPos);
+            UpdateDrawingGesture(eventData.position);
+            if (DrawingTouchWasCancelled() || (!DrawingGestureCanPlace && !activeMaterial.isPier))
+            {
+                CancelCreation();
+                return;
+            }
+            Vector2 screenPos = GetDrawingAimPosition(eventData.position);
+            CheckForDrawingPoint(screenPos, out Point hoveredNode, out Vector3 exactSnapPos);
             Vector3 worldPos = GetWorldMousePosition(screenPos);
             
             // Only a completed hold starts auto draw. An ordinary release still places one piece.
@@ -1750,14 +1770,24 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     }
 
     private bool FindPointNearPosition(Vector3 position, out Point closestPoint, out Vector3 snapPosition,
-        float maxLength = float.PositiveInfinity)
+        float maxLength = float.PositiveInfinity, float snapRadiusWorld = -1f, bool requireDrawingScreenProximity = false)
     {
         closestPoint = null;
         snapPosition = Vector3.zero;
 
         Vector3 flatMousePos = position;
         BuildLocation location = GameManager.Instance != null ? GameManager.Instance.ActiveBuildLocation : null;
-        float closestSqrDistance = nodeSnapRadiusWorld * nodeSnapRadiusWorld;
+        float radius = snapRadiusWorld >= 0f ? snapRadiusWorld : nodeSnapRadiusWorld;
+        float closestSqrDistance = radius * radius;
+        Camera drawingCamera = requireDrawingScreenProximity ? GetActiveCamera() : null;
+        Vector3 projectedEndpoint = Vector3.zero;
+        if (requireDrawingScreenProximity)
+        {
+            if (drawingCamera == null || !drawingCamera.isActiveAndEnabled) return false;
+            projectedEndpoint = drawingCamera.WorldToScreenPoint(position);
+            if (projectedEndpoint.z < drawingCamera.nearClipPlane || projectedEndpoint.z > drawingCamera.farClipPlane ||
+                !drawingCamera.pixelRect.Contains(new Vector2(projectedEndpoint.x, projectedEndpoint.y))) return false;
+        }
 
         foreach (Point p in Point.AllPoints)
         {
@@ -1771,6 +1801,9 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             if (location != null && p.OwnerLocation != null && p.OwnerLocation != location) continue;
             if (Mathf.Abs(nodePosition.z - flatMousePos.z) > nodeSnapDepthTolerance)
                 continue;
+            if (requireDrawingScreenProximity && (!p.isActiveAndEnabled ||
+                !p.TryGetDrawingEndpointScreenDistance(drawingCamera, new Vector2(projectedEndpoint.x, projectedEndpoint.y), out float screenGap) ||
+                screenGap > DrawingEndpointPadding)) continue;
             if (!float.IsPositiveInfinity(maxLength) && currentStartPoint != null)
             {
                 Vector3 start = currentStartPoint.transform.position;
@@ -1848,7 +1881,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
         DrawRadiusVisual();
 
         if (showMagnifierWhileDrawing && magnifyingGlass != null)
-            magnifyingGlass.ShowMagnifier(GetPointerPosition(), startPosition);
+            magnifyingGlass.ShowMagnifier(GetDrawingAimPosition(GetPointerPosition()), startPosition);
     }
 
     private void FinishBarCreation(Vector3 rawWorldPos, Point existingEndPoint, Vector3 exactSnapPos)
@@ -1859,97 +1892,13 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
             return;
         }
 
-        Vector3 finalPosition = CalculateTargetPosition(rawWorldPos, existingEndPoint, exactSnapPos);
         Vector3 startPos = currentBar.StartPosition;
-
         BuildTutorialDirector tutorialDirector = BuildTutorialDirector.Instance;
-        if (tutorialDirector != null && tutorialDirector.isTracingStep)
-        {
-            Vector3 snappedPosition;
-            if (tutorialDirector.TryGetSnappedEndPosition(activeMaterial, startPos, finalPosition, out snappedPosition))
-            {
-                finalPosition = snappedPosition;
-                if (existingEndPoint != null && Vector3.Distance(existingEndPoint.transform.position, finalPosition) > 0.01f)
-                    existingEndPoint = null;
-            }
-        }
-        
-        if (activeMaterial != null && activeMaterial.isPier) finalPosition.x = currentStartPoint.transform.position.x;
-        float limit = activeMaterial != null ? activeMaterial.maxLength : 5f;
-        
-        if (BuildUIController.Instance != null && activeMaterial != null)
-        {
-            float remainingBudget = BuildUIController.Instance.maxBudget - BuildUIController.Instance.GetTotalCost();
-            float costPerMeter = activeMaterial.costPerMeter * (activeMaterial.isDualBeam ? 2 : 1);
-            float maxAffordable = Mathf.Max(0f, remainingBudget / costPerMeter);
-            if (maxAffordable < limit) limit = maxAffordable;
-        }
-
-        float distanceToTarget = Vector3.Distance(startPos, finalPosition);
-        if (existingEndPoint != null && distanceToTarget > limit && distanceToTarget <= limit + 0.2f) limit = distanceToTarget; 
-        
-        if (Vector3.Distance(startPos, finalPosition) > limit)
-        {
-            Vector3 direction = (finalPosition - startPos).normalized;
-            finalPosition = startPos + (direction * limit);
-            if (isGridSnappingEnabled && existingEndPoint == null)
-            {
-                finalPosition = SnapToGridFromOrigin(finalPosition, startPos);
-                if (activeMaterial != null && activeMaterial.isPier) finalPosition.x = startPos.x;
-                if (Vector3.Distance(startPos, finalPosition) > limit) finalPosition = startPos + (direction * limit); 
-            }
-            existingEndPoint = null; 
-        }
-
-        Vector3 preClampPos = finalPosition;
-        finalPosition = ClampToEnvironment(startPos, finalPosition);
-        // A retained node reference must agree with the position we actually build to.
-        if (existingEndPoint != null &&
-            Vector3.Distance(existingEndPoint.transform.position, finalPosition) > 0.01f)
-            existingEndPoint = null;
-
-        if (Vector3.Distance(preClampPos, finalPosition) > 0.05f && BuildUIController.Instance != null)
+        Vector3 finalPosition = ResolveDrawingEndpoint(rawWorldPos, ref existingEndPoint, exactSnapPos,
+            out Vector3 preClampPos, out Bar barToSplit, out bool stoppedByTerrain);
+        if (stoppedByTerrain && BuildUIController.Instance != null)
         {
             BuildUIController.Instance.LogAction("Beam stopped by terrain");
-        }
-
-        if (existingEndPoint == null)
-        {
-            // Snap the constrained endpoint, not the finger (which can be far beyond max length).
-            if (FindPointNearPosition(finalPosition, out Point secondCheckNode, out Vector3 secondCheckSnapPos, limit))
-            {
-                if (Vector3.Distance(startPos, secondCheckSnapPos) <= limit + 0.05f)
-                {
-                    existingEndPoint = secondCheckNode;
-                    finalPosition = secondCheckSnapPos;
-                }
-            }
-        }
-        
-        Bar barToSplit = null;
-        if (existingEndPoint == null && activeMaterial != null && !activeMaterial.isPier)
-        {
-            float minBarDist = 0.5f;
-            foreach (Point p in Point.AllPoints)
-            {
-                if (!p.gameObject.activeSelf) continue;
-                foreach (Bar b in p.ConnectedBars)
-                {
-                    if (b != null && b.gameObject.activeSelf && b != currentBar && !b.materialData.isPier && b.startPoint != null && b.endPoint != null)
-                    {
-                        Vector3 closestOnBar = GetClosestPointOnLineSegment(finalPosition, b.startPoint.transform.position, b.endPoint.transform.position);
-                        float dist = Vector3.Distance(finalPosition, closestOnBar);
-                        if (dist < minBarDist &&
-                            Vector3.Distance(closestOnBar, b.startPoint.transform.position) > 0.2f &&
-                            Vector3.Distance(closestOnBar, b.endPoint.transform.position) > 0.2f)
-                        {
-                            minBarDist = dist;
-                            barToSplit = b;
-                            finalPosition = closestOnBar;
-                        }
-                    }
-                }
-            }
         }
 
         if (Vector3.Distance(startPos, finalPosition) < 0.1f) 
@@ -2086,6 +2035,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
 
         if (magnifyingGlass != null) magnifyingGlass.HideMagnifier();
 
+        ResetDrawingPointer();
         barCreationStarted = false;
         createdStartPoint = false; 
         currentStartPoint = null;
@@ -2101,6 +2051,7 @@ public class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUpHandler,
     public void CancelCreation()
     {
         CancelAutoDraw();
+        ResetDrawingPointer();
         if (magnifyingGlass != null) magnifyingGlass.HideMagnifier();
 
         barCreationStarted = false;

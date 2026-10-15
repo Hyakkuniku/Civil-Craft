@@ -38,6 +38,7 @@ public class Point : MonoBehaviour
     public BuildLocation OwnerLocation => ownerLocation;
 
     private Renderer pointRenderer;
+    private Renderer[] drawingPickRenderers;
     private BridgeSelectionOutline selectionOutline;
     private AnchorEdgeSnap edgeSnap;
 
@@ -68,6 +69,7 @@ public class Point : MonoBehaviour
 
     private void OnEnable()
     {
+        drawingPickRenderers = null;
         if (!AllPoints.Contains(this)) AllPoints.Add(this);
         
         if (pointRenderer == null) pointRenderer = GetComponentInChildren<Renderer>();
@@ -98,6 +100,44 @@ public class Point : MonoBehaviour
     {
         selectionOutline?.Dispose();
         AllPoints.Remove(this);
+    }
+
+    private void OnTransformChildrenChanged()
+    {
+        drawingPickRenderers = null;
+    }
+
+    // Points have visible depth but need no extra physics collider for touch input.
+    internal bool TryGetDrawingScreenDistance(Camera camera, Vector2 screenPosition, out float distance)
+    {
+        return TryGetDrawingRendererDistance(camera, screenPosition, false, out distance);
+    }
+
+    // Destination targeting ignores visual depth. Only starting a gesture uses
+    // the entire long mesh, so slanted views cannot drag the endpoint sideways.
+    internal bool TryGetDrawingEndpointScreenDistance(Camera camera, Vector2 screenPosition, out float distance)
+    {
+        return TryGetDrawingRendererDistance(camera, screenPosition, true, out distance);
+    }
+
+    private bool TryGetDrawingRendererDistance(Camera camera, Vector2 screenPosition, bool flattenDepth, out float distance)
+    {
+        distance = float.PositiveInfinity;
+        if (drawingPickRenderers == null)
+            drawingPickRenderers = GetComponentsInChildren<Renderer>(true);
+        bool found = false;
+        foreach (Renderer candidate in drawingPickRenderers)
+        {
+            if (candidate == null || candidate.GetComponentInParent<Point>() != this) continue;
+            float candidateDistance;
+            bool projected = flattenDepth
+                ? BridgePointScreenGeometry.TryGetPlaneDistance(camera, candidate, screenPosition, transform.position.z, out candidateDistance)
+                : BridgePointScreenGeometry.TryGetDistance(camera, candidate, screenPosition, out candidateDistance);
+            if (!projected) continue;
+            distance = Mathf.Min(distance, candidateDistance);
+            found = true;
+        }
+        return found;
     }
 
     private void Update()

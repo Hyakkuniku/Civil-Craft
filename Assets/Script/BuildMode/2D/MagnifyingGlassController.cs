@@ -77,6 +77,11 @@ public sealed class MagnifyingGlassController : MonoBehaviour
 
     public bool IsVisible => isVisible;
 
+    private void OnDisable()
+    {
+        HideMagnifier();
+    }
+
     private void Awake()
     {
         InitializeReferences();
