@@ -2011,8 +2011,11 @@ public class PlayerDataManager : MonoBehaviour
 
         if (CurrentData.quizProgress == null) CurrentData.quizProgress = new List<QuizProgressSaveData>();
         foreach (QuizProgressSaveData quizState in CurrentData.quizProgress)
-            if (quizState != null && quizState.correctQuestionIds == null)
-                quizState.correctQuestionIds = new List<string>();
+        {
+            if (quizState == null) continue;
+            if (quizState.correctQuestionIds == null) quizState.correctQuestionIds = new List<string>();
+            if (quizState.answers == null) quizState.answers = new List<QuizAnswerSaveData>();
+        }
 
         // Older saves only stored current EXP. Until EXP becomes spendable this
         // safely migrates it into the new lifetime "EXP Received" counter.
@@ -2572,7 +2575,21 @@ public class PlayerDataManager : MonoBehaviour
         progress.correctQuestionIds.Clear();
         foreach (QuizQuestion question in quiz.questions)
             if (correct.Contains(question.questionId.Trim())) progress.correctQuestionIds.Add(question.questionId.Trim());
-        progress.completed = saved.completed && QuizProgressUtility.AreAllQuestionsCorrect(quiz, progress.correctQuestionIds);
+        if (quiz.assessmentMode)
+        {
+            Dictionary<string, int> answers = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (QuizAnswerSaveData answer in progress.answers)
+            {
+                QuizQuestion question = quiz.questions.Find(item => item.questionId.Trim() == answer?.questionId);
+                if (question != null && answer.choiceIndex >= 0 && answer.choiceIndex < question.choices.Count)
+                    answers[question.questionId.Trim()] = answer.choiceIndex;
+            }
+            progress.answers.Clear();
+            foreach (var answer in answers) progress.answers.Add(new QuizAnswerSaveData { questionId = answer.Key, choiceIndex = answer.Value });
+            progress.submitted = saved.submitted && QuizProgressUtility.HasAllAssessmentAnswers(quiz, answers);
+            progress.completed = saved.completed && progress.submitted;
+        }
+        else progress.completed = saved.completed && QuizProgressUtility.AreAllQuestionsCorrect(quiz, progress.correctQuestionIds);
         return true;
     }
 
@@ -2586,6 +2603,7 @@ public class PlayerDataManager : MonoBehaviour
         { error = "Quizzes are unavailable while visiting another player's story."; return false; }
         if (context == null || !context.IsValid) { error = "Quiz progression identity is missing."; return false; }
         if (quiz == null) { error = "Quiz content is missing."; return false; }
+        if (quiz.assessmentMode) { error = "Assessment answers must be submitted together."; return false; }
         if (!quiz.TryValidate(out error)) return false;
 
         HashSet<string> validIds = new HashSet<string>(StringComparer.Ordinal);
@@ -2615,6 +2633,48 @@ public class PlayerDataManager : MonoBehaviour
         if (TrySaveGame()) return true;
         CurrentData.quizProgress = previous;
         error = "Quiz progress could not be saved. Please try again.";
+        return false;
+    }
+
+    /// <summary>Assessment completion requires all answers, not a passing score. No reward or lesson state is touched.</summary>
+    public bool TrySaveQuizAssessment(QuizData quiz, QuizContext context, IReadOnlyDictionary<string, int> answers,
+        bool submitted, bool completed, out string error)
+    {
+        error = string.Empty;
+        if (quiz == null || !quiz.assessmentMode || !TryGetQuizProgress(quiz, context, out QuizProgressSaveData record))
+        { error = "Assessment progress is unavailable."; return false; }
+        if (answers == null) { error = "Assessment answers are missing."; return false; }
+        if ((submitted || completed) && !QuizProgressUtility.HasAllAssessmentAnswers(quiz, answers))
+        { error = "Answer every question before submitting."; return false; }
+        if (completed && !submitted) { error = "Submit this assessment before continuing."; return false; }
+        if (record.submitted && !submitted) { error = "This assessment has already been submitted."; return false; }
+        if (record.submitted)
+        {
+            foreach (QuizAnswerSaveData saved in record.answers)
+                if (!answers.TryGetValue(saved.questionId, out int choice) || choice != saved.choiceIndex)
+                { error = "Submitted assessment answers cannot change."; return false; }
+        }
+        record.answers.Clear();
+        record.correctQuestionIds.Clear();
+        foreach (QuizQuestion question in quiz.questions)
+        {
+            if (!answers.TryGetValue(question.questionId.Trim(), out int choice)) continue;
+            if (choice < 0 || choice >= question.choices.Count) { error = "Assessment choice is invalid."; return false; }
+            record.answers.Add(new QuizAnswerSaveData { questionId = question.questionId.Trim(), choiceIndex = choice });
+            if (choice == question.correctChoiceIndex) record.correctQuestionIds.Add(question.questionId.Trim());
+        }
+        record.submitted |= submitted;
+        record.completed |= completed;
+        List<QuizProgressSaveData> previous = CurrentData.quizProgress;
+        List<QuizProgressSaveData> next = new List<QuizProgressSaveData>();
+        if (previous != null)
+            foreach (QuizProgressSaveData entry in previous)
+                if (entry != null && !(entry.progressKey == record.progressKey && entry.quizId == record.quizId)) next.Add(entry.Clone());
+        next.Add(record);
+        CurrentData.quizProgress = next;
+        if (TrySaveGame()) return true;
+        CurrentData.quizProgress = previous;
+        error = "Assessment could not be saved. Please retry.";
         return false;
     }
 

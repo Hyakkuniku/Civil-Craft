@@ -60,6 +60,9 @@ public class PauseManager : MonoBehaviour
 
     private void Awake()
     {
+        // Each additive scene owns a separate UI hierarchy. Close its startup
+        // presentation even when another scene already owns the pause singleton.
+        HideStartupPresentation();
         if (Instance == null) Instance = this;
         else if (Instance != this)
         {
@@ -79,8 +82,18 @@ public class PauseManager : MonoBehaviour
                 restingPosition = pauseRect.anchoredPosition;
                 restingScale = pauseRect.localScale;
             }
-            pausePanel.SetActive(false);
         }
+    }
+
+    private void HideStartupPresentation()
+    {
+        isPaused = false;
+        if (pausePanel != null) pausePanel.SetActive(false);
+        // A rejected duplicate must not leave an orphaned HUD opener behind.
+        // The accepted owner's Start restores the ordinary availability rules.
+        if (pauseButton != null && pauseButton.scene != gameObject.scene) pauseButton = null;
+        if (pauseButton == null) pauseButton = FindAuthoredPauseButton();
+        if (pauseButton != null) pauseButton.SetActive(false);
     }
 
     private void Start()
@@ -303,8 +316,14 @@ public class PauseManager : MonoBehaviour
 
     private GameObject FindPauseButton()
     {
+        return FindAuthoredPauseButton() ?? CreateMobilePauseButton();
+    }
+
+    private GameObject FindAuthoredPauseButton()
+    {
         foreach (Button button in FindObjectsOfType<Button>(true))
         {
+            if (button.gameObject.scene != gameObject.scene) continue;
             for (int i = 0; i < button.onClick.GetPersistentEventCount(); i++)
             {
                 if (button.onClick.GetPersistentTarget(i) == this &&
@@ -315,7 +334,7 @@ public class PauseManager : MonoBehaviour
             }
         }
 
-        return CreateMobilePauseButton();
+        return null;
     }
 
     private GameObject CreateMobilePauseButton()
@@ -324,7 +343,7 @@ public class PauseManager : MonoBehaviour
         foreach (RectTransform candidate in FindObjectsOfType<RectTransform>(true))
         {
             if (candidate != null &&
-                candidate.gameObject.scene.IsValid() &&
+                candidate.gameObject.scene == gameObject.scene &&
                 candidate.name == "AccessButtons")
             {
                 accessButtons = candidate;

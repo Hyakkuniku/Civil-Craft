@@ -1,0 +1,111 @@
+using System;
+using System.Linq;
+using UnityEngine;
+
+public static class Scenarios
+{
+    private static int checks;
+    private static void Require(bool value, string message) { if (!value) throw new InvalidOperationException(message); checks++; }
+    public static int Run()
+    {
+        DirectPolicy(); RetryPolicy(); DelayedPolicyAndStaleness(); DefaultsAndErrors(); return checks;
+    }
+    private static BuildLocation SetUp()
+    {
+        UnityEngine.Object.All.Clear(); Debug.Warnings.Clear(); Canvas.Updates = 0;
+        PlayerDataManager.Instance = new PlayerDataManager(); TutorialManager.Instance = new TutorialManager();
+        BuildTutorialDirector.Instance = new BuildTutorialDirector(); CommandManager.Instance = new CommandManager();
+        var first = new TutorialSequence { lessonName = "TrussConstruction", autoStartNextSequence = true, UsesDirector = true };
+        var next = new TutorialSequence { lessonName = "TrussTest", UsesDirector = true };
+        first.nextSequence = next;
+        PlayerDataManager.Instance.completedLessons.UnionWith(new[] { first.lessonName, next.lessonName, "OverworldLesson" });
+        var location = new BuildLocation { activeContract = new ContractSO(), onEnterBuildModeTutorial = first };
+        GameManager.Instance = new GameManager { ActiveBuildLocation = location };
+        return location;
+    }
+    private static void Preserved(BuildLocation location, string label)
+    {
+        Require(location.BridgeMembers == 12 && location.Clears == 0, label + " bridge retained.");
+        Require(location.Undo.Count == 2 && CommandManager.Instance.Clears == 0, label + " undo retained.");
+        Require(PlayerDataManager.Instance.completedLessons.SetEquals(new[] { "TrussConstruction", "TrussTest", "OverworldLesson" }), label + " construction lessons retained.");
+        Require(PlayerDataManager.Instance.Resets == 0 && PlayerDataManager.Instance.Saves == 0, label + " no lesson reset or save call.");
+        Require(TutorialManager.Instance.Restarts == 0, label + " no tutorial restart.");
+        Require(BuildTutorialDirector.Instance.Ends == 0 && BuildTutorialDirector.Instance.GhostPreparations == 0, label + " no director/ghost reset.");
+        Require(Debug.Warnings.Count == 0, label + " intentional editing retry emits no warning.");
+    }
+    private static void DirectPolicy()
+    {
+        var location = SetUp();
+        Require(location.RestartGuidedTutorialOnFailure, "Legacy default restarts guided tutorial.");
+        location.ConfigurePolicyForTest(false);
+        Require(!location.RestartBuildTutorialAfterFailure(), "Direct restart returns false for deliberately disabled policy.");
+        Preserved(location, "Direct disabled call");
+        location.isTutorialReplayActive = true;
+        Require(!location.RestartBuildTutorialAfterFailure(), "Completed replay cannot bypass disabled policy.");
+        Preserved(location, "Disabled replay call");
+        location.activeContract = null; location.onEnterBuildModeTutorial = null;
+        Require(!location.RestartBuildTutorialAfterFailure(), "Disabled incomplete configuration is safe.");
+        Preserved(location, "Disabled absent tutorial call");
+    }
+    private static void RetryPolicy()
+    {
+        var location = SetUp(); location.ConfigurePolicyForTest(false);
+        var creator = new BarCreator(); var failed = new LevelFailedManager(); failed.ConfigureRetryForTest(location);
+        failed.RetryLevel();
+        Require(failed.physicsManager.Resets == 1 && !creator.isSimulating, "Editing retry retains ordinary physics reset.");
+        Require(failed.UIRestores == 1 && !failed.levelFailedPanel.activeSelf && !failed.isFailed, "Editing retry closes failure report and restores UI.");
+        Require(location.TimeResets == 1 && failed.PendingLocation == null, "Editing retry clears pending handle and restores time-attack state.");
+        Require(failed.scheduled.Count == 0, "Disabled policy never schedules guided restart.");
+        Preserved(location, "Disabled failure retry");
+        failed.ConfigureRetryForTest(null); failed.RetryLevel();
+        Require(failed.scheduled.Count == 0, "Null retry target never schedules guided restart.");
+        Preserved(location, "Null failure retry");
+    }
+    private static void DelayedPolicyAndStaleness()
+    {
+        foreach (string change in new[] { "policy", "different-site", "inactive", "unloaded", "invalid-scene", "destroyed", "no-manager", "not-building", "transition" })
+        {
+            var location = SetUp();
+            var failed = new LevelFailedManager(); failed.ConfigureRetryForTest(location); failed.RetryLevel();
+            Require(failed.scheduled.Count == 1, change + " starts from a valid default guided retry.");
+            switch (change)
+            {
+                case "policy": location.ConfigurePolicyForTest(false); break;
+                case "different-site": GameManager.Instance.ActiveBuildLocation = new BuildLocation(); break;
+                case "inactive": location.gameObject.SetActive(false); break;
+                case "unloaded": location.gameObject.scene = new UnityEngine.SceneManagement.Scene(1, loaded: false); break;
+                case "invalid-scene": location.gameObject.scene = new UnityEngine.SceneManagement.Scene(0); break;
+                case "destroyed": location.Destroyed = true; break;
+                case "no-manager": GameManager.Instance = null; break;
+                case "not-building": GameManager.Instance.Building = false; break;
+                case "transition": GameManager.Instance.IsTransitioning = true; break;
+            }
+            Require(!failed.scheduled[0].routine.MoveNext(), change + " delayed coroutine ends safely.");
+            Preserved(location, change + " delayed retry");
+        }
+        var nullLocation = SetUp(); var manager = new LevelFailedManager();
+        var delayedNull = manager.CreateDelayedForTest(null);
+        Require(delayedNull.MoveNext() && !delayedNull.MoveNext(), "Explicit null delayed target is safe.");
+        Preserved(nullLocation, "Explicit null delayed call");
+        var disabledLocation = SetUp(); disabledLocation.ConfigurePolicyForTest(false); manager = new LevelFailedManager();
+        var delayedDisabled = manager.CreateDelayedForTest(disabledLocation);
+        Require(delayedDisabled.MoveNext() && !delayedDisabled.MoveNext(), "Direct delayed coroutine cannot bypass disabled policy.");
+        Preserved(disabledLocation, "Direct disabled delayed call");
+    }
+    private static void DefaultsAndErrors()
+    {
+        var location = SetUp();
+        Require(location.RestartBuildTutorialAfterFailure(), "Default true retains direct guided recovery.");
+        Require(location.BridgeMembers == 0 && location.Clears == 1 && CommandManager.Instance.Clears == 1, "Default guided recovery clears bridge/history as before.");
+        Require(PlayerDataManager.Instance.Resets >= 2 && PlayerDataManager.Instance.Saves == 1, "Default guided recovery resets saved build lessons as before.");
+        Require(PlayerDataManager.Instance.completedLessons.Contains("OverworldLesson"), "Default guided recovery preserves unrelated overworld lesson.");
+        Require(TutorialManager.Instance.Restarts == 1 && TutorialManager.Instance.LastSequence == location.onEnterBuildModeTutorial, "Default guided recovery restarts authored construction sequence.");
+        Require(BuildTutorialDirector.Instance.Ends == 1 && BuildTutorialDirector.Instance.GhostPreparations == 1, "Default guided ghost recovery unchanged.");
+        location = SetUp(); var failed = new LevelFailedManager(); failed.ConfigureRetryForTest(location); failed.RetryLevel();
+        Require(failed.scheduled.Count == 1 && location.BridgeMembers == 12, "Default scheduled retry waits until UI/physics reset frame.");
+        Require(!failed.scheduled[0].routine.MoveNext() && location.BridgeMembers == 0, "Default delayed retry retains old restart behavior.");
+        Require(Debug.Warnings.Count == 0, "Valid default restart has no warnings.");
+        location = SetUp(); location.onEnterBuildModeTutorial = null; failed = new LevelFailedManager(); failed.ConfigureRetryForTest(location); failed.RetryLevel();
+        Require(!failed.scheduled[0].routine.MoveNext() && Debug.Warnings.Count == 1, "Genuinely misconfigured enabled restart still warns.");
+    }
+}

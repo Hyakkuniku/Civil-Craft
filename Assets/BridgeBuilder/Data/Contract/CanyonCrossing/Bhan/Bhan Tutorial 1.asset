@@ -29,10 +29,10 @@ MonoBehaviour:
   autoCollectReward: 0
   featureUnlockRewards: []
   clientName: Professor Bhan
-  jobDescription: Build the first crossing and make sure it can safely carry the
-    cart.
+  jobDescription: Construct a simple Beam Bridge that safely connects both sides of
+    the canyon and carries the 200 kg vehicle within the available budget.
   budget: 75000
-  liveLoadWeight: 700
+  liveLoadWeight: 200
   bridgeSpan: 30
   allowedMaterials:
   - material: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
@@ -56,29 +56,41 @@ MonoBehaviour:
   offerDialogue:
     name: Professor Bhan
     sentences:
-    - Now you know what the project requires, what you'll be carrying across the
-      bridge, and which materials are available to you.
-    - You've also learned the basic tools you'll need to construct and test your
-      bridge.
+    - Now you understand how a beam bridge works.
+    - You've also learned about the load your bridge needs to carry and the materials
+      available for construction.
+    - It's time to apply what you've learned.
+    - Your first project will be a simple crossing between two sides of the canyon.
     - I think you're ready for your first <b><#E09500>contract</color></b>.
+    - Oh, and there's one more thing you should know before accepting your first contract.
+    - Throughout your journey, you'll encounter different <b><#E09500>engineering lessons</color></b>.
+    - After completing the bridge construction and testing, you'll take a short <b><#E09500>quiz</color></b>
+      to review what you've learned.
+    - These quizzes will be part of your <b><#E09500>training projects</color></b> and
+      <b><#E09500>main contracts</color></b> that introduce engineering lessons.
+    - <b><#E09500>Side Quests</color></b>, however, are optional challenges where you
+      can practice your skills without taking a quiz.
+    - So pay attention to each lesson. You'll need that knowledge not only to build
+      your bridges, but also to answer the questions afterward.
+    - Now, are you ready to take your first contract?
   continueOfferDialogue:
     name: Professor Bhan
     sentences:
-    - Your first contract will be a simple bridge construction project.
+    - Your first contract is a simple bridge construction project.
     - The crossing ahead needs a safe and reliable connection between both sides
       of the canyon.
-    - For this project, you'll be constructing a <b><#E09500>Beam Bridge</color></b>.
-    - A <b><#E09500>beam bridge</color></b> is a simple structure that uses horizontal
-      members to carry the load toward its supports.
-    - Your job is to construct the bridge and make sure it can safely carry the <b><#E09500>vehicle</color></b>.
-    - Review the <b><#E09500>contract</color></b> carefully, then decide how you'll
-      approach the construction.
+    - You'll use the <b><#E09500>Beam Bridge</color></b> design we just discussed.
+    - Your job is to construct the bridge and make sure it can safely carry the
+      <b><#E09500>200 kg vehicle</color></b>.
+    - Remember, the roadway must be properly supported, and your design must stay
+      within the available budget.
+    - Review the contract carefully before entering Build Mode.
   reminderDialogue:
     name: Professor Bhan
     sentences:
     - You can now go to the <b><#E09500>construction site</color></b> whenever you
       are ready.
-    - Enter <b><#E09500>Build Mode</color></b> and begin construction.
+    - Enter the <b><#E09500>Blueprint</color></b> and begin construction.
   finishedContractDialogue:
     name: Professor Bhan
     sentences:

@@ -173,6 +173,15 @@ public static class AuthoredLevelResultDialogsSetup
                 changed = true;
             }
         }
+        // Authoring a report must not leave its preview open in a saved scene
+        // or prefab. The managers open these exact inner roots after a real test.
+        foreach (GameObject panel in new[] { complete.levelCompletePanel, failed.levelFailedPanel })
+        {
+            if (panel == null || !panel.activeSelf) continue;
+            panel.SetActive(false);
+            EditorUtility.SetDirty(panel);
+            changed = true;
+        }
         return changed;
     }
 

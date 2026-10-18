@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6f37df8d20f74e62a3e88f7fa41df9b0, type: 3}
   m_Name: Truss Bridge Lesson
   m_EditorClassIdentifier: 
-  panelTitle: TRUSS BRIDGE BEHAVIOR
+  panelTitle: TRUSS BRIDGE SIMULATION
   minimumMessageDuration: 3.5
   fadeDuration: 0.2
   slideDistance: 24
@@ -20,31 +20,38 @@ MonoBehaviour:
   simulationTimeScale: 0.5
   vehicleEnteredProgress: 0.1
   vehicleMidpointProgress: 0.5
+  vehicleNearEndProgress: 0.85
   highStressThreshold: 0.7
   vehicleStuckDelay: 5
-  simulationStarted: Simulation started. Watch the vehicle approach the truss. Its
-    connected triangles begin carrying live load only after the wheels reach the roadway.
-  liveLoadStarted: The vehicle's weight enters through the road. The truss redirects
-    much of that bending demand into pulling and pushing forces along its members.
-  vehicleEnteredBridge: The live load has entered the first truss panels. Diagonal
-    and vertical members now share the force with the top and bottom chords.
-  vehicleReachedMidpoint: The vehicle is near midspan, where the truss is working
-    hardest. In a typical loaded truss, the top chord is pushed in compression while
-    the bottom chord is pulled in tension.
+  simulationStarted: Simulation started. A 400 kg vehicle is approaching the bridge.
+    Watch how your Truss Bridge responds as the vehicle begins crossing.
+  liveLoadStarted:
+  vehicleEnteredBridge: The vehicle has entered the bridge. Observe how the connected
+    structural members carry its weight through the triangular arrangements toward
+    the supports.
+  vehicleReachedMidpoint: The vehicle is approaching the middle of the bridge.
+    As the load changes position, the forces carried by the members and supports
+    change. Forces and moments must remain balanced, and the members must have
+    enough strength to carry the load.
+  vehicleApproachingEnd: The vehicle is approaching the end of the bridge. Continue
+    observing the connected members and supports until it completes the crossing.
   highStressDetected: Orange or red members are carrying a high percentage of their
     capacity. Check whether each triangle provides a continuous path to an anchor.
-  stressLimitExceeded: This truss exceeded the contract's allowed stress. Improve
-    its panel geometry, reinforce the highly stressed members, or provide a clearer
-    load path to the supports.
-  firstMemberBreak: A truss member exceeded its capacity and failed. One broken side
-    of a triangle can force the remaining members to carry loads they were not designed
-    to resist.
+  stressLimitExceeded: "BRIDGE TEST FAILED! Your bridge did not meet the required
+    load test. Check that the members are properly connected and the supports
+    are arranged to carry the load. Review the highly stressed sections, then
+    choose Retry to return to Build Mode."
+  firstMemberBreak: "BRIDGE TEST FAILED! A structural member failed under the required
+    load. Check the member connections, complete triangular arrangements, and
+    properly arranged supports. Choose Retry to return to Build Mode."
   vehicleStuck: The vehicle has stopped moving. Check for excessive truss deflection,
     uneven road joints, or members obstructing the roadway.
-  vehicleFailed: The truss lost a continuous path for the live load. Restore complete
-    triangles and strengthen the failed region before testing again.
-  bridgeSucceeded: The truss carried the required live load successfully. Its connected
-    triangles transferred the vehicle's weight through the chords and web members
-    into the supports.
+  vehicleFailed: "BRIDGE TEST FAILED! Your bridge could not support the required
+    load across the entire crossing. Check the member connections and properly
+    arranged supports. Review the failed sections, then choose Retry to return
+    to Build Mode."
+  bridgeSucceeded: "BRIDGE SUCCESSFULLY TESTED! Your Truss Bridge carried the 400 kg
+    vehicle across the canyon and passed the simulation. Choose Retry to modify
+    it, or Save to record the completed Training Truss Bridge in your Almanac."
   simulationStopped: Simulation stopped. Review the stressed truss panels and confirm
     that every triangle remains connected before revising the design.

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
-public enum AlmanacTabType { General, Contracts, Lessons, Materials }
+public enum AlmanacTabType { General, Contracts, Lessons, Materials, Quiz }
 
 public enum TabVisibility { Normal, AlwaysHidden }
 
@@ -161,6 +161,7 @@ public class AlmanacManager : MonoBehaviour
         if (animationPanel != null) animationPanel.SetActive(false);
         if (newAlertIcon != null) newAlertIcon.SetActive(false);
 
+        AlmanacQuizAccess.Install(this);
         InitializeBook();
         if (bookMotion != null) bookMotion.Bind(this);
         EnsureTabUnlockTutorialDrafts();
@@ -533,7 +534,7 @@ public class AlmanacManager : MonoBehaviour
 
     public void OpenAlmanac()
     {
-        if (isAnimating) return; 
+        if (isAnimating || QuizUIManager.IsAnyQuizActive) return;
 
         RefreshEditPlayerAccess();
         CaptureArchiveInteractionButtonContainers();
@@ -1288,7 +1289,8 @@ public class AlmanacManager : MonoBehaviour
         return category.tabType == AlmanacTabType.General ||
                category.tabType == AlmanacTabType.Contracts ||
                category.tabType == AlmanacTabType.Lessons ||
-               category.tabType == AlmanacTabType.Materials;
+               category.tabType == AlmanacTabType.Materials ||
+               category.tabType == AlmanacTabType.Quiz;
     }
 
     private void TurnPage(bool goingForward)

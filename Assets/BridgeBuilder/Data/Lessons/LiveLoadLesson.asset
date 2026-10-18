@@ -15,9 +15,7 @@ MonoBehaviour:
   lessonId: LESSON001
   lessonTitle: Live Load
   lessonImage: {fileID: 21300000, guid: 2db204386ad37a845b49016eb72888b4, type: 3}
-  popupDescription: A live load is a <b><#E09500>temporary or changing load</color></b>
-    placed on a structure, such as vehicles, people, equipment, or other objects
-    that may move or be removed.
+  popupDescription: "The weight of a vehicle, person, or other object that moves or changes position on a structure is called a <b><#E09500>Live Load</color></b>.\n\nThis lesson has been added to your <b><#E09500>Almanac</color></b>."
   almanacImage: {fileID: 0}
   lessonDescription: "A live load is a <b><#E09500>temporary or variable force</color></b>
     imposed on a structure by occupants, vehicles, equipment, materials, or other

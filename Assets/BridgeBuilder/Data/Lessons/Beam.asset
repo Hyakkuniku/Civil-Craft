@@ -15,9 +15,7 @@ MonoBehaviour:
   lessonId: ' LESSON002'
   lessonTitle: BEAM BRIDGE
   lessonImage: {fileID: 21300000, guid: 6aedd357aa978324690d88ed82a19beb, type: 3}
-  popupDescription: A beam bridge is a simple bridge made of a <b><#E09500>horizontal
-    deck or beam supported by piers or abutments</color></b>. The supports carry
-    the bridge's weight and the loads traveling across it.
+  popupDescription: "A <b><#E09500>Beam Bridge</color></b> uses horizontal structural members to carry loads toward its supports.\n\nKey Points:\n- A beam bridge uses horizontal structural members.\n- Loads on the bridge cause bending.\n- The bridge transfers forces toward its supports.\n- Properly placed supports help the bridge carry loads safely."
   almanacImage: {fileID: 0}
   lessonDescription: 'A beam bridge is a structural system consisting primarily of
     <b><#E09500>horizontal beams supported by piers, columns, or abutments</color></b>.

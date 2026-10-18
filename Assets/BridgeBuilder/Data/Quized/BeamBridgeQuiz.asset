@@ -14,6 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   quizId: civil-craft-beam-bridge-quiz-v1
   title: Beam Bridge Quiz
+  assessmentMode: 1
   questions:
   - questionId: live-load
     prompt: What is a Live Load in bridge construction?

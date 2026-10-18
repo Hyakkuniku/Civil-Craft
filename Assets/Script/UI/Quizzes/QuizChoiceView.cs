@@ -46,27 +46,30 @@ public sealed class QuizChoiceView : MonoBehaviour
 
     public float RequiredHeight(float width, float unit)
     {
-        float textHeight = hasText && label != null ? label.GetPreferredValues(label.text, Mathf.Max(20f, width - 48f * unit), 0f).y : 0f;
-        return Mathf.Max(112f * unit, 72f * unit + textHeight + (hasImage ? 190f * unit : 0f));
+        float textWidth = width - (hasImage ? 40f : 104f) * unit;
+        float textHeight = hasText && label != null ? label.GetPreferredValues(label.text, Mathf.Max(20f, textWidth), 0f).y : 0f;
+        return hasImage ? 72f * unit + textHeight + 172f * unit : Mathf.Max(78f * unit, textHeight + 32f * unit);
     }
 
     public void Layout(float width, float height, float unit, float physicalScale = 1f)
     {
         if (number != null)
         {
-            QuizUILayout.Top(number.rectTransform, 20f * unit, 20f * unit, 12f * unit, 36f * unit);
+            QuizUILayout.Top(number.rectTransform, 16f * unit, Mathf.Max(0f, width - 58f * unit), 16f * unit, 36f * unit);
             number.fontSize = Mathf.Max(25f * unit, 18f / Mathf.Max(.01f, physicalScale));
+            number.alignment = TextAlignmentOptions.Center;
         }
-        float textHeight = hasText && label != null ? label.GetPreferredValues(label.text, Mathf.Max(20f, width - 48f * unit), 0f).y : 0f;
+        float textWidth = Mathf.Max(20f, width - (hasImage ? 40f : 104f) * unit);
+        float textHeight = hasText && label != null ? label.GetPreferredValues(label.text, textWidth, 0f).y : 0f;
         if (label != null)
         {
             label.fontSize = Mathf.Max(29f * unit, 20f / Mathf.Max(.01f, physicalScale));
             label.alignment = hasImage ? TextAlignmentOptions.Center : TextAlignmentOptions.TopLeft;
             label.enableWordWrapping = true;
             label.overflowMode = TextOverflowModes.Overflow;
-            textHeight = hasText ? label.GetPreferredValues(label.text, Mathf.Max(20f, width - 48f * unit), 0f).y : 0f;
-            if (hasImage) QuizUILayout.Bottom(label.rectTransform, 24f * unit, 24f * unit, 16f * unit, textHeight);
-            else QuizUILayout.Stretch(label.rectTransform, 24f * unit, 18f * unit, 24f * unit, 54f * unit);
+            textHeight = hasText ? label.GetPreferredValues(label.text, textWidth, 0f).y : 0f;
+            if (hasImage) QuizUILayout.Bottom(label.rectTransform, 20f * unit, 20f * unit, 16f * unit, textHeight);
+            else QuizUILayout.Stretch(label.rectTransform, 80f * unit, 16f * unit, 24f * unit, 16f * unit);
         }
         if (artwork != null)
             QuizUILayout.Stretch(artwork.rectTransform, 26f * unit, (hasText ? textHeight + 32f * unit : 18f * unit), 26f * unit, 56f * unit);

@@ -14,6 +14,19 @@ public sealed class AlmanacBookMotion : MonoBehaviour
     private int revision;
     public bool IsTurning { get; private set; }
 
+    /// <summary>Reuse authored binding furniture for a runtime-added chapter without editing scene data.</summary>
+    public void AddChapterFrame(int templateIndex, int newIndex)
+    {
+        if (chapterFrames == null || templateIndex < 0 || templateIndex >= chapterFrames.Length ||
+            chapterFrames[templateIndex] == null || newIndex < chapterFrames.Length) return;
+        GameObject frame = Instantiate(chapterFrames[templateIndex], chapterFrames[templateIndex].transform.parent);
+        frame.name = "Quiz Book Binding";
+        frame.transform.SetSiblingIndex(chapterFrames[templateIndex].transform.GetSiblingIndex() + 1);
+        frame.SetActive(false);
+        Array.Resize(ref chapterFrames, newIndex + 1);
+        chapterFrames[newIndex] = frame;
+    }
+
     private sealed class Sheet
     {
         public RectTransform rect;

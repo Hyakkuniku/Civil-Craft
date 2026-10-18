@@ -1,0 +1,123 @@
+using System;
+using UnityEngine;
+
+public static class Scenarios
+{
+    private static int checks;
+    private static void Require(bool value, string description) { if (!value) throw new InvalidOperationException(description); checks++; }
+    public static int Run()
+    {
+        Complete(); Failed(); Tutorial();
+        return checks;
+    }
+    private static void Complete()
+    {
+        LevelCompleteManager.Instance = null;
+        var primary = new LevelCompleteManager { levelCompletePanel = new GameObject() };
+        primary.InvokeAwake();
+        Require(LevelCompleteManager.Instance == primary, "Completion primary acquires singleton.");
+        Require(!primary.levelCompletePanel.activeSelf, "Completion primary report starts hidden.");
+        Require(!primary.gameObject.Destroyed, "Completion primary remains alive.");
+        Require(primary.Binds == 1 && primary.FontInitializations == 1 && primary.TutorialInitializations == 1, "Completion primary initialization still runs exactly once.");
+        foreach (bool active in new[] { true, false })
+        {
+            var duplicate = new LevelCompleteManager { levelCompletePanel = new GameObject() };
+            duplicate.levelCompletePanel.SetActive(active);
+            duplicate.InvokeAwake();
+            Require(LevelCompleteManager.Instance == primary, "Duplicate completion cannot replace primary.");
+            Require(duplicate.gameObject.Destroyed, "Duplicate completion manager is rejected.");
+            Require(!duplicate.levelCompletePanel.Destroyed && !duplicate.levelCompletePanel.activeSelf, "Duplicate's separately authored completion panel survives but stays hidden.");
+            Require(duplicate.Binds == 0 && duplicate.FontInitializations == 0 && duplicate.TutorialInitializations == 0, "Duplicate completion does not initialize or grant anything.");
+            Require(!primary.gameObject.Destroyed, "Duplicate cleanup does not destroy primary completion.");
+        }
+        primary.levelCompletePanel.SetActive(true);
+        Require(primary.levelCompletePanel.activeSelf, "Verified completion may reopen normally.");
+        var nullDuplicate = new LevelCompleteManager(); nullDuplicate.InvokeAwake();
+        Require(nullDuplicate.gameObject.Destroyed && LevelCompleteManager.Instance == primary, "Missing duplicate completion UI is safe.");
+        LevelCompleteManager.Instance = null;
+        var missing = new LevelCompleteManager(); missing.InvokeAwake();
+        Require(!missing.gameObject.Destroyed && LevelCompleteManager.Instance == missing, "Primary without completion UI initializes safely.");
+        LevelCompleteManager.Instance = null;
+        var broken = new LevelCompleteManager { levelCompletePanel = new GameObject(), ThrowOnBind = true };
+        try { broken.InvokeAwake(); throw new Exception("Expected injected completion exception."); }
+        catch (InvalidOperationException error) { Require(error.Message == "Injected layout failure", "Completion layout failure was actually injected."); }
+        Require(!broken.levelCompletePanel.activeSelf, "Completion report remains hidden even if later layout initialization throws.");
+    }
+    private static void Failed()
+    {
+        LevelFailedManager.Instance = null;
+        var primary = new LevelFailedManager { levelFailedPanel = new GameObject() };
+        primary.InvokeAwake();
+        Require(LevelFailedManager.Instance == primary && !primary.gameObject.Destroyed, "Failure primary acquires singleton and remains alive.");
+        Require(!primary.levelFailedPanel.activeSelf && primary.Binds == 1, "Primary failure hides before normal binding.");
+        foreach (bool active in new[] { true, false })
+        {
+            var duplicate = new LevelFailedManager { levelFailedPanel = new GameObject() };
+            duplicate.levelFailedPanel.SetActive(active); duplicate.InvokeAwake();
+            Require(LevelFailedManager.Instance == primary, "Duplicate failure cannot replace primary.");
+            Require(duplicate.gameObject.Destroyed, "Duplicate failure manager is rejected.");
+            Require(!duplicate.levelFailedPanel.Destroyed && !duplicate.levelFailedPanel.activeSelf, "Duplicate's separately authored failure panel remains hidden without deletion.");
+            Require(duplicate.Binds == 0 && !primary.gameObject.Destroyed, "Failure duplicate performs no initialization or primary mutation.");
+        }
+        primary.levelFailedPanel.SetActive(true);
+        Require(primary.levelFailedPanel.activeSelf, "Verified failure can reopen normally.");
+        var nullDuplicate = new LevelFailedManager(); nullDuplicate.InvokeAwake();
+        Require(nullDuplicate.gameObject.Destroyed && LevelFailedManager.Instance == primary, "Missing duplicate failure UI is safe.");
+        LevelFailedManager.Instance = null;
+        var missing = new LevelFailedManager(); missing.InvokeAwake();
+        Require(LevelFailedManager.Instance == missing && missing.Binds == 0, "Primary missing failure UI is safe.");
+        LevelFailedManager.Instance = null;
+        var broken = new LevelFailedManager { levelFailedPanel = new GameObject(), ThrowOnBind = true };
+        try { broken.InvokeAwake(); throw new Exception("Expected injected failure exception."); }
+        catch (InvalidOperationException error) { Require(error.Message == "Injected layout failure", "Failure layout exception was actually injected."); }
+        Require(!broken.levelFailedPanel.activeSelf, "Failure report remains hidden despite later layout exception.");
+    }
+    private static TutorialManager MakeTutorial()
+    {
+        var manager = new TutorialManager { centerPanel = new GameObject(), leftPanel = new GameObject(),
+            nextButton = new GameObject(), skipButton = new GameObject(), bouncingArrow = new TutorialPointer() };
+        manager.leftPanel.AddComponent<UnityEngine.UI.Image>();
+        return manager;
+    }
+    private static void RequireHidden(TutorialManager manager, string label)
+    {
+        Require(!manager.centerPanel.activeSelf, label + " center placeholder hidden.");
+        Require(!manager.leftPanel.activeSelf, label + " left placeholder hidden.");
+        Require(!manager.nextButton.activeSelf, label + " Next hidden.");
+        Require(!manager.skipButton.activeSelf, label + " Skip hidden.");
+        Require(!manager.bouncingArrow.gameObject.activeSelf && manager.bouncingArrow.Hides > 0, label + " Pointer hidden.");
+    }
+    private static void Tutorial()
+    {
+        TutorialManager.Instance = null;
+        var primary = MakeTutorial(); primary.InvokeAwake();
+        Require(TutorialManager.Instance == primary && !primary.gameObject.Destroyed, "Tutorial primary owns singleton and survives.");
+        RequireHidden(primary, "Primary tutorial");
+        Require(primary.Styles == 1 && primary.Recalls == 1 && primary.Positions == 1 && primary.Skips == 1, "Primary tutorial initialization still completes.");
+        Require(primary.leftPanel.GetComponent<UnityEngine.UI.Button>() != null, "Primary tutorial recall button wiring retained.");
+        foreach (bool active in new[] { true, false })
+        {
+            var duplicate = MakeTutorial();
+            duplicate.centerPanel.SetActive(active); duplicate.leftPanel.SetActive(active);
+            duplicate.nextButton.SetActive(active); duplicate.skipButton.SetActive(active);
+            duplicate.InvokeAwake();
+            Require(TutorialManager.Instance == primary, "Duplicate tutorial cannot replace primary.");
+            Require(duplicate.gameObject.Destroyed, "Duplicate tutorial manager rejected.");
+            RequireHidden(duplicate, "Duplicate tutorial");
+            Require(!duplicate.centerPanel.Destroyed && !duplicate.leftPanel.Destroyed, "Separate authored tutorial panels are not deleted.");
+            Require(duplicate.Styles == 0 && duplicate.Recalls == 0 && duplicate.Positions == 0 && duplicate.Skips == 0, "Duplicate tutorial does not run callbacks or further initialization.");
+        }
+        primary.centerPanel.SetActive(true); primary.nextButton.SetActive(true);
+        Require(primary.centerPanel.activeSelf && primary.nextButton.activeSelf, "A valid tutorial can reopen banner and Next normally.");
+        var nullDuplicate = new TutorialManager(); nullDuplicate.InvokeAwake();
+        Require(nullDuplicate.gameObject.Destroyed && TutorialManager.Instance == primary, "Missing duplicate tutorial presentation is safe.");
+        TutorialManager.Instance = null;
+        var missing = new TutorialManager(); missing.InvokeAwake();
+        Require(TutorialManager.Instance == missing && !missing.gameObject.Destroyed, "Missing primary tutorial presentation is safe.");
+        TutorialManager.Instance = null;
+        var broken = MakeTutorial(); broken.ThrowOnStyle = true;
+        try { broken.InvokeAwake(); throw new Exception("Expected injected tutorial exception."); }
+        catch (InvalidOperationException error) { Require(error.Message == "Injected style failure", "Tutorial style exception actually injected."); }
+        RequireHidden(broken, "Tutorial after later style exception");
+    }
+}

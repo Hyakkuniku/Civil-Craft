@@ -1,0 +1,279 @@
+using System;
+using System.Reflection;
+using UnityEngine;
+
+public static class Scenarios
+{
+    private static int checks;
+    private const string ReviewId = "MainContractNPC/LiveLoad/inspection-review";
+    private const string LessonId = "StoryReview/" + ReviewId;
+
+    private sealed class Fixture
+    {
+        public NPCOrderedLearningFlow Flow = new GameObject("Vehicle").AddComponent<NPCOrderedLearningFlow>();
+        public PlayerDataManager Save = new PlayerDataManager();
+        public AlmanacManager Book = new AlmanacManager();
+        public TutorialManager Tutorial = new TutorialManager();
+        public LessonUIManager Reader = new LessonUIManager();
+        public int Completed, Failed;
+        public Action Done, Unavailable;
+        public Fixture()
+        {
+            PlayerDataManager.Instance = Save;
+            AlmanacManager.Instance = Book;
+            TutorialManager.Instance = Tutorial;
+            LessonUIManager.Instance = Reader;
+            FusionConnectionManager.Instance = null;
+            Done = () => Completed++;
+            Unavailable = () => Failed++;
+        }
+        public bool Begin() => Flow.TryReviewAlmanac(ReviewId, Done, Unavailable, "Live Load lesson");
+        public void Open() { Book.IsOpenAndReady = true; Flow.Tick(); }
+        public void Finish() { Book.CloseAnimationFinished(); Flow.Tick(); }
+    }
+
+    public static int Run()
+    {
+        RequiresGenuineOpenAndCompletedClose();
+        RepeatInspectionIsIdempotent();
+        RejectsCallbackAndIdentityHijacking();
+        RejectsOtherProfileAndVisitors();
+        CancellationIsSilentAndRetryable();
+        PriorityTutorialCannotCompleteReview();
+        QueuedReviewTracksARealBookVisit();
+        CompletedReviewIsNotReplayed();
+        InvalidAndUnavailableInputsStayClosed();
+        LessonIntroductionOwnershipIsPreserved();
+        CompletionCanStartNextReview();
+        return checks;
+    }
+
+    private static void RequiresGenuineOpenAndCompletedClose()
+    {
+        Fixture f = new Fixture();
+        bool recordedBeforeCallback = false, cleanBeforeCallback = false;
+        f.Done = () =>
+        {
+            recordedBeforeCallback = f.Tutorial.Completed.Contains(LessonId);
+            cleanBeforeCallback = f.Book.CloseSubscribers == 0 && Field<string>(f.Flow, "activeReviewId") == null;
+            f.Completed++;
+        };
+        Check(f.Begin(), "Review starts.");
+        Check(f.Tutorial.Starts == 1 && f.Book.CloseSubscribers == 1 && f.Flow.RunningCount == 1,
+            "Exactly one reader subscription, tutorial, and routine are installed.");
+        Check(f.Tutorial.Active.tutorialSteps[0].message.Contains("Live Load lesson") &&
+            f.Tutorial.Active.tutorialSteps[0].message.Contains("close the book"), "Prompt identifies the live-load review and actual continuation action.");
+        f.Flow.Tick(); f.Flow.Tick();
+        Check(f.Completed == 0 && f.Tutorial.CurrentStepIndex == 0, "Inspection/idle frames do not count as Almanac review.");
+        f.Book.CloseAnimationFinished(); f.Flow.Tick();
+        Check(f.Completed == 0 && f.Tutorial.Completes == 0, "A close event without genuine opening cannot complete.");
+        f.Open();
+        Check(f.Tutorial.CurrentStepIndex == 1 && f.Completed == 0, "Ready book advances the prompt but does not advance Bhan.");
+        f.Book.IsOpenAndReady = false; f.Flow.Tick();
+        Check(f.Completed == 0, "Coordinator/Pause merely hiding the panel is not a close event.");
+        f.Book.IsOpenAndReady = true; f.Flow.Tick();
+        f.Book.CloseAnimationStarted(); f.Flow.Tick();
+        Check(f.Completed == 0, "Close animation must finish before continuation.");
+        f.Book.CloseAnimationFinished();
+        Check(f.Completed == 0, "Close event is observed before the coroutine commits completion.");
+        f.Flow.Tick();
+        Check(f.Completed == 1 && f.Failed == 0 && f.Tutorial.Completes == 1,
+            "Genuine open and fully completed close advance exactly once.");
+        Check(recordedBeforeCallback && cleanBeforeCallback, "Completion is recorded and handlers/identity cleared before NPC callback.");
+        f.Book.CloseAnimationFinished(); f.Flow.Tick(); f.Flow.Tick();
+        Check(f.Completed == 1 && f.Tutorial.Completes == 1 && f.Flow.RunningCount == 0,
+            "Duplicate close events or extra frames cannot advance twice.");
+    }
+
+    private static void RepeatInspectionIsIdempotent()
+    {
+        Fixture f = new Fixture();
+        Check(f.Begin(), "First inspection begins review.");
+        TutorialSequence original = f.Tutorial.Active;
+        for (int repeat = 0; repeat < 4; repeat++)
+            Check(f.Begin(), "Repeated matching inspection is accepted without unavailable result.");
+        Check(f.Tutorial.Active == original && f.Tutorial.Starts == 1 && f.Tutorial.Queued.Count == 0,
+            "Repeated inspection never replaces or queues the pending tutorial.");
+        Check(f.Book.CloseSubscribers == 1 && f.Flow.RunningCount == 1 && f.Completed == 0 && f.Failed == 0,
+            "Repeated inspection keeps the single original callback/subscription and does not advance.");
+        f.Open();
+        Check(f.Begin() && f.Tutorial.CurrentStepIndex == 1, "Repeat after opening preserves current review progress.");
+        f.Finish();
+        Check(f.Completed == 1 && f.Failed == 0, "All repeated inspections still yield one completion.");
+    }
+
+    private static void RejectsCallbackAndIdentityHijacking()
+    {
+        Fixture f = new Fixture();
+        int hijacked = 0;
+        Action replacement = () => hijacked++;
+        Check(f.Begin(), "Original owner review starts.");
+        Check(!f.Flow.TryReviewAlmanac("another-step", f.Done, f.Unavailable), "Different review ID cannot steal active session.");
+        Check(!f.Flow.TryReviewAlmanac(ReviewId, replacement, f.Unavailable), "Different completion callback cannot steal same-ID session.");
+        Check(!f.Flow.TryReviewAlmanac(ReviewId, f.Done, replacement), "Different unavailable callback cannot steal same-ID session.");
+        Check(f.Tutorial.Starts == 1 && f.Book.CloseSubscribers == 1, "Rejected callers do not add tutorials/handlers.");
+        f.Open(); f.Finish();
+        Check(f.Completed == 1 && hijacked == 0 && f.Failed == 0, "Only original callback receives genuine completion.");
+    }
+
+    private static void RejectsOtherProfileAndVisitors()
+    {
+        Fixture f = new Fixture();
+        Check(f.Begin(), "Profile-owned review starts.");
+        f.Save.CurrentData = new PlayerData();
+        Check(!f.Begin(), "Same review/delegates on another profile cannot reuse the session.");
+        f.Flow.Tick();
+        Check(f.Completed == 0 && f.Failed == 1 && f.Tutorial.Completes == 0,
+            "Profile change cancels without completing story progress.");
+        Check(f.Book.CloseSubscribers == 0 && Field<string>(f.Flow, "activeReviewId") == null,
+            "Profile change releases reader and pending identity.");
+        f.Book.CloseAnimationFinished(); f.Flow.Tick();
+        Check(f.Failed == 1 && f.Completed == 0, "Stale close after profile switch cannot fire twice.");
+
+        f = new Fixture();
+        FusionConnectionManager.Instance = new FusionConnectionManager { IsGuestSaveProtected = true };
+        Check(!f.Begin() && f.Tutorial.Starts == 0 && f.Book.CloseSubscribers == 0, "Protected visitor cannot start host story review.");
+        FusionConnectionManager.Instance.IsGuestSaveProtected = false;
+        Check(f.Begin(), "Unprotected local player can begin.");
+        f.Open();
+        FusionConnectionManager.Instance.IsGuestSaveProtected = true;
+        f.Book.CloseAnimationFinished(); f.Flow.Tick();
+        Check(f.Failed == 1 && f.Completed == 0 && f.Tutorial.Completes == 0,
+            "Becoming a visitor during the review cannot advance/save host story.");
+    }
+
+    private static void CancellationIsSilentAndRetryable()
+    {
+        Fixture f = new Fixture();
+        Check(f.Begin(), "Cancellable review starts.");
+        TutorialSequence original = f.Tutorial.Active;
+        f.Open(); f.Flow.Cancel();
+        Check(f.Book.CloseSubscribers == 0 && f.Flow.RunningCount == 0, "Cancel unsubscribes and stops the coroutine.");
+        Check(f.Tutorial.Cancels == 1 && original.gameObject.Destroyed, "Cancel removes its presentation without completion.");
+        Check(Field<string>(f.Flow, "activeReviewId") == null && f.Completed == 0 && f.Failed == 0,
+            "Explicit cancel clears identity and invokes neither result callback.");
+        f.Finish(); f.Flow.Cancel();
+        Check(f.Completed == 0 && f.Failed == 0 && f.Tutorial.Completes == 0 && f.Tutorial.Cancels == 1,
+            "Late events and double cancellation are harmless.");
+        f.Book.IsOpenAndReady = false;
+        Check(f.Begin() && f.Tutorial.Starts == 2 && f.Book.CloseSubscribers == 1,
+            "Cancelled session may restart fresh with one handler.");
+        typeof(NPCOrderedLearningFlow).GetMethod("OnDisable", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(f.Flow, null);
+        Check(f.Book.CloseSubscribers == 0 && f.Flow.RunningCount == 0 && f.Tutorial.Cancels == 2,
+            "Disable/teardown runs the same silent cancellation.");
+    }
+
+    private static void PriorityTutorialCannotCompleteReview()
+    {
+        Fixture f = new Fixture();
+        Check(f.Begin(), "Review before tab introduction starts.");
+        TutorialSequence original = f.Tutorial.Active;
+        TutorialSequence tab = new GameObject("Lessons Tab").AddComponent<TutorialSequence>();
+        tab.lessonName = "tab-guide";
+        f.Tutorial.Resume(tab);
+        f.Open(); f.Finish();
+        Check(f.Completed == 0 && f.Tutorial.Completes == 0, "Book visit during priority tab guide is remembered without completing that other guide.");
+        f.Tutorial.Resume(original); f.Flow.Tick();
+        Check(f.Completed == 1 && f.Tutorial.Completed.Count == 1 && f.Tutorial.Completed[0] == LessonId,
+            "Original review completes once after modal guide yields ownership.");
+    }
+
+    private static void QueuedReviewTracksARealBookVisit()
+    {
+        Fixture f = new Fixture();
+        TutorialSequence previous = new GameObject("Earlier tutorial").AddComponent<TutorialSequence>();
+        f.Tutorial.Active = previous;
+        Check(f.Begin(), "Review may queue behind an existing tutorial.");
+        Check(f.Tutorial.Queued.Count == 1 && f.Tutorial.Active == previous, "Queue does not replace the original tutorial.");
+        TutorialSequence queued = f.Tutorial.Queued[0];
+        f.Open(); f.Finish();
+        Check(f.Completed == 0 && f.Tutorial.Completes == 0, "Actual review cannot accidentally finish the prior tutorial.");
+        f.Tutorial.Resume(queued); f.Flow.Tick();
+        Check(f.Completed == 1 && f.Tutorial.Completes == 1, "Remembered genuine book visit finishes when its review becomes active.");
+    }
+
+    private static void CompletedReviewIsNotReplayed()
+    {
+        Fixture f = new Fixture();
+        f.Save.CurrentData.completedLessons.Add(LessonId);
+        Check(f.Begin() && f.Completed == 1, "Previously saved review continues immediately.");
+        Check(f.Tutorial.Starts == 0 && f.Book.CloseSubscribers == 0 && f.Flow.RunningCount == 0,
+            "Saved completion does not create another tutorial/routine/subscription.");
+    }
+
+    private static void InvalidAndUnavailableInputsStayClosed()
+    {
+        Fixture f = new Fixture();
+        Check(!f.Flow.TryReviewAlmanac("", f.Done), "Missing review ID rejects.");
+        Check(!f.Flow.TryReviewAlmanac("  ", f.Done), "Whitespace review ID rejects.");
+        Check(!f.Flow.TryReviewAlmanac(ReviewId, null), "Null continuation rejects rather than creating unowned pending session.");
+        f.Flow.isActiveAndEnabled = false;
+        Check(!f.Begin(), "Disabled flow rejects.");
+        f.Flow.isActiveAndEnabled = true;
+        AlmanacManager.Instance = null;
+        Check(!f.Begin(), "Missing Almanac rejects.");
+        AlmanacManager.Instance = f.Book; TutorialManager.Instance = null;
+        Check(!f.Begin(), "Missing tutorial presentation rejects.");
+        TutorialManager.Instance = f.Tutorial; PlayerDataManager.Instance = null;
+        Check(!f.Begin(), "Missing player-data manager rejects.");
+        PlayerDataManager.Instance = f.Save; f.Save.CurrentData = null;
+        Check(!f.Begin(), "Missing current profile rejects before opening any review.");
+        Check(f.Completed == 0 && f.Failed == 0 && f.Book.CloseSubscribers == 0,
+            "Rejected starts produce no callbacks or subscriber leaks.");
+
+        f = new Fixture();
+        Check(f.Flow.TryReviewAlmanac("generic", f.Done), "Generic review uses compatible default subject.");
+        Check(f.Tutorial.Active.tutorialSteps[0].message.Contains("newly recorded entry"), "Default wording remains valid for other NPC phases.");
+        f.Flow.Cancel();
+        Check(f.Flow.TryReviewAlmanac("blank-subject", f.Done, reviewSubject: "  "), "Empty custom subject remains supported.");
+        Check(f.Tutorial.Active.tutorialSteps[0].message.Contains("newly recorded entry"), "Blank custom subject falls back to readable wording.");
+    }
+
+    private static void LessonIntroductionOwnershipIsPreserved()
+    {
+        Fixture f = new Fixture();
+        LessonData lesson = new LessonData();
+        Check(f.Flow.TryShowLesson(lesson, f.Done, f.Unavailable), "Existing ordered lesson still opens.");
+        Check(f.Reader.OpenedSubscribers == 1 && f.Reader.ClosedSubscribers == 1, "Ordered lesson owns one open/close pair.");
+        Check(!f.Begin(), "Pending lesson cannot be replaced by review request.");
+        f.Reader.RaiseClosed(new LessonData());
+        Check(f.Completed == 0 && f.Failed == 0, "Unrelated lesson close cannot complete owned introduction.");
+        f.Reader.CloseLesson();
+        Check(f.Completed == 1 && f.Reader.OpenedSubscribers == 0 && f.Reader.ClosedSubscribers == 0,
+            "Owned lesson completes once and clears handlers before continuation.");
+        f.Reader.RaiseClosed(lesson);
+        Check(f.Completed == 1, "Repeated old lesson event cannot advance again.");
+        Check(f.Begin(), "Review can start after the introduction completes.");
+        f.Flow.Cancel();
+
+        f = new Fixture();
+        Check(f.Flow.TryShowLesson(lesson, f.Done, f.Unavailable), "Second lesson introduction starts.");
+        f.Reader.ShowLesson(new LessonData());
+        Check(f.Failed == 1 && f.Completed == 0 && f.Reader.ClosedSubscribers == 0,
+            "Replacing owned lesson reports unavailable without advancing.");
+    }
+
+    private static void CompletionCanStartNextReview()
+    {
+        Fixture f = new Fixture();
+        Action next = () => f.Completed += 10;
+        bool nextStarted = false;
+        f.Done = () =>
+        {
+            f.Completed++;
+            nextStarted = f.Flow.TryReviewAlmanac("second-review", next);
+        };
+        Check(f.Begin(), "Chained completion starts first review.");
+        f.Open(); f.Finish();
+        Check(nextStarted && f.Completed == 1 && f.Book.CloseSubscribers == 1 && f.Flow.RunningCount == 1,
+            "Completion callback may safely start next review without stale identity/handler cleanup cancelling it.");
+        f.Open(); f.Finish();
+        Check(f.Completed == 11 && f.Tutorial.Completes == 2 && f.Book.CloseSubscribers == 0,
+            "Chained review remains independent and completes exactly once.");
+    }
+
+    private static T Field<T>(object owner, string name) =>
+        (T)owner.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic).GetValue(owner);
+    private static void Check(bool condition, string message)
+    { checks++; if (!condition) throw new InvalidOperationException($"Check {checks}: {message}"); }
+}

@@ -10544,7 +10544,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4294957465
   m_fontColor: {r: 0.6, g: 0.85, b: 1, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -123340,10 +123340,8 @@ MonoBehaviour:
     OnStepStart:
       m_PersistentCalls:
         m_Calls: []
-  - message: 'Use the <b><#E09500>RIGHT SIDE OF THE SCREEN</color></b> to look around
+  - message: Use the <b><#E09500>RIGHT SIDE OF THE SCREEN</color></b> to look around
       and adjust your view.
-
-'
     screenPosition: 0
     showNextButton: 0
     canSkip: 0
@@ -123426,7 +123424,7 @@ MonoBehaviour:
     OnStepStart:
       m_PersistentCalls:
         m_Calls: []
-  - message: Follow the <b><#E09500>TRACKS</color></b> ahead.
+  - message: Follow the <b><#E09500>STONE PATH</color></b> ahead.
     screenPosition: 1
     showNextButton: 0
     canSkip: 0
@@ -123458,9 +123456,8 @@ MonoBehaviour:
             m_StringArgument: 
             m_BoolArgument: 1
           m_CallState: 2
-  - message: 'You''ve arrived at <b><#E09500>Professor Bhan''s House</color></b>.
-
-'
+  - message: You've arrived at <b><#E09500>Professor Bhan's House</color></b>. Approach
+      the front door and knock.
     screenPosition: 1
     showNextButton: 0
     canSkip: 0
@@ -123478,7 +123475,7 @@ MonoBehaviour:
     OnStepStart:
       m_PersistentCalls:
         m_Calls: []
-  - message: Go inside the <#E09500><b>HOUSE</b></color>
+  - message: Go inside the <b><#E09500>HOUSE</color></b>.
     screenPosition: 1
     showNextButton: 0
     canSkip: 0
@@ -132275,6 +132272,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 2306985498166982869, guid: 155a7d9fae0ec3841aa7eb421f234c43,
         type: 3}
+      propertyPath: restartGuidedTutorialOnFailure
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2306985498166982869, guid: 155a7d9fae0ec3841aa7eb421f234c43,
+        type: 3}
       propertyPath: buildSiteVisualRoots.Array.size
       value: 6
       objectReference: {fileID: 0}
@@ -132499,6 +132501,10 @@ PrefabInstance:
         type: 3}
       insertIndex: -1
       addedObject: {fileID: 1772101215}
+    - targetCorrespondingSourceObject: {fileID: 7148531682003080033, guid: 155a7d9fae0ec3841aa7eb421f234c43,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1772101220}
   m_SourcePrefab: {fileID: 100100000, guid: 155a7d9fae0ec3841aa7eb421f234c43, type: 3}
 --- !u!1 &262623510 stripped
 GameObject:
@@ -161653,6 +161659,8 @@ MonoBehaviour:
       materialButtonLabel: 
       quiz: {fileID: 0}
       quizStepId: 
+      lesson: {fileID: 0}
+      reviewStepId: 
     - stepType: 0
       dialogue:
         name: Silas
@@ -161666,6 +161674,8 @@ MonoBehaviour:
       materialButtonLabel: 
       quiz: {fileID: 0}
       quizStepId: 
+      lesson: {fileID: 0}
+      reviewStepId: 
     dialoguePrompt: Talk to Silas
     playDialogueOnArrival: 1
     repeatDialogue: 0
@@ -177598,7 +177608,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4294957465
   m_fontColor: {r: 0.6, g: 0.85, b: 1, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -190206,9 +190216,9 @@ RectTransform:
   m_Father: {fileID: 1027040822}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 0}
+  m_AnchorMax: {x: 1, y: 1}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 0, y: 0}
+  m_SizeDelta: {x: -229.41376, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &383581553
 MonoBehaviour:
@@ -198372,6 +198382,7 @@ MonoBehaviour:
   requiredNPCPhaseIndex: 1
   nextNPCPhaseIndex: 2
   completionSaveKey: 
+  requireAlmanacReviewBeforeAdvance: 0
 --- !u!1 &396259004
 GameObject:
   m_ObjectHideFlags: 0
@@ -300273,7 +300284,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 
+  m_text: Select...
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -306566,7 +306577,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 
+  m_text: Select...
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -311106,6 +311117,7 @@ MonoBehaviour:
   fastTravelTarget: {fileID: 2102694139}
   advancesTutorial: 1
   onEnterBuildModeTutorial: {fileID: 0}
+  restartGuidedTutorialOnFailure: 1
   enableSimulationLesson: 0
   simulationLesson: {fileID: 0}
   startingAnchors:
@@ -325418,7 +325430,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4294957465
   m_fontColor: {r: 0.6, g: 0.85, b: 1, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -329518,11 +329530,10 @@ MonoBehaviour:
     phaseDialogue:
       name: Professor Bhan
       sentences:
-      - There you are, {PlayerName}
+      - There you are, {PlayerName}.
       - Are you ready to learn the basics?
-      - Before you start building, I want you to understand what will cross your
-        bridge.
-      - Follow me to the Vehicle.
+      - Before we begin construction, there's something I want you to inspect.
+      - Come with me.
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 0
@@ -329587,7 +329598,7 @@ MonoBehaviour:
     phaseDialogue:
       name: Professor Bhan
       sentences:
-      - Inspect the supply cart.
+      - Inspect the <b><#E09500>vehicle</color></b>.
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 1
@@ -329657,6 +329668,8 @@ MonoBehaviour:
       dialogue:
         name: Professor Bhan
         sentences:
+        - Now that you've learned about live loads, let's head to the construction
+          area.
         - Here we are, {PlayerName}.
         - This is where you'll build your first bridge.
         - The <b><#E09500>Blueprint</color></b> shows the area that needs to be connected.
@@ -329666,40 +329679,96 @@ MonoBehaviour:
       materialButtonLabel: 
       quiz: {fileID: 0}
       quizStepId: 
-    - stepType: 1
+      lesson: {fileID: 0}
+      reviewStepId: 
+    - stepType: 0
       dialogue:
         name: Professor Bhan
         sentences:
         - First, you'll be using a <b><#E09500>Wood Road</color></b> for the bridge
           deck.
-        - Used as the roadway of the bridge.
-        - Vehicles and other loads travel across this component.
-      material: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
-      materialButtonLabel: 
-      quiz: {fileID: 0}
-      quizStepId: 
-    - stepType: 1
-      dialogue:
-        name: Professor Bhan
-        sentences:
-        - You'll also need <b><#E09500>Wood Supports</color></b> to hold up the bridge.
-      material: {fileID: 11400000, guid: b98aa9ba752ac28449feebc76f256bf2, type: 2}
-      materialButtonLabel: 
-      quiz: {fileID: 0}
-      quizStepId: 
-    - stepType: 0
-      dialogue:
-        name: Professor Bhan
-        sentences:
-        - Supports the bridge structure and transfers loads toward the ground.
-        - These are the <b><#E09500>materials</color></b> available for this project.
-        - Use them carefully and make sure your bridge can safely carry the <b><#E09500>required
-          load</color></b>.
-        - When you're ready, follow me to introduce the <b><#E09500>contract</color></b>.
       material: {fileID: 0}
       materialButtonLabel: 
       quiz: {fileID: 0}
       quizStepId: 
+      lesson: {fileID: 0}
+      reviewStepId: 
+    - stepType: 1
+      dialogue:
+        name: 
+        sentences: []
+      material: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
+      materialButtonLabel: CONTINUE
+      quiz: {fileID: 0}
+      quizStepId: 
+      lesson: {fileID: 0}
+      reviewStepId: 
+    - stepType: 0
+      dialogue:
+        name: Professor Bhan
+        sentences:
+        - You'll also need <b><#E09500>Wood Piers</color></b> to support the bridge.
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      lesson: {fileID: 0}
+      reviewStepId: 
+    - stepType: 1
+      dialogue:
+        name: 
+        sentences: []
+      material: {fileID: 11400000, guid: b98aa9ba752ac28449feebc76f256bf2, type: 2}
+      materialButtonLabel: CONTINUE
+      quiz: {fileID: 0}
+      quizStepId: 
+      lesson: {fileID: 0}
+      reviewStepId: 
+    - stepType: 0
+      dialogue:
+        name: Professor Bhan
+        sentences:
+        - These are the <b><#E09500>materials</color></b> available for this project.
+        - Use them carefully and make sure your bridge can safely carry the <b><#E09500>required
+          load</color></b>.
+        - But before I give you your first contract, there's something you should
+          understand about the type of bridge you'll be constructing.
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      lesson: {fileID: 0}
+      reviewStepId: 
+    - stepType: 0
+      dialogue:
+        name: Professor Bhan
+        sentences:
+        - For your first project, you'll be constructing a <b><#E09500>Beam Bridge</color></b>.
+        - A beam bridge is one of the simplest types of bridges.
+        - It uses a horizontal structure to carry loads toward its supports.
+        - When a vehicle crosses, its weight pushes down on the bridge deck.
+        - The beam resists that load through bending and transfers the forces toward
+          its supports.
+        - Those supports then carry the forces toward the ground.
+        - That's why a beam bridge needs both a properly supported roadway and structural
+          members strong enough to carry the required load.
+        - <b><#E09500>Remember, the bridge must remain stable while the vehicle crosses</color></b>.
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      lesson: {fileID: 0}
+      reviewStepId: 
+    - stepType: 3
+      dialogue:
+        name: 
+        sentences: []
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      lesson: {fileID: 11400000, guid: 6cec48d1e150c37488ff35731509077b, type: 2}
+      reviewStepId: 
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 0
     repeatDialogue: 0
@@ -329836,7 +329905,109 @@ MonoBehaviour:
       - Even without a vehicle or a person crossing it, the bridge itself still has
         weight.
       - That weight is called dead load.
-    optionalDialogueSequence: []
+    optionalDialogueSequence:
+    - stepType: 4
+      dialogue:
+        name: 
+        sentences: []
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      lesson: {fileID: 0}
+      reviewStepId: training-bridge-record-review
+    - stepType: 0
+      dialogue:
+        name: Professor Bhan
+        sentences:
+        - Keep that record with you, {PlayerName}.
+        - You've now seen how a beam bridge carries a vehicle across a gap.
+        - Every project you complete from this point forward will become part of
+          your engineering journey.
+        - But before we move on, there's one more thing I want you to notice about
+          the bridge you just built.
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      lesson: {fileID: 0}
+      reviewStepId: 
+    - stepType: 0
+      dialogue:
+        name: Professor Bhan
+        sentences:
+        - Good work, {PlayerName}.
+        - Your bridge is standing, and it can carry the required <b><#E09500>Live
+          Load</color></b>.
+        - But look at your bridge now.
+        - The vehicle has already crossed, yet the bridge is still carrying weight.
+        - That's because the roadway and supports have weight of their own.
+        - This permanent weight is called <b><#E09500>Dead Load</color></b>.
+        - Even when no vehicles or people are crossing, a bridge must support its
+          own weight.
+        - And when a vehicle enters, the bridge must carry both its dead load and
+          the additional live load.
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      lesson: {fileID: 0}
+      reviewStepId: 
+    - stepType: 3
+      dialogue:
+        name: 
+        sentences: []
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      lesson: {fileID: 11400000, guid: f11fca6bde742734b8ad4bf6a2ca5621, type: 2}
+      reviewStepId: 
+    - stepType: 0
+      dialogue:
+        name: Professor Bhan
+        sentences:
+        - Before we move on, there's one more thing you need to complete.
+        - You've learned about <b><#E09500>Live Load</color></b>, <b><#E09500>Dead
+          Load</color></b>, and the basics of a <b><#E09500>Beam Bridge</color></b>.
+        - Now it's time to see how much you've learned.
+        - I've prepared a short <b><#E09500>quiz</color></b> for you.
+        - But don't worry. You can review your <b><#E09500>lessons in the Almanac</color></b>
+          before starting.
+        - Once you begin the quiz, you won't be able to leave or access your lessons
+          until you've submitted your answers.
+        - Take your time and review everything before you begin.
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      lesson: {fileID: 0}
+      reviewStepId: 
+    - stepType: 2
+      dialogue:
+        name: 
+        sentences: []
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 11400000, guid: 1cec9a4faf73dee46bee94850c4598e5, type: 2}
+      quizStepId: beam-bridge-engineering-assessment-v1
+      lesson: {fileID: 0}
+      reviewStepId: 
+    - stepType: 0
+      dialogue:
+        name: Professor Bhan
+        sentences:
+        - Now you know that a bridge carries both the loads placed on it and its
+          own weight.
+        - Keep that in mind when designing your structures.
+        - Follow me.
+        - I have another <b><#E09500>contract</color></b> waiting for you.
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      lesson: {fileID: 0}
+      reviewStepId: 
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 0
     repeatDialogue: 0
@@ -329857,34 +330028,10 @@ MonoBehaviour:
       phaseId: 
     onDialogueFinished:
       m_PersistentCalls:
-        m_Calls:
-        - m_Target: {fileID: 650395277}
-          m_TargetAssemblyTypeName: NPCPhaseAction, Assembly-CSharp
-          m_MethodName: MoveToSelectedPhase
-          m_Mode: 1
-          m_Arguments:
-            m_ObjectArgument: {fileID: 0}
-            m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-            m_IntArgument: 0
-            m_FloatArgument: 0
-            m_StringArgument: 
-            m_BoolArgument: 0
-          m_CallState: 2
-        - m_Target: {fileID: 396220517}
-          m_TargetAssemblyTypeName: LessonTrigger, Assembly-CSharp
-          m_MethodName: ShowLesson
-          m_Mode: 1
-          m_Arguments:
-            m_ObjectArgument: {fileID: 0}
-            m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-            m_IntArgument: 0
-            m_FloatArgument: 0
-            m_StringArgument: 
-            m_BoolArgument: 0
-          m_CallState: 2
+        m_Calls: []
     onDialogueFinishedPhaseMove:
-      npc: {fileID: 0}
-      phaseId: 
+      npc: {fileID: 650395270}
+      phaseId: Beam
     onNPCInteracted:
       m_PersistentCalls:
         m_Calls: []
@@ -329910,7 +330057,7 @@ MonoBehaviour:
     linkedCargo: {fileID: 0}
     cinematicAfterOffer: {fileID: 0}
     phaseDialogue:
-      name: 
+      name: Professor Bhan
       sentences: []
     optionalDialogueSequence:
     - stepType: 0
@@ -329918,25 +330065,108 @@ MonoBehaviour:
         name: Professor Bhan
         sentences:
         - Well done, {PlayerName}.
-        - You've completed your first bridge using a simple <b><#E09500>beam bridge</color></b>.
-        - You also learned that the bridge itself has weight, while the vehicle introduces
-          a <b><#E09500>live load</color></b>.
+        - You've completed your first bridge using a simple <b><#E09500>Beam Bridge</color></b>.
+        - You also learned that the bridge itself has weight, while the cart introduces
+          a <b><#E09500>Live Load</color></b>.
         - Now, we're going to make the structure a little more interesting.
         - This time, you'll learn how structural members can work together.
-        - Before we begin, there's <b><#E09500>new material</color></b> you'll need
-          for this project.
+        - Before we begin, there's a <b><#E09500>new material</color></b> you'll
+          need for this project.
       material: {fileID: 0}
       materialButtonLabel: 
       quiz: {fileID: 0}
       quizStepId: 
-    - stepType: 1
+      lesson: {fileID: 0}
+      reviewStepId: 
+    - stepType: 0
       dialogue:
         name: Professor Bhan
-        sentences: []
-      material: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
+        sentences:
+        - For this project, you'll have access to <b><#E09500>Wood Beams</color></b>.
+        - Unlike the roadway, which provides the surface for crossing, these beams
+          can be connected to form structural arrangements that help support the
+          bridge.
+        - You'll use them to construct your first truss structure.
+      material: {fileID: 0}
       materialButtonLabel: 
       quiz: {fileID: 0}
       quizStepId: 
+      lesson: {fileID: 0}
+      reviewStepId: 
+    - stepType: 1
+      dialogue:
+        name: 
+        sentences: []
+      material: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
+      materialButtonLabel: CONTINUE
+      quiz: {fileID: 0}
+      quizStepId: 
+      lesson: {fileID: 0}
+      reviewStepId: 
+    - stepType: 0
+      dialogue:
+        name: Professor Bhan
+        sentences:
+        - In your first tutorial, you built a beam bridge.
+        - Now, you'll be constructing another type of bridge.
+        - It's called a <b><#E09500>Truss Bridge</color></b>.
+        - A truss bridge uses connected structural members, often arranged in triangular
+          patterns, to carry loads toward its supports.
+        - These triangular arrangements help the structure maintain its shape when
+          forces act on it.
+        - In an ideal truss, the members primarily carry pulling or pushing forces.
+        - You'll learn more about those forces in your later projects.
+        - For now, remember that <b><#E09500>the arrangement and connections of the
+          members help the bridge carry loads safely</color></b>.
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      lesson: {fileID: 0}
+      reviewStepId: 
+    - stepType: 3
+      dialogue:
+        name: 
+        sentences: []
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      lesson: {fileID: 11400000, guid: d20ed6bd4789d1a458db9f4d1528a3d8, type: 2}
+      reviewStepId: 
+    - stepType: 0
+      dialogue:
+        name: Professor Bhan
+        sentences:
+        - There's another concept you need to understand before building this bridge.
+        - It's called <b><#E09500>Equilibrium</color></b>.
+        - Equilibrium means that the forces and turning effects acting on a structure
+          are balanced.
+        - For example, when a vehicle crosses a bridge, its weight pushes downward.
+        - The supports provide upward reactions that help balance the load.
+        - The connected truss members also carry forces throughout the structure.
+        - For a bridge to remain in equilibrium as the vehicle crosses, the forces
+          and moments acting on it must balance.
+        - But remember, <b><#E09500>equilibrium alone doesn't mean a bridge is strong
+          enough</color></b>.
+        - Its structural members must also be capable of safely carrying the forces
+          acting on them.
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      lesson: {fileID: 0}
+      reviewStepId: 
+    - stepType: 3
+      dialogue:
+        name: 
+        sentences: []
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      lesson: {fileID: 11400000, guid: 2b388d22c8e1f244288b5309acf003f3, type: 2}
+      reviewStepId: 
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 0
     repeatDialogue: 1
@@ -329944,7 +330174,7 @@ MonoBehaviour:
     unlockFeatureIdAfterDialogue: 
     featureUnlockDisplayName: 
     featureUnlockIcon: {fileID: 0}
-    showFeatureCollectPopup: 1
+    showFeatureCollectPopup: 0
     materialIntroduction: {fileID: 0}
     materialIntroductions: []
     materialIntroductionButtonLabel: GOT IT
@@ -329998,9 +330228,8 @@ MonoBehaviour:
     linkedCargo: {fileID: 0}
     cinematicAfterOffer: {fileID: 0}
     phaseDialogue:
-      name: 
-      sentences:
-      - fdsadsdsdasd
+      name: Professor Bhan
+      sentences: []
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 1
@@ -330052,12 +330281,49 @@ MonoBehaviour:
     cinematicAfterOffer: {fileID: 0}
     phaseDialogue:
       name: Professor Bhan
-      sentences:
-      - Follow me
-    optionalDialogueSequence: []
+      sentences: []
+    optionalDialogueSequence:
+    - stepType: 0
+      dialogue:
+        name: Professor Bhan
+        sentences:
+        - Before we move on, complete your <b><#E09500>Truss Bridge quiz</color></b>.
+        - You can review your <b><#E09500>lessons in the Almanac</color></b> before
+          starting.
+        - Take your time. Once you begin, submit all your answers to finish the assessment.
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      lesson: {fileID: 0}
+      reviewStepId: 
+    - stepType: 2
+      dialogue:
+        name: 
+        sentences: []
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 11400000, guid: 6464b20934364f23aea2e987b7e14d6e, type: 2}
+      quizStepId: truss-bridge-engineering-assessment-v1
+      lesson: {fileID: 0}
+      reviewStepId: 
+    - stepType: 0
+      dialogue:
+        name: Professor Bhan
+        sentences:
+        - From here on, things will be a little different.
+        - You'll begin working on <b><#E09500>actual construction projects</color></b>.
+        - And for your first project, I'll be guiding you one last time.
+        - Come with me.
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      lesson: {fileID: 0}
+      reviewStepId: 
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 1
-    repeatDialogue: 0
+    repeatDialogue: 1
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
     featureUnlockDisplayName: 
@@ -364164,7 +364430,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 
+  m_text: Select...
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -392025,9 +392291,7 @@ MonoBehaviour:
   dialogue:
     name: Professor Bhan
     sentences:
-    - 'Come in! I''ve been expecting someone today.
-
-'
+    - Come in! I've been expecting someone today.
   delayAfterKnock: 1
   advancesTutorial: 1
   onEnterDoor:
@@ -401883,7 +402147,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4294957465
   m_fontColor: {r: 0.6, g: 0.85, b: 1, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -417875,7 +418139,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4294957465
   m_fontColor: {r: 0.6, g: 0.85, b: 1, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -499300,7 +499564,8 @@ MonoBehaviour:
   advanceNPC: {fileID: 650395270}
   requiredNPCPhaseIndex: 1
   nextNPCPhaseIndex: 2
-  completionSaveKey: 
+  completionSaveKey: Bhan_LiveLoad_Inspection
+  requireAlmanacReviewBeforeAdvance: 1
 --- !u!1 &993289193
 GameObject:
   m_ObjectHideFlags: 0
@@ -530255,7 +530520,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4294957465
   m_fontColor: {r: 0.6, g: 0.85, b: 1, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -542956,7 +543221,8 @@ MonoBehaviour:
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
   tutorialSteps:
-  - message: Welcome to <b><#E09500>BUILD MODE</color></b>
+  - message: Welcome to <b><#E09500>Build Mode!</color></b> In this tutorial, you'll
+      learn the basic tools needed to design, build, and test your first bridge.
     screenPosition: 0
     showNextButton: 1
     canSkip: 0
@@ -542986,8 +543252,8 @@ MonoBehaviour:
             m_StringArgument: 
             m_BoolArgument: 0
           m_CallState: 2
-  - message: In this tutorial, you'll learn the basic tools needed to <b><#E09500>design,
-      build, and test</color></b> your first bridge.
+  - message: Your objective is to connect the <b><#E09500>two red anchors</color></b>
+      using the available materials. First, learn how to move the build camera.
     screenPosition: 0
     showNextButton: 1
     canSkip: 0
@@ -543109,7 +543375,9 @@ MonoBehaviour:
             m_StringArgument: 
             m_BoolArgument: 0
           m_CallState: 2
-  - message: Tap <b><#E09500>Camera Button</color></b> to Reset Camera Tilt
+  - message: Use the <b><#E09500>2D Camera</color></b> for a clear side view. It
+      helps you inspect the structure and align its components. Tap the <b><#E09500>Camera
+      Button</color></b> to reset the camera tilt.
     screenPosition: 0
     showNextButton: 0
     canSkip: 0
@@ -543151,7 +543419,8 @@ MonoBehaviour:
             m_StringArgument: 
             m_BoolArgument: 0
           m_CallState: 2
-  - message: 'At the top is your <b><#E09500>Budget bar.</color></b> '
+  - message: This is the current <b><#E09500>construction cost</color></b>. It displays
+      the total cost of the materials currently used in your bridge.
     screenPosition: 0
     showNextButton: 1
     canSkip: 0
@@ -543161,7 +543430,7 @@ MonoBehaviour:
     stepWaypoints: []
     worldHighlightObject: {fileID: 0}
     usePointer: 1
-    pointerTarget: {fileID: 2179128656779404698}
+    pointerTarget: {fileID: 6233299216602909090}
     pointerOffset: {x: -90, y: 0}
     pointerRotation: -90
     advanceOnClick: 0
@@ -543169,8 +543438,8 @@ MonoBehaviour:
     OnStepStart:
       m_PersistentCalls:
         m_Calls: []
-  - message: It displays the <b><#E09500>total cost</color></b> of the materials
-      currently used in your bridge.
+  - message: Compare the construction cost with the <b><#E09500>budget progress bar</color></b>
+      to see how much of your available budget has been used and how much remains.
     screenPosition: 0
     showNextButton: 1
     canSkip: 0
@@ -543179,8 +543448,8 @@ MonoBehaviour:
     lockRun: 0
     stepWaypoints: []
     worldHighlightObject: {fileID: 0}
-    usePointer: 0
-    pointerTarget: {fileID: 3073814895538592204}
+    usePointer: 1
+    pointerTarget: {fileID: 4071215577206671052}
     pointerOffset: {x: -90, y: 0}
     pointerRotation: -90
     advanceOnClick: 0
@@ -543188,8 +543457,9 @@ MonoBehaviour:
     OnStepStart:
       m_PersistentCalls:
         m_Calls: []
-  - message: It shows how much of your <b><#E09500>available budget</color></b> has
-      already been used.
+  - message: This is the <b><#E09500>budget limit</color></b>. Stay within it to
+      complete the project. Using too many materials may prevent you from meeting
+      the contract requirements.
     screenPosition: 0
     showNextButton: 1
     canSkip: 0
@@ -543207,8 +543477,8 @@ MonoBehaviour:
     OnStepStart:
       m_PersistentCalls:
         m_Calls: []
-  - message: The <b><#E09500>Stress Indicator</color></b> shows how much force each
-      bridge member is carrying.
+  - message: The <b><#E09500>Stress Indicator</color></b> shows how close each bridge
+      member is to its allowable stress limit.
     screenPosition: 0
     showNextButton: 1
     canSkip: 0
@@ -543226,16 +543496,17 @@ MonoBehaviour:
     OnStepStart:
       m_PersistentCalls:
         m_Calls: []
-  - message: '<#FFFF00>Yellow = <b>Moderate Stress
+  - message: '<color=#25833D>Green = Safe</color>
 
-      <#FFA500> = <b>High Stress
+      <color=#9C7600>Yellow =
+      Moderate Stress</color>
 
-      <#FF0000>
-      Red = <b>Critical Stress
+      <color=#BD5E00>Orange = High Stress</color>
 
-      <#000000> Black = <b>Destroyed
+      <color=#B72D29>Red
+      = Critical Stress</color>
 
-'
+      <color=#252525>Black = Failure</color>'
     screenPosition: 0
     showNextButton: 1
     canSkip: 0
@@ -543253,27 +543524,11 @@ MonoBehaviour:
     OnStepStart:
       m_PersistentCalls:
         m_Calls: []
-  - message: At the bottom right you will see your <b><#E09500>tool selection panel</color></b>
+  - message: Open the <b><#E09500>Bridge Statistics</color></b> panel. It shows live
+      load, dead load, road length, member count, estimated capacity, efficiency,
+      and factor of safety.
     screenPosition: 0
-    showNextButton: 1
-    canSkip: 0
-    lockLook: 0
-    lockJump: 0
-    lockRun: 0
-    stepWaypoints: []
-    worldHighlightObject: {fileID: 0}
-    usePointer: 1
-    pointerTarget: {fileID: 4019740937743704945}
-    pointerOffset: {x: 0, y: 120}
-    pointerRotation: 180
-    advanceOnClick: 1
-    requiredAction: 0
-    OnStepStart:
-      m_PersistentCalls:
-        m_Calls: []
-  - message: First tool is the <b><#E09500>Bridge Stats Panel</color></b>
-    screenPosition: 0
-    showNextButton: 1
+    showNextButton: 0
     canSkip: 0
     lockLook: 0
     lockJump: 0
@@ -543284,17 +543539,58 @@ MonoBehaviour:
     pointerTarget: {fileID: 7744550474689266085}
     pointerOffset: {x: 0, y: 50}
     pointerRotation: 180
-    advanceOnClick: 1
+    advanceOnClick: 0
     requiredAction: 0
     OnStepStart:
       m_PersistentCalls:
-        m_Calls: []
-  - message: 'The <b><#E09500>Grid Button</color></b> turns the construction grid
-      ON or OFF.
-
-      It helps you align bridge components more accurately.'
+        m_Calls:
+        - m_Target: {fileID: 1085285849}
+          m_TargetAssemblyTypeName: BuildTutorialDirector, Assembly-CSharp
+          m_MethodName: PromptOpenStatistics
+          m_Mode: 0
+          m_Arguments:
+            m_ObjectArgument: {fileID: 0}
+            m_ObjectArgumentAssemblyTypeName: 
+            m_IntArgument: 0
+            m_FloatArgument: 0
+            m_StringArgument: 
+            m_BoolArgument: 0
+          m_CallState: 2
+  - message: Review the bridge information, then tap <b><#E09500>Bridge Statistics</color></b>
+      again to close the panel.
     screenPosition: 0
-    showNextButton: 1
+    showNextButton: 0
+    canSkip: 0
+    lockLook: 0
+    lockJump: 0
+    lockRun: 0
+    stepWaypoints: []
+    worldHighlightObject: {fileID: 0}
+    usePointer: 1
+    pointerTarget: {fileID: 7744550474689266085}
+    pointerOffset: {x: 0, y: 50}
+    pointerRotation: 180
+    advanceOnClick: 0
+    requiredAction: 0
+    OnStepStart:
+      m_PersistentCalls:
+        m_Calls:
+        - m_Target: {fileID: 1085285849}
+          m_TargetAssemblyTypeName: BuildTutorialDirector, Assembly-CSharp
+          m_MethodName: PromptCloseStatistics
+          m_Mode: 0
+          m_Arguments:
+            m_ObjectArgument: {fileID: 0}
+            m_ObjectArgumentAssemblyTypeName: 
+            m_IntArgument: 0
+            m_FloatArgument: 0
+            m_StringArgument: 
+            m_BoolArgument: 0
+          m_CallState: 2
+  - message: The <b><#E09500>Grid</color></b> turns the construction grid on or off
+      and helps align components accurately. Toggle it once to continue.
+    screenPosition: 0
+    showNextButton: 0
     canSkip: 0
     lockLook: 0
     lockJump: 0
@@ -543305,16 +543601,25 @@ MonoBehaviour:
     pointerTarget: {fileID: 8048478328173870837}
     pointerOffset: {x: 0, y: 50}
     pointerRotation: 180
-    advanceOnClick: 1
+    advanceOnClick: 0
     requiredAction: 0
     OnStepStart:
       m_PersistentCalls:
-        m_Calls: []
-  - message: 'This section contains the <b><#E09500>materials</color></b> available
+        m_Calls:
+        - m_Target: {fileID: 1085285849}
+          m_TargetAssemblyTypeName: BuildTutorialDirector, Assembly-CSharp
+          m_MethodName: PromptToggleGrid
+          m_Mode: 0
+          m_Arguments:
+            m_ObjectArgument: {fileID: 0}
+            m_ObjectArgumentAssemblyTypeName: 
+            m_IntArgument: 0
+            m_FloatArgument: 0
+            m_StringArgument: 
+            m_BoolArgument: 0
+          m_CallState: 2
+  - message: This section contains the <b><#E09500>materials</color></b> available
       for your current project.
-
-      Press and hold any <b><#E09500>material</color></b>
-      to inspect it:'
     screenPosition: 0
     showNextButton: 1
     canSkip: 0
@@ -543332,7 +543637,40 @@ MonoBehaviour:
     OnStepStart:
       m_PersistentCalls:
         m_Calls: []
-  - message: Let us start with the easiest Bridge first
+  - message: Press and hold any <b><#E09500>material</color></b> to inspect its name,
+      cost, mass, strength limit, maximum length, and type. On a computer, hover
+      over the material to inspect it.
+    screenPosition: 0
+    showNextButton: 0
+    canSkip: 0
+    lockLook: 0
+    lockJump: 0
+    lockRun: 0
+    stepWaypoints: []
+    worldHighlightObject: {fileID: 0}
+    usePointer: 1
+    pointerTarget: {fileID: 5050871518698669704}
+    pointerOffset: {x: 0, y: 120}
+    pointerRotation: 180
+    advanceOnClick: 0
+    requiredAction: 0
+    OnStepStart:
+      m_PersistentCalls:
+        m_Calls:
+        - m_Target: {fileID: 1085285849}
+          m_TargetAssemblyTypeName: BuildTutorialDirector, Assembly-CSharp
+          m_MethodName: PromptInspectMaterial
+          m_Mode: 0
+          m_Arguments:
+            m_ObjectArgument: {fileID: 0}
+            m_ObjectArgumentAssemblyTypeName: 
+            m_IntArgument: 0
+            m_FloatArgument: 0
+            m_StringArgument: 
+            m_BoolArgument: 0
+          m_CallState: 2
+  - message: You're ready to begin construction! Let's build your first <b><#E09500>Beam
+      Bridge</color></b>.
     screenPosition: 0
     showNextButton: 1
     canSkip: 0
@@ -543350,7 +543688,8 @@ MonoBehaviour:
     OnStepStart:
       m_PersistentCalls:
         m_Calls: []
-  - message: <b><#E09500>Beam Bridge</color></b>
+  - message: Your bridge must connect the <b><#E09500>two red anchors</color></b>.
+      Use the available materials to create a stable structure.
     screenPosition: 0
     showNextButton: 1
     canSkip: 0
@@ -543368,28 +543707,8 @@ MonoBehaviour:
     OnStepStart:
       m_PersistentCalls:
         m_Calls: []
-  - message: The simplest and oldest type of bridge, built using horizontal beams
-      for support.
-    screenPosition: 0
-    showNextButton: 1
-    canSkip: 0
-    lockLook: 0
-    lockJump: 0
-    lockRun: 0
-    stepWaypoints: []
-    worldHighlightObject: {fileID: 0}
-    usePointer: 0
-    pointerTarget: {fileID: 0}
-    pointerOffset: {x: 0, y: 20}
-    pointerRotation: 0
-    advanceOnClick: 0
-    requiredAction: 0
-    OnStepStart:
-      m_PersistentCalls:
-        m_Calls: []
-  - message: "These highlighted points are <b><#E09500>anchors</color></b>. Every
-      build location has anchors\u2014look for them first, because your bridge must
-      connect between them."
+  - message: These highlighted points are the <b><#E09500>red anchors</color></b>.
+      They mark the two ends that your bridge must connect.
     screenPosition: 0
     showNextButton: 1
     canSkip: 0
@@ -543431,7 +543750,7 @@ MonoBehaviour:
             m_StringArgument: 
             m_BoolArgument: 0
           m_CallState: 2
-  - message: Click the <b><#E09500>Wooden Road</color></b> material to begin.
+  - message: Select the <b><#E09500>Wood Road</color></b> material to begin.
     screenPosition: 0
     showNextButton: 0
     canSkip: 0
@@ -543486,9 +543805,8 @@ MonoBehaviour:
             m_StringArgument: 
             m_BoolArgument: 0
           m_CallState: 2
-  - message: "These highlighted points are <b><#E09500>anchors</color></b>. Every
-      build location has anchors\u2014look for them first, because your bridge must
-      connect between them."
+  - message: Start at the highlighted anchor and connect the roadway across the gap.
+      Follow the guide to place the <b><#E09500>Wood Road</color></b>.
     screenPosition: 0
     showNextButton: 1
     canSkip: 0
@@ -543530,8 +543848,8 @@ MonoBehaviour:
             m_StringArgument: 
             m_BoolArgument: 0
           m_CallState: 2
-  - message: Click the <b><#E09500>highlighted anchor</color></b> and drag across
-      the gap to build the road.
+  - message: Drag from the <b><#E09500>highlighted anchor</color></b> across the
+      gap to trace the guided roadway.
     screenPosition: 1
     showNextButton: 0
     canSkip: 0
@@ -543597,8 +543915,39 @@ MonoBehaviour:
             m_StringArgument: 
             m_BoolArgument: 0
           m_CallState: 2
-  - message: The road is too weak on its own. Click the <b><#E09500>Wooden Pier</color></b>
-      material for support.
+  - message: Great! The <b><#E09500>Wood Road</color></b> provides the surface that
+      vehicles use to cross the bridge.
+    screenPosition: 0
+    showNextButton: 1
+    canSkip: 0
+    lockLook: 0
+    lockJump: 0
+    lockRun: 0
+    stepWaypoints: []
+    worldHighlightObject: {fileID: 0}
+    usePointer: 0
+    pointerTarget: {fileID: 0}
+    pointerOffset: {x: 0, y: 80}
+    pointerRotation: 180
+    advanceOnClick: 0
+    requiredAction: 0
+    OnStepStart:
+      m_PersistentCalls:
+        m_Calls:
+        - m_Target: {fileID: 1085285849}
+          m_TargetAssemblyTypeName: BuildTutorialDirector, Assembly-CSharp
+          m_MethodName: LockAllUI
+          m_Mode: 0
+          m_Arguments:
+            m_ObjectArgument: {fileID: 0}
+            m_ObjectArgumentAssemblyTypeName: 
+            m_IntArgument: 0
+            m_FloatArgument: 0
+            m_StringArgument: 
+            m_BoolArgument: 0
+          m_CallState: 2
+  - message: Now select the <b><#E09500>Wood Pier</color></b>. Place it beneath the
+      road to provide structural support.
     screenPosition: 0
     showNextButton: 1
     canSkip: 0
@@ -543629,8 +543978,8 @@ MonoBehaviour:
             m_StringArgument: 
             m_BoolArgument: 0
           m_CallState: 2
-  - message: Click the <b><#E09500>Wooden Pier</color></b> material. Drag anywhere
-      and connect the pier to the <b><#E09500>existing point</color></b>.
+  - message: Follow the guide to place a <b><#E09500>Wood Pier</color></b> beneath
+      the roadway. Connect it to the existing road point.
     screenPosition: 0
     showNextButton: 0
     canSkip: 0
@@ -543672,8 +544021,8 @@ MonoBehaviour:
             m_StringArgument: 
             m_BoolArgument: 0
           m_CallState: 2
-  - message: The road is still too weak on its own. Click the <b><#E09500>Wooden
-      Pier</color></b> material for more support.
+  - message: Add the remaining <b><#E09500>Wood Pier</color></b> support shown by
+      the guide.
     screenPosition: 0
     showNextButton: 1
     canSkip: 0
@@ -543704,8 +544053,8 @@ MonoBehaviour:
             m_StringArgument: 
             m_BoolArgument: 0
           m_CallState: 2
-  - message: Click the <b><#E09500>Wooden Pier</color></b> material. Drag anywhere
-      and connect the pier to the <b><#E09500>existing point</color></b>.
+  - message: Trace the remaining guided <b><#E09500>Wood Pier</color></b> beneath
+      the roadway and connect it to the existing point.
     screenPosition: 0
     showNextButton: 0
     canSkip: 0
@@ -543747,8 +544096,41 @@ MonoBehaviour:
             m_StringArgument: 
             m_BoolArgument: 0
           m_CallState: 2
-  - message: Perfect! Click the <b><#E09500>Play</color></b> button to test your
-      bridge with gravity.
+  - message: <b><#E09500>BEAM BRIDGE COMPLETE!</color></b> Excellent! Your first
+      Beam Bridge is complete. You connected the anchors using a roadway and structural
+      supports. Now test whether it can carry the required load.
+    screenPosition: 0
+    showNextButton: 1
+    canSkip: 0
+    lockLook: 0
+    lockJump: 0
+    lockRun: 0
+    stepWaypoints: []
+    worldHighlightObject: {fileID: 0}
+    usePointer: 0
+    pointerTarget: {fileID: 0}
+    pointerOffset: {x: 0, y: 80}
+    pointerRotation: 180
+    advanceOnClick: 0
+    requiredAction: 0
+    OnStepStart:
+      m_PersistentCalls:
+        m_Calls:
+        - m_Target: {fileID: 1085285849}
+          m_TargetAssemblyTypeName: BuildTutorialDirector, Assembly-CSharp
+          m_MethodName: LockAllUI
+          m_Mode: 0
+          m_Arguments:
+            m_ObjectArgument: {fileID: 0}
+            m_ObjectArgumentAssemblyTypeName: 
+            m_IntArgument: 0
+            m_FloatArgument: 0
+            m_StringArgument: 
+            m_BoolArgument: 0
+          m_CallState: 2
+  - message: <b><#E09500>Tutorial Complete!</color></b> You learned the basic tools
+      to construct and edit a bridge. Ready for testing? Press <b><#E09500>Play</color></b>
+      to begin the structural simulation.
     screenPosition: 0
     showNextButton: 0
     canSkip: 0
@@ -565810,7 +566192,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4294957465
   m_fontColor: {r: 0.6, g: 0.85, b: 1, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -576013,8 +576395,9 @@ MonoBehaviour:
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
   tutorialSteps:
-  - message: <b><#E09500>BRIDGE COMPLETE!</color></b> This report summarizes how
-      your bridge performed.
+  - message: <b><#E09500>BRIDGE SUCCESSFULLY TESTED!</color></b> Your Beam Bridge
+      safely carried the <b><#E09500>200 kg vehicle</color></b> across the canyon.
+      Your first bridge has passed the structural simulation.
     screenPosition: 0
     showNextButton: 1
     canSkip: 1
@@ -576071,7 +576454,8 @@ MonoBehaviour:
       m_PersistentCalls:
         m_Calls: []
   - message: Choose <b><#E09500>RETRY</color></b> to improve the design, or <b><#E09500>SAVE
-      & CONTINUE</color></b> to keep the bridge and finish this build location.
+      & CONTINUE</color></b> to record your completed Training Beam Bridge in the
+      Almanac. Your training contract will be ready to turn in.
     screenPosition: 0
     showNextButton: 0
     canSkip: 1
@@ -642237,7 +642621,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4294957465
   m_fontColor: {r: 0.6, g: 0.85, b: 1, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -746166,6 +746550,7 @@ MonoBehaviour:
   fastTravelTarget: {fileID: 292383655}
   advancesTutorial: 1
   onEnterBuildModeTutorial: {fileID: 0}
+  restartGuidedTutorialOnFailure: 1
   enableSimulationLesson: 0
   simulationLesson: {fileID: 0}
   startingAnchors:
@@ -790596,9 +790981,9 @@ RectTransform:
   - {fileID: 358674725}
   m_Father: {fileID: 5050871518698669704}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 1}
-  m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 72.8121, y: -36.375473}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
+  m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 160, y: 30}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1600095417
@@ -835410,7 +835795,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 
+  m_text: Select...
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -843350,7 +843735,7 @@ MonoBehaviour:
     OnStepStart:
       m_PersistentCalls:
         m_Calls: []
-  - message: "Ready? Let\u2019s get started!"
+  - message: Select the <b><#E09500>Wood Road</color></b> to begin.
     screenPosition: 0
     showNextButton: 0
     canSkip: 0
@@ -843381,8 +843766,8 @@ MonoBehaviour:
             m_StringArgument: 
             m_BoolArgument: 0
           m_CallState: 2
-  - message: Tap the <b><#E09500>red anchor</color></b> and drag across the gap to
-      build the road.
+  - message: Start by placing the <b><#E09500>Wood Road</color></b> between the <b><#E09500>two
+      red anchors</color></b>.
     screenPosition: 1
     showNextButton: 0
     canSkip: 0
@@ -843448,7 +843833,40 @@ MonoBehaviour:
             m_StringArgument: 
             m_BoolArgument: 0
           m_CallState: 2
-  - message: "The road alone isn\u2019t strong enough yet."
+  - message: Good! The <b><#E09500>Wood Road</color></b> provides the surface for
+      the vehicle to cross. Now let's add the structural members that will support
+      it.
+    screenPosition: 0
+    showNextButton: 1
+    canSkip: 0
+    lockLook: 0
+    lockJump: 0
+    lockRun: 0
+    stepWaypoints: []
+    worldHighlightObject: {fileID: 0}
+    usePointer: 0
+    pointerTarget: {fileID: 0}
+    pointerOffset: {x: 0, y: 80}
+    pointerRotation: 180
+    advanceOnClick: 0
+    requiredAction: 0
+    OnStepStart:
+      m_PersistentCalls:
+        m_Calls:
+        - m_Target: {fileID: 1085285849}
+          m_TargetAssemblyTypeName: BuildTutorialDirector, Assembly-CSharp
+          m_MethodName: LockAllUI
+          m_Mode: 0
+          m_Arguments:
+            m_ObjectArgument: {fileID: 0}
+            m_ObjectArgumentAssemblyTypeName: 
+            m_IntArgument: 0
+            m_FloatArgument: 0
+            m_StringArgument: 
+            m_BoolArgument: 0
+          m_CallState: 2
+  - message: Select the <b><#E09500>Wood Beam</color></b>. You'll use these members
+      to create a <b><#E09500>triangular structural arrangement</color></b>.
     screenPosition: 0
     showNextButton: 0
     canSkip: 0
@@ -843479,8 +843897,8 @@ MonoBehaviour:
             m_StringArgument: 
             m_BoolArgument: 0
           m_CallState: 2
-  - message: Build <b><#E09500>triangles</color></b> around the bridge to strengthen
-      and support it.
+  - message: Connect the <b><#E09500>Wood Beams</color></b> using the highlighted
+      guide. Follow the guide to create a <b><#E09500>triangular arrangement</color></b>.
     screenPosition: 1
     showNextButton: 0
     canSkip: 0
@@ -843522,7 +843940,46 @@ MonoBehaviour:
             m_StringArgument: 
             m_BoolArgument: 0
           m_CallState: 2
-  - message: Tap the <b><#E09500>Select Tool</color></b>.
+  - message: '<b><#E09500>FIRST TRUSS SECTION COMPLETE.</color></b>
+
+
+      Excellent!
+      You''ve connected several <b><#E09500>Wood Beams</color></b> to form your first
+      truss section. Remember what Professor Bhan explained earlier. The triangular
+      arrangement helps the connected members maintain their structural shape. Now
+      let''s learn how to build more efficiently.'
+    screenPosition: 0
+    showNextButton: 1
+    canSkip: 0
+    lockLook: 0
+    lockJump: 0
+    lockRun: 0
+    stepWaypoints: []
+    worldHighlightObject: {fileID: 0}
+    usePointer: 0
+    pointerTarget: {fileID: 0}
+    pointerOffset: {x: 0, y: 80}
+    pointerRotation: 180
+    advanceOnClick: 0
+    requiredAction: 0
+    OnStepStart:
+      m_PersistentCalls:
+        m_Calls:
+        - m_Target: {fileID: 1085285849}
+          m_TargetAssemblyTypeName: BuildTutorialDirector, Assembly-CSharp
+          m_MethodName: LockAllUI
+          m_Mode: 0
+          m_Arguments:
+            m_ObjectArgument: {fileID: 0}
+            m_ObjectArgumentAssemblyTypeName: 
+            m_IntArgument: 0
+            m_FloatArgument: 0
+            m_StringArgument: 
+            m_BoolArgument: 0
+          m_CallState: 2
+  - message: When a structure contains several members, rebuilding each one individually
+      can take time. The <b><#E09500>Selection Tool</color></b> allows you to select
+      multiple bridge components.
     screenPosition: 1
     showNextButton: 0
     canSkip: 0
@@ -843540,7 +843997,7 @@ MonoBehaviour:
     OnStepStart:
       m_PersistentCalls:
         m_Calls: []
-  - message: Tap and drag to select your bridge.
+  - message: Select the members that form the <b><#E09500>completed truss section</color></b>.
     screenPosition: 1
     showNextButton: 0
     canSkip: 0
@@ -843558,7 +844015,9 @@ MonoBehaviour:
     OnStepStart:
       m_PersistentCalls:
         m_Calls: []
-  - message: Tap <b><#E09500>Copy</color></b>.
+  - message: You can duplicate selected components instead of rebuilding them individually.
+      Press <b><#E09500>Copy</color></b> to create a duplicate of the selected truss
+      section.
     screenPosition: 1
     showNextButton: 0
     canSkip: 0
@@ -843576,7 +844035,8 @@ MonoBehaviour:
     OnStepStart:
       m_PersistentCalls:
         m_Calls: []
-  - message: Drag the copied bridge into position.
+  - message: The copied components are ready to be placed. Use <b><#E09500>Paste</color></b>
+      to position the copied truss section on the <b><#E09500>highlighted guide</color></b>.
     screenPosition: 1
     showNextButton: 0
     canSkip: 0
@@ -843630,7 +844090,8 @@ MonoBehaviour:
             m_StringArgument: 
             m_BoolArgument: 0
           m_CallState: 2
-  - message: Tap <b><#E09500>Paste</color></b>.
+  - message: Position the copied truss section on the highlighted guide, then press
+      <b><#E09500>Paste</color></b> to confirm.
     screenPosition: 1
     showNextButton: 0
     canSkip: 0
@@ -843672,8 +844133,44 @@ MonoBehaviour:
             m_StringArgument: 
             m_BoolArgument: 0
           m_CallState: 2
-  - message: Perfect! Tap <b><#E09500>Play</color></b> and test your bridge against
-      gravity!
+  - message: '<b><#E09500>TRUSS STRUCTURE COMPLETE.</color></b>
+
+
+      Excellent!
+      You''ve built a <b><#E09500>Truss Bridge</color></b> and used the editing tools
+      to duplicate its structure efficiently. Your bridge is now ready for testing.
+      Remember what you learned about <b><#E09500>equilibrium</color></b>. Watch
+      how the connected structural members and supports respond as the vehicle crosses.'
+    screenPosition: 0
+    showNextButton: 1
+    canSkip: 0
+    lockLook: 0
+    lockJump: 0
+    lockRun: 0
+    stepWaypoints: []
+    worldHighlightObject: {fileID: 0}
+    usePointer: 0
+    pointerTarget: {fileID: 0}
+    pointerOffset: {x: 0, y: 80}
+    pointerRotation: 180
+    advanceOnClick: 0
+    requiredAction: 0
+    OnStepStart:
+      m_PersistentCalls:
+        m_Calls:
+        - m_Target: {fileID: 1085285849}
+          m_TargetAssemblyTypeName: BuildTutorialDirector, Assembly-CSharp
+          m_MethodName: LockAllUI
+          m_Mode: 0
+          m_Arguments:
+            m_ObjectArgument: {fileID: 0}
+            m_ObjectArgumentAssemblyTypeName: 
+            m_IntArgument: 0
+            m_FloatArgument: 0
+            m_StringArgument: 
+            m_BoolArgument: 0
+          m_CallState: 2
+  - message: Press <b><#E09500>Play</color></b> to test your <b><#E09500>Truss Bridge</color></b>.
     screenPosition: 0
     showNextButton: 0
     canSkip: 0
@@ -872635,7 +873132,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4294957465
   m_fontColor: {r: 0.6, g: 0.85, b: 1, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -877773,6 +878270,32 @@ MonoBehaviour:
   requiredNPCPhaseIndex: 1
   nextNPCPhaseIndex: 2
   completionSaveKey: 
+  requireAlmanacReviewBeforeAdvance: 0
+--- !u!114 &1772101220
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1772101204}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 54670a244ce45e04fbf60aaae95760ad, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  buildLocation: {fileID: 358124909}
+  lesson: {fileID: 11400000, guid: 2b388d22c8e1f244288b5309acf003f3, type: 2}
+  lessons:
+  - {fileID: 11400000, guid: 2b388d22c8e1f244288b5309acf003f3, type: 2}
+  listenForSavedBridge: 1
+  triggerOnlyOnce: 1
+  waitForGameplayPresentation: 1
+  onLessonTriggered:
+    m_PersistentCalls:
+      m_Calls: []
+  onLessonSequenceFinished:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!1 &1772308877
 GameObject:
   m_ObjectHideFlags: 0
@@ -932455,7 +932978,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4294957465
   m_fontColor: {r: 0.6, g: 0.85, b: 1, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -939914,6 +940437,7 @@ MonoBehaviour:
   fastTravelTarget: {fileID: 343406858}
   advancesTutorial: 1
   onEnterBuildModeTutorial: {fileID: 0}
+  restartGuidedTutorialOnFailure: 1
   enableSimulationLesson: 0
   simulationLesson: {fileID: 0}
   startingAnchors:
@@ -942895,7 +943419,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4294957465
   m_fontColor: {r: 0.6, g: 0.85, b: 1, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -951087,7 +951611,7 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1870683347}
   m_HandleRect: {fileID: 1870683345}
   m_Direction: 0
-  m_Value: -0.0000011354031
+  m_Value: -0.0000010018263
   m_Size: 0.5676823
   m_NumberOfSteps: 0
   m_OnValueChanged:
@@ -953222,7 +953746,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 
+  m_text: Select...
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -983382,6 +983906,7 @@ MonoBehaviour:
   fastTravelTarget: {fileID: 337509400}
   advancesTutorial: 1
   onEnterBuildModeTutorial: {fileID: 0}
+  restartGuidedTutorialOnFailure: 1
   enableSimulationLesson: 0
   simulationLesson: {fileID: 0}
   startingAnchors:
@@ -990310,6 +990835,8 @@ MonoBehaviour:
       materialButtonLabel: 
       quiz: {fileID: 0}
       quizStepId: 
+      lesson: {fileID: 0}
+      reviewStepId: 
     - stepType: 1
       dialogue:
         name: Marsh
@@ -990318,6 +990845,8 @@ MonoBehaviour:
       materialButtonLabel: 
       quiz: {fileID: 0}
       quizStepId: 
+      lesson: {fileID: 0}
+      reviewStepId: 
     dialoguePrompt: Talk to Marsh
     playDialogueOnArrival: 1
     repeatDialogue: 0
@@ -999533,7 +1000062,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4294957465
   m_fontColor: {r: 0.6, g: 0.85, b: 1, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -1002997,7 +1003526,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 
+  m_text: Select...
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -1020035,7 +1020564,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4294957465
   m_fontColor: {r: 0.6, g: 0.85, b: 1, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -1030432,7 +1030961,7 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 22
+  m_fontSize: 64.4
   m_fontSizeBase: 36
   m_fontWeight: 400
   m_enableAutoSizing: 1
@@ -1090612,7 +1091141,7 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 14.35
+  m_fontSize: 16.45
   m_fontSizeBase: 20
   m_fontWeight: 400
   m_enableAutoSizing: 1
@@ -1093217,7 +1093746,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &1577456234867339050
 RectTransform:
   m_ObjectHideFlags: 0
@@ -1103409,6 +1103938,7 @@ MonoBehaviour:
   fastTravelTarget: {fileID: 1100103757}
   advancesTutorial: 1
   onEnterBuildModeTutorial: {fileID: 1085285848}
+  restartGuidedTutorialOnFailure: 1
   enableSimulationLesson: 1
   simulationLesson: {fileID: 11400000, guid: 45a1f27ff8c2492ab299585ad551339c, type: 2}
   startingAnchors:
@@ -1105504,6 +1106034,7 @@ MonoBehaviour:
   fastTravelTarget: {fileID: 461999840}
   advancesTutorial: 1
   onEnterBuildModeTutorial: {fileID: 669876432}
+  restartGuidedTutorialOnFailure: 1
   enableSimulationLesson: 0
   simulationLesson: {fileID: 0}
   startingAnchors:
@@ -1107360,9 +1107891,9 @@ RectTransform:
   - {fileID: 5088178782069479810}
   m_Father: {fileID: 5050871518698669704}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 1}
-  m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 163.78662, y: -36.375473}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
+  m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 160, y: 30}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!224 &2680518227411179765
@@ -1107573,7 +1108104,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!1 &2698180583082982931
 GameObject:
   m_ObjectHideFlags: 0
@@ -1109348,9 +1109879,9 @@ RectTransform:
   - {fileID: 7373137572905162358}
   m_Father: {fileID: 5050871518698669704}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 1}
-  m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 103.13694, y: -36.375473}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
+  m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 160, y: 30}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!224 &2846021191129448263
@@ -1114777,9 +1115308,9 @@ RectTransform:
   - {fileID: 7025332809044300972}
   m_Father: {fileID: 5050871518698669704}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 1}
-  m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 133.46178, y: -36.375473}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
+  m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 160, y: 30}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &3276950163851232599
@@ -1127753,6 +1128284,7 @@ MonoBehaviour:
   fastTravelTarget: {fileID: 8452136767229714997}
   advancesTutorial: 1
   onEnterBuildModeTutorial: {fileID: 0}
+  restartGuidedTutorialOnFailure: 1
   enableSimulationLesson: 0
   simulationLesson: {fileID: 0}
   startingAnchors:
@@ -1127802,6 +1128334,7 @@ MonoBehaviour:
   fastTravelTarget: {fileID: 8452136767489905931}
   advancesTutorial: 1
   onEnterBuildModeTutorial: {fileID: 0}
+  restartGuidedTutorialOnFailure: 1
   enableSimulationLesson: 0
   simulationLesson: {fileID: 0}
   startingAnchors:
@@ -1134440,7 +1134973,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!222 &4787996978036887008
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -1134743,9 +1135276,9 @@ RectTransform:
   - {fileID: 2499485367961301375}
   m_Father: {fileID: 5050871518698669704}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 1}
-  m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 42.48726, y: -36.375473}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
+  m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 160, y: 30}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!224 &4819300245722806427
@@ -1156604,7 +1157137,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!1 &6602411612023303646
 GameObject:
   m_ObjectHideFlags: 0
@@ -1175090,9 +1175623,9 @@ RectTransform:
   - {fileID: 4629795577612400250}
   m_Father: {fileID: 5050871518698669704}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 1}
-  m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 12.16242, y: -36.375473}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 0, y: 0}
+  m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 160, y: 30}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &8093843808870732790
@@ -1175462,7 +1175995,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &8117224749526620757
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1183381,7 +1183914,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7085861211490712911}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 54670a244ce45e04fbf60aaae95760ad, type: 3}
   m_Name: 
@@ -1183389,8 +1183922,9 @@ MonoBehaviour:
   buildLocation: {fileID: 2406797540332427003}
   lesson: {fileID: 11400000, guid: 6cec48d1e150c37488ff35731509077b, type: 2}
   lessons: []
-  listenForSavedBridge: 1
+  listenForSavedBridge: 0
   triggerOnlyOnce: 1
+  waitForGameplayPresentation: 0
   onLessonTriggered:
     m_PersistentCalls:
       m_Calls: []
@@ -1184861,7 +1185395,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &8849602640503301103
 MonoBehaviour:
   m_ObjectHideFlags: 0

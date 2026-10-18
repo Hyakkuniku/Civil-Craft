@@ -1,0 +1,103 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8277db26963c4a7a81a4dcb5e6307197, type: 3}
+  m_Name: TrussBridgeQuiz
+  m_EditorClassIdentifier:
+  quizId: civil-craft-truss-bridge-quiz-v1
+  title: Truss Bridge Quiz
+  assessmentMode: 1
+  questions:
+  - questionId: truss
+    prompt: What is the main characteristic of a Truss Bridge?
+    choices:
+    - text: It uses only horizontal roadways without additional members.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: It uses connected structural members arranged in triangular patterns.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: It relies entirely on cables to carry loads.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: It uses curved structural members to carry loads.
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 1
+    feedback:
+  - questionId: equilibrium
+    prompt: What does Equilibrium mean in structural engineering?
+    choices:
+    - text: The structure has no weight acting on it.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: The bridge is built using equal amounts of materials.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: The forces and moments acting on a structure are balanced.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: The bridge can carry any load without failing.
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 2
+    feedback:
+  - questionId: wood-beam
+    prompt: What is the purpose of a Wood Beam in a Truss Bridge?
+    choices:
+    - text: To form connected structural arrangements that help carry loads.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: To provide the roadway surface for vehicles.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: To measure the total construction budget.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: To control the movement of vehicles.
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 0
+    feedback:
+  - questionId: triangular-arrangement
+    prompt: Why are triangular arrangements commonly used in Truss Bridges?
+    choices:
+    - text: They remove the need for structural supports.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: They prevent all forces from acting on the bridge.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: They make the roadway longer without adding materials.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: They help the structure maintain its shape when forces act on it.
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 3
+    feedback:
+  - questionId: support-reactions
+    prompt: When a vehicle crosses a bridge, how do the supports help maintain equilibrium?
+    choices:
+    - text: They remove the weight of the vehicle.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: They provide upward reactions that help balance downward loads.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: They prevent the vehicle from moving across the bridge.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: They eliminate the need for structural members.
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 1
+    feedback:

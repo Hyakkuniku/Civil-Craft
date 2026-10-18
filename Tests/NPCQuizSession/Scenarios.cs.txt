@@ -29,6 +29,7 @@ public static class Scenarios
         {
             typeof(QuizUIManager).GetField("activeManager", BindingFlags.NonPublic | BindingFlags.Static).SetValue(null, null);
             UnityEngine.Object.all.Clear(); Scene.unloaded.Clear(); Time.timeScale = 1; Time.unscaledTime = 0;
+            QuizNPCPresentation.ResetBoundary();
             PauseManager.Instance = null; DialogueManager.IsAnyDialogueActive = false; FusionConnectionManager.Instance = null;
             GameManager.Instance = new GameManager(); UIPanelCoordinator.Instance = new UIPanelCoordinator(); EventSystem.current = new EventSystem();
             input = new InputManager(); interaction = new PlayerInteract { gameObject = input.gameObject };
@@ -41,7 +42,7 @@ public static class Scenarios
             Call(manager, "Awake");
         }
         public bool Open(Action<QuizOutcome> more = null) => (bool)Call(manager, "Open", quiz, context, owner, owner.gameObject.scene,
-            new Action<QuizOutcome>(result => { results.Add(result); controlsRestoredBeforeCallback = input.movement && input.look && interaction.enabled; more?.Invoke(result); }));
+            new Action<QuizOutcome>(result => { QuizNPCPresentation.Trace.Add("callback"); results.Add(result); controlsRestoredBeforeCallback = input.movement && input.look && interaction.enabled; more?.Invoke(result); }));
         public void Correct() { manager.view.Choose(1); manager.view.Submit(); }
         public void FinishAll()
         {
@@ -74,8 +75,164 @@ public static class Scenarios
             Check(f.results.Count == 1 && f.results[0] == QuizOutcome.Completed && f.save.committed[0].completed, "Finish persists before exactly-once callback.");
             Check(!QuizUIManager.IsAnyQuizActive && f.controlsRestoredBeforeCallback && !f.manager.Panel.activeSelf, "Controls restored and panel closed before continuation.");
         }
-        ResumeAndSaveFailures(); PauseAndOwnership(); ControlsAndLifecycle();
+        ResumeAndSaveFailures(); PauseAndOwnership(); ControlsAndLifecycle(); Assessment(); NpcPresentationLifecycle();
         return checks;
+    }
+    private static void NpcPresentationLifecycle()
+    {
+        Fixture f = new Fixture(2);
+        Check(f.Open(), "NPC presentation fixture opens.");
+        QuizNPCPresentation shot = QuizNPCPresentation.Created[0];
+        Check(shot.Active && shot.beginCalls == 1 && ReferenceEquals(shot.receivedOwner, f.owner),
+            "Framing receives the original NPC session owner exactly once, not the panel/book.");
+        Check(f.manager.view.npcPresentation && f.manager.view.npcName == "Bhan" && shot.questionCalls == 1,
+            "Successful NPC framing enables right-side UI and asking animation for initial question.");
+        Check(QuizNPCPresentation.Trace.IndexOf("presenter:begin") < QuizNPCPresentation.Trace.IndexOf("panel:open"),
+            "Camera/animation are prepared before the quiz panel opens.");
+        Check(QuizNPCPresentation.Trace.IndexOf("presenter:begin") < QuizNPCPresentation.Trace.IndexOf("movement:False") &&
+            QuizNPCPresentation.Trace.IndexOf("movement:False") < QuizNPCPresentation.Trace.IndexOf("panel:open"),
+            "Recording/camera handoff finishes before the quiz captures and locks input, so cursor restoration cannot override the lock.");
+        Check(!f.input.lookComponentEnabled &&
+            (bool)typeof(QuizUIManager).GetField("lookBefore", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(f.manager),
+            "Presenter disabling PlayerLook's component does not change the captured canLook input flag.");
+        f.manager.view.layout.NpcScreenViewport = new Rect(.03f, .1f, .37f, .8f);
+        Call(f.manager, "Update");
+        Check(shot.viewport.Equals(f.manager.view.layout.NpcScreenViewport) && shot.viewportCalls > 0,
+            "Layout/safe-area changes refresh the NPC viewport without recreating the session.");
+        f.Correct(); f.manager.view.Next();
+        Check(shot.questionCalls == 2 && shot.speaking, "Advancing questions restarts asking animation.");
+        f.Correct(); f.manager.view.Next();
+        Check(!shot.speaking && shot.Active && f.manager.view.shownQuestion == -1,
+            "Completion stops talking but holds the NPC framing until Finish.");
+        QuizNPCPresentation.Trace.Clear();
+        f.manager.view.Finish(); f.manager.view.Finish(); Call(f.manager, "OnDestroy");
+        Check(shot.endCalls == 1 && !shot.Active && shot.restored,
+            "Finish and repeated teardown restore the camera once.");
+        Check(f.input.lookComponentEnabled && f.input.look,
+            "Teardown restores both camera-controller enabled state and its independently captured look-input flag.");
+        Check(QuizNPCPresentation.Trace.IndexOf("panel:close") < QuizNPCPresentation.Trace.IndexOf("presenter:end") &&
+            QuizNPCPresentation.Trace.IndexOf("presenter:end") < QuizNPCPresentation.Trace.IndexOf("movement:True") &&
+            QuizNPCPresentation.Trace.IndexOf("movement:True") < QuizNPCPresentation.Trace.IndexOf("callback"),
+            "Panel closes, camera/animation restore, controls restore, then NPC continuation fires.");
+
+        f = new Fixture(1); QuizNPCPresentation.BeginSucceeds = false; f.Open();
+        shot = QuizNPCPresentation.Created[0];
+        Check(!shot.Active && !f.manager.view.npcPresentation && shot.questionCalls == 0,
+            "Unavailable NPC/camera leaves a readable full-panel quiz without animation ownership.");
+        f.FinishAll();
+        Check(f.results.Count == 1 && f.results[0] == QuizOutcome.Completed && f.controlsRestoredBeforeCallback,
+            "Camera fallback never blocks answering, saving, or completing quiz.");
+
+        f = new Fixture(1); f.manager.view.layout = null; f.Open();
+        Check(QuizNPCPresentation.Created.Count == 0 && !f.manager.view.npcPresentation,
+            "Legacy/unconfigured view without a split layout does not borrow any camera.");
+        f.FinishAll(); Check(f.results.Count == 1, "Legacy fullscreen view still completes.");
+
+        f = new Fixture(1); f.Open(); shot = QuizNPCPresentation.Created[0]; shot.End(true); Call(f.manager, "Update");
+        Check(!f.manager.view.npcPresentation && f.manager.HasSession && !f.input.movement,
+            "A presenter that loses a safe shot returns to fullscreen without releasing the quiz controls lock.");
+        f.FinishAll(); Check(shot.endCalls == 1 && f.results.Count == 1,
+            "A lost camera remains idempotently released while quiz completion works.");
+
+        f = new Fixture(1); PauseManager.Instance = new PauseManager(); f.Open();
+        shot = QuizNPCPresentation.Created[0]; f.manager.view.Pause(); Call(f.manager, "Update");
+        Check(shot.Active && shot.endCalls == 0 && f.manager.HasSession && !f.manager.Panel.activeInHierarchy,
+            "Nested Pause hides only the UI, not NPC camera/session ownership.");
+        Check(!shot.speaking && shot.questionCalls == 1, "Pause suppresses gestures without replaying the question.");
+        UIPanelCoordinator.Instance.OpenPanel(PauseManager.Instance.settingsPanel); PauseManager.Instance.ResumeGame();
+        Check(shot.Active && shot.beginCalls == 1 && !f.input.movement && !f.input.look,
+            "Pause/Settings resume keeps the same framed NPC and locked gameplay controls.");
+        QuizUIManager.CancelOwnedSession(f.owner);
+        Check(shot.endCalls == 1 && shot.restored && f.results.Count == 1,
+            "Owner cancellation after nested Pause restores framing once.");
+
+        for (int teardown = 0; teardown < 6; teardown++)
+        {
+            f = new Fixture(); f.Open(); shot = QuizNPCPresentation.Created[0];
+            switch (teardown)
+            {
+                case 0: f.owner.enabled = false; Call(f.manager, "Update"); break;
+                case 1: f.save.CurrentData = new PlayerData(); Call(f.manager, "Update"); break;
+                case 2: FusionConnectionManager.Instance = new FusionConnectionManager { IsGuestSaveProtected = true }; Call(f.manager, "Update"); break;
+                case 3: Scene.unloaded.Add(1); Call(f.manager, "Update"); break;
+                case 4: Call(f.manager, "OnDisable"); Call(f.manager, "OnDestroy"); break;
+                case 5: GameManager.Instance.IsTransitioning = true; Call(f.manager, "CloseSession", QuizOutcome.Cancelled); break;
+            }
+            Check(shot.endCalls == 1 && !shot.Active && !shot.speaking && f.results.Count == 1 && f.results[0] == QuizOutcome.Cancelled,
+                "Invalid owner/account/visit/unload/disable/transition releases camera and animation exactly once: " + teardown);
+        }
+
+        f = new Fixture(1); f.quiz.assessmentMode = true;
+        f.Open(result =>
+        {
+            QuizNPCPresentation current = QuizNPCPresentation.Created[0];
+            Check(!current.Active && !current.speaking && current.endCalls == 1,
+                "Immediate follow-up dialogue sees released NPC camera/animation ownership.");
+            DialogueManager.IsAnyDialogueActive = true;
+            f.input.SetPlayerInputEnable(false); f.input.SetLookEnabled(false); f.interaction.enabled = false;
+        });
+        shot = QuizNPCPresentation.Created[0]; f.manager.view.Choose(0); f.manager.view.Submit();
+        Check(!shot.speaking && shot.Active && f.manager.view.score == 0,
+            "Assessment result stops talking without score gate or early camera dismissal.");
+        f.manager.view.Finish();
+        Check(f.controlsRestoredBeforeCallback && !f.input.movement && !f.input.look && !f.interaction.enabled,
+            "Follow-up dialogue takes its own input lock after quiz camera restoration.");
+
+        f = new Fixture(2); f.quiz.assessmentMode = true; f.Open(); shot = QuizNPCPresentation.Created[0];
+        f.manager.view.Choose(0); f.manager.view.Choose(1);
+        Check(shot.questionCalls == 1, "Changing an assessment selection does not replay the NPC asking gesture.");
+        f.manager.view.Next(); f.manager.view.Choose(0);
+        Check(shot.questionCalls == 2, "Next assessment question asks once despite selection rerender.");
+        f.manager.view.Previous(); f.manager.view.Next();
+        Check(shot.questionCalls == 4, "Navigating back and forward re-presents the actual question.");
+        f.manager.view.Submit(); Check(!shot.speaking && shot.Active, "Submitted assessment keeps its non-talking result framing.");
+        f.manager.view.Finish();
+    }
+    private static void Assessment()
+    {
+        for (int count = 1; count <= 12; count++)
+        {
+            Fixture f = new Fixture(count); f.quiz.assessmentMode = true;
+            Check(f.Open(), "Assessment opens.");
+            Check(QuizUIManager.TryHandleBack() && f.manager.HasSession, "Assessment consumes Back without leaving.");
+            f.manager.view.Leave(); Check(f.manager.HasSession, "Assessment Leave cannot cancel attempt.");
+            f.manager.view.Submit(); Check(f.save.committed.Count == 0, "Assessment cannot submit without all answers.");
+            for (int i = 0; i < count; i++)
+            {
+                f.manager.view.Choose(0); // deliberately all incorrect: no score gate
+                Check(f.manager.view.feedbackShows == 0 && f.manager.view.shownQuestion == i, "Assessment never reveals individual correctness.");
+                if (i < count - 1) f.manager.view.Next();
+            }
+            if (count > 1)
+            {
+                f.manager.view.Previous(); Check(f.manager.view.selection == 0, "Previous restores selected answer.");
+                f.manager.view.Next();
+            }
+            f.manager.view.Submit();
+            Check(f.manager.view.shownQuestion == -1 && f.manager.view.score == 0 && f.save.committed[0].submitted && !f.save.committed[0].completed, "Single submit shows zero score and persists submission without advancing.");
+            int saves = f.save.saves;
+            f.manager.view.Submit(); f.manager.view.Choose(1); f.manager.view.Next(); f.manager.view.Previous();
+            Check(f.save.saves == saves && f.manager.view.score == 0, "Submitted attempt locks answers and ignores double submit.");
+            f.manager.view.Finish(); f.manager.view.Finish();
+            Check(f.save.committed[0].completed && f.results.Count == 1 && f.results[0] == QuizOutcome.Completed, "Zero score completes once only after durable Continue.");
+            Check(f.controlsRestoredBeforeCallback && f.save.CurrentData.gold == 0, "Assessment restores controls and adds no reward.");
+        }
+        Fixture failed = new Fixture(1); failed.quiz.assessmentMode = true; failed.Open(); failed.manager.view.Choose(0);
+        failed.save.saveSucceeds = false; failed.manager.view.Submit();
+        Check(!failed.save.committed[0].submitted && failed.results.Count == 0, "Failed submission does not advance or falsify saved submission.");
+        failed.manager.view.Finish(); Check(failed.results.Count == 0, "Cannot Continue with pending submit save.");
+        failed.save.saveSucceeds = true; failed.manager.view.Retry();
+        Check(failed.save.committed[0].submitted && failed.manager.view.score == 0, "Retry saves submitted answers and shows result.");
+        failed.save.saveSucceeds = false; failed.manager.view.Finish();
+        Check(failed.results.Count == 0 && !failed.save.committed[0].completed, "Failed completion save never advances.");
+        failed.save.saveSucceeds = true; failed.manager.view.Retry(); Check(failed.results.Count == 1, "Completion save retry resolves once.");
+        Fixture restart = new Fixture(2); restart.quiz.assessmentMode = true; restart.Open(); restart.manager.view.Choose(0);
+        QuizUIManager.CancelOwnedSession(restart.owner);
+        Check(restart.Open() && restart.manager.view.selection == 0, "Restarted assessment retains prior choices.");
+        restart.manager.view.Next(); restart.manager.view.Choose(1); restart.manager.view.Submit();
+        QuizUIManager.CancelOwnedSession(restart.owner);
+        Check(restart.Open() && restart.manager.view.score == 1 && restart.manager.view.shownQuestion == -1, "Submitted result resumes after teardown.");
+        restart.manager.view.Finish();
     }
     private static void ResumeAndSaveFailures()
     {

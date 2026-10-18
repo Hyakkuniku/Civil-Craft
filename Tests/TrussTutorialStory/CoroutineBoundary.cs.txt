@@ -1,0 +1,135 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+namespace UnityEngine
+{
+    [AttributeUsage(AttributeTargets.Class)] public sealed class DisallowMultipleComponent : Attribute { }
+    [AttributeUsage(AttributeTargets.Field)] public sealed class Header : Attribute { public Header(string value) { } }
+    [AttributeUsage(AttributeTargets.Field)] public sealed class Tooltip : Attribute { public Tooltip(string value) { } }
+    [AttributeUsage(AttributeTargets.Field)] public sealed class SerializeField : Attribute { }
+    public sealed class Scene
+    {
+        public bool valid = true, isLoaded = true;
+        public bool IsValid() => valid;
+    }
+    public sealed class GameObject
+    {
+        public bool activeInHierarchy = true;
+        public Scene scene = new Scene();
+    }
+    public class MonoBehaviour
+    {
+        public bool isActiveAndEnabled = true;
+        public GameObject gameObject = new GameObject();
+        public List<Coroutine> routines = new List<Coroutine>();
+        public int stopped;
+        public T GetComponent<T>() where T : class => null;
+        public static T FindObjectOfType<T>() where T : class => World.Dialogue as T;
+        public Coroutine StartCoroutine(IEnumerator value)
+        {
+            var routine = new Coroutine(value); routines.Add(routine);
+            routine.Step(); return routine;
+        }
+        public void StopCoroutine(Coroutine routine) { stopped++; routine.running = false; }
+        public void Tick()
+        {
+            foreach (var routine in routines.ToArray()) if (routine.running) routine.Step();
+        }
+    }
+    public sealed class Coroutine
+    {
+        public IEnumerator iterator;
+        public bool running = true;
+        public Coroutine(IEnumerator value) { iterator = value; }
+        public void Step() { running = running && iterator.MoveNext(); }
+    }
+    public static class Time { public static float timeScale = 1f; }
+}
+namespace UnityEngine.Events
+{
+    public sealed class UnityEvent
+    {
+        public int calls;
+        public void Invoke() { calls++; }
+    }
+}
+public sealed class ContractSO { }
+public sealed class LessonData { public string id; public LessonData(string value) { id = value; } }
+public sealed class BuildLocation : MonoBehaviour { public ContractSO activeContract; }
+public sealed class LessonUIManager
+{
+    public static LessonUIManager Instance;
+    public bool IsOpen;
+    public LessonData CurrentLesson;
+    public List<LessonData> shown = new List<LessonData>();
+    public void ShowLesson(LessonData lesson) { shown.Add(lesson); CurrentLesson = lesson; IsOpen = true; }
+    public void Close() { IsOpen = false; CurrentLesson = null; }
+}
+public sealed class LevelCompleteManager
+{
+    public static event Action<ContractSO, BuildLocation> BridgeSavedAtLocation;
+    public static void Save(ContractSO contract, BuildLocation location) => BridgeSavedAtLocation?.Invoke(contract, location);
+    public static void Reset() => BridgeSavedAtLocation = null;
+}
+public sealed class FusionConnectionManager
+{
+    public static FusionConnectionManager Instance;
+    public bool IsGuestInHostWorld;
+}
+public sealed class GameManager
+{
+    public static GameManager Instance;
+    public enum GameState { Normal, BuildMode, Simulation }
+    public GameState CurrentState;
+    public bool IsTransitioning;
+}
+public sealed class UIPanelCoordinator
+{
+    public static UIPanelCoordinator Instance;
+    public bool HasOpenPanel;
+}
+public sealed class Animator
+{
+    public bool open;
+    public bool GetBool(string key) => open;
+}
+public sealed class DialogueManager
+{
+    public static bool IsAnyDialogueActive;
+    public Animator animator = new Animator();
+}
+public static class World
+{
+    public static DialogueManager Dialogue;
+    public static void Reset()
+    {
+        Time.timeScale = 1f;
+        LessonUIManager.Instance = new LessonUIManager();
+        FusionConnectionManager.Instance = null;
+        GameManager.Instance = new GameManager();
+        UIPanelCoordinator.Instance = new UIPanelCoordinator();
+        Dialogue = null;
+        DialogueManager.IsAnyDialogueActive = false;
+        LevelCompleteManager.Reset();
+    }
+}
+public sealed class NPCProgressionPhase { public ContractSO contract; }
+public sealed class NPCProgressionManager : MonoBehaviour
+{
+    public int arrivalDialogueVersion = 1;
+    public int currentPhaseIndex = 7;
+    public NPCProgressionPhase CurrentPhase = new NPCProgressionPhase();
+    public bool IsTravelling;
+    public DialogueManager dialogueManager;
+    public int dialogueStarts;
+    public int startedIndex = -1;
+    public NPCProgressionPhase startedPhase;
+    private bool TryStartPhaseDialogue(int index, NPCProgressionPhase phase)
+    {
+        dialogueStarts++; startedIndex = index; startedPhase = phase; return true;
+    }
+    public IEnumerator BeginArrival() => StartOrderedDialogueAfterArrival(currentPhaseIndex, CurrentPhase, arrivalDialogueVersion);
+    // ACTUAL_NPC_METHODS
+}

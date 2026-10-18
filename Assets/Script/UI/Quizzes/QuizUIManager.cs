@@ -22,6 +22,8 @@ public sealed class QuizUIManager : MonoBehaviour
     private PlayerData saveOwner;
     private string fingerprint;
     private readonly HashSet<string> correctIds = new HashSet<string>(StringComparer.Ordinal);
+    private readonly Dictionary<string, int> assessmentAnswers = new Dictionary<string, int>(StringComparer.Ordinal);
+    private bool assessmentSubmitted;
     private int questionIndex = -1;
     private int selectedIndex = -1;
     private bool questionAnswered;
@@ -35,6 +37,8 @@ public sealed class QuizUIManager : MonoBehaviour
     private PlayerInteract lockedInteraction;
     private bool movementBefore, lookBefore, interactionBefore;
     private GameObject selectionBefore;
+    private QuizNPCPresentation npcPresentation;
+    private int presentedQuestionIndex = -1;
 
     public GameObject Panel => view != null ? view.Panel : null;
     public bool HasSession => sessionActive;
@@ -50,11 +54,13 @@ public sealed class QuizUIManager : MonoBehaviour
     private void OnDisable()
     {
         if (sessionActive) CloseSession(QuizOutcome.Cancelled);
+        else EndNpcPresentation();
     }
 
     private void OnDestroy()
     {
         if (sessionActive) CloseSession(QuizOutcome.Cancelled);
+        else EndNpcPresentation();
         BindView(false);
         if (activeManager == this) activeManager = null;
     }
@@ -81,6 +87,7 @@ public sealed class QuizUIManager : MonoBehaviour
         // A locally spawned/replaced player must not acquire controls behind an
         // already-open quiz. Never touch disabled remote-input components.
         if (lockedInput == null) LockPlayerControls();
+        UpdateNpcPresentation();
 
         // Escape is routed by PauseManager when it exists, avoiding two handlers
         // consuming the same key. A standalone quiz still supports desktop/Android Back.
@@ -143,6 +150,9 @@ public sealed class QuizUIManager : MonoBehaviour
     public static bool TryHandleBack()
     {
         if (activeManager == null || !activeManager.CanInteract()) return false;
+        // Assessment is a committed attempt; only its owner/scene teardown can cancel.
+        // Pause still owns Back when it is above the quiz.
+        if (activeManager.quiz != null && activeManager.quiz.assessmentMode) return true;
         activeManager.Leave();
         return true;
     }
@@ -166,16 +176,28 @@ public sealed class QuizUIManager : MonoBehaviour
             return false;
         }
         foreach (string id in progress.correctQuestionIds) correctIds.Add(id);
+        assessmentAnswers.Clear();
+        foreach (QuizAnswerSaveData answer in progress.answers)
+            if (answer != null) assessmentAnswers[answer.questionId] = answer.choiceIndex;
+        assessmentSubmitted = progress.submitted;
         sessionActive = true;
         activeManager = this;
         savePending = completionPending = acknowledgeUnsavedLeave = committing = false;
         nextContentCheck = Time.unscaledTime + 1f;
         selectionBefore = EventSystem.current != null ? EventSystem.current.currentSelectedGameObject : null;
-        LockPlayerControls();
         view.Reset();
+        BeginNpcPresentation();
+        // Recording may restore its former cursor state while yielding the
+        // camera. Apply the quiz's input/cursor lock afterward, in this same frame.
+        LockPlayerControls();
         if (UIPanelCoordinator.Instance != null) UIPanelCoordinator.Instance.OpenPanel(Panel);
         else Panel.SetActive(true);
-        ShowFirstUnresolved();
+        if (quiz.assessmentMode)
+        {
+            if (assessmentSubmitted) ShowAssessmentResult();
+            else ShowAssessmentQuestion(0);
+        }
+        else ShowFirstUnresolved();
         PauseManager.Instance?.RefreshPauseAvailability();
         return true;
     }
@@ -193,11 +215,28 @@ public sealed class QuizUIManager : MonoBehaviour
             index < 0 || index >= quiz.questions[questionIndex].choices.Count) return;
         selectedIndex = index;
         acknowledgeUnsavedLeave = false;
+        if (quiz.assessmentMode)
+        {
+            if (assessmentSubmitted) return;
+            assessmentAnswers[quiz.questions[questionIndex].questionId.Trim()] = index;
+            savePending = true;
+            if (CommitProgress(false)) ShowAssessmentQuestion(questionIndex);
+            return;
+        }
         view.SetSelection(index);
     }
 
     private void Submit()
     {
+        if (quiz != null && quiz.assessmentMode)
+        {
+            if (!CanInteract() || assessmentSubmitted || savePending ||
+                !QuizProgressUtility.HasAllAssessmentAnswers(quiz, assessmentAnswers)) return;
+            assessmentSubmitted = true;
+            savePending = true;
+            if (CommitProgress(false)) ShowAssessmentResult();
+            return;
+        }
         if (!CanInteract() || questionAnswered || savePending || questionIndex < 0 || selectedIndex < 0) return;
         QuizQuestion question = quiz.questions[questionIndex];
         if (selectedIndex != question.correctChoiceIndex)
@@ -214,8 +253,37 @@ public sealed class QuizUIManager : MonoBehaviour
 
     private void Next()
     {
+        if (quiz != null && quiz.assessmentMode)
+        {
+            if (CanInteract() && !assessmentSubmitted && !savePending && questionIndex + 1 < quiz.QuestionCount)
+                ShowAssessmentQuestion(questionIndex + 1);
+            return;
+        }
         if (!CanInteract() || !questionAnswered || savePending || completionPending) return;
         ShowFirstUnresolved();
+    }
+
+    private void Previous()
+    {
+        if (CanInteract() && quiz != null && quiz.assessmentMode && !assessmentSubmitted && !savePending && questionIndex > 0)
+            ShowAssessmentQuestion(questionIndex - 1);
+    }
+
+    private void ShowAssessmentQuestion(int index)
+    {
+        questionIndex = index;
+        questionAnswered = false;
+        selectedIndex = assessmentAnswers.TryGetValue(quiz.questions[index].questionId.Trim(), out int selected) ? selected : -1;
+        view.ShowAssessmentQuestion(quiz, index, selectedIndex, assessmentAnswers.Count);
+        PresentNpcQuestion();
+    }
+
+    private void ShowAssessmentResult()
+    {
+        questionIndex = selectedIndex = -1;
+        questionAnswered = true;
+        npcPresentation?.SetSpeaking(false);
+        view.ShowAssessmentResult(quiz, QuizProgressUtility.AssessmentScore(quiz, assessmentAnswers));
     }
 
     private void ShowFirstUnresolved()
@@ -223,12 +291,28 @@ public sealed class QuizUIManager : MonoBehaviour
         selectedIndex = -1;
         questionAnswered = false;
         questionIndex = QuizProgressUtility.FirstUnresolvedQuestionIndex(quiz, correctIds);
-        if (questionIndex >= quiz.QuestionCount) { questionIndex = -1; view.ShowCompletion(quiz); }
-        else view.ShowQuestion(quiz, questionIndex, correctIds);
+        if (questionIndex >= quiz.QuestionCount)
+        {
+            questionIndex = -1;
+            npcPresentation?.SetSpeaking(false);
+            view.ShowCompletion(quiz);
+        }
+        else
+        {
+            view.ShowQuestion(quiz, questionIndex, correctIds);
+            PresentNpcQuestion();
+        }
     }
 
     private void Finish()
     {
+        if (quiz != null && quiz.assessmentMode)
+        {
+            if (!CanInteract() || !assessmentSubmitted || savePending || completionPending) return;
+            completionPending = savePending = true;
+            if (CommitProgress(true)) CloseSession(QuizOutcome.Completed);
+            return;
+        }
         if (!CanInteract() || questionIndex >= 0 || savePending || completionPending ||
             !QuizProgressUtility.AreAllQuestionsCorrect(quiz, correctIds)) return;
         completionPending = true;
@@ -242,6 +326,11 @@ public sealed class QuizUIManager : MonoBehaviour
         bool finishAfterSave = completionPending;
         if (!CommitProgress(finishAfterSave)) return;
         if (finishAfterSave) CloseSession(QuizOutcome.Completed);
+        else if (quiz.assessmentMode)
+        {
+            if (assessmentSubmitted) ShowAssessmentResult();
+            else ShowAssessmentQuestion(questionIndex);
+        }
         else if (questionIndex >= 0)
         {
             QuizQuestion question = quiz.questions[questionIndex];
@@ -257,7 +346,12 @@ public sealed class QuizUIManager : MonoBehaviour
         view.SetBusy(true);
         bool saved;
         string error;
-        try { saved = saveManager.TrySaveQuizProgress(quiz, context, correctIds, completed, out error); }
+        try
+        {
+            saved = quiz.assessmentMode ?
+                saveManager.TrySaveQuizAssessment(quiz, context, assessmentAnswers, assessmentSubmitted, completed, out error) :
+                saveManager.TrySaveQuizProgress(quiz, context, correctIds, completed, out error);
+        }
         finally { committing = false; view.SetBusy(false); }
         savePending = !saved;
         if (!saved)
@@ -269,6 +363,7 @@ public sealed class QuizUIManager : MonoBehaviour
     private void Leave()
     {
         if (!CanInteract()) return;
+        if (quiz != null && quiz.assessmentMode) return;
         if (savePending && !acknowledgeUnsavedLeave && !CommitProgress(false))
         {
             acknowledgeUnsavedLeave = true;
@@ -280,7 +375,57 @@ public sealed class QuizUIManager : MonoBehaviour
 
     private void Pause()
     {
-        if (CanInteract()) PauseManager.Instance?.PauseGame();
+        if (!CanInteract()) return;
+        npcPresentation?.SetSpeaking(false);
+        PauseManager.Instance?.PauseGame();
+    }
+
+    private void BeginNpcPresentation()
+    {
+        presentedQuestionIndex = -1;
+        if (view == null || view.layout == null) return;
+        // Resolve the split layout even while the coordinator still hides the panel.
+        // A non-NPC owner or unsafe camera keeps the ordinary fullscreen quiz.
+        view.SetNpcPresentation(true, string.Empty);
+        if (npcPresentation == null)
+        {
+            npcPresentation = GetComponent<QuizNPCPresentation>();
+            if (npcPresentation == null) npcPresentation = gameObject.AddComponent<QuizNPCPresentation>();
+        }
+        bool available = npcPresentation.Begin(owner, view.layout.NpcScreenViewport);
+        if (!available) npcPresentation.End(true);
+        view.SetNpcPresentation(available, available ? npcPresentation.SpeakerName : string.Empty);
+    }
+
+    private void UpdateNpcPresentation()
+    {
+        if (npcPresentation == null || view == null) return;
+        if (!npcPresentation.IsActive)
+        {
+            if (view.HasNpcPresentation) view.SetNpcPresentation(false, string.Empty);
+            return;
+        }
+        if (view.layout != null) npcPresentation.SetViewport(view.layout.NpcScreenViewport);
+        npcPresentation.SetSpeaking(questionIndex >= 0 && !questionAnswered && Panel != null &&
+            Panel.activeInHierarchy && (PauseManager.Instance == null || !PauseManager.Instance.isPaused));
+    }
+
+    private void PresentNpcQuestion()
+    {
+        if (npcPresentation == null || !npcPresentation.IsActive || questionIndex < 0 ||
+            presentedQuestionIndex == questionIndex) return;
+        presentedQuestionIndex = questionIndex;
+        npcPresentation.SetSpeaking(true);
+        npcPresentation.PresentQuestion();
+    }
+
+    private void EndNpcPresentation()
+    {
+        // Release the borrowed camera/animation before any follow-up dialogue can
+        // take ownership, including cancellation and nested Pause teardown.
+        if (npcPresentation != null) npcPresentation.End(true);
+        if (view != null) view.SetNpcPresentation(false, string.Empty);
+        presentedQuestionIndex = -1;
     }
 
     private void CloseSession(QuizOutcome result)
@@ -299,6 +444,7 @@ public sealed class QuizUIManager : MonoBehaviour
             if (UIPanelCoordinator.Instance != null) UIPanelCoordinator.Instance.ClosePanel(Panel);
             else Panel.SetActive(false);
         }
+        EndNpcPresentation();
         RestorePlayerControls();
         if (EventSystem.current != null)
             EventSystem.current.SetSelectedGameObject(selectionBefore != null && selectionBefore.activeInHierarchy ? selectionBefore : null);
@@ -308,6 +454,7 @@ public sealed class QuizUIManager : MonoBehaviour
         saveManager = null;
         saveOwner = null;
         correctIds.Clear();
+        assessmentAnswers.Clear();
         questionIndex = selectedIndex = -1;
         PauseManager.Instance?.RefreshPauseAvailability();
         callback?.Invoke(result);
@@ -363,6 +510,7 @@ public sealed class QuizUIManager : MonoBehaviour
             view.ChoiceSelected += Select;
             view.SubmitRequested += Submit;
             view.NextRequested += Next;
+            view.PreviousRequested += Previous;
             view.FinishRequested += Finish;
             view.LeaveRequested += Leave;
             view.RetrySaveRequested += RetrySave;
@@ -373,6 +521,7 @@ public sealed class QuizUIManager : MonoBehaviour
             view.ChoiceSelected -= Select;
             view.SubmitRequested -= Submit;
             view.NextRequested -= Next;
+            view.PreviousRequested -= Previous;
             view.FinishRequested -= Finish;
             view.LeaveRequested -= Leave;
             view.RetrySaveRequested -= RetrySave;

@@ -64,6 +64,8 @@ public class BuildLocation : Interactable
     public bool advancesTutorial = false; 
     [Tooltip("If assigned, this tutorial will start the moment the player enters this Build Location.")]
     public TutorialSequence onEnterBuildModeTutorial;
+    [SerializeField, Tooltip("Restart the guided construction steps and clear the unfinished bridge after a failed tutorial test. Disable to keep the design and completed construction steps when returning to editing.")]
+    private bool restartGuidedTutorialOnFailure = true;
 
     [Header("Simulation Lesson Override")]
     [HideInInspector] public bool enableSimulationLesson = false;
@@ -95,6 +97,7 @@ public class BuildLocation : Interactable
 
     public bool IsRedesigningBridge => isRedesigningBridge;
     public bool HasBuildTutorial => onEnterBuildModeTutorial != null;
+    public bool RestartGuidedTutorialOnFailure => restartGuidedTutorialOnFailure;
     public bool IsTutorialReplayActive => isTutorialReplayActive;
 
     // The committed bridge remains protected even while baked lists hold a replacement.
@@ -753,6 +756,9 @@ public class BuildLocation : Interactable
     /// </summary>
     public bool RestartBuildTutorialAfterFailure()
     {
+        // Some guided contracts continue with ordinary editing after a failed
+        // test. Respect that policy even for direct or stale external calls.
+        if (!restartGuidedTutorialOnFailure) return false;
         bool replayingCompletedTutorial = isTutorialReplayActive;
         if (activeContract == null ||
             (!activeContract.IsTutorialForCurrentPlayer() && !replayingCompletedTutorial) ||

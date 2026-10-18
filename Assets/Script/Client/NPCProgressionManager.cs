@@ -12,7 +12,9 @@ public class NPCOptionalDialogueStep
     {
         Dialogue = 0,
         MaterialUnlock = 1,
-        Quiz = 2
+        Quiz = 2,
+        LessonIntroduction = 3,
+        AlmanacReview = 4
     }
 
     [Tooltip("Choose whether this step opens dialogue, a material introduction/unlock panel, or a quiz.")]
@@ -27,11 +29,17 @@ public class NPCOptionalDialogueStep
     [Tooltip("Button label for this material step. Leave empty to use the phase label.")]
     public string materialButtonLabel;
 
-    [Tooltip("Questions shown by a Quiz step. All questions must be answered correctly before the sequence continues.")]
+    [Tooltip("Questions shown by a Quiz step. Practice quizzes require every correct answer; Assessment Mode submits all answers and continues regardless of score.")]
     public QuizData quiz;
 
     [Tooltip("Stable, unique ID for this Quiz step within its phase. Do not change it after release. The Inspector fills a missing ID when authoring a Quiz step.")]
     public string quizStepId;
+
+    [Tooltip("Lesson introduction shown before this ordered sequence continues.")]
+    public LessonData lesson;
+
+    [Tooltip("Stable identity for an Almanac open-and-close review. Preserve after release.")]
+    public string reviewStepId;
 }
 
 [System.Serializable]
@@ -278,6 +286,7 @@ public class NPCProgressionManager : MonoBehaviour
     private readonly HashSet<int> introducedMaterialPhases = new HashSet<int>();
     private readonly HashSet<int> runningOptionalSequencePhases = new HashSet<int>();
     private int optionalSequenceVersion;
+    private NPCOrderedLearningFlow orderedLearningFlow;
     private Coroutine movementRoutine;
     private Coroutine idleRoamingRoutine;
     private int arrivalDialogueVersion;
@@ -2286,6 +2295,8 @@ public class NPCProgressionManager : MonoBehaviour
             {
                 if (phase.contract != null)
                     StartCoroutine(StartContractDialogueAfterArrival(phaseIndex, phase, arrivalVersion));
+                else if (HasOrderedOptionalSequence(phase))
+                    StartCoroutine(StartOrderedDialogueAfterArrival(phaseIndex, phase, arrivalVersion));
                 else
                     TryStartPhaseDialogue(phaseIndex, phase);
             }
@@ -2319,6 +2330,32 @@ public class NPCProgressionManager : MonoBehaviour
                 yield break;
             }
 
+            yield return null;
+        }
+    }
+
+    private IEnumerator StartOrderedDialogueAfterArrival(
+        int phaseIndex, NPCProgressionPhase phase, int arrivalVersion)
+    {
+        // Contract rewards can activate the next phase before their panel has
+        // finished closing. Never cover that panel or start a stale quiz offer.
+        yield return null;
+        while (CanRunLocalProgression() && arrivalVersion == arrivalDialogueVersion &&
+               currentPhaseIndex == phaseIndex && CurrentPhase == phase && !IsTravelling &&
+               phase.contract == null)
+        {
+            if (dialogueManager == null)
+                dialogueManager = FindObjectOfType<DialogueManager>();
+            bool dialogueOpen = dialogueManager != null && dialogueManager.animator != null &&
+                                dialogueManager.animator.GetBool("isOpen");
+            bool panelOpen = UIPanelCoordinator.Instance != null && UIPanelCoordinator.Instance.HasOpenPanel;
+            bool gameplayBusy = GameManager.Instance != null &&
+                (GameManager.Instance.IsTransitioning || GameManager.Instance.CurrentState != GameManager.GameState.Normal);
+            if (!dialogueOpen && !panelOpen && !gameplayBusy && Time.timeScale > 0f)
+            {
+                TryStartPhaseDialogue(phaseIndex, phase);
+                yield break;
+            }
             yield return null;
         }
     }
@@ -2491,6 +2528,9 @@ public class NPCProgressionManager : MonoBehaviour
             // back to legacy dialogue would let it bypass the quiz and rewards.
             if (step.stepType == NPCOptionalDialogueStep.StepType.Quiz)
                 return true;
+            if (step.stepType == NPCOptionalDialogueStep.StepType.LessonIntroduction ||
+                step.stepType == NPCOptionalDialogueStep.StepType.AlmanacReview)
+                return true;
         }
 
         return false;
@@ -2602,7 +2642,7 @@ public class NPCProgressionManager : MonoBehaviour
                 string expectedStepId = step.quizStepId;
                 QuizData expectedQuiz = step.quiz;
                 QuizContext context = new QuizContext(expectedProgressionId, expectedPhaseId, expectedStepId);
-                bool opened = QuizUIManager.TryOpen(step.quiz, context, this, outcome =>
+                System.Action<QuizOutcome> onClosed = outcome =>
                 {
                     if (!IsCurrentOrderedSequence(phaseIndex, phase, sequenceVersion)) return;
                     bool sameStep = phase.optionalDialogueSequence != null &&
@@ -2620,13 +2660,35 @@ public class NPCProgressionManager : MonoBehaviour
 
                     PlayOrderedOptionalStep(phaseIndex, phase, nextStepIndex,
                         showMaterialSteps, displayedMaterial, sequenceVersion);
-                });
+                };
+                bool opened = step.quiz != null && step.quiz.assessmentMode
+                    ? AlmanacQuizAccess.TryOffer(step.quiz, context, this, onClosed)
+                    : QuizUIManager.TryOpen(step.quiz, context, this, onClosed);
                 if (!opened)
                 {
                     // TryOpen(false) does not invoke the callback. Keep the
                     // phase available for retry without completing/rewarding it.
                     StopOrderedOptionalSequence(phaseIndex, sequenceVersion);
                     Debug.LogWarning($"[NPCProgressionManager] Phase '{phase.phaseId}' cannot open quiz step {stepIndex + 1}; quiz UI is unavailable or busy.", this);
+                }
+                return;
+            }
+
+            if (step.stepType == NPCOptionalDialogueStep.StepType.LessonIntroduction ||
+                step.stepType == NPCOptionalDialogueStep.StepType.AlmanacReview)
+            {
+                if (orderedLearningFlow == null)
+                    orderedLearningFlow = GetComponent<NPCOrderedLearningFlow>() ?? gameObject.AddComponent<NPCOrderedLearningFlow>();
+                System.Action resume = () => PlayOrderedOptionalStep(phaseIndex, phase,
+                    nextStepIndex, showMaterialSteps, displayedMaterial, sequenceVersion);
+                System.Action unavailable = () => StopOrderedOptionalSequence(phaseIndex, sequenceVersion);
+                bool opened = step.stepType == NPCOptionalDialogueStep.StepType.LessonIntroduction
+                    ? orderedLearningFlow.TryShowLesson(step.lesson, resume, unavailable)
+                    : orderedLearningFlow.TryReviewAlmanac(progressionSaveId + "/" + phase.phaseId + "/" + step.reviewStepId, resume, unavailable);
+                if (!opened)
+                {
+                    StopOrderedOptionalSequence(phaseIndex, sequenceVersion);
+                    Debug.LogWarning($"[NPCProgressionManager] Learning step {stepIndex + 1} is unavailable; the phase remains retryable.", this);
                 }
                 return;
             }
@@ -2736,6 +2798,8 @@ public class NPCProgressionManager : MonoBehaviour
         // not advance a phase that is moving, unloading, or being disabled.
         optionalSequenceVersion++;
         runningOptionalSequencePhases.Clear();
+        if (orderedLearningFlow != null) orderedLearningFlow.Cancel();
+        AlmanacQuizAccess.CancelOwned(this);
         QuizUIManager.CancelOwnedSession(this);
     }
 
@@ -2747,6 +2811,16 @@ public class NPCProgressionManager : MonoBehaviour
         bool hasQuiz = false;
         foreach (NPCOptionalDialogueStep step in phase.optionalDialogueSequence)
         {
+            if (step != null && step.stepType == NPCOptionalDialogueStep.StepType.LessonIntroduction && step.lesson == null)
+            {
+                error = "A Lesson Introduction step is missing its Lesson Data asset.";
+                return false;
+            }
+            if (step != null && step.stepType == NPCOptionalDialogueStep.StepType.AlmanacReview && string.IsNullOrWhiteSpace(step.reviewStepId))
+            {
+                error = "An Almanac Review step needs a stable Review Step ID.";
+                return false;
+            }
             if (step == null || step.stepType != NPCOptionalDialogueStep.StepType.Quiz) continue;
             hasQuiz = true;
             if (string.IsNullOrWhiteSpace(step.quizStepId))
@@ -3107,7 +3181,7 @@ public class NPCProgressionManager : MonoBehaviour
 
     private bool IsIdleRoamingBlocked()
     {
-        return IsTravelling || IsAnimatorTalking();
+        return IsTravelling || IsAnimatorTalking() || QuizNPCPresentation.IsPresenting(transform);
     }
 
     private bool IsIdleRoamingEnabledForCurrentPhase()

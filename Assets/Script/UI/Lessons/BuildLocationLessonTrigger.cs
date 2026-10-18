@@ -18,6 +18,8 @@ public sealed class BuildLocationLessonTrigger : MonoBehaviour
     [SerializeField] private bool listenForSavedBridge = true;
     [Tooltip("Prevents the same scene component from opening its lesson repeatedly during one play session.")]
     [SerializeField] private bool triggerOnlyOnce = true;
+    [Tooltip("Wait for build exit, transitions and other panels before showing a saved-bridge review. Existing triggers retain their original timing unless enabled.")]
+    [SerializeField] private bool waitForGameplayPresentation;
 
     [Header("Optional Events")]
     [SerializeField] private UnityEvent onLessonTriggered;
@@ -25,6 +27,7 @@ public sealed class BuildLocationLessonTrigger : MonoBehaviour
 
     private bool hasTriggered;
     private Coroutine lessonSequenceRoutine;
+    private bool hasPresentedLesson;
 
     private void Reset()
     {
@@ -46,7 +49,9 @@ public sealed class BuildLocationLessonTrigger : MonoBehaviour
     private void OnDisable()
     {
         LevelCompleteManager.BridgeSavedAtLocation -= HandleBridgeSaved;
+        if (lessonSequenceRoutine != null) StopCoroutine(lessonSequenceRoutine);
         lessonSequenceRoutine = null;
+        if (!hasPresentedLesson) hasTriggered = false;
     }
 
     /// <summary>
@@ -78,7 +83,7 @@ public sealed class BuildLocationLessonTrigger : MonoBehaviour
             return false;
 
         hasTriggered = true;
-        lessonSequenceRoutine = StartCoroutine(PlayLessonSequence(lessonSequence));
+        lessonSequenceRoutine = StartCoroutine(PlayLessonSequence(lessonSequence, buildLocation != null ? buildLocation.activeContract : null));
         onLessonTriggered?.Invoke();
         return true;
     }
@@ -105,13 +110,28 @@ public sealed class BuildLocationLessonTrigger : MonoBehaviour
         return result;
     }
 
-    private IEnumerator PlayLessonSequence(List<LessonData> lessonSequence)
+    private IEnumerator PlayLessonSequence(List<LessonData> lessonSequence, ContractSO expectedContract)
     {
         foreach (LessonData lessonToShow in lessonSequence)
         {
+            if (waitForGameplayPresentation)
+            {
+                // BridgeSavedAtLocation is sent as build exit starts, not when
+                // its camera/input transition finishes. Defer this review.
+                yield return null;
+                while (IsReviewContextValid(expectedContract) && !IsGameplayPresentationReady())
+                    yield return null;
+                if (!IsReviewContextValid(expectedContract))
+                {
+                    if (!hasPresentedLesson) hasTriggered = false;
+                    lessonSequenceRoutine = null;
+                    yield break;
+                }
+            }
             LessonUIManager manager = LessonUIManager.Instance;
             if (manager == null) break;
 
+            hasPresentedLesson = true;
             manager.ShowLesson(lessonToShow);
 
             // Wait until this exact lesson is closed. The next frame delay keeps
@@ -130,9 +150,26 @@ public sealed class BuildLocationLessonTrigger : MonoBehaviour
         onLessonSequenceFinished?.Invoke();
     }
 
+    private bool IsReviewContextValid(ContractSO expectedContract)
+    {
+        return isActiveAndEnabled && buildLocation != null &&
+               buildLocation.gameObject.activeInHierarchy && buildLocation.gameObject.scene.isLoaded &&
+               expectedContract != null && buildLocation.activeContract == expectedContract &&
+               !(FusionConnectionManager.Instance != null && FusionConnectionManager.Instance.IsGuestInHostWorld);
+    }
+
+    private static bool IsGameplayPresentationReady()
+    {
+        return Time.timeScale > 0f && LessonUIManager.Instance != null && !DialogueManager.IsAnyDialogueActive &&
+               (GameManager.Instance == null || (!GameManager.Instance.IsTransitioning &&
+                 GameManager.Instance.CurrentState == GameManager.GameState.Normal)) &&
+               (UIPanelCoordinator.Instance == null || !UIPanelCoordinator.Instance.HasOpenPanel);
+    }
+
     public void ResetTrigger()
     {
         hasTriggered = false;
+        hasPresentedLesson = false;
     }
 
     private void HandleBridgeSaved(ContractSO completedContract, BuildLocation completedLocation)

@@ -41,7 +41,51 @@ public static class Scenarios
         InvalidContent();
         FingerprintsAndIds();
         SavesAndResume();
+        AssessmentSaves();
         return checks;
+    }
+    private static void AssessmentSaves()
+    {
+        QuizData quiz = Make(3); string practiceFingerprint = quiz.ContentFingerprint;
+        quiz.assessmentMode = true;
+        Check(quiz.ContentFingerprint != practiceFingerprint, "Changing practice to assessment invalidates only its own progress.");
+        QuizContext context = Context(); PlayerDataManager manager = new PlayerDataManager();
+        manager.CurrentData.gold = 432; manager.CurrentData.completedLessons.Add("untouched");
+        Dictionary<string, int> answers = new Dictionary<string, int>();
+        Check(!manager.TrySaveQuizProgress(quiz, context, new[] { "q-0", "q-1", "q-2" }, true, out _), "Practice save API cannot bypass assessment submission.");
+        Check(!manager.TrySaveQuizAssessment(quiz, context, answers, true, false, out _), "Missing answers reject submit.");
+        answers["q-0"] = 0;
+        Check(manager.TrySaveQuizAssessment(quiz, context, answers, false, false, out _), "Partial assessment answer saves.");
+        Check(manager.TryGetQuizProgress(quiz, context, out QuizProgressSaveData read) && read.answers.Count == 1 && !read.submitted, "Detached read preserves partial selected choice.");
+        read.answers[0].choiceIndex = 2;
+        Check(manager.CurrentData.quizProgress[0].answers[0].choiceIndex == 0, "Detached answer records cannot mutate profile.");
+        answers["q-1"] = 0; answers["q-2"] = 0;
+        Check(!manager.TrySaveQuizAssessment(quiz, context, answers, false, true, out _), "Complete requires submitted flag.");
+        answers["q-2"] = 99;
+        Check(!manager.TrySaveQuizAssessment(quiz, context, answers, true, false, out _), "Out-of-range choice rejects submission.");
+        answers["q-2"] = 0;
+        Check(manager.TrySaveQuizAssessment(quiz, context, answers, true, false, out _), "All incorrect is a valid submission.");
+        Check(manager.TryGetQuizProgress(quiz, context, out read) && read.submitted && !read.completed && read.correctQuestionIds.Count == 0, "Submission records real score without marking all answers correct.");
+        answers["q-0"] = 2;
+        Check(!manager.TrySaveQuizAssessment(quiz, context, answers, true, true, out _), "Submitted choices are immutable.");
+        answers["q-0"] = 0;
+        List<QuizProgressSaveData> before = manager.CurrentData.quizProgress;
+        manager.saveSucceeds = false;
+        Check(!manager.TrySaveQuizAssessment(quiz, context, answers, true, true, out _) && ReferenceEquals(before, manager.CurrentData.quizProgress), "Assessment save failure rolls back only its list.");
+        manager.saveSucceeds = true;
+        Check(manager.TrySaveQuizAssessment(quiz, context, answers, true, true, out _) && manager.committed[0].completed, "Continue commits zero-score completion.");
+        Check(manager.CurrentData.gold == 432 && manager.CurrentData.completedLessons.Count == 1, "Assessment adds no currency/reward/lesson state.");
+        FusionConnectionManager.Instance = new FusionConnectionManager { IsGuestSaveProtected = true };
+        int calls = manager.saves;
+        Check(!manager.TrySaveQuizAssessment(quiz, context, answers, true, true, out _) && manager.saves == calls, "Visitor assessment cannot mutate host story.");
+        FusionConnectionManager.Instance = null;
+        PlayerDataManager other = new PlayerDataManager();
+        Check(other.TryGetQuizProgress(quiz, context, out read) && read.answers.Count == 0 && !read.completed, "Separate account assessment starts empty.");
+        quiz.questions[0].prompt += " revised";
+        Check(manager.TryGetQuizProgress(quiz, context, out read) && read.answers.Count == 0 && !read.submitted, "Edited assessment clears only its restored answers/result.");
+        quiz.assessmentMode = false;
+        quiz.questions[0].prompt = "Question 0";
+        Check(quiz.ContentFingerprint == practiceFingerprint, "Default practice fingerprints stay backward compatible.");
     }
     private static void InvalidContent()
     {

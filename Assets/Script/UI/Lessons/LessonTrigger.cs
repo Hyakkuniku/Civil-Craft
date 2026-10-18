@@ -30,6 +30,9 @@ public sealed class LessonTrigger : MonoBehaviour
     [SerializeField] private int nextNPCPhaseIndex = 2;
     [Tooltip("Unique save key. Keeps this close action one-time across scene reloads.")]
     [SerializeField] private string completionSaveKey;
+    [Tooltip("Wait for an Almanac open/close review after inspection before the NPC travels. Optional; existing triggers retain their original behavior.")]
+    [SerializeField] private bool requireAlmanacReviewBeforeAdvance;
+    private NPCOrderedLearningFlow reviewFlow;
     private LessonUIManager pendingLessonManager;
     private bool closeActionCompleted;
     private bool npcAdvanceArmed;
@@ -70,6 +73,7 @@ public sealed class LessonTrigger : MonoBehaviour
     {
         UnbindVehicleCloseEvent();
         CancelPendingLesson();
+        if (reviewFlow != null) reviewFlow.Cancel();
     }
 
     public void ShowLesson()
@@ -133,6 +137,21 @@ public sealed class LessonTrigger : MonoBehaviour
         bool authorized = pendingAuthorizedInspection;
         CancelPendingLesson();
         if (!authorized || closed != lesson || !NeedsNPCAdvance()) return;
+        if (requireAlmanacReviewBeforeAdvance)
+        {
+            if (reviewFlow == null)
+                reviewFlow = GetComponent<NPCOrderedLearningFlow>() ?? gameObject.AddComponent<NPCOrderedLearningFlow>();
+            if (!reviewFlow.TryReviewAlmanac(advanceNPC.ProgressionSaveId + "/LiveLoad/inspection-review",
+                    CompleteNPCAdvance, reviewSubject: "Live Load lesson"))
+                Debug.LogWarning("[LessonTrigger] Almanac review is unavailable. Inspect the vehicle again to retry; NPC progress is unchanged.", this);
+            return;
+        }
+        CompleteNPCAdvance();
+    }
+
+    private void CompleteNPCAdvance()
+    {
+        if (!NeedsNPCAdvance()) return;
         closeActionCompleted = true; // Set before dispatch to prevent re-entry.
         var manager = PlayerDataManager.Instance;
         var data = manager != null ? manager.CurrentData : null;

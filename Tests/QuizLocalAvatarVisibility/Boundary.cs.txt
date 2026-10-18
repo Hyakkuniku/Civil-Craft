@@ -1,0 +1,139 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace UnityEngine
+{
+    public class Object
+    {
+        public string name;
+        public bool destroyed;
+        public static void DestroyImmediate(Object value) { if (!ReferenceEquals(value, null)) value.destroyed = true; }
+        public static void Destroy(Object value) => DestroyImmediate(value);
+        public static bool operator ==(Object a, Object b)
+        {
+            bool an = ReferenceEquals(a, null) || a.destroyed, bn = ReferenceEquals(b, null) || b.destroyed;
+            return an || bn ? an == bn : ReferenceEquals(a, b);
+        }
+        public static bool operator !=(Object a, Object b) => !(a == b);
+        public static implicit operator bool(Object value) => value != null;
+        public override bool Equals(object value) => ReferenceEquals(this, value);
+        public override int GetHashCode() => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(this);
+    }
+    public class GameObject : Object
+    {
+        internal readonly List<Component> components = new List<Component>();
+        public Transform transform;
+        public bool activeSelf = true;
+        public bool activeInHierarchy => activeSelf && (transform.parent == null || transform.parent.gameObject.activeInHierarchy);
+        public SceneManagement.Scene scene = new SceneManagement.Scene(1);
+        public GameObject(string label = "object") { name = label; transform = new Transform { gameObject = this }; components.Add(transform); }
+        public void SetActive(bool value) { activeSelf = value; }
+        public T AddComponent<T>() where T : Component, new() { T value = new T { gameObject = this }; components.Add(value); return value; }
+        public T GetComponent<T>() where T : Component => components.OfType<T>().FirstOrDefault(value => value != null);
+        public T GetComponentInParent<T>(bool includeInactive = false) where T : Component => transform.GetComponentInParent<T>(includeInactive);
+        public T[] GetComponentsInChildren<T>(bool includeInactive = false) where T : Component => transform.GetComponentsInChildren<T>(includeInactive);
+        public void GetComponentsInChildren<T>(bool includeInactive, List<T> result) where T : Component => transform.GetComponentsInChildren(includeInactive, result);
+    }
+    public class Component : Object
+    {
+        public GameObject gameObject;
+        public Transform transform => gameObject.transform;
+        public T GetComponent<T>() where T : Component => gameObject.GetComponent<T>();
+        public bool TryGetComponent<T>(out T value) where T : Component { value = GetComponent<T>(); return value != null; }
+        public T GetComponentInParent<T>(bool includeInactive = false) where T : Component
+        {
+            for (Transform current = transform; current != null; current = current.parent)
+            {
+                if (!includeInactive && !current.gameObject.activeInHierarchy) continue;
+                T value = current.gameObject.GetComponent<T>(); if (value != null) return value;
+            }
+            return null;
+        }
+        public T[] GetComponentsInChildren<T>(bool includeInactive = false) where T : Component
+        { var result = new List<T>(); GetComponentsInChildren(includeInactive, result); return result.ToArray(); }
+        public void GetComponentsInChildren<T>(bool includeInactive, List<T> result) where T : Component
+        {
+            result.Clear(); Gather(transform, includeInactive, result);
+        }
+        private static void Gather<T>(Transform root, bool includeInactive, List<T> result) where T : Component
+        {
+            if (includeInactive || root.gameObject.activeInHierarchy)
+            {
+                result.AddRange(root.gameObject.components.OfType<T>().Where(value => value != null));
+                foreach (Transform child in root.children) Gather(child, includeInactive, result);
+            }
+        }
+    }
+    public sealed class Transform : Component
+    {
+        private Transform currentParent;
+        public readonly List<Transform> children = new List<Transform>();
+        public Transform parent
+        {
+            get => currentParent;
+            set { if (currentParent != null) currentParent.children.Remove(this); currentParent = value; if (value != null) value.children.Add(this); }
+        }
+        public Transform root => parent != null ? parent.root : this;
+        public void SetParent(Transform value, bool worldPositionStays = true) { parent = value; }
+        public bool IsChildOf(Transform other) { for (Transform current = this; current != null; current = current.parent) if (current == other) return true; return false; }
+        public Transform Find(string label) => children.FirstOrDefault(value => value.gameObject.name == label);
+    }
+    public class Behaviour : Component { public bool enabled = true; public bool isActiveAndEnabled => enabled && gameObject != null && gameObject.activeInHierarchy; }
+    public class MonoBehaviour : Behaviour { }
+    public class Animator : Behaviour { }
+    public class Renderer : Component { public bool enabled = true; public bool forceRenderingOff; }
+    public sealed class MeshRenderer : Renderer { }
+    public sealed class SkinnedMeshRenderer : Renderer { }
+    public sealed class LineRenderer : Renderer { }
+    public sealed class ParticleSystemRenderer : Renderer { }
+    public sealed class Camera : Behaviour
+    {
+        public delegate void CameraCallback(Camera camera);
+        public static event CameraCallback onPreCull, onPostRender;
+        public static int BeforeHandlers => onPreCull?.GetInvocationList().Length ?? 0;
+        public static int AfterHandlers => onPostRender?.GetInvocationList().Length ?? 0;
+        public static void Before(Camera camera) => onPreCull?.Invoke(camera);
+        public static void After(Camera camera) => onPostRender?.Invoke(camera);
+        public static void ResetCallbacks() { onPreCull = null; onPostRender = null; }
+    }
+    public static class Time { public static int frameCount; }
+    [AttributeUsage(AttributeTargets.Method)] public class RuntimeInitializeOnLoadMethodAttribute : Attribute
+    { public RuntimeInitializeOnLoadMethodAttribute(RuntimeInitializeLoadType type) { } }
+    public enum RuntimeInitializeLoadType { SubsystemRegistration }
+}
+namespace UnityEngine.SceneManagement
+{
+    public struct Scene
+    {
+        public int id;
+        public Scene(int id) { this.id = id; }
+        public bool IsValid() => id > 0;
+        public bool isLoaded => IsValid();
+        public static bool operator ==(Scene a, Scene b) => a.id == b.id;
+        public static bool operator !=(Scene a, Scene b) => a.id != b.id;
+        public override bool Equals(object value) => value is Scene other && id == other.id;
+        public override int GetHashCode() => id;
+    }
+}
+namespace UnityEngine.Rendering
+{
+    public struct ScriptableRenderContext { }
+    public class RenderPipelineAsset : UnityEngine.Object { }
+    public static class GraphicsSettings { public static RenderPipelineAsset currentRenderPipeline; }
+    public static class RenderPipelineManager
+    {
+        public static event Action<ScriptableRenderContext, UnityEngine.Camera> beginCameraRendering, endCameraRendering;
+        public static event Action<ScriptableRenderContext, UnityEngine.Camera[]> endFrameRendering;
+        public static int BeforeHandlers => beginCameraRendering?.GetInvocationList().Length ?? 0;
+        public static int AfterHandlers => endCameraRendering?.GetInvocationList().Length ?? 0;
+        public static int FrameHandlers => endFrameRendering?.GetInvocationList().Length ?? 0;
+        public static void Before(UnityEngine.Camera camera) => beginCameraRendering?.Invoke(default, camera);
+        public static void After(UnityEngine.Camera camera) => endCameraRendering?.Invoke(default, camera);
+        public static void EndFrame(params UnityEngine.Camera[] cameras) => endFrameRendering?.Invoke(default, cameras);
+        public static void ResetCallbacks() { beginCameraRendering = null; endCameraRendering = null; endFrameRendering = null; GraphicsSettings.currentRenderPipeline = null; }
+    }
+}
+public sealed class CargoItem : UnityEngine.MonoBehaviour { }
+public sealed class PlayerLook : UnityEngine.MonoBehaviour { public UnityEngine.Camera cam; }
+public sealed class PlayerMotor : UnityEngine.MonoBehaviour { public UnityEngine.Animator playerAnimator; }

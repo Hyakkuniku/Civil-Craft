@@ -21,6 +21,7 @@ public sealed class SimulationLessonDefinition : ScriptableObject
     [Header("Observed Event Thresholds")]
     [Range(0f, 1f)] public float vehicleEnteredProgress = 0.1f;
     [Range(0f, 1f)] public float vehicleMidpointProgress = 0.5f;
+    [Range(0f, 1f)] public float vehicleNearEndProgress = 0.85f;
     [Range(0f, 1.5f)] public float highStressThreshold = 0.7f;
     [Min(1f)] public float vehicleStuckDelay = 5f;
 
@@ -33,6 +34,8 @@ public sealed class SimulationLessonDefinition : ScriptableObject
         "The live load has entered the bridge. Watch how the members share its weight.";
     [TextArea(2, 5)] public string vehicleReachedMidpoint =
         "The live load is near midspan, where bending demand is often greatest.";
+    [Tooltip("Optional. Leave empty to preserve lessons without a near-end stage.")]
+    [TextArea(2, 5)] public string vehicleApproachingEnd = string.Empty;
     [TextArea(2, 5)] public string highStressDetected =
         "Members turning orange or red are carrying a high percentage of their capacity.";
 

@@ -1,0 +1,131 @@
+using System;
+using System.Linq;
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+namespace UnityEngine.SceneManagement
+{
+    public struct Scene
+    {
+        public int handle; public string name; public bool isLoaded;
+        public Scene(int handle, string name = "CanyonCrossing", bool loaded = true) { this.handle = handle; this.name = name; isLoaded = loaded; }
+        public bool IsValid() => handle != 0;
+        public static bool operator ==(Scene a, Scene b) => a.handle == b.handle;
+        public static bool operator !=(Scene a, Scene b) => a.handle != b.handle;
+        public override bool Equals(object value) => value is Scene other && other == this;
+        public override int GetHashCode() => handle;
+    }
+}
+namespace UnityEngine
+{
+    [AttributeUsage(AttributeTargets.Field)] public sealed class SerializeField : Attribute { }
+    [AttributeUsage(AttributeTargets.Field)] public sealed class TooltipAttribute : Attribute { public TooltipAttribute(string value) { } }
+    public class Object
+    {
+        public static readonly List<Object> All = new List<Object>();
+        public bool Destroyed;
+        public Object() { All.Add(this); }
+        public static T FindObjectOfType<T>() where T : Object => All.OfType<T>().FirstOrDefault(value => !value.Destroyed);
+        public static bool operator ==(Object a, Object b)
+        {
+            bool an = ReferenceEquals(a, null) || a.Destroyed, bn = ReferenceEquals(b, null) || b.Destroyed;
+            return an || bn ? an && bn : ReferenceEquals(a, b);
+        }
+        public static bool operator !=(Object a, Object b) => !(a == b);
+        public override bool Equals(object value) => ReferenceEquals(this, value);
+        public override int GetHashCode() => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(this);
+    }
+    public class GameObject : Object
+    {
+        public UnityEngine.SceneManagement.Scene scene = new UnityEngine.SceneManagement.Scene(1);
+        public bool activeSelf = true;
+        public bool activeInHierarchy => activeSelf;
+        public void SetActive(bool value) { activeSelf = value; }
+    }
+    public class Component : Object { public GameObject gameObject = new GameObject(); }
+    public class Coroutine { public IEnumerator routine; }
+    public class MonoBehaviour : Component
+    {
+        public readonly List<Coroutine> scheduled = new List<Coroutine>();
+        public Coroutine StartCoroutine(IEnumerator value)
+        {
+            var job = new Coroutine { routine = value }; scheduled.Add(job);
+            value.MoveNext(); return job;
+        }
+        public void StopCoroutine(Coroutine value) { if (value != null) scheduled.Remove(value); }
+    }
+    public static class Resources { public static T[] FindObjectsOfTypeAll<T>() where T : Object => Object.All.OfType<T>().Where(value => !value.Destroyed).ToArray(); }
+    public static class Canvas { public static int Updates; public static void ForceUpdateCanvases() { Updates++; } }
+    public static class Debug { public static readonly List<string> Warnings = new List<string>(); public static void LogWarning(string value) { Warnings.Add(value); } }
+}
+public sealed class ContractSO { public bool Tutorial = true; public bool IsTutorialForCurrentPlayer() => Tutorial; }
+public sealed class TutorialSequence : MonoBehaviour
+{
+    public string lessonName;
+    public TutorialSequence nextSequence;
+    public bool autoStartNextSequence, UsesDirector;
+}
+public sealed class PlayerDataManager
+{
+    public static PlayerDataManager Instance;
+    public readonly HashSet<string> completedLessons = new HashSet<string>();
+    public int Resets, Saves;
+    public void ResetLessonProgress(string lesson, bool save) { completedLessons.Remove(lesson); Resets++; }
+    public void SaveGame() { Saves++; }
+}
+public sealed class TutorialManager
+{
+    public static TutorialManager Instance;
+    public int Restarts; public TutorialSequence LastSequence;
+    public void RestartTutorial(TutorialSequence value) { Restarts++; LastSequence = value; }
+}
+public sealed class BuildTutorialDirector
+{
+    public static BuildTutorialDirector Instance;
+    public int Ends, GhostPreparations;
+    public void EndTutorial() { Ends++; }
+    public void PrepareGhostsForTutorialRestart() { GhostPreparations++; }
+}
+public sealed class CommandManager
+{
+    public static CommandManager Instance;
+    public int Clears; public void ClearHistory() { Clears++; }
+}
+public sealed class GameManager
+{
+    public static GameManager Instance;
+    public BuildLocation ActiveBuildLocation;
+    public bool Building = true, IsTransitioning;
+    public bool IsInBuildMode() => Building;
+}
+public sealed class BarCreator : MonoBehaviour { public bool isSimulating = true; }
+public sealed class BridgePhysicsManager { public int Resets; public void StopPhysicsAndReset() { Resets++; } }
+public sealed class BuildLocation : MonoBehaviour
+{
+    public ContractSO activeContract;
+    public TutorialSequence onEnterBuildModeTutorial;
+    public bool isTutorialReplayActive;
+    public int BridgeMembers = 12, Clears, TimeResets;
+    public readonly List<string> Undo = new List<string> { "place beam", "place road" };
+    public void ResetTimeAttack() { TimeResets++; }
+    private void ClearBridgeForTutorialRestart() { Clears++; BridgeMembers = 0; Undo.Clear(); }
+    private static bool UsesBuildTutorialDirector(TutorialSequence value) => value != null && value.UsesDirector;
+    public void ConfigurePolicyForTest(bool value) { restartGuidedTutorialOnFailure = value; }
+    // ACTUAL_LOCATION
+}
+public sealed class LevelFailedManager : MonoBehaviour
+{
+    private BuildLocation tutorialLocationToRestart;
+    private Coroutine failDelayCoroutine;
+    public BridgePhysicsManager physicsManager = new BridgePhysicsManager();
+    public GameObject levelFailedPanel = new GameObject();
+    public bool isFailed = true;
+    private bool hideRetryButtonThisFail = true, showExitButtonThisFail = true;
+    public int UIRestores;
+    private void RestoreHiddenUI() { UIRestores++; }
+    public void ConfigureRetryForTest(BuildLocation location) { tutorialLocationToRestart = location; }
+    public IEnumerator CreateDelayedForTest(BuildLocation location) => RestartTutorialAfterRetry(location);
+    public BuildLocation PendingLocation => tutorialLocationToRestart;
+    // ACTUAL_RETRY
+}

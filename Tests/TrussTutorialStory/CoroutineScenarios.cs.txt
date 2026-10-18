@@ -1,0 +1,183 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Reflection;
+using UnityEngine;
+using UnityEngine.Events;
+
+public static class CoroutineScenarios
+{
+    private static int checks;
+    private static void Check(bool value, string message) { checks++; if (!value) throw new InvalidOperationException(message); }
+    private static void Set(object value, string name, object field) => value.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic).SetValue(value, field);
+    private static T Get<T>(object value, string name) => (T)value.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic).GetValue(value);
+    private static void Call(object value, string name) => value.GetType().GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic).Invoke(value, null);
+
+    private sealed class Fixture
+    {
+        public readonly ContractSO contract = new ContractSO();
+        public readonly BuildLocation location = new BuildLocation();
+        public readonly BuildLocationLessonTrigger trigger = new BuildLocationLessonTrigger();
+        public readonly LessonData equilibrium = new LessonData("What is Equilibrium");
+        public readonly UnityEvent opened = new UnityEvent(), finished = new UnityEvent();
+        public Fixture(bool defer = true)
+        {
+            World.Reset(); location.activeContract = contract;
+            Set(trigger, "buildLocation", location); Set(trigger, "lesson", equilibrium);
+            Set(trigger, "waitForGameplayPresentation", defer);
+            Set(trigger, "onLessonTriggered", opened); Set(trigger, "onLessonSequenceFinished", finished);
+            Call(trigger, "OnEnable");
+        }
+        public void Save() => LevelCompleteManager.Save(contract, location);
+    }
+
+    public static int Run()
+    {
+        Arrival(); ReviewReadiness(); ReviewIdentityAndCancellation(); ReviewSequence();
+        return checks;
+    }
+
+    private static void Arrival()
+    {
+        World.Reset(); var npc = new NPCProgressionManager(); var phase = npc.CurrentPhase;
+        IEnumerator arrival = npc.BeginArrival();
+        Check(arrival.MoveNext() && npc.dialogueStarts == 0, "Ordered arrival always yields one frame for reward/arrival panels.");
+        Check(!arrival.MoveNext() && npc.dialogueStarts == 1 && npc.startedIndex == 7 && npc.startedPhase == phase, "Idle ordered arrival starts the exact Follow phase once.");
+        Check(!arrival.MoveNext() && npc.dialogueStarts == 1, "Completed arrival cannot replay itself.");
+
+        Action[] busy = {
+            () => UIPanelCoordinator.Instance.HasOpenPanel = true,
+            () => { World.Dialogue = new DialogueManager(); World.Dialogue.animator.open = true; },
+            () => GameManager.Instance.IsTransitioning = true,
+            () => GameManager.Instance.CurrentState = GameManager.GameState.BuildMode,
+            () => Time.timeScale = 0,
+            () => Time.timeScale = -1
+        };
+        Action[] clear = {
+            () => UIPanelCoordinator.Instance.HasOpenPanel = false,
+            () => World.Dialogue.animator.open = false,
+            () => GameManager.Instance.IsTransitioning = false,
+            () => GameManager.Instance.CurrentState = GameManager.GameState.Normal,
+            () => Time.timeScale = 1,
+            () => Time.timeScale = 1
+        };
+        for (int index = 0; index < busy.Length; index++)
+        {
+            World.Reset(); npc = new NPCProgressionManager(); busy[index](); arrival = npc.BeginArrival();
+            Check(arrival.MoveNext(), "Busy arrival initial yield " + index);
+            Check(arrival.MoveNext() && arrival.MoveNext() && npc.dialogueStarts == 0, "Reward/dialogue/build/transition/pause remains deferred " + index);
+            clear[index]();
+            Check(!arrival.MoveNext() && npc.dialogueStarts == 1, "Closing the current blocker permits exactly one Follow start " + index);
+        }
+
+        Action<NPCProgressionManager>[] stale = {
+            value => value.arrivalDialogueVersion++, // includes manual NPC interaction cancellation
+            value => value.currentPhaseIndex++,
+            value => value.CurrentPhase = new NPCProgressionPhase(),
+            value => value.IsTravelling = true,
+            value => value.CurrentPhase.contract = new ContractSO(),
+            value => value.isActiveAndEnabled = false,
+            value => value.gameObject.scene.isLoaded = false,
+            value => value.gameObject.scene.valid = false,
+            value => FusionConnectionManager.Instance = new FusionConnectionManager { IsGuestInHostWorld = true }
+        };
+        for (int index = 0; index < stale.Length; index++)
+        {
+            World.Reset(); npc = new NPCProgressionManager(); UIPanelCoordinator.Instance.HasOpenPanel = true;
+            arrival = npc.BeginArrival(); Check(arrival.MoveNext() && arrival.MoveNext(), "Deferred arrival exists before invalidation " + index);
+            stale[index](npc); UIPanelCoordinator.Instance.HasOpenPanel = false;
+            Check(!arrival.MoveNext() && npc.dialogueStarts == 0, "Stale/visitor/unloaded arrival cannot start the quiz or departure " + index);
+        }
+        World.Reset(); npc = new NPCProgressionManager(); UIPanelCoordinator.Instance = null; GameManager.Instance = null;
+        arrival = npc.BeginArrival(); Check(arrival.MoveNext() && !arrival.MoveNext() && npc.dialogueStarts == 1, "Absent optional scene managers do not permanently soft-lock Follow.");
+    }
+
+    private static void ReviewReadiness()
+    {
+        var f = new Fixture(); f.Save();
+        Check(f.opened.calls == 1 && LessonUIManager.Instance.shown.Count == 0, "Saved bridge schedules the review without covering Save/Continue that frame.");
+        f.trigger.Tick(); Check(LessonUIManager.Instance.shown.Count == 1 && LessonUIManager.Instance.CurrentLesson == f.equilibrium, "Ready exact-site save opens the existing Equilibrium lesson.");
+        Check(f.finished.calls == 0, "Review does not complete while the popup is open.");
+        LessonUIManager.Instance.Close(); f.trigger.Tick(); Check(f.finished.calls == 0, "Closing review leaves one frame for the panel coordinator.");
+        f.trigger.Tick(); Check(f.finished.calls == 1 && Get<Coroutine>(f.trigger, "lessonSequenceRoutine") == null, "Review finalizes exactly once after closing.");
+        f.Save(); f.trigger.Tick(); Check(LessonUIManager.Instance.shown.Count == 1 && f.opened.calls == 1, "A repeated bridge-save event does not reopen a once-only review.");
+
+        Action[] busy = {
+            () => UIPanelCoordinator.Instance.HasOpenPanel = true,
+            () => GameManager.Instance.IsTransitioning = true,
+            () => GameManager.Instance.CurrentState = GameManager.GameState.BuildMode,
+            () => GameManager.Instance.CurrentState = GameManager.GameState.Simulation,
+            () => Time.timeScale = 0,
+            () => LessonUIManager.Instance = null,
+            () => DialogueManager.IsAnyDialogueActive = true
+        };
+        for (int index = 0; index < busy.Length; index++)
+        {
+            f = new Fixture(); f.Save(); var manager = LessonUIManager.Instance; busy[index]();
+            f.trigger.Tick(); f.trigger.Tick();
+            Check(manager.shown.Count == 0 && Get<Coroutine>(f.trigger, "lessonSequenceRoutine") != null, "Post-save review waits for presentation gate " + index);
+            UIPanelCoordinator.Instance.HasOpenPanel = false; GameManager.Instance.IsTransitioning = false;
+            GameManager.Instance.CurrentState = GameManager.GameState.Normal; Time.timeScale = 1; LessonUIManager.Instance = manager;
+            DialogueManager.IsAnyDialogueActive = false;
+            f.trigger.Tick(); Check(manager.shown.Count == 1, "Review resumes when presentation is safely ready " + index);
+        }
+        f = new Fixture(); GameManager.Instance = null; UIPanelCoordinator.Instance = null; f.Save(); f.trigger.Tick();
+        Check(LessonUIManager.Instance.shown.Count == 1, "Optional manager absence does not lose a valid saved review.");
+    }
+
+    private static void ReviewIdentityAndCancellation()
+    {
+        var f = new Fixture();
+        LevelCompleteManager.Save(f.contract, new BuildLocation { activeContract = f.contract });
+        LevelCompleteManager.Save(new ContractSO(), f.location); LevelCompleteManager.Save(null, f.location);
+        Check(f.opened.calls == 0 && f.trigger.routines.Count == 0, "Same contract at another location and stale/null contracts do not trigger Equilibrium.");
+        f.Save(); f.Save(); Check(f.opened.calls == 1 && f.trigger.routines.Count == 1, "Duplicate same-frame saves use one pending review.");
+
+        Action<Fixture>[] invalidate = {
+            value => value.location.activeContract = new ContractSO(),
+            value => value.location.gameObject.activeInHierarchy = false,
+            value => value.location.gameObject.scene.isLoaded = false,
+            value => value.trigger.isActiveAndEnabled = false,
+            value => Set(value.trigger, "buildLocation", null),
+            value => FusionConnectionManager.Instance = new FusionConnectionManager { IsGuestInHostWorld = true }
+        };
+        for (int index = 0; index < invalidate.Length; index++)
+        {
+            f = new Fixture(); UIPanelCoordinator.Instance.HasOpenPanel = true; f.Save(); f.trigger.Tick();
+            invalidate[index](f); UIPanelCoordinator.Instance.HasOpenPanel = false; f.trigger.Tick();
+            Check(LessonUIManager.Instance.shown.Count == 0 && f.finished.calls == 0, "Invalid save context cannot present or finish a review " + index);
+            Check(!Get<bool>(f.trigger, "hasTriggered") && Get<Coroutine>(f.trigger, "lessonSequenceRoutine") == null, "Unpresented aborted review releases its once-only latch " + index);
+        }
+        f = new Fixture(); UIPanelCoordinator.Instance.HasOpenPanel = true; f.Save();
+        Call(f.trigger, "OnDisable");
+        Check(f.trigger.stopped == 1 && Get<Coroutine>(f.trigger, "lessonSequenceRoutine") == null && !Get<bool>(f.trigger, "hasTriggered"), "Disabling the trigger cancels the pending coroutine and preserves retry eligibility.");
+        LevelCompleteManager.Save(f.contract, f.location); f.trigger.Tick();
+        Check(f.opened.calls == 1 && LessonUIManager.Instance.shown.Count == 0, "Disabled trigger unsubscribes; stale queued work cannot open UI.");
+        Call(f.trigger, "OnEnable"); UIPanelCoordinator.Instance.HasOpenPanel = false; f.Save(); f.trigger.Tick();
+        Check(LessonUIManager.Instance.shown.Count == 1, "Re-enabled trigger can review a fresh authoritative save after unpresented cancellation.");
+        Call(f.trigger, "OnDisable");
+        Check(Get<bool>(f.trigger, "hasTriggered") && Get<bool>(f.trigger, "hasPresentedLesson"), "Disabling after presentation does not accidentally replay a once-only lesson.");
+        Check(f.finished.calls == 0, "Teardown does not signal successful lesson completion.");
+    }
+
+    private static void ReviewSequence()
+    {
+        var f = new Fixture(); var second = new LessonData("Second");
+        Set(f.trigger, "lessons", new List<LessonData> { f.equilibrium, null, f.equilibrium, second });
+        f.Save(); f.trigger.Tick(); Check(LessonUIManager.Instance.shown.Count == 1, "Ordered lessons ignore null/duplicate entries.");
+        LessonUIManager.Instance.Close(); f.trigger.Tick();
+        UIPanelCoordinator.Instance.HasOpenPanel = true; f.trigger.Tick(); f.trigger.Tick();
+        Check(LessonUIManager.Instance.shown.Count == 1, "Each subsequent lesson also respects nested panels.");
+        UIPanelCoordinator.Instance.HasOpenPanel = false; f.trigger.Tick();
+        Check(LessonUIManager.Instance.shown.Count == 2 && LessonUIManager.Instance.CurrentLesson == second, "Lessons keep authored order after closing the preceding review.");
+        LessonUIManager.Instance.Close(); f.trigger.Tick(); f.trigger.Tick();
+        Check(f.finished.calls == 1, "Multi-lesson sequence completes once, after the final close.");
+        f = new Fixture(false); UIPanelCoordinator.Instance.HasOpenPanel = true; GameManager.Instance.IsTransitioning = true;
+        DialogueManager.IsAnyDialogueActive = true;
+        f.Save(); Check(LessonUIManager.Instance.shown.Count == 1, "New readiness wait is opt-in; existing legacy triggers retain immediate timing.");
+        f = new Fixture(); Set(f.trigger, "lesson", null);
+        Check(!f.trigger.TryShowLesson() && f.opened.calls == 0, "Missing lesson does not latch or emit a fake trigger.");
+        f = new Fixture(); LessonUIManager.Instance = null;
+        Check(!f.trigger.TryShowLesson() && f.opened.calls == 0, "Initially unconfigured lesson UI fails safely before scheduling.");
+    }
+}

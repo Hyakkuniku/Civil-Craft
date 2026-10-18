@@ -13,10 +13,9 @@ MonoBehaviour:
   m_Name: Pier
   m_EditorClassIdentifier: 
   materialId: Pier
-  displayName: Timber Pier
-  introductionDescription: A vertical foundation support that transfers bridge loads
-    toward the ground or riverbed. Place piers beneath the road where direct support
-    is available.
+  displayName: Wood Pier
+  introductionDescription: Supports the bridge structure and transfers loads toward
+    the ground. Place Wood Piers beneath the roadway where structural support is available.
   costPerMeter: 500
   massPerMeter: 182.5
   maxLength: 50

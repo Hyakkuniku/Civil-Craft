@@ -13,10 +13,12 @@ MonoBehaviour:
   m_Name: Beam
   m_EditorClassIdentifier: 
   materialId: Beam
-  displayName: Timber Beam
-  introductionDescription: A low-cost structural member used to support road decks
-    and form trusses. Timber beams resist both pulling and pushing forces and are
-    placed as a matching pair across the bridge.
+  displayName: Wood Beam
+  introductionDescription: A Wood Beam is a structural member that connects with
+    other members to form load-bearing arrangements, including the triangular
+    patterns of a Truss Bridge. These connected arrangements help carry loads
+    toward the supports. Timber beams can resist pulling and pushing forces and
+    are placed as a matching pair across the bridge.
   costPerMeter: 100
   massPerMeter: 3
   maxLength: 10

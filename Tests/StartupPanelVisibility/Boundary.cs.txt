@@ -1,0 +1,111 @@
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Events;
+
+namespace UnityEngine
+{
+    public class Object { public bool Destroyed; public static void Destroy(Object target) { if (target != null) target.Destroyed = true; } }
+    public class GameObject : Object
+    {
+        public bool activeSelf = true;
+        public readonly Transform transform;
+        private readonly Dictionary<Type, Component> components = new Dictionary<Type, Component>();
+        public GameObject() { transform = new RectTransform { gameObject = this }; }
+        public void SetActive(bool value) { activeSelf = value; }
+        public T GetComponent<T>() where T : Component => components.TryGetValue(typeof(T), out Component value) ? (T)value : null;
+        public T AddComponent<T>() where T : Component, new() { var value = new T { gameObject = this }; components[typeof(T)] = value; return value; }
+    }
+    public class Component : Object { public GameObject gameObject; }
+    public class Transform : Component { }
+    public class RectTransform : Transform { }
+    public class MonoBehaviour : Component { public MonoBehaviour() { gameObject = new GameObject(); } }
+    public class Canvas : Component { }
+}
+namespace UnityEngine.Events { public delegate void UnityAction(); }
+namespace UnityEngine.UI
+{
+    public sealed class Button : Component
+    {
+        public Image targetGraphic;
+        public readonly ClickEvent onClick = new ClickEvent();
+        public sealed class ClickEvent { public int Listeners; public void AddListener(UnityAction value) { Listeners++; } }
+    }
+    public sealed class Image : Component { public bool raycastTarget; }
+}
+public static class UIReservedRegionLayout
+{
+    public static int Registrations;
+    public static void Register(RectTransform value) { Registrations++; }
+}
+public sealed class TutorialPointer : MonoBehaviour
+{
+    public int Hides;
+    public void Hide() { Hides++; gameObject.SetActive(false); }
+}
+
+public sealed class LevelCompleteManager : MonoBehaviour
+{
+    public static LevelCompleteManager Instance { get; set; }
+    public GameObject levelCompletePanel;
+    public UnityEngine.UI.Button completedLocationLeaderboardButton;
+    public int Binds, FontInitializations, TutorialInitializations;
+    public bool ThrowOnBind;
+    private void BindAuthoredLayout()
+    {
+        if (levelCompletePanel != null && levelCompletePanel.activeSelf) throw new Exception("Completion layout ran before startup hide.");
+        Binds++;
+        if (ThrowOnBind) throw new InvalidOperationException("Injected layout failure");
+    }
+    private void InitializeReceiptFont() { FontInitializations++; }
+    private void EnsureFirstCompletionTutorialDraft() { TutorialInitializations++; }
+    public void InvokeAwake() { Awake(); }
+    // ACTUAL_COMPLETE_AWAKE
+}
+public sealed class LevelFailedManager : MonoBehaviour
+{
+    public static LevelFailedManager Instance { get; set; }
+    public GameObject levelFailedPanel;
+    public int Binds;
+    public bool ThrowOnBind;
+    private void BindAuthoredLayout()
+    {
+        if (levelFailedPanel != null && levelFailedPanel.activeSelf) throw new Exception("Failure layout ran before startup hide.");
+        Binds++;
+        if (ThrowOnBind) throw new InvalidOperationException("Injected layout failure");
+    }
+    public void InvokeAwake() { Awake(); }
+    // ACTUAL_FAILED_AWAKE
+}
+public sealed class TutorialManager : MonoBehaviour
+{
+    public static TutorialManager Instance { get; set; }
+    public GameObject centerPanel, leftPanel, nextButton, skipButton;
+    public TutorialPointer bouncingArrow;
+    private RectTransform centerPanelRect, leftPanelRect;
+    private Canvas tutorialRootCanvas;
+    private UnityAction trackedButtonAction;
+    public int Styles, Recalls, Positions, Skips;
+    public bool ThrowOnStyle;
+    private void ApplyReadableLeftTutorialStyle()
+    {
+        if ((centerPanel != null && centerPanel.activeSelf) || (leftPanel != null && leftPanel.activeSelf) ||
+            (nextButton != null && nextButton.activeSelf) || (skipButton != null && skipButton.activeSelf))
+            throw new Exception("Tutorial initialization ran before startup hide.");
+        Styles++;
+        if (ThrowOnStyle) throw new InvalidOperationException("Injected style failure");
+    }
+    private void BindRecallGuideButton() { Recalls++; }
+    private void RecallCurrentTutorialGuide() { }
+    private void CacheTutorialPanelPositions()
+    {
+        Positions++;
+        centerPanelRect = centerPanel != null ? centerPanel.transform as RectTransform : null;
+        leftPanelRect = leftPanel != null ? leftPanel.transform as RectTransform : null;
+    }
+    private Canvas FindTutorialRootCanvas() { return new Canvas(); }
+    private void EnsureTutorialSkipButton() { Skips++; }
+    private void OnTrackedButtonClicked() { }
+    public void InvokeAwake() { Awake(); }
+    // ACTUAL_TUTORIAL_AWAKE
+}

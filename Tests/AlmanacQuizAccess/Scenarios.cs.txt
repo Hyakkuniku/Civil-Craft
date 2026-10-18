@@ -1,0 +1,99 @@
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
+
+public static class Scenarios
+{
+    private static int checks;
+    private static void Check(bool value, string message) { checks++; if (!value) throw new InvalidOperationException(message); }
+    private static void Set(AlmanacQuizAccess access, string name, object value) => typeof(AlmanacQuizAccess).GetField(name, BindingFlags.NonPublic | BindingFlags.Instance).SetValue(access, value);
+    private static T Get<T>(AlmanacQuizAccess access, string name) => (T)typeof(AlmanacQuizAccess).GetField(name, BindingFlags.NonPublic | BindingFlags.Instance).GetValue(access);
+    private static void Call(AlmanacQuizAccess access, string name) => typeof(AlmanacQuizAccess).GetMethod(name, BindingFlags.NonPublic | BindingFlags.Instance).Invoke(access, null);
+    private class Fixture
+    {
+        public AlmanacManager book = new AlmanacManager();
+        public AlmanacQuizAccess access = new AlmanacQuizAccess();
+        public Behaviour owner = new Behaviour();
+        public QuizData quiz = new QuizData();
+        public QuizContext context = new QuizContext("bhan", "dead-load", "quiz");
+        public List<QuizOutcome> results = new List<QuizOutcome>();
+        public Button tab = new Button(), start = new Button(), back = new Button();
+        public Fixture()
+        {
+            AlmanacManager.Instance = book; book.access = access;
+            PlayerDataManager.Instance = new PlayerDataManager(); FusionConnectionManager.Instance = null;
+            QuizUIManager.openSucceeds = true; QuizUIManager.opens = QuizUIManager.cancellations = 0;
+            QuizUIManager.closed = null; QuizUIManager.activeOwner = null; QuizUIManager.openedQuiz = null;
+            Set(access, "book", book); Set(access, "tab", tab); Set(access, "start", start); Set(access, "back", back);
+            Set(access, "title", new TMP_Text()); Set(access, "description", new TMP_Text());
+        }
+        public bool Offer() => AlmanacQuizAccess.TryOffer(quiz, context, owner, outcome => results.Add(outcome));
+        public void Start() => Call(access, "StartQuiz");
+    }
+    public static int Run()
+    {
+        Fixture f = new Fixture(); Check(f.Offer(), "Valid assessment offer accepted.");
+        Check(f.tab.interactable && f.start.interactable && f.start.gameObject.activeSelf && QuizUIManager.opens == 0, "Offer enables Quiz tab but never auto-starts.");
+        f.context.stepId = "changed-caller";
+        Check(!f.Offer(), "Duplicate offer cannot overwrite pending callback.");
+        f.Start(); f.Start();
+        Check(QuizUIManager.opens == 0 && !f.tab.interactable && !f.back.interactable, "Start waits for close/input restoration and ignores double tap.");
+        f.book.FinishClose();
+        Check(f.book.restores == 1 && QuizUIManager.opens == 1 && QuizUIManager.openedContext.stepId == "quiz", "Quiz opens only after book close and with copied identity.");
+        Check(f.results.Count == 0, "Opening does not advance NPC.");
+        QuizUIManager.Resolve(QuizOutcome.Completed);
+        Check(f.results.Count == 1 && f.results[0] == QuizOutcome.Completed && !f.tab.interactable && !f.start.gameObject.activeSelf, "Completed result disables offer and resolves once.");
+        AlmanacQuizAccess.CancelOwned(f.owner); Call(f.access, "OnDisable"); Call(f.access, "OnDestroy");
+        Check(f.results.Count == 1, "Repeated teardown cannot repeat completed callback.");
+        f = new Fixture(); f.Offer(); f.Start(); AlmanacQuizAccess.CancelOwned(f.owner); f.book.FinishClose();
+        Check(f.results.Count == 1 && f.results[0] == QuizOutcome.Cancelled && QuizUIManager.opens == 0, "Cancelled pending close ignores stale open callback.");
+        f = new Fixture(); f.Offer(); f.Start(); f.book.FinishClose(); AlmanacQuizAccess.CancelOwned(new Behaviour());
+        Check(f.results.Count == 0, "Different owner cannot cancel offer/session.");
+        AlmanacQuizAccess.CancelOwned(f.owner); Check(f.results.Count == 1 && QuizUIManager.cancellations == 1, "Owning cancel closes assessment once without recursive result callback.");
+        f = new Fixture(); f.Offer(); f.book.blockClose = true; f.Start();
+        Check(f.tab.interactable && f.start.interactable && !Get<bool>(f.access, "starting"), "Required Almanac tutorial blocking close leaves Start retryable.");
+        f.book.blockClose = false; QuizUIManager.openSucceeds = false; f.Start(); f.book.FinishClose();
+        Check(f.results.Count == 0 && f.book.opens == 1 && f.tab.interactable, "Unavailable quiz UI reopens review safely without advancing.");
+        QuizUIManager.openSucceeds = true; f.Start(); f.book.FinishClose(); QuizUIManager.Resolve(QuizOutcome.Completed);
+        Check(f.results.Count == 1, "Retry after unavailable open succeeds with original callback.");
+        foreach (string change in new[] { "owner", "account", "visitor", "disable", "destroy" })
+        {
+            f = new Fixture(); f.Offer(); f.Start();
+            if (change == "owner") { f.owner.isActiveAndEnabled = false; Call(f.access, "Update"); }
+            if (change == "account") { PlayerDataManager.Instance.CurrentData = new PlayerData(); Call(f.access, "Update"); }
+            if (change == "visitor") { FusionConnectionManager.Instance = new FusionConnectionManager { IsGuestSaveProtected = true }; Call(f.access, "Update"); }
+            if (change == "disable") Call(f.access, "OnDisable");
+            if (change == "destroy") Call(f.access, "OnDestroy");
+            f.book.FinishClose();
+            Check(f.results.Count == 1 && f.results[0] == QuizOutcome.Cancelled && QuizUIManager.opens == 0 && !f.tab.interactable, "Lifecycle invalidation cancels pending callback before stale close: " + change);
+        }
+        f = new Fixture(); f.quiz.assessmentMode = false; Check(!f.Offer(), "Practice quiz is not routed to assessment tab.");
+        f.quiz.assessmentMode = true; f.quiz.valid = false; Check(!f.Offer(), "Invalid content cannot enable tab.");
+        f.quiz.valid = true; FusionConnectionManager.Instance = new FusionConnectionManager { IsGuestSaveProtected = true }; Check(!f.Offer(), "Visitor cannot receive host assessment.");
+        FusionConnectionManager.Instance = null; PlayerDataManager.Instance.CurrentData = null; Check(!f.Offer(), "Missing profile rejects offer.");
+        f = new Fixture(); f.context.stepId = ""; Check(!f.Offer(), "Missing stable identity rejects offer.");
+        Check(!AlmanacQuizAccess.TryOffer(f.quiz, new QuizContext("a", "b", "c"), f.owner, null), "Missing callback rejects ownership.");
+        foreach (string change in new[] { "owner", "account", "manager", "visitor" })
+        {
+            f = new Fixture(); f.Offer(); f.Start();
+            if (change == "owner") f.owner.isActiveAndEnabled = false;
+            if (change == "account") PlayerDataManager.Instance.CurrentData = new PlayerData();
+            if (change == "manager") PlayerDataManager.Instance = new PlayerDataManager { CurrentData = PlayerDataManager.Instance.CurrentData };
+            if (change == "visitor") FusionConnectionManager.Instance = new FusionConnectionManager { IsGuestSaveProtected = true };
+            // Deliberately do not call Update before completing the animation.
+            f.book.FinishClose();
+            Check(f.results.Count == 1 && f.results[0] == QuizOutcome.Cancelled && QuizUIManager.opens == 0,
+                "Closing animation rechecks authorization synchronously: " + change);
+        }
+        f = new Fixture(); f.owner.isActiveAndEnabled = false; Check(!f.Offer(), "Inactive owner cannot receive offer.");
+        f = new Fixture(); f.Offer(); f.Start(); f.book.FinishClose();
+        Action<QuizOutcome> stale = QuizUIManager.closed;
+        AlmanacQuizAccess.CancelOwned(f.owner); Check(f.Offer(), "A new offer can follow cancellation.");
+        stale(QuizOutcome.Completed);
+        Check(f.results.Count == 1 && f.tab.interactable, "Old quiz callback cannot complete a newer offer.");
+        return checks;
+    }
+}

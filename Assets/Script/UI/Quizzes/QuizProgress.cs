@@ -34,6 +34,25 @@ public sealed class QuizContext
 
 public static class QuizProgressUtility
 {
+    public static bool HasAllAssessmentAnswers(QuizData quiz, IReadOnlyDictionary<string, int> answers)
+    {
+        if (quiz == null || quiz.QuestionCount == 0 || answers == null) return false;
+        foreach (QuizQuestion question in quiz.questions)
+            if (question == null || !answers.TryGetValue(question.questionId.Trim(), out int choice) ||
+                choice < 0 || choice >= question.choices.Count) return false;
+        return true;
+    }
+
+    public static int AssessmentScore(QuizData quiz, IReadOnlyDictionary<string, int> answers)
+    {
+        int score = 0;
+        if (quiz?.questions == null || answers == null) return score;
+        foreach (QuizQuestion question in quiz.questions)
+            if (question != null && answers.TryGetValue(question.questionId.Trim(), out int choice) &&
+                choice == question.correctChoiceIndex) score++;
+        return score;
+    }
+
     public static int FirstUnresolvedQuestionIndex(QuizData quiz, IEnumerable<string> correctQuestionIds)
     {
         if (quiz == null || quiz.questions == null) return 0;

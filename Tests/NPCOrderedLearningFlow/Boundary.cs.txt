@@ -1,0 +1,130 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+
+namespace UnityEngine
+{
+    [AttributeUsage(AttributeTargets.Class)] public sealed class DisallowMultipleComponent : Attribute { }
+    public class Object
+    {
+        public bool Destroyed;
+        public static void Destroy(Object value) { if (value != null) value.Destroyed = true; }
+    }
+    public sealed class Transform
+    {
+        public Transform Parent;
+        public void SetParent(Transform parent, bool worldPositionStays) { Parent = parent; }
+    }
+    public sealed class GameObject : Object
+    {
+        public string name;
+        public Transform transform = new Transform();
+        public GameObject(string name = "Fixture") { this.name = name; }
+        public T AddComponent<T>() where T : MonoBehaviour, new()
+        { T component = new T(); component.gameObject = this; return component; }
+    }
+    public sealed class Coroutine
+    {
+        public IEnumerator Routine;
+        public bool Stopped;
+    }
+    public class MonoBehaviour : Object
+    {
+        public bool isActiveAndEnabled = true;
+        public GameObject gameObject = new GameObject();
+        public Transform transform => gameObject.transform;
+        private readonly List<Coroutine> running = new List<Coroutine>();
+        public Coroutine StartCoroutine(IEnumerator routine)
+        {
+            Coroutine result = new Coroutine { Routine = routine };
+            running.Add(result);
+            if (!routine.MoveNext()) result.Stopped = true;
+            return result;
+        }
+        public void StopCoroutine(Coroutine routine) { routine.Stopped = true; }
+        public void Tick()
+        {
+            foreach (Coroutine routine in running.ToArray())
+                if (!routine.Stopped && !routine.Routine.MoveNext()) routine.Stopped = true;
+            running.RemoveAll(routine => routine.Stopped);
+        }
+        public int RunningCount => running.FindAll(routine => !routine.Stopped).Count;
+    }
+}
+
+public sealed class PlayerData { public List<string> completedLessons = new List<string>(); }
+public sealed class PlayerDataManager
+{
+    public static PlayerDataManager Instance;
+    public PlayerData CurrentData = new PlayerData();
+}
+public sealed class FusionConnectionManager
+{
+    public static FusionConnectionManager Instance;
+    public bool IsGuestSaveProtected;
+}
+public sealed class LessonData { }
+public sealed class LessonUIManager
+{
+    public static LessonUIManager Instance;
+    private Action<LessonData> closed, opened;
+    public event Action<LessonData> LessonClosed { add { closed += value; } remove { closed -= value; } }
+    public event Action<LessonData> LessonOpened { add { opened += value; } remove { opened -= value; } }
+    public int ClosedSubscribers => closed?.GetInvocationList().Length ?? 0;
+    public int OpenedSubscribers => opened?.GetInvocationList().Length ?? 0;
+    public bool IsOpen;
+    public LessonData CurrentLesson;
+    public bool RefuseOpen;
+    public void ShowLesson(LessonData lesson)
+    { if (RefuseOpen) return; CurrentLesson = lesson; IsOpen = true; opened?.Invoke(lesson); }
+    public void CloseLesson()
+    { LessonData prior = CurrentLesson; CurrentLesson = null; IsOpen = false; closed?.Invoke(prior); }
+    public void RaiseClosed(LessonData lesson) { closed?.Invoke(lesson); }
+}
+public sealed class AlmanacManager
+{
+    public static AlmanacManager Instance;
+    private Action closed;
+    public event Action OnAlmanacClosed { add { closed += value; } remove { closed -= value; } }
+    public int CloseSubscribers => closed?.GetInvocationList().Length ?? 0;
+    public bool IsOpenAndReady;
+    public void CloseAnimationStarted() { IsOpenAndReady = false; }
+    public void CloseAnimationFinished() { IsOpenAndReady = false; closed?.Invoke(); }
+}
+public enum TutorialPosition { Left }
+public sealed class TutorialStep
+{
+    public string message;
+    public TutorialPosition screenPosition;
+    public bool showNextButton, canSkip;
+}
+public sealed class TutorialSequence : UnityEngine.MonoBehaviour
+{
+    public string lessonName;
+    public TutorialStep[] tutorialSteps;
+    public void StartTutorial() { TutorialManager.Instance.StartOrQueue(this); }
+}
+public sealed class TutorialManager
+{
+    public static TutorialManager Instance;
+    public TutorialSequence Active;
+    public int CurrentStepIndex;
+    public int Starts, Completes, Cancels, Advances;
+    public readonly List<TutorialSequence> Queued = new List<TutorialSequence>();
+    public readonly List<string> Completed = new List<string>();
+    public void StartOrQueue(TutorialSequence sequence)
+    { Starts++; if (Active == null) { Active = sequence; CurrentStepIndex = 0; } else Queued.Add(sequence); }
+    public bool IsPlayingSequence(TutorialSequence sequence) => sequence != null && ReferenceEquals(sequence, Active);
+    public void ShowNextStep() { Advances++; CurrentStepIndex++; }
+    public bool CompleteTutorialIfPlaying(string lessonName)
+    {
+        if (Active == null || Active.lessonName != lessonName) return false;
+        Completes++; Completed.Add(lessonName);
+        PlayerDataManager.Instance?.CurrentData.completedLessons.Add(lessonName);
+        Active = null;
+        return true;
+    }
+    public bool CancelTutorialWithoutCompletion(TutorialSequence sequence)
+    { if (!IsPlayingSequence(sequence)) return false; Cancels++; Active = null; return true; }
+    public void Resume(TutorialSequence sequence, int step = 0) { Active = sequence; CurrentStepIndex = step; }
+}

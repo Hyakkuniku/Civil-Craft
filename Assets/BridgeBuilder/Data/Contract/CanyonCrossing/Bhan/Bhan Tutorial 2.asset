@@ -29,9 +29,10 @@ MonoBehaviour:
   autoCollectReward: 0
   featureUnlockRewards: []
   clientName: Professor Bhan
-  jobDescription: Construct a truss bridge that safely carries a vehicle.
+  jobDescription: Build a Training Truss Bridge using Wood Road and Wood Beams to
+    safely carry a 400 kg vehicle across the training ground.
   budget: 75000
-  liveLoadWeight: 1400
+  liveLoadWeight: 400
   bridgeSpan: 60
   allowedMaterials:
   - material: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
@@ -55,32 +56,50 @@ MonoBehaviour:
   offerDialogue:
     name: Professor Bhan
     sentences:
-    - Now that you've seen the new material, let's look at today's <b><#E09500>contract</color></b>.
+    - Now that you understand how a truss bridge works and why equilibrium matters,
+      let's put that knowledge to use.
+    - For this project, you'll construct a bridge that can safely carry a vehicle
+      across the training ground.
+    - The required live load is <b><#E09500>400 kilograms</color></b>.
+    - You'll use the Wood Road for the crossing surface and the newly unlocked Wood
+      Beams to create a truss structure.
+    - The connected members must work together to support the roadway and transfer
+      the load toward the supports.
+    - During the test, a vehicle will cross the bridge to test its structural stability.
+    - <b><#E09500>Pay attention to how the connected members and supports respond as
+      the vehicle crosses</color></b>.
+    - I'll guide you through the construction process and show you a few more tools.
+    - Just like your first project, you'll have a short <b><#E09500>quiz</color></b>
+      after completing this training.
+    - You can review your <b><#E09500>lessons in the Almanac</color></b> before starting.
+    - If you're ready, take the contract.
   continueOfferDialogue:
     name: Professor Bhan
     sentences:
-    - The bridge must safely carry the <b><#E09500>Vehicle</color></b> crossing one
-      after another.
-    - This time, the road alone will not be enough.
-    - You'll reinforce it using the <b><#E09500>Wood Beams</color></b> you just learned
-      about.
-    - A <b><#E09500>truss</color></b> is made of connected structural members that
-      work together to support the load.
-    - For the structure to remain stable, those members need to work together as
-      forces act on the bridge.
-    - During the simulation, pay attention to how the connected members respond while
-      the Vehicle cross.
-    - Pay attention to how the members respond when the pedestrians cross the bridge.
-    - Now that you've accepted the contract, follow the path to the <b><#E09500>Build
-      Mode</color></b>.
+    - You've accepted your second training contract.
+    - This time, the roadway alone won't be enough for the design we're practicing.
+    - You'll use the Wood Beams to form triangular arrangements that help support
+      the crossing.
+    - Remember what we discussed about equilibrium.
+    - <b><#E09500>The structure must remain balanced and its members must safely carry
+      the vehicle's weight</color></b>.
+    - Now, follow the path to the <b><#E09500>Blueprint</color></b> and begin construction.
   reminderDialogue:
     name: Professor Bhan
     sentences:
-    - What are you waiting for?
+    - You've accepted your second training contract.
+    - Use the Wood Beams to form triangular arrangements that help support the crossing.
+    - Remember equilibrium. The structure must remain balanced and its members must
+      safely carry the vehicle's weight.
+    - Follow the path to the <b><#E09500>Blueprint</color></b> to begin constructing
+      your Truss Bridge.
   finishedContractDialogue:
     name: Professor Bhan
     sentences:
-    - Excellent work, Engineer.
-    - You've now built your first truss bridge.
-    - You also learned how to erase. select, copy, and paste structural components.
+    - Excellent work, {PlayerName}.
+    - You've now built your first <b><#E09500>Truss Bridge</color></b>.
+    - You learned how connected structural members can work together to support a bridge.
+    - You also learned how to <b><#E09500>select</color></b>, <b><#E09500>copy</color></b>,
+      and <b><#E09500>paste</color></b> structural components.
     - Those tools will become useful when your designs become more complicated.
+    - There are still more building tools to discover as your projects become more challenging.

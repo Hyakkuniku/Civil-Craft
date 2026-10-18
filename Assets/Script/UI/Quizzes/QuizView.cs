@@ -18,7 +18,8 @@ public sealed class QuizView : MonoBehaviour
     public Button finishButton;
     public Button leaveButton;
     public Button retrySaveButton;
-    public Button pauseButton;
+    [HideInInspector] public Button pauseButton; // Optional legacy reference; never a visible quiz control.
+    public Button previousButton;
     public ScrollRect questionScroll;
     public ScrollRect choiceScroll;
     public RectTransform choiceContent;
@@ -27,10 +28,11 @@ public sealed class QuizView : MonoBehaviour
     public GameObject Panel => panel;
     public bool IsReady => panel != null && title != null && progress != null && question != null && feedback != null &&
         submitButton != null && nextButton != null && finishButton != null && leaveButton != null && retrySaveButton != null &&
-        pauseButton != null && choiceTemplate != null && choiceContent != null && layout != null;
+        choiceTemplate != null && choiceContent != null && layout != null;
     public event Action<int> ChoiceSelected;
     public event Action SubmitRequested;
     public event Action NextRequested;
+    public event Action PreviousRequested;
     public event Action FinishRequested;
     public event Action LeaveRequested;
     public event Action RetrySaveRequested;
@@ -44,6 +46,17 @@ public sealed class QuizView : MonoBehaviour
     private bool complete;
     private bool busy;
     private bool saveError;
+    private bool assessment;
+    private bool allAssessmentAnswers;
+    private bool hasPrevious, hasNext;
+    public bool HasNpcPresentation { get; private set; }
+
+    /// <summary>Uses the real asking NPC when available; otherwise keeps a usable full-screen quiz.</summary>
+    public void SetNpcPresentation(bool active, string npcName)
+    {
+        HasNpcPresentation = active;
+        if (layout != null) layout.SetNpcPresentation(active, npcName);
+    }
 
     private void Awake() { Wire(); }
     private void Wire()
@@ -55,8 +68,19 @@ public sealed class QuizView : MonoBehaviour
         if (finishButton != null) finishButton.onClick.AddListener(() => { if (CanRequest()) FinishRequested?.Invoke(); });
         if (leaveButton != null) leaveButton.onClick.AddListener(() => { if (CanRequest()) LeaveRequested?.Invoke(); });
         if (retrySaveButton != null) retrySaveButton.onClick.AddListener(() => { if (CanRequest()) RetrySaveRequested?.Invoke(); });
-        if (pauseButton != null) pauseButton.onClick.AddListener(() => { if (CanRequest()) PauseRequested?.Invoke(); });
+        HideLegacyPauseControl();
+        BindPreviousControl();
     }
+
+    public void HideLegacyPauseControl()
+    {
+        if (pauseButton == null) return;
+        pauseButton.interactable = false;
+        pauseButton.gameObject.SetActive(false);
+    }
+
+    /// <summary>Optional integration hook for the normal outer Pause flow; no on-screen quiz button invokes it.</summary>
+    public void RequestPause() { if (CanRequest()) PauseRequested?.Invoke(); }
 
     private bool CanRequest() => Panel != null && Panel.activeInHierarchy && !busy;
 
@@ -64,6 +88,7 @@ public sealed class QuizView : MonoBehaviour
     {
         Wire();
         ClearChoices();
+        assessment = false;
         selection = -1; answered = false; complete = false; busy = false; saveError = false;
         title.text = data.title;
         progress.text = "Question " + (index + 1) + " of " + data.questions.Count;
@@ -100,7 +125,7 @@ public sealed class QuizView : MonoBehaviour
     {
         if (answered || complete || busy || saveError) return;
         selection = index >= 0 && index < choices.Count ? index : -1;
-        feedback.text = "Choose one answer, then press Submit.";
+        feedback.text = assessment ? "Choose one answer. You may review your answers before submitting." : "Choose one answer, then press Submit.";
         feedback.color = QuizUILayout.Ink;
         for (int i = 0; i < choices.Count; i++) choices[i].SetSelected(i == selection, answered || busy || saveError);
         RefreshButtons();
@@ -127,6 +152,58 @@ public sealed class QuizView : MonoBehaviour
         if (layout != null) layout.ApplyLayout();
     }
 
+    public void ShowAssessmentQuestion(QuizData data, int index, int selected, int answeredCount)
+    {
+        ShowQuestion(data, index, null);
+        EnsureAssessmentControls();
+        assessment = true;
+        hasPrevious = index > 0;
+        hasNext = index + 1 < data.QuestionCount;
+        allAssessmentAnswers = answeredCount == data.QuestionCount;
+        SetSelection(selected);
+        progress.text += "  •  " + answeredCount + "/" + data.QuestionCount + " answered";
+        RefreshButtons();
+        layout?.ApplyLayout();
+    }
+
+    public void ShowAssessmentResult(QuizData data, int score)
+    {
+        ShowCompletion(data);
+        assessment = true;
+        question.text = "Your score: " + score + " / " + data.QuestionCount;
+        feedback.text = "Quiz submitted. Press Continue to return to Bhan. You can keep learning in the Almanac afterward.";
+        SetButtonText(finishButton, "Continue");
+        RefreshButtons();
+        layout?.ApplyLayout();
+    }
+
+    private void EnsureAssessmentControls()
+    {
+        if (previousButton == null && leaveButton != null)
+        {
+            previousButton = Instantiate(leaveButton, leaveButton.transform.parent);
+            previousButton.name = "Previous Question";
+            previousButton.onClick = new Button.ButtonClickedEvent();
+            SetButtonText(previousButton, "Previous");
+        }
+        BindPreviousControl();
+    }
+
+    private void BindPreviousControl()
+    {
+        if (previousButton == null) return;
+        previousButton.onClick.RemoveListener(HandlePrevious);
+        previousButton.onClick.AddListener(HandlePrevious);
+    }
+
+    private void HandlePrevious() { if (CanRequest()) PreviousRequested?.Invoke(); }
+
+    private static void SetButtonText(Button button, string value)
+    {
+        TMP_Text label = button != null ? button.GetComponentInChildren<TMP_Text>(true) : null;
+        if (label != null) label.text = value;
+    }
+
     public void ShowSaveError(string message)
     {
         busy = false; saveError = true;
@@ -146,20 +223,36 @@ public sealed class QuizView : MonoBehaviour
 
     public void Reset()
     {
-        ClearChoices(); selection = -1; answered = complete = busy = saveError = false;
+        ClearChoices(); selection = -1; assessment = false; answered = complete = busy = saveError = false;
+        SetNpcPresentation(false, string.Empty);
+        SetButtonText(finishButton, "Finish");
         if (feedback != null) feedback.text = string.Empty;
         RefreshButtons(); ResetScroll();
     }
 
     private void RefreshButtons()
     {
+        HideLegacyPauseControl();
+        if (assessment)
+        {
+            if (leaveButton != null) leaveButton.gameObject.SetActive(false);
+            if (previousButton != null) { previousButton.gameObject.SetActive(!complete && !saveError); previousButton.interactable = hasPrevious && !busy; }
+            if (nextButton != null) { nextButton.gameObject.SetActive(!complete && !saveError); nextButton.interactable = hasNext && !busy; }
+            if (submitButton != null) { submitButton.gameObject.SetActive(!complete && !saveError); submitButton.interactable = allAssessmentAnswers && !busy; }
+            if (finishButton != null) { finishButton.gameObject.SetActive(complete && !saveError); finishButton.interactable = !busy; }
+            if (retrySaveButton != null) { retrySaveButton.gameObject.SetActive(saveError); retrySaveButton.interactable = !busy; }
+            return;
+        }
+        if (leaveButton != null) leaveButton.gameObject.SetActive(true);
+        if (previousButton != null) previousButton.gameObject.SetActive(false);
         if (submitButton != null) { submitButton.gameObject.SetActive(!answered && !complete && !saveError); submitButton.interactable = selection >= 0 && !busy; }
         if (nextButton != null) { nextButton.gameObject.SetActive(answered && !complete && !saveError); nextButton.interactable = !busy; }
         if (finishButton != null) { finishButton.gameObject.SetActive(complete && !saveError); finishButton.interactable = !busy; }
         if (retrySaveButton != null) { retrySaveButton.gameObject.SetActive(saveError); retrySaveButton.interactable = !busy; }
         if (leaveButton != null) leaveButton.interactable = !busy;
-        if (pauseButton != null) pauseButton.interactable = !busy;
     }
+
+    public bool IsAssessment => assessment;
 
     private void ClearChoices()
     {
@@ -176,5 +269,6 @@ public sealed class QuizView : MonoBehaviour
     {
         if (questionScroll != null) { questionScroll.StopMovement(); questionScroll.verticalNormalizedPosition = 1f; }
         if (choiceScroll != null) { choiceScroll.StopMovement(); choiceScroll.verticalNormalizedPosition = 1f; }
+        if (layout != null) layout.ResetFeedbackScroll();
     }
 }

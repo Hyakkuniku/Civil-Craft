@@ -15,13 +15,19 @@ MonoBehaviour:
   lessonId: LESSON004
   lessonTitle: What is Truss
   lessonImage: {fileID: 21300000, guid: c7ad14becd77b714a820300c6ed3a180, type: 3}
-  popupDescription: A truss bridge uses <b><#E09500>interconnected structural members
-    arranged mainly in triangles</color></b> to efficiently support and distribute
-    loads.
+  popupDescription: "A <b><#E09500>Truss Bridge</color></b> uses connected structural
+    members arranged in <b><#E09500>triangular patterns</color></b> to carry loads
+    toward its supports. These arrangements help the bridge maintain its shape
+    when forces act on it.\n\nThis lesson has been added to your
+    <b><#E09500>Almanac</color></b>."
   almanacImage: {fileID: 0}
-  lessonDescription: 'A truss bridge uses a framework of straight structural members
-    connected to form stable arrangements, most notably <b><#E09500>triangular units</color></b>.
-    When loads act on the bridge, forces are carried through the interconnected members,
-    with individual members primarily resisting <b><#E09500>tension or compression</color></b>.
-    The triangular configuration provides structural rigidity and allows substantial
-    loads to be carried efficiently. '
+  lessonDescription: "A <b><#E09500>Truss Bridge</color></b> is a framework of connected
+    structural members arranged in <b><#E09500>triangular patterns</color></b>.
+    Loads entering through the roadway travel through these members toward the
+    bridge supports.\n\nTriangular arrangements help the framework maintain its
+    shape when forces act on it. They still require <b><#E09500>proper connections,
+    suitable supports, and members with enough strength</color></b>; adding
+    triangles does not make every bridge safe.\n\nIn an ideal pin-jointed truss,
+    members mainly carry <b><#E09500>axial forces</color></b>: tension pulls and
+    compression pushes along a member. Real members and connections can also
+    experience bending. Later lessons explore these forces in more detail."

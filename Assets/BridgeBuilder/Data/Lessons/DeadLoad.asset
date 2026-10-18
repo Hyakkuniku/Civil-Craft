@@ -15,8 +15,7 @@ MonoBehaviour:
   lessonId: deadload
   lessonTitle: Dead Load
   lessonImage: {fileID: 21300000, guid: 8097286e569a66a4d9e5bfc046b02263, type: 3}
-  popupDescription: A dead load is the <b><#E09500>permanent weight of a structure
-    and the fixed components</color></b> that it must continuously support.
+  popupDescription: "<b><#E09500>Dead Load</color></b> is the permanent weight of a structure and its fixed components, such as the bridge deck and structural members.\n\nKey Points:\n- Dead load includes the bridge's own weight.\n- Dead load remains even when no vehicles are crossing.\n- Live load includes vehicles and people using the bridge.\n- A bridge must safely carry both dead and live loads."
   almanacImage: {fileID: 0}
   lessonDescription: A dead load is the load associated with the <b><#E09500>permanent
     components of a structure</color></b>. For a bridge, this includes the self-weight

@@ -13,8 +13,10 @@ MonoBehaviour:
   m_Name: Wood Road
   m_EditorClassIdentifier: 
   materialId: Wood Road
-  displayName: Timber Road Deck
-  introductionDescription: An affordable driving surface that vehicles need to cross the bridge. Build a continuous deck between both sides and support it with beams or piers.
+  displayName: Wood Road
+  introductionDescription: Used as the roadway of the bridge. Vehicles and other loads
+    travel across this component. Build a continuous roadway between both sides and
+    support it with structural members or piers.
   costPerMeter: 300
   massPerMeter: 9
   maxLength: 10

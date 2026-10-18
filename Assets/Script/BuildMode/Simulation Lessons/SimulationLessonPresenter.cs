@@ -57,6 +57,7 @@ public sealed class SimulationLessonPresenter : MonoBehaviour
     private bool liveLoadMessageQueued;
     private bool vehicleEntryMessageQueued;
     private bool midpointMessageQueued;
+    private bool nearEndMessageQueued;
     private bool highStressMessageQueued;
     private bool stuckMessageQueued;
     private bool terminalFailure;
@@ -407,6 +408,13 @@ public sealed class SimulationLessonPresenter : MonoBehaviour
             QueueMessage(definition.vehicleReachedMidpoint, MessagePriority.Information);
         }
 
+        if (!nearEndMessageQueued && loadFactor > 0f &&
+            progress >= definition.vehicleNearEndProgress)
+        {
+            nearEndMessageQueued = true;
+            QueueMessage(definition.vehicleApproachingEnd, MessagePriority.Information);
+        }
+
         if (progress > lastVehicleProgress + 0.003f || activeVehicle.CurrentSpeed > 0.12f)
         {
             lastVehicleProgress = Mathf.Max(lastVehicleProgress, progress);
@@ -625,6 +633,7 @@ public sealed class SimulationLessonPresenter : MonoBehaviour
         liveLoadMessageQueued = false;
         vehicleEntryMessageQueued = false;
         midpointMessageQueued = false;
+        nearEndMessageQueued = false;
         highStressMessageQueued = false;
         stuckMessageQueued = false;
         terminalFailure = false;

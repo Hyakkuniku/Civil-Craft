@@ -147,6 +147,9 @@ public static class PausePanelUIAuthoring
                 if (!EditorBuildSettings.scenes.Any(s => s.enabled && s.path == "Assets/Scenes/Main Menu.unity"))
                     throw new Exception("Main Menu is missing from enabled build scenes.");
                 EditorUtility.SetDirty(pause);
+                // Previews activate only an isolated clone. Never save the real
+                // scene menu open when regenerating its authored appearance.
+                panel.SetActive(false);
                 EditorSceneManager.MarkSceneDirty(scene);
                 EditorSceneManager.SaveScene(scene);
                 Preview(panel, scene.name);

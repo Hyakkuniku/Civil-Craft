@@ -28,6 +28,15 @@ public class ToolUIMapping
 
 public class BuildTutorialDirector : MonoBehaviour
 {
+    private enum RequiredObservation
+    {
+        None,
+        StatisticsOpened,
+        StatisticsClosed,
+        GridToggled,
+        MaterialInspected
+    }
+
     private sealed class TraceStepState
     {
         public int stepIndex;
@@ -95,6 +104,13 @@ public class BuildTutorialDirector : MonoBehaviour
     private bool hasAdvancedFromRequiredClickThisStep;
     private Button trackedToolButton;
     private UnityAction trackedToolButtonAction;
+    private RequiredObservation requiredObservation;
+    private bool requiredToolClicked;
+    private bool gridEnabledBeforePrompt;
+    private CanvasGroup inspectionTooltipGroup;
+    private GameObject inspectionTooltipPanel;
+    private float inspectionVisibleDuration;
+    private const float MaterialInspectionHoldDuration = 0.45f;
     private Coroutine undoPointerCoroutine;
     private bool simulationUnlockedForTutorial;
     private bool placementAllowedForCurrentStep = true;
@@ -129,6 +145,7 @@ public class BuildTutorialDirector : MonoBehaviour
 
     private void Update()
     {
+        UpdateRequiredObservation(Time.unscaledDeltaTime);
         if (!isTracingStep || IsAwaitingInvalidBarUndo || activeGhosts == null) return;
 
         BarCreator barCreator = BuildUIController.Instance != null
@@ -173,6 +190,7 @@ public class BuildTutorialDirector : MonoBehaviour
                                        tutorial.CurrentStepAction == TutorialStepAction.PasteSelection;
 
         activeStepIndex = stepIndex;
+        ClearRequiredObservation();
         LockBuilding();
         isTracingStep = false;
         isCurrentDragValid = true;
@@ -364,6 +382,120 @@ public class BuildTutorialDirector : MonoBehaviour
         }
 
         if (TutorialManager.Instance != null) TutorialManager.Instance.SetNextButtonActive(false);
+    }
+
+    /// <summary>Waits for a real statistics-panel open, rather than a Next tap.</summary>
+    public void PromptOpenStatistics()
+    {
+        PromptObservedTool(BuildModeTool.Statistics, RequiredObservation.StatisticsOpened);
+    }
+
+    /// <summary>Pairs with PromptOpenStatistics so the readout is closed before building.</summary>
+    public void PromptCloseStatistics()
+    {
+        PromptObservedTool(BuildModeTool.Statistics, RequiredObservation.StatisticsClosed);
+    }
+
+    /// <summary>Accepts either direction, but requires the grid's real state to change.</summary>
+    public void PromptToggleGrid()
+    {
+        BarCreator creator = BuildUIController.Instance != null
+            ? BuildUIController.Instance.barCreator : null;
+        gridEnabledBeforePrompt = creator != null && creator.isGridSnappingEnabled;
+        PromptObservedTool(BuildModeTool.Grid, RequiredObservation.GridToggled);
+    }
+
+    private void PromptObservedTool(BuildModeTool tool, RequiredObservation observation)
+    {
+        BuildUIController controller = BuildUIController.Instance;
+        RectTransform target = controller != null ? controller.GetToolRectTransform(tool) : null;
+        PromptToolClick(target != null ? target.gameObject : null);
+        requiredObservation = observation;
+        requiredToolClicked = false;
+        if (target != null) PointArrow(target, new Vector2(0f, 60f), 180f);
+        else Debug.LogWarning($"The tutorial cannot observe {tool}: assign its existing build-tool UI binding.", this);
+    }
+
+    /// <summary>
+    /// Waits until the existing material information card has actually remained
+    /// visible for a deliberate hold. A quick tap cannot finish this instruction.
+    /// Desktop hover is the equivalent inspection action. No material is purchased.
+    /// </summary>
+    public void PromptInspectMaterial()
+    {
+        LockAllUI();
+        LockBuilding();
+        ClearTrackedToolButton();
+        expectedMaterial = null;
+        expectedTool = null;
+        requiredObservation = RequiredObservation.MaterialInspected;
+        requiredToolClicked = false;
+        inspectionVisibleDuration = 0f;
+        MaterialTooltipManager tooltip = MaterialTooltipManager.Instance;
+        inspectionTooltipPanel = tooltip != null ? tooltip.tooltipPanel : null;
+        inspectionTooltipGroup = inspectionTooltipPanel != null
+            ? inspectionTooltipPanel.GetComponent<CanvasGroup>() : null;
+        if (tooltip != null) tooltip.HideTooltip();
+        if (TutorialManager.Instance != null) TutorialManager.Instance.SetNextButtonActive(false);
+        if (inspectionTooltipPanel == null || inspectionTooltipGroup == null)
+            Debug.LogWarning("The tutorial needs the existing material information card to observe a material hold.", this);
+    }
+
+    private void UpdateRequiredObservation(float elapsedUnscaled)
+    {
+        if (requiredObservation == RequiredObservation.None) return;
+        TutorialManager tutorial = TutorialManager.Instance;
+        if (tutorial == null || !tutorial.IsTutorialActive ||
+            tutorial.CurrentStepIndex != activeStepIndex || !isTutorialRunning)
+        {
+            ClearRequiredObservation();
+            return;
+        }
+        // Pausing or a hidden inspection card must not count as held time.
+        if (Time.timeScale <= 0f)
+        {
+            inspectionVisibleDuration = 0f;
+            return;
+        }
+
+        BuildUIController controller = BuildUIController.Instance;
+        bool completed = false;
+        switch (requiredObservation)
+        {
+            case RequiredObservation.StatisticsOpened:
+                completed = requiredToolClicked && controller != null &&
+                    controller.statsPanel != null && controller.statsPanel.activeSelf;
+                break;
+            case RequiredObservation.StatisticsClosed:
+                completed = requiredToolClicked && controller != null &&
+                    controller.statsPanel != null && !controller.statsPanel.activeSelf;
+                break;
+            case RequiredObservation.GridToggled:
+                completed = requiredToolClicked && controller != null &&
+                    controller.barCreator != null &&
+                    controller.barCreator.isGridSnappingEnabled != gridEnabledBeforePrompt;
+                break;
+            case RequiredObservation.MaterialInspected:
+                bool visible = inspectionTooltipPanel != null &&
+                    inspectionTooltipPanel.activeInHierarchy && inspectionTooltipGroup != null &&
+                    inspectionTooltipGroup.alpha > 0.99f;
+                inspectionVisibleDuration = visible
+                    ? inspectionVisibleDuration + Mathf.Max(0f, elapsedUnscaled) : 0f;
+                completed = inspectionVisibleDuration >= MaterialInspectionHoldDuration;
+                break;
+        }
+        if (!completed) return;
+        ClearRequiredObservation();
+        AdvanceFromRequiredClick();
+    }
+
+    private void ClearRequiredObservation()
+    {
+        requiredObservation = RequiredObservation.None;
+        requiredToolClicked = false;
+        inspectionTooltipPanel = null;
+        inspectionTooltipGroup = null;
+        inspectionVisibleDuration = 0f;
     }
 
     public void PromptDrawBridge()
@@ -607,6 +739,14 @@ public class BuildTutorialDirector : MonoBehaviour
     public void OnToolClicked(GameObject clickedObject)
     {
         if (!ObjectsRepresentSameButton(clickedObject, expectedTool)) return;
+        if (requiredObservation != RequiredObservation.None)
+        {
+            // IsToolAllowed notifies before the control applies its new state.
+            // Observe on Update after the real handler has run; this also ignores
+            // rejected clicks and preserves the existing same-frame advance guard.
+            requiredToolClicked = true;
+            return;
+        }
         ClearTrackedToolButton();
         AdvanceFromRequiredClick();
     }
@@ -1773,6 +1913,7 @@ public class BuildTutorialDirector : MonoBehaviour
 
     public void EndTutorial()
     {
+        ClearRequiredObservation();
         // A sequence can finish when the player clicks Play, before physics has
         // confirmed success. Keep every blueprint ready in case failure restarts it.
         // Parent containers are hidden and enabled again only by their own step.

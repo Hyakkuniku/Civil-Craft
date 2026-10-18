@@ -33,6 +33,8 @@ public sealed class QuizData : ScriptableObject
     [Tooltip("Stable save identity. Assigned once, not regenerated when content changes.")]
     public string quizId;
     public string title;
+    [Tooltip("Assessment: review lessons in the Almanac, answer every question, then submit once. Any score completes it; no rewards are granted by the quiz.")]
+    public bool assessmentMode;
     public List<QuizQuestion> questions = new List<QuizQuestion>();
 
     public int QuestionCount => questions != null ? questions.Count : 0;
@@ -75,6 +77,8 @@ public sealed class QuizData : ScriptableObject
             StringBuilder content = new StringBuilder("npc-quiz-v1;");
             Append(content, quizId?.Trim());
             Append(content, title);
+            // Preserve published practice fingerprints; only the opt-in flow adds a mode tag.
+            if (assessmentMode) Append(content, "assessment-v1");
             Append(content, QuestionCount.ToString(CultureInfo.InvariantCulture));
             if (questions != null)
                 foreach (QuizQuestion question in questions)

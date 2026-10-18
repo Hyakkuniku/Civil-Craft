@@ -1,0 +1,108 @@
+using System;
+using UnityEngine;
+using UnityEngine.UI;
+
+public static class Scenarios
+{
+    private static int checks;
+    private static void Require(bool value, string message) { if (!value) throw new InvalidOperationException(message); checks++; }
+    public static int Run()
+    {
+        NormalOwner(); Duplicate(); Discovery(); Missing(); LaterInitializationFailure(); BlockedStart();
+        return checks;
+    }
+    private static PauseManager Manager(int scene = 1) => new PauseManager {
+        gameObject = new GameObject(scene), pausePanel = new GameObject(scene), pauseButton = new GameObject(scene), isPaused = true };
+    private static Button Button(PauseManager target, int scene = 1, string method = "TogglePause")
+    {
+        var button = new Button { gameObject = new GameObject(scene) };
+        button.onClick.Calls.Add((target, method)); Registry<Button>.Items.Add(button); return button;
+    }
+    private static void NormalOwner()
+    {
+        PauseManager.Reset();
+        var owner = Manager(); GameManager.Instance = new GameManager(); owner.InvokeAwake();
+        Require(PauseManager.Instance == owner && !owner.gameObject.Destroyed, "Primary acquires singleton and survives.");
+        Require(!owner.pausePanel.activeSelf && !owner.pauseButton.activeSelf, "Primary starts with modal and HUD button hidden before Start.");
+        Require(!owner.isPaused && owner.ResumeCalls == 0, "Primary clears stale local flag without Resume/control restoration.");
+        Require(owner.IsBound && owner.pausePanel.AddedCanvasGroups == 1, "Normal motion binding and legacy CanvasGroup repair are retained.");
+        Require(owner.FallbackCreations == 0, "Awake does not generate replacement UI.");
+        owner.InvokeStart();
+        Require(owner.pauseButton.activeSelf && !owner.pausePanel.activeSelf && !owner.isPaused, "Normal owning Start enables only the HUD Pause button, not the pause modal.");
+        Require(GameManager.Instance.OnEnterBuildMode.Adds == 1 && GameManager.Instance.OnExitBuildMode.Adds == 1, "Normal mode event subscriptions remain.");
+        Require(owner.ResumeCalls == 0 && owner.FallbackCreations == 0, "Normal availability does not resume gameplay or generate already assigned UI.");
+    }
+    private static void Duplicate()
+    {
+        PauseManager.Reset(); var owner = Manager(); owner.InvokeAwake(); owner.InvokeStart();
+        owner.pausePanel.SetActive(true); owner.isPaused = true;
+        foreach (bool initiallyActive in new[] { true, false })
+        {
+            var duplicate = Manager(2);
+            duplicate.pausePanel.SetActive(initiallyActive); duplicate.pauseButton.SetActive(initiallyActive); duplicate.InvokeAwake();
+            Require(duplicate.gameObject.Destroyed && PauseManager.Instance == owner, "Additive duplicate is rejected without replacing the primary.");
+            Require(!duplicate.pausePanel.activeSelf && !duplicate.pauseButton.activeSelf, "Rejected manager's separately authored UI stays hidden.");
+            Require(!duplicate.pausePanel.Destroyed && !duplicate.pauseButton.Destroyed, "Startup cleanup does not delete authored UI.");
+            Require(!duplicate.isPaused && duplicate.ResumeCalls == 0 && duplicate.FallbackCreations == 0, "Duplicate hides without Resume, progression or runtime UI creation.");
+            Require(!duplicate.IsBound && duplicate.pausePanel.AddedCanvasGroups == 0, "Rejected duplicate does not run later layout initialization.");
+            Require(owner.pausePanel.activeSelf && owner.pauseButton.activeSelf && owner.isPaused && !owner.gameObject.Destroyed,
+                "Rejected duplicate cannot close, hide, resume or destroy the primary's legitimate Pause session.");
+        }
+    }
+    private static void Discovery()
+    {
+        PauseManager.Reset(); var owner = Manager(); owner.pauseButton = null;
+        var wrongTarget = new PauseManager();
+        var foreignScene = Button(owner, 2); var wrongMethod = Button(owner, 1, "ReturnToMainMenu");
+        var foreignOwner = Button(wrongTarget); var right = Button(owner);
+        owner.InvokeAwake();
+        Require(owner.pauseButton == right.gameObject && !right.gameObject.activeSelf, "Missing assigned HUD reference discovers and hides its exact authored button.");
+        Require(foreignScene.gameObject.activeSelf && wrongMethod.gameObject.activeSelf && foreignOwner.gameObject.activeSelf,
+            "Discovery leaves other scenes, callback methods and manager-owned buttons unchanged.");
+        Require(owner.FallbackCreations == 0, "Authored discovery cannot create a replacement button during Awake.");
+        owner.InvokeStart();
+        Require(right.gameObject.activeSelf && !owner.pausePanel.activeSelf, "Discovered button becomes usable normally in Start.");
+        Require(owner.FallbackCreations == 0, "Start reuses discovered button instead of duplicating it.");
+
+        PauseManager.Reset(); var first = Manager(); first.InvokeAwake(); first.InvokeStart();
+        var duplicate = Manager(2); duplicate.pauseButton = null; var own = Button(duplicate, 2); var main = Button(first, 1);
+        duplicate.InvokeAwake();
+        Require(!own.gameObject.activeSelf && main.gameObject.activeSelf, "Unassigned duplicate only hides its own callback-wired local button.");
+        Require(duplicate.FallbackCreations == 0 && duplicate.gameObject.Destroyed, "Missing-reference duplicate remains rejected without generation.");
+
+        PauseManager.Reset(); var local = Manager(2); var foreignAssigned = new GameObject(1);
+        local.pauseButton = foreignAssigned; var localAuthored = Button(local, 2); local.InvokeAwake();
+        Require(foreignAssigned.activeSelf, "A stale assigned reference from another scene is not hidden.");
+        Require(local.pauseButton == localAuthored.gameObject && !localAuthored.gameObject.activeSelf,
+            "A foreign assigned reference is discarded and replaced only by this manager's authored local button.");
+        Require(local.FallbackCreations == 0, "Foreign reference repair does not create replacement UI at startup.");
+    }
+    private static void Missing()
+    {
+        PauseManager.Reset(); var missing = new PauseManager { isPaused = true }; missing.InvokeAwake();
+        Require(PauseManager.Instance == missing && !missing.gameObject.Destroyed && !missing.isPaused, "Primary with absent UI initializes safely with no stale flag.");
+        Require(missing.FallbackCreations == 0 && missing.ResumeCalls == 0, "Absent UI does not create or resume during Awake.");
+        missing.InvokeStart();
+        Require(missing.FallbackCreations == 1, "Legacy replacement generation remains available only during normal Start availability.");
+        var duplicate = new PauseManager { isPaused = true }; duplicate.InvokeAwake();
+        Require(duplicate.gameObject.Destroyed && PauseManager.Instance == missing && !duplicate.isPaused, "Duplicate with absent references is safely rejected and reset.");
+        Require(duplicate.FallbackCreations == 0 && duplicate.ResumeCalls == 0, "Absent duplicate UI is not generated or resumed.");
+    }
+    private static void LaterInitializationFailure()
+    {
+        PauseManager.Reset(); var broken = Manager(); broken.pausePanel.ThrowOnCanvasGroup = true;
+        try { broken.InvokeAwake(); throw new Exception("Expected injected failure."); }
+        catch (InvalidOperationException error) { Require(error.Message == "Injected canvas initialization failure", "Later motion initialization failure was actually injected."); }
+        Require(!broken.pausePanel.activeSelf && !broken.pauseButton.activeSelf && !broken.isPaused,
+            "Startup modal/button remain hidden even if later CanvasGroup initialization fails.");
+        Require(broken.ResumeCalls == 0 && broken.FallbackCreations == 0, "Initialization failure cannot trigger restore callbacks or fallback creation.");
+    }
+    private static void BlockedStart()
+    {
+        PauseManager.Reset(); var owner = Manager(); owner.Blocked = true; owner.InvokeAwake(); owner.InvokeStart();
+        Require(!owner.pausePanel.activeSelf && !owner.pauseButton.activeSelf && !owner.isPaused, "Existing build/tutorial blocking still keeps Pause closed and HUD hidden.");
+        Require(owner.ResumeCalls == 0, "Blocked fresh startup does not invoke Resume.");
+        owner.Blocked = false; owner.RefreshPauseAvailability();
+        Require(owner.pauseButton.activeSelf && !owner.pausePanel.activeSelf, "Leaving a blocked state can restore the normal HUD button without opening Pause.");
+    }
+}

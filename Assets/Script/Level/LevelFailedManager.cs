@@ -107,12 +107,13 @@ public class LevelFailedManager : MonoBehaviour
 
     private void Awake()
     {
+        // The linked canvas is not destroyed with a duplicate manager.
+        if (levelFailedPanel != null) levelFailedPanel.SetActive(false);
         if (Instance == null) Instance = this;
         else { Destroy(gameObject); return; }
 
         if (levelFailedPanel != null)
         {
-            levelFailedPanel.SetActive(false);
             BindAuthoredLayout();
             UIReservedRegionLayout.Register(levelFailedPanel.transform as RectTransform);
         }
@@ -402,7 +403,8 @@ public class LevelFailedManager : MonoBehaviour
             isCompletedContractRedesign = PlayerDataManager.Instance != null &&
                 PlayerDataManager.Instance.HasContractCompletionRecord(contract.ContractID);
 
-            tutorialLocationToRestart = !hideRetryButtonThisFail &&
+            tutorialLocationToRestart = !hideRetryButtonThisFail && activeLocation != null &&
+                activeLocation.RestartGuidedTutorialOnFailure &&
                 ((isTutorial && !tutorialAlreadyPassed) || isTutorialReplay)
                 ? activeLocation
                 : null;
@@ -785,8 +787,17 @@ public class LevelFailedManager : MonoBehaviour
         hideRetryButtonThisFail = false; 
         showExitButtonThisFail = false;
 
-        if (restartLocation != null)
+        if (CanRestartGuidedTutorialAfterRetry(restartLocation))
             StartCoroutine(RestartTutorialAfterRetry(restartLocation));
+    }
+
+    private static bool CanRestartGuidedTutorialAfterRetry(BuildLocation restartLocation)
+    {
+        return restartLocation != null && restartLocation.RestartGuidedTutorialOnFailure &&
+            restartLocation.gameObject.activeInHierarchy && restartLocation.gameObject.scene.IsValid() &&
+            restartLocation.gameObject.scene.isLoaded && GameManager.Instance != null &&
+            GameManager.Instance.ActiveBuildLocation == restartLocation &&
+            GameManager.Instance.IsInBuildMode() && !GameManager.Instance.IsTransitioning;
     }
 
     private IEnumerator RestartTutorialAfterRetry(BuildLocation restartLocation)
@@ -795,7 +806,9 @@ public class LevelFailedManager : MonoBehaviour
         yield return null;
         Canvas.ForceUpdateCanvases();
 
-        if (restartLocation != null && restartLocation.gameObject.activeInHierarchy)
+        // The policy/site may change while the one-frame UI reset is pending.
+        // Intentionally disabled or stale requests are not configuration errors.
+        if (CanRestartGuidedTutorialAfterRetry(restartLocation))
         {
             if (!restartLocation.RestartBuildTutorialAfterFailure())
                 Debug.LogWarning("Tutorial contract retry could not restart its build tutorial. Check the Build Location tutorial reference.");

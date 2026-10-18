@@ -306,19 +306,15 @@ public class TutorialManager : MonoBehaviour
 
     private void Awake()
     {
+        // Duplicate additive-scene managers still own separate authored panels.
+        // Clear those placeholders before rejecting the duplicate component.
+        HideStartupPresentation();
         if (Instance == null) Instance = this;
         else
         {
             Destroy(gameObject);
             return;
         }
-
-        // Scene-authored tutorial UI may be left active for easier editing. Runtime
-        // ownership starts here, so nothing is visible until PlayTutorial selects a
-        // real step and target.
-        if (centerPanel != null) centerPanel.SetActive(false);
-        if (leftPanel != null) leftPanel.SetActive(false);
-        if (bouncingArrow != null) bouncingArrow.Hide();
 
         ApplyReadableLeftTutorialStyle();
         BindRecallGuideButton();
@@ -340,6 +336,15 @@ public class TutorialManager : MonoBehaviour
         tutorialRootCanvas = FindTutorialRootCanvas();
         EnsureTutorialSkipButton();
         trackedButtonAction = new UnityAction(OnTrackedButtonClicked);
+    }
+
+    private void HideStartupPresentation()
+    {
+        if (centerPanel != null) centerPanel.SetActive(false);
+        if (leftPanel != null) leftPanel.SetActive(false);
+        if (nextButton != null) nextButton.SetActive(false);
+        if (skipButton != null) skipButton.SetActive(false);
+        if (bouncingArrow != null) bouncingArrow.Hide();
     }
 
     private void BindRecallGuideButton()

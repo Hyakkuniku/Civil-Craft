@@ -15,12 +15,20 @@ MonoBehaviour:
   lessonId: What is Equilibrium
   lessonTitle: What is Equilibrium
   lessonImage: {fileID: 0}
-  popupDescription: Equilibrium occurs when the <b><#E09500>forces and moments acting
-    on a structure are balanced</color></b>, allowing it to remain stable.
+  popupDescription: "<b><#E09500>Equilibrium</color></b> means the forces and moments
+    acting on a structure are balanced. Downward bridge loads are balanced by
+    reactions from the supports. The members and connections must also be strong
+    enough to carry those loads.\n\nThis lesson has been added to your
+    <b><#E09500>Almanac</color></b>."
   almanacImage: {fileID: 0}
-  lessonDescription: Structural equilibrium is the condition in which the <b><#E09500>combined
-    forces and moments acting on a structure balance one another</color></b>. For
-    a bridge to remain stationary and stable, loads such as its own weight and traffic
-    must be <b><#E09500>balanced by reactions from its supports</color></b>. If these
-    forces or moments become unbalanced, the structure may <b><#E09500>translate,
-    rotate, or experience instability</color></b>.
+  lessonDescription: "Structural <b><#E09500>Equilibrium</color></b> is the condition
+    in which the <b><#E09500>forces and moments acting on a structure are
+    balanced</color></b>. Both force balance and moment balance are needed for a
+    stationary bridge.\n\nThe weight of the bridge and a crossing vehicle act
+    downward. The supports provide <b><#E09500>upward reactions</color></b> that
+    help balance these loads. As a vehicle changes position, the forces carried
+    by the members and supports change too. If forces or moments are unbalanced,
+    the structure may move or rotate.\n\nEquilibrium alone does
+    <b><#E09500>not mean a bridge is safe for any load</color></b>. Its members,
+    connections, and supports must also have enough strength and stability to
+    carry the required loads without failing."

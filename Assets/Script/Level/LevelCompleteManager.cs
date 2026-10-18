@@ -176,6 +176,9 @@ public class LevelCompleteManager : MonoBehaviour
 
     private void Awake()
     {
+        // Additive Editor play can contain another scene's manager. Its UI is
+        // a separate object and must not survive our duplicate early return.
+        if (levelCompletePanel != null) levelCompletePanel.SetActive(false);
         if (Instance == null) Instance = this;
         else { Destroy(gameObject); return; }
 
@@ -185,7 +188,6 @@ public class LevelCompleteManager : MonoBehaviour
         EnsureFirstCompletionTutorialDraft();
         if (levelCompletePanel != null)
             UIReservedRegionLayout.Register(levelCompletePanel.transform as RectTransform);
-        if (levelCompletePanel != null) levelCompletePanel.SetActive(false); 
     }
 
     private void Start()

@@ -1,0 +1,127 @@
+using System;
+using System.Reflection;
+using UnityEngine;
+using UnityEngine.Rendering;
+
+public static class Scenarios
+{
+    private static int checks;
+    private static void Check(bool value, string message) { checks++; if (!value) throw new InvalidOperationException(message); }
+    private static void Call(QuizLocalAvatarVisibility scope, string method, Camera camera)
+    {
+        try { typeof(QuizLocalAvatarVisibility).GetMethod(method, BindingFlags.NonPublic | BindingFlags.Instance).Invoke(scope, new object[] { camera }); }
+        catch (TargetInvocationException error) { throw error.InnerException; }
+    }
+    private static GameObject Child(string label, Transform parent) { var value = new GameObject(label); value.transform.parent = parent; return value; }
+    private sealed class Fixture
+    {
+        public readonly GameObject player = new GameObject("Local Player");
+        public readonly Camera own = new GameObject("PlayerCamera").AddComponent<Camera>();
+        public readonly Camera map = new GameObject("MinimapCamera").AddComponent<Camera>();
+        public readonly Camera portrait = new GameObject("PortraitCamera").AddComponent<Camera>();
+        public GameObject model, hiddenHat, cargo;
+        public MeshRenderer body, hat, preHidden, heldCargo, unrelated, remote;
+        public SkinnedMeshRenderer skin;
+        public LineRenderer trail;
+        public PlayerLook look;
+        public QuizLocalAvatarVisibility scope = new QuizLocalAvatarVisibility();
+        public Fixture()
+        {
+            Camera.ResetCallbacks(); RenderPipelineManager.ResetCallbacks(); Time.frameCount = 100;
+            look = player.AddComponent<PlayerLook>(); look.cam = own;
+            model = Child("NewCharacterModel", player.transform);
+            Animator animator = Child("Rig", model.transform).AddComponent<Animator>();
+            player.AddComponent<PlayerMotor>().playerAnimator = animator;
+            body = Child("Shirt", model.transform).AddComponent<MeshRenderer>();
+            skin = Child("Body", model.transform).AddComponent<SkinnedMeshRenderer>();
+            hiddenHat = Child("Unused Hat", model.transform); hiddenHat.SetActive(false); hat = hiddenHat.AddComponent<MeshRenderer>();
+            preHidden = Child("Pre-hidden", model.transform).AddComponent<MeshRenderer>(); preHidden.forceRenderingOff = true;
+            cargo = Child("Held Cargo", animator.transform); cargo.AddComponent<CargoItem>(); heldCargo = Child("Crate", cargo.transform).AddComponent<MeshRenderer>();
+            trail = Child("Trail", model.transform).AddComponent<LineRenderer>();
+            unrelated = new GameObject("Bhan").AddComponent<MeshRenderer>();
+            remote = new GameObject("Remote Player Appearance").AddComponent<MeshRenderer>();
+        }
+        public void Before(Camera camera) => Call(scope, "BeforeCamera", camera);
+        public void After(Camera camera) => Call(scope, "AfterCamera", camera);
+        public void Begin() { Check(scope.Begin(own, model.transform), "Valid model/camera scope begins."); }
+        public void CheckBaseline(string label)
+        {
+            Check(!body.forceRenderingOff && !skin.forceRenderingOff && !hat.forceRenderingOff && preHidden.forceRenderingOff,
+                "Exact prior avatar flags restored: " + label);
+            Check(!heldCargo.forceRenderingOff && !unrelated.forceRenderingOff && !remote.forceRenderingOff && !trail.forceRenderingOff,
+                "Cargo/NPC/remote/nonmesh visuals unchanged: " + label);
+        }
+    }
+    public static int Run()
+    {
+        Fixture f = new Fixture(); f.Begin(); f.CheckBaseline("outside render");
+        f.Before(f.own);
+        Check(f.body.forceRenderingOff && f.skin.forceRenderingOff && f.hat.forceRenderingOff && f.preHidden.forceRenderingOff,
+            "Owned camera hides cached mesh/skinned body and inactive wardrobe variants.");
+        Check(!f.heldCargo.forceRenderingOff && !f.unrelated.forceRenderingOff && !f.remote.forceRenderingOff && !f.trail.forceRenderingOff,
+            "Only local avatar meshes are suppressed during the borrowed camera render.");
+        f.hiddenHat.SetActive(true); Check(f.hat.forceRenderingOff, "A cached inactive wardrobe variant stays hidden when activated.");
+        f.After(f.own); f.CheckBaseline("owned camera end");
+        f.Before(f.map); f.CheckBaseline("unrelated map render"); f.After(f.map);
+        f.Before(f.own); f.Before(f.map); f.CheckBaseline("nested map inside owned camera");
+        f.Before(f.portrait); f.CheckBaseline("nested portrait inside map"); f.After(f.portrait); f.CheckBaseline("return to map");
+        f.After(f.map); Check(f.body.forceRenderingOff && f.skin.forceRenderingOff, "Finishing nested map resumes owned-camera suppression.");
+        f.After(f.own); f.CheckBaseline("nested render fully unwound");
+        f.Before(f.map); f.Before(f.own); Check(f.body.forceRenderingOff, "Owned camera nested in map still hides player.");
+        f.After(f.own); f.CheckBaseline("owned camera returns to outer map"); f.After(f.map);
+        f.Before(f.own); f.Before(f.own); f.After(f.own); Check(f.body.forceRenderingOff, "Inner owned-camera completion resumes its outer owned camera.");
+        f.After(f.own); f.CheckBaseline("same-camera nested scopes unwound");
+        f.After(f.own); f.CheckBaseline("duplicate end callback harmless");
+        f.Before(f.own); Time.frameCount++; f.scope.PrepareForNewFrame(); f.CheckBaseline("missing end callback recovered next frame");
+        f.Before(f.own); f.scope.End(); f.CheckBaseline("session ends mid-render"); f.After(f.own); f.CheckBaseline("late end callback after disposal");
+        Check(Camera.BeforeHandlers == 0 && Camera.AfterHandlers == 0 && RenderPipelineManager.BeforeHandlers == 0 && RenderPipelineManager.AfterHandlers == 0 && RenderPipelineManager.FrameHandlers == 0,
+            "End removes both rendering-pipeline callback pairs.");
+        f.scope.End(); f.CheckBaseline("repeated End");
+        f = new Fixture(); f.Begin(); f.Before(f.own); UnityEngine.Object.DestroyImmediate(f.skin); f.scope.End();
+        Check(!f.body.forceRenderingOff && !f.hat.forceRenderingOff && f.preHidden.forceRenderingOff,
+            "Destroying a cached renderer while scoped does not prevent remaining flags restoring.");
+        f = new Fixture(); Check(!f.scope.Begin(null, f.model.transform), "Missing camera fails without installing scope.");
+        Check(!f.scope.Begin(f.own, null), "Missing model fails without installing scope."); f.CheckBaseline("invalid begin");
+        Check(Camera.BeforeHandlers == 0 && RenderPipelineManager.BeforeHandlers == 0, "Invalid Begin never leaves event handlers.");
+        f.Begin(); Check(Camera.BeforeHandlers == 1 && Camera.AfterHandlers == 1 && RenderPipelineManager.BeforeHandlers == 1 && RenderPipelineManager.AfterHandlers == 1,
+            "Successful Begin installs one callback pair per rendering pipeline.");
+        f.scope.Begin(f.own, f.model.transform);
+        Check(Camera.BeforeHandlers == 1 && RenderPipelineManager.BeforeHandlers == 1, "Repeated Begin does not duplicate render hooks.");
+        Camera.Before(f.own); Check(f.body.forceRenderingOff, "Built-in pre-cull event hides local body.");
+        RenderPipelineManager.Before(f.own); RenderPipelineManager.After(f.own);
+        Check(f.body.forceRenderingOff, "URP callback duplicates are ignored while built-in pipeline owns render.");
+        Camera.After(f.own); f.CheckBaseline("built-in post-render event");
+        GraphicsSettings.currentRenderPipeline = new RenderPipelineAsset();
+        RenderPipelineManager.Before(f.own); Check(f.body.forceRenderingOff, "URP beginCameraRendering event hides local body.");
+        Camera.Before(f.own); Camera.After(f.own);
+        Check(f.body.forceRenderingOff, "Built-in callback duplicates are ignored while URP owns render.");
+        RenderPipelineManager.After(f.own); f.CheckBaseline("URP endCameraRendering event");
+        RenderPipelineManager.Before(f.own); RenderPipelineManager.EndFrame(f.own, f.map); f.CheckBaseline("URP missing end-camera callback recovered at end-frame");
+        f.scope.End();
+        f = new Fixture();
+        GameObject inactiveCargo = Child("Inactive Cargo", f.model.transform); inactiveCargo.AddComponent<CargoItem>();
+        MeshRenderer inactiveCargoMesh = Child("Inactive Cargo Mesh", inactiveCargo.transform).AddComponent<MeshRenderer>();
+        inactiveCargo.SetActive(false); f.Begin(); inactiveCargo.SetActive(true); f.Before(f.own);
+        Check(!inactiveCargoMesh.forceRenderingOff, "Inactive cargo descendants are excluded before activation, not mistaken for wardrobe variants.");
+        f.After(f.own); f.scope.End();
+
+        f = new Fixture(); f.Begin(); f.body.forceRenderingOff = true; f.Before(f.own); f.After(f.own);
+        Check(f.body.forceRenderingOff, "Each owned render captures the latest external force-off state, not a stale Begin-time snapshot.");
+        f.body.forceRenderingOff = false; f.Before(f.own); f.After(f.own); f.CheckBaseline("external renderer flag changed between frames");
+        f.Before(f.own); Check(!f.scope.Begin(null, f.model.transform), "Invalid replacement Begin terminates an older active scope.");
+        f.CheckBaseline("invalid replacement Begin restores older scope");
+        Check(Camera.BeforeHandlers == 0 && RenderPipelineManager.BeforeHandlers == 0 && RenderPipelineManager.FrameHandlers == 0,
+            "Invalid replacement Begin leaves no render callbacks from older scope.");
+        f = new Fixture(); Check(!f.scope.Begin(f.own, new GameObject("Empty model").transform), "Model without avatar mesh renderers fails safely.");
+        Check(Camera.BeforeHandlers == 0 && RenderPipelineManager.BeforeHandlers == 0, "Empty model leaves no render subscriptions.");
+        f = new Fixture(); f.Begin(); f.Before(f.own); UnityEngine.Object.DestroyImmediate(f.model.transform); f.Before(f.map); f.CheckBaseline("destroyed visual root while rendering");
+        Check(Camera.BeforeHandlers == 0 && RenderPipelineManager.BeforeHandlers == 0, "Lost visual root releases callbacks and hidden flags.");
+        f = new Fixture(); Check(QuizLocalAvatarVisibility.ResolveLocalVisual(f.look) == f.model.transform,
+            "Local avatar is resolved from the configured player animator, not a remote player.");
+        f.model.name = "NewCharacterModel (Player)";
+        Check(QuizLocalAvatarVisibility.ResolveLocalVisual(f.look) == f.model.transform,
+            "Legacy wardrobe replacement with a different name resolves from animator ancestry.");
+        Check(QuizLocalAvatarVisibility.ResolveLocalVisual(null) == null, "Missing local player has no visibility target.");
+        return checks;
+    }
+}

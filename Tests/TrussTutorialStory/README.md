@@ -1,0 +1,9 @@
+# Truss Tutorial 2 story regressions
+
+Run `dotnet run --project Tests/TrussTutorialStory/TrussTutorialStory.csproj -- --source-only` before native scene migration/save. This validates production flow ordering and authored assets without claiming the scene has been updated.
+
+After saving CanyonCrossing, run `dotnet run --project Tests/TrussTutorialStory/TrussTutorialStory.csproj` for strict serialized checks too: all 16 existing Bhan phase IDs/indexes, the Tutorial 2 introduction, 400 kg/Road+Beam-only contract and preserved budget/rewards, Follow's post-turn-in assessment/departure ordering, quiz answers B/C/A/D/B, retained lesson identities, and exact-location post-save Equilibrium wiring. The saved build sequence must contain 19 steps; all six original opening/tool introductions are checked against pre-migration canonical fingerprints, with explicit Erase/Move pointer and real-click checks, ten retained action gates, and three inserted feedback screens.
+
+The harness additionally compiles the complete production `BuildLocationLessonTrigger` and the actual `StartOrderedDialogueAfterArrival`/`CanRunLocalProgression` methods against isolated Unity boundary doubles. It executes their coroutines to check reward/dialogue/panel/build/transition/pause waiting; exactly-once start; stale version, phase, contract, visitor and scene cancellation; exact-location saved reviews; duplicate save events; lesson order; once-only behavior; disable/unsubscribe cleanup; and preservation of legacy non-waiting triggers. The NPC continuation is a recording double: this test never invokes a real dialogue, quiz, reward or phase callback.
+
+No Unity scenes are edited/imported/opened, no live gameplay callbacks or saves are used, and no network/account/website is accessed. Scene serialization, Unity scheduling, durable persistence and native phone/tablet/tutorial execution remain separate verification layers.

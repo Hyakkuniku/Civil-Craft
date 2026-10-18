@@ -1,0 +1,108 @@
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.UI;
+using UnityEngine.SceneManagement;
+
+namespace UnityEngine.SceneManagement
+{
+    public struct Scene : IEquatable<Scene>
+    {
+        public int handle; public string name;
+        public Scene(int handle, string name = "CanyonCrossing") { this.handle = handle; this.name = name; }
+        public bool IsValid() => handle != 0;
+        public bool Equals(Scene other) => handle == other.handle;
+        public override bool Equals(object other) => other is Scene scene && Equals(scene);
+        public override int GetHashCode() => handle;
+        public static bool operator ==(Scene left, Scene right) => left.Equals(right);
+        public static bool operator !=(Scene left, Scene right) => !left.Equals(right);
+    }
+    public static class SceneManager { public static Scene ActiveScene = new Scene(1); public static Scene GetActiveScene() => ActiveScene; }
+}
+namespace UnityEngine
+{
+    public class Object
+    {
+        public bool Destroyed;
+        public static void Destroy(Object target) { if (target != null) target.Destroyed = true; }
+        public static T[] FindObjectsOfType<T>(bool includeInactive) => Registry<T>.Items.ToArray();
+    }
+    public static class Registry<T> { public static readonly List<T> Items = new List<T>(); }
+    public class GameObject : Object
+    {
+        public string name;
+        public Scene scene;
+        public bool activeSelf = true;
+        public bool activeInHierarchy => activeSelf;
+        public readonly Transform transform;
+        private readonly Dictionary<Type, Component> components = new Dictionary<Type, Component>();
+        public bool ThrowOnCanvasGroup;
+        public int AddedCanvasGroups;
+        public GameObject(int scene = 1) { this.scene = new Scene(scene); transform = new RectTransform { gameObject = this }; }
+        public void SetActive(bool value) { activeSelf = value; }
+        public T GetComponent<T>() where T : Component
+        {
+            if (ThrowOnCanvasGroup && typeof(T) == typeof(CanvasGroup)) throw new InvalidOperationException("Injected canvas initialization failure");
+            return components.TryGetValue(typeof(T), out Component value) ? (T)value : null;
+        }
+        public T AddComponent<T>() where T : Component, new()
+        {
+            var value = new T { gameObject = this }; components[typeof(T)] = value;
+            if (typeof(T) == typeof(CanvasGroup)) AddedCanvasGroups++;
+            return value;
+        }
+    }
+    public class Component : Object { public GameObject gameObject; public Transform transform => gameObject.transform; }
+    public class MonoBehaviour : Component { public MonoBehaviour() { gameObject = new GameObject(); } }
+    public class Transform : Component { public Vector3 localScale; }
+    public class RectTransform : Transform { public Vector2 anchoredPosition; }
+    public struct Vector2 { public float x, y; }
+    public struct Vector3 { public float x, y, z; }
+    public class CanvasGroup : Component { }
+}
+namespace UnityEngine.UI
+{
+    public class Button : Component
+    {
+        public readonly PersistentCalls onClick = new PersistentCalls();
+        public class PersistentCalls
+        {
+            public readonly List<(UnityEngine.Object target, string method)> Calls = new List<(UnityEngine.Object, string)>();
+            public int GetPersistentEventCount() => Calls.Count;
+            public UnityEngine.Object GetPersistentTarget(int index) => Calls[index].target;
+            public string GetPersistentMethodName(int index) => Calls[index].method;
+        }
+    }
+}
+public class GameManager
+{
+    public static GameManager Instance;
+    public enum GameState { Normal, Building }
+    public GameState CurrentState;
+    public readonly Event OnEnterBuildMode = new Event();
+    public readonly Event OnExitBuildMode = new Event();
+    public class Event { public int Adds; public void AddListener(Action callback) { Adds++; } }
+}
+public static class GameplayMobileUILayout { public static int Applies; public static void Apply() { Applies++; } }
+public class PauseManager : MonoBehaviour
+{
+    public static PauseManager Instance { get; private set; }
+    public GameObject pausePanel, pauseButton;
+    public bool isPaused;
+    private RectTransform pauseRect;
+    private CanvasGroup pauseCanvasGroup;
+    private Vector2 restingPosition;
+    private Vector3 restingScale;
+    private bool isClosingPause;
+    public bool Blocked;
+    public int FallbackCreations, ResumeCalls;
+    public bool IsBound => pauseRect != null && pauseCanvasGroup != null;
+    private bool IsPauseBlocked() => Blocked;
+    private void FinishResumeGame() { ResumeCalls++; isPaused = false; }
+    private GameObject CreateMobilePauseButton() { FallbackCreations++; return null; }
+    public void TogglePause() { }
+    public void InvokeAwake() { Awake(); }
+    public void InvokeStart() { Start(); }
+    public static void Reset() { Instance = null; Registry<Button>.Items.Clear(); GameManager.Instance = null; GameplayMobileUILayout.Applies = 0; SceneManager.ActiveScene = new Scene(1); }
+    // ACTUAL_PAUSE_METHODS
+}

@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6f37df8d20f74e62a3e88f7fa41df9b0, type: 3}
   m_Name: Beam Bridge Lesson
   m_EditorClassIdentifier: 
-  panelTitle: BEAM BRIDGE BEHAVIOR
+  panelTitle: BEAM BRIDGE SIMULATION
   minimumMessageDuration: 3.5
   fadeDuration: 0.2
   slideDistance: 24
@@ -20,28 +20,36 @@ MonoBehaviour:
   simulationTimeScale: 0.5
   vehicleEnteredProgress: 0.1
   vehicleMidpointProgress: 0.5
+  vehicleNearEndProgress: 0.85
   highStressThreshold: 0.7
   vehicleStuckDelay: 5
-  simulationStarted: Simulation started. Watch the vehicle approach the horizontal
-    beam. The beam is not carrying its live load until the wheels reach the roadway.
-  liveLoadStarted: The vehicle pushes the beam downward while the anchors and supports
-    provide upward reactions.
-  vehicleEnteredBridge: Near the support, the load has a short path into the ground.
-    The beam begins carrying both bending and shear.
-  vehicleReachedMidpoint: The vehicle is near midspan, the point farthest from either
-    support. A simple beam usually experiences its greatest bending here.
+  simulationStarted: Simulation started. A 200 kg vehicle is approaching the bridge.
+    Watch how your Beam Bridge responds as the vehicle begins crossing.
+  liveLoadStarted:
+  vehicleEnteredBridge: The vehicle is moving across the bridge. Observe how the roadway
+    and supports carry its weight.
+  vehicleReachedMidpoint: The vehicle is approaching the middle of the bridge.
+    Watch how the beam responds to the load as it moves across.
+  vehicleApproachingEnd: The vehicle is approaching the end of the bridge. Continue
+    observing the roadway and supports until it completes the crossing.
   highStressDetected: Orange or red members are carrying a high percentage of their
     capacity. On a beam bridge, a long unsupported span increases bending demand.
-  stressLimitExceeded: This beam exceeded the contract's allowed stress. Shorten
-    the unsupported span, add an intermediate support, or use a deeper structural
-    form.
-  firstMemberBreak: A beam member exceeded its capacity and failed. The road can
-    no longer transfer the live load safely between the supports.
+  stressLimitExceeded: "BRIDGE TEST FAILED! Your bridge could not safely carry the vehicle
+    across the entire crossing. Check that the roadway is connected and supported.
+    Review the Wood Pier placement and the sections with the greatest stress.
+    Choose Retry to return to Build Mode."
+  firstMemberBreak: "BRIDGE TEST FAILED! A structural member failed. Check that the
+    roadway is connected and supported. Review the Wood Pier placement and the
+    sections with the greatest stress. Choose Retry to return to Build Mode."
   vehicleStuck: The vehicle has stopped moving. Excessive beam deflection or a misaligned
     road joint may be blocking the crossing.
-  vehicleFailed: The continuous road and load path were lost. Strengthen the beam
-    or add support before testing again.
-  bridgeSucceeded: The beam bridge carried the required live load successfully. Its
-    supports limited the unsupported span and kept the road continuous.
+  vehicleFailed: "BRIDGE TEST FAILED! Your bridge could not safely carry the vehicle
+    across the entire crossing. Check that the roadway is connected and supported.
+    Review the Wood Pier placement and the sections with the greatest stress.
+    Choose Retry to return to Build Mode."
+  bridgeSucceeded: "BRIDGE SUCCESSFULLY TESTED! Your Beam Bridge successfully carried
+    the 200 kg vehicle across the canyon. Your first bridge has passed the simulation.
+    Choose Retry to modify it, or Save to record the completed Training Beam Bridge
+    in your Almanac."
   simulationStopped: Simulation stopped. Review the beam's deflection and stressed
     areas before revising the design.

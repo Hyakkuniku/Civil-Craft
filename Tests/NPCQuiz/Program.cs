@@ -11,7 +11,7 @@ internal static class Program
         string managerSource = File.ReadAllText(Path.Combine(root, "Assets/Script/Player/PlayerSave/PlayerDataManager.cs"));
         ClassDeclarationSyntax manager = CSharpSyntaxTree.ParseText(managerSource).GetRoot().DescendantNodes()
             .OfType<ClassDeclarationSyntax>().Single(node => node.Identifier.ValueText == "PlayerDataManager");
-        string methods = string.Join("\n", new[] { "TryGetQuizProgress", "TrySaveQuizProgress" }.Select(name =>
+        string methods = string.Join("\n", new[] { "TryGetQuizProgress", "TrySaveQuizProgress", "TrySaveQuizAssessment" }.Select(name =>
             manager.Members.OfType<MethodDeclarationSyntax>().Single(node => node.Identifier.ValueText == name).ToFullString()));
         string boundary = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Boundary.cs.txt")).Replace("// ACTUAL_SAVE_METHODS", methods);
         CSharpParseOptions options = new CSharpParseOptions().WithPreprocessorSymbols("UNITY_EDITOR");
