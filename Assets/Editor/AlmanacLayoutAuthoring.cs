@@ -270,15 +270,15 @@ public static class AlmanacLayoutAuthoring
                 var tab = (RectTransform)category.tabButton.transform;
                 if (Mathf.Abs(targets[tab] - (BookmarkBaseline + (i == 0 ? SelectedLift : 0))) > .001f)
                     throw new Exception("Opening the Player tab left an incorrect bookmark lift: " + category.categoryName);
-                var binding = category.leftPageZone.parent.Find("AuthoredBookBinding");
-                if (binding.gameObject.activeSelf != (i == 0))
+                var binding = frames.GetArrayElementAtIndex(i).objectReferenceValue as GameObject;
+                if (binding == null || binding.activeSelf != (i == 0))
                     throw new Exception("Opening the Player tab displayed the wrong book cover.");
                 foreach (var chapter in book.categories)
                     if (tab.GetSiblingIndex() >= chapter.leftPageZone.parent.GetSiblingIndex())
                         throw new Exception("Opening the Player tab moved a bookmark in front of the page.");
             }
         }
-        report.AppendLine("PASS: real initialization and HUD-opening category selection select Player, keep every bookmark behind its cover, target only Player's 32 px lift, and reset a previous chapter on reopen. No live HUD/input or save calls used.");
+        report.AppendLine("PASS: real initialization and HUD-opening category selection select Player, keep bookmarks above the cover and behind pages, target only Player's 32 px lift, and reset a previous chapter on reopen. No live HUD/input or save calls used.");
     }
 
     private static void Validate(AlmanacManager source, StringBuilder report)

@@ -1,0 +1,118 @@
+using System;
+using System.Reflection;
+using UnityEngine;
+public static class Scenarios
+{
+    private static int checks;
+    private static void Check(bool value, string message) { checks++; if (!value) throw new InvalidOperationException(message); }
+    private static object Call(object target, string name, params object[] args) => target.GetType().GetMethod(name, BindingFlags.NonPublic | BindingFlags.Instance).Invoke(target, args);
+    private static void Set(object target, string name, object value) => target.GetType().GetField(name, BindingFlags.NonPublic | BindingFlags.Instance).SetValue(target, value);
+    private static T Get<T>(object target, string name) => (T)target.GetType().GetField(name, BindingFlags.NonPublic | BindingFlags.Instance).GetValue(target);
+    private class Fixture
+    {
+        public NPCProgressionManager npc = new NPCProgressionManager();
+        public NPCProgressionPhase phase = new NPCProgressionPhase();
+        public QuizData quiz = new QuizData();
+        public AlmanacQuizAccess access = new AlmanacQuizAccess();
+        public DialogueManager dialogue = new DialogueManager();
+        public NPCOptionalDialogueStep step;
+        public Fixture()
+        {
+            Time.timeScale = 1; PauseManager.Instance = null; UIPanelCoordinator.Instance = null; GameManager.Instance = null; FusionConnectionManager.Instance = null;
+            PlayerDataManager.Instance = new PlayerDataManager(); QuizUIManager.IsAnyQuizActive = false; QuizUIManager.cancels = 0;
+            DialogueManager.IsAnyDialogueVisible = false; DialogueManager.found = dialogue;
+            AlmanacManager.Instance = new AlmanacManager { access = access };
+            phase.optionalDialogueSequence.Add(new NPCOptionalDialogueStep { dialogue = new Dialogue { name = "Professor Test" } });
+            step = new NPCOptionalDialogueStep { stepType = NPCOptionalDialogueStep.StepType.Quiz, quiz = quiz, quizStepId = "quiz-step" };
+            phase.optionalDialogueSequence.Add(step); npc.CurrentPhase = phase;
+            Get<System.Collections.Generic.HashSet<int>>(npc, "runningOptionalSequencePhases").Add(0);
+            access.Offer(npc, quiz, new QuizContext("npc-id", "quiz-phase", "quiz-step"));
+        }
+        public bool Tap() => (bool)Call(npc, "TryHandleWaitingQuizInteraction", 0, phase);
+    }
+    public static int Run()
+    {
+        Fixture f = new Fixture();
+        Check(AlmanacQuizAccess.TryGetWaitingQuiz(f.npc, out QuizData q, out QuizContext c) && q == f.quiz && c.stepId == "quiz-step", "Authorized pending owner can query offer.");
+        c.stepId = "mutated";
+        Check(AlmanacQuizAccess.TryGetWaitingQuiz(f.npc, out _, out c) && c.stepId == "quiz-step", "Query copies identity.");
+        Check(!AlmanacQuizAccess.TryGetWaitingQuiz(new Behaviour(), out _, out _), "Other NPC cannot claim quiz.");
+        for (int i = 0; i < 3; i++)
+        {
+            Check(f.Tap() && f.dialogue.starts == i + 1, "Each fresh talk repeats pending guidance.");
+            Check(f.dialogue.last.name == "Professor Test" && f.dialogue.last.sentences.Length == 1 && f.dialogue.last.sentences[0].Contains("Start Quiz"), "Correct NPC speaks concise default guidance.");
+            Check(f.dialogue.speakerAnimator == f.npc.animator && f.dialogue.speakerTransform == f.npc.transform, "Existing NPC animation/facing bindings reused.");
+            Check(f.Tap() && f.dialogue.starts == i + 1, "Double tap cannot overlap reminder.");
+            f.dialogue.Finish();
+            Check(Get<Action>(f.npc, "quizReminderCompletion") == null && Get<System.Collections.Generic.HashSet<int>>(f.npc, "runningOptionalSequencePhases").Contains(0), "Closing reminder never completes sequence.");
+        }
+        f.step.quizWaitingReminder = "Review the truss lesson, then start your quiz.";
+        Check(f.Tap() && f.dialogue.last.sentences[0] == f.step.quizWaitingReminder, "Authored reminder overrides default without story mutation.");
+        f.dialogue.Finish();
+        f.phase.optionalDialogueSequence.RemoveAt(0); f.phase.phaseDialogue = null; f.phase.contract = new ContractSO { clientName = "Engineer Kim" };
+        Check(f.Tap() && f.dialogue.last.name == "Engineer Kim", "Contract speaker fallback is reusable."); f.dialogue.Finish();
+        f.phase.contract = null;
+        Check(f.Tap() && f.dialogue.last.name == "Other NPC", "Quiz-only NPC falls back to its own name."); f.dialogue.Finish();
+        foreach (string busy in new[] { "pause", "time", "modal", "book", "dialogue", "transition", "build" })
+        {
+            f = new Fixture();
+            if (busy == "pause") PauseManager.Instance = new PauseManager { isPaused = true };
+            if (busy == "time") Time.timeScale = 0;
+            if (busy == "modal") UIPanelCoordinator.Instance = new UIPanelCoordinator { HasOpenPanel = true };
+            if (busy == "book") AlmanacManager.Instance.Panel.activeInHierarchy = true;
+            if (busy == "dialogue") DialogueManager.IsAnyDialogueVisible = true;
+            if (busy == "transition") GameManager.Instance = new GameManager { IsTransitioning = true };
+            if (busy == "build") GameManager.Instance = new GameManager { CurrentState = GameManager.GameState.Build };
+            Check(f.Tap() && f.dialogue.starts == 0, "Busy tap claimed without opening/contract fallthrough: " + busy);
+        }
+        foreach (string invalid in new[] { "starting", "quiz-active", "practice", "different-owner", "account", "save-manager", "guest", "visitor", "inactive", "unloaded", "travel", "phase", "step", "asset", "progression", "not-running", "null-phase" })
+        {
+            f = new Fixture();
+            if (invalid == "starting") f.access.SetStarting(true);
+            if (invalid == "quiz-active") QuizUIManager.IsAnyQuizActive = true;
+            if (invalid == "practice") f.quiz.assessmentMode = false;
+            if (invalid == "different-owner") f.access.Offer(new Behaviour(), f.quiz, new QuizContext("npc-id", "quiz-phase", "quiz-step"));
+            if (invalid == "account") PlayerDataManager.Instance.CurrentData = new PlayerData();
+            if (invalid == "save-manager") PlayerDataManager.Instance = new PlayerDataManager();
+            if (invalid == "guest") FusionConnectionManager.Instance = new FusionConnectionManager { IsGuestSaveProtected = true };
+            if (invalid == "visitor") FusionConnectionManager.Instance = new FusionConnectionManager { IsGuestInHostWorld = true };
+            if (invalid == "inactive") f.npc.isActiveAndEnabled = false;
+            if (invalid == "unloaded") f.npc.gameObject.scene.isLoaded = false;
+            if (invalid == "travel") f.npc.IsTravelling = true;
+            if (invalid == "phase") f.phase.phaseId = "changed";
+            if (invalid == "step") f.step.quizStepId = "changed";
+            if (invalid == "asset") f.step.quiz = new QuizData();
+            if (invalid == "progression") f.npc.progressionSaveId = "changed";
+            if (invalid == "not-running") Get<System.Collections.Generic.HashSet<int>>(f.npc, "runningOptionalSequencePhases").Clear();
+            if (invalid == "null-phase") { f.phase = null; f.npc.CurrentPhase = null; }
+            Check(!f.Tap() && f.dialogue.starts == 0, "Nonpending/foreign/stale offer cannot speak: " + invalid);
+        }
+        foreach (string invalidation in new[] { "account", "manager", "visitor", "phase", "travel", "step", "cancel", "stop" })
+        {
+            f = new Fixture(); f.Tap(); Action stale = f.dialogue.onDialogueEndCallback;
+            if (invalidation == "account") PlayerDataManager.Instance.CurrentData = new PlayerData();
+            if (invalidation == "manager") PlayerDataManager.Instance = new PlayerDataManager();
+            if (invalidation == "visitor") FusionConnectionManager.Instance = new FusionConnectionManager { IsGuestSaveProtected = true };
+            if (invalidation == "phase") f.npc.CurrentPhase = new NPCProgressionPhase();
+            if (invalidation == "travel") f.npc.IsTravelling = true;
+            if (invalidation == "step") f.step.quizStepId = "different";
+            if (invalidation == "cancel") Call(f.npc, "CancelOrderedOptionalSequence");
+            if (invalidation == "stop") Call(f.npc, "StopOrderedOptionalSequence", 0, 0);
+            Call(f.npc, "LateUpdate");
+            Check(f.dialogue.ends == 1 && f.dialogue.onDialogueEndCallback == null && Get<Action>(f.npc, "quizReminderCompletion") == null, "Invalidation closes only reminder without completion: " + invalidation);
+            stale(); Call(f.npc, "LateUpdate");
+            Check(f.dialogue.ends == 1, "Stale completion/duplicate teardown harmless: " + invalidation);
+        }
+        f = new Fixture(); f.Tap(); int unrelatedEnds = 0;
+        Action unrelated = () => unrelatedEnds++;
+        f.dialogue.StartDialogue(new Dialogue(), unrelated, null, null);
+        Call(f.npc, "CancelOrderedOptionalSequence");
+        Check(f.dialogue.ends == 0 && f.dialogue.onDialogueEndCallback == unrelated && f.dialogue.isDialogueActive, "Teardown cannot cancel replacing unrelated dialogue.");
+        f.dialogue.Finish(); Check(unrelatedEnds == 1, "Unrelated dialogue retains its own completion.");
+        f = new Fixture(); f.Tap(); PauseManager.Instance = new PauseManager { isPaused = true };
+        Call(f.npc, "CancelOrderedOptionalSequence"); Check(f.dialogue.ends == 1, "Owner teardown works while Pause is nested.");
+        f = new Fixture(); Check(!f.dialogue.CancelDialogueIfOwned(null) && f.dialogue.ends == 0, "Null owner callback cannot close dialogue.");
+        f.Tap(); Check(!f.dialogue.CancelDialogueIfOwned(() => { }) && f.dialogue.ends == 0, "Foreign callback cannot close dialogue.");
+        return checks;
+    }
+}

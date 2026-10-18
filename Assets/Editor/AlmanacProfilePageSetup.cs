@@ -399,6 +399,7 @@ public static class AlmanacProfilePageSetup
         stats.achievementSectionRoot = achievementSection.gameObject;
         stats.overviewCardRect = overviewCard.rectTransform;
         stats.achievementPanelButton = viewAchievements;
+        AlmanacProfileLayout.Apply(page);
     }
 
     private static void ApplyCurrencyIcons(Transform design)
@@ -440,6 +441,9 @@ public static class AlmanacProfilePageSetup
             TMP_Text labelText = label != null ? label.GetComponent<TMP_Text>() : null;
             if (labelText != null) labelText.text = "EXPERIENCE";
         }
+        // Keep explicit regeneration/finalization consistent with runtime book
+        // typography; the icon pass must not restore the old crowded value row.
+        AlmanacProfileLayout.Apply(design);
     }
 
     private static Image EnsureSpriteImage(Transform parent, string name, Sprite sprite)

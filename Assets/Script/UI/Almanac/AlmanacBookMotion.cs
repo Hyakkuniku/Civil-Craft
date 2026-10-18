@@ -43,7 +43,42 @@ public sealed class AlmanacBookMotion : MonoBehaviour
         if (manager != null) manager.OnCategoryChanged -= ShowChapter;
         manager = owner;
         manager.OnCategoryChanged += ShowChapter;
+        LayerCoversBehindBookmarks();
         ShowChapter(0);
+    }
+
+    private void LayerCoversBehindBookmarks()
+    {
+        if (manager == null || manager.categories == null || manager.categories.Count == 0 || chapterFrames == null) return;
+        Transform chapter = manager.categories[0].leftPageZone != null ? manager.categories[0].leftPageZone.parent : null;
+        Transform container = chapter != null ? chapter.parent : null;
+        if (container == null) return;
+        RectTransform layer = container.Find("Almanac Cover Layer") as RectTransform;
+        foreach (GameObject frame in chapterFrames)
+        {
+            if (frame == null || !(frame.transform is RectTransform binding) || binding.parent == layer) continue;
+            RectTransform source = binding.parent as RectTransform;
+            // Only migrate the existing full-stretch binding furniture, never
+            // arbitrary custom art or page transforms. Keep all frame references.
+            if (source == null || source.parent != container || binding.anchorMin != Vector2.zero ||
+                binding.anchorMax != Vector2.one || binding.sizeDelta.sqrMagnitude > .001f ||
+                binding.anchoredPosition.sqrMagnitude > .001f || binding.localScale != Vector3.one ||
+                binding.localRotation != Quaternion.identity) continue;
+            if (layer == null)
+            {
+                layer = new GameObject("Almanac Cover Layer", typeof(RectTransform)).GetComponent<RectTransform>();
+                layer.gameObject.layer = container.gameObject.layer;
+                layer.SetParent(container, false);
+                layer.anchorMin = Vector2.zero; layer.anchorMax = Vector2.one;
+                layer.offsetMin = layer.offsetMax = Vector2.zero;
+            }
+            binding.SetParent(layer, false);
+            binding.anchorMin = source.anchorMin; binding.anchorMax = source.anchorMax;
+            binding.pivot = source.pivot; binding.sizeDelta = source.sizeDelta;
+            binding.anchoredPosition = source.anchoredPosition;
+            binding.localScale = source.localScale; binding.localRotation = source.localRotation;
+        }
+        if (layer != null) layer.SetAsFirstSibling();
     }
 
     private void ShowChapter(int selected)

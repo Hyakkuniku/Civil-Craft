@@ -56,6 +56,21 @@ public sealed class AlmanacQuizAccess : MonoBehaviour
         if (access != null && access.owner == sessionOwner) access.Resolve(QuizOutcome.Cancelled);
     }
 
+    /// <summary>Read-only reminder eligibility. Starting/active quizzes never count as waiting for the Almanac.</summary>
+    public static bool TryGetWaitingQuiz(UnityEngine.Object sessionOwner, out QuizData data, out QuizContext identity)
+    {
+        data = null;
+        identity = null;
+        AlmanacQuizAccess access = AlmanacManager.Instance != null ? AlmanacManager.Instance.GetComponent<AlmanacQuizAccess>() : null;
+        if (sessionOwner == null || access == null || access.owner != sessionOwner || access.closed == null ||
+            access.starting || access.quiz == null || !access.quiz.assessmentMode || access.context == null ||
+            !access.context.IsValid || !access.IsAuthorized() || QuizUIManager.IsAnyQuizActive) return false;
+        data = access.quiz;
+        // Never expose the callback owner's mutable identity to an interaction.
+        identity = new QuizContext(access.context.progressionId, access.context.phaseId, access.context.stepId);
+        return true;
+    }
+
     private static bool ProtectedVisit() => FusionConnectionManager.Instance != null && FusionConnectionManager.Instance.IsGuestSaveProtected;
 
     private void Update()
@@ -129,7 +144,7 @@ public sealed class AlmanacQuizAccess : MonoBehaviour
         if (title != null) title.text = available && quiz != null ? quiz.title : "Quiz";
         if (description != null) description.text = available && quiz != null ?
             "Review your lessons before starting.\n\nAnswer all " + quiz.QuestionCount + " questions, then press Submit. You can move between questions before submitting.\n\nOnce started, finish the quiz before returning to the Almanac. Any score lets you continue; no rewards are added." :
-            "A quiz becomes available here when Bhan asks you to take it.";
+            "A quiz becomes available here when an NPC asks you to take it.";
     }
 
     private void ApplySelection(int categoryIndex)
@@ -140,11 +155,11 @@ public sealed class AlmanacQuizAccess : MonoBehaviour
 
     private void RefreshTabContrast()
     {
-        // Existing tabs use pale artwork over the dark brown tab sprite. Keep
-        // Quiz equally legible in normal, selected, and disabled states.
+        // Current bookmark faces are cream paper, not the legacy dark sprite.
+        // Keep the label readable in both available and disabled states.
         if (tabLabel == null || tab == null) return;
-        tabLabel.color = !tab.interactable ? new Color32(207, 194, 175, 255) :
-            selectedCategory == quizCategoryIndex ? QuizUILayout.Gold : QuizUILayout.Cream;
+        tabLabel.color = !tab.interactable ? new Color32(126, 99, 71, 255) : QuizUILayout.Ink;
+        tabLabel.fontStyle = selectedCategory == quizCategoryIndex ? FontStyles.Bold : FontStyles.Normal;
     }
 
     private void BuildTab()
@@ -166,15 +181,8 @@ public sealed class AlmanacQuizAccess : MonoBehaviour
             if (Application.isPlaying) Destroy(child.gameObject); else DestroyImmediate(child.gameObject);
         }
         tabLabel = Text("Quiz Label", tab.transform, 24, TextAlignmentOptions.Center);
-        tabLabel.text = "Quiz"; Fill(tabLabel.rectTransform, 4, 4, 4, 4);
-        RectTransform tabRect = tab.transform as RectTransform;
-        float rightEdge = 0f;
-        foreach (AlmanacCategory category in book.categories)
-            if (category.tabButton != null && category.tabButton.transform.parent == tab.transform.parent)
-                rightEdge = Mathf.Max(rightEdge, ((RectTransform)category.tabButton.transform).anchorMax.x);
-        float tabWidth = Mathf.Max(.065f, ((RectTransform)template.tabButton.transform).anchorMax.x - ((RectTransform)template.tabButton.transform).anchorMin.x);
-        tabRect.anchorMin = new Vector2(Mathf.Min(.97f - tabWidth, rightEdge + .012f), tabRect.anchorMin.y);
-        tabRect.anchorMax = new Vector2(tabRect.anchorMin.x + tabWidth, tabRect.anchorMax.y);
+        tabLabel.text = "Quiz";
+        AlmanacBookmarkLayout.ConfigureQuizLabel(tabLabel);
         Transform left = CloneZone(template.leftPageZone, "Quiz Left Page Zone");
         Transform right = CloneZone(template.rightPageZone, "Quiz Right Page Zone");
         RectTransform leftPage = Rect("Quiz Introduction", left);
@@ -194,6 +202,7 @@ public sealed class AlmanacQuizAccess : MonoBehaviour
         book.categories.Add(new AlmanacCategory { categoryName = "Quiz", tabType = AlmanacTabType.Quiz, tabButton = tab,
             inactiveSprite = template.inactiveSprite, activeSprite = template.activeSprite, leftPageZone = left, rightPageZone = right });
         quizCategoryIndex = book.categories.Count - 1;
+        AlmanacBookmarkLayout.Reflow(book.categories);
         book.BookMotion?.AddChapterFrame(book.categories.IndexOf(template), book.categories.Count - 1);
         Refresh();
     }

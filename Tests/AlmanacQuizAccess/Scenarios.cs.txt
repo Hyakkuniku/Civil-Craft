@@ -35,6 +35,16 @@ public static class Scenarios
     }
     public static int Run()
     {
+        Fixture contrast = new Fixture(); TMP_Text label = new TMP_Text();
+        Set(contrast.access, "tabLabel", label); Set(contrast.access, "quizCategoryIndex", 4);
+        Call(contrast.access, "RefreshTabContrast");
+        Check(label.color.Equals(new Color32(126, 99, 71, 255)) && label.fontStyle == FontStyles.Normal, "Unavailable pale Quiz tab keeps dark normal text.");
+        contrast.Offer();
+        Check(label.color.Equals(QuizUILayout.Ink) && label.fontStyle == FontStyles.Normal, "Available unselected Quiz tab keeps dark readable text.");
+        typeof(AlmanacQuizAccess).GetMethod("ApplySelection", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(contrast.access, new object[] { 4 });
+        Check(label.color.Equals(QuizUILayout.Ink) && label.fontStyle == FontStyles.Bold, "Selected Quiz tab uses dark bold text, not low-contrast cream/gold.");
+        contrast.Start();
+        Check(label.color.Equals(new Color32(126, 99, 71, 255)) && label.fontStyle == FontStyles.Bold, "Starting/disabled Quiz tab remains legible.");
         Fixture f = new Fixture(); Check(f.Offer(), "Valid assessment offer accepted.");
         Check(f.tab.interactable && f.start.interactable && f.start.gameObject.activeSelf && QuizUIManager.opens == 0, "Offer enables Quiz tab but never auto-starts.");
         f.context.stepId = "changed-caller";

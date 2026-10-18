@@ -29,7 +29,7 @@ internal static class Program
         ClassDeclarationSyntax dialogue = ReadClass(root, "Assets/Script/Dialogue/DialogueManager.cs", "DialogueManager");
         ClassDeclarationSyntax pause = ReadClass(root, "Assets/Script/PauseManager.cs", "PauseManager");
         ClassDeclarationSyntax input = ReadClass(root, "Assets/Script/InputManager.cs", "InputManager");
-        string dialogueMethods = Methods(dialogue, "StartDialogue", "DisplayNextSentence", "TypeSentence", "EndDialogue", "SkipDialogue", "ResolvePlayerInput", "ResolvePlayerTransform");
+        string dialogueMethods = Methods(dialogue, "StartDialogue", "DisplayNextSentence", "TypeSentence", "EndDialogue", "SkipDialogue", "CancelDialogueIfOwned", "ResolvePlayerInput", "ResolvePlayerTransform");
         if (previous)
         {
             int calls = dialogueMethods.Split("ResolvePlayerInput();", StringSplitOptions.None).Length - 1;

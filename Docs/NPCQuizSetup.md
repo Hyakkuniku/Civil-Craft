@@ -31,3 +31,11 @@ The player chooses an answer and presses **Submit**. Correct answers are saved i
 Test a disposable/offline save first: leave/reopen, restart, wrong answers, image choices, long scrolling content, and **Pause → Settings → Resume**. Confirm movement/look return after leaving or finishing, and follow-up dialogue retains its own control lock. The fullscreen panel hides gameplay HUD, blocks background clicks, and respects Escape/Android Back. Multiplayer visitors cannot save or advance the host's NPC story.
 
 The native authoring report is `Temp/NPCQuizAuthoringValidation.txt`; detached phone/tablet/desktop/portrait previews are `Temp/npc-quiz-*.png`. These checks never run authentication, network calls, live NPC callbacks, or player saves.
+
+## Repeatable reminder while an assessment waits in the Almanac
+
+Assessment-mode quizzes offered through the Almanac keep the NPC interaction available while the player reviews lessons. Talking again repeats a short reminder to open the Quiz tab and press Start Quiz. It does not replay earlier story steps, create another offer, grant rewards, or complete the phase.
+
+For custom wording, expand that NPC's Quiz entry under Optional Dialogue Sequence and fill **Quiz Waiting Reminder**. Leave it blank for the standard guidance. The reminder uses the asking NPC's speaker name and talking animation. This works for any NPC, not just Bhan.
+
+The reminder only belongs to that exact pending quiz/phase/step and player profile. It cannot open over the Almanac, an active quiz, another conversation, Pause/Settings, build mode or a transition. Changing the phase, profile, scene or protected multiplayer visit cancels only this reminder without releasing another panel's control locks. Practice-quiz retry/resume rules remain unchanged.

@@ -35,6 +35,9 @@ public class NPCOptionalDialogueStep
     [Tooltip("Stable, unique ID for this Quiz step within its phase. Do not change it after release. The Inspector fills a missing ID when authoring a Quiz step.")]
     public string quizStepId;
 
+    [Tooltip("Repeatable reminder when the player talks to this NPC while its assessment quiz waits in the Almanac. Leave empty to use the standard review/Start Quiz guidance. This reminder never advances the phase.")]
+    [TextArea(2, 5)] public string quizWaitingReminder;
+
     [Tooltip("Lesson introduction shown before this ordered sequence continues.")]
     public LessonData lesson;
 
@@ -286,6 +289,8 @@ public class NPCProgressionManager : MonoBehaviour
     private readonly HashSet<int> introducedMaterialPhases = new HashSet<int>();
     private readonly HashSet<int> runningOptionalSequencePhases = new HashSet<int>();
     private int optionalSequenceVersion;
+    private DialogueManager quizReminderDialogueManager;
+    private System.Action quizReminderCompletion;
     private NPCOrderedLearningFlow orderedLearningFlow;
     private Coroutine movementRoutine;
     private Coroutine idleRoamingRoutine;
@@ -2369,6 +2374,15 @@ public class NPCProgressionManager : MonoBehaviour
         NPCProgressionPhase phase = CurrentPhase;
         if (phase == null) return;
 
+        // An assessment offer keeps the ordered sequence alive while the player
+        // reviews the book. Further taps should remind, not silently restart it
+        // or re-invoke story interaction/reward events.
+        if (TryHandleWaitingQuizInteraction(currentPhaseIndex, phase))
+        {
+            sender.SuppressCurrentInteractionForProgression();
+            return;
+        }
+
         bool shouldInvokeInteractionEvent =
             !phase.invokeInteractionEventOnlyOnce ||
             !invokedInteractionPhases.Contains(currentPhaseIndex);
@@ -2400,6 +2414,94 @@ public class NPCProgressionManager : MonoBehaviour
         // so the two dialogue flows cannot open over each other.
         if (phase.contract == null)
             TryStartPhaseDialogue(currentPhaseIndex, phase);
+    }
+
+    private bool TryGetWaitingQuizStep(int phaseIndex, NPCProgressionPhase phase, out NPCOptionalDialogueStep waitingStep)
+    {
+        waitingStep = null;
+        if (phase == null || !IsCurrentOrderedSequence(phaseIndex, phase, optionalSequenceVersion) ||
+            !AlmanacQuizAccess.TryGetWaitingQuiz(this, out QuizData quiz, out QuizContext identity) ||
+            !string.Equals(progressionSaveId, identity.progressionId, System.StringComparison.Ordinal) ||
+            !string.Equals(phase.phaseId, identity.phaseId, System.StringComparison.Ordinal) ||
+            phase.optionalDialogueSequence == null) return false;
+        foreach (NPCOptionalDialogueStep step in phase.optionalDialogueSequence)
+            if (step != null && step.stepType == NPCOptionalDialogueStep.StepType.Quiz && step.quiz == quiz &&
+                string.Equals(step.quizStepId, identity.stepId, System.StringComparison.Ordinal))
+            {
+                waitingStep = step;
+                return true;
+            }
+        return false;
+    }
+
+    private bool TryHandleWaitingQuizInteraction(int phaseIndex, NPCProgressionPhase phase)
+    {
+        if (!TryGetWaitingQuizStep(phaseIndex, phase, out NPCOptionalDialogueStep step)) return false;
+        // Claim the tap even when another panel owns input. In particular, an
+        // accepted contract must not start its reminder/turn-in over this quiz.
+        if (quizReminderCompletion != null || DialogueManager.IsAnyDialogueVisible || QuizUIManager.IsAnyQuizActive ||
+            (PauseManager.Instance != null && PauseManager.Instance.isPaused) || Time.timeScale <= 0f ||
+            (UIPanelCoordinator.Instance != null && UIPanelCoordinator.Instance.HasOpenPanel) ||
+            (AlmanacManager.Instance != null && AlmanacManager.Instance.Panel != null &&
+                AlmanacManager.Instance.Panel.activeInHierarchy) ||
+            (GameManager.Instance != null && (GameManager.Instance.IsTransitioning ||
+                GameManager.Instance.CurrentState != GameManager.GameState.Normal))) return true;
+        if (dialogueManager == null) dialogueManager = FindObjectOfType<DialogueManager>();
+        if (dialogueManager == null) return true;
+
+        Dialogue reminder = new Dialogue
+        {
+            name = GetQuizReminderSpeakerName(phase, step),
+            sentences = new[] { string.IsNullOrWhiteSpace(step.quizWaitingReminder)
+                ? "You can review your lessons in the Almanac. Open the Quiz tab and press Start Quiz when you're ready."
+                : step.quizWaitingReminder }
+        };
+        System.Action completed = null;
+        completed = () =>
+        {
+            if (!ReferenceEquals(quizReminderCompletion, completed)) return;
+            quizReminderCompletion = null;
+            quizReminderDialogueManager = null;
+            // Deliberately no sequence continuation, completion flag or reward.
+            // Only the owning quiz's successful result may advance this phase.
+        };
+        quizReminderCompletion = completed;
+        quizReminderDialogueManager = dialogueManager;
+        dialogueManager.StartDialogue(reminder, completed, animator, transform);
+        return true;
+    }
+
+    private string GetQuizReminderSpeakerName(NPCProgressionPhase phase, NPCOptionalDialogueStep waitingStep)
+    {
+        string speaker = phase.phaseDialogue != null ? phase.phaseDialogue.name : null;
+        if (phase.optionalDialogueSequence != null)
+            foreach (NPCOptionalDialogueStep step in phase.optionalDialogueSequence)
+            {
+                if (step == waitingStep) break;
+                if (step != null && step.stepType == NPCOptionalDialogueStep.StepType.Dialogue &&
+                    step.dialogue != null && !string.IsNullOrWhiteSpace(step.dialogue.name))
+                    speaker = step.dialogue.name;
+            }
+        if (string.IsNullOrWhiteSpace(speaker) && phase.contract != null) speaker = phase.contract.clientName;
+        return string.IsNullOrWhiteSpace(speaker) ? gameObject.name : speaker;
+    }
+
+    private void LateUpdate()
+    {
+        // Owner/profile/visit invalidation can happen between two interactions.
+        // The pending offer query is allocation-free on failure and never searches
+        // the scene; stop only our reminder, leaving unrelated dialogue intact.
+        if (quizReminderCompletion != null &&
+            !TryGetWaitingQuizStep(currentPhaseIndex, CurrentPhase, out _)) CancelQuizWaitingReminder();
+    }
+
+    private void CancelQuizWaitingReminder()
+    {
+        DialogueManager manager = quizReminderDialogueManager;
+        System.Action completion = quizReminderCompletion;
+        quizReminderDialogueManager = null;
+        quizReminderCompletion = null;
+        if (manager != null && completion != null) manager.CancelDialogueIfOwned(completion);
     }
 
     private void TryStartPhaseDialogue(int phaseIndex, NPCProgressionPhase phase)
@@ -2790,6 +2892,7 @@ public class NPCProgressionManager : MonoBehaviour
         if (sequenceVersion != optionalSequenceVersion) return;
         runningOptionalSequencePhases.Remove(phaseIndex);
         optionalSequenceVersion++;
+        CancelQuizWaitingReminder();
     }
 
     private void CancelOrderedOptionalSequence()
@@ -2798,6 +2901,7 @@ public class NPCProgressionManager : MonoBehaviour
         // not advance a phase that is moving, unloading, or being disabled.
         optionalSequenceVersion++;
         runningOptionalSequencePhases.Clear();
+        CancelQuizWaitingReminder();
         if (orderedLearningFlow != null) orderedLearningFlow.Cancel();
         AlmanacQuizAccess.CancelOwned(this);
         QuizUIManager.CancelOwnedSession(this);

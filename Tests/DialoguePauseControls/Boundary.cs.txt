@@ -85,7 +85,8 @@ public class InputManager : MonoBehaviour
     // INPUT_METHODS
 }
 public class PlayerInteract : MonoBehaviour { }
-public static class QuizUIManager { public static bool IsAnyQuizActive => false; }
+public static class QuizUIManager { public static bool IsAnyQuizActive; }
+public class GameManager { public enum GameState { Normal, Build } public static GameManager Instance; public bool IsTransitioning; public GameState CurrentState; }
 public class PlayerUI { public void UpdateButtons(List<Interactable> values) { } }
 public class Interactable { }
 public class TextValue
@@ -149,6 +150,7 @@ public class AudioManager
 public class UIPanelCoordinator
 {
     public static UIPanelCoordinator Instance;
+    public bool HasOpenPanel;
     public void OpenPanel(GameObject panel) { panel.SetActive(true); }
     public void ClosePanel(GameObject panel) { if (panel != null) panel.SetActive(false); }
 }

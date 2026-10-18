@@ -16,7 +16,7 @@ public sealed class NPCOptionalDialogueStepDrawer : PropertyDrawer
         else if (stepType == (int)NPCOptionalDialogueStep.StepType.MaterialUnlock)
             height += FieldHeight(property, "material") + FieldHeight(property, "materialButtonLabel");
         else if (stepType == (int)NPCOptionalDialogueStep.StepType.Quiz)
-            height += FieldHeight(property, "quiz") + FieldHeight(property, "quizStepId");
+            height += FieldHeight(property, "quiz") + FieldHeight(property, "quizStepId") + FieldHeight(property, "quizWaitingReminder");
         return height;
     }
 
@@ -55,6 +55,7 @@ public sealed class NPCOptionalDialogueStepDrawer : PropertyDrawer
                     string.IsNullOrWhiteSpace(id.stringValue))
                     id.stringValue = "quiz-" + Guid.NewGuid().ToString("N");
                 DrawField(ref row, id);
+                DrawField(ref row, property.FindPropertyRelative("quizWaitingReminder"));
             }
             EditorGUI.indentLevel--;
         }

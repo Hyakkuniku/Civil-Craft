@@ -1,0 +1,103 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
+
+public static class Scenarios
+{
+    private static int checks;
+    private static void Check(bool condition,string message) { if(!condition)throw new Exception(message);checks++; }
+    private static bool Near(float a,float b) => Math.Abs(a-b)<.00001f;
+    private static RectTransform Rect(string name,Transform parent=null)
+    { var rect=(RectTransform)new GameObject(name,typeof(RectTransform)).transform;rect.SetParent(parent,false);return rect; }
+    private static AlmanacCategory Category(string name,Transform parent,float min,float max,float y,bool active=true)
+    {
+        var rect=Rect(name,parent);rect.anchorMin=new(min,.925f);rect.anchorMax=new(max,.925f);rect.anchoredPosition=new(3,y);rect.gameObject.SetActive(active);
+        return new() { tabButton=new() { transform=rect } };
+    }
+    public static int Run()
+    {
+        AlmanacBookmarkLayout.Reflow(null);AlmanacBookmarkLayout.Reflow(new List<AlmanacCategory>());checks+=2;
+        PackingAndOrder();Layering();LabelsAndContrast();
+        return checks;
+    }
+    private static void PackingAndOrder()
+    {
+        var container=Rect("Container");var cover=Rect("Almanac Cover Layer",container);var chapter=Rect("Chapter",container);
+        var player=Category("Player",container,.05f,.128f,36);
+        var contract=Category("Contract",container,.142f,.22f,4);
+        var lesson=Category("Lessons",container,.234f,.312f,4);
+        var material=Category("Materials",container,.326f,.404f,4,false);
+        var quiz=Category("Quiz",container,.416f,.494f,4);
+        var categories=new List<AlmanacCategory> { player,contract,lesson,material,quiz };
+        AlmanacBookmarkLayout.Reflow(categories);
+        int visible=0;
+        foreach(var category in categories)
+        {
+            var rect=(RectTransform)category.tabButton.transform;
+            Check(Near(rect.anchoredPosition.y,category==player?36:4),"Selection/baseline Y changed.");
+            Check(Near(rect.anchorMin.y,.925f)&&Near(rect.anchorMax.y,.925f),"Vertical anchors changed.");
+            Check(rect.GetSiblingIndex()>cover.GetSiblingIndex()&&rect.GetSiblingIndex()<chapter.GetSiblingIndex(),"Required cover < tab < page stacking lost.");
+            if(!rect.gameObject.activeSelf)continue;
+            Check(Near(rect.anchorMin.x,.05f+visible++*.092f),"Visible categories did not pack left to right.");
+            Check(Near(rect.anchorMax.x-rect.anchorMin.x,.078f),"Bookmark width changed.");
+        }
+        Check(Near(((RectTransform)quiz.tabButton.transform).anchorMin.x,.326f),"Locked Materials left a vacancy before Quiz.");
+        for(int pass=0;pass<25;pass++)AlmanacBookmarkLayout.Reflow(categories);
+        Check(Near(((RectTransform)quiz.tabButton.transform).anchorMin.x,.326f),"Repeated reflow drifts.");
+        material.tabButton.transform.gameObject.SetActive(true);AlmanacBookmarkLayout.Reflow(categories);
+        Check(Near(((RectTransform)quiz.tabButton.transform).anchorMin.x,.418f),"Unlocked Materials was not restored to category order.");
+        material.visibilityMode=TabVisibility.AlwaysHidden;AlmanacBookmarkLayout.Reflow(categories);
+        Check(Near(((RectTransform)quiz.tabButton.transform).anchorMin.x,.326f),"AlwaysHidden tab used a visible slot.");
+        var unrelated=Rect("Other parent");var foreign=Category("Foreign",unrelated,.2f,.3f,13);
+        categories.Add(foreign);AlmanacBookmarkLayout.Reflow(categories);
+        Check(Near(((RectTransform)foreign.tabButton.transform).anchorMin.x,.2f),"Foreign parent was repositioned.");
+        var custom=Category("Fixed anchor",container,.4f,.4f,7);AlmanacBookmarkLayout.Reflow(new List<AlmanacCategory>{custom});
+        Check(((RectTransform)custom.tabButton.transform).anchoredPosition.x==3,"Custom fixed-anchor book was changed.");
+    }
+    private static void Layering()
+    {
+        var container=Rect("BookContainer");container.gameObject.layer=7;
+        var chapter=Rect("ProfileChapter",container);chapter.anchorMin=new(.015f,.025f);chapter.anchorMax=new(.985f,.925f);chapter.anchoredPosition=new(0,2);chapter.sizeDelta=new(0,6);
+        var page=Rect("Page",chapter);var binding=Rect("Binding",chapter);binding.anchorMax=Vector2.one;
+        var manager=new AlmanacManager { categories=new List<AlmanacCategory> { new() { leftPageZone=page } } };
+        var harness=new LayerHarness { manager=manager,chapterFrames=new[] { binding.gameObject } };
+        harness.Apply();var layer=container.Find("Almanac Cover Layer") as RectTransform;
+        Check(layer!=null&&binding.parent==layer,"Authored full-stretch binding not migrated.");
+        Check(page.parent==chapter,"Page content moved out of its chapter.");
+        Check(binding.anchorMin==chapter.anchorMin&&binding.anchorMax==chapter.anchorMax,"Cover didn't retain chapter anchors.");
+        Check(binding.pivot==chapter.pivot&&binding.sizeDelta==chapter.sizeDelta&&binding.anchoredPosition==chapter.anchoredPosition,"Cover footprint lost.");
+        Check(layer.anchorMin==Vector2.zero&&layer.anchorMax==Vector2.one,"Shared cover layer doesn't fill original container.");
+        Check(layer.gameObject.layer==7,"Cover layer lost UI layer.");
+        Check(layer.GetSiblingIndex()==0,"Cover layer is not behind the pages.");
+        Check(ReferenceEquals(harness.chapterFrames[0],binding.gameObject),"Chapter frame reference changed.");
+        var originalParent=binding.parent;for(int pass=0;pass<20;pass++)harness.Apply();
+        Check(ReferenceEquals(binding.parent,originalParent)&&container.children.Count(t=>t.gameObject.name=="Almanac Cover Layer")==1,"Repeated Bind duplicates/moves cover layer.");
+        var custom=Rect("CustomArt",chapter);custom.anchorMax=new(.8f,1);harness.chapterFrames=new[]{custom.gameObject};harness.Apply();
+        Check(custom.parent==chapter,"Custom non-full-stretch art was migrated.");
+        var scaled=Rect("ScaledArt",chapter);scaled.anchorMax=Vector2.one;scaled.localScale=new(1.1f,1,1);
+        harness.chapterFrames=new[]{scaled.gameObject};harness.Apply();
+        Check(scaled.parent==chapter&&scaled.localScale==new Vector3(1.1f,1,1),"Custom scaled binding was migrated or rescaled.");
+        var rotated=Rect("RotatedArt",chapter);rotated.anchorMax=Vector2.one;rotated.localRotation=new Quaternion {z=.1f,w=.99f};
+        harness.chapterFrames=new[]{rotated.gameObject};harness.Apply();
+        Check(rotated.parent==chapter&&rotated.localRotation==new Quaternion {z=.1f,w=.99f},"Custom rotated binding was migrated or rotated.");
+        var missing=new LayerHarness();missing.Apply();checks++;
+    }
+    private static void LabelsAndContrast()
+    {
+        AlmanacBookmarkLayout.ConfigureQuizLabel(null);checks++;
+        var text=new TMP_Text { enableWordWrapping=true,raycastTarget=true };AlmanacBookmarkLayout.ConfigureQuizLabel(text);
+        Check(text.rectTransform.anchorMin==new Vector2(.08f,.67f)&&text.rectTransform.anchorMax==new Vector2(.92f,.98f),"Quiz label not in exposed header strip.");
+        Check(text.rectTransform.offsetMin==Vector2.zero&&text.rectTransform.offsetMax==Vector2.zero,"Quiz label stale offsets retained.");
+        Check(!text.enableWordWrapping&&!text.raycastTarget,"Quiz label wraps or intercepts clicks.");
+        Check(text.enableAutoSizing&&text.fontSizeMin>=21&&text.fontSizeMax==25,"Quiz label sizing unreadable.");
+        Check(text.alignment==TextAlignmentOptions.Center&&text.overflowMode==TextOverflowModes.Ellipsis,"Quiz label alignment or overflow wrong.");
+        var contrast=new ContrastHarness { tabLabel=text,tab=new Button() };contrast.Apply();
+        Check(text.color.r==QuizUILayout.Ink.r&&text.color.g==QuizUILayout.Ink.g&&text.color.b==QuizUILayout.Ink.b,"Available Quiz uses low contrast ink.");
+        contrast.tab.interactable=false;contrast.Apply();
+        Check(text.color.r<160&&text.color.g<140&&text.color.b<120&&text.color.a==255,"Disabled Quiz pale/transparent against cream.");
+        contrast.tabLabel=null;contrast.Apply();checks++;
+    }
+}

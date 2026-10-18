@@ -75,5 +75,8 @@ public static class AlmanacTypography
             text.fontSizeMin = Mathf.Min(target, Mathf.Max(minimum, text.fontSizeMin));
             text.enableWordWrapping = true;
         }
+        // Layout-specific rows take precedence over the broad profile text
+        // hierarchy, including repeat applications after a category refresh.
+        if (isProfile) AlmanacProfileLayout.Apply(page);
     }
 }

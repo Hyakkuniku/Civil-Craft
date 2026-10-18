@@ -1,0 +1,102 @@
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+
+namespace UnityEngine
+{
+    public class Object { }
+    public class Behaviour : Object { public bool isActiveAndEnabled = true; }
+    public class MonoBehaviour : Behaviour
+    {
+        public GameObject gameObject = new GameObject(); public Transform transform = new Transform();
+        public T FindObjectOfType<T>() where T : class => DialogueManager.found as T;
+        public void StopCoroutine(Coroutine value) { }
+    }
+    public class Transform : Object { }
+    public class Animator : Object { }
+    public class Coroutine { }
+    public class GameObject { public string name = "Other NPC"; public bool activeInHierarchy; public Scene scene = new Scene(); }
+    public class Scene { public bool valid = true, isLoaded = true; public bool IsValid() => valid; }
+    public static class Time { public static float timeScale = 1f; }
+}
+public class PlayerData { }
+public class PlayerDataManager { public static PlayerDataManager Instance; public PlayerData CurrentData = new PlayerData(); }
+public class FusionConnectionManager { public static FusionConnectionManager Instance; public bool IsGuestSaveProtected, IsGuestInHostWorld; }
+public class PauseManager { public static PauseManager Instance; public bool isPaused; }
+public class UIPanelCoordinator { public static UIPanelCoordinator Instance; public bool HasOpenPanel; }
+public class GameManager { public enum GameState { Normal, Build } public static GameManager Instance; public bool IsTransitioning; public GameState CurrentState; }
+public class QuizData : UnityEngine.Object { public bool assessmentMode = true; }
+public class QuizContext
+{
+    public string progressionId, phaseId, stepId;
+    public QuizContext(string a, string b, string c) { progressionId = a; phaseId = b; stepId = c; }
+    public bool IsValid => !string.IsNullOrWhiteSpace(progressionId) && !string.IsNullOrWhiteSpace(phaseId) && !string.IsNullOrWhiteSpace(stepId);
+}
+public enum QuizOutcome { Completed, Cancelled }
+public class Dialogue { public string name; public string[] sentences; }
+public class InputManager { public void SetPlayerInputEnable(bool value) { } public void SetLookEnabled(bool value) { } }
+public class PlayerInteract { public bool enabled; }
+public class ContractSO { public string clientName; }
+public class NPCOptionalDialogueStep
+{
+    public enum StepType { Dialogue, MaterialUnlock, Quiz, LessonIntroduction, AlmanacReview }
+    public StepType stepType;
+    public Dialogue dialogue;
+    public QuizData quiz;
+    public string quizStepId, quizWaitingReminder;
+}
+public class NPCProgressionPhase
+{
+    public string phaseId = "quiz-phase";
+    public List<NPCOptionalDialogueStep> optionalDialogueSequence = new List<NPCOptionalDialogueStep>();
+    public Dialogue phaseDialogue;
+    public ContractSO contract;
+}
+public class NPCOrderedLearningFlow { public void Cancel() { } }
+public static class QuizUIManager { public static bool IsAnyQuizActive; public static int cancels; public static void CancelOwnedSession(UnityEngine.Object owner) { cancels++; } }
+public class AlmanacManager
+{
+    public static AlmanacManager Instance;
+    public AlmanacQuizAccess access;
+    public GameObject Panel = new GameObject();
+    public T GetComponent<T>() where T : class => access as T;
+}
+public class AlmanacQuizAccess : MonoBehaviour
+{
+    // ACTUAL_ACCESS
+    public static void CancelOwned(UnityEngine.Object sessionOwner) { var a = AlmanacManager.Instance?.access; if (a == null || a.owner != sessionOwner) return; a.closed = null; a.owner = null; }
+    public void Offer(UnityEngine.Object value, QuizData data, QuizContext identity)
+    { owner = value; quiz = data; context = identity; closed = _ => { }; saveManager = PlayerDataManager.Instance; saveOwner = saveManager.CurrentData; }
+    public void SetStarting(bool value) { starting = value; }
+}
+public class DialogueManager : MonoBehaviour
+{
+    public static DialogueManager found;
+    public static bool IsAnyDialogueVisible;
+    public bool isDialogueActive, isTyping;
+    public Action onDialogueEndCallback;
+    public Coroutine typingCoroutine;
+    public InputManager inputManager;
+    public PlayerInteract playerInteract;
+    public Queue<string> sentences = new Queue<string>();
+    public int starts, ends;
+    public Dialogue last;
+    public Animator speakerAnimator;
+    public Transform speakerTransform;
+    public void StartDialogue(Dialogue value, Action completed, Animator animator, Transform speaker)
+    { starts++; last = value; onDialogueEndCallback = completed; speakerAnimator = animator; speakerTransform = speaker; isDialogueActive = IsAnyDialogueVisible = true; }
+    public void Finish() { Action c = onDialogueEndCallback; onDialogueEndCallback = null; isDialogueActive = IsAnyDialogueVisible = false; c?.Invoke(); }
+    public void EndDialogue() { ends++; Finish(); }
+    // ACTUAL_CANCEL
+}
+public class NPCProgressionManager : MonoBehaviour
+{
+    public int currentPhaseIndex;
+    public NPCProgressionPhase CurrentPhase;
+    public bool IsTravelling;
+    public string progressionSaveId = "npc-id";
+    public DialogueManager dialogueManager;
+    public Animator animator = new Animator();
+    public NPCOrderedLearningFlow orderedLearningFlow;
+    // ACTUAL_NPC
+}

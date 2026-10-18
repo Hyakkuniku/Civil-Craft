@@ -7,6 +7,7 @@ public static class Scenarios
     {
         MonoBehaviour.World.Clear(); DialogueManager.ResetForTest(); PauseManager.Instance = null;
         AudioManager.Instance = null; UIPanelCoordinator.Instance = null; PlayerDataManager.Instance = null;
+        GameManager.Instance = null; QuizUIManager.IsAnyQuizActive = false;
         Time.timeScale = 1; Application.isMobilePlatform = false; Mouse.current = new Mouse(); Gamepad.current = null;
     }
     private static Dialogue Line() => new Dialogue { name = "Bhan", sentences = new[] { "Headless fixture." } };
@@ -73,7 +74,7 @@ public static class Scenarios
             Check(callbacks == 1, "completion callback exactly once"); Restored(input, interaction, "completed");
             dialogue.SkipDialogue(); dialogue.DisplayNextSentence(); Check(callbacks == 1, "repeated completion ignored");
         }
-        TestBinding(); TestLatePlayer(); TestChainedCallback(); TestNullAndInactive();
+        TestBinding(); TestLatePlayer(); TestChainedCallback(); TestNullAndInactive(); TestOwnedReminderCancellation();
         return checks;
     }
     private static void TestBinding()
@@ -126,5 +127,25 @@ public static class Scenarios
         dialogue.SkipDialogue(); Check(!DialogueManager.IsAnyDialogueActive, "skip releases active registry");
         var pause = new PauseManager { BlockPause = true }; pause.PauseGame();
         Check(!pause.isPaused && input.IsPlayerInputEnabled, "blocked pause does not mutate controls");
+    }
+    private static void TestOwnedReminderCancellation()
+    {
+        foreach (string owner in new[] { "none", "pause", "quiz", "modal", "transition", "build" })
+        {
+            Reset(); var input = new InputManager(); var interaction = AttachInteraction(input);
+            var dialogue = new DialogueManager(); dialogue.Bind(null, interaction); int callbacks = 0;
+            Action completed = () => callbacks++;
+            dialogue.StartDialogue(Line(), completed);
+            Check(!dialogue.CancelDialogueIfOwned(() => callbacks++) && dialogue.Active, "Foreign callback cannot close reminder.");
+            if (owner == "pause") new PauseManager().PauseGame();
+            if (owner == "quiz") QuizUIManager.IsAnyQuizActive = true;
+            if (owner == "modal") UIPanelCoordinator.Instance = new UIPanelCoordinator { HasOpenPanel = true };
+            if (owner == "transition") GameManager.Instance = new GameManager { IsTransitioning = true };
+            if (owner == "build") GameManager.Instance = new GameManager { CurrentState = GameManager.GameState.Build };
+            Check(dialogue.CancelDialogueIfOwned(completed) && !dialogue.Active && callbacks == 0, "Owned cancellation never invokes completion: " + owner);
+            if (owner == "none") Restored(input, interaction, "ownerless cancelled reminder");
+            else Locked(input, interaction, "cancel retains active " + owner + " ownership");
+            Check(!dialogue.CancelDialogueIfOwned(completed) && callbacks == 0, "Repeated cancellation cannot invoke or release twice.");
+        }
     }
 }

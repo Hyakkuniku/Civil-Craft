@@ -1,0 +1,114 @@
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
+
+namespace UnityEngine
+{
+    public struct Vector2
+    {
+        public float x, y;
+        public Vector2(float x, float y) { this.x = x; this.y = y; }
+        public static Vector2 zero => new(0, 0);
+        public static Vector2 one => new(1, 1);
+        public float sqrMagnitude => x*x+y*y;
+        public static bool operator ==(Vector2 a, Vector2 b) => a.x == b.x && a.y == b.y;
+        public static bool operator !=(Vector2 a, Vector2 b) => !(a == b);
+        public override bool Equals(object other) => other is Vector2 value && this == value;
+        public override int GetHashCode() => HashCode.Combine(x,y);
+    }
+    public struct Vector3
+    {
+        public float x,y,z;
+        public Vector3(float x,float y,float z) { this.x=x;this.y=y;this.z=z; }
+        public static Vector3 one => new(1,1,1);
+        public static bool operator ==(Vector3 a,Vector3 b) => a.x==b.x&&a.y==b.y&&a.z==b.z;
+        public static bool operator !=(Vector3 a,Vector3 b) => !(a==b);
+        public override bool Equals(object other) => other is Vector3 value&&this==value;
+        public override int GetHashCode() => HashCode.Combine(x,y,z);
+    }
+    public struct Quaternion
+    {
+        public float x,y,z,w;
+        public static Quaternion identity => new() { w=1 };
+        public static bool operator ==(Quaternion a,Quaternion b) => a.x==b.x&&a.y==b.y&&a.z==b.z&&a.w==b.w;
+        public static bool operator !=(Quaternion a,Quaternion b) => !(a==b);
+        public override bool Equals(object other) => other is Quaternion value&&this==value;
+        public override int GetHashCode() => HashCode.Combine(x,y,z,w);
+    }
+    public struct Color32
+    {
+        public byte r,g,b,a;
+        public Color32(byte r,byte g,byte b,byte a) { this.r=r;this.g=g;this.b=b;this.a=a; }
+    }
+    public sealed class GameObject
+    {
+        public string name;
+        public int layer;
+        public bool activeSelf=true;
+        public Transform transform;
+        public GameObject(string name, params Type[] types)
+        { this.name=name;transform=Array.IndexOf(types,typeof(RectTransform))>=0 ? new RectTransform() : new Transform(); transform.gameObject=this; }
+        public T GetComponent<T>() where T:class => transform as T;
+        public void SetActive(bool active) => activeSelf=active;
+    }
+    public class Transform
+    {
+        public GameObject gameObject;
+        public Transform parent;
+        public readonly List<Transform> children=new();
+        public Vector3 localScale=Vector3.one;
+        public Quaternion localRotation=Quaternion.identity;
+        public void SetParent(Transform target,bool worldPositionStays) { parent?.children.Remove(this);parent=target;target?.children.Add(this); }
+        public void SetAsFirstSibling() { if(parent==null)return;parent.children.Remove(this);parent.children.Insert(0,this); }
+        public int GetSiblingIndex() => parent?.children.IndexOf(this) ?? 0;
+        public Transform Find(string name) => children.Find(child=>child.gameObject.name==name);
+    }
+    public class RectTransform : Transform
+    {
+        public Vector2 anchorMin,anchorMax,pivot=new(.5f,.5f),sizeDelta,anchoredPosition;
+        public Vector2 offsetMin,offsetMax;
+    }
+}
+namespace UnityEngine.UI { public sealed class Button { public Transform transform;public bool interactable=true; } }
+namespace TMPro
+{
+    public enum FontStyles { Normal, Bold }
+    public enum TextOverflowModes { Overflow, Ellipsis }
+    public enum TextAlignmentOptions { TopLeft, Center }
+    public sealed class TMP_Text
+    {
+        public RectTransform rectTransform=new();
+        public float fontSize,fontSizeMin,fontSizeMax;
+        public bool enableAutoSizing,enableWordWrapping,raycastTarget;
+        public TextOverflowModes overflowMode;
+        public TextAlignmentOptions alignment;
+        public Color32 color;
+        public FontStyles fontStyle;
+    }
+}
+public enum TabVisibility { Normal,AlwaysHidden }
+public sealed class AlmanacCategory
+{
+    public Button tabButton;
+    public TabVisibility visibilityMode;
+    public Transform leftPageZone;
+}
+public sealed class AlmanacManager { public IList<AlmanacCategory> categories; }
+public sealed class QuizUILayout { public static Color32 Ink=new(69,47,31,255); }
+public sealed class LayerHarness
+{
+    public AlmanacManager manager;
+    public GameObject[] chapterFrames;
+    public void Apply() => LayerCoversBehindBookmarks();
+    // ACTUAL_LAYER
+}
+public sealed class ContrastHarness
+{
+    public TMP_Text tabLabel;
+    public Button tab;
+    public int selectedCategory=-1,quizCategoryIndex=4;
+    public void Apply() => RefreshTabContrast();
+    // ACTUAL_CONTRAST
+}

@@ -347,6 +347,37 @@ public class DialogueManager : MonoBehaviour
         EndDialogue();
     }
 
+    /// <summary>Closes only the conversation carrying this exact callback, without invoking it.</summary>
+    public bool CancelDialogueIfOwned(Action expectedCompletion)
+    {
+        if (expectedCompletion == null || !isDialogueActive ||
+            !ReferenceEquals(onDialogueEndCallback, expectedCompletion)) return false;
+        onDialogueEndCallback = null;
+        if (typingCoroutine != null)
+        {
+            StopCoroutine(typingCoroutine);
+            typingCoroutine = null;
+        }
+        isTyping = false;
+        sentences?.Clear();
+        // Owner teardown must also work while Pause is above this dialogue.
+        // EndDialogue uses the normal input-restoration gates; SkipDialogue is paused.
+        EndDialogue();
+        // A reminder may be invalidated while Pause/another modal is above it.
+        // Its teardown must not release that other owner's interaction lock.
+        if ((PauseManager.Instance != null && PauseManager.Instance.isPaused) ||
+            QuizUIManager.IsAnyQuizActive ||
+            (UIPanelCoordinator.Instance != null && UIPanelCoordinator.Instance.HasOpenPanel) ||
+            (GameManager.Instance != null && (GameManager.Instance.IsTransitioning ||
+                GameManager.Instance.CurrentState != GameManager.GameState.Normal)))
+        {
+            inputManager?.SetPlayerInputEnable(false);
+            inputManager?.SetLookEnabled(false);
+            if (playerInteract != null) playerInteract.enabled = false;
+        }
+        return true;
+    }
+
     private void OnDisable()
     {
         isDialogueActive = false;

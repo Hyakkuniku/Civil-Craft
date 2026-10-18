@@ -10,11 +10,11 @@ namespace UnityEngine
     public class Behaviour : Object { public bool isActiveAndEnabled = true; }
     public class MonoBehaviour : Behaviour { }
     public class GameObject { public bool activeSelf; public void SetActive(bool value) { activeSelf = value; } }
-    public struct Color32 { public Color32(byte r, byte g, byte b, byte a) { } }
+    public struct Color32 { public byte r, g, b, a; public Color32(byte r, byte g, byte b, byte a) { this.r = r; this.g = g; this.b = b; this.a = a; } }
 }
 namespace UnityEngine.UI { public class Button { public bool interactable; public GameObject gameObject = new GameObject(); } }
-namespace TMPro { public class TMP_Text { public string text; public Color32 color; } }
-public static class QuizUILayout { public static Color32 Gold, Cream; }
+namespace TMPro { [Flags] public enum FontStyles { Normal = 0, Bold = 1 } public class TMP_Text { public string text; public Color32 color; public FontStyles fontStyle; } }
+public static class QuizUILayout { public static Color32 Gold = new Color32(225, 149, 0, 255), Cream = new Color32(255, 248, 230, 255), Ink = new Color32(65, 45, 30, 255); }
 public enum QuizOutcome { Completed, Cancelled, Unavailable }
 public class QuizContext
 {

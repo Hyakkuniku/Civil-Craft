@@ -357,6 +357,7 @@ public class AlmanacManager : MonoBehaviour
                 cat.tabButton.gameObject.SetActive(shouldBeVisible);
             }
         }
+        AlmanacBookmarkLayout.Reflow(categories);
     }
 
     private void TriggerTabAlertByType(AlmanacTabType targetType)
@@ -417,6 +418,7 @@ public class AlmanacManager : MonoBehaviour
     {
         AlmanacTypography.ApplyExistingBook(this);
         AlmanacPhotoMount.ApplyProfile(this);
+        AlmanacBookmarkLayout.Reflow(categories);
         InitializeLearningHubs();
 
         for (int i = 0; i < categories.Count; i++)

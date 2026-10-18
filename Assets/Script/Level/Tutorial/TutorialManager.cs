@@ -297,7 +297,11 @@ public class TutorialManager : MonoBehaviour
     private int tutorialCanvasSortingOrder;
     private RectTransform centerPanelRect;
     private Vector2 centerPanelDefaultAnchoredPosition;
+    private Vector2 centerPanelDefaultSize;
     private bool hasCachedCenterPanelPosition;
+    private Rect lastCenterSafeArea;
+    private Vector2Int lastCenterScreenSize;
+    private Vector2 lastCenterParentSize;
     private RectTransform leftPanelRect;
     private Vector2 leftPanelDefaultAnchoredPosition;
     private bool hasCachedLeftPanelPosition;
@@ -502,6 +506,7 @@ public class TutorialManager : MonoBehaviour
 
     private void Update()
     {
+        RefreshCenteredTutorialLayout();
         if (skipButton != null && skipButton.activeInHierarchy)
         {
             Rect safeArea = Screen.safeArea;
@@ -751,6 +756,7 @@ public class TutorialManager : MonoBehaviour
         {
             activePanel.SetActive(true);
             if (activeText != null) activeText.text = step.message ?? "";
+            ApplyCenteredTutorialLayout(step.screenPosition);
             
             float waitDelay = 0f;
 
@@ -877,6 +883,7 @@ public class TutorialManager : MonoBehaviour
             if (centerPanelRect != null)
             {
                 centerPanelDefaultAnchoredPosition = centerPanelRect.anchoredPosition;
+                centerPanelDefaultSize = centerPanelRect.rect.size;
                 hasCachedCenterPanelPosition = true;
             }
         }
@@ -907,6 +914,29 @@ public class TutorialManager : MonoBehaviour
 
         centerPanelRect.anchoredPosition = centerPanelDefaultAnchoredPosition +
             (position == TutorialPosition.LowCenter ? lowCenterOffset : Vector2.zero);
+    }
+
+    private void ApplyCenteredTutorialLayout(TutorialPosition position)
+    {
+        if (position != TutorialPosition.Center && position != TutorialPosition.LowCenter) return;
+        CacheTutorialPanelPositions();
+        if (centerPanelRect == null || centerText == null) return;
+        TutorialCenterLayout.Apply(centerPanelRect, centerText, centerPanelDefaultAnchoredPosition,
+            centerPanelDefaultSize, position == TutorialPosition.LowCenter ? lowCenterOffset : Vector2.zero);
+        lastCenterSafeArea = Screen.safeArea;
+        lastCenterScreenSize = new Vector2Int(Screen.width, Screen.height);
+        lastCenterParentSize = centerPanelRect.parent is RectTransform parent ? parent.rect.size : Vector2.zero;
+        UIReservedRegionLayout.NotifyLayoutChanging();
+    }
+
+    private void RefreshCenteredTutorialLayout()
+    {
+        TutorialStep step = CurrentStep;
+        if (step == null || centerPanelRect == null || !centerPanelRect.gameObject.activeInHierarchy || IsBannerTransitioning ||
+            (step.screenPosition != TutorialPosition.Center && step.screenPosition != TutorialPosition.LowCenter)) return;
+        Vector2 parentSize = centerPanelRect.parent is RectTransform parent ? parent.rect.size : Vector2.zero;
+        if (lastCenterSafeArea != Screen.safeArea || lastCenterScreenSize != new Vector2Int(Screen.width, Screen.height) ||
+            lastCenterParentSize != parentSize) ApplyCenteredTutorialLayout(step.screenPosition);
     }
 
     private void AnimatePanelIn(GameObject panel)
