@@ -87,6 +87,13 @@ public class BuildCameraController : MonoBehaviour
 
     private void Update()
     {
+        if (ClipboardManager.IsBuildInputBlocked)
+        {
+            uiTouches.Clear();
+            validTouches.Clear();
+            mouseStartedOnUI = false;
+            return;
+        }
         if (SessionChatUI.IsOpen) return;
         if (GameManager.Instance == null || GameManager.Instance.CurrentState != GameManager.GameState.Building) 
         {

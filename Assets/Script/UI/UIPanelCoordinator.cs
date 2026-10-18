@@ -141,6 +141,13 @@ public class UIPanelCoordinator : MonoBehaviour
 
     public void OpenPanel(GameObject panel, bool activatePanel)
     {
+        OpenPanel(panel, activatePanel, null);
+    }
+
+    // Small contextual confirmations may retain one visual-only Canvas (the
+    // active bridge blueprint) without exposing other HUD/modal input.
+    public void OpenPanel(GameObject panel, bool activatePanel, Canvas preservedCanvas)
+    {
         if (panel == null) return;
         UIReservedRegionLayout.NotifyLayoutChanging();
 
@@ -179,7 +186,7 @@ public class UIPanelCoordinator : MonoBehaviour
         // nested panel. Restore that component independently from GameObject state.
         EnableTargetCanvases(panel, frame);
         HideSameCanvasSiblings(panel, frame, recorded);
-        HideOtherCanvases(panel, frame);
+        HideOtherCanvases(panel, frame, preservedCanvas);
 
         if (activatePanel) panel.SetActive(true);
         panel.transform.SetAsLastSibling();
@@ -267,6 +274,9 @@ public class UIPanelCoordinator : MonoBehaviour
         foreach (QuizUIManager manager in FindObjectsOfType<QuizUIManager>(true))
             AddUnique(managedPanels, manager.Panel);
 
+        foreach (ClipboardManager clipboard in FindObjectsOfType<ClipboardManager>(true))
+            AddUnique(managedPanels, clipboard.overrideConfirmPanel);
+
         foreach (AchievementUIManager manager in FindObjectsOfType<AchievementUIManager>(true))
             AddUnique(managedPanels, manager.achievementPanel);
 
@@ -344,7 +354,7 @@ public class UIPanelCoordinator : MonoBehaviour
         }
     }
 
-    private static void HideOtherCanvases(GameObject panel, PanelFrame frame)
+    private static void HideOtherCanvases(GameObject panel, PanelFrame frame, Canvas preservedCanvas)
     {
         foreach (Canvas canvas in FindObjectsOfType<Canvas>(true))
         {
@@ -357,6 +367,8 @@ public class UIPanelCoordinator : MonoBehaviour
                 continue;
 
             Transform canvasTransform = canvas.transform;
+            if (preservedCanvas != null && (canvas == preservedCanvas ||
+                preservedCanvas.transform.IsChildOf(canvasTransform))) continue;
             bool containsPanel = panel.transform == canvasTransform ||
                                  panel.transform.IsChildOf(canvasTransform);
             bool belongsToPanel = canvasTransform.IsChildOf(panel.transform);

@@ -114,6 +114,7 @@ public class LevelCompleteManager : MonoBehaviour
     [SerializeField, Tooltip("Scene-authored leaderboard opened for the contract shown in this completion report.")]
     private LeaderboardPanelUI completedLocationLeaderboard;
     private Button completedLocationLeaderboardButton;
+    private readonly CompletionLeaderboardVisibility completionLeaderboardVisibility = new CompletionLeaderboardVisibility();
 
     public TMP_FontAsset ReceiptFont { get; private set; }
     public Transform receiptContentParent; 
@@ -179,6 +180,7 @@ public class LevelCompleteManager : MonoBehaviour
         else { Destroy(gameObject); return; }
 
         BindAuthoredLayout();
+        if (completedLocationLeaderboardButton != null) completedLocationLeaderboardButton.gameObject.SetActive(false);
         InitializeReceiptFont();
         EnsureFirstCompletionTutorialDraft();
         if (levelCompletePanel != null)
@@ -340,6 +342,7 @@ public class LevelCompleteManager : MonoBehaviour
 
     private void OnDestroy()
     {
+        completionLeaderboardVisibility.Cancel();
         if (levelCompletePanel != null)
             UIReservedRegionLayout.Unregister(levelCompletePanel.transform as RectTransform);
         if (Instance == this) Instance = null;
@@ -427,6 +430,7 @@ public class LevelCompleteManager : MonoBehaviour
 
     public void ResetCompletionState()
     {
+        completionLeaderboardVisibility.Cancel();
         if (IsMultiplayerScene && FusionConnectionManager.Instance != null &&
             FusionConnectionManager.Instance.IsHosting)
             FusionMultiplayerAvatar.FindLocalHostAvatar()?.QueueHostCompletion(default);
@@ -1108,16 +1112,16 @@ public class LevelCompleteManager : MonoBehaviour
 
     private void UpdateCompletedLocationLeaderboardButton()
     {
-        if (completedLocationLeaderboardButton != null)
-            completedLocationLeaderboardButton.gameObject.SetActive(
-                completedLocationLeaderboard != null && activeContract != null &&
-                !activeContract.hideFromLeaderboard && !string.IsNullOrWhiteSpace(activeContract.ContractID));
+        completionLeaderboardVisibility.Begin(this, completedLocationLeaderboardButton,
+            levelCompletePanel, activeContract, completedLocationLeaderboard != null);
     }
+
+    private void OnDisable() => completionLeaderboardVisibility.Cancel();
 
     public void OpenCompletedLocationLeaderboard()
     {
         if (levelCompletePanel == null || !levelCompletePanel.activeInHierarchy ||
-            IsFirstCompletionTutorialBlockingActions()) return;
+            IsFirstCompletionTutorialBlockingActions() || !completionLeaderboardVisibility.CanOpen(activeContract)) return;
         // Use the report's captured contract, not a mutable current build selection.
         // Opening rankings must not finalize, reset or save the successful design.
         if (completedLocationLeaderboard == null ||
@@ -1655,6 +1659,7 @@ public class LevelCompleteManager : MonoBehaviour
 
     public void ClosePanel()
     {
+        completionLeaderboardVisibility.Cancel();
         if (completedLocationLeaderboard != null) completedLocationLeaderboard.CloseImmediately();
         if (levelCompletePanel != null) levelCompletePanel.SetActive(false);
 

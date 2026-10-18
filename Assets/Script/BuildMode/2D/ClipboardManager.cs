@@ -22,6 +22,27 @@ public class ClipboardManager : MonoBehaviour
     public GameObject overrideConfirmPanel;
     public UnityEngine.UI.Toggle dontShowAgainToggle;
     private bool skipOverrideConfirm = false;
+    private bool overrideConfirmationPending;
+    private int pasteGeneration;
+    private int pendingPasteGeneration;
+    private BuildLocation pendingPasteLocation;
+    private Vector3 pendingPasteRoot;
+    private float pendingPasteRotation;
+    private int blockBuildInputThroughFrame = -1;
+
+    public bool IsOverrideConfirmationPending => overrideConfirmationPending;
+    public static bool IsBuildInputBlocked => Instance != null &&
+        (Instance.overrideConfirmationPending || Time.frameCount <= Instance.blockBuildInputThroughFrame);
+
+    // GameManager owns Back in build mode, so consume it before ExitBuildMode.
+    public static bool TryHandleOverrideBack()
+    {
+        ClipboardManager clipboard = Instance;
+        if (clipboard == null || !clipboard.overrideConfirmationPending) return false;
+        if (UIPanelCoordinator.Instance == null || UIPanelCoordinator.Instance.IsOpen(clipboard.overrideConfirmPanel))
+            clipboard.CancelOverride();
+        return true; // A nested modal owns Back; never exit build mode underneath it.
+    }
 
     [HideInInspector] public bool isPasteMode = false;
     private bool isPasteFromCut = false; 
@@ -83,13 +104,30 @@ public class ClipboardManager : MonoBehaviour
 
     private void OnDestroy()
     {
+        CloseOverrideConfirmation();
         UIReservedRegionLayout.Unregister(overrideConfirmPanel != null
             ? overrideConfirmPanel.transform as RectTransform : null);
         if (Instance == this) Instance = null;
     }
 
+    private void OnDisable()
+    {
+        CloseOverrideConfirmation();
+        isDraggingSelection = false;
+    }
+
     private void Update()
     {
+        if (overrideConfirmationPending)
+        {
+            UIPanelCoordinator coordinator = UIPanelCoordinator.Instance;
+            if (!HasPasteContext() || pendingPasteGeneration != pasteGeneration ||
+                pendingPasteLocation != GameManager.Instance.ActiveBuildLocation || overrideConfirmPanel == null ||
+                (coordinator != null && !coordinator.ContainsPanel(overrideConfirmPanel)) ||
+                ((coordinator == null || coordinator.IsOpen(overrideConfirmPanel)) && !overrideConfirmPanel.activeInHierarchy))
+                CloseOverrideConfirmation();
+            return;
+        }
         if (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building) return;
         if (barCreator.isSimulating) return;
 
@@ -323,16 +361,29 @@ public class ClipboardManager : MonoBehaviour
 
     private bool CanAffordPaste()
     {
+        if (!HasValidCopiedContent()) return false;
         if (BuildUIController.Instance == null) return true;
         
         float pasteCost = 0f;
+        Quaternion rotation = Quaternion.Euler(0, 0, Mathf.Round(pasteRotationOffset / 15f) * 15f);
+        var refundedBars = new HashSet<Bar>();
         foreach (var cb in copiedBars)
         {
             Vector3 p1 = copiedRelativePoints[cb.startIdx];
             Vector3 p2 = copiedRelativePoints[cb.endIdx];
-            float length = Vector3.Distance(p1, p2);
             int multiplier = cb.mat.isDualBeam ? 2 : 1;
+            Vector3 targetA = pasteRootPos + rotation * p1;
+            Vector3 targetB = pasteRootPos + rotation * p2;
+            Point a = FindMappedPoint(targetA);
+            Point b = FindMappedPoint(targetB);
+            Bar replaced = GetExistingBar(a, b);
+            if (replaced != null && replaced.materialData == cb.mat) continue;
+            // ExecutePaste reuses nearby nodes. Price the resulting geometry,
+            // not the slightly shorter unsnapped clipboard offsets.
+            float length = Vector3.Distance(a != null ? a.transform.position : targetA,
+                b != null ? b.transform.position : targetB);
             pasteCost += length * cb.mat.costPerMeter * multiplier;
+            if (replaced != null && refundedBars.Add(replaced)) pasteCost -= BridgeConstructionReceipt.ConstructionCost(replaced);
         }
 
         float remainingBudget = BuildUIController.Instance.maxBudget - BuildUIController.Instance.GetTotalCost();
@@ -344,7 +395,8 @@ public class ClipboardManager : MonoBehaviour
         if (p1 == null || p2 == null) return null;
         foreach(Bar b in p1.ConnectedBars) 
         {
-            if (b.gameObject.activeSelf && ((b.startPoint == p1 && b.endPoint == p2) || (b.startPoint == p2 && b.endPoint == p1))) 
+            if (b != null && !b.IsConstructionPreview && b.gameObject.activeInHierarchy &&
+                ((b.startPoint == p1 && b.endPoint == p2) || (b.startPoint == p2 && b.endPoint == p1)))
             {
                 return b;
             }
@@ -352,11 +404,47 @@ public class ClipboardManager : MonoBehaviour
         return null;
     }
 
+    private Point FindMappedPoint(Vector3 target)
+    {
+        BuildLocation location = GameManager.Instance != null ? GameManager.Instance.ActiveBuildLocation : null;
+        foreach (Point point in Point.AllPoints)
+            if (point != null && point.isActiveAndEnabled && point.gameObject.activeInHierarchy &&
+                (location == null || point.OwnerLocation == null || point.OwnerLocation == location) &&
+                Vector3.Distance(target, point.transform.position) < .2f) return point;
+        return null;
+    }
+
+    private bool HasValidCopiedContent()
+    {
+        if (copiedRelativePoints.Count < 2 || copiedBars.Count == 0) return false;
+        foreach (CopiedBarInfo bar in copiedBars)
+            if (bar == null || bar.mat == null || bar.startIdx < 0 || bar.endIdx < 0 ||
+                bar.startIdx >= copiedRelativePoints.Count || bar.endIdx >= copiedRelativePoints.Count ||
+                bar.startIdx == bar.endIdx) return false;
+        return true;
+    }
+
+    private bool HasPasteContext() => isPasteMode && barCreator != null && !barCreator.isSimulating &&
+        GameManager.Instance != null && GameManager.Instance.CurrentState == GameManager.GameState.Building &&
+        !GameManager.Instance.IsTransitioning &&
+        (!GameManager.Instance.IsSessionChallengeBuild || GameManager.Instance.CanEditSessionChallengeBuild) &&
+        (PauseManager.Instance == null || !PauseManager.Instance.isPaused) && HasValidCopiedContent();
+
+    private void CloseOverrideConfirmation()
+    {
+        bool wasPending = overrideConfirmationPending;
+        overrideConfirmationPending = false;
+        pendingPasteLocation = null;
+        if (wasPending) blockBuildInputThroughFrame = Time.frameCount;
+        if (overrideConfirmPanel == null) return;
+        if (UIPanelCoordinator.Instance != null && UIPanelCoordinator.Instance.ContainsPanel(overrideConfirmPanel))
+            UIPanelCoordinator.Instance.ClosePanel(overrideConfirmPanel);
+        else if (overrideConfirmPanel.activeSelf) overrideConfirmPanel.SetActive(false);
+    }
+
     public void StampPaste()
     {
-        if (GameManager.Instance != null && GameManager.Instance.IsSessionChallengeBuild &&
-            !GameManager.Instance.CanEditSessionChallengeBuild) return;
-        if (!isPasteMode) return;
+        if (IsBuildInputBlocked || !HasPasteContext()) return;
 
         BuildTutorialDirector tutorialDirector = BuildTutorialDirector.Instance;
         if (tutorialDirector != null && !tutorialDirector.CanConfirmTutorialPaste())
@@ -365,7 +453,9 @@ public class ClipboardManager : MonoBehaviour
             return;
         }
 
-        if (!isValidPaste) 
+        // Recheck the real placement, not a validity flag from a previous drag.
+        UpdatePasteGhostsWorldPosition(pasteRootPos);
+        if (!isValidPaste)
         {
             if (!CanAffordPaste() && BuildUIController.Instance != null)
             {
@@ -386,16 +476,7 @@ public class ClipboardManager : MonoBehaviour
         {
             Vector3 rotatedOffset = rotation * copiedRelativePoints[i];
             Vector3 targetPos = pasteRootPos + rotatedOffset;
-            Point mappedPoint = null;
-
-            foreach (Point existingP in Point.AllPoints)
-            {
-                if (existingP.gameObject.activeSelf && Vector3.Distance(targetPos, existingP.transform.position) < 0.2f)
-                {
-                    mappedPoint = existingP;
-                    break;
-                }
-            }
+            Point mappedPoint = FindMappedPoint(targetPos);
             newRealPoints.Add(mappedPoint); 
         }
 
@@ -418,9 +499,23 @@ public class ClipboardManager : MonoBehaviour
         {
             if (overrideConfirmPanel != null) 
             {
-                overrideConfirmPanel.SetActive(true);
+                overrideConfirmationPending = true;
+                pendingPasteGeneration = pasteGeneration;
+                pendingPasteLocation = GameManager.Instance.ActiveBuildLocation;
+                pendingPasteRoot = pasteRootPos;
+                pendingPasteRotation = pasteRotationOffset;
+                isDraggingSelection = false;
+                if (dontShowAgainToggle != null) dontShowAgainToggle.SetIsOnWithoutNotify(false);
+                if (UIPanelCoordinator.Instance != null)
+                {
+                    UnityEngine.UI.Image blueprint = pendingPasteLocation != null ? pendingPasteLocation.gridImage : null;
+                    Canvas blueprintCanvas = blueprint != null ? blueprint.GetComponentInParent<Canvas>(true) : null;
+                    UIPanelCoordinator.Instance.OpenPanel(overrideConfirmPanel, true, blueprintCanvas);
+                }
+                else overrideConfirmPanel.SetActive(true);
             }
-            else ExecutePaste(); 
+            else if (BuildUIController.Instance != null)
+                BuildUIController.Instance.LogAction("Replacement confirmation is unavailable. Nothing was changed.");
             return;
         }
 
@@ -429,35 +524,50 @@ public class ClipboardManager : MonoBehaviour
 
     public void ConfirmOverride()
     {
+        if (!overrideConfirmationPending) return;
+        if (UIPanelCoordinator.Instance != null && !UIPanelCoordinator.Instance.IsOpen(overrideConfirmPanel)) return;
+        bool validRequest = HasPasteContext() && pendingPasteGeneration == pasteGeneration &&
+            pendingPasteLocation == GameManager.Instance.ActiveBuildLocation &&
+            (pendingPasteRoot - pasteRootPos).sqrMagnitude < .0001f &&
+            Mathf.Abs(pendingPasteRotation - pasteRotationOffset) < .001f;
+        if (!validRequest) { CloseOverrideConfirmation(); return; }
         BuildTutorialDirector tutorialDirector = BuildTutorialDirector.Instance;
         if (tutorialDirector != null && !tutorialDirector.CanConfirmTutorialPaste())
         {
-            if (overrideConfirmPanel != null) overrideConfirmPanel.SetActive(false);
+            CloseOverrideConfirmation();
             tutorialDirector.NotifyPasteConfirmationBlocked();
             return;
         }
 
-        if (dontShowAgainToggle != null) 
+        UpdatePasteGhostsWorldPosition(pasteRootPos);
+        if (!isValidPaste || (pendingPasteRoot - pasteRootPos).sqrMagnitude >= .0001f)
         {
-            skipOverrideConfirm = dontShowAgainToggle.isOn; 
+            CloseOverrideConfirmation();
+            if (BuildUIController.Instance != null)
+                BuildUIController.Instance.LogAction("Placement changed or is no longer valid. Review the preview and try again.");
+            return;
         }
-        if (overrideConfirmPanel != null) overrideConfirmPanel.SetActive(false);
-        
+        bool skipFutureWarnings = dontShowAgainToggle != null && dontShowAgainToggle.isOn;
+        // Consume before invoking placement/history/tutorial callbacks.
+        CloseOverrideConfirmation();
+        skipOverrideConfirm = skipFutureWarnings;
         ExecutePaste();
     }
 
     public void CancelOverride()
     {
-        if (overrideConfirmPanel != null) overrideConfirmPanel.SetActive(false);
+        if (!overrideConfirmationPending) return;
+        CloseOverrideConfirmation();
         
         if (BuildUIController.Instance != null) 
         {
-            BuildUIController.Instance.LogAction("Paste Canceled"); 
+            BuildUIController.Instance.LogAction("Existing materials kept. Paste preview is still available.");
         }
     }
 
     private void ExecutePaste()
     {
+        if (!HasPasteContext() || !isValidPaste || !CanAffordPaste()) return;
         if (GameManager.Instance != null && GameManager.Instance.IsSessionChallengeBuild &&
             !GameManager.Instance.CanEditSessionChallengeBuild) { CancelPasteMode(); return; }
         HistoryAction pasteAction = new HistoryAction { isBuildEvent = true };
@@ -471,16 +581,7 @@ public class ClipboardManager : MonoBehaviour
         {
             Vector3 rotatedOffset = rotation * copiedRelativePoints[i];
             Vector3 targetPos = pasteRootPos + rotatedOffset;
-            Point mappedPoint = null;
-
-            foreach (Point existingP in Point.AllPoints)
-            {
-                if (existingP.gameObject.activeSelf && Vector3.Distance(targetPos, existingP.transform.position) < 0.2f)
-                {
-                    mappedPoint = existingP;
-                    break;
-                }
-            }
+            Point mappedPoint = FindMappedPoint(targetPos);
 
             if (mappedPoint == null)
             {
@@ -586,6 +687,8 @@ public class ClipboardManager : MonoBehaviour
 
     public void CancelPasteMode()
     {
+        CloseOverrideConfirmation();
+        pasteGeneration++;
         bool canceledActivePaste = isPasteMode;
         isPasteMode = false;
         isPasteFromCut = false;
@@ -829,6 +932,7 @@ public class ClipboardManager : MonoBehaviour
     public void HandlePointerDown(PointerEventData eventData)
     {
         isDraggingSelection = false;
+        if (IsBuildInputBlocked) return;
         if (!isPasteMode || !IsPointerOverPastePreview(eventData.position)) return;
 
         isDraggingSelection = true;
@@ -838,6 +942,7 @@ public class ClipboardManager : MonoBehaviour
 
     public void HandleDrag(PointerEventData eventData)
     {
+        if (IsBuildInputBlocked) return;
         if (isDraggingSelection)
         {
             Vector3 worldPos = barCreator.GetWorldMousePosition(eventData.position);

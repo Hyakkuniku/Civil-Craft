@@ -337,6 +337,7 @@ public partial class GameManager : MonoBehaviour
 
         if (CurrentState == GameState.Building && !isTransitioning && cancelPressed)
         {
+            if (ClipboardManager.TryHandleOverrideBack() || ClipboardManager.IsBuildInputBlocked) return;
             ExitBuildMode();
         }
     }

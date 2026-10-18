@@ -388,6 +388,7 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
 
     private void Update()
     {
+        if (ClipboardManager.IsBuildInputBlocked) return;
         if (drawingPointerCaptured && !DrawingSessionIsValid())
         {
             CancelCreation();
@@ -864,6 +865,7 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
 
     public void OnPointerDown(PointerEventData eventData)
     {
+        if (ClipboardManager.IsBuildInputBlocked) return;
         if (GameManager.Instance != null && GameManager.Instance.IsSessionChallengeBuild &&
             !GameManager.Instance.CanEditSessionChallengeBuild) return;
         pointerDownOpenedVehicleInspection = false;
@@ -1064,6 +1066,7 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
 
     public void OnDrag(PointerEventData eventData)
     {
+        if (ClipboardManager.IsBuildInputBlocked) return;
         if (pointerDownOpenedVehicleInspection) return;
         if (eventData.button != PointerEventData.InputButton.Left) return;
         if (drawingPointerCaptured)
@@ -1096,6 +1099,7 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
 
     public void OnPointerUp(PointerEventData eventData)
     {
+        if (ClipboardManager.IsBuildInputBlocked) return;
         if (pointerDownOpenedVehicleInspection)
         {
             pointerDownOpenedVehicleInspection = false;

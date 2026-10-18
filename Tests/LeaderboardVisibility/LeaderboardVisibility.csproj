@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Assets/Script/UI/Leaderboards/LeaderboardContractVisibility.cs" Link="LeaderboardContractVisibility.cs" />
+    <Compile Include="../../Assets/Script/UI/Leaderboards/CompletionLeaderboardVisibility.cs" Link="CompletionLeaderboardVisibility.cs" />
+    <Compile Include="../../Assets/Script/UI/Leaderboards/LeaderboardPanelUI.cs" Link="LeaderboardPanelUI.cs" />
+    <Compile Include="../../Assets/Script/UI/Leaderboards/LeaderboardPanelUI.Multiplayer.cs" Link="LeaderboardPanelUI.Multiplayer.cs" />
+    <Compile Include="../../Assets/Script/UI/Leaderboards/LeaderboardPanelUI.Visibility.cs" Link="LeaderboardPanelUI.Visibility.cs" />
+    <Compile Include="../../Assets/Script/Client/GameReleaseModels.cs" Link="GameReleaseModels.cs" />
+    <Compile Include="../../Assets/PlayFabSDK/Shared/Internal/SimpleJson.cs" Link="PlayFabSimpleJson.cs" />
+  </ItemGroup>
+</Project>

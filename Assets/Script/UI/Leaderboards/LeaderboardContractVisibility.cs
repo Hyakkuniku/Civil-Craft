@@ -2,7 +2,9 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Text;
+using System.IO;
 using PlayFab.Json;
+using UnityEngine.Networking;
 
 /// <summary>Validated public display policy; never changes progression or score submission.</summary>
 public static class LeaderboardContractVisibility
@@ -14,6 +16,33 @@ public static class LeaderboardContractVisibility
         "ShopKeeper", "TUT_CONTRACT1", "ReedsContract", "VancesContract", "TUT_CONTRACT2",
         "ReedSideInspection", "VanceSideRealignment", "SilasMainContract", "MainContractSilas"
     };
+
+    public static UnityWebRequest CreateRequest(out BoundedDownloadHandler handler)
+    {
+        handler = new BoundedDownloadHandler();
+        var request = new UnityWebRequest(FeedUrl, UnityWebRequest.kHttpVerbGET);
+        request.downloadHandler = handler;
+        request.timeout = TimeoutSeconds;
+        request.redirectLimit = 0;
+        request.SetRequestHeader("Accept", "application/json");
+        return request;
+    }
+
+    // Both the board and completion action use the same bounded public policy.
+    public sealed class BoundedDownloadHandler : DownloadHandlerScript
+    {
+        private readonly MemoryStream received = new MemoryStream();
+        public bool Overflowed { get; private set; }
+        public string Body => Encoding.UTF8.GetString(received.ToArray());
+        public BoundedDownloadHandler() : base(new byte[1024]) { }
+        protected override bool ReceiveData(byte[] data, int length)
+        {
+            if (data == null || length < 0 || length > data.Length || received.Length + length > MaxResponseBytes)
+            { Overflowed = true; return false; }
+            if (length > 0) received.Write(data, 0, length);
+            return true;
+        }
+    }
 
     public static bool TryParse(string body, out HashSet<string> contractIds)
     {

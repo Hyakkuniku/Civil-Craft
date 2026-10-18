@@ -519,7 +519,7 @@ public class BuildUIController : MonoBehaviour
 
     private void Update()
     {
-        if (useKeyboardShortcuts && !SessionChatUI.IsOpen)
+        if (useKeyboardShortcuts && !SessionChatUI.IsOpen && !ClipboardManager.IsBuildInputBlocked)
         {
             if (WasKeyPressedThisFrame(simulateKey)) OnSimulateButtonClicked();
             if (WasKeyPressedThisFrame(restartKey)) OnRestartButtonClicked();
@@ -1668,6 +1668,7 @@ public class BuildUIController : MonoBehaviour
 
     private bool IsToolAllowed(BuildModeTool tool)
     {
+        if (ClipboardManager.IsBuildInputBlocked) return false;
         if (GameManager.Instance != null && GameManager.Instance.IsSessionChallengeBuild &&
             ((tool != BuildModeTool.ExitBuildMode && !GameManager.Instance.CanEditSessionChallengeBuild) ||
              tool == BuildModeTool.Simulate)) return false;

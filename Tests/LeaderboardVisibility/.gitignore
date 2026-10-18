@@ -1,2 +1,5 @@
 bin/
 obj/
+
+# This hand-authored regression harness is not a generated Unity project.
+!LeaderboardVisibility.csproj

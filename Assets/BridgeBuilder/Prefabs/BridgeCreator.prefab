@@ -586,6 +586,10 @@ MonoBehaviour:
   horizontalGuideColor: {r: 1, g: 0.65, b: 0.25, a: 0.75}
   verticalGuideColor: {r: 0.35, g: 0.9, b: 1, a: 0.75}
   nodeDragGuideThickness: 2
+  touchPointPaddingPixels: 12
+  touchEndpointPaddingPixels: 6
+  touchDrawDragPixels: 10
+  testTouchDrawingInEditor: 1
 --- !u!120 &3266573539776685830
 LineRenderer:
   serializedVersion: 2

@@ -1,0 +1,102 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8277db26963c4a7a81a4dcb5e6307197, type: 3}
+  m_Name: BeamBridgeQuiz
+  m_EditorClassIdentifier: 
+  quizId: civil-craft-beam-bridge-quiz-v1
+  title: Beam Bridge Quiz
+  questions:
+  - questionId: live-load
+    prompt: What is a Live Load in bridge construction?
+    choices:
+    - text: The permanent weight of the bridge
+      image: {fileID: 0}
+      imageFingerprint: 
+    - text: The weight of the bridge supports
+      image: {fileID: 0}
+      imageFingerprint: 
+    - text: A load that moves or changes position on a structure
+      image: {fileID: 0}
+      imageFingerprint: 
+    - text: The total cost of bridge materials
+      image: {fileID: 0}
+      imageFingerprint: 
+    correctChoiceIndex: 2
+    feedback: 
+  - questionId: dead-load
+    prompt: Which of the following is an example of a Dead Load?
+    choices:
+    - text: A vehicle crossing the bridge
+      image: {fileID: 0}
+      imageFingerprint: 
+    - text: The weight of the bridge deck
+      image: {fileID: 0}
+      imageFingerprint: 
+    - text: A person walking across the bridge
+      image: {fileID: 0}
+      imageFingerprint: 
+    - text: A moving construction vehicle
+      image: {fileID: 0}
+      imageFingerprint: 
+    correctChoiceIndex: 1
+    feedback: 
+  - questionId: beam-bridge
+    prompt: What is the main function of a Beam Bridge?
+    choices:
+    - text: To carry loads across a gap toward its supports
+      image: {fileID: 0}
+      imageFingerprint: 
+    - text: To support the roadway using cables only
+      image: {fileID: 0}
+      imageFingerprint: 
+    - text: To prevent all bending in the bridge
+      image: {fileID: 0}
+      imageFingerprint: 
+    - text: To carry loads without structural supports
+      image: {fileID: 0}
+      imageFingerprint: 
+    correctChoiceIndex: 0
+    feedback: 
+  - questionId: wood-road
+    prompt: What is the purpose of the Wood Road in bridge construction?
+    choices:
+    - text: To transfer loads directly into the ground
+      image: {fileID: 0}
+      imageFingerprint: 
+    - text: To measure the stress of the bridge
+      image: {fileID: 0}
+      imageFingerprint: 
+    - text: To replace the bridge supports
+      image: {fileID: 0}
+      imageFingerprint: 
+    - text: To provide a roadway for vehicles to cross
+      image: {fileID: 0}
+      imageFingerprint: 
+    correctChoiceIndex: 3
+    feedback: 
+  - questionId: wood-pier
+    prompt: What is the main function of a Wood Pier?
+    choices:
+    - text: To increase the speed of crossing vehicles
+      image: {fileID: 0}
+      imageFingerprint: 
+    - text: To support the bridge and transfer loads toward the ground
+      image: {fileID: 0}
+      imageFingerprint: 
+    - text: To serve as the roadway of the bridge
+      image: {fileID: 0}
+      imageFingerprint: 
+    - text: To reduce the cost of all construction materials
+      image: {fileID: 0}
+      imageFingerprint: 
+    correctChoiceIndex: 1
+    feedback: 

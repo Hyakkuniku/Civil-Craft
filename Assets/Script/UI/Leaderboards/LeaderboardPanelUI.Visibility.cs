@@ -1,8 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.IO;
-using System.Text;
 using UnityEngine;
 using UnityEngine.Networking;
 
@@ -52,16 +50,11 @@ public sealed partial class LeaderboardPanelUI
     private IEnumerator FetchContractVisibility(int generation, string previousId)
     {
         UnityWebRequest request = null;
-        BoundedContractVisibilityDownload handler = null;
+        LeaderboardContractVisibility.BoundedDownloadHandler handler = null;
         UnityWebRequestAsyncOperation operation = null;
         try
         {
-            handler = new BoundedContractVisibilityDownload();
-            request = new UnityWebRequest(LeaderboardContractVisibility.FeedUrl, UnityWebRequest.kHttpVerbGET);
-            request.downloadHandler = handler;
-            request.timeout = LeaderboardContractVisibility.TimeoutSeconds;
-            request.redirectLimit = 0;
-            request.SetRequestHeader("Accept", "application/json");
+            request = LeaderboardContractVisibility.CreateRequest(out handler);
             visibilityRequest = request;
             operation = request.SendWebRequest();
         }
@@ -126,19 +119,4 @@ public sealed partial class LeaderboardPanelUI
         visibilityRequest = null;
     }
 
-    private sealed class BoundedContractVisibilityDownload : DownloadHandlerScript
-    {
-        private readonly MemoryStream received = new MemoryStream();
-        public bool Overflowed { get; private set; }
-        public string Body => Encoding.UTF8.GetString(received.ToArray());
-        public BoundedContractVisibilityDownload() : base(new byte[1024]) { }
-        protected override bool ReceiveData(byte[] data, int length)
-        {
-            if (data == null || length < 0 || length > data.Length ||
-                received.Length + length > LeaderboardContractVisibility.MaxResponseBytes)
-            { Overflowed = true; return false; }
-            if (length > 0) received.Write(data, 0, length);
-            return true;
-        }
-    }
 }

@@ -18,7 +18,8 @@ internal static class Program
         try
         {
             Parser(); Opening(); CompletionSelection(); FailuresAndMultiplayer(); CloseAndReopen(); ManualRefresh();
-            Console.WriteLine($"LeaderboardVisibility: {checks} checks passed (production parser/controller; engine, HTTP and PlayFab boundaries doubled; no live requests or player saves).");
+            CompletionVisibilityChecks.Run(Check);
+            Console.WriteLine($"LeaderboardVisibility: {checks} checks passed (production parser/controller/completion action gate; engine, HTTP and PlayFab boundaries doubled; no live requests or player saves).");
             return 0;
         }
         catch (Exception error) { Console.Error.WriteLine(error); return 1; }
