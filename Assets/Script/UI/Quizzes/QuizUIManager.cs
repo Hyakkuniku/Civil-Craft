@@ -283,7 +283,7 @@ public sealed class QuizUIManager : MonoBehaviour
         questionIndex = selectedIndex = -1;
         questionAnswered = true;
         npcPresentation?.SetSpeaking(false);
-        view.ShowAssessmentResult(quiz, QuizProgressUtility.AssessmentScore(quiz, assessmentAnswers));
+        view.ShowAssessmentResult(quiz, QuizProgressUtility.AssessmentScore(quiz, assessmentAnswers), assessmentAnswers);
     }
 
     private void ShowFirstUnresolved()

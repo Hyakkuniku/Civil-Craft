@@ -210,9 +210,19 @@ public static class Scenarios
             }
             f.manager.view.Submit();
             Check(f.manager.view.shownQuestion == -1 && f.manager.view.score == 0 && f.save.committed[0].submitted && !f.save.committed[0].completed, "Single submit shows zero score and persists submission without advancing.");
+            Check(f.manager.view.resultAnswers != null && f.manager.view.resultAnswers.Count == count,
+                "Submitted assessment passes every actual chosen answer to the result review.");
+            for (int i = 0; i < count; i++)
+                Check(f.manager.view.resultAnswers.TryGetValue("q" + i, out int chosen) && chosen == 0,
+                    "Result review preserves the player's deliberately incorrect zero selection for question " + i + ".");
+            IReadOnlyDictionary<string, int> submittedAnswers = f.manager.view.resultAnswers;
             int saves = f.save.saves;
             f.manager.view.Submit(); f.manager.view.Choose(1); f.manager.view.Next(); f.manager.view.Previous();
             Check(f.save.saves == saves && f.manager.view.score == 0, "Submitted attempt locks answers and ignores double submit.");
+            Check(ReferenceEquals(f.manager.view.resultAnswers, submittedAnswers), "Double submit and late choice taps do not rebuild or replace the submitted result snapshot.");
+            for (int i = 0; i < count; i++)
+                Check(f.manager.view.resultAnswers["q" + i] == 0,
+                    "Late answer changes cannot alter reviewed submitted choice for question " + i + ".");
             f.manager.view.Finish(); f.manager.view.Finish();
             Check(f.save.committed[0].completed && f.results.Count == 1 && f.results[0] == QuizOutcome.Completed, "Zero score completes once only after durable Continue.");
             Check(f.controlsRestoredBeforeCallback && f.save.CurrentData.gold == 0, "Assessment restores controls and adds no reward.");
@@ -220,18 +230,35 @@ public static class Scenarios
         Fixture failed = new Fixture(1); failed.quiz.assessmentMode = true; failed.Open(); failed.manager.view.Choose(0);
         failed.save.saveSucceeds = false; failed.manager.view.Submit();
         Check(!failed.save.committed[0].submitted && failed.results.Count == 0, "Failed submission does not advance or falsify saved submission.");
+        Check(failed.manager.view.resultAnswers == null, "A failed submit save never exposes result answers or a correction key.");
         failed.manager.view.Finish(); Check(failed.results.Count == 0, "Cannot Continue with pending submit save.");
+        Check(failed.manager.view.resultAnswers == null, "Premature Continue cannot reveal the answer review while submission is unsaved.");
         failed.save.saveSucceeds = true; failed.manager.view.Retry();
         Check(failed.save.committed[0].submitted && failed.manager.view.score == 0, "Retry saves submitted answers and shows result.");
+        Check(failed.manager.view.resultAnswers != null && failed.manager.view.resultAnswers.Count == 1 && failed.manager.view.resultAnswers["q0"] == 0,
+            "Successful save retry passes the exact submitted player choice to result review.");
         failed.save.saveSucceeds = false; failed.manager.view.Finish();
         Check(failed.results.Count == 0 && !failed.save.committed[0].completed, "Failed completion save never advances.");
         failed.save.saveSucceeds = true; failed.manager.view.Retry(); Check(failed.results.Count == 1, "Completion save retry resolves once.");
         Fixture restart = new Fixture(2); restart.quiz.assessmentMode = true; restart.Open(); restart.manager.view.Choose(0);
         QuizUIManager.CancelOwnedSession(restart.owner);
+        Check(restart.manager.view.resultAnswers == null, "Unsubmitted teardown does not create a result snapshot.");
         Check(restart.Open() && restart.manager.view.selection == 0, "Restarted assessment retains prior choices.");
+        Check(restart.manager.view.resultAnswers == null, "Restarting an unsubmitted assessment does not expose corrections.");
         restart.manager.view.Next(); restart.manager.view.Choose(1); restart.manager.view.Submit();
+        Check(restart.manager.view.resultAnswers != null && restart.manager.view.resultAnswers.Count == 2 &&
+              restart.manager.view.resultAnswers["q0"] == 0 && restart.manager.view.resultAnswers["q1"] == 1,
+            "Initial submitted review distinguishes a wrong first answer from a correct second answer.");
+        IReadOnlyDictionary<string, int> previousReview = restart.manager.view.resultAnswers;
         QuizUIManager.CancelOwnedSession(restart.owner);
+        Check(!restart.manager.HasSession && !restart.manager.view.Panel.activeInHierarchy,
+            "Submitted result teardown hides the review and releases session ownership.");
         Check(restart.Open() && restart.manager.view.score == 1 && restart.manager.view.shownQuestion == -1, "Submitted result resumes after teardown.");
+        Check(restart.manager.view.resultAnswers != null && restart.manager.view.resultAnswers.Count == 2 &&
+              restart.manager.view.resultAnswers["q0"] == 0 && restart.manager.view.resultAnswers["q1"] == 1,
+            "Restarted submitted result restores both exact mixed choices from the saved assessment record.");
+        Check(!ReferenceEquals(previousReview, restart.manager.view.resultAnswers),
+            "Reopening resets the previous review and creates a fresh result snapshot from saved answers.");
         restart.manager.view.Finish();
     }
     private static void ResumeAndSaveFailures()

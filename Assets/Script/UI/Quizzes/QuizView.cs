@@ -40,6 +40,8 @@ public sealed class QuizView : MonoBehaviour
 
     private readonly List<QuizChoiceView> choices = new List<QuizChoiceView>();
     public IReadOnlyList<QuizChoiceView> VisibleChoices => choices;
+    private readonly List<QuizResultCard> resultCards = new List<QuizResultCard>();
+    public IReadOnlyList<QuizResultCard> VisibleResultCards => resultCards;
     private bool wired;
     private int selection = -1;
     private bool answered;
@@ -88,6 +90,7 @@ public sealed class QuizView : MonoBehaviour
     {
         Wire();
         ClearChoices();
+        ClearResultCards();
         assessment = false;
         selection = -1; answered = false; complete = false; busy = false; saveError = false;
         title.text = data.title;
@@ -143,7 +146,7 @@ public sealed class QuizView : MonoBehaviour
 
     public void ShowCompletion(QuizData data)
     {
-        Wire(); ClearChoices(); busy = false; saveError = false; complete = true; answered = true; selection = -1;
+        Wire(); ClearChoices(); ClearResultCards(); busy = false; saveError = false; complete = true; answered = true; selection = -1;
         title.text = data.title; progress.text = "Quiz complete";
         question.text = "Well done! You answered every question correctly.";
         feedback.text = "Press Finish to continue your conversation.";
@@ -166,15 +169,27 @@ public sealed class QuizView : MonoBehaviour
         layout?.ApplyLayout();
     }
 
-    public void ShowAssessmentResult(QuizData data, int score)
+    public void ShowAssessmentResult(QuizData data, int score, IReadOnlyDictionary<string, int> answers = null)
     {
         ShowCompletion(data);
         assessment = true;
         question.text = "Your score: " + score + " / " + data.QuestionCount;
-        feedback.text = "Quiz submitted. Press Continue to return to Bhan. You can keep learning in the Almanac afterward.";
+        question.richText = false;
+        feedback.text = "Review your answers, then press Continue.";
+        Sprite cardSprite = choiceTemplate != null && choiceTemplate.face != null ? choiceTemplate.face.sprite : null;
+        if (cardSprite == null && layout != null && layout.paperFrame != null) cardSprite = layout.paperFrame.sprite;
+        for (int i = 0; i < data.QuestionCount; i++)
+        {
+            QuizQuestion item = data.questions[i];
+            int selected = -1;
+            if (answers != null && item != null && !string.IsNullOrWhiteSpace(item.questionId) &&
+                answers.TryGetValue(item.questionId.Trim(), out int savedAnswer)) selected = savedAnswer;
+            resultCards.Add(QuizResultCard.Create(choiceContent, title.font, cardSprite, item, i + 1, selected));
+        }
         SetButtonText(finishButton, "Continue");
         RefreshButtons();
         layout?.ApplyLayout();
+        ResetScroll();
     }
 
     private void EnsureAssessmentControls()
@@ -223,7 +238,7 @@ public sealed class QuizView : MonoBehaviour
 
     public void Reset()
     {
-        ClearChoices(); selection = -1; assessment = false; answered = complete = busy = saveError = false;
+        ClearChoices(); ClearResultCards(); selection = -1; assessment = false; answered = complete = busy = saveError = false;
         SetNpcPresentation(false, string.Empty);
         SetButtonText(finishButton, "Finish");
         if (feedback != null) feedback.text = string.Empty;
@@ -253,6 +268,18 @@ public sealed class QuizView : MonoBehaviour
     }
 
     public bool IsAssessment => assessment;
+    public bool IsAssessmentResult => assessment && complete;
+
+    private void ClearResultCards()
+    {
+        foreach (QuizResultCard card in resultCards)
+        {
+            if (card == null) continue;
+            card.gameObject.SetActive(false);
+            if (Application.isPlaying) Destroy(card.gameObject); else DestroyImmediate(card.gameObject);
+        }
+        resultCards.Clear();
+    }
 
     private void ClearChoices()
     {

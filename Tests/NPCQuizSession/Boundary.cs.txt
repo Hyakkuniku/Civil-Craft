@@ -140,8 +140,13 @@ public sealed class QuizView : Behaviour
     public int score = -1;
     public void ShowAssessmentQuestion(QuizData data, int index, int selected, int answeredCount)
     { ShowQuestion(data, index, null); selection = selected; }
-    public void ShowAssessmentResult(QuizData data, int value) { ShowCompletion(data); score = value; }
-    public void Reset() { selection = shownQuestion = -1; completionShows = feedbackShows = saveErrors = 0; }
+    public IReadOnlyDictionary<string, int> resultAnswers;
+    public void ShowAssessmentResult(QuizData data, int value, IReadOnlyDictionary<string, int> answers = null)
+    {
+        ShowCompletion(data); score = value;
+        resultAnswers = answers == null ? null : new Dictionary<string, int>(answers);
+    }
+    public void Reset() { selection = shownQuestion = -1; completionShows = feedbackShows = saveErrors = 0; resultAnswers = null; }
     public void SetSelection(int index) { selection = index; }
     public void ShowQuestion(QuizData data, int index, IReadOnlyCollection<string> ids)
     {

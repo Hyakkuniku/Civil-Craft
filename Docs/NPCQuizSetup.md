@@ -13,7 +13,7 @@ The quiz system works offline and supports any authored number of questions and 
 1. In Project, choose **Create → Civil Craft → NPC Quiz**.
 2. Set the title and add as many questions as needed. They run in list order.
 3. Give each question a prompt and at least two choices. Each choice can contain text, an image Sprite, or both.
-4. Set **Correct Choice Index** to the one correct answer: `0` is the first choice, `1` the second, and so on. Optional feedback is shown after a correct answer; incorrect answers only show **Try again**.
+4. Set **Correct Choice Index** to the one correct answer: `0` is the first choice, `1` the second, and so on. Optional feedback explains the answer. Practice mode shows it after a correct answer; assessment mode includes it in the submitted answer review.
 5. Read the Inspector validation message before assigning the asset. Missing stable IDs are assigned automatically; keep published IDs unchanged. Changing content resets only the affected quiz's saved answers. Existing image-file edits are synchronized before Play Mode and builds so changing an image also invalidates its quiz progress.
 
 ## Add a quiz to an NPC phase
@@ -26,7 +26,9 @@ The quiz system works offline and supports any authored number of questions and 
 
 ## Player behavior and testing
 
-The player chooses an answer and presses **Submit**. Correct answers are saved individually, then **Next** advances. Every question must be correct before **Finish** continues the NPC sequence. **Leave Quiz** saves progress; interacting again resumes the first unresolved question, including after restarting offline. A save failure offers **Retry Save** and a safe exit without granting completion.
+With **Assessment Mode unchecked**, the player chooses an answer and presses **Submit**. Incorrect answers show **Try again** without revealing the answer. Correct answers are saved individually, then **Next** advances. Every question must be correct before **Finish** continues the NPC sequence. **Leave Quiz** saves progress; interacting again resumes the first unresolved question, including after restarting offline. A save failure offers **Retry Save** and a safe exit without granting completion.
+
+With **Assessment Mode checked**, the player answers all questions, may move back and forth before submitting, and submits the whole quiz once. The result shows the score followed by a scrollable review in authored question order. Green cards identify correct answers. Red cards show the player's answer and the correct answer. Image choices retain their images and captions; optional feedback appears as an explanation. Answers remain locked after submission, including when reopening a submitted quiz. **Continue** retains the existing any-score completion rule and adds no rewards. The Beam and Truss tutorial quizzes use this mode.
 
 Test a disposable/offline save first: leave/reopen, restart, wrong answers, image choices, long scrolling content, and **Pause → Settings → Resume**. Confirm movement/look return after leaving or finishing, and follow-up dialogue retains its own control lock. The fullscreen panel hides gameplay HUD, blocks background clicks, and respects Escape/Android Back. Multiplayer visitors cannot save or advance the host's NPC story.
 

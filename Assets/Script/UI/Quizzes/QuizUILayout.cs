@@ -193,9 +193,11 @@ public sealed class QuizUILayout : MonoBehaviour
         Top(header, inset, inset, 18f * u, headerHeight);
         Top(view.title.rectTransform, 0f, 0f, 0f, titleHeight);
         view.title.fontSize = ReadableFont(35f * u, 23f, canvas);
+        view.title.margin = new Vector4(0f, 6f * u, 0f, 0f);
         view.title.overflowMode = TextOverflowModes.Ellipsis;
         Top(view.progress.rectTransform, 0f, 0f, titleHeight + 6f * u, progressHeight);
         view.progress.fontSize = ReadableFont(23f * u, 17f, canvas);
+        view.progress.margin = new Vector4(0f, 4f * u, 0f, 0f);
         view.progress.overflowMode = TextOverflowModes.Ellipsis;
         Bottom(footer, inset, inset, 18f * u, footerHeight);
         Top(feedbackViewport, 0f, 0f, 0f, feedbackHeight);
@@ -219,16 +221,42 @@ public sealed class QuizUILayout : MonoBehaviour
             if (text != null) text.fontSize = ReadableFont(27f * u, 18f, canvas);
         }
         float bodyHeight = Mathf.Max(90f, paper.height - top - bottom);
-        float promptHeight = Mathf.Clamp(bodyHeight * .27f, 80f * u, 160f * u);
+        float promptHeight = view.IsAssessmentResult ? 68f * u : Mathf.Clamp(bodyHeight * .27f, 80f * u, 160f * u);
         promptHeight = Mathf.Max(promptHeight, 56f / physicalScale);
         Top(questionViewport, inset, inset, top, promptHeight);
         view.question.fontSize = ReadableFont(31f * u, 20f, canvas);
         FitText(view.question, questionContent, questionViewport, u);
         Stretch(choiceViewport, inset, bottom, inset, top + promptHeight + 18f * u);
         float scale = canvas != null ? Mathf.Max(.01f, canvas.scaleFactor) : 1f;
-        ColumnCount = paper.width * scale >= 760f && available.width > available.height ? 2 : 1;
-        LayoutChoices(u);
+        ColumnCount = !view.IsAssessmentResult && paper.width * scale >= 760f && available.width > available.height ? 2 : 1;
+        if (view.IsAssessmentResult) LayoutResults(u, scale);
+        else LayoutChoices(u);
         lastRect = panel.rect; lastSafe = Screen.safeArea; lastScreen = new Vector2Int(Screen.width, Screen.height); applied = true;
+    }
+
+    private void LayoutResults(float unit, float physicalScale)
+    {
+        if (view.choiceContent == null || choiceViewport == null) return;
+        float gap = 16f * unit;
+        float width = Mathf.Max(80f, choiceViewport.rect.width - 8f * unit);
+        float y = 4f * unit;
+        foreach (QuizResultCard card in view.VisibleResultCards)
+        {
+            if (card == null) continue;
+            float height = card.RequiredHeight(width, unit, physicalScale);
+            RectTransform rect = (RectTransform)card.transform;
+            rect.anchorMin = rect.anchorMax = new Vector2(0f, 1f);
+            rect.pivot = new Vector2(0f, 1f);
+            rect.anchoredPosition = new Vector2(4f * unit, -y);
+            rect.sizeDelta = new Vector2(width, height);
+            card.Layout(width, height, unit, physicalScale);
+            y += height + gap;
+        }
+        view.choiceContent.anchorMin = new Vector2(0f, 1f);
+        view.choiceContent.anchorMax = Vector2.one;
+        view.choiceContent.pivot = new Vector2(.5f, 1f);
+        view.choiceContent.sizeDelta = new Vector2(0f, Mathf.Max(choiceViewport.rect.height, y));
+        if (view.choiceScroll != null) view.choiceScroll.horizontal = false;
     }
 
     private void LayoutChoices(float u)
@@ -278,7 +306,11 @@ public sealed class QuizUILayout : MonoBehaviour
         if (text == null || content == null || viewport == null) return;
         text.richText = false; text.enableAutoSizing = false; text.enableWordWrapping = true; text.overflowMode = TextOverflowModes.Overflow;
         float padding = 14f * u;
-        float height = Mathf.Max(viewport.rect.height, text.GetPreferredValues(text.text, Mathf.Max(20f, viewport.rect.width - padding * 2f), 0f).y + padding * 2f);
+        // The gameplay font's capital glyphs extend above its nominal ascent.
+        // Include real text gutters in both wrapping and content-height measures.
+        text.margin = new Vector4(4f * u, 6f * u, 4f * u, 4f * u);
+        float textWidth = Mathf.Max(20f, viewport.rect.width - padding * 2f - text.margin.x - text.margin.z);
+        float height = Mathf.Max(viewport.rect.height, text.GetPreferredValues(text.text, textWidth, 0f).y + padding * 2f);
         content.anchorMin = new Vector2(0f, 1f); content.anchorMax = Vector2.one; content.pivot = new Vector2(.5f, 1f); content.sizeDelta = new Vector2(0f, height);
         Stretch(text.rectTransform, padding, padding, padding, padding);
     }

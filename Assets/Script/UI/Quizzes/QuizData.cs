@@ -23,7 +23,7 @@ public sealed class QuizQuestion
     public List<QuizChoice> choices = new List<QuizChoice>();
     [Tooltip("Zero-based index of the one correct choice.")]
     public int correctChoiceIndex;
-    [Tooltip("Optional explanation shown only after a correct answer.")]
+    [Tooltip("Optional explanation shown after a correct practice answer and in the submitted assessment review.")]
     [TextArea(2, 5)] public string feedback;
 }
 
