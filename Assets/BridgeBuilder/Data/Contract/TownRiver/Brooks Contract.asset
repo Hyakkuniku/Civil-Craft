@@ -1,0 +1,68 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
+  m_Name: Brooks Contract
+  m_EditorClassIdentifier:
+  liveLoadMode: 0
+  allowVehicleCargo: 0
+  minimumLoadedCargo: 0
+  cargoUnlockProgressionId:
+  cargoUnlockAfterDialoguePhaseIndex: -1
+  cargoLoadedNPCPhaseId:
+  contractID: BrooksMainContract
+  hideFromLeaderboard: 1
+  efficiencyStarBudgetRatio: 0.85
+  strengthStarMaxStress: 60
+  contractMap: 1
+  countsTowardMapAchievements: 0
+  isStoryModeContract: 1
+  isTutorialContract: 0
+  autoCollectReward: 0
+  featureUnlockRewards: []
+  clientName: Brooks
+  jobDescription: Connect the market directly to Rivermere's main road with a bridge
+    that safely carries taxis and heavier delivery vehicles from one end to the other.
+    Observe how the structure responds as moving loads cross the span.
+  budget: 2000
+  liveLoadWeight: 50
+  bridgeSpan: 30
+  allowedMaterials: []
+  hiddenTools: []
+  hiddenMaterials: []
+  enforceMaxStress: 0
+  maxAllowedStress: 100
+  isTimeAttack: 0
+  timeAttackDuration: 60
+  winCondition: 0
+  requiredIntactTime: 5
+  goldReward: 500
+  expReward: 100
+  offerDialogue:
+    name: Brooks
+    sentences:
+    - "We need a bridge connecting the market directly to Rivermere's main road."
+    - Both taxis and heavier delivery vehicles should be able to cross safely.
+    - "<b><#E09500>Make sure your design can handle them from one end of the bridge to the other</color></b>."
+    - "I'm counting on you, {PlayerName}! If you're ready, I've got the contract."
+  continueOfferDialogue:
+    name: Brooks
+    sentences: []
+  reminderDialogue:
+    name: Brooks
+    sentences:
+    - "<b><#E09500>Watch how the bridge responds as each vehicle moves across. We want everyone to reach the other side safely</color></b>."
+  finishedContractDialogue:
+    name: Brooks
+    sentences:
+    - Oh, this is wonderful!
+    - Customers and delivery vehicles finally have a more direct way into the market.
+    - "The merchants are going to love this. Thank you so much, {PlayerName}!"

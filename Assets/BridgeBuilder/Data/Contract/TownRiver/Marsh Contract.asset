@@ -29,7 +29,9 @@ MonoBehaviour:
   autoCollectReward: 0
   featureUnlockRewards: []
   clientName: Marsh
-  jobDescription: We need a bridge across this ravine!
+  jobDescription: Connect the residential district directly to Central Riverside with
+    a bridge across the waterway. Road vehicles must cross safely while leaving enough
+    clearance for boats to pass underneath.
   budget: 325000
   liveLoadWeight: 3000
   bridgeSpan: 80

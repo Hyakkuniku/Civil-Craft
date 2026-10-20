@@ -1,0 +1,70 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
+  m_Name: Ronan Contract
+  m_EditorClassIdentifier:
+  liveLoadMode: 0
+  allowVehicleCargo: 0
+  minimumLoadedCargo: 0
+  cargoUnlockProgressionId:
+  cargoUnlockAfterDialoguePhaseIndex: -1
+  cargoLoadedNPCPhaseId:
+  contractID: RonanMainContract
+  hideFromLeaderboard: 1
+  efficiencyStarBudgetRatio: 0.85
+  strengthStarMaxStress: 60
+  contractMap: 1
+  countsTowardMapAchievements: 0
+  isStoryModeContract: 1
+  isTutorialContract: 0
+  autoCollectReward: 0
+  featureUnlockRewards: []
+  clientName: Ronan
+  jobDescription: Open Rivermere's southern connection with a safe 100-meter bridge
+    spanning roads at different elevations. Accommodate the heavy vehicle and observe
+    the structural response, including shear forces near the supports, throughout the crossing.
+  budget: 2000
+  liveLoadWeight: 50
+  bridgeSpan: 100
+  allowedMaterials: []
+  hiddenTools: []
+  hiddenMaterials: []
+  enforceMaxStress: 0
+  maxAllowedStress: 100
+  isTimeAttack: 0
+  timeAttackDuration: 60
+  winCondition: 0
+  requiredIntactTime: 5
+  goldReward: 500
+  expReward: 100
+  offerDialogue:
+    name: Ronan
+    sentences:
+    - "You've got a <b><#E09500>100-meter</color></b> gap, different road elevations, and a heavy vehicle to accommodate."
+    - "It won't be an easy crossing, but you've handled some challenging projects already."
+    - Take your time, study the requirements, and build something that works.
+    - "I trust your judgment, {PlayerName}. If you're ready, take the contract."
+  continueOfferDialogue:
+    name: Ronan
+    sentences: []
+  reminderDialogue:
+    name: Ronan
+    sentences:
+    - "<b><#E09500>Pay attention to the shear forces near the supports during testing. Remember, the entire bridge needs to remain safe</color></b>."
+  finishedContractDialogue:
+    name: Ronan
+    sentences:
+    - "Well done, {PlayerName}. The southern connection is finally open."
+    - "You've made a real difference here in Rivermere."
+    - "From here, the road leads toward <b><#E09500>Ironhaven</color></b> in the <b><#E09500>Industrial Zone</color></b>."
+    - "I hear they've got some challenging projects waiting there."
+    - Take care out there, and good luck with your next adventure!
