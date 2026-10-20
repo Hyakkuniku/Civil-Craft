@@ -1,0 +1,171 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &8839754168641571595
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 3103311923163535658}
+  - component: {fileID: 1528538792901936337}
+  - component: {fileID: 2490022434070669188}
+  - component: {fileID: 3402102658341490412}
+  - component: {fileID: 7436711577060982690}
+  m_Layer: 6
+  m_Name: NPC_TEMPLATE
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &3103311923163535658
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8839754168641571595}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0.72963786, z: -0, w: 0.6838337}
+  m_LocalPosition: {x: 1185.96, y: 5.49, z: -31.17}
+  m_LocalScale: {x: 0.16999999, y: 0.17, z: 0.16999999}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: -93.712, z: 0}
+--- !u!65 &1528538792901936337
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8839754168641571595}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 8.13, y: 18.4, z: 6.69}
+  m_Center: {x: 0, y: 6.8, z: 0}
+--- !u!195 &2490022434070669188
+NavMeshAgent:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8839754168641571595}
+  m_Enabled: 0
+  m_AgentTypeID: 0
+  m_Radius: 0.5
+  m_Speed: 2.5
+  m_Acceleration: 8
+  avoidancePriority: 50
+  m_AngularSpeed: 260
+  m_StoppingDistance: 0.2
+  m_AutoTraverseOffMeshLink: 0
+  m_AutoBraking: 1
+  m_AutoRepath: 1
+  m_Height: 2
+  m_BaseOffset: 0
+  m_WalkableMask: 4294967295
+  m_ObstacleAvoidanceType: 4
+--- !u!114 &3402102658341490412
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8839754168641571595}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7ae77ef4070496040b71d894b0cc67bf, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  useEvents: 0
+  promptMessage: 
+  contractToGive: {fileID: 0}
+  targetBuildLocation: {fileID: 0}
+  linkedCargo: {fileID: 0}
+  requiredCargoDeliveryBeforeInteraction: {fileID: 0}
+  advancesTutorial: 1
+  onOfferDialogueFinished:
+    m_PersistentCalls:
+      m_Calls: []
+  isContractCompleted: 0
+  isFullyTurnedIn: 0
+--- !u!114 &7436711577060982690
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8839754168641571595}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a1f34bc1e3214d1bab7180c2f9e260bb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  contractGiver: {fileID: 3402102658341490412}
+  navMeshAgent: {fileID: 2490022434070669188}
+  animator: {fileID: 0}
+  dialogueManager: {fileID: 0}
+  authoredSpawnLocation: {fileID: 0}
+  phases: []
+  progressionSaveId: NPC_TEMPLATE
+  persistProgression: 1
+  restoreSavedPhaseBridgesOnStart: 1
+  placeAtResolvedPhaseOnStart: 1
+  automaticallyAdvanceOnContractCompletion: 1
+  movementMode: 0
+  arrivalPadding: 0.15
+  navMeshSampleRadius: 3
+  pathTimeout: 45
+  rebindNearbyNavMeshBeforeTravel: 0
+  stalledRepathDelay: 1.5
+  stalledMovementTolerance: 0.03
+  maximumRepathAttempts: 3
+  teleportDissolveDuration: 0.35
+  teleportDissolveEdgeColor: {r: 1, g: 0.55, b: 0.12, a: 1}
+  teleportDissolveNoiseScale: 14
+  teleportDissolveEdgeWidth: 0.08
+  waypointMovementSpeed: 2.5
+  waypointTurnSpeed: 260
+  waypointArrivalDistance: 0.1
+  waypointGroundLayers:
+    serializedVersion: 2
+    m_Bits: 3584
+  waypointGroundProbeHeight: 2
+  waypointGroundProbeDepth: 6
+  waypointGroundOffset: 0
+  requireGroundForWaypointMovement: 1
+  missingGroundGraceTime: 0.5
+  waypointRoadNodeWeldDistance: 0.25
+  waypointRoadGroundConnectionDistance: 20
+  waypointGroundConnectionSampleSpacing: 0.75
+  waypointNavMeshLinkCorridorWidth: 35
+  walkingBoolParameter: isWalking
+  runningBoolParameter: isRunning
+  talkingBoolParameter: isTalking
+  idleRoamingRadius: 1.5
+  idleRoamingSpeed: 1.2
+  idlePauseDuration: 2
+  idleRoamingArrivalDistance: 0.08
+  useSceneNavMeshLinksInWaypointMode: 1
+  manuallyTraverseNavMeshLinks: 1
+  rotateWhileTraversingLinks: 1
+  travellingPrompt: Moving to the next site...
+  onProgressionFinished:
+    m_PersistentCalls:
+      m_Calls: []
+  onMovementFailed:
+    m_PersistentCalls:
+      m_Calls: []
