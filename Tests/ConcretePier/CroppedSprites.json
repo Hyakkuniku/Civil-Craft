@@ -1,0 +1,9 @@
+{
+  "captured": "2026-10-21 before assigning the user's newly cropped Concrete Pier sprite pair; original Baselines.json is unchanged",
+  "files": {
+    "Assets/Elements/UI/bm_ui/pier concrete not selected.png": "1D200661AC95F0E53B02FD6259DAA3C8EDE4D7DC174B945EB43F900496AA6A17",
+    "Assets/Elements/UI/bm_ui/pier concrete not selected.png.meta": "5AC519365D94ECAF7A0E0F7088D1CB26D665EC145C36054D0B47640B374EB0C8",
+    "Assets/Elements/UI/bm_ui/concrete pier2 selected (1).png": "A71220315F5ACF043E919F6AE9EF99B21E8ABE4AF5B0282C210CA1CCD96000AB",
+    "Assets/Elements/UI/bm_ui/concrete pier2 selected (1).png.meta": "89AD4E5D26427CC3A10ED3B87C80C3F4BAB6D2B07312D8C0221826DE5E3F3491"
+  }
+}

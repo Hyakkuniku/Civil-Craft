@@ -214,7 +214,8 @@ public class ContractSO : ScriptableObject
 
     public bool IsMaterialHidden(BridgeMaterialSO material)
     {
-        return material != null && hiddenMaterials != null && hiddenMaterials.Contains(material);
+        return material != null && ((hiddenMaterials != null && hiddenMaterials.Contains(material)) ||
+            !material.CanUseInContract(this));
     }
 
     [Header("Challenges / Constraints (Checklist)")]

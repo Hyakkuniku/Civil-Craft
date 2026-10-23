@@ -1,0 +1,15 @@
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\BridgeStressDiagnosis\bin\Debug\net8.0\BridgeStressDiagnosis.exe
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\BridgeStressDiagnosis\bin\Debug\net8.0\BridgeStressDiagnosis.deps.json
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\BridgeStressDiagnosis\bin\Debug\net8.0\BridgeStressDiagnosis.runtimeconfig.json
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\BridgeStressDiagnosis\bin\Debug\net8.0\BridgeStressDiagnosis.dll
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\BridgeStressDiagnosis\bin\Debug\net8.0\BridgeStressDiagnosis.pdb
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\BridgeStressDiagnosis\obj\Debug\net8.0\BridgeStressDiagnosis.GeneratedMSBuildEditorConfig.editorconfig
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\BridgeStressDiagnosis\obj\Debug\net8.0\BridgeStressDiagnosis.AssemblyInfoInputs.cache
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\BridgeStressDiagnosis\obj\Debug\net8.0\BridgeStressDiagnosis.AssemblyInfo.cs
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\BridgeStressDiagnosis\obj\Debug\net8.0\BridgeStressDiagnosis.csproj.CoreCompileInputs.cache
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\BridgeStressDiagnosis\obj\Debug\net8.0\BridgeStressDiagnosis.sourcelink.json
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\BridgeStressDiagnosis\obj\Debug\net8.0\BridgeStressDiagnosis.dll
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\BridgeStressDiagnosis\obj\Debug\net8.0\refint\BridgeStressDiagnosis.dll
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\BridgeStressDiagnosis\obj\Debug\net8.0\BridgeStressDiagnosis.pdb
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\BridgeStressDiagnosis\obj\Debug\net8.0\BridgeStressDiagnosis.genruntimeconfig.cache
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\BridgeStressDiagnosis\obj\Debug\net8.0\ref\BridgeStressDiagnosis.dll

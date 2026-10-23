@@ -38,3 +38,11 @@ public class Bar
     public UnityEngine.GameObject gameObject = new UnityEngine.GameObject();
     public bool enabled = true;
 }
+// Material opt-in checks reference contracts, but this solver suite never
+// exercises contract policy. Keep only its identity/list boundary here.
+public class MaterialAllowance { public BridgeMaterialSO material; }
+public class ContractSO
+{
+    public System.Collections.Generic.List<MaterialAllowance> allowedMaterials = new System.Collections.Generic.List<MaterialAllowance>();
+    public System.Collections.Generic.List<BridgeMaterialSO> hiddenMaterials = new System.Collections.Generic.List<BridgeMaterialSO>();
+}

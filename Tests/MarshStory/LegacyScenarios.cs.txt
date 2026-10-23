@@ -1,0 +1,130 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using UnityEngine;
+
+public static class LegacyScenarios
+{
+    private static int checks;
+    private static void Check(bool condition, string description) { checks++; if (!condition) throw new InvalidOperationException(description); }
+    private static void Set(object owner, string field, object value) => owner.GetType().GetField(field, BindingFlags.Instance | BindingFlags.NonPublic).SetValue(owner, value);
+    private static IEnumerator Start(MarshPostContractContinuation helper) => (IEnumerator)typeof(MarshPostContractContinuation).GetMethod("Start", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(helper, null);
+    private static (MarshPostContractContinuation helper, NPCProgressionManager npc, IEnumerator routine) Setup(string phaseId = "ProjectBriefing")
+    {
+        Time.timeScale = 1f;
+        DialogueManager.IsAnyDialogueActive = false;
+        UIPanelCoordinator.Instance = new UIPanelCoordinator();
+        GameManager.Instance = new GameManager();
+        FusionConnectionManager.Instance = null;
+        PlayerDataManager.Instance = new PlayerDataManager();
+        var npc = new NPCProgressionManager { CurrentPhase = new NPCProgressionPhase { phaseId = phaseId },
+            AuthoredPhases = new List<NPCProgressionPhase> { new NPCProgressionPhase { phaseId = "MarshReview" } } };
+        var helper = new MarshPostContractContinuation();
+        Set(helper, "npc", npc);
+        Set(helper, "contract", new ContractSO());
+        Set(helper, "reviewPhaseId", "MarshReview");
+        IEnumerator routine = Start(helper);
+        Check(routine.MoveNext(), "Initial yield must let NPC/save Start finish.");
+        Check(npc.Moves.Count == 0, "Legacy helper may not advance before its first deferred frame.");
+        return (helper, npc, routine);
+    }
+    private static void NoMove((MarshPostContractContinuation helper, NPCProgressionManager npc, IEnumerator routine) session, string reason)
+    {
+        Check(!session.routine.MoveNext(), reason + " must stop the legacy continuation.");
+        Check(session.npc.Moves.Count == 0, reason + " must not move the NPC.");
+    }
+    public static int Run()
+    {
+        checks = 0;
+        foreach (string phase in new[] { "MeetingMarsh", "ExplainSituation", "Material Introduction", "ProjectBriefing" })
+        {
+            var session = Setup(phase);
+            Check(!session.routine.MoveNext(), "Eligible legacy continuation should finish in one ready frame.");
+            Check(session.npc.Moves.SequenceEqual(new[] { "MarshReview" }), "Completed legacy " + phase + " must resume its appended review, once.");
+            Check(!session.routine.MoveNext() && session.npc.Moves.Count == 1, "Repeated coroutine ticks must not duplicate legacy migration.");
+        }
+        foreach (string phase in new[] { "MarshReview", "Resolved", "UnrelatedPhase", "", null }) NoMove(Setup(phase), "Already-review/resolved/unrelated/invalid phase " + phase);
+        {
+            var session = Setup(); session.npc.CurrentPhase = null; NoMove(session, "Missing current phase");
+        }
+        {
+            var session = Setup(); PlayerDataManager.Instance.Completed = false; NoMove(session, "Not collected contract");
+        }
+        {
+            var session = Setup(); session.npc.ProgressionSaveId = "MainContractNPC"; NoMove(session, "Another NPC identity");
+        }
+        {
+            var session = Setup(); Set(session.helper, "contract", null); NoMove(session, "Missing contract");
+        }
+        {
+            var session = Setup(); Set(session.helper, "npc", null); NoMove(session, "Missing NPC");
+        }
+        {
+            var session = Setup(); session.helper.isActiveAndEnabled = false; NoMove(session, "Disabled helper");
+        }
+        {
+            var session = Setup(); session.npc.isActiveAndEnabled = false; NoMove(session, "Disabled NPC");
+        }
+        foreach (bool saveProtected in new[] { false, true })
+        {
+            var session = Setup(); FusionConnectionManager.Instance = new FusionConnectionManager { IsGuestInHostWorld = !saveProtected, IsGuestSaveProtected = saveProtected };
+            NoMove(session, saveProtected ? "Save-protected visitor" : "Guest in host world");
+        }
+        foreach (string missingId in new[] { "", null, "AbsentReview" })
+        {
+            var session = Setup(); Set(session.helper, "reviewPhaseId", missingId); NoMove(session, "Invalid/missing review phase identity");
+        }
+        {
+            var session = Setup(); session.npc.AuthoredPhases = null; NoMove(session, "Missing phase list");
+        }
+        {
+            var session = Setup(); session.npc.AuthoredPhases = new List<NPCProgressionPhase> { null, new NPCProgressionPhase { phaseId = "MarshReview", contract = new ContractSO() } };
+            NoMove(session, "Review incorrectly owns a contract");
+        }
+        {
+            var session = Setup(); session.npc.AuthoredPhases = new List<NPCProgressionPhase> { new NPCProgressionPhase { phaseId = "MarshReview" }, new NPCProgressionPhase { phaseId = "MarshReview" } };
+            NoMove(session, "Duplicate review identity");
+        }
+        foreach (string gate in new[] { "dialogue", "panel", "pause", "transition", "build", "simulation", "travelling" })
+        {
+            var session = Setup();
+            if (gate == "dialogue") DialogueManager.IsAnyDialogueActive = true;
+            if (gate == "panel") UIPanelCoordinator.Instance.HasOpenPanel = true;
+            if (gate == "pause") Time.timeScale = 0f;
+            if (gate == "transition") GameManager.Instance.IsTransitioning = true;
+            if (gate == "build") GameManager.Instance.CurrentState = GameManager.GameState.Build;
+            if (gate == "simulation") GameManager.Instance.CurrentState = GameManager.GameState.Simulation;
+            if (gate == "travelling") session.npc.IsTravelling = true;
+            Check(session.routine.MoveNext() && session.npc.Moves.Count == 0, "Legacy continuation must wait during " + gate + ".");
+            Check(session.routine.MoveNext() && session.npc.Moves.Count == 0, "Legacy continuation must keep waiting, not drop/duplicate " + gate + ".");
+            DialogueManager.IsAnyDialogueActive = false; UIPanelCoordinator.Instance.HasOpenPanel = false; Time.timeScale = 1f;
+            GameManager.Instance.IsTransitioning = false; GameManager.Instance.CurrentState = GameManager.GameState.Normal; session.npc.IsTravelling = false;
+            Check(!session.routine.MoveNext() && session.npc.Moves.SequenceEqual(new[] { "MarshReview" }), "Releasing " + gate + " must resume exactly once.");
+        }
+        {
+            var session = Setup(); DialogueManager.IsAnyDialogueActive = true; Check(session.routine.MoveNext(), "Stale phase setup must wait.");
+            session.npc.CurrentPhase = new NPCProgressionPhase { phaseId = "MarshReview" }; DialogueManager.IsAnyDialogueActive = false;
+            NoMove(session, "Normal progression already reached review while waiting");
+        }
+        {
+            var session = Setup(); UIPanelCoordinator.Instance.HasOpenPanel = true; Check(session.routine.MoveNext(), "Contract removal setup must wait.");
+            PlayerDataManager.Instance.Completed = false; UIPanelCoordinator.Instance.HasOpenPanel = false;
+            NoMove(session, "Completion no longer belongs to current profile");
+        }
+        foreach (bool nullData in new[] { false, true })
+        {
+            var session = Setup();
+            if (nullData) PlayerDataManager.Instance.CurrentData = null; else PlayerDataManager.Instance = null;
+            Check(session.routine.MoveNext() && session.npc.Moves.Count == 0, "Missing save owner/data must wait, not claim completion.");
+            PlayerDataManager.Instance = new PlayerDataManager();
+            Check(!session.routine.MoveNext() && session.npc.Moves.Count == 1, "Ready completed save can resume after asynchronous restoration.");
+        }
+        {
+            var session = Setup(); UIPanelCoordinator.Instance = null; GameManager.Instance = null;
+            Check(!session.routine.MoveNext() && session.npc.Moves.Count == 1, "Absent optional panel/game managers should not block an otherwise valid legacy continuation.");
+        }
+        return checks;
+    }
+}

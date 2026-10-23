@@ -389,6 +389,15 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
     private void Update()
     {
         if (ClipboardManager.IsBuildInputBlocked) return;
+        // The public selection field and an already-started gesture can survive
+        // a contract change. Never commit a newly opt-in material through either.
+        if ((activeMaterial != null && !HasContractMaterialOptIn(activeMaterial)) ||
+            (currentBar != null && currentBar.materialData != null && !HasContractMaterialOptIn(currentBar.materialData)))
+        {
+            CancelCreation();
+            SetActiveMaterial(null);
+            return;
+        }
         if (drawingPointerCaptured && !DrawingSessionIsValid())
         {
             CancelCreation();
@@ -857,6 +866,7 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
 
     private void CreateGhostPierBar()
     {
+        if (activeMaterial == null || !HasContractMaterialOptIn(activeMaterial)) return;
         GameObject obj = Instantiate(barToInstantiate, barParent);
         obj.name = "GhostPierBar";
         ghostPierBar = obj.GetComponent<Bar>();
@@ -1003,6 +1013,14 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
         if (tutorialDirector != null && !tutorialDirector.CanPlaceMaterials)
         {
             tutorialDirector.NotifyBlockedBuildAttempt();
+            return;
+        }
+
+        // Check before creating even the temporary pier-foundation point.
+        if (activeMaterial != null && !HasContractMaterialOptIn(activeMaterial))
+        {
+            CancelCreation();
+            SetActiveMaterial(null);
             return;
         }
 
@@ -1465,6 +1483,7 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
 
     public void SetActiveMaterial(BridgeMaterialSO newMaterial)
     {
+        if (newMaterial != null && !HasContractMaterialOptIn(newMaterial)) return;
         if (newMaterial != null)
         {
             if (activeMaterial != null && !activeMaterial.isPier) previousNonPierMaterial = activeMaterial;
@@ -1870,6 +1889,7 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
     private void StartBarCreation(Vector3 startPosition)
     {
         if (activeMaterial == null) return;
+        if (!HasContractMaterialOptIn(activeMaterial)) { CancelCreation(); return; }
         if (BuildUIController.Instance != null)
             BuildUIController.Instance.OnBridgePlacementStarted();
         GameObject newBar = Instantiate(barToInstantiate, barParent);
@@ -1890,6 +1910,13 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
 
     private void FinishBarCreation(Vector3 rawWorldPos, Point existingEndPoint, Vector3 exactSnapPos)
     {
+        if ((activeMaterial != null && !HasContractMaterialOptIn(activeMaterial)) ||
+            (currentBar != null && currentBar.materialData != null && !HasContractMaterialOptIn(currentBar.materialData)))
+        {
+            CancelCreation();
+            SetActiveMaterial(null);
+            return;
+        }
         if (currentBar == null || currentStartPoint == null || currentEndPoint == null) 
         {
             CancelCreation();
@@ -2133,6 +2160,7 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
     // Plan the entire gesture first; no partial bridge is committed if it is canceled.
     private bool TryStartNodeAutoDraw(Point destination)
     {
+        if (activeMaterial != null && !HasContractMaterialOptIn(activeMaterial)) return false;
         if (!IsAutoDrawNodePair(destination)) return false;
 
         Point origin = currentStartPoint;
@@ -2344,13 +2372,18 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
 
     private bool CanContinueAutoDraw(BridgeMaterialSO material, List<Point> nodes, BuildLocation location)
     {
-        return !isSimulating && activeMaterial == material && nodes[0] != null &&
+        return material != null && HasContractMaterialOptIn(material) && !isSimulating && activeMaterial == material && nodes[0] != null &&
             nodes[nodes.Count - 1] != null && nodes[0].gameObject.activeInHierarchy &&
             nodes[nodes.Count - 1].gameObject.activeInHierarchy &&
             (GameManager.Instance == null || (GameManager.Instance.CurrentState == GameManager.GameState.Building &&
                 GameManager.Instance.ActiveBuildLocation == location)) &&
             (BuildTutorialDirector.Instance == null || BuildTutorialDirector.Instance.CanPlaceMaterials);
     }
+
+    // Legacy materials return true here; their existing placement, quantity,
+    // purchase and tutorial behavior stays with the original owners.
+    private static bool HasContractMaterialOptIn(BridgeMaterialSO material) => material != null &&
+        material.CanUseInContract(GameManager.Instance != null ? GameManager.Instance.CurrentContract : null);
 
     private void PlaceAutoDrawRing(RectTransform ring, Vector3 position)
     {

@@ -1,0 +1,85 @@
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+namespace UnityEngine
+{
+    public class ScriptableObject { public string name = "Test material"; }
+    public class GameObject { public bool activeSelf; public void SetActive(bool value) { activeSelf = value; } }
+    public class Sprite { }
+    public struct Color { public static Color white => new Color(); }
+    public static class Mathf
+    {
+        public static float Max(float a, float b) => Math.Max(a, b);
+        public static float Clamp(float x, float a, float b) => Math.Clamp(x, a, b);
+        public static float Pow(float a, float b) => (float)Math.Pow(a, b);
+    }
+    public class CreateAssetMenuAttribute : Attribute { public string fileName, menuName; }
+    public class HeaderAttribute : Attribute { public HeaderAttribute(string value) { } }
+    public class TooltipAttribute : Attribute { public TooltipAttribute(string value) { } }
+    public class SerializeField : Attribute { }
+    public class TextAreaAttribute : Attribute { public TextAreaAttribute(int min, int max) { } }
+    public class MinAttribute : Attribute { public MinAttribute(float value) { } }
+    public class RangeAttribute : Attribute { public RangeAttribute(float min, float max) { } }
+}
+/*ALLOWANCE*/
+public class ContractSO
+{
+    public string ContractID = "test-contract";
+    public List<MaterialAllowance> allowedMaterials = new List<MaterialAllowance>();
+    public List<BridgeMaterialSO> hiddenMaterials = new List<BridgeMaterialSO>();
+    /*CONTRACT_HIDDEN*/
+}
+public class GameManager
+{
+    public static GameManager Instance;
+    public ContractSO CurrentContract;
+    public bool IsSessionChallengeBuild;
+}
+public class MaterialButtonTrigger { public BridgeMaterialSO buttonMaterial; }
+public class TextField { public string text; }
+public class PlayerData { public int gold = 10000; }
+public class PlayerDataManager
+{
+    public static PlayerDataManager Instance;
+    public PlayerData CurrentData = new PlayerData();
+    public bool OwnsMaterial;
+    public int PurchaseCalls;
+    public string LastContract;
+    public bool IsMaterialUnlockedForContract(string contract, string material) => OwnsMaterial;
+    public bool TryPurchaseMaterialForContract(string contract, string material, int cost)
+    { PurchaseCalls++; LastContract = contract; return true; }
+}
+public class GameWalletService
+{
+    public static GameWalletService Instance;
+    public bool UsesSharedCoins;
+    public int PurchaseCalls;
+    public void PurchaseMaterial(string contract, string material, Action<bool, string> done)
+    { PurchaseCalls++; done(true, null); }
+}
+public class BuildUIController
+{
+    private MaterialButtonTrigger pendingUnlockButton;
+    private ContractSO pendingUnlockContract;
+    public UnityEngine.GameObject unlockMaterialPanel = new UnityEngine.GameObject();
+    public TextField unlockMaterialText = new TextField();
+    public int Usage;
+    public int RefreshCalls;
+    public string LastLog;
+    public int GetMaterialUsageCount(BridgeMaterialSO material) => Usage;
+    public void RefreshAllMaterialButtons() { RefreshCalls++; }
+    public void LogAction(string value) { LastLog = value; }
+    /*UI_METHODS*/
+}
+/*COPIED_BAR*/
+public class ClipboardManager
+{
+    public List<CopiedBarInfo> copiedBars = new List<CopiedBarInfo>();
+    /*CLIPBOARD_GUARD*/
+    public bool BoundaryMayPaste() => HasContractPermissionForCopiedMaterials();
+}
+public class BarCreator
+{
+    /*DRAW_GUARD*/
+    public static bool BoundaryMayUse(BridgeMaterialSO material) => HasContractMaterialOptIn(material);
+}

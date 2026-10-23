@@ -1,0 +1,103 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8277db26963c4a7a81a4dcb5e6307197, type: 3}
+  m_Name: MovingLoadQuiz
+  m_EditorClassIdentifier:
+  quizId: civil-craft-moving-load-quiz-v1
+  title: Moving Load Quiz
+  assessmentMode: 1
+  questions:
+  - questionId: moving-load
+    prompt: What is a Moving Load in bridge construction?
+    choices:
+    - text: A load that remains in one position on a bridge.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: A load that changes position as it travels across a structure.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: A load that only affects the bridge's supports.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: A load that does not create forces on the bridge.
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 1
+    feedback:
+  - questionId: structural-response
+    prompt: What happens to the forces acting on a bridge as a vehicle moves across it?
+    choices:
+    - text: The forces remain exactly the same at every position.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: The forces disappear when the vehicle reaches the middle.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: The forces and stresses can change as the vehicle changes position.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: The forces only affect the bridge after the vehicle crosses.
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 2
+    feedback:
+  - questionId: support-reactions
+    prompt: When a vehicle is near one end of a simply supported bridge, which support generally carries a greater share of that vehicle's weight?
+    choices:
+    - text: The support closest to the vehicle.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: The support farthest from the vehicle.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: Both supports always carry exactly the same amount.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: Neither support carries any load.
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 0
+    feedback:
+  - questionId: bending-effect
+    prompt: For a simply supported bridge, what generally happens to the bending effect near the center as a vehicle moves toward the middle?
+    choices:
+    - text: It disappears completely.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: It remains unchanged regardless of vehicle position.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: It becomes unrelated to the vehicle's weight.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: It generally increases as the vehicle approaches the middle.
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 3
+    feedback:
+  - questionId: structural-safety
+    prompt: Why must a bridge be tested with vehicles moving across the entire span?
+    choices:
+    - text: Because only the vehicle's starting position affects the structure.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: Because the bridge must safely handle different loads and structural responses throughout the crossing.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: Because moving vehicles eliminate the need for structural supports.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: Because the bridge experiences no forces once the vehicle starts moving.
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 1
+    feedback:

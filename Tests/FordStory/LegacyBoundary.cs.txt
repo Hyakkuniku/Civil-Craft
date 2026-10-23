@@ -1,0 +1,31 @@
+using System.Collections.Generic;
+namespace UnityEngine
+{
+    public class MonoBehaviour { public bool isActiveAndEnabled = true; }
+    public sealed class DisallowMultipleComponent : System.Attribute { }
+    public sealed class SerializeField : System.Attribute { }
+    public static class Time { public static float timeScale = 1f; }
+}
+public sealed class NPCProgressionPhase { public string phaseId; public ContractSO contract; }
+public sealed class ContractSO { public string ContractID = "FordMainContract"; }
+public sealed class NPCProgressionManager
+{
+    public string ProgressionSaveId = "FordNPC";
+    public bool isActiveAndEnabled = true;
+    public bool IsTravelling;
+    public NPCProgressionPhase CurrentPhase;
+    public IReadOnlyList<NPCProgressionPhase> AuthoredPhases;
+    public readonly List<string> Moves = new();
+    public void MoveToPhaseById(string id) { Moves.Add(id); CurrentPhase = new NPCProgressionPhase { phaseId = id }; }
+}
+public sealed class PlayerDataManager
+{
+    public static PlayerDataManager Instance;
+    public object CurrentData = new();
+    public bool Completed = true;
+    public bool HasContractCompletionRecord(string id) => Completed && id == "FordMainContract";
+}
+public sealed class FusionConnectionManager { public static FusionConnectionManager Instance; public bool IsGuestInHostWorld; public bool IsGuestSaveProtected; }
+public static class DialogueManager { public static bool IsAnyDialogueActive; }
+public sealed class UIPanelCoordinator { public static UIPanelCoordinator Instance; public bool HasOpenPanel; }
+public sealed class GameManager { public enum GameState { Normal, Build, Simulation } public static GameManager Instance; public bool IsTransitioning; public GameState CurrentState; }

@@ -72,9 +72,11 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
 
     public void EvaluateMaterialRestriction()
     {
-        isMaterialAllowed = buttonMaterial != null;
+        ContractSO currentContract = GameManager.Instance != null ? GameManager.Instance.CurrentContract : null;
+        bool hasContractOptIn = buttonMaterial != null && buttonMaterial.CanUseInContract(currentContract);
+        isMaterialAllowed = hasContractOptIn;
         hasReachedQuantityLimit = false;
-        isMaterialHidden = buttonMaterial == null;
+        isMaterialHidden = !hasContractOptIn;
         bool isTutorial = false; 
         bool isExplicitlyHidden = false;
 

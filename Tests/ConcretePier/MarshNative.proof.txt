@@ -1,0 +1,12 @@
+Narrow Marsh Concrete Pier update: apply
+Protected serialized-field snapshots: Marsh=688, contract=91, material=37.
+Existing Marsh phase index=2, dialogue step=5, material step=6; allowance index=2, maxPieces=0.
+Pending replacements: sentence=True, introduction asset=True, allowance=True, optional blank material description=True.
+Loaded Canyon dirty before command=False; existing unsaved scene edits are allowed and preserved.
+Recoverable target asset/meta and native Marsh snapshot backup: C:\Users\Hyakk\AppData\Local\Temp\CivilCraft-ConcretePierMarsh-20261020-234818-800
+APPLIED: only the existing pier material pointer, emphasized name and one allowance pointer changed; maxPieces, all numbers and all other fields retained.
+Only the exact changed Marsh Contract/Concrete Pier assets were saved. CanyonCrossing remains open for your manual scene save.
+PASS: requested narrow scope checked.
+NEEDS_SAVE: CanyonCrossing; save manually with your existing edits.
+Existing player saves were not migrated. Wood Pier is not hidden and retains its legacy purchase behavior.
+No full story migration, phase/step ID changes, numeric balance edits, player data calls, or scene auto-save.

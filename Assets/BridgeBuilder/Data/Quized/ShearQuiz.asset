@@ -1,0 +1,103 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8277db26963c4a7a81a4dcb5e6307197, type: 3}
+  m_Name: ShearQuiz
+  m_EditorClassIdentifier:
+  quizId: civil-craft-shear-quiz-v1
+  title: Shear Quiz
+  assessmentMode: 1
+  questions:
+  - questionId: shear
+    prompt: What is Shear in structural engineering?
+    choices:
+    - text: A force that stretches a structural member.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: An internal force that resists adjacent parts of a material sliding past each other.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: A force that only causes a bridge to bend.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: A force that removes the weight acting on a structure.
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 1
+    feedback:
+  - questionId: cause-of-shear
+    prompt: How do shear forces develop in a bridge beam carrying a heavy vehicle?
+    choices:
+    - text: The vehicle pushes upward while the supports push downward.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: The vehicle and supports remove all internal forces.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: The vehicle pushes downward while the supports provide upward reactions.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: The bridge experiences shear only when no vehicle is present.
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 2
+    feedback:
+  - questionId: shear-near-supports
+    prompt: In a simply supported beam carrying a load near the middle, where is shear force often greatest?
+    choices:
+    - text: In the regions near the supports.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: Only at the exact center of the beam.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: Outside the bridge structure.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: Only above the vehicle.
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 0
+    feedback:
+  - questionId: shear-and-bending
+    prompt: Which statement correctly describes Shear and Bending?
+    choices:
+    - text: Shear and bending are exactly the same force.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: Bending occurs only in bridges without supports.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: Shear eliminates bending in structural members.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: Shear and bending are different internal effects that can occur in the same structural member.
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 3
+    feedback:
+  - questionId: excessive-shear
+    prompt: What may happen if a structural member cannot safely withstand the shear forces acting on it?
+    choices:
+    - text: It automatically becomes stronger.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: It may crack or fail.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: It stops carrying all loads without damage.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: It eliminates the need for additional supports.
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 1
+    feedback:

@@ -1,0 +1,103 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8277db26963c4a7a81a4dcb5e6307197, type: 3}
+  m_Name: ArchBridgeQuiz
+  m_EditorClassIdentifier:
+  quizId: civil-craft-arch-bridge-quiz-v1
+  title: Arch Bridge Quiz
+  assessmentMode: 1
+  questions:
+  - questionId: arch-bridge
+    prompt: What is the main structural characteristic of an Arch Bridge?
+    choices:
+    - text: It uses cables to suspend the roadway.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: It uses a curved structural shape to carry loads.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: It uses only straight horizontal beams.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: It carries loads without structural supports.
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 1
+    feedback:
+  - questionId: compression
+    prompt: What type of force does an arch primarily carry when weight is applied?
+    choices:
+    - text: Tension
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: Torsion
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: Compression
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: Shear
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 2
+    feedback:
+  - questionId: abutments
+    prompt: What is the main purpose of the Abutments in an Arch Bridge?
+    choices:
+    - text: To resist the outward push created by the arch.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: To increase the speed of vehicles crossing the bridge.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: To suspend the roadway using cables.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: To prevent boats from traveling beneath the bridge.
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 0
+    feedback:
+  - questionId: load-transfer
+    prompt: How does an Arch Bridge transfer loads toward its supports?
+    choices:
+    - text: By transferring all loads directly into the water.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: By removing the weight of vehicles as they cross.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: By transferring loads only through the roadway without using the arch.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: By carrying forces along the curved arch toward the supports at both ends.
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 3
+    feedback:
+  - questionId: waterway-clearance
+    prompt: Why must Marsh's bridge provide sufficient clearance beneath the roadway?
+    choices:
+    - text: To prevent vehicles from applying weight to the bridge.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: To allow boats to pass safely underneath the bridge.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: To eliminate the need for abutments.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: To make the bridge carry loads only through tension.
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 1
+    feedback:

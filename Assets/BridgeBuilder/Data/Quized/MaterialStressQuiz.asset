@@ -1,0 +1,103 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8277db26963c4a7a81a4dcb5e6307197, type: 3}
+  m_Name: MaterialStressQuiz
+  m_EditorClassIdentifier:
+  quizId: civil-craft-material-stress-quiz-v1
+  title: Material Stress Quiz
+  assessmentMode: 1
+  questions:
+  - questionId: material-stress
+    prompt: What is Material Stress in structural engineering?
+    choices:
+    - text: The total weight of a bridge and its materials.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: The amount of movement a vehicle creates while crossing.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: The internal force per unit area developed within a material under load.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: The distance between a bridge's structural supports.
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 2
+    feedback:
+  - questionId: causes-of-stress
+    prompt: Which of the following can cause stress in a bridge's structural members?
+    choices:
+    - text: Only the length of the bridge.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: Tension, compression, bending, or shear.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: Only the color and appearance of the materials.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: The number of vehicles parked near the bridge.
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 1
+    feedback:
+  - questionId: concrete-behavior
+    prompt: Which statement correctly describes how concrete generally behaves under forces?
+    choices:
+    - text: Concrete is equally strong in tension and compression.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: Concrete cannot withstand any compression.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: Concrete is strongest only when pulled apart.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: Concrete generally handles compression well but is weaker in tension unless reinforced.
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 3
+    feedback:
+  - questionId: excessive-stress
+    prompt: What may happen when the stress in a structural member exceeds what its material can safely withstand?
+    choices:
+    - text: The member may crack, deform excessively, or fail.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: The member automatically becomes stronger.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: The bridge stops experiencing internal forces.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: The material becomes unaffected by additional loads.
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 0
+    feedback:
+  - questionId: structural-safety
+    prompt: Why is it important to choose suitable materials and arrange supports properly?
+    choices:
+    - text: To eliminate the need for bridge testing.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: To ensure all structural members carry exactly the same force.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: To help keep the stresses within safe limits under applied loads.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: To prevent vehicles from creating any downward force.
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 2
+    feedback:

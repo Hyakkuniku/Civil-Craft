@@ -1,0 +1,31 @@
+<Project>
+  <PropertyGroup>
+    <BaseIntermediateOutputPath>obj/editor-compile/</BaseIntermediateOutputPath>
+    <MSBuildProjectExtensionsPath>obj/editor-compile/</MSBuildProjectExtensionsPath>
+  </PropertyGroup>
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <DefineConstants>UNITY_EDITOR</DefineConstants>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <OutputPath>bin/editor-compile/</OutputPath>
+    <AssemblyName>BrooksStory.EditorCompile</AssemblyName>
+    <UnityManagedRoot Condition="'$(UnityManagedRoot)' == ''">D:/UNITY/2022.3.62f3/Editor/Data/Managed</UnityManagedRoot>
+    <GameLibraryRoot Condition="'$(GameLibraryRoot)' == ''">../../Library/ScriptAssemblies</GameLibraryRoot>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Assets/Editor/BrooksStoryAuthoring.cs" />
+    <Compile Include="../../Assets/Editor/BrooksStoryCameraValidation.cs" />
+    <Compile Include="../../Assets/Script/Client/BrooksPostContractContinuation.cs" />
+    <Reference Include="Assembly-CSharp"><HintPath>$(GameLibraryRoot)/Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UI"><HintPath>$(GameLibraryRoot)/UnityEngine.UI.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Unity.TextMeshPro"><HintPath>$(GameLibraryRoot)/Unity.TextMeshPro.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Unity.RenderPipelines.Universal.Runtime"><HintPath>$(GameLibraryRoot)/Unity.RenderPipelines.Universal.Runtime.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Unity.RenderPipelines.Core.Runtime"><HintPath>$(GameLibraryRoot)/Unity.RenderPipelines.Core.Runtime.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="$(UnityManagedRoot)/UnityEditor.dll"><Private>false</Private></Reference>
+    <Reference Include="$(UnityManagedRoot)/UnityEngine/*.dll"><Private>false</Private></Reference>
+    <Reference Include="$(UnityManagedRoot)/UnityEditor/*.dll"><Private>false</Private></Reference>
+  </ItemGroup>
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+</Project>

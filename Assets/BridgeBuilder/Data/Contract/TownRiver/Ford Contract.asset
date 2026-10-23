@@ -11,13 +11,13 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
   m_Name: Ford Contract
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   liveLoadMode: 0
   allowVehicleCargo: 0
   minimumLoadedCargo: 0
-  cargoUnlockProgressionId:
+  cargoUnlockProgressionId: 
   cargoUnlockAfterDialoguePhaseIndex: -1
-  cargoLoadedNPCPhaseId:
+  cargoLoadedNPCPhaseId: 
   contractID: FordMainContract
   hideFromLeaderboard: 1
   efficiencyStarBudgetRatio: 0.85
@@ -32,11 +32,11 @@ MonoBehaviour:
   jobDescription: Build a safe, direct bridge route for loaded cargo trucks to reach
     the construction site. The rocky section may be used as an extra support point.
     Observe the structural members under stress while testing the crossing.
-  budget: 2000
+  budget: 60000000
   liveLoadWeight: 50
-  bridgeSpan: 30
+  bridgeSpan: 80
   allowedMaterials: []
-  hiddenTools: []
+  hiddenTools: 
   hiddenMaterials: []
   enforceMaxStress: 0
   maxAllowedStress: 100
@@ -49,23 +49,30 @@ MonoBehaviour:
   offerDialogue:
     name: Ford
     sentences:
-    - "Here's what we need."
-    - Build a bridge that gives our loaded cargo trucks a direct route to the construction site.
-    - "<b><#E09500>You can use that rocky section as an extra support point if you think it'll help</color></b>."
-    - During testing, keep an eye on which parts of the bridge experience the greatest stress.
-    - "<b><#E09500>These trucks carry a lot of weight, so make sure the structure can handle them safely</color></b>."
-    - "I'll leave the design decisions to you, {PlayerName}. If you're ready, take the contract."
+    - Here's what we need.
+    - Build a bridge that gives our loaded cargo trucks a direct route to the construction
+      site.
+    - <b><#E09500>You can use that rocky section as an extra support point if you
+      think it'll help</color></b>.
+    - During testing, keep an eye on which parts of the bridge experience the greatest
+      stress.
+    - <b><#E09500>These trucks carry a lot of weight, so make sure the structure
+      can handle them safely</color></b>.
+    - I'll leave the design decisions to you, {PlayerName}. If you're ready, take
+      the contract.
   continueOfferDialogue:
     name: Ford
     sentences: []
   reminderDialogue:
     name: Ford
     sentences:
-    - "<b><#E09500>Those trucks aren't light. If a part of the bridge is taking too much stress, you might need to rethink the supports or structural arrangement</color></b>."
+    - <b><#E09500>Those trucks aren't light. If a part of the bridge is taking too
+      much stress, you might need to rethink the supports or structural arrangement</color></b>.
   finishedContractDialogue:
     name: Ford
     sentences:
-    - "Now that's a route our crews can work with!"
-    - The trucks can head straight to the site instead of traveling through other routes.
-    - "That'll save us plenty of time on deliveries."
-    - "You've done us a big favor, {PlayerName}. Thanks for the help!"
+    - Now that's a route our crews can work with!
+    - The trucks can head straight to the site instead of traveling through other
+      routes.
+    - That'll save us plenty of time on deliveries.
+    - You've done us a big favor, {PlayerName}. Thanks for the help!

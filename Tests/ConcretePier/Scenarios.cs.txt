@@ -1,0 +1,141 @@
+using System;
+using System.Collections.Generic;
+public static class ConcretePierScenarios
+{
+    private static int checks;
+    private static void Check(bool value, string message)
+    { checks++; if (!value) throw new Exception(message); }
+    private static ContractSO With(BridgeMaterialSO material, int limit = 0) => new ContractSO {
+        allowedMaterials = new List<MaterialAllowance> { null, new MaterialAllowance { material = material, maxPieces = limit } }
+    };
+    private static void Reset(ContractSO contract)
+    {
+        GameManager.Instance = new GameManager { CurrentContract = contract };
+        PlayerDataManager.Instance = new PlayerDataManager();
+        GameWalletService.Instance = new GameWalletService();
+    }
+    public static int Run()
+    {
+        var legacy = new BridgeMaterialSO { name = "Existing material" };
+        var pier = new BridgeMaterialSO { name = "Concrete Pier", requiresExplicitContractAllowance = true };
+        var equalIdDifferentAsset = new BridgeMaterialSO { name = "Concrete Pier", requiresExplicitContractAllowance = true };
+        var unrelated = new BridgeMaterialSO { name = "Other material" };
+        var ui = new BuildUIController();
+        Check(!legacy.requiresExplicitContractAllowance, "Old saves/assets default to the legacy material behavior.");
+        Check(pier.Id == "Concrete Pier", "The new asset must preserve its existing name-fallback save ID.");
+        Check(pier.Id == equalIdDifferentAsset.Id && !ReferenceEquals(pier, equalIdDifferentAsset), "Identity spoof scenario needs different assets with equal IDs.");
+        Check(!pier.CanUseInContract(null), "No contract must not opt in a new material.");
+        Check(!pier.CanUseInContract(new ContractSO()), "An unrestricted empty list must not opt in a new material.");
+        Check(!pier.CanUseInContract(new ContractSO { allowedMaterials = null }), "A null list must not opt in a new material.");
+        Check(!pier.CanUseInContract(With(unrelated)), "An unrelated allowance must not opt in a new material.");
+        Check(!pier.CanUseInContract(With(equalIdDifferentAsset)), "Equal names/IDs cannot replace the exact allowed SO identity.");
+        var explicitContract = With(pier);
+        Check(pier.CanUseInContract(explicitContract), "The exact new material allowance opts it in.");
+        Check(!explicitContract.IsMaterialHidden(pier), "The production ContractSO predicate must expose an explicitly allowed new material.");
+        explicitContract.hiddenMaterials.Add(pier);
+        Check(!pier.CanUseInContract(explicitContract) && explicitContract.IsMaterialHidden(pier), "Explicit hiding must win over the opt-in allowance.");
+        explicitContract.hiddenMaterials.Clear();
+        explicitContract.hiddenMaterials = null;
+        Check(pier.CanUseInContract(explicitContract), "A null hidden list must not reject an explicit allowance.");
+        Check(legacy.CanUseInContract(null) && legacy.CanUseInContract(new ContractSO { allowedMaterials = null }), "The additional guard must not restrict legacy null/unrestricted contexts.");
+        var legacyHidden = With(legacy);
+        legacyHidden.hiddenMaterials.Add(legacy);
+        Check(legacy.CanUseInContract(legacyHidden) && legacyHidden.IsMaterialHidden(legacy), "Legacy explicit hiding remains owned by the production contract/UI checks.");
+        Check(!legacyHidden.IsMaterialHidden(null), "Null-material hidden behavior must remain unchanged.");
+        Reset(null);
+        Check(ui.CanSelectMaterial(legacy) && !ui.CanSelectMaterial(pier), "Actual UI selection must distinguish legacy/new material with no active contract.");
+        GameManager.Instance.CurrentContract = new ContractSO();
+        Check(ui.CanSelectMaterial(legacy) && !ui.CanSelectMaterial(pier), "Actual UI must preserve unrestricted legacy selection but hide opt-in additions.");
+        GameManager.Instance.CurrentContract = With(unrelated);
+        Check(!ui.CanSelectMaterial(legacy), "Legacy restricted material still requires allowance or purchase.");
+        PlayerDataManager.Instance.OwnsMaterial = true;
+        Check(ui.CanSelectMaterial(legacy), "Legacy purchased entitlements remain effective.");
+        Check(!ui.CanSelectMaterial(pier), "Purchased entitlement cannot bypass the new explicit opt-in guard.");
+        GameManager.Instance.CurrentContract = With(equalIdDifferentAsset);
+        Check(!ui.CanSelectMaterial(pier), "Purchased entitlement plus an equal-ID clone must not grant the actual new material.");
+        GameManager.Instance.CurrentContract = legacyHidden;
+        Check(!ui.CanSelectMaterial(legacy), "Purchased entitlements still cannot bypass legacy explicit hiding.");
+        GameManager.Instance.CurrentContract = With(legacy, 2);
+        ui.Usage = 1;
+        Check(ui.CanSelectMaterial(legacy), "Legacy quantity allowance permits a remaining piece.");
+        ui.Usage = 2;
+        Check(!ui.CanSelectMaterial(legacy), "Legacy quantity allowance still rejects exhausted stock.");
+        GameManager.Instance.CurrentContract = With(pier, 1);
+        ui.Usage = 0;
+        Check(ui.CanSelectMaterial(pier), "The exact allowance allows the new material at the actual UI boundary.");
+        ui.Usage = 1;
+        Check(!ui.CanSelectMaterial(pier), "Explicit opt-in does not bypass the existing quantity limit.");
+        GameManager.Instance.CurrentContract.hiddenMaterials.Add(pier);
+        ui.Usage = 0;
+        Check(!ui.CanSelectMaterial(pier), "Explicit hidden state wins at the actual UI boundary.");
+
+        var clipboard = new ClipboardManager();
+        clipboard.copiedBars.Add(new CopiedBarInfo { mat = legacy });
+        Reset(null);
+        Check(clipboard.BoundaryMayPaste() && BarCreator.BoundaryMayUse(legacy), "Actual clipboard/draw guards must retain legacy null-contract behavior.");
+        clipboard.copiedBars.Add(new CopiedBarInfo { mat = pier });
+        Check(!clipboard.BoundaryMayPaste() && !BarCreator.BoundaryMayUse(pier), "Actual copied-material/draw guards must reject opt-in materials with no contract.");
+        GameManager.Instance.CurrentContract = new ContractSO();
+        Check(!clipboard.BoundaryMayPaste() && !BarCreator.BoundaryMayUse(pier), "An unrestricted contract must not make a mixed new-material paste legal.");
+        GameManager.Instance.CurrentContract = With(pier);
+        Check(clipboard.BoundaryMayPaste() && BarCreator.BoundaryMayUse(pier), "The exact opt-in should pass the real copied-material/draw guards.");
+        GameManager.Instance.CurrentContract.hiddenMaterials.Add(pier);
+        Check(!clipboard.BoundaryMayPaste() && !BarCreator.BoundaryMayUse(pier), "Explicit hiding must cancel stale paste/draw permission.");
+        GameManager.Instance.CurrentContract = With(equalIdDifferentAsset);
+        Check(!clipboard.BoundaryMayPaste() && !BarCreator.BoundaryMayUse(pier), "Equal-ID substitute allowances must not bypass real clipboard/draw guards.");
+
+        // These are the real production Prompt/Confirm/Cancel methods. Only
+        // the wallet, scene singleton and visual panel are test doubles.
+        var button = new MaterialButtonTrigger { buttonMaterial = pier };
+        Reset(new ContractSO());
+        ui.PromptUnlockMaterial(button);
+        ui.ConfirmUnlockMaterial();
+        Check(!ui.unlockMaterialPanel.activeSelf && PlayerDataManager.Instance.PurchaseCalls == 0 && GameWalletService.Instance.PurchaseCalls == 0,
+            "A direct unavailable-material prompt/confirmation must never charge either wallet.");
+        Reset(With(pier));
+        ui.PromptUnlockMaterial(button);
+        GameManager.Instance.CurrentContract = With(pier);
+        ui.ConfirmUnlockMaterial();
+        Check(PlayerDataManager.Instance.PurchaseCalls == 0 && GameWalletService.Instance.PurchaseCalls == 0,
+            "A stale prompt cannot purchase on another contract even if both explicitly allow the new material.");
+        Reset(With(pier));
+        GameWalletService.Instance.UsesSharedCoins = true;
+        ui.PromptUnlockMaterial(button);
+        GameManager.Instance.CurrentContract.allowedMaterials.Clear();
+        ui.ConfirmUnlockMaterial();
+        Check(GameWalletService.Instance.PurchaseCalls == 0, "A removed allowance must be rechecked before invoking the shared wallet.");
+        Reset(With(pier));
+        ui.PromptUnlockMaterial(button);
+        GameManager.Instance.CurrentContract.hiddenMaterials.Add(pier);
+        ui.ConfirmUnlockMaterial();
+        Check(PlayerDataManager.Instance.PurchaseCalls == 0, "A newly hidden material must not consume guest currency.");
+        Reset(With(pier));
+        ui.PromptUnlockMaterial(button);
+        GameManager.Instance = null;
+        ui.ConfirmUnlockMaterial();
+        Check(PlayerDataManager.Instance.PurchaseCalls == 0 && !ui.unlockMaterialPanel.activeSelf,
+            "A prompt losing its active contract must close safely without charging.");
+        Reset(With(unrelated));
+        button.buttonMaterial = legacy;
+        ui.PromptUnlockMaterial(button);
+        ui.ConfirmUnlockMaterial();
+        Check(PlayerDataManager.Instance.PurchaseCalls == 1, "Legacy guest material purchase still reaches its existing owner.");
+        Reset(With(unrelated));
+        GameWalletService.Instance.UsesSharedCoins = true;
+        ui.PromptUnlockMaterial(button);
+        ui.ConfirmUnlockMaterial();
+        Check(GameWalletService.Instance.PurchaseCalls == 1 && PlayerDataManager.Instance.PurchaseCalls == 0,
+            "Legacy shared-wallet material purchase is unchanged.");
+        Reset(With(unrelated));
+        ui.PromptUnlockMaterial(button);
+        ui.CancelUnlockMaterial();
+        ui.ConfirmUnlockMaterial();
+        Check(PlayerDataManager.Instance.PurchaseCalls == 0, "Cancelled material prompts must stay unchargeable.");
+        Reset(With(unrelated));
+        GameManager.Instance.IsSessionChallengeBuild = true;
+        ui.PromptUnlockMaterial(button);
+        ui.ConfirmUnlockMaterial();
+        Check(PlayerDataManager.Instance.PurchaseCalls == 0, "Existing challenge purchase prohibition stays intact.");
+        return checks;
+    }
+}

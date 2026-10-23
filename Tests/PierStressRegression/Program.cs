@@ -111,6 +111,8 @@ static class Program
         overload.TryGetStress(pier,5,out _,out ratio,out tension);
         Check(!tension && ratio>1, "Weak pier must still overload in compression.");
         Console.WriteLine("PASS: weak pier overload remains detectable.");
+
+        ConcretePierStrengthChecks.Run();
     }
     static bool Same(DeterministicBridgeStressSolver.Result a, DeterministicBridgeStressSolver.Result b)
     {

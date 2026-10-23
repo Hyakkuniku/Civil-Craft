@@ -1,0 +1,4 @@
+/bin/
+/obj/
+!RonanStory.csproj
+!EditorCompile.csproj

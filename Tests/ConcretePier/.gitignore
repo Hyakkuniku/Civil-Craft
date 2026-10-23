@@ -1,0 +1,4 @@
+/bin/
+/obj/
+!ConcretePier.csproj
+!EditorCompile.csproj

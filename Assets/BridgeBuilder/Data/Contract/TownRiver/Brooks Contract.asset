@@ -11,13 +11,13 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
   m_Name: Brooks Contract
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   liveLoadMode: 0
   allowVehicleCargo: 0
   minimumLoadedCargo: 0
-  cargoUnlockProgressionId:
+  cargoUnlockProgressionId: 
   cargoUnlockAfterDialoguePhaseIndex: -1
-  cargoLoadedNPCPhaseId:
+  cargoLoadedNPCPhaseId: 
   contractID: BrooksMainContract
   hideFromLeaderboard: 1
   efficiencyStarBudgetRatio: 0.85
@@ -32,11 +32,11 @@ MonoBehaviour:
   jobDescription: Connect the market directly to Rivermere's main road with a bridge
     that safely carries taxis and heavier delivery vehicles from one end to the other.
     Observe how the structure responds as moving loads cross the span.
-  budget: 2000
+  budget: 60000000
   liveLoadWeight: 50
-  bridgeSpan: 30
+  bridgeSpan: 58.09374
   allowedMaterials: []
-  hiddenTools: []
+  hiddenTools: 
   hiddenMaterials: []
   enforceMaxStress: 0
   maxAllowedStress: 100
@@ -49,20 +49,22 @@ MonoBehaviour:
   offerDialogue:
     name: Brooks
     sentences:
-    - "We need a bridge connecting the market directly to Rivermere's main road."
+    - We need a bridge connecting the market directly to Rivermere's main road.
     - Both taxis and heavier delivery vehicles should be able to cross safely.
-    - "<b><#E09500>Make sure your design can handle them from one end of the bridge to the other</color></b>."
-    - "I'm counting on you, {PlayerName}! If you're ready, I've got the contract."
+    - <b><#E09500>Make sure your design can handle them from one end of the bridge
+      to the other</color></b>.
+    - I'm counting on you, {PlayerName}! If you're ready, I've got the contract.
   continueOfferDialogue:
     name: Brooks
     sentences: []
   reminderDialogue:
     name: Brooks
     sentences:
-    - "<b><#E09500>Watch how the bridge responds as each vehicle moves across. We want everyone to reach the other side safely</color></b>."
+    - <b><#E09500>Watch how the bridge responds as each vehicle moves across. We
+      want everyone to reach the other side safely</color></b>.
   finishedContractDialogue:
     name: Brooks
     sentences:
     - Oh, this is wonderful!
     - Customers and delivery vehicles finally have a more direct way into the market.
-    - "The merchants are going to love this. Thank you so much, {PlayerName}!"
+    - The merchants are going to love this. Thank you so much, {PlayerName}!

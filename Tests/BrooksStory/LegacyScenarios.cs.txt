@@ -1,0 +1,109 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using UnityEngine;
+
+public static class LegacyScenarios
+{
+    private static int checks;
+    private static void Check(bool value, string message) { checks++; if (!value) throw new InvalidOperationException(message); }
+    private static void Set(object owner, string field, object value) => owner.GetType().GetField(field, BindingFlags.Instance | BindingFlags.NonPublic).SetValue(owner, value);
+    private static (BrooksPostContractContinuation helper, NPCProgressionManager npc, IEnumerator routine) Setup(string phase = "ProjectBriefing")
+    {
+        Time.timeScale = 1f;
+        DialogueManager.IsAnyDialogueActive = false;
+        UIPanelCoordinator.Instance = new UIPanelCoordinator();
+        GameManager.Instance = new GameManager();
+        FusionConnectionManager.Instance = null;
+        PlayerDataManager.Instance = new PlayerDataManager();
+        var npc = new NPCProgressionManager { CurrentPhase = new NPCProgressionPhase { phaseId = phase },
+            AuthoredPhases = new[] { new NPCProgressionPhase { phaseId = "BrooksReview" } } };
+        var helper = new BrooksPostContractContinuation();
+        Set(helper, "npc", npc); Set(helper, "contract", new ContractSO()); Set(helper, "reviewPhaseId", "BrooksReview");
+        IEnumerator routine = (IEnumerator)typeof(BrooksPostContractContinuation).GetMethod("Start", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(helper, null);
+        Check(routine.MoveNext() && npc.Moves.Count == 0, "Legacy Brooks must first wait for save/NPC Start restoration.");
+        return (helper, npc, routine);
+    }
+    private static void NoMove((BrooksPostContractContinuation helper, NPCProgressionManager npc, IEnumerator routine) session, string reason)
+    {
+        Check(!session.routine.MoveNext() && session.npc.Moves.Count == 0, "Do not migrate Brooks: " + reason);
+    }
+    public static int Run()
+    {
+        checks = 0;
+        foreach (string phase in new[] { "MeetingBrooks", "ExplainSituation", "LessonIntroduction", "ProjectBriefing" })
+        {
+            var session = Setup(phase);
+            Check(!session.routine.MoveNext() && session.npc.Moves.SequenceEqual(new[] { "BrooksReview" }), "A collected legacy contract in " + phase + " must resume BrooksReview once.");
+            Check(!session.routine.MoveNext() && session.npc.Moves.Count == 1, "Repeated coroutine ticks must not duplicate continuation.");
+        }
+        foreach (string phase in new[] { "BrooksReview", "Resolved", "MeetingMarsh", "MarshReview", "", null }) NoMove(Setup(phase), "already reviewed/resolved/unrelated/null phase " + phase);
+        { var s = Setup(); s.npc.CurrentPhase = null; NoMove(s, "no phase"); }
+        { var s = Setup(); PlayerDataManager.Instance.Completed = false; NoMove(s, "contract not collected"); }
+        { var s = Setup(); s.npc.ProgressionSaveId = "MarshNPC"; NoMove(s, "another NPC identity"); }
+        { var s = Setup(); Set(s.helper, "contract", null); NoMove(s, "missing contract"); }
+        { var s = Setup(); Set(s.helper, "npc", null); NoMove(s, "missing NPC"); }
+        { var s = Setup(); s.helper.isActiveAndEnabled = false; NoMove(s, "disabled helper"); }
+        { var s = Setup(); s.npc.isActiveAndEnabled = false; NoMove(s, "disabled NPC"); }
+        foreach (bool protectedSave in new[] { false, true })
+        {
+            var s = Setup(); FusionConnectionManager.Instance = new FusionConnectionManager { IsGuestInHostWorld = !protectedSave, IsGuestSaveProtected = protectedSave };
+            NoMove(s, protectedSave ? "save-protected visitor" : "guest in host world");
+        }
+        foreach (string identity in new[] { "", null, "MissingReview" }) { var s = Setup(); Set(s.helper, "reviewPhaseId", identity); NoMove(s, "invalid review identity"); }
+        { var s = Setup(); s.npc.AuthoredPhases = null; NoMove(s, "no phase list"); }
+        { var s = Setup(); s.npc.AuthoredPhases = new[] { new NPCProgressionPhase { phaseId = "BrooksReview", contract = new ContractSO() } }; NoMove(s, "review incorrectly has a contract"); }
+        { var s = Setup(); s.npc.AuthoredPhases = new[] { new NPCProgressionPhase { phaseId = "BrooksReview" }, new NPCProgressionPhase { phaseId = "BrooksReview" } }; NoMove(s, "duplicate review identity"); }
+        foreach (string gate in new[] { "pause", "dialogue", "panel", "transition", "build", "simulation", "travelling" })
+        {
+            var s = Setup();
+            if (gate == "pause") Time.timeScale = 0f;
+            if (gate == "dialogue") DialogueManager.IsAnyDialogueActive = true;
+            if (gate == "panel") UIPanelCoordinator.Instance.HasOpenPanel = true;
+            if (gate == "transition") GameManager.Instance.IsTransitioning = true;
+            if (gate == "build") GameManager.Instance.CurrentState = GameManager.GameState.Build;
+            if (gate == "simulation") GameManager.Instance.CurrentState = GameManager.GameState.Simulation;
+            if (gate == "travelling") s.npc.IsTravelling = true;
+            Check(s.routine.MoveNext() && s.npc.Moves.Count == 0, "Must wait for " + gate + ".");
+            Check(s.routine.MoveNext() && s.npc.Moves.Count == 0, "Must keep waiting for " + gate + ".");
+            Time.timeScale = 1f; DialogueManager.IsAnyDialogueActive = false; UIPanelCoordinator.Instance.HasOpenPanel = false;
+            GameManager.Instance.IsTransitioning = false; GameManager.Instance.CurrentState = GameManager.GameState.Normal; s.npc.IsTravelling = false;
+            Check(!s.routine.MoveNext() && s.npc.Moves.SequenceEqual(new[] { "BrooksReview" }), "Releasing " + gate + " must migrate once.");
+        }
+        { var s = Setup(); UIPanelCoordinator.Instance.HasOpenPanel = true; Check(s.routine.MoveNext(), "Busy setup must wait."); s.npc.CurrentPhase = new NPCProgressionPhase { phaseId = "BrooksReview" }; UIPanelCoordinator.Instance.HasOpenPanel = false; NoMove(s, "normal progression already won the race"); }
+        { var s = Setup(); DialogueManager.IsAnyDialogueActive = true; Check(s.routine.MoveNext(), "Stale save setup must wait."); PlayerDataManager.Instance.Completed = false; DialogueManager.IsAnyDialogueActive = false; NoMove(s, "current save no longer has completion"); }
+        foreach (bool missingData in new[] { false, true })
+        {
+            var s = Setup(); if (missingData) PlayerDataManager.Instance.CurrentData = null; else PlayerDataManager.Instance = null;
+            Check(s.routine.MoveNext() && s.npc.Moves.Count == 0, "Missing save owner/data must wait without creating progress.");
+            PlayerDataManager.Instance = new PlayerDataManager(); Check(!s.routine.MoveNext() && s.npc.Moves.Count == 1, "Asynchronously restored completed save may resume once.");
+        }
+        { var s = Setup(); UIPanelCoordinator.Instance = null; GameManager.Instance = null; Check(!s.routine.MoveNext() && s.npc.Moves.Count == 1, "Absent optional UI/game managers must not block valid completed legacy state."); }
+        {
+            var s = Setup("ExplainSituation");
+            s.helper.ContinueAfterSituationCinematic();
+            Check(s.npc.Moves.SequenceEqual(new[] { "LessonIntroduction" }), "A valid own situation cinematic must continue to Brooks's lesson phase.");
+            s.helper.ContinueAfterSituationCinematic();
+            Check(s.npc.Moves.Count == 1, "Repeated cinematic callbacks must not rewind/repeat after the phase has changed.");
+        }
+        foreach (string phase in new[] { "MeetingBrooks", "LessonIntroduction", "ProjectBriefing", "BrooksReview", "Resolved", "ExplainMarsh", "", null })
+        {
+            var s = Setup(phase); s.helper.ContinueAfterSituationCinematic();
+            Check(s.npc.Moves.Count == 0, "A stale situation cinematic must not overwrite phase " + phase + ".");
+        }
+        { var s = Setup("ExplainSituation"); s.npc.CurrentPhase = null; s.helper.ContinueAfterSituationCinematic(); Check(s.npc.Moves.Count == 0, "Cinematic may not continue without an owning phase."); }
+        { var s = Setup("ExplainSituation"); s.helper.isActiveAndEnabled = false; s.helper.ContinueAfterSituationCinematic(); Check(s.npc.Moves.Count == 0, "Disabled helper must reject cinematic callbacks."); }
+        { var s = Setup("ExplainSituation"); s.npc.isActiveAndEnabled = false; s.helper.ContinueAfterSituationCinematic(); Check(s.npc.Moves.Count == 0, "Disabled NPC must reject cinematic callbacks."); }
+        { var s = Setup("ExplainSituation"); Set(s.helper, "npc", null); s.helper.ContinueAfterSituationCinematic(); Check(s.npc.Moves.Count == 0, "Missing NPC must reject cinematic callbacks."); }
+        { var s = Setup("ExplainSituation"); s.npc.ProgressionSaveId = "MarshNPC"; s.helper.ContinueAfterSituationCinematic(); Check(s.npc.Moves.Count == 0, "Wrong NPC must reject cinematic callbacks."); }
+        { var s = Setup("ExplainSituation"); s.npc.IsTravelling = true; s.helper.ContinueAfterSituationCinematic(); Check(s.npc.Moves.Count == 0, "In-flight normal movement must reject stale cinematic callbacks."); }
+        foreach (bool protectedSave in new[] { false, true })
+        {
+            var s = Setup("ExplainSituation"); FusionConnectionManager.Instance = new FusionConnectionManager { IsGuestInHostWorld = !protectedSave, IsGuestSaveProtected = protectedSave };
+            s.helper.ContinueAfterSituationCinematic(); Check(s.npc.Moves.Count == 0, "Visitors may not advance the host through cinematic callbacks.");
+        }
+        return checks;
+    }
+}

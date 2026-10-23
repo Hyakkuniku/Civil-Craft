@@ -1,0 +1,108 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &6639529044138650887
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8833919388164061822}
+  m_Layer: 0
+  m_Name: ConcretePier_Shaft
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &8833919388164061822
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6639529044138650887}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 680852643609642496}
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1001 &1818747072173671412
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 8833919388164061822}
+    m_Modifications:
+    - target: {fileID: 1175337300969424372, guid: 351c467da0d46fd4683a1bc12102b6ee,
+        type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -3.762563e-16
+      objectReference: {fileID: 0}
+    - target: {fileID: 1175337300969424372, guid: 351c467da0d46fd4683a1bc12102b6ee,
+        type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 1.6945074
+      objectReference: {fileID: 0}
+    - target: {fileID: 1175337300969424372, guid: 351c467da0d46fd4683a1bc12102b6ee,
+        type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0.00000007406926
+      objectReference: {fileID: 0}
+    - target: {fileID: 1175337300969424372, guid: 351c467da0d46fd4683a1bc12102b6ee,
+        type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 1175337300969424372, guid: 351c467da0d46fd4683a1bc12102b6ee,
+        type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.000000021855694
+      objectReference: {fileID: 0}
+    - target: {fileID: 1175337300969424372, guid: 351c467da0d46fd4683a1bc12102b6ee,
+        type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -1.110223e-16
+      objectReference: {fileID: 0}
+    - target: {fileID: 1175337300969424372, guid: 351c467da0d46fd4683a1bc12102b6ee,
+        type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 1.1102233e-16
+      objectReference: {fileID: 0}
+    - target: {fileID: 1175337300969424372, guid: 351c467da0d46fd4683a1bc12102b6ee,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1175337300969424372, guid: 351c467da0d46fd4683a1bc12102b6ee,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1175337300969424372, guid: 351c467da0d46fd4683a1bc12102b6ee,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3374836375916699197, guid: 351c467da0d46fd4683a1bc12102b6ee,
+        type: 3}
+      propertyPath: m_Name
+      value: SLAB_LOW.Bottom
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 351c467da0d46fd4683a1bc12102b6ee, type: 3}
+--- !u!4 &680852643609642496 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 1175337300969424372, guid: 351c467da0d46fd4683a1bc12102b6ee,
+    type: 3}
+  m_PrefabInstance: {fileID: 1818747072173671412}
+  m_PrefabAsset: {fileID: 0}

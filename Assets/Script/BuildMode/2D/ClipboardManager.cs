@@ -118,6 +118,11 @@ public class ClipboardManager : MonoBehaviour
 
     private void Update()
     {
+        if (isPasteMode && !HasContractPermissionForCopiedMaterials())
+        {
+            CancelPasteMode();
+            return;
+        }
         if (overrideConfirmationPending)
         {
             UIPanelCoordinator coordinator = UIPanelCoordinator.Instance;
@@ -232,6 +237,11 @@ public class ClipboardManager : MonoBehaviour
         }
 
         // Confirm a real copy before CancelAllModes clears the source selection.
+        if (!HasContractPermissionForCopiedMaterials())
+        {
+            if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("This material is not available for this contract.");
+            return;
+        }
         if (copiedBars.Count > 0 && BuildTutorialDirector.Instance != null)
             BuildTutorialDirector.Instance.NotifyCopySucceeded();
 
@@ -315,6 +325,12 @@ public class ClipboardManager : MonoBehaviour
                 copiedBars.Add(new CopiedBarInfo { startIdx = sIdx, endIdx = eIdx, mat = b.materialData });
         }
 
+        // Reject the entire cut before disabling any real bridge member.
+        if (!HasContractPermissionForCopiedMaterials())
+        {
+            if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("This material is not available for this contract.");
+            return;
+        }
         HistoryAction cutAction = new HistoryAction { isBuildEvent = false };
         
         foreach (Bar b in capturedBars)
@@ -416,11 +432,20 @@ public class ClipboardManager : MonoBehaviour
 
     private bool HasValidCopiedContent()
     {
+        if (!HasContractPermissionForCopiedMaterials()) return false;
         if (copiedRelativePoints.Count < 2 || copiedBars.Count == 0) return false;
         foreach (CopiedBarInfo bar in copiedBars)
             if (bar == null || bar.mat == null || bar.startIdx < 0 || bar.endIdx < 0 ||
                 bar.startIdx >= copiedRelativePoints.Count || bar.endIdx >= copiedRelativePoints.Count ||
                 bar.startIdx == bar.endIdx) return false;
+        return true;
+    }
+
+    private bool HasContractPermissionForCopiedMaterials()
+    {
+        ContractSO contract = GameManager.Instance != null ? GameManager.Instance.CurrentContract : null;
+        foreach (CopiedBarInfo bar in copiedBars)
+            if (bar != null && bar.mat != null && !bar.mat.CanUseInContract(contract)) return false;
         return true;
     }
 
@@ -702,6 +727,7 @@ public class ClipboardManager : MonoBehaviour
     private void CreatePasteGhosts()
     {
         DestroyPasteGhosts(); 
+        if (!HasContractPermissionForCopiedMaterials()) { CancelPasteMode(); return; }
         
         foreach (Vector3 relPos in copiedRelativePoints)
         {
@@ -732,6 +758,7 @@ public class ClipboardManager : MonoBehaviour
 
     private void UpdatePasteGhostsWorldPosition(Vector3 rootWorldPos)
     {
+        if (!HasContractPermissionForCopiedMaterials()) { CancelPasteMode(); return; }
         if (!isPasteMode || ghostPastePoints.Count == 0) return;
 
         float snappedRotation = Mathf.Round(pasteRotationOffset / 15f) * 15f;

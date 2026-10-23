@@ -11,13 +11,13 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
   m_Name: Ronan Contract
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   liveLoadMode: 0
   allowVehicleCargo: 0
   minimumLoadedCargo: 0
-  cargoUnlockProgressionId:
+  cargoUnlockProgressionId: 
   cargoUnlockAfterDialoguePhaseIndex: -1
-  cargoLoadedNPCPhaseId:
+  cargoLoadedNPCPhaseId: 
   contractID: RonanMainContract
   hideFromLeaderboard: 1
   efficiencyStarBudgetRatio: 0.85
@@ -31,12 +31,13 @@ MonoBehaviour:
   clientName: Ronan
   jobDescription: Open Rivermere's southern connection with a safe 100-meter bridge
     spanning roads at different elevations. Accommodate the heavy vehicle and observe
-    the structural response, including shear forces near the supports, throughout the crossing.
-  budget: 2000
+    the structural response, including shear forces near the supports, throughout
+    the crossing.
+  budget: 60000000
   liveLoadWeight: 50
   bridgeSpan: 100
   allowedMaterials: []
-  hiddenTools: []
+  hiddenTools: 
   hiddenMaterials: []
   enforceMaxStress: 0
   maxAllowedStress: 100
@@ -49,22 +50,26 @@ MonoBehaviour:
   offerDialogue:
     name: Ronan
     sentences:
-    - "You've got a <b><#E09500>100-meter</color></b> gap, different road elevations, and a heavy vehicle to accommodate."
-    - "It won't be an easy crossing, but you've handled some challenging projects already."
+    - You've got a <b><#E09500>100-meter</color></b> gap, different road elevations,
+      and a heavy vehicle to accommodate.
+    - It won't be an easy crossing, but you've handled some challenging projects
+      already.
     - Take your time, study the requirements, and build something that works.
-    - "I trust your judgment, {PlayerName}. If you're ready, take the contract."
+    - I trust your judgment, {PlayerName}. If you're ready, take the contract.
   continueOfferDialogue:
     name: Ronan
     sentences: []
   reminderDialogue:
     name: Ronan
     sentences:
-    - "<b><#E09500>Pay attention to the shear forces near the supports during testing. Remember, the entire bridge needs to remain safe</color></b>."
+    - <b><#E09500>Pay attention to the shear forces near the supports during testing.
+      Remember, the entire bridge needs to remain safe</color></b>.
   finishedContractDialogue:
     name: Ronan
     sentences:
-    - "Well done, {PlayerName}. The southern connection is finally open."
-    - "You've made a real difference here in Rivermere."
-    - "From here, the road leads toward <b><#E09500>Ironhaven</color></b> in the <b><#E09500>Industrial Zone</color></b>."
-    - "I hear they've got some challenging projects waiting there."
+    - Well done, {PlayerName}. The southern connection is finally open.
+    - You've made a real difference here in Rivermere.
+    - From here, the road leads toward <b><#E09500>Ironhaven</color></b> in the <b><#E09500>Industrial
+      Zone</color></b>.
+    - I hear they've got some challenging projects waiting there.
     - Take care out there, and good luck with your next adventure!

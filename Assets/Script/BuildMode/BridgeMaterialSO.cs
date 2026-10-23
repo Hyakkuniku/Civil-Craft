@@ -71,6 +71,9 @@ public class BridgeMaterialSO : ScriptableObject
 
     // --- NEW: Unlock System ---
     [Header("Unlock System")]
+    [Tooltip("Hide this material unless the current contract explicitly lists this exact asset in Allowed Materials. Empty/unrestricted lists and purchased unlocks do not enable it. Off preserves existing material behavior.")]
+    public bool requiresExplicitContractAllowance = false;
+
     [Tooltip("How much Gold it costs to unlock this material if a contract restricts it.")]
     public int unlockCost = 500; 
 
@@ -88,6 +91,21 @@ public class BridgeMaterialSO : ScriptableObject
     public float zOffset = 0.5f;
 
     public string Id => string.IsNullOrWhiteSpace(materialId) ? name.Trim() : materialId.Trim();
+
+    /// <summary>
+    /// Additional opt-in guard, not a replacement for legacy allowance, purchase
+    /// or quantity checks. Old assets remain unchanged when the new flag is off.
+    /// Reconstruction and read-only network visuals do not use this build gate.
+    /// </summary>
+    public bool CanUseInContract(ContractSO contract)
+    {
+        if (!requiresExplicitContractAllowance) return true;
+        if (contract == null || (contract.hiddenMaterials != null && contract.hiddenMaterials.Contains(this))) return false;
+        if (contract.allowedMaterials == null) return false;
+        foreach (MaterialAllowance allowance in contract.allowedMaterials)
+            if (allowance != null && allowance.material == this) return true;
+        return false;
+    }
 
     public float GetPlacedMassPerMeter()
     {

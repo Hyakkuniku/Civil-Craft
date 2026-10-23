@@ -153,6 +153,7 @@ public class BuildUIController : MonoBehaviour
     public GameObject unlockMaterialPanel; 
     public TextMeshProUGUI unlockMaterialText; 
     private MaterialButtonTrigger pendingUnlockButton;
+    private ContractSO pendingUnlockContract;
 
     [Header("Material Panel Visibility")]
     [Tooltip("Optional material-button scroll panel. If empty, it is found from the material buttons' ScrollRect.")]
@@ -782,7 +783,15 @@ public class BuildUIController : MonoBehaviour
     {
         if (GameManager.Instance != null && GameManager.Instance.IsSessionChallengeBuild)
         { LogAction("This material is not allowed in the challenge. Purchases are disabled."); return; }
+        ContractSO contract = GameManager.Instance != null ? GameManager.Instance.CurrentContract : null;
+        if (btn != null && btn.buttonMaterial != null && !btn.buttonMaterial.CanUseInContract(contract))
+        {
+            CancelUnlockMaterial();
+            LogAction("This material is not available for this contract.");
+            return;
+        }
         pendingUnlockButton = btn;
+        pendingUnlockContract = contract;
         if (unlockMaterialPanel != null && btn != null)
         {
             unlockMaterialPanel.SetActive(true);
@@ -794,6 +803,15 @@ public class BuildUIController : MonoBehaviour
     public void ConfirmUnlockMaterial()
     {
         if (GameManager.Instance != null && GameManager.Instance.IsSessionChallengeBuild) { CancelUnlockMaterial(); return; }
+        BridgeMaterialSO pendingMaterial = pendingUnlockButton != null ? pendingUnlockButton.buttonMaterial : null;
+        ContractSO currentContract = GameManager.Instance != null ? GameManager.Instance.CurrentContract : null;
+        if (pendingMaterial != null && (!pendingMaterial.CanUseInContract(currentContract) ||
+            (pendingMaterial.requiresExplicitContractAllowance && pendingUnlockContract != currentContract)))
+        {
+            CancelUnlockMaterial();
+            LogAction("This material is no longer available for this contract. No purchase was made.");
+            return;
+        }
         if (pendingUnlockButton != null && GameManager.Instance != null && GameManager.Instance.CurrentContract != null)
         {
             int cost = pendingUnlockButton.buttonMaterial.unlockCost;
@@ -809,6 +827,7 @@ public class BuildUIController : MonoBehaviour
                 });
                 if (unlockMaterialPanel != null) unlockMaterialPanel.SetActive(false);
                 pendingUnlockButton = null;
+                pendingUnlockContract = null;
                 return;
             }
             
@@ -831,12 +850,14 @@ public class BuildUIController : MonoBehaviour
 
         if (unlockMaterialPanel != null) unlockMaterialPanel.SetActive(false);
         pendingUnlockButton = null;
+        pendingUnlockContract = null;
     }
 
     public void CancelUnlockMaterial()
     {
         if (unlockMaterialPanel != null) unlockMaterialPanel.SetActive(false);
         pendingUnlockButton = null;
+        pendingUnlockContract = null;
     }
 
     private void UpdateLiveBeamStatsUI()
@@ -2150,6 +2171,7 @@ public class BuildUIController : MonoBehaviour
     {
         if (material == null) return false;
         ContractSO contract = GameManager.Instance != null ? GameManager.Instance.CurrentContract : null;
+        if (!material.CanUseInContract(contract)) return false;
         if (contract == null) return true;
         if (contract.IsMaterialHidden(material)) return false;
         if (contract.allowedMaterials == null || contract.allowedMaterials.Count == 0) return true;

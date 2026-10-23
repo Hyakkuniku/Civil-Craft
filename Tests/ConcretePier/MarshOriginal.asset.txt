@@ -1,0 +1,79 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
+  m_Name: Marsh Contract
+  m_EditorClassIdentifier: 
+  liveLoadMode: 0
+  allowVehicleCargo: 0
+  minimumLoadedCargo: 0
+  cargoUnlockProgressionId: 
+  cargoUnlockAfterDialoguePhaseIndex: -1
+  cargoLoadedNPCPhaseId: 
+  contractID: MarshID
+  hideFromLeaderboard: 0
+  efficiencyStarBudgetRatio: 0.85
+  strengthStarMaxStress: 60
+  contractMap: 1
+  countsTowardMapAchievements: 1
+  isStoryModeContract: 1
+  isTutorialContract: 0
+  autoCollectReward: 0
+  featureUnlockRewards: []
+  clientName: Marsh
+  jobDescription: Build an arch bridge connecting the residential district directly
+    to Central Rivermere. Taxis and residents must cross safely while leaving enough
+    clearance for boats beneath the roadway.
+  budget: 325000
+  liveLoadWeight: 3000
+  bridgeSpan: 80
+  allowedMaterials:
+  - material: {fileID: 11400000, guid: 57a46c6632dd61b4094902963cf1c5be, type: 2}
+    maxPieces: 0
+  - material: {fileID: 11400000, guid: 9377a255283b8cc499761c693baf53dd, type: 2}
+    maxPieces: 0
+  - material: {fileID: 11400000, guid: b98aa9ba752ac28449feebc76f256bf2, type: 2}
+    maxPieces: 0
+  hiddenTools: 
+  hiddenMaterials:
+  - {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
+  - {fileID: 11400000, guid: 4524a3fc876c6b640a735e6808fe1271, type: 2}
+  - {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
+  enforceMaxStress: 0
+  maxAllowedStress: 100
+  isTimeAttack: 0
+  timeAttackDuration: 60
+  winCondition: 0
+  requiredIntactTime: 5
+  goldReward: 500
+  expReward: 100
+  offerDialogue:
+    name: Marsh
+    sentences:
+    - "Alright, let's put that into practice."
+    - We need an arch bridge connecting the residential district directly to Central Rivermere.
+    - "A taxi and local residents must be able to cross safely. <b><#E09500>The bridge must support the traffic above while having enough clearance for a boat underneath</color></b>."
+    - "You'll have the concrete materials available for this project."
+    - "Take your time with the design, {PlayerName}. If you're ready, I can give you the contract."
+  continueOfferDialogue:
+    name: Marsh
+    sentences: []
+  reminderDialogue:
+    name: Marsh
+    sentences:
+    - "<b><#E09500>Remember to check how the arch connects to its supports, and make sure there's enough room for the boat to pass</color></b>."
+  finishedContractDialogue:
+    name: Marsh
+    sentences:
+    - Look at that! The taxi made it across, and the waterway is still open for boats.
+    - "The residents won't have to take that long detour anymore."
+    - "I'm sure they'll appreciate this new crossing."
+    - "Thanks for your help, {PlayerName}. You've made a wonderful start here in Town River."

@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a4da58d2dc2409c459ef20449bf92a90, type: 3}
+  m_Name: ArchBridge
+  m_EditorClassIdentifier:
+  lessonId: civil-craft-arch-bridge-lesson-v1
+  lessonTitle: Arch Bridge
+  lessonImage: {fileID: 0}
+  popupDescription: "An <b><#E09500>Arch Bridge</color></b> uses a curved structural form to carry loads primarily through <b><#E09500>compression</color></b> and transfer forces toward its supports.\n\nKey points:\n- The curved shape helps carry loads through compression.\n- Forces travel along the arch toward its supports.\n- Abutments resist the arch's outward thrust.\n- Leave sufficient clearance for traffic or waterways beneath the bridge.\n\nThis lesson has been added to your <b><#E09500>Almanac</color></b>."
+  almanacImage: {fileID: 0}
+  lessonDescription: "An <b><#E09500>Arch Bridge</color></b> carries loads using a <b><#E09500>curved structural shape</color></b>. When weight acts on the bridge, the arch carries forces mainly through <b><#E09500>compression</color></b>. Those forces travel along the curve toward the supports at both ends.\n\nThe end supports are called <b><#E09500>Abutments</color></b>. They must resist the <b><#E09500>outward thrust</color></b>, or push, produced by the arch. How the arch connects to these supports is important to the crossing.\n\nA curved structure can help leave space beneath the roadway. The bridge must still provide <b><#E09500>sufficient clearance</color></b> for the traffic or waterway below it. In Marsh's project, taxis and residents need a safe route above while boats need enough room to pass beneath.\n\nDuring testing, observe how the arch and its supports respond as the vehicle crosses. Then check whether the boat can pass safely beneath the bridge. A successful crossing must support the traffic above without blocking the waterway below."
