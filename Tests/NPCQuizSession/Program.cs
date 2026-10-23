@@ -14,7 +14,7 @@ internal static class Program
         string boundary = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Boundary.cs.txt"))
             .Replace("// ACTUAL_QUIZ_MEMBERS", string.Join("\n", quiz.Members.OfType<FieldDeclarationSyntax>().Select(member => member.ToFullString())) +
                 string.Join("\n", quiz.Members.OfType<PropertyDeclarationSyntax>().Select(member => member.ToFullString())) +
-                Methods(quiz, "Awake", "OnDisable", "OnDestroy", "Update", "CancelOwnedSession", "TryHandleBack", "Open", "CanInteract", "Select", "Submit", "Next", "Previous", "ShowAssessmentQuestion", "ShowAssessmentResult", "ShowFirstUnresolved", "Finish", "RetrySave", "CommitProgress", "Leave", "Pause", "CloseSession", "LockPlayerControls", "RestorePlayerControls", "IsProtectedVisit", "BindView", "BeginNpcPresentation", "UpdateNpcPresentation", "PresentNpcQuestion", "EndNpcPresentation"))
+                Methods(quiz, "Awake", "OnDisable", "OnDestroy", "Update", "CancelOwnedSession", "TryHandleBack", "Open", "CanInteract", "Select", "Submit", "Next", "Previous", "ShowAssessmentQuestion", "ShowAssessmentResult", "ShowFirstUnresolved", "Finish", "RetrySave", "CommitProgress", "QuestionAt", "Leave", "Pause", "CloseSession", "LockPlayerControls", "RestorePlayerControls", "IsProtectedVisit", "BindView", "BeginNpcPresentation", "UpdateNpcPresentation", "PresentNpcQuestion", "EndNpcPresentation"))
             .Replace("// ACTUAL_PAUSE_METHODS", Methods(pause, "PauseGame", "ResumeGame", "FinishResumeGame", "ResumeForQuizTeardown"))
             .Replace("// ACTUAL_SAVE_METHODS", Methods(save, "TryGetQuizProgress", "TrySaveQuizProgress", "TrySaveQuizAssessment"));
         SyntaxTree[] trees = new[]

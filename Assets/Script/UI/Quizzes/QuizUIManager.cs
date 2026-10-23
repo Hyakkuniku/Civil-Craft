@@ -23,6 +23,10 @@ public sealed class QuizUIManager : MonoBehaviour
     private string fingerprint;
     private readonly HashSet<string> correctIds = new HashSet<string>(StringComparer.Ordinal);
     private readonly Dictionary<string, int> assessmentAnswers = new Dictionary<string, int>(StringComparer.Ordinal);
+    // Display order belongs to the attempt, never to the shared QuizData asset.
+    private readonly List<string> questionOrderIds = new List<string>();
+    private readonly List<QuizChoiceOrderSaveData> choiceOrders = new List<QuizChoiceOrderSaveData>();
+    private bool questionOrderSavePending;
     private bool assessmentSubmitted;
     private int questionIndex = -1;
     private int selectedIndex = -1;
@@ -170,6 +174,8 @@ public sealed class QuizUIManager : MonoBehaviour
         saveOwner = saveManager.CurrentData;
         fingerprint = data.ContentFingerprint;
         correctIds.Clear();
+        questionOrderIds.Clear();
+        choiceOrders.Clear();
         if (!saveManager.TryGetQuizProgress(data, context, out QuizProgressSaveData progress) || progress == null)
         {
             quiz = null; owner = null; closed = null; saveManager = null; saveOwner = null;
@@ -180,6 +186,10 @@ public sealed class QuizUIManager : MonoBehaviour
         foreach (QuizAnswerSaveData answer in progress.answers)
             if (answer != null) assessmentAnswers[answer.questionId] = answer.choiceIndex;
         assessmentSubmitted = progress.submitted;
+        questionOrderSavePending = (!QuizProgressUtility.IsValidQuestionOrder(data, progress.questionOrderIds) ||
+            !QuizProgressUtility.IsValidChoiceOrders(data, progress.choiceOrders)) && !progress.completed && !progress.submitted;
+        questionOrderIds.AddRange(QuizProgressUtility.CreateQuestionOrder(data, progress));
+        choiceOrders.AddRange(QuizProgressUtility.CreateChoiceOrders(data, progress));
         sessionActive = true;
         activeManager = this;
         savePending = completionPending = acknowledgeUnsavedLeave = committing = false;
@@ -198,6 +208,10 @@ public sealed class QuizUIManager : MonoBehaviour
             else ShowAssessmentQuestion(0);
         }
         else ShowFirstUnresolved();
+        // Persist the permutation before the first rendered/input frame, even
+        // when the player leaves before answering. Failure uses the same Retry
+        // Save gate as answer saves and cannot award/advance anything.
+        if (questionOrderSavePending) CommitProgress(false);
         PauseManager.Instance?.RefreshPauseAvailability();
         return true;
     }
@@ -212,13 +226,13 @@ public sealed class QuizUIManager : MonoBehaviour
     private void Select(int index)
     {
         if (!CanInteract() || questionAnswered || savePending || questionIndex < 0 ||
-            index < 0 || index >= quiz.questions[questionIndex].choices.Count) return;
+            index < 0 || index >= QuestionAt(questionIndex).choices.Count) return;
         selectedIndex = index;
         acknowledgeUnsavedLeave = false;
         if (quiz.assessmentMode)
         {
             if (assessmentSubmitted) return;
-            assessmentAnswers[quiz.questions[questionIndex].questionId.Trim()] = index;
+            assessmentAnswers[QuestionAt(questionIndex).questionId.Trim()] = index;
             savePending = true;
             if (CommitProgress(false)) ShowAssessmentQuestion(questionIndex);
             return;
@@ -238,7 +252,7 @@ public sealed class QuizUIManager : MonoBehaviour
             return;
         }
         if (!CanInteract() || questionAnswered || savePending || questionIndex < 0 || selectedIndex < 0) return;
-        QuizQuestion question = quiz.questions[questionIndex];
+        QuizQuestion question = QuestionAt(questionIndex);
         if (selectedIndex != question.correctChoiceIndex)
         {
             view.ShowFeedback(false, "Try again. Choose another answer.");
@@ -273,8 +287,8 @@ public sealed class QuizUIManager : MonoBehaviour
     {
         questionIndex = index;
         questionAnswered = false;
-        selectedIndex = assessmentAnswers.TryGetValue(quiz.questions[index].questionId.Trim(), out int selected) ? selected : -1;
-        view.ShowAssessmentQuestion(quiz, index, selectedIndex, assessmentAnswers.Count);
+        selectedIndex = assessmentAnswers.TryGetValue(QuestionAt(index).questionId.Trim(), out int selected) ? selected : -1;
+        view.ShowAssessmentQuestion(quiz, index, selectedIndex, assessmentAnswers.Count, questionOrderIds, choiceOrders);
         PresentNpcQuestion();
     }
 
@@ -283,14 +297,14 @@ public sealed class QuizUIManager : MonoBehaviour
         questionIndex = selectedIndex = -1;
         questionAnswered = true;
         npcPresentation?.SetSpeaking(false);
-        view.ShowAssessmentResult(quiz, QuizProgressUtility.AssessmentScore(quiz, assessmentAnswers), assessmentAnswers);
+        view.ShowAssessmentResult(quiz, QuizProgressUtility.AssessmentScore(quiz, assessmentAnswers), assessmentAnswers, questionOrderIds, choiceOrders);
     }
 
     private void ShowFirstUnresolved()
     {
         selectedIndex = -1;
         questionAnswered = false;
-        questionIndex = QuizProgressUtility.FirstUnresolvedQuestionIndex(quiz, correctIds);
+        questionIndex = QuizProgressUtility.FirstUnresolvedDisplayIndex(quiz, correctIds, questionOrderIds);
         if (questionIndex >= quiz.QuestionCount)
         {
             questionIndex = -1;
@@ -299,7 +313,7 @@ public sealed class QuizUIManager : MonoBehaviour
         }
         else
         {
-            view.ShowQuestion(quiz, questionIndex, correctIds);
+            view.ShowQuestion(quiz, questionIndex, correctIds, questionOrderIds, choiceOrders);
             PresentNpcQuestion();
         }
     }
@@ -324,8 +338,14 @@ public sealed class QuizUIManager : MonoBehaviour
     {
         if (!CanInteract() || !savePending) return;
         bool finishAfterSave = completionPending;
+        bool wasSavingOrder = questionOrderSavePending;
         if (!CommitProgress(finishAfterSave)) return;
         if (finishAfterSave) CloseSession(QuizOutcome.Completed);
+        else if (wasSavingOrder)
+        {
+            if (quiz.assessmentMode) ShowAssessmentQuestion(questionIndex);
+            else ShowFirstUnresolved();
+        }
         else if (quiz.assessmentMode)
         {
             if (assessmentSubmitted) ShowAssessmentResult();
@@ -333,7 +353,7 @@ public sealed class QuizUIManager : MonoBehaviour
         }
         else if (questionIndex >= 0)
         {
-            QuizQuestion question = quiz.questions[questionIndex];
+            QuizQuestion question = QuestionAt(questionIndex);
             view.ShowFeedback(true, question.feedback);
         }
     }
@@ -349,16 +369,23 @@ public sealed class QuizUIManager : MonoBehaviour
         try
         {
             saved = quiz.assessmentMode ?
-                saveManager.TrySaveQuizAssessment(quiz, context, assessmentAnswers, assessmentSubmitted, completed, out error) :
-                saveManager.TrySaveQuizProgress(quiz, context, correctIds, completed, out error);
+                saveManager.TrySaveQuizAssessment(quiz, context, assessmentAnswers, assessmentSubmitted, completed, out error, questionOrderIds, choiceOrders) :
+                saveManager.TrySaveQuizProgress(quiz, context, correctIds, completed, out error, questionOrderIds, choiceOrders);
         }
         finally { committing = false; view.SetBusy(false); }
         savePending = !saved;
         if (!saved)
             view.ShowSaveError(string.IsNullOrWhiteSpace(error) ? "Could not save progress. Retry Save or leave safely." : error);
-        else acknowledgeUnsavedLeave = false;
+        else
+        {
+            acknowledgeUnsavedLeave = false;
+            questionOrderSavePending = false;
+        }
         return saved;
     }
+
+    private QuizQuestion QuestionAt(int displayIndex) =>
+        quiz.questions[QuizProgressUtility.QuestionIndexAt(quiz, questionOrderIds, displayIndex)];
 
     private void Leave()
     {
@@ -455,6 +482,9 @@ public sealed class QuizUIManager : MonoBehaviour
         saveOwner = null;
         correctIds.Clear();
         assessmentAnswers.Clear();
+        questionOrderIds.Clear();
+        choiceOrders.Clear();
+        questionOrderSavePending = false;
         questionIndex = selectedIndex = -1;
         PauseManager.Instance?.RefreshPauseAvailability();
         callback?.Invoke(result);

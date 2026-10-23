@@ -1,0 +1,146 @@
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+
+// Only engine/service boundaries are doubled. ACTUAL_NPC and ACTUAL_CANCEL are
+// replaced with Roslyn-extracted production methods, never copied algorithms.
+namespace UnityEngine
+{
+    public class Object { }
+    public class Behaviour : Object { public bool isActiveAndEnabled = true; }
+    public class MonoBehaviour : Behaviour
+    {
+        public GameObject gameObject = new GameObject();
+        public Transform transform = new Transform();
+        public T FindObjectOfType<T>() where T : class => DialogueManager.found as T;
+        public void StopCoroutine(Coroutine value) { }
+    }
+    public class Transform : Object { }
+    public class Animator : Object { }
+    public class Coroutine { }
+    public class GameObject { public string name = "Professor Fallback"; public bool activeInHierarchy; public Scene scene = new Scene(); }
+    public class Scene { public bool valid = true, isLoaded = true; public bool IsValid() => valid; }
+    public static class Time { public static float timeScale = 1f; }
+}
+public class PlayerData { }
+public class PlayerDataManager { public static PlayerDataManager Instance; public PlayerData CurrentData = new PlayerData(); }
+public class FusionConnectionManager { public static FusionConnectionManager Instance; public bool IsGuestSaveProtected, IsGuestInHostWorld; }
+public class PauseManager { public static PauseManager Instance; public bool isPaused; }
+public class UIPanelCoordinator { public static UIPanelCoordinator Instance; public bool HasOpenPanel; }
+public class GameManager { public enum GameState { Normal, Build } public static GameManager Instance; public bool IsTransitioning; public GameState CurrentState; }
+public class Dialogue { public string name; public string[] sentences; }
+public class InputManager
+{
+    public bool Movement = true, Look = true;
+    public void SetPlayerInputEnable(bool value) { Movement = value; }
+    public void SetLookEnabled(bool value) { Look = value; }
+}
+public class PlayerInteract { public bool enabled = true; }
+public class ContractSO { public string clientName; }
+public class NPCOptionalDialogueStep
+{
+    public enum StepType { Dialogue, MaterialUnlock, Quiz, LessonIntroduction, AlmanacReview }
+    public StepType stepType;
+    public Dialogue dialogue;
+}
+public class NPCProgressionPhase
+{
+    public string phaseId = "LiveLoad";
+    public List<NPCOptionalDialogueStep> optionalDialogueSequence = new List<NPCOptionalDialogueStep>();
+    public Dialogue phaseDialogue = new Dialogue { name = "Professor Bhan", sentences = new[] { "Inspect the vehicle." } };
+    public ContractSO contract;
+    public bool invokeInteractionEventOnlyOnce;
+    public int interactionEvents;
+    public void InvokeNPCInteracted() { interactionEvents++; }
+}
+public class NPCContractGiver
+{
+    public bool HasAcceptedProgressionContract;
+    public int suppressed;
+    public void SuppressCurrentInteractionForProgression() { suppressed++; }
+}
+public class NPCOrderedLearningFlow { public int cancels; public void Cancel() { cancels++; } }
+public static class QuizUIManager
+{
+    public static bool IsAnyQuizActive;
+    public static int cancels;
+    public static void CancelOwnedSession(UnityEngine.Object owner) { cancels++; }
+}
+public static class AlmanacQuizAccess { public static int cancels; public static void CancelOwned(UnityEngine.Object owner) { cancels++; } }
+public class AlmanacManager { public static AlmanacManager Instance; public GameObject Panel = new GameObject(); public int opens; }
+
+// LessonTrigger is an explicit neighboring-system boundary. Its production
+// pending-query/persistence behavior is tested by the separate trigger suite.
+public class LessonTrigger
+{
+    public static LessonTrigger Current;
+    public NPCProgressionManager Owner;
+    public PlayerDataManager SaveManager;
+    public PlayerData SaveOwner;
+    public NPCProgressionPhase Phase;
+    public int PhaseIndex, resumes, lineRequests;
+    public bool Pending, Active = true, ResumeResult = true;
+    public Action OnResume;
+    public string[] Lines = { "Good work inspecting the vehicle.", "Open your Almanac and review the Live Load lesson.", "Close the book when you are ready to continue." };
+    public static bool TryGetPendingAlmanacReview(NPCProgressionManager npc, out LessonTrigger trigger)
+    {
+        trigger = Current;
+        bool allowed = trigger != null && trigger.Active && trigger.Pending && ReferenceEquals(trigger.Owner, npc) &&
+            trigger.SaveManager == PlayerDataManager.Instance && trigger.SaveOwner == PlayerDataManager.Instance?.CurrentData &&
+            npc.isActiveAndEnabled && npc.gameObject.scene.IsValid() && npc.gameObject.scene.isLoaded &&
+            npc.CurrentPhase == trigger.Phase && npc.currentPhaseIndex == trigger.PhaseIndex &&
+            !(FusionConnectionManager.Instance != null && (FusionConnectionManager.Instance.IsGuestInHostWorld || FusionConnectionManager.Instance.IsGuestSaveProtected));
+        if (!allowed) trigger = null;
+        return allowed;
+    }
+    public bool TryResumeAlmanacReview() { resumes++; OnResume?.Invoke(); return ResumeResult; }
+    public string[] GetAlmanacReviewReminder() { lineRequests++; return (string[])Lines.Clone(); }
+}
+public class DialogueManager : MonoBehaviour
+{
+    public static DialogueManager found;
+    public static bool IsAnyDialogueVisible;
+    public bool isDialogueActive, isTyping;
+    public Action onDialogueEndCallback;
+    public Coroutine typingCoroutine;
+    public InputManager inputManager = new InputManager();
+    public PlayerInteract playerInteract = new PlayerInteract();
+    public Queue<string> sentences = new Queue<string>();
+    public int starts, ends;
+    public Dialogue last;
+    public Animator speakerAnimator;
+    public Transform speakerTransform;
+    public void StartDialogue(Dialogue value, Action completed, Animator animator, Transform speaker)
+    { starts++; last = value; onDialogueEndCallback = completed; speakerAnimator = animator; speakerTransform = speaker; isDialogueActive = IsAnyDialogueVisible = true; }
+    public void Finish() { Action prior = onDialogueEndCallback; onDialogueEndCallback = null; isDialogueActive = IsAnyDialogueVisible = false; prior?.Invoke(); }
+    public void EndDialogue() { ends++; Finish(); }
+    // ACTUAL_CANCEL
+}
+public class NPCProgressionManager : MonoBehaviour
+{
+    public int currentPhaseIndex = 1;
+    public NPCProgressionPhase CurrentPhase;
+    public bool IsTravelling;
+    public DialogueManager dialogueManager;
+    public Animator animator = new Animator();
+    public NPCOrderedLearningFlow orderedLearningFlow = new NPCOrderedLearningFlow();
+    public NPCContractGiver contractGiver = new NPCContractGiver();
+    public int arrivalDialogueVersion, fallbackStarts, orderedStarts;
+    private readonly HashSet<int> invokedInteractionPhases = new HashSet<int>();
+    private Action quizReminderCompletion;
+    private bool TryGetWaitingQuizStep(int index, NPCProgressionPhase phase, out NPCOptionalDialogueStep step) { step = null; return false; }
+    private bool TryHandleWaitingQuizInteraction(int index, NPCProgressionPhase phase) => false;
+    private void CancelQuizWaitingReminder() { quizReminderCompletion = null; }
+    private bool PhaseContainsQuiz(NPCProgressionPhase phase) => false;
+    private bool HasCompletedPhaseDialogue(int index) => false;
+    private void TryStartOrderedOptionalSequence(int index, NPCProgressionPhase phase) { orderedStarts++; }
+    private void TryStartPhaseDialogue(int index, NPCProgressionPhase phase) { fallbackStarts++; }
+    // Deliberately inactive here: the actual walking-review state machine is
+    // executed by Tests/NPCTravelAlmanacReview, not duplicated in this boundary.
+    private NPCProgressionPhase travelReviewPhase;
+    private bool IsTravelAlmanacReviewAuthorized() => false;
+    private bool HasPendingTravelAlmanacReview(int index, NPCProgressionPhase phase) => false;
+    private void CancelTravelAlmanacReview() { ClearTravelAlmanacReviewState(); orderedLearningFlow.Cancel(); }
+    private void ClearTravelAlmanacReviewState() { travelReviewPhase = null; }
+    // ACTUAL_NPC
+}

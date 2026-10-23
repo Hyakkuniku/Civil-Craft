@@ -15,11 +15,19 @@ namespace UnityEngine
         public Transform Parent;
         public void SetParent(Transform parent, bool worldPositionStays) { Parent = parent; }
     }
+    public sealed class RectTransform { }
+    public struct Vector2
+    {
+        public float x, y;
+        public Vector2(float x, float y) { this.x = x; this.y = y; }
+    }
     public sealed class GameObject : Object
     {
         public string name;
         public Transform transform = new Transform();
+        public RectTransform rectTransform = new RectTransform();
         public GameObject(string name = "Fixture") { this.name = name; }
+        public T GetComponent<T>() where T : class => rectTransform as T;
         public T AddComponent<T>() where T : MonoBehaviour, new()
         { T component = new T(); component.gameObject = this; return component; }
     }
@@ -84,6 +92,7 @@ public sealed class LessonUIManager
 public sealed class AlmanacManager
 {
     public static AlmanacManager Instance;
+    public UnityEngine.GameObject hudOpenButton = new UnityEngine.GameObject("Almanac HUD");
     private Action closed;
     public event Action OnAlmanacClosed { add { closed += value; } remove { closed -= value; } }
     public int CloseSubscribers => closed?.GetInvocationList().Length ?? 0;
@@ -97,6 +106,10 @@ public sealed class TutorialStep
     public string message;
     public TutorialPosition screenPosition;
     public bool showNextButton, canSkip;
+    public bool usePointer, advanceOnClick;
+    public UnityEngine.RectTransform pointerTarget;
+    public UnityEngine.Vector2 pointerOffset;
+    public float pointerRotation;
 }
 public sealed class TutorialSequence : UnityEngine.MonoBehaviour
 {

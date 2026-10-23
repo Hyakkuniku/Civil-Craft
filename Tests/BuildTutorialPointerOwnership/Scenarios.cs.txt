@@ -1,0 +1,131 @@
+using System;
+using System.Reflection;
+using UnityEngine;
+
+public static class Scenarios
+{
+    static int checks;
+    sealed class Fixture
+    {
+        public TutorialManager Manager=new GameObject().AddComponent<TutorialManager>();public BuildTutorialDirector Director=new GameObject().AddComponent<BuildTutorialDirector>();
+        public TutorialPointer Pointer=new GameObject().AddComponent<TutorialPointer>();public BuildUIController UI=new();
+        public RectTransform Authored=new GameObject().GetComponent<RectTransform>(),Prompt=new GameObject().GetComponent<RectTransform>(),Undo=new GameObject().GetComponent<RectTransform>();
+        public Fixture(){TutorialManager.Instance=Manager;BuildTutorialDirector.Instance=Director;BuildUIController.Instance=UI;Manager.bouncingArrow=Director.bouncingArrow=Pointer;
+            UIPanelCoordinator.Instance=null;UIReservedRegionLayout.Registered.Clear();TutorialWarningLayout.Calls=0;TutorialWarningLayout.LastInstruction=null;Screen.width=1920;Screen.height=1080;Screen.safeArea=new Rect(0,0,1920,1080);
+            Director.isTutorialRunning=true;Director.activeStepIndex=Manager.currentStepIndex=3;Director.undoButtonRect=Undo;
+            Manager.currentSequence=new(){tutorialSteps=new[]{new TutorialStep(),new TutorialStep(),new TutorialStep(),new TutorialStep{usePointer=true,pointerTarget=Authored,pointerOffset=new(1,2),pointerRotation=0}}};
+            var canvas=new GameObject();Manager.leftPanel=new GameObject();canvas.AddChild(Manager.leftPanel);Manager.leftPanel.AddComponent<CanvasGroup>();
+            Manager.nextButton=new GameObject();Manager.nextButton.SetActive(false);Manager.skipButton=new GameObject();Manager.skipButton.SetActive(false);
+            Director.undoWarningPanel=new GameObject();canvas.AddChild(Director.undoWarningPanel);Director.undoWarningPanel.AddComponent<TMPro.TextMeshProUGUI>();Director.undoWarningPanel.SetActive(false);}
+        public void Point(RectTransform target,Vector2 offset,float rotation)=>Call(Director,"PointArrow",target,offset,rotation,false);
+        public void Tick()=>Call(Manager,"Update");
+        public void Late(){Call(Director,"LateUpdate");Call(Manager,"LateUpdate");}
+        public void Warn(){Director.isTracingStep=true;Director.PromptUndoInvalidBar();}
+        public CanvasGroup Instruction=>Manager.leftPanel.GetComponent<CanvasGroup>();
+        public RectTransform InstructionRect=>Manager.leftPanel.GetComponent<RectTransform>();
+        public RectTransform WarningRect=>Director.undoWarningPanel.GetComponent<RectTransform>();
+    }
+    public static int Run()
+    {
+        var f=new Fixture();f.Point(f.Prompt,new(0,30),0);f.Point(f.Prompt,new(0,70),180);
+        Check(f.Pointer.BuildCalls==2&&f.Pointer.Offset.y==70&&f.Pointer.Rotation==180,"Same target must apply changed offset AND rotation.");f.Tick();
+        Check(f.Pointer.Target==f.Prompt&&f.Pointer.Offset.y==70&&f.Pointer.Rotation==180,"Manager must not overwrite explicit prompt with stale authored target.");
+        Check(f.Manager.LayoutRefreshes==1&&f.Manager.GuideUpdates==1,"Pointer ownership may not skip unrelated Manager UI updates.");
+        f.Director.IsAwaitingInvalidBarUndo=true;f.Director.isTracingStep=true;f.Director.undoArrowOffset=new(4,5);f.Director.undoArrowRotation=90;f.Tick();
+        Check(f.Pointer.Target==f.Undo&&f.Pointer.Rotation==90,"Undo beats both tracing early-return and explicit/authored prompt.");f.Tick();Check(f.Pointer.Target==f.Undo,"Next frame cannot steal Undo pointer.");
+        f.Director.IsAwaitingInvalidBarUndo=false;Call(f.Director,"HideUndoPointer");f.Director.isTracingStep=false;f.Tick();Check(f.Pointer.Target==f.Authored,"Cleared override restores ordinary authored step pointer.");
+
+        f=new Fixture();f.Point(f.Prompt,new(0,30),180);int calls=f.Pointer.BuildCalls;f.Manager.inspectionModalOwners.Add(new());f.Pointer.Hide();f.Tick();
+        Check(f.Pointer.BuildCalls==calls&&f.Pointer.Target==null,"Inspection suppression must prevent explicit override redraw.");f.Manager.inspectionModalOwners.Clear();f.Tick();Check(f.Pointer.Target==f.Prompt,"Override resumes after inspection suppression clears.");
+        calls=f.Pointer.BuildCalls;f.Manager.presentationSuppressedFor=f.Manager.currentSequence;f.Pointer.Hide();f.Tick();Check(f.Pointer.BuildCalls==calls&&f.Pointer.Target==null,"Presentation suppression must prevent pointer redraw.");
+
+        f=new Fixture();f.Point(f.Prompt,new(0,30),180);f.Prompt.gameObject.SetActive(false);f.Tick();Check(f.Pointer.Target==null,"Inactive explicit target hides rather than falling back to wrong authored target.");f.Prompt.gameObject.SetActive(true);f.Tick();Check(f.Pointer.Target==f.Prompt,"Reactivated exact target restores owned guidance.");
+        f.Director.IsAwaitingInvalidBarUndo=true;f.Undo.gameObject.SetActive(false);f.Tick();Check(f.Pointer.Target==null,"Unavailable Undo may not resurrect old authored prompt.");
+
+        f=new Fixture();f.Point(f.Prompt,new(0,30),180);f.Manager.currentSequence=new(){tutorialSteps=f.Manager.currentSequence.tutorialSteps};f.Tick();Check(f.Pointer.Target==f.Authored,"Override may not cross sequence identity even with same step index.");
+        f=new Fixture();f.Point(f.Prompt,new(0,30),180);f.Manager.currentStepIndex=2;f.Tick();Check(!f.Director.TryRefreshTutorialPointer(),"Override may not cross step identity.");
+        f=new Fixture();f.Point(f.Prompt,new(0,30),180);f.Director.isActiveAndEnabled=false;Call(f.Director,"OnDisable");Check(f.Pointer.Target==null&&!f.Director.TryRefreshTutorialPointer(),"Disabled director releases its owned pointer.");
+
+        f=new Fixture();f.Director.isTutorialRunning=false;f.Tick();Check(f.Pointer.NormalCalls==1&&f.Pointer.BuildCalls==0&&f.Pointer.Target==f.Authored,"Non-build story/Almanac pointers retain normal PointAt path.");
+        f=new Fixture();f.Director.isTracingStep=true;f.Tick();Check(f.Pointer.BuildCalls==0&&f.Pointer.NormalCalls==0,"Tracing without explicit override retains normal no-arrow behavior.");
+
+        f=new Fixture();var stats=new GameObject().GetComponent<RectTransform>();f.UI.Tools[BuildModeTool.Statistics]=stats;
+        f.Director.toolMappings.Add(new(){toolObject=stats.gameObject,buttonRect=stats,arrowOffset=new(0,-30),arrowRotation=0});f.Director.PromptOpenStatistics();f.Tick();
+        Check(f.Pointer.Target==stats&&f.Pointer.Offset.y==60&&f.Pointer.Rotation==180,"Observed tool overrides old mapping geometry for the SAME target.");
+        Check(f.UI.isTutorialUI_Locked&&f.UI.whitelistedButton==stats.gameObject&&!f.Director.hasAdvancedFromRequiredClickThisStep,"Pointer fix must retain observed tool gameplay whitelist and uncompleted gate.");
+
+        f=new Fixture();var tool=new GameObject();tool.AddComponent<UnityEngine.UI.Button>();f.Director.PromptToolClick(tool);f.Tick();
+        Check(f.Pointer.Target==tool.GetComponent<RectTransform>()&&f.Pointer.Rotation==180,"Unmapped existing tool gets exact RectTransform fallback.");
+        Check(f.UI.whitelistedButton==tool&&!f.Director.hasAdvancedFromRequiredClickThisStep&&f.Manager.NextChanges==1,"Generic pointer fallback must not advance or alter tool authority.");
+        f=new Fixture();var wrapper=new GameObject(false);var child=new GameObject();child.AddComponent<UnityEngine.UI.Button>();wrapper.AddChild(child);f.Director.PromptToolClick(wrapper);
+        Check(f.Pointer.Target==child.GetComponent<RectTransform>(),"Non-Rect wrapper falls back only to its existing child button.");
+        f=new Fixture();var material=new BridgeMaterialSO();f.Director.materialMappings.Add(new(){material=material,buttonRect=f.Prompt,arrowOffset=new(7,35),arrowRotation=180});f.Director.PromptMaterialClick(material);f.Tick();
+        Check(f.Pointer.Target==f.Prompt&&f.Pointer.Offset.x==7&&f.UI.whitelistedMaterial==material&&f.Director.expectedMaterial==material,"Material pointer keeps mapping and existing material gate.");
+
+        f=new Fixture();var hidden=new GameObject();hidden.SetActive(false);hidden.AddChild(f.Pointer.gameObject);var shared=new GameObject().AddComponent<TutorialPointer>();f.Manager.bouncingArrow=shared;f.Point(f.Prompt,new(0,30),180);
+        Check(f.Director.bouncingArrow==shared&&shared.Target==f.Prompt,"Unusable director pointer hierarchy falls back to existing shared pointer.");
+        f=new Fixture();bool result=(bool)Call(f.Director,"PointArrow",null,new Vector2(),0f,false);Check(!result&&!f.Director.TryRefreshTutorialPointer(),"Missing target must not claim an override.");
+        f=new Fixture();f.Point(f.Prompt,new(0,30),180);f.Director.LockAllUI();Check(!f.Director.TryRefreshTutorialPointer()&&f.Pointer.Target==null,"Changing prompt lock clears and hides prior override.");
+
+        f=new Fixture();f.Point(f.Prompt,new(0,70),180);f.Pointer.Hide();PrepareRestore(f);Call(f.Manager,"RestorePresentationAfterInspection");
+        Check(f.Pointer.Target==f.Prompt&&f.Pointer.Offset.y==70&&f.Pointer.Rotation==180&&f.Pointer.NormalCalls==0,"Immediate restore must keep explicit prompt without one-frame stale authored arrow.");
+        Check(f.Manager.inspectionHiddenSequence==null&&f.Manager.inspectionHiddenStepIndex==-1,"Restoration still clears inspection snapshot state.");
+        f=new Fixture();f.Point(f.Prompt,new(0,30),180);f.Director.IsAwaitingInvalidBarUndo=true;f.Director.isTracingStep=true;f.Pointer.Hide();PrepareRestore(f);Call(f.Manager,"RestorePresentationAfterInspection");
+        Check(f.Pointer.Target==f.Undo&&f.Pointer.NormalCalls==0,"Immediate restore must honor Undo while tracing.");
+        f=new Fixture();PrepareRestore(f);Call(f.Manager,"RestorePresentationAfterInspection");Check(f.Pointer.Target==f.Authored&&f.Pointer.BuildCalls==1,"Unclaimed authored build pointer restoration uses build geometry.");
+        f=new Fixture();f.Director.isTutorialRunning=false;PrepareRestore(f);Call(f.Manager,"RestorePresentationAfterInspection");
+        Check(f.Pointer.Target==f.Authored&&f.Pointer.NormalCalls==1&&f.Pointer.BuildCalls==0&&f.Pointer.Rotation==0,"Non-build restoration retains authored normal placement.");
+        f=new Fixture();f.Point(f.Prompt,new(0,30),180);f.Manager.currentSequence.tutorialSteps[3].usePointer=false;f.Pointer.Hide();PrepareRestore(f);Call(f.Manager,"RestorePresentationAfterInspection");
+        Check(f.Pointer.Target==f.Prompt,"Explicit build prompt restores even when serialized step pointer flag is false.");
+        f=new Fixture();f.Point(f.Prompt,new(0,30),180);f.Pointer.Hide();PrepareRestore(f);f.Manager.inspectionModalOwners.Add(new());Call(f.Manager,"RestorePresentationAfterInspection");
+        Check(f.Pointer.Target==null,"Nested inspection owner blocks immediate pointer restoration.");
+        f=new Fixture();f.Point(f.Prompt,new(0,30),180);f.Pointer.Hide();PrepareRestore(f);f.Manager.presentationSuppressedFor=f.Manager.currentSequence;Call(f.Manager,"RestorePresentationAfterInspection");
+        Check(f.Pointer.Target==null,"Presentation suppression blocks immediate pointer restoration.");
+        f=new Fixture();f.Point(f.Prompt,new(0,30),180);f.Pointer.Hide();PrepareRestore(f);f.Manager.inspectionHiddenSequence=new TutorialSequence();Call(f.Manager,"RestorePresentationAfterInspection");
+        Check(f.Pointer.Target==null,"Changed sequence must not restore stale snapshot arrow.");
+
+        f=new Fixture();f.Manager.nextButton.SetActive(true);f.Manager.skipButton.SetActive(true);f.Warn();
+        Check(f.Director.IsAwaitingInvalidBarUndo&&!f.Director.isCurrentDragValid&&f.UI.isTutorialUI_Locked&&f.UI.whitelistedButton==f.Undo.gameObject&&f.UI.ForcedUndoVisible,"Required mismatch retains actual Undo-only gameplay state.");
+        Check(f.Director.undoWarningPanel.activeSelf&&UIReservedRegionLayout.Registered.Contains(f.WarningRect)&&TutorialWarningLayout.Calls==1,"Warning fits immediately and reserves its visible bounds.");
+        Check(f.Instruction.alpha==0&&!f.Instruction.blocksRaycasts&&!f.Instruction.interactable&&f.Manager.leftPanel.activeSelf,"Warning has exclusive visual priority without deactivating the instruction object.");
+        Check(!f.Manager.nextButton.activeSelf&&!f.Manager.skipButton.activeSelf&&f.Pointer.Target==f.Undo&&f.Manager.currentStepIndex==3&&f.Director.CompletionChecks==0,"Continue/Skip hide while real Undo arrow and unchanged objective remain.");
+        f.Late();f.Late();Check(TutorialWarningLayout.Calls==1&&f.Manager.GetInstructionVisualReplacementRect(f.Director.gameObject)==f.InstructionRect,"Repeated pending frames retain the hidden instruction and avoid repeated TMP layout.");
+        f.Director.undoWarningPanel.GetComponent<TMPro.TextMeshProUGUI>().text+=" More detail.";f.Late();Check(TutorialWarningLayout.Calls==2,"Changed warning copy invalidates cached layout.");
+        f.InstructionRect.ScreenBounds=new Rect(20,40,900,200);f.Late();Check(TutorialWarningLayout.Calls==3,"Changed settled instruction geometry invalidates cached layout.");
+        Screen.safeArea=new Rect(50,30,1800,1000);f.Late();Check(TutorialWarningLayout.Calls==4,"Changed device safe area invalidates cached layout.");
+        f.Manager.inspectionModalOwners.Add(new());f.Late();Check(!f.Director.undoWarningPanel.activeSelf&&!UIReservedRegionLayout.Registered.Contains(f.WarningRect)&&f.Director.IsAwaitingInvalidBarUndo,"Inspection suppresses warning without clearing required Undo.");
+        f.Manager.inspectionModalOwners.Clear();f.Late();Check(f.Director.undoWarningPanel.activeSelf&&f.Instruction.alpha==0&&f.Pointer.Target==f.Undo,"Warning priority resumes after inspection closes.");
+        UIPanelCoordinator.Instance=new(){HasOpenPanel=true};f.Late();Check(!f.Director.undoWarningPanel.activeSelf&&!UIReservedRegionLayout.Registered.Contains(f.WarningRect),"An unrelated top modal hides/unreserves the warning.");
+        UIPanelCoordinator.Instance.HasOpenPanel=false;f.Late();Check(f.Director.undoWarningPanel.activeSelf&&f.Instruction.alpha==0,"Closing the modal resumes the same mismatch without reopening the instruction.");
+        f.Manager.presentationSuppressedFor=f.Manager.currentSequence;f.Late();Check(!f.Director.undoWarningPanel.activeSelf,"Existing tutorial presentation suppression also suppresses warning.");
+        f.Manager.presentationSuppressedFor=null;f.Late();
+        var invalidObject=new GameObject();f.Director.invalidActionObjects.Add(invalidObject);f.Director.NotifyUndoCompleted();
+        Check(f.Director.IsAwaitingInvalidBarUndo&&f.Director.undoWarningPanel.activeSelf&&f.Director.CompletionChecks==0,"Undo notification cannot clear warning while invalid action objects still exist.");
+        invalidObject.SetActive(false);f.Director.NotifyUndoCompleted();
+        Check(!f.Director.IsAwaitingInvalidBarUndo&&f.Director.isCurrentDragValid&&!f.Director.undoWarningPanel.activeSelf&&!UIReservedRegionLayout.Registered.Contains(f.WarningRect)&&!f.UI.ForcedUndoVisible,"Actual valid Undo clears only its warning/forced Undo state.");
+        Check(f.Instruction.alpha==1&&f.Instruction.blocksRaycasts&&f.Instruction.interactable&&f.Manager.nextButton.activeSelf&&f.Manager.skipButton.activeSelf,"Valid Undo restores the captured instruction and original Continue/Skip visibility.");
+        Check(f.Manager.currentStepIndex==3&&f.Director.CompletionChecks==1&&f.Pointer.Target==null,"Undo resumes the same step; only the existing completion check may continue gameplay.");
+
+        f=new Fixture();f.Warn();f.Manager.inspectionModalOwners.Add(new());Call(f.Director,"ClearUndoPrompt");
+        Check(f.Instruction.alpha==0&&!f.Director.undoWarningPanel.activeSelf,"Clear under an inspection defers instruction restoration rather than showing over the modal.");
+        f.Manager.inspectionModalOwners.Clear();Call(f.Manager,"LateUpdate");Check(f.Instruction.alpha==1,"Deferred release restores after the last inspection owner closes.");
+        f=new Fixture();f.Warn();UIPanelCoordinator.Instance=new(){HasOpenPanel=true};Call(f.Director,"ClearUndoPrompt");
+        Check(f.Instruction.alpha==0,"Clear under an unrelated coordinated modal does not restore through it.");UIPanelCoordinator.Instance.HasOpenPanel=false;Call(f.Manager,"LateUpdate");Check(f.Instruction.alpha==1,"Exact instruction can restore after coordinated modal closes.");
+        f=new Fixture();f.Warn();f.Manager.SetInstructionVisualReplacement(new GameObject(),false);Check(f.Instruction.alpha==0,"An unrelated owner cannot release the priority warning's instruction gate.");
+        f.Manager.currentSequence=new(){tutorialSteps=f.Manager.currentSequence.tutorialSteps};Call(f.Director,"ClearUndoPrompt");Check(f.Instruction.alpha==0,"Stale sequence release cannot make a newer instruction visible.");
+        Call(f.Manager,"ClearInstructionVisualReplacement");Check(f.Instruction.alpha==1&&f.Manager.GetInstructionVisualReplacementRect(f.Director.gameObject)==null,"New-presentation cleanup releases the old group before its new animation.");
+        f=new Fixture();f.Manager.IsBannerTransitioning=true;f.Instruction.alpha=.2f;f.Warn();f.Instruction.alpha=1;f.Manager.IsBannerTransitioning=false;Call(f.Manager,"LateUpdate");Call(f.Director,"ClearUndoPrompt");
+        Check(f.Instruction.alpha==1,"A fade finishing while hidden restores fully opaque rather than an early .2 snapshot.");
+        f=new Fixture();f.Instruction.interactable=false;var ancestor=f.InstructionRect.parent.gameObject.AddComponent<CanvasGroup>();ancestor.interactable=false;ancestor.blocksRaycasts=false;f.Warn();Call(f.Director,"ClearUndoPrompt");
+        Check(!f.Instruction.interactable&&!ancestor.interactable&&!ancestor.blocksRaycasts,"Release preserves captured disabled controls and never enables ancestor groups.");
+        f=new Fixture();f.Warn();f.Director.isActiveAndEnabled=false;Call(f.Director,"OnDisable");
+        Check(!f.Director.undoWarningPanel.activeSelf&&!UIReservedRegionLayout.Registered.Contains(f.WarningRect)&&f.Instruction.alpha==1&&f.Director.IsAwaitingInvalidBarUndo,"Disable cleans only presentation ownership and preserves pending action state.");
+        f.Director.isActiveAndEnabled=true;f.Late();Check(f.Director.undoWarningPanel.activeSelf&&f.Instruction.alpha==0&&f.Director.IsAwaitingInvalidBarUndo,"Re-enabling a still-pending director resumes warning priority.");
+        Call(f.Director,"OnDestroy");Check(!f.Director.undoWarningPanel.activeSelf&&!UIReservedRegionLayout.Registered.Contains(f.WarningRect)&&f.Instruction.alpha==1,"Destroy releases warning reservation and instruction gate.");
+        f=new Fixture();f.Director.undoWarningPanel=null;f.Warn();f.Late();Check(f.Director.IsAwaitingInvalidBarUndo&&f.UI.whitelistedButton==f.Undo.gameObject,"Missing warning UI cannot bypass or complete required Undo.");
+        return checks;
+    }
+    static void PrepareRestore(Fixture fixture){fixture.Manager.inspectionHiddenSequence=fixture.Manager.currentSequence;fixture.Manager.inspectionHiddenStepIndex=fixture.Manager.currentStepIndex;}
+    static object Call(object value,string method,params object[] args)=>value.GetType().GetMethod(method,BindingFlags.Instance|BindingFlags.NonPublic).Invoke(value,args);
+    static void Check(bool value,string message){checks++;if(!value)throw new InvalidOperationException(message);}
+}

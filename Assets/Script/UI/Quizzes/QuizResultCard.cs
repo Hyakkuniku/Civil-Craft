@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -34,7 +35,7 @@ public sealed class QuizResultCard : MonoBehaviour
 
     /// <summary>Builds plain-text review content from the submitted selection, not from the live choice controls.</summary>
     public static QuizResultCard Create(Transform parent, TMP_FontAsset font, Sprite cardSprite,
-        QuizQuestion question, int questionNumber, int selectedIndex)
+        QuizQuestion question, int questionNumber, int selectedIndex, IReadOnlyList<int> choiceOrder = null)
     {
         GameObject item = new GameObject("Question " + questionNumber + " Result", typeof(RectTransform), typeof(Image), typeof(QuizResultCard));
         item.layer = parent.gameObject.layer;
@@ -55,9 +56,11 @@ public sealed class QuizResultCard : MonoBehaviour
         card.StatusLabel.color = card.IsCorrect ? CorrectInk : IncorrectInk;
         card.StatusLabel.fontStyle = FontStyles.Bold;
         card.QuestionLabel = NewText(item.transform, "Question", font, question != null ? question.prompt ?? string.Empty : string.Empty);
-        card.yourAnswer = NewChoice(item.transform, "Your answer", font, selected, selectedIndex, "No answer");
+        card.yourAnswer = NewChoice(item.transform, "Your answer", font, selected,
+            QuizProgressUtility.ChoiceDisplayIndex(question, choiceOrder, selectedIndex), "No answer");
         card.correctAnswer = NewChoice(item.transform, "Correct answer", font, correct,
-            question != null ? question.correctChoiceIndex : -1, "Answer unavailable");
+            QuizProgressUtility.ChoiceDisplayIndex(question, choiceOrder,
+                question != null ? question.correctChoiceIndex : -1), "Answer unavailable");
         card.correctAnswer.rect.gameObject.SetActive(!card.IsCorrect);
         card.FeedbackLabel = NewText(item.transform, "Explanation", font,
             !string.IsNullOrWhiteSpace(question != null ? question.feedback : null) ? "Explanation: " + question.feedback : string.Empty);

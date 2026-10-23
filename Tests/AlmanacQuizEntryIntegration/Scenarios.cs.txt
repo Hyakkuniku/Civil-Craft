@@ -1,0 +1,67 @@
+using System;
+public static class Scenarios
+{
+    private static int checks;
+    private static void Check(bool value, string message) { checks++; if (!value) throw new InvalidOperationException(message); }
+    private static AlmanacManager Ready(int quizIndex = 2)
+    {
+        TutorialManager.Instance = null;
+        var manager = new AlmanacManager();
+        for (int index = 0; index < 7; index++) manager.categories.Add(new AlmanacCategory { tabType = index == quizIndex ? AlmanacTabType.Quiz : AlmanacTabType.General });
+        return manager;
+    }
+    public static int Run()
+    {
+        foreach (int dynamicIndex in new[] { 0, 1, 2, 3, 5, 6 })
+        {
+            var book = Ready(dynamicIndex);
+            book.currentCategoryIndex = dynamicIndex == 0 ? 1 : 0;
+            Check(book.TrySelectQuizOfferCategory(dynamicIndex), "Quiz can live at any actual appended/reordered category index: " + dynamicIndex);
+            Check(book.currentCategoryIndex == dynamicIndex && book.selections == 1, "Existing SelectCategory route applies exactly once: " + dynamicIndex);
+            Check(book.IsOpenAndReady && !book.IsOpeningOrClosing, "Selecting a tab never closes or opens an already-ready book.");
+        }
+        foreach (string blocked in new[] { "null-panel", "closed", "opening", "switching", "flipping", "turning", "first-open", "contracts-walkthrough", "lessons-walkthrough", "materials-walkthrough", "negative-index", "past-end-index", "wrong-type", "null-category", "hidden-category", "missing-tab", "hidden-tab", "disabled-tab" })
+        {
+            var book = Ready();
+            int requested = 2;
+            if (blocked == "null-panel") book.almanacCanvas = null;
+            if (blocked == "closed") book.almanacCanvas.activeInHierarchy = false;
+            if (blocked == "opening") book.isAnimating = true;
+            if (blocked == "switching") book.isSwitchingCategory = true;
+            if (blocked == "flipping") book.isFlipping = true;
+            if (blocked == "turning") book.bookMotion = new AlmanacBookMotion { IsTurning = true };
+            if (blocked.EndsWith("walkthrough") || blocked == "first-open")
+            {
+                var sequence = new TutorialSequence();
+                TutorialManager.Instance = new TutorialManager(); TutorialManager.Instance.playing.Add(sequence);
+                if (blocked == "first-open") book.onFirstOpenTutorial = sequence;
+                if (blocked == "contracts-walkthrough") book.onContractsTabUnlockedTutorial = sequence;
+                if (blocked == "lessons-walkthrough") book.onLessonsTabUnlockedTutorial = sequence;
+                if (blocked == "materials-walkthrough") book.onMaterialsTabUnlockedTutorial = sequence;
+            }
+            if (blocked == "negative-index") requested = -1;
+            if (blocked == "past-end-index") requested = book.categories.Count;
+            if (blocked == "wrong-type") book.categories[2].tabType = AlmanacTabType.Materials;
+            if (blocked == "null-category") book.categories[2] = null;
+            if (blocked == "hidden-category") book.categories[2].visibilityMode = TabVisibility.AlwaysHidden;
+            if (blocked == "missing-tab") book.categories[2].tabButton = null;
+            if (blocked == "hidden-tab") book.categories[2].tabButton.gameObject.activeInHierarchy = false;
+            if (blocked == "disabled-tab") book.categories[2].tabButton.interactable = false;
+            Check(!book.TrySelectQuizOfferCategory(requested), "Wait or reject unusable quiz category: " + blocked);
+            Check(book.selections == 0 && book.currentCategoryIndex == 0, "Blocked request cannot bypass existing category, input, or mandatory tutorial: " + blocked);
+        }
+        var declined = Ready(); declined.allowCategoryApplication = false;
+        Check(!declined.TrySelectQuizOfferCategory(2) && declined.selections == 1 && declined.currentCategoryIndex == 0, "Report failure if the ordinary category route declines the request.");
+        var readyAfterWalkthrough = Ready(); var firstOpen = new TutorialSequence();
+        readyAfterWalkthrough.onFirstOpenTutorial = firstOpen; TutorialManager.Instance = new TutorialManager();
+        TutorialManager.Instance.playing.Add(firstOpen);
+        Check(!readyAfterWalkthrough.TrySelectQuizOfferCategory(2), "Required first-open tutorial retains ownership.");
+        TutorialManager.Instance.playing.Clear();
+        Check(readyAfterWalkthrough.TrySelectQuizOfferCategory(2) && readyAfterWalkthrough.selections == 1, "The same queued request can select after the walkthrough finishes.");
+        var afterMotion = Ready(); afterMotion.bookMotion = new AlmanacBookMotion { IsTurning = true };
+        Check(!afterMotion.TrySelectQuizOfferCategory(2), "Book turn cannot be interrupted.");
+        afterMotion.bookMotion.IsTurning = false;
+        Check(afterMotion.TrySelectQuizOfferCategory(2), "Selection resumes when the current paper turn finishes.");
+        return checks;
+    }
+}

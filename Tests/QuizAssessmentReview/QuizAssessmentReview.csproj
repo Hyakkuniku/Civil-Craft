@@ -8,6 +8,7 @@
   <ItemGroup>
     <Compile Include="../../Assets/Script/UI/Quizzes/QuizData.cs" Link="Production/QuizData.cs" />
     <Compile Include="../../Assets/Script/UI/Quizzes/QuizProgress.cs" Link="Production/QuizProgress.cs" />
+    <Compile Include="../../Assets/Script/UI/Quizzes/QuizProgressSaveData.cs" Link="Production/QuizProgressSaveData.cs" />
     <Compile Include="../../Assets/Script/UI/Quizzes/QuizView.cs" Link="Production/QuizView.cs" />
     <Compile Include="../../Assets/Script/UI/Quizzes/QuizChoiceView.cs" Link="Production/QuizChoiceView.cs" />
     <Compile Include="../../Assets/Script/UI/Quizzes/QuizResultCard.cs" Link="Production/QuizResultCard.cs" />

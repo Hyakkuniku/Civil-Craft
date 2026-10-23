@@ -162,6 +162,17 @@ public class TutorialManager : MonoBehaviour
     private bool inspectionNextWasActive;
     private bool inspectionSkipWasActive;
     private bool inspectionHighlightWasActive;
+    private GameObject instructionVisualReplacementOwner;
+    private TutorialSequence instructionVisualReplacementSequence;
+    private int instructionVisualReplacementStepIndex = -1;
+    private RectTransform instructionVisualReplacementRect;
+    private CanvasGroup instructionVisualReplacementGroup;
+    private float instructionVisualReplacementAlpha;
+    private bool instructionVisualReplacementInteractable;
+    private bool instructionVisualReplacementBlocksRaycasts;
+    private bool instructionVisualReplacementWasAnimating;
+    private bool instructionVisualReplacementNextWasActive;
+    private bool instructionVisualReplacementSkipWasActive;
     private bool isAdvancingStep;
     private int lastAdvanceFrame = -1;
     private readonly List<TutorialSequence> queuedSequences = new List<TutorialSequence>();
@@ -201,6 +212,108 @@ public class TutorialManager : MonoBehaviour
                 centerPanelRect != null && centerPanelRect.gameObject.activeInHierarchy
                     ? centerPanelRect : null;
         }
+    }
+    /// <summary>Presentation suppression never changes the active tutorial objective.</summary>
+    public bool IsTutorialPresentationSuppressed => !isActiveAndEnabled ||
+        inspectionModalOwners.Count > 0 || presentationSuppressedFor != null;
+
+    public RectTransform GetInstructionVisualReplacementRect(GameObject owner)
+    {
+        return owner != null && instructionVisualReplacementOwner == owner &&
+            instructionVisualReplacementSequence == currentSequence &&
+            instructionVisualReplacementStepIndex == currentStepIndex
+                ? instructionVisualReplacementRect : null;
+    }
+
+    /// <summary>
+    /// A required warning may temporarily replace only the current instruction's
+    /// graphics and Continue/Skip controls. Step actions, highlights and the Undo
+    /// arrow retain their existing owners. No instruction panel is enabled here.
+    /// </summary>
+    public void SetInstructionVisualReplacement(GameObject owner, bool replace)
+    {
+        if (owner == null) return;
+        if (!replace)
+        {
+            if (instructionVisualReplacementOwner != owner) return;
+            instructionVisualReplacementOwner = null;
+            RefreshInstructionVisualReplacement();
+            return;
+        }
+        TutorialStep step = CurrentStep;
+        GameObject panel = step != null ? GetPanelForPosition(step.screenPosition) : null;
+        if (panel == null || (instructionVisualReplacementOwner != null &&
+            instructionVisualReplacementOwner != owner)) return;
+        if (instructionVisualReplacementRect == null ||
+            instructionVisualReplacementSequence != currentSequence ||
+            instructionVisualReplacementStepIndex != currentStepIndex)
+        {
+            ClearInstructionVisualReplacement();
+            instructionVisualReplacementRect = panel.transform as RectTransform;
+            if (instructionVisualReplacementRect == null) return;
+            instructionVisualReplacementGroup = panel.GetComponent<CanvasGroup>();
+            if (instructionVisualReplacementGroup == null)
+                instructionVisualReplacementGroup = panel.AddComponent<CanvasGroup>();
+            instructionVisualReplacementSequence = currentSequence;
+            instructionVisualReplacementStepIndex = currentStepIndex;
+            instructionVisualReplacementAlpha = instructionVisualReplacementGroup.alpha;
+            instructionVisualReplacementInteractable = instructionVisualReplacementGroup.interactable;
+            instructionVisualReplacementBlocksRaycasts = instructionVisualReplacementGroup.blocksRaycasts;
+            instructionVisualReplacementWasAnimating = IsBannerTransitioning;
+            instructionVisualReplacementNextWasActive = nextButton != null && nextButton.activeSelf;
+            instructionVisualReplacementSkipWasActive = skipButton != null && skipButton.activeSelf;
+        }
+        instructionVisualReplacementOwner = owner;
+        RefreshInstructionVisualReplacement();
+    }
+
+    private void RefreshInstructionVisualReplacement()
+    {
+        if (instructionVisualReplacementGroup == null) return;
+        bool sameStep = IsTutorialActive && instructionVisualReplacementSequence == currentSequence &&
+            instructionVisualReplacementStepIndex == currentStepIndex;
+        if (!sameStep) return; // New presentation explicitly resets the old gate before its animation.
+        if (instructionVisualReplacementOwner != null)
+        {
+            // Capture a running fade's latest intended opacity before hiding it.
+            // Its final alpha=1 write must not be replaced by an early .2 snapshot.
+            if (instructionVisualReplacementGroup.alpha > .001f)
+                instructionVisualReplacementAlpha = instructionVisualReplacementGroup.alpha;
+            if (instructionVisualReplacementWasAnimating && !IsBannerTransitioning)
+                instructionVisualReplacementAlpha = 1f;
+            instructionVisualReplacementGroup.alpha = 0f;
+            instructionVisualReplacementGroup.interactable = false;
+            instructionVisualReplacementGroup.blocksRaycasts = false;
+            if (nextButton != null) nextButton.SetActive(false);
+            if (skipButton != null) skipButton.SetActive(false);
+            return;
+        }
+        UIPanelCoordinator coordinator = UIPanelCoordinator.Instance;
+        if (inspectionModalOwners.Count > 0 || presentationSuppressedFor != null ||
+            (coordinator != null && coordinator.HasOpenPanel &&
+             !coordinator.IsTargetInsideTopPanel(instructionVisualReplacementRect))) return;
+        ClearInstructionVisualReplacement();
+    }
+
+    private void ClearInstructionVisualReplacement()
+    {
+        // This only releases our card-local gate. It never enables the panel or
+        // an ancestor group, including a different modal owner's disabled HUD.
+        if (instructionVisualReplacementGroup != null)
+        {
+            instructionVisualReplacementGroup.alpha = instructionVisualReplacementWasAnimating &&
+                !IsBannerTransitioning ? 1f : instructionVisualReplacementAlpha;
+            instructionVisualReplacementGroup.interactable = instructionVisualReplacementInteractable;
+            instructionVisualReplacementGroup.blocksRaycasts = instructionVisualReplacementBlocksRaycasts;
+            if (nextButton != null) nextButton.SetActive(instructionVisualReplacementNextWasActive);
+            if (skipButton != null) skipButton.SetActive(instructionVisualReplacementSkipWasActive);
+        }
+        instructionVisualReplacementOwner = null;
+        instructionVisualReplacementSequence = null;
+        instructionVisualReplacementStepIndex = -1;
+        instructionVisualReplacementRect = null;
+        instructionVisualReplacementGroup = null;
+        instructionVisualReplacementWasAnimating = false;
     }
     public bool IsLookLocked => ActiveControlStep != null && ActiveControlStep.lockLook;
     public bool IsJumpLocked => ActiveControlStep != null && ActiveControlStep.lockJump;
@@ -524,23 +637,32 @@ public class TutorialManager : MonoBehaviour
                 GetRecallableStep() != null && PathGuider.Instance != null);
             recallGuideButton.interactable = Time.unscaledTime >= nextGuideRecallTime;
         }
-        if (BuildTutorialDirector.Instance != null && BuildTutorialDirector.Instance.isTracingStep)
-        {
-            return;
-        }
-
         if (IsTutorialActive && currentSequence != null && currentStepIndex >= 0 && currentStepIndex < currentSequence.tutorialSteps.Length)
         {
             var step = currentSequence.tutorialSteps[currentStepIndex];
-            
-            if (inspectionModalOwners.Count == 0 && presentationSuppressedFor == null && step.usePointer &&
-                step.pointerTarget != null && bouncingArrow != null)
+
+            if (inspectionModalOwners.Count == 0 && presentationSuppressedFor == null)
             {
-                bouncingArrow.PointAt(step.pointerTarget, step.pointerOffset);
-                bouncingArrow.transform.localEulerAngles = new Vector3(0, 0, step.pointerRotation);
+                BuildTutorialDirector buildDirector = BuildTutorialDirector.Instance;
+                bool buildOwnsPointer = buildDirector != null && buildDirector.TryRefreshTutorialPointer();
+                if (!buildOwnsPointer && !(buildDirector != null && buildDirector.isTracingStep) &&
+                    step.usePointer && step.pointerTarget != null && bouncingArrow != null)
+                {
+                    if (buildDirector != null && buildDirector.isTutorialRunning)
+                        bouncingArrow.PointAtBuildTarget(step.pointerTarget, step.pointerOffset, step.pointerRotation);
+                    else
+                    {
+                        // Non-build story, Almanac and UI tutorials keep their
+                        // existing placement behavior and authored offsets.
+                        bouncingArrow.transform.localEulerAngles = new Vector3(0, 0, step.pointerRotation);
+                        bouncingArrow.PointAt(step.pointerTarget, step.pointerOffset);
+                    }
+                }
             }
         }
     }
+
+    private void LateUpdate() => RefreshInstructionVisualReplacement();
 
     public void PlayTutorial(TutorialSequence sequence)
     {
@@ -553,6 +675,7 @@ public class TutorialManager : MonoBehaviour
             return;
         }
 
+        ClearInstructionVisualReplacement();
         ClearPresentationSuppression();
 
         ClearTrackedButton();
@@ -704,6 +827,7 @@ public class TutorialManager : MonoBehaviour
 
     private void ShowTutorialStep(TutorialStep step, bool playReverseAnimation)
     {
+        ClearInstructionVisualReplacement();
         UIReservedRegionLayout.NotifyLayoutChanging();
         // A rapidly advanced step can interrupt a slide before it reaches its target.
         // Stop it before reading or restoring positions so the next transition starts
@@ -755,7 +879,7 @@ public class TutorialManager : MonoBehaviour
         if (activePanel != null)
         {
             activePanel.SetActive(true);
-            if (activeText != null) activeText.text = step.message ?? "";
+            if (activeText != null) activeText.text = TutorialInstructionText.Compact(step.message);
             ApplyCenteredTutorialLayout(step.screenPosition);
             
             float waitDelay = 0f;
@@ -1227,10 +1351,24 @@ public class TutorialManager : MonoBehaviour
             if (skipButton != null) skipButton.SetActive(inspectionSkipWasActive);
             if (sameStep && inspectionHighlightWasActive && step.worldHighlightObject != null)
                 step.worldHighlightObject.SetActive(true);
-            if (sameStep && step.usePointer && step.pointerTarget != null && bouncingArrow != null)
+            if (sameStep && inspectionModalOwners.Count == 0 && presentationSuppressedFor == null)
             {
-                bouncingArrow.PointAt(step.pointerTarget, step.pointerOffset);
-                bouncingArrow.transform.localEulerAngles = new Vector3(0f, 0f, step.pointerRotation);
+                // Restoration can run after Update this frame. Resolve the same
+                // build/Undo owner now rather than flashing an older step target
+                // or normal-placement geometry until the next frame.
+                BuildTutorialDirector buildDirector = BuildTutorialDirector.Instance;
+                bool buildOwnsPointer = buildDirector != null && buildDirector.TryRefreshTutorialPointer();
+                if (!buildOwnsPointer && !(buildDirector != null && buildDirector.isTracingStep) &&
+                    step.usePointer && step.pointerTarget != null && bouncingArrow != null)
+                {
+                    if (buildDirector != null && buildDirector.isTutorialRunning)
+                        bouncingArrow.PointAtBuildTarget(step.pointerTarget, step.pointerOffset, step.pointerRotation);
+                    else
+                    {
+                        bouncingArrow.transform.localEulerAngles = new Vector3(0f, 0f, step.pointerRotation);
+                        bouncingArrow.PointAt(step.pointerTarget, step.pointerOffset);
+                    }
+                }
             }
         }
 
@@ -1241,6 +1379,7 @@ public class TutorialManager : MonoBehaviour
         inspectionNextWasActive = false;
         inspectionSkipWasActive = false;
         inspectionHighlightWasActive = false;
+        RefreshInstructionVisualReplacement();
     }
 
     private void CaptureAndHideCurrentPresentation()
@@ -1287,6 +1426,7 @@ public class TutorialManager : MonoBehaviour
     private void CompleteTutorial()
     {
         TutorialSequence completedSequence = currentSequence;
+        ClearInstructionVisualReplacement();
         ClearPresentationSuppression();
         ClearTrackedButton(); 
         Tutorial3DIndicator.HideAll();
@@ -1356,6 +1496,7 @@ public class TutorialManager : MonoBehaviour
 
     private void SuspendCurrentTutorial()
     {
+        ClearInstructionVisualReplacement();
         ClearPresentationSuppression();
         ClearTrackedButton();
         Tutorial3DIndicator.HideAll();
@@ -1607,6 +1748,7 @@ public class TutorialManager : MonoBehaviour
     public void SkipTutorial()
     {
         if (!IsTutorialActive) return;
+        if (BuildTutorialDirector.Instance != null && BuildTutorialDirector.Instance.IsAwaitingInvalidBarUndo) return;
         CompleteTutorial();
     }
 
@@ -1767,6 +1909,8 @@ public class TutorialManager : MonoBehaviour
 
     private void OnDisable()
     {
+        instructionVisualReplacementOwner = null;
+        RefreshInstructionVisualReplacement();
         if (inspectionModalOwners.Count > 0)
         {
             inspectionModalOwners.Clear();
@@ -1778,6 +1922,8 @@ public class TutorialManager : MonoBehaviour
 
     private void OnDestroy()
     {
+        instructionVisualReplacementOwner = null;
+        RefreshInstructionVisualReplacement();
         UIReservedRegionLayout.Unregister(centerPanelRect);
         UIReservedRegionLayout.Unregister(leftPanelRect);
     }

@@ -44,6 +44,9 @@ public sealed class QuizView : MonoBehaviour
     public IReadOnlyList<QuizResultCard> VisibleResultCards => resultCards;
     private bool wired;
     private int selection = -1;
+    // Selection/highlight positions are visual; emitted and saved answers use
+    // the original authored choice indices so grading never depends on a letter.
+    private readonly List<int> sourceChoiceIndices = new List<int>();
     private bool answered;
     private bool complete;
     private bool busy;
@@ -86,7 +89,8 @@ public sealed class QuizView : MonoBehaviour
 
     private bool CanRequest() => Panel != null && Panel.activeInHierarchy && !busy;
 
-    public void ShowQuestion(QuizData data, int index, IReadOnlyCollection<string> correctIds)
+    public void ShowQuestion(QuizData data, int index, IReadOnlyCollection<string> correctIds,
+        IReadOnlyList<string> questionOrderIds = null, IReadOnlyList<QuizChoiceOrderSaveData> choiceOrders = null)
     {
         Wire();
         ClearChoices();
@@ -95,7 +99,11 @@ public sealed class QuizView : MonoBehaviour
         selection = -1; answered = false; complete = false; busy = false; saveError = false;
         title.text = data.title;
         progress.text = "Question " + (index + 1) + " of " + data.questions.Count;
-        QuizQuestion item = data.questions[index];
+        QuizQuestion item = data.questions[QuizProgressUtility.QuestionIndexAt(data, questionOrderIds, index)];
+        sourceChoiceIndices.Clear();
+        IReadOnlyList<int> choiceOrder = QuizProgressUtility.ChoiceOrderFor(item.questionId, choiceOrders);
+        for (int displayIndex = 0; displayIndex < item.choices.Count; displayIndex++)
+            sourceChoiceIndices.Add(QuizProgressUtility.ChoiceIndexAt(item, choiceOrder, displayIndex));
         question.text = item.prompt;
         question.richText = false;
         feedback.text = "Choose one answer, then press Submit.";
@@ -108,7 +116,7 @@ public sealed class QuizView : MonoBehaviour
                 QuizChoiceView card = Instantiate(choiceTemplate, choiceContent);
                 card.name = "Choice " + (i + 1);
                 card.gameObject.SetActive(true);
-                card.Bind(item.choices[i], i, Choose);
+                card.Bind(item.choices[sourceChoiceIndices[i]], i, Choose);
                 choices.Add(card);
             }
         }
@@ -119,15 +127,16 @@ public sealed class QuizView : MonoBehaviour
 
     private void Choose(int index)
     {
-        if (busy || answered || complete || saveError) return;
-        SetSelection(index);
-        ChoiceSelected?.Invoke(index);
+        if (busy || answered || complete || saveError || index < 0 || index >= sourceChoiceIndices.Count) return;
+        int sourceIndex = sourceChoiceIndices[index];
+        SetSelection(sourceIndex);
+        ChoiceSelected?.Invoke(sourceIndex);
     }
 
     public void SetSelection(int index)
     {
         if (answered || complete || busy || saveError) return;
-        selection = index >= 0 && index < choices.Count ? index : -1;
+        selection = sourceChoiceIndices.IndexOf(index);
         feedback.text = assessment ? "Choose one answer. You may review your answers before submitting." : "Choose one answer, then press Submit.";
         feedback.color = QuizUILayout.Ink;
         for (int i = 0; i < choices.Count; i++) choices[i].SetSelected(i == selection, answered || busy || saveError);
@@ -155,9 +164,10 @@ public sealed class QuizView : MonoBehaviour
         if (layout != null) layout.ApplyLayout();
     }
 
-    public void ShowAssessmentQuestion(QuizData data, int index, int selected, int answeredCount)
+    public void ShowAssessmentQuestion(QuizData data, int index, int selected, int answeredCount,
+        IReadOnlyList<string> questionOrderIds = null, IReadOnlyList<QuizChoiceOrderSaveData> choiceOrders = null)
     {
-        ShowQuestion(data, index, null);
+        ShowQuestion(data, index, null, questionOrderIds, choiceOrders);
         EnsureAssessmentControls();
         assessment = true;
         hasPrevious = index > 0;
@@ -169,7 +179,8 @@ public sealed class QuizView : MonoBehaviour
         layout?.ApplyLayout();
     }
 
-    public void ShowAssessmentResult(QuizData data, int score, IReadOnlyDictionary<string, int> answers = null)
+    public void ShowAssessmentResult(QuizData data, int score, IReadOnlyDictionary<string, int> answers = null,
+        IReadOnlyList<string> questionOrderIds = null, IReadOnlyList<QuizChoiceOrderSaveData> choiceOrders = null)
     {
         ShowCompletion(data);
         assessment = true;
@@ -180,11 +191,12 @@ public sealed class QuizView : MonoBehaviour
         if (cardSprite == null && layout != null && layout.paperFrame != null) cardSprite = layout.paperFrame.sprite;
         for (int i = 0; i < data.QuestionCount; i++)
         {
-            QuizQuestion item = data.questions[i];
+            QuizQuestion item = data.questions[QuizProgressUtility.QuestionIndexAt(data, questionOrderIds, i)];
             int selected = -1;
             if (answers != null && item != null && !string.IsNullOrWhiteSpace(item.questionId) &&
                 answers.TryGetValue(item.questionId.Trim(), out int savedAnswer)) selected = savedAnswer;
-            resultCards.Add(QuizResultCard.Create(choiceContent, title.font, cardSprite, item, i + 1, selected));
+            resultCards.Add(QuizResultCard.Create(choiceContent, title.font, cardSprite, item, i + 1, selected,
+                QuizProgressUtility.ChoiceOrderFor(item.questionId, choiceOrders)));
         }
         SetButtonText(finishButton, "Continue");
         RefreshButtons();
@@ -290,6 +302,7 @@ public sealed class QuizView : MonoBehaviour
             if (Application.isPlaying) Destroy(card.gameObject); else DestroyImmediate(card.gameObject);
         }
         choices.Clear();
+        sourceChoiceIndices.Clear();
     }
 
     private void ResetScroll()

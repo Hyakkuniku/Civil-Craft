@@ -16,6 +16,9 @@ public class TutorialPointer : MonoBehaviour
     private Vector2 customOffset;
     private RectTransform rectTransform;
     private Canvas pointerCanvas;
+    private bool fitBuildTarget;
+    private float buildPreferredRotation;
+    private readonly Vector3[] targetCorners = new Vector3[4];
 
     private bool IsSuppressedByModal
     {
@@ -72,6 +75,7 @@ public class TutorialPointer : MonoBehaviour
 
     public void PointAt(RectTransform newTarget, Vector2 offset)
     {
+        fitBuildTarget = false;
         if (newTarget == null)
         {
             Hide();
@@ -89,6 +93,7 @@ public class TutorialPointer : MonoBehaviour
 
     public void PointAt(RectTransform newTarget)
     {
+        fitBuildTarget = false;
         if (newTarget == null)
         {
             Hide();
@@ -104,13 +109,28 @@ public class TutorialPointer : MonoBehaviour
         if (!IsSuppressedByModal) UpdatePosition();
     }
 
+    /// <summary>Build-only edge placement. Keeps existing non-build authored offsets unchanged.</summary>
+    public void PointAtBuildTarget(RectTransform newTarget, Vector2 offset, float rotation)
+    {
+        if (newTarget == null || !newTarget.gameObject.activeInHierarchy) { Hide(); return; }
+        fitBuildTarget = true;
+        buildPreferredRotation = rotation;
+        target = newTarget;
+        customOffset = offset;
+        gameObject.SetActive(true);
+        RefreshModalVisibility();
+        transform.SetAsLastSibling();
+        if (!IsSuppressedByModal) UpdatePosition();
+    }
+
     public void Hide()
     {
         target = null;
+        fitBuildTarget = false;
         gameObject.SetActive(false);
     }
 
-    private void Update()
+    private void LateUpdate()
     {
         if (target == null || !target.gameObject.activeInHierarchy)
         {
@@ -154,6 +174,58 @@ public class TutorialPointer : MonoBehaviour
             ? Mathf.Max(0.0001f, pointerRootCanvas.scaleFactor)
             : 1f;
 
+        Camera pointerCamera = pointerRootCanvas != null &&
+                               pointerRootCanvas.renderMode != RenderMode.ScreenSpaceOverlay
+            ? pointerRootCanvas.worldCamera : null;
+        if (fitBuildTarget)
+        {
+            target.GetWorldCorners(targetCorners);
+            Vector2 lower = RectTransformUtility.WorldToScreenPoint(targetCamera, targetCorners[0]);
+            Vector2 upper = lower;
+            for (int i = 1; i < targetCorners.Length; i++)
+            {
+                Vector2 point = RectTransformUtility.WorldToScreenPoint(targetCamera, targetCorners[i]);
+                lower = Vector2.Min(lower, point); upper = Vector2.Max(upper, point);
+            }
+            // Scroll-content rectangles can be much wider than the visible
+            // material toolbar. Aim at the visible clipped area, not its hidden
+            // off-screen content center.
+            RectMask2D clip = target.GetComponentInParent<RectMask2D>();
+            if (clip != null && clip.isActiveAndEnabled)
+            {
+                RectTransform clipRect = clip.transform as RectTransform;
+                clipRect.GetWorldCorners(targetCorners);
+                Vector2 clipMin = RectTransformUtility.WorldToScreenPoint(targetCamera, targetCorners[0]), clipMax = clipMin;
+                for (int i = 1; i < targetCorners.Length; i++)
+                {
+                    Vector2 point = RectTransformUtility.WorldToScreenPoint(targetCamera, targetCorners[i]);
+                    clipMin = Vector2.Min(clipMin, point); clipMax = Vector2.Max(clipMax, point);
+                }
+                lower = Vector2.Max(lower, clipMin); upper = Vector2.Min(upper, clipMax);
+                if (lower.x >= upper.x || lower.y >= upper.y)
+                {
+                    if (pointerCanvas != null) pointerCanvas.enabled = false;
+                    return;
+                }
+            }
+            Vector3 center = rectTransform.TransformPoint(rectTransform.rect.center);
+            Vector2 centerPixel = RectTransformUtility.WorldToScreenPoint(pointerCamera, center);
+            float width = (RectTransformUtility.WorldToScreenPoint(pointerCamera,
+                rectTransform.TransformPoint(rectTransform.rect.center + Vector2.right * rectTransform.rect.width)) - centerPixel).magnitude;
+            float height = (RectTransformUtility.WorldToScreenPoint(pointerCamera,
+                rectTransform.TransformPoint(rectTransform.rect.center + Vector2.up * rectTransform.rect.height)) - centerPixel).magnitude;
+            Rect safe = pointerCamera != null && pointerCamera.targetTexture != null ? pointerCamera.pixelRect : Screen.safeArea;
+            if (safe.width <= 0 || safe.height <= 0) safe = new Rect(0, 0, Screen.width, Screen.height);
+            float margin = 8f * canvasScale;
+            var placement = BuildTutorialPointerLayout.Resolve((lower.x + upper.x) * .5f, (lower.y + upper.y) * .5f,
+                upper.x - lower.x, upper.y - lower.y, width, height,
+                customOffset.x * canvasScale, customOffset.y * canvasScale, buildPreferredRotation,
+                bounceAmount * canvasScale, 10f * canvasScale,
+                safe.xMin + margin, safe.yMin + margin, safe.xMax - margin, safe.yMax - margin);
+            rectTransform.localEulerAngles = new Vector3(0, 0, placement.rotation);
+            screenPoint = new Vector2(placement.x, placement.y);
+        }
+
         // Offset in canvas/screen space instead of the target's local space.
         // This keeps arrows accurate for buttons with non-uniform nested scales.
         float bounce = Mathf.Sin(Time.unscaledTime * bounceSpeed) * bounceAmount;
@@ -161,14 +233,12 @@ public class TutorialPointer : MonoBehaviour
         Vector2 bounceDirection = new Vector2(
             -Mathf.Sin(rotationRadians),
             Mathf.Cos(rotationRadians));
-        screenPoint += (customOffset + bounceDirection * bounce) * canvasScale;
+        screenPoint += ((fitBuildTarget ? Vector2.zero : customOffset) + bounceDirection * bounce) * canvasScale;
+        if (fitBuildTarget)
+            screenPoint -= RectTransformUtility.WorldToScreenPoint(pointerCamera, rectTransform.TransformPoint(rectTransform.rect.center)) -
+                           RectTransformUtility.WorldToScreenPoint(pointerCamera, rectTransform.position);
 
         RectTransform pointerParent = rectTransform.parent as RectTransform;
-        Camera pointerCamera = pointerRootCanvas != null &&
-                               pointerRootCanvas.renderMode != RenderMode.ScreenSpaceOverlay
-            ? pointerRootCanvas.worldCamera
-            : null;
-
         if (pointerParent != null && RectTransformUtility.ScreenPointToWorldPointInRectangle(
                 pointerParent,
                 screenPoint,

@@ -1,0 +1,201 @@
+using System;
+using System.Reflection;
+using UnityEngine;
+
+public static class Scenarios
+{
+    private static int checks;
+    private static void Check(bool value, string message) { checks++; if (!value) throw new InvalidOperationException($"Check {checks}: {message}"); }
+    private static object Call(object target, string name, params object[] args) => target.GetType().GetMethod(name, BindingFlags.NonPublic | BindingFlags.Instance).Invoke(target, args);
+    private static T Get<T>(object target, string name) => (T)target.GetType().GetField(name, BindingFlags.NonPublic | BindingFlags.Instance).GetValue(target);
+    private sealed class Fixture
+    {
+        public NPCProgressionManager Npc = new NPCProgressionManager();
+        public NPCProgressionPhase Phase = new NPCProgressionPhase();
+        public DialogueManager Dialogue = new DialogueManager();
+        public LessonTrigger Trigger;
+        public Fixture(bool pending = true)
+        {
+            PlayerDataManager.Instance = new PlayerDataManager(); FusionConnectionManager.Instance = null;
+            PauseManager.Instance = null; UIPanelCoordinator.Instance = null; GameManager.Instance = null;
+            Time.timeScale = 1f; QuizUIManager.IsAnyQuizActive = false; QuizUIManager.cancels = 0; AlmanacQuizAccess.cancels = 0;
+            DialogueManager.IsAnyDialogueVisible = false; DialogueManager.found = Dialogue;
+            AlmanacManager.Instance = new AlmanacManager();
+            Npc.CurrentPhase = Phase;
+            Trigger = new LessonTrigger { Owner = Npc, Phase = Phase, PhaseIndex = 1, Pending = pending,
+                SaveManager = PlayerDataManager.Instance, SaveOwner = PlayerDataManager.Instance.CurrentData };
+            LessonTrigger.Current = Trigger;
+        }
+        public void Tap() => Call(Npc, "HandleNPCInteracted", Npc.contractGiver);
+        public void Tick() => Call(Npc, "LateUpdate");
+        public void Cancel() => Call(Npc, "CancelOrderedOptionalSequence");
+    }
+
+    public static int Run()
+    {
+        BeforePendingPreservesStory();
+        PendingReminderClaimsTapAndPreservesSequence();
+        ModalGatesDoNotFallThrough();
+        ResumeCannotSpeakForAStalePhase();
+        InvalidationCancelsOnlyOwnedReminder();
+        ForeignConversationAndStaleCallbacksRemainSafe();
+        MissingDialogueAndOtherNpcsRemainSafe();
+        return checks;
+    }
+
+    private static void BeforePendingPreservesStory()
+    {
+        Fixture f = new Fixture(false); f.Tap();
+        Check(f.Phase.interactionEvents == 1 && f.Npc.fallbackStarts == 1 && f.Npc.contractGiver.suppressed == 0,
+            "Before inspection qualifies, original phase events and inspect dialogue remain available.");
+        Check(f.Trigger.resumes == 0 && f.Dialogue.starts == 0 && f.Trigger.lineRequests == 0,
+            "No pending review means no new reminder or resume request.");
+        Check(f.Phase.phaseDialogue.sentences[0] == "Inspect the vehicle.", "Authored phase dialogue remains unchanged.");
+        f.Trigger.Pending = true; f.Tap();
+        Check(f.Npc.contractGiver.suppressed == 1 && f.Phase.interactionEvents == 1 && f.Npc.fallbackStarts == 1,
+            "Same released phase switches to pending guidance without replaying story events.");
+    }
+
+    private static void PendingReminderClaimsTapAndPreservesSequence()
+    {
+        Fixture f = new Fixture();
+        for (int i = 1; i <= 3; i++)
+        {
+            f.Tap();
+            Check(f.Dialogue.starts == i && f.Trigger.resumes == i, "Each fresh talk resumes/checks the pending review once.");
+            Check(f.Dialogue.last.name == "Professor Bhan" && f.Dialogue.last.sentences.Length == 3 &&
+                f.Dialogue.last.sentences[1].Contains("Live Load") && f.Dialogue.last.sentences[2].Contains("Close"),
+                "NPC speaks the trigger's multi-sentence current-stage reminder.");
+            Check(f.Dialogue.speakerAnimator == f.Npc.animator && f.Dialogue.speakerTransform == f.Npc.transform,
+                "Reminder retains this NPC's animation and facing bindings.");
+            f.Tap();
+            Check(f.Dialogue.starts == i && f.Trigger.resumes == i && f.Npc.contractGiver.suppressed == i * 2,
+                "Repeated tap is claimed without duplicate dialogue or resume.");
+            Check(f.Phase.interactionEvents == 0 && f.Npc.fallbackStarts == 0 && f.Npc.orderedStarts == 0,
+                "Reminder suppresses input-source fallthrough before phase events.");
+            f.Dialogue.Finish();
+            Check(Get<Action>(f.Npc, "lessonReviewReminderCompletion") == null && Get<LessonTrigger>(f.Npc, "lessonReviewReminderTrigger") == null,
+                "Natural reminder close releases only its callback ownership.");
+            Check(f.Npc.CurrentPhase == f.Phase && f.Npc.currentPhaseIndex == 1 && f.Trigger.Pending && AlmanacManager.Instance.opens == 0,
+                "Finishing reminder never advances phase, resolves pending review, or auto-opens Almanac.");
+        }
+        f.Tap(); PauseManager.Instance = new PauseManager { isPaused = true }; f.Tick();
+        Check(f.Dialogue.ends == 0 && Get<Action>(f.Npc, "lessonReviewReminderCompletion") != null,
+            "Nested Pause alone does not invalidate an owned pending reminder.");
+        f.Cancel();
+        Check(f.Dialogue.ends == 1 && !f.Dialogue.inputManager.Movement && !f.Dialogue.inputManager.Look && !f.Dialogue.playerInteract.enabled,
+            "Owner teardown while Pause is nested retains other input locks.");
+    }
+
+    private static void ModalGatesDoNotFallThrough()
+    {
+        foreach (string busy in new[] { "pause", "time", "modal", "book", "dialogue", "quiz", "transition", "build" })
+        {
+            Fixture f = new Fixture();
+            if (busy == "pause") PauseManager.Instance = new PauseManager { isPaused = true };
+            if (busy == "time") Time.timeScale = 0f;
+            if (busy == "modal") UIPanelCoordinator.Instance = new UIPanelCoordinator { HasOpenPanel = true };
+            if (busy == "book") AlmanacManager.Instance.Panel.activeInHierarchy = true;
+            if (busy == "dialogue") DialogueManager.IsAnyDialogueVisible = true;
+            if (busy == "quiz") QuizUIManager.IsAnyQuizActive = true;
+            if (busy == "transition") GameManager.Instance = new GameManager { IsTransitioning = true };
+            if (busy == "build") GameManager.Instance = new GameManager { CurrentState = GameManager.GameState.Build };
+            f.Tap();
+            Check(f.Npc.contractGiver.suppressed == 1 && f.Dialogue.starts == 0 && f.Trigger.resumes == 0,
+                "Busy state claims tap without overlapping another owner: " + busy);
+            Check(f.Phase.interactionEvents == 0 && f.Npc.fallbackStarts == 0 && AlmanacManager.Instance.opens == 0,
+                "Busy tap cannot fall through to story or book opening: " + busy);
+        }
+    }
+
+    private static void ResumeCannotSpeakForAStalePhase()
+    {
+        foreach (string change in new[] { "resolved", "phase", "index", "travel", "profile", "manager", "visitor", "inactive" })
+        {
+            Fixture f = new Fixture();
+            f.Trigger.OnResume = () =>
+            {
+                if (change == "resolved") f.Trigger.Pending = false;
+                if (change == "phase") f.Npc.CurrentPhase = new NPCProgressionPhase { phaseId = "WorkBench" };
+                if (change == "index") f.Npc.currentPhaseIndex = 2;
+                if (change == "travel") f.Npc.IsTravelling = true;
+                if (change == "profile") PlayerDataManager.Instance.CurrentData = new PlayerData();
+                if (change == "manager") PlayerDataManager.Instance = new PlayerDataManager();
+                if (change == "visitor") FusionConnectionManager.Instance = new FusionConnectionManager { IsGuestInHostWorld = true };
+                if (change == "inactive") f.Npc.isActiveAndEnabled = false;
+            };
+            f.Tap();
+            Check(f.Trigger.resumes == 1 && f.Dialogue.starts == 0 && f.Npc.contractGiver.suppressed == 1,
+                "Synchronous resume cannot open an old-phase reminder: " + change);
+            Check(f.Phase.interactionEvents == 0 && Get<Action>(f.Npc, "lessonReviewReminderCompletion") == null,
+                "Stale resume does not dispatch events or retain callback: " + change);
+        }
+        Fixture unavailable = new Fixture(); unavailable.Trigger.ResumeResult = false; unavailable.Tap();
+        Check(unavailable.Dialogue.starts == 1 && unavailable.Npc.CurrentPhase == unavailable.Phase && unavailable.Trigger.Pending,
+            "Temporarily unavailable review remains reminder-only and does not advance.");
+    }
+
+    private static void InvalidationCancelsOnlyOwnedReminder()
+    {
+        foreach (string reason in new[] { "profile", "manager", "visitor", "protected", "phase", "index", "travel", "inactive", "unloaded", "trigger", "replacement", "cancel" })
+        {
+            Fixture f = new Fixture(); f.Tap(); Action stale = f.Dialogue.onDialogueEndCallback;
+            if (reason == "profile") PlayerDataManager.Instance.CurrentData = new PlayerData();
+            if (reason == "manager") PlayerDataManager.Instance = new PlayerDataManager();
+            if (reason == "visitor") FusionConnectionManager.Instance = new FusionConnectionManager { IsGuestInHostWorld = true };
+            if (reason == "protected") FusionConnectionManager.Instance = new FusionConnectionManager { IsGuestSaveProtected = true };
+            if (reason == "phase") f.Npc.CurrentPhase = new NPCProgressionPhase();
+            if (reason == "index") f.Npc.currentPhaseIndex = 2;
+            if (reason == "travel") f.Npc.IsTravelling = true;
+            if (reason == "inactive") f.Npc.isActiveAndEnabled = false;
+            if (reason == "unloaded") f.Npc.gameObject.scene.isLoaded = false;
+            if (reason == "trigger") f.Trigger.Active = false;
+            if (reason == "replacement") LessonTrigger.Current = new LessonTrigger { Owner = f.Npc, Pending = true, Phase = f.Phase,
+                PhaseIndex = 1, SaveManager = PlayerDataManager.Instance, SaveOwner = PlayerDataManager.Instance.CurrentData };
+            if (reason == "cancel") f.Cancel();
+            f.Tick();
+            Check(f.Dialogue.ends == 1 && f.Dialogue.onDialogueEndCallback == null && Get<Action>(f.Npc, "lessonReviewReminderCompletion") == null,
+                "Invalidation closes only owned reminder: " + reason);
+            Check(Get<DialogueManager>(f.Npc, "lessonReviewReminderDialogueManager") == null && Get<NPCProgressionPhase>(f.Npc, "lessonReviewReminderPhase") == null,
+                "Invalidation clears all reminder ownership: " + reason);
+            stale(); f.Tick();
+            Check(f.Dialogue.ends == 1 && f.Phase.interactionEvents == 0,
+                "Stale callback and duplicate teardown cannot advance or close twice: " + reason);
+        }
+    }
+
+    private static void ForeignConversationAndStaleCallbacksRemainSafe()
+    {
+        Fixture f = new Fixture(); f.Tap(); Action old = f.Dialogue.onDialogueEndCallback;
+        int foreignCompleted = 0;
+        Action foreign = () => foreignCompleted++;
+        f.Dialogue.StartDialogue(new Dialogue(), foreign, null, null); f.Cancel();
+        Check(f.Dialogue.ends == 0 && f.Dialogue.isDialogueActive && f.Dialogue.onDialogueEndCallback == foreign,
+            "Reminder cancellation cannot close a replacing unrelated conversation.");
+        old();
+        Check(f.Dialogue.onDialogueEndCallback == foreign, "Stale reminder completion cannot steal replacing callback.");
+        f.Dialogue.Finish(); Check(foreignCompleted == 1, "Unrelated dialogue completes under its original owner.");
+        f = new Fixture(); f.Tap(); old = f.Dialogue.onDialogueEndCallback; f.Dialogue.Finish(); f.Tap();
+        Action latest = f.Dialogue.onDialogueEndCallback; old();
+        Check(Get<Action>(f.Npc, "lessonReviewReminderCompletion") == latest && f.Dialogue.onDialogueEndCallback == latest,
+            "Prior natural-completion callback cannot clear a later fresh reminder.");
+        f.Cancel(); f.Cancel();
+        Check(f.Dialogue.ends == 1 && f.Npc.CurrentPhase == f.Phase, "Repeated cancellation remains idempotent without phase advancement.");
+    }
+
+    private static void MissingDialogueAndOtherNpcsRemainSafe()
+    {
+        Fixture f = new Fixture(); DialogueManager.found = null; f.Tap();
+        Check(f.Npc.contractGiver.suppressed == 1 && f.Trigger.resumes == 1 && f.Dialogue.starts == 0 && f.Phase.interactionEvents == 0,
+            "Missing dialogue service keeps pending guidance claimed without story fallthrough.");
+        f = new Fixture(); Call(f.Npc, "HandleNPCInteracted", new NPCContractGiver());
+        Check(f.Trigger.resumes == 0 && f.Dialogue.starts == 0 && f.Phase.interactionEvents == 0, "Foreign interaction sender is ignored.");
+        f = new Fixture(); FusionConnectionManager.Instance = new FusionConnectionManager { IsGuestInHostWorld = true }; f.Tap();
+        Check(f.Trigger.resumes == 0 && f.Dialogue.starts == 0 && f.Phase.interactionEvents == 0, "Host-world visitor cannot begin local story reminder.");
+        f = new Fixture(); f.Trigger.Owner = new NPCProgressionManager(); f.Tap();
+        Check(f.Dialogue.starts == 0 && f.Trigger.resumes == 0 && f.Npc.contractGiver.suppressed == 0,
+            "Another NPC's pending trigger cannot be claimed by this one.");
+        f = new Fixture(); f.Npc.CurrentPhase = null; f.Tap();
+        Check(f.Dialogue.starts == 0 && f.Trigger.resumes == 0, "No current phase safely ignores interaction.");
+    }
+}

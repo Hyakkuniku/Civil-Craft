@@ -1,0 +1,39 @@
+using System;
+using System.Collections.Generic;
+
+public enum AlmanacTabType { General, Contracts, Lessons, Materials, Quiz }
+public enum TabVisibility { Normal, AlwaysHidden }
+public class GameObject { public bool activeInHierarchy = true; }
+public class Button { public bool interactable = true; public GameObject gameObject = new GameObject(); }
+public class AlmanacCategory
+{
+    public AlmanacTabType tabType;
+    public TabVisibility visibilityMode;
+    public Button tabButton = new Button();
+}
+public class TutorialSequence { }
+public class TutorialManager
+{
+    public static TutorialManager Instance;
+    public readonly HashSet<TutorialSequence> playing = new HashSet<TutorialSequence>();
+    public bool IsPlayingSequence(TutorialSequence sequence) => sequence != null && playing.Contains(sequence);
+}
+public class AlmanacBookMotion { public bool IsTurning; }
+public class AlmanacManager
+{
+    public GameObject almanacCanvas = new GameObject();
+    public bool isAnimating, isSwitchingCategory, isFlipping;
+    public AlmanacBookMotion bookMotion;
+    public TutorialSequence onFirstOpenTutorial, onContractsTabUnlockedTutorial, onLessonsTabUnlockedTutorial, onMaterialsTabUnlockedTutorial;
+    public List<AlmanacCategory> categories = new List<AlmanacCategory>();
+    public int currentCategoryIndex, selections;
+    public bool allowCategoryApplication = true;
+    // Actual SelectCategory calls this engine-heavy presentation boundary.
+    // A declined apply must be observable as a failed selection request.
+    private void ApplyCategorySelection(int index)
+    {
+        selections++;
+        if (allowCategoryApplication) currentCategoryIndex = index;
+    }
+    // ACTUAL_MANAGER
+}

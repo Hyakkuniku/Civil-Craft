@@ -19,6 +19,11 @@ public sealed class NPCOrderedLearningFlow : MonoBehaviour
     private Action unavailable;
     private string activeReviewId;
 
+    /// <summary>Read-only ownership query for a stage-aware NPC reminder.</summary>
+    public bool IsAlmanacReviewPending(string reviewId) => reviewSequence != null &&
+        string.Equals(activeReviewId, "StoryReview/" + reviewId, StringComparison.Ordinal) &&
+        completed != null && IsAuthorized();
+
     public bool TryShowLesson(LessonData lesson, Action onCompleted, Action onUnavailable = null)
     {
         if (!isActiveAndEnabled || ProtectedVisit() || lesson == null || LessonUIManager.Instance == null ||
@@ -83,18 +88,30 @@ public sealed class NPCOrderedLearningFlow : MonoBehaviour
         child.transform.SetParent(transform, false);
         reviewSequence = child.AddComponent<TutorialSequence>();
         reviewSequence.lessonName = lessonId;
-        reviewSequence.tutorialSteps = new[]
+        reviewSequence.tutorialSteps = CreateReviewSteps(reviewBook, reviewSubject);
+        reviewSequence.StartTutorial();
+        reviewRoutine = StartCoroutine(WaitForReview(reviewBook));
+        return true;
+    }
+
+    private static TutorialStep[] CreateReviewSteps(AlmanacManager book, string reviewSubject)
+    {
+        RectTransform bookButton = book != null && book.hudOpenButton != null
+            ? book.hudOpenButton.GetComponent<RectTransform>() : null;
+        return new[]
         {
             new TutorialStep { message = "Open your <b><#E09500>Almanac</color></b> and review the " +
                     (string.IsNullOrWhiteSpace(reviewSubject) ? "newly recorded entry" : reviewSubject) +
                     ". After reading, close the book to continue.",
-                screenPosition = TutorialPosition.Left, showNextButton = false, canSkip = false },
+                screenPosition = TutorialPosition.Left, showNextButton = false, canSkip = false,
+                usePointer = bookButton != null, pointerTarget = bookButton,
+                pointerOffset = new Vector2(80f, -80f), pointerRotation = 45f,
+                // A click/animation is not a completed review. The ready book
+                // and genuine close event remain the only progression gate.
+                advanceOnClick = false },
             new TutorialStep { message = "This entry is part of your engineering record. Close the <b><#E09500>Almanac</color></b> to continue.",
                 screenPosition = TutorialPosition.Left, showNextButton = false, canSkip = false }
         };
-        reviewSequence.StartTutorial();
-        reviewRoutine = StartCoroutine(WaitForReview(reviewBook));
-        return true;
     }
 
     private IEnumerator WaitForReview(AlmanacManager book)

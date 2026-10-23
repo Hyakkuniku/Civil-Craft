@@ -14,15 +14,19 @@ string Fields(ClassDeclarationSyntax type, params string[] names) => string.Join
 ClassDeclarationSyntax npc = Read("Assets/Script/Client/NPCProgressionManager.cs", "NPCProgressionManager");
 ClassDeclarationSyntax access = Read("Assets/Script/UI/Almanac/AlmanacQuizAccess.cs", "AlmanacQuizAccess");
 ClassDeclarationSyntax dialogue = Read("Assets/Script/Dialogue/DialogueManager.cs", "DialogueManager");
-string npcCode = Fields(npc, "quizReminderDialogueManager", "quizReminderCompletion", "runningOptionalSequencePhases", "optionalSequenceVersion") +
-    string.Join("\n", new[] { "TryGetWaitingQuizStep", "TryHandleWaitingQuizInteraction", "GetQuizReminderSpeakerName", "LateUpdate", "CancelQuizWaitingReminder", "StopOrderedOptionalSequence", "CancelOrderedOptionalSequence", "IsCurrentOrderedSequence", "CanRunLocalProgression" }.Select(name => Method(npc, name)));
+string npcCode = Fields(npc, "quizReminderDialogueManager", "quizReminderCompletion", "runningOptionalSequencePhases", "optionalSequenceVersion",
+    "lessonReviewReminderDialogueManager", "lessonReviewReminderCompletion", "lessonReviewReminderTrigger", "lessonReviewReminderPhase") +
+    string.Join("\n", new[] { "TryGetWaitingQuizStep", "TryHandleWaitingQuizInteraction", "GetQuizReminderSpeakerName", "LateUpdate", "CancelQuizWaitingReminder", "CancelLessonReviewReminder", "StopOrderedOptionalSequence", "CancelOrderedOptionalSequence", "IsCurrentOrderedSequence", "CanRunLocalProgression" }.Select(name => Method(npc, name)));
 string accessCode = Fields(access, "quiz", "context", "owner", "closed", "saveOwner", "saveManager", "starting") +
     string.Join("\n", new[] { "TryGetWaitingQuiz", "ProtectedVisit", "IsAuthorized" }.Select(name => Method(access, name)));
 string boundary = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Boundary.cs.txt"))
     .Replace("// ACTUAL_NPC", npcCode).Replace("// ACTUAL_ACCESS", accessCode).Replace("// ACTUAL_CANCEL", Method(dialogue, "CancelDialogueIfOwned"));
 var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator).Select(path => MetadataReference.CreateFromFile(path));
 var compilation = CSharpCompilation.Create("NPCQuizReminderChecks_" + Guid.NewGuid().ToString("N"),
-    new[] { CSharpSyntaxTree.ParseText(boundary), CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Scenarios.cs.txt"))) }, references,
+    new[] { CSharpSyntaxTree.ParseText(boundary), CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Scenarios.cs.txt"))
+        // Reflection does not supply C# optional parameters; retain the same
+        // ordinary-cancellation scenarios with the new explicit default false.
+        .Replace("\"CancelOrderedOptionalSequence\");", "\"CancelOrderedOptionalSequence\", false);")) }, references,
     new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 using MemoryStream result = new();
 var emitted = compilation.Emit(result);
@@ -36,4 +40,10 @@ if (interact.IndexOf("TryHandleWaitingQuizInteraction", StringComparison.Ordinal
 string remind = Method(npc, "TryHandleWaitingQuizInteraction");
 foreach (string prohibited in new[] { "TryOffer(", "TryOpen(", "InvokeDialogueFinished", "MarkPhaseDialogueCompleted", "GrantConfiguredPhaseFeature", "PlayOrderedOptionalStep" })
     if (remind.Contains(prohibited)) throw new InvalidOperationException("Reminder must not advance/open/reward: " + prohibited);
-Console.WriteLine($"PASS: {checks} executed production reminder/query/ownership-cancel checks plus 7 source guards. Boundary doubles only; no Unity scenes, accounts, saves, network or story content changed.");
+if (!remind.Contains("AlmanacQuizAccess.RequestOpenWaitingQuiz(this)") || !remind.Contains("currentStep == step"))
+    throw new InvalidOperationException("Reminder completion must request only its still-current waiting offer.");
+string ordered = Method(npc, "PlayOrderedOptionalStep");
+if (!ordered.Contains("bool opened = AlmanacQuizAccess.TryOffer(step.quiz, context, this, onClosed)") || ordered.Contains("QuizUIManager.TryOpen("))
+    throw new InvalidOperationException("All NPC quiz modes must offer through the Almanac, never auto-start directly.");
+if (ordered.Contains("step.quiz.assessmentMode")) throw new InvalidOperationException("NPC entry must be standard across assessment and retry modes.");
+Console.WriteLine($"PASS: {checks} executed production reminder/query/ownership-cancel checks plus 10 source guards. Boundary doubles only; no Unity scenes, accounts, saves, network or story content changed.");

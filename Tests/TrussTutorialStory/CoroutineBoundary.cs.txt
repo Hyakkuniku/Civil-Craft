@@ -131,5 +131,8 @@ public sealed class NPCProgressionManager : MonoBehaviour
         dialogueStarts++; startedIndex = index; startedPhase = phase; return true;
     }
     public IEnumerator BeginArrival() => StartOrderedDialogueAfterArrival(currentPhaseIndex, CurrentPhase, arrivalDialogueVersion);
+    // This Truss-only fixture does not opt into the separate Beam walking review.
+    // That owned flow is exercised by NPCTravelAlmanacReview's linked tests.
+    private bool HasPendingTravelAlmanacReview(int index, NPCProgressionPhase phase) => false;
     // ACTUAL_NPC_METHODS
 }

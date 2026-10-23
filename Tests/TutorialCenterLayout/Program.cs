@@ -171,15 +171,17 @@ internal static class Program
         Check(manager.Contains("case TutorialPosition.LowCenter:") && manager.Contains("return centerPanel;"), "Center and LowCenter retain the same authored panel.");
         Check(manager.Contains("nextButton.SetActive(step.showNextButton)"), "The existing Continue visibility is still governed by each authored step.");
         string show = Method(manager, "private void ShowTutorialStep(");
-        int messageAssignment = show.IndexOf("activeText.text = step.message", StringComparison.Ordinal);
+        int messageAssignment = show.IndexOf("activeText.text = TutorialInstructionText.Compact(step.message)", StringComparison.Ordinal);
         int layoutCall = show.IndexOf("ApplyCenteredTutorialLayout(step.screenPosition)", StringComparison.Ordinal);
         int firstAnimation = show.IndexOf("AnimatePanel", StringComparison.Ordinal);
         Check(messageAssignment >= 0 && layoutCall > messageAssignment && layoutCall < firstAnimation,
             "Each new message is assigned, measured, and sized before its entrance animation captures the target.");
         string update = Method(manager, "private void Update()");
-        Check(update.IndexOf("RefreshCenteredTutorialLayout()", StringComparison.Ordinal) >= 0 &&
-              update.IndexOf("RefreshCenteredTutorialLayout()", StringComparison.Ordinal) < update.IndexOf("BuildTutorialDirector.Instance.isTracingStep", StringComparison.Ordinal),
-            "Screen resizing is handled before tracing early returns.");
+        int refreshLayout = update.IndexOf("RefreshCenteredTutorialLayout()", StringComparison.Ordinal);
+        int pointerOwnership = update.IndexOf("TryRefreshTutorialPointer()", StringComparison.Ordinal);
+        int tracingGate = update.IndexOf("buildDirector.isTracingStep", StringComparison.Ordinal);
+        Check(refreshLayout >= 0 && pointerOwnership > refreshLayout && tracingGate > refreshLayout,
+            "Screen resizing is handled before build-pointer ownership and tracing gates.");
         string refresh = Method(manager, "private void RefreshCenteredTutorialLayout()");
         Check(refresh.Contains("IsBannerTransitioning") && refresh.Contains("CurrentStep") && refresh.Contains("Screen.safeArea") && refresh.Contains("parent.rect.size"),
             "Responsive checks use the active centered step, avoid animation fighting, and notice Canvas/safe-area changes.");

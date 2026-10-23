@@ -138,26 +138,43 @@ public sealed class QuizView : Behaviour
     public event Action<int> ChoiceSelected;
     public event Action SubmitRequested, NextRequested, PreviousRequested, FinishRequested, LeaveRequested, RetrySaveRequested, PauseRequested;
     public int score = -1;
-    public void ShowAssessmentQuestion(QuizData data, int index, int selected, int answeredCount)
-    { ShowQuestion(data, index, null); selection = selected; }
+    public QuizQuestion shownQuestionData;
+    public IReadOnlyList<string> shownQuestionOrder, resultOrder;
+    public IReadOnlyList<int> shownChoiceOrder;
+    public IReadOnlyList<QuizChoiceOrderSaveData> resultChoiceOrders;
+    public int displayedSelection = -1;
+    public void ShowAssessmentQuestion(QuizData data, int index, int selected, int answeredCount, IReadOnlyList<string> questionOrderIds = null,
+        IReadOnlyList<QuizChoiceOrderSaveData> choiceOrders = null)
+    { ShowQuestion(data, index, null, questionOrderIds, choiceOrders); SetSelection(selected); }
     public IReadOnlyDictionary<string, int> resultAnswers;
-    public void ShowAssessmentResult(QuizData data, int value, IReadOnlyDictionary<string, int> answers = null)
+    public void ShowAssessmentResult(QuizData data, int value, IReadOnlyDictionary<string, int> answers = null, IReadOnlyList<string> questionOrderIds = null,
+        IReadOnlyList<QuizChoiceOrderSaveData> choiceOrders = null)
     {
         ShowCompletion(data); score = value;
         resultAnswers = answers == null ? null : new Dictionary<string, int>(answers);
+        resultOrder = questionOrderIds == null ? null : new List<string>(questionOrderIds);
+        resultChoiceOrders = choiceOrders == null ? null : new List<QuizChoiceOrderSaveData>(choiceOrders);
     }
-    public void Reset() { selection = shownQuestion = -1; completionShows = feedbackShows = saveErrors = 0; resultAnswers = null; }
-    public void SetSelection(int index) { selection = index; }
-    public void ShowQuestion(QuizData data, int index, IReadOnlyCollection<string> ids)
+    public void Reset() { selection = shownQuestion = displayedSelection = -1; completionShows = feedbackShows = saveErrors = 0; resultAnswers = null; shownQuestionOrder = resultOrder = null; shownQuestionData = null; shownChoiceOrder = null; resultChoiceOrders = null; }
+    public void SetSelection(int index) { selection = index; displayedSelection = QuizProgressUtility.ChoiceDisplayIndex(shownQuestionData, shownChoiceOrder, index); }
+    public void ShowQuestion(QuizData data, int index, IReadOnlyCollection<string> ids, IReadOnlyList<string> questionOrderIds = null,
+        IReadOnlyList<QuizChoiceOrderSaveData> choiceOrders = null)
     {
         if (index < 0 || index >= data.QuestionCount) throw new InvalidOperationException("Controller passed invalid question index to view.");
         shownQuestion = index; selection = -1;
+        shownQuestionData = data.questions[QuizProgressUtility.QuestionIndexAt(data, questionOrderIds, index)];
+        shownQuestionOrder = questionOrderIds == null ? null : new List<string>(questionOrderIds);
+        var choiceOrder = QuizProgressUtility.ChoiceOrderFor(shownQuestionData.questionId, choiceOrders);
+        shownChoiceOrder = choiceOrder == null ? null : new List<int>(choiceOrder);
+        displayedSelection = -1;
     }
     public void ShowCompletion(QuizData data) { shownQuestion = -1; completionShows++; }
     public void ShowFeedback(bool correct, string text) { this.correct = correct; feedback = text; feedbackShows++; }
     public void ShowSaveError(string text) { error = text; saveErrors++; }
     public void SetBusy(bool value) { busy = value; }
     public void Choose(int index) { ChoiceSelected?.Invoke(index); }
+    // Boundary convenience: like the real view, card taps emit source indices.
+    public void ChooseDisplay(int index) { ChoiceSelected?.Invoke(QuizProgressUtility.ChoiceIndexAt(shownQuestionData, shownChoiceOrder, index)); }
     public void Submit() { SubmitRequested?.Invoke(); }
     public void Next() { NextRequested?.Invoke(); }
     public void Previous() { PreviousRequested?.Invoke(); }

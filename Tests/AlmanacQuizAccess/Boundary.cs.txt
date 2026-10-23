@@ -9,7 +9,9 @@ namespace UnityEngine
     public class Object { }
     public class Behaviour : Object { public bool isActiveAndEnabled = true; }
     public class MonoBehaviour : Behaviour { }
-    public class GameObject { public bool activeSelf; public void SetActive(bool value) { activeSelf = value; } }
+    public class Transform { }
+    public class GameObject { public bool activeSelf;public bool activeInHierarchy=>activeSelf;public Transform transform=new(); public void SetActive(bool value) { activeSelf = value; } }
+    public static class Time {public static float timeScale=1;}
     public struct Color32 { public byte r, g, b, a; public Color32(byte r, byte g, byte b, byte a) { this.r = r; this.g = g; this.b = b; this.a = a; } }
 }
 namespace UnityEngine.UI { public class Button { public bool interactable; public GameObject gameObject = new GameObject(); } }
@@ -32,13 +34,18 @@ public class QuizData : UnityEngine.Object
 public class PlayerData { }
 public class PlayerDataManager { public static PlayerDataManager Instance; public PlayerData CurrentData = new PlayerData(); }
 public class FusionConnectionManager { public static FusionConnectionManager Instance; public bool IsGuestSaveProtected; }
+public class DialogueManager {public static bool IsAnyDialogueVisible;}
+public class PauseManager {public static PauseManager Instance;public bool isPaused;}
+public class GameManager {public enum GameState {Normal,Building,Simulation}public static GameManager Instance;public GameState CurrentState=GameState.Normal;public bool IsTransitioning;}
+public class UIPanelCoordinator {public static UIPanelCoordinator Instance;public bool HasOpenPanel,IsOwnBookTop;public bool IsTargetInsideTopPanel(UnityEngine.Transform target)=>IsOwnBookTop;}
 public class AlmanacManager
 {
     public static AlmanacManager Instance;
     public AlmanacQuizAccess access;
     public bool IsOpenAndReady = true;
-    public bool blockClose;
-    public int opens, restores;
+    public bool IsOpeningOrClosing,blockClose,blockQuizSelection,deferOpenAnimation;
+    public GameObject Panel=new(){activeSelf=true};
+    public int opens, restores,selectAttempts,selectedCategory=-1;
     public Action close;
     public Action<int> OnCategoryChanged;
     public T GetComponent<T>() where T : class => access as T;
@@ -46,10 +53,13 @@ public class AlmanacManager
     {
         if (blockClose) return;
         IsOpenAndReady = false;
+        IsOpeningOrClosing=true;
         close = callback;
     }
-    public void FinishClose() { Action callback = close; close = null; restores++; callback?.Invoke(); }
-    public void OpenAlmanac() { opens++; IsOpenAndReady = true; }
+    public void FinishClose() { Action callback = close; close = null; restores++;IsOpeningOrClosing=false;Panel.SetActive(false); callback?.Invoke(); }
+    public void OpenAlmanac() {opens++;if(deferOpenAnimation){IsOpeningOrClosing=true;IsOpenAndReady=false;}else FinishOpen();}
+    public void FinishOpen(){IsOpeningOrClosing=false;IsOpenAndReady=true;Panel.SetActive(true);}
+    public bool TrySelectQuizOfferCategory(int index){selectAttempts++;if(!IsOpenAndReady||IsOpeningOrClosing||blockQuizSelection||index!=4)return false;selectedCategory=index;OnCategoryChanged?.Invoke(index);return true;}
 }
 public static class QuizUIManager
 {
@@ -59,6 +69,7 @@ public static class QuizUIManager
     public static QuizContext openedContext;
     public static UnityEngine.Object activeOwner;
     public static Action<QuizOutcome> closed;
+    public static bool IsAnyQuizActive=>activeOwner!=null;
     public static bool TryOpen(QuizData quiz, QuizContext context, UnityEngine.Object owner, Action<QuizOutcome> callback)
     {
         opens++;

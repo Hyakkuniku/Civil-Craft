@@ -2015,6 +2015,10 @@ public class PlayerDataManager : MonoBehaviour
             if (quizState == null) continue;
             if (quizState.correctQuestionIds == null) quizState.correctQuestionIds = new List<string>();
             if (quizState.answers == null) quizState.answers = new List<QuizAnswerSaveData>();
+            if (quizState.questionOrderIds == null) quizState.questionOrderIds = new List<string>();
+            if (quizState.choiceOrders == null) quizState.choiceOrders = new List<QuizChoiceOrderSaveData>();
+            foreach (QuizChoiceOrderSaveData choiceOrder in quizState.choiceOrders)
+                if (choiceOrder != null && choiceOrder.choiceIndices == null) choiceOrder.choiceIndices = new List<int>();
         }
 
         // Older saves only stored current EXP. Until EXP becomes spendable this
@@ -2571,6 +2575,10 @@ public class PlayerDataManager : MonoBehaviour
         }
 
         progress = saved.Clone();
+        if (!QuizProgressUtility.IsValidQuestionOrder(quiz, progress.questionOrderIds))
+            progress.questionOrderIds.Clear();
+        if (!QuizProgressUtility.IsValidChoiceOrders(quiz, progress.choiceOrders))
+            progress.choiceOrders.Clear();
         HashSet<string> correct = QuizProgressUtility.CreateAnswerSet(progress.correctQuestionIds);
         progress.correctQuestionIds.Clear();
         foreach (QuizQuestion question in quiz.questions)
@@ -2595,7 +2603,8 @@ public class PlayerDataManager : MonoBehaviour
 
     /// <summary>Commits only quiz progress and rolls back only that list if the normal save fails.</summary>
     public bool TrySaveQuizProgress(QuizData quiz, QuizContext context,
-        IEnumerable<string> correctQuestionIds, bool completed, out string error)
+        IEnumerable<string> correctQuestionIds, bool completed, out string error,
+        IReadOnlyList<string> questionOrderIds = null, IReadOnlyList<QuizChoiceOrderSaveData> choiceOrders = null)
     {
         error = string.Empty;
         if (CurrentData == null) { error = "Player save is not ready."; return false; }
@@ -2605,6 +2614,10 @@ public class PlayerDataManager : MonoBehaviour
         if (quiz == null) { error = "Quiz content is missing."; return false; }
         if (quiz.assessmentMode) { error = "Assessment answers must be submitted together."; return false; }
         if (!quiz.TryValidate(out error)) return false;
+        if (questionOrderIds != null && !QuizProgressUtility.IsValidQuestionOrder(quiz, questionOrderIds))
+        { error = "Quiz question order is invalid."; return false; }
+        if (choiceOrders != null && !QuizProgressUtility.IsValidChoiceOrders(quiz, choiceOrders))
+        { error = "Quiz choice order is invalid."; return false; }
 
         HashSet<string> validIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (QuizQuestion question in quiz.questions) validIds.Add(question.questionId.Trim());
@@ -2613,6 +2626,29 @@ public class PlayerDataManager : MonoBehaviour
             if (!validIds.Contains(id)) { error = "Quiz answer refers to a missing question."; return false; }
         if (!TryGetQuizProgress(quiz, context, out QuizProgressSaveData record))
         { error = "Quiz progress is unavailable."; return false; }
+        if (questionOrderIds != null)
+        {
+            if (QuizProgressUtility.IsValidQuestionOrder(quiz, record.questionOrderIds))
+                for (int index = 0; index < questionOrderIds.Count; index++)
+                    if (!string.Equals(record.questionOrderIds[index].Trim(), questionOrderIds[index].Trim(), StringComparison.Ordinal))
+                    { error = "Quiz question order cannot change during this attempt."; return false; }
+            record.questionOrderIds.Clear();
+            foreach (string id in questionOrderIds) record.questionOrderIds.Add(id.Trim());
+        }
+        if (choiceOrders != null)
+        {
+            if (QuizProgressUtility.IsValidChoiceOrders(quiz, record.choiceOrders))
+                foreach (QuizQuestion question in quiz.questions)
+                {
+                    IReadOnlyList<int> previousOrder = QuizProgressUtility.ChoiceOrderFor(question.questionId, record.choiceOrders);
+                    IReadOnlyList<int> nextOrder = QuizProgressUtility.ChoiceOrderFor(question.questionId, choiceOrders);
+                    for (int index = 0; index < previousOrder.Count; index++)
+                        if (previousOrder[index] != nextOrder[index])
+                        { error = "Quiz choice order cannot change during this attempt."; return false; }
+                }
+            record.choiceOrders.Clear();
+            foreach (QuizChoiceOrderSaveData order in choiceOrders) record.choiceOrders.Add(order.Clone());
+        }
         answers.UnionWith(record.correctQuestionIds);
         if (completed && !QuizProgressUtility.AreAllQuestionsCorrect(quiz, answers))
         { error = "Finish every quiz question before completing this phase."; return false; }
@@ -2638,11 +2674,39 @@ public class PlayerDataManager : MonoBehaviour
 
     /// <summary>Assessment completion requires all answers, not a passing score. No reward or lesson state is touched.</summary>
     public bool TrySaveQuizAssessment(QuizData quiz, QuizContext context, IReadOnlyDictionary<string, int> answers,
-        bool submitted, bool completed, out string error)
+        bool submitted, bool completed, out string error, IReadOnlyList<string> questionOrderIds = null,
+        IReadOnlyList<QuizChoiceOrderSaveData> choiceOrders = null)
     {
         error = string.Empty;
         if (quiz == null || !quiz.assessmentMode || !TryGetQuizProgress(quiz, context, out QuizProgressSaveData record))
         { error = "Assessment progress is unavailable."; return false; }
+        if (questionOrderIds != null && !QuizProgressUtility.IsValidQuestionOrder(quiz, questionOrderIds))
+        { error = "Quiz question order is invalid."; return false; }
+        if (choiceOrders != null && !QuizProgressUtility.IsValidChoiceOrders(quiz, choiceOrders))
+        { error = "Quiz choice order is invalid."; return false; }
+        if (questionOrderIds != null)
+        {
+            if (QuizProgressUtility.IsValidQuestionOrder(quiz, record.questionOrderIds))
+                for (int index = 0; index < questionOrderIds.Count; index++)
+                    if (!string.Equals(record.questionOrderIds[index].Trim(), questionOrderIds[index].Trim(), StringComparison.Ordinal))
+                    { error = "Quiz question order cannot change during this attempt."; return false; }
+            record.questionOrderIds.Clear();
+            foreach (string id in questionOrderIds) record.questionOrderIds.Add(id.Trim());
+        }
+        if (choiceOrders != null)
+        {
+            if (QuizProgressUtility.IsValidChoiceOrders(quiz, record.choiceOrders))
+                foreach (QuizQuestion question in quiz.questions)
+                {
+                    IReadOnlyList<int> previousOrder = QuizProgressUtility.ChoiceOrderFor(question.questionId, record.choiceOrders);
+                    IReadOnlyList<int> nextOrder = QuizProgressUtility.ChoiceOrderFor(question.questionId, choiceOrders);
+                    for (int index = 0; index < previousOrder.Count; index++)
+                        if (previousOrder[index] != nextOrder[index])
+                        { error = "Quiz choice order cannot change during this attempt."; return false; }
+                }
+            record.choiceOrders.Clear();
+            foreach (QuizChoiceOrderSaveData order in choiceOrders) record.choiceOrders.Add(order.Clone());
+        }
         if (answers == null) { error = "Assessment answers are missing."; return false; }
         if ((submitted || completed) && !QuizProgressUtility.HasAllAssessmentAnswers(quiz, answers))
         { error = "Answer every question before submitting."; return false; }

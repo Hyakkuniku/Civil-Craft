@@ -35,7 +35,7 @@ public class NPCOptionalDialogueStep
     [Tooltip("Stable, unique ID for this Quiz step within its phase. Do not change it after release. The Inspector fills a missing ID when authoring a Quiz step.")]
     public string quizStepId;
 
-    [Tooltip("Repeatable reminder when the player talks to this NPC while its assessment quiz waits in the Almanac. Leave empty to use the standard review/Start Quiz guidance. This reminder never advances the phase.")]
+    [Tooltip("Repeatable reminder when the player talks to this NPC while its quiz waits in the Almanac. Leave empty to use the standard review/Start Quiz guidance. This reminder never advances the phase.")]
     [TextArea(2, 5)] public string quizWaitingReminder;
 
     [Tooltip("Lesson introduction shown before this ordered sequence continues.")]
@@ -94,6 +94,9 @@ public class NPCProgressionPhase
 
     [Tooltip("Start dialogue when the NPC arrives. Contract phases use the contract's offer, reminder, or turn-in dialogue; other phases use their optional dialogue. The player still accepts the contract normally. Does not auto-play when restoring an already-arrived phase from a save.")]
     public bool playDialogueOnArrival;
+
+    [Tooltip("For a contract-free phase beginning with an Almanac Review: show its book guidance during travel. Reading may finish while walking, but later dialogue still waits for arrival. Off by default.")]
+    public bool reviewAlmanacWhileTravelling;
 
     [Tooltip("Allow the player to replay this phase dialogue after it has finished once.")]
     public bool repeatDialogue = true;
@@ -291,7 +294,19 @@ public class NPCProgressionManager : MonoBehaviour
     private int optionalSequenceVersion;
     private DialogueManager quizReminderDialogueManager;
     private System.Action quizReminderCompletion;
+    private DialogueManager lessonReviewReminderDialogueManager;
+    private System.Action lessonReviewReminderCompletion;
+    private LessonTrigger lessonReviewReminderTrigger;
+    private NPCProgressionPhase lessonReviewReminderPhase;
     private NPCOrderedLearningFlow orderedLearningFlow;
+    private NPCProgressionPhase travelReviewPhase;
+    private NPCProgressionPhase travelReviewDeparturePhase;
+    private NPCOptionalDialogueStep travelReviewStep;
+    private PlayerData travelReviewOwner;
+    private int travelReviewPhaseIndex = -1;
+    private int travelReviewVersion;
+    private int travelReviewSerial;
+    private string travelReviewId;
     private Coroutine movementRoutine;
     private Coroutine idleRoamingRoutine;
     private int arrivalDialogueVersion;
@@ -1040,6 +1055,7 @@ public class NPCProgressionManager : MonoBehaviour
 
         // Auto-collected contracts can complete in the same frame the bridge is
         // finalized. Do not calculate the NPC path against the old NavMesh.
+        TryStartTravelAlmanacReview(nextPhaseIndex, nextPhase);
         DynamicNavMeshUpdater navMeshUpdater = DynamicNavMeshUpdater.Instance;
         while (navMeshUpdater != null && navMeshUpdater.HasPendingOrRunningUpdate)
             yield return null;
@@ -2126,6 +2142,9 @@ public class NPCProgressionManager : MonoBehaviour
             return;
         }
 
+        // No destination recovery was possible. Stop the walking-time reader
+        // before restoring the departure phase, rather than waiting a frame.
+        if (travelReviewPhase != null) CancelTravelAlmanacReview();
         movementRoutine = null;
         if (contractGiver != null) contractGiver.SetProgressionInteractionLocked(false);
         if (currentPhaseIndex >= 0)
@@ -2271,9 +2290,13 @@ public class NPCProgressionManager : MonoBehaviour
     {
         if (phaseIndex < 0 || phaseIndex >= phases.Count) return;
 
-        CancelOrderedOptionalSequence();
+        // The same real book visit may span the walk and arrival. Preserve only
+        // that exact destination/profile's reader; all other phase work cancels.
+        bool preserveTravelReview = CanPreserveTravelAlmanacReview(phaseIndex);
+        CancelOrderedOptionalSequence(preserveTravelReview);
         int arrivalVersion = ++arrivalDialogueVersion;
         currentPhaseIndex = phaseIndex;
+        if (preserveTravelReview) travelReviewVersion = arrivalVersion;
         phaseHasArrived = HasReachedPhaseDestination(phaseIndex);
         NPCProgressionPhase phase = phases[phaseIndex];
         if (phase == null) return;
@@ -2356,7 +2379,8 @@ public class NPCProgressionManager : MonoBehaviour
             bool panelOpen = UIPanelCoordinator.Instance != null && UIPanelCoordinator.Instance.HasOpenPanel;
             bool gameplayBusy = GameManager.Instance != null &&
                 (GameManager.Instance.IsTransitioning || GameManager.Instance.CurrentState != GameManager.GameState.Normal);
-            if (!dialogueOpen && !panelOpen && !gameplayBusy && Time.timeScale > 0f)
+            if (!HasPendingTravelAlmanacReview(phaseIndex, phase) &&
+                !dialogueOpen && !panelOpen && !gameplayBusy && Time.timeScale > 0f)
             {
                 TryStartPhaseDialogue(phaseIndex, phase);
                 yield break;
@@ -2368,6 +2392,13 @@ public class NPCProgressionManager : MonoBehaviour
     private void HandleNPCInteracted(NPCContractGiver sender)
     {
         if (!CanRunLocalProgression() || sender != contractGiver) return;
+        // Do not cancel the deferred arrival continuation or replay the whole
+        // sequence while its walking-time book review still owns this phase.
+        if (HasPendingTravelAlmanacReview(currentPhaseIndex, CurrentPhase))
+        {
+            sender.SuppressCurrentInteractionForProgression();
+            return;
+        }
         // A manual interaction already satisfies this arrival. Cancel any
         // deferred automatic conversation so it cannot open again on close.
         arrivalDialogueVersion++;
@@ -2378,6 +2409,15 @@ public class NPCProgressionManager : MonoBehaviour
         // reviews the book. Further taps should remind, not silently restart it
         // or re-invoke story interaction/reward events.
         if (TryHandleWaitingQuizInteraction(currentPhaseIndex, phase))
+        {
+            sender.SuppressCurrentInteractionForProgression();
+            return;
+        }
+
+        // The vehicle inspection and its book review intentionally share one
+        // released phase. After inspecting, remind about the engineering record
+        // instead of replaying that phase's now-stale "Inspect the vehicle" line.
+        if (TryHandleLessonReviewInteraction(currentPhaseIndex, phase))
         {
             sender.SuppressCurrentInteractionForProgression();
             return;
@@ -2434,6 +2474,48 @@ public class NPCProgressionManager : MonoBehaviour
         return false;
     }
 
+    private bool TryHandleLessonReviewInteraction(int phaseIndex, NPCProgressionPhase phase)
+    {
+        if (phase == null || currentPhaseIndex != phaseIndex || CurrentPhase != phase ||
+            !LessonTrigger.TryGetPendingAlmanacReview(this, out LessonTrigger trigger)) return false;
+        // Claim only this interaction. Do not run story events, grant rewards,
+        // advance a phase, or open the book on the player's behalf.
+        if (lessonReviewReminderCompletion != null || DialogueManager.IsAnyDialogueVisible || QuizUIManager.IsAnyQuizActive ||
+            (PauseManager.Instance != null && PauseManager.Instance.isPaused) || Time.timeScale <= 0f ||
+            (UIPanelCoordinator.Instance != null && UIPanelCoordinator.Instance.HasOpenPanel) ||
+            (AlmanacManager.Instance != null && AlmanacManager.Instance.Panel != null &&
+                AlmanacManager.Instance.Panel.activeInHierarchy) ||
+            (GameManager.Instance != null && (GameManager.Instance.IsTransitioning ||
+                GameManager.Instance.CurrentState != GameManager.GameState.Normal))) return true;
+
+        trigger.TryResumeAlmanacReview(); // Resumes a persisted pending review, never the inspection itself.
+        // A previously completed book review can synchronously continue the NPC.
+        // Never play this old phase's reminder after that continuation.
+        if (!CanRunLocalProgression() || IsTravelling || currentPhaseIndex != phaseIndex || CurrentPhase != phase ||
+            !LessonTrigger.TryGetPendingAlmanacReview(this, out LessonTrigger current) || current != trigger) return true;
+        if (dialogueManager == null) dialogueManager = FindObjectOfType<DialogueManager>();
+        if (dialogueManager == null) return true;
+        var reminder = new Dialogue {
+            name = GetQuizReminderSpeakerName(phase, null),
+            sentences = trigger.GetAlmanacReviewReminder()
+        };
+        System.Action completed = null;
+        completed = () => {
+            if (!ReferenceEquals(lessonReviewReminderCompletion, completed)) return;
+            lessonReviewReminderCompletion = null;
+            lessonReviewReminderDialogueManager = null;
+            lessonReviewReminderTrigger = null;
+            lessonReviewReminderPhase = null;
+            // Only the genuine book review may continue the lesson/NPC flow.
+        };
+        lessonReviewReminderCompletion = completed;
+        lessonReviewReminderDialogueManager = dialogueManager;
+        lessonReviewReminderTrigger = trigger;
+        lessonReviewReminderPhase = phase;
+        dialogueManager.StartDialogue(reminder, completed, animator, transform);
+        return true;
+    }
+
     private bool TryHandleWaitingQuizInteraction(int phaseIndex, NPCProgressionPhase phase)
     {
         if (!TryGetWaitingQuizStep(phaseIndex, phase, out NPCOptionalDialogueStep step)) return false;
@@ -2462,6 +2544,8 @@ public class NPCProgressionManager : MonoBehaviour
             if (!ReferenceEquals(quizReminderCompletion, completed)) return;
             quizReminderCompletion = null;
             quizReminderDialogueManager = null;
+            if (TryGetWaitingQuizStep(phaseIndex, phase, out NPCOptionalDialogueStep currentStep) && currentStep == step)
+                AlmanacQuizAccess.RequestOpenWaitingQuiz(this);
             // Deliberately no sequence continuation, completion flag or reward.
             // Only the owning quiz's successful result may advance this phase.
         };
@@ -2488,11 +2572,28 @@ public class NPCProgressionManager : MonoBehaviour
 
     private void LateUpdate()
     {
+        if (travelReviewPhase != null && !IsTravelAlmanacReviewAuthorized())
+            CancelTravelAlmanacReview();
         // Owner/profile/visit invalidation can happen between two interactions.
         // The pending offer query is allocation-free on failure and never searches
         // the scene; stop only our reminder, leaving unrelated dialogue intact.
         if (quizReminderCompletion != null &&
             !TryGetWaitingQuizStep(currentPhaseIndex, CurrentPhase, out _)) CancelQuizWaitingReminder();
+        if (lessonReviewReminderCompletion != null &&
+            (!CanRunLocalProgression() || IsTravelling || CurrentPhase != lessonReviewReminderPhase ||
+             !LessonTrigger.TryGetPendingAlmanacReview(this, out LessonTrigger current) ||
+             current != lessonReviewReminderTrigger)) CancelLessonReviewReminder();
+    }
+
+    private void CancelLessonReviewReminder()
+    {
+        DialogueManager manager = lessonReviewReminderDialogueManager;
+        System.Action completion = lessonReviewReminderCompletion;
+        lessonReviewReminderDialogueManager = null;
+        lessonReviewReminderCompletion = null;
+        lessonReviewReminderTrigger = null;
+        lessonReviewReminderPhase = null;
+        if (manager != null && completion != null) manager.CancelDialogueIfOwned(completion);
     }
 
     private void CancelQuizWaitingReminder()
@@ -2763,12 +2864,12 @@ public class NPCProgressionManager : MonoBehaviour
                     PlayOrderedOptionalStep(phaseIndex, phase, nextStepIndex,
                         showMaterialSteps, displayedMaterial, sequenceVersion);
                 };
-                bool opened = step.quiz != null && step.quiz.assessmentMode
-                    ? AlmanacQuizAccess.TryOffer(step.quiz, context, this, onClosed)
-                    : QuizUIManager.TryOpen(step.quiz, context, this, onClosed);
+                // Every NPC uses the same review/Start Quiz entry. The quiz's
+                // existing practice or assessment rules still govern its session.
+                bool opened = AlmanacQuizAccess.TryOffer(step.quiz, context, this, onClosed);
                 if (!opened)
                 {
-                    // TryOpen(false) does not invoke the callback. Keep the
+                    // TryOffer(false) does not invoke the callback. Keep the
                     // phase available for retry without completing/rewarding it.
                     StopOrderedOptionalSequence(phaseIndex, sequenceVersion);
                     Debug.LogWarning($"[NPCProgressionManager] Phase '{phase.phaseId}' cannot open quiz step {stepIndex + 1}; quiz UI is unavailable or busy.", this);
@@ -2895,16 +2996,118 @@ public class NPCProgressionManager : MonoBehaviour
         CancelQuizWaitingReminder();
     }
 
-    private void CancelOrderedOptionalSequence()
+    private void CancelOrderedOptionalSequence(bool preserveTravelReview = false)
     {
         // Invalidate before closing the quiz: its cancellation callback must
         // not advance a phase that is moving, unloading, or being disabled.
         optionalSequenceVersion++;
         runningOptionalSequencePhases.Clear();
         CancelQuizWaitingReminder();
-        if (orderedLearningFlow != null) orderedLearningFlow.Cancel();
+        CancelLessonReviewReminder();
+        if (!preserveTravelReview)
+        {
+            ClearTravelAlmanacReviewState();
+            if (orderedLearningFlow != null) orderedLearningFlow.Cancel();
+        }
         AlmanacQuizAccess.CancelOwned(this);
         QuizUIManager.CancelOwnedSession(this);
+    }
+
+    private void TryStartTravelAlmanacReview(int phaseIndex, NPCProgressionPhase phase)
+    {
+        if (!CanRunLocalProgression() || phase == null || !phase.reviewAlmanacWhileTravelling ||
+            !phase.playDialogueOnArrival || phase.contract != null || phase.optionalDialogueSequence == null ||
+            phase.optionalDialogueSequence.Count == 0 || phaseIndex < 0 || phaseIndex >= phases.Count ||
+            phases[phaseIndex] != phase || travelReviewPhase != null ||
+            (FusionConnectionManager.Instance != null && FusionConnectionManager.Instance.IsGuestSaveProtected)) return;
+        NPCOptionalDialogueStep step = phase.optionalDialogueSequence[0];
+        PlayerData owner = PlayerDataManager.Instance != null ? PlayerDataManager.Instance.CurrentData : null;
+        if (owner == null || step == null || step.stepType != NPCOptionalDialogueStep.StepType.AlmanacReview ||
+            string.IsNullOrWhiteSpace(step.reviewStepId)) return;
+        travelReviewPhase = phase;
+        travelReviewDeparturePhase = CurrentPhase;
+        travelReviewStep = step;
+        travelReviewOwner = owner;
+        travelReviewPhaseIndex = phaseIndex;
+        travelReviewVersion = arrivalDialogueVersion;
+        travelReviewId = progressionSaveId + "/" + phase.phaseId + "/" + step.reviewStepId;
+        int serial = ++travelReviewSerial;
+        StartCoroutine(StartTravelAlmanacReviewWhenReady(serial));
+    }
+
+    private IEnumerator StartTravelAlmanacReviewWhenReady(int serial)
+    {
+        // Allow the reward Collect handler to finish closing its own panel, and
+        // StartCoroutine to assign movementRoutine before testing travel state.
+        yield return null;
+        while (serial == travelReviewSerial && travelReviewPhase != null)
+        {
+            if (!IsTravelAlmanacReviewAuthorized()) { CancelTravelAlmanacReview(); yield break; }
+            bool blocked = DialogueManager.IsAnyDialogueVisible || QuizUIManager.IsAnyQuizActive ||
+                (PauseManager.Instance != null && PauseManager.Instance.isPaused) || Time.timeScale <= 0f ||
+                (UIPanelCoordinator.Instance != null && UIPanelCoordinator.Instance.HasOpenPanel) ||
+                (GameManager.Instance != null && (GameManager.Instance.IsTransitioning ||
+                    GameManager.Instance.CurrentState != GameManager.GameState.Normal));
+            if (blocked) { yield return null; continue; }
+            if (orderedLearningFlow == null)
+                orderedLearningFlow = GetComponent<NPCOrderedLearningFlow>() ?? gameObject.AddComponent<NPCOrderedLearningFlow>();
+            System.Action release = () => {
+                if (serial == travelReviewSerial) ClearTravelAlmanacReviewState();
+                // Never continue dialogue here, even if the book was read before
+                // arrival. The normal arrival runner consumes the saved review.
+            };
+            if (!orderedLearningFlow.TryReviewAlmanac(travelReviewId, release, release,
+                "first bridge entry")) ClearTravelAlmanacReviewState();
+            yield break;
+        }
+    }
+
+    private bool CanPreserveTravelAlmanacReview(int phaseIndex)
+    {
+        return travelReviewPhase != null && travelReviewPhaseIndex == phaseIndex &&
+            phaseIndex >= 0 && phaseIndex < phases.Count && phases[phaseIndex] == travelReviewPhase &&
+            IsTravelAlmanacReviewOwnerValid() &&
+            (CurrentPhase == travelReviewDeparturePhase || CurrentPhase == travelReviewPhase);
+    }
+
+    private bool IsTravelAlmanacReviewOwnerValid()
+    {
+        return CanRunLocalProgression() && travelReviewOwner != null && PlayerDataManager.Instance != null &&
+            ReferenceEquals(travelReviewOwner, PlayerDataManager.Instance.CurrentData) &&
+            !(FusionConnectionManager.Instance != null && FusionConnectionManager.Instance.IsGuestSaveProtected) &&
+            travelReviewVersion == arrivalDialogueVersion && travelReviewPhase != null &&
+            travelReviewPhase.reviewAlmanacWhileTravelling && travelReviewPhase.playDialogueOnArrival &&
+            travelReviewPhase.contract == null && travelReviewPhaseIndex >= 0 && travelReviewPhaseIndex < phases.Count &&
+            phases[travelReviewPhaseIndex] == travelReviewPhase && travelReviewPhase.optionalDialogueSequence != null &&
+            travelReviewPhase.optionalDialogueSequence.Count > 0 && travelReviewPhase.optionalDialogueSequence[0] == travelReviewStep &&
+            travelReviewStep != null && travelReviewStep.stepType == NPCOptionalDialogueStep.StepType.AlmanacReview &&
+            string.Equals(travelReviewId, progressionSaveId + "/" + travelReviewPhase.phaseId + "/" + travelReviewStep.reviewStepId,
+                System.StringComparison.Ordinal);
+    }
+
+    private bool IsTravelAlmanacReviewAuthorized() => IsTravelAlmanacReviewOwnerValid() &&
+        ((IsTravelling && CurrentPhase == travelReviewDeparturePhase) ||
+         (!IsTravelling && currentPhaseIndex == travelReviewPhaseIndex && CurrentPhase == travelReviewPhase));
+
+    private bool HasPendingTravelAlmanacReview(int phaseIndex, NPCProgressionPhase phase) =>
+        travelReviewPhase != null && travelReviewPhaseIndex == phaseIndex && travelReviewPhase == phase &&
+        IsTravelAlmanacReviewAuthorized();
+
+    private void CancelTravelAlmanacReview()
+    {
+        ClearTravelAlmanacReviewState();
+        if (orderedLearningFlow != null) orderedLearningFlow.Cancel();
+    }
+
+    private void ClearTravelAlmanacReviewState()
+    {
+        travelReviewSerial++;
+        travelReviewPhase = null;
+        travelReviewDeparturePhase = null;
+        travelReviewStep = null;
+        travelReviewOwner = null;
+        travelReviewPhaseIndex = -1;
+        travelReviewId = null;
     }
 
     private bool TryValidateOrderedQuizzes(NPCProgressionPhase phase, out string error)

@@ -1,0 +1,121 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using UnityEngine;
+
+// Engine/service/movement boundaries only; travel/arrival state and real reader
+// coroutine methods are extracted/linked from production, never duplicated.
+namespace UnityEngine
+{
+    public class Object { public bool Destroyed;public static void Destroy(Object value){if(value!=null)value.Destroyed=true;} }
+    public class Transform {public void SetParent(Transform parent,bool worldPositionStays){}}
+    public class RectTransform:Object{}
+    public struct Vector2 {public float x,y;public Vector2(float x,float y){this.x=x;this.y=y;}}
+    public class Animator:Object {public bool Open;public bool GetBool(string key)=>Open;}
+    public class Scene {public bool Valid=true,isLoaded=true;public bool IsValid()=>Valid;}
+    public class GameObject:Object
+    {
+        readonly List<MonoBehaviour> components=new();public string name;public Scene scene=new();public Transform transform=new();
+        public GameObject(string name="fixture"){this.name=name;}
+        public T AddComponent<T>() where T:MonoBehaviour,new(){var value=new T{gameObject=this};components.Add(value);return value;}
+        public T GetComponent<T>() where T:class=>typeof(T)==typeof(RectTransform)?new RectTransform() as T:components.OfType<T>().FirstOrDefault();
+    }
+    public class Coroutine {public IEnumerator Routine;public bool Stopped;}
+    public class MonoBehaviour:Object
+    {
+        public bool isActiveAndEnabled=true;public GameObject gameObject=new();public Transform transform=>gameObject.transform;
+        readonly List<Coroutine> running=new();
+        public T GetComponent<T>() where T:class=>gameObject.GetComponent<T>();
+        public T FindObjectOfType<T>() where T:class=>DialogueManager.Found as T;
+        public Coroutine StartCoroutine(IEnumerator routine){var value=new Coroutine{Routine=routine};running.Add(value);if(!routine.MoveNext())value.Stopped=true;return value;}
+        public void StopCoroutine(Coroutine value){value.Stopped=true;}
+        public void Tick(){foreach(var value in running.ToArray())if(!value.Stopped&&!value.Routine.MoveNext())value.Stopped=true;running.RemoveAll(value=>value.Stopped);}
+    }
+    public class DisallowMultipleComponent:Attribute{}
+    public static class Time {public static float timeScale=1;}
+}
+public class PlayerData {public List<string> completedLessons=new();}
+public class PlayerDataManager {public static PlayerDataManager Instance;public PlayerData CurrentData=new();}
+public class FusionConnectionManager {public static FusionConnectionManager Instance;public bool IsGuestInHostWorld,IsGuestSaveProtected;}
+public class PauseManager {public static PauseManager Instance;public bool isPaused;}
+public class UIPanelCoordinator {public static UIPanelCoordinator Instance;public bool HasOpenPanel;}
+public class GameManager {public enum GameState{Normal,Building}public static GameManager Instance;public bool IsTransitioning;public GameState CurrentState;}
+public class Dialogue {public string name;public string[] sentences;}
+public class DialogueManager {public static DialogueManager Found;public static bool IsAnyDialogueVisible;public Animator animator=new();}
+public class QuizUIManager {public static bool IsAnyQuizActive;public static void CancelOwnedSession(UnityEngine.Object owner){}}
+public class AlmanacQuizAccess {public static void CancelOwned(UnityEngine.Object owner){}}
+public class ContractSO{}
+public class BuildLocation{}
+public class CargoItem{}
+public class NPCOptionalDialogueStep
+{
+    public enum StepType{Dialogue,MaterialUnlock,Quiz,LessonIntroduction,AlmanacReview}
+    public StepType stepType;public string reviewStepId;
+}
+public class NPCProgressionPhase
+{
+    public string phaseId,dialoguePrompt;public bool reviewAlmanacWhileTravelling,playDialogueOnArrival;
+    public ContractSO contract;public BuildLocation targetBuildLocation;public CargoItem linkedCargo;public Dialogue phaseDialogue;
+    public List<NPCOptionalDialogueStep> optionalDialogueSequence=new();public int Arrivals;
+    public void InvokeNPCArrived(){Arrivals++;}
+}
+public class NPCContractGiver {public void ConfigureProgressionPhase(ContractSO contract,BuildLocation location,CargoItem cargo,string prompt){}public void SetProgressionInteractionLocked(bool locked){}}
+public class LessonData{}
+public class LessonUIManager
+{
+    public static LessonUIManager Instance;public bool IsOpen;public LessonData CurrentLesson;
+    public event Action<LessonData> LessonClosed,LessonOpened;
+    public void ShowLesson(LessonData lesson){CurrentLesson=lesson;IsOpen=true;LessonOpened?.Invoke(lesson);}
+    public void CloseLesson(){var prior=CurrentLesson;CurrentLesson=null;IsOpen=false;LessonClosed?.Invoke(prior);}
+}
+public class AlmanacManager
+{
+    public static AlmanacManager Instance;public GameObject hudOpenButton=new("HUD Almanac");
+    Action closed;public event Action OnAlmanacClosed{add=>closed+=value;remove=>closed-=value;}
+    public int Subscribers=>closed?.GetInvocationList().Length??0;public bool IsOpenAndReady;
+    public void Close(){IsOpenAndReady=false;closed?.Invoke();}
+}
+public enum TutorialPosition{Left}
+public class TutorialStep
+{
+    public string message;public TutorialPosition screenPosition;public bool showNextButton,canSkip,usePointer,advanceOnClick;
+    public RectTransform pointerTarget;public Vector2 pointerOffset;public float pointerRotation;
+}
+public class TutorialSequence:MonoBehaviour
+{
+    public string lessonName;public TutorialStep[] tutorialSteps;public void StartTutorial()=>TutorialManager.Instance.StartOrQueue(this);
+}
+public class TutorialManager
+{
+    public static TutorialManager Instance;public TutorialSequence Active;public List<TutorialSequence> Queued=new();public int Starts,Completes,CurrentStepIndex,Cancels;
+    public void StartOrQueue(TutorialSequence sequence){Starts++;if(Active==null){Active=sequence;CurrentStepIndex=0;}else Queued.Add(sequence);}
+    public bool IsPlayingSequence(TutorialSequence sequence)=>sequence!=null&&ReferenceEquals(Active,sequence);
+    public void ShowNextStep()=>CurrentStepIndex++;
+    public void CompleteTutorialIfPlaying(string id){if(Active==null||Active.lessonName!=id)return;PlayerDataManager.Instance.CurrentData.completedLessons.Add(id);Completes++;Active=null;}
+    public void CancelTutorialWithoutCompletion(TutorialSequence sequence){if(ReferenceEquals(Active,sequence)){Cancels++;Active=null;}Queued.Remove(sequence);}
+}
+public class NPCProgressionManager:MonoBehaviour
+{
+    public List<NPCProgressionPhase> phases=new();public int currentPhaseIndex;public string progressionSaveId="MainContractNPC";public bool IsTravelling;
+    public NPCProgressionPhase CurrentPhase=>currentPhaseIndex>=0&&currentPhaseIndex<phases.Count?phases[currentPhaseIndex]:null;
+    public DialogueManager dialogueManager;public NPCContractGiver contractGiver=new();public int Followups,PhaseSaves,IdleStarts,ArrivalAttempts;
+    private bool HasReachedPhaseDestination(int index)=>!IsTravelling;
+    private void SaveProgressionState(int index,bool travelling){PhaseSaves++;}
+    private void StartIdleRoaming(){IdleStarts++;}
+    private bool IsUsableDialogue(Dialogue dialogue)=>dialogue?.sentences?.Length>0;
+    private bool HasOrderedOptionalSequence(NPCProgressionPhase phase)=>phase.optionalDialogueSequence.Count>0;
+    private IEnumerator StartContractDialogueAfterArrival(int index,NPCProgressionPhase phase,int version){yield break;}
+    private void CancelQuizWaitingReminder(){}
+    private void CancelLessonReviewReminder(){}
+    private void TryStartPhaseDialogue(int index,NPCProgressionPhase phase)
+    {
+        ArrivalAttempts++;
+        // Neighboring full ordered-step implementation is outside this fixture;
+        // require the SAME existing StoryReview ID to complete synchronously.
+        string id=progressionSaveId+"/"+phase.phaseId+"/"+phase.optionalDialogueSequence[0].reviewStepId;
+        if(orderedLearningFlow==null)orderedLearningFlow=GetComponent<NPCOrderedLearningFlow>()??gameObject.AddComponent<NPCOrderedLearningFlow>();
+        orderedLearningFlow.TryReviewAlmanac(id,()=>Followups++);
+    }
+    // ACTUAL_NPC
+}

@@ -1,0 +1,100 @@
+using System;
+using System.Reflection;
+using UnityEngine;
+
+public static class Scenarios
+{
+    const string Id="StoryReview/MainContractNPC/DeadLoad/training-bridge-record-review";
+    static int checks;
+    sealed class Fixture
+    {
+        public NPCProgressionManager Npc=new();public PlayerDataManager Save=new();public AlmanacManager Book=new();public TutorialManager Tutorial=new();
+        public NPCProgressionPhase Departure=new(){phaseId="Give Contract Build Location 1",contract=new ContractSO()};
+        public NPCProgressionPhase Destination=new(){phaseId="DeadLoad",playDialogueOnArrival=true,reviewAlmanacWhileTravelling=true};
+        public Fixture()
+        {
+            Save.CurrentData=new();PlayerDataManager.Instance=Save;AlmanacManager.Instance=Book;TutorialManager.Instance=Tutorial;LessonUIManager.Instance=new();
+            FusionConnectionManager.Instance=null;PauseManager.Instance=null;UIPanelCoordinator.Instance=null;GameManager.Instance=null;Time.timeScale=1;
+            DialogueManager.IsAnyDialogueVisible=false;DialogueManager.Found=null;QuizUIManager.IsAnyQuizActive=false;
+            Destination.optionalDialogueSequence.Add(new(){stepType=NPCOptionalDialogueStep.StepType.AlmanacReview,reviewStepId="training-bridge-record-review"});
+            Npc.phases.Add(Departure);Npc.phases.Add(Destination);Npc.currentPhaseIndex=0;
+        }
+        public NPCOrderedLearningFlow Flow=>Field<NPCOrderedLearningFlow>(Npc,"orderedLearningFlow");
+        public void Begin(){Call(Npc,"TryStartTravelAlmanacReview",1,Destination);Npc.IsTravelling=true;}
+        public void Tick(){Npc.Tick();Flow?.Tick();}
+        public void Open(){Book.IsOpenAndReady=true;Flow?.Tick();}
+        public void Close(){Book.Close();Flow?.Tick();}
+        public void Arrive(){Npc.IsTravelling=false;Call(Npc,"ActivatePhase",1,true);}
+        public bool Pending()=> (bool)Call(Npc,"HasPendingTravelAlmanacReview",1,Destination);
+        public void Cancel()=>Call(Npc,"CancelOrderedOptionalSequence",false);
+    }
+    public static int Run()
+    {
+        var f=new Fixture();f.Begin();Check(f.Tutorial.Starts==0,"Initial yield lets movement/Collect settle.");f.Tick();
+        Check(f.Npc.IsTravelling&&f.Tutorial.Starts==1&&f.Pending(),"Real review begins while NPC is still walking.");
+        Check(f.Tutorial.Active.tutorialSteps[0].usePointer&&f.Tutorial.Active.tutorialSteps[0].pointerTarget!=null&&!f.Tutorial.Active.tutorialSteps[0].advanceOnClick,"Walking review uses existing HUD arrow without click completion.");
+        f.Close();Check(!f.Save.CurrentData.completedLessons.Contains(Id),"Close without open does not count.");f.Open();f.Close();
+        Check(f.Save.CurrentData.completedLessons.Contains(Id)&&f.Npc.Followups==0&&f.Npc.IsTravelling&&!f.Pending(),"Reading while walking records same ID but never starts follow-up.");
+        f.Arrive();f.Tick();Check(f.Npc.Followups==1&&f.Tutorial.Starts==1,"Arrival consumes recorded review without a second book read.");f.Tick();Check(f.Npc.Followups==1,"Arrival continuation fires once.");
+
+        f=new Fixture();f.Begin();f.Tick();f.Open();var flow=f.Flow;var sequence=f.Tutorial.Active;int subscribers=f.Book.Subscribers;
+        Check((bool)Call(f.Npc,"CanPreserveTravelAlmanacReview",1),"Exact destination owner can preserve its review.");
+        f.Arrive();f.Tick();Check(ReferenceEquals(flow,f.Flow)&&ReferenceEquals(sequence,f.Tutorial.Active)&&f.Book.Subscribers==subscribers&&f.Pending()&&f.Npc.Followups==0,"Arriving with book open preserves one reader and blocks follow-up.");
+        f.Close();f.Tick();Check(f.Npc.Followups==1&&f.Tutorial.Starts==1&&f.Save.CurrentData.completedLessons.Contains(Id),"Close after arrival counts the already-open book once.");
+
+        f=new Fixture();f.Begin();f.Tick();f.Arrive();f.Tick();Check(f.Pending()&&f.Npc.Followups==0,"Arrival with untouched book keeps review pending.");f.Open();f.Close();f.Tick();Check(f.Npc.Followups==1,"Later review completes through same flow.");
+
+        foreach(string blocker in new[]{"rewardPanel","dialogue","quiz","pause","time","transition","building"})
+        {
+            f=new Fixture();f.Begin();SetBlock(blocker,true);f.Tick();f.Tick();Check(f.Tutorial.Starts==0,"Blocked modal may not start review: "+blocker);
+            SetBlock(blocker,false);f.Tick();Check(f.Tutorial.Starts==1&&f.Npc.IsTravelling,"Review starts after modal clears while walking: "+blocker);
+        }
+        foreach(string invalid in new[]{"profile","visitor","hostVisitor","disabled","reroute","phaseReplaced","stepChanged","idChanged","failedTravel"})
+        {
+            f=new Fixture();f.Begin();f.Tick();f.Open();var old=f.Save.CurrentData;
+            switch(invalid)
+            {
+                case "profile":f.Save.CurrentData=new();break;
+                case "visitor":FusionConnectionManager.Instance=new(){IsGuestSaveProtected=true};break;
+                case "hostVisitor":FusionConnectionManager.Instance=new(){IsGuestInHostWorld=true};break;
+                case "disabled":f.Npc.isActiveAndEnabled=false;f.Cancel();break;
+                case "reroute":f.Cancel();break;
+                case "phaseReplaced":f.Npc.phases[1]=new(){phaseId="Different"};break;
+                case "stepChanged":f.Destination.optionalDialogueSequence[0]=new(){stepType=NPCOptionalDialogueStep.StepType.AlmanacReview,reviewStepId="different"};break;
+                case "idChanged":f.Destination.optionalDialogueSequence[0].reviewStepId="different";break;
+                case "failedTravel":f.Npc.IsTravelling=false;break;
+            }
+            if(!(bool)Call(f.Npc,"IsTravelAlmanacReviewAuthorized"))Call(f.Npc,"CancelTravelAlmanacReview");
+            f.Close();f.Tick();Check(!old.completedLessons.Contains(Id)&&!f.Save.CurrentData.completedLessons.Contains(Id)&&f.Npc.Followups==0&&f.Book.Subscribers==0,"Stale stage must cancel without review/continuation: "+invalid);
+        }
+        f=new Fixture();f.Save.CurrentData.completedLessons.Add(Id);f.Begin();f.Tick();Check(f.Tutorial.Starts==0&&f.Npc.Followups==0&&!f.Pending(),"Already-completed review callback only clears travel stage.");f.Arrive();f.Tick();Check(f.Npc.Followups==1,"Already-completed review continues only after arrival.");
+        foreach(string missing in new[]{"book","tutorial"})
+        {
+            f=new Fixture();f.Begin();if(missing=="book")AlmanacManager.Instance=null;else TutorialManager.Instance=null;f.Tick();
+            Check(!f.Pending()&&Field<NPCProgressionPhase>(f.Npc,"travelReviewPhase")==null&&f.Npc.Followups==0,"Unavailable reader clears stage instead of stalling: "+missing);
+            f.Arrive();f.Tick();Check(f.Npc.ArrivalAttempts==1&&f.Npc.Followups==0,"Arrival gate exits into normal retryable reader path even if reader unavailable: "+missing);
+            AlmanacManager.Instance=f.Book;TutorialManager.Instance=f.Tutorial;Call(f.Npc,"TryStartPhaseDialogue",1,f.Destination);f.Open();f.Close();
+            Check(f.Npc.Followups==1&&f.Save.CurrentData.completedLessons.Contains(Id),"Manual normal-phase retry works after missing reader returns: "+missing);
+        }
+        f=new Fixture();f.Begin();UIPanelCoordinator.Instance=new(){HasOpenPanel=true};f.Arrive();f.Tick();
+        Check(f.Tutorial.Starts==0&&f.Pending()&&f.Npc.Followups==0,"Arrival before staged reader starts preserves pending state through modal.");
+        UIPanelCoordinator.Instance.HasOpenPanel=false;f.Tick();f.Open();f.Close();f.Tick();Check(f.Tutorial.Starts==1&&f.Npc.Followups==1,"Deferred reader still resumes once after already-arrived modal clears.");
+        f=new Fixture();f.Begin();f.Tick();f.Open();f.Npc.IsTravelling=false;Call(f.Npc,"ActivatePhase",0,false);f.Close();f.Tick();
+        Check(!f.Save.CurrentData.completedLessons.Contains(Id)&&f.Npc.Followups==0&&f.Book.Subscribers==0,"Actual ActivatePhase into departure cancels rather than preserving wrong destination.");
+        foreach(string invalid in new[]{"off","noAuto","contract","notLeadingReview","noOwner"})
+        {
+            f=new Fixture();switch(invalid){case "off":f.Destination.reviewAlmanacWhileTravelling=false;break;case "noAuto":f.Destination.playDialogueOnArrival=false;break;case "contract":f.Destination.contract=new();break;case "notLeadingReview":f.Destination.optionalDialogueSequence[0].stepType=NPCOptionalDialogueStep.StepType.Dialogue;break;case "noOwner":PlayerDataManager.Instance=null;break;}
+            f.Begin();f.Tick();Check(f.Tutorial.Starts==0&&Field<NPCProgressionPhase>(f.Npc,"travelReviewPhase")==null,"No unintended default early-review behavior: "+invalid);
+        }
+        f=new Fixture();f.Begin();f.Tick();Call(f.Npc,"TryStartTravelAlmanacReview",1,f.Destination);f.Tick();Check(f.Tutorial.Starts==1&&f.Book.Subscribers==1,"Duplicate travel start does not duplicate reader.");
+        f.Arrive();UIPanelCoordinator.Instance=new(){HasOpenPanel=true};f.Open();f.Close();f.Tick();Check(f.Npc.Followups==0,"Follow-up still waits modal after review completion.");UIPanelCoordinator.Instance.HasOpenPanel=false;f.Tick();Check(f.Npc.Followups==1,"Modal-safe arrival continues when clear.");
+        return checks;
+    }
+    static void SetBlock(string key,bool value)
+    {
+        switch(key){case "rewardPanel":UIPanelCoordinator.Instance=new(){HasOpenPanel=value};break;case "dialogue":DialogueManager.IsAnyDialogueVisible=value;break;case "quiz":QuizUIManager.IsAnyQuizActive=value;break;case "pause":PauseManager.Instance=new(){isPaused=value};break;case "time":Time.timeScale=value?0:1;break;case "transition":GameManager.Instance=new(){IsTransitioning=value};break;case "building":GameManager.Instance=new(){CurrentState=value?GameManager.GameState.Building:GameManager.GameState.Normal};break;}
+    }
+    static object Call(object target,string method,params object[] args)=>target.GetType().GetMethod(method,BindingFlags.Instance|BindingFlags.NonPublic).Invoke(target,args);
+    static T Field<T>(object target,string name)=>(T)target.GetType().GetField(name,BindingFlags.Instance|BindingFlags.NonPublic).GetValue(target);
+    static void Check(bool value,string message){checks++;if(!value)throw new InvalidOperationException(message);}
+}

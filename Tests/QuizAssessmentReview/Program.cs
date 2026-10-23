@@ -11,20 +11,32 @@ internal static class Program
 
     private static void Main()
     {
-        foreach (int count in new[] { 1, 2, 5, 12 }) VerifyAssessmentReview(count);
+        foreach (int count in new[] { 1, 2, 5, 12 })
+        {
+            VerifyAssessmentReview(count);
+            VerifyAssessmentReview(count, shuffled: true);
+            VerifyAssessmentReview(count, shuffledChoices: true);
+            VerifyAssessmentReview(count, shuffled: true, shuffledChoices: true);
+        }
         VerifyMissingAnswers();
         VerifyRetryModeUnchanged();
+        VerifyChoiceInteractions();
         VerifyCardsAndImages();
         VerifyMeasuredLayout();
         VerifySourceBoundaries();
         Console.WriteLine($"PASS: {checks} production-source assessment review, result-card, and integration assertions. Unity hierarchy/input/TMP measurement are doubles; actual phone/tablet rendering is checked separately. No live saves, scenes, accounts, rewards, or network accessed.");
     }
 
-    private static void VerifyAssessmentReview(int count)
+    private static void VerifyAssessmentReview(int count, bool shuffled = false, bool shuffledChoices = false)
     {
         QuizData data = Quiz(count);
         QuizView view = View();
         var answers = new Dictionary<string, int>();
+        string[] order = shuffled ? data.questions.Select(q => q.questionId.Trim()).Reverse().ToArray() : null;
+        var choiceOrders = shuffledChoices ? data.questions.ConvertAll(q => new QuizChoiceOrderSaveData
+        {
+            questionId = q.questionId.Trim(), choiceIndices = Enumerable.Range(0, q.choices.Count).Reverse().ToList()
+        }) : null;
         // Deliberately reverse insertion order; the review must follow authored question order.
         for (int i = count - 1; i >= 0; i--) answers[data.questions[i].questionId.Trim()] = Selection(data.questions[i], i);
         string fingerprint = data.ContentFingerprint;
@@ -37,14 +49,26 @@ internal static class Program
         view.ChoiceSelected += _ => answerEvents++;
         for (int i = 0; i < count; i++)
         {
-            view.ShowAssessmentQuestion(data, i, answers[data.questions[i].questionId.Trim()], count);
+            QuizQuestion displayed = data.questions[QuizProgressUtility.QuestionIndexAt(data, order, i)];
+            view.ShowAssessmentQuestion(data, i, answers[displayed.questionId.Trim()], count, order, choiceOrders);
+            Check(view.question.text == displayed.prompt, "Question prompt follows the attempt's ID order while progress uses display numbering.");
             Check(!view.IsAssessmentResult && view.VisibleResultCards.Count == 0, "Questions never show an answer key before submit.");
-            Check(view.VisibleChoices.Count == data.questions[i].choices.Count, "Question uses the actual authored choice count.");
+            Check(view.VisibleChoices.Count == displayed.choices.Count, "Question uses the actual displayed question's authored choice count.");
+            IReadOnlyList<int> choiceOrder = QuizProgressUtility.ChoiceOrderFor(displayed.questionId, choiceOrders);
+            for (int c = 0; c < displayed.choices.Count; c++)
+            {
+                int source = QuizProgressUtility.ChoiceIndexAt(displayed, choiceOrder, c);
+                Check(view.VisibleChoices[c].label.text == (displayed.choices[source].text ?? string.Empty) && view.VisibleChoices[c].artwork.sprite == displayed.choices[source].image,
+                    "Shuffled choice labels/images remain paired with their actual source answer.");
+                Check(view.VisibleChoices[c].number.text == Letter(c), "Visible answer letters follow display positions, not original choice indices.");
+                Check((view.VisibleChoices[c].face.color == QuizUILayout.Gold) == (source == answers[displayed.questionId.Trim()]),
+                    "Restored source selections highlight their current shuffled visible card.");
+            }
             Check(view.VisibleChoices.All(c => c.face.color != QuizResultCard.CorrectPaper && c.face.color != QuizResultCard.IncorrectPaper), "Question choices do not reveal correctness colors.");
             Check(!view.finishButton.gameObject.activeSelf && view.submitButton.gameObject.activeSelf, "Assessment controls remain pre-submission controls.");
         }
         var liveChoices = view.VisibleChoices.ToArray();
-        view.ShowAssessmentResult(data, expectedScore, answers);
+        view.ShowAssessmentResult(data, expectedScore, answers, order, choiceOrders);
         Check(view.IsAssessment && view.IsAssessmentResult, "Assessment result state is explicit.");
         Check(view.VisibleChoices.Count == 0 && liveChoices.All(c => !c.gameObject.activeSelf && c.gameObject.destroyed), "Submission removes the live selectable answer cards.");
         Check(view.VisibleResultCards.Count == count, "Every authored question receives exactly one review card.");
@@ -56,17 +80,20 @@ internal static class Program
         for (int i = 0; i < count; i++)
         {
             QuizResultCard card = view.VisibleResultCards[i];
-            QuizQuestion question = data.questions[i];
+            QuizQuestion question = data.questions[QuizProgressUtility.QuestionIndexAt(data, order, i)];
             int chosen = answers[question.questionId.Trim()];
             bool correct = chosen == question.correctChoiceIndex;
-            Check(card.QuestionLabel.text == question.prompt && card.StatusLabel.text.StartsWith("Question " + (i + 1) + " "), "Cards keep authored order, question numbering, and exact question copy.");
+            IReadOnlyList<int> choiceOrder = QuizProgressUtility.ChoiceOrderFor(question.questionId, choiceOrders);
+            Check(card.QuestionLabel.text == question.prompt && card.StatusLabel.text.StartsWith("Question " + (i + 1) + " "), "Cards keep attempt order, display numbering, and exact question copy.");
             Check(card.IsCorrect == correct && card.Face.color == (correct ? QuizResultCard.CorrectPaper : QuizResultCard.IncorrectPaper), "Selected answers use green for correct and red for incorrect.");
             Check(card.YourAnswerLabel.text.EndsWith(question.choices[chosen].text ?? ""), "Card displays the actual player answer, not the correct answer in its place.");
+            Check(card.YourAnswerLabel.text.StartsWith(Letter(QuizProgressUtility.ChoiceDisplayIndex(question, choiceOrder, chosen)) + ". "), "Review's player-answer letter matches its actual shuffled display position.");
             Check(card.YourAnswerImage.sprite == question.choices[chosen].image, "Player-selected image is preserved.");
             Check(card.CorrectAnswerLabel.gameObject.activeInHierarchy == !correct, "Only incorrect answers expose the correction section.");
             if (!correct)
             {
                 Check(card.CorrectAnswerLabel.text.EndsWith(question.choices[question.correctChoiceIndex].text ?? ""), "Incorrect cards show the correct text answer.");
+                Check(card.CorrectAnswerLabel.text.StartsWith(Letter(QuizProgressUtility.ChoiceDisplayIndex(question, choiceOrder, question.correctChoiceIndex)) + ". "), "Correction's answer letter follows the saved shuffled order, not the original asset index.");
                 Check(card.CorrectAnswerImage.sprite == question.choices[question.correctChoiceIndex].image, "Incorrect cards show the correct image answer.");
             }
             Check(card.FeedbackLabel.text.Contains(question.feedback), "Optional explanation is retained in the result review.");
@@ -77,18 +104,19 @@ internal static class Program
         Check(answerEvents == 0 && completionEvents == 0, "Rendering a result does not submit new choices or continue NPC progression.");
         var firstCards = view.VisibleResultCards.ToArray();
         string firstAnswer = firstCards[0].YourAnswerLabel.text;
-        answers[data.questions[0].questionId.Trim()] = (answers[data.questions[0].questionId.Trim()] + 1) % data.questions[0].choices.Count;
+        QuizQuestion firstDisplayed = data.questions[QuizProgressUtility.QuestionIndexAt(data, order, 0)];
+        answers[firstDisplayed.questionId.Trim()] = (answers[firstDisplayed.questionId.Trim()] + 1) % firstDisplayed.choices.Count;
         Check(firstCards[0].YourAnswerLabel.text == firstAnswer, "A materialized result does not follow later dictionary mutation.");
-        view.ShowAssessmentResult(data, expectedScore, answers);
+        view.ShowAssessmentResult(data, expectedScore, answers, order, choiceOrders);
         Check(view.VisibleResultCards.Count == count && firstCards.All(c => !c.gameObject.activeSelf && c.gameObject.destroyed), "Repeated results replace old cards without duplication or delayed-frame interception.");
         view.SetBusy(true); view.finishButton.onClick.Invoke();
         Check(completionEvents == 0, "Busy durable-save state still blocks Continue requests.");
         view.SetBusy(false); view.finishButton.onClick.Invoke();
         Check(completionEvents == 1, "The existing Continue event is preserved.");
         var finalCards = view.VisibleResultCards.ToArray();
-        view.ShowAssessmentQuestion(data, 0, -1, 0);
+        view.ShowAssessmentQuestion(data, 0, -1, 0, order, choiceOrders);
         Check(view.VisibleResultCards.Count == 0 && finalCards.All(c => !c.gameObject.activeSelf), "Reopening a question clears submitted-review content.");
-        view.ShowAssessmentResult(data, expectedScore, answers);
+        view.ShowAssessmentResult(data, expectedScore, answers, order, choiceOrders);
         finalCards = view.VisibleResultCards.ToArray(); view.Reset();
         Check(!view.IsAssessmentResult && view.VisibleResultCards.Count == 0 && finalCards.All(c => !c.gameObject.activeSelf), "Session reset clears all review state and content.");
     }
@@ -125,6 +153,56 @@ internal static class Program
         Check(view.feedback.text.Contains(data.questions[0].feedback) && view.nextButton.gameObject.activeSelf, "Correct practice feedback and Next remain unchanged.");
         view.ShowCompletion(data);
         Check(view.VisibleResultCards.Count == 0 && view.finishButton.gameObject.activeSelf, "Practice completion stays distinct from assessment review.");
+    }
+
+    private static void VerifyChoiceInteractions()
+    {
+        foreach (int count in new[] { 2, 4, 6, 27, 31 })
+        {
+            QuizData data = Quiz(1); data.questions[0] = Question(2, count);
+            QuizQuestion question = data.questions[0];
+            List<int> reversed = Enumerable.Range(0, count).Reverse().ToList();
+            var orders = new List<QuizChoiceOrderSaveData> { new() { questionId = question.questionId.Trim(), choiceIndices = reversed } };
+            QuizView view = View();
+            int emitted = -1, events = 0;
+            view.ChoiceSelected += source => { emitted = source; events++; };
+            view.ShowQuestion(data, 0, null, null, orders);
+            for (int display = 0; display < count; display++)
+            {
+                int source = reversed[display];
+                view.VisibleChoices[display].button.onClick.Invoke();
+                Check(emitted == source && events == display + 1, "A real shuffled choice button emits its source index, never its visible letter/index.");
+                Check(view.VisibleChoices.Select((card, index) => (card.face.color == QuizUILayout.Gold) == (index == display)).All(value => value),
+                    "A real shuffled card tap highlights only that visible card.");
+                Check(view.VisibleChoices[display].label.text == (question.choices[source].text ?? string.Empty) && view.VisibleChoices[display].artwork.sprite == question.choices[source].image,
+                    "Text/image/mixed content remains paired under source-index event mapping.");
+                Check(view.VisibleChoices[display].number.text == Letter(display), "Real card letters and beyond-Z numbering follow visible order.");
+            }
+            int before = events;
+            view.SetBusy(true); view.VisibleChoices[0].button.onClick.Invoke();
+            Check(events == before, "Busy state cannot emit source answers even from a shuffled card.");
+            view.SetBusy(false); view.ShowSaveError("Save failed"); view.VisibleChoices[0].button.onClick.Invoke();
+            Check(events == before, "Save error blocks all reordered choice events.");
+            view.ShowQuestion(data, 0, null, null, orders);
+            view.ShowFeedback(false, "Retry"); view.VisibleChoices[0].button.onClick.Invoke();
+            Check(events == before + 1 && emitted == reversed[0], "Retrying a wrong answer retains the exact visible-to-source mapping.");
+            view.ShowFeedback(true, "Correct"); view.VisibleChoices[1].button.onClick.Invoke();
+            Check(events == before + 1, "Correct practice feedback locks all reordered cards.");
+
+            int chosen = (question.correctChoiceIndex + 1) % count;
+            int chosenDisplay = reversed.IndexOf(chosen);
+            view.ShowAssessmentQuestion(data, 0, chosen, 1, null, orders);
+            Check(view.VisibleChoices.Select((card, index) => (card.face.color == QuizUILayout.Gold) == (index == chosenDisplay)).All(value => value),
+                "Assessment restore highlights the saved source answer in its new visible position.");
+            view.ShowAssessmentResult(data, 0, new Dictionary<string, int> { [question.questionId.Trim()] = chosen }, null, orders);
+            QuizResultCard card = view.VisibleResultCards.Single();
+            Check(!card.IsCorrect && card.Face.color == QuizResultCard.IncorrectPaper &&
+                card.YourAnswerLabel.text.StartsWith(Letter(chosenDisplay) + ". ") &&
+                card.CorrectAnswerLabel.text.StartsWith(Letter(reversed.IndexOf(question.correctChoiceIndex)) + ". "),
+                "Result colors grade source correctness while both answer letters use their original shuffled display positions.");
+            Check(card.YourAnswerImage.sprite == question.choices[chosen].image && card.CorrectAnswerImage.sprite == question.choices[question.correctChoiceIndex].image,
+                "Reordered result letters never substitute the wrong selected/correct image.");
+        }
     }
 
     private static void VerifyCardsAndImages()
@@ -205,7 +283,9 @@ internal static class Program
         foreach (string signature in new[] { "public void ShowQuestion(", "public void ShowCompletion(", "public void Reset()" })
             Check(Method(view, signature).Contains("ClearResultCards()"), "Every replacement/reset path cleans up review cards: " + signature);
         string results = Method(view, "public void ShowAssessmentResult(");
-        Check(results.Contains("ShowCompletion(data)") && results.Contains("for (int i = 0; i < data.QuestionCount; i++)"), "Only completed assessment display creates cards in authored order.");
+        Check(results.Contains("ShowCompletion(data)") && results.Contains("for (int i = 0; i < data.QuestionCount; i++)") && results.Contains("QuizProgressUtility.QuestionIndexAt(data, questionOrderIds, i)"), "Only completed assessment display creates numbered cards in the saved attempt order.");
+        Check(showResult.Contains("assessmentAnswers, questionOrderIds, choiceOrders"), "Results receive the session's saved question/choice orders as well as its source answers.");
+        Check(results.Contains("QuizProgressUtility.ChoiceOrderFor(item.questionId, choiceOrders)"), "Each review card receives the matching question's saved source-choice permutation.");
         Check(Method(layout, "public void ApplyLayout()").Contains("!view.IsAssessmentResult") && Method(layout, "public void ApplyLayout()").Contains("if (view.IsAssessmentResult) LayoutResults"), "Review uses a single-column result layout, separate from ordinary choice grids.");
         string resultLayout = Method(layout, "private void LayoutResults(");
         Check(resultLayout.Contains("RequiredHeight") && resultLayout.Contains("Mathf.Max(choiceViewport.rect.height, y)"), "Scrollable review content grows to the full measured result-card height.");
@@ -264,6 +344,7 @@ internal static class Program
         return question;
     }
     private static int Selection(QuizQuestion question, int index) => index % 3 == 0 ? question.correctChoiceIndex : (question.correctChoiceIndex + 1) % question.choices.Count;
+    private static string Letter(int displayIndex) => displayIndex < 26 ? ((char)('A' + displayIndex)).ToString() : (displayIndex + 1).ToString();
     private static float TopOffset(Transform child, Transform root)
     {
         float result = 0;

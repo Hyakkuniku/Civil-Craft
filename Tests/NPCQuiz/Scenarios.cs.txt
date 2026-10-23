@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using UnityEngine;
 
@@ -42,7 +43,223 @@ public static class Scenarios
         FingerprintsAndIds();
         SavesAndResume();
         AssessmentSaves();
+        QuestionOrderUtility();
+        QuestionOrderPersistence();
+        ChoiceOrderUtility();
+        ChoiceOrderPersistence();
         return checks;
+    }
+
+    private static string ChoiceOrderKey(IEnumerable<QuizChoiceOrderSaveData> rows)=>string.Join("|",rows.OrderBy(row=>row.questionId,StringComparer.Ordinal).Select(row=>row.questionId+":"+string.Join(",",row.choiceIndices)));
+    private static List<QuizChoiceOrderSaveData> CloneChoiceOrders(IEnumerable<QuizChoiceOrderSaveData> rows)=>rows.Select(row=>row.Clone()).ToList();
+    private static void ChoiceOrderUtility()
+    {
+        Check(!QuizProgressUtility.IsValidChoiceOrders(null,null)&&QuizProgressUtility.CreateChoiceOrders(null,null).Count==0,"Missing quiz safely has no choice metadata.");
+        Check(!QuizProgressUtility.IsValidChoiceOrders(Make(0),new List<QuizChoiceOrderSaveData>())&&QuizProgressUtility.CreateChoiceOrders(Make(0),null).Count==0,"An empty quiz cannot validate choice metadata.");
+        HashSet<string> varied=new();
+        foreach(int count in new[]{1,2,5,17})
+        foreach(int choices in new[]{2,3,5,8})
+        for(int seed=0;seed<9;seed++)
+        {
+            QuizData quiz=Make(count,choices);var before=quiz.questions.Select(question=>question.choices.ToArray()).ToArray();string fingerprint=quiz.ContentFingerprint;
+            var rows=QuizProgressUtility.CreateChoiceOrders(quiz,new QuizProgressSaveData(),new Random(seed));
+            Check(QuizProgressUtility.IsValidChoiceOrders(quiz,rows)&&rows.Count==count,"Seeded choice permutations include all questions with complete source indices.");
+            Check(ChoiceOrderKey(rows)==ChoiceOrderKey(QuizProgressUtility.CreateChoiceOrders(quiz,new QuizProgressSaveData(),new Random(seed))),"Seeded local choice RNG is repeatable without global random state.");
+            if(count==5&&choices==5)varied.Add(ChoiceOrderKey(rows));
+            foreach(QuizQuestion question in quiz.questions)
+            {
+                var order=QuizProgressUtility.ChoiceOrderFor(question.questionId,rows);
+                for(int display=0;display<choices;display++)
+                {
+                    int source=QuizProgressUtility.ChoiceIndexAt(question,order,display);
+                    Check(source>=0&&source<choices&&QuizProgressUtility.ChoiceDisplayIndex(question,order,source)==display,"Choice display/source lookup is inverse without changing answer meaning.");
+                }
+                int correctDisplay=QuizProgressUtility.ChoiceDisplayIndex(question,order,question.correctChoiceIndex);
+                Check(QuizProgressUtility.ChoiceIndexAt(question,order,correctDisplay)==question.correctChoiceIndex,"Correct answer follows its source index after choice shuffling.");
+            }
+            Check(quiz.ContentFingerprint==fingerprint&&quiz.questions.Select((question,index)=>question.choices.SequenceEqual(before[index])&&question.correctChoiceIndex==choices-1).All(same=>same),"Choice shuffling never changes source asset choices, correctness or fingerprint.");
+        }
+        Check(varied.Count>1,"Seeded examples exercise varied permutations without requiring every random take to differ.");
+        QuizData mixed=Make(3,3);mixed.questions[1].choices.RemoveAt(2);mixed.questions[1].correctChoiceIndex=1;mixed.questions[2].choices.Add(new(){text="Fourth"});mixed.questions[2].correctChoiceIndex=3;
+        mixed.questions[0].choices[0].image=new Sprite();ValidateEditor(mixed);string mixedFingerprint=mixed.ContentFingerprint;var mixedRows=QuizProgressUtility.CreateChoiceOrders(mixed,null,new Random(7));
+        Check(QuizProgressUtility.IsValidChoiceOrders(mixed,mixedRows)&&mixedRows.Select(row=>row.choiceIndices.Count).SequenceEqual(new[]{3,2,4})&&mixed.ContentFingerprint==mixedFingerprint,"Mixed question choice counts and text/image/caption content remain intact.");
+        QuizData data=Make(3,3);var valid=QuizProgressUtility.CreateChoiceOrders(data,null,new Random(5));
+        foreach(string defect in new[]{"missing","duplicate-question","unknown-question","null-row","null-indices","duplicate-choice","negative","outside"})
+        {
+            var bad=CloneChoiceOrders(valid);
+            if(defect=="missing")bad.RemoveAt(0);
+            if(defect=="duplicate-question")bad[1].questionId=bad[0].questionId;
+            if(defect=="unknown-question")bad[0].questionId="missing";
+            if(defect=="null-row")bad[0]=null;
+            if(defect=="null-indices")bad[0].choiceIndices=null;
+            if(defect=="duplicate-choice")bad[0].choiceIndices[1]=bad[0].choiceIndices[0];
+            if(defect=="negative")bad[0].choiceIndices[0]=-1;
+            if(defect=="outside")bad[0].choiceIndices[0]=3;
+            Check(!QuizProgressUtility.IsValidChoiceOrders(data,bad),"Malformed choice metadata rejects safely: "+defect);
+        }
+        Check(QuizProgressUtility.ChoiceOrderFor("missing",valid)==null&&QuizProgressUtility.ChoiceOrderFor(null,valid)==null,"Missing question choice-order lookup returns no mapping.");
+        Check(QuizProgressUtility.ChoiceIndexAt(data.questions[0],null,2)==2&&QuizProgressUtility.ChoiceDisplayIndex(data.questions[0],null,1)==1,"Legacy null choice order retains authored source/display identity.");
+        Check(QuizProgressUtility.ChoiceIndexAt(data.questions[0],new[]{0,0,2},1)==-1&&QuizProgressUtility.ChoiceDisplayIndex(data.questions[0],new[]{0,0,2},1)==-1&&QuizProgressUtility.ChoiceIndexAt(data.questions[0],null,3)==-1,"Invalid mappings or out-of-range display indexes cannot grade the wrong source choice.");
+        foreach(string legacy in new[]{"question-order","correct","answers","submitted","completed"})
+        {
+            QuizProgressSaveData progress=new();
+            if(legacy=="question-order")progress.questionOrderIds.AddRange(new[]{"q-2","q-0","q-1"});
+            if(legacy=="correct")progress.correctQuestionIds.Add("q-1");
+            if(legacy=="answers")progress.answers.Add(new(){questionId="q-2",choiceIndex=1});
+            if(legacy=="submitted")progress.submitted=true;
+            if(legacy=="completed")progress.completed=true;
+            var rows=QuizProgressUtility.CreateChoiceOrders(data,progress,new Random(9));
+            Check(rows.All(row=>row.choiceIndices.SequenceEqual(new[]{0,1,2})),"Legacy attempt keeps all original answer positions when choice metadata is missing: "+legacy);
+        }
+        QuizProgressSaveData stored=new(){choiceOrders=CloneChoiceOrders(valid),submitted=true};var copy=QuizProgressUtility.CreateChoiceOrders(data,stored,new Random(99));
+        Check(ChoiceOrderKey(copy)==ChoiceOrderKey(valid),"Valid saved choice metadata reuses the same positions even for submitted results.");copy[0].choiceIndices.Reverse();copy[0].questionId="changed";
+        Check(ChoiceOrderKey(stored.choiceOrders)==ChoiceOrderKey(valid),"Choice-order helper returns deep detached rows and index lists.");
+        var clone=stored.Clone();clone.choiceOrders[0].choiceIndices.Reverse();clone.choiceOrders[0].questionId="changed";
+        Check(ChoiceOrderKey(stored.choiceOrders)==ChoiceOrderKey(valid),"Quiz progress Clone deeply isolates nested choice metadata.");stored.choiceOrders=null;
+        Check(stored.Clone().choiceOrders!=null&&stored.Clone().choiceOrders.Count==0&&new QuizChoiceOrderSaveData{choiceIndices=null}.Clone().choiceIndices.Count==0,"Old null choice fields clone as safe empty collections.");
+    }
+
+    private static void ChoiceOrderPersistence()
+    {
+        foreach(bool assessment in new[]{false,true})
+        {
+            QuizData quiz=Make(5,4);quiz.assessmentMode=assessment;QuizContext context=Context("choices-"+assessment);PlayerDataManager manager=new();
+            manager.TryGetQuizProgress(quiz,context,out QuizProgressSaveData empty);var questionOrder=QuizProgressUtility.CreateQuestionOrder(quiz,empty,new Random(5));var rows=QuizProgressUtility.CreateChoiceOrders(quiz,empty,new Random(24));var expected=CloneChoiceOrders(rows);
+            Dictionary<string,int> answers=new();
+            bool Commit(IEnumerable<string> correct,bool submitted,bool completed,IReadOnlyList<QuizChoiceOrderSaveData> choices=null)=>assessment
+                ?manager.TrySaveQuizAssessment(quiz,context,answers,submitted,completed,out _,questionOrder,choices)
+                :manager.TrySaveQuizProgress(quiz,context,correct,completed,out _,questionOrder,choices);
+            Check(empty.choiceOrders.Count==0&&manager.saves==0&&manager.CurrentData.quizProgress.Count==0,"Reading a fresh attempt does not commit choice metadata.");
+            Check(Commit(null,false,false,rows)&&ChoiceOrderKey(manager.committed[0].choiceOrders)==ChoiceOrderKey(expected),"Question and choice order commit together before the first answer in either mode.");
+            rows[0].choiceIndices.Reverse();rows[0].questionId="caller-mutated";
+            Check(ChoiceOrderKey(manager.CurrentData.quizProgress[0].choiceOrders)==ChoiceOrderKey(expected),"Caller-owned nested lists cannot mutate saved choice order.");
+            manager.TryGetQuizProgress(quiz,context,out QuizProgressSaveData read);read.choiceOrders[0].choiceIndices.Reverse();
+            Check(ChoiceOrderKey(manager.CurrentData.quizProgress[0].choiceOrders)==ChoiceOrderKey(expected),"Detached nested metadata reads cannot mutate the profile.");
+            var restart=new PlayerDataManager{CurrentData=new PlayerData{quizProgress=manager.committed}};restart.TryGetQuizProgress(quiz,context,out read);
+            Check(ChoiceOrderKey(QuizProgressUtility.CreateChoiceOrders(quiz,read,new Random(999)))==ChoiceOrderKey(expected)&&restart.saves==0,"Restart with zero answers retains the exact committed choice positions without a read write.");
+            string firstId=questionOrder[0];QuizQuestion first=quiz.questions[QuizProgressUtility.QuestionIndexAt(quiz,questionOrder,0)];var firstOrder=QuizProgressUtility.ChoiceOrderFor(firstId,expected);int displayCorrect=QuizProgressUtility.ChoiceDisplayIndex(first,firstOrder,first.correctChoiceIndex);int selectedSource=QuizProgressUtility.ChoiceIndexAt(first,firstOrder,displayCorrect);answers[firstId]=selectedSource;
+            Check(selectedSource==first.correctChoiceIndex&&Commit(new[]{firstId},false,false),"A displayed correct choice is stored as the original source index/question ID.");
+            manager.TryGetQuizProgress(quiz,context,out read);
+            Check(ChoiceOrderKey(read.choiceOrders)==ChoiceOrderKey(expected)&&read.correctQuestionIds.SequenceEqual(new[]{firstId}),"Normal answer saves preserve choice metadata without needing it passed again.");
+            if(assessment)Check(read.answers[0].questionId==firstId&&read.answers[0].choiceIndex==selectedSource&&QuizProgressUtility.AssessmentScore(quiz,answers)==1,"Assessment scoring uses source indexes rather than shuffled display letters.");
+            int saves=manager.saves;var previous=manager.CurrentData.quizProgress;var conflict=CloneChoiceOrders(expected);int swap=conflict[0].choiceIndices[0];conflict[0].choiceIndices[0]=conflict[0].choiceIndices[1];conflict[0].choiceIndices[1]=swap;
+            Check(!Commit(new[]{firstId},false,false,conflict)&&manager.saves==saves&&ReferenceEquals(previous,manager.CurrentData.quizProgress),"A different valid choice permutation cannot change an established take.");
+            var malformed=CloneChoiceOrders(expected);malformed[0].choiceIndices[0]=malformed[0].choiceIndices[1];Check(!Commit(new[]{firstId},false,false,malformed)&&manager.saves==saves&&ReferenceEquals(previous,manager.CurrentData.quizProgress),"Invalid choice metadata is rejected before writing.");
+            var rowReordered=CloneChoiceOrders(expected);rowReordered.Reverse();Check(Commit(new[]{firstId},false,false,rowReordered)&&ChoiceOrderKey(manager.CurrentData.quizProgress[0].choiceOrders)==ChoiceOrderKey(expected),"Metadata row order may change without changing any per-question display permutation.");
+            previous=manager.CurrentData.quizProgress;manager.saveSucceeds=false;manager.saveHook=()=>manager.CurrentData.gold++;
+            Check(!Commit(new[]{firstId},false,false,expected)&&ReferenceEquals(previous,manager.CurrentData.quizProgress)&&ChoiceOrderKey(manager.CurrentData.quizProgress[0].choiceOrders)==ChoiceOrderKey(expected)&&manager.CurrentData.gold==1,"Failed nested-metadata commit rolls back only quiz state and preserves unrelated writes.");manager.saveSucceeds=true;manager.saveHook=null;
+            foreach(QuizQuestion question in quiz.questions)answers[question.questionId]=question.correctChoiceIndex;
+            Check(Commit(questionOrder,assessment,true,expected),"Final submission/completion preserves source answer semantics and established metadata.");manager.TryGetQuizProgress(quiz,context,out read);
+            Check(read.completed&&ChoiceOrderKey(QuizProgressUtility.CreateChoiceOrders(quiz,read,new Random(2)))==ChoiceOrderKey(expected),"Completed results preserve their displayed answer lettering without creating a retake.");
+            manager.CurrentData.quizProgress[0].choiceOrders[0].choiceIndices[0]=manager.CurrentData.quizProgress[0].choiceOrders[0].choiceIndices[1];manager.TryGetQuizProgress(quiz,context,out read);
+            Check(read.choiceOrders.Count==0&&read.correctQuestionIds.Count==5&&read.completed&&(!assessment||read.answers.All(answer=>answer.choiceIndex==3))&&manager.CurrentData.quizProgress[0].choiceOrders.Count==5,"Corrupt metadata clears only detached choice order and never remaps source answers or erases valid results.");
+            var legacy=QuizProgressUtility.CreateChoiceOrders(quiz,read,new Random(2));Check(legacy.All(row=>row.choiceIndices.SequenceEqual(new[]{0,1,2,3})),"Legacy/corrupt metadata with saved question order reconstructs identity choices.");
+            Check(Commit(questionOrder,assessment,true,legacy),"Missing/corrupt choice metadata can be prepared without resetting completed source answers.");
+            quiz.questions[0].choices[0].text+=" changed-content";manager.TryGetQuizProgress(quiz,context,out read);
+            Check(read.choiceOrders.Count==0&&read.questionOrderIds.Count==0&&read.answers.Count==0&&read.correctQuestionIds.Count==0&&!read.completed,"Edited choices invalidate only the matching quiz attempt and all old choice metadata.");
+            var other=new PlayerDataManager();other.TryGetQuizProgress(quiz,context,out read);Check(read.choiceOrders.Count==0&&other.saves==0,"A separate account does not inherit choice order metadata.");
+            FusionConnectionManager.Instance=new(){IsGuestSaveProtected=true};saves=manager.saves;Check(!Commit(null,false,false,expected)&&manager.saves==saves,"Protected visitor cannot commit question/choice attempt metadata.");FusionConnectionManager.Instance=null;
+        }
+        var fresh=Make();var failing=new PlayerDataManager{saveSucceeds=false};var before=failing.CurrentData.quizProgress;var questionIds=QuizProgressUtility.CreateQuestionOrder(fresh,null,new Random(1));var choiceRows=QuizProgressUtility.CreateChoiceOrders(fresh,null,new Random(2));
+        Check(!failing.TrySaveQuizProgress(fresh,Context("initial-choices"),null,false,out _,questionIds,choiceRows)&&ReferenceEquals(before,failing.CurrentData.quizProgress)&&before.Count==0,"Failed initial full metadata commit leaves no partial take.");
+    }
+
+    private static void QuestionOrderUtility()
+    {
+        Check(!QuizProgressUtility.IsValidQuestionOrder(null,null)&&QuizProgressUtility.CreateQuestionOrder(null,null).Count==0,"Missing quiz cannot manufacture an order.");
+        Check(!QuizProgressUtility.IsValidQuestionOrder(Make(0),new List<string>())&&QuizProgressUtility.CreateQuestionOrder(Make(0),null).Count==0,"Empty invalid quiz safely has no permutation.");
+        HashSet<string> varied=new HashSet<string>();
+        foreach(int count in new[]{1,2,3,5,17,50})
+        for(int seed=0;seed<12;seed++)
+        {
+            QuizData quiz=Make(count,4);string fingerprint=quiz.ContentFingerprint;
+            QuizQuestion[] sourceQuestions=quiz.questions.ToArray();QuizChoice[][] sourceChoices=quiz.questions.Select(question=>question.choices.ToArray()).ToArray();
+            List<string> order=QuizProgressUtility.CreateQuestionOrder(quiz,new QuizProgressSaveData(),new Random(seed));
+            Check(QuizProgressUtility.IsValidQuestionOrder(quiz,order)&&order.Count==count&&order.Distinct().Count()==count,"Fresh seeded shuffle includes each stable question ID exactly once.");
+            Check(order.SequenceEqual(QuizProgressUtility.CreateQuestionOrder(quiz,new QuizProgressSaveData(),new Random(seed))),"A seeded isolated RNG makes the order reproducibly testable.");
+            if(count==5)varied.Add(string.Join("|",order));
+            List<string> correct=new List<string>();
+            for(int display=0;display<count;display++)
+            {
+                int source=QuizProgressUtility.QuestionIndexAt(quiz,order,display);
+                Check(source>=0&&source<count&&sourceQuestions[source].questionId==order[display],"Display position resolves the original question by stable ID.");
+                Check(QuizProgressUtility.FirstUnresolvedDisplayIndex(quiz,correct,order)==display,"Practice resume follows the saved display order, not authored indexes.");
+                correct.Add(order[display]);
+            }
+            Check(QuizProgressUtility.FirstUnresolvedDisplayIndex(quiz,correct,order)==count,"All IDs answered completes any display permutation.");
+            Check(quiz.ContentFingerprint==fingerprint&&quiz.questions.SequenceEqual(sourceQuestions)&&quiz.questions.Select((question,index)=>question.choices.SequenceEqual(sourceChoices[index])&&question.correctChoiceIndex==3).All(same=>same),"Shuffling presentation never mutates asset questions, choices, correct indexes or content fingerprint.");
+        }
+        Check(varied.Count>1,"Independent deterministic seeds exercise multiple real permutations; random need not differ every time.");
+        QuizData data=Make(3);
+        foreach(List<string> bad in new List<string>[] {null,new(),new(){"q-0"},new(){"q-0","q-0","q-2"},new(){"q-0","q-1","unknown"},new(){"q-0",null,"q-2"}})
+            Check(!QuizProgressUtility.IsValidQuestionOrder(data,bad),"Missing, short, duplicate, unknown and null question IDs are rejected.");
+        Check(QuizProgressUtility.QuestionIndexAt(data,null,1)==1&&QuizProgressUtility.QuestionIndexAt(data,null,-1)==-1&&QuizProgressUtility.QuestionIndexAt(data,null,3)==-1,"Legacy direct view calls keep authored lookup and reject invalid positions.");
+        Check(QuizProgressUtility.QuestionIndexAt(data,new[]{"q-2","q-2","q-0"},0)==-1,"Corrupt permutation cannot silently map a duplicate question.");
+        foreach(string legacy in new[]{"correct","answers","submitted","completed"})
+        {
+            var progress=new QuizProgressSaveData{questionOrderIds=new(){"broken"}};
+            if(legacy=="correct")progress.correctQuestionIds.Add("q-2");
+            if(legacy=="answers")progress.answers.Add(new(){questionId="q-1",choiceIndex=0});
+            if(legacy=="submitted")progress.submitted=true;
+            if(legacy=="completed")progress.completed=true;
+            Check(QuizProgressUtility.CreateQuestionOrder(data,progress,new Random(42)).SequenceEqual(new[]{"q-0","q-1","q-2"}),"Legacy progress retains original answered numbering when no trustworthy order exists: "+legacy);
+        }
+        var saved=new QuizProgressSaveData{questionOrderIds=new(){"q-2","q-0","q-1"},completed=true};
+        List<string> reused=QuizProgressUtility.CreateQuestionOrder(data,saved,new Random(1));
+        Check(reused.SequenceEqual(saved.questionOrderIds),"A completed/submitted saved attempt reuses its order, not a new take.");reused[0]="mutated";
+        Check(saved.questionOrderIds[0]=="q-2","Returned order is a detached copy of saved state.");
+        QuizProgressSaveData clone=saved.Clone();clone.questionOrderIds[0]="changed";
+        Check(saved.questionOrderIds[0]=="q-2","Quiz record Clone deeply copies its order list.");saved.questionOrderIds=null;
+        Check(saved.Clone().questionOrderIds!=null&&saved.Clone().questionOrderIds.Count==0,"Old null serialized order clones as an empty list.");
+    }
+
+    private static void QuestionOrderPersistence()
+    {
+        foreach(bool assessment in new[]{false,true})
+        {
+            QuizData quiz=Make(5,4);quiz.assessmentMode=assessment;QuizContext context=Context("order-"+assessment);PlayerDataManager manager=new();
+            manager.TryGetQuizProgress(quiz,context,out QuizProgressSaveData empty);
+            Check(empty.questionOrderIds.Count==0&&manager.saves==0&&manager.CurrentData.quizProgress.Count==0,"Detached fresh read never creates or commits an attempt order.");
+            List<string> order=QuizProgressUtility.CreateQuestionOrder(quiz,empty,new Random(47));List<string> expected=new(order);
+            Dictionary<string,int> answers=new();
+            bool Commit(IEnumerable<string> correct,bool submitted,bool completed,IReadOnlyList<string> suppliedOrder=null)=>assessment
+                ?manager.TrySaveQuizAssessment(quiz,context,answers,submitted,completed,out _,suppliedOrder)
+                :manager.TrySaveQuizProgress(quiz,context,correct,completed,out _,suppliedOrder);
+            Check(Commit(null,false,false,order)&&manager.committed[0].questionOrderIds.SequenceEqual(expected),"Empty attempt order can commit before the first question is shown in either mode.");
+            order[0]="caller-change";
+            Check(manager.CurrentData.quizProgress[0].questionOrderIds.SequenceEqual(expected),"Later caller order mutation cannot modify profile state.");
+            manager.TryGetQuizProgress(quiz,context,out QuizProgressSaveData detached);detached.questionOrderIds.Reverse();
+            Check(manager.CurrentData.quizProgress[0].questionOrderIds.SequenceEqual(expected),"Detached read order cannot mutate the live save.");
+            PlayerDataManager restarted=new(){CurrentData=new PlayerData{quizProgress=manager.committed}};restarted.TryGetQuizProgress(quiz,context,out QuizProgressSaveData resumed);
+            Check(QuizProgressUtility.CreateQuestionOrder(quiz,resumed,new Random(1001)).SequenceEqual(expected)&&restarted.saves==0,"Restart before any answer retains exactly the committed order without writing on read.");
+            string first=expected[0];int firstSource=QuizProgressUtility.QuestionIndexAt(quiz,expected,0);answers[first]=quiz.questions[firstSource].correctChoiceIndex;
+            Check(Commit(new[]{first},false,false)&&manager.CurrentData.quizProgress[0].questionOrderIds.SequenceEqual(expected),"An answer save without an optional order preserves the current attempt permutation.");
+            manager.TryGetQuizProgress(quiz,context,out resumed);
+            Check(resumed.correctQuestionIds.SequenceEqual(new[]{first})&&QuizProgressUtility.FirstUnresolvedDisplayIndex(quiz,resumed.correctQuestionIds,expected)==1,"Correct answer identity and next unresolved display position stay associated after shuffle.");
+            if(assessment)Check(resumed.answers.Count==1&&resumed.answers[0].questionId==first&&resumed.answers[0].choiceIndex==3&&QuizProgressUtility.AssessmentScore(quiz,answers)==1,"Assessment score remains question-ID based with unshuffled choice indexes.");
+            List<string> malformed=new(expected);malformed[1]=malformed[0];int saves=manager.saves;var previous=manager.CurrentData.quizProgress;
+            Check(!Commit(new[]{first},false,false,malformed)&&manager.saves==saves&&ReferenceEquals(previous,manager.CurrentData.quizProgress),"Invalid provided order is rejected without any save/list mutation.");
+            List<string> alternate=new(expected);alternate.Reverse();
+            Check(!Commit(new[]{first},false,false,alternate)&&manager.saves==saves&&ReferenceEquals(previous,manager.CurrentData.quizProgress),"A different valid permutation cannot replace an established attempt order.");
+            manager.saveSucceeds=false;manager.saveHook=()=>manager.CurrentData.gold++;
+            Check(!Commit(new[]{first},false,false,expected)&&ReferenceEquals(previous,manager.CurrentData.quizProgress)&&manager.CurrentData.quizProgress[0].questionOrderIds.SequenceEqual(expected)&&manager.CurrentData.gold==1,"Failed order commit rolls back only quiz progress, not unrelated state.");
+            manager.saveSucceeds=true;manager.saveHook=null;
+            foreach(QuizQuestion question in quiz.questions)answers[question.questionId]=question.correctChoiceIndex;
+            Check(Commit(expected,assessment,true,expected)&&manager.CurrentData.quizProgress[0].completed,"Completion preserves original mode requirements while saving order.");
+            manager.TryGetQuizProgress(quiz,context,out resumed);
+            Check(resumed.completed&&QuizProgressUtility.CreateQuestionOrder(quiz,resumed,new Random(999)).SequenceEqual(expected),"Reopening completed progress retains result/order instead of resetting a take.");
+            manager.CurrentData.quizProgress[0].questionOrderIds=new(){"stale-id"};manager.TryGetQuizProgress(quiz,context,out resumed);
+            Check(resumed.questionOrderIds.Count==0&&resumed.completed&&resumed.correctQuestionIds.Count==5&&manager.CurrentData.quizProgress[0].questionOrderIds[0]=="stale-id","Corrupt stored order clears only the detached order; valid answers/results and raw persisted state remain untouched.");
+            Check(QuizProgressUtility.CreateQuestionOrder(quiz,resumed,new Random(999)).SequenceEqual(quiz.questions.Select(question=>question.questionId)),"Legacy completed progress with corrupt order retains authored numbering.");
+            quiz.questions[0].prompt+=" content edit";manager.TryGetQuizProgress(quiz,context,out resumed);
+            Check(resumed.questionOrderIds.Count==0&&resumed.correctQuestionIds.Count==0&&!resumed.completed&&!resumed.submitted&&resumed.answers.Count==0,"Edited content yields fresh answers and order without trusting the old result.");
+            PlayerDataManager other=new();other.TryGetQuizProgress(quiz,context,out QuizProgressSaveData otherRead);
+            Check(otherRead.questionOrderIds.Count==0&&other.CurrentData.quizProgress.Count==0,"Other accounts cannot inherit an attempt's question order.");
+            FusionConnectionManager.Instance=new(){IsGuestSaveProtected=true};saves=manager.saves;
+            Check(!Commit(null,false,false,expected)&&manager.saves==saves,"Protected visitor cannot write an attempt order.");FusionConnectionManager.Instance=null;
+        }
+        QuizData fresh=Make(3);var failing=new PlayerDataManager{saveSucceeds=false};var before=failing.CurrentData.quizProgress;var freshOrder=QuizProgressUtility.CreateQuestionOrder(fresh,null,new Random(1));
+        Check(!failing.TrySaveQuizProgress(fresh,Context(),null,false,out _,freshOrder)&&ReferenceEquals(before,failing.CurrentData.quizProgress)&&before.Count==0,"Failed initial order persistence creates no partial quiz record.");
     }
     private static void AssessmentSaves()
     {

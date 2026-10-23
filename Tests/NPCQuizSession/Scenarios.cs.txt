@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.EventSystems;
@@ -25,7 +26,9 @@ public static class Scenarios
         public Behaviour owner;
         public List<QuizOutcome> results = new List<QuizOutcome>();
         public bool controlsRestoredBeforeCallback;
-        public Fixture(int count = 2)
+        private QuizProgressSaveData seededRecord;
+        private bool openedOnce;
+        public Fixture(int count = 2, bool seedAuthoredOrder = true)
         {
             typeof(QuizUIManager).GetField("activeManager", BindingFlags.NonPublic | BindingFlags.Static).SetValue(null, null);
             UnityEngine.Object.all.Clear(); Scene.unloaded.Clear(); Time.timeScale = 1; Time.unscaledTime = 0;
@@ -38,12 +41,41 @@ public static class Scenarios
             for (int i = 0; i < count; i++) quiz.questions.Add(new QuizQuestion
             { questionId = "q" + i, prompt = "Question " + i, feedback = "Safety first.", correctChoiceIndex = 1,
                 choices = new List<QuizChoice> { new QuizChoice { text = "Wrong" }, new QuizChoice { text = "Right" } } });
+            // Retain deterministic authored-order/save-count baselines for the
+            // original control and save-failure regression scenarios. Separate
+            // tests below start with no record and exercise real order creation.
+            if (seedAuthoredOrder)
+            {
+                seededRecord = new QuizProgressSaveData
+                {
+                    progressKey = context.ProgressKey, quizId = quiz.quizId,
+                    contentFingerprint = quiz.ContentFingerprint,
+                    questionOrderIds = quiz.questions.ConvertAll(question => question.questionId.Trim()),
+                    choiceOrders = quiz.questions.ConvertAll(question => new QuizChoiceOrderSaveData
+                    {
+                        questionId = question.questionId.Trim(),
+                        choiceIndices = Enumerable.Range(0, question.choices.Count).ToList()
+                    })
+                };
+                save.CurrentData.quizProgress.Add(seededRecord);
+            }
             owner = new Behaviour(); manager = new QuizUIManager { view = new QuizView() };
             Call(manager, "Awake");
         }
-        public bool Open(Action<QuizOutcome> more = null) => (bool)Call(manager, "Open", quiz, context, owner, owner.gameObject.scene,
-            new Action<QuizOutcome>(result => { QuizNPCPresentation.Trace.Add("callback"); results.Add(result); controlsRestoredBeforeCallback = input.movement && input.look && interaction.enabled; more?.Invoke(result); }));
-        public void Correct() { manager.view.Choose(1); manager.view.Submit(); }
+        public bool Open(Action<QuizOutcome> more = null)
+        {
+            // Most legacy cases set assessmentMode after constructing the
+            // fixture; seed its deterministic record only for that first open.
+            if (!openedOnce && seededRecord != null) seededRecord.contentFingerprint = quiz.ContentFingerprint;
+            openedOnce = true;
+            return (bool)Call(manager, "Open", quiz, context, owner, owner.gameObject.scene,
+                new Action<QuizOutcome>(result => { QuizNPCPresentation.Trace.Add("callback"); results.Add(result); controlsRestoredBeforeCallback = input.movement && input.look && interaction.enabled; more?.Invoke(result); }));
+        }
+        public void Correct()
+        {
+            manager.view.ChooseDisplay(QuizProgressUtility.ChoiceDisplayIndex(manager.view.shownQuestionData, manager.view.shownChoiceOrder, manager.view.shownQuestionData.correctChoiceIndex));
+            manager.view.Submit();
+        }
         public void FinishAll()
         {
             while (manager.view.shownQuestion >= 0) { Correct(); manager.view.Next(); }
@@ -76,7 +108,272 @@ public static class Scenarios
             Check(!QuizUIManager.IsAnyQuizActive && f.controlsRestoredBeforeCallback && !f.manager.Panel.activeSelf, "Controls restored and panel closed before continuation.");
         }
         ResumeAndSaveFailures(); PauseAndOwnership(); ControlsAndLifecycle(); Assessment(); NpcPresentationLifecycle();
+        ShuffledSessionOrder(); InitialOrderSaveFailures(); LegacyOrderCompatibility();
+        ShuffledChoiceSessions(); ChoiceOrderLegacyAndSaveFailures();
         return checks;
+    }
+    private static void ShuffledSessionOrder()
+    {
+        foreach (bool assessment in new[] { false, true })
+        foreach (int count in new[] { 1, 2, 5, 12 })
+        {
+            Fixture f = new Fixture(count, seedAuthoredOrder: false); f.quiz.assessmentMode = assessment;
+            // Unique answer counts, correct indices, prompts and feedback make
+            // display-ordinal/asset-index confusion observable in this suite.
+            for (int i = 0; i < count; i++)
+            {
+                QuizQuestion question = f.quiz.questions[i];
+                question.choices.Clear();
+                for (int c = 0; c < 2 + i % 5; c++) question.choices.Add(new QuizChoice { text = "Question " + i + " answer " + c });
+                question.correctChoiceIndex = i % question.choices.Count;
+                question.feedback = "Explanation for q" + i;
+            }
+            string before = f.quiz.ContentFingerprint;
+            var authored = f.quiz.questions.ToArray();
+            Check(f.Open(), "A genuinely new quiz attempt opens in either mode.");
+            Check(f.save.saves == 1 && f.save.committed.Count == 1, "A fresh order is persisted before the first answer/frame.");
+            var order = f.save.committed[0].questionOrderIds.ToArray();
+            Check(QuizProgressUtility.IsValidQuestionOrder(f.quiz, order), "Saved fresh order is an exact permutation of stable question IDs.");
+            var savedChoiceOrders = f.save.committed[0].choiceOrders.Select(c => c.Clone()).ToList();
+            Check(QuizProgressUtility.IsValidChoiceOrders(f.quiz, savedChoiceOrders), "Every fresh question also has a durable exact permutation of its source choices.");
+            Check(f.manager.view.shownQuestionOrder.SequenceEqual(order) && f.manager.view.shownQuestionData.questionId.Trim() == order[0], "Controller and displayed first question use the same durable attempt order.");
+            for (int display = 0; display < count; display++)
+            {
+                QuizQuestion question = f.quiz.questions.Single(q => q.questionId.Trim() == order[display]);
+                Check(ReferenceEquals(question, f.manager.view.shownQuestionData) && f.manager.view.shownQuestion == display, "Display ordinal maps to the correct stable question identity.");
+                IReadOnlyList<int> savedChoices = QuizProgressUtility.ChoiceOrderFor(question.questionId, savedChoiceOrders);
+                Check(f.manager.view.shownChoiceOrder.SequenceEqual(savedChoices), "Fresh question display uses its durably saved choice order.");
+                int chosen = assessment && display % 2 == 1 ? (question.correctChoiceIndex + 1) % question.choices.Count : question.correctChoiceIndex;
+                f.manager.view.ChooseDisplay(QuizProgressUtility.ChoiceDisplayIndex(question, savedChoices, chosen)); f.manager.view.Submit();
+                if (!assessment) Check(f.save.committed[0].correctQuestionIds.Contains(question.questionId.Trim()) && f.manager.view.feedback == question.feedback, "Practice grades and saves the displayed question ID/feedback, not its authored ordinal.");
+                Check(f.save.committed[0].questionOrderIds.SequenceEqual(order), "Answer writes never shuffle the active attempt.");
+                Check(f.save.committed[0].choiceOrders.All(c => c.choiceIndices.SequenceEqual(QuizProgressUtility.ChoiceOrderFor(c.questionId, savedChoiceOrders))), "Answer writes never shuffle any active question's displayed choices.");
+                if (display < count - 1 || !assessment) f.manager.view.Next();
+            }
+            if (assessment)
+            {
+                // Early Submit attempts above are no-ops until all are chosen.
+                f.manager.view.Submit();
+                Check(f.manager.view.score == (count + 1) / 2 && f.manager.view.resultOrder.SequenceEqual(order), "Mixed shuffled assessment score/review retain the exact attempt order.");
+                foreach (string id in order)
+                {
+                    int display = Array.IndexOf(order, id); QuizQuestion question = f.quiz.questions.Single(q => q.questionId.Trim() == id);
+                    int expected = display % 2 == 0 ? question.correctChoiceIndex : (question.correctChoiceIndex + 1) % question.choices.Count;
+                    Check(f.manager.view.resultAnswers[id] == expected, "Assessment review keys selections by stable ID after shuffling.");
+                }
+            }
+            f.manager.view.Finish();
+            Check(f.save.committed[0].completed && f.results.Count == 1, "Both modes retain existing exactly-once completion after shuffled questions.");
+            Check(f.quiz.ContentFingerprint == before && f.quiz.questions.SequenceEqual(authored), "Shuffling does not mutate the ScriptableObject question list, answers, fingerprint, or rewards.");
+            Check(f.Open() && f.manager.view.shownQuestion == -1 && f.save.committed[0].questionOrderIds.SequenceEqual(order), "Opening a completed attempt keeps completion/order instead of silently retaking or reshuffling.");
+            f.manager.view.Finish();
+        }
+        foreach (bool assessment in new[] { false, true })
+        {
+            Fixture f = new Fixture(5, seedAuthoredOrder: false); f.quiz.assessmentMode = assessment;
+            var reverse = f.quiz.questions.Select(q => q.questionId.Trim()).Reverse().ToArray();
+            f.save.CurrentData.quizProgress.Add(new QuizProgressSaveData
+            {
+                progressKey = f.context.ProgressKey, quizId = f.quiz.quizId, contentFingerprint = f.quiz.ContentFingerprint,
+                questionOrderIds = new List<string>(reverse)
+            });
+            Check(f.Open() && f.manager.view.shownQuestionData.questionId == "q4", "A persisted non-authored order is actually presented, not merely stored.");
+            if (assessment) { f.manager.view.Choose(0); f.manager.view.Next(); f.manager.view.Choose(1); }
+            else { f.Correct(); f.manager.view.Next(); }
+            QuizUIManager.CancelOwnedSession(f.owner);
+            Check(f.Open() && f.manager.view.shownQuestionOrder.SequenceEqual(reverse), "Owner teardown/reopen restores the exact saved shuffled sequence.");
+            if (assessment)
+            {
+                Check(f.manager.view.shownQuestionData.questionId == "q4" && f.manager.view.selection == 0, "Assessment restart restores the prior answer to its shuffled first question.");
+                f.manager.view.Next();
+                Check(f.manager.view.shownQuestionData.questionId == "q3" && f.manager.view.selection == 1, "Next restores a different answer to its correct shuffled question.");
+                f.manager.view.Previous();
+                Check(f.manager.view.selection == 0, "Previous follows display order and retrieves the original ID selection.");
+                f.manager.view.Next(); f.manager.view.Next();
+                for (int display = 2; display < 5; display++)
+                {
+                    f.manager.view.Choose(1);
+                    if (display < 4) f.manager.view.Next();
+                }
+                f.manager.view.Submit();
+                Check(f.manager.view.score == 4 && f.manager.view.resultOrder.SequenceEqual(reverse) && f.manager.view.resultAnswers["q4"] == 0 && f.manager.view.resultAnswers["q3"] == 1,
+                    "Submitting a restored shuffled assessment grades stable IDs and renders the original attempt order.");
+                QuizUIManager.CancelOwnedSession(f.owner);
+                Check(f.Open() && f.manager.view.shownQuestion == -1 && f.manager.view.score == 4 && f.manager.view.resultOrder.SequenceEqual(reverse),
+                    "Submitted shuffled results reopen in the exact saved order without starting a new attempt.");
+            }
+            else Check(f.manager.view.shownQuestion == 1 && f.manager.view.shownQuestionData.questionId == "q3", "Practice resumes the first unresolved display ordinal, not authored question zero.");
+            QuizUIManager.CancelOwnedSession(f.owner);
+        }
+    }
+    private static void LegacyOrderCompatibility()
+    {
+        foreach (bool assessment in new[] { false, true })
+        foreach (bool completed in new[] { false, true })
+        {
+            Fixture f = new Fixture(4, seedAuthoredOrder: false); f.quiz.assessmentMode = assessment;
+            var authored = f.quiz.questions.Select(q => q.questionId.Trim()).ToArray();
+            var legacy = new QuizProgressSaveData
+            {
+                progressKey = f.context.ProgressKey, quizId = f.quiz.quizId, contentFingerprint = f.quiz.ContentFingerprint,
+                completed = completed, submitted = assessment && completed,
+                questionOrderIds = null
+            };
+            if (assessment)
+            {
+                legacy.answers.Add(new QuizAnswerSaveData { questionId = "q0", choiceIndex = 0 });
+                if (completed) for (int i = 1; i < 4; i++) legacy.answers.Add(new QuizAnswerSaveData { questionId = "q" + i, choiceIndex = 1 });
+            }
+            else
+            {
+                legacy.correctQuestionIds.Add("q0");
+                if (completed) for (int i = 1; i < 4; i++) legacy.correctQuestionIds.Add("q" + i);
+            }
+            f.save.CurrentData.quizProgress.Add(legacy);
+            Check(f.Open(), "Old answered/completed saves without an order remain readable.");
+            if (completed)
+            {
+                Check(f.manager.view.shownQuestion == -1 && f.save.saves == 0, "A legacy completed quiz is not retaken/reset or auto-written merely to generate an order.");
+                if (assessment) Check(f.manager.view.score == 3 && f.manager.view.resultOrder.SequenceEqual(authored) && f.manager.view.resultAnswers["q0"] == 0,
+                    "Legacy submitted review keeps authored order and its actual prior answers.");
+                if (assessment) Check(f.manager.view.resultChoiceOrders.All(c => c.choiceIndices.SequenceEqual(new[] { 0, 1 })), "Legacy submitted review also keeps original answer letters instead of reshuffling corrections.");
+            }
+            else
+            {
+                Check(f.save.saves == 1 && f.save.committed[0].questionOrderIds.SequenceEqual(authored), "Legacy in-progress answers gain authored order rather than being reshuffled mid-attempt.");
+                Check(f.manager.view.shownQuestionOrder.SequenceEqual(authored), "Migrated legacy view follows the same canonical saved order.");
+                Check(f.manager.view.shownChoiceOrder.SequenceEqual(new[] { 0, 1 }) && f.save.committed[0].choiceOrders.All(c => c.choiceIndices.SequenceEqual(new[] { 0, 1 })), "Legacy answered saves retain identity choice ordering and existing source answers.");
+                Check(assessment ? f.manager.view.shownQuestionData.questionId == "q0" && f.manager.view.selection == 0 : f.manager.view.shownQuestionData.questionId == "q1",
+                    "Legacy progress retains its exact selected/correct answers through order migration.");
+            }
+            QuizUIManager.CancelOwnedSession(f.owner);
+        }
+    }
+    private static void InitialOrderSaveFailures()
+    {
+        foreach (bool assessment in new[] { false, true })
+        {
+            Fixture f = new Fixture(3, seedAuthoredOrder: false); f.quiz.assessmentMode = assessment;
+            f.save.saveSucceeds = false;
+            Check(f.Open() && f.manager.HasSession && f.manager.view.saveErrors == 1 && f.save.committed.Count == 0, "Failed initial order save retains a safe retryable session, not an unsaved playable attempt.");
+            var order = f.manager.view.shownQuestionOrder.ToArray();
+            f.manager.view.Choose(f.manager.view.shownQuestionData.correctChoiceIndex); f.manager.view.Submit(); f.manager.view.Next(); f.manager.view.Finish();
+            Check(f.manager.view.shownQuestion == 0 && f.manager.view.selection == -1 && f.manager.view.feedbackShows == 0 && f.results.Count == 0, "Initial order-save failure blocks selection/Submit/Next/Finish without false Correct feedback.");
+            f.save.saveSucceeds = true; f.manager.view.Retry();
+            Check(f.save.committed.Count == 1 && f.save.committed[0].questionOrderIds.SequenceEqual(order) && f.save.committed[0].correctQuestionIds.Count == 0 && f.save.committed[0].answers.Count == 0, "Retry commits only the same pending order, never an unearned answer.");
+            Check(f.manager.view.shownQuestion == 0 && f.manager.view.selection == -1 && f.manager.view.feedbackShows == 0, "Successful initial retry restores the unanswered question rather than Correct feedback/completion.");
+            f.Correct();
+            Check(assessment ? f.save.committed[0].answers.Count == 1 : f.save.committed[0].correctQuestionIds.Count == 1, "Answering becomes available only after the order save succeeds.");
+            QuizUIManager.CancelOwnedSession(f.owner);
+        }
+    }
+    private static void ShuffledChoiceSessions()
+    {
+        foreach (bool assessment in new[] { false, true })
+        foreach (int questionCount in new[] { 2, 5 })
+        {
+            Fixture f = new Fixture(questionCount, seedAuthoredOrder: false); f.quiz.assessmentMode = assessment;
+            for (int i = 0; i < questionCount; i++)
+            {
+                QuizQuestion question = f.quiz.questions[i]; question.choices.Clear();
+                int choiceCount = new[] { 2, 3, 4, 6, 27 }[i];
+                for (int c = 0; c < choiceCount; c++) question.choices.Add(new QuizChoice
+                {
+                    text = "q" + i + " answer " + c, image = c % 2 == 0 ? new Sprite() : null,
+                    imageFingerprint = c % 2 == 0 ? "stable-q" + i + "-image" + c : null
+                });
+                question.correctChoiceIndex = i % choiceCount;
+            }
+            var order = f.quiz.questions.Select(q => q.questionId.Trim()).Reverse().ToArray();
+            var choices = f.quiz.questions.ConvertAll(q => new QuizChoiceOrderSaveData
+            {
+                questionId = q.questionId.Trim(), choiceIndices = Enumerable.Range(0, q.choices.Count).Reverse().ToList()
+            });
+            f.save.CurrentData.quizProgress.Add(new QuizProgressSaveData
+            {
+                progressKey = f.context.ProgressKey, quizId = f.quiz.quizId, contentFingerprint = f.quiz.ContentFingerprint,
+                questionOrderIds = order.ToList(), choiceOrders = choices
+            });
+            string fingerprint = f.quiz.ContentFingerprint;
+            var authoredChoices = f.quiz.questions.Select(q => q.choices.ToArray()).ToArray();
+            Check(f.Open() && f.save.saves == 0, "A saved valid question/choice order opens without rewriting attempt metadata.");
+            for (int display = 0; display < questionCount; display++)
+            {
+                QuizQuestion shown = f.manager.view.shownQuestionData;
+                var choiceOrder = choices.Single(c => c.questionId == shown.questionId).choiceIndices;
+                Check(f.manager.view.shownChoiceOrder.SequenceEqual(choiceOrder), "Displayed question receives its own saved choice permutation.");
+                int rightSource = shown.correctChoiceIndex;
+                int wrongSource = (rightSource + 1) % shown.choices.Count;
+                int rightDisplay = choiceOrder.IndexOf(rightSource), wrongDisplay = choiceOrder.IndexOf(wrongSource);
+                Check(rightDisplay != rightSource || shown.choices.Count % 2 == 1 && rightSource == shown.choices.Count / 2, "Fixture exercises genuinely remapped correct choice position.");
+                if (!assessment)
+                {
+                    int saves = f.save.saves;
+                    f.manager.view.ChooseDisplay(wrongDisplay); f.manager.view.Submit();
+                    Check(!f.manager.view.correct && f.save.saves == saves, "Reordered wrong card is graded by its source answer, not its visible letter/index.");
+                    f.manager.view.ChooseDisplay(rightDisplay); f.manager.view.Submit();
+                    Check(f.manager.view.correct && f.save.committed[0].correctQuestionIds.Contains(shown.questionId), "Reordered correct card safely records its question's correctness.");
+                    f.manager.view.Next();
+                }
+                else
+                {
+                    int source = display == 0 ? wrongSource : rightSource;
+                    int position = choiceOrder.IndexOf(source);
+                    f.manager.view.ChooseDisplay(position);
+                    Check(f.manager.view.selection == source && f.manager.view.displayedSelection == position && f.save.committed[0].answers.Single(a => a.questionId == shown.questionId).choiceIndex == source,
+                        "Assessment highlights the display card while persisting the original source choice index.");
+                    if (display < questionCount - 1) f.manager.view.Next();
+                }
+                if (display == 0)
+                {
+                    QuizUIManager.CancelOwnedSession(f.owner); Check(f.Open(), "Choice-shuffled attempt can reopen after owner teardown.");
+                    if (assessment)
+                    {
+                        Check(f.manager.view.shownQuestionData.questionId == order[0] && f.manager.view.selection == wrongSource && f.manager.view.displayedSelection == wrongDisplay,
+                            "Assessment reopen restores the source answer to the same shuffled visible position.");
+                        f.manager.view.Next();
+                    }
+                    else Check(f.manager.view.shownQuestion == 1 && f.manager.view.shownQuestionData.questionId == order[1], "Practice resume keeps the original choice-shuffled question progression.");
+                }
+                Check(QuizProgressUtility.IsValidChoiceOrders(f.quiz, f.save.committed[0].choiceOrders) &&
+                    f.save.committed[0].choiceOrders.All(c => c.choiceIndices.SequenceEqual(choices.Single(original => original.questionId == c.questionId).choiceIndices)),
+                    "Answer/retry/resume writes preserve every question's original choice permutation.");
+            }
+            if (assessment)
+            {
+                f.manager.view.Submit();
+                Check(f.manager.view.score == questionCount - 1 && f.manager.view.resultChoiceOrders.Count == questionCount,
+                    "Shuffled assessment grades one actual wrong source answer and forwards the saved choice orders to review.");
+                Check(f.manager.view.resultChoiceOrders.All(c => c.choiceIndices.SequenceEqual(choices.Single(original => original.questionId == c.questionId).choiceIndices)),
+                    "Result review retains each question's exact visible answer-letter order.");
+                QuizUIManager.CancelOwnedSession(f.owner); f.Open();
+                Check(f.manager.view.shownQuestion == -1 && f.manager.view.score == questionCount - 1 &&
+                    f.manager.view.resultChoiceOrders.All(c => c.choiceIndices.SequenceEqual(choices.Single(original => original.questionId == c.questionId).choiceIndices)),
+                    "Submitted result reopens without remapping answers or reshuffling review letters.");
+            }
+            f.manager.view.Finish();
+            Check(f.results.Last() == QuizOutcome.Completed && f.save.committed[0].completed, "Correct choice identity survives normal exactly-once completion gates.");
+            Check(f.quiz.ContentFingerprint == fingerprint && f.quiz.questions.Select((q, index) => q.choices.SequenceEqual(authoredChoices[index])).All(v => v),
+                "Question/choice shuffling never reorders or rewrites authored assets, correct indices, images, or content fingerprint.");
+        }
+    }
+    private static void ChoiceOrderLegacyAndSaveFailures()
+    {
+        foreach (bool assessment in new[] { false, true })
+        {
+            Fixture f = new Fixture(3); f.quiz.assessmentMode = assessment;
+            f.save.CurrentData.quizProgress[0].choiceOrders.Clear(); // Previous-version order was already presented.
+            f.save.saveSucceeds = false;
+            Check(f.Open() && f.manager.view.saveErrors == 1 && f.save.committed.Count == 0, "Missing legacy choice metadata is durably migrated before another selection.");
+            Check(f.manager.view.shownChoiceOrder.SequenceEqual(new[] { 0, 1 }), "An already-established question order retains legacy visible answer positions.");
+            f.manager.view.ChooseDisplay(1); f.manager.view.Submit(); f.manager.view.Next();
+            Check(f.manager.view.shownQuestion == 0 && f.manager.view.selection == -1 && f.manager.view.feedbackShows == 0, "Failed choice-metadata migration cannot accept answers, advance, or fake Correct.");
+            f.save.saveSucceeds = true; f.manager.view.Retry();
+            Check(f.save.committed[0].choiceOrders.Count == 3 && f.save.committed[0].choiceOrders.All(c => c.choiceIndices.SequenceEqual(new[] { 0, 1 })) &&
+                f.save.committed[0].answers.Count == 0 && f.save.committed[0].correctQuestionIds.Count == 0, "Retry saves identity choice permutations without inventing a selected/correct answer.");
+            Check(f.manager.view.shownQuestion == 0 && f.manager.view.feedbackShows == 0, "Choice-order Retry restores the unanswered question.");
+            QuizUIManager.CancelOwnedSession(f.owner);
+        }
     }
     private static void NpcPresentationLifecycle()
     {

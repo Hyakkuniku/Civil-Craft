@@ -45,7 +45,32 @@ public static class Scenarios
         InvalidAndUnavailableInputsStayClosed();
         LessonIntroductionOwnershipIsPreserved();
         CompletionCanStartNextReview();
+        ArrowUsesExactHudAndRetainsReviewAuthority();
+        MissingHudDoesNotBlockReview();
+        PendingQueryIsReadOnlyAndOwnerBound();
+        FirstBeamEntryHasItsOwnArrowAndCompletion();
         return checks;
+    }
+
+    private static void FirstBeamEntryHasItsOwnArrowAndCompletion()
+    {
+        var f = new Fixture();
+        const string firstEntryId = "MainContractNPC/DeadLoad/training-bridge-record-review";
+        Check(f.Flow.TryReviewAlmanac(firstEntryId, f.Done, f.Unavailable), "First Beam entry uses the real ordered review.");
+        TutorialStep open = f.Tutorial.Active.tutorialSteps[0];
+        Check(open.usePointer && open.pointerTarget == f.Book.hudOpenButton.GetComponent<RectTransform>() &&
+            !open.advanceOnClick, "First-entry arrow targets Almanac without completing on a button click.");
+        f.Book.CloseAnimationFinished(); f.Flow.Tick();
+        Check(f.Completed == 0, "A first-entry close without opening cannot advance Bhan.");
+        f.Open();
+        Check(f.Tutorial.CurrentStepIndex == 1 && !f.Tutorial.Active.tutorialSteps[1].usePointer && f.Completed == 0,
+            "Opening first entry clears the HUD arrow but still waits for genuine close.");
+        f.Finish();
+        Check(f.Completed == 1 && f.Save.CurrentData.completedLessons.Contains("StoryReview/" + firstEntryId),
+            "The genuine first-entry review records only its stable review identity.");
+        Check(!f.Save.CurrentData.completedLessons.Contains(LessonId), "First-entry review does not complete the earlier inspection-review ID.");
+        f.Book.CloseAnimationFinished(); f.Flow.Tick();
+        Check(f.Completed == 1, "First-entry review continues exactly once.");
     }
 
     private static void RequiresGenuineOpenAndCompletedClose()
@@ -274,6 +299,74 @@ public static class Scenarios
 
     private static T Field<T>(object owner, string name) =>
         (T)owner.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic).GetValue(owner);
+
+    private static void ArrowUsesExactHudAndRetainsReviewAuthority()
+    {
+        Fixture f = new Fixture();
+        GameObject exactHud = new GameObject("Authored HUD");
+        f.Book.hudOpenButton = exactHud;
+        Check(f.Begin(), "Arrow review starts.");
+        TutorialStep open = f.Tutorial.Active.tutorialSteps[0];
+        TutorialStep close = f.Tutorial.Active.tutorialSteps[1];
+        Check(open.usePointer && ReferenceEquals(open.pointerTarget, exactHud.rectTransform),
+            "Open step points at this book's exact authored HUD RectTransform.");
+        Check(open.pointerOffset.x == 80f && open.pointerOffset.y == -80f && open.pointerRotation == 45f,
+            "Authored arrow offset and rotation are retained.");
+        Check(!open.advanceOnClick && !open.showNextButton && !open.canSkip,
+            "Arrow never turns a click or skip into review completion.");
+        Check(!close.usePointer && close.pointerTarget == null && !close.advanceOnClick,
+            "Close step cannot keep pointing at the hidden HUD or inherit click progression.");
+        f.Flow.Tick();
+        Check(f.Tutorial.CurrentStepIndex == 0 && f.Completed == 0,
+            "Showing the arrow alone does not open or advance the book.");
+        f.Open();
+        Check(f.Tutorial.CurrentStepIndex == 1 && f.Flow.IsAlmanacReviewPending(ReviewId),
+            "Ready book switches to the arrow-free close step but keeps pending ownership.");
+        f.Finish();
+        Check(f.Completed == 1 && !f.Flow.IsAlmanacReviewPending(ReviewId),
+            "Only the actual completed book close resolves the arrow review.");
+    }
+
+    private static void MissingHudDoesNotBlockReview()
+    {
+        foreach (bool missingRect in new[] { false, true })
+        {
+            Fixture f = new Fixture();
+            if (missingRect) f.Book.hudOpenButton.rectTransform = null;
+            else f.Book.hudOpenButton = null;
+            Check(f.Begin(), "Missing optional HUD/RectTransform still allows review: " + missingRect);
+            TutorialStep open = f.Tutorial.Active.tutorialSteps[0];
+            Check(!open.usePointer && open.pointerTarget == null && !open.advanceOnClick,
+                "Unavailable HUD safely suppresses the optional arrow: " + missingRect);
+            f.Open(); f.Finish();
+            Check(f.Completed == 1 && f.Failed == 0, "Manual book access still completes review: " + missingRect);
+        }
+    }
+
+    private static void PendingQueryIsReadOnlyAndOwnerBound()
+    {
+        Fixture f = new Fixture();
+        Check(!f.Flow.IsAlmanacReviewPending(ReviewId), "No pending identity before review begins.");
+        Check(f.Begin() && f.Flow.IsAlmanacReviewPending(ReviewId), "Exact review owner becomes pending.");
+        Check(!f.Flow.IsAlmanacReviewPending("different") && !f.Flow.IsAlmanacReviewPending(null),
+            "Foreign/empty identities cannot see an owned review as pending.");
+        for (int i = 0; i < 5; i++) Check(f.Flow.IsAlmanacReviewPending(ReviewId), "Pure pending query repeats.");
+        Check(f.Tutorial.Starts == 1 && f.Book.CloseSubscribers == 1 && f.Completed == 0 && f.Flow.RunningCount == 1,
+            "Repeated query does not enqueue, complete, or duplicate handlers.");
+        f.Save.CurrentData = new PlayerData();
+        Check(!f.Flow.IsAlmanacReviewPending(ReviewId), "Profile replacement invalidates query before coroutine tick.");
+        f.Flow.Tick();
+        Check(!f.Flow.IsAlmanacReviewPending(ReviewId), "Failed owner's identity is cleared.");
+        f = new Fixture(); f.Begin();
+        FusionConnectionManager.Instance = new FusionConnectionManager { IsGuestSaveProtected = true };
+        Check(!f.Flow.IsAlmanacReviewPending(ReviewId), "Visitor protection immediately rejects pending query.");
+        f = new Fixture(); f.Begin(); f.Flow.Cancel();
+        Check(!f.Flow.IsAlmanacReviewPending(ReviewId), "Cancellation clears pending query.");
+        f = new Fixture();
+        Check(f.Flow.TryShowLesson(new LessonData(), f.Done) && !f.Flow.IsAlmanacReviewPending(ReviewId),
+            "An ordered lesson reader is not an Almanac review.");
+        f.Flow.Cancel();
+    }
     private static void Check(bool condition, string message)
     { checks++; if (!condition) throw new InvalidOperationException($"Check {checks}: {message}"); }
 }

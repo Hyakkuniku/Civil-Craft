@@ -88,7 +88,7 @@ public static class QuizAssessmentReviewValidation
             Require(PlayerDataManager.Instance == saveManager && (player == null ||
                 (ReferenceEquals(player, saveManager.CurrentData) && JsonUtility.ToJson(player) == playerJson)),
                 "Live player data changed during the presentation-only check.");
-            report.AppendLine("PASS: source assets, loaded scenes, active scene and player data unchanged. No live session, progression, camera presentation, save or button callbacks ran.");
+            report.AppendLine("PASS: source assets, loaded scenes, active scene and player data unchanged. No live session, progression, camera presentation, save or Continue callbacks ran; only detached choice-selection UI callbacks were exercised.");
             Write("PASS\n" + report);
             Debug.Log("[Quiz assessment review] Detached phone/tablet/portrait and result-scroll checks passed. " + ReportPath);
         }
@@ -130,9 +130,13 @@ public static class QuizAssessmentReviewValidation
             Require(view != null && view.IsReady, "Prefab has incomplete view references.");
             var answers = new Dictionary<string, int>(StringComparer.Ordinal);
             for (int i = 0; i < data.QuestionCount; i++)
-                answers[data.questions[i].questionId] = i < 2 ? data.questions[i].correctChoiceIndex :
+                answers[data.questions[i].questionId.Trim()] = i < 2 ? data.questions[i].correctChoiceIndex :
                     (data.questions[i].correctChoiceIndex + 1) % data.questions[i].choices.Count;
-            int score = Math.Min(2, data.QuestionCount);
+            List<string> order = ShuffledOrder(data);
+            List<QuizChoiceOrderSaveData> choiceOrders = ShuffledChoiceOrders(data);
+            int score = QuizProgressUtility.AssessmentScore(data, answers);
+            Require(score == Math.Min(2, data.QuestionCount), "The ID-keyed fixture score changed when display order changed.");
+            string authoredJson = JsonUtility.ToJson(data);
             holder.SetActive(true); root.SetActive(true); view.Panel.SetActive(true);
             foreach (Vector2Int screen in new[] { new Vector2Int(1600, 720), new Vector2Int(2048, 1280), new Vector2Int(900, 1600) })
             foreach (bool npc in new[] { true, false })
@@ -142,10 +146,14 @@ public static class QuizAssessmentReviewValidation
                 float scale = Mathf.Pow(screen.x / reference.x, 1 - match) * Mathf.Pow(screen.y / reference.y, match);
                 canvas.scaleFactor = scale; canvasRect.sizeDelta = new Vector2(screen.x, screen.y) / scale;
                 camera.orthographicSize = canvasRect.sizeDelta.y * .005f; camera.aspect = (float)screen.x / screen.y;
+                // Preview scenes do not get the normal gameplay LateUpdate.
+                // Resolve stretched panel rectangles after the Canvas resize
+                // before asking the layout to arrange new result cards.
+                Canvas.ForceUpdateCanvases();
                 view.SetNpcPresentation(npc, "Professor Bhan");
-                view.ShowAssessmentResult(data, score, answers);
+                view.ShowAssessmentResult(data, score, answers, order, choiceOrders);
                 layout.ApplyLayout(); Prepare(root, camera, target);
-                Validate(view, data, answers, score);
+                Validate(view, data, answers, score, order, choiceOrders);
                 string file = "Temp/QuizAssessmentReview_" + (data == null ? "Unknown" : data.quizId) +
                     (npc ? "_NPC_" : "_Fallback_") + screen.x + "x" + screen.y;
                 CapturePng(camera, target, file + "_Top.png");
@@ -155,12 +163,27 @@ public static class QuizAssessmentReviewValidation
                 view.choiceScroll.verticalNormalizedPosition = 0f; Prepare(root, camera, target);
                 CapturePng(camera, target, file + "_Bottom.png");
                 ValidateContinue(root, view, camera);
-                view.ShowAssessmentResult(data, score, answers); // Repeated show must not duplicate old cards.
+                view.ShowAssessmentResult(data, score, answers, order, choiceOrders); // Repeated show must not duplicate old cards.
                 Require(view.VisibleResultCards.Count == data.QuestionCount, "Result cards duplicated on repeated render.");
-                view.ShowAssessmentQuestion(data, 0, answers[data.questions[0].questionId], data.QuestionCount);
-                Require(!view.IsAssessmentResult && view.VisibleResultCards.Count == 0 && view.VisibleChoices.Count == data.questions[0].choices.Count,
-                    "Returning to question presentation retained result cards.");
-                report.AppendLine("PASS: " + file + "; " + data.QuestionCount + " cards, answer colors/text, full text/images, scroll and Continue hit target.");
+                // Presentation-only traversal stands in for Next/Previous without
+                // clicking a real session callback or changing saved answers.
+                foreach (int displayIndex in Enumerable.Range(0, data.QuestionCount)
+                    .Concat(Enumerable.Range(0, data.QuestionCount).Reverse()))
+                {
+                    QuizQuestion expected = data.questions[QuizProgressUtility.QuestionIndexAt(data, order, displayIndex)];
+                    int selectedAnswer = answers[expected.questionId.Trim()];
+                    view.ShowAssessmentQuestion(data, displayIndex, selectedAnswer, data.QuestionCount, order, choiceOrders);
+                    ValidateQuestion(view, expected, displayIndex, data.QuestionCount, selectedAnswer, true, choiceOrders);
+                    ValidateChoiceClicks(view, expected, choiceOrders);
+                }
+                view.ShowQuestion(data, 0, Array.Empty<string>(), order, choiceOrders);
+                ValidateQuestion(view, data.questions[QuizProgressUtility.QuestionIndexAt(data, order, 0)],
+                    0, data.QuestionCount, -1, false, choiceOrders);
+                ValidateChoiceClicks(view, data.questions[QuizProgressUtility.QuestionIndexAt(data, order, 0)], choiceOrders);
+                Require(JsonUtility.ToJson(data) == authoredJson, "Shuffled presentation mutated the quiz or its authored choice ordering.");
+                Require(QuizProgressUtility.AssessmentScore(data, answers) == score, "Detached choice clicks changed the submitted source-index score.");
+                report.AppendLine("PASS: " + file + "; shuffled ID order [" + string.Join(", ", order) + "]; " + data.QuestionCount +
+                    " cards, shuffled choice letters, ID/source-keyed selected/correct answers, answer colors/text, full text/images, scroll and Continue hit target; forward/back prompts, per-question display permutations and saved selection remain aligned; every detached displayed choice click reports its original source index.");
                 camera.targetTexture = null; Release(target); target = null;
             }
             view.Reset(); Require(view.VisibleResultCards.Count == 0 && !view.IsAssessmentResult, "Reset retained a stale result review.");
@@ -168,7 +191,62 @@ public static class QuizAssessmentReviewValidation
         finally { RenderTexture.active = oldActive; Release(target); EditorSceneManager.ClosePreviewScene(preview); }
     }
 
-    private static void Validate(QuizView view, QuizData data, Dictionary<string, int> answers, int score)
+    private static List<string> ShuffledOrder(QuizData data)
+    {
+        // Fixed per-asset seed keeps previews reproducible without reading or
+        // changing UnityEngine.Random's process-global gameplay state.
+        int seed = 27449;
+        foreach (char character in data.quizId ?? string.Empty) seed = unchecked(seed * 31 + character);
+        UnityEngine.Random.State before = UnityEngine.Random.state;
+        List<string> order = QuizProgressUtility.CreateQuestionOrder(data, new QuizProgressSaveData(), new System.Random(seed));
+        Require(UnityEngine.Random.state.Equals(before), "Question-order creation changed Unity's global random state.");
+        string[] authored = data.questions.Select(question => question.questionId.Trim()).ToArray();
+        if (order.SequenceEqual(authored) && order.Count > 1) order.Reverse(); // Guarantee that the preview exercises reordering.
+        Require(QuizProgressUtility.IsValidQuestionOrder(data, order) &&
+            (order.Count < 2 || !order.SequenceEqual(authored)), "The detached order fixture must be a non-authored complete permutation.");
+        for (int index = 0; index < order.Count; index++)
+        {
+            int sourceIndex = QuizProgressUtility.QuestionIndexAt(data, order, index);
+            Require(sourceIndex >= 0 && data.questions[sourceIndex].questionId.Trim() == order[index],
+                "Question-order lookup crossed stable IDs.");
+        }
+        return order;
+    }
+
+    private static List<QuizChoiceOrderSaveData> ShuffledChoiceOrders(QuizData data)
+    {
+        int seed = 11939;
+        foreach (char character in data.quizId ?? string.Empty) seed = unchecked(seed * 31 + character);
+        UnityEngine.Random.State before = UnityEngine.Random.state;
+        // The question-order fixture is intentionally not stored in this empty
+        // progress record: an old saved question order with no saved choice
+        // orders is a legacy identity-choice attempt, not a fresh shuffle.
+        List<QuizChoiceOrderSaveData> orders = QuizProgressUtility.CreateChoiceOrders(data,
+            new QuizProgressSaveData(), new System.Random(seed));
+        Require(UnityEngine.Random.state.Equals(before), "Choice-order creation changed Unity's global random state.");
+        Require(orders != null && orders.Count == data.QuestionCount, "Fresh choice orders are missing a stable question ID.");
+        foreach (QuizQuestion question in data.questions)
+        {
+            QuizChoiceOrderSaveData saved = orders.Single(item => item != null &&
+                string.Equals(item.questionId, question.questionId.Trim(), StringComparison.Ordinal));
+            int[] authored = Enumerable.Range(0, question.choices.Count).ToArray();
+            if (saved.choiceIndices.SequenceEqual(authored) && saved.choiceIndices.Count > 1) saved.choiceIndices.Reverse();
+            var choiceOrder = QuizProgressUtility.ChoiceOrderFor(question.questionId, orders);
+            Require(choiceOrder != null && choiceOrder.Count == authored.Length && choiceOrder.OrderBy(index => index).SequenceEqual(authored) &&
+                (authored.Length < 2 || !choiceOrder.SequenceEqual(authored)), "The detached choice fixture must be a complete non-authored permutation.");
+            for (int displayIndex = 0; displayIndex < choiceOrder.Count; displayIndex++)
+            {
+                int sourceIndex = QuizProgressUtility.ChoiceIndexAt(question, choiceOrder, displayIndex);
+                Require(sourceIndex == choiceOrder[displayIndex] &&
+                    QuizProgressUtility.ChoiceDisplayIndex(question, choiceOrder, sourceIndex) == displayIndex,
+                    "Choice source/display mapping crossed a per-question permutation.");
+            }
+        }
+        return orders;
+    }
+
+    private static void Validate(QuizView view, QuizData data, Dictionary<string, int> answers, int score,
+        IReadOnlyList<string> order, IReadOnlyList<QuizChoiceOrderSaveData> choiceOrders)
     {
         Require(view.IsAssessmentResult && view.VisibleResultCards.Count == data.QuestionCount && view.VisibleChoices.Count == 0,
             "Completion review must contain one result card for each question, not playable choices.");
@@ -179,19 +257,25 @@ public static class QuizAssessmentReviewValidation
         Rect previous = default;
         for (int i = 0; i < data.QuestionCount; i++)
         {
-            QuizResultCard card = view.VisibleResultCards[i]; QuizQuestion question = data.questions[i];
-            int selected = answers[question.questionId]; bool correct = selected == question.correctChoiceIndex;
+            QuizResultCard card = view.VisibleResultCards[i];
+            QuizQuestion question = data.questions[QuizProgressUtility.QuestionIndexAt(data, order, i)];
+            int selected = answers[question.questionId.Trim()]; bool correct = selected == question.correctChoiceIndex;
             Require(card.IsCorrect == correct, "Result card correctness does not match the submitted answer.");
-            Require(card.QuestionLabel.text.Contains(question.prompt), "Review lost the full question.");
+            Require(card.StatusLabel.text.StartsWith("Question " + (i + 1) + "  -  ", StringComparison.Ordinal) &&
+                card.QuestionLabel.text == question.prompt, "Review numbering/prompt does not match shuffled display order.");
             QuizChoice selectedChoice = question.choices[selected], correctChoice = question.choices[question.correctChoiceIndex];
+            var choiceOrder = QuizProgressUtility.ChoiceOrderFor(question.questionId, choiceOrders);
+            int selectedDisplayIndex = QuizProgressUtility.ChoiceDisplayIndex(question, choiceOrder, selected);
+            int correctDisplayIndex = QuizProgressUtility.ChoiceDisplayIndex(question, choiceOrder, question.correctChoiceIndex);
             Require(card.YourAnswerLabel.transform.parent.GetComponentsInChildren<TMP_Text>(false).Any(text => text.text == "Your answer") &&
-                (string.IsNullOrWhiteSpace(selectedChoice.text) || card.YourAnswerLabel.text.Contains(selectedChoice.text)),
+                card.YourAnswerLabel.text == AnswerLabel(selectedDisplayIndex, selectedChoice),
                 "Review does not identify the player's submitted answer.");
             if (!correct)
                 Require(card.CorrectAnswerLabel.gameObject.activeInHierarchy &&
                     card.CorrectAnswerLabel.transform.parent.GetComponentsInChildren<TMP_Text>(false).Any(text => text.text == "Correct answer") &&
-                    (string.IsNullOrWhiteSpace(correctChoice.text) || card.CorrectAnswerLabel.text.Contains(correctChoice.text)),
+                    card.CorrectAnswerLabel.text == AnswerLabel(correctDisplayIndex, correctChoice),
                     "Wrong answer must show the correct choice.");
+            else Require(!card.CorrectAnswerLabel.gameObject.activeInHierarchy, "A correctly answered card unexpectedly displays a correction.");
             Require(card.Face != null && card.Face.color == (correct ? QuizResultCard.CorrectPaper : QuizResultCard.IncorrectPaper),
                 "Answer card lacks its green/red correctness treatment.");
             CheckImage(card.YourAnswerImage, selectedChoice.image);
@@ -208,6 +292,65 @@ public static class QuizAssessmentReviewValidation
         Rect scroll = Bounds(view.layout.choiceViewport, view.layout.safeContent), footer = Bounds(view.layout.footer, view.layout.safeContent);
         Require(!scroll.Overlaps(footer), "Review list overlaps the feedback/Continue footer.");
         foreach (TMP_Text text in new[] { view.title, view.progress, view.question, view.feedback }) CheckText(text);
+    }
+
+    private static string AnswerLabel(int index, QuizChoice choice) =>
+        (index < 26 ? ((char)('A' + index)).ToString() : (index + 1).ToString()) + ". " + (choice.text ?? string.Empty);
+
+    private static void ValidateQuestion(QuizView view, QuizQuestion expected, int displayIndex, int total,
+        int selected, bool assessment, IReadOnlyList<QuizChoiceOrderSaveData> choiceOrders)
+    {
+        Require(!view.IsAssessmentResult && view.VisibleResultCards.Count == 0 && view.VisibleChoices.Count == expected.choices.Count,
+            "Returning to ordered question presentation retained result cards or another question's choice count.");
+        Require(view.question.text == expected.prompt && view.progress.text.StartsWith("Question " + (displayIndex + 1) + " of " + total,
+            StringComparison.Ordinal), "Next/Previous presentation shows another stable question ID's prompt or display number.");
+        for (int index = 0; index < expected.choices.Count; index++)
+        {
+            int sourceIndex = QuizProgressUtility.ChoiceIndexAt(expected,
+                QuizProgressUtility.ChoiceOrderFor(expected.questionId, choiceOrders), index);
+            QuizChoice choice = expected.choices[sourceIndex]; QuizChoiceView card = view.VisibleChoices[index];
+            string letter = index < 26 ? ((char)('A' + index)).ToString() : (index + 1).ToString();
+            Require(card.number != null && card.number.text == letter && card.label != null &&
+                card.label.text == (choice.text ?? string.Empty), "Displayed choice letter/content does not match its per-question permutation.");
+            Require(card.face != null && card.face.color == (sourceIndex == selected ? QuizUILayout.Gold : QuizUILayout.Cream),
+                "The selected choice no longer belongs to this stable question ID.");
+            CheckImage(card.artwork, choice.image);
+        }
+        if (assessment)
+            Require(view.previousButton != null && view.previousButton.interactable == (displayIndex > 0) &&
+                view.nextButton.interactable == (displayIndex + 1 < total) && view.submitButton.interactable,
+                "Ordered assessment Previous/Next/Submit availability changed.");
+        else Require(!view.submitButton.interactable, "Retry-mode question should start without a transient selection.");
+    }
+
+    private static void ValidateChoiceClicks(QuizView view, QuizQuestion question, IReadOnlyList<QuizChoiceOrderSaveData> choiceOrders)
+    {
+        int received = -1, callbackCount = 0;
+        Action<int> observer = sourceIndex => { received = sourceIndex; callbackCount++; };
+        view.ChoiceSelected += observer;
+        try
+        {
+            var choiceOrder = QuizProgressUtility.ChoiceOrderFor(question.questionId, choiceOrders);
+            for (int displayIndex = 0; displayIndex < view.VisibleChoices.Count; displayIndex++)
+            {
+                QuizChoiceView card = view.VisibleChoices[displayIndex];
+                Require(card.button != null && card.button.interactable && card.button.onClick.GetPersistentEventCount() == 0,
+                    "Detached choice click must have only its UI binding, with no authored gameplay callback.");
+                int before = callbackCount;
+                // QuizUIManager was removed while the fixture root was inactive.
+                // This native button click reaches only QuizView's UI event and
+                // our observer; no live quiz session or save callback exists.
+                ExecuteEvents.Execute(card.button.gameObject,
+                    new PointerEventData(null) { button = PointerEventData.InputButton.Left }, ExecuteEvents.pointerClickHandler);
+                int expectedSource = QuizProgressUtility.ChoiceIndexAt(question, choiceOrder, displayIndex);
+                Require(callbackCount == before + 1 && received == expectedSource,
+                    "Displayed choice click reported a display index instead of its original source answer.");
+                for (int index = 0; index < view.VisibleChoices.Count; index++)
+                    Require(view.VisibleChoices[index].face.color == (index == displayIndex ? QuizUILayout.Gold : QuizUILayout.Cream),
+                        "Clicking a shuffled choice highlighted another source answer.");
+            }
+        }
+        finally { view.ChoiceSelected -= observer; }
     }
 
     private static void CheckText(TMP_Text text)
@@ -243,7 +386,8 @@ public static class QuizAssessmentReviewValidation
 
     private static void CheckImage(Image image, Sprite sprite)
     {
-        if (sprite == null) return;
+        if (sprite == null)
+        { Require(image == null || !image.gameObject.activeInHierarchy, "A different question's image leaked into a text-only answer."); return; }
         Require(image != null && image.gameObject.activeInHierarchy && image.sprite == sprite && image.preserveAspect &&
             image.rectTransform.rect.width > 0 && image.rectTransform.rect.height > 0, "Image answer is missing or would distort its aspect ratio.");
     }
@@ -302,6 +446,9 @@ public static class QuizAssessmentReviewValidation
 
     private static void Prepare(GameObject root, Camera camera, RenderTexture target)
     {
+        Canvas.ForceUpdateCanvases();
+        QuizUILayout layout = root.GetComponent<QuizUILayout>();
+        if (layout != null) layout.ApplyLayout();
         Canvas.ForceUpdateCanvases();
         foreach (TMP_Text text in root.GetComponentsInChildren<TMP_Text>(false)) text.ForceMeshUpdate(false, true);
         foreach (Graphic graphic in root.GetComponentsInChildren<Graphic>(false)) { graphic.SetAllDirty(); graphic.Rebuild(CanvasUpdate.PreRender); }

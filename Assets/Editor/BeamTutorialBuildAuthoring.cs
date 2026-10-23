@@ -77,6 +77,17 @@ public static class BeamTutorialBuildAuthoring
     internal static TutorialStep[] BuildUpdatedSteps(
         TutorialStep[] source, BuildTutorialDirector director, BuildUIController controller)
     {
+        // Restore only an in-memory alignment slot for the original index map.
+        // The deleted statistics-close instruction is never returned or invoked.
+        // Its pointer used to be shared with the preceding open-statistics step.
+        if (source != null && source.Length == 28 && source[11] != null &&
+            source[21] != null && source[26] != null &&
+            source[21].message == RoadFeedback && source[26].message == BeamComplete)
+        {
+            var aligned = source.ToList();
+            aligned.Insert(12, CopyStep(source[11]));
+            source = aligned.ToArray();
+        }
         TutorialStep[] legacy;
         if (source != null && source.Length == 29 && source[22] != null && source[27] != null &&
             source[22].message == RoadFeedback && source[27].message == BeamComplete)
@@ -84,7 +95,7 @@ public static class BeamTutorialBuildAuthoring
             legacy = source.Take(22).Concat(source.Skip(23).Take(4)).Concat(source.Skip(28)).ToArray();
         }
         else if (source != null && source.Length == 27) legacy = source;
-        else throw new InvalidOperationException("Sequence_Build1 no longer matches the audited 27-step sequence (or this migration's 29-step result). Review it manually instead of replacing custom content.");
+        else throw new InvalidOperationException("Sequence_Build1 no longer matches the audited original 27-step, previous 29-step, or current 28-step sequence. Review it manually instead of replacing custom content.");
 
         if (legacy.Any(step => step == null) || director == null || controller == null)
             throw new InvalidOperationException("Tutorial 1 has a missing step, director, or UI controller.");
@@ -115,8 +126,6 @@ public static class BeamTutorialBuildAuthoring
 
         Observe(steps[11], legacy[12], director.PromptOpenStatistics,
             "Open the <b><#E09500>Bridge Statistics</color></b> panel. It shows live load, dead load, road length, member count, estimated capacity, efficiency, and factor of safety.");
-        Observe(steps[12], legacy[12], director.PromptCloseStatistics,
-            "Review the bridge information, then tap <b><#E09500>Bridge Statistics</color></b> again to close the panel.");
         Observe(steps[13], legacy[13], director.PromptToggleGrid,
             "The <b><#E09500>Grid</color></b> turns the construction grid on or off and helps align components accurately. Toggle it once to continue.");
         steps[14].message = "This section contains the <b><#E09500>materials</color></b> available for your current project.";
@@ -138,6 +147,9 @@ public static class BeamTutorialBuildAuthoring
         var result = new List<TutorialStep>(steps);
         result.Insert(22, NewMessage(RoadFeedback, director));
         result.Insert(result.Count - 1, NewMessage(BeamComplete, director));
+        // Keep the real open action, then continue straight to Grid. The
+        // click-through statistics readout closes on accepted bridge placement.
+        result.RemoveAt(12);
         return result.ToArray();
     }
 

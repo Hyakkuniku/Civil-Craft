@@ -208,6 +208,7 @@ public static class TutorialCenterLayoutValidation
     private static void ValidateMessage(RectTransform card, TextMeshProUGUI text, Vector2 position, Vector2 size,
         Vector2 offset, Rect safe, string message, string label, TMP_FontAsset font, bool richText)
     {
+        message = TutorialInstructionText.Compact(message);
         text.text = message;
         Require(TutorialCenterLayout.ApplyWithin(card, text, position, size, offset, safe), "Complete message did not fit: " + label);
         Canvas.ForceUpdateCanvases();

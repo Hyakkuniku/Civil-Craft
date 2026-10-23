@@ -20,6 +20,9 @@ public sealed class AlmanacQuizAccess : MonoBehaviour
     private int generation;
     private int selectedCategory = -1;
     private int quizCategoryIndex = -1;
+    private bool waitingQuizOpenRequested;
+    private bool waitingQuizBookOpenAttempted;
+    private int waitingQuizOpenGeneration = -1;
 
     public static void Install(AlmanacManager manager)
     {
@@ -30,12 +33,12 @@ public sealed class AlmanacQuizAccess : MonoBehaviour
         manager.OnCategoryChanged += access.ApplySelection;
     }
 
-    /// <summary>True owns one callback. A pending offer never locks movement or opens the book automatically.</summary>
+    /// <summary>Owns one callback and queues the Quiz tab, never the quiz itself.</summary>
     public static bool TryOffer(QuizData data, QuizContext identity, UnityEngine.Object sessionOwner, Action<QuizOutcome> callback)
     {
         AlmanacManager manager = AlmanacManager.Instance;
         AlmanacQuizAccess access = manager != null ? manager.GetComponent<AlmanacQuizAccess>() : null;
-        if (access == null || access.tab == null || access.closed != null || callback == null || data == null || !data.assessmentMode ||
+        if (access == null || access.tab == null || access.closed != null || callback == null || data == null ||
             !data.TryValidate(out _) || identity == null || !identity.IsValid || sessionOwner == null ||
             (sessionOwner is Behaviour behaviour && !behaviour.isActiveAndEnabled) ||
             PlayerDataManager.Instance == null || PlayerDataManager.Instance.CurrentData == null || ProtectedVisit()) return false;
@@ -47,6 +50,26 @@ public sealed class AlmanacQuizAccess : MonoBehaviour
         access.saveManager = PlayerDataManager.Instance;
         access.generation++;
         access.Refresh();
+        RequestOpenWaitingQuiz(sessionOwner);
+        return true;
+    }
+
+    /// <summary>
+    /// Requests this owner's still-pending Quiz tab after its intro/reminder.
+    /// Selection is deferred until dialogue and other modal owners have finished.
+    /// A successful selection consumes the request; closing the book never reopens it.
+    /// </summary>
+    public static bool RequestOpenWaitingQuiz(UnityEngine.Object sessionOwner)
+    {
+        AlmanacManager manager = AlmanacManager.Instance;
+        AlmanacQuizAccess access = manager != null ? manager.GetComponent<AlmanacQuizAccess>() : null;
+        if (sessionOwner == null || access == null || access.owner != sessionOwner || access.closed == null ||
+            access.starting || access.quiz == null || access.context == null || !access.context.IsValid ||
+            !access.IsAuthorized()) return false;
+        if (access.waitingQuizOpenRequested && access.waitingQuizOpenGeneration == access.generation) return true;
+        access.waitingQuizOpenRequested = true;
+        access.waitingQuizBookOpenAttempted = false;
+        access.waitingQuizOpenGeneration = access.generation;
         return true;
     }
 
@@ -63,7 +86,7 @@ public sealed class AlmanacQuizAccess : MonoBehaviour
         identity = null;
         AlmanacQuizAccess access = AlmanacManager.Instance != null ? AlmanacManager.Instance.GetComponent<AlmanacQuizAccess>() : null;
         if (sessionOwner == null || access == null || access.owner != sessionOwner || access.closed == null ||
-            access.starting || access.quiz == null || !access.quiz.assessmentMode || access.context == null ||
+            access.starting || access.quiz == null || access.context == null ||
             !access.context.IsValid || !access.IsAuthorized() || QuizUIManager.IsAnyQuizActive) return false;
         data = access.quiz;
         // Never expose the callback owner's mutable identity to an interaction.
@@ -76,7 +99,54 @@ public sealed class AlmanacQuizAccess : MonoBehaviour
     private void Update()
     {
         if (closed == null) return;
-        if (!IsAuthorized()) Resolve(QuizOutcome.Cancelled);
+        if (!IsAuthorized()) { Resolve(QuizOutcome.Cancelled); return; }
+        OpenWaitingQuizWhenReady();
+    }
+
+    private void OpenWaitingQuizWhenReady()
+    {
+        if (!waitingQuizOpenRequested) return;
+        if (waitingQuizOpenGeneration != generation || starting || closed == null ||
+            book == null || book != AlmanacManager.Instance || !IsAuthorized())
+        {
+            ClearWaitingQuizOpenRequest();
+            return;
+        }
+        if (DialogueManager.IsAnyDialogueVisible || QuizUIManager.IsAnyQuizActive ||
+            (PauseManager.Instance != null && PauseManager.Instance.isPaused) || Time.timeScale <= 0f ||
+            (GameManager.Instance != null && (GameManager.Instance.IsTransitioning ||
+                GameManager.Instance.CurrentState != GameManager.GameState.Normal))) return;
+        UIPanelCoordinator coordinator = UIPanelCoordinator.Instance;
+        if (coordinator != null && coordinator.HasOpenPanel &&
+            (book.Panel == null || !coordinator.IsTargetInsideTopPanel(book.Panel.transform))) return;
+        if (book.IsOpeningOrClosing) return;
+        if (book.IsOpenAndReady)
+        {
+            waitingQuizBookOpenAttempted = true;
+            // OpenAlmanac resets the category after its animation. Select only
+            // afterward, without interrupting its mandatory book walkthroughs.
+            if (book.TrySelectQuizOfferCategory(quizCategoryIndex)) ClearWaitingQuizOpenRequest();
+            return;
+        }
+        // Never recapture input by opening an already-open or opening book.
+        // An accepted request issues at most one OpenAlmanac call.
+        if (book.Panel == null || book.Panel.activeInHierarchy) return;
+        if (waitingQuizBookOpenAttempted)
+        {
+            // The player closed an already-opened review before selection could
+            // finish. Respect that choice; another NPC reminder may request anew.
+            ClearWaitingQuizOpenRequest();
+            return;
+        }
+        waitingQuizBookOpenAttempted = true;
+        book.OpenAlmanac();
+    }
+
+    private void ClearWaitingQuizOpenRequest()
+    {
+        waitingQuizOpenRequested = false;
+        waitingQuizBookOpenAttempted = false;
+        waitingQuizOpenGeneration = -1;
     }
 
     private bool IsAuthorized() => owner != null &&
@@ -93,6 +163,7 @@ public sealed class AlmanacQuizAccess : MonoBehaviour
 
     private void Resolve(QuizOutcome outcome)
     {
+        ClearWaitingQuizOpenRequest();
         if (closed == null) return;
         Action<QuizOutcome> callback = closed;
         closed = null;
@@ -112,6 +183,7 @@ public sealed class AlmanacQuizAccess : MonoBehaviour
     {
         if (starting || closed == null || !book.IsOpenAndReady) return;
         if (!IsAuthorized()) { Resolve(QuizOutcome.Cancelled); return; }
+        ClearWaitingQuizOpenRequest();
         starting = true;
         Refresh();
         int expected = generation;
@@ -126,7 +198,8 @@ public sealed class AlmanacQuizAccess : MonoBehaviour
                 starting = false;
                 Refresh();
                 // Keep the offer retryable; an unavailable UI cannot advance the NPC.
-                book.OpenAlmanac();
+                RequestOpenWaitingQuiz(owner);
+                OpenWaitingQuizWhenReady();
                 if (description != null) description.text = "Quiz could not open. Close other panels, then try Start Quiz again.";
             }
         });
@@ -142,9 +215,11 @@ public sealed class AlmanacQuizAccess : MonoBehaviour
         if (start != null) { start.interactable = available && !starting; start.gameObject.SetActive(available); }
         if (back != null) back.interactable = !starting;
         if (title != null) title.text = available && quiz != null ? quiz.title : "Quiz";
-        if (description != null) description.text = available && quiz != null ?
-            "Review your lessons before starting.\n\nAnswer all " + quiz.QuestionCount + " questions, then press Submit. You can move between questions before submitting.\n\nOnce started, finish the quiz before returning to the Almanac. Any score lets you continue; no rewards are added." :
-            "A quiz becomes available here when an NPC asks you to take it.";
+        if (description != null) description.text = !available || quiz == null
+            ? "A quiz becomes available here when an NPC asks you to take it."
+            : quiz.assessmentMode
+                ? "Review your lessons before starting.\n\nAnswer all " + quiz.QuestionCount + " questions, then press Submit. You can move between questions before submitting.\n\nOnce started, finish the quiz before returning to the Almanac. Any score lets you continue; no rewards are added."
+                : "Review your lessons before starting.\n\nAnswer each of the " + quiz.QuestionCount + " questions correctly to continue. Select an answer and press Submit; incorrect answers can be retried.\n\nYou may leave and resume this practice quiz later. No rewards are added.";
     }
 
     private void ApplySelection(int categoryIndex)

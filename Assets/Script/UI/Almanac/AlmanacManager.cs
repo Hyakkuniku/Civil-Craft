@@ -42,6 +42,25 @@ public class AlmanacManager : MonoBehaviour
     public GameObject Panel => almanacCanvas;
     public bool IsOpenAndReady => almanacCanvas != null &&
         almanacCanvas.activeInHierarchy && !isAnimating;
+    public bool IsOpeningOrClosing => isAnimating;
+
+    /// <summary>Routes a waiting NPC quiz only after the normal book opening and required walkthroughs finish.</summary>
+    public bool TrySelectQuizOfferCategory(int index)
+    {
+        if (!IsOpenAndReady || isSwitchingCategory || isFlipping ||
+            (bookMotion != null && bookMotion.IsTurning) ||
+            (onFirstOpenTutorial != null && TutorialManager.Instance != null &&
+             TutorialManager.Instance.IsPlayingSequence(onFirstOpenTutorial)) ||
+            IsAnyTabUnlockTutorialPlaying() || categories == null || index < 0 || index >= categories.Count)
+            return false;
+        AlmanacCategory category = categories[index];
+        if (category == null || category.tabType != AlmanacTabType.Quiz ||
+            category.visibilityMode == TabVisibility.AlwaysHidden || category.tabButton == null ||
+            !category.tabButton.gameObject.activeInHierarchy || !category.tabButton.interactable)
+            return false;
+        SelectCategory(index);
+        return currentCategoryIndex == index;
+    }
     public Button EditPlayerButton
     {
         get

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
+using TMPro;
 
 [System.Serializable]
 public class MaterialUIMapping
@@ -112,6 +113,24 @@ public class BuildTutorialDirector : MonoBehaviour
     private float inspectionVisibleDuration;
     private const float MaterialInspectionHoldDuration = 0.45f;
     private Coroutine undoPointerCoroutine;
+    private RectTransform explicitPointerTarget;
+    private Vector2 explicitPointerOffset;
+    private float explicitPointerRotation;
+    private int explicitPointerStepIndex = -1;
+    private TutorialSequence explicitPointerSequence;
+    private RectTransform undoWarningRect;
+    private TextMeshProUGUI undoWarningText;
+    private Vector2 undoWarningAuthoredPosition;
+    private Vector2 undoWarningAuthoredSize;
+    private bool hasCachedUndoWarningLayout;
+    private bool hasUndoWarningLayoutSignature;
+    private Rect undoWarningLastSafeArea;
+    private Rect undoWarningLastParentBounds;
+    private Rect undoWarningLastInstructionBounds;
+    private Vector2Int undoWarningLastScreenSize;
+    private RectTransform undoWarningLastInstruction;
+    private string undoWarningLastMessage;
+    private TutorialManager undoWarningReplacementManager;
     private bool simulationUnlockedForTutorial;
     private bool placementAllowedForCurrentStep = true;
     private int selectToolStepIndex = -1;
@@ -178,12 +197,18 @@ public class BuildTutorialDirector : MonoBehaviour
         SetBarTint(barCreator.currentBar, !isCurrentDragValid);
     }
 
+    private void LateUpdate()
+    {
+        if (IsAwaitingInvalidBarUndo) RefreshUndoWarningPresentation();
+    }
+
     /// <summary>
     /// Called by TutorialManager before every step event. This makes step state independent
     /// from whichever prompt method the previous or next step happens to invoke.
     /// </summary>
     public void BeginStep(int stepIndex)
     {
+        ClearTutorialPointerOverride();
         TutorialManager tutorial = TutorialManager.Instance;
         bool enteringPasteButtonStep = tutorial != null &&
                                        tutorial.IsPlayingLesson(selectionTutorialLesson) &&
@@ -268,6 +293,7 @@ public class BuildTutorialDirector : MonoBehaviour
 
     public void LockAllUI()
     {
+        ClearTutorialPointerOverride();
         if (!isTutorialRunning)
             simulationUnlockedForTutorial = false;
         isTutorialRunning = true;
@@ -366,11 +392,25 @@ public class BuildTutorialDirector : MonoBehaviour
         if (BuildUIController.Instance != null)
             BuildUIController.Instance.whitelistedButton = toolObject;
 
+        bool mappedPointer = false;
         foreach (ToolUIMapping mapping in toolMappings)
         {
             if (mapping.toolObject != toolObject) continue;
-            PointArrow(mapping.buttonRect, mapping.arrowOffset, mapping.arrowRotation);
+            mappedPointer = PointArrow(mapping.buttonRect, mapping.arrowOffset, mapping.arrowRotation);
             break;
+        }
+
+        // Newer authored tools need not be duplicated in the old visual mapping
+        // list. Reuse only this exact existing control's UI hierarchy.
+        if (!mappedPointer && toolObject != null)
+        {
+            RectTransform target = toolObject.GetComponent<RectTransform>();
+            if (target == null)
+            {
+                Button button = toolObject.GetComponent<Button>() ?? toolObject.GetComponentInChildren<Button>(true);
+                target = button != null ? button.GetComponent<RectTransform>() : null;
+            }
+            if (target != null) PointArrow(target, new Vector2(0f, 60f), 180f);
         }
 
         if (toolObject != null)
@@ -783,6 +823,7 @@ public class BuildTutorialDirector : MonoBehaviour
         ClearTrackedToolButton();
         expectedMaterial = null;
         expectedTool = null;
+        ClearTutorialPointerOverride();
         if (bouncingArrow != null) bouncingArrow.Hide();
         tutorial.ShowNextStep();
     }
@@ -962,6 +1003,7 @@ public class BuildTutorialDirector : MonoBehaviour
         }
 
         copiedSelectionThisSection = true;
+        ClearTutorialPointerOverride();
         if (bouncingArrow != null) bouncingArrow.Hide();
         tutorial.ShowNextStep();
     }
@@ -1366,6 +1408,7 @@ public class BuildTutorialDirector : MonoBehaviour
 
         if (undoWarningPanel != null) undoWarningPanel.SetActive(true);
         Canvas.ForceUpdateCanvases();
+        RefreshUndoWarningPresentation();
         PointArrow(undoTarget, undoArrowOffset, undoArrowRotation, true);
 
         if (undoPointerCoroutine != null) StopCoroutine(undoPointerCoroutine);
@@ -1395,7 +1438,9 @@ public class BuildTutorialDirector : MonoBehaviour
                     undoTarget != null ? undoTarget.gameObject : null;
             }
 
-            PointArrow(undoTarget, undoArrowOffset, undoArrowRotation, false);
+            // TutorialManager refreshes the winning pointer after its own modal
+            // and presentation-suppression guards. This routine only maintains
+            // the existing Undo control and input whitelist.
         }
 
         undoPointerCoroutine = null;
@@ -1553,11 +1598,94 @@ public class BuildTutorialDirector : MonoBehaviour
 
         IsAwaitingInvalidBarUndo = false;
         invalidActionObjects.Clear();
-        if (undoWarningPanel != null) undoWarningPanel.SetActive(false);
+        ClearUndoWarningPresentation();
         if (BuildUIController.Instance != null)
             BuildUIController.Instance.SetToolForcedVisible(BuildModeTool.Undo, false);
 
         HideUndoPointer();
+    }
+
+    private void RefreshUndoWarningPresentation()
+    {
+        if (!IsAwaitingInvalidBarUndo || undoWarningPanel == null) return;
+        if (!hasCachedUndoWarningLayout)
+        {
+            undoWarningRect = undoWarningPanel.transform as RectTransform;
+            undoWarningText = undoWarningPanel.GetComponentInChildren<TextMeshProUGUI>(true);
+            if (undoWarningRect == null || undoWarningText == null) return;
+            undoWarningAuthoredPosition = undoWarningRect.anchoredPosition;
+            undoWarningAuthoredSize = undoWarningRect.rect.size;
+            hasCachedUndoWarningLayout = true;
+        }
+
+        TutorialManager tutorial = TutorialManager.Instance;
+        if (undoWarningReplacementManager != null && undoWarningReplacementManager != tutorial)
+        {
+            undoWarningReplacementManager.SetInstructionVisualReplacement(gameObject, false);
+            undoWarningReplacementManager = null;
+        }
+        UIPanelCoordinator coordinator = UIPanelCoordinator.Instance;
+        bool suppressed = !isActiveAndEnabled || !isTutorialRunning || tutorial == null ||
+            !tutorial.IsTutorialActive || activeStepIndex != tutorial.CurrentStepIndex ||
+            tutorial.IsTutorialPresentationSuppressed ||
+            (coordinator != null && coordinator.HasOpenPanel &&
+             !coordinator.IsTargetInsideTopPanel(undoWarningRect));
+        if (suppressed)
+        {
+            undoWarningPanel.SetActive(false);
+            UIReservedRegionLayout.Unregister(undoWarningRect);
+            return;
+        }
+
+        undoWarningPanel.SetActive(true);
+        // Required Undo has visual priority without advancing or replacing the
+        // objective. Retain the same instruction rectangle while its graphics
+        // are hidden, so the warning remains stable across layout refreshes.
+        RectTransform instruction = tutorial.GetInstructionVisualReplacementRect(gameObject);
+        if (instruction == null) instruction = tutorial.VisibleCenteredBannerRect;
+        Rect instructionBounds = default;
+        if (instruction != null) UIReservedRegionLayout.TryGetScreenRect(instruction, out instructionBounds);
+        Rect parentBounds = default;
+        if (undoWarningRect.parent is RectTransform parent)
+            UIReservedRegionLayout.TryGetScreenRect(parent, out parentBounds);
+        Vector2Int screenSize = new Vector2Int(Screen.width, Screen.height);
+        string message = undoWarningText.text;
+        if (!hasUndoWarningLayoutSignature || undoWarningLastSafeArea != Screen.safeArea ||
+            undoWarningLastScreenSize != screenSize || undoWarningLastParentBounds != parentBounds ||
+            undoWarningLastInstruction != instruction || undoWarningLastInstructionBounds != instructionBounds ||
+            undoWarningLastMessage != message)
+        {
+            TutorialWarningLayout.Apply(undoWarningRect, undoWarningText,
+                undoWarningAuthoredPosition, undoWarningAuthoredSize, instruction);
+            undoWarningLastSafeArea = Screen.safeArea;
+            undoWarningLastScreenSize = screenSize;
+            undoWarningLastParentBounds = parentBounds;
+            undoWarningLastInstruction = instruction;
+            undoWarningLastInstructionBounds = instructionBounds;
+            undoWarningLastMessage = message;
+            hasUndoWarningLayoutSignature = true;
+        }
+
+        tutorial.SetInstructionVisualReplacement(gameObject, true);
+        undoWarningReplacementManager = tutorial;
+        UIReservedRegionLayout.Register(undoWarningRect);
+    }
+
+    private void ClearUndoWarningPresentation()
+    {
+        if (undoWarningPanel != null) undoWarningPanel.SetActive(false);
+        UIReservedRegionLayout.Unregister(undoWarningRect);
+        if (undoWarningReplacementManager != null)
+            undoWarningReplacementManager.SetInstructionVisualReplacement(gameObject, false);
+        undoWarningReplacementManager = null;
+        if (hasCachedUndoWarningLayout && undoWarningRect != null)
+        {
+            undoWarningRect.anchoredPosition = undoWarningAuthoredPosition;
+            undoWarningRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, undoWarningAuthoredSize.x);
+            undoWarningRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, undoWarningAuthoredSize.y);
+        }
+        hasUndoWarningLayoutSignature = false;
+        undoWarningLastInstruction = null;
     }
 
     public void CheckGhostBridgeCompletion()
@@ -1833,28 +1961,81 @@ public class BuildTutorialDirector : MonoBehaviour
         if (pointer == null || target == null)
         {
             if (logFailure)
-                Debug.LogWarning("Cannot show the build tutorial pointer. Assign a pointer and map the Undo tool in BuildUIController.");
+                Debug.LogWarning("Cannot show the build tutorial pointer. Assign a pointer and the existing control's RectTransform.");
             return false;
         }
 
         if (!target.gameObject.activeInHierarchy)
         {
             if (logFailure)
-                Debug.LogWarning("Cannot point at Undo because its RectTransform is inactive in the hierarchy.");
+                Debug.LogWarning("Cannot show the build tutorial pointer because its target is inactive in the hierarchy.");
             return false;
         }
 
-        if (!pointer.IsPointingAt(target))
-        {
-            pointer.PointAt(target, offset);
-            pointer.transform.localEulerAngles = new Vector3(0, 0, rotation);
-        }
+        // An unchanged target can still receive a different prompt's offset or
+        // rotation. Apply all three together before the initial position update.
+        pointer.PointAtBuildTarget(target, offset, rotation);
 
         bool visible = pointer.gameObject.activeInHierarchy && IsPointerHierarchyUsable(pointer);
-        if (visible) bouncingArrow = pointer;
+        if (visible)
+        {
+            bouncingArrow = pointer;
+            explicitPointerTarget = target;
+            explicitPointerOffset = offset;
+            explicitPointerRotation = rotation;
+            explicitPointerStepIndex = activeStepIndex;
+            explicitPointerSequence = TutorialManager.Instance != null ? TutorialManager.Instance.ActiveSequence : null;
+        }
         else if (logFailure)
             Debug.LogWarning("The tutorial pointer is active but one of its parent objects is inactive.");
         return visible;
+    }
+
+    /// <summary>
+    /// Called only after TutorialManager's presentation guards. An explicit
+    /// build prompt owns the shared arrow until this step ends; Undo wins over
+    /// both that prompt and the step's older authored pointer metadata.
+    /// </summary>
+    public bool TryRefreshTutorialPointer()
+    {
+        TutorialManager tutorial = TutorialManager.Instance;
+        if (!isActiveAndEnabled || !isTutorialRunning || tutorial == null || !tutorial.IsTutorialActive ||
+            activeStepIndex != tutorial.CurrentStepIndex) return false;
+        if (IsAwaitingInvalidBarUndo)
+        {
+            RectTransform undoTarget = ResolveUndoButtonRect();
+            if (undoTarget != null && undoTarget.gameObject.activeInHierarchy)
+                PointArrow(undoTarget, undoArrowOffset, undoArrowRotation, false);
+            else if (bouncingArrow != null) bouncingArrow.Hide();
+            return true; // A missing Undo target must not resurrect an old arrow.
+        }
+        if (explicitPointerTarget == null || explicitPointerStepIndex != activeStepIndex ||
+            explicitPointerSequence != tutorial.ActiveSequence) return false;
+        if (explicitPointerTarget.gameObject.activeInHierarchy)
+            PointArrow(explicitPointerTarget, explicitPointerOffset, explicitPointerRotation, false);
+        else if (bouncingArrow != null) bouncingArrow.Hide();
+        return true;
+    }
+
+    private void ClearTutorialPointerOverride()
+    {
+        explicitPointerTarget = null;
+        explicitPointerStepIndex = -1;
+        explicitPointerSequence = null;
+    }
+
+    private void OnDisable()
+    {
+        ClearUndoWarningPresentation();
+        bool ownedPointer = explicitPointerTarget != null;
+        ClearTutorialPointerOverride();
+        if (ownedPointer && bouncingArrow != null) bouncingArrow.Hide();
+    }
+
+    private void OnDestroy()
+    {
+        ClearUndoWarningPresentation();
+        ClearTutorialPointerOverride();
     }
 
     private static bool IsPointerHierarchyUsable(TutorialPointer pointer)
@@ -1866,6 +2047,7 @@ public class BuildTutorialDirector : MonoBehaviour
 
     private void HideUndoPointer()
     {
+        ClearTutorialPointerOverride();
         if (bouncingArrow != null) bouncingArrow.Hide();
 
         TutorialPointer sharedPointer = TutorialManager.Instance != null
@@ -1913,6 +2095,7 @@ public class BuildTutorialDirector : MonoBehaviour
 
     public void EndTutorial()
     {
+        ClearTutorialPointerOverride();
         ClearRequiredObservation();
         // A sequence can finish when the player clicks Play, before physics has
         // confirmed success. Keep every blueprint ready in case failure restarts it.

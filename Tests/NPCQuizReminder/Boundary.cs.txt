@@ -53,6 +53,13 @@ public class NPCProgressionPhase
     public ContractSO contract;
 }
 public class NPCOrderedLearningFlow { public void Cancel() { } }
+// This suite keeps all lesson-review boundaries inactive; dedicated reminder
+// tests exercise those production methods separately.
+public class LessonTrigger
+{
+    public static bool TryGetPendingAlmanacReview(NPCProgressionManager npc, out LessonTrigger trigger)
+    { trigger = null; return false; }
+}
 public static class QuizUIManager { public static bool IsAnyQuizActive; public static int cancels; public static void CancelOwnedSession(UnityEngine.Object owner) { cancels++; } }
 public class AlmanacManager
 {
@@ -64,6 +71,15 @@ public class AlmanacManager
 public class AlmanacQuizAccess : MonoBehaviour
 {
     // ACTUAL_ACCESS
+    public static int openRequests;
+    public static UnityEngine.Object lastRequestedOwner;
+    // Opening is the neighboring queue boundary: this suite executes the
+    // actual reminder eligibility/callbacks, not the book's lifecycle queue.
+    public static bool RequestOpenWaitingQuiz(UnityEngine.Object sessionOwner)
+    {
+        if (!TryGetWaitingQuiz(sessionOwner, out _, out _)) return false;
+        openRequests++; lastRequestedOwner = sessionOwner; return true;
+    }
     public static void CancelOwned(UnityEngine.Object sessionOwner) { var a = AlmanacManager.Instance?.access; if (a == null || a.owner != sessionOwner) return; a.closed = null; a.owner = null; }
     public void Offer(UnityEngine.Object value, QuizData data, QuizContext identity)
     { owner = value; quiz = data; context = identity; closed = _ => { }; saveManager = PlayerDataManager.Instance; saveOwner = saveManager.CurrentData; }
@@ -98,5 +114,11 @@ public class NPCProgressionManager : MonoBehaviour
     public DialogueManager dialogueManager;
     public Animator animator = new Animator();
     public NPCOrderedLearningFlow orderedLearningFlow;
+    // Walking reviews are an inactive neighboring boundary in this quiz suite;
+    // Tests/NPCTravelAlmanacReview executes their full production implementation.
+    private NPCProgressionPhase travelReviewPhase;
+    private bool IsTravelAlmanacReviewAuthorized() => false;
+    private void CancelTravelAlmanacReview() { ClearTravelAlmanacReviewState(); orderedLearningFlow?.Cancel(); }
+    private void ClearTravelAlmanacReviewState() { travelReviewPhase = null; }
     // ACTUAL_NPC
 }

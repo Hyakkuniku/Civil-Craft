@@ -34,7 +34,9 @@ internal static class Program
         try { checks = (int)Assembly.Load(output.ToArray()).GetType("Scenarios").GetMethod("Run").Invoke(null, null); }
         catch (TargetInvocationException exception) { throw new InvalidOperationException("Quiz checks failed.", exception.InnerException); }
         MethodDeclarationSyntax normalize = manager.Members.OfType<MethodDeclarationSyntax>().Single(node => node.Identifier.ValueText == "NormalizeLoadedData");
-        if (!normalize.ToFullString().Contains("CurrentData.quizProgress == null") || !normalize.ToFullString().Contains("quizState.correctQuestionIds == null"))
+        if (!normalize.ToFullString().Contains("CurrentData.quizProgress == null") || !normalize.ToFullString().Contains("quizState.correctQuestionIds == null") ||
+            !normalize.ToFullString().Contains("quizState.questionOrderIds == null") ||
+            !normalize.ToFullString().Contains("quizState.choiceOrders == null") || !normalize.ToFullString().Contains("choiceOrder.choiceIndices == null"))
             throw new InvalidOperationException("Legacy save normalization is missing quiz defaults.");
         string dataSource = File.ReadAllText(Path.Combine(root, "Assets/Script/Player/PlayerSave/PlayerData.cs"));
         if (!dataSource.Contains("public List<QuizProgressSaveData> quizProgress = new List<QuizProgressSaveData>();"))

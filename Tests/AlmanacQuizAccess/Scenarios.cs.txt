@@ -25,13 +25,17 @@ public static class Scenarios
         {
             AlmanacManager.Instance = book; book.access = access;
             PlayerDataManager.Instance = new PlayerDataManager(); FusionConnectionManager.Instance = null;
+            DialogueManager.IsAnyDialogueVisible=false;PauseManager.Instance=null;GameManager.Instance=null;UIPanelCoordinator.Instance=null;Time.timeScale=1;
             QuizUIManager.openSucceeds = true; QuizUIManager.opens = QuizUIManager.cancellations = 0;
             QuizUIManager.closed = null; QuizUIManager.activeOwner = null; QuizUIManager.openedQuiz = null;
             Set(access, "book", book); Set(access, "tab", tab); Set(access, "start", start); Set(access, "back", back);
             Set(access, "title", new TMP_Text()); Set(access, "description", new TMP_Text());
+            Set(access,"quizCategoryIndex",4);
         }
         public bool Offer() => AlmanacQuizAccess.TryOffer(quiz, context, owner, outcome => results.Add(outcome));
         public void Start() => Call(access, "StartQuiz");
+        public void Tick()=>Call(access,"Update");
+        public void CloseBook(){book.IsOpenAndReady=false;book.IsOpeningOrClosing=false;book.Panel.SetActive(false);}
     }
     public static int Run()
     {
@@ -67,6 +71,7 @@ public static class Scenarios
         Check(f.tab.interactable && f.start.interactable && !Get<bool>(f.access, "starting"), "Required Almanac tutorial blocking close leaves Start retryable.");
         f.book.blockClose = false; QuizUIManager.openSucceeds = false; f.Start(); f.book.FinishClose();
         Check(f.results.Count == 0 && f.book.opens == 1 && f.tab.interactable, "Unavailable quiz UI reopens review safely without advancing.");
+        f.Tick();Check(f.book.selectedCategory==4&&!Get<bool>(f.access,"waitingQuizOpenRequested")&&f.book.opens==1,"Unavailable quiz UI returns to the Quiz tab once instead of the General page or a repeated input capture.");
         QuizUIManager.openSucceeds = true; f.Start(); f.book.FinishClose(); QuizUIManager.Resolve(QuizOutcome.Completed);
         Check(f.results.Count == 1, "Retry after unavailable open succeeds with original callback.");
         foreach (string change in new[] { "owner", "account", "visitor", "disable", "destroy" })
@@ -80,8 +85,10 @@ public static class Scenarios
             f.book.FinishClose();
             Check(f.results.Count == 1 && f.results[0] == QuizOutcome.Cancelled && QuizUIManager.opens == 0 && !f.tab.interactable, "Lifecycle invalidation cancels pending callback before stale close: " + change);
         }
-        f = new Fixture(); f.quiz.assessmentMode = false; Check(!f.Offer(), "Practice quiz is not routed to assessment tab.");
-        f.quiz.assessmentMode = true; f.quiz.valid = false; Check(!f.Offer(), "Invalid content cannot enable tab.");
+        f = new Fixture(); f.quiz.assessmentMode = false; Check(f.Offer(), "Practice quiz now receives the same reviewable Quiz-tab offer.");
+        Check(AlmanacQuizAccess.TryGetWaitingQuiz(f.owner,out QuizData practice,out QuizContext practiceContext)&&practice==f.quiz&&practiceContext.stepId=="quiz","Practice quizzes are eligible for the same owner-authorized reminder query.");
+        Check(Get<TMP_Text>(f.access,"description").text.Contains("incorrect answers can be retried")&&!Get<TMP_Text>(f.access,"description").text.Contains("Any score"),"Practice guidance preserves retry-until-correct rules instead of assessment scoring.");
+        f = new Fixture();f.quiz.valid = false; Check(!f.Offer(), "Invalid content cannot enable tab.");
         f.quiz.valid = true; FusionConnectionManager.Instance = new FusionConnectionManager { IsGuestSaveProtected = true }; Check(!f.Offer(), "Visitor cannot receive host assessment.");
         FusionConnectionManager.Instance = null; PlayerDataManager.Instance.CurrentData = null; Check(!f.Offer(), "Missing profile rejects offer.");
         f = new Fixture(); f.context.stepId = ""; Check(!f.Offer(), "Missing stable identity rejects offer.");
@@ -104,6 +111,59 @@ public static class Scenarios
         AlmanacQuizAccess.CancelOwned(f.owner); Check(f.Offer(), "A new offer can follow cancellation.");
         stale(QuizOutcome.Completed);
         Check(f.results.Count == 1 && f.tab.interactable, "Old quiz callback cannot complete a newer offer.");
+
+        foreach(bool assessment in new[]{true,false})
+        {
+            f=new Fixture();f.quiz.assessmentMode=assessment;f.CloseBook();f.book.deferOpenAnimation=true;Check(f.Offer(),"Any NPC quiz mode accepts a standard tab request: "+assessment);
+            Check(f.book.opens==0&&QuizUIManager.opens==0&&Get<bool>(f.access,"waitingQuizOpenRequested"),"Accepted offer queues review without opening a quiz in the dialogue callback.");
+            f.Tick();Check(f.book.opens==1&&f.book.IsOpeningOrClosing&&f.book.selectAttempts==0,"Queued entry opens the closed book once and waits for its animation.");
+            f.Tick();f.Tick();Check(f.book.opens==1&&f.book.selectAttempts==0,"Opening animation cannot recapture input or select a category too early.");
+            f.book.FinishOpen();f.Tick();Check(f.book.selectedCategory==4&&!Get<bool>(f.access,"waitingQuizOpenRequested")&&QuizUIManager.opens==0&&f.results.Count==0,"Ready book selects its actual Quiz category without starting or completing quiz.");
+            f.CloseBook();f.Tick();f.Tick();Check(f.book.opens==1,"Closing a selected review never automatically reopens the Almanac.");
+            Check(!AlmanacQuizAccess.RequestOpenWaitingQuiz(new Behaviour()),"A different NPC cannot request another owner's review.");
+            Check(AlmanacQuizAccess.RequestOpenWaitingQuiz(f.owner)&&AlmanacQuizAccess.RequestOpenWaitingQuiz(f.owner),"A later reminder queues the same owner exactly once.");f.Tick();f.Tick();
+            Check(f.book.opens==2,"Repeated reminder requests cannot issue duplicate book opens.");
+        }
+        foreach(string block in new[]{"dialogue","pause","time","building","transition","modal","active-quiz"})
+        {
+            f=new Fixture();f.CloseBook();f.Offer();
+            if(block=="dialogue")DialogueManager.IsAnyDialogueVisible=true;
+            if(block=="pause")PauseManager.Instance=new(){isPaused=true};
+            if(block=="time")Time.timeScale=0;
+            if(block=="building")GameManager.Instance=new(){CurrentState=GameManager.GameState.Building};
+            if(block=="transition")GameManager.Instance=new(){IsTransitioning=true};
+            if(block=="modal")UIPanelCoordinator.Instance=new(){HasOpenPanel=true};
+            if(block=="active-quiz")QuizUIManager.activeOwner=new Behaviour();
+            f.Tick();Check(f.book.opens==0&&f.book.selectAttempts==0&&f.results.Count==0,"Queued review waits without progression while blocked: "+block);
+            DialogueManager.IsAnyDialogueVisible=false;PauseManager.Instance=null;Time.timeScale=1;GameManager.Instance=null;UIPanelCoordinator.Instance=null;QuizUIManager.activeOwner=null;f.Tick();
+            Check(f.book.opens==1&&QuizUIManager.opens==0,"Queued review resumes only after safe UI ownership returns: "+block);
+        }
+        f=new Fixture();f.Offer();f.Tick();Check(f.book.opens==0&&f.book.selectedCategory==4,"An already-open ready book is selected without recapturing input.");
+        f=new Fixture();f.Offer();UIPanelCoordinator.Instance=new(){HasOpenPanel=true};f.Tick();Check(f.book.selectAttempts==0,"Nested Settings above an open book prevents programmatic category changes.");
+        UIPanelCoordinator.Instance.IsOwnBookTop=true;f.Tick();Check(f.book.selectedCategory==4&&f.book.opens==0,"The book's own top coordinator frame permits category selection.");
+        f=new Fixture();f.CloseBook();f.book.blockQuizSelection=true;f.Offer();f.Tick();f.Tick();f.Tick();
+        Check(f.book.opens==1&&f.book.selectedCategory==-1&&Get<bool>(f.access,"waitingQuizOpenRequested"),"Mandatory first-open/tab walkthrough keeps queued selection pending without duplicate opening.");
+        f.book.blockQuizSelection=false;f.Tick();Check(f.book.selectedCategory==4&&!Get<bool>(f.access,"waitingQuizOpenRequested"),"Quiz selection waits until the required walkthrough permits it.");
+        f=new Fixture();f.CloseBook();f.book.blockQuizSelection=true;f.Offer();f.Tick();f.Tick();f.CloseBook();f.Tick();f.Tick();
+        Check(f.book.opens==1&&!Get<bool>(f.access,"waitingQuizOpenRequested")&&f.tab.interactable,"Closing before queued selection consumes automatic opening but retains the quiz offer.");
+        f.book.blockQuizSelection=false;AlmanacQuizAccess.RequestOpenWaitingQuiz(f.owner);f.Tick();f.Tick();Check(f.book.opens==2&&f.book.selectedCategory==4,"A new explicit reminder can reopen after the player's earlier close.");
+        f=new Fixture();f.Offer();f.book.blockQuizSelection=true;f.Tick();f.CloseBook();f.Tick();Check(f.book.opens==0&&!Get<bool>(f.access,"waitingQuizOpenRequested"),"A previously open book closed during blocked selection is not reopened either.");
+
+        foreach(string change in new[]{"owner","account","manager","visitor","disable","destroy"})
+        {
+            f=new Fixture();f.CloseBook();f.Offer();
+            if(change=="owner")f.owner.isActiveAndEnabled=false;
+            if(change=="account")PlayerDataManager.Instance.CurrentData=new PlayerData();
+            if(change=="manager")PlayerDataManager.Instance=new PlayerDataManager();
+            if(change=="visitor")FusionConnectionManager.Instance=new(){IsGuestSaveProtected=true};
+            if(change=="disable")Call(f.access,"OnDisable");
+            if(change=="destroy")Call(f.access,"OnDestroy");
+            f.Tick();Check(f.book.opens==0&&f.results.Count==1&&f.results[0]==QuizOutcome.Cancelled&&!Get<bool>(f.access,"waitingQuizOpenRequested"),"Queued auto-open cannot escape authorization/teardown: "+change);
+        }
+        f=new Fixture();f.CloseBook();f.Offer();Set(f.access,"waitingQuizOpenGeneration",Get<int>(f.access,"generation")-1);f.Tick();
+        Check(f.book.opens==0&&f.results.Count==0&&!Get<bool>(f.access,"waitingQuizOpenRequested"),"Stale queued generation clears without touching current offer callback.");
+        f=new Fixture();f.Offer();f.Start();f.Tick();Check(!Get<bool>(f.access,"waitingQuizOpenRequested")&&!AlmanacQuizAccess.RequestOpenWaitingQuiz(f.owner)&&f.book.opens==0,"Pressing Start clears automatic review and prevents a new request during handoff.");
+        f.book.FinishClose();Check(QuizUIManager.opens==1&&f.book.opens==0,"Quiz remains manually started only after its normal close/control-restoration handoff.");
         return checks;
     }
 }

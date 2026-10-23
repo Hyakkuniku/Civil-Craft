@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <DefineConstants>UNITY_EDITOR</DefineConstants>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <UnityManagedRoot>D:/UNITY/2022.3.62f3/Editor/Data/Managed</UnityManagedRoot>
+    <GameLibraryRoot>../../Library/ScriptAssemblies</GameLibraryRoot>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Assets/Script/Player/JumpTutorialButtonLock.cs" />
+    <Compile Include="../../Assets/Editor/JumpTutorialButtonLockValidation.cs" />
+    <Reference Include="Assembly-CSharp"><HintPath>$(GameLibraryRoot)/Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.UI"><HintPath>$(GameLibraryRoot)/UnityEngine.UI.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Unity.TextMeshPro"><HintPath>$(GameLibraryRoot)/Unity.TextMeshPro.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="$(UnityManagedRoot)/UnityEditor.dll"><Private>false</Private></Reference>
+    <Reference Include="$(UnityManagedRoot)/UnityEngine/*.dll"><Private>false</Private></Reference>
+    <Reference Include="$(UnityManagedRoot)/UnityEditor/*.dll"><Private>false</Private></Reference>
+  </ItemGroup>
+</Project>

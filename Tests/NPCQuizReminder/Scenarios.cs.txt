@@ -20,6 +20,7 @@ public static class Scenarios
         {
             Time.timeScale = 1; PauseManager.Instance = null; UIPanelCoordinator.Instance = null; GameManager.Instance = null; FusionConnectionManager.Instance = null;
             PlayerDataManager.Instance = new PlayerDataManager(); QuizUIManager.IsAnyQuizActive = false; QuizUIManager.cancels = 0;
+            AlmanacQuizAccess.openRequests = 0; AlmanacQuizAccess.lastRequestedOwner = null;
             DialogueManager.IsAnyDialogueVisible = false; DialogueManager.found = dialogue;
             AlmanacManager.Instance = new AlmanacManager { access = access };
             phase.optionalDialogueSequence.Add(new NPCOptionalDialogueStep { dialogue = new Dialogue { name = "Professor Test" } });
@@ -43,8 +44,13 @@ public static class Scenarios
             Check(f.dialogue.last.name == "Professor Test" && f.dialogue.last.sentences.Length == 1 && f.dialogue.last.sentences[0].Contains("Start Quiz"), "Correct NPC speaks concise default guidance.");
             Check(f.dialogue.speakerAnimator == f.npc.animator && f.dialogue.speakerTransform == f.npc.transform, "Existing NPC animation/facing bindings reused.");
             Check(f.Tap() && f.dialogue.starts == i + 1, "Double tap cannot overlap reminder.");
+            Check(AlmanacQuizAccess.openRequests == i, "Book request waits until reminder genuinely finishes.");
+            Action completedReminder = f.dialogue.onDialogueEndCallback;
             f.dialogue.Finish();
             Check(Get<Action>(f.npc, "quizReminderCompletion") == null && Get<System.Collections.Generic.HashSet<int>>(f.npc, "runningOptionalSequencePhases").Contains(0), "Closing reminder never completes sequence.");
+            Check(AlmanacQuizAccess.openRequests == i + 1 && AlmanacQuizAccess.lastRequestedOwner == f.npc, "Finished reminder requests only its exact NPC's waiting offer.");
+            completedReminder();
+            Check(AlmanacQuizAccess.openRequests == i + 1, "Repeated dialogue completion cannot request twice.");
         }
         f.step.quizWaitingReminder = "Review the truss lesson, then start your quiz.";
         Check(f.Tap() && f.dialogue.last.sentences[0] == f.step.quizWaitingReminder, "Authored reminder overrides default without story mutation.");
@@ -64,13 +70,17 @@ public static class Scenarios
             if (busy == "transition") GameManager.Instance = new GameManager { IsTransitioning = true };
             if (busy == "build") GameManager.Instance = new GameManager { CurrentState = GameManager.GameState.Build };
             Check(f.Tap() && f.dialogue.starts == 0, "Busy tap claimed without opening/contract fallthrough: " + busy);
+            Check(AlmanacQuizAccess.openRequests == 0, "Busy interaction cannot request quiz book before dialogue: " + busy);
         }
-        foreach (string invalid in new[] { "starting", "quiz-active", "practice", "different-owner", "account", "save-manager", "guest", "visitor", "inactive", "unloaded", "travel", "phase", "step", "asset", "progression", "not-running", "null-phase" })
+        f = new Fixture(); f.quiz.assessmentMode = false;
+        Check(f.Tap() && f.dialogue.starts == 1 && AlmanacQuizAccess.openRequests == 0, "Retry-until-correct quizzes use the same reminder without premature opening.");
+        f.dialogue.Finish();
+        Check(AlmanacQuizAccess.openRequests == 1 && AlmanacQuizAccess.lastRequestedOwner == f.npc, "Retry-until-correct reminder opens its waiting Almanac offer too.");
+        foreach (string invalid in new[] { "starting", "quiz-active", "different-owner", "account", "save-manager", "guest", "visitor", "inactive", "unloaded", "travel", "phase", "step", "asset", "progression", "not-running", "null-phase" })
         {
             f = new Fixture();
             if (invalid == "starting") f.access.SetStarting(true);
             if (invalid == "quiz-active") QuizUIManager.IsAnyQuizActive = true;
-            if (invalid == "practice") f.quiz.assessmentMode = false;
             if (invalid == "different-owner") f.access.Offer(new Behaviour(), f.quiz, new QuizContext("npc-id", "quiz-phase", "quiz-step"));
             if (invalid == "account") PlayerDataManager.Instance.CurrentData = new PlayerData();
             if (invalid == "save-manager") PlayerDataManager.Instance = new PlayerDataManager();
@@ -86,6 +96,7 @@ public static class Scenarios
             if (invalid == "not-running") Get<System.Collections.Generic.HashSet<int>>(f.npc, "runningOptionalSequencePhases").Clear();
             if (invalid == "null-phase") { f.phase = null; f.npc.CurrentPhase = null; }
             Check(!f.Tap() && f.dialogue.starts == 0, "Nonpending/foreign/stale offer cannot speak: " + invalid);
+            Check(AlmanacQuizAccess.openRequests == 0, "Invalid offer never requests book: " + invalid);
         }
         foreach (string invalidation in new[] { "account", "manager", "visitor", "phase", "travel", "step", "cancel", "stop" })
         {
@@ -102,6 +113,25 @@ public static class Scenarios
             Check(f.dialogue.ends == 1 && f.dialogue.onDialogueEndCallback == null && Get<Action>(f.npc, "quizReminderCompletion") == null, "Invalidation closes only reminder without completion: " + invalidation);
             stale(); Call(f.npc, "LateUpdate");
             Check(f.dialogue.ends == 1, "Stale completion/duplicate teardown harmless: " + invalidation);
+            Check(AlmanacQuizAccess.openRequests == 0, "Cancelled reminder cannot auto-open a stale offer: " + invalidation);
+        }
+        foreach (string stale in new[] { "owner", "phase", "step", "asset", "progression", "travel", "account", "inactive", "unloaded", "not-running", "step-replaced" })
+        {
+            f = new Fixture(); f.Tap();
+            if (stale == "owner") f.access.Offer(new Behaviour(), f.quiz, new QuizContext("npc-id", "quiz-phase", "quiz-step"));
+            if (stale == "phase") f.npc.CurrentPhase = new NPCProgressionPhase();
+            if (stale == "step") f.step.quizStepId = "stale-step";
+            if (stale == "asset") f.step.quiz = new QuizData();
+            if (stale == "progression") f.npc.progressionSaveId = "other-npc";
+            if (stale == "travel") f.npc.IsTravelling = true;
+            if (stale == "account") PlayerDataManager.Instance.CurrentData = new PlayerData();
+            if (stale == "inactive") f.npc.isActiveAndEnabled = false;
+            if (stale == "unloaded") f.npc.gameObject.scene.isLoaded = false;
+            if (stale == "not-running") Get<System.Collections.Generic.HashSet<int>>(f.npc, "runningOptionalSequencePhases").Clear();
+            if (stale == "step-replaced") f.phase.optionalDialogueSequence[1] = new NPCOptionalDialogueStep { stepType = NPCOptionalDialogueStep.StepType.Quiz, quiz = f.quiz, quizStepId = "quiz-step" };
+            // No LateUpdate first: eligibility must be checked inside completion.
+            f.dialogue.Finish();
+            Check(AlmanacQuizAccess.openRequests == 0, "Completion rechecks exact current offer before requesting book: " + stale);
         }
         f = new Fixture(); f.Tap(); int unrelatedEnds = 0;
         Action unrelated = () => unrelatedEnds++;

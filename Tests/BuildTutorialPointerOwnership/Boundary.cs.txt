@@ -1,0 +1,111 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
+
+// Explicit engine/pointer/UI boundary. Production director prompt/ownership and
+// entire Manager.Update methods are inserted by Roslyn, not rewritten here.
+namespace UnityEngine
+{
+    public class Object{}
+    public class Component:Object {public GameObject gameObject;public Transform transform=>gameObject.transform;public T GetComponent<T>() where T:Component=>gameObject.GetComponent<T>();}
+    public class MonoBehaviour:Component {public bool isActiveAndEnabled=true;public T GetComponentInChildren<T>(bool inactive) where T:Component=>gameObject.GetComponentsInChildren<T>().FirstOrDefault();public T GetComponentInParent<T>() where T:Component=>gameObject.GetComponentInParent<T>();public Coroutine StartCoroutine(IEnumerator routine)=>new();public void StopCoroutine(Coroutine routine){}}
+    public class Coroutine{}
+    public class Transform:Component {public Transform parent;public Vector3 localEulerAngles,localScale;}
+    public class RectTransform:Transform {public enum Axis{Horizontal,Vertical}public Vector2 anchoredPosition;public Rect rect=new(0,0,978,133);public Rect? ScreenBounds;public void SetSizeWithCurrentAnchors(Axis axis,float size){if(axis==Axis.Horizontal)rect.width=size;else rect.height=size;}}
+    public class GameObject:Object
+    {
+        readonly List<Component> components=new();readonly List<GameObject> children=new();public Transform transform;
+        public bool activeSelf=true;public bool activeInHierarchy=>activeSelf&&(transform.parent==null||transform.parent.gameObject.activeInHierarchy);
+        public GameObject(bool rect=true){transform=rect?new RectTransform{gameObject=this}:new Transform{gameObject=this};components.Add(transform);}
+        public void SetActive(bool active){activeSelf=active;}public void AddChild(GameObject child){children.Add(child);child.transform.parent=transform;}
+        public T AddComponent<T>() where T:Component,new(){var item=new T{gameObject=this};components.Add(item);return item;}
+        public T GetComponent<T>() where T:Component=>components.OfType<T>().FirstOrDefault();
+        public T GetComponentInChildren<T>(bool includeInactive) where T:Component=>GetComponentsInChildren<T>().FirstOrDefault();
+        public IEnumerable<T> GetComponentsInChildren<T>() where T:Component=>components.OfType<T>().Concat(children.SelectMany(child=>child.GetComponentsInChildren<T>()));
+        public T GetComponentInParent<T>() where T:Component=>GetComponent<T>()??transform.parent?.gameObject.GetComponentInParent<T>();
+    }
+    public struct Vector2 {public float x,y;public Vector2(float x,float y){this.x=x;this.y=y;}}
+    public struct Vector3 {public float x,y,z;public Vector3(float x,float y,float z){this.x=x;this.y=y;this.z=z;}public static Vector3 one=>new(1,1,1);}
+    public class CanvasGroup:Component {public float alpha=1;public bool interactable=true,blocksRaycasts=true;}
+    public class Canvas:Component {public static int ForcedLayouts;public static void ForceUpdateCanvases(){ForcedLayouts++;}}
+    public struct Rect {public float x,y,width,height;public Rect(float x,float y,float width,float height){this.x=x;this.y=y;this.width=width;this.height=height;}public Vector2 size=>new(width,height);public static bool operator ==(Rect a,Rect b)=>a.x==b.x&&a.y==b.y&&a.width==b.width&&a.height==b.height;public static bool operator !=(Rect a,Rect b)=>!(a==b);public override bool Equals(object value)=>value is Rect rect&&this==rect;public override int GetHashCode()=>HashCode.Combine(x,y,width,height);}
+    public struct Vector2Int {public int x,y;public Vector2Int(int x,int y){this.x=x;this.y=y;}public static bool operator ==(Vector2Int a,Vector2Int b)=>a.x==b.x&&a.y==b.y;public static bool operator !=(Vector2Int a,Vector2Int b)=>!(a==b);public override bool Equals(object value)=>value is Vector2Int vector&&this==vector;public override int GetHashCode()=>HashCode.Combine(x,y);}
+    public static class Screen {public static Rect safeArea;public static int width=1920,height=1080;}
+    public static class Time {public static float unscaledTime;}
+    public static class Debug {public static void LogWarning(string message,Object context=null){}}
+}
+namespace TMPro {public class TextMeshProUGUI:UnityEngine.Component {public string text="Blueprint Mismatch! Undo that and follow the plans.";}}
+namespace UnityEngine.Events {public delegate void UnityAction();}
+namespace UnityEngine.UI
+{
+    public class Button:MonoBehaviour {public bool interactable;public ClickEvent onClick=new();}
+    public class ClickEvent {public int Added,Removed;public void AddListener(UnityEngine.Events.UnityAction callback){Added++;}public void RemoveListener(UnityEngine.Events.UnityAction callback){Removed++;}}
+}
+public class BridgeMaterialSO:UnityEngine.Object{}
+public enum BuildModeTool {Statistics,Grid,Undo,Select}
+public class BarCreator {public bool isGridSnappingEnabled=true;}
+public class BuildUIController
+{
+    public static BuildUIController Instance;public bool isTutorialUI_Locked;public BridgeMaterialSO whitelistedMaterial;public GameObject whitelistedButton;public int SimulationRefreshes;
+    public Dictionary<BuildModeTool,RectTransform> Tools=new();public BarCreator barCreator=new();public bool ForcedUndoVisible;
+    public RectTransform GetToolRectTransform(BuildModeTool tool)=>Tools.TryGetValue(tool,out var target)?target:null;
+    public void RefreshSimulationButtonLock(){SimulationRefreshes++;}
+    public void SetToolForcedVisible(BuildModeTool tool,bool visible){if(tool==BuildModeTool.Undo)ForcedUndoVisible=visible;}
+}
+public class UIPanelCoordinator {public static UIPanelCoordinator Instance;public bool HasOpenPanel,TargetInsideTopPanel;public bool IsTargetInsideTopPanel(Transform target)=>TargetInsideTopPanel;}
+public static class UIReservedRegionLayout
+{
+    public static HashSet<RectTransform> Registered=new();public static void Register(RectTransform rect){if(rect!=null)Registered.Add(rect);}public static void Unregister(RectTransform rect){if(rect!=null)Registered.Remove(rect);}
+    public static bool TryGetScreenRect(RectTransform rect,out Rect bounds){bounds=rect!=null?(rect.ScreenBounds??rect.rect):default;return rect!=null;}
+}
+// Geometry/TMP rendering is deliberately a boundary: native and linked geometry
+// suites verify the actual helper. These counters verify production lifecycle.
+public static class TutorialWarningLayout {public static int Calls;public static RectTransform LastInstruction;public static bool Apply(RectTransform warning,TextMeshProUGUI text,Vector2 position,Vector2 size,RectTransform instruction){Calls++;LastInstruction=instruction;return true;}}
+public class MaterialUIMapping {public BridgeMaterialSO material;public RectTransform buttonRect;public Vector2 arrowOffset;public float arrowRotation;}
+public class ToolUIMapping {public GameObject toolObject;public RectTransform buttonRect;public Vector2 arrowOffset;public float arrowRotation;}
+public class TutorialPointer:MonoBehaviour
+{
+    public RectTransform Target;public Vector2 Offset;public float Rotation;public int BuildCalls,NormalCalls,Hides;
+    public void PointAtBuildTarget(RectTransform target,Vector2 offset,float rotation){Target=target;Offset=offset;Rotation=rotation;BuildCalls++;transform.localEulerAngles=new Vector3(0,0,rotation);gameObject.SetActive(true);}
+    public void PointAt(RectTransform target,Vector2 offset){Target=target;Offset=offset;Rotation=transform.localEulerAngles.z;NormalCalls++;gameObject.SetActive(true);}
+    public void Hide(){Target=null;Hides++;gameObject.SetActive(false);}
+}
+public enum TutorialPosition {Center,Left}
+public class TutorialStep {public bool usePointer;public RectTransform pointerTarget;public Vector2 pointerOffset;public float pointerRotation;public TutorialPosition screenPosition;public GameObject worldHighlightObject;}
+public class TutorialSequence {public TutorialStep[] tutorialSteps;}
+public class PathGuider {public static PathGuider Instance;}
+public class BuildTutorialDirector:MonoBehaviour
+{
+    public static BuildTutorialDirector Instance;public TutorialPointer bouncingArrow;public GameObject exitBuildModeButton;
+    public RectTransform undoButtonRect;public Vector2 undoArrowOffset;public float undoArrowRotation;public GameObject undoWarningPanel;
+    public bool IsAwaitingInvalidBarUndo,isTutorialRunning,isTracingStep,simulationUnlockedForTutorial,isCurrentDragValid;public int activeStepIndex;
+    private Coroutine undoPointerCoroutine;public List<GameObject> invalidActionObjects=new();public int CompletionChecks,TintRestores;
+    private void RestoreTintedBar(){TintRestores++;}private void CheckGhostBridgeCompletion(){CompletionChecks++;}
+    public List<MaterialUIMapping> materialMappings=new();public List<ToolUIMapping> toolMappings=new();
+    public BridgeMaterialSO expectedMaterial;public GameObject expectedTool;public bool hasAdvancedFromRequiredClickThisStep,requiredToolClicked,gridEnabledBeforePrompt;
+    enum RequiredObservation {None,StatisticsOpened,GridToggled}private RequiredObservation requiredObservation;
+    private Button trackedToolButton;private UnityEngine.Events.UnityAction trackedToolButtonAction=()=>{};
+    // ACTUAL_DIRECTOR
+}
+public class TutorialManager:MonoBehaviour
+{
+    public static TutorialManager Instance;public TutorialPointer bouncingArrow;public TutorialPointer SharedPointer=>bouncingArrow;
+    public bool IsTutorialActive=true;public TutorialSequence currentSequence;public int currentStepIndex;public int CurrentStepIndex=>currentStepIndex;public TutorialSequence ActiveSequence=>IsTutorialActive?currentSequence:null;
+    public HashSet<object> inspectionModalOwners=new();public TutorialSequence presentationSuppressedFor;
+    public GameObject skipButton,nextButton,leftPanel;public Button recallGuideButton;public bool contractGuideVisible;public float nextGuideRecallTime;
+    public TutorialStep CurrentStep=>currentSequence!=null&&currentStepIndex>=0&&currentStepIndex<currentSequence.tutorialSteps.Length?currentSequence.tutorialSteps[currentStepIndex]:null;
+    public RectTransform VisibleCenteredBannerRect=>leftPanel!=null&&leftPanel.activeInHierarchy?leftPanel.transform as RectTransform:null;public bool IsBannerTransitioning;
+    public TutorialSequence inspectionHiddenSequence;public int inspectionHiddenStepIndex=-1;public bool inspectionHiddenGuide,inspectionPanelWasActive,inspectionNextWasActive,inspectionSkipWasActive,inspectionHighlightWasActive;
+    private Rect lastSkipSafeArea;private Vector2Int lastSkipScreenSize;
+    public int LayoutRefreshes,GuideUpdates,NextChanges;
+    private void RefreshCenteredTutorialLayout(){LayoutRefreshes++;}private void PositionTutorialSkipButton(){}private void UpdateContractGuide(){GuideUpdates++;}
+    private void HidePresentationForInspection(){bouncingArrow.Hide();}private object GetRecallableStep()=>null;
+    public void SetNextButtonActive(bool active){NextChanges++;}
+    private GameObject GetPanelForPosition(TutorialPosition position)=>leftPanel;
+    private void ApplyPanelPosition(TutorialPosition position){}
+    // ACTUAL_MANAGER_UPDATE
+}

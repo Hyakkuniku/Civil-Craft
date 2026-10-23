@@ -46,6 +46,9 @@ internal static class Program
         string play = Method("PlayOrderedOptionalStep");
         Check(play.Contains("if (!IsCurrentOrderedSequence"), "All async callbacks need generation/current-phase guards.");
         Check(play.Contains("step.stepType == NPCOptionalDialogueStep.StepType.Quiz"), "Quiz needs its own branch.");
+        Check(play.Contains("AlmanacQuizAccess.TryOffer(step.quiz, context, this, onClosed)") &&
+            !play.Contains("step.quiz.assessmentMode") && !play.Contains("QuizUIManager.TryOpen("),
+            "All NPC practice and assessment steps use the same explicit Almanac Start Quiz entry.");
         Check(play.Contains("step.stepType != NPCOptionalDialogueStep.StepType.MaterialUnlock"), "Quiz/unknown enum values cannot fall into Material handling.");
         Check(play.Contains("outcome != QuizOutcome.Completed || !sameStep"), "Only successful matching quiz sessions may continue.");
         Check(play.Contains("step.quiz == expectedQuiz") && play.Contains("step.quizStepId, expectedStepId"), "Changed step assets/identities invalidate callbacks.");
@@ -58,7 +61,10 @@ internal static class Program
         string cancel = Method("CancelOrderedOptionalSequence");
         Check(cancel.IndexOf("optionalSequenceVersion++", StringComparison.Ordinal) < cancel.IndexOf("CancelOwnedSession", StringComparison.Ordinal), "Cancel invalidates the callback before closing UI.");
         foreach (string method in new[] { "OnDisable", "MoveToPhaseRoutine", "ActivatePhase", "DebugWarpToPhase", "RepositionForCargoTurnIn", "AdvanceFromCargoTurnIn" })
-            Check(Method(method).Contains("CancelOrderedOptionalSequence();"), "Cancel sessions on " + method + ".");
+            Check(CSharpSyntaxTree.ParseText("class CancellationProbe {" + Method(method) + "}").GetRoot()
+                .DescendantNodes().OfType<InvocationExpressionSyntax>().Any(call =>
+                    call.Expression is IdentifierNameSyntax name && name.Identifier.ValueText == "CancelOrderedOptionalSequence"),
+                "Cancel sessions on " + method + ", including the travel-review-preserving overload.");
         string current = Method("IsCurrentOrderedSequence");
         Check(current.Contains("sequenceVersion == optionalSequenceVersion") && current.Contains("CurrentPhase == phase") && current.Contains("!IsTravelling"), "Generation, identity and travel all guard callbacks.");
         string local = Method("CanRunLocalProgression");
