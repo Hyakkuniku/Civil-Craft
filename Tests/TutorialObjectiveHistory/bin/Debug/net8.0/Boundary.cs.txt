@@ -1,0 +1,37 @@
+using System.Collections.Generic;
+
+namespace UnityEngine
+{
+    public class Transform
+    {
+        public string name = "Guide";
+        public Transform parent;
+        public int sibling;
+        public int GetSiblingIndex() => sibling;
+    }
+    public class Scene
+    {
+        public string path = "Assets/Scenes/CanyonCrossing.unity";
+        public bool isLoaded = true, valid = true;
+        public bool IsValid() => valid;
+    }
+    public class GameObject { public Scene scene = new Scene(); }
+}
+public class TutorialSequence
+{
+    public string name = "Guide", lessonName, objectiveTitle, ObjectiveId;
+    public bool showInObjectives = true;
+    public UnityEngine.Transform transform = new UnityEngine.Transform();
+    public UnityEngine.GameObject gameObject = new UnityEngine.GameObject();
+    public TutorialStep[] tutorialSteps;
+}
+public class TutorialStep { public string message; }
+public class PlayerData
+{
+    public List<TrackedTask> activeQuests = new List<TrackedTask>();
+    public List<string> completedLessons = new List<string>();
+    public List<string> completedContracts = new List<string>();
+    public string activeObjectiveKey = "contract:existing";
+    public int gold = 75, exp = 200;
+    public bool hasUnlockedObjectiveTracker;
+}

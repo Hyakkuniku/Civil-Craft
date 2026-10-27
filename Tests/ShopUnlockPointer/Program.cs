@@ -57,7 +57,7 @@ internal static class Program
     }
     private static void Main()
     {
-        Eligibility(); PassiveTutorialGuidance(); Blocking(); OwnershipAndLifecycle(); ButtonAndSubscriptions(); SourceGuards();
+        Eligibility(); HudEntryEligibility(); PassiveTutorialGuidance(); Blocking(); OwnershipAndLifecycle(); ButtonAndSubscriptions(); SourceGuards();
         Console.WriteLine($"PASS: {checks} full production ShopButtonTrigger assertions/source guards. Engine objects, cloning, pointer positioning and UI events are explicit boundary doubles; actual graphic raycasting remains a Unity check. No live scene, save, account, purchase, reward or network accessed.");
     }
     private static void Eligibility()
@@ -83,6 +83,36 @@ internal static class Program
         Check(f.hud.activeSelf && !f.Visible, "The testing-only bypass does not pretend the Shop was persistently unlocked.");
         f = new(unlocked: true); Set(f.trigger, "requiredFeatureId", "  "); f.Tick();
         Check(f.Visible, "Blank feature IDs keep the existing default shop feature behavior.");
+    }
+    private static void HudEntryEligibility()
+    {
+        Fixture f = new(unlocked: true);
+        Check(ReferenceEquals(DialogueHudButtonGate.boundButton, f.hud) && ReferenceEquals(DialogueHudButtonGate.boundShop, f.trigger),
+            "Awake binds the existing Shop HUD object and its actual trigger owner to the shared dialogue mask.");
+        Check(f.trigger.CanShowHudEntry, "An unlocked, enabled Shop outside Build Mode is eligible for HUD presentation.");
+        // The full mask fixture checks global dialogue visibility; this owner
+        // property must continue to express feature/panel intent independently.
+        DialogueManager.IsAnyDialogueVisible = true;
+        Check(f.trigger.CanShowHudEntry, "Dialogue does not overwrite Shop's owner eligibility or feature unlock.");
+        DialogueManager.IsAnyDialogueVisible = false;
+        f.shop.Panel.SetActive(true);
+        Check(!f.trigger.CanShowHudEntry, "An open Shop panel owns its entry visibility.");
+        f.shop.Panel.SetActive(false);
+        GameManager.Instance.CurrentState = GameManager.GameState.Building;
+        Check(!f.trigger.CanShowHudEntry, "Existing Build Mode suppression remains part of Shop's restoration eligibility.");
+        Set(f.trigger, "hideDuringBuildMode", false);
+        Check(f.trigger.CanShowHudEntry, "The authored testing override for Build Mode is preserved.");
+        Set(f.trigger, "hideDuringBuildMode", true); GameManager.Instance.CurrentState = GameManager.GameState.Normal;
+        f.save.CurrentData.features.Remove("shop");
+        Check(!f.trigger.CanShowHudEntry, "An expired or switched locked profile cannot expose Shop after dialogue.");
+        f.save.CurrentData.features.Add("shop");
+        Set(f.trigger, "visibleOutsideBuildMode", false);
+        Check(!f.trigger.CanShowHudEntry, "The initial authored visibility intent is retained.");
+        Set(f.trigger, "visibleOutsideBuildMode", true);
+        f.trigger.enabled = false;
+        Check(!f.trigger.CanShowHudEntry, "Disabled Shop triggers cannot restore a stale HUD entry.");
+        f.trigger.enabled = true; f.hud.SetActive(false);
+        Check(!f.trigger.CanShowHudEntry, "An inactive HUD remains under its existing owner's control.");
     }
     private static void Blocking()
     {
@@ -276,6 +306,10 @@ internal static class Program
         Check(!source.Contains("tutorial.IsTutorialActive || tutorial.IsTutorialPresentationSuppressed"),
             "A blanket tutorial-active suppression cannot return and hide the arrow during walking reminders.");
         Check(source.Contains("Destroy(unlockPointer.gameObject)") && source.Contains("unlockPointerTemplate = null"), "Cleanup owns only the cloned pointer.");
+        Check(source.Contains("DialogueHudButtonGate.BindShop(gameObject, this)"),
+            "All authored Shop triggers use the shared dialogue mask on their existing HUD object.");
+        Check(source.Contains("public bool CanShowHudEntry") && source.Contains("visibleOutsideBuildMode") && source.Contains("IsShopUnlocked()"),
+            "Shop restoration eligibility retains the existing persistent-unlock and authored-visibility policies.");
         string pointer = File.ReadAllText(Path.Combine(root, "Assets/Script/Level/Tutorial/TutorialPointer.cs"));
         Check(pointer.Contains("graphic.raycastTarget = false") && pointer.Contains("canvasGroup.interactable = false") && pointer.Contains("canvasGroup.blocksRaycasts = false"),
             "The actual cloned pointer initialization still disables graphical and group click interception.");

@@ -1,0 +1,33 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Reflection;
+namespace UnityEngine {
+ [AttributeUsage(AttributeTargets.Class)]public sealed class DisallowMultipleComponent:Attribute{}
+ [AttributeUsage(AttributeTargets.Field)]public sealed class SerializeField:Attribute{}
+ public struct Scene { public int id;public bool loaded;public bool IsValid()=>id!=0;public bool isLoaded=>loaded;public static bool operator==(Scene a,Scene b)=>a.id==b.id;public static bool operator!=(Scene a,Scene b)=>a.id!=b.id;public override bool Equals(object value)=>value is Scene s&&s==this;public override int GetHashCode()=>id; }
+ public class GameObject { public Scene scene=new Scene{id=1,loaded=true};public Transform transform=new Transform();private Dictionary<Type,MonoBehaviour> components=new();public T AddComponent<T>() where T:MonoBehaviour,new(){var value=new T();Put(value);return value;} public void Put(MonoBehaviour value){value.gameObject=this;components[value.GetType()]=value;} public T GetComponent<T>() where T:class=>components.TryGetValue(typeof(T),out var value)?value as T:null; }
+ public class Transform{}
+ public class MonoBehaviour { public GameObject gameObject;public bool isActiveAndEnabled=true;public Transform transform=>gameObject.transform;public T GetComponent<T>() where T:class=>gameObject.GetComponent<T>();public Coroutine StartCoroutine(IEnumerator routine)=>Engine.Start(routine);public void StopCoroutine(Coroutine routine)=>routine.stopped=true; }
+ public class Animator:MonoBehaviour{}
+ public class Coroutine {public Stack<IEnumerator> stack=new();public bool stopped;}
+ public static class Time {public static float timeScale=1;}
+ public static class Engine {public static List<Coroutine> coroutines=new();public static Coroutine Start(IEnumerator routine){var c=new Coroutine();c.stack.Push(routine);coroutines.Add(c);Step(c);return c;}static void Step(Coroutine c){int guard=0;while(!c.stopped&&c.stack.Count>0){if(++guard>1000)throw new Exception("Coroutine did not yield.");var top=c.stack.Peek();if(!top.MoveNext()){c.stack.Pop();continue;}if(top.Current is IEnumerator child){c.stack.Push(child);continue;}return;}}public static void Tick(){foreach(var c in coroutines.ToArray())Step(c);coroutines.RemoveAll(c=>c.stopped||c.stack.Count==0);}public static void Reset()=>coroutines.Clear();}
+}
+namespace UnityEngine.Events {public delegate void UnityAction();public class UnityEvent {public List<UnityAction> listeners=new();public void AddListener(UnityAction value)=>listeners.Add(value);public void RemoveListener(UnityAction value)=>listeners.Remove(value);public void Invoke(){foreach(var action in listeners.ToArray())action();}}}
+public class Dialogue{public string name="Reed";public string[] sentences=new[]{"Sentence"};}
+public class LessonData{}
+public class PlayerData{}
+public class PlayerDataManager{public static PlayerDataManager Instance;public PlayerData CurrentData=new();}
+public class FusionConnectionManager{public static FusionConnectionManager Instance;public bool IsGuestInHostWorld,IsGuestSaveProtected;}
+public class NPCProgressionPhase{public string phaseId="ExplainSituation";}
+public class NPCProgressionManager:UnityEngine.MonoBehaviour{public string ProgressionSaveId="ReedNPC";public bool IsTravelling;public NPCProgressionPhase CurrentPhase=new();public int moves;public string lastMove;public NPCContractGiver giver;public bool installNewLock;public void MoveToPhaseById(string id){moves++;lastMove=id;CurrentPhase=new(){phaseId=id};if(installNewLock)giver.SetProgressionInteractionLocked(true,"New phase lock");}}
+public class NPCContractGiver:UnityEngine.MonoBehaviour{public bool locked;public int changes;public string prompt;public void SetProgressionInteractionLocked(bool value,string text="Moving"){locked=value;prompt=text;changes++;}}
+public class CinematicDirector:UnityEngine.MonoBehaviour{public bool IsPlaying;public int plays;public bool refuse;public UnityEngine.Events.UnityEvent OnCinematicFinished=new();public void PlayContractOfferCinematic(){plays++;if(!refuse)IsPlaying=true;}public void Complete(){IsPlaying=false;OnCinematicFinished.Invoke();}public void Interrupt(){IsPlaying=false;}}
+public class DialogueManager:UnityEngine.MonoBehaviour{public static bool IsAnyDialogueVisible,IsAnyDialogueActive;public Action callback;public int plays,cancelled;public Dialogue shown;public void StartDialogue(Dialogue dialogue,Action onEnd,UnityEngine.Animator animator,UnityEngine.Transform transform){shown=dialogue;plays++;callback=onEnd;IsAnyDialogueActive=IsAnyDialogueVisible=true;}public void Finish(){IsAnyDialogueActive=false;var action=callback;callback=null;action?.Invoke();}public void CloseAnimation()=>IsAnyDialogueVisible=false;public bool CancelDialogueIfOwned(Action expected){if(!ReferenceEquals(expected,callback))return false;cancelled++;callback=null;IsAnyDialogueActive=IsAnyDialogueVisible=false;return true;}}
+public class NPCOrderedLearningFlow:UnityEngine.MonoBehaviour{public bool busy,refuse;public int opened,cancelled;public Action completed,unavailable;public bool TryShowLesson(LessonData lesson,Action done,Action failed){if(busy||refuse)return false;opened++;busy=true;completed=done;unavailable=failed;LessonUIManager.Instance.IsOpen=true;return true;}public void Complete(){var action=completed;completed=unavailable=null;busy=false;LessonUIManager.Instance.IsOpen=false;action?.Invoke();}public void Fail(){var action=unavailable;completed=unavailable=null;busy=false;LessonUIManager.Instance.IsOpen=false;action?.Invoke();}public void Cancel(){cancelled++;completed=unavailable=null;busy=false;LessonUIManager.Instance.IsOpen=false;}}
+public class QuizUIManager{public static bool IsAnyQuizActive;}
+public class LessonUIManager{public static LessonUIManager Instance;public bool IsOpen;}
+public class PauseManager{public static PauseManager Instance;public bool isPaused;}
+public class UIPanelCoordinator{public static UIPanelCoordinator Instance;public bool HasOpenPanel;}
+public class GameManager{public static GameManager Instance;public bool IsTransitioning;public GameState CurrentState=GameState.Normal;public enum GameState{Normal,Other}}

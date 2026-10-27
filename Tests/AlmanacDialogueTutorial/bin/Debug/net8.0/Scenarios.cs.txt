@@ -1,0 +1,99 @@
+using System;
+using System.Linq;
+
+public static class Scenarios
+{
+    static int checks;
+    static void Check(bool okay,string label){checks++;if(!okay)throw new InvalidOperationException("Check "+checks+": "+label);}
+    static TutorialSequence Sequence(string name)=>new TutorialSequence{lessonName=name};
+    sealed class Fixture
+    {
+        public AlmanacManager Book=new AlmanacManager(); public TutorialManager Tutorial=new TutorialManager();
+        public PlayerDataManager Save=new PlayerDataManager();
+        public Fixture()
+        {
+            DialogueManager.IsAnyDialogueActive=false; ShopManager.Instance=null; QuizUIManager.IsAnyQuizActive=false;
+            PauseManager.Instance=null; UIPanelCoordinator.Instance=null; PlayerDataManager.Instance=Save; TutorialManager.Instance=Tutorial;
+            Book.onContractsTabUnlockedTutorial=Sequence("contracts"); Book.onLessonsTabUnlockedTutorial=Sequence("lessons"); Book.onMaterialsTabUnlockedTutorial=Sequence("materials");
+            Tutorial.OnTutorialCompleted+=Book.Completed;
+        }
+    }
+    public static int Run()
+    {
+        HudEligibilityPreservesFeatureAndPanelState();
+        ProgrammaticOpeningKeepsOriginalStoryBehavior();
+        FirstOpenOwnsItsVisitAndRequiredCloseGate();
+        SelectedAndPendingIntroductionsKeepOriginalProgression();
+        CloseWaitsForOrdinaryIntroductionCompletion();
+        NormalCloseAndTeardownKeepOriginalRestoration();
+        return checks;
+    }
+    static void HudEligibilityPreservesFeatureAndPanelState()
+    {
+        var f=new Fixture();f.Book.almanacCanvas.SetActive(false);
+        Check(!f.Book.CanShowHudOpenButton,"Locked Almanac HUD control cannot be restored by the dialogue gate.");
+        f.Save.CurrentData.hasAlmanac=true;
+        Check(f.Book.CanShowHudOpenButton,"Unlocked, closed Almanac reports that its existing HUD button is eligible.");
+        f.Book.almanacCanvas.SetActive(true);Check(!f.Book.CanShowHudOpenButton,"Open Almanac keeps its HUD entry hidden.");
+        f.Book.almanacCanvas.SetActive(false);f.Book.isAnimating=true;Check(!f.Book.CanShowHudOpenButton,"Book opening/closing animation prevents premature HUD restoration.");
+        f.Book.isAnimating=false;f.Book.isActiveAndEnabled=false;Check(!f.Book.CanShowHudOpenButton,"Disabled manager cannot restore its HUD control.");
+        f.Book.isActiveAndEnabled=true;QuizUIManager.IsAnyQuizActive=true;Check(!f.Book.CanShowHudOpenButton,"Active quiz keeps the Almanac HUD entry hidden.");
+        QuizUIManager.IsAnyQuizActive=false;f.Save.CurrentData=null;Check(!f.Book.CanShowHudOpenButton,"Missing player profile cannot expose a locked/default control.");
+        PlayerDataManager.Instance=null;Check(!f.Book.CanShowHudOpenButton,"Missing save manager is safely ineligible.");
+    }
+    static void ProgrammaticOpeningKeepsOriginalStoryBehavior()
+    {
+        var f=new Fixture();f.Book.almanacCanvas.SetActive(false);f.Book.onFirstOpenTutorial=Sequence("first-open");
+        DialogueManager.IsAnyDialogueActive=true;f.Book.OpenAlmanac();
+        Check(f.Book.isAnimating,"Programmatic story opening remains allowed during a dialogue callback; visibility belongs to the separate HUD gate.");
+        f.Book.Tick();
+        Check(f.Book.almanacCanvas.activeSelf&&!f.Book.isAnimating&&f.Tutorial.IsPlayingSequence(f.Book.onFirstOpenTutorial),
+            "Original open animation and first-open tutorial launch remain intact.");
+        Check(f.Tutorial.Holds==0&&f.Tutorial.Cancels==0&&f.Save.CurrentData.completedLessons.Count==0,
+            "Opening adds no rejected first-open resume hold, cancellation or synthetic completion.");
+    }
+    static void FirstOpenOwnsItsVisitAndRequiredCloseGate()
+    {
+        var f=new Fixture();f.Book.almanacCanvas.SetActive(false);f.Book.onFirstOpenTutorial=Sequence("required-first-open");
+        f.Book.OpenAlmanac();f.Book.Tick();
+        Check(f.Tutorial.Starts==1&&f.Tutorial.IsPlayingSequence(f.Book.onFirstOpenTutorial),"Required first-open walkthrough owns the visit ahead of pending tab guides.");
+        Check(f.Book.RequiredBlocks,"Required walkthrough retains its original early-close gate.");
+        int callbacks=0;f.Book.CloseAlmanac();f.Book.CloseAlmanacThen(()=>callbacks++);
+        Check(!f.Book.isAnimating&&callbacks==0&&f.Tutorial.Cancels==0,"CLOSE and archive hand-off cannot silently cancel a required first-open introduction.");
+        f.Tutorial.CurrentStepIndex=f.Book.onFirstOpenTutorial.tutorialSteps.Length-1;
+        Check(!f.Book.RequiredBlocks,"Final required close instruction still permits its intended action.");
+        f.Book.CloseAlmanac();Check(f.Book.isAnimating,"Final required step can use the normal reader close path.");
+    }
+    static void SelectedAndPendingIntroductionsKeepOriginalProgression()
+    {
+        var f=new Fixture();f.Book.StartSelected(AlmanacTabType.Materials);
+        Check(f.Tutorial.IsPlayingSequence(f.Book.onMaterialsTabUnlockedTutorial)&&f.Tutorial.CurrentStepIndex==0&&f.Tutorial.Holds==1,
+            "Selected tab launches its original introduction with the existing tab-only resume hold.");
+        f.Book.Tick();Check(f.Tutorial.CurrentStepIndex==1&&f.Tutorial.Advances==1,"Already performed tab click advances to its explanation on the next frame.");
+        f=new Fixture();f.Book.StartPending();Check(f.Tutorial.IsPlayingSequence(f.Book.onContractsTabUnlockedTutorial),"Pending introductions retain their authored Contracts-first order.");
+        f.Tutorial.Finish();f.Book.Tick();
+        Check(f.Tutorial.IsPlayingSequence(f.Book.onLessonsTabUnlockedTutorial)&&f.Tutorial.Holds==1,"Genuine completion hands off to Lessons under the same book hold.");
+        Check(f.Save.CurrentData.completedLessons.SequenceEqual(new[]{"contracts"})&&f.Tutorial.Cancels==0,"Only real completion writes lesson proof; no newly introduced cancellation path remains.");
+    }
+    static void CloseWaitsForOrdinaryIntroductionCompletion()
+    {
+        var f=new Fixture();f.Save.CurrentData.hasUnlockedContractsTab=false;f.Save.CurrentData.hasUnlockedLessonsTab=false;
+        f.Book.StartTab(f.Book.onMaterialsTabUnlockedTutorial);int callbacks=0;
+        f.Book.CloseAlmanac();f.Book.CloseAlmanacThen(()=>callbacks++);
+        Check(!f.Book.isAnimating&&callbacks==0&&f.Tutorial.Cancels==0&&f.Save.CurrentData.completedLessons.Count==0,
+            "Original optional-tab close gate is restored; pressing CLOSE does not cancel or finish its content.");
+        f.Tutorial.Finish();f.Book.CloseAlmanacThen(()=>callbacks++);
+        Check(f.Book.isAnimating&&callbacks==0&&f.Tutorial.Holds==1,"After ordinary completion the normal close retains its existing hold through animation.");
+        f.Book.Tick();
+        Check(!f.Book.isAnimating&&callbacks==1&&f.Tutorial.Holds==0&&f.Book.RestoredInput>0&&f.Book.RestoredContainers>0,
+            "Close callback follows the existing HUD/input/hold restoration path.");
+    }
+    static void NormalCloseAndTeardownKeepOriginalRestoration()
+    {
+        var f=new Fixture();var world=Sequence("world-guide");f.Tutorial.ActiveSequence=world;
+        f.Book.CloseAlmanac();f.Book.Tick();
+        Check(f.Tutorial.ActiveSequence==world&&f.Tutorial.Cancels==0&&f.Tutorial.Completes==0,"Closing a reader never cancels an unrelated world guide.");
+        f.Book.Destroy();Check(f.Tutorial.ActiveSequence==world&&f.Tutorial.Cancels==0,"Original teardown preserves unrelated tutorial ownership.");
+        Check(f.Save.CurrentData.completedLessons.Count==0,"HUD integration never writes tutorial completion.");
+    }
+}

@@ -13,7 +13,7 @@ namespace UnityEngine
     public class RectTransform:Object{}
     public struct Vector2 {public float x,y;public Vector2(float x,float y){this.x=x;this.y=y;}}
     public class Animator:Object {public bool Open;public bool GetBool(string key)=>Open;}
-    public class Scene {public bool Valid=true,isLoaded=true;public bool IsValid()=>Valid;}
+    public class Scene {public string path="Assets/Scenes/CanyonCrossing.unity";public bool Valid=true,isLoaded=true;public bool IsValid()=>Valid;}
     public class GameObject:Object
     {
         readonly List<MonoBehaviour> components=new();public string name;public Scene scene=new();public Transform transform=new();
@@ -33,6 +33,8 @@ namespace UnityEngine
         public void Tick(){foreach(var value in running.ToArray())if(!value.Stopped&&!value.Routine.MoveNext())value.Stopped=true;running.RemoveAll(value=>value.Stopped);}
     }
     public class DisallowMultipleComponent:Attribute{}
+    public class HeaderAttribute:Attribute{public HeaderAttribute(string text){}}
+    public class TooltipAttribute:Attribute{public TooltipAttribute(string text){}}
     public static class Time {public static float timeScale=1;}
 }
 public class PlayerData {public List<string> completedLessons=new();}
@@ -84,6 +86,8 @@ public class TutorialStep
 }
 public class TutorialSequence:MonoBehaviour
 {
+    public bool showInObjectives;public string objectiveTitle;
+    public string ObjectiveId;public void ConfigureObjectiveIdentity(string identity){ObjectiveId=identity;}
     public string lessonName;public TutorialStep[] tutorialSteps;public void StartTutorial()=>TutorialManager.Instance.StartOrQueue(this);
 }
 public class TutorialManager

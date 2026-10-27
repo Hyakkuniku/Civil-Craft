@@ -1,0 +1,117 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using UnityEngine;
+
+namespace UnityEngine
+{
+    [AttributeUsage(AttributeTargets.Class)] public sealed class DisallowMultipleComponent : Attribute { }
+    [AttributeUsage(AttributeTargets.Class)] public sealed class DefaultExecutionOrder : Attribute { public DefaultExecutionOrder(int order) { } }
+    [AttributeUsage(AttributeTargets.Field)] public sealed class SerializeField : Attribute { }
+    [AttributeUsage(AttributeTargets.Field)] public sealed class HideInInspector : Attribute { }
+    [AttributeUsage(AttributeTargets.Method)] public sealed class RuntimeInitializeOnLoadMethodAttribute : Attribute { public RuntimeInitializeOnLoadMethodAttribute(RuntimeInitializeLoadType kind) { } }
+    public enum RuntimeInitializeLoadType { SubsystemRegistration, BeforeSceneLoad }
+    public enum HideFlags { None, DontSave, HideInInspector }
+    public class Object
+    {
+        public string name;
+        public HideFlags hideFlags;
+        public bool destroyed;
+        public static void Destroy(Object value) { if (value != null) value.destroyed = true; }
+        public static void DestroyImmediate(Object value) { Destroy(value); }
+    }
+    public class Component : Object
+    {
+        public GameObject gameObject;
+        public Transform transform => gameObject.transform;
+        public T GetComponent<T>() where T : class => gameObject.GetComponent<T>();
+        public T[] GetComponents<T>() where T : class => gameObject.GetComponents<T>();
+    }
+    public class Behaviour : Component
+    {
+        public bool enabled = true;
+        public bool isActiveAndEnabled => !destroyed && enabled && gameObject != null && gameObject.activeInHierarchy;
+    }
+    public class MonoBehaviour : Behaviour { }
+    public sealed class CanvasGroup : Behaviour { public float alpha = 1; public bool interactable = true, blocksRaycasts = true, ignoreParentGroups; }
+    public class Transform : Component
+    {
+        public Transform parent;
+        public void SetParent(Transform value, bool preserveWorldPosition) { parent = value; }
+    }
+    public sealed class GameObject : Object
+    {
+        public bool activeSelf = true;
+        public int activationWrites;
+        public readonly List<Component> components = new List<Component>();
+        public Transform transform;
+        public bool activeInHierarchy => !destroyed && activeSelf && (transform.parent == null || transform.parent.gameObject.activeInHierarchy);
+        public GameObject() { transform = new Transform { gameObject = this }; }
+        public GameObject(string name) : this() { this.name = name; }
+        public T AddComponent<T>() where T : Component, new()
+        {
+            T result = new T { gameObject = this }; components.Add(result);
+            return result;
+        }
+        public T GetComponent<T>() where T : class => components.OfType<T>().FirstOrDefault();
+        public T[] GetComponents<T>() where T : class => components.OfType<T>().ToArray();
+        public bool TryGetComponent<T>(out T component) where T : class { component = GetComponent<T>(); return component != null; }
+        public void SetActive(bool value) { activationWrites++; activeSelf = value; }
+    }
+}
+public sealed class PlayerData
+{
+    public bool hasAlmanac, hasUnlockedObjectiveTracker, hasShop;
+    public int coins = 100, experience = 200;
+    public readonly List<object> activeQuests = new List<object>();
+    public readonly List<string> completedLessons = new List<string>();
+}
+public sealed class PlayerDataManager { public static PlayerDataManager Instance; public PlayerData CurrentData = new PlayerData(); public int saves; }
+public static class QuizUIManager { public static bool IsAnyQuizActive; }
+public sealed class TutorialObjectiveProjection { public object Task; }
+public sealed class AlmanacManager : MonoBehaviour
+{
+    public static AlmanacManager Instance;
+    public GameObject hudOpenButton, almanacCanvas;
+    public bool isAnimating;
+    // ALMANAC_ELIGIBILITY
+}
+public sealed class ObjectiveTrackerUI : MonoBehaviour
+{
+    public static ObjectiveTrackerUI Instance;
+    public GameObject openTrackerButton, trackerPanel;
+    public object pendingContractOffer;
+    public readonly TutorialObjectiveProjection tutorialObjective = new TutorialObjectiveProjection();
+    // OBJECTIVES_ELIGIBILITY
+}
+public sealed class ShopManager
+{
+    public GameObject Panel = new GameObject();
+}
+public sealed class ShopButtonTrigger : MonoBehaviour
+{
+    public ShopManager shopManager;
+    public bool visibleOutsideBuildMode = true, hideDuringBuildMode = true;
+    public static bool building;
+    public bool IsShopUnlocked() => PlayerDataManager.Instance?.CurrentData?.hasShop == true;
+    private static bool IsBuilding() => building;
+    // SHOP_ELIGIBILITY
+}
+public sealed class DialogueManager : MonoBehaviour
+{
+    private static readonly HashSet<DialogueManager> knownManagers = new HashSet<DialogueManager>();
+    private bool isDialogueActive;
+    private GameObject dialogueBox = new GameObject();
+    public readonly List<GameObject> elementsToHide = new List<GameObject>();
+    private readonly Dictionary<GameObject, bool> elementVisibilityBeforeDialogue = new Dictionary<GameObject, bool>();
+    // DIALOGUE_VISIBILITY
+    public void HideConfiguredElements() { HideDialogueElements(true); }
+    public void RestoreConfiguredElements() { RestoreDialogueElements(); }
+    public static void Reset() { knownManagers.Clear(); }
+    public void Begin() { knownManagers.Add(this); isDialogueActive = true; dialogueBox.SetActive(true); DialogueHudButtonGate.RefreshAll(); }
+    public void BeginClose() { isDialogueActive = false; DialogueHudButtonGate.RefreshAll(); }
+    public void FinishClose() { dialogueBox.SetActive(false); DialogueHudButtonGate.RefreshAll(); }
+    public void Remove() { isDialogueActive = false; dialogueBox.SetActive(false); knownManagers.Remove(this); DialogueHudButtonGate.RefreshAll(); }
+    public void HideBoxUnderModal() { dialogueBox.SetActive(false); DialogueHudButtonGate.RefreshAll(); }
+}

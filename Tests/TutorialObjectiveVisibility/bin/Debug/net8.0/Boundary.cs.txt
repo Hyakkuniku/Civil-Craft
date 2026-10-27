@@ -1,0 +1,73 @@
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+
+namespace UnityEngine
+{
+    public sealed class GameObject
+    {
+        public bool activeSelf;
+        public int changes;
+        public void SetActive(bool value) { activeSelf = value; changes++; }
+    }
+    public sealed class Canvas { public bool enabled; }
+}
+public sealed class PlayerData { public bool hasUnlockedObjectiveTracker; }
+public sealed class PlayerDataManager
+{
+    public static PlayerDataManager Instance;
+    public PlayerData CurrentData;
+}
+public sealed class TutorialObjectiveProjection { public object Task; }
+public sealed class ObjectiveTrackerUI
+{
+    public GameObject openTrackerButton, trackerPanel;
+    public object pendingContractOffer;
+    public readonly TutorialObjectiveProjection tutorialObjective = new TutorialObjectiveProjection();
+    // TRACKER_VISIBILITY
+    public void Refresh() { RefreshObjectiveEntryButton(); }
+}
+public static class UIReservedRegionLayout { public static void NotifyLayoutChanging() { } }
+public sealed class UIPanelCoordinator
+{
+    private sealed class ObjectState { public GameObject target; public bool wasActive; }
+    private sealed class CanvasState { public Canvas target; public bool wasEnabled; }
+    private sealed class PanelFrame
+    {
+        public GameObject panel;
+        public readonly List<ObjectState> previousStates = new List<ObjectState>();
+        public readonly List<CanvasState> previousCanvasStates = new List<CanvasState>();
+    }
+    public static UIPanelCoordinator Instance;
+    private readonly Stack<PanelFrame> panelStack = new Stack<PanelFrame>();
+    public int Frames => panelStack.Count;
+    public void ClosePanel(GameObject panel) { ClosePanel(panel, true); }
+    // Opening/capturing HUD engine objects is an explicit test setup boundary.
+    // Closing/unwinding and restoring the captured states use production code.
+    public void CaptureAndOpen(GameObject panel, GameObject hud, Canvas canvas)
+    {
+        var frame = new PanelFrame { panel = panel };
+        frame.previousStates.Add(new ObjectState { target = hud, wasActive = hud.activeSelf });
+        frame.previousCanvasStates.Add(new CanvasState { target = canvas, wasEnabled = canvas.enabled });
+        hud.SetActive(false); canvas.enabled = false; panel.SetActive(true); panelStack.Push(frame);
+    }
+    // MODAL_RESTORE
+}
+public sealed class LessonData { }
+public static class MinimapUnlockController { public static int Refreshes; public static void RefreshAll() { Refreshes++; } }
+public sealed class LessonUIManager
+{
+    private sealed class CanvasState { public Canvas canvas; public bool wasEnabled; }
+    private readonly List<CanvasState> hiddenCanvasStates = new List<CanvasState>();
+    public GameObject lessonPanel;
+    public bool usePanelCoordinator = true;
+    public LessonData CurrentLesson;
+    public bool IsOpen => lessonPanel != null && lessonPanel.activeSelf;
+    public event Action<LessonData> LessonClosed;
+    public object resetScrollRoutine;
+    public int ScrollStops, ControlRestores;
+    private void StopCoroutine(object routine) { ScrollStops++; }
+    private void RestorePlayerControls() { ControlRestores++; }
+    public void CaptureCanvas(Canvas canvas) { hiddenCanvasStates.Add(new CanvasState { canvas = canvas, wasEnabled = canvas.enabled }); canvas.enabled = false; }
+    // LESSON_CLOSE
+}

@@ -133,6 +133,37 @@ public sealed class NPCProgressionPhase
 {
     public bool showExclamationMark;
     public Transform targetLocation;
+    public ContractSO contract;
+    public List<NPCOptionalDialogueStep> optionalDialogueSequence = new List<NPCOptionalDialogueStep>();
+}
+public sealed class ContractSO { }
+public sealed class NPCOptionalDialogueStep
+{
+    public enum StepType { Dialogue, MaterialUnlock, Quiz, LessonIntroduction, AlmanacReview }
+    public StepType stepType;
+}
+public sealed class NPCContractGiver
+{
+    public bool isActiveAndEnabled = true, IsInteractionAvailable = true, CanRestoreContractGuide = true;
+    public bool HasAcceptedProgressionContract, isContractCompleted;
+    public ContractSO contractToGive;
+}
+public static class DialogueManager { public static bool IsAnyDialogueVisible; }
+public static class QuizUIManager { public static bool IsAnyQuizActive; }
+public sealed class PauseManager { public static PauseManager Instance; public bool isPaused; }
+public sealed class GameManager
+{
+    public enum GameState { Normal, Building, CargoTesting }
+    public static GameManager Instance;
+    public bool IsTransitioning;
+    public GameState CurrentState;
+}
+public static class Time { public static float timeScale = 1f; }
+public sealed class LessonTrigger
+{
+    public static NPCProgressionManager pendingOwner;
+    public static bool TryGetPendingAlmanacReview(NPCProgressionManager owner, out LessonTrigger trigger)
+    { trigger = null; return ReferenceEquals(owner, pendingOwner); }
 }
 public enum NPCProgressionMovementMode { NavMesh, Waypoints }
 public sealed class NPCProgressionManager
@@ -152,6 +183,16 @@ public sealed class NPCProgressionManager
     public bool GroundProbeSucceeds;
     public float GroundProbeHeight;
     public int GroundProbeCount;
+    // Saved dialogue completion and current owner-flow/giver availability are
+    // integration boundaries; the shared policy and quiz-step classification
+    // themselves are compiled unchanged from production.
+    public NPCContractGiver contractGiver = new NPCContractGiver();
+    public readonly HashSet<int> runningOptionalSequencePhases = new HashSet<int>();
+    public readonly HashSet<int> savedCompletedDialogues = new HashSet<int>();
+    public bool pendingTravelReview;
+    private bool HasPendingTravelAlmanacReview(int index, NPCProgressionPhase phase) => pendingTravelReview;
+    private bool HasCompletedPhaseDialogue(int index) => savedCompletedDialogues.Contains(index);
+    public void UseInteractionGate(bool value) { onlyShowExclamationWhenInteractionNeeded = value; }
     public NPCProgressionManager() { transform = gameObject.transform; }
     private void GetComponentsInChildren(bool includeInactive, List<Renderer> result)
     {

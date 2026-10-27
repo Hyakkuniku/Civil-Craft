@@ -1,0 +1,103 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8277db26963c4a7a81a4dcb5e6307197, type: 3}
+  m_Name: BendingQuiz
+  m_EditorClassIdentifier:
+  quizId: civil-craft-bending-quiz-v1
+  title: Bending Quiz
+  assessmentMode: 1
+  questions:
+  - questionId: bending
+    prompt: What is <b><#E09500>Bending</color></b> in bridge construction?
+    choices:
+    - text: The movement of a bridge from one location to another.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: The expansion of bridge materials due to temperature.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: The curving or deformation of a structural member under an applied load.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: The complete removal of forces acting on a bridge.
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 2
+    feedback: Bending is the curving or deformation of a structural member under an applied load.
+  - questionId: vehicle-load
+    prompt: What happens when a vehicle crosses a bridge?
+    choices:
+    - text: Its weight creates a downward load on the structure.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: Its weight removes the forces acting on the bridge.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: Its weight only affects the ground beneath the bridge.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: Its weight prevents structural members from bending.
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 0
+    feedback: Vehicle weight creates a downward load that the bridge transfers toward its supports.
+  - questionId: maximum-bending
+    prompt: For a simply supported bridge with a vehicle positioned at the middle, where does the greatest bending moment commonly occur?
+    choices:
+    - text: At the bridge entrance.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: At the bridge supports.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: Beyond the end of the bridge.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: Near the middle of the bridge.
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 3
+    feedback: In this simply supported case, a load at midspan commonly produces the greatest bending moment near the middle.
+  - questionId: compression-and-tension
+    prompt: When a simply supported beam bends downward under a vehicle's weight, what happens to its upper and lower parts?
+    choices:
+    - text: Both parts experience only compression.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: The upper part experiences compression, while the lower part experiences tension.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: The upper part experiences tension, while the lower part experiences compression.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: Both parts experience no internal forces.
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 1
+    feedback: In downward bending of a simply supported beam, the upper part is compressed and the lower part is stretched in tension.
+  - questionId: structural-support
+    prompt: Why is understanding bending important when designing a bridge?
+    choices:
+    - text: It eliminates the need to test the bridge.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: It ensures that no loads will act on the bridge.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: It helps identify areas that may need additional structural support.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: It allows the bridge to carry any weight without limitations.
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 2
+    feedback: Understanding bending helps identify areas needing more support; testing still confirms whether the bridge safely carries its intended load.

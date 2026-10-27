@@ -1,0 +1,68 @@
+using UnityEngine;
+using UnityEngine.UI;
+public sealed class TutorialSequence { }
+public sealed class AlmanacManager
+{
+    public static AlmanacManager Instance;
+    public bool isActiveAndEnabled = true, IsOpenAndReady = true;
+    public GameObject Panel = new GameObject();
+    public RectTransform TutorialCloseButtonRect;
+    public TutorialSequence owned;
+    public bool OwnsTutorialSequence(TutorialSequence sequence) => sequence == owned;
+}
+public sealed class UIPanelCoordinator { public static UIPanelCoordinator Instance; public GameObject CurrentPanel; }
+public static class UIReservedRegionLayout { public static bool IsRenderable(RectTransform rect) => rect != null && rect.renderable; }
+public sealed class TutorialManager
+{
+    public bool isActiveAndEnabled = true, IsTutorialActive = true;
+    public TutorialSequence currentSequence;
+    public RectTransform skipButtonRect;
+    public GameObject skipButton;
+    private readonly AlmanacTutorialSkipSlot almanacSkipSlot = new AlmanacTutorialSkipSlot();
+    public int normalPlacements;
+    private void PositionTutorialSkipButton() { normalPlacements++; }
+    // ACTUAL_MEMBERS
+    public void Tick() { RefreshTutorialSkipSlot(); }
+    public void Release() { ReleaseTutorialSkipSlot(); }
+}
+public static class IntegrationScenarios
+{
+    private static int checks;
+    private static void Check(bool result, string message) { checks++; if (!result) throw new System.Exception(message); }
+    public static int Run()
+    {
+        var canvas = new Canvas(); var parent = new RectTransform { canvas = canvas };
+        var skip = new RectTransform { parent = parent, canvas = canvas, sizeDelta = new Vector2(190, 76) };
+        var close = new RectTransform { canvas = new Canvas() };
+        var control = skip.gameObject.AddComponent<Button>();
+        var sequence = new TutorialSequence();
+        var book = new AlmanacManager { TutorialCloseButtonRect = close, owned = sequence };
+        AlmanacManager.Instance = book; UIPanelCoordinator.Instance = new UIPanelCoordinator { CurrentPanel = book.Panel };
+        var manager = new TutorialManager { currentSequence = sequence, skipButtonRect = skip, skipButton = skip.gameObject };
+        manager.Tick(); var group = close.GetComponent<CanvasGroup>();
+        Check(group != null && group.alpha == 0 && !group.interactable && !group.blocksRaycasts,
+            "Accessible SKIP owns the authored CLOSE slot only for its topmost book tutorial.");
+        manager.Tick(); manager.Tick(); manager.Release();
+        Check(group.alpha == 1 && group.interactable && group.blocksRaycasts && manager.normalPlacements == 1,
+            "Repeated refresh cannot overwrite original CLOSE state; release returns normal layout once.");
+        foreach (System.Action reject in new System.Action[] {
+            () => manager.isActiveAndEnabled = false, () => manager.IsTutorialActive = false,
+            () => manager.currentSequence = new TutorialSequence(), () => book.isActiveAndEnabled = false,
+            () => book.IsOpenAndReady = false, () => UIPanelCoordinator.Instance.CurrentPanel = new GameObject(),
+            () => skip.gameObject.activeInHierarchy = false, () => control.isActiveAndEnabled = false,
+            () => control.interactable = false, () => skip.renderable = false,
+            () => close.gameObject.activeInHierarchy = false, () => parent.allowProjection = false })
+        {
+            manager.isActiveAndEnabled = manager.IsTutorialActive = book.isActiveAndEnabled = book.IsOpenAndReady =
+                skip.gameObject.activeInHierarchy = close.gameObject.activeInHierarchy = control.isActiveAndEnabled =
+                control.interactable = skip.renderable = parent.allowProjection = true;
+            manager.currentSequence = sequence; UIPanelCoordinator.Instance.CurrentPanel = book.Panel;
+            manager.Tick(); Check(group.alpha == 0, "Each rejection case begins with acquired book slot.");
+            reject(); manager.Tick();
+            Check(group.alpha == 1 && group.interactable && group.blocksRaycasts,
+                "Closing/occluding/disabling/replacing an owner or hiding/unusing SKIP restores CLOSE immediately.");
+        }
+        manager.Release();
+        return checks;
+    }
+}

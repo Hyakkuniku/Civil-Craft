@@ -11417,6 +11417,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: EraseReedSideQuest
   requiredPreviousLesson: 
+  showInObjectives: 0
+  objectiveTitle: 
+  objectiveId: 
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -123367,6 +123370,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: Sequence_Movement
   requiredPreviousLesson: 
+  showInObjectives: 1
+  objectiveTitle: Learn the controls and visit Bhan
+  objectiveId: Assets/Scenes/CanyonCrossing.unity|243981140
   playOnStart: 1
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -162055,6 +162061,7 @@ MonoBehaviour:
   manuallyTraverseNavMeshLinks: 1
   rotateWhileTraversingLinks: 1
   travellingPrompt: Moving to the next site...
+  onlyShowExclamationWhenInteractionNeeded: 0
   onProgressionFinished:
     m_PersistentCalls:
       m_Calls: []
@@ -224866,6 +224873,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: Sequence_AlmanacMaterialsUnlocked
   requiredPreviousLesson: 
+  showInObjectives: 0
+  objectiveTitle: 
+  objectiveId: 
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -226795,6 +226805,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: ProceedToShopKeeper
   requiredPreviousLesson: 
+  showInObjectives: 1
+  objectiveTitle: Meet the shopkeeper
+  objectiveId: Assets/Scenes/CanyonCrossing.unity|445199625
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -330136,6 +330149,7 @@ GameObject:
   - component: {fileID: 650395275}
   - component: {fileID: 650395274}
   - component: {fileID: 650395273}
+  - component: {fileID: 650395280}
   m_Layer: 6
   m_Name: ProfBhan
   m_TagString: Untagged
@@ -330260,7 +330274,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
-    showExclamationMark: 0
+    showExclamationMark: 1
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -330395,7 +330409,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 1
     running: 0
-    showExclamationMark: 0
+    showExclamationMark: 1
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -330585,7 +330599,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 1
     running: 0
-    showExclamationMark: 0
+    showExclamationMark: 1
     contract: {fileID: 11400000, guid: d58e962a84aed8944ad5741d6404b861, type: 2}
     targetBuildLocation: {fileID: 2406797540332427003}
     linkedCargo: {fileID: 0}
@@ -330641,7 +330655,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
-    showExclamationMark: 0
+    showExclamationMark: 1
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -330809,7 +330823,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
-    showExclamationMark: 0
+    showExclamationMark: 1
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -330988,7 +331002,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
-    showExclamationMark: 0
+    showExclamationMark: 1
     contract: {fileID: 11400000, guid: 5edc8d91db6f6014190820a7c01cea37, type: 2}
     targetBuildLocation: {fileID: 358124909}
     linkedCargo: {fileID: 0}
@@ -331041,7 +331055,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
-    showExclamationMark: 0
+    showExclamationMark: 1
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -331147,7 +331161,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
-    showExclamationMark: 0
+    showExclamationMark: 1
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -331252,7 +331266,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
-    showExclamationMark: 0
+    showExclamationMark: 1
     contract: {fileID: 11400000, guid: b2c3c504e3cdd4043b4bfad718fccd86, type: 2}
     targetBuildLocation: {fileID: 1708492244}
     linkedCargo: {fileID: 0}
@@ -331383,7 +331397,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
-    showExclamationMark: 0
+    showExclamationMark: 1
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -331480,7 +331494,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
-    showExclamationMark: 0
+    showExclamationMark: 1
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -331817,6 +331831,7 @@ MonoBehaviour:
   manuallyTraverseNavMeshLinks: 1
   rotateWhileTraversingLinks: 1
   travellingPrompt: Moving to the next site...
+  onlyShowExclamationWhenInteractionNeeded: 1
   onProgressionFinished:
     m_PersistentCalls:
       m_Calls: []
@@ -331957,6 +331972,20 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   npc: {fileID: 650395270}
   phaseId: LiveLoad
+--- !u!114 &650395280
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 650395262}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d7d9fb855c174020b41d03cb338e5f2b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  showReviewsInObjectives: 1
+  reviewObjectiveTitle: Review your first bridge record
 --- !u!1 &650550344
 GameObject:
   m_ObjectHideFlags: 0
@@ -336615,7 +336644,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -36.000366, y: 0}
+  m_AnchoredPosition: {x: -36.000305, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &660994319
@@ -341430,6 +341459,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: MoveVanceSideQuest
   requiredPreviousLesson: 
+  showInObjectives: 0
+  objectiveTitle: 
+  objectiveId: 
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -390765,6 +390797,12 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4247076027517907998, guid: f4cd06e6b41757a4e9decc99c4eb9296,
         type: 3}
+      propertyPath: simulationLesson
+      value: 
+      objectReference: {fileID: 11400000, guid: d4d06793c4384c539a769529de89eb70,
+        type: 2}
+    - target: {fileID: 4247076027517907998, guid: f4cd06e6b41757a4e9decc99c4eb9296,
+        type: 3}
       propertyPath: endingAnchors.Array.size
       value: 2
       objectReference: {fileID: 0}
@@ -421833,7 +421871,7 @@ MonoBehaviour:
     type: 3}
   m_PrefabInstance: {fileID: 1110249782773445749}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
+  m_GameObject: {fileID: 1256861832}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 80f23063fbb6cd54db99bf723e4b13c7, type: 3}
@@ -430604,6 +430642,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: Go to the supply cart.
   requiredPreviousLesson: 
+  showInObjectives: 1
+  objectiveTitle: Follow Bhan to the vehicle
+  objectiveId: Assets/Scenes/CanyonCrossing.unity|847218647
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -438580,6 +438621,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: ProceedToShopKeeper
   requiredPreviousLesson: 
+  showInObjectives: 1
+  objectiveTitle: Find Reed
+  objectiveId: Assets/Scenes/CanyonCrossing.unity|863682474
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -439974,9 +440018,9 @@ MonoBehaviour:
       sentences:
       - Since you're going to be working on more projects around Canyon Crossing,
         there's something else you should know.
-      - The work you complete around Arcadia will earn you <b><#E09500>Gold</color></b>
+      - The work you complete around Arcadia will earn you <b><#E09500>Coins</color></b>
         and other rewards.
-      - You can spend your <b><#E09500>Gold</color></b> here on items for your journey.
+      - You can spend your <b><#E09500>Coins</color></b> here on items for your journey.
       - You can use what you've earned to <b><#E09500>purchase items</color></b>
         for your engineering journey.
       - Some items can also be <b><#E09500>equipped</color></b> to customize your
@@ -440037,7 +440081,7 @@ MonoBehaviour:
       sentences:
       - You can come back anytime.
       - Good luck with your next project, {PlayerName}.
-      - You can spend your <b><#E09500>Gold</color></b> here on items for your journey.
+      - You can spend your <b><#E09500>Coins</color></b> here on items for your journey.
       - You can use what you've earned to <b><#E09500>purchase items</color></b>
         for your engineering journey.
       - Some items can also be <b><#E09500>equipped</color></b> to customize your
@@ -440137,6 +440181,7 @@ MonoBehaviour:
   manuallyTraverseNavMeshLinks: 1
   rotateWhileTraversingLinks: 1
   travellingPrompt: Moving to the next site...
+  onlyShowExclamationWhenInteractionNeeded: 0
   onProgressionFinished:
     m_PersistentCalls:
       m_Calls: []
@@ -501471,6 +501516,20 @@ MonoBehaviour:
   completionSaveKey: Bhan_LiveLoad_Inspection
   requireAlmanacReviewBeforeAdvance: 1
   almanacReviewReminder: []
+--- !u!114 &993037873
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 993037866}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d7d9fb855c174020b41d03cb338e5f2b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  showReviewsInObjectives: 1
+  reviewObjectiveTitle: Review the Live Load lesson
 --- !u!1 &993289193
 GameObject:
   m_ObjectHideFlags: 0
@@ -525918,6 +525977,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: Story/Ronan/FollowToSite-v1
   requiredPreviousLesson: 
+  showInObjectives: 0
+  objectiveTitle: 
+  objectiveId: 
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -538264,7 +538326,7 @@ MonoBehaviour:
     type: 3}
   m_PrefabInstance: {fileID: 1110249782773445749}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
+  m_GameObject: {fileID: 1256861832}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a1f34bc1e3214d1bab7180c2f9e260bb, type: 3}
@@ -545346,6 +545408,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: Sequence_Build1
   requiredPreviousLesson: Sequence_Bridge
+  showInObjectives: 1
+  objectiveTitle: Build your first Beam Bridge
+  objectiveId: Assets/Scenes/CanyonCrossing.unity|1085285848
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -562414,6 +562479,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: Sequence_Shop
   requiredPreviousLesson: 
+  showInObjectives: 0
+  objectiveTitle: 
+  objectiveId: 
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -576624,6 +576692,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: LoadCargoVance
   requiredPreviousLesson: 
+  showInObjectives: 0
+  objectiveTitle: 
+  objectiveId: 
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -578550,6 +578621,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: Sequence_FirstLevelCompletion
   requiredPreviousLesson: 
+  showInObjectives: 1
+  objectiveTitle: Review your bridge test results
+  objectiveId: Assets/Scenes/CanyonCrossing.unity|1149129735
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -607086,6 +607160,12 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: 0}
+--- !u!95 &1211861187 stripped
+Animator:
+  m_CorrespondingSourceObject: {fileID: 698257042841912769, guid: 37a79f9712848dd4c980abc705c2f964,
+    type: 3}
+  m_PrefabInstance: {fileID: 1110249782773445749}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1211866266
 GameObject:
   m_ObjectHideFlags: 0
@@ -627792,6 +627872,66 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 518fbd5978411f349a1c491d728e9c64, type: 3}
+--- !u!1 &1256861832 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 5632999238159490817, guid: 37a79f9712848dd4c980abc705c2f964,
+    type: 3}
+  m_PrefabInstance: {fileID: 1110249782773445749}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &1256861837 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 874624342069587333, guid: 37a79f9712848dd4c980abc705c2f964,
+    type: 3}
+  m_PrefabInstance: {fileID: 1110249782773445749}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1256861832}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7ae77ef4070496040b71d894b0cc67bf, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!114 &1256861840
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1256861832}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9e9f8fc35506417cb384b4830857a310, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  npc: {fileID: 1070910668}
+  contractGiver: {fileID: 1256861837}
+  cinematic: {fileID: 2056553742}
+  dialogueManager: {fileID: 4617769426314624461}
+  npcAnimator: {fileID: 1211861187}
+  bendingLesson: {fileID: 11400000, guid: 0cd237d72b8142d9a2292163360424e8, type: 2}
+  situationDialogue:
+    name: Reed
+    sentences:
+    - That's one of the supply facilities serving Canyon Crossing.
+    - A lot of the materials used around here come through that facility.
+    - The problem is getting them into Central Canyonville.
+    - The factory isn't actually far from the city, but the canyon separates the
+      two roads.
+    - It makes supplying Central Canyonville harder than it should be.
+    - A direct crossing here would solve that.
+    - But before we start, there's something important you should understand about
+      how bridges behave under weight.
+  bendingDialogue:
+    name: Reed
+    sentences:
+    - When a vehicle crosses a bridge, its weight pushes down on the structure.
+    - That weight can cause parts of the bridge to bend.
+    - This is called <b><#E09500>Bending</color></b>.
+    - For a bridge supported at both ends, bending is often greatest near the middle
+      when the load is positioned there.
+    - In that downward bend, the upper part of the beam experiences compression,
+      while the lower part experiences tension.
+    - Understanding this helps you identify where the bridge might need more structural
+      support.
 --- !u!1 &1256913945
 GameObject:
   m_ObjectHideFlags: 0
@@ -636885,6 +637025,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: Story/Ford/FollowToSite-v1
   requiredPreviousLesson: 
+  showInObjectives: 0
+  objectiveTitle: 
+  objectiveId: 
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -732798,6 +732941,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: 'GobacktoVance '
   requiredPreviousLesson: 
+  showInObjectives: 0
+  objectiveTitle: 
+  objectiveId: 
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -753670,6 +753816,10 @@ PrefabInstance:
         type: 3}
       insertIndex: -1
       addedObject: {fileID: 993037869}
+    - targetCorrespondingSourceObject: {fileID: 6395283267944543614, guid: 8ec4d71c4aff70e409b32509171bc20a,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 993037873}
   m_SourcePrefab: {fileID: 100100000, guid: 8ec4d71c4aff70e409b32509171bc20a, type: 3}
 --- !u!1 &1523092538
 GameObject:
@@ -795352,17 +795502,11 @@ MonoBehaviour:
       name: Vance
       sentences:
       - You must be the Engineer who opened the new route to the factory.
-      - I'm <b><#E09500>Vance</color></b>. I run the supply factory here in Canyon
-        Crossing.
-      - That new crossing made it easier for vehicles to reach us, but it did not
-        solve our biggest delivery problem.
-      - A community on the eastern side of the canyon depends on this factory for
-        tools, building materials, and other supplies.
-      - We can prepare everything they need. Getting it to them is the difficult
-        part.
-      - The current road goes all the way around the canyon, so every delivery takes
-        much longer than it should.
-      - ' Come with me. I''ll show you where we can shorten the route.'
+      - I'm <b><#E09500>Vance</color></b>. I coordinate some of the transport projects
+        around Canyon Crossing.
+      - That crossing helped, but there's another part of the route that could work
+        better too.
+      - Come with me. It'll make more sense when you see it.
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Vance
     playDialogueOnArrival: 0
@@ -795416,12 +795560,12 @@ MonoBehaviour:
     phaseDialogue:
       name: Vance
       sentences:
-      - Look at the route ahead.
+      - Take a look at the path through the canyon.
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Vance
     playDialogueOnArrival: 0
     reviewAlmanacWhileTravelling: 0
-    repeatDialogue: 0
+    repeatDialogue: 1
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
     featureUnlockDisplayName: 
@@ -795481,15 +795625,64 @@ MonoBehaviour:
     cinematicAfterOffer: {fileID: 0}
     phaseDialogue:
       name: Vance
-      sentences:
-      - The community is not far from the factory in a straight line.
-      - But the ravines break the route into separate sections.
-      - That rock shelf in the middle can serve as a supply point.
-      - If we connect this side to it, our vehicles can carry cargo halfway across
-        the canyon instead of taking the long road around.
-      - There will still be another gap between the middle ravine and the community.
-      - First, we need to get the supplies as far as that middle point.
-    optionalDialogueSequence: []
+      sentences: []
+    optionalDialogueSequence:
+    - stepType: 0
+      dialogue:
+        name: Vance
+        sentences:
+        - Vehicles from the factory can already reach the other side.
+        - The issue is that the road takes them all the way around the canyon.
+        - They end up traveling much farther than they need to.
+        - A bridge here would give them a much more direct route.
+        - This crossing will connect the factory road to the supply point on the
+          middle rock shelf.
+        - From there, another crossing is needed to reach the community.
+        - But before you start, there's something important you should understand
+          about how the different parts of a bridge handle forces.
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      quizWaitingReminder: 
+      lesson: {fileID: 0}
+      reviewStepId: 
+    - stepType: 0
+      dialogue:
+        name: Vance
+        sentences:
+        - You've already seen how a bridge can bend under weight.
+        - But bending isn't the only thing happening inside a structure.
+        - When a vehicle crosses a bridge, some structural members are pulled, while
+          others are pushed together.
+        - When a member is being pulled or stretched, it experiences <b><#E09500>Tension</color></b>.
+        - When a member is being pushed or squeezed, it experiences <b><#E09500>Compression</color></b>.
+        - For example, in a truss bridge, some members carry tension while others
+          carry compression.
+        - Both are important because they help the structure carry the vehicle's
+          weight toward its supports.
+        - Our test includes the cargo on the truck, so its weight also acts on the
+          bridge.
+        - Understanding these forces will help you design a bridge that can safely
+          handle the loaded vehicle.
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      quizWaitingReminder: 
+      lesson: {fileID: 0}
+      reviewStepId: 
+    - stepType: 3
+      dialogue:
+        name: 
+        sentences: []
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      quizWaitingReminder: 
+      lesson: {fileID: 11400000, guid: 7d52eb4573a047fe8278ea90297d50df, type: 2}
+      reviewStepId: 
     dialoguePrompt: Talk to Vance
     playDialogueOnArrival: 1
     reviewAlmanacWhileTravelling: 0
@@ -795526,8 +795719,8 @@ MonoBehaviour:
       m_PersistentCalls:
         m_Calls: []
     onNPCArrivedPhaseMove:
-      npc: {fileID: 1601157397}
-      phaseId: Cargo and Live-Load Introduction
+      npc: {fileID: 0}
+      phaseId: 
   - phaseId: Cargo and Live-Load Introduction
     targetLocation: {fileID: 793377116}
     teleportToTargetLocation: 0
@@ -795542,15 +795735,16 @@ MonoBehaviour:
     phaseDialogue:
       name: Vance
       sentences:
-      - Before I offer you the contract, there is something important you need to
-        know.
+      - Before I offer you the contract, we need to prepare the test load.
       - We are not testing this bridge with an empty vehicle.
-      - These supplies are meant for the community, and their weight must be included
+      - The supplies are meant for the community, and their weight must be included
         in the test.
-      - Place the marked cargo into the vehicle before you begin the simulation.
-      - Once the cargo is loaded, the vehicle will become the contract's required
-        <b><#E09500>combined vehicle-and-cargo live load</color></b>.
-      - Your bridge must carry the vehicle and its cargo safely to the middle ravine.
+      - Load all <b><#E09500>four marked cargo items</color></b> into the truck.
+      - The vehicle and its cargo form the <b><#E09500>combined live load</color></b>
+        your bridge must carry.
+      - Once all four are loaded, come back to me for the contract.
+      - Your bridge must carry the complete load safely from the factory road to
+        the middle supply point.
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Vance
     playDialogueOnArrival: 1
@@ -795692,14 +795886,65 @@ MonoBehaviour:
     cinematicAfterOffer: {fileID: 0}
     phaseDialogue:
       name: Vance
-      sentences:
-      - "Goodbye for now, {PlayerName}. I hope we\u2019ll see each other again. There
-        may be another route I could use your help with someday."
-    optionalDialogueSequence: []
+      sentences: []
+    optionalDialogueSequence:
+    - stepType: 3
+      dialogue:
+        name: 
+        sentences: []
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      quizWaitingReminder: 
+      lesson: {fileID: 11400000, guid: 7d52eb4573a047fe8278ea90297d50df, type: 2}
+      reviewStepId: 
+    - stepType: 0
+      dialogue:
+        name: Vance
+        sentences:
+        - You can review <b><#E09500>Tension & Compression</color></b> in your <b><#E09500>Almanac</color></b>.
+        - When you're ready, open the <b><#E09500>Quiz tab</color></b> and press
+          <b><#E09500>Start Quiz</color></b>.
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      quizWaitingReminder: 
+      lesson: {fileID: 0}
+      reviewStepId: 
+    - stepType: 2
+      dialogue:
+        name: 
+        sentences: []
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 11400000, guid: 95b651c651144afcbedc799efc5493c2, type: 2}
+      quizStepId: vance-tension-compression-assessment-v1
+      quizWaitingReminder: Review Tension & Compression in your Almanac, then open
+        the Quiz tab and press Start Quiz when you're ready.
+      lesson: {fileID: 0}
+      reviewStepId: 
+    - stepType: 0
+      dialogue:
+        name: Vance
+        sentences:
+        - The supplies can reach the middle point now, but the delivery route still
+          needs one more crossing.
+        - <b><#E09500>Silas</color></b> handles the projects beyond this point. Meet
+          him near the next ravine to continue the route to the community.
+        - I'm sure we'll cross paths again sometime, {PlayerName}.
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      quizWaitingReminder: 
+      lesson: {fileID: 0}
+      reviewStepId: 
     dialoguePrompt: Talk to Vance
     playDialogueOnArrival: 1
     reviewAlmanacWhileTravelling: 0
-    repeatDialogue: 0
+    repeatDialogue: 1
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
     featureUnlockDisplayName: 
@@ -795842,6 +796087,7 @@ MonoBehaviour:
   manuallyTraverseNavMeshLinks: 1
   rotateWhileTraversingLinks: 1
   travellingPrompt: Moving to the next site...
+  onlyShowExclamationWhenInteractionNeeded: 0
   onProgressionFinished:
     m_PersistentCalls:
       m_Calls: []
@@ -813941,6 +814187,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: GoBackToProfBhan
   requiredPreviousLesson: 
+  showInObjectives: 1
+  objectiveTitle: Return to Professor Bhan
+  objectiveId: Assets/Scenes/CanyonCrossing.unity|1635574828
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -845313,6 +845562,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: Sequence_Bridge
   requiredPreviousLesson: Sequence_House
+  showInObjectives: 1
+  objectiveTitle: Meet Professor Bhan
+  objectiveId: Assets/Scenes/CanyonCrossing.unity|1698283800
   playOnStart: 1
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -847905,6 +848157,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: Sequence_Build2
   requiredPreviousLesson: Sequence_Build1
+  showInObjectives: 1
+  objectiveTitle: Build your first Truss Bridge
+  objectiveId: Assets/Scenes/CanyonCrossing.unity|1704001129
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -899855,7 +900110,7 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4294967295
+    rgba: 4281027204
   m_fontColor: {r: 0.5176471, g: 0.2901961, b: 0.16862746, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
@@ -899868,7 +900123,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -917543,6 +917798,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: Sequence_AlmanacLessonsUnlocked
   requiredPreviousLesson: 
+  showInObjectives: 0
+  objectiveTitle: 
+  objectiveId: 
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -956564,7 +956822,7 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1870683347}
   m_HandleRect: {fileID: 1870683345}
   m_Direction: 0
-  m_Value: -0.0000006678842
+  m_Value: -0.00000093503786
   m_Size: 0.5676823
   m_NumberOfSteps: 0
   m_OnValueChanged:
@@ -961020,6 +961278,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: Story/Brooks/FollowToSite-v1
   requiredPreviousLesson: 
+  showInObjectives: 0
+  objectiveTitle: 
+  objectiveId: 
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -996288,6 +996549,7 @@ MonoBehaviour:
   manuallyTraverseNavMeshLinks: 1
   rotateWhileTraversingLinks: 1
   travellingPrompt: Moving to the next site...
+  onlyShowExclamationWhenInteractionNeeded: 0
   onProgressionFinished:
     m_PersistentCalls:
       m_Calls: []
@@ -1001357,6 +1001619,12 @@ PrefabInstance:
       propertyPath: fastTravelTarget
       value: 
       objectReference: {fileID: 1101516459}
+    - target: {fileID: 2306985498166982869, guid: 155a7d9fae0ec3841aa7eb421f234c43,
+        type: 3}
+      propertyPath: simulationLesson
+      value: 
+      objectReference: {fileID: 11400000, guid: c9e9730e65c044d49b04e546417e2085,
+        type: 2}
     - target: {fileID: 2306985498166982869, guid: 155a7d9fae0ec3841aa7eb421f234c43,
         type: 3}
       propertyPath: startingAnchors.Array.size
@@ -1009502,6 +1009770,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: Sequence_AlmanacContractsUnlocked
   requiredPreviousLesson: 
+  showInObjectives: 0
+  objectiveTitle: 
+  objectiveId: 
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -1058825,6 +1059096,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: FollowProfessorBhan
   requiredPreviousLesson: 
+  showInObjectives: 1
+  objectiveTitle: Follow Professor Bhan
+  objectiveId: Assets/Scenes/CanyonCrossing.unity|2135021272
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -1067396,6 +1067670,8 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 255d21d1257d4d2aae42b378aee27978, type: 2}
   - {fileID: 11400000, guid: 15108478183140929afde85aacb930bb, type: 2}
   - {fileID: 11400000, guid: 1b5ab471230149e196f0c1f72ff6058d, type: 2}
+  - {fileID: 11400000, guid: 0cd237d72b8142d9a2292163360424e8, type: 2}
+  - {fileID: 11400000, guid: 7d52eb4573a047fe8278ea90297d50df, type: 2}
   buttonContainer: {fileID: 29520942489529998}
   lessonButtonPrefab: {fileID: 308501897983340570}
   showLockedLessons: 1
@@ -1093392,6 +1093668,11 @@ PrefabInstance:
       objectReference: {fileID: 635754909}
     - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
         type: 3}
+      propertyPath: phases.Array.data[1].repeatDialogue
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
+        type: 3}
       propertyPath: phases.Array.data[1].targetLocation
       value: 
       objectReference: {fileID: 1063296217}
@@ -1093400,6 +1093681,11 @@ PrefabInstance:
       propertyPath: phases.Array.data[2].targetLocation
       value: 
       objectReference: {fileID: 1063296217}
+    - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
+        type: 3}
+      propertyPath: phases.Array.data[3].repeatDialogue
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
         type: 3}
       propertyPath: phases.Array.data[3].targetLocation
@@ -1093437,6 +1093723,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
         type: 3}
+      propertyPath: phases.Array.data[0].showExclamationMark
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
+        type: 3}
       propertyPath: phases.Array.data[2].targetBuildLocation
       value: 
       objectReference: {fileID: 382018205}
@@ -1093449,6 +1093740,11 @@ PrefabInstance:
         type: 3}
       propertyPath: phases.Array.data[5].targetBuildLocation
       value: 
+      objectReference: {fileID: 0}
+    - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
+        type: 3}
+      propertyPath: phases.Array.data[2].playDialogueOnArrival
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
         type: 3}
@@ -1093477,6 +1093773,16 @@ PrefabInstance:
       objectReference: {fileID: 1070910668}
     - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
         type: 3}
+      propertyPath: phases.Array.data[0].phaseDialogue.sentences.Array.size
+      value: 6
+      objectReference: {fileID: 0}
+    - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
+        type: 3}
+      propertyPath: phases.Array.data[3].phaseDialogue.sentences.Array.size
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
+        type: 3}
       propertyPath: phases.Array.data[4].phaseDialogue.sentences.Array.size
       value: 0
       objectReference: {fileID: 0}
@@ -1093492,19 +1093798,39 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
         type: 3}
+      propertyPath: phases.Array.data[3].optionalDialogueSequence.Array.size
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
+        type: 3}
       propertyPath: phases.Array.data[0].phaseDialogue.sentences.Array.data[1]
-      value: "I\u2019m <b><#E09500>Reed</color></b>."
+      value: I'm <b><#E09500>Reed</color></b>.
       objectReference: {fileID: 0}
     - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
         type: 3}
       propertyPath: phases.Array.data[0].phaseDialogue.sentences.Array.data[2]
+      value: I handle some of the local projects around Canyon Crossing.
+      objectReference: {fileID: 0}
+    - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
+        type: 3}
+      propertyPath: phases.Array.data[0].phaseDialogue.sentences.Array.data[3]
       value: I heard you finished your first project back in <b><#E09500>Central
         Canyonville</color></b>.
       objectReference: {fileID: 0}
     - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
         type: 3}
+      propertyPath: phases.Array.data[0].phaseDialogue.sentences.Array.data[4]
+      value: Good timing. There's a crossing nearby that could use your help.
+      objectReference: {fileID: 0}
+    - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
+        type: 3}
+      propertyPath: phases.Array.data[0].phaseDialogue.sentences.Array.data[5]
+      value: Come with me. I'll show you.
+      objectReference: {fileID: 0}
+    - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
+        type: 3}
       propertyPath: phases.Array.data[1].phaseDialogue.sentences.Array.data[0]
-      value: 'See that factory across the canyon?. '
+      value: See that factory across the canyon?
       objectReference: {fileID: 0}
     - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
         type: 3}
@@ -1093538,8 +1093864,45 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
         type: 3}
+      propertyPath: phases.Array.data[3].optionalDialogueSequence.Array.data[2].quiz
+      value: 
+      objectReference: {fileID: 11400000, guid: 6b3220938fce49ed81e50238ca10b763,
+        type: 2}
+    - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
+        type: 3}
+      propertyPath: phases.Array.data[3].optionalDialogueSequence.Array.data[0].lesson
+      value: 
+      objectReference: {fileID: 11400000, guid: 0cd237d72b8142d9a2292163360424e8,
+        type: 2}
+    - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
+        type: 3}
+      propertyPath: phases.Array.data[3].optionalDialogueSequence.Array.data[0].stepType
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
+        type: 3}
+      propertyPath: phases.Array.data[3].optionalDialogueSequence.Array.data[2].stepType
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
+        type: 3}
+      propertyPath: phases.Array.data[3].optionalDialogueSequence.Array.data[2].quizStepId
+      value: reed-bending-assessment-v1
+      objectReference: {fileID: 0}
+    - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
+        type: 3}
+      propertyPath: phases.Array.data[3].optionalDialogueSequence.Array.data[1].dialogue.name
+      value: Reed
+      objectReference: {fileID: 0}
+    - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
+        type: 3}
       propertyPath: phases.Array.data[0].onDialogueFinished.m_PersistentCalls.m_Calls.Array.size
       value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
+        type: 3}
+      propertyPath: phases.Array.data[1].onDialogueFinished.m_PersistentCalls.m_Calls.Array.size
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
         type: 3}
@@ -1093553,8 +1093916,19 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
         type: 3}
+      propertyPath: phases.Array.data[3].optionalDialogueSequence.Array.data[2].quizWaitingReminder
+      value: Review Bending in your Almanac, then open the Quiz tab and press Start
+        Quiz when you're ready.
+      objectReference: {fileID: 0}
+    - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
+        type: 3}
       propertyPath: phases.Array.data[0].onDialogueFinished.m_PersistentCalls.m_Calls.Array.data[2].m_Mode
       value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
+        type: 3}
+      propertyPath: phases.Array.data[1].onDialogueFinished.m_PersistentCalls.m_Calls.Array.data[0].m_Mode
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
         type: 3}
@@ -1093580,7 +1093954,7 @@ PrefabInstance:
         type: 3}
       propertyPath: phases.Array.data[1].onDialogueFinished.m_PersistentCalls.m_Calls.Array.data[0].m_Target
       value: 
-      objectReference: {fileID: 2056553742}
+      objectReference: {fileID: 1256861840}
     - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
         type: 3}
       propertyPath: phases.Array.data[3].onDialogueFinished.m_PersistentCalls.m_Calls.Array.data[0].m_Target
@@ -1093596,6 +1093970,11 @@ PrefabInstance:
       propertyPath: phases.Array.data[5].onDialogueFinished.m_PersistentCalls.m_Calls.Array.data[0].m_Target
       value: 
       objectReference: {fileID: 1601157402}
+    - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
+        type: 3}
+      propertyPath: phases.Array.data[3].optionalDialogueSequence.Array.data[1].dialogue.sentences.Array.size
+      value: 3
+      objectReference: {fileID: 0}
     - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
         type: 3}
       propertyPath: phases.Array.data[0].onDialogueFinished.m_PersistentCalls.m_Calls.Array.data[2].m_CallState
@@ -1093618,6 +1093997,28 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
         type: 3}
+      propertyPath: phases.Array.data[1].onDialogueFinished.m_PersistentCalls.m_Calls.Array.data[0].m_MethodName
+      value: BeginIntroduction
+      objectReference: {fileID: 0}
+    - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
+        type: 3}
+      propertyPath: phases.Array.data[3].optionalDialogueSequence.Array.data[1].dialogue.sentences.Array.data[0]
+      value: You've seen how <b><#E09500>bending</color></b> affects a bridge under
+        load.
+      objectReference: {fileID: 0}
+    - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
+        type: 3}
+      propertyPath: phases.Array.data[3].optionalDialogueSequence.Array.data[1].dialogue.sentences.Array.data[1]
+      value: You can review the Bending lesson in your <b><#E09500>Almanac</color></b>.
+      objectReference: {fileID: 0}
+    - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
+        type: 3}
+      propertyPath: phases.Array.data[3].optionalDialogueSequence.Array.data[1].dialogue.sentences.Array.data[2]
+      value: When you're ready, open the <b><#E09500>Quiz tab</color></b> and press
+        <b><#E09500>Start Quiz</color></b>.
+      objectReference: {fileID: 0}
+    - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
+        type: 3}
       propertyPath: phases.Array.data[4].onDialogueFinished.m_PersistentCalls.m_Calls.Array.data[0].m_MethodName
       value: SpawnNPC
       objectReference: {fileID: 0}
@@ -1093633,6 +1094034,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
         type: 3}
+      propertyPath: phases.Array.data[1].onDialogueFinished.m_PersistentCalls.m_Calls.Array.data[0].m_TargetAssemblyTypeName
+      value: ReedStoryIntroduction, Assembly-CSharp
+      objectReference: {fileID: 0}
+    - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
+        type: 3}
       propertyPath: phases.Array.data[4].onDialogueFinished.m_PersistentCalls.m_Calls.Array.data[0].m_TargetAssemblyTypeName
       value: NPCSpawnerCondition, Assembly-CSharp
       objectReference: {fileID: 0}
@@ -1093645,6 +1094051,11 @@ PrefabInstance:
         type: 3}
       propertyPath: phases.Array.data[0].onDialogueFinished.m_PersistentCalls.m_Calls.Array.data[2].m_Arguments.m_ObjectArgumentAssemblyTypeName
       value: UnityEngine.Object, UnityEngine
+      objectReference: {fileID: 0}
+    - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
+        type: 3}
+      propertyPath: phases.Array.data[1].onDialogueFinished.m_PersistentCalls.m_Calls.Array.data[0].m_Arguments.m_ObjectArgumentAssemblyTypeName
+      value: 
       objectReference: {fileID: 0}
     - target: {fileID: 562114264847448909, guid: 37a79f9712848dd4c980abc705c2f964,
         type: 3}
@@ -1093714,7 +1094125,11 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 5632999238159490817, guid: 37a79f9712848dd4c980abc705c2f964,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1256861840}
   m_SourcePrefab: {fileID: 100100000, guid: 37a79f9712848dd4c980abc705c2f964, type: 3}
 --- !u!114 &1112802969121451790
 MonoBehaviour:
@@ -1097180,7 +1097595,7 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 14.65
+  m_fontSize: 15
   m_fontSizeBase: 20
   m_fontWeight: 400
   m_enableAutoSizing: 1
@@ -1163000,6 +1163415,7 @@ MonoBehaviour:
   manuallyTraverseNavMeshLinks: 1
   rotateWhileTraversingLinks: 1
   travellingPrompt: Moving to the next site...
+  onlyShowExclamationWhenInteractionNeeded: 0
   onProgressionFinished:
     m_PersistentCalls:
       m_Calls: []
@@ -1187111,6 +1187527,7 @@ MonoBehaviour:
   manuallyTraverseNavMeshLinks: 1
   rotateWhileTraversingLinks: 1
   travellingPrompt: Moving to the next site...
+  onlyShowExclamationWhenInteractionNeeded: 0
   onProgressionFinished:
     m_PersistentCalls:
       m_Calls: []

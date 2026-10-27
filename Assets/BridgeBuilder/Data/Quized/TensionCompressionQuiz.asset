@@ -1,0 +1,103 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8277db26963c4a7a81a4dcb5e6307197, type: 3}
+  m_Name: TensionCompressionQuiz
+  m_EditorClassIdentifier:
+  quizId: civil-craft-tension-compression-quiz-v1
+  title: Tension & Compression Quiz
+  assessmentMode: 1
+  questions:
+  - questionId: tension
+    prompt: What happens to a structural member when it experiences <b><#E09500>Tension</color></b>?
+    choices:
+    - text: It is pushed or squeezed together.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: It is pulled or stretched apart.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: It experiences no internal force.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: It becomes shorter due to compression.
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 1
+    feedback: Tension pulls or stretches a structural member; compression pushes or squeezes it together.
+  - questionId: compression
+    prompt: What is <b><#E09500>Compression</color></b> in structural engineering?
+    choices:
+    - text: A force that causes a member to stretch.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: A force that causes a member to rotate.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: A force that removes the weight of a structure.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: A force that pushes or squeezes a member together.
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 3
+    feedback: Compression pushes or squeezes a member together and can cause it to shorten.
+  - questionId: structural-members
+    prompt: When a vehicle crosses a truss bridge, what can happen to its structural members?
+    choices:
+    - text: Some members experience tension while others experience compression.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: All members experience only tension.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: All members experience only compression.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: The members stop carrying forces once the vehicle moves.
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 0
+    feedback: Different truss members can carry tension or compression under the same vehicle load.
+  - questionId: load-transfer
+    prompt: Why are tension and compression important in a bridge structure?
+    choices:
+    - text: They prevent vehicles from applying weight to the bridge.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: They eliminate the need for structural supports.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: They help structural members carry loads toward the supports.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: They allow the bridge to carry unlimited weight.
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 2
+    feedback: Members carry tension and compression as they transfer loads through the bridge toward its supports.
+  - questionId: structural-safety
+    prompt: Why must engineers consider tension and compression when designing a bridge for heavier vehicles?
+    choices:
+    - text: To make every structural member the same length.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: To ensure the members can safely withstand the forces acting on them.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: To remove the need for bridge testing.
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: To prevent the bridge from carrying its own weight.
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 1
+    feedback: Members must withstand the forces from the intended loads, including the vehicle and its cargo.

@@ -275,8 +275,8 @@ Finishing this conversation moves Susan to `GIVESGOP`.
 Phase ID: `GIVESGOP`. Dialogue starts on arrival.
 
 - Since you're going to be working on more projects around Canyon Crossing, there's something else you should know.
-- The work you complete around Arcadia will earn you Gold and other rewards.
-- You can spend your Gold here on items for your journey.
+- The work you complete around Arcadia will earn you Coins and other rewards.
+- You can spend your Coins here on items for your journey.
 - You can use what you've earned to purchase items for your engineering journey.
 - Some items can also be equipped to customize your appearance.
 
@@ -288,7 +288,7 @@ Phase ID: `RepeatDIal`. Dialogue starts on arrival and remains repeatable.
 
 - You can come back anytime.
 - Good luck with your next project, {PlayerName}.
-- You can spend your Gold here on items for your journey.
+- You can spend your Coins here on items for your journey.
 - You can use what you've earned to purchase items for your engineering journey.
 - Some items can also be equipped to customize your appearance.
 
@@ -369,7 +369,7 @@ Its arrival UnityEvent has a GameObject target but no method name. The phase nam
 | Required live-load weight | 700 kg | 1,400 kg | 2,000 kg |
 | Budget | 75,000 | 75,000 | 75,000 |
 | Configured span | 30 | 60 | 50 |
-| Gold reward | 500 | 500 | 500 |
+| Coins reward | 500 | 500 | 500 |
 | XP reward | 150 | 1,000 | 100 |
 | Auto Collect Reward | Off | Off | Off |
 | Is Tutorial Contract | Off | Off | On |

@@ -885,6 +885,20 @@ public class PathGuider : MonoBehaviour
         if (Instance == this) Instance = null;
     }
     
+    /// <summary>Read the pending tutorial destination without changing its route or advancement.</summary>
+    public bool CanRecallTutorialGuide(List<GuiderWaypoint> tutorialWaypoints)
+    {
+        if (tutorialWaypoints == null || tutorialWaypoints.Count == 0) return false;
+        int index = ReferenceEquals(waypoints, tutorialWaypoints)
+            ? Mathf.Min(currentWaypointIndex, tutorialWaypoints.Count - 1) : 0;
+        for (; index < tutorialWaypoints.Count; index++)
+        {
+            Transform target = tutorialWaypoints[index] != null ? tutorialWaypoints[index].target : null;
+            if (target != null) return IsNPCGuideTargetPresent(target);
+        }
+        return false;
+    }
+
     // Rebuild the current tutorial guide without replaying reached waypoints.
     public void RecallTutorialGuide(List<GuiderWaypoint> tutorialWaypoints)
     {

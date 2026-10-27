@@ -57,7 +57,7 @@ public static class BhanCargoDeliveryStorySetup
         ["GIVESGOP"] = new[]
         {
             "Since you're going to be working on more projects around Canyon Crossing, there's something else you should know.",
-            "The work you complete will earn you Gold and other rewards.",
+            "The work you complete will earn you Coins and other rewards.",
             "Those rewards can be used here at the Shop.",
             "You can use what you've earned to purchase items for your engineering journey.",
             "Some items can also be equipped to customize your appearance.",

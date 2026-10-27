@@ -167,6 +167,17 @@ public class TutorialManager : MonoBehaviour
     public bool IsTutorialActive { get; private set; } = false;
     public TutorialPointer SharedPointer => bouncingArrow;
     public event System.Action<TutorialSequence> OnTutorialCompleted;
+    public int ObjectiveHistoryVersion { get; private set; }
+
+    private sealed class TutorialObjectiveOwner
+    {
+        public PlayerDataManager manager;
+        public PlayerData data;
+    }
+    private readonly Dictionary<TutorialSequence, TutorialObjectiveOwner> tutorialObjectiveOwners =
+        new Dictionary<TutorialSequence, TutorialObjectiveOwner>();
+    private PlayerDataManager objectiveHistoryManager;
+    private PlayerData objectiveHistoryData;
 
     private TutorialSequence currentSequence;
     private int currentStepIndex = -1;
@@ -203,6 +214,7 @@ public class TutorialManager : MonoBehaviour
     private int suspendedTutorialResumeHoldCount;
     private RectTransform skipButtonRect;
     private Canvas skipButtonCanvas;
+    private readonly AlmanacTutorialSkipSlot almanacSkipSlot = new AlmanacTutorialSkipSlot();
     private Rect lastSkipSafeArea;
     private Vector2Int lastSkipScreenSize;
     private float bannerTransitionUntil;
@@ -808,6 +820,7 @@ public class TutorialManager : MonoBehaviour
 
     private void Start()
     {
+        RefreshTutorialObjectiveHistory();
         if (!IsTutorialActive) 
         {
             if (centerPanel != null) centerPanel.SetActive(false);
@@ -838,6 +851,7 @@ public class TutorialManager : MonoBehaviour
 
     private void Update()
     {
+        RefreshTutorialObjectiveHistory();
         RefreshCenteredTutorialLayout();
         if (skipButton != null && skipButton.activeInHierarchy)
         {
@@ -882,7 +896,30 @@ public class TutorialManager : MonoBehaviour
         }
     }
 
-    private void LateUpdate() => RefreshInstructionVisualReplacement();
+    private void LateUpdate()
+    {
+        RefreshInstructionVisualReplacement();
+        RefreshTutorialSkipSlot();
+    }
+
+    private void RefreshTutorialSkipSlot()
+    {
+        AlmanacManager book = AlmanacManager.Instance;
+        Button control = skipButtonRect != null ? skipButtonRect.GetComponent<Button>() : null;
+        bool ownsSlot = isActiveAndEnabled && IsTutorialActive && currentSequence != null &&
+            book != null && book.isActiveAndEnabled && book.IsOpenAndReady &&
+            book.OwnsTutorialSequence(currentSequence) &&
+            (UIPanelCoordinator.Instance == null || UIPanelCoordinator.Instance.CurrentPanel == book.Panel) &&
+            skipButton != null && skipButton.activeInHierarchy && control != null &&
+            control.isActiveAndEnabled && control.IsInteractable() && UIReservedRegionLayout.IsRenderable(skipButtonRect);
+        if (ownsSlot && almanacSkipSlot.TryPlace(skipButtonRect, book.TutorialCloseButtonRect)) return;
+        ReleaseTutorialSkipSlot();
+    }
+
+    private void ReleaseTutorialSkipSlot()
+    {
+        if (almanacSkipSlot.Release()) PositionTutorialSkipButton();
+    }
 
     public void PlayTutorial(TutorialSequence sequence)
     {
@@ -927,6 +964,7 @@ public class TutorialManager : MonoBehaviour
         IsTutorialActive = true;
         lastScreenPosition = null; 
 
+        BeginTutorialObjective(sequence);
         PrepareTutorialCanvas();
         ShowNextStep();
     }
@@ -1047,6 +1085,7 @@ public class TutorialManager : MonoBehaviour
 
     private void ShowTutorialStep(TutorialStep step, bool playReverseAnimation)
     {
+        RecordTutorialObjectiveStep(step);
         ClearInstructionVisualReplacement();
         UIReservedRegionLayout.NotifyLayoutChanging();
         // A rapidly advanced step can interrupt a slide before it reaches its target.
@@ -1645,6 +1684,7 @@ public class TutorialManager : MonoBehaviour
 
     private void CompleteTutorial()
     {
+        ReleaseTutorialSkipSlot();
         TutorialSequence completedSequence = currentSequence;
         ClearInstructionVisualReplacement();
         ClearPresentationSuppression();
@@ -1695,10 +1735,19 @@ public class TutorialManager : MonoBehaviour
             BuildTutorialDirector.Instance.EndTutorial();
         }
 
-        if (completedSequence != null && PlayerDataManager.Instance != null && !string.IsNullOrEmpty(completedSequence.lessonName))
+        // Finish the objective before CompleteLesson's existing save, so the
+        // crossed-out row and lesson completion are written together.
+        bool mayCompleteLesson = MayRecordTutorialObjectives && completedSequence != null &&
+            (!completedSequence.showInObjectives || OwnsTutorialObjective(completedSequence));
+        bool objectiveCompleted = FinishTutorialObjective(completedSequence);
+        bool lessonWillSave = mayCompleteLesson &&
+            !string.IsNullOrEmpty(completedSequence.lessonName) &&
+            !PlayerDataManager.Instance.CurrentData.completedLessons.Contains(completedSequence.lessonName);
+        if (mayCompleteLesson && !string.IsNullOrEmpty(completedSequence.lessonName))
         {
             PlayerDataManager.Instance.CompleteLesson(completedSequence.lessonName);
         }
+        if (objectiveCompleted && !lessonWillSave) PlayerDataManager.Instance.SaveGame();
 
         currentSequence = null;
         currentStepIndex = -1;
@@ -1714,8 +1763,88 @@ public class TutorialManager : MonoBehaviour
             TryStartQueuedTutorialNextFrame();
     }
 
+    private bool MayRecordTutorialObjectives => PlayerDataManager.Instance != null &&
+        PlayerDataManager.Instance.CurrentData != null &&
+        !(FusionConnectionManager.Instance != null && FusionConnectionManager.Instance.IsGuestInHostWorld);
+
+    private void RefreshTutorialObjectiveHistory()
+    {
+        PlayerDataManager manager = MayRecordTutorialObjectives ? PlayerDataManager.Instance : null;
+        PlayerData data = manager != null ? manager.CurrentData : null;
+        if (manager == objectiveHistoryManager && ReferenceEquals(data, objectiveHistoryData)) return;
+        objectiveHistoryManager = manager; objectiveHistoryData = data;
+        tutorialObjectiveOwners.Clear();
+        ObjectiveHistoryVersion++;
+        if (data == null) return;
+
+        bool changed = false;
+        TutorialObjectiveCatalog catalog = Resources.Load<TutorialObjectiveCatalog>("TutorialObjectiveCatalog");
+        if (catalog != null && catalog.entries != null)
+            foreach (TutorialObjectiveCatalog.Entry entry in catalog.entries)
+                if (entry != null)
+                    changed |= TutorialObjectiveHistory.RestoreCompletedDefinition(data, entry.objectiveId,
+                        entry.lessonId, entry.scenePath, entry.title, entry.description, entry.allowLegacyLessonMatch);
+
+        // One scan per profile/scene manager, never a per-frame scene search.
+        // Ambiguous old lesson IDs cannot prove which objective was completed.
+        TutorialSequence[] sequences = FindObjectsOfType<TutorialSequence>(true);
+        var lessonCounts = new Dictionary<string, int>(System.StringComparer.Ordinal);
+        foreach (TutorialSequence sequence in sequences)
+            if (sequence != null && sequence.gameObject.scene.IsValid() && sequence.gameObject.scene.isLoaded &&
+                !string.IsNullOrEmpty(sequence.lessonName))
+            {
+                lessonCounts.TryGetValue(sequence.lessonName, out int count);
+                lessonCounts[sequence.lessonName] = count + 1;
+            }
+        foreach (TutorialSequence sequence in sequences)
+            if (sequence != null && sequence.showInObjectives && sequence.gameObject.scene.IsValid() &&
+                sequence.gameObject.scene.isLoaded)
+                changed |= TutorialObjectiveHistory.RestoreCompleted(sequence, data,
+                    !string.IsNullOrEmpty(sequence.lessonName) && lessonCounts[sequence.lessonName] == 1);
+
+        if (data.activeQuests != null && data.activeQuests.Exists(TutorialObjectiveHistory.IsSequenceTask) &&
+            !data.hasUnlockedObjectiveTracker)
+        { data.hasUnlockedObjectiveTracker = true; changed = true; }
+        if (changed) { ObjectiveHistoryVersion++; manager.SaveGame(); }
+    }
+
+    private void BeginTutorialObjective(TutorialSequence sequence)
+    {
+        RefreshTutorialObjectiveHistory();
+        if (!MayRecordTutorialObjectives || sequence == null || !sequence.showInObjectives) return;
+        var manager = PlayerDataManager.Instance;
+        var data = manager.CurrentData;
+        TutorialObjectiveHistory.Begin(sequence, data, out bool changed);
+        tutorialObjectiveOwners[sequence] = new TutorialObjectiveOwner { manager = manager, data = data };
+        if (!data.hasUnlockedObjectiveTracker) { data.hasUnlockedObjectiveTracker = true; changed = true; }
+        if (changed) { ObjectiveHistoryVersion++; manager.SaveGame(); }
+    }
+
+    private bool OwnsTutorialObjective(TutorialSequence sequence) => MayRecordTutorialObjectives && sequence != null &&
+        tutorialObjectiveOwners.TryGetValue(sequence, out TutorialObjectiveOwner owner) &&
+        owner.manager == PlayerDataManager.Instance && ReferenceEquals(owner.data, PlayerDataManager.Instance.CurrentData);
+
+    private void RecordTutorialObjectiveStep(TutorialStep step)
+    {
+        if (OwnsTutorialObjective(currentSequence) &&
+            TutorialObjectiveHistory.RecordStep(currentSequence, step, PlayerDataManager.Instance.CurrentData))
+            ObjectiveHistoryVersion++;
+        // Step text updates in memory and joins the next normal save; no disk
+        // write or cloud request is added to the per-frame UI update.
+    }
+
+    private bool FinishTutorialObjective(TutorialSequence sequence)
+    {
+        bool changed = OwnsTutorialObjective(sequence) &&
+            TutorialObjectiveHistory.Complete(sequence, PlayerDataManager.Instance.CurrentData);
+        if (sequence != null) tutorialObjectiveOwners.Remove(sequence);
+        if (changed) ObjectiveHistoryVersion++;
+        return changed;
+    }
+
     private void SuspendCurrentTutorial()
     {
+        ReleaseTutorialSkipSlot();
         ClearInstructionVisualReplacement();
         ClearPresentationSuppression();
         ClearTrackedButton();
@@ -1876,6 +2005,7 @@ public class TutorialManager : MonoBehaviour
         if (sequence == null || sequence.tutorialSteps == null || sequence.tutorialSteps.Length == 0)
             return;
 
+        ReleaseTutorialSkipSlot();
         ClearTrackedButton();
         TutorialAnchorHighlighter.ClearAll();
 
@@ -2129,6 +2259,7 @@ public class TutorialManager : MonoBehaviour
 
     private void OnDisable()
     {
+        ReleaseTutorialSkipSlot();
         SceneManager.sceneLoaded -= HandleContractGuideSceneLoaded;
         LevelCompleteManager.BridgeSavedAtLocation -= HandleContractGuideBridgeSaved;
         SuspendContractGuide();
@@ -2145,6 +2276,7 @@ public class TutorialManager : MonoBehaviour
 
     private void OnDestroy()
     {
+        ReleaseTutorialSkipSlot();
         SceneManager.sceneLoaded -= HandleContractGuideSceneLoaded;
         LevelCompleteManager.BridgeSavedAtLocation -= HandleContractGuideBridgeSaved;
         ClearContractGuide();

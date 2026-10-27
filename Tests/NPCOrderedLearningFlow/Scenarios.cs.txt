@@ -49,7 +49,30 @@ public static class Scenarios
         MissingHudDoesNotBlockReview();
         PendingQueryIsReadOnlyAndOwnerBound();
         FirstBeamEntryHasItsOwnArrowAndCompletion();
+        ReviewObjectivesAreOptInAndOwnerConfigured();
         return checks;
+    }
+
+    private static void ReviewObjectivesAreOptInAndOwnerConfigured()
+    {
+        var f = new Fixture();
+        Check(!f.Flow.showReviewsInObjectives && f.Flow.reviewObjectiveTitle == string.Empty,
+            "Existing and dynamically added owners default to reviews outside Objectives.");
+        Check(f.Begin() && !f.Tutorial.Active.showInObjectives && f.Tutorial.Active.objectiveTitle == string.Empty,
+            "Unconfigured review sequence retains the default objective policy.");
+        f.Flow.Cancel();
+        f.Flow.showReviewsInObjectives = true;
+        f.Flow.reviewObjectiveTitle = "Review the Live Load lesson";
+        Check(f.Begin() && f.Tutorial.Active.showInObjectives &&
+            f.Tutorial.Active.objectiveTitle == "Review the Live Load lesson",
+            "An opted-in owner copies its objective policy onto the review before it starts.");
+        Check(f.Tutorial.Active.ObjectiveId == "Assets/Scenes/CanyonCrossing.unity|review|" + LessonId,
+            "Runtime review receives a scene-scoped stable history identity before it starts.");
+        Check(f.Tutorial.Active.lessonName == LessonId && f.Completed == 0 && f.Failed == 0,
+            "Objective configuration leaves review identity and genuine-close progression unchanged.");
+        f.Open(); f.Finish();
+        Check(f.Completed == 1 && f.Tutorial.Completes == 1,
+            "An objective-enabled review still completes exactly once through the existing book gate.");
     }
 
     private static void FirstBeamEntryHasItsOwnArrowAndCompletion()

@@ -796,7 +796,7 @@ public class BuildUIController : MonoBehaviour
         {
             unlockMaterialPanel.SetActive(true);
             int cost = btn.buttonMaterial.unlockCost;
-            if (unlockMaterialText != null) unlockMaterialText.text = $"Unlock {btn.buttonMaterial.name} for this level?\nCost: {cost} Gold";
+            if (unlockMaterialText != null) unlockMaterialText.text = $"Unlock {btn.buttonMaterial.name} for this level?\nCost: {cost} Coins";
         }
     }
 
@@ -845,7 +845,7 @@ public class BuildUIController : MonoBehaviour
 
                 LogAction($"{pendingUnlockButton.buttonMaterial.name} Unlocked!");
             }
-            else LogAction("Not enough Gold to unlock!");
+            else LogAction("Not enough Coins to unlock!");
         }
 
         if (unlockMaterialPanel != null) unlockMaterialPanel.SetActive(false);

@@ -6,6 +6,12 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public sealed class NPCOrderedLearningFlow : MonoBehaviour
 {
+    [Header("Review Objectives")]
+    [Tooltip("Show this owner's Almanac review tutorials in Objectives while they are active.")]
+    public bool showReviewsInObjectives;
+    [Tooltip("Optional title for the Almanac review objective. Leave blank to use the tutorial's normal title.")]
+    public string reviewObjectiveTitle = string.Empty;
+
     private LessonUIManager lessonManager;
     private LessonData expectedLesson;
     private Action completed;
@@ -88,6 +94,9 @@ public sealed class NPCOrderedLearningFlow : MonoBehaviour
         child.transform.SetParent(transform, false);
         reviewSequence = child.AddComponent<TutorialSequence>();
         reviewSequence.lessonName = lessonId;
+        reviewSequence.ConfigureObjectiveIdentity(gameObject.scene.path + "|review|" + lessonId);
+        reviewSequence.showInObjectives = showReviewsInObjectives;
+        reviewSequence.objectiveTitle = reviewObjectiveTitle;
         reviewSequence.tutorialSteps = CreateReviewSteps(reviewBook, reviewSubject);
         reviewSequence.StartTutorial();
         reviewRoutine = StartCoroutine(WaitForReview(reviewBook));

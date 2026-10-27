@@ -1,0 +1,96 @@
+using System;
+using UnityEngine;
+
+public static class Scenarios
+{
+    private static int checks;
+    private static void Check(bool result, string message) { checks++; if (!result) throw new Exception(message); }
+    private static ObjectiveTrackerUI Tracker(bool unlocked)
+    {
+        PlayerDataManager.Instance = new PlayerDataManager { CurrentData = new PlayerData { hasUnlockedObjectiveTracker = unlocked } };
+        UIPanelCoordinator.Instance = null;
+        return new ObjectiveTrackerUI { openTrackerButton = new GameObject(), trackerPanel = new GameObject() };
+    }
+    public static int Run()
+    {
+        var tracker = Tracker(false);
+        tracker.Refresh();
+        Check(!tracker.openTrackerButton.activeSelf, "Fresh profiles without a tutorial or contract do not unlock Objectives globally.");
+        tracker.tutorialObjective.Task = new object(); tracker.Refresh();
+        Check(tracker.openTrackerButton.activeSelf, "An active checked tutorial can reveal the HUD entry before the first contract.");
+        tracker.tutorialObjective.Task = null; tracker.Refresh();
+        Check(!tracker.openTrackerButton.activeSelf, "Regression reproduction: a transient projection alone cannot keep Objectives visible after inspection completes.");
+
+        // The production lifecycle registration owns this one permanent flag.
+        // Its save behavior is tested separately; UI cannot grant it implicitly.
+        tracker = Tracker(true); tracker.Refresh();
+        Check(tracker.openTrackerButton.activeSelf, "Persisting the existing tracker unlock keeps the HUD available without an active tutorial.");
+        tracker.trackerPanel.SetActive(true); tracker.Refresh();
+        Check(!tracker.openTrackerButton.activeSelf, "Opening Objectives hides its own HUD entry.");
+        tracker.trackerPanel.SetActive(false); tracker.Refresh();
+        Check(tracker.openTrackerButton.activeSelf, "Closing Objectives restores the unlocked HUD entry.");
+        tracker.pendingContractOffer = new object(); tracker.Refresh();
+        Check(!tracker.openTrackerButton.activeSelf, "A contract offer still owns the clipboard until accepted or cancelled.");
+        tracker.pendingContractOffer = null; tracker.Refresh();
+        Check(tracker.openTrackerButton.activeSelf, "Resolving an offer restores the existing unlocked entry.");
+        tracker.openTrackerButton = null; tracker.Refresh();
+        Check(PlayerDataManager.Instance.CurrentData.hasUnlockedObjectiveTracker, "Missing HUD references neither throw nor revoke saved unlocks.");
+
+        foreach (bool coordinated in new[] { false, true })
+        {
+            tracker = Tracker(true); tracker.tutorialObjective.Task = new object(); tracker.Refresh();
+            var hud = tracker.openTrackerButton;
+            var hudCanvas = new Canvas { enabled = true };
+            var secondaryCanvas = new Canvas { enabled = true };
+            var panel = new GameObject();
+            var lessonData = new LessonData();
+            var lesson = new LessonUIManager { lessonPanel = panel, CurrentLesson = lessonData, usePanelCoordinator = coordinated, resetScrollRoutine = new object() };
+            int closes = 0;
+            lesson.LessonClosed += data => {
+                closes++;
+                Check(ReferenceEquals(data, lessonData) && !panel.activeSelf && hudCanvas.enabled && secondaryCanvas.enabled,
+                    "Lesson completion callback runs only after panel and Canvas restoration.");
+                tracker.tutorialObjective.Task = null;
+                tracker.Refresh();
+            };
+            if (coordinated)
+            {
+                UIPanelCoordinator.Instance = new UIPanelCoordinator();
+                UIPanelCoordinator.Instance.CaptureAndOpen(panel, hud, hudCanvas);
+            }
+            else { panel.SetActive(true); lesson.CaptureCanvas(hudCanvas); }
+            lesson.CaptureCanvas(secondaryCanvas);
+            Check(!hudCanvas.enabled && !secondaryCanvas.enabled, "Lesson keeps gameplay canvases hidden while reading.");
+            lesson.CloseLesson();
+            Check(closes == 1 && lesson.CurrentLesson == null && lesson.ScrollStops == 1 && lesson.resetScrollRoutine == null,
+                "Closing inspection consumes its callback and scroll state once.");
+            Check(hud.activeSelf && hudCanvas.enabled && secondaryCanvas.enabled,
+                "Inspect Live Load completion can clear its tutorial while the unlocked Objectives HUD remains visible.");
+            lesson.CloseLesson();
+            Check(closes == 1 && hud.activeSelf && hudCanvas.enabled,
+                "Duplicate close/restoration cannot discard Objectives or repeat story completion.");
+        }
+
+        tracker = Tracker(true); tracker.Refresh();
+        var canvas = new Canvas { enabled = true };
+        var lessonPanel = new GameObject(); var nestedPanel = new GameObject();
+        var coordinator = new UIPanelCoordinator(); UIPanelCoordinator.Instance = coordinator;
+        coordinator.CaptureAndOpen(lessonPanel, tracker.openTrackerButton, canvas);
+        coordinator.CaptureAndOpen(nestedPanel, tracker.openTrackerButton, canvas);
+        var nestedLesson = new LessonUIManager { lessonPanel = lessonPanel, CurrentLesson = new LessonData() };
+        nestedLesson.LessonClosed += _ => tracker.Refresh();
+        nestedLesson.CloseLesson();
+        Check(coordinator.Frames == 0 && !lessonPanel.activeSelf && !nestedPanel.activeSelf,
+            "Closing a lesson under a nested panel safely unwinds both captured modal frames.");
+        Check(tracker.openTrackerButton.activeSelf && canvas.enabled,
+            "Nested modal restoration returns the unlocked HUD's original active and Canvas state.");
+        var reloadedData = PlayerDataManager.Instance.CurrentData;
+        tracker = Tracker(false); PlayerDataManager.Instance.CurrentData = reloadedData;
+        tracker.Refresh();
+        Check(tracker.openTrackerButton.activeSelf && tracker.tutorialObjective.Task == null,
+            "A scene reload with no live tutorial retains the persisted Objectives button unlock.");
+        PlayerDataManager.Instance = null; tracker.Refresh();
+        Check(!tracker.openTrackerButton.activeSelf, "Missing profile data does not expose Objectives from another profile.");
+        return checks;
+    }
+}

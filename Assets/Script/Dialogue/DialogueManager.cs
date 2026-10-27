@@ -220,6 +220,7 @@ public class DialogueManager : MonoBehaviour
             dialogueBox.SetActive(true);
 
         isDialogueActive = true;
+        DialogueHudButtonGate.RefreshAll();
         SetSkipButtonVisible(true);
 
         onDialogueEndCallback = onEnd; 
@@ -382,7 +383,9 @@ public class DialogueManager : MonoBehaviour
     {
         isDialogueActive = false;
         SetSkipButtonVisible(false);
+        if (dialogueBox != null && dialogueBox != gameObject) dialogueBox.SetActive(false);
         RestoreDialogueElements();
+        DialogueHudButtonGate.RefreshAll();
         if (playerFacingCoroutine != null)
         {
             StopCoroutine(playerFacingCoroutine);
@@ -405,7 +408,7 @@ public class DialogueManager : MonoBehaviour
 
         foreach (GameObject obj in elementsToHide)
         {
-            if (obj == null) continue;
+            if (obj == null || DialogueHudButtonGate.IsBoundButton(obj)) continue;
             if (!elementVisibilityBeforeDialogue.ContainsKey(obj))
                 elementVisibilityBeforeDialogue.Add(obj, obj.activeSelf);
             obj.SetActive(false);
@@ -415,7 +418,7 @@ public class DialogueManager : MonoBehaviour
     private void RestoreDialogueElements()
     {
         foreach (KeyValuePair<GameObject, bool> state in elementVisibilityBeforeDialogue)
-            if (state.Key != null) state.Key.SetActive(state.Value);
+            if (state.Key != null && !DialogueHudButtonGate.IsBoundButton(state.Key)) state.Key.SetActive(state.Value);
         elementVisibilityBeforeDialogue.Clear();
     }
 
@@ -606,6 +609,7 @@ public class DialogueManager : MonoBehaviour
         if (dialogueBox != null)
             dialogueBox.SetActive(false);
         hideDialogueCoroutine = null;
+        DialogueHudButtonGate.RefreshAll();
     }
 
     private void ResolveDialogueBox()

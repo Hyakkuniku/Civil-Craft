@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>disable</Nullable></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Assets/Script/UI/Objective-Missions/TutorialObjectiveProjection.cs" Link="Production/TutorialObjectiveProjection.cs" />
+    <Compile Include="../../Assets/Script/UI/Objective-Missions/TutorialObjectiveHistory.cs" Link="Production/TutorialObjectiveHistory.cs" />
+    <Compile Include="../../Assets/Script/Level/Tutorial/TutorialInstructionText.cs" Link="Production/TutorialInstructionText.cs" />
+  </ItemGroup>
+</Project>

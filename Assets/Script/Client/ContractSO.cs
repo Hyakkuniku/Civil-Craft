@@ -235,7 +235,7 @@ public class ContractSO : ScriptableObject
     public float requiredIntactTime = 5f;
     
     [Header("Rewards")]
-    [Tooltip("How much gold the player earns for beating this level.")]
+    [Tooltip("How many Coins the player earns for beating this level.")]
     public int goldReward = 500;
     [Tooltip("How much EXP the player earns for beating this level.")]
     public int expReward = 100;

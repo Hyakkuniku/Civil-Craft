@@ -30,3 +30,10 @@ boundary doubles; no real spawning, camera rendering, or player progress runs.
 
 Rendering size/contrast, occlusion, map clipping, and real navigation should still
 be checked in Unity; the standalone checks do not claim native rendering coverage.
+
+The opt-in interaction-needed policy is compiled unchanged as well. Checks cover
+offer/accepted-build/turn-in state, completed conversations, cancelled and waiting
+quizzes, review ownership, dialogue, pause, build/simulation/transition states,
+unavailable givers, and preserving the previous behavior when the option is off.
+Giver availability, saved dialogue completion, and lesson-review ownership are
+boundary doubles; these tests never initiate dialogue, quests, or real saves.

@@ -1,0 +1,130 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using UnityEngine;
+
+namespace UnityEngine
+{
+    public class GameObject
+    {
+        public bool activeSelf=true; public bool activeInHierarchy=>activeSelf;
+        public void SetActive(bool active) { activeSelf=active; }
+    }
+    public class Coroutine { public IEnumerator routine; public bool stopped; }
+    public class MonoBehaviour
+    {
+        public bool isActiveAndEnabled=true;
+        public readonly List<Coroutine> coroutines=new List<Coroutine>();
+        public Coroutine StartCoroutine(IEnumerator routine)
+        {
+            var task=new Coroutine{routine=routine}; coroutines.Add(task);
+            if(!routine.MoveNext()) task.stopped=true;
+            return task;
+        }
+        public void StopCoroutine(Coroutine task) { if(task!=null)task.stopped=true; }
+        public void Tick()
+        {
+            foreach(var task in coroutines.ToArray())
+                if(!task.stopped&&!task.routine.MoveNext())task.stopped=true;
+            coroutines.RemoveAll(task=>task.stopped);
+        }
+        public int Running=>coroutines.Count(task=>!task.stopped);
+    }
+    public static class Debug { public static void Log(string value) { } }
+}
+public class PlayerData
+{
+    public bool hasAlmanac;
+    public bool hasUnlockedContractsTab=true,hasUnlockedLessonsTab=true,hasUnlockedMaterialsTab=true;
+    public List<string> completedLessons=new List<string>();
+}
+public class PlayerDataManager
+{
+    public static PlayerDataManager Instance; public PlayerData CurrentData=new PlayerData();
+    public event Action OnAlmanacUnlocked,OnAlmanacAlertsChanged,OnFeatureUnlocksChanged;
+    public void MarkAlmanacOpened() { }
+}
+public static class DialogueManager { public static bool IsAnyDialogueActive; public static bool IsAnyDialogueVisible=>IsAnyDialogueActive; }
+public class PauseManager { public static PauseManager Instance; public bool isPaused; }
+public class ShopManager { public static ShopManager Instance; public bool IsGuidingVestEquip; }
+public static class QuizUIManager { public static bool IsAnyQuizActive; }
+public enum AlmanacTabType { Contracts,Lessons,Materials }
+public class TutorialStep { }
+public class TutorialSequence
+{
+    public string lessonName;
+    public TutorialStep[] tutorialSteps={new TutorialStep(),new TutorialStep(),new TutorialStep()};
+    public bool eligible=true;
+    public bool CanStartAsPriorityTutorial()=>eligible&&!(PlayerDataManager.Instance?.CurrentData?.completedLessons?.Contains(lessonName)??false);
+    public void TryStartTutorial()=>TutorialManager.Instance?.PlayPriorityTutorial(this);
+}
+public class TutorialManager
+{
+    public static TutorialManager Instance;
+    public TutorialSequence ActiveSequence; public int CurrentStepIndex,Starts,Cancels,Completes,Holds,Releases,Resumed,Advances;
+    public bool IsTutorialActive=>ActiveSequence!=null;
+    public event Action<TutorialSequence> OnTutorialCompleted;
+    public readonly Stack<TutorialSequence> suspended=new Stack<TutorialSequence>();
+    public bool IsPlayingSequence(TutorialSequence sequence)=>sequence!=null&&ReferenceEquals(ActiveSequence,sequence);
+    public void PlayPriorityTutorial(TutorialSequence sequence)
+    {
+        if(sequence==null||!sequence.CanStartAsPriorityTutorial()||IsPlayingSequence(sequence))return;
+        if(ActiveSequence!=null)suspended.Push(ActiveSequence);
+        ActiveSequence=sequence;CurrentStepIndex=0;Starts++;
+    }
+    public void BeginSuspendedTutorialResumeHold(){Holds++;}
+    public void EndSuspendedTutorialResumeHold(){if(Holds>0)Holds--;Releases++;ResumeIfFree();}
+    void ResumeIfFree(){if(Holds==0&&ActiveSequence==null&&suspended.Count>0){ActiveSequence=suspended.Pop();Resumed++;}}
+    public bool CancelTutorialWithoutCompletion(TutorialSequence sequence)
+    {
+        if(!IsPlayingSequence(sequence))return false;
+        ActiveSequence=null;Cancels++;ResumeIfFree();return true;
+    }
+    public void ShowNextStep(){CurrentStepIndex++;Advances++;}
+    public void Finish()
+    {
+        var done=ActiveSequence;if(done==null)return;
+        ActiveSequence=null;Completes++;
+        PlayerDataManager.Instance.CurrentData.completedLessons.Add(done.lessonName);
+        OnTutorialCompleted?.Invoke(done);ResumeIfFree();
+    }
+}
+public class UIPanelCoordinator
+{
+    public static UIPanelCoordinator Instance;
+    public bool HasOpenPanel;public GameObject top;
+    public bool IsOpen(GameObject panel)=>ReferenceEquals(panel,top);
+    public void OpenPanel(GameObject panel,bool activate){if(activate)panel?.SetActive(true);}
+    public void ClosePanel(GameObject panel){panel?.SetActive(false);}
+}
+public class AlmanacLearningHub { public void ResetToHome() { } }
+public class BookMotion { public void Cancel() { } }
+public class AlmanacManager : MonoBehaviour
+{
+    public GameObject almanacCanvas=new GameObject(),animationPanel;
+    public TutorialSequence onFirstOpenTutorial,onContractsTabUnlockedTutorial,onLessonsTabUnlockedTutorial,onMaterialsTabUnlockedTutorial;
+    public bool isAnimating,isSwitchingCategory;
+    private bool isFlipping;
+    private bool isHoldingSuspendedTutorialResume;
+    private Coroutine pendingTabTutorialCoroutine;
+    public event Action OnAlmanacClosed;
+    private List<AlmanacLearningHub> learningHubs=new List<AlmanacLearningHub>();
+    private BookMotion bookMotion;
+    public int RestoredInput,RestoredContainers;
+    private void RefreshEditPlayerAccess(){} private void CaptureArchiveInteractionButtonContainers(){} private void EvaluateTabUnlocks(){}
+    private void CaptureAndDisableMenuInput(){} private void RefreshPersistentAlerts(){}
+    private void HideUiElementsPreservingAnimation(){} private void RestoreTemporarilyHiddenPanels(){}
+    private void SelectFirstVisibleCategory(){} private void ShowHudButton(){} private void HandleAlmanacAlertsChanged(){}
+    private void RestoreMenuInput(){RestoredInput++;} private void RestoreArchiveInteractionButtonContainers(){RestoredContainers++;}
+    private IEnumerator PlayBookAnimation(bool opening){yield return null;}
+    public void StartPending()=>TryStartPendingTabUnlockTutorial();
+    public void StartSelected(AlmanacTabType type)=>TryStartSelectedTabUnlockTutorial(type);
+    public bool StartTab(TutorialSequence sequence,bool unlocked=true)=>TryStartTabUnlockTutorial(sequence,unlocked);
+    public void Completed(TutorialSequence sequence)=>HandleTutorialCompleted(sequence);
+    public bool RequiredBlocks=>IsRequiredFirstOpenTutorialBlockingClose();
+    public bool Holding=>isHoldingSuspendedTutorialResume;
+    public IEnumerator SelectedRoutine(TutorialSequence sequence)=>StartSelectedTabUnlockTutorialRoutine(sequence);
+    public void Destroy()=>OnDestroy();
+    // PRODUCTION_METHODS
+}

@@ -1,0 +1,185 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json;
+using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
+
+public static class Scenarios
+{
+    static int checks;
+    static void Check(bool okay,string label) { checks++; if (!okay) throw new InvalidOperationException("Check "+checks+": "+label); }
+    static TutorialSequence Sequence(string id="follow",string lesson="FollowProfessorBhan") => new TutorialSequence
+    {
+        ObjectiveId="Assets/Scenes/CanyonCrossing.unity|"+id,lessonName=lesson,objectiveTitle="Follow Professor Bhan",
+        tutorialSteps=new[] {new TutorialStep {message="Follow Professor Bhan."},new TutorialStep {message="Speak to Bhan."}}
+    };
+    sealed class Fixture
+    {
+        public PlayerDataManager Save=new PlayerDataManager(); public TutorialManager Tutorial=new TutorialManager();
+        public Fixture()
+        {
+            PlayerDataManager.Instance=Save; FusionConnectionManager.Instance=null;
+            Registry.Loaded.Clear(); Registry.Catalog=null; Registry.Searches=0; Registry.NamedTarget=null;
+            PathGuider.Instance=new PathGuider(); LevelCompleteManager.Instance=new LevelCompleteManager();
+            ObjectiveTrackerUI.Instance=null; BuildTutorialDirector.Instance=null;
+        }
+    }
+    public static int Run()
+    {
+        BeginStepAndFinishUseExistingSaveBoundaries();
+        LegacyKnownLessonStillSavesNewDistinctCompletion();
+        CancellationCannotCompleteAnyGuide();
+        PrioritySuspensionRetainsOriginalOwner();
+        ProfileAndGuestChangesCannotCompleteAnotherSave();
+        CatalogBackfillIsDeduplicatedAndScansOnce();
+        SavedRowsCannotBeManuallyTurnedInOrNavigateStaleTargets();
+        GenericTaskApisCannotCompleteSameTitleGuide();
+        ActualCardsShowCompletedCrossedOutStyle();
+        return checks;
+    }
+    static void BeginStepAndFinishUseExistingSaveBoundaries()
+    {
+        var f=new Fixture(); var sequence=Sequence(); Registry.Loaded.Add(sequence);
+        f.Tutorial.Begin(sequence);
+        var task=TutorialObjectiveHistory.Find(sequence,f.Save.CurrentData);
+        Check(task!=null&&!task.isCompleted&&f.Tutorial.Owns(sequence),"Begin creates a saved guide owned by this exact manager/profile.");
+        Check(f.Save.CurrentData.hasUnlockedObjectiveTracker&&f.Save.Saves==1,"First checked guide unlocks and saves Objectives exactly once.");
+        int version=f.Tutorial.ObjectiveHistoryVersion;
+        f.Tutorial.Begin(sequence);
+        Check(f.Save.Saves==1&&f.Save.CurrentData.activeQuests.Count==1,"Repeated begin neither saves nor duplicates the active row.");
+        f.Tutorial.Step(sequence.tutorialSteps[1]);
+        Check(task.description=="Speak to Bhan."&&f.Save.Saves==1&&f.Tutorial.ObjectiveHistoryVersion>version,"Step text refreshes in memory without adding disk saves.");
+        version=f.Tutorial.ObjectiveHistoryVersion;
+        f.Tutorial.Step(sequence.tutorialSteps[1]);
+        Check(f.Tutorial.ObjectiveHistoryVersion==version&&f.Save.Saves==1,"Unchanged displayed step does not churn history/version/saves.");
+        Check(!f.Tutorial.CompleteTutorialIfPlaying("another-lesson")&&!task.isCompleted,"A foreign completion request cannot finish the active guide.");
+        Check(f.Tutorial.CompleteTutorialIfPlaying(sequence.lessonName)&&task.isCompleted,"Matching genuine tutorial completion crosses out the saved guide.");
+        Check(f.Save.Saves==2&&f.Save.CurrentData.completedLessons.SequenceEqual(new[]{sequence.lessonName}),"Objective completion piggybacks the existing one lesson save.");
+        Check(f.Save.Snapshots.Last().Contains("\"isCompleted\":true")&&f.Save.Snapshots.Last().Contains(sequence.lessonName),"That same saved snapshot includes both crossed-out history and lesson proof.");
+        Check(!f.Tutorial.Owns(sequence)&&!f.Tutorial.CompleteTutorialIfPlaying(sequence.lessonName)&&f.Save.Saves==2,"Finish releases objective ownership; duplicate finish cannot save twice.");
+        Check(f.Save.CurrentData.gold==75&&f.Save.CurrentData.exp==200&&f.Save.CurrentData.completedContracts.Count==0,"Lifecycle adds no rewards or contract completions.");
+        f.Tutorial.Begin(sequence); f.Tutorial.Step(sequence.tutorialSteps[0]); f.Tutorial.Finish();
+        Check(task.isCompleted&&task.description=="Speak to Bhan."&&f.Save.CurrentData.activeQuests.Count==1&&f.Save.Saves==2,"Force replay preserves finished snapshot and does not add repeated completion saves.");
+    }
+    static void LegacyKnownLessonStillSavesNewDistinctCompletion()
+    {
+        var f=new Fixture(); var shop=Sequence("shop","ProceedToShopKeeper"); var reed=Sequence("reed","ProceedToShopKeeper");
+        Registry.Loaded.Add(shop); Registry.Loaded.Add(reed); f.Save.CurrentData.completedLessons.Add(shop.lessonName);
+        f.Tutorial.Begin(reed); var row=TutorialObjectiveHistory.Find(reed,f.Save.CurrentData);
+        Check(row!=null&&!row.isCompleted&&TutorialObjectiveHistory.Find(shop,f.Save.CurrentData)==null,"Shared legacy lesson proof cannot backfill either ambiguous guide.");
+        int saves=f.Save.Saves; f.Tutorial.Finish();
+        Check(row.isCompleted&&f.Save.Saves==saves+1,"Fresh Find Reed history completion saves once even when legacy lesson was already recorded.");
+        Check(f.Save.CurrentData.completedLessons.Count==1&&f.Save.CurrentData.activeQuests.Count==1,"Duplicate legacy ID does not duplicate lesson proof or combine objectives.");
+    }
+    static void CancellationCannotCompleteAnyGuide()
+    {
+        var f=new Fixture(); var sequence=Sequence(); f.Tutorial.Begin(sequence);
+        var row=TutorialObjectiveHistory.Find(sequence,f.Save.CurrentData); int saves=f.Save.Saves;
+        Check(!f.Tutorial.CancelTutorialWithoutCompletion(Sequence("other")),"Foreign cancellation cannot touch the current guide.");
+        Check(f.Tutorial.CancelTutorialWithoutCompletion(sequence)&&!f.Tutorial.IsTutorialActive,"Owned cancellation removes presentation without progression.");
+        Check(!row.isCompleted&&f.Save.CurrentData.completedLessons.Count==0&&f.Save.Saves==saves,"Cancel never crosses out or saves lesson completion.");
+        Check(!f.Tutorial.CompleteTutorialIfPlaying(sequence.lessonName)&&!row.isCompleted,"A late lesson-close event cannot finish the cancelled guide.");
+        f.Tutorial.Begin(sequence); f.Tutorial.Finish();
+        Check(row.isCompleted&&f.Save.CurrentData.activeQuests.Count==1,"Normal story retry binds the same partial history and can complete it once.");
+    }
+    static void PrioritySuspensionRetainsOriginalOwner()
+    {
+        var f=new Fixture(); TutorialSequence first=Sequence("follow","FollowProfessorBhan"), modal=Sequence("review","StoryReview/Bhan/LiveLoad");
+        f.Tutorial.Begin(first); var firstRow=TutorialObjectiveHistory.Find(first,f.Save.CurrentData);
+        f.Tutorial.Suspend();
+        Check(!firstRow.isCompleted&&f.Tutorial.Owns(first),"Priority suspension retains the original owner's pending history.");
+        f.Tutorial.Begin(modal); f.Tutorial.Finish();
+        Check(!firstRow.isCompleted&&TutorialObjectiveHistory.Find(modal,f.Save.CurrentData).isCompleted,"Finishing a priority review does not cross out the suspended guide.");
+        f.Tutorial.Resume(first); f.Tutorial.Step(first.tutorialSteps[1]); f.Tutorial.Finish();
+        Check(firstRow.isCompleted&&firstRow.description=="Speak to Bhan."&&f.Save.CurrentData.completedLessons.Count==2,"Restored original owner continues its own step and genuine completion.");
+    }
+    static void ProfileAndGuestChangesCannotCompleteAnotherSave()
+    {
+        foreach(bool replaceManager in new[]{false,true})
+        {
+            var f=new Fixture(); var sequence=Sequence(); f.Tutorial.Begin(sequence);
+            var old=f.Save.CurrentData; var oldRow=TutorialObjectiveHistory.Find(sequence,old); int oldSaves=f.Save.Saves;
+            var other=new PlayerDataManager();
+            if(replaceManager) PlayerDataManager.Instance=other; else f.Save.CurrentData=other.CurrentData;
+            f.Tutorial.Step(sequence.tutorialSteps[1]); f.Tutorial.Finish();
+            Check(!oldRow.isCompleted&&oldRow.description=="Follow Professor Bhan.","Profile/manager replacement invalidates old step/finish authority: "+replaceManager);
+            Check(other.CurrentData.activeQuests.Count==0&&other.CurrentData.completedLessons.Count==0,"Stale tutorial cannot create history or lesson proof in replacement profile: "+replaceManager);
+            Check(f.Save.Saves==oldSaves&&other.Saves==0,"Stale profile completion performs no save: "+replaceManager);
+        }
+        var guest=new Fixture(); var active=Sequence(); guest.Tutorial.Begin(active); var row=TutorialObjectiveHistory.Find(active,guest.Save.CurrentData);
+        int before=guest.Save.Saves; FusionConnectionManager.Instance=new FusionConnectionManager{IsGuestInHostWorld=true};
+        guest.Tutorial.Refresh(); guest.Tutorial.Step(active.tutorialSteps[1]); guest.Tutorial.Finish();
+        Check(!row.isCompleted&&guest.Save.CurrentData.completedLessons.Count==0&&guest.Save.Saves==before,"Becoming a guest cancels objective authority and cannot save lesson completion.");
+        var onlyGuest=Sequence("guest"); guest.Tutorial.Begin(onlyGuest); guest.Tutorial.Finish();
+        Check(TutorialObjectiveHistory.Find(onlyGuest,guest.Save.CurrentData)==null&&guest.Save.Saves==before,"Guest-started guide cannot create or complete host history.");
+        FusionConnectionManager.Instance=null; guest.Tutorial.Refresh();
+        Check(guest.Save.CurrentData.activeQuests.Count==1&&!row.isCompleted,"Returning locally cannot invent completion for the interrupted guest session.");
+    }
+    static void CatalogBackfillIsDeduplicatedAndScansOnce()
+    {
+        var f=new Fixture(); const string house="Sequence_House", raw="Assets/Scenes/BHAN HOUSE.unity|2010245065";
+        f.Save.CurrentData.completedLessons.Add(house); f.Save.CurrentData.completedLessons.Add("ProceedToShopKeeper");
+        Registry.Catalog=new TutorialObjectiveCatalog();
+        Registry.Catalog.entries.Add(new TutorialObjectiveCatalog.Entry{objectiveId=raw,lessonId=house,scenePath="Assets/Scenes/BHAN HOUSE.unity",title="Find Almanac",description="Find and review the Almanac.",allowLegacyLessonMatch=true});
+        Registry.Catalog.entries.Add(new TutorialObjectiveCatalog.Entry{objectiveId="reed",lessonId="ProceedToShopKeeper",title="Find Reed",allowLegacyLessonMatch=false});
+        var loaded=Sequence(); loaded.ObjectiveId=raw; loaded.lessonName=house; Registry.Loaded.Add(loaded);
+        Registry.Loaded.Add(Sequence("shop","ProceedToShopKeeper")); Registry.Loaded.Add(Sequence("reed","ProceedToShopKeeper"));
+        f.Tutorial.Refresh();
+        Check(f.Save.CurrentData.activeQuests.Count==1&&f.Save.CurrentData.activeQuests[0].isCompleted,"Catalog and loaded matching source backfill exactly one completed House row.");
+        Check(f.Save.CurrentData.hasUnlockedObjectiveTracker&&f.Save.Saves==1,"Recovered history unlocks Objectives and commits one batched save.");
+        int scans=Registry.Searches,version=f.Tutorial.ObjectiveHistoryVersion;
+        for(int frame=0;frame<15;frame++) f.Tutorial.Refresh();
+        Check(Registry.Searches==scans&&f.Save.Saves==1&&f.Tutorial.ObjectiveHistoryVersion==version,"Repeated update does not rescan scenes, repeat migration or save.");
+        var profile2=new PlayerData(); f.Save.CurrentData=profile2; f.Tutorial.Refresh();
+        Check(Registry.Searches==scans+1&&profile2.activeQuests.Count==0&&!profile2.hasUnlockedObjectiveTracker,"A new profile gets its own one-time scan without inheriting catalog history.");
+    }
+    static void SavedRowsCannotBeManuallyTurnedInOrNavigateStaleTargets()
+    {
+        var f=new Fixture(); var sequence=Sequence(); f.Tutorial.Begin(sequence); var row=TutorialObjectiveHistory.Find(sequence,f.Save.CurrentData);
+        var ui=new ObjectiveTrackerUI{currentlySelectedTask=row}; int before=f.Save.Saves;
+        Check(ui.OwnsSaved(row),"Reloaded saved guide row remains recognized without the runtime row HashSet.");
+        row.isReadyToTurnIn=true; row.pendingGold=999; row.pendingExp=777; row.contractName="pretend-contract";
+        ui.OnCompleteButtonClicked();
+        Check(!row.isCompleted&&f.Save.Saves==before&&f.Save.ContractCompletes==0&&LevelCompleteManager.Instance.Paid==0&&ui.Closes==0,
+            "Saved guide discriminator blocks manual turn-in even if reward/contract fields are malformed.");
+        Registry.NamedTarget=new GameObject(); row.targetWaypointName="Present NPC";
+        Check(!ui.CanNavigate(row),"Saved guide without live tutorial ownership cannot route to a stale name target.");
+        ui.SetLive(row,true); Check(ui.CanNavigate(row),"Exact live projection can use its authorized route while saved history exists.");
+        Check(ui.Key(row)==row.tutorialObjectiveId,"Saved guide uses durable identity instead of title/contract key.");
+        var other=new PlayerDataManager(); PlayerDataManager.Instance=other;
+        Check(!ui.OwnsSaved(row),"Foreign saved-row references are rejected after profile change.");
+        PlayerDataManager.Instance=f.Save; FusionConnectionManager.Instance=new FusionConnectionManager{IsGuestInHostWorld=true};
+        Check(!ui.OwnsSaved(row),"Guest cannot claim a host's saved guide row.");
+        FusionConnectionManager.Instance=null;
+    }
+    static void GenericTaskApisCannotCompleteSameTitleGuide()
+    {
+        var f=new Fixture(); var sequence=Sequence(); f.Tutorial.Begin(sequence); var guide=TutorialObjectiveHistory.Find(sequence,f.Save.CurrentData);
+        var ui=new ObjectiveTrackerUI(); int before=f.Save.Saves;
+        ui.CompleteGenericTask(guide.title);
+        Check(!guide.isCompleted&&f.Save.Saves==before,"Legacy title-based completion cannot finish a saved sequence guide.");
+        ui.AddGenericTask(guide.title,"A separate old quest.","Old target");
+        var legacy=f.Save.CurrentData.activeQuests.Single(task=>!TutorialObjectiveHistory.IsSequenceTask(task));
+        Check(legacy.title==guide.title&&!legacy.isCompleted&&f.Save.CurrentData.activeQuests.Count==2,"Same-title generic quest remains independent from guide history.");
+        ui.CompleteGenericTask(guide.title);
+        Check(legacy.isCompleted&&!guide.isCompleted&&f.Save.ContractCompletes==0,"Completing generic quest crosses out only that legacy row.");
+    }
+    static void ActualCardsShowCompletedCrossedOutStyle()
+    {
+        var f=new Fixture(); var sequence=Sequence(); f.Tutorial.Begin(sequence); f.Tutorial.Finish();
+        var reloaded=JsonSerializer.Deserialize<PlayerData>(JsonSerializer.Serialize(f.Save.CurrentData,new JsonSerializerOptions{IncludeFields=true}),new JsonSerializerOptions{IncludeFields=true});
+        var row=TutorialObjectiveHistory.Find(sequence,reloaded);
+        var card=new ObjectiveTabButton{questTitleText=new TextMeshProUGUI(),readyToTurnInIcon=new GameObject()};
+        card.gameObject.components[typeof(Image)]=new Image(); card.gameObject.components[typeof(Button)]=new Button(); card.gameObject.components[typeof(LayoutElement)]=new LayoutElement();
+        card.Setup(row);
+        Check(card.questTitleText.text.Contains("GUIDE")&&card.questTitleText.text.Contains("COMPLETED")&&card.questTitleText.fontStyle==FontStyles.Strikethrough,
+            "Actual card renderer displays a reloaded finished guide as COMPLETED and crossed out.");
+        Check(!card.readyToTurnInIcon.activeSelf,"Finished guide never shows the old turn-in alert artwork.");
+        var active=new TrackedTask{title="New guide",isTutorial=true}; card.Setup(active);
+        Check(card.questTitleText.text.Contains("ACTIVE")&&card.questTitleText.fontStyle==FontStyles.Normal,"Reused card clears crossed-out styling for an active guide.");
+        var ui=new ObjectiveTrackerUI(); ObjectiveTrackerUI.Instance=ui; card.OnClicked();
+        Check(ui.currentlySelectedTask==active,"Actual rendered card keeps its own task reference for selection.");
+    }
+}

@@ -4,6 +4,14 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
+// HUD masking is exercised against its complete production implementation in
+// DialogueHudButtons; this fixture isolates conversation/pause input ownership.
+public static class DialogueHudButtonGate
+{
+    public static void RefreshAll() { }
+    public static bool IsBoundButton(GameObject target) => false;
+}
+
 namespace UnityEngine
 {
     public class GameObject

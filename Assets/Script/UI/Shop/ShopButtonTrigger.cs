@@ -29,6 +29,10 @@ public class ShopButtonTrigger : MonoBehaviour
     private TutorialPointer unlockPointer;
     private TutorialPointer unlockPointerTemplate;
 
+    public bool CanShowHudEntry => isActiveAndEnabled && IsShopUnlocked() && visibleOutsideBuildMode &&
+        (!hideDuringBuildMode || !IsBuilding()) &&
+        (shopManager == null || shopManager.Panel == null || !shopManager.Panel.activeInHierarchy);
+
     private void Reset()
     {
         button = GetComponent<Button>();
@@ -44,6 +48,7 @@ public class ShopButtonTrigger : MonoBehaviour
 
         if (wireButtonAutomatically && button != null)
             button.onClick.AddListener(OpenShop);
+        DialogueHudButtonGate.BindShop(gameObject, this);
     }
 
     private void Start()

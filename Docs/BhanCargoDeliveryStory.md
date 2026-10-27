@@ -72,7 +72,7 @@ The player turns in the contract to Bhan at the destination rather than walking 
 
 > Excellent work, {PlayerName}. Claim your reward; you've earned it.
 
-The player manually collects the Gold and XP. Bhan activates his next phase in place without walking over the bridge.
+The player manually collects the Coins and XP. Bhan activates his next phase in place without walking over the bridge.
 
 ### 5. Load lesson
 
@@ -227,7 +227,7 @@ The shop feature is unlocked, completing the delivery chapter.
 - Placing the crate completes the physical test but does not automatically claim the contract.
 - **Save & Continue** bakes and saves the bridge.
 - Bhan is repositioned to the cargo destination during the transition.
-- The player turns in the contract to Bhan at the destination and manually claims Gold and XP.
+- The player turns in the contract to Bhan at the destination and manually claims Coins and XP.
 - After turn-in, Bhan activates the next phase in place without visibly crossing the bridge.
 
 ### Failure and cancellation

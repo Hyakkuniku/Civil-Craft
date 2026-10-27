@@ -18,7 +18,7 @@ if (update.IndexOf("IsNPCGuideTargetPresent(currentTarget)", StringComparison.Or
 if (gate.Contains("FindObject") || gate.Contains("isVisible") || gate.Contains("Renderer"))
     throw new InvalidOperationException("NPC guidance must not scan the scene or use camera visibility.");
 string boundary = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Boundary.cs.txt"))
-    .Replace("// ACTUAL_MEMBERS", fields + "\n" + update + "\n" + gate);
+    .Replace("// ACTUAL_MEMBERS", fields + "\n" + update + "\n" + gate + "\n" + Method("CanRecallTutorialGuide"));
 var trees = new[] { CSharpSyntaxTree.ParseText(boundary), CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Scenarios.cs.txt"))) };
 var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator).Select(path => MetadataReference.CreateFromFile(path));
 var compilation = CSharpCompilation.Create("NPCGuidePresence_" + Guid.NewGuid().ToString("N"), trees, references,

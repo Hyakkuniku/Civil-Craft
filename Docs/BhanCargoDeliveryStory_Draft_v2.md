@@ -161,7 +161,7 @@ The player and crate are highlighted, or downward load arrows appear over the de
 > Record the lesson in your Almanac. Then collect your contract reward.
 
 **Lesson unlocked:** Beam Bridge; Dead Load and Live Load  
-**Reward:** Gold and XP are collected through the normal contract turn-in.
+**Reward:** Coins and XP are collected through the normal contract turn-in.
 
 **Transition dialogue**
 
@@ -234,7 +234,7 @@ The player places the crate at the second destination. Bhan waits there for the 
 > Equilibrium does not mean that nothing happens. It means the forces balance well enough for the structure to do its job.
 
 **Lesson unlocked:** Truss Bridge; Tension, Compression, and Equilibrium  
-**Reward:** Gold and XP are collected at the destination.
+**Reward:** Coins and XP are collected at the destination.
 
 ---
 
@@ -320,7 +320,7 @@ She looks back across the completed route.
 
 **Shop introduction**
 
-> Contracts earn Gold and experience. Gold buys useful equipment here—and, if you insist, something less dusty to wear.
+> Contracts earn Coins and experience. Coins buy useful equipment here—and, if you insist, something less dusty to wear.
 
 > My shop is open to you now. Spend wisely. Engineers always discover one more thing they need.
 

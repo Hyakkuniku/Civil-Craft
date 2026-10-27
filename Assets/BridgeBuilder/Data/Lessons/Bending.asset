@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a4da58d2dc2409c459ef20449bf92a90, type: 3}
+  m_Name: Bending
+  m_EditorClassIdentifier:
+  lessonId: civil-craft-bending-lesson-v1
+  lessonTitle: Bending
+  lessonImage: {fileID: 0}
+  popupDescription: "<b><#E09500>Bending</color></b> occurs when an applied load causes a structural member to curve or deform.\n\nIn a simply supported bridge, the greatest bending moment commonly occurs near the middle when a load is positioned at midspan.\n\nKey points:\n- Vehicle weight creates a downward load.\n- The bridge transfers this load toward its supports.\n- Bending can cause structural members to curve.\n- Proper structural design helps the bridge withstand bending.\n\nThis lesson has been added to your <b><#E09500>Almanac</color></b>."
+  almanacImage: {fileID: 0}
+  lessonDescription: "<b><#E09500>Bending</color></b> is the curving or deformation of a structural member under an applied load. When a vehicle crosses a bridge, its weight creates a downward load. The connected structural members carry this load toward the supports.\n\nFor a <b><#E09500>simply supported bridge</color></b> with a load at midspan, the greatest bending moment commonly occurs near the middle. The position and amount of bending depend on the load position, supports, and structural arrangement.\n\nWhen a simply supported beam bends downward under a vehicle's weight, its <b><#E09500>upper part experiences compression</color></b>, while its <b><#E09500>lower part experiences tension</color></b>. Compression pushes material together; tension pulls it apart.\n\nUnderstanding bending helps you identify areas that may need additional structural support. Proper material choices, connected members, and support arrangements help a bridge withstand bending safely.\n\nDuring Reed's factory crossing test, observe how the bridge responds as the pickup moves across. Watch for members that curve or deform most under the load, then review whether the design needs more support."

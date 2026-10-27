@@ -4,6 +4,7 @@ public static class Scenarios
     public static int Run()
     {
         EligibilityMatrix();
+        InteractionNeededPolicy();
         ModelPresence();
         SpawnReadiness();
         DestinationResolution();
@@ -57,6 +58,97 @@ public static class Scenarios
         invalid.currentPhaseIndex = 0;
         invalid.phases[0] = null;
         Expect(!invalid.ShouldShowExclamationMark, "No marker for missing phase");
+    }
+
+    private static void InteractionNeededPolicy()
+    {
+        NPCProgressionManager npc = Create();
+        npc.phaseHasArrived = true;
+        npc.UseInteractionGate(true);
+        Expect(npc.ShouldShowExclamationMark, "Unfinished arrived conversation calls for attention.");
+        npc.savedCompletedDialogues.Add(0);
+        Expect(!npc.ShouldShowExclamationMark, "Finishing a contract-free conversation clears its attention, including restored completion.");
+        npc.savedCompletedDialogues.Clear();
+        npc.runningOptionalSequencePhases.Add(0);
+        Expect(!npc.ShouldShowExclamationMark, "Owned ordered dialogue/material/lesson/quiz flow hides its marker while it awaits player input elsewhere.");
+        npc.runningOptionalSequencePhases.Clear();
+        Expect(npc.ShouldShowExclamationMark, "Cancelling an unfinished ordered flow restores the talk marker for retry.");
+        npc.runningOptionalSequencePhases.Add(1);
+        Expect(npc.ShouldShowExclamationMark, "Stale another-phase sequence state cannot hide the current conversation.");
+        npc.runningOptionalSequencePhases.Clear();
+        npc.pendingTravelReview = true;
+        Expect(!npc.ShouldShowExclamationMark, "Arrival while the walking-time Almanac review is pending cannot advertise another talk.");
+        npc.pendingTravelReview = false;
+        LessonTrigger.pendingOwner = npc;
+        Expect(!npc.ShouldShowExclamationMark, "Pending vehicle-inspection Almanac review keeps attention on the book.");
+        LessonTrigger.pendingOwner = Create();
+        Expect(npc.ShouldShowExclamationMark, "Another NPC's pending review does not suppress this talk.");
+        LessonTrigger.pendingOwner = null;
+        DialogueManager.IsAnyDialogueVisible = true;
+        Expect(!npc.ShouldShowExclamationMark, "Visible dialogue suppresses attention until its closing presentation finishes.");
+        DialogueManager.IsAnyDialogueVisible = false;
+        QuizUIManager.IsAnyQuizActive = true;
+        Expect(!npc.ShouldShowExclamationMark, "An active quiz cannot advertise an overlapping talk.");
+        QuizUIManager.IsAnyQuizActive = false;
+        PauseManager.Instance = new PauseManager { isPaused = true };
+        Expect(!npc.ShouldShowExclamationMark, "Pause suppresses opt-in attention.");
+        PauseManager.Instance = null;
+        Time.timeScale = 0;
+        Expect(!npc.ShouldShowExclamationMark, "An externally paused game cannot request a conversation.");
+        Time.timeScale = 1;
+        GameManager.Instance = new GameManager { CurrentState = GameManager.GameState.Building };
+        Expect(!npc.ShouldShowExclamationMark, "Build mode keeps the marker hidden.");
+        GameManager.Instance.CurrentState = GameManager.GameState.CargoTesting;
+        Expect(!npc.ShouldShowExclamationMark, "Cargo simulation keeps the marker hidden.");
+        GameManager.Instance.CurrentState = GameManager.GameState.Normal;
+        GameManager.Instance.IsTransitioning = true;
+        Expect(!npc.ShouldShowExclamationMark, "Interrupted transitions cannot flash talk attention.");
+        GameManager.Instance.IsTransitioning = false;
+        Expect(npc.ShouldShowExclamationMark, "Returning to ordinary play restores an unfinished conversation.");
+
+        ContractSO contract = new ContractSO();
+        npc.phases[0].contract = contract;
+        npc.contractGiver.contractToGive = contract;
+        Expect(npc.ShouldShowExclamationMark, "An available unaccepted contract needs a conversation.");
+        npc.contractGiver.HasAcceptedProgressionContract = true;
+        Expect(!npc.ShouldShowExclamationMark, "Accepted incomplete contract points the player toward building, not the giver.");
+        npc.contractGiver.isContractCompleted = true;
+        Expect(npc.ShouldShowExclamationMark, "A completed crossing advertises the turn-in conversation.");
+        npc.contractGiver.CanRestoreContractGuide = false;
+        Expect(!npc.ShouldShowExclamationMark, "Fully turned-in, locked, or pending-offer givers cannot request another turn-in.");
+        npc.contractGiver.CanRestoreContractGuide = true;
+        npc.contractGiver.isContractCompleted = false;
+        npc.phases[0].optionalDialogueSequence.Add(new NPCOptionalDialogueStep { stepType = NPCOptionalDialogueStep.StepType.Quiz });
+        Expect(npc.ShouldShowExclamationMark, "A cancelled accepted-contract quiz may be resumed by talking, including after reload.");
+        npc.runningOptionalSequencePhases.Add(0);
+        Expect(!npc.ShouldShowExclamationMark, "Once offered in the Almanac the same contract quiz no longer requests a second talk.");
+        npc.runningOptionalSequencePhases.Clear();
+        npc.savedCompletedDialogues.Add(0);
+        Expect(!npc.ShouldShowExclamationMark, "Finishing the contract's quiz returns attention to the unfinished build task.");
+        npc.contractGiver.isContractCompleted = true;
+        Expect(npc.ShouldShowExclamationMark, "Quiz completion must not hide a later genuine contract turn-in.");
+        npc.contractGiver.contractToGive = new ContractSO();
+        Expect(!npc.ShouldShowExclamationMark, "A stale giver contract cannot advertise the current phase's turn-in.");
+        npc.contractGiver.contractToGive = contract;
+        npc.contractGiver.IsInteractionAvailable = false;
+        Expect(!npc.ShouldShowExclamationMark, "Unavailable cargo-gated interaction cannot show talk attention.");
+        npc.contractGiver.IsInteractionAvailable = true;
+        npc.contractGiver.isActiveAndEnabled = false;
+        Expect(!npc.ShouldShowExclamationMark, "Disabled interaction cannot advertise talk.");
+        npc.contractGiver = null;
+        Expect(!npc.ShouldShowExclamationMark, "A missing interaction component cannot advertise talk.");
+
+        // Opting out preserves the original phase-only behavior, independently
+        // of every new dependency; these settings cannot affect other NPCs.
+        npc.UseInteractionGate(false);
+        DialogueManager.IsAnyDialogueVisible = QuizUIManager.IsAnyQuizActive = true;
+        GameManager.Instance.IsTransitioning = true;
+        npc.runningOptionalSequencePhases.Add(0);
+        Expect(npc.ShouldShowExclamationMark, "Existing phase-only NPCs remain eligible despite all new attention-policy blockers.");
+        npc.RenderedChildren.Clear();
+        Expect(!npc.ShouldShowExclamationMark, "Opt-out never bypasses actual spawned-model presence.");
+        DialogueManager.IsAnyDialogueVisible = QuizUIManager.IsAnyQuizActive = false;
+        GameManager.Instance = null;
     }
 
     private static void ModelPresence()

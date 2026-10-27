@@ -43,6 +43,15 @@ public class AlmanacManager : MonoBehaviour
     public bool IsOpenAndReady => almanacCanvas != null &&
         almanacCanvas.activeInHierarchy && !isAnimating;
     public bool IsOpeningOrClosing => isAnimating;
+    public bool CanShowHudOpenButton => isActiveAndEnabled &&
+        PlayerDataManager.Instance != null && PlayerDataManager.Instance.CurrentData != null &&
+        PlayerDataManager.Instance.CurrentData.hasAlmanac &&
+        (almanacCanvas == null || !almanacCanvas.activeInHierarchy) && !isAnimating &&
+        !QuizUIManager.IsAnyQuizActive;
+    public RectTransform TutorialCloseButtonRect => tutorialCloseButton != null
+        ? tutorialCloseButton.transform as RectTransform : null;
+    public bool OwnsTutorialSequence(TutorialSequence sequence) => sequence != null &&
+        (sequence == onFirstOpenTutorial || IsTabUnlockTutorialSequence(sequence));
 
     /// <summary>Routes a waiting NPC quiz only after the normal book opening and required walkthroughs finish.</summary>
     public bool TrySelectQuizOfferCategory(int index)
@@ -147,6 +156,7 @@ public class AlmanacManager : MonoBehaviour
     private bool hasCapturedMenuInput;
     private bool isHoldingSuspendedTutorialResume;
     private Coroutine pendingTabTutorialCoroutine;
+    private Button tutorialCloseButton;
 
     private Dictionary<RectTransform, float> originalTabYPositions = new Dictionary<RectTransform, float>();
     private Dictionary<RectTransform, float> targetTabYPositions = new Dictionary<RectTransform, float>();
@@ -183,6 +193,7 @@ public class AlmanacManager : MonoBehaviour
         AlmanacQuizAccess.Install(this);
         InitializeBook();
         EnsureCloseButtonStyle();
+        DialogueHudButtonGate.BindAlmanac(hudOpenButton, this);
         if (bookMotion != null) bookMotion.Bind(this);
         EnsureTabUnlockTutorialDrafts();
     }
@@ -196,6 +207,7 @@ public class AlmanacManager : MonoBehaviour
                 if (button.onClick.GetPersistentTarget(index) == this &&
                     button.onClick.GetPersistentMethodName(index) == nameof(CloseAlmanac))
                 {
+                    tutorialCloseButton = button;
                     AlmanacCloseButtonStyle.Apply(button, font);
                     break;
                 }

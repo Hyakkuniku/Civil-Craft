@@ -73,6 +73,25 @@ public static class Scenarios
         var early = Target(); Progression(early); early.activeSelf = false; guide = Guide(early.transform); guide.player.position = early.transform.position; guide.Tick();
         Require(guide.generations == 0 && guide.clears == 0 && guide.Index == 0 && TutorialManager.Instance.advances == 0,
             "An initially hidden NPC must neither create/clear nonexistent trail nor count as an arrival.");
+
+        Require(!guide.CanRecallTutorialGuide(null) && !guide.CanRecallTutorialGuide(new List<GuiderWaypoint>()),
+            "An objective without authored waypoints has no recall route.");
+        Require(!guide.CanRecallTutorialGuide(guide.waypoints), "A hidden pending NPC disables objective tracking.");
+        var later = Target(); later.transform.position = new Vector3(20, 0, 0); later.activeSelf = false;
+        var ordered = new List<GuiderWaypoint> { new GuiderWaypoint { target = early.transform }, new GuiderWaypoint { target = later.transform } };
+        Require(!guide.CanRecallTutorialGuide(ordered), "An unstarted route cannot bypass a hidden first NPC for a later marker.");
+        early.activeSelf = true;
+        guide.waypoints = ordered; guide.player.position = early.transform.position; guide.Tick();
+        Require(guide.Index == 1 && TutorialManager.Instance.advances == 1, "The first authored waypoint can be reached normally.");
+        early.activeSelf = false;
+        int recallsIndex = guide.Index, recallsClears = guide.clears, recallsGenerations = guide.generations;
+        Require(guide.CanRecallTutorialGuide(ordered), "Tracking follows the pending second marker even after the reached NPC despawns.");
+        Require(!guide.CanRecallTutorialGuide(new List<GuiderWaypoint>(ordered)), "A different route starts at its own first waypoint.");
+        Require(guide.Index == recallsIndex && guide.clears == recallsClears && guide.generations == recallsGenerations && TutorialManager.Instance.advances == 1,
+            "Reading objective navigation availability neither advances nor rebuilds a route.");
+        guide.player.position = later.transform.position; guide.Tick();
+        Require(guide.Index == 2 && guide.CanRecallTutorialGuide(ordered), "A finished trail can recall its final target like the existing recall action.");
+        Require(!guide.CanRecallTutorialGuide(new List<GuiderWaypoint> { null, new GuiderWaypoint() }), "An empty target list remains untrackable.");
         return checks;
     }
 }

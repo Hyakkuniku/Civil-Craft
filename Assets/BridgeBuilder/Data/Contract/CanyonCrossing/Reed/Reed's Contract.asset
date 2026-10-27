@@ -29,10 +29,12 @@ MonoBehaviour:
   autoCollectReward: 0
   featureUnlockRewards: []
   clientName: Reed
-  jobDescription: We need a bridge across this ravine!
+  jobDescription: Connect the factory to Central Canyonville. Build a safe crossing
+    for the test pickup and observe how the structure responds to bending under its
+    weight.
   budget: 100000
   liveLoadWeight: 5000
-  bridgeSpan: 80
+  bridgeSpan: 60
   allowedMaterials: []
   hiddenTools: 
   hiddenMaterials:
@@ -50,29 +52,31 @@ MonoBehaviour:
   offerDialogue:
     name: Reed
     sentences:
-    - "That\u2019s one of the supply facilities serving Canyon Crossing."
-    - 'A lot of the materials that are used around here come through that facility. '
-    - The problem is getting them into Canyonville.
-    - "The factory isn\u2019t actually far from the city, but the canyon separates
-      the two roads. "
-    - It makes supplying Canyonville harder than it should be.
-    - A direct crossing here would solve that.
-    - "But keep in mind, those carts can get pretty heavy when they\u2019re loaded."
-    - So don't just think about getting the cart from one side to the other.
-    - <b><#E09500>Pay attention to how the bridge responds under that weight</color></b>.
+    - Now that you understand bending, let's put that knowledge to use.
+    - We need a bridge that can connect the factory to Central Canyonville.
+    - The crossing is <b><#E09500>60 meters</color></b> wide.
+    - A pickup truck will use this route during the test.
+    - Your job is to construct a bridge that can safely carry the pickup across.
+    - Remember what we discussed about bending.
+    - <b><#E09500>Pay attention to how the bridge responds under the vehicle's weight</color></b>.
     - <b><#E09500>Watch the structure closely when you run the test</color></b>.
-    - 'If you''re interested, I''ve got the contract. '
+    - If you're ready, I've got the contract.
   continueOfferDialogue:
     name: Reed
     sentences: []
   reminderDialogue:
     name: Reed
     sentences:
-    - "The crossing\u2019s yours, {PlayerName}."
+    - The crossing's yours, {PlayerName}.
+    - Remember what we discussed about bending.
     - Keep an eye on how the bridge responds when you run the test.
   finishedContractDialogue:
     name: Reed
     sentences:
-    - "That\u2019s exactly what the crossing needed."
-    - The factory finally has a direct connection to Canyonville.
+    - That's exactly what the crossing needed.
+    - The factory finally has a direct connection to Central Canyonville.
     - Getting supplies into the city should be much easier now.
+    - You handled your first project out here well.
+    - And now you've seen how bending affects a bridge under load.
+    - Nice work, {PlayerName}.
+    - I'm sure we'll meet again some other time.

@@ -5,6 +5,8 @@ using System.Collections.Generic;
 namespace UnityEngine
 {
     [AttributeUsage(AttributeTargets.Class)] public sealed class DisallowMultipleComponent : Attribute { }
+    [AttributeUsage(AttributeTargets.Field)] public sealed class HeaderAttribute : Attribute { public HeaderAttribute(string text) { } }
+    [AttributeUsage(AttributeTargets.Field)] public sealed class TooltipAttribute : Attribute { public TooltipAttribute(string text) { } }
     public class Object
     {
         public bool Destroyed;
@@ -16,6 +18,7 @@ namespace UnityEngine
         public void SetParent(Transform parent, bool worldPositionStays) { Parent = parent; }
     }
     public sealed class RectTransform { }
+    public sealed class Scene { public string path = "Assets/Scenes/CanyonCrossing.unity"; }
     public struct Vector2
     {
         public float x, y;
@@ -24,6 +27,7 @@ namespace UnityEngine
     public sealed class GameObject : Object
     {
         public string name;
+        public Scene scene = new Scene();
         public Transform transform = new Transform();
         public RectTransform rectTransform = new RectTransform();
         public GameObject(string name = "Fixture") { this.name = name; }
@@ -114,6 +118,10 @@ public sealed class TutorialStep
 public sealed class TutorialSequence : UnityEngine.MonoBehaviour
 {
     public string lessonName;
+    public bool showInObjectives;
+    public string objectiveTitle;
+    public string ObjectiveId;
+    public void ConfigureObjectiveIdentity(string identity) { ObjectiveId = identity; }
     public TutorialStep[] tutorialSteps;
     public void StartTutorial() { TutorialManager.Instance.StartOrQueue(this); }
 }

@@ -394871,9 +394871,9 @@ MonoBehaviour:
       sentences:
       - Since you're going to be working on more projects around Canyon Crossing,
         there's something else you should know.
-      - The work you complete around Arcadia will earn you <b><#E09500>Gold</color></b>
+      - The work you complete around Arcadia will earn you <b><#E09500>Coins</color></b>
         and other rewards.
-      - You can spend your <b><#E09500>Gold</color></b> here on items for your journey.
+      - You can spend your <b><#E09500>Coins</color></b> here on items for your journey.
       - You can use what you've earned to <b><#E09500>purchase items</color></b>
         for your engineering journey.
       - Some items can also be <b><#E09500>equipped</color></b> to customize your
@@ -394932,7 +394932,7 @@ MonoBehaviour:
       sentences:
       - You can come back anytime.
       - Good luck with your next project, {PlayerName}.
-      - You can spend your <b><#E09500>Gold</color></b> here on items for your journey.
+      - You can spend your <b><#E09500>Coins</color></b> here on items for your journey.
       - You can use what you've earned to <b><#E09500>purchase items</color></b>
         for your engineering journey.
       - Some items can also be <b><#E09500>equipped</color></b> to customize your

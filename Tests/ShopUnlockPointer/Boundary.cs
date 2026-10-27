@@ -221,6 +221,14 @@ public class TutorialPointer : Behaviour
 }
 public static class LoadingScreenManager { public static bool IsLoading; }
 public static class DialogueManager { public static bool IsAnyDialogueVisible, IsAnyDialogueActive; }
+// Dedicated DialogueHudButtons tests execute the full production mask. This
+// pointer fixture observes only its binding boundary so arrow ownership stays isolated.
+public static class DialogueHudButtonGate
+{
+    public static GameObject boundButton;
+    public static ShopButtonTrigger boundShop;
+    public static void BindShop(GameObject button, ShopButtonTrigger owner) { boundButton = button; boundShop = owner; }
+}
 public static class MultiplayerChallengeLobbyUI { public static bool IsChallengeActive; }
 public class FusionConnectionManager { public static FusionConnectionManager Instance; public bool IsGuestSaveProtected; }
 public class PauseManager { public static PauseManager Instance; public bool isPaused; }

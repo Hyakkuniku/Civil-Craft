@@ -66,6 +66,7 @@ public class TutorialManager
     public void ShowNextStep() { advances++; }
 }
 public static class Time { public static float unscaledDeltaTime = .016f, unscaledTime; }
+public static class Mathf { public static int Min(int first, int second) => Math.Min(first, second); }
 public class GuiderWaypoint { public Transform target; public bool advancesTutorial = true; }
 public class PathGuider
 {

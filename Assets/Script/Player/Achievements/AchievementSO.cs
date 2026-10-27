@@ -7,9 +7,9 @@ public class AchievementSO : ScriptableObject
     public enum GoalType 
     { 
         TotalBridgesBuilt, 
-        [InspectorName("Gold Received")]
+        [InspectorName("Coins Received")]
         TotalGoldEarned,
-        [InspectorName("Gold Spent")]
+        [InspectorName("Coins Spent")]
         TotalGoldSpent,
         [InspectorName("EXP Received")]
         TotalExpEarned,

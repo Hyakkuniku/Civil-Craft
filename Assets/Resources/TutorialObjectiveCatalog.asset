@@ -1,0 +1,101 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c66a8c0a44e243dcba204386e405b939, type: 3}
+  m_Name: TutorialObjectiveCatalog
+  m_EditorClassIdentifier: 
+  entries:
+  - objectiveId: Assets/Scenes/CanyonCrossing.unity|243981140
+    lessonId: Sequence_Movement
+    scenePath: Assets/Scenes/CanyonCrossing.unity
+    title: Learn the controls and visit Bhan
+    description: Learn the controls and visit Bhan
+    allowLegacyLessonMatch: 1
+  - objectiveId: Assets/Scenes/CanyonCrossing.unity|1698283800
+    lessonId: Sequence_Bridge
+    scenePath: Assets/Scenes/CanyonCrossing.unity
+    title: Meet Professor Bhan
+    description: Meet Professor Bhan
+    allowLegacyLessonMatch: 1
+  - objectiveId: Assets/Scenes/CanyonCrossing.unity|847218647
+    lessonId: Go to the supply cart.
+    scenePath: Assets/Scenes/CanyonCrossing.unity
+    title: Follow Bhan to the vehicle
+    description: Follow Bhan to the vehicle
+    allowLegacyLessonMatch: 1
+  - objectiveId: Assets/Scenes/CanyonCrossing.unity|1085285848
+    lessonId: Sequence_Build1
+    scenePath: Assets/Scenes/CanyonCrossing.unity
+    title: Build your first Beam Bridge
+    description: Build your first Beam Bridge
+    allowLegacyLessonMatch: 1
+  - objectiveId: Assets/Scenes/CanyonCrossing.unity|1149129735
+    lessonId: Sequence_FirstLevelCompletion
+    scenePath: Assets/Scenes/CanyonCrossing.unity
+    title: Review your bridge test results
+    description: Review your bridge test results
+    allowLegacyLessonMatch: 1
+  - objectiveId: Assets/Scenes/CanyonCrossing.unity|2135021272
+    lessonId: FollowProfessorBhan
+    scenePath: Assets/Scenes/CanyonCrossing.unity
+    title: Follow Professor Bhan
+    description: Follow Professor Bhan
+    allowLegacyLessonMatch: 1
+  - objectiveId: Assets/Scenes/CanyonCrossing.unity|1704001129
+    lessonId: Sequence_Build2
+    scenePath: Assets/Scenes/CanyonCrossing.unity
+    title: Build your first Truss Bridge
+    description: Build your first Truss Bridge
+    allowLegacyLessonMatch: 1
+  - objectiveId: Assets/Scenes/CanyonCrossing.unity|445199625
+    lessonId: ProceedToShopKeeper
+    scenePath: Assets/Scenes/CanyonCrossing.unity
+    title: Meet the shopkeeper
+    description: Meet the shopkeeper
+    allowLegacyLessonMatch: 0
+  - objectiveId: Assets/Scenes/CanyonCrossing.unity|1635574828
+    lessonId: GoBackToProfBhan
+    scenePath: Assets/Scenes/CanyonCrossing.unity
+    title: Return to Professor Bhan
+    description: Return to Professor Bhan
+    allowLegacyLessonMatch: 1
+  - objectiveId: Assets/Scenes/CanyonCrossing.unity|863682474
+    lessonId: ProceedToShopKeeper
+    scenePath: Assets/Scenes/CanyonCrossing.unity
+    title: Find Reed
+    description: Find Reed
+    allowLegacyLessonMatch: 0
+  - objectiveId: Assets/Scenes/BHAN HOUSE.unity|2010245065
+    lessonId: Sequence_House
+    scenePath: Assets/Scenes/BHAN HOUSE.unity
+    title: Meet Bhan and find the Almanac
+    description: Meet Bhan and find the Almanac
+    allowLegacyLessonMatch: 1
+  - objectiveId: Assets/Scenes/BHAN HOUSE.unity|1946445662
+    lessonId: Sequence_Alamnac
+    scenePath: Assets/Scenes/BHAN HOUSE.unity
+    title: Review your Almanac
+    description: Review your Almanac
+    allowLegacyLessonMatch: 1
+  - objectiveId: Assets/Scenes/CanyonCrossing.unity|review|StoryReview/MainContractNPC/LiveLoad/inspection-review
+    lessonId: StoryReview/MainContractNPC/LiveLoad/inspection-review
+    scenePath: Assets/Scenes/CanyonCrossing.unity
+    title: Review the Live Load lesson
+    description: Open your <b>Almanac</b> and review the Live Load lesson. After
+      reading, close the book to continue.
+    allowLegacyLessonMatch: 1
+  - objectiveId: Assets/Scenes/CanyonCrossing.unity|review|StoryReview/MainContractNPC/DeadLoad/training-bridge-record-review
+    lessonId: StoryReview/MainContractNPC/DeadLoad/training-bridge-record-review
+    scenePath: Assets/Scenes/CanyonCrossing.unity
+    title: Review your first bridge record
+    description: Open your <b>Almanac</b> and review your first bridge entry. After
+      reading, close the book to continue.
+    allowLegacyLessonMatch: 1

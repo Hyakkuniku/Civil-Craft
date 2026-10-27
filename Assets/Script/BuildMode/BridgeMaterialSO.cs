@@ -74,7 +74,7 @@ public class BridgeMaterialSO : ScriptableObject
     [Tooltip("Hide this material unless the current contract explicitly lists this exact asset in Allowed Materials. Empty/unrestricted lists and purchased unlocks do not enable it. Off preserves existing material behavior.")]
     public bool requiresExplicitContractAllowance = false;
 
-    [Tooltip("How much Gold it costs to unlock this material if a contract restricts it.")]
+    [Tooltip("How many Coins it costs to unlock this material if a contract restricts it.")]
     public int unlockCost = 500; 
 
     [Header("Visuals")]

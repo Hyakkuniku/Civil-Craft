@@ -29,10 +29,12 @@ MonoBehaviour:
   autoCollectReward: 0
   featureUnlockRewards: []
   clientName: Vance
-  jobDescription: We need a bridge across this ravine!
+  jobDescription: Connect the factory road to the middle supply point with an 80-meter
+    bridge. Load all four marked cargo items before testing, and carry the complete
+    vehicle-and-cargo load safely across.
   budget: 150000
   liveLoadWeight: 5000
-  bridgeSpan: 3
+  bridgeSpan: 80
   allowedMaterials: []
   hiddenTools: 
   hiddenMaterials:
@@ -50,36 +52,38 @@ MonoBehaviour:
   offerDialogue:
     name: Vance
     sentences:
-    - This bridge will form the first half of a new supply route to the community.
-    - It needs to connect the factory road to the supply point at the middle ravine.
-    - The loaded vehicle is heavier than the ones you have handled before.
+    - Now that you understand tension and compression, let's put that knowledge to
+      use.
+    - We need a bridge that gives vehicles a shorter route through the canyon.
+    - This bridge will connect the factory road to the supply point on the middle
+      rock shelf.
+    - The crossing is <b><#E09500>80 meters</color></b> wide.
+    - The four cargo items you've loaded are part of the test's combined vehicle-and-cargo
+      live load.
     - <b><#E09500>As that weight moves across, different parts of the bridge may
-      respond in different ways</color></b>.
-    - <b><#E09500>Pay attention to how the structural members behave during the test</color></b>.
-    - Watch how they work together while the cargo vehicle crosses.
-    - If the bridge can carry the complete load safely, the supplies can reach the
-      middle ravine.
-    - If you're ready, take the contract.
+      experience tension or compression</color></b>.
+    - Pay attention to how the structural members behave during the test.
+    - Watch how they work together to support the loaded vehicle.
+    - If you're ready, I can give you the contract.
   continueOfferDialogue:
     name: Vance
     sentences: []
   reminderDialogue:
     name: Vance
     sentences:
-    - The cargo is secured and the required live load is ready.
-    - Take your time with the design.
-    - Watch how the different parts of the bridge respond when the loaded vehicle
-      crosses.
+    - Take your time with the design, {PlayerName}.
+    - Keep all four required cargo items on the truck for the test.
+    - Remember what we discussed about tension and compression.
+    - Keep an eye on how the different parts of the bridge respond when the loaded
+      vehicle crosses.
   finishedContractDialogue:
     name: Vance
     sentences:
-    - That's the first part of the route open.
-    - The loaded vehicle made it from the factory to the middle ravine safely.
-    - You also proved that the bridge can carry the actual cargo the community needs,
-      not just an empty vehicle.
-    - But the delivery is only halfway there.
-    - The road ends at the next ravine, and the community is still on the other side.
-    - <b><#E09500>Silas</color></b> is responsible for the projects beyond this point.
-    - He is waiting near the middle ravine.
-    - Meet him there. He'll show you what is needed to finish the route.
-    - Good work, {PlayerName}.
+    - Now that's a shortcut.
+    - The loaded vehicle can reach the middle supply point instead of taking the
+      long way around the canyon.
+    - That should save everyone using this first part of the route a lot of travel
+      time.
+    - And you've seen how tension and compression affect different parts of a bridge.
+    - Well done, {PlayerName}.
+    - Let's review what you've learned before you continue the delivery route.

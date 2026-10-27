@@ -132927,6 +132927,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: Sequence_Alamnac
   requiredPreviousLesson: Sequence_Movement
+  showInObjectives: 1
+  objectiveTitle: Review your Almanac
+  objectiveId: Assets/Scenes/BHAN HOUSE.unity|1946445662
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -137040,6 +137043,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: Sequence_House
   requiredPreviousLesson: Sequence_Movement
+  showInObjectives: 1
+  objectiveTitle: Meet Bhan and find the Almanac
+  objectiveId: Assets/Scenes/BHAN HOUSE.unity|2010245065
   playOnStart: 1
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0

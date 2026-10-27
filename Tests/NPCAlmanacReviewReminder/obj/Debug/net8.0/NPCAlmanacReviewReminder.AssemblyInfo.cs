@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("NPCAlmanacReviewReminder")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+067e9a81e84a722967600f9bb32cd2e6da2aaaaa")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+a84d584d7b445b1dd7650c754b25487a005a2044")]
 [assembly: System.Reflection.AssemblyProductAttribute("NPCAlmanacReviewReminder")]
 [assembly: System.Reflection.AssemblyTitleAttribute("NPCAlmanacReviewReminder")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

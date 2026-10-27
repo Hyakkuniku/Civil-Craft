@@ -1,0 +1,36 @@
+{
+  "SideContractSHA256": "AA2E0FEBFF9FA9C0F8E1FDA6045298F88B6675511FDEC49CFA73411D904B2E75",
+  "SharedPrefabSHA256": "89D366928969670AB37FC408445F9E70E28863475C79B7161C1D791F5C3093D6",
+  "SidePhaseOverrides": {
+    "phases.Array.data[4].phaseId": "SideContract|{fileID: 0}",
+    "phases.Array.data[4].contract": "|{fileID: 11400000, guid: 08ef0a30971b46d18d7752fdf9b5470f, type: 2}",
+    "phases.Array.data[4].dialoguePrompt": "Talk To Reed|{fileID: 0}",
+    "phases.Array.data[4].targetLocation": "|{fileID: 2072834505}",
+    "phases.Array.data[4].phaseDialogue.name": "Reed|{fileID: 0}",
+    "phases.Array.data[4].targetBuildLocation": "|{fileID: 1168462742}",
+    "phases.Array.data[4].playDialogueOnArrival": "0|{fileID: 0}",
+    "phases.Array.data[4].teleportToTargetLocation": "1|{fileID: 0}",
+    "phases.Array.data[4].phaseDialogue.sentences.Array.size": "0|{fileID: 0}",
+    "phases.Array.data[4].phaseDialogue.sentences.Array.data[0]": "You handled your first project out here well.|{fileID: 0}",
+    "phases.Array.data[4].phaseDialogue.sentences.Array.data[1]": "Nice work, {PlayerName}.|{fileID: 0}",
+    "phases.Array.data[4].phaseDialogue.sentences.Array.data[2]": "\"I\\u2019m sure we\\u2019ll meet again some other time \"|{fileID: 0}",
+    "phases.Array.data[4].onDialogueFinished.m_PersistentCalls.m_Calls.Array.size": "1|{fileID: 0}",
+    "phases.Array.data[4].onDialogueFinished.m_PersistentCalls.m_Calls.Array.data[0].m_Mode": "1|{fileID: 0}",
+    "phases.Array.data[4].onDialogueFinished.m_PersistentCalls.m_Calls.Array.data[0].m_Target": "|{fileID: 1601157402}",
+    "phases.Array.data[4].onDialogueFinished.m_PersistentCalls.m_Calls.Array.data[0].m_CallState": "2|{fileID: 0}",
+    "phases.Array.data[4].onDialogueFinished.m_PersistentCalls.m_Calls.Array.data[0].m_MethodName": "SpawnNPC|{fileID: 0}",
+    "phases.Array.data[4].onDialogueFinished.m_PersistentCalls.m_Calls.Array.data[0].m_TargetAssemblyTypeName": "NPCSpawnerCondition, Assembly-CSharp|{fileID: 0}",
+    "phases.Array.data[4].onDialogueFinished.m_PersistentCalls.m_Calls.Array.data[0].m_Arguments.m_ObjectArgumentAssemblyTypeName": "UnityEngine.Object, UnityEngine|{fileID: 0}"
+  },
+  "OtherReedInstances": {
+    "540973637": "9B40EB26A9E96C9817160A897A96F3052FD4161BC4D543ECB6F29D6EC0EEA2BA",
+    "1367039121": "97294760803F0C7C2E21063D0544CB9A63D81313669B72541D3C89727765A45D",
+    "1506972442": "D4420AA136441665B51A78AB11A39FDC0C36996C54101AC65545407DBB885578",
+    "1893897981": "67D3E6E834EC46B47A7CA9B18788CEC570273D634EEF598CA1C2B995EC0942C6"
+  },
+  "SharedRuntimeSources": {
+    "Assets/Script/Client/NPCProgressionManager.cs": "4C570318F1504FD9E1FCF7AB3C36D2BEC7A10A4FD32958835F5F4F1294150615",
+    "Assets/Script/Client/NPCOrderedLearningFlow.cs": "489C4332E074A2380576C708D1FAA899DBE913221E2DEAA1FC1AA4EA7124403E",
+    "Assets/Script/Dialogue/DialogueManager.cs": "6FF605186DEBB51A544EF9BE570583AD458441814557C84A60C0999EC77B768E"
+  }
+}

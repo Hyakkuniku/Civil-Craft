@@ -20,7 +20,10 @@ internal static class Program
         string scenarios = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Scenarios.cs.txt"));
         string extracted = Property(manager, "ShouldShowExclamationMark") + Property(manager, "CurrentPhase") +
             Property(manager, "IsTravelling") + Method(manager, "CanRunLocalProgression") +
-            Method(manager, "HasReachedPhaseDestination") + Method(manager, "HasPresentNPCVisual");
+            Method(manager, "HasReachedPhaseDestination") + Method(manager, "HasPresentNPCVisual") +
+            Method(manager, "NeedsPhaseInteraction") + Method(manager, "PhaseContainsQuiz") +
+            manager.Members.OfType<FieldDeclarationSyntax>().Single(node => node.Declaration.Variables.Any(
+                variable => variable.Identifier.ValueText == "onlyShowExclamationWhenInteractionNeeded")).Declaration + ";";
         ClassDeclarationSyntax spawnMonitor = ReadClass(root, "Assets/Script/Interaction System/Interactables/NPCSpawnConditionMonitor.cs", "NPCSpawnConditionMonitor");
         ClassDeclarationSyntax spawner = ReadClass(root, "Assets/Script/Interaction System/Interactables/NPCSpawnerCondition.cs", "NPCSpawnerCondition");
         ClassDeclarationSyntax graphic = ReadClass(root, "Assets/Script/UI/NPCExclamationGraphic.cs", "NPCExclamationGraphic");
@@ -48,6 +51,14 @@ internal static class Program
             .SelectMany(node => node.Declaration.Variables).Single(node => node.Identifier.ValueText == "showExclamationMark");
         Require(field.Initializer == null || field.Initializer.Value.IsKind(SyntaxKind.FalseLiteralExpression),
             "Existing phase records must default to markers off.");
+        VariableDeclaratorSyntax interactionGate = manager.Members.OfType<FieldDeclarationSyntax>()
+            .SelectMany(node => node.Declaration.Variables).Single(node => node.Identifier.ValueText == "onlyShowExclamationWhenInteractionNeeded");
+        Require(interactionGate.Initializer == null || interactionGate.Initializer.Value.IsKind(SyntaxKind.FalseLiteralExpression),
+            "Interaction-needed policy must remain opt-in for previously authored NPCs.");
+        string interaction = Method(manager, "NeedsPhaseInteraction");
+        Require(!interaction.Contains("FindObject") && !interaction.Contains("Resources.") && !interaction.Contains("Start") &&
+            !interaction.Contains("SetActive") && !interaction.Contains("Save"),
+            "Reading marker interaction eligibility cannot scan, start flows, toggle objects, or save progress.");
         FieldDeclarationSyntax latch = manager.Members.OfType<FieldDeclarationSyntax>()
             .Single(node => node.Declaration.Variables.Any(variable => variable.Identifier.ValueText == "phaseHasArrived"));
         Require(!latch.AttributeLists.ToString().Contains("SerializeField"), "Arrival must not become stale persisted/serialized state.");

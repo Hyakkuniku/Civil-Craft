@@ -21,11 +21,12 @@ namespace UnityEngine
     }
     public class Transform { public void SetParent(Transform parent,bool worldPositionStays) { } }
     public class RectTransform : Object { }
+    public class Scene { public string path="Assets/Scenes/CanyonCrossing.unity"; }
     public struct Vector2 { public float x,y;public Vector2(float x,float y) {this.x=x;this.y=y;} }
     public class GameObject : Object
     {
         readonly List<MonoBehaviour> components=new();
-        public string name;public Transform transform=new();
+        public string name;public Transform transform=new();public Scene scene=new();
         public GameObject(string name="test"){this.name=name;}
         public T AddComponent<T>() where T:MonoBehaviour,new() { var component=new T{gameObject=this};components.Add(component);Lifecycle.Call(component,"OnEnable");return component; }
         public T GetComponent<T>() where T:class => typeof(T)==typeof(RectTransform)?new RectTransform() as T:components.OfType<T>().FirstOrDefault(component=>component is not Object value||value!=null);
@@ -104,6 +105,8 @@ public sealed class TutorialStep
 }
 public sealed class TutorialSequence:UnityEngine.MonoBehaviour
 {
+    public bool showInObjectives;public string objectiveTitle;
+    public string ObjectiveId;public void ConfigureObjectiveIdentity(string identity){ObjectiveId=identity;}
     public string lessonName;public TutorialStep[] tutorialSteps;
     public void StartTutorial()=>TutorialManager.Instance.StartOrQueue(this);
 }

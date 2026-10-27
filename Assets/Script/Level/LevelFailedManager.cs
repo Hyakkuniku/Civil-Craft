@@ -24,7 +24,7 @@ public class LevelFailedManager : MonoBehaviour
     [Tooltip("Drag the Text element that will display the level/contract name here.")]
     public TextMeshProUGUI levelNameText;
 
-    [Tooltip("Drag the Text element that will display the gold penalty here.")]
+    [Tooltip("Drag the Text element that will display the coin penalty here.")]
     public TextMeshProUGUI penaltyText; 
 
     [Header("Failure Diagnosis UI")]
@@ -66,7 +66,7 @@ public class LevelFailedManager : MonoBehaviour
     [Min(0.5f)] public float minimumStructuralFailureObservationTime = 2f;
 
     [Header("Penalty Tracking")]
-    [Tooltip("How much gold is deducted from the final reward EVERY time the bridge collapses?")]
+    [Tooltip("How many Coins are deducted from the final reward EVERY time the bridge collapses?")]
     public int goldPenaltyPerFail = 25;
     [HideInInspector] public int currentFailCount = 0;
 
@@ -454,7 +454,7 @@ public class LevelFailedManager : MonoBehaviour
         {
             if (isTutorial)
             {
-                penaltyText.text = "<b>PRACTICE TEST</b>  •  No Gold penalty was applied.";
+                penaltyText.text = "<b>PRACTICE TEST</b>  •  No Coins were deducted.";
             }
             else if (isCompletedContractRedesign)
             {
@@ -463,7 +463,7 @@ public class LevelFailedManager : MonoBehaviour
             else
             {
                 int totalLost = currentFailCount * goldPenaltyPerFail;
-                penaltyText.text = $"<b>PENALTY</b>  •  -{goldPenaltyPerFail} Gold     <color=#8C3B2D>Total lost this job: -{totalLost} Gold</color>";
+                penaltyText.text = $"<b>PENALTY</b>  •  -{goldPenaltyPerFail} Coins     <color=#8C3B2D>Total lost this job: -{totalLost} Coins</color>";
             }
         }
 

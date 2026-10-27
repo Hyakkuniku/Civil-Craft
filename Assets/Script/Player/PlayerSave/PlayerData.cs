@@ -140,6 +140,11 @@ public class TrackedTask
     public string title;
     public string description;
     public bool isTutorial;
+    // Checked TutorialSequence history has its own durable identity. Empty on
+    // existing contract and generic-task saves; never use a display title as ID.
+    public string tutorialObjectiveId;
+    public string tutorialLessonId;
+    public string tutorialScenePath;
     // Legacy field name retained for JSON compatibility; stores ContractSO.ContractID.
     public string contractName; 
     public float budget;

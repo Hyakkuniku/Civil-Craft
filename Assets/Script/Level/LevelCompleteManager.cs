@@ -730,7 +730,7 @@ public class LevelCompleteManager : MonoBehaviour
 
         if (goldEarnedText != null) 
         {
-            goldEarnedText.text = $"Total Earnings: {calculatedGold} Gold (Pending)";
+            goldEarnedText.text = $"Total Earnings: {calculatedGold} Coins (Pending)";
         }
         
         if (expEarnedText != null) 

@@ -1,0 +1,148 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json;
+using UnityEngine;
+using TMPro;
+
+namespace UnityEngine
+{
+    public class Scene { public string path = "Assets/Scenes/CanyonCrossing.unity", name = "CanyonCrossing"; public bool isLoaded = true, valid = true; public bool IsValid() => valid; }
+    public class Transform { public string name = "Guide"; public Transform parent; public int sibling; public Vector3 localScale; public int GetSiblingIndex() => sibling; }
+    public class RectTransform : Transform { public Vector2 sizeDelta; }
+    public struct Vector2 { public float x,y; public Vector2(float x,float y) { this.x=x;this.y=y; } }
+    public struct Vector3 { public static Vector3 one => new Vector3(); }
+    public struct Vector4 { public Vector4(float x,float y,float z,float w) { } }
+    public struct Color { public static Color white => new Color(); }
+    public struct Color32 { public byte r,g,b,a; public Color32(byte r,byte g,byte b,byte a) { this.r=r;this.g=g;this.b=b;this.a=a; } public static implicit operator Color(Color32 value) => new Color(); }
+    public static class ColorUtility { public static string ToHtmlStringRGB(Color32 value) => value.r.ToString("X2")+value.g.ToString("X2")+value.b.ToString("X2"); }
+    public class GameObject
+    {
+        public string name; public bool activeSelf = true; public Scene scene = new Scene(); public Transform transform = new RectTransform();
+        public Dictionary<Type,object> components = new Dictionary<Type,object>();
+        public void SetActive(bool active) { activeSelf = active; }
+        public T GetComponent<T>() where T : class => components.TryGetValue(typeof(T), out object value) ? value as T : null;
+        public static GameObject Find(string name) => Registry.NamedTarget;
+    }
+    public class MonoBehaviour
+    {
+        public GameObject gameObject = new GameObject(); public Transform transform => gameObject.transform;
+        public T GetComponent<T>() where T : class => gameObject.GetComponent<T>();
+        protected T[] FindObjectsOfType<T>(bool includeInactive = false) where T : class { Registry.Searches++; return Registry.Loaded.OfType<T>().ToArray(); }
+        protected void StopCoroutine(object coroutine) { }
+    }
+    public static class Resources
+    {
+        public static T Load<T>(string key) where T : class => Registry.Catalog as T;
+        public static T[] FindObjectsOfTypeAll<T>() where T : class => Registry.Loaded.OfType<T>().ToArray();
+    }
+    public static class Debug { public static void Log(string value) { } public static void LogError(string value,object owner = null) { } }
+}
+namespace UnityEngine.UI
+{
+    public class Image { public enum Type { Sliced } public Color color; public Type type; }
+    public struct ColorBlock { public Color normalColor,highlightedColor,pressedColor,selectedColor,disabledColor; public float colorMultiplier,fadeDuration; }
+    public class Button { public ColorBlock colors; }
+    public class LayoutElement { public float minHeight,preferredHeight,flexibleWidth; }
+}
+namespace TMPro
+{
+    public enum FontStyles { Normal, Strikethrough }
+    public enum TextAlignmentOptions { MidlineLeft }
+    public enum TextOverflowModes { Ellipsis }
+    public class TextMeshProUGUI
+    {
+        public string text; public Color color; public float fontSize,fontSizeMin,fontSizeMax,characterSpacing,lineSpacing;
+        public bool enableAutoSizing,raycastTarget; public FontStyles fontStyle; public TextAlignmentOptions alignment; public Vector4 margin; public TextOverflowModes overflowMode;
+        public Transform transform = new Transform();
+    }
+}
+public static class Registry
+{
+    public static List<object> Loaded = new List<object>(); public static TutorialObjectiveCatalog Catalog; public static int Searches; public static GameObject NamedTarget;
+}
+public class PlayerData
+{
+    public List<TrackedTask> activeQuests = new List<TrackedTask>(); public List<string> completedLessons = new List<string>(), completedContracts = new List<string>();
+    public bool hasUnlockedObjectiveTracker; public string activeObjectiveKey = "contract:old"; public int gold = 75, exp = 200;
+}
+public class PlayerDataManager
+{
+    public static PlayerDataManager Instance; public PlayerData CurrentData = new PlayerData(); public int Saves,ContractCompletes; public List<string> Snapshots = new List<string>();
+    public void SaveGame() { Saves++; Snapshots.Add(JsonSerializer.Serialize(CurrentData,new JsonSerializerOptions { IncludeFields = true })); }
+    public void CompleteLesson(string lesson) { if (CurrentData.completedLessons.Contains(lesson)) return; CurrentData.completedLessons.Add(lesson); SaveGame(); }
+    public bool CompleteContract(string id,int gold,int exp,bool tutorial) { ContractCompletes++; return true; }
+    public bool IsContractCompleted(string id) => CurrentData.completedContracts.Contains(id);
+    public object GetSavedBridge(string id) => null;
+}
+public class FusionConnectionManager { public static FusionConnectionManager Instance; public bool IsGuestInHostWorld; }
+public class TutorialStep { public string message; public GameObject worldHighlightObject; }
+public class TutorialSequence : MonoBehaviour
+{
+    public string name = "Guide",lessonName,objectiveTitle,ObjectiveId; public bool showInObjectives = true,autoStartNextSequence; public TutorialSequence nextSequence; public TutorialStep[] tutorialSteps;
+}
+public class TutorialObjectiveCatalog
+{
+    public class Entry { public string objectiveId,lessonId,scenePath,title,description; public bool allowLegacyLessonMatch; }
+    public List<Entry> entries = new List<Entry>();
+}
+public class TutorialObjectiveProjection
+{
+    public TrackedTask Task; public bool CanNavigate; public bool Owns(TrackedTask task) => task != null && ReferenceEquals(task,Task);
+}
+public class GuiderWaypoint { }
+public class PathGuider { public static PathGuider Instance; public int Clears; public void SetNewWaypoints(List<GuiderWaypoint> values) { Clears++; } }
+public class BuildTutorialDirector { public static BuildTutorialDirector Instance; public void EndTutorial() { } }
+public static class Tutorial3DIndicator { public static void HideAll() { } }
+public static class TutorialAnchorHighlighter { public static void ClearAll() { } }
+public class ContractSO { public string ID; public bool MatchesIdentifier(string id) => ID == id; }
+public class NPCContractGiver : MonoBehaviour { public ContractSO contractToGive; public bool isFullyTurnedIn; }
+public class BuildLocation : MonoBehaviour { public ContractSO activeContract; }
+public class LevelCompleteManager { public static LevelCompleteManager Instance; public int Paid; public void MarkContractAsPaid(string id) { Paid++; } }
+public class Pointer { public void Hide() { } }
+
+public class TutorialManager : MonoBehaviour
+{
+    public int ObjectiveHistoryVersion { get; private set; }
+    public bool IsTutorialActive { get; private set; }
+    public event Action<TutorialSequence> OnTutorialCompleted;
+    private TutorialSequence currentSequence; private int currentStepIndex = -1,lastAdvanceFrame,suspendedTutorialResumeHoldCount; private bool isAdvancingStep;
+    private object lastScreenPosition,currentAnimationCoroutine,leftTextIdleCoroutine;
+    private GameObject centerPanel,leftPanel,nextButton,skipButton; private Pointer bouncingArrow; private TextMeshProUGUI leftText;
+    public int QueueStarts,Queued;
+    private void ClearInstructionVisualReplacement() { } private void ClearPresentationSuppression() { } private void ClearTrackedButton() { }
+    // Presentation reservation ownership is covered by the skip-slot fixture.
+    private void ReleaseTutorialSkipSlot() { }
+    private void RestoreTutorialCanvas() { } private void QueueTutorial(TutorialSequence sequence) { Queued++; }
+    private bool TryResumeSuspendedTutorial() => false; private void TryStartQueuedTutorialNextFrame() { QueueStarts++; }
+    public void Refresh() => RefreshTutorialObjectiveHistory();
+    public void Begin(TutorialSequence sequence) { currentSequence=sequence; IsTutorialActive=true; BeginTutorialObjective(sequence); }
+    public void Step(TutorialStep step) => RecordTutorialObjectiveStep(step);
+    public void Suspend() => SuspendCurrentTutorial();
+    public void Resume(TutorialSequence sequence) { currentSequence=sequence; IsTutorialActive=true; }
+    public void Finish() => CompleteTutorial();
+    public bool Owns(TutorialSequence sequence) => OwnsTutorialObjective(sequence);
+    // PRODUCTION_MANAGER
+}
+
+public class ObjectiveTrackerUI : MonoBehaviour
+{
+    public static ObjectiveTrackerUI Instance;
+    public TrackedTask currentlySelectedTask;
+    private readonly HashSet<TrackedTask> tutorialObjectiveRows = new HashSet<TrackedTask>();
+    private readonly TutorialObjectiveProjection tutorialObjective = new TutorialObjectiveProjection();
+    private GameObject trackerPanel = new GameObject(); private bool preferTutorialObjective;
+    public int Alerts,Refreshes,Selections,Closes;
+    public void SelectTask(TrackedTask task) { currentlySelectedTask=task; Selections++; }
+    private void SelectNextActiveObjective(TrackedTask task,bool save) { }
+    private void ClearAlert() { } private void CloseTrackerPanel(bool save) { Closes++; }
+    private void UnlockAndShowTracker() { PlayerDataManager.Instance.CurrentData.hasUnlockedObjectiveTracker=true; }
+    private void AlertPlayer() { Alerts++; } private void RefreshQuestList() { Refreshes++; }
+    private void ShowActiveObjectiveOrList(bool save) { }
+    public bool OwnsSaved(TrackedTask task) => IsCurrentSavedTutorialRow(task);
+    public bool CanNavigate(TrackedTask task) => CanNavigateToTask(task);
+    public string Key(TrackedTask task) => GetObjectiveKey(task);
+    public void SelectActive(TrackedTask task,bool save) => SetActiveObjective(task,save);
+    public void SetLive(TrackedTask task,bool canNavigate) { tutorialObjective.Task=task;tutorialObjective.CanNavigate=canNavigate;tutorialObjectiveRows.Add(task); }
+    // PRODUCTION_UI
+}

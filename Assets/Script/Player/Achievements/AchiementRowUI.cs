@@ -314,7 +314,7 @@ public class AchievementRowUI : MonoBehaviour
             rewardCoinIcon.gameObject.SetActive(showGold && rewardCoinIcon.sprite != null);
         if (rewardCoinValueText != null)
         {
-            rewardCoinValueText.text = achievement.bonusGold.ToString("N0") + (rewardCoinIcon == null || rewardCoinIcon.sprite == null ? " Gold" : "");
+            rewardCoinValueText.text = achievement.bonusGold.ToString("N0") + (rewardCoinIcon == null || rewardCoinIcon.sprite == null ? " Coins" : "");
             rewardCoinValueText.gameObject.SetActive(showGold);
         }
 

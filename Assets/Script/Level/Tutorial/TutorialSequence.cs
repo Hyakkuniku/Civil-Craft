@@ -7,6 +7,18 @@ public class TutorialSequence : MonoBehaviour
     [Header("Progression Settings")]
     public string lessonName;
     public string requiredPreviousLesson;
+
+    [Header("Objectives")]
+    [Tooltip("Save this tutorial as a GUIDE in Objectives. Its current instruction updates while active, and its completed record stays crossed out. Contract progress and rewards are unchanged.")]
+    public bool showInObjectives;
+    [Tooltip("Optional title for this tutorial's objective. Leave empty to use its first instruction.")]
+    public string objectiveTitle = string.Empty;
+    [Tooltip("Optional permanent identity for this objective. Keep it unchanged after players have saved it. Blank uses the scene, lesson and object path.")]
+    [SerializeField] private string objectiveId = string.Empty;
+    public string ObjectiveId => objectiveId;
+
+    /// <summary>Assigns a stable identity to authored or generated review guidance.</summary>
+    public void ConfigureObjectiveIdentity(string identity) { objectiveId = identity ?? string.Empty; }
     
     [Tooltip("Check this if this tutorial should automatically start when the scene loads (like the movement tutorial)")]
     public bool playOnStart = false;

@@ -1,0 +1,254 @@
+using System;
+using System.Linq;
+using System.Reflection;
+using UnityEngine;
+
+public static class Scenarios
+{
+    private static int checks;
+    private static void Check(bool value, string reason) { checks++; if (!value) throw new Exception(reason); }
+    private static void Invoke(object target, string name) => target.GetType().GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic).Invoke(target, null);
+    private static CanvasGroup Mask(GameObject button) => (CanvasGroup)typeof(DialogueHudButtonGate).GetField("dialogueMask", BindingFlags.Instance | BindingFlags.NonPublic)
+        .GetValue(button.GetComponent<DialogueHudButtonGate>());
+    private sealed class Fixture
+    {
+        public PlayerDataManager save = new PlayerDataManager();
+        public AlmanacManager book;
+        public ObjectiveTrackerUI objectives;
+        public ShopButtonTrigger shop;
+        public GameObject bookButton = new GameObject(), objectiveButton = new GameObject(), shopButton = new GameObject();
+        public CanvasGroup authoredBook, authoredObjectives, authoredShop;
+        public Fixture(bool unlocked)
+        {
+            DialogueManager.Reset();
+            typeof(DialogueHudButtonGate).GetMethod("ResetRegistry", BindingFlags.Static | BindingFlags.NonPublic).Invoke(null, null);
+            PlayerDataManager.Instance = save;
+            save.CurrentData.hasAlmanac = save.CurrentData.hasUnlockedObjectiveTracker = save.CurrentData.hasShop = unlocked;
+            QuizUIManager.IsAnyQuizActive = false;
+            ShopButtonTrigger.building = false;
+            book = new GameObject().AddComponent<AlmanacManager>();
+            objectives = new GameObject().AddComponent<ObjectiveTrackerUI>();
+            book.hudOpenButton = bookButton; book.almanacCanvas = new GameObject(); book.almanacCanvas.SetActive(false);
+            objectives.openTrackerButton = objectiveButton; objectives.trackerPanel = new GameObject(); objectives.trackerPanel.SetActive(false);
+            AlmanacManager.Instance = book; ObjectiveTrackerUI.Instance = objectives;
+            shop = shopButton.AddComponent<ShopButtonTrigger>(); shop.shopManager = new ShopManager(); shop.shopManager.Panel.SetActive(false);
+            authoredBook = bookButton.AddComponent<CanvasGroup>(); authoredBook.alpha = .35f; authoredBook.interactable = false;
+            authoredObjectives = objectiveButton.AddComponent<CanvasGroup>(); authoredObjectives.alpha = .7f; authoredObjectives.blocksRaycasts = false;
+            authoredShop = shopButton.AddComponent<CanvasGroup>(); authoredShop.alpha = .45f; authoredShop.interactable = false;
+            Bind();
+        }
+        public void Bind() { DialogueHudButtonGate.BindAlmanac(bookButton, book); DialogueHudButtonGate.BindObjectives(objectiveButton, objectives); DialogueHudButtonGate.BindShop(shopButton, shop); }
+        public void Hidden(string reason)
+        {
+            foreach (var button in new[] { bookButton, objectiveButton, shopButton })
+                Check(Mask(button).alpha == 0 && !Mask(button).interactable && !Mask(button).blocksRaycasts, reason);
+        }
+        public void Allowed(string reason)
+        {
+            foreach (var button in new[] { bookButton, objectiveButton, shopButton })
+                Check(Mask(button).alpha == 1 && Mask(button).interactable && Mask(button).blocksRaycasts, reason);
+        }
+        public void AuthoredUnchanged()
+        {
+            Check(authoredBook.alpha == .35f && !authoredBook.interactable && authoredBook.blocksRaycasts &&
+                authoredObjectives.alpha == .7f && authoredObjectives.interactable && !authoredObjectives.blocksRaycasts &&
+                authoredShop.alpha == .45f && !authoredShop.interactable && authoredShop.blocksRaycasts,
+                "Dialogue's mask never overwrites authored fade/input groups.");
+        }
+    }
+    private static DialogueManager Dialogue() => new GameObject().AddComponent<DialogueManager>();
+    public static int Run()
+    {
+        var f = new Fixture(true);
+        f.Allowed("Unlocked targets pass through their separate masks outside dialogue.");
+        Check(f.bookButton.activationWrites == 0 && f.objectiveButton.activationWrites == 0 && f.shopButton.activationWrites == 0,
+            "Binding cannot change authored activeSelf state.");
+        var data = f.save.CurrentData; var quests = data.activeQuests; quests.Add(new object()); data.completedLessons.Add("CompletedBeforeDialogue");
+        var dialogue = Dialogue(); dialogue.Begin();
+        f.Hidden("Starting a conversation hides and blocks both HUD entries immediately.");
+        for (int index = 0; index < 20; index++) { DialogueHudButtonGate.RefreshAll(); f.Bind(); }
+        Check(f.bookButton.GetComponents<CanvasGroup>().Length == 2 && f.objectiveButton.GetComponents<CanvasGroup>().Length == 2 && f.shopButton.GetComponents<CanvasGroup>().Length == 2,
+            "Repeated binding/refresh creates exactly one dedicated mask beside each authored group.");
+        f.AuthoredUnchanged();
+        Check(f.bookButton.activationWrites == 0 && f.objectiveButton.activationWrites == 0 && f.shopButton.activationWrites == 0,
+            "Dialogue hiding cannot modify GameObject activation, even with repeated refreshes.");
+        dialogue.BeginClose(); f.Hidden("HUD remains hidden through dialogue closing animation.");
+        dialogue.FinishClose(); f.Allowed("Both HUD masks release once the final dialogue box has closed.");
+        f.AuthoredUnchanged();
+        Check(ReferenceEquals(data.activeQuests, quests) && quests.Count == 1 && data.completedLessons.SequenceEqual(new[] { "CompletedBeforeDialogue" }) &&
+            data.coins == 100 && data.experience == 200 && f.save.saves == 0 && data.hasAlmanac && data.hasUnlockedObjectiveTracker && data.hasShop,
+            "Visibility never writes quests, lessons, rewards, feature unlocks or saves.");
+
+        f = new Fixture(false); f.Hidden("Locked features remain masked without unlocking them.");
+        dialogue = Dialogue(); dialogue.Begin();
+        f.save.CurrentData.hasAlmanac = f.save.CurrentData.hasUnlockedObjectiveTracker = f.save.CurrentData.hasShop = true;
+        f.Bind(); f.Hidden("Feature unlock callbacks during a conversation cannot reveal either entry.");
+        dialogue.BeginClose(); f.Hidden("A mid-dialogue unlock does not bypass the closing animation.");
+        dialogue.FinishClose(); f.Allowed("Mid-dialogue unlock becomes available after its proper presentation owner releases.");
+        f.save.CurrentData.hasAlmanac = f.save.CurrentData.hasUnlockedObjectiveTracker = f.save.CurrentData.hasShop = false;
+        DialogueHudButtonGate.RefreshAll(); f.Hidden("Changing to a locked profile re-evaluates eligibility instead of restoring true.");
+        PlayerDataManager.Instance = null; DialogueHudButtonGate.RefreshAll(); f.Hidden("Missing profile data does not expose another player's HUD.");
+        PlayerDataManager.Instance = f.save; f.save.CurrentData.hasAlmanac = f.save.CurrentData.hasUnlockedObjectiveTracker = f.save.CurrentData.hasShop = true;
+        DialogueHudButtonGate.RefreshAll(); f.Allowed("A real unlocked profile restores eligibility without modifying progress.");
+
+        f = new Fixture(true); dialogue = Dialogue(); dialogue.Begin();
+        f.bookButton.SetActive(false); f.objectiveButton.SetActive(false);
+        f.shopButton.SetActive(false);
+        f.bookButton.SetActive(true); f.objectiveButton.SetActive(true);
+        f.shopButton.SetActive(true);
+        Invoke(f.bookButton.GetComponent<DialogueHudButtonGate>(), "OnEnable");
+        Invoke(f.objectiveButton.GetComponent<DialogueHudButtonGate>(), "OnEnable");
+        Invoke(f.shopButton.GetComponent<DialogueHudButtonGate>(), "OnEnable");
+        f.Hidden("A stale modal/coordinator SetActive(true) cannot reveal buttons under dialogue.");
+        dialogue.HideBoxUnderModal(); f.Hidden("A modal hiding the box cannot release a still-active conversation's HUD mask.");
+        dialogue.BeginClose(); dialogue.FinishClose();
+        f.bookButton.SetActive(false); f.objectiveButton.SetActive(false);
+        f.shopButton.SetActive(false);
+        DialogueHudButtonGate.RefreshAll();
+        Check(!f.bookButton.activeSelf && !f.objectiveButton.activeSelf && !f.shopButton.activeSelf,
+            "Ending dialogue cannot re-enable controls a modal owner intentionally kept inactive.");
+        f.bookButton.SetActive(true); f.objectiveButton.SetActive(true); f.shopButton.SetActive(true); f.Bind();
+        f.Allowed("Modal closure can restore its own activeSelf state once dialogue no longer owns the screen.");
+
+        f = new Fixture(false); dialogue = Dialogue();
+        var ancestor = new GameObject(); f.bookButton.transform.parent = ancestor.transform;
+        f.bookButton.SetActive(false); f.objectiveButton.SetActive(false);
+        dialogue.elementsToHide.AddRange(new[] { f.bookButton, f.objectiveButton, ancestor });
+        dialogue.Begin(); dialogue.HideConfiguredElements();
+        Check(f.bookButton.activationWrites == 1 && f.objectiveButton.activationWrites == 1 && !ancestor.activeSelf,
+            "Actual raw dialogue hiding skips bound buttons while preserving its ordinary ancestor hiding.");
+        f.save.CurrentData.hasAlmanac = f.save.CurrentData.hasUnlockedObjectiveTracker = f.save.CurrentData.hasShop = true;
+        f.bookButton.SetActive(true); f.objectiveButton.SetActive(true); f.Bind();
+        dialogue.RestoreConfiguredElements();
+        Check(ancestor.activeSelf && f.bookButton.activeSelf && f.objectiveButton.activeSelf &&
+            Mask(f.bookButton).alpha == 0 && Mask(f.objectiveButton).alpha == 0,
+            "Actual dialogue restoration cannot undo mid-dialogue unlocks of exact bound buttons; their masks still own visibility.");
+        dialogue.BeginClose(); dialogue.FinishClose();
+        Check(Mask(f.bookButton).alpha == 1 && Mask(f.objectiveButton).alpha == 1,
+            "Closing dialogue reveals newly unlocked exact-list buttons after ancestor restoration.");
+        var lateButton = new GameObject(); lateButton.SetActive(false);
+        dialogue.elementsToHide.Clear(); dialogue.elementsToHide.Add(lateButton);
+        dialogue.Begin(); dialogue.HideConfiguredElements();
+        f.book.hudOpenButton = lateButton; DialogueHudButtonGate.BindAlmanac(lateButton, f.book);
+        lateButton.SetActive(true); dialogue.RestoreConfiguredElements();
+        Check(lateButton.activeSelf && Mask(lateButton).alpha == 0,
+            "Binding after Hide must defeat the stale inactive snapshot while retaining the ongoing dialogue mask.");
+        dialogue.BeginClose(); dialogue.FinishClose();
+        Check(lateButton.activeSelf && Mask(lateButton).alpha == 1,
+            "A button bound and unlocked mid-conversation becomes usable when its last dialogue closes.");
+
+        f = new Fixture(true); var first = Dialogue(); var second = Dialogue();
+        first.Begin(); second.Begin(); first.BeginClose(); first.FinishClose();
+        f.Hidden("Completing one of two concurrent conversations retains the other dialogue's mask.");
+        second.BeginClose(); f.Hidden("The last conversation's closing box still owns both entries.");
+        second.FinishClose(); f.Allowed("Only closing the last visible conversation releases both entries.");
+        first.Begin(); first.BeginClose(); second.Begin(); first.FinishClose();
+        f.Hidden("Chained dialogue cannot flash HUD buttons between callbacks or closing boxes.");
+        second.Remove(); f.Allowed("Disabling/tearing down the last dialogue releases its remaining visibility ownership.");
+
+        f = new Fixture(true); dialogue = Dialogue(); dialogue.Begin();
+        var gate = f.bookButton.GetComponent<DialogueHudButtonGate>();
+        gate.enabled = false; Invoke(gate, "OnDisable");
+        Check(Mask(f.bookButton).alpha == 1 && f.bookButton.activeSelf,
+            "Disabling the HUD gate releases only its own mask and preserves activeSelf.");
+        gate.enabled = true; Invoke(gate, "OnEnable");
+        f.Hidden("Re-enabling a gate during dialogue immediately restores the dialogue mask.");
+        typeof(DialogueHudButtonGate).GetMethod("ResetRegistry", BindingFlags.Static | BindingFlags.NonPublic).Invoke(null, null);
+        Invoke(gate, "LateUpdate"); dialogue.BeginClose(); dialogue.FinishClose(); DialogueHudButtonGate.RefreshAll();
+        Check(Mask(f.bookButton).alpha == 1,
+            "LateUpdate re-registers retained components after a registry reset without requiring scene/domain reload.");
+        dialogue.Begin(); Invoke(gate, "OnDestroy");
+        Check(Mask(f.bookButton).alpha == 1 && f.bookButton.activationWrites == 0,
+            "Destroying a gate releases its separate mask without reviving or hiding authored objects.");
+        f.AuthoredUnchanged();
+
+        f = new Fixture(true); f.book.almanacCanvas.SetActive(true); DialogueHudButtonGate.RefreshAll();
+        Check(Mask(f.bookButton).alpha == 0 && Mask(f.objectiveButton).alpha == 1,
+            "The open Almanac hides only its own HUD entry; the mask does not alter book/tutorial progression.");
+        f.book.almanacCanvas.SetActive(false); f.book.isAnimating = true; DialogueHudButtonGate.RefreshAll();
+        Check(Mask(f.bookButton).alpha == 0, "Book opening/closing animation retains ownership of its HUD entry.");
+        f.book.isAnimating = false; f.objectives.trackerPanel.SetActive(true); DialogueHudButtonGate.RefreshAll();
+        Check(Mask(f.bookButton).alpha == 1 && Mask(f.objectiveButton).alpha == 0, "Opening Objectives preserves its existing self-entry gate.");
+        f.objectives.trackerPanel.SetActive(false); f.objectives.pendingContractOffer = new object(); DialogueHudButtonGate.RefreshAll();
+        Check(Mask(f.objectiveButton).alpha == 0, "An unresolved contract offer cannot expose the ordinary Objectives button.");
+        f.objectives.pendingContractOffer = null; QuizUIManager.IsAnyQuizActive = true; DialogueHudButtonGate.RefreshAll();
+        Check(Mask(f.bookButton).alpha == 0, "The existing active-quiz book gate remains intact.");
+        QuizUIManager.IsAnyQuizActive = false;
+        f.book.enabled = f.objectives.enabled = f.shop.enabled = false; DialogueHudButtonGate.RefreshAll(); f.Hidden("Disabled feature owners cannot reveal their HUD controls.");
+        f.book.enabled = f.objectives.enabled = f.shop.enabled = true; DialogueHudButtonGate.RefreshAll(); f.Allowed("Re-enabled feature owners recover valid HUD eligibility.");
+        f.save.CurrentData.hasUnlockedObjectiveTracker = false; f.objectives.tutorialObjective.Task = new object(); DialogueHudButtonGate.RefreshAll();
+        Check(Mask(f.objectiveButton).alpha == 1, "An existing checked tutorial still supplies the pre-contract Objectives entry.");
+        f.objectives.tutorialObjective.Task = null; DialogueHudButtonGate.RefreshAll();
+        Check(Mask(f.objectiveButton).alpha == 0, "A removed transient row does not grant an unlock by itself.");
+
+        f = new Fixture(true); var staleBook = f.book; var staleObjectives = f.objectives;
+        AlmanacManager.Instance = new GameObject().AddComponent<AlmanacManager>();
+        ObjectiveTrackerUI.Instance = new GameObject().AddComponent<ObjectiveTrackerUI>();
+        DialogueHudButtonGate.RefreshAll();
+        Check(Mask(f.bookButton).alpha == 0 && Mask(f.objectiveButton).alpha == 0 && Mask(f.shopButton).alpha == 1,
+            "Replacing singleton book/objective owners invalidates only those bindings, leaving this valid Shop owner intact.");
+        AlmanacManager.Instance = staleBook; ObjectiveTrackerUI.Instance = staleObjectives;
+        staleBook.hudOpenButton = new GameObject(); staleObjectives.openTrackerButton = new GameObject();
+        DialogueHudButtonGate.RefreshAll();
+        Check(Mask(f.bookButton).alpha == 0 && Mask(f.objectiveButton).alpha == 0,
+            "Replacing an owner's actual button cannot leave its old button eligible.");
+        DialogueHudButtonGate.BindAlmanac(staleBook.hudOpenButton, staleBook);
+        DialogueHudButtonGate.BindObjectives(staleObjectives.openTrackerButton, staleObjectives);
+        Check(Mask(staleBook.hudOpenButton).alpha == 1 && Mask(staleObjectives.openTrackerButton).alpha == 1,
+            "New bindings reveal only the current owner's actual unlocked controls.");
+        var untouched = new GameObject(); DialogueHudButtonGate.BindAlmanac(untouched, null); DialogueHudButtonGate.BindObjectives(null, staleObjectives);
+        Check(untouched.components.Count == 0, "Null bindings cannot create unowned components or masks.");
+        ShopTransitions();
+        return checks;
+    }
+
+    private static void ShopTransitions()
+    {
+        var f = new Fixture(true); var dialogue = Dialogue();
+        Check(DialogueHudButtonGate.IsBoundButton(f.shopButton), "The exact Shop entry participates in dialogue snapshot exclusion.");
+        dialogue.elementsToHide.Add(f.shopButton); dialogue.Begin(); dialogue.HideConfiguredElements();
+        Check(f.shopButton.activeSelf && f.shopButton.activationWrites == 0 && Mask(f.shopButton).alpha == 0,
+            "Dialogue masks Shop without deactivating its unlock subscription owner.");
+        ShopButtonTrigger.building = true;
+        dialogue.RestoreConfiguredElements(); dialogue.BeginClose(); dialogue.FinishClose();
+        Check(Mask(f.shopButton).alpha == 0 && f.shopButton.activeSelf,
+            "Entering Build Mode during dialogue keeps Shop unavailable after dialogue closes without changing owner activation.");
+        ShopButtonTrigger.building = false; DialogueHudButtonGate.RefreshAll();
+        Check(Mask(f.shopButton).alpha == 1, "Leaving Build Mode releases the mask when the original Shop owner permits it.");
+        dialogue.Begin(); f.shop.visibleOutsideBuildMode = false; dialogue.BeginClose(); dialogue.FinishClose();
+        Check(Mask(f.shopButton).alpha == 0, "An existing owner visibility restriction survives dialogue closure.");
+        f.shop.visibleOutsideBuildMode = true;
+        f.shop.shopManager.Panel.SetActive(true); DialogueHudButtonGate.RefreshAll();
+        Check(Mask(f.shopButton).alpha == 0, "The open Shop panel keeps its own HUD entry hidden.");
+        f.shop.shopManager.Panel.SetActive(false); DialogueHudButtonGate.RefreshAll();
+        Check(Mask(f.shopButton).alpha == 1, "Closing Shop returns its unlocked entry without recreating masks.");
+        dialogue.Begin(); f.save.CurrentData.hasShop = false; dialogue.BeginClose(); dialogue.FinishClose();
+        Check(Mask(f.shopButton).alpha == 0, "A Shop relock or locked profile change during dialogue cannot restore a stale unlocked state.");
+        f.save.CurrentData.hasShop = true; DialogueHudButtonGate.RefreshAll();
+        f.shop.enabled = false; DialogueHudButtonGate.RefreshAll();
+        Check(Mask(f.shopButton).alpha == 0, "A disabled Shop owner cannot regain its button at dialogue end.");
+        f.shop.enabled = true; DialogueHudButtonGate.RefreshAll();
+        Check(Mask(f.shopButton).alpha == 1, "Re-enabled valid Shop owner restores only presentation eligibility.");
+
+        var oldButton = f.shopButton; var replacement = new GameObject();
+        f.shop.gameObject = replacement; DialogueHudButtonGate.RefreshAll();
+        Check(Mask(oldButton).alpha == 0, "A Shop owner rebound to another object cannot expose its old button.");
+        DialogueHudButtonGate.BindShop(replacement, f.shop);
+        Check(Mask(replacement).alpha == 1 && DialogueHudButtonGate.IsBoundButton(replacement),
+            "Binding the current Shop object recovers the new entry, without exposing the old object.");
+        // Reuse deliberately exercises exclusive owner roles rather than leaving
+        // stale Shop eligibility on a button another feature has taken over.
+        f.book.hudOpenButton = replacement; DialogueHudButtonGate.BindAlmanac(replacement, f.book);
+        f.shop.enabled = false; DialogueHudButtonGate.RefreshAll();
+        Check(Mask(replacement).alpha == 1, "Rebinding a Shop gate as Almanac clears obsolete Shop ownership.");
+        f.shop.enabled = true; f.shop.gameObject = replacement; DialogueHudButtonGate.BindShop(replacement, f.shop);
+        f.book.enabled = false; DialogueHudButtonGate.RefreshAll();
+        Check(Mask(replacement).alpha == 1, "Rebinding Almanac as Shop clears obsolete Almanac ownership.");
+        dialogue = Dialogue(); dialogue.Begin();
+        Invoke(replacement.GetComponent<DialogueHudButtonGate>(), "OnDisable");
+        Invoke(replacement.GetComponent<DialogueHudButtonGate>(), "OnEnable");
+        Check(Mask(replacement).alpha == 0, "A retained Shop mask immediately hides again after enable during dialogue.");
+        dialogue.BeginClose(); dialogue.FinishClose();
+        Check(Mask(replacement).alpha == 1 && f.save.saves == 0, "Shop recovers after its final dialogue box without writing player progress.");
+    }
+}

@@ -3,6 +3,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEditor.Events;
 using UnityEditor.SceneManagement;
@@ -28,9 +29,91 @@ public static class BhanLolaStoryRepair
     {
         if (Busy || EditorApplication.timeSinceStartup < nextPoll || !File.Exists(RequestPath)) return;
         nextPoll = EditorApplication.timeSinceStartup + 1;
-        bool verify = File.ReadAllText(RequestPath).Trim() == "verify";
+        string command = File.ReadAllText(RequestPath).Trim();
         File.Delete(RequestPath);
-        Run(verify);
+        if (command == "coins") UpdateLolaCurrency();
+        else Run(command == "verify");
+    }
+
+    [MenuItem("Tools/Civil Craft/Story/Use Coins in Lola Dialogue")]
+    public static void UpdateLolaCurrency()
+    {
+        if (Busy) return;
+        running = true;
+        var report = new StringBuilder("Lola dialogue currency wording\n");
+        try
+        {
+            string backup = "Temp/LolaCoinDialogue/" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss") + "-" + Guid.NewGuid().ToString("N").Substring(0, 8);
+            Directory.CreateDirectory(backup);
+            foreach (string path in new[] { CanyonPath, "Assets/Scenes/Multiplayer/Multiplayer.unity" })
+            {
+                string text = File.ReadAllText(path);
+                Match[] matches = Regex.Matches(text, @"(?ms)^--- !u!114 &-?\d+[^\r\n]*\r?\n.*?(?=^--- !u!|\z)").Cast<Match>()
+                    .Where(match => match.Value.Contains("guid: a1f34bc1e3214d1bab7180c2f9e260bb") &&
+                        Regex.IsMatch(match.Value, @"(?m)^  progressionSaveId: ShopKeeper\s*$")).ToArray();
+                Require(matches.Length == 1, "Expected the unique Lola progression in " + path);
+                string original = matches[0].Value;
+                string revised = Regex.Replace(original, @"\bGold\b", "Coins");
+                File.Copy(path, backup + "/" + Path.GetFileName(path));
+                Scene scene = SceneManager.GetSceneByPath(path);
+                if (scene.IsValid() && scene.isLoaded)
+                {
+                    bool initiallyDirty = scene.isDirty;
+                    NPCProgressionManager lola = scene.GetRootGameObjects().SelectMany(root => root.GetComponentsInChildren<NPCProgressionManager>(true))
+                        .Single(npc => npc.ProgressionSaveId == "ShopKeeper");
+                    string before = EditorJsonUtility.ToJson(lola);
+                    Undo.RecordObject(lola, "Use Coins in Lola dialogue");
+                    foreach (NPCProgressionPhase phase in lola.AuthoredPhases)
+                    {
+                        if (phase == null) continue;
+                        UseCoins(phase.phaseDialogue);
+                        if (phase.optionalDialogueSequence != null)
+                            foreach (NPCOptionalDialogueStep step in phase.optionalDialogueSequence)
+                                if (step != null) UseCoins(step.dialogue);
+                    }
+                    string after = EditorJsonUtility.ToJson(lola);
+                    Require(after == Regex.Replace(before, @"\bGold\b", "Coins"), "A field outside Lola's dialogue changed.");
+                    if (before != after)
+                    {
+                        EditorUtility.SetDirty(lola);
+                        if (PrefabUtility.IsPartOfPrefabInstance(lola)) PrefabUtility.RecordPrefabInstancePropertyModifications(lola);
+                        EditorSceneManager.MarkSceneDirty(scene);
+                        if (initiallyDirty) report.AppendLine("NEEDS SAVE: " + path + ". Existing unsaved edits were not auto-saved.");
+                        else
+                        {
+                            Require(EditorSceneManager.SaveScene(scene), "Could not save " + path);
+                            report.AppendLine("SAVED: " + path);
+                        }
+                    }
+                    else report.AppendLine("ALREADY UPDATED: " + path);
+                }
+                else
+                {
+                    // Do not open or reserialize the old multiplayer scene for
+                    // three text edits. Preserve every unrelated serialized byte.
+                    if (original != revised)
+                        File.WriteAllText(path, text.Substring(0, matches[0].Index) + revised +
+                            text.Substring(matches[0].Index + original.Length), new UTF8Encoding(false));
+                    report.AppendLine("SAVED CLOSED SCENE: " + path + "; only Lola's Gold-to-Coins wording changed.");
+                }
+            }
+            report.Insert(0, "PASS\n");
+            report.AppendLine("BACKUP: " + backup);
+        }
+        catch (Exception error) { report.Insert(0, "FAILED\n"); report.AppendLine(error.ToString()); }
+        finally
+        {
+            Directory.CreateDirectory("Logs"); File.WriteAllText("Logs/lola-coin-dialogue.txt", report.ToString());
+            running = false;
+        }
+    }
+
+    private static void UseCoins(Dialogue dialogue)
+    {
+        if (dialogue == null || dialogue.sentences == null) return;
+        for (int index = 0; index < dialogue.sentences.Length; index++)
+            if (dialogue.sentences[index] != null)
+                dialogue.sentences[index] = Regex.Replace(dialogue.sentences[index], @"\bGold\b", "Coins");
     }
 
     [MenuItem("Tools/Civil Craft/Story/Repair Bhan IDs and Lola Handoff")]

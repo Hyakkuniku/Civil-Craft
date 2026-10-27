@@ -66,7 +66,7 @@ public class NPCProgressionPhase
     [Tooltip("Use the NPC sprint animation instead of walking while travelling into this phase and while idle roaming in this phase.")]
     public bool running;
 
-    [Tooltip("Show a visible exclamation mark above this NPC and on the minimap/expanded map only after it arrives at this phase's destination. Hidden during phase travel. Uncheck to hide it; talking alone does not clear it.")]
+    [Tooltip("Show a visible exclamation mark above this NPC and on the minimap/expanded map only after it arrives at this phase's destination. Hidden during phase travel. Uncheck to hide it. Talking alone does not clear it unless the manager's interaction-needed policy is enabled.")]
     public bool showExclamationMark;
 
     [Tooltip("Contract offered by the existing NPCContractGiver in this phase.")]
@@ -282,6 +282,8 @@ public class NPCProgressionManager : MonoBehaviour
 
     [Header("Interaction")]
     [SerializeField] private string travellingPrompt = "Moving to the next site...";
+    [Tooltip("When enabled, checked phase exclamation marks appear only while another conversation is needed. Hides them during building, dialogue, ordered lessons/quiz reviews, and accepted contracts until turn-in is ready. Existing NPCs retain their authored phase-only behavior by default.")]
+    [SerializeField] private bool onlyShowExclamationWhenInteractionNeeded;
 
     [Header("Events")]
     public UnityEvent onProgressionFinished;
@@ -334,7 +336,30 @@ public class NPCProgressionManager : MonoBehaviour
         isActiveAndEnabled && gameObject.scene.IsValid() && gameObject.scene.isLoaded &&
         CurrentPhase != null && CurrentPhase.showExclamationMark &&
         !(FusionConnectionManager.Instance != null && FusionConnectionManager.Instance.IsGuestInHostWorld) &&
+        (!onlyShowExclamationWhenInteractionNeeded || NeedsPhaseInteraction()) &&
         HasPresentNPCVisual();
+
+    private bool NeedsPhaseInteraction()
+    {
+        NPCProgressionPhase phase = CurrentPhase;
+        if (phase == null || DialogueManager.IsAnyDialogueVisible || QuizUIManager.IsAnyQuizActive ||
+            (PauseManager.Instance != null && PauseManager.Instance.isPaused) || Time.timeScale <= 0f ||
+            (GameManager.Instance != null && (GameManager.Instance.IsTransitioning ||
+                GameManager.Instance.CurrentState != GameManager.GameState.Normal)) ||
+            runningOptionalSequencePhases.Contains(currentPhaseIndex) ||
+            HasPendingTravelAlmanacReview(currentPhaseIndex, phase) ||
+            LessonTrigger.TryGetPendingAlmanacReview(this, out _)) return false;
+
+        if (contractGiver == null || !contractGiver.isActiveAndEnabled ||
+            !contractGiver.IsInteractionAvailable) return false;
+        if (phase.contract == null) return !HasCompletedPhaseDialogue(currentPhaseIndex);
+        if (contractGiver.contractToGive != phase.contract || !contractGiver.CanRestoreContractGuide) return false;
+
+        // An active build objective belongs at the site, not above the giver.
+        // A cancelled contract-owned quiz is the exception: talking resumes it.
+        return !contractGiver.HasAcceptedProgressionContract || contractGiver.isContractCompleted ||
+            (PhaseContainsQuiz(phase) && !HasCompletedPhaseDialogue(currentPhaseIndex));
+    }
 
     private bool HasPresentNPCVisual()
     {

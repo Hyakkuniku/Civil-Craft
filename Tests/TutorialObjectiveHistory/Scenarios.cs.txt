@@ -1,0 +1,191 @@
+using System;
+using System.Collections.Generic;
+using System.Text.Json;
+using UnityEngine;
+
+public static class Scenarios
+{
+    static int checks;
+    static readonly JsonSerializerOptions Json = new JsonSerializerOptions { IncludeFields = true };
+    static void Check(bool okay, string description)
+    { checks++; if (!okay) throw new InvalidOperationException("Check " + checks + ": " + description); }
+    static TutorialSequence Sequence(string lesson = "FollowProfessorBhan", int sibling = 0) => new TutorialSequence
+    {
+        lessonName = lesson,
+        transform = new Transform { name = "Follow Bhan", sibling = sibling, parent = new Transform { name = "Tutorials" } },
+        tutorialSteps = new[] { new TutorialStep { message = "Follow <b><#E09500>Professor Bhan</color></b>." },
+            new TutorialStep { message = "Talk to Professor Bhan." } }
+    };
+    public static int Run()
+    {
+        RecordingIsOptInAndSeparateFromContracts();
+        SnapshotChangesAreIdempotent();
+        CompletionPersistsWithoutReopeningHistory();
+        DuplicateLessonsHaveDistinctStableKeys();
+        ExplicitIdsSurvivePresentationChanges();
+        LegacyBackfillRequiresCallerPermissionAndProof();
+        CatalogBackfillWorksWithoutLoadingItsScene();
+        OldSavesAndSeparateProfilesRemainSafe();
+        InvalidInputsCannotCreateHistory();
+        return checks;
+    }
+    static void RecordingIsOptInAndSeparateFromContracts()
+    {
+        var data = new PlayerData(); var sequence = Sequence();
+        var contract = new TrackedTask { title = "Follow Professor Bhan.", contractName = "contract42", pendingGold = 500,
+            pendingExp = 30, isReadyToTurnIn = true, budget = 700, description = "Contract remains" };
+        data.activeQuests.Add(contract);
+        sequence.showInObjectives = false;
+        Check(TutorialObjectiveHistory.Begin(sequence, data, out bool changed) == null && !changed && data.activeQuests.Count == 1,
+            "Unchecked sequence never creates a saved objective.");
+        sequence.showInObjectives = true;
+        var task = TutorialObjectiveHistory.Begin(sequence, data, out changed);
+        Check(changed && data.activeQuests.Count == 2 && task != contract, "Checked sequence adds its own durable row despite a colliding contract title.");
+        Check(TutorialObjectiveHistory.IsSequenceTask(task) && !TutorialObjectiveHistory.IsSequenceTask(contract), "Durable discriminator survives beyond runtime row ownership.");
+        Check(task.isTutorial && !task.isCompleted && !task.isReadyToTurnIn && task.contractName == "" && task.targetWaypointName == "",
+            "Recorded guide is neither a contract turn-in nor a name-based route.");
+        Check(task.pendingGold == 0 && task.pendingExp == 0 && task.budget == 0 && task.weight == 0, "Guide receives no reward or contract balance data.");
+        Check(task.title == "Follow Professor Bhan." && task.description.Contains("<b>"), "Saved title is readable and description retains rich-text instruction.");
+        Check(task.tutorialLessonId == sequence.lessonName && task.tutorialScenePath == sequence.gameObject.scene.path,
+            "Saved metadata records lesson and scene independently from durable objective identity.");
+        Check(data.gold == 75 && data.exp == 200 && data.completedLessons.Count == 0 && data.completedContracts.Count == 0 &&
+            data.activeObjectiveKey == "contract:existing" && !data.hasUnlockedObjectiveTracker, "Recording never changes wallet, story completion, unlocks or active contract selection.");
+        Check(contract.description == "Contract remains" && contract.pendingGold == 500 && contract.pendingExp == 30 &&
+            contract.isReadyToTurnIn && contract.budget == 700, "Same-title contract remains untouched.");
+    }
+    static void SnapshotChangesAreIdempotent()
+    {
+        var data = new PlayerData(); var sequence = Sequence();
+        var task = TutorialObjectiveHistory.Begin(sequence, data, out bool changed);
+        Check(changed && !TutorialObjectiveHistory.RecordStep(sequence, sequence.tutorialSteps[0], data), "Unchanged first snapshot reports no repeated change.");
+        Check(TutorialObjectiveHistory.Begin(sequence, data, out changed) == task && !changed && data.activeQuests.Count == 1,
+            "Repeated begin reuses the same row without duplicating history.");
+        for (int frame = 0; frame < 30; frame++)
+            Check(!TutorialObjectiveHistory.RecordStep(sequence, sequence.tutorialSteps[0], data), "Idle frames do not request repeated persistence.");
+        Check(TutorialObjectiveHistory.RecordStep(sequence, sequence.tutorialSteps[1], data) && task.description == "Talk to Professor Bhan.",
+            "Actual step change records the latest instruction in the existing row.");
+        Check(!TutorialObjectiveHistory.RecordStep(sequence, sequence.tutorialSteps[1], data) && !task.isCompleted,
+            "Instruction snapshots cannot complete the sequence.");
+        sequence.objectiveTitle = "  <b>Review</b>\n the bridge ";
+        Check(TutorialObjectiveHistory.RecordStep(sequence, new TutorialStep(), data) && task.title == "Review the bridge" && task.description == task.title,
+            "Blank pointer-only steps preserve a readable customized objective.");
+    }
+    static void CompletionPersistsWithoutReopeningHistory()
+    {
+        var data = new PlayerData(); var sequence = Sequence();
+        var task = TutorialObjectiveHistory.Begin(sequence, data);
+        TutorialObjectiveHistory.RecordStep(sequence, sequence.tutorialSteps[1], data);
+        Check(TutorialObjectiveHistory.Complete(sequence, data) && task.isCompleted && !task.isReadyToTurnIn,
+            "Genuine completion marks the saved row completed.");
+        Check(!TutorialObjectiveHistory.Complete(sequence, data), "Duplicate completion is idempotent.");
+        string title = task.title, description = task.description;
+        sequence.objectiveTitle = "Forced replay title";
+        Check(TutorialObjectiveHistory.Begin(sequence, data, out bool changed) == task && !changed && task.isCompleted,
+            "Forced replay retains the completed history row for a separate live overlay.");
+        Check(!TutorialObjectiveHistory.RecordStep(sequence, sequence.tutorialSteps[0], data) && task.title == title && task.description == description,
+            "Replay cannot overwrite or reopen completed history.");
+        var reloaded = JsonSerializer.Deserialize<PlayerData>(JsonSerializer.Serialize(data, Json), Json);
+        var restored = TutorialObjectiveHistory.Find(Sequence(), reloaded);
+        Check(restored != task && restored.isCompleted && restored.tutorialObjectiveId == task.tutorialObjectiveId,
+            "Durable ID and completion survive save serialization and new scene object construction.");
+        Check(!TutorialObjectiveHistory.Complete(Sequence(), reloaded) && reloaded.activeQuests.Count == 1, "Reloaded completion cannot create duplicate history.");
+        Check(data.completedLessons.Count == 0 && data.completedContracts.Count == 0 && data.gold == 75 && data.exp == 200,
+            "History completion never grants lesson proof, contract completion, Coins or EXP.");
+        data = new PlayerData();
+        Check(TutorialObjectiveHistory.Complete(sequence, data) && data.activeQuests.Count == 1 && data.activeQuests[0].isCompleted,
+            "A genuine finish that precedes the first UI sync still records completion.");
+    }
+    static void DuplicateLessonsHaveDistinctStableKeys()
+    {
+        var data = new PlayerData(); var shop = Sequence("ProceedToShopKeeper", 0); var reed = Sequence("ProceedToShopKeeper", 1);
+        var first = TutorialObjectiveHistory.Begin(shop, data); var second = TutorialObjectiveHistory.Begin(reed, data);
+        Check(first != second && first.tutorialObjectiveId != second.tutorialObjectiveId && data.activeQuests.Count == 2,
+            "Find Reed cannot merge with a same-lesson, same-name shop guide at another sibling position.");
+        Check(TutorialObjectiveHistory.Complete(shop, data) && !second.isCompleted, "Completing shop history cannot cross out Find Reed.");
+        Check(TutorialObjectiveHistory.Find(Sequence("ProceedToShopKeeper", 1), data) == second, "Equivalent reloaded hierarchy locates the correct duplicate-lesson row.");
+        reed.transform.parent.name = "Another Parent";
+        Check(TutorialObjectiveHistory.GetKey(shop) != TutorialObjectiveHistory.GetKey(reed), "Different hierarchy context distinguishes fallback identities.");
+        var sameName = Sequence("ProceedToShopKeeper", 0); sameName.gameObject.scene.path = "Assets/Scenes/BHAN HOUSE.unity";
+        Check(TutorialObjectiveHistory.GetKey(sameName) != TutorialObjectiveHistory.GetKey(shop), "Cross-scene guide identities remain separate.");
+    }
+    static void ExplicitIdsSurvivePresentationChanges()
+    {
+        var sequence = Sequence(); sequence.ObjectiveId = " StoryReview/Bhan/first-entry "; var data = new PlayerData();
+        var task = TutorialObjectiveHistory.Begin(sequence, data);
+        Check(task.tutorialObjectiveId == "tutorial:StoryReview/Bhan/first-entry", "Explicit configured identity takes precedence over fallback paths.");
+        sequence.transform.name = "Renamed guide"; sequence.transform.sibling = 7;
+        sequence.lessonName = "New display lesson"; sequence.gameObject.scene.path = "Assets/Scenes/Other.unity";
+        Check(TutorialObjectiveHistory.Find(sequence, data) == task, "Explicit identity survives hierarchy and scene presentation changes.");
+    }
+    static void LegacyBackfillRequiresCallerPermissionAndProof()
+    {
+        var sequence = Sequence(); var data = new PlayerData();
+        Check(!TutorialObjectiveHistory.RestoreCompleted(sequence, data, true) && data.activeQuests.Count == 0, "Legacy migration requires actual saved completion proof.");
+        data.completedLessons.Add(sequence.lessonName);
+        Check(!TutorialObjectiveHistory.RestoreCompleted(sequence, data, false) && data.activeQuests.Count == 0,
+            "Caller can reject ambiguous duplicate lesson IDs without fabricating history.");
+        Check(TutorialObjectiveHistory.RestoreCompleted(sequence, data, true) && TutorialObjectiveHistory.Find(sequence, data).isCompleted,
+            "Unambiguous opted-in legacy lesson proof backfills crossed-out history.");
+        Check(!TutorialObjectiveHistory.RestoreCompleted(sequence, data, true) && data.activeQuests.Count == 1 && data.completedLessons.Count == 1,
+            "Backfill is idempotent and leaves the old completion list untouched.");
+        sequence = Sequence("ProceedToShopKeeper", 1);
+        data.completedLessons.Add(sequence.lessonName);
+        Check(!TutorialObjectiveHistory.RestoreCompleted(sequence, data, false) && TutorialObjectiveHistory.Find(sequence, data) == null,
+            "Completed shopkeeper lesson alone never proves Find Reed completion.");
+        sequence.showInObjectives = false;
+        Check(!TutorialObjectiveHistory.RestoreCompleted(sequence, data, true), "Unchecked legacy sequence remains absent from objective history.");
+        sequence = Sequence(""); data.completedLessons.Add("");
+        Check(!TutorialObjectiveHistory.RestoreCompleted(sequence, data, true), "Anonymous legacy lesson cannot imply completion.");
+    }
+    static void OldSavesAndSeparateProfilesRemainSafe()
+    {
+        var legacy = JsonSerializer.Deserialize<TrackedTask>("{\"title\":\"Explore\",\"isTutorial\":true,\"isCompleted\":true}", Json);
+        Check(!TutorialObjectiveHistory.IsSequenceTask(legacy) && legacy.isCompleted, "Old generic-task JSON does not become a checked sequence history record.");
+        var oldData = new PlayerData { activeQuests = null };
+        var sequence = Sequence();
+        Check(TutorialObjectiveHistory.Begin(sequence, oldData) != null && oldData.activeQuests.Count == 1, "Older null quest list is safely initialized when a real checked sequence begins.");
+        var anotherProfile = new PlayerData();
+        Check(TutorialObjectiveHistory.Find(sequence, anotherProfile) == null, "Other profile has no inherited history.");
+        var anotherTask = TutorialObjectiveHistory.Begin(sequence, anotherProfile);
+        Check(anotherTask != oldData.activeQuests[0] && !anotherTask.isCompleted && anotherProfile.activeQuests.Count == 1,
+            "Owner-supplied profiles never share mutable row references.");
+        TutorialObjectiveHistory.Complete(sequence, oldData);
+        Check(!anotherTask.isCompleted, "Completing one profile's guide cannot change another profile.");
+    }
+    static void CatalogBackfillWorksWithoutLoadingItsScene()
+    {
+        var data = new PlayerData();
+        const string lesson = "Sequence_House", scene = "Assets/Scenes/BHAN HOUSE.unity", id = scene + "|2010245065";
+        bool Import(bool allow = true) => TutorialObjectiveHistory.RestoreCompletedDefinition(data, id, lesson, scene,
+            "<b>Find</b> the Almanac", "Find <b>Professor Bhan's Almanac</b>.", allow);
+        Check(!Import() && data.activeQuests.Count == 0, "Catalog cannot invent completion for a lesson absent from old save.");
+        data.completedLessons.Add(lesson);
+        Check(!Import(false) && data.activeQuests.Count == 0, "Catalog ambiguity policy rejects import before creating any row.");
+        Check(Import() && data.activeQuests.Count == 1, "Audited catalog imports a finished House guide without loading its scene.");
+        var task = data.activeQuests[0];
+        Check(task.isCompleted && task.tutorialObjectiveId == "tutorial:" + id && task.tutorialLessonId == lesson && task.tutorialScenePath == scene,
+            "Catalog completion uses the same explicit key and durable source metadata as future live bindings.");
+        Check(task.title == "Find the Almanac" && task.description.Contains("<b>") && task.pendingGold == 0 && task.pendingExp == 0,
+            "Imported history has readable text and no rewards.");
+        Check(!Import() && data.activeQuests.Count == 1, "Catalog import is idempotent.");
+        var sequence = Sequence(lesson); sequence.ObjectiveId = id;
+        Check(TutorialObjectiveHistory.Find(sequence, data) == task && TutorialObjectiveHistory.Begin(sequence, data) == task,
+            "Loading the source scene binds to catalog history without duplicate rows.");
+        Check(!TutorialObjectiveHistory.RestoreCompletedDefinition(data, "", lesson, scene, "", "", true), "Empty catalog objective identity is rejected.");
+        Check(!TutorialObjectiveHistory.RestoreCompletedDefinition(data, "other", lesson + " ", scene, "", "", true), "Catalog proof requires exact legacy lesson identity.");
+        Check(data.completedLessons.Count == 1 && data.completedContracts.Count == 0 && data.gold == 75 && data.exp == 200,
+            "Catalog import does not modify gameplay completion or rewards.");
+    }
+    static void InvalidInputsCannotCreateHistory()
+    {
+        var data = new PlayerData(); var sequence = Sequence();
+        Check(TutorialObjectiveHistory.Begin(null, data) == null && TutorialObjectiveHistory.Begin(sequence, null) == null,
+            "Missing sequence/data cannot create history.");
+        Check(!TutorialObjectiveHistory.RecordStep(sequence, null, data) && data.activeQuests.Count == 0, "Missing current step cannot introduce an unobserved objective.");
+        sequence.gameObject.scene.valid = false;
+        Check(!TutorialObjectiveHistory.Complete(sequence, data) && TutorialObjectiveHistory.Begin(sequence, data) == null, "Prefab/unattached sequence cannot record completion.");
+        sequence.gameObject.scene.valid = true; sequence.gameObject.scene.isLoaded = false;
+        Check(TutorialObjectiveHistory.Begin(sequence, data) == null && data.activeQuests.Count == 0, "Unloaded scene cannot introduce a guide into the active save.");
+        Check(TutorialObjectiveHistory.GetKey(null) == "" && !TutorialObjectiveHistory.IsSequenceTask(null), "Empty identity queries are safe.");
+    }
+}

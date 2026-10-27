@@ -11,6 +11,10 @@ public class ObjectiveTrackerUI : MonoBehaviour
     [Header("HUD Alert Notification")]
     public GameObject openTrackerButton; 
     public GameObject newAlertIcon; 
+    public bool CanShowHudEntry => isActiveAndEnabled &&
+        (trackerPanel == null || !trackerPanel.activeSelf) && pendingContractOffer == null &&
+        ((PlayerDataManager.Instance != null && PlayerDataManager.Instance.CurrentData != null &&
+          PlayerDataManager.Instance.CurrentData.hasUnlockedObjectiveTracker) || tutorialObjective.Task != null);
 
     [Header("Main Menu Base")]
     public GameObject trackerPanel; 
@@ -44,6 +48,14 @@ public class ObjectiveTrackerUI : MonoBehaviour
     public Sprite roundedPanelSprite;
 
     private TrackedTask currentlySelectedTask;
+    private readonly TutorialObjectiveProjection tutorialObjective = new TutorialObjectiveProjection();
+    private readonly HashSet<TrackedTask> tutorialObjectiveRows = new HashSet<TrackedTask>();
+    private bool preferTutorialObjective;
+    private bool synchronizingTutorialObjective;
+    private bool unreadTutorialObjective;
+    private TutorialManager observedTutorialManager;
+    private PlayerData observedTutorialData;
+    private int observedObjectiveHistoryVersion = -1;
     private ContractSO pendingContractOffer;
     private TrackedTask pendingContractPreview;
     private string pendingContractTargetName = string.Empty;
@@ -82,6 +94,8 @@ public class ObjectiveTrackerUI : MonoBehaviour
         if (Instance == null) Instance = this;
         else { Destroy(gameObject); return; }
 
+        DialogueHudButtonGate.BindObjectives(openTrackerButton, this);
+
         ApplySharedVisualStyle();
         EnsureRewardIcons();
         
@@ -93,10 +107,8 @@ public class ObjectiveTrackerUI : MonoBehaviour
 
     private void Start()
     {
-        if (openTrackerButton != null && PlayerDataManager.Instance != null)
-        {
-            openTrackerButton.SetActive(PlayerDataManager.Instance.CurrentData.hasUnlockedObjectiveTracker);
-        }
+        SynchronizeTutorialObjective(false);
+        RefreshObjectiveEntryButton();
 
         if (PlayerDataManager.Instance != null)
             PlayerDataManager.Instance.OnObjectiveAlertsChanged += RefreshAlertIcon;
@@ -106,12 +118,25 @@ public class ObjectiveTrackerUI : MonoBehaviour
 
     private void OnDestroy()
     {
+        ClearTutorialObjective();
         if (PlayerDataManager.Instance != null)
             PlayerDataManager.Instance.OnObjectiveAlertsChanged -= RefreshAlertIcon;
     }
 
+    private void OnDisable()
+    {
+        ClearTutorialObjective();
+    }
+
     private void Update()
     {
+        SynchronizeTutorialObjective(true);
+        if (pendingContractOffer == null && tutorialObjective.Owns(currentlySelectedTask) &&
+            trackerPanel != null && trackerPanel.activeSelf && navigateButton != null)
+        {
+            bool canNavigate = tutorialObjective.CanNavigate;
+            if (navigateButton.activeSelf != canNavigate) navigateButton.SetActive(canNavigate);
+        }
         // --- SAFEGUARD: Forcibly keep alert icon OFF whenever the tracker panel is open ---
         if (trackerPanel != null && trackerPanel.activeSelf && newAlertIcon != null && newAlertIcon.activeSelf)
         {
@@ -119,8 +144,82 @@ public class ObjectiveTrackerUI : MonoBehaviour
         }
     }
 
+    private void SynchronizeTutorialObjective(bool refreshPresentation)
+    {
+        if (synchronizingTutorialObjective) return;
+        synchronizingTutorialObjective = true;
+        try
+        {
+            TrackedTask previous = tutorialObjective.Task;
+            string previousKey = tutorialObjective.Key;
+            bool wasSelected = previous != null && ReferenceEquals(currentlySelectedTask, previous);
+            PlayerData data = PlayerDataManager.Instance != null ? PlayerDataManager.Instance.CurrentData : null;
+            TutorialManager manager = TutorialManager.Instance;
+            int version = manager != null ? manager.ObjectiveHistoryVersion : -1;
+            bool historyChanged = manager != observedTutorialManager || !ReferenceEquals(data, observedTutorialData) ||
+                version != observedObjectiveHistoryVersion;
+            observedTutorialManager = manager; observedTutorialData = data; observedObjectiveHistoryVersion = version;
+            if (!tutorialObjective.Sync(manager, data) && !historyChanged) return;
+
+            bool added = tutorialObjective.Task != null &&
+                (previous == null || !ReferenceEquals(previous, tutorialObjective.Task) || previousKey != tutorialObjective.Key);
+            if (tutorialObjective.Task != null) tutorialObjectiveRows.Add(tutorialObjective.Task);
+            if (added)
+            {
+                preferTutorialObjective = true;
+                // The current instruction's alert is local. Saved history does
+                // not generate a new alert every time a profile is loaded.
+                unreadTutorialObjective = trackerPanel == null || !trackerPanel.activeSelf;
+            }
+            else if (tutorialObjective.Task == null)
+            {
+                preferTutorialObjective = false;
+                unreadTutorialObjective = false;
+            }
+            RefreshAlertIcon();
+
+            if (wasSelected) currentlySelectedTask = tutorialObjective.Task ??
+                (IsCurrentSavedTutorialRow(previous) ? previous : null);
+            RefreshObjectiveEntryButton();
+            if (!refreshPresentation || pendingContractOffer != null || trackerPanel == null || !trackerPanel.activeSelf) return;
+
+            RefreshQuestList();
+            if (wasSelected)
+            {
+                if (currentlySelectedTask != null) SelectTask(currentlySelectedTask);
+                else ShowActiveObjectiveOrList(false);
+            }
+        }
+        finally { synchronizingTutorialObjective = false; }
+    }
+
+    private void ClearTutorialObjective()
+    {
+        if (tutorialObjective.Owns(currentlySelectedTask)) currentlySelectedTask = null;
+        tutorialObjective.Clear();
+        preferTutorialObjective = false;
+        unreadTutorialObjective = false;
+        RefreshObjectiveEntryButton();
+        RefreshAlertIcon();
+    }
+
+    private void RefreshObjectiveEntryButton()
+    {
+        if (openTrackerButton == null) return;
+        PlayerData data = PlayerDataManager.Instance != null ? PlayerDataManager.Instance.CurrentData : null;
+        bool unlocked = data != null && data.hasUnlockedObjectiveTracker;
+        openTrackerButton.SetActive((trackerPanel == null || !trackerPanel.activeSelf) &&
+            pendingContractOffer == null && (unlocked || tutorialObjective.Task != null));
+    }
+
+    private bool IsCurrentSavedTutorialRow(TrackedTask task) => TutorialObjectiveHistory.IsSequenceTask(task) &&
+        PlayerDataManager.Instance != null && PlayerDataManager.Instance.CurrentData?.activeQuests != null &&
+        PlayerDataManager.Instance.CurrentData.activeQuests.Contains(task) &&
+        !(FusionConnectionManager.Instance != null && FusionConnectionManager.Instance.IsGuestInHostWorld);
+
     public void ClearAlert()
     {
+        unreadTutorialObjective = false;
         if (PlayerDataManager.Instance != null)
             PlayerDataManager.Instance.ClearObjectiveAlert();
 
@@ -150,7 +249,7 @@ public class ObjectiveTrackerUI : MonoBehaviour
                                PlayerDataManager.Instance.CurrentData.hasUnreadObjectiveAlert;
 
         if (newAlertIcon != null)
-            newAlertIcon.SetActive(hasUnreadUpdate && !trackerIsOpen);
+            newAlertIcon.SetActive((hasUnreadUpdate || unreadTutorialObjective) && !trackerIsOpen);
     }
 
     private void UnlockAndShowTracker()
@@ -246,7 +345,7 @@ public class ObjectiveTrackerUI : MonoBehaviour
     {
         if (PlayerDataManager.Instance == null) return;
         var activeTasks = PlayerDataManager.Instance.CurrentData.activeQuests;
-        if (activeTasks.Exists(t => t.title == taskTitle)) return;
+        if (activeTasks.Exists(t => t.title == taskTitle && !TutorialObjectiveHistory.IsSequenceTask(t))) return;
 
         TrackedTask newTask = new TrackedTask
         {
@@ -274,7 +373,7 @@ public class ObjectiveTrackerUI : MonoBehaviour
         if (PlayerDataManager.Instance == null) return;
         
         var activeTasks = PlayerDataManager.Instance.CurrentData.activeQuests;
-        TrackedTask taskToComplete = activeTasks.Find(t => t.title == taskTitle);
+        TrackedTask taskToComplete = activeTasks.Find(t => t.title == taskTitle && !TutorialObjectiveHistory.IsSequenceTask(t));
         
         if (taskToComplete != null && !taskToComplete.isCompleted)
         {
@@ -396,6 +495,8 @@ public class ObjectiveTrackerUI : MonoBehaviour
 
     public void OnCompleteButtonClicked()
     {
+        if (TutorialObjectiveHistory.IsSequenceTask(currentlySelectedTask)) return;
+        if (currentlySelectedTask != null && tutorialObjectiveRows.Contains(currentlySelectedTask)) return;
         if (currentlySelectedTask == null || currentlySelectedTask.isCompleted) return;
 
         if (!string.IsNullOrEmpty(currentlySelectedTask.contractName))
@@ -502,6 +603,13 @@ public class ObjectiveTrackerUI : MonoBehaviour
 
     public void OnNavigateButtonClicked()
     {
+        TrackedTask selectedBeforeSync = currentlySelectedTask;
+        ContractSO offerBeforeSync = pendingContractOffer;
+        SynchronizeTutorialObjective(true);
+        // A click on an expired guide must not act on the fallback contract or
+        // a newly opened offer selected while synchronizing the current state.
+        if (!ReferenceEquals(selectedBeforeSync, currentlySelectedTask) ||
+            !ReferenceEquals(offerBeforeSync, pendingContractOffer)) return;
         if (pendingContractOffer != null)
         {
             AcceptPendingContractOffer();
@@ -517,6 +625,14 @@ public class ObjectiveTrackerUI : MonoBehaviour
         }
 
         if (currentlySelectedTask == null) return;
+
+        if (tutorialObjectiveRows.Contains(currentlySelectedTask) && !tutorialObjective.Owns(currentlySelectedTask)) return;
+        if (tutorialObjective.Owns(currentlySelectedTask))
+        {
+            if (tutorialObjective.TryNavigate()) CloseTrackerPanel(false);
+            return;
+        }
+        if (TutorialObjectiveHistory.IsSequenceTask(currentlySelectedTask)) return;
 
         GameObject targetObj = null;
 
@@ -570,6 +686,7 @@ public class ObjectiveTrackerUI : MonoBehaviour
 
     public void ToggleTrackerPanel()
     {
+        SynchronizeTutorialObjective(false);
         if (trackerPanel == null) return;
 
         if (trackerPanel.activeSelf)
@@ -661,10 +778,7 @@ public class ObjectiveTrackerUI : MonoBehaviour
             SetOtherUIActive(true);
         }
 
-        bool trackerUnlocked = PlayerDataManager.Instance != null &&
-                               PlayerDataManager.Instance.CurrentData != null &&
-                               PlayerDataManager.Instance.CurrentData.hasUnlockedObjectiveTracker;
-        if (openTrackerButton != null) openTrackerButton.SetActive(trackerUnlocked);
+        RefreshObjectiveEntryButton();
 
         currentlySelectedTask = null;
         ClearAlert();
@@ -672,7 +786,8 @@ public class ObjectiveTrackerUI : MonoBehaviour
 
     private void RefreshQuestList()
     {
-        if (questListContent == null || questTabPrefab == null || PlayerDataManager.Instance == null) return;
+        SynchronizeTutorialObjective(false);
+        if (questListContent == null || questTabPrefab == null) return;
 
         for (int i = questListContent.childCount - 1; i >= 0; i--)
         {
@@ -681,13 +796,16 @@ public class ObjectiveTrackerUI : MonoBehaviour
             Destroy(child.gameObject);
         }
 
-        var allTasks = PlayerDataManager.Instance.CurrentData.activeQuests;
+        PlayerData data = PlayerDataManager.Instance != null ? PlayerDataManager.Instance.CurrentData : null;
+        var allTasks = data != null && data.activeQuests != null
+            ? data.activeQuests : new List<TrackedTask>();
         
-        var activeList = allTasks.Where(t => !t.isCompleted)
+        var activeList = allTasks.Where(t => t != null && !t.isCompleted)
                                  .OrderByDescending(t => t.isReadyToTurnIn)
                                  .ToList();
 
-        var doneList = allTasks.Where(t => t.isCompleted).ToList();
+        if (tutorialObjective.Task != null && !activeList.Contains(tutorialObjective.Task)) activeList.Add(tutorialObjective.Task);
+        var doneList = allTasks.Where(t => t != null && t.isCompleted).ToList();
         doneList.Reverse(); 
 
         activeList.AddRange(doneList);
@@ -709,15 +827,25 @@ public class ObjectiveTrackerUI : MonoBehaviour
 
     public void SelectTask(TrackedTask task)
     {
+        SynchronizeTutorialObjective(false);
         if (task == null) return;
+        // A button destroyed by a profile/sequence change may still dispatch its
+        // queued click this frame. Never save that expired runtime row as a task.
+        if (tutorialObjectiveRows.Contains(task) && !tutorialObjective.Owns(task) && !IsCurrentSavedTutorialRow(task)) return;
+        if (TutorialObjectiveHistory.IsSequenceTask(task) && !tutorialObjective.Owns(task) && !IsCurrentSavedTutorialRow(task)) return;
         currentlySelectedTask = task;
         bool isContractOfferPreview =
             pendingContractOffer != null && ReferenceEquals(task, pendingContractPreview);
 
         if (!isContractOfferPreview && !task.isCompleted)
-            SetActiveObjective(task, true);
+            SetActiveObjective(task, !synchronizingTutorialObjective);
 
-        ClearAlert();
+        if (synchronizingTutorialObjective)
+        {
+            unreadTutorialObjective = false;
+            RefreshAlertIcon();
+        }
+        else ClearAlert();
 
         if (listPanel != null) listPanel.SetActive(false);
         if (detailsPanel != null) detailsPanel.SetActive(true);
@@ -757,7 +885,7 @@ public class ObjectiveTrackerUI : MonoBehaviour
             if (weightText != null) weightText.gameObject.SetActive(false);
         }
         
-        if (task.isReadyToTurnIn && !task.isCompleted)
+        if (task.isReadyToTurnIn && !task.isCompleted && !TutorialObjectiveHistory.IsSequenceTask(task))
         {
             if (rewardContainer != null) rewardContainer.SetActive(true);
             if (rewardGoldText != null) rewardGoldText.text = $"+{task.pendingGold:N0}";
@@ -780,7 +908,11 @@ public class ObjectiveTrackerUI : MonoBehaviour
             SetActionButtonColor(navigateButton, TrackButtonColor);
             bool canNavigate = false;
 
-            if (!task.isCompleted && !task.isReadyToTurnIn)
+            if (tutorialObjective.Owns(task))
+            {
+                canNavigate = tutorialObjective.CanNavigate;
+            }
+            else if (!task.isCompleted && !task.isReadyToTurnIn && !TutorialObjectiveHistory.IsSequenceTask(task))
             {
                 if (!task.isTutorial && !string.IsNullOrEmpty(task.contractName) && PlayerDataManager.Instance != null)
                 {
@@ -931,8 +1063,10 @@ public class ObjectiveTrackerUI : MonoBehaviour
         return null;
     }
 
-    private static bool CanNavigateToTask(TrackedTask task)
+    private bool CanNavigateToTask(TrackedTask task)
     {
+        if (tutorialObjective.Owns(task)) return tutorialObjective.CanNavigate;
+        if (TutorialObjectiveHistory.IsSequenceTask(task)) return false;
         if (task == null || task.isCompleted || task.isReadyToTurnIn) return false;
 
         if (!task.isTutorial && !string.IsNullOrEmpty(task.contractName) &&
@@ -1736,6 +1870,7 @@ public class ObjectiveTrackerUI : MonoBehaviour
     private static string GetObjectiveKey(TrackedTask task)
     {
         if (task == null) return string.Empty;
+        if (TutorialObjectiveHistory.IsSequenceTask(task)) return task.tutorialObjectiveId;
 
         if (!string.IsNullOrWhiteSpace(task.contractName))
             return "contract:" + task.contractName.Trim();
@@ -1747,9 +1882,17 @@ public class ObjectiveTrackerUI : MonoBehaviour
 
     private void SetActiveObjective(TrackedTask task, bool saveImmediately)
     {
-        if (task == null || task.isCompleted || PlayerDataManager.Instance == null ||
-            PlayerDataManager.Instance.CurrentData == null)
+        if (task == null || task.isCompleted) return;
+        if (tutorialObjectiveRows.Contains(task) && !tutorialObjective.Owns(task) && !IsCurrentSavedTutorialRow(task)) return;
+        if (tutorialObjective.Owns(task))
+        {
+            // Live guide selection is local UI state. The saved contract/task
+            // remains selected for when this tutorial ends or is interrupted.
+            preferTutorialObjective = true;
             return;
+        }
+        preferTutorialObjective = false;
+        if (PlayerDataManager.Instance == null || PlayerDataManager.Instance.CurrentData == null) return;
 
         string key = GetObjectiveKey(task);
         if (string.IsNullOrEmpty(key) ||
@@ -1762,13 +1905,17 @@ public class ObjectiveTrackerUI : MonoBehaviour
 
     private TrackedTask ResolveActiveObjective(bool saveFallback)
     {
+        SynchronizeTutorialObjective(false);
         if (PlayerDataManager.Instance == null || PlayerDataManager.Instance.CurrentData == null)
             return null;
 
         PlayerData data = PlayerDataManager.Instance.CurrentData;
+        TrackedTask liveTutorial = tutorialObjective.Task;
+        if (liveTutorial != null && preferTutorialObjective) return liveTutorial;
         List<TrackedTask> tasks = data.activeQuests;
         if (tasks == null || tasks.Count == 0)
         {
+            if (liveTutorial != null) return liveTutorial;
             if (!string.IsNullOrEmpty(data.activeObjectiveKey))
             {
                 data.activeObjectiveKey = string.Empty;
@@ -1780,6 +1927,7 @@ public class ObjectiveTrackerUI : MonoBehaviour
         TrackedTask active = tasks.FirstOrDefault(task =>
             task != null && !task.isCompleted && GetObjectiveKey(task) == data.activeObjectiveKey);
 
+        if (active == null && liveTutorial != null) return liveTutorial;
         if (active == null)
         {
             active = tasks.LastOrDefault(task => task != null && !task.isCompleted && task.isReadyToTurnIn)
