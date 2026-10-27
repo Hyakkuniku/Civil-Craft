@@ -116,6 +116,20 @@ public class ShopButtonTrigger : MonoBehaviour
         gameObject.SetActive(IsShopUnlocked() && allowedByBuildMode && visibleOutsideBuildMode);
     }
 
+    private static bool HasBlockingTutorialForUnlockPointer(TutorialManager tutorial)
+    {
+        if (!tutorial.IsTutorialActive) return false;
+        TutorialStep step = tutorial.CurrentStep;
+        // "Go back to Professor Bhan" and "Find Reed" remain active as
+        // passive walking reminders. They own no UI pointer or required action,
+        // so the Shop hint can coexist without finishing or changing that step.
+        // Some such reminders have no waypoint; do not depend on their text/ID.
+        return step == null || step.screenPosition != TutorialPosition.Left ||
+            step.showNextButton || step.canSkip || step.advanceOnClick || step.usePointer ||
+            step.requiredAction != TutorialStepAction.None || step.lockLook || step.lockJump ||
+            step.lockRun || step.worldHighlightObject != null;
+    }
+
     private bool ShouldShowUnlockPointer()
     {
         PlayerData data = PlayerDataManager.Instance != null ? PlayerDataManager.Instance.CurrentData : null;
@@ -124,7 +138,7 @@ public class ShopButtonTrigger : MonoBehaviour
             data == null || (data.completedLessons != null && data.completedLessons.Contains(ShopIntroductionLessonId)) ||
             button == null || !button.isActiveAndEnabled || !button.IsInteractable() ||
             tutorial == null || !tutorial.isActiveAndEnabled || tutorial.gameObject.scene != gameObject.scene ||
-            tutorial.IsTutorialActive || tutorial.IsTutorialPresentationSuppressed ||
+            HasBlockingTutorialForUnlockPointer(tutorial) || tutorial.IsTutorialPresentationSuppressed ||
             gameObject.scene.name == "Multiplayer" || MultiplayerChallengeLobbyUI.IsChallengeActive ||
             (FusionConnectionManager.Instance != null && FusionConnectionManager.Instance.IsGuestSaveProtected) ||
             LoadingScreenManager.IsLoading || Time.timeScale <= 0f || DialogueManager.IsAnyDialogueVisible ||

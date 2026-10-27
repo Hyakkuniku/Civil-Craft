@@ -188,6 +188,19 @@ public class TutorialManager : Behaviour
     public static TutorialManager Instance;
     public TutorialPointer SharedPointer;
     public bool IsTutorialActive, IsTutorialPresentationSuppressed;
+    public TutorialStep CurrentStep;
+}
+public enum TutorialPosition { Center = 0, Left = 1, LowCenter = 3 }
+public enum TutorialStepAction { None, SelectTool, SelectBridge, CopySelection, PositionPastePreview, PasteSelection }
+public class GuiderWaypoint { public Transform target; public bool advancesTutorial; }
+public class TutorialStep
+{
+    public string message;
+    public TutorialPosition screenPosition;
+    public bool showNextButton = true, canSkip, advanceOnClick, usePointer, lockLook, lockJump, lockRun;
+    public TutorialStepAction requiredAction;
+    public GameObject worldHighlightObject;
+    public List<GuiderWaypoint> stepWaypoints;
 }
 public class TutorialPointer : Behaviour
 {

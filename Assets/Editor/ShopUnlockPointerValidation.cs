@@ -15,7 +15,7 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using Object = UnityEngine.Object;
 
-/// <summary>Detached Shop HUD pointer geometry only; never unlocks or opens a live shop.</summary>
+/// <summary>Detached exact Shop arrow cloning and HUD geometry; never unlocks or opens a live shop.</summary>
 [InitializeOnLoad]
 public static class ShopUnlockPointerValidation
 {
@@ -42,7 +42,7 @@ public static class ShopUnlockPointerValidation
     {
         if (Busy) return;
         running = true;
-        var report = new StringBuilder("Shop unlock pointer: actual HUD art, dedicated detached pointer\n");
+        var report = new StringBuilder("Shop unlock pointer: actual inactive-template Instantiate clone and HUD art\n");
         Scene[] scenes = Enumerable.Range(0, SceneManager.sceneCount).Select(SceneManager.GetSceneAt).ToArray();
         bool[] dirty = scenes.Select(scene => scene.isDirty).ToArray();
         GameObject[][] roots = scenes.Select(scene => scene.GetRootGameObjects()).ToArray();
@@ -135,11 +135,29 @@ public static class ShopUnlockPointerValidation
             Require(hitSurface != null && hitSurface.sprite != null, "Actual Shop HUD sprite is missing.");
             foreach (Graphic graphic in button.GetComponentsInChildren<Graphic>(true)) graphic.raycastTarget = false;
             hitSurface.raycastTarget = true;
-            RectTransform arrow = CopyArt((RectTransform)sourcePointer.transform, parent, "Dedicated Shop arrow (detached)");
-            arrow.anchorMin = arrow.anchorMax = Vector2.one * .5f; arrow.localScale = Vector3.one; arrow.localRotation = Quaternion.identity;
-            TutorialPointer pointer = arrow.gameObject.AddComponent<TutorialPointer>();
-            typeof(TutorialPointer).GetMethod("Awake", PrivateInstance).Invoke(pointer, null);
-            pointer.bounceAmount = sourcePointer.bounceAmount;
+            // Use the exact runtime factory, rather than rebuilding Image art
+            // and adding a fresh component. An inactive source prevents any
+            // unexpected activation while the clone is being inspected.
+            Require(!sourcePointer.gameObject.activeSelf, "Leave the authored shared pointer inactive for the clone lifecycle check.");
+            Require(sourcePointer.GetComponentsInChildren<MonoBehaviour>(true).All(component =>
+                component is TutorialPointer || component is Graphic),
+                "The pointer template has an unexpected script; do not clone a live interaction owner in this detached check.");
+            TutorialPointer pointer = Object.Instantiate(sourcePointer, canvas.rootCanvas.transform, false);
+            pointer.name = "Shop Unlock Pointer (Runtime validation)";
+            pointer.Hide();
+            RectTransform arrow = (RectTransform)pointer.transform;
+            Require(pointer != sourcePointer && arrow != sourcePointer.transform &&
+                pointer.GetComponentsInChildren<MonoBehaviour>(true).All(component => component is TutorialPointer || component is Graphic),
+                "Exact pointer cloning reused a source object or copied an interaction owner.");
+            Require(!pointer.gameObject.activeSelf && !pointer.IsPointingAt(button),
+                "A newly cloned and hidden arrow must not retain an old tutorial target.");
+            // Unity does not promise Play Mode callbacks for ordinary scripts
+            // in an Edit Mode preview. Initialize the real clone's Awake once
+            // if necessary; do not replace its component or its serialized art.
+            if (typeof(TutorialPointer).GetField("rectTransform", PrivateInstance).GetValue(pointer) == null)
+                typeof(TutorialPointer).GetMethod("Awake", PrivateInstance).Invoke(pointer, null);
+            Require(pointer.bounceAmount == sourcePointer.bounceAmount,
+                "The exact clone did not retain the authored bounce setting.");
             // Freeze only the detached phase while proving its full reserved
             // bounce envelope, not just one lucky animation sample.
             pointer.bounceSpeed = 0f;
@@ -164,8 +182,18 @@ public static class ShopUnlockPointerValidation
                 {
                     Canvas.ForceUpdateCanvases();
                     pointer.PointAtBuildTarget(button, new Vector2(110f, 0f), 90f);
+                    // Mirror the real activation callback explicitly as well:
+                    // the original inactive clone must retain the new target.
+                    typeof(TutorialPointer).GetMethod("OnEnable", PrivateInstance).Invoke(pointer, null);
                     typeof(TutorialPointer).GetMethod("LateUpdate", PrivateInstance).Invoke(pointer, null);
-                    Require(pointer.IsPointingAt(button) && pointer.GetComponent<Canvas>().enabled, "Dedicated Shop arrow is not visible/targeted.");
+                    Canvas.ForceUpdateCanvases();
+                    Require(pointer.IsPointingAt(button) && pointer.GetComponent<Canvas>() != null &&
+                        pointer.GetComponent<Canvas>().isActiveAndEnabled, "Exact cloned Shop arrow is not visible/targeted after first activation.");
+                    Require(pointer.GetComponentsInChildren<Graphic>(true).Any(graphic => graphic.isActiveAndEnabled &&
+                        graphic.color.a > .001f && graphic.canvasRenderer.GetAlpha() > .001f),
+                        "Exact cloned Shop arrow has no enabled, nontransparent graphic after activation.");
+                    Require(pointer.GetComponentsInParent<CanvasGroup>(true).All(group => !group.isActiveAndEnabled || group.alpha > .001f),
+                        "A cloned/ancestor CanvasGroup makes the Shop arrow transparent.");
                     Require(pointer.GetComponentsInChildren<Graphic>(true).All(graphic => !graphic.raycastTarget), "Arrow captures UI clicks.");
                     Rect arrowBounds = Bounds(arrow, camera), buttonBounds = Bounds(button, camera);
                     Require(!arrowBounds.Overlaps(buttonBounds), "Shop arrow overlaps the actual HUD target.");
@@ -198,7 +226,7 @@ public static class ShopUnlockPointerValidation
                     Require(!pointer.gameObject.activeSelf, "A hidden HUD target leaves a floating Shop arrow.");
                     button.gameObject.SetActive(true);
                     report.AppendLine("PASS: " + sourceButton.gameObject.scene.name + " " + screen.x + "x" + screen.y +
-                        "; actual Shop art/anchoring, dedicated arrow points toward target without overlap, full bounce envelope in bounds, native click-through, repeat stability and hidden-target cleanup. " + path);
+                        "; exact inactive-template Instantiate clone retains visible art and activates toward Shop without overlap, full bounce envelope in bounds, native click-through, repeat stability and hidden-target cleanup. " + path);
                 }
                 finally { camera.targetTexture = null; target.Release(); Object.DestroyImmediate(target); }
             }

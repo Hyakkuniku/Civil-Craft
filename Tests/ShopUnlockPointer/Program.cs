@@ -57,7 +57,7 @@ internal static class Program
     }
     private static void Main()
     {
-        Eligibility(); Blocking(); OwnershipAndLifecycle(); ButtonAndSubscriptions(); SourceGuards();
+        Eligibility(); PassiveTutorialGuidance(); Blocking(); OwnershipAndLifecycle(); ButtonAndSubscriptions(); SourceGuards();
         Console.WriteLine($"PASS: {checks} full production ShopButtonTrigger assertions/source guards. Engine objects, cloning, pointer positioning and UI events are explicit boundary doubles; actual graphic raycasting remains a Unity check. No live scene, save, account, purchase, reward or network accessed.");
     }
     private static void Eligibility()
@@ -124,6 +124,105 @@ internal static class Program
             Check(f.shop.opens == 0, "A visibility gate does not invoke gameplay or purchases: " + state);
         }
     }
+    private static TutorialStep NavigationStep(bool hasWaypoints)
+    {
+        return new TutorialStep
+        {
+            message = hasWaypoints ? "Go back to Professor Bhan\n" : "Find Reed",
+            screenPosition = TutorialPosition.Left,
+            showNextButton = false,
+            stepWaypoints = hasWaypoints ? new List<GuiderWaypoint>
+            {
+                new GuiderWaypoint { target = new GameObject("Professor Bhan destination").transform, advancesTutorial = false }
+            } : new List<GuiderWaypoint>()
+        };
+    }
+    private static void PassiveTutorialGuidance()
+    {
+        // Both are real authored story shapes: GoBackToProfBhan has a route,
+        // while Find Reed is a passive Left objective with no waypoints.
+        foreach (bool hasWaypoints in new[] { true, false })
+        {
+            Fixture f = new(unlocked: true);
+            TutorialStep step = NavigationStep(hasWaypoints);
+            List<GuiderWaypoint> route = step.stepWaypoints;
+            GuiderWaypoint[] waypoints = route.ToArray();
+            string message = step.message;
+            f.tutorial.IsTutorialActive = true;
+            f.tutorial.CurrentStep = step;
+            int points = f.template.points, hides = f.template.hides;
+            f.Tick();
+            Check(f.Visible && f.Arrow.target == f.button.transform,
+                "Shop unlock guidance coexists with passive Left story objective: " + message.Trim());
+            Check(f.tutorial.IsTutorialActive && ReferenceEquals(f.tutorial.CurrentStep, step) &&
+                  step.message == message && step.screenPosition == TutorialPosition.Left && !step.showNextButton &&
+                  !step.canSkip && !step.advanceOnClick && !step.usePointer && step.requiredAction == TutorialStepAction.None,
+                "Advisory does not finish, replace or alter the active passive story objective.");
+            Check(ReferenceEquals(step.stepWaypoints, route) && route.SequenceEqual(waypoints) &&
+                  route.All(item => !item.advancesTutorial),
+                "Advisory leaves the current story trail and its waypoint advancement flags unchanged.");
+            Check(f.template.points == points && f.template.hides == hides && !f.template.gameObject.activeSelf && f.shop.opens == 0,
+                "Coexisting Shop guidance neither steals the shared pointer nor opens the shop or advances story.");
+            f.Tick();
+            Check(f.Visible && ReferenceEquals(f.tutorial.CurrentStep, step),
+                "A continuing navigation objective cannot silently suppress the advisory on later frames.");
+        }
+        foreach (string restriction in new[] { "missing-step", "center", "low-center", "unknown-position", "continue", "skip", "click-action", "pointer", "selection-action", "lock-look", "lock-jump", "lock-run", "world-highlight" })
+        {
+            Fixture f = new(unlocked: true); f.Tick(); TutorialPointer arrow = f.Arrow;
+            TutorialStep step = NavigationStep(false);
+            f.tutorial.IsTutorialActive = true;
+            f.tutorial.CurrentStep = step;
+            if (restriction == "missing-step") f.tutorial.CurrentStep = null;
+            if (restriction == "center") step.screenPosition = TutorialPosition.Center;
+            if (restriction == "low-center") step.screenPosition = TutorialPosition.LowCenter;
+            if (restriction == "unknown-position") step.screenPosition = (TutorialPosition)2;
+            if (restriction == "continue") step.showNextButton = true;
+            if (restriction == "skip") step.canSkip = true;
+            if (restriction == "click-action") step.advanceOnClick = true;
+            if (restriction == "pointer") step.usePointer = true;
+            if (restriction == "selection-action") step.requiredAction = TutorialStepAction.SelectTool;
+            if (restriction == "lock-look") step.lockLook = true;
+            if (restriction == "lock-jump") step.lockJump = true;
+            if (restriction == "lock-run") step.lockRun = true;
+            if (restriction == "world-highlight") step.worldHighlightObject = new GameObject("Required drawing guide");
+            f.Tick();
+            Check(!f.Visible && !arrow.gameObject.activeSelf,
+                "Required/unknown tutorial instruction retains priority over Shop advisory: " + restriction);
+            Check(f.shop.opens == 0 && f.tutorial.IsTutorialActive && ReferenceEquals(f.tutorial.CurrentStep, restriction == "missing-step" ? null : step),
+                "Yielding to instruction never opens the Shop or changes its owning tutorial: " + restriction);
+            f.tutorial.CurrentStep = NavigationStep(false); f.Tick();
+            Check(f.Visible && f.tutorial.IsTutorialActive,
+                "Changing back to a passive objective resumes the advisory without completing the tutorial: " + restriction);
+        }
+        foreach (TutorialStepAction action in Enum.GetValues<TutorialStepAction>().Where(value => value != TutorialStepAction.None))
+        {
+            Fixture f = new(unlocked: true);
+            f.tutorial.IsTutorialActive = true;
+            f.tutorial.CurrentStep = NavigationStep(false);
+            f.tutorial.CurrentStep.requiredAction = action;
+            f.Tick();
+            Check(!f.Visible && f.tutorial.CurrentStep.requiredAction == action,
+                "Every real semantic action retains priority, without changing the requirement: " + action);
+        }
+        Fixture shared = new(unlocked: true);
+        shared.tutorial.IsTutorialActive = true;
+        shared.tutorial.CurrentStep = NavigationStep(false);
+        shared.template.gameObject.SetActive(true);
+        shared.Tick();
+        Check(!shared.Visible && shared.template.gameObject.activeSelf,
+            "An independently active shared arrow still wins even during a passive navigation objective.");
+        shared.template.Hide(); shared.Tick();
+        Check(shared.Visible && shared.tutorial.IsTutorialActive,
+            "Releasing a shared arrow lets passive-objective Shop guidance resume without replacing the tutorial.");
+        Fixture suppressed = new(unlocked: true);
+        suppressed.tutorial.IsTutorialActive = true;
+        suppressed.tutorial.CurrentStep = NavigationStep(false);
+        suppressed.tutorial.IsTutorialPresentationSuppressed = true;
+        suppressed.Tick();
+        Check(!suppressed.Visible,
+            "Inspection/modal suppression remains authoritative for otherwise-passive navigation guidance.");
+    }
     private static void OwnershipAndLifecycle()
     {
         Fixture f = new(unlocked: true); f.template.points = 17; f.template.hides = 11; f.Tick();
@@ -172,6 +271,10 @@ internal static class Program
         foreach (string forbidden in new[] { "SaveGame(", "TrySaveGame(", "PlayerPrefs", "Purchase(", "BuyItem(", "MarkLessonCompleted", "completedLessons.Add", "StartTutorial(", "ShowNextStep(", "SharedPointer.PointAt", "template.PointAt", "template.Hide()" })
             Check(!source.Contains(forbidden, StringComparison.Ordinal), "Shop pointer cannot change saves, purchases, progression or the shared pointer: " + forbidden);
         Check(source.Contains("Instantiate(template,") && source.Contains("unlockPointer.PointAtBuildTarget("), "Only a dedicated clone uses safe edge placement.");
+        Check(source.Contains("HasBlockingTutorialForUnlockPointer(tutorial)"),
+            "The actual visibility policy distinguishes required tutorials from passive walking objectives.");
+        Check(!source.Contains("tutorial.IsTutorialActive || tutorial.IsTutorialPresentationSuppressed"),
+            "A blanket tutorial-active suppression cannot return and hide the arrow during walking reminders.");
         Check(source.Contains("Destroy(unlockPointer.gameObject)") && source.Contains("unlockPointerTemplate = null"), "Cleanup owns only the cloned pointer.");
         string pointer = File.ReadAllText(Path.Combine(root, "Assets/Script/Level/Tutorial/TutorialPointer.cs"));
         Check(pointer.Contains("graphic.raycastTarget = false") && pointer.Contains("canvasGroup.interactable = false") && pointer.Contains("canvasGroup.blocksRaycasts = false"),
