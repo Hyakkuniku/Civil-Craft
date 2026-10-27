@@ -102,7 +102,7 @@ public class TutorialManager:MonoBehaviour
     public TutorialSequence inspectionHiddenSequence;public int inspectionHiddenStepIndex=-1;public bool inspectionHiddenGuide,inspectionPanelWasActive,inspectionNextWasActive,inspectionSkipWasActive,inspectionHighlightWasActive;
     private Rect lastSkipSafeArea;private Vector2Int lastSkipScreenSize;
     public int LayoutRefreshes,GuideUpdates,NextChanges;
-    private void RefreshCenteredTutorialLayout(){LayoutRefreshes++;}private void PositionTutorialSkipButton(){}private void UpdateContractGuide(){GuideUpdates++;}
+    private void RefreshCenteredTutorialLayout(){LayoutRefreshes++;}private void PositionTutorialSkipButton(){}private void RestoreContractGuideFromSave(){}private void UpdateContractGuide(){GuideUpdates++;}
     private void HidePresentationForInspection(){bouncingArrow.Hide();}private object GetRecallableStep()=>null;
     public void SetNextButtonActive(bool active){NextChanges++;}
     private GameObject GetPanelForPosition(TutorialPosition position)=>leftPanel;

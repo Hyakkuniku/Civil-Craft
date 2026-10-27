@@ -5,6 +5,7 @@ using System.Collections;
 using System.Collections.Generic; // Required for List
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
+using UnityEngine.SceneManagement;
 
 public enum TutorialPosition
 {
@@ -102,10 +103,30 @@ public class TutorialManager : MonoBehaviour
     private TutorialStep[] contractNavigationSteps;
     private bool contractGuideVisible;
     private ContractSO turnInGuideContract;
+    private ContractSO contractGuideContract;
+    private NPCContractGiver contractGuideGiver;
+    private PlayerDataManager contractGuideSaveManager;
+    private PlayerData contractGuideSaveOwner;
+    private PathGuider contractGuideBoundGuider;
+    private bool contractGuideMayReplaceRoute;
+    private bool contractGuideRestoredFromSave;
+    private bool contractGuideNeedsReevaluation;
+    private bool hasStartedContractGuideRecovery;
+    private float nextContractGuideRestoreTime;
+    private PlayerDataManager contractGuideRestoreManager;
+    private PlayerData contractGuideRestoreOwner;
+    private NPCContractGiver[] contractGuideRestoreCandidates;
 
     public void GuideToContractLocation(BuildLocation location)
     {
+        SetContractLocationGuide(location, true);
+    }
+
+    private void SetContractLocationGuide(BuildLocation location, bool explicitRequest)
+    {
         if (location == null) return;
+        ClearContractGuide();
+        SetContractGuideOwner(location.activeContract, explicitRequest);
         turnInGuideContract = null;
         Transform destination = location.navigationTarget != null
             ? location.navigationTarget.transform : location.transform;
@@ -125,7 +146,7 @@ public class TutorialManager : MonoBehaviour
             }
         };
         UpdateContractGuide();
-        if (PlayerDataManager.Instance != null)
+        if (explicitRequest && PlayerDataManager.Instance != null)
             PlayerDataManager.Instance.MarkObjectiveAlertUnread();
     }
 
@@ -455,6 +476,13 @@ public class TutorialManager : MonoBehaviour
         trackedButtonAction = new UnityAction(OnTrackedButtonClicked);
     }
 
+    private void OnEnable()
+    {
+        SceneManager.sceneLoaded += HandleContractGuideSceneLoaded;
+        LevelCompleteManager.BridgeSavedAtLocation += HandleContractGuideBridgeSaved;
+        InvalidateContractGuideRestoreCandidates();
+    }
+
     private void HideStartupPresentation()
     {
         if (centerPanel != null) centerPanel.SetActive(false);
@@ -485,7 +513,15 @@ public class TutorialManager : MonoBehaviour
 
     public void GuideToContractGiver(NPCContractGiver giver, ContractSO contract)
     {
+        SetContractGiverGuide(giver, contract, true);
+    }
+
+    private void SetContractGiverGuide(NPCContractGiver giver, ContractSO contract, bool explicitRequest)
+    {
         if (giver == null || contract == null) return;
+        ClearContractGuide();
+        SetContractGuideOwner(contract, explicitRequest);
+        contractGuideGiver = giver;
         turnInGuideContract = contract;
         contractGuideVisible = false;
         string giverName = string.IsNullOrWhiteSpace(contract.clientName)
@@ -507,6 +543,183 @@ public class TutorialManager : MonoBehaviour
         UpdateContractGuide();
     }
 
+    private void SetContractGuideOwner(ContractSO contract, bool explicitRequest)
+    {
+        contractGuideContract = contract;
+        contractGuideSaveManager = PlayerDataManager.Instance;
+        contractGuideSaveOwner = contractGuideSaveManager != null ? contractGuideSaveManager.CurrentData : null;
+        contractGuideMayReplaceRoute = explicitRequest;
+        contractGuideRestoredFromSave = !explicitRequest;
+        contractGuideNeedsReevaluation = false;
+    }
+
+    private bool ContractGuideBelongsToCurrentSave()
+    {
+        PlayerDataManager current = PlayerDataManager.Instance;
+        return current == contractGuideSaveManager && ReferenceEquals(contractGuideSaveOwner,
+            current != null ? current.CurrentData : null);
+    }
+
+    /// <summary>Recheck live phase bindings after an NPC spawns/configures; never scans every frame.</summary>
+    public void InvalidateContractGuideRestoreCandidates()
+    {
+        contractGuideRestoreCandidates = null;
+        contractGuideNeedsReevaluation = true;
+        nextContractGuideRestoreTime = 0f;
+    }
+
+    private void HandleContractGuideSceneLoaded(Scene scene, LoadSceneMode mode) =>
+        InvalidateContractGuideRestoreCandidates();
+
+    private void HandleContractGuideBridgeSaved(ContractSO contract, BuildLocation location)
+    {
+        if (contract != null && location != null && location.gameObject.scene == gameObject.scene)
+            InvalidateContractGuideRestoreCandidates();
+    }
+
+    private static string SavedNavigationTaskKey(TrackedTask task)
+    {
+        if (task == null) return string.Empty;
+        if (!string.IsNullOrWhiteSpace(task.contractName)) return "contract:" + task.contractName.Trim();
+        return string.IsNullOrWhiteSpace(task.title) ? string.Empty : "task:" + task.title.Trim();
+    }
+
+    private static TrackedTask ResolveSavedNavigationTask(PlayerData data)
+    {
+        if (data == null || data.activeQuests == null) return null;
+        TrackedTask ready = null, unfinished = null;
+        foreach (TrackedTask task in data.activeQuests)
+        {
+            if (task == null || task.isCompleted) continue;
+            if (SavedNavigationTaskKey(task) == data.activeObjectiveKey) return task;
+            unfinished = task;
+            if (task.isReadyToTurnIn) ready = task;
+        }
+        // Same fallback as the objective clipboard, without changing/saving its selection.
+        return ready ?? unfinished;
+    }
+
+    private void RestoreContractGuideFromSave()
+    {
+        PlayerDataManager saves = PlayerDataManager.Instance;
+        PlayerData data = saves != null ? saves.CurrentData : null;
+        if (contractGuideRestoreManager != saves || !ReferenceEquals(contractGuideRestoreOwner, data))
+        {
+            if (contractNavigationSteps != null && !ContractGuideBelongsToCurrentSave()) ClearContractGuide();
+            contractGuideRestoreManager = saves;
+            contractGuideRestoreOwner = data;
+            InvalidateContractGuideRestoreCandidates();
+        }
+        if (!hasStartedContractGuideRecovery || Time.unscaledTime < nextContractGuideRestoreTime) return;
+        nextContractGuideRestoreTime = Time.unscaledTime + 1f;
+        if (data == null || IsContractGuidePresentationBlocked()) return;
+        TrackedTask task = ResolveSavedNavigationTask(data);
+        if (task == null || task.isTutorial || string.IsNullOrWhiteSpace(task.contractName))
+        {
+            if (task != null || contractGuideRestoredFromSave) ClearContractGuide();
+            return;
+        }
+        if (contractGuideContract != null && !contractGuideContract.MatchesIdentifier(task.contractName))
+            ClearContractGuide();
+        if (saves.HasContractCompletionRecord(task.contractName) || saves.IsContractLocked(task.contractName))
+        {
+            if (contractGuideContract != null && contractGuideContract.MatchesIdentifier(task.contractName)) ClearContractGuide();
+            return;
+        }
+        if (!contractGuideNeedsReevaluation && contractNavigationSteps != null && contractGuideContract != null &&
+            contractGuideContract.MatchesIdentifier(task.contractName) &&
+            (!task.isReadyToTurnIn || turnInGuideContract != null)) return;
+
+        if (contractGuideRestoreCandidates == null)
+            contractGuideRestoreCandidates = FindObjectsOfType<NPCContractGiver>(true);
+        NPCContractGiver match = null;
+        foreach (NPCContractGiver giver in contractGuideRestoreCandidates)
+        {
+            if (giver == null || !giver.isActiveAndEnabled || giver.gameObject.scene != gameObject.scene ||
+                !giver.CanRestoreContractGuide || giver.contractToGive == null ||
+                !giver.contractToGive.MatchesIdentifier(task.contractName) ||
+                (giver.targetBuildLocation != null && giver.targetBuildLocation.IsSessionChallengeLocation)) continue;
+            // Ambiguous authored bindings must not send the player to an arbitrary NPC.
+            if (match != null && match != giver) return;
+            match = giver;
+        }
+        if (match == null) return; // Phase restoration/spawn may finish later; retry cached candidates.
+        bool returnToClient = task.isReadyToTurnIn || saves.GetSavedBridge(task.contractName) != null;
+        if (returnToClient)
+            SetContractGiverGuide(match, match.contractToGive, false);
+        else
+        {
+            BuildLocation location = match.targetBuildLocation;
+            if (location == null || !location.isActiveAndEnabled || location.gameObject.scene != gameObject.scene ||
+                location.IsSessionChallengeLocation || location.activeContract == null ||
+                !location.activeContract.MatchesIdentifier(task.contractName)) return;
+            SetContractLocationGuide(location, false);
+        }
+    }
+
+    private bool IsContractGuidePresentationBlocked()
+    {
+        return !isActiveAndEnabled || Instance != this || gameObject.scene.name == "Multiplayer" ||
+            MultiplayerChallengeLobbyUI.IsChallengeActive ||
+            (FusionConnectionManager.Instance != null && FusionConnectionManager.Instance.IsGuestSaveProtected) ||
+            LoadingScreenManager.IsLoading || IsTutorialActive || IsTutorialPresentationSuppressed ||
+            (GameManager.Instance != null && (GameManager.Instance.IsTransitioning ||
+                GameManager.Instance.CurrentState != GameManager.GameState.Normal)) ||
+            (PauseManager.Instance != null && PauseManager.Instance.isPaused) ||
+            DialogueManager.IsAnyDialogueVisible || Time.timeScale <= 0f ||
+            (UIPanelCoordinator.Instance != null && UIPanelCoordinator.Instance.HasOpenPanel);
+    }
+
+    private void SuspendContractGuide()
+    {
+        List<GuiderWaypoint> owned = contractNavigationSteps != null && contractNavigationSteps.Length > 0
+            ? contractNavigationSteps[0]?.stepWaypoints : null;
+        PathGuider current = PathGuider.Instance;
+        if (owned != null && contractGuideBoundGuider != null && ReferenceEquals(contractGuideBoundGuider.waypoints, owned))
+            contractGuideBoundGuider.SetNewWaypoints(new List<GuiderWaypoint>());
+        if (owned != null && current != null && current != contractGuideBoundGuider && ReferenceEquals(current.waypoints, owned))
+            current.SetNewWaypoints(new List<GuiderWaypoint>());
+        contractGuideBoundGuider = null;
+        if (contractGuideVisible && !IsTutorialActive)
+        {
+            if (leftPanel != null) leftPanel.SetActive(false);
+            RestoreTutorialCanvas();
+        }
+        contractGuideVisible = false;
+    }
+
+    private void ClearContractGuide()
+    {
+        SuspendContractGuide();
+        contractNavigationSteps = null;
+        turnInGuideContract = null;
+        contractGuideContract = null;
+        contractGuideGiver = null;
+        contractGuideSaveManager = null;
+        contractGuideSaveOwner = null;
+        contractGuideMayReplaceRoute = false;
+        contractGuideRestoredFromSave = false;
+    }
+
+    private bool BindContractGuideRoute(List<GuiderWaypoint> waypoints)
+    {
+        PathGuider guider = PathGuider.Instance;
+        // The hint can appear before the trail service/player is ready. Keep
+        // retrying this cheap reference check even when its panel is visible.
+        if (guider == null || !guider.isActiveAndEnabled) return true;
+        if (guider.gameObject.scene != gameObject.scene) return false;
+        bool ownsRoute = ReferenceEquals(guider.waypoints, waypoints);
+        if (!ownsRoute && !contractGuideMayReplaceRoute && guider.waypoints != null && guider.waypoints.Count > 0)
+            return false; // Respect an explicit map/Objective Track destination.
+        if (contractGuideBoundGuider != null && contractGuideBoundGuider != guider &&
+            ReferenceEquals(contractGuideBoundGuider.waypoints, waypoints))
+            contractGuideBoundGuider.SetNewWaypoints(new List<GuiderWaypoint>());
+        if (!ownsRoute) guider.SetNewWaypoints(waypoints);
+        contractGuideBoundGuider = guider;
+        contractGuideMayReplaceRoute = false;
+        return true;
+    }
+
     private void UpdateContractGuide()
     {
         if (contractNavigationSteps == null) return;
@@ -514,32 +727,35 @@ public class TutorialManager : MonoBehaviour
         var guideWaypoints = guideStep != null ? guideStep.stepWaypoints : null;
         bool missingTarget = guideWaypoints == null || guideWaypoints.Count == 0 ||
             guideWaypoints[0] == null || guideWaypoints[0].target == null;
-        bool turnedIn = turnInGuideContract != null && PlayerDataManager.Instance != null &&
-            PlayerDataManager.Instance.IsContractCompleted(turnInGuideContract.ContractID);
-        if (turnedIn || (GameManager.Instance != null && GameManager.Instance.IsInBuildMode()) ||
-            missingTarget)
+        bool finishedOrLocked = contractGuideContract != null && PlayerDataManager.Instance != null &&
+            (PlayerDataManager.Instance.HasContractCompletionRecord(contractGuideContract.ContractID) ||
+             PlayerDataManager.Instance.IsContractLocked(contractGuideContract.ContractID));
+        if (finishedOrLocked || missingTarget || !ContractGuideBelongsToCurrentSave() ||
+            (FusionConnectionManager.Instance != null && FusionConnectionManager.Instance.IsGuestSaveProtected))
         {
-            if (PathGuider.Instance != null &&
-                guideWaypoints != null && PathGuider.Instance.waypoints == guideWaypoints)
-                PathGuider.Instance.SetNewWaypoints(new List<GuiderWaypoint>());
-            contractNavigationSteps = null;
-            turnInGuideContract = null;
-            if (contractGuideVisible && !IsTutorialActive)
-            {
-                if (leftPanel != null) leftPanel.SetActive(false);
-                RestoreTutorialCanvas();
-            }
-            contractGuideVisible = false;
+            ClearContractGuide();
             return;
         }
         // Real tutorials keep ownership of the shared panel. Navigation never
         // starts a sequence, sets IsTutorialActive, or locks build controls.
-        if (IsTutorialActive)
+        if (IsContractGuidePresentationBlocked())
         {
-            contractGuideVisible = false;
+            SuspendContractGuide();
             return;
         }
-        if (contractGuideVisible) return;
+        if (turnInGuideContract != null && (contractGuideGiver == null ||
+            !contractGuideGiver.isActiveAndEnabled || !contractGuideGiver.CanRestoreContractGuide ||
+            contractGuideGiver.contractToGive != turnInGuideContract))
+        {
+            SuspendContractGuide();
+            return;
+        }
+        if (!BindContractGuideRoute(guideWaypoints))
+        {
+            SuspendContractGuide();
+            return;
+        }
+        if (contractGuideVisible && (leftPanel == null || leftPanel.activeSelf)) return;
         UIReservedRegionLayout.NotifyLayoutChanging();
         PrepareTutorialCanvas();
         ApplyPanelPosition(TutorialPosition.Left);
@@ -547,8 +763,6 @@ public class TutorialManager : MonoBehaviour
         if (leftText != null) leftText.text = contractNavigationSteps[0].message;
         if (nextButton != null) nextButton.SetActive(false);
         if (skipButton != null) skipButton.SetActive(false);
-        if (PathGuider.Instance != null)
-            PathGuider.Instance.SetNewWaypoints(contractNavigationSteps[0].stepWaypoints);
         contractGuideVisible = true;
     }
 
@@ -615,6 +829,11 @@ public class TutorialManager : MonoBehaviour
             var btn = skipButton.GetComponent<UnityEngine.UI.Button>();
             if (btn != null) btn.onClick.AddListener(SkipTutorial);
         }
+        // All scene Start methods (NPC phase/site/player restoration) finish
+        // before the first Update. Recover only navigation, not tutorial events.
+        contractGuideVisible = false;
+        hasStartedContractGuideRecovery = true;
+        nextContractGuideRestoreTime = 0f;
     }
 
     private void Update()
@@ -628,6 +847,7 @@ public class TutorialManager : MonoBehaviour
                 PositionTutorialSkipButton();
         }
 
+        RestoreContractGuideFromSave();
         UpdateContractGuide();
         if (inspectionModalOwners.Count > 0 && !IsTutorialActive && contractGuideVisible)
             HidePresentationForInspection();
@@ -1909,6 +2129,9 @@ public class TutorialManager : MonoBehaviour
 
     private void OnDisable()
     {
+        SceneManager.sceneLoaded -= HandleContractGuideSceneLoaded;
+        LevelCompleteManager.BridgeSavedAtLocation -= HandleContractGuideBridgeSaved;
+        SuspendContractGuide();
         instructionVisualReplacementOwner = null;
         RefreshInstructionVisualReplacement();
         if (inspectionModalOwners.Count > 0)
@@ -1922,6 +2145,10 @@ public class TutorialManager : MonoBehaviour
 
     private void OnDestroy()
     {
+        SceneManager.sceneLoaded -= HandleContractGuideSceneLoaded;
+        LevelCompleteManager.BridgeSavedAtLocation -= HandleContractGuideBridgeSaved;
+        ClearContractGuide();
+        if (Instance == this) Instance = null;
         instructionVisualReplacementOwner = null;
         RefreshInstructionVisualReplacement();
         UIReservedRegionLayout.Unregister(centerPanelRect);

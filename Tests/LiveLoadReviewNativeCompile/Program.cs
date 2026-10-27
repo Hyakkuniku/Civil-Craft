@@ -14,7 +14,8 @@ Compile(response, "Assembly-CSharp", "Assets/Script/Level/Tutorial/BuildTutorial
     "Assets/Script/Level/Tutorial/TutorialWarningLayout.cs", "Assets/Script/Level/Tutorial/TutorialInstructionText.cs");
 Compile(Path.Combine(Path.GetDirectoryName(response)!, "Assembly-CSharp-Editor.rsp"), "Assembly-CSharp-Editor",
     "Assets/Editor/LiveLoadReviewGuidanceValidation.cs", "Assets/Editor/BeamReviewRefinementAuthoring.cs", "Assets/Editor/BuildTutorialPointerValidation.cs",
-    "Assets/Editor/BuildTutorialWarningValidation.cs", "Assets/Editor/TutorialInstructionCopyValidation.cs");
+    "Assets/Editor/BuildTutorialWarningValidation.cs", "Assets/Editor/TutorialInstructionCopyValidation.cs",
+    "Assets/Editor/ShopUnlockPointerValidation.cs");
 Console.WriteLine("PASS: full runtime and Editor sources compile against Unity's actual references/defines. Only isolated Temp outputs were written; Unity assemblies and scenes were not changed.");
 
 void Compile(string path, string name, params string[] additionalSources)

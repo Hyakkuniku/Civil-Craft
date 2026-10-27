@@ -37,6 +37,11 @@ public class NPCContractGiver : Interactable
     /// <summary>Read-only acceptance state, including acceptance restored from the player's saved quests.</summary>
     public bool HasAcceptedProgressionContract => usesProgressionPhase && contractToGive != null && hasGivenContract;
 
+    /// <summary>Read-only gate for restoring this saved contract's navigation, never its dialogue/rewards.</summary>
+    public bool CanRestoreContractGuide => contractToGive != null && !isLocked && !isFullyTurnedIn &&
+        !isProgressionInteractionLocked && !isAwaitingContractDecision && IsInteractionAvailable &&
+        NPCSpawnConditionMonitor.CanShowNPCAttentionMarker(transform);
+
     /// <summary>Called during OnNPCInteracted when progression opens its own pending quiz instead of the contract reminder.</summary>
     public void SuppressCurrentInteractionForProgression()
     {
@@ -129,6 +134,7 @@ public class NPCContractGiver : Interactable
             
             ApplyLinkedCargo();
         }
+        TutorialManager.Instance?.InvalidateContractGuideRestoreCandidates();
     }
 
     private void Update()
@@ -449,7 +455,11 @@ public class NPCContractGiver : Interactable
             ? PlayerDataManager.Instance.IsContractLocked(phaseContract.ContractID)
             : PlayerPrefs.GetInt("LockedContract_" + phaseContract.ContractID, 0) == 1);
 
-        if (phaseContract == null) return;
+        if (phaseContract == null)
+        {
+            TutorialManager.Instance?.InvalidateContractGuideRestoreCandidates();
+            return;
+        }
 
         bool isCompleted = PlayerDataManager.Instance != null &&
                            PlayerDataManager.Instance.IsContractCompleted(phaseContract.ContractID);
@@ -475,5 +485,6 @@ public class NPCContractGiver : Interactable
         }
 
         ApplyLinkedCargo();
+        TutorialManager.Instance?.InvalidateContractGuideRestoreCandidates();
     }
 }

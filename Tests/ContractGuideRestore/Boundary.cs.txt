@@ -1,0 +1,150 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using UnityEngine;
+
+namespace UnityEngine
+{
+    public class Object
+    {
+        public static readonly List<Object> all = new List<Object>();
+        public static int searches;
+        public string name;
+        public Object() { all.Add(this); }
+        public static T[] FindObjectsOfType<T>(bool includeInactive = false) where T : Object { searches++; return all.OfType<T>().Where(value => includeInactive || !(value is Behaviour b) || b.isActiveAndEnabled).ToArray(); }
+        public static T FindObjectOfType<T>() where T : Object => FindObjectsOfType<T>().FirstOrDefault();
+    }
+    public class GameObject : Object
+    {
+        public GameObject(string value = "Scene Object") { name = value; transform = new Transform(this); }
+        public Transform transform;
+        public UnityEngine.SceneManagement.Scene scene = new UnityEngine.SceneManagement.Scene(1, "CanyonCrossing");
+        public bool activeSelf = true;
+        public bool activeInHierarchy => activeSelf;
+        public void SetActive(bool value) { activeSelf = value; }
+        public T GetComponent<T>() where T : class => all.OfType<T>().FirstOrDefault(value => value is Component c && c.gameObject == this);
+        public T[] GetComponentsInChildren<T>(bool includeInactive) where T : Object => all.OfType<T>().Where(value => value is Component c && c.gameObject.scene == scene).ToArray();
+    }
+    public class Transform : Object { public GameObject gameObject; public Transform(GameObject owner) { gameObject = owner; } }
+    public class Component : Object { public GameObject gameObject = new GameObject(); public Transform transform => gameObject.transform; }
+    public class Behaviour : Component { public bool enabled = true; public bool isActiveAndEnabled => enabled && gameObject.activeInHierarchy; }
+    public class MonoBehaviour : Behaviour { }
+    public static class Resources { public static T[] FindObjectsOfTypeAll<T>() where T : Object => Object.all.OfType<T>().ToArray(); }
+    public static class Time { public static float unscaledTime; public static float timeScale = 1f; }
+    public static class Debug { public static void LogWarning(string value, Object context = null) { } }
+}
+namespace UnityEngine.SceneManagement
+{
+    public struct Scene
+    {
+        public int id; public string name; public bool isLoaded;
+        public Scene(int id, string name) { this.id = id; this.name = name; isLoaded = true; }
+        public bool IsValid() => id > 0;
+        public GameObject[] GetRootGameObjects() { int sceneId = id; return UnityEngine.Object.all.OfType<GameObject>().Where(value => value.scene.id == sceneId).ToArray(); }
+        public static bool operator ==(Scene a, Scene b) => a.id == b.id;
+        public static bool operator !=(Scene a, Scene b) => a.id != b.id;
+        public override bool Equals(object value) => value is Scene scene && scene == this;
+        public override int GetHashCode() => id;
+    }
+}
+public enum TutorialPosition { Center, Left, LowCenter = 3 }
+public class GuiderWaypoint { public Transform target; public bool advancesTutorial = true; }
+public class TutorialStep
+{
+    public string message;
+    public TutorialPosition screenPosition;
+    public bool showNextButton, canSkip;
+    public List<GuiderWaypoint> stepWaypoints;
+}
+public class TutorialSequence { public TutorialStep[] tutorialSteps; }
+public class TextLabel { public string text; }
+public class ContractSO : UnityEngine.Object
+{
+    public string contractId = "contract-id", clientName = "Ford";
+    public string ContractID => contractId;
+    public bool MatchesIdentifier(string value) => value == contractId || value == name;
+}
+public class TrackedTask
+{
+    public string title, description, contractName, targetWaypointName;
+    public bool isCompleted, isReadyToTurnIn, isTutorial;
+}
+public class PlayerData
+{
+    public string activeObjectiveKey;
+    public List<TrackedTask> activeQuests = new List<TrackedTask>();
+}
+public class BridgeSaveData { }
+public class PlayerDataManager
+{
+    public static PlayerDataManager Instance;
+    public PlayerData CurrentData = new PlayerData();
+    public readonly HashSet<string> completed = new HashSet<string>();
+    public readonly HashSet<string> locked = new HashSet<string>();
+    public readonly Dictionary<string, BridgeSaveData> bridges = new Dictionary<string, BridgeSaveData>();
+    public int unreadAlerts;
+    public bool IsContractCompleted(string id) => completed.Contains(id);
+    public bool HasContractCompletionRecord(string id) => completed.Contains(id);
+    public bool IsContractLocked(string id) => locked.Contains(id);
+    public BridgeSaveData GetSavedBridge(string id) => bridges.TryGetValue(id, out var value) ? value : null;
+    public void MarkObjectiveAlertUnread() { unreadAlerts++; }
+}
+public class BuildLocation : Behaviour
+{
+    public ContractSO activeContract;
+    public GameObject navigationTarget;
+    public bool IsSessionChallengeLocation;
+}
+public class NPCContractGiver : Behaviour
+{
+    public ContractSO contractToGive;
+    public BuildLocation targetBuildLocation;
+    public bool CanRestoreContractGuide = true;
+    public bool isContractCompleted, isFullyTurnedIn;
+}
+public class PathGuider : Behaviour
+{
+    public static PathGuider Instance;
+    public List<GuiderWaypoint> waypoints;
+    public int binds, recalls;
+    public void SetNewWaypoints(List<GuiderWaypoint> values) { waypoints = values; binds++; }
+    public void RecallTutorialGuide(List<GuiderWaypoint> values) { waypoints = values; recalls++; }
+}
+public class GameManager
+{
+    public enum GameState { Normal, Build, Simulation }
+    public static GameManager Instance;
+    public GameState CurrentState;
+    public bool IsTransitioning;
+    public bool IsInBuildMode() => CurrentState != GameState.Normal;
+}
+public static class LoadingScreenManager { public static bool IsLoading; }
+public static class DialogueManager { public static bool IsAnyDialogueActive, IsAnyDialogueVisible; }
+public static class MultiplayerChallengeLobbyUI { public static bool IsChallengeActive; }
+public class FusionConnectionManager
+{
+    public static FusionConnectionManager Instance;
+    private bool protectedVisit;
+    public bool IsGuestInHostWorld;
+    public bool IsGuestSaveProtected { get => protectedVisit || IsGuestInHostWorld; set => protectedVisit = value; }
+}
+public class PauseManager { public static PauseManager Instance; public bool isPaused; }
+public class UIPanelCoordinator { public static UIPanelCoordinator Instance; public bool HasOpenPanel; }
+public static class UIReservedRegionLayout { public static int changes; public static void NotifyLayoutChanging() { changes++; } }
+public class TutorialManager : MonoBehaviour
+{
+    public static TutorialManager Instance;
+    public bool IsTutorialActive;
+    public TutorialSequence currentSequence;
+    public int currentStepIndex = -1;
+    public float nextGuideRecallTime;
+    public GameObject leftPanel = new GameObject(), nextButton = new GameObject(), skipButton = new GameObject();
+    public TextLabel leftText = new TextLabel();
+    public readonly HashSet<GameObject> inspectionModalOwners = new HashSet<GameObject>();
+    public TutorialSequence presentationSuppressedFor;
+    public int prepared, restored;
+    private void PrepareTutorialCanvas() { prepared++; }
+    private void RestoreTutorialCanvas() { restored++; }
+    private void ApplyPanelPosition(TutorialPosition value) { }
+    // ACTUAL_MANAGER
+}

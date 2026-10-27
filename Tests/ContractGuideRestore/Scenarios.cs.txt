@@ -1,0 +1,291 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
+public static class Scenarios
+{
+    private static int checks;
+    private static void Check(bool value, string message) { checks++; if (!value) throw new InvalidOperationException(message); }
+    private static object Call(object target, string name, params object[] args)
+    {
+        try { return target.GetType().GetMethod(name, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance).Invoke(target, args); }
+        catch (TargetInvocationException error) { throw error.InnerException; }
+    }
+    private static object CallStatic(string name, params object[] args) => typeof(TutorialManager).GetMethod(name, BindingFlags.NonPublic | BindingFlags.Static).Invoke(null, args);
+    private static T Get<T>(object target, string name) => (T)target.GetType().GetField(name, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance).GetValue(target);
+    private static void Set(object target, string name, object value)
+    {
+        FieldInfo field = target.GetType().GetField(name, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
+        if (field == null) throw new InvalidOperationException("Expected production lifecycle field is missing: " + name);
+        field.SetValue(target, value);
+    }
+    private sealed class Fixture
+    {
+        public TutorialManager manager;
+        public PlayerDataManager save;
+        public PathGuider path;
+        public ContractSO contract;
+        public BuildLocation location;
+        public NPCContractGiver giver;
+        public TrackedTask task;
+        public Fixture(bool started = true, bool accepted = true)
+        {
+            UnityEngine.Object.all.Clear(); UnityEngine.Object.searches = 0; Time.unscaledTime = 10; Time.timeScale = 1;
+            FusionConnectionManager.Instance = null; PauseManager.Instance = null; UIPanelCoordinator.Instance = null;
+            GameManager.Instance = new GameManager(); LoadingScreenManager.IsLoading = false;
+            DialogueManager.IsAnyDialogueActive = DialogueManager.IsAnyDialogueVisible = false;
+            MultiplayerChallengeLobbyUI.IsChallengeActive = false;
+            save = new PlayerDataManager(); PlayerDataManager.Instance = save;
+            path = new PathGuider(); PathGuider.Instance = path;
+            manager = new TutorialManager(); TutorialManager.Instance = manager;
+            manager.leftPanel.SetActive(false); manager.nextButton.SetActive(false); manager.skipButton.SetActive(false);
+            Set(manager, "hasStartedContractGuideRecovery", started);
+            contract = new ContractSO { contractId = "ford-contract", clientName = "Ford", name = "FordContractAsset" };
+            location = new BuildLocation { activeContract = contract, navigationTarget = new GameObject("BuildSiteWaypoint") };
+            giver = new NPCContractGiver { contractToGive = contract, targetBuildLocation = location }; giver.gameObject.name = "Ford NPC";
+            task = new TrackedTask { title = "Ford crossing", contractName = contract.ContractID, targetWaypointName = "BuildSiteWaypoint" };
+            if (accepted) save.CurrentData.activeQuests.Add(task);
+            save.CurrentData.activeObjectiveKey = "contract:" + contract.ContractID;
+        }
+        public void Tick(float elapsed = 1.1f)
+        {
+            Time.unscaledTime += elapsed;
+            Call(manager, "RestoreContractGuideFromSave");
+            Call(manager, "UpdateContractGuide");
+        }
+        public bool HasGuide => Get<TutorialStep[]>(manager, "contractNavigationSteps") != null;
+        public bool Visible => manager.leftPanel.activeSelf;
+        public Transform RouteTarget => path.waypoints != null && path.waypoints.Count > 0 ? path.waypoints[0].target : null;
+    }
+    public static int Run()
+    {
+        ObjectiveSelection(); RestartDestinations(); OwnershipAndLifecycle(); BlockingAndLateReadiness();
+        DeferredAndSwitching(); TurnInNpcPresence(); DiscoveryAndExplicitNavigation();
+        return checks;
+    }
+    private static void ObjectiveSelection()
+    {
+        Check(CallStatic("ResolveSavedNavigationTask", (object)null) == null, "Unavailable player data has no navigation objective.");
+        var data = new PlayerData();
+        Check(CallStatic("ResolveSavedNavigationTask", data) == null, "Old/empty saves do not invent accepted work.");
+        var first = new TrackedTask { contractName = " first ", title = "One", isReadyToTurnIn = true };
+        var second = new TrackedTask { contractName = "second", title = "Two" };
+        var generic = new TrackedTask { title = "Explore the town" };
+        data.activeQuests.AddRange(new[] { first, null, second, generic });
+        data.activeObjectiveKey = "contract:second";
+        Check(ReferenceEquals(CallStatic("ResolveSavedNavigationTask", data), second), "The exact persisted active objective wins over another ready turn-in.");
+        data.activeObjectiveKey = "task:Explore the town";
+        Check(ReferenceEquals(CallStatic("ResolveSavedNavigationTask", data), generic), "A selected generic objective remains selected instead of guessing a contract.");
+        data.activeObjectiveKey = "stale-key";
+        Check(ReferenceEquals(CallStatic("ResolveSavedNavigationTask", data), first), "Fallback prefers an incomplete ready-to-turn-in task.");
+        first.isCompleted = true;
+        Check(ReferenceEquals(CallStatic("ResolveSavedNavigationTask", data), generic), "Fallback otherwise uses the last incomplete task, as the Objective Tracker does.");
+        generic.isCompleted = true;
+        Check(ReferenceEquals(CallStatic("ResolveSavedNavigationTask", data), second), "Completed objectives are never revived by fallback.");
+        second.isCompleted = true;
+        Check(CallStatic("ResolveSavedNavigationTask", data) == null, "All completed tasks yield no navigation.");
+        Check((string)CallStatic("SavedNavigationTaskKey", first) == "contract:first", "Contract objective keys trim the persisted stable identity.");
+        Check((string)CallStatic("SavedNavigationTaskKey", generic) == "task:Explore the town", "Generic objective keys retain their own namespace.");
+        Check(string.IsNullOrEmpty((string)CallStatic("SavedNavigationTaskKey", (object)null)), "Missing task keys are safe.");
+    }
+    private static void RestartDestinations()
+    {
+        Fixture f = new Fixture(); string objectiveKey = f.save.CurrentData.activeObjectiveKey;
+        f.Tick();
+        Check(f.HasGuide && f.Visible && f.RouteTarget == f.location.navigationTarget.transform, "Restart reconstructs both the left guide and trail to the accepted build location.");
+        Check(!f.manager.IsTutorialActive && !f.manager.nextButton.activeSelf && !f.manager.skipButton.activeSelf, "Restored navigation is not a tutorial and has no Continue/Skip progression gates.");
+        Check(f.manager.leftText.text.Contains("build", StringComparison.OrdinalIgnoreCase) && f.path.waypoints.All(w => !w.advancesTutorial), "Build navigation gives the right instruction and cannot advance a lesson on arrival.");
+        Check(f.save.CurrentData.activeObjectiveKey == objectiveKey && ReferenceEquals(f.save.CurrentData.activeQuests[0], f.task) && !f.task.isCompleted && !f.task.isReadyToTurnIn,
+            "Restoring a guide does not rewrite the active objective, quest list or completion flags.");
+        int binds = f.path.binds; f.Tick(.05f); f.Tick(.05f);
+        Check(f.path.binds == binds, "Ordinary frame updates do not restart the same trail or respawn its markers.");
+        f.location.navigationTarget = null; f.manager.InvalidateContractGuideRestoreCandidates(); f.Tick();
+        Check(f.RouteTarget == f.location.transform, "Build locations without a separate navigation target use the actual site's transform.");
+        foreach (bool readyFlag in new[] { false, true })
+        {
+            f = new Fixture();
+            if (readyFlag) f.task.isReadyToTurnIn = true;
+            else f.save.bridges[f.contract.ContractID] = new BridgeSaveData();
+            f.Tick();
+            Check(f.HasGuide && f.Visible && f.RouteTarget == f.giver.transform && f.manager.leftText.text.Contains("Ford"),
+                "Restart routes a ready task or saved bridge back to its actual giver: " + readyFlag);
+            Check(f.path.waypoints.All(w => !w.advancesTutorial), "Turn-in waypoints never advance or reward contracts automatically.");
+        }
+        f = new Fixture(); f.task.contractName = f.contract.name; f.save.CurrentData.activeObjectiveKey = "contract:" + f.contract.name; f.Tick();
+        Check(f.RouteTarget == f.location.navigationTarget.transform, "A legacy asset-name contract identifier still resolves through ContractSO.MatchesIdentifier.");
+        f = new Fixture(); var selected = new TrackedTask { title = "Inspect the town" }; f.save.CurrentData.activeQuests.Add(selected); f.save.CurrentData.activeObjectiveKey = "task:Inspect the town"; f.Tick();
+        Check(!f.HasGuide && !f.Visible && f.path.binds == 0, "Selected generic tasks suppress arbitrary automatic contract restoration.");
+    }
+    private static void BlockingAndLateReadiness()
+    {
+        foreach (string blocked in new[] { "not-started", "loading", "tutorial", "modal", "inspection", "suppressed", "dialogue", "pause", "timescale", "transition", "build", "visitor", "protected", "multiplayer", "challenge", "inactive-manager", "other-manager", "inactive-giver", "giver-denied", "foreign-giver", "foreign-location", "inactive-location", "locked", "completed", "completed-task", "tutorial-task", "missing-location", "wrong-contract", "session-location" })
+        {
+            Fixture f = new Fixture();
+            if (blocked == "not-started") Set(f.manager, "hasStartedContractGuideRecovery", false);
+            if (blocked == "loading") LoadingScreenManager.IsLoading = true;
+            if (blocked == "tutorial") f.manager.IsTutorialActive = true;
+            if (blocked == "modal") UIPanelCoordinator.Instance = new UIPanelCoordinator { HasOpenPanel = true };
+            if (blocked == "inspection") f.manager.inspectionModalOwners.Add(new GameObject("Inspection modal"));
+            if (blocked == "suppressed") f.manager.presentationSuppressedFor = new TutorialSequence();
+            if (blocked == "dialogue") DialogueManager.IsAnyDialogueActive = DialogueManager.IsAnyDialogueVisible = true;
+            if (blocked == "pause") PauseManager.Instance = new PauseManager { isPaused = true };
+            if (blocked == "timescale") Time.timeScale = 0;
+            if (blocked == "transition") GameManager.Instance.IsTransitioning = true;
+            if (blocked == "build") GameManager.Instance.CurrentState = GameManager.GameState.Build;
+            if (blocked == "visitor") FusionConnectionManager.Instance = new FusionConnectionManager { IsGuestInHostWorld = true };
+            if (blocked == "protected") FusionConnectionManager.Instance = new FusionConnectionManager { IsGuestSaveProtected = true };
+            if (blocked == "multiplayer") f.manager.gameObject.scene = new Scene(1, "Multiplayer");
+            if (blocked == "challenge") MultiplayerChallengeLobbyUI.IsChallengeActive = true;
+            if (blocked == "inactive-manager") f.manager.enabled = false;
+            if (blocked == "other-manager") TutorialManager.Instance = new TutorialManager();
+            if (blocked == "inactive-giver") f.giver.gameObject.SetActive(false);
+            if (blocked == "giver-denied") f.giver.CanRestoreContractGuide = false;
+            if (blocked == "foreign-giver") f.giver.gameObject.scene = new Scene(2, "OtherScene");
+            if (blocked == "foreign-location") f.location.gameObject.scene = new Scene(2, "OtherScene");
+            if (blocked == "inactive-location") f.location.gameObject.SetActive(false);
+            if (blocked == "locked") { f.save.locked.Add(f.contract.ContractID); f.giver.CanRestoreContractGuide = false; }
+            if (blocked == "completed") f.save.completed.Add(f.contract.ContractID);
+            if (blocked == "completed-task") f.task.isCompleted = true;
+            if (blocked == "tutorial-task") f.task.isTutorial = true;
+            if (blocked == "missing-location") f.giver.targetBuildLocation = null;
+            if (blocked == "wrong-contract") f.location.activeContract = new ContractSO { contractId = "other" };
+            if (blocked == "session-location") f.location.IsSessionChallengeLocation = true;
+            f.Tick();
+            Check(!f.Visible && f.path.binds == 0, "Startup cannot steal input/HUD or restore an ineligible target: " + blocked);
+        }
+        Fixture late = new Fixture(); PlayerDataManager.Instance = null; late.Tick();
+        Check(!late.HasGuide, "Missing save manager defers restoration rather than taking a default contract.");
+        PlayerDataManager.Instance = late.save; late.Tick(); Check(late.RouteTarget == late.location.navigationTarget.transform, "A late save manager can restore after initialization.");
+        late = new Fixture(); late.save.CurrentData = null; late.Tick();
+        Check(!late.HasGuide, "Missing profile data defers recovery safely.");
+        late.save.CurrentData = new PlayerData { activeObjectiveKey = "contract:" + late.contract.ContractID, activeQuests = new List<TrackedTask> { late.task } };
+        late.Tick(); Check(late.RouteTarget == late.location.navigationTarget.transform, "Late profile data is not permanently skipped by startup order.");
+        late = new Fixture(); PathGuider.Instance = null; late.Tick();
+        Check(late.Visible && late.path.binds == 0, "A ready left guide does not require the path-renderer singleton to exist yet.");
+        var replacement = new PathGuider(); PathGuider.Instance = replacement; late.Tick(.05f);
+        Check(replacement.binds == 1 && replacement.waypoints[0].target == late.location.navigationTarget.transform, "Late-created PathGuider receives the already-restored route without restarting the tutorial.");
+        var newer = new PathGuider(); PathGuider.Instance = newer; late.Tick(.05f);
+        Check(newer.binds == 1 && newer.waypoints[0].target == late.location.navigationTarget.transform, "A replaced PathGuider also receives the current owned navigation route.");
+        late = new Fixture(); late.giver.CanRestoreContractGuide = false; late.Tick(); late.giver.CanRestoreContractGuide = true;
+        late.manager.InvalidateContractGuideRestoreCandidates(); late.Tick(.05f);
+        Check(late.RouteTarget == late.location.navigationTarget.transform, "NPC phase/start invalidation allows late eligible candidates to restore.");
+        late = new Fixture(started: false); late.Tick();
+        Check(!late.HasGuide, "Initial discovery cannot beat the ordinary Start phase that clears authored placeholder panels.");
+        Set(late.manager, "hasStartedContractGuideRecovery", true); late.Tick(.05f);
+        Check(late.Visible && late.RouteTarget == late.location.navigationTarget.transform, "Recovery starts after startup has actually finished.");
+    }
+    private static void DeferredAndSwitching()
+    {
+        foreach (string blocker in new[] { "modal", "pause", "dialogue", "loading", "transition", "build" })
+        {
+            Fixture f = new Fixture(); f.Tick();
+            if (blocker == "modal") UIPanelCoordinator.Instance = new UIPanelCoordinator { HasOpenPanel = true };
+            if (blocker == "pause") PauseManager.Instance = new PauseManager { isPaused = true };
+            if (blocker == "dialogue") DialogueManager.IsAnyDialogueVisible = true;
+            if (blocker == "loading") LoadingScreenManager.IsLoading = true;
+            if (blocker == "transition") GameManager.Instance.IsTransitioning = true;
+            if (blocker == "build") GameManager.Instance.CurrentState = GameManager.GameState.Build;
+            f.Tick(.05f);
+            Check(!f.Visible && f.HasGuide && (f.path.waypoints == null || f.path.waypoints.Count == 0), "An existing contract guide yields its card/owned trail without losing pending navigation: " + blocker);
+            UIPanelCoordinator.Instance = null; PauseManager.Instance = null; DialogueManager.IsAnyDialogueVisible = false;
+            LoadingScreenManager.IsLoading = false; GameManager.Instance.IsTransitioning = false; GameManager.Instance.CurrentState = GameManager.GameState.Normal;
+            f.Tick(.05f);
+            Check(f.Visible && f.RouteTarget == f.location.navigationTarget.transform, "The same navigation returns after its temporary owner releases it: " + blocker);
+        }
+        Fixture switched = new Fixture(); switched.Tick();
+        var secondContract = new ContractSO { contractId = "brooks-contract", clientName = "Brooks" };
+        var secondLocation = new BuildLocation { activeContract = secondContract, navigationTarget = new GameObject("Market crossing") };
+        var secondGiver = new NPCContractGiver { contractToGive = secondContract, targetBuildLocation = secondLocation };
+        var secondTask = new TrackedTask { contractName = secondContract.ContractID };
+        switched.save.CurrentData.activeQuests.Add(secondTask); switched.save.CurrentData.activeObjectiveKey = "contract:" + secondContract.ContractID;
+        switched.manager.InvalidateContractGuideRestoreCandidates(); switched.Tick(.05f);
+        Check(switched.RouteTarget == secondLocation.navigationTarget.transform && switched.save.unreadAlerts == 0, "A new selected accepted contract replaces the previous restored destination without new unread alerts.");
+        Fixture ambiguous = new Fixture(); ambiguous.Tick();
+        var other = new ContractSO { contractId = "ambiguous-contract", clientName = "Other" };
+        var otherLocation = new BuildLocation { activeContract = other };
+        var otherA = new NPCContractGiver { contractToGive = other, targetBuildLocation = otherLocation };
+        var otherB = new NPCContractGiver { contractToGive = other, targetBuildLocation = otherLocation };
+        ambiguous.save.CurrentData.activeQuests.Add(new TrackedTask { contractName = other.ContractID });
+        ambiguous.save.CurrentData.activeObjectiveKey = "contract:" + other.ContractID;
+        ambiguous.manager.InvalidateContractGuideRestoreCandidates(); ambiguous.Tick(.05f);
+        Check(!ambiguous.Visible && (ambiguous.path.waypoints == null || ambiguous.path.waypoints.Count == 0), "Ambiguous new-contract bindings clear old work and do not select an arbitrary giver.");
+        otherB.CanRestoreContractGuide = false; ambiguous.manager.InvalidateContractGuideRestoreCandidates(); ambiguous.Tick(.05f);
+        Check(ambiguous.RouteTarget == otherLocation.transform, "The selected contract can restore after its ambiguity is resolved.");
+    }
+    private static void TurnInNpcPresence()
+    {
+        foreach (string unavailable in new[] { "despawn", "disabled", "gate", "phase" })
+        {
+            Fixture f = new Fixture(); f.task.isReadyToTurnIn = true; f.Tick();
+            Check(f.RouteTarget == f.giver.transform && f.Visible, "Turn-in fixture initially targets the saved contract giver.");
+            if (unavailable == "despawn") f.giver.gameObject.SetActive(false);
+            if (unavailable == "disabled") f.giver.enabled = false;
+            if (unavailable == "gate") f.giver.CanRestoreContractGuide = false;
+            if (unavailable == "phase") f.giver.contractToGive = new ContractSO { contractId = "different-phase" };
+            f.Tick(.05f);
+            Check(!f.Visible && (f.path.waypoints == null || f.path.waypoints.Count == 0), "Turn-in navigation cannot point to an unspawned/blocked/stale-phase NPC: " + unavailable);
+            f.giver.gameObject.SetActive(true); f.giver.enabled = true; f.giver.CanRestoreContractGuide = true; f.giver.contractToGive = f.contract;
+            f.Tick(.05f);
+            Check(f.Visible && f.RouteTarget == f.giver.transform, "The same pending turn-in can resume when its correct NPC returns: " + unavailable);
+        }
+        Fixture ready = new Fixture(); ready.Tick(); ready.task.isReadyToTurnIn = true; ready.Tick();
+        Check(ready.RouteTarget == ready.giver.transform && ready.manager.leftText.text.Contains("Turn in"), "A saved ready-to-turn-in state replaces an older build-site guide.");
+    }
+    private static void DiscoveryAndExplicitNavigation()
+    {
+        Fixture cached = new Fixture(); cached.Tick(); int searches = UnityEngine.Object.searches;
+        for (int i = 0; i < 120; i++) cached.Tick(.02f);
+        Check(UnityEngine.Object.searches == searches && cached.path.binds == 1, "Repeated frames and recovery intervals do not rescan the scene or recreate an unchanged trail.");
+        cached.manager.InvalidateContractGuideRestoreCandidates(); cached.Tick(.01f);
+        Check(UnityEngine.Object.searches == searches + 1, "Explicit spawn/phase invalidation refreshes cached candidates once.");
+        Fixture manual = new Fixture();
+        var manualRoute = new List<GuiderWaypoint> { new GuiderWaypoint { target = new GameObject("Manual route").transform, advancesTutorial = false } };
+        manual.path.SetNewWaypoints(manualRoute); manual.Tick();
+        Check(!manual.Visible && ReferenceEquals(manual.path.waypoints, manualRoute), "Cold-start restoration cannot override a manual route that was chosen first.");
+        manual.path.SetNewWaypoints(new List<GuiderWaypoint>()); manual.Tick(.05f);
+        Check(manual.Visible && manual.RouteTarget == manual.location.navigationTarget.transform, "An unclaimed restored route becomes visible after the manual trail is released.");
+        Fixture late = new Fixture(); late.path.enabled = false; late.Tick();
+        Check(late.Visible && late.path.binds == 0, "An initially disabled path renderer does not prevent the left instruction from restoring.");
+        late.path.enabled = true; late.Tick(.05f);
+        Check(late.path.binds == 1 && late.RouteTarget == late.location.navigationTarget.transform, "Re-enabled path rendering receives the already-owned current route.");
+        Fixture explicitOffer = new Fixture(accepted: false); explicitOffer.manager.GuideToContractLocation(explicitOffer.location);
+        Check(explicitOffer.Visible && explicitOffer.RouteTarget == explicitOffer.location.navigationTarget.transform && explicitOffer.save.unreadAlerts == 1,
+            "Fresh accepted-offer navigation preserves its existing explicit path and one unread objective alert.");
+        explicitOffer.Tick();
+        Check(explicitOffer.save.unreadAlerts == 1, "Periodic recovery never repeats explicit-offer alerts.");
+        Fixture restored = new Fixture(); restored.Tick();
+        Check(restored.save.unreadAlerts == 0, "Restart reconstruction is presentation-only and creates no new objective alerts/saves.");
+    }
+    private static void OwnershipAndLifecycle()
+    {
+        Fixture f = new Fixture(); f.Tick();
+        var manual = new List<GuiderWaypoint> { new GuiderWaypoint { target = new GameObject("Manual target").transform, advancesTutorial = false } };
+        f.path.SetNewWaypoints(manual); f.Tick();
+        Check(ReferenceEquals(f.path.waypoints, manual), "A manual foreign route is never overwritten by periodic contract recovery.");
+        f.save.completed.Add(f.contract.ContractID); f.Tick();
+        Check(ReferenceEquals(f.path.waypoints, manual) && !f.Visible, "Completing a contract clears only its own card/trail, not a manual route.");
+        f = new Fixture(); f.Tick(); PlayerDataManager.Instance = new PlayerDataManager(); f.Tick();
+        Check(!f.Visible && (f.path.waypoints == null || f.path.waypoints.Count == 0), "A replaced save manager removes old-profile guide ownership.");
+        f = new Fixture(); f.Tick(); f.save.CurrentData = new PlayerData(); f.Tick();
+        Check(!f.Visible && (f.path.waypoints == null || f.path.waypoints.Count == 0), "A replaced account/profile cannot keep another player's old contract trail.");
+        f = new Fixture(); f.Tick(); FusionConnectionManager.Instance = new FusionConnectionManager { IsGuestSaveProtected = true }; f.Tick();
+        Check(!f.Visible && (f.path.waypoints == null || f.path.waypoints.Count == 0), "Entering a protected multiplayer visit releases local story navigation.");
+        f = new Fixture(); f.Tick();
+        var tutorialRoute = new List<GuiderWaypoint> { new GuiderWaypoint { target = new GameObject("Tutorial target").transform, advancesTutorial = true } };
+        f.manager.IsTutorialActive = true; f.manager.leftText.text = "Actual tutorial"; f.manager.leftPanel.SetActive(true); f.path.SetNewWaypoints(tutorialRoute); f.Tick();
+        Check(f.manager.leftText.text == "Actual tutorial" && f.manager.leftPanel.activeSelf && ReferenceEquals(f.path.waypoints, tutorialRoute), "Real tutorials retain their shared left panel, message and authored waypoint ownership.");
+        f.manager.IsTutorialActive = false; f.path.SetNewWaypoints(new List<GuiderWaypoint>()); f.Tick();
+        Check(f.Visible && f.RouteTarget == f.location.navigationTarget.transform, "Contract navigation resumes after the real tutorial releases ownership.");
+        int recalls = f.path.recalls; f.manager.RecallCurrentTutorialGuide(); f.manager.RecallCurrentTutorialGuide();
+        Check(f.path.recalls == recalls + 1 && !f.manager.IsTutorialActive && !f.task.isCompleted, "Recall uses existing cooldown and never starts/completes a quest or tutorial.");
+        f.manager.leftPanel.SetActive(false); f.Tick();
+        Check(f.Visible, "A restored guide hidden by startup/UI restoration is shown again instead of trusting a stale visible flag.");
+        f = new Fixture(); f.Tick();
+        var missing = new TrackedTask { contractName = "not-yet-spawned", title = "Next project" };
+        f.save.CurrentData.activeQuests.Add(missing); f.save.CurrentData.activeObjectiveKey = "contract:not-yet-spawned"; f.Tick();
+        Check(!f.Visible && (f.path.waypoints == null || f.path.waypoints.Count == 0), "Changing to an unresolved active contract removes the old contract's owned trail/card instead of directing to stale work.");
+    }
+}
