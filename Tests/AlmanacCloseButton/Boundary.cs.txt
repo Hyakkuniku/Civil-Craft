@@ -1,0 +1,227 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
+
+namespace UnityEngine
+{
+    public class Object { public string name; }
+    public class Component : Object
+    {
+        public GameObject gameObject;
+        public Transform transform => gameObject.transform;
+        public T GetComponent<T>() where T : class => gameObject.GetComponent<T>();
+        public T[] GetComponentsInChildren<T>(bool includeInactive = false) where T : class => gameObject.GetComponentsInChildren<T>(includeInactive);
+        public T GetComponentInParent<T>(bool includeInactive = false) where T : class
+        {
+            for (Transform node = transform; node != null; node = node.parent)
+                if ((includeInactive || node.gameObject.activeInHierarchy) && node.GetComponent<T>() is T found) return found;
+            return null;
+        }
+    }
+    public class Behaviour : Component { public bool enabled = true; public bool isActiveAndEnabled => enabled && gameObject.activeInHierarchy; }
+    public class MonoBehaviour : Behaviour { }
+    public sealed class GameObject : Object
+    {
+        public readonly List<Component> components = new();
+        public RectTransform transform;
+        public int layer;
+        public bool activeSelf = true;
+        public bool activeInHierarchy => activeSelf && (transform.parent == null || transform.parent.gameObject.activeInHierarchy);
+        public GameObject(string label, params Type[] kinds)
+        {
+            name = label; transform = new RectTransform { gameObject = this }; components.Add(transform);
+            foreach (Type kind in kinds) if (kind != typeof(RectTransform) && kind != typeof(Transform)) AddComponent(kind);
+        }
+        public void SetActive(bool active) => activeSelf = active;
+        public T AddComponent<T>() where T : Component, new() => (T)AddComponent(typeof(T));
+        public Component AddComponent(Type type)
+        { var component = (Component)Activator.CreateInstance(type); component.gameObject = this; components.Add(component); return component; }
+        public T GetComponent<T>() where T : class => components.OfType<T>().FirstOrDefault();
+        public T[] GetComponentsInChildren<T>(bool includeInactive = false) where T : class
+        {
+            var result = new List<T>();
+            void Visit(Transform node)
+            {
+                if (includeInactive || node.gameObject.activeInHierarchy) result.AddRange(node.gameObject.components.OfType<T>());
+                foreach (Transform child in node.children) Visit(child);
+            }
+            Visit(transform); return result.ToArray();
+        }
+    }
+    public class Transform : Component, IEnumerable<Transform>
+    {
+        public Transform parent;
+        public readonly List<Transform> children = new();
+        public Vector3 localScale = Vector3.one;
+        public Quaternion localRotation = Quaternion.identity;
+        public void SetParent(Transform node, bool worldPositionStays = false)
+        { parent?.children.Remove(this); parent = node; node?.children.Add(this); }
+        public Transform Find(string path)
+        {
+            Transform current = this;
+            foreach (string part in path.Split('/')) { current = current.children.FirstOrDefault(child => child.gameObject.name == part); if (current == null) return null; }
+            return current;
+        }
+        public bool IsChildOf(Transform ancestor) { for (Transform node = parent; node != null; node = node.parent) if (node == ancestor) return true; return false; }
+        public void SetAsLastSibling() { if (parent == null) return; parent.children.Remove(this); parent.children.Add(this); }
+        public int childCount => children.Count;
+        public Transform GetChild(int index) => children[index];
+        public IEnumerator<Transform> GetEnumerator() => children.GetEnumerator();
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+    public class RectTransform : Transform
+    {
+        public enum Axis { Horizontal, Vertical }
+        public Vector2 anchorMin, anchorMax, pivot = Vector2.one * .5f, anchoredPosition, sizeDelta;
+        public Vector2 offsetMin
+        {
+            get => anchoredPosition - sizeDelta * pivot;
+            set { Vector2 delta = value - offsetMin; sizeDelta -= delta; anchoredPosition += delta * (Vector2.one - pivot); }
+        }
+        public Vector2 offsetMax
+        {
+            get => anchoredPosition + sizeDelta * (Vector2.one - pivot);
+            set { Vector2 delta = value - offsetMax; sizeDelta += delta; anchoredPosition += delta * pivot; }
+        }
+        public Rect rect
+        {
+            get
+            {
+                Rect parentRect = parent is RectTransform rect ? rect.rect : default;
+                float width = parentRect.width * (anchorMax.x - anchorMin.x) + sizeDelta.x;
+                float height = parentRect.height * (anchorMax.y - anchorMin.y) + sizeDelta.y;
+                return new Rect(-width * pivot.x, -height * pivot.y, width, height);
+            }
+        }
+        public void SetSizeWithCurrentAnchors(Axis axis, float value) { if (axis == Axis.Horizontal) sizeDelta.x = value; else sizeDelta.y = value; }
+    }
+    public struct Vector2
+    {
+        public float x, y;
+        public Vector2(float x, float y) { this.x = x; this.y = y; }
+        public static Vector2 zero => new(0, 0); public static Vector2 one => new(1, 1);
+        public static Vector2 operator *(Vector2 value, float scale) => new(value.x * scale, value.y * scale);
+        public static Vector2 operator *(Vector2 a, Vector2 b) => new(a.x * b.x, a.y * b.y);
+        public static Vector2 operator +(Vector2 a, Vector2 b) => new(a.x + b.x, a.y + b.y);
+        public static Vector2 operator -(Vector2 a, Vector2 b) => new(a.x - b.x, a.y - b.y);
+        public static bool operator ==(Vector2 a, Vector2 b) => a.x == b.x && a.y == b.y;
+        public static bool operator !=(Vector2 a, Vector2 b) => !(a == b);
+        public override bool Equals(object value) => value is Vector2 other && this == other;
+        public override int GetHashCode() => HashCode.Combine(x, y);
+    }
+    public struct Vector3
+    {
+        public float x, y, z; public Vector3(float x, float y, float z) { this.x = x; this.y = y; this.z = z; } public static Vector3 one => new(1, 1, 1);
+        public static bool operator ==(Vector3 a, Vector3 b) => a.x == b.x && a.y == b.y && a.z == b.z;
+        public static bool operator !=(Vector3 a, Vector3 b) => !(a == b);
+        public override bool Equals(object value) => value is Vector3 other && this == other;
+        public override int GetHashCode() => HashCode.Combine(x, y, z);
+    }
+    public struct Vector4 { public float x, y, z, w; public Vector4(float x, float y, float z, float w) { this.x = x; this.y = y; this.z = z; this.w = w; } public static Vector4 zero => new(0, 0, 0, 0); }
+    public struct Quaternion
+    {
+        public float x, y, z, w; public Quaternion(float x, float y, float z, float w) { this.x = x; this.y = y; this.z = z; this.w = w; }
+        public static Quaternion identity => new(0, 0, 0, 1);
+        public static bool operator ==(Quaternion a, Quaternion b) => a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
+        public static bool operator !=(Quaternion a, Quaternion b) => !(a == b);
+        public override bool Equals(object value) => value is Quaternion other && this == other;
+        public override int GetHashCode() => HashCode.Combine(x, y, z, w);
+    }
+    public struct Rect { public float x, y, width, height; public Rect(float x, float y, float width, float height) { this.x = x; this.y = y; this.width = width; this.height = height; } }
+    public struct Color
+    {
+        public float r, g, b, a;
+        public Color(float r, float g, float b, float a = 1f) { this.r = r; this.g = g; this.b = b; this.a = a; }
+        public static Color white => new(1, 1, 1, 1);
+    }
+    public struct Color32
+    {
+        public byte r, g, b, a;
+        public Color32(byte r, byte g, byte b, byte a) { this.r = r; this.g = g; this.b = b; this.a = a; }
+        public static implicit operator Color(Color32 value) => new(value.r / 255f, value.g / 255f, value.b / 255f, value.a / 255f);
+    }
+    public sealed class Sprite : Object { }
+    public sealed class Texture : Object { }
+    public sealed class Material : Object { }
+    public sealed class CanvasRenderer : Component { }
+    public sealed class Canvas : Behaviour { }
+    public sealed class CanvasGroup : Behaviour { public float alpha = 1f; public bool interactable = true, blocksRaycasts = true; }
+    public static class Resources { public static T Load<T>(string path) where T : Object => typeof(T) == typeof(TMP_FontAsset) ? (T)(Object)DialogueManager.Font : null; }
+    public static class Mathf { public static float Max(float a, float b) => Math.Max(a, b); public static float Min(float a, float b) => Math.Min(a, b); }
+}
+namespace UnityEngine.Events
+{
+    public sealed class UnityEvent
+    {
+        public readonly List<(object target, string method, Action callback)> persistent = new();
+        public readonly List<Action> runtime = new();
+        public int GetPersistentEventCount() => persistent.Count;
+        public object GetPersistentTarget(int index) => persistent[index].target;
+        public string GetPersistentMethodName(int index) => persistent[index].method;
+        public void AddListener(Action callback) => runtime.Add(callback);
+        public void RemoveListener(Action callback) => runtime.Remove(callback);
+        public void Invoke() { foreach (var item in persistent.ToArray()) item.callback(); foreach (Action callback in runtime.ToArray()) callback(); }
+    }
+}
+namespace UnityEngine.UI
+{
+    public class Graphic : Behaviour { public bool raycastTarget = true; public Color color; public Material material; public RectTransform rectTransform => (RectTransform)transform; }
+    public sealed class Image : Graphic { public enum Type { Simple, Sliced, Filled } public Sprite sprite; public Type type; public bool preserveAspect, fillCenter = true; public float pixelsPerUnitMultiplier = 1f; }
+    public sealed class RawImage : Graphic { public Texture texture; }
+    public sealed class Shadow : Behaviour { public Color effectColor; public Vector2 effectDistance; }
+    public struct ColorBlock { public Color normalColor, highlightedColor, pressedColor, selectedColor, disabledColor; public float fadeDuration; }
+    public class Selectable : Behaviour { public enum Transition { None, ColorTint } public Transition transition; }
+    public sealed class Button : Selectable
+    {
+        public Graphic targetGraphic;
+        public ColorBlock colors;
+        public bool interactable = true;
+        public object navigation = new();
+        public UnityEngine.Events.UnityEvent onClick = new();
+        public void Click() { if (isActiveAndEnabled && interactable) onClick.Invoke(); }
+    }
+}
+namespace TMPro
+{
+    public enum FontStyles { Normal, Bold }
+    public enum TextAlignmentOptions { Center, Midline, MidlineLeft }
+    public enum TextOverflowModes { Overflow, Ellipsis, Truncate }
+    public class TMP_FontAsset : UnityEngine.Object { public Material material = new(); }
+    public class TMP_Text : Graphic
+    {
+        public string text;
+        public TMP_FontAsset font;
+        public Material fontSharedMaterial;
+        public float fontSize, fontSizeMin, fontSizeMax;
+        public bool enableAutoSizing, enableWordWrapping;
+        public FontStyles fontStyle;
+        public TextAlignmentOptions alignment;
+        public TextOverflowModes overflowMode;
+        public Vector4 margin;
+    }
+    public sealed class TextMeshProUGUI : TMP_Text { }
+}
+public sealed class AlmanacManager : MonoBehaviour
+{
+    public GameObject almanacCanvas;
+    public int closes;
+    public void CloseAlmanac() => closes++;
+}
+public static class DialogueManager
+{
+    public static Sprite Rounded = new() { name = "Shared Skip Rounded Sprite" };
+    public static TMP_FontAsset Font = new() { name = "Bekind Sans SDF" };
+    public static Sprite GetSkipRoundedSprite() => Rounded;
+    public static Image CreateSkipButtonLayer(Transform parent, string name, Vector2 min, Vector2 max, Color color)
+    {
+        var owner = new GameObject(name, typeof(Image)); owner.transform.SetParent(parent, false);
+        owner.transform.anchorMin = Vector2.zero; owner.transform.anchorMax = Vector2.one;
+        owner.transform.offsetMin = min; owner.transform.offsetMax = max;
+        Image image = owner.GetComponent<Image>(); image.sprite = Rounded; image.type = Image.Type.Sliced; image.color = color; image.raycastTarget = false;
+        return image;
+    }
+}

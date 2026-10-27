@@ -182,8 +182,23 @@ public class AlmanacManager : MonoBehaviour
 
         AlmanacQuizAccess.Install(this);
         InitializeBook();
+        EnsureCloseButtonStyle();
         if (bookMotion != null) bookMotion.Bind(this);
         EnsureTabUnlockTutorialDrafts();
+    }
+
+    private void EnsureCloseButtonStyle()
+    {
+        if (almanacCanvas == null) return;
+        var font = Resources.Load<TMPro.TMP_FontAsset>("Fonts & Materials/Bekind Sans SDF");
+        foreach (Button button in almanacCanvas.GetComponentsInChildren<Button>(true))
+            for (int index = 0; index < button.onClick.GetPersistentEventCount(); index++)
+                if (button.onClick.GetPersistentTarget(index) == this &&
+                    button.onClick.GetPersistentMethodName(index) == nameof(CloseAlmanac))
+                {
+                    AlmanacCloseButtonStyle.Apply(button, font);
+                    break;
+                }
     }
 
     private void Start()
