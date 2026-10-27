@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a4da58d2dc2409c459ef20449bf92a90, type: 3}
+  m_Name: LoadDistribution
+  m_EditorClassIdentifier:
+  lessonId: civil-craft-load-distribution-lesson-v1
+  lessonTitle: Load Distribution
+  lessonImage: {fileID: 0}
+  popupDescription: "<b><#E09500>Load Distribution</color></b> describes how an applied load is shared among a bridge's structural members and supports.\n\nKey points:\n- Vehicle weight creates a load on the bridge.\n- Structural members work together to carry it.\n- Different members and supports may carry different portions of the load.\n- Support placement and structural design affect how loads are distributed.\n\nThis lesson has been added to your <b><#E09500>Almanac</color></b>."
+  almanacImage: {fileID: 0}
+  lessonDescription: "<b><#E09500>Load Distribution</color></b> refers to how an applied load is shared among the structural members and supports of a bridge. A vehicle's weight does not affect only the section directly beneath it. The connected members work together to carry that load toward the supports.\n\nThe bridge's design, connections, support placement, and vehicle position affect how the load is shared. Some members or supports may carry more than others; placing additional supports does not guarantee equal loading. Adding or repositioning a support can change the load carried throughout the structure.\n\nDuring a moving-load test, observe the <b><#E09500>entire bridge</color></b>, including the surrounding members and supports. A response away from the vehicle can still be part of the structure carrying its load. Check that each part can safely withstand the demand placed on it.\n\nFor <b><#E09500>Silas's community crossing</color></b>, consider the available support points and the lower rock formation when arranging the structure. Choose a connected design that safely carries the test vehicle while distributing its load toward the supports. Test the whole crossing rather than judging only the section immediately below the vehicle."

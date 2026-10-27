@@ -1,0 +1,103 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8277db26963c4a7a81a4dcb5e6307197, type: 3}
+  m_Name: LoadTransferQuiz
+  m_EditorClassIdentifier:
+  quizId: civil-craft-load-transfer-quiz-v1
+  title: Load Transfer Quiz
+  assessmentMode: 1
+  questions:
+  - questionId: load-transfer
+    prompt: "What is <b><#E09500>Load Transfer</color></b> in bridge construction?"
+    choices:
+    - text: "The movement of vehicles from one bridge to another."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "The process of removing weight from a bridge."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "The distribution of construction materials across a site."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "The process through which forces travel through structural components toward supports and foundations."
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 3
+    feedback: "Load transfer is the movement of forces through connected components toward supports and foundations."
+  - questionId: suspension-load-path
+    prompt: "In a suspension bridge, which sequence correctly describes how the vehicle's weight is transferred?"
+    choices:
+    - text: "Deck → Towers → Hangers → Main Cables → Ground"
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Deck → Hangers → Main Cables → Towers and Anchorages → Ground"
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Main Cables → Deck → Towers → Hangers → Ground"
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Anchorages → Deck → Hangers → Towers → Ground"
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 1
+    feedback: "In this suspension example, the deck transfers load through hangers and cables to towers and anchorages, then the ground."
+  - questionId: main-cables
+    prompt: "What type of force do the <b><#E09500>main cables</color></b> of a suspension bridge primarily carry?"
+    choices:
+    - text: "Tension"
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Compression"
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Bending"
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Torsion"
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 0
+    feedback: "The main cables primarily carry tension: a pulling force."
+  - questionId: towers-and-anchorages
+    prompt: "How do the towers and anchor points help support a suspension bridge?"
+    choices:
+    - text: "The towers carry tension while the anchor points support the roadway directly."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Both eliminate the forces acting on the bridge."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "The towers carry compressive forces toward the ground, while anchor points resist the cables' pull."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "The towers prevent vehicles from applying weight to the deck."
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 2
+    feedback: "Towers carry compression toward the ground; anchor points resist the tension in the cables."
+  - questionId: structural-connections
+    prompt: "Why are the <b><#E09500>connections between structural components</color></b> important in a bridge?"
+    choices:
+    - text: "They ensure every component carries exactly the same amount of weight."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "They allow forces to travel through connected components toward the supports."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "They remove the need for towers and foundations."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "They prevent all structural deformation during testing."
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 1
+    feedback: "Connections let forces travel along a continuous load path toward the supports."

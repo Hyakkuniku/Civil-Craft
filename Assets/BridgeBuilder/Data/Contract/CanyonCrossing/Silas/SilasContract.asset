@@ -29,10 +29,12 @@ MonoBehaviour:
   autoCollectReward: 0
   featureUnlockRewards: []
   clientName: Silas
-  jobDescription: We need a bridge across this ravine!
+  jobDescription: Finish the direct route from Vance's middle supply point to the
+    community. Build a safe 100-meter crossing and observe how its members and supports
+    distribute the test vehicle's load.
   budget: 200000
   liveLoadWeight: 1000
-  bridgeSpan: 30
+  bridgeSpan: 100
   allowedMaterials: []
   hiddenTools: 
   hiddenMaterials:
@@ -49,15 +51,17 @@ MonoBehaviour:
   offerDialogue:
     name: Silas
     sentences:
-    - This is a wider crossing than the ones you've handled before.
-    - There is a rock formation partway across, but it sits much lower than the roads
+    - Now that you understand load distribution, let's put that knowledge to use.
+    - We need a bridge that connects the community to the main route.
+    - The crossing is <b><#E09500>100 meters</color></b> wide.
+    - A jeep will test this route before Vance's supplies continue to the community.
+    - There's a rock formation partway across, but it sits much lower than the roads
       on either side.
     - <b><#E09500>You'll have to decide how to use the available support points across
       the site</color></b>.
-    - The test jeep will place weight on different parts of the bridge as it moves.
-    - <b><#E09500>Watch how that load is distributed across the whole structure</color></b>.
-    - If your bridge carries the jeep safely, Vance's supplies can then reach the
-      community by this route.
+    - Remember, the way you arrange the bridge and its supports affects how the vehicle's
+      weight is distributed.
+    - <b><#E09500>Watch how the whole structure responds when the jeep crosses</color></b>.
     - If you're ready, take the contract.
   continueOfferDialogue:
     name: Silas
@@ -65,21 +69,18 @@ MonoBehaviour:
   reminderDialogue:
     name: Silas
     sentences:
-    - Vance's shipment has already made it halfway.
-    - This bridge is the final connection to the community.
-    - Do not rush the design. Watch how the jeep's weight spreads through the structure
-      as it crosses.
+    - Don't rush the design, {PlayerName}.
+    - Remember what we discussed about load distribution.
+    - Think carefully about where you place the supports, and keep an eye on how
+      the whole bridge responds during the test.
   finishedContractDialogue:
     name: Silas
     sentences:
-    - The final crossing is open.
-    - Vance's factory is now connected to the middle ravine, and this bridge carries
-      the route the rest of the way to the community.
-    - They will not have to wait for deliveries to travel all the way around the
-      canyon anymore.
-    - What started as one shipment is now a complete supply route.
-    - This crossing was wider than your earlier projects, and the test jeep placed
-      weight across the entire structure.
-    - You handled the load distribution well.
-    - Good work, {PlayerName}.
-    - Stay nearby. There is another passage farther east that we still need to discuss.
+    - The community has a direct connection to the route now. Vance's supplies can
+      continue from the middle point.
+    - They won't have to take the long way around anymore.
+    - That was a wider crossing than your earlier projects.
+    - You also got to see how the bridge's design and support arrangement affect
+      the way it carries weight.
+    - You handled it well, {PlayerName}.
+    - I've got a feeling this won't be the last project we handle together.

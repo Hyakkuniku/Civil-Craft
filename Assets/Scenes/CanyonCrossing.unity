@@ -161336,14 +161336,14 @@ MonoBehaviour:
     phaseDialogue:
       name: Silas
       sentences:
-      - Vance told me you were on your way.
-      - I'm <b><#E09500>Silas</color></b>. I handle the more demanding projects farther
-        into Canyon Crossing.
-      - That bridge behind you brought the factory's supplies to the middle ravine.
-      - It shortened the journey, but the shipment cannot go any farther yet.
-      - ' The community waiting for those supplies is across the next gap.'
-      - We need one more bridge to complete the delivery route.
-      - Come with me. I'll show you the final crossing.
+      - So, you're the Engineer who's been working with Reed and Vance.
+      - I'm <b><#E09500>Silas</color></b>. I handle some of the more demanding projects
+        farther into Canyon Crossing.
+      - I've seen what your crossings have done for the route.
+      - The factory is connected, and Vance's supplies can reach the middle point
+        now.
+      - But that route still doesn't reach the community across the next gap.
+      - There's another site ahead. Come with me.
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Silas
     playDialogueOnArrival: 0
@@ -161402,7 +161402,7 @@ MonoBehaviour:
     dialoguePrompt: Talk to Silas
     playDialogueOnArrival: 0
     reviewAlmanacWhileTravelling: 0
-    repeatDialogue: 0
+    repeatDialogue: 1
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
     featureUnlockDisplayName: 
@@ -161462,18 +161462,69 @@ MonoBehaviour:
     cinematicAfterOffer: {fileID: 0}
     phaseDialogue:
       name: Silas
-      sentences:
-      - The first bridge brought Vance's shipment this far.
-      - Now this ravine is the only thing standing between the supplies and the community.
-      - We will test this bridge with a jeep before sending the supply shipment across.
-      - Watch how the <b><#E09500>jeep's live load</color></b> moves across the structure.
-      - Build a safe crossing here, and the route from the factory to the community
-        will finally be complete.
-    optionalDialogueSequence: []
+      sentences: []
+    optionalDialogueSequence:
+    - stepType: 0
+      dialogue:
+        name: Silas
+        sentences:
+        - There's a community on the other side of the canyon.
+        - They can already reach Central Canyonville, but the current route takes
+          them a long way around.
+        - The crossings you've built have brought Vance's supplies to the middle
+          point.
+        - A bridge here would finish the direct delivery connection to the community.
+          We'll test the route with a jeep before supplies continue across.
+        - This crossing is wider than the previous ones, so you'll need to think
+          carefully about how the bridge supports the weight of passing vehicles.
+        - Before we begin, there's another structural concept you should understand.
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      quizWaitingReminder: 
+      lesson: {fileID: 0}
+      reviewStepId: 
+    - stepType: 0
+      dialogue:
+        name: Silas
+        sentences:
+        - You've already learned how bridges bend under weight and how their members
+          experience tension and compression.
+        - Now, let's look at how that weight is shared throughout the structure.
+        - When a vehicle crosses a bridge, its weight doesn't affect only the section
+          directly beneath it.
+        - The load is carried by different structural members and distributed toward
+          the bridge's supports.
+        - This is called <b><#E09500>Load Distribution</color></b>.
+        - Depending on the bridge's design, some members and supports may carry more
+          load than others.
+        - Adding or positioning supports can change how the load is distributed throughout
+          the structure.
+        - That's why it's important to consider the entire bridge, not just the section
+          where the vehicle is located.
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      quizWaitingReminder: 
+      lesson: {fileID: 0}
+      reviewStepId: 
+    - stepType: 3
+      dialogue:
+        name: 
+        sentences: []
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      quizWaitingReminder: 
+      lesson: {fileID: 11400000, guid: 6935d2a3b9b347a09c1a5c02904a6f41, type: 2}
+      reviewStepId: 
     dialoguePrompt: Talk to Silas
     playDialogueOnArrival: 1
     reviewAlmanacWhileTravelling: 0
-    repeatDialogue: 0
+    repeatDialogue: 1
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
     featureUnlockDisplayName: 
@@ -161574,19 +161625,67 @@ MonoBehaviour:
     cinematicAfterOffer: {fileID: 0}
     phaseDialogue:
       name: Silas
-      sentences:
-      - "You\u2019ve done more than build a few separate crossings."
-      - The factory is connected, the route through the canyon is shorter, and the
-        community has access to it now.
-      - "But Canyon Crossing doesn\u2019t end there."
-      - "There\u2019s one more gap ahead."
-      - Beyond it is the road leading toward <b><#E09500>Town River</color></b>.
-      - Come with me.
-    optionalDialogueSequence: []
+      sentences: []
+    optionalDialogueSequence:
+    - stepType: 3
+      dialogue:
+        name: 
+        sentences: []
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      quizWaitingReminder: 
+      lesson: {fileID: 11400000, guid: 6935d2a3b9b347a09c1a5c02904a6f41, type: 2}
+      reviewStepId: 
+    - stepType: 0
+      dialogue:
+        name: Silas
+        sentences:
+        - You can review <b><#E09500>Load Distribution</color></b> in your <b><#E09500>Almanac</color></b>.
+        - When you're ready, open the <b><#E09500>Quiz tab</color></b> and press
+          <b><#E09500>Start Quiz</color></b>.
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      quizWaitingReminder: 
+      lesson: {fileID: 0}
+      reviewStepId: 
+    - stepType: 2
+      dialogue:
+        name: 
+        sentences: []
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 11400000, guid: c90bc96ac92a4ad9a1ea42fb9d56ec65, type: 2}
+      quizStepId: silas-load-distribution-assessment-v1
+      quizWaitingReminder: Review Load Distribution in your Almanac, then open the
+        Quiz tab and press Start Quiz when you're ready.
+      lesson: {fileID: 0}
+      reviewStepId: 
+    - stepType: 0
+      dialogue:
+        name: Silas
+        sentences:
+        - You've done more than build a few separate crossings.
+        - The factory is connected, the route through the canyon is shorter, and
+          the community has access to it now.
+        - But Canyon Crossing doesn't end there.
+        - There's one more gap ahead.
+        - Beyond it is the road leading toward <b><#E09500>Town River</color></b>.
+        - Come with me.
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      quizWaitingReminder: 
+      lesson: {fileID: 0}
+      reviewStepId: 
     dialoguePrompt: Talk to Silas
-    playDialogueOnArrival: 0
+    playDialogueOnArrival: 1
     reviewAlmanacWhileTravelling: 0
-    repeatDialogue: 0
+    repeatDialogue: 1
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
     featureUnlockDisplayName: 
@@ -161640,7 +161739,7 @@ MonoBehaviour:
     dialoguePrompt: Talk to Silas
     playDialogueOnArrival: 0
     reviewAlmanacWhileTravelling: 0
-    repeatDialogue: 0
+    repeatDialogue: 1
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
     featureUnlockDisplayName: 
@@ -161702,23 +161801,21 @@ MonoBehaviour:
       name: Silas
       sentences:
       - That road leads out of <b><#E09500>Canyon Crossing</color></b>.
-      - The <b><#E09500>Town River</color></b> is beyond it.
-      - "There\u2019s already another way there, but this would give the region a
-        much more direct connection."
-      - "You\u2019ll notice <b><#E09500>there are old wooden towers standing on both
-        sides of the crossing</color></b>."
+      - <b><#E09500>Town River</color></b> is beyond it.
+      - There's already another way there, but this would give the region a much
+        more direct connection.
+      - You'll notice <b><#E09500>there are old wooden towers standing on both sides
+        of the crossing</color></b>.
       - They were built for an earlier attempt to connect this passage, but the crossing
         itself was never completed.
-      - "They\u2019re still standing, and there\u2019s some old <b><#E09500>rope
-        material</color></b> left at the site."
-      - You may be able to make use of both in your design.
-      - "Finish this crossing, and the route you\u2019ve built will finally lead
-        beyond the canyon."
+      - They're still standing, and you may be able to make use of them in your design.
+      - Finish this crossing, and the route you've built will finally lead beyond
+        the canyon.
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Silas
     playDialogueOnArrival: 1
     reviewAlmanacWhileTravelling: 0
-    repeatDialogue: 0
+    repeatDialogue: 1
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
     featureUnlockDisplayName: 
@@ -161768,14 +161865,25 @@ MonoBehaviour:
       name: Silas
       sentences: []
     optionalDialogueSequence:
-    - stepType: 1
+    - stepType: 0
       dialogue:
         name: Silas
         sentences:
-        - "Before we begin, there\u2019s another material available for this project."
-        - "You\u2019ll now have access to <b><#E09500>Rope</color> </b>."
-      material: {fileID: 11400000, guid: 4524a3fc876c6b640a735e6808fe1271, type: 2}
+        - Before we begin, there's another material available for this project.
+        - You'll now have access to <b><#E09500>Rope</color></b>.
+      material: {fileID: 0}
       materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      quizWaitingReminder: 
+      lesson: {fileID: 0}
+      reviewStepId: 
+    - stepType: 1
+      dialogue:
+        name: 
+        sentences: []
+      material: {fileID: 11400000, guid: 4524a3fc876c6b640a735e6808fe1271, type: 2}
+      materialButtonLabel: CONTINUE
       quiz: {fileID: 0}
       quizStepId: 
       quizWaitingReminder: 
@@ -161786,10 +161894,12 @@ MonoBehaviour:
         name: Silas
         sentences:
         - You can also make use of the <b><#E09500>existing wooden towers at the
-          crossing</color> </b>.
+          crossing</color></b>.
         - They can serve as support points for your design.
         - These give you another way to support parts of the bridge across the gap.
         - Use the available materials and support points carefully.
+        - But before you start building, there's another important concept you need
+          to understand.
       material: {fileID: 0}
       materialButtonLabel: 
       quiz: {fileID: 0}
@@ -161797,10 +161907,48 @@ MonoBehaviour:
       quizWaitingReminder: 
       lesson: {fileID: 0}
       reviewStepId: 
+    - stepType: 0
+      dialogue:
+        name: Silas
+        sentences:
+        - You've already learned how a bridge distributes weight among its structural
+          members and supports.
+        - Now, let's look at how that weight travels through the structure.
+        - This is called <b><#E09500>Load Transfer</color></b>.
+        - When a vehicle crosses a bridge, its weight must be carried through the
+          connected structural components until it reaches the supports and eventually
+          the ground.
+        - For example, in a suspension bridge, the deck carries the vehicle's weight
+          to the hangers.
+        - The hangers transfer the load to the main cables, which carry tension.
+        - The cables pass over the towers and are secured at the anchor points.
+        - The towers carry compressive forces toward the ground, while the anchor
+          points resist the cable's pull.
+        - This is why the connections between different parts of a bridge are important.
+        - <b><#E09500>Every component has a role in carrying and transferring the
+          load safely</color></b>.
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      quizWaitingReminder: 
+      lesson: {fileID: 0}
+      reviewStepId: 
+    - stepType: 3
+      dialogue:
+        name: 
+        sentences: []
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      quizWaitingReminder: 
+      lesson: {fileID: 11400000, guid: aa9d5037a2b04adf8e958cce20558e62, type: 2}
+      reviewStepId: 
     dialoguePrompt: Talk to Silas
     playDialogueOnArrival: 1
     reviewAlmanacWhileTravelling: 0
-    repeatDialogue: 0
+    repeatDialogue: 1
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
     featureUnlockDisplayName: 
@@ -161901,14 +162049,64 @@ MonoBehaviour:
     cinematicAfterOffer: {fileID: 0}
     phaseDialogue:
       name: Silas
-      sentences:
-      - Your job is done here in Canyon Crossing, {PlayerName}
-      - You can now proceed to Town River
-    optionalDialogueSequence: []
+      sentences: []
+    optionalDialogueSequence:
+    - stepType: 3
+      dialogue:
+        name: 
+        sentences: []
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      quizWaitingReminder: 
+      lesson: {fileID: 11400000, guid: aa9d5037a2b04adf8e958cce20558e62, type: 2}
+      reviewStepId: 
+    - stepType: 0
+      dialogue:
+        name: Silas
+        sentences:
+        - You can review <b><#E09500>Load Transfer</color></b> in your <b><#E09500>Almanac</color></b>.
+        - When you're ready, open the <b><#E09500>Quiz tab</color></b> and press
+          <b><#E09500>Start Quiz</color></b>.
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      quizWaitingReminder: 
+      lesson: {fileID: 0}
+      reviewStepId: 
+    - stepType: 2
+      dialogue:
+        name: 
+        sentences: []
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 11400000, guid: 87b98fa1da19440791852ab615dc8987, type: 2}
+      quizStepId: silas-load-transfer-assessment-v1
+      quizWaitingReminder: Review Load Transfer in your Almanac, then open the Quiz
+        tab and press Start Quiz when you're ready.
+      lesson: {fileID: 0}
+      reviewStepId: 
+    - stepType: 0
+      dialogue:
+        name: Silas
+        sentences:
+        - Your route through Canyon Crossing is complete, {PlayerName}. You can head
+          toward <b><#E09500>Town River</color></b> when you're ready.
+        - 'Before you go, there''s another way to put those building skills to use:
+          building alongside a friend.'
+      material: {fileID: 0}
+      materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      quizWaitingReminder: 
+      lesson: {fileID: 0}
+      reviewStepId: 
     dialoguePrompt: Talk to Silas
     playDialogueOnArrival: 1
     reviewAlmanacWhileTravelling: 0
-    repeatDialogue: 0
+    repeatDialogue: 1
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
     featureUnlockDisplayName: 
@@ -161969,9 +162167,10 @@ MonoBehaviour:
     phaseDialogue:
       name: Silas
       sentences:
-      - You've learned to build here, {PlayerName}. Now it's time to build alongside
-        a friend.
-      - I'm unlocking <b><color=#E09500>Multiplayer</color></b> for you!
+      - The community is connected and the eastern passage is open, {PlayerName}.
+        You've learned how a bridge carries its loads.
+      - Now you can put those skills to use alongside a friend. I'm unlocking <b><#E09500>Multiplayer</color></b>
+        for you!
       - In your world, open Multiplayer and choose Turn On Multiplayer to create
         a private room.
       - Share the room code with a friend. They can choose Multiplayer in Mode Selection
@@ -1067672,6 +1067871,8 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 1b5ab471230149e196f0c1f72ff6058d, type: 2}
   - {fileID: 11400000, guid: 0cd237d72b8142d9a2292163360424e8, type: 2}
   - {fileID: 11400000, guid: 7d52eb4573a047fe8278ea90297d50df, type: 2}
+  - {fileID: 11400000, guid: 6935d2a3b9b347a09c1a5c02904a6f41, type: 2}
+  - {fileID: 11400000, guid: aa9d5037a2b04adf8e958cce20558e62, type: 2}
   buttonContainer: {fileID: 29520942489529998}
   lessonButtonPrefab: {fileID: 308501897983340570}
   showLockedLessons: 1
@@ -1134835,7 +1135036,7 @@ MonoBehaviour:
   onEnterBuildModeTutorial: {fileID: 0}
   restartGuidedTutorialOnFailure: 1
   enableSimulationLesson: 0
-  simulationLesson: {fileID: 0}
+  simulationLesson: {fileID: 11400000, guid: 917a7541d7394124be43c4d62a07e5a9, type: 2}
   startingAnchors:
   - {fileID: 7726185392207717268}
   - {fileID: 1553311588}
@@ -1134885,7 +1135086,7 @@ MonoBehaviour:
   onEnterBuildModeTutorial: {fileID: 0}
   restartGuidedTutorialOnFailure: 1
   enableSimulationLesson: 0
-  simulationLesson: {fileID: 0}
+  simulationLesson: {fileID: 11400000, guid: 86538d3580894627bc282f15a488ad58, type: 2}
   startingAnchors:
   - {fileID: 7726185391944209578}
   - {fileID: 1898447203}

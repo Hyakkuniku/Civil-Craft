@@ -1,0 +1,103 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8277db26963c4a7a81a4dcb5e6307197, type: 3}
+  m_Name: LoadDistributionQuiz
+  m_EditorClassIdentifier:
+  quizId: civil-craft-load-distribution-quiz-v1
+  title: Load Distribution Quiz
+  assessmentMode: 1
+  questions:
+  - questionId: load-distribution
+    prompt: "What is <b><#E09500>Load Distribution</color></b> in bridge construction?"
+    choices:
+    - text: "The movement of vehicles across a bridge."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "The process of removing weight from a structure."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "How an applied load is shared among structural members and supports."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "How construction materials are transported to a site."
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 2
+    feedback: "Load distribution describes how structural members and supports share an applied load."
+  - questionId: vehicle-load
+    prompt: "When a vehicle crosses a bridge, how does its weight affect the structure?"
+    choices:
+    - text: "It only affects the section directly beneath the vehicle."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "It is carried by different structural members and distributed toward the supports."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "It affects only the roadway and never reaches the supports."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "It disappears once the vehicle reaches the middle."
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 1
+    feedback: "Connected members carry the vehicle's weight through the structure toward its supports."
+  - questionId: support-placement
+    prompt: "How does the <b><#E09500>placement of supports</color></b> affect a bridge?"
+    choices:
+    - text: "It changes how the load is distributed throughout the structure."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "It removes the need for structural members."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "It prevents vehicles from applying downward loads."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "It guarantees that all supports carry equal loads."
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 0
+    feedback: "Changing support positions can change how the load is shared; equal loading is not guaranteed."
+  - questionId: unequal-load-distribution
+    prompt: "Why might some structural members and supports carry more load than others?"
+    choices:
+    - text: "Because every bridge member always carries the same amount of weight."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Because the vehicle's weight only acts on the nearest support."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Because the length of the roadway eliminates load differences."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Because the bridge's design and support arrangement affect how loads are shared."
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 3
+    feedback: "The structural arrangement and support positions influence the portion of load carried by each part."
+  - questionId: structural-observation
+    prompt: "Why should engineers observe the <b><#E09500>entire bridge</color></b> when testing it under a moving vehicle?"
+    choices:
+    - text: "Because only the section beneath the vehicle carries the load."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Because the bridge's supports do not affect structural behavior."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Because the vehicle's load can affect different sections and supports throughout the structure."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Because the bridge stops carrying weight when the vehicle moves."
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 2
+    feedback: "The moving load can affect members and supports throughout the connected structure."

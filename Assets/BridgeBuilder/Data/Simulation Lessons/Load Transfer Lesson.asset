@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6f37df8d20f74e62a3e88f7fa41df9b0, type: 3}
+  m_Name: Load Transfer Lesson
+  m_EditorClassIdentifier:
+  panelTitle: LOAD TRANSFER
+  minimumMessageDuration: 3.5
+  fadeDuration: 0.2
+  slideDistance: 24
+  enableSlowMotion: 1
+  simulationTimeScale: 0.5
+  vehicleEnteredProgress: 0.1
+  vehicleMidpointProgress: 0.5
+  vehicleNearEndProgress: 0.85
+  highStressThreshold: 0.7
+  vehicleStuckDelay: 5
+  simulationStarted: "Simulation started. Watch how the structure responds as the jeep begins moving across the crossing."
+  liveLoadStarted: "The jeep's weight is transferring onto the roadway. Observe how connected structural components carry it toward the supports."
+  vehicleEnteredBridge: "The vehicle is moving across the span. Follow the connected load path from the roadway toward the supports and anchor points."
+  vehicleReachedMidpoint: "The jeep is approaching midspan. Watch the connected components and, if used in your design, the towers, rope, and anchor points."
+  vehicleApproachingEnd: "The jeep is approaching the end of the crossing. Continue observing how the structure transfers forces toward its supports."
+  highStressDetected: "Orange or red members are using a large share of their capacity. Check their connections and the load path toward the supports."
+  stressLimitExceeded: "The bridge exceeded the contract's allowed stress. Review the load path and strengthen the connected members or supports that need it."
+  firstMemberBreak: "A structural member exceeded its capacity and failed. Observe how this affects the remaining connected load path."
+  vehicleStuck: "The jeep has stopped moving. Check roadway alignment, clearance, and continuity through this area."
+  vehicleFailed: "The jeep did not complete a safe crossing. Review the failed connections and how the vehicle's load reaches the supports."
+  bridgeSucceeded: "The required vehicle completed the crossing safely. The connected structure carried its load through the full test."
+  simulationStopped: "Simulation stopped. Return to editing to review the connections and adjust the design."

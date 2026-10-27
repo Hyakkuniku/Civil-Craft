@@ -29,10 +29,12 @@ MonoBehaviour:
   autoCollectReward: 0
   featureUnlockRewards: []
   clientName: Silas
-  jobDescription: We need a bridge across this ravine!
+  jobDescription: Open the eastern passage toward Town River with a safe 100-meter
+    crossing. Use the available rope, towers and anchor points as your design requires,
+    and keep a continuous load path to the supports.
   budget: 200000
   liveLoadWeight: 5000
-  bridgeSpan: 30
+  bridgeSpan: 100
   allowedMaterials: []
   hiddenTools: 
   hiddenMaterials: []
@@ -47,39 +49,48 @@ MonoBehaviour:
   offerDialogue:
     name: Silas
     sentences:
-    - "This crossing is different from the ones you\u2019ve handled before."
-    - The gap is wide, and the site already gives you structures that you can use.
-    - <b><#E09500>The towers and your new rope material give you another way to support
-      parts of the structure across the canyon</color> </b>..
-    - "You don\u2019t have to build the same way you did on your earlier projects."
-    - This time, pay attention to more than just where the vehicle is.
-    - <b><#E09500>Watch how the load moves through the different parts of the structure
-      as the Jeep crosses</color> </b>.
-    - "If you\u2019re ready, take the contract.\r\n"
+    - Now that you understand load transfer, let's put that knowledge to use.
+    - This crossing is different from the ones you've handled before.
+    - The gap is <b><#E09500>100 meters</color></b> wide.
+    - A jeep will use this route during the test.
+    - The site already has wooden towers, and you now have rope available for your
+      design.
+    - <b><#E09500>The towers, rope, and anchor points give you another way to support
+      parts of the bridge across the canyon</color></b>.
+    - You don't have to build the same way you did on your earlier projects.
+    - Remember what we discussed about load transfer.
+    - <b><#E09500>Pay attention to how the vehicle's weight travels through the connected
+      parts of your bridge and toward its supports</color></b>.
+    - Think carefully about how you connect the different components.
+    - If you're ready, take the contract.
   continueOfferDialogue:
     name: Silas
-    sentences:
-    - "You\u2019ve got the towers, anchor points, and rope available at the site."
-    - <b><#E09500>Think about how you can use them to support the structure across
-      the gap</color></b>.
-    - "How you connect everything is up to you.\r"
+    sentences: []
   reminderDialogue:
     name: Silas
-    sentences: []
+    sentences:
+    - You've got the towers, anchor points, and rope available at the site.
+    - <b><#E09500>Think about how you can use them to support the structure across
+      the gap</color></b>.
+    - Remember, the load needs a continuous path through the structure and toward
+      its supports.
+    - How you connect everything is up to you.
   finishedContractDialogue:
     name: Silas
     sentences:
-    - "That\u2019s it."
+    - That's it.
     - The eastern passage is open.
-    - You started by connecting Canyonville to the factory.
+    - You started by connecting Central Canyonville to the factory.
     - Then you improved the route through the canyon and brought it all the way to
       the community.
     - This last crossing asked you to use the site differently from the ones before
       it.
+    - You also got to see how the different parts of a bridge work together to carry
+      and transfer weight.
     - <b><#E09500>Remember those towers and how they helped support a crossing over
       a wider gap</color></b>.
     - You may encounter structures like that again.
-    - Now the route leads toward the <b><#E09500>Town River</color></b>.
-    - "Head for <b><#E09500>Town River</color></b> when you\u2019re ready."
+    - Now the route leads toward <b><#E09500>Town River</color></b>.
+    - Head there when you're ready.
     - Good work, {PlayerName}.
-    - 'If our paths cross again, I may still have something for you. '
+    - If our paths cross again, I may still have something for you.

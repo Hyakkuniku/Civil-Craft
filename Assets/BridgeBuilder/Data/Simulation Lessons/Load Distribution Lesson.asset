@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6f37df8d20f74e62a3e88f7fa41df9b0, type: 3}
+  m_Name: Load Distribution Lesson
+  m_EditorClassIdentifier:
+  panelTitle: LOAD DISTRIBUTION
+  minimumMessageDuration: 3.5
+  fadeDuration: 0.2
+  slideDistance: 24
+  enableSlowMotion: 1
+  simulationTimeScale: 0.5
+  vehicleEnteredProgress: 0.1
+  vehicleMidpointProgress: 0.5
+  vehicleNearEndProgress: 0.85
+  highStressThreshold: 0.7
+  vehicleStuckDelay: 5
+  simulationStarted: "Simulation started. Watch how different sections of the bridge respond as the jeep moves across."
+  liveLoadStarted: "The jeep's weight is transferring onto the roadway. Connected members share the load and carry it toward the supports."
+  vehicleEnteredBridge: "The live load has entered the bridge. Observe the surrounding members and supports, not only the section beneath the vehicle."
+  vehicleReachedMidpoint: "The vehicle is approaching the middle section. Observe how the surrounding sections and available support points respond to the load."
+  vehicleApproachingEnd: "The jeep is continuing toward the far side. Keep watching the whole bridge and its supports until the crossing is complete."
+  highStressDetected: "Orange or red members are using a large share of their capacity. Review how the design and support positions distribute the load."
+  stressLimitExceeded: "The bridge exceeded the contract's allowed stress. Review the heavily loaded regions and the arrangement of members and supports before retesting."
+  firstMemberBreak: "A structural member exceeded its capacity and failed. Observe how the remaining connected members respond as the load is redistributed."
+  vehicleStuck: "The jeep has stopped moving. Check roadway alignment, clearance, and the connected path across this area."
+  vehicleFailed: "The vehicle did not complete a safe crossing. Review the failed area and how its load is shared with the rest of the bridge."
+  bridgeSucceeded: "The required vehicle completed the crossing safely. The bridge carried its moving load through the full test."
+  simulationStopped: "Simulation stopped. Return to editing to review the support arrangement and adjust the design."

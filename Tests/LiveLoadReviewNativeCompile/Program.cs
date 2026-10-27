@@ -21,7 +21,7 @@ Compile(Path.Combine(Path.GetDirectoryName(response)!, "Assembly-CSharp-Editor.r
     "Assets/Editor/BuildTutorialWarningValidation.cs", "Assets/Editor/TutorialInstructionCopyValidation.cs",
     "Assets/Editor/ShopUnlockPointerValidation.cs", "Assets/Editor/AlmanacCloseButtonValidation.cs",
     "Assets/Editor/AlmanacCloseButtonAuthoring.cs", "Assets/Editor/BhanLolaStoryRepair.cs",
-    "Assets/Editor/TutorialObjectiveAuthoring.cs", "Assets/Editor/BhanObjectiveGuidanceAuthoring.cs", "Assets/Editor/ReedStoryAuthoring.cs", "Assets/Editor/VanceStoryAuthoring.cs", "Assets/Editor/MainContractSimulationLessonAuthoring.cs");
+    "Assets/Editor/TutorialObjectiveAuthoring.cs", "Assets/Editor/BhanObjectiveGuidanceAuthoring.cs", "Assets/Editor/ReedStoryAuthoring.cs", "Assets/Editor/VanceStoryAuthoring.cs", "Assets/Editor/MainContractSimulationLessonAuthoring.cs", "Assets/Editor/SilasStoryAuthoring.cs");
 Console.WriteLine("PASS: full runtime and Editor sources compile against Unity's actual references/defines. Only isolated Temp outputs were written; Unity assemblies and scenes were not changed.");
 
 void Compile(string path, string name, params string[] additionalSources)
