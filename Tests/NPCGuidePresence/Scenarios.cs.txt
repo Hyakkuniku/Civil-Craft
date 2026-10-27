@@ -1,0 +1,78 @@
+using System;
+using System.Collections.Generic;
+public static class Scenarios
+{
+    private static int checks;
+    private static void Require(bool value, string reason) { checks++; if (!value) throw new Exception(reason); }
+    private static GameObject Target() { var value = new GameObject(); value.transform.position = new Vector3(10, 0, 0); return value; }
+    private static PathGuider Guide(Transform target)
+    {
+        NPCSpawnConditionMonitor.available = true; NPCSpawnConditionMonitor.checks = 0;
+        TutorialManager.Instance = new TutorialManager(); Time.unscaledTime = 0;
+        return new PathGuider { player = new GameObject().transform, waypoints = new List<GuiderWaypoint> { new GuiderWaypoint { target = target } } };
+    }
+    private static NPCProgressionManager Progression(GameObject owner)
+    {
+        var value = new NPCProgressionManager { transform = owner.transform }; owner.components.Add(typeof(NPCProgressionManager), value); return value;
+    }
+    private static NPCContractGiver Giver(GameObject owner)
+    {
+        var value = new NPCContractGiver { transform = owner.transform }; owner.components.Add(typeof(NPCContractGiver), value); return value;
+    }
+    public static int Run()
+    {
+        var marker = Target(); marker.activeSelf = false;
+        var guide = Guide(marker.transform); guide.Tick();
+        Require(guide.generations == 1 && guide.Rocks == 1, "Inactive ordinary destination markers must remain routable.");
+        Require(NPCSpawnConditionMonitor.checks == 0, "Ordinary destinations must not consult NPC spawn rules.");
+        guide.Tick(); guide.Tick();
+        Require(marker.transform.parentLookups == 2, "NPC ownership must be discovered only once per target.");
+        var npc = Target(); var progression = Progression(npc); var giver = Giver(npc);
+        guide = Guide(npc.transform); guide.Tick();
+        Require(guide.generations == 1 && guide.HasRoute, "Live NPC must generate a guide.");
+        Require(npc.transform.parentLookups == 2, "NPC ownership should use two cached component lookups.");
+        npc.activeSelf = false; guide.Tick();
+        Require(guide.Rocks == 0 && !guide.HasRoute && guide.clears == 1, "Despawning an NPC must clear its old trail once.");
+        Require(guide.Index == 0 && TutorialManager.Instance.advances == 0, "Despawning must not complete a waypoint or tutorial.");
+        guide.Tick(); guide.Tick();
+        Require(guide.clears == 1 && guide.generations == 1 && npc.transform.parentLookups == 2, "Hidden NPC waits must neither rebuild nor rescan nor repeatedly clear.");
+        npc.activeSelf = true; guide.Tick();
+        Require(guide.generations == 2 && guide.Rocks == 1 && guide.Index == 0, "A real respawn must rebuild the same pending route.");
+        Require(npc.transform.parentLookups == 2, "A respawn of the same object must reuse its ownership cache.");
+        NPCSpawnConditionMonitor.available = false; guide.Tick();
+        Require(guide.Rocks == 0 && guide.Index == 0, "Spawn rules awaiting player data must hide the trail without completing it.");
+        NPCSpawnConditionMonitor.available = true; guide.Tick();
+        Require(guide.generations == 3, "A newly evaluated spawn condition must restore the trail.");
+        progression.enabled = false; guide.Tick();
+        Require(guide.Rocks == 0 && TutorialManager.Instance.advances == 0, "A disabled progression component is not an available NPC.");
+        progression.enabled = true; giver.enabled = false; guide.Tick();
+        Require(guide.Rocks == 0 && guide.Index == 0, "A disabled NPC interaction component must not remain a guide destination.");
+        giver.enabled = true; guide.Tick();
+        Require(guide.generations == 4, "Re-enabled NPC interaction must rebuild the route.");
+        progression.destroyed = true; guide.Tick(); guide.Tick();
+        Require(guide.Rocks == 0 && guide.generations == 4 && guide.Index == 0, "Destroyed cached progression must not become an ordinary destination.");
+        Require(npc.transform.parentLookups == 2, "Destroyed cached components must not trigger scene/component search loops.");
+        var single = Target(); var singleGiver = Giver(single); guide = Guide(single.transform); guide.Tick(); singleGiver.destroyed = true; guide.Tick();
+        Require(guide.Rocks == 0 && guide.generations == 1, "A destroyed giver-only NPC must retain its NPC classification.");
+        var parentNPC = Target(); Progression(parentNPC); var child = Target(); child.transform.parent = parentNPC.transform;
+        guide = Guide(child.transform); guide.Tick();
+        Require(guide.generations == 1 && NPCSpawnConditionMonitor.last == parentNPC.transform, "Child waypoints must check the controlling NPC's spawn rules.");
+        child.activeSelf = false; guide.Tick();
+        Require(guide.Rocks == 0, "An inactive NPC child target must not keep a trail.");
+        child.activeSelf = true; parentNPC.activeSelf = false; guide.Tick();
+        Require(guide.Index == 0 && guide.Rocks == 0, "Inactive NPC ancestry must not count as arrival.");
+        guide.player.position = child.transform.position; guide.Tick();
+        Require(TutorialManager.Instance.advances == 0 && guide.Index == 0, "Even standing at a hidden NPC's position must not advance tutorial.");
+        parentNPC.activeSelf = true; guide.Tick();
+        Require(TutorialManager.Instance.advances == 1 && guide.Index == 1, "A present NPC reached by the player must retain ordinary tutorial arrival.");
+        guide.Tick(); Require(TutorialManager.Instance.advances == 1, "An arrived NPC must not advance twice.");
+        var first = Target(); Progression(first); var second = Target(); second.activeSelf = false;
+        guide = Guide(first.transform); guide.Tick(); guide.waypoints[0].target = second.transform; guide.Tick();
+        Require(guide.generations == 2 && second.transform.parentLookups == 2, "A replacement ordinary target must invalidate old NPC ownership.");
+        Require(NPCSpawnConditionMonitor.checks == 1, "Ordinary replacement must stop applying the previous NPC's spawn gate.");
+        var early = Target(); Progression(early); early.activeSelf = false; guide = Guide(early.transform); guide.player.position = early.transform.position; guide.Tick();
+        Require(guide.generations == 0 && guide.clears == 0 && guide.Index == 0 && TutorialManager.Instance.advances == 0,
+            "An initially hidden NPC must neither create/clear nonexistent trail nor count as an arrival.");
+        return checks;
+    }
+}

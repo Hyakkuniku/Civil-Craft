@@ -97,6 +97,11 @@ public class PathGuider : MonoBehaviour
     private GameObject rockContainer; 
     
     private Transform currentlyTargetedWaypoint;
+    private Transform presenceCheckedTarget;
+    private NPCProgressionManager targetProgression;
+    private NPCContractGiver targetGiver;
+    private bool targetHadProgression;
+    private bool targetHadGiver;
     private float offPathTimer = 0f;
     private float nextAllowedRecalculationTime;
     private readonly List<Vector3> currentRoutePoints = new List<Vector3>();
@@ -137,6 +142,19 @@ public class PathGuider : MonoBehaviour
         }
         Transform currentTarget = waypoints[currentWaypointIndex].target;
         if (currentTarget == null) return;
+
+        if (!IsNPCGuideTargetPresent(currentTarget))
+        {
+            // A hidden NPC is not an arrival. Keep this waypoint pending so a
+            // legitimate respawn can rebuild its trail without advancing a lesson.
+            if (currentlyTargetedWaypoint != null || activeRocks.Count > 0 ||
+                rockContainer != null || currentRoutePoints.Count > 0) ClearRocks();
+            currentlyTargetedWaypoint = null;
+            wasAwayFromTrail = false;
+            offPathTimer = 0f;
+            nextAllowedRecalculationTime = 0f;
+            return;
+        }
 
         if (Vector3.Distance(player.position, currentTarget.position) <= stoppingDistance)
         {
@@ -180,6 +198,26 @@ public class PathGuider : MonoBehaviour
         
         // --- NEW: Call the perfectly synced animation every frame ---
         AnimateRocks();
+    }
+
+    private bool IsNPCGuideTargetPresent(Transform target)
+    {
+        if (presenceCheckedTarget != target)
+        {
+            presenceCheckedTarget = target;
+            targetProgression = target.GetComponentInParent<NPCProgressionManager>(true);
+            targetGiver = target.GetComponentInParent<NPCContractGiver>(true);
+            targetHadProgression = targetProgression != null;
+            targetHadGiver = targetGiver != null;
+        }
+        // Inactive ordinary destination markers remain valid. Only NPC-owned
+        // waypoints use spawn/interaction presence, never camera visibility.
+        if (!targetHadProgression && !targetHadGiver) return true;
+        return target.gameObject.activeInHierarchy &&
+            (!targetHadProgression || (targetProgression != null && targetProgression.isActiveAndEnabled)) &&
+            (!targetHadGiver || (targetGiver != null && targetGiver.isActiveAndEnabled)) &&
+            NPCSpawnConditionMonitor.CanShowNPCAttentionMarker(targetProgression != null
+                ? targetProgression.transform : targetGiver.transform);
     }
 
     // --- THE FIX: The new, completely shake-free centralized wave logic! ---

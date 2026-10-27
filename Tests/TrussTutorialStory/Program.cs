@@ -3,6 +3,8 @@ using System.Text;
 using System.Security.Cryptography;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis;
+using System.Reflection;
 
 internal static class Program
 {
@@ -11,7 +13,7 @@ internal static class Program
     private const string Quiz = "Assets/BridgeBuilder/Data/Quized/TrussBridgeQuiz.asset";
     private const string Truss = "Assets/BridgeBuilder/Data/Lessons/Truss.asset";
     private const string Equilibrium = "Assets/BridgeBuilder/Data/Lessons/Equilibruim.asset";
-    private static readonly string[] PhaseIds = { "Greetings", "LiveLoad", "WorkBench", "Give Contract Build Location 1", "DeadLoad", "Beam", "Build Tutorial 2", "Follow", "City", "Shopkeeper", "Go to Shopkeeper", "CollectMap", "Farewell", "Find Reed", "Delete", "Delete" };
+    private static readonly string[] PhaseIds = { "Greetings", "LiveLoad", "WorkBench", "Give Contract Build Location 1", "DeadLoad", "Beam", "Build Tutorial 2", "Follow", "City", "Shopkeeper", "Go to Shopkeeper", "CollectMap", "Farewell", "Find Reed", "Retired", "Despawned" };
     // Audited pre-migration first six serialized steps, canonicalized only for
     // whitespace/newline formatting. Includes messages, action gates, pointers,
     // screen/control fields and persistent events; never learned from new output.
@@ -65,6 +67,7 @@ internal static class Program
     {
         var giver = Class("Assets/Script/Client/NPCContractGIver.cs", "NPCContractGiver");
         var progression = Class("Assets/Script/Client/NPCProgressionManager.cs", "NPCProgressionManager");
+        RetirementSaveCompatibility(progression);
         var saves = Class("Assets/Script/Player/PlayerSave/PlayerDataManager.cs", "PlayerDataManager");
         var quiz = Class("Assets/Script/UI/Quizzes/QuizUIManager.cs", "QuizUIManager");
         string interaction = Method(giver, "Intract");
@@ -119,7 +122,92 @@ internal static class Program
         {
             string author = File.ReadAllText(storyPath);
             Check(!Regex.IsMatch(author, @"AddComponent\s*<\s*(?:NPCSpawnerCondition|PersistentFeatureGate|\w*Barrier\w*|\w*Gate\w*)\s*>"), "Story migration must not introduce the explicitly excluded world route gate.");
+            Check(!Regex.IsMatch(author, @"AddComponent\s*<\s*BuildLocationLessonTrigger\s*>"),
+                "Reapplying the story must not recreate the intentionally removed post-save Equilibrium popup.");
+            string applyStory = Method(Class("Assets/Editor/TrussTutorialStoryAuthoring.cs", "TrussTutorialStoryAuthoring"), "ApplyCanyon");
+            Check(applyStory.Contains("trigger.enabled = false") &&
+                applyStory.Contains("FindProperty(\"listenForSavedBridge\").boolValue = false"),
+                "An audited legacy duplicate review is disabled rather than re-enabled by migration.");
         }
+    }
+
+    private static void RetirementSaveCompatibility(ClassDeclarationSyntax progression)
+    {
+        Check(Method(progression, "TryRestoreSavedProgression").Contains("FindSavedPhaseIndex(savedState)"),
+            "Saved-phase restoration uses the narrow legacy Bhan retirement resolver.");
+        Check(Method(progression, "HasCompletedPhaseDialogue").Contains("FindSavedPhaseIndex(savedState)"),
+            "Dialogue completion uses the same saved index without collapsing legacy terminal progress.");
+        string fixture = """
+            using System;
+            using System.Collections.Generic;
+            public sealed class NPCProgressionPhase { public string phaseId; }
+            public sealed class NPCProgressionSaveData {
+                public string currentPhaseId; public int currentPhaseIndex; public bool wasTravelling;
+            }
+            public sealed class RetirementFixture {
+                public string progressionSaveId = "MainContractNPC";
+                public List<NPCProgressionPhase> phases = new List<NPCProgressionPhase>();
+                public int lookups;
+                public RetirementFixture() {
+                    for (int i = 0; i < 16; i++) phases.Add(new NPCProgressionPhase { phaseId = "phase" + i });
+                    phases[14].phaseId = "Retired"; phases[15].phaseId = "Despawned";
+                }
+                private int FindPhaseIndexById(string phaseId) { lookups++; return 101; }
+                // PRODUCTION_RESTORE
+                public int Resolve(NPCProgressionSaveData saved) { return FindSavedPhaseIndex(saved); }
+            }
+            public static class RetirementScenarios {
+                public static int Run() {
+                    int count = 0;
+                    void Assert(bool value, string message) {
+                        count++; if (!value) throw new InvalidOperationException(message);
+                    }
+                    void CheckCase(Action<RetirementFixture, NPCProgressionSaveData> configure, int expected) {
+                        var fixture = new RetirementFixture();
+                        var saved = new NPCProgressionSaveData { currentPhaseId = "Delete", currentPhaseIndex = 14, wasTravelling = true };
+                        configure(fixture, saved);
+                        string id = saved.currentPhaseId; int index = saved.currentPhaseIndex; bool travelling = saved.wasTravelling;
+                        int phaseCount = fixture.phases == null ? -1 : fixture.phases.Count;
+                        Assert(fixture.Resolve(saved) == expected, "Wrong legacy/normal phase resolution.");
+                        Assert(fixture.lookups == (expected == 101 ? 1 : 0), "Unrelated restore bypassed the existing ID lookup.");
+                        Assert(saved.currentPhaseId == id && saved.currentPhaseIndex == index && saved.wasTravelling == travelling &&
+                            (fixture.phases == null ? -1 : fixture.phases.Count) == phaseCount, "Restoration mutated save data or phase count.");
+                    }
+                    CheckCase((f,s) => {}, 14);
+                    CheckCase((f,s) => { s.currentPhaseIndex = 15; s.wasTravelling = false; }, 15);
+                    foreach (int index in new[] { -1, 0, 13, 16, 100 })
+                        CheckCase((f,s) => s.currentPhaseIndex = index, 101);
+                    CheckCase((f,s) => f.progressionSaveId = "OtherNPC", 101);
+                    CheckCase((f,s) => f.progressionSaveId = "maincontractnpc", 101);
+                    CheckCase((f,s) => f.progressionSaveId = null, 101);
+                    CheckCase((f,s) => s.currentPhaseId = "delete", 101);
+                    CheckCase((f,s) => s.currentPhaseId = "Retired", 101);
+                    CheckCase((f,s) => s.currentPhaseId = "Despawned", 101);
+                    CheckCase((f,s) => s.currentPhaseId = null, 101);
+                    CheckCase((f,s) => f.phases.Add(new NPCProgressionPhase()), 101);
+                    CheckCase((f,s) => f.phases.RemoveAt(15), 101);
+                    CheckCase((f,s) => f.phases[14].phaseId = "Custom", 101);
+                    CheckCase((f,s) => f.phases[15].phaseId = "Custom", 101);
+                    CheckCase((f,s) => f.phases[14] = null, 101);
+                    CheckCase((f,s) => f.phases[15] = null, 101);
+                    CheckCase((f,s) => f.phases = null, 101);
+                    CheckCase((f,s) => { f.phases[14].phaseId = "Delete"; f.phases[15].phaseId = "Delete"; }, 101);
+                    var empty = new RetirementFixture();
+                    Assert(empty.Resolve(null) == -1 && empty.lookups == 0, "Null save reached ID lookup.");
+                    return count;
+                }
+            }
+            """.Replace("// PRODUCTION_RESTORE", Method(progression, "FindSavedPhaseIndex"));
+        var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator)
+            .Select(path => MetadataReference.CreateFromFile(path));
+        var compilation = CSharpCompilation.Create("BhanRetirement_" + System.Guid.NewGuid().ToString("N"),
+            new[] { CSharpSyntaxTree.ParseText(fixture) }, references,
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        using MemoryStream output = new();
+        var emitted = compilation.Emit(output);
+        if (!emitted.Success) throw new InvalidOperationException(string.Join("\n", emitted.Diagnostics.Where(value => value.Severity == DiagnosticSeverity.Error)));
+        try { checks += (int)Assembly.Load(output.ToArray()).GetType("RetirementScenarios").GetMethod("Run").Invoke(null, null); }
+        catch (TargetInvocationException error) { throw new InvalidOperationException("Production legacy Bhan save restoration regression failed.", error.InnerException); }
     }
 
     private static void Assets()
@@ -152,7 +240,7 @@ internal static class Program
         Check(bhanMatches.Length == 1, "Saved Canyon scene has one exact MainContractNPC progression.");
         string bhan = bhanMatches[0].Groups["body"].Value;
         Match[] phases = Regex.Matches(bhan, @"(?ms)^  - phaseId: (?<id>[^\r\n]+)\r?\n(?<body>.*?)(?=^  - phaseId: |^  progressionSaveId:|\z)").Cast<Match>().ToArray();
-        Check(phases.Select(value => Scalar(value.Groups["id"].Value)).SequenceEqual(PhaseIds), "All 16 released Bhan phase IDs/indexes remain unchanged.");
+        Check(phases.Select(value => Scalar(value.Groups["id"].Value)).SequenceEqual(PhaseIds), "All 16 Bhan phase indices remain unchanged, with distinct Retired/Despawned terminal IDs.");
         string beam = phases[5].Groups["body"].Value, second = phases[6].Groups["body"].Value, follow = phases[7].Groups["body"].Value;
         Check(Regex.Matches(beam, @"(?m)^    - stepType: (\d+)").Select(value => int.Parse(value.Groups[1].Value)).SequenceEqual(new[] { 0, 0, 1, 0, 3, 0, 3 }),
             "Beam transition orders both conversations, Wood Beam, Truss introduction/lesson, then Equilibrium introduction/lesson.");
@@ -169,14 +257,10 @@ internal static class Program
         Check(follow.Contains("m_Target: {fileID: 2135021272}") && follow.Contains("m_MethodName: StartTutorial") &&
             Regex.IsMatch(follow, @"(?ms)^    onDialogueFinishedPhaseMove:\r?\n      npc: \{fileID: 650395270\}\r?\n      phaseId: City"), "Existing FollowProfessorBhan guide and City departure callbacks are retained after the sequence.");
 
-        string lessonGuid = Guid(Equilibrium);
         Match[] postSave = components.Where(value => value.Groups["body"].Value.Contains("guid: 54670a244ce45e04fbf60aaae95760ad") &&
             Regex.IsMatch(value.Groups["body"].Value, @"(?m)^  buildLocation: \{fileID: 358124909\}")).ToArray();
-        Check(postSave.Length == 1, "Exactly one post-save lesson trigger is assigned to the second training location.");
-        string trigger = postSave[0].Groups["body"].Value;
-        Check(Field(trigger, "m_Enabled") == "1" && Field(trigger, "listenForSavedBridge") == "1" &&
-            Field(trigger, "waitForGameplayPresentation") == "1" && Field(trigger, "triggerOnlyOnce") == "1" && trigger.Contains("guid: " + lessonGuid),
-            "Second-site saved bridge opens Equilibrium once, only after gameplay presentation is ready.");
+        Check(postSave.All(trigger => Field(trigger.Groups["body"].Value, "m_Enabled") == "0"),
+            "Tutorial 2 has no active post-save review trigger: Equilibrium is already introduced by Bhan before building.");
         string simulationGuid = Guid("Assets/BridgeBuilder/Data/Simulation Lessons/Truss Bridge Lesson.asset");
         Check(Regex.IsMatch(scene, @"(?ms)propertyPath: simulationLesson\r?\n      value: ?\r?\n      objectReference: \{fileID: 11400000, guid: " + simulationGuid), "The second site keeps its Truss simulation lesson override.");
         Match secondInstance = Regex.Match(scene, @"(?ms)^--- !u!1001 &262623509[^\r\n]*\r?\n(?<body>.*?)(?=^--- !u!|\z)");

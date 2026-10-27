@@ -67,9 +67,17 @@ public static class AlmanacCloseButtonValidation
             try
             {
                 Require(SceneManager.sceneCount == scenes.Length && SceneManager.GetActiveScene() == active, "Loaded scene setup changed.");
+                var sceneChanges = new List<string>();
                 for (int index = 0; index < scenes.Length; index++)
-                    Require(SceneManager.GetSceneAt(index) == scenes[index] && scenes[index].isDirty == dirty[index] &&
-                        scenes[index].GetRootGameObjects().SequenceEqual(roots[index]), "Source scene order/roots/dirty state changed.");
+                {
+                    Scene scene = scenes[index];
+                    if (SceneManager.GetSceneAt(index) != scene) sceneChanges.Add("Scene order changed at " + index + ": " + scene.path);
+                    if (scene.isDirty != dirty[index]) sceneChanges.Add(scene.path + " dirty " + dirty[index] + " -> " + scene.isDirty);
+                    if (!scene.GetRootGameObjects().SequenceEqual(roots[index])) sceneChanges.Add(scene.path + " roots changed: before [" +
+                        string.Join(", ", roots[index].Select(item => item != null ? item.name + "#" + item.GetInstanceID() : "destroyed")) + "] after [" +
+                        string.Join(", ", scene.GetRootGameObjects().Select(item => item.name + "#" + item.GetInstanceID())) + "]");
+                }
+                Require(sceneChanges.Count == 0, "Source scene order/roots/dirty state changed. " + string.Join("; ", sceneChanges));
                 Require(files.All(pair => Hash(pair.Key) == pair.Value), "Saved scene bytes changed.");
                 Require(Selection.activeObject == selected && Selection.objects.SequenceEqual(selection) && Time.timeScale == timeScale,
                     "Editor selection or time scale changed.");
@@ -94,6 +102,8 @@ public static class AlmanacCloseButtonValidation
         RectTransform sourcePanel = (RectTransform)source.Panel.transform;
         var originals = source.Panel.GetComponentsInChildren<Component>(true).Cast<Object>().Append(source).Distinct()
             .ToDictionary(item => item, EditorJsonUtility.ToJson);
+        var originalNames = originals.Keys.ToDictionary(item => item, Describe);
+        var reportedChanges = new HashSet<string>();
         var callbackJson = source.Panel.GetComponentsInChildren<Button>(true).ToDictionary(button => button, button => JsonUtility.ToJson(button.onClick));
         var tutorialJson = source.gameObject.scene.GetRootGameObjects().SelectMany(root => root.GetComponentsInChildren<TutorialSequence>(true))
             .ToDictionary(sequence => sequence, sequence => EditorJsonUtility.ToJson(sequence));
@@ -103,6 +113,25 @@ public static class AlmanacCloseButtonValidation
         var fonts = source.Panel.GetComponentsInChildren<TMP_Text>(true).Select(text => text.font).Append(font)
             .Where(item => item != null).Select(AssetDatabase.GetAssetPath).Where(path => !string.IsNullOrEmpty(path)).Distinct()
             .ToDictionary(path => path, AssetDatabase.GetAssetDependencyHash);
+        var fontObjects = source.Panel.GetComponentsInChildren<TMP_Text>(true).Select(text => text.font).Append(font)
+            .Where(item => item != null).Distinct().Cast<Object>().ToDictionary(item => item, EditorJsonUtility.ToJson);
+        var fontNames = fontObjects.Keys.ToDictionary(item => item, Describe);
+        bool initialSceneDirty = source.gameObject.scene.isDirty;
+        Action<string> checkpoint = phase =>
+        {
+            RecordObjectChanges(originals, originalNames, source.gameObject.scene.name, phase, report, reportedChanges);
+            RecordObjectChanges(fontObjects, fontNames, source.gameObject.scene.name, phase, report, reportedChanges);
+            if (source.gameObject.scene.isDirty != initialSceneDirty && reportedChanges.Add("scene dirty:" + source.gameObject.scene.path))
+                report.AppendLine("SOURCE CHANGE at " + phase + ": " + source.gameObject.scene.path +
+                    " dirty " + initialSceneDirty + " -> " + source.gameObject.scene.isDirty);
+            foreach (var pair in fonts)
+            {
+                Hash128 current = AssetDatabase.GetAssetDependencyHash(pair.Key);
+                string key = "font hash:" + pair.Key;
+                if (current != pair.Value && reportedChanges.Add(key))
+                    report.AppendLine("SOURCE CHANGE at " + phase + ": font dependency " + pair.Key + " " + pair.Value + " -> " + current);
+            }
+        };
         CanvasScaler sourceScaler = source.Panel.GetComponentInParent<CanvasScaler>(true);
         Vector2 reference = sourceScaler != null ? sourceScaler.referenceResolution : new Vector2(1920, 1080);
         float match = sourceScaler != null ? sourceScaler.matchWidthOrHeight : .5f;
@@ -110,12 +139,14 @@ public static class AlmanacCloseButtonValidation
         RenderTexture previous = RenderTexture.active;
         try
         {
-            var root = new GameObject("Detached Almanac CLOSE preview", typeof(RectTransform), typeof(Canvas), typeof(GraphicRaycaster));
+            var root = EditorUtility.CreateGameObjectWithHideFlags("Detached Almanac CLOSE preview", HideFlags.HideAndDontSave,
+                typeof(RectTransform), typeof(Canvas), typeof(GraphicRaycaster));
             SceneManager.MoveGameObjectToScene(root, preview);
             var canvasRect = (RectTransform)root.transform; canvasRect.localScale = Vector3.one * .01f;
             Canvas canvas = root.GetComponent<Canvas>(); canvas.renderMode = RenderMode.WorldSpace;
             var map = new Dictionary<Transform, RectTransform>();
             RectTransform panel = CloneArt(sourcePanel, canvasRect, map);
+            checkpoint("after graphic-only clone");
             panel.anchorMin = Vector2.zero; panel.anchorMax = Vector2.one;
             panel.offsetMin = panel.offsetMax = Vector2.zero; panel.localScale = Vector3.one; panel.localRotation = Quaternion.identity;
             panel.gameObject.SetActive(true);
@@ -139,7 +170,9 @@ public static class AlmanacCloseButtonValidation
             string calls = JsonUtility.ToJson(close.onClick);
             Transform parentBefore = close.transform.parent;
             int buttonId = close.GetInstanceID(), rectId = close.transform.GetInstanceID();
+            PrepareOwnedArt(closeRect);
             RectTransform control = AlmanacCloseButtonStyle.Apply(close, font);
+            checkpoint("after first detached styling");
             Require(control != null && close.GetInstanceID() == buttonId && close.transform.GetInstanceID() == rectId &&
                 close.transform.parent == parentBefore && JsonUtility.ToJson(close.onClick) == calls,
                 "Styling replaced the original control/target/callback or reparented the tutorial's button reference.");
@@ -149,7 +182,8 @@ public static class AlmanacCloseButtonValidation
                 "Repeated styling duplicates controls or changes the existing callback.");
             Require(close.GetComponent<TutorialHoldToSkip>() == null, "Almanac CLOSE must stay an ordinary tap, not a hold-to-skip control.");
             ValidateDirectFixture(canvasRect, font, sourceClose);
-            var cameraObject = new GameObject("Detached Almanac CLOSE camera", typeof(Camera));
+            checkpoint("after direct detached fixture");
+            var cameraObject = EditorUtility.CreateGameObjectWithHideFlags("Detached Almanac CLOSE camera", HideFlags.HideAndDontSave, typeof(Camera));
             SceneManager.MoveGameObjectToScene(cameraObject, preview);
             Camera camera = cameraObject.GetComponent<Camera>(); camera.scene = preview; camera.useOcclusionCulling = false;
             camera.orthographic = true; camera.nearClipPlane = .1f; camera.farClipPlane = 100;
@@ -166,8 +200,8 @@ public static class AlmanacCloseButtonValidation
                 var texture = new RenderTexture(screen.x, screen.y, 24); texture.Create(); camera.targetTexture = texture;
                 try
                 {
-                    Canvas.ForceUpdateCanvases();
-                    foreach (TMP_Text text in panel.GetComponentsInChildren<TMP_Text>(true)) text.ForceMeshUpdate(true, true);
+                    RebuildDetachedGraphics(panel);
+                    checkpoint("after canvas/text layout " + screen.x + "x" + screen.y);
                     TMP_Text label = ValidateStyledControl(close, control, font, canvasRect, camera);
                     Rect buttonBounds = Bounds(control, camera);
                     if (source.categories != null)
@@ -188,7 +222,8 @@ public static class AlmanacCloseButtonValidation
                     // render before GraphicRaycaster has valid graphic depths.
                     // Keep a PNG even on a later hit-test failure for diagnosis.
                     string path = "Temp/AlmanacCloseButton/" + source.gameObject.scene.name + "-CLOSE-" + screen.x + "x" + screen.y + ".png";
-                    Render(camera, texture, path);
+                    int inkPixels = Render(camera, texture, path, label);
+                    checkpoint("after native render " + screen.x + "x" + screen.y);
                     var hits = new List<RaycastResult>();
                     Vector2 pointerPosition = RectTransformUtility.WorldToScreenPoint(camera, closeRect.TransformPoint(closeRect.rect.center));
                     root.GetComponent<GraphicRaycaster>().Raycast(new PointerEventData(null) {
@@ -207,14 +242,20 @@ public static class AlmanacCloseButtonValidation
                             " cull=" + graphic.canvasRenderer.cull + " raycast=" + graphic.raycastTarget)) + "]");
                     if (screen == screens[0]) firstPosition = control.anchoredPosition;
                     report.AppendLine("PASS: " + source.gameObject.scene.name + " " + screen.x + "x" + screen.y +
-                        "; existing close Button/Rect/callback preserved, SKIP-style cream/brown CLOSE, complete readable glyphs, native tap target, no tab/header overlap and in-bounds layout. " + path);
+                        "; existing close Button/Rect/callback preserved, SKIP-style cream/brown CLOSE, complete readable glyphs (" + inkPixels +
+                        " rendered ink pixels), native tap target, no tab/header overlap and in-bounds layout. " + path);
                 }
-                finally { camera.targetTexture = null; texture.Release(); Object.DestroyImmediate(texture); }
+                finally
+                {
+                    camera.targetTexture = null;
+                    RenderTexture.active = previous;
+                    texture.Release(); Object.DestroyImmediate(texture);
+                }
             }
             Vector2Int first = screens[0];
             float firstScale = Mathf.Pow(first.x / reference.x, 1f - match) * Mathf.Pow(first.y / reference.y, match);
             canvasRect.sizeDelta = new Vector2(first.x, first.y) / firstScale;
-            Canvas.ForceUpdateCanvases();
+            RebuildDetachedGraphics(panel);
             Require(Vector2.Distance(firstPosition, control.anchoredPosition) < .01f && JsonUtility.ToJson(close.onClick) == calls,
                 "Resize/repeated rendering changed CLOSE placement or its persistent callback.");
             report.AppendLine("PASS: " + source.gameObject.scene.name + " wrapped and direct-prefab-style controls are idempotent, preserve callbacks, retain tutorial target identity and remain single-tap actions.");
@@ -223,6 +264,7 @@ public static class AlmanacCloseButtonValidation
         {
             RenderTexture.active = previous;
             EditorSceneManager.ClosePreviewScene(preview);
+            checkpoint("after preview cleanup");
             Require(originals.All(pair => pair.Key != null && EditorJsonUtility.ToJson(pair.Key) == pair.Value) &&
                 callbackJson.All(pair => pair.Key != null && JsonUtility.ToJson(pair.Key.onClick) == pair.Value) &&
                 tutorialJson.All(pair => pair.Key != null && EditorJsonUtility.ToJson(pair.Key) == pair.Value) &&
@@ -233,11 +275,13 @@ public static class AlmanacCloseButtonValidation
 
     private static void ValidateDirectFixture(RectTransform parent, TMP_FontAsset font, Button source)
     {
-        var owner = new GameObject("Direct prefab-style CLOSE fixture", typeof(RectTransform), typeof(Image), typeof(Button));
+        var owner = EditorUtility.CreateGameObjectWithHideFlags("Direct prefab-style CLOSE fixture", HideFlags.HideAndDontSave,
+            typeof(RectTransform), typeof(Image), typeof(Button));
         owner.transform.SetParent(parent, false);
         Button button = owner.GetComponent<Button>(); EditorUtility.CopySerialized(source, button);
         button.targetGraphic = owner.GetComponent<Image>();
         string calls = JsonUtility.ToJson(button.onClick);
+        PrepareOwnedArt((RectTransform)owner.transform);
         RectTransform control = AlmanacCloseButtonStyle.Apply(button, font);
         int count = owner.GetComponentsInChildren<Transform>(true).Length;
         Require(control == owner.transform && AlmanacCloseButtonStyle.Apply(button, font) == control &&
@@ -271,12 +315,16 @@ public static class AlmanacCloseButtonValidation
             "CLOSE no longer uses the SKIP button's 190x76 presentation.");
         foreach (TMP_CharacterInfo character in label.textInfo.characterInfo.Take(label.textInfo.characterCount))
             if (character.isVisible) Require(Contains(bounds, GlyphBounds(label, character, camera)), "A CLOSE glyph is clipped by its button.");
+        Rect glyphBounds = WordBounds(label, camera);
+        Require(glyphBounds.width >= 40f && glyphBounds.height >= 10f,
+            "CLOSE glyphs project too small to read: " + glyphBounds + "; orthographic=" + label.isOrthographic);
         return label;
     }
 
     private static RectTransform CloneArt(RectTransform source, Transform parent, Dictionary<Transform, RectTransform> map)
     {
-        var item = new GameObject(source.name, typeof(RectTransform)); item.layer = source.gameObject.layer;
+        var item = EditorUtility.CreateGameObjectWithHideFlags(source.name, HideFlags.HideAndDontSave, typeof(RectTransform));
+        item.layer = source.gameObject.layer;
         var rect = (RectTransform)item.transform; rect.SetParent(parent, false);
         rect.anchorMin = source.anchorMin; rect.anchorMax = source.anchorMax; rect.pivot = source.pivot;
         rect.sizeDelta = source.sizeDelta; rect.anchoredPosition = source.anchoredPosition;
@@ -296,6 +344,10 @@ public static class AlmanacCloseButtonValidation
         else if (text != null)
         {
             TextMeshProUGUI copy = item.AddComponent<TextMeshProUGUI>(); EditorUtility.CopySerialized(text, copy); copy.raycastTarget = false;
+            // UGUI Awake sets this true before rendering. CopySerialized can
+            // overwrite that invariant with an inactive source's pre-Awake false,
+            // shrinking the detached glyph mesh to one tenth of its proper size.
+            copy.isOrthographic = true;
         }
         foreach (Transform child in source)
             if (child is RectTransform childRect) CloneArt(childRect, rect, map);
@@ -303,11 +355,47 @@ public static class AlmanacCloseButtonValidation
         return rect;
     }
 
+    private static void PrepareOwnedArt(RectTransform button)
+    {
+        // Prepare only detached fixtures. The runtime helper can otherwise create
+        // a root in the Editor's real active scene before parenting it here.
+        foreach (string name in new[] { "Cream Face", "Label" })
+            if (button.Find(name) == null)
+            {
+                GameObject child = EditorUtility.CreateGameObjectWithHideFlags(name, HideFlags.HideAndDontSave, typeof(RectTransform));
+                child.layer = button.gameObject.layer;
+                child.transform.SetParent(button, false);
+            }
+    }
+
+    private static void RebuildDetachedGraphics(RectTransform panel)
+    {
+        // ForceUpdateCanvases drains global layout/TMP queues, including the live
+        // authored scenes. This fixture owns only copied graphics, so rebuild
+        // those objects directly and never normalize source text or scrollbars.
+        LayoutRebuilder.ForceRebuildLayoutImmediate(panel);
+        foreach (TMP_Text text in panel.GetComponentsInChildren<TMP_Text>(true)) text.ForceMeshUpdate(true, true);
+        foreach (Graphic graphic in panel.GetComponentsInChildren<Graphic>(false)) graphic.Rebuild(CanvasUpdate.PreRender);
+    }
+
     private static Rect GlyphBounds(TMP_Text text, TMP_CharacterInfo character, Camera camera)
     {
         Vector2 min = RectTransformUtility.WorldToScreenPoint(camera, text.transform.TransformPoint(character.bottomLeft));
         Vector2 max = RectTransformUtility.WorldToScreenPoint(camera, text.transform.TransformPoint(character.topRight));
         return Rect.MinMaxRect(Mathf.Min(min.x, max.x), Mathf.Min(min.y, max.y), Mathf.Max(min.x, max.x), Mathf.Max(min.y, max.y));
+    }
+    private static Rect WordBounds(TMP_Text text, Camera camera)
+    {
+        TMP_CharacterInfo[] visible = text.textInfo.characterInfo.Take(text.textInfo.characterCount).Where(character => character.isVisible).ToArray();
+        Require(visible.Length == 5, "CLOSE must contain all five visible glyphs.");
+        Rect bounds = GlyphBounds(text, visible[0], camera);
+        foreach (TMP_CharacterInfo character in visible.Skip(1))
+        {
+            Rect glyph = GlyphBounds(text, character, camera);
+            bounds = Rect.MinMaxRect(Mathf.Min(bounds.xMin, glyph.xMin), Mathf.Min(bounds.yMin, glyph.yMin),
+                Mathf.Max(bounds.xMax, glyph.xMax), Mathf.Max(bounds.yMax, glyph.yMax));
+        }
+        return bounds;
     }
     private static Rect Bounds(RectTransform rect, Camera camera)
     {
@@ -323,6 +411,34 @@ public static class AlmanacCloseButtonValidation
         for (Transform current = transform; current != null; current = current.parent) names.Push(current.name);
         return string.Join("/", names);
     }
+    private static string Describe(Object item)
+    {
+        var component = item as Component;
+        string location = component != null ? component.gameObject.scene.path + ":" + Hierarchy(component.transform) : AssetDatabase.GetAssetPath(item);
+        return location + " [" + item.GetType().Name + "#" + item.GetInstanceID() + "]";
+    }
+    private static void RecordObjectChanges(Dictionary<Object, string> snapshots, Dictionary<Object, string> names,
+        string scene, string phase, StringBuilder report, HashSet<string> reported)
+    {
+        foreach (var pair in snapshots)
+        {
+            string after = pair.Key != null ? EditorJsonUtility.ToJson(pair.Key) : "<destroyed>";
+            if (after == pair.Value || !reported.Add(names[pair.Key])) continue;
+            string directory = "Temp/AlmanacCloseButton/SourceChanges";
+            Directory.CreateDirectory(directory);
+            string stem = directory + "/" + scene + "-" + reported.Count;
+            File.WriteAllText(stem + "-before.json", pair.Value);
+            File.WriteAllText(stem + "-after.json", after);
+            int offset = 0, limit = Math.Min(pair.Value.Length, after.Length);
+            while (offset < limit && pair.Value[offset] == after[offset]) offset++;
+            int start = Math.Max(0, offset - 80);
+            string beforePart = pair.Value.Substring(start, Math.Min(240, pair.Value.Length - start));
+            string afterPart = after.Substring(Math.Min(start, after.Length), Math.Min(240, after.Length - Math.Min(start, after.Length)));
+            report.AppendLine("SOURCE CHANGE at " + phase + ": " + names[pair.Key] + "; first difference at " + offset +
+                "; before=" + beforePart.Replace('\n', ' ').Replace('\r', ' ') +
+                "; after=" + afterPart.Replace('\n', ' ').Replace('\r', ' ') + "; full JSON: " + stem + "-{before,after}.json");
+        }
+    }
     private static bool Contains(Rect outer, Rect inner) => inner.xMin >= outer.xMin - .5f && inner.yMin >= outer.yMin - .5f &&
         inner.xMax <= outer.xMax + .5f && inner.yMax <= outer.yMax + .5f;
     private static bool Same(Color value, Color32 expected)
@@ -330,7 +446,7 @@ public static class AlmanacCloseButtonValidation
         Color32 actual = value;
         return actual.r == expected.r && actual.g == expected.g && actual.b == expected.b && actual.a == expected.a;
     }
-    private static void Render(Camera camera, RenderTexture target, string path)
+    private static int Render(Camera camera, RenderTexture target, string path, TMP_Text label)
     {
         if (UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline == null) camera.Render();
         else UnityEngine.Rendering.RenderPipeline.SubmitRenderRequest(camera,
@@ -341,6 +457,25 @@ public static class AlmanacCloseButtonValidation
         {
             pixels.ReadPixels(new Rect(0, 0, target.width, target.height), 0, 0); pixels.Apply();
             Directory.CreateDirectory("Temp/AlmanacCloseButton"); File.WriteAllBytes(path, pixels.EncodeToPNG());
+            Color32[] colors = pixels.GetPixels32();
+            int totalInk = 0;
+            foreach (TMP_CharacterInfo character in label.textInfo.characterInfo.Take(label.textInfo.characterCount).Where(character => character.isVisible))
+            {
+                Rect glyph = GlyphBounds(label, character, camera);
+                int ink = 0;
+                for (int y = Mathf.Max(0, Mathf.FloorToInt(glyph.yMin)); y < Mathf.Min(target.height, Mathf.CeilToInt(glyph.yMax)); y++)
+                    for (int x = Mathf.Max(0, Mathf.FloorToInt(glyph.xMin)); x < Mathf.Min(target.width, Mathf.CeilToInt(glyph.xMax)); x++)
+                    {
+                        Color32 pixel = colors[y * target.width + x];
+                        if (pixel.r < 190 && pixel.g < 145 && pixel.b < 105 && pixel.r > pixel.g + 15 && pixel.g > pixel.b + 5) ink++;
+                    }
+                Require(ink >= 3, "A rendered CLOSE glyph has insufficient visible ink: " + character.character + ", pixels=" + ink + ". " + path);
+                totalInk += ink;
+            }
+            Rect word = WordBounds(label, camera);
+            Require(totalInk >= Mathf.Max(40, Mathf.RoundToInt(word.width * word.height * .05f)),
+                "Rendered CLOSE glyphs have insufficient visible ink: " + totalInk + ". " + path);
+            return totalInk;
         }
         finally { Object.DestroyImmediate(pixels); }
     }

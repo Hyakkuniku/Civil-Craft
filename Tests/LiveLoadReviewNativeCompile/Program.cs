@@ -12,11 +12,12 @@ string folder = Path.Combine(root, "Temp/LiveLoadReviewNativeCompile");
 Directory.CreateDirectory(folder);
 Compile(response, "Assembly-CSharp", "Assets/Script/Level/Tutorial/BuildTutorialPointerLayout.cs",
     "Assets/Script/Level/Tutorial/TutorialWarningLayout.cs", "Assets/Script/Level/Tutorial/TutorialInstructionText.cs",
-    "Assets/Script/UI/Almanac/AlmanacCloseButtonStyle.cs");
+    "Assets/Script/UI/Almanac/AlmanacCloseButtonStyle.cs", "Assets/Script/Client/NPCStoryHandoff.cs");
 Compile(Path.Combine(Path.GetDirectoryName(response)!, "Assembly-CSharp-Editor.rsp"), "Assembly-CSharp-Editor",
     "Assets/Editor/LiveLoadReviewGuidanceValidation.cs", "Assets/Editor/BeamReviewRefinementAuthoring.cs", "Assets/Editor/BuildTutorialPointerValidation.cs",
     "Assets/Editor/BuildTutorialWarningValidation.cs", "Assets/Editor/TutorialInstructionCopyValidation.cs",
-    "Assets/Editor/ShopUnlockPointerValidation.cs", "Assets/Editor/AlmanacCloseButtonValidation.cs");
+    "Assets/Editor/ShopUnlockPointerValidation.cs", "Assets/Editor/AlmanacCloseButtonValidation.cs",
+    "Assets/Editor/AlmanacCloseButtonAuthoring.cs", "Assets/Editor/BhanLolaStoryRepair.cs");
 Console.WriteLine("PASS: full runtime and Editor sources compile against Unity's actual references/defines. Only isolated Temp outputs were written; Unity assemblies and scenes were not changed.");
 
 void Compile(string path, string name, params string[] additionalSources)

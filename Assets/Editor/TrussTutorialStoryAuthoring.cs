@@ -19,7 +19,7 @@ public static class TrussTutorialStoryAuthoring
     private const string Canyon = "Assets/Scenes/CanyonCrossing.unity";
     private const string Data = "Assets/BridgeBuilder/Data/";
     private const string QuizStepId = "truss-bridge-engineering-assessment-v1";
-    private static readonly string[] PhaseIds = { "Greetings", "LiveLoad", "WorkBench", "Give Contract Build Location 1", "DeadLoad", "Beam", "Build Tutorial 2", "Follow", "City", "Shopkeeper", "Go to Shopkeeper", "CollectMap", "Farewell", "Find Reed", "Delete", "Delete" };
+    private static readonly string[] PhaseIds = { "Greetings", "LiveLoad", "WorkBench", "Give Contract Build Location 1", "DeadLoad", "Beam", "Build Tutorial 2", "Follow", "City", "Shopkeeper", "Go to Shopkeeper", "CollectMap", "Farewell", "Find Reed", "Retired", "Despawned" };
     private static readonly FieldInfo PhasesField = typeof(NPCProgressionManager).GetField("phases", BindingFlags.Instance | BindingFlags.NonPublic);
     private static double nextPoll;
     static TrussTutorialStoryAuthoring() { EditorApplication.update += Poll; }
@@ -234,22 +234,19 @@ public static class TrussTutorialStoryAuthoring
         site.ApplyModifiedProperties();
         PrefabUtility.RecordPrefabInstancePropertyModifications(location);
         BuildLocationLessonTrigger trigger = location.GetComponent<BuildLocationLessonTrigger>();
-        if (trigger == null) trigger = Undo.AddComponent<BuildLocationLessonTrigger>(location.gameObject);
-        Undo.RecordObject(trigger, "Review Equilibrium after saving the Truss Bridge");
-        var serialized = new SerializedObject(trigger);
-        LessonData equilibrium = Load<LessonData>(Data + "Lessons/Equilibruim.asset");
-        serialized.FindProperty("buildLocation").objectReferenceValue = location;
-        serialized.FindProperty("lesson").objectReferenceValue = equilibrium;
-        var list = serialized.FindProperty("lessons");
-        list.arraySize = 1;
-        list.GetArrayElementAtIndex(0).objectReferenceValue = equilibrium;
-        serialized.FindProperty("listenForSavedBridge").boolValue = true;
-        serialized.FindProperty("triggerOnlyOnce").boolValue = true;
-        serialized.FindProperty("waitForGameplayPresentation").boolValue = true;
-        serialized.ApplyModifiedProperties();
-        trigger.enabled = true;
-        EditorUtility.SetDirty(trigger);
-        EditorUtility.SetDirty(location);
+        // Bhan already introduces Equilibrium before this bridge. Do not add
+        // another review after Save & Continue, including on future migrations.
+        // Preflight permits only the audited old Equilibrium trigger here.
+        if (trigger != null)
+        {
+            Undo.RecordObject(trigger, "Disable duplicate post-save Equilibrium review");
+            var serialized = new SerializedObject(trigger);
+            serialized.FindProperty("listenForSavedBridge").boolValue = false;
+            serialized.ApplyModifiedProperties();
+            trigger.enabled = false;
+            EditorUtility.SetDirty(trigger);
+            PrefabUtility.RecordPrefabInstancePropertyModifications(trigger);
+        }
     }
 
     private static void ValidateCanyon(Scene scene, StringBuilder report)
@@ -266,11 +263,11 @@ public static class TrussTutorialStoryAuthoring
             !follow.repeatDialogue || !follow.playDialogueOnArrival || !string.IsNullOrEmpty(follow.unlockFeatureIdAfterDialogue) || follow.showFeatureCollectPopup)
             throw new InvalidOperationException("The assessment must precede departure, support legacy Follow saves, and grant no extra reward.");
         BuildLocation location = phases[6].targetBuildLocation;
-        var trigger = new SerializedObject(location.GetComponent<BuildLocationLessonTrigger>());
-        if (location.RestartGuidedTutorialOnFailure || !trigger.FindProperty("listenForSavedBridge").boolValue ||
-            !trigger.FindProperty("waitForGameplayPresentation").boolValue)
-            throw new InvalidOperationException("Tutorial 2 must preserve editing on failure and defer the saved-bridge Equilibrium review until gameplay resumes.");
-        report.AppendLine("PASS: Wood Beam > Truss lesson > Equilibrium lesson > 400 kg contract > guided truss > save/review > turn-in > five-question assessment > existing City departure.");
+        if (location.RestartGuidedTutorialOnFailure)
+            throw new InvalidOperationException("Tutorial 2 must preserve editing on failure.");
+        if (location.GetComponents<BuildLocationLessonTrigger>().Any(trigger => trigger.enabled))
+            throw new InvalidOperationException("Equilibrium is introduced by Bhan before building; its duplicate post-save review must remain removed or disabled.");
+        report.AppendLine("PASS: Wood Beam > Truss lesson > Equilibrium lesson > 400 kg contract > guided truss > save > turn-in > five-question assessment > existing City departure. No duplicate post-save Equilibrium popup.");
         report.AppendLine("PASS: assessment accepts any submitted score, no extra rewards; pre-existing Follow saves can access it, City+ saves are not rewound.");
     }
 

@@ -391,7 +391,7 @@ public class NPCProgressionManager : MonoBehaviour
             return false;
         }
 
-        int savedPhaseIndex = FindPhaseIndexById(savedState.currentPhaseId);
+        int savedPhaseIndex = FindSavedPhaseIndex(savedState);
         if (savedPhaseIndex < 0) savedPhaseIndex = savedState.currentPhaseIndex;
         if (savedPhaseIndex > phaseIndex) return true;
 
@@ -725,7 +725,7 @@ public class NPCProgressionManager : MonoBehaviour
 
         wasTravellingWhenSaved = savedState.wasTravelling;
 
-        int idMatch = FindPhaseIndexById(savedState.currentPhaseId);
+        int idMatch = FindSavedPhaseIndex(savedState);
         if (idMatch >= 0)
         {
             resolvedIndex = idMatch;
@@ -742,6 +742,26 @@ public class NPCProgressionManager : MonoBehaviour
         }
 
         return true;
+    }
+
+    private int FindSavedPhaseIndex(NPCProgressionSaveData savedState)
+    {
+        if (savedState == null) return -1;
+
+        // Canyon Bhan originally shipped with two unused terminal phases named
+        // Delete. Keep each old save at its own index after assigning unique IDs;
+        // matching only one renamed ID would incorrectly collapse index 15 to 14.
+        if (string.Equals(progressionSaveId, "MainContractNPC", System.StringComparison.Ordinal) &&
+            string.Equals(savedState.currentPhaseId, "Delete", System.StringComparison.Ordinal) &&
+            (savedState.currentPhaseIndex == 14 || savedState.currentPhaseIndex == 15) &&
+            phases != null && phases.Count == 16 && phases[14] != null && phases[15] != null &&
+            string.Equals(phases[14].phaseId, "Retired", System.StringComparison.Ordinal) &&
+            string.Equals(phases[15].phaseId, "Despawned", System.StringComparison.Ordinal))
+        {
+            return savedState.currentPhaseIndex;
+        }
+
+        return FindPhaseIndexById(savedState.currentPhaseId);
     }
 
     private int FindPhaseIndexById(string phaseId)

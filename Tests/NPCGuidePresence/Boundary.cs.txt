@@ -1,0 +1,94 @@
+using System;
+using System.Collections.Generic;
+
+public class UnityObject
+{
+    public bool destroyed;
+    public static bool operator ==(UnityObject a, UnityObject b) => ReferenceEquals(a, b) ||
+        ((ReferenceEquals(a, null) || a.destroyed) && (ReferenceEquals(b, null) || b.destroyed));
+    public static bool operator !=(UnityObject a, UnityObject b) => !(a == b);
+    public override bool Equals(object other) => ReferenceEquals(this, other);
+    public override int GetHashCode() => base.GetHashCode();
+}
+public struct Vector3
+{
+    public float x, y, z;
+    public Vector3(float x, float y, float z) { this.x = x; this.y = y; this.z = z; }
+    public static float Distance(Vector3 a, Vector3 b) => MathF.Sqrt((a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y)+(a.z-b.z)*(a.z-b.z));
+}
+public class GameObject : UnityObject
+{
+    public bool activeSelf = true;
+    public Transform transform;
+    public Dictionary<Type, UnityObject> components = new Dictionary<Type, UnityObject>();
+    public bool activeInHierarchy => activeSelf && (transform.parent == null || transform.parent.gameObject.activeInHierarchy);
+    public GameObject() { transform = new Transform(this); }
+    public static GameObject FindGameObjectWithTag(string tag) => null;
+}
+public class Transform : UnityObject
+{
+    public GameObject gameObject;
+    public Transform parent;
+    public Vector3 position;
+    public int parentLookups;
+    public Transform(GameObject owner) { gameObject = owner; }
+    public T GetComponentInParent<T>(bool includeInactive) where T : UnityObject
+    {
+        parentLookups++;
+        for (Transform item = this; item != null; item = item.parent)
+            if (item.gameObject.components.TryGetValue(typeof(T), out UnityObject value) && value != null) return (T)value;
+        return null;
+    }
+}
+public class NPCProgressionManager : UnityObject
+{
+    public bool enabled = true;
+    public Transform transform;
+    public bool isActiveAndEnabled => !destroyed && enabled && transform.gameObject.activeInHierarchy;
+}
+public class NPCContractGiver : UnityObject
+{
+    public bool enabled = true;
+    public Transform transform;
+    public bool isActiveAndEnabled => !destroyed && enabled && transform.gameObject.activeInHierarchy;
+}
+public static class NPCSpawnConditionMonitor
+{
+    public static bool available = true;
+    public static int checks;
+    public static Transform last;
+    public static bool CanShowNPCAttentionMarker(Transform target) { checks++; last = target; return available; }
+}
+public class TutorialManager
+{
+    public static TutorialManager Instance = new TutorialManager();
+    public int advances;
+    public void ShowNextStep() { advances++; }
+}
+public static class Time { public static float unscaledDeltaTime = .016f, unscaledTime; }
+public class GuiderWaypoint { public Transform target; public bool advancesTutorial = true; }
+public class PathGuider
+{
+    public Transform player;
+    public List<GuiderWaypoint> waypoints;
+    public float stoppingDistance = 2;
+    private int currentWaypointIndex;
+    private List<int> activeRocks = new List<int>();
+    private GameObject rockContainer;
+    private List<Vector3> currentRoutePoints = new List<Vector3>();
+    private bool wasAwayFromTrail;
+    private float offPathTimer, nextAllowedRecalculationTime, offPathCheckInterval = .5f;
+    public int clears, generations, reconnects, trims, animations;
+    public int Index => currentWaypointIndex;
+    public int Rocks => activeRocks.Count;
+    public bool HasRoute => currentlyTargetedWaypoint != null;
+    public void Tick() { Update(); }
+    private void EnsureNavMeshUpdateSubscription() { }
+    private void ClearRocks() { clears++; activeRocks.Clear(); currentRoutePoints.Clear(); rockContainer = null; }
+    private void GenerateRockPath(Transform target) { generations++; activeRocks.Add(1); currentRoutePoints.Add(target.position); rockContainer = new GameObject(); }
+    private void GeneratePathBackToTrail(Transform target) { reconnects++; }
+    private bool IsAwayFromVisibleTrail() => false;
+    private void TrimTraversedTrail() { trims++; }
+    private void AnimateRocks() { animations++; }
+    // ACTUAL_MEMBERS
+}
