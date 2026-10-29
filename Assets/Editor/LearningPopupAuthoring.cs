@@ -1,391 +1,346 @@
 #if UNITY_EDITOR
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.RegularExpressions;
 using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
-using UnityEngine.Rendering;
-using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using Object = UnityEngine.Object;
 
-/// <summary>Authors the shared reference layout, preserving lesson/reward callbacks.</summary>
+/// <summary>Explicitly authors the existing lesson readers and the shared material reader.</summary>
 [InitializeOnLoad]
 public static class LearningPopupAuthoring
 {
-    private const string SessionKey = "CivilCraft.LearningPopupLayout.v2";
+    public const string RequestPath = "Temp/learning-popup-authoring.request";
+    public const string ReportPath = "Logs/learning-popup-authoring.txt";
     private const string RewardPrefab = "Assets/Prefabs/UI/CollectRewardSystem.prefab";
-    private const string Output = "Temp/LearningPopupPreviews-v3";
-    private static readonly string[] Scenes = { "Assets/Scenes/CanyonCrossing.unity",
-        "Assets/Scenes/BHAN HOUSE.unity", "Assets/Scenes/Multiplayer/Multiplayer.unity" };
+    private static readonly string[] Scenes = { "Assets/Scenes/CanyonCrossing.unity", "Assets/Scenes/BHAN HOUSE.unity", "Assets/Scenes/Multiplayer/Multiplayer.unity" };
+    // Match NameRegistrationUIAuthoring's existing authored frame and action theme.
+    private static readonly Color Wood = new Color32(90, 55, 31, 255), Ink = new Color32(77, 53, 36, 255);
+    private static readonly Color Cream = new Color32(248, 233, 204, 255), Paper = new Color32(255, 248, 231, 255);
+    private static readonly Color Gold = new Color32(231, 158, 35, 255), Sand = new Color32(239, 219, 177, 255);
+    private static readonly Color DividerInk = new Color32(177, 131, 76, 255);
     private static TMP_FontAsset font;
-    private static Sprite rounded, header, circle;
-
-    static LearningPopupAuthoring()
+    private static Sprite rounded, buttonSprite;
+    private static bool running;
+    private static double nextPoll;
+    private static bool Busy => running || EditorApplication.isPlayingOrWillChangePlaymode || EditorApplication.isCompiling ||
+        EditorApplication.isUpdating || BuildPipeline.isBuildingPlayer || PrefabStageUtility.GetCurrentPrefabStage() != null;
+    static LearningPopupAuthoring() { EditorApplication.update += Poll; }
+    private static void Poll()
     {
-        EditorApplication.delayCall += TryAuthor;
-        EditorApplication.delayCall += TryCapture;
-        EditorApplication.playModeStateChanged += state => {
-            if (state == PlayModeStateChange.EnteredEditMode) EditorApplication.delayCall += TryAuthor;
-        };
+        if (Busy || EditorApplication.timeSinceStartup < nextPoll || !File.Exists(RequestPath)) return;
+        nextPoll = EditorApplication.timeSinceStartup + 1;
+        string command = File.ReadAllText(RequestPath).Trim(); File.Delete(RequestPath);
+        if (command == "apply") Author();
+        else if (command == "validate") Validate();
+        else if (command == "preview") CapturePreviews();
+        else Report("FAILED\nUse apply, validate or preview for learning popup authoring.");
     }
-
-    private static void TryAuthor()
+    private sealed class Target
     {
-        if (EditorApplication.isPlayingOrWillChangePlaymode || SessionState.GetBool(SessionKey, false)) return;
-        if (EditorApplication.isCompiling || EditorApplication.isUpdating)
-        { EditorApplication.delayCall += TryAuthor; return; }
-        Author();
-    }
-
-    private static void TryCapture()
-    {
-        if (EditorApplication.isPlayingOrWillChangePlaymode) return;
-        if (EditorApplication.isCompiling || EditorApplication.isUpdating)
-        { EditorApplication.delayCall += TryCapture; return; }
-        if (!File.Exists(Output + "/Material-phone.png")) CapturePreviews();
+        public Scene scene;
+        public bool opened, presentBefore, initiallyDirty, saved, applied;
+        public string diskHash;
+        public LessonUIManager[] managers;
     }
 
     [MenuItem("Tools/Civil Craft/Author Learning Popup Layouts")]
-    public static void Author()
-    {
-        if (EditorApplication.isPlayingOrWillChangePlaymode) return;
-        font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>("Assets/TextMesh Pro/Resources/Fonts & Materials/Bekind Sans SDF.asset");
-        rounded = SpriteAt("5c9d591e2ae349944bb4b30824b742f3");
-        header = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Elements/UI/SettingsUi/settings.png");
-        circle = SpriteAt("cc0921ac0d17ffe48812192bd23dd726");
-        if (font == null || rounded == null || header == null || circle == null)
-        { Debug.LogError("[Learning UI] Existing font/frame artwork is missing."); return; }
+    public static void Author() { Run(false); }
+    [MenuItem("Tools/Civil Craft/Validate Authored Learning Popup Layouts")]
+    public static void Validate() { Run(true); }
+    [MenuItem("Tools/Civil Craft/Capture Learning Popup Previews")]
+    public static void CapturePreviews() { if (!Busy) LearningPopupPresentationValidation.Run(); }
 
-        Scene active = SceneManager.GetActiveScene();
-        bool ready = true;
-        GameObject prefab = PrefabUtility.LoadPrefabContents(RewardPrefab);
+    private static void Run(bool verify)
+    {
+        if (Busy) return;
+        running = true;
+        Scene active = SceneManager.GetActiveScene(); Object[] selected = Selection.objects;
+        SceneSetup[] setup = EditorSceneManager.GetSceneManagerSetup();
+        Scene[] originalScenes = Enumerable.Range(0, SceneManager.sceneCount).Select(SceneManager.GetSceneAt).ToArray();
+        var unrelated = originalScenes.Where(s => s.isLoaded && !Scenes.Contains(s.path)).ToDictionary(s => s,
+            s => new { s.isDirty, roots = s.GetRootGameObjects(), hash = File.Exists(s.path) ? Hash(s.path) : null });
+        var targets = new List<Target>(); var report = new StringBuilder("AUTHORED STYLE: Name Registration Reference (v3)\n"); int undo = -1; bool success = false;
+        PlayerDataManager saves = PlayerDataManager.Instance; PlayerData player = saves != null ? saves.CurrentData : null;
+        string playerBefore = player != null ? JsonUtility.ToJson(player) : null;
         try
         {
-            ItemUnlockUI manager = prefab.GetComponent<ItemUnlockUI>();
-            bool changed = false;
-            if (manager != null && manager.materialPopup == null)
+            font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>("Assets/TextMesh Pro/Resources/Fonts & Materials/Bekind Sans SDF.asset");
+            rounded = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Elements/UI/LevelResultRounded.png");
+            buttonSprite = rounded;
+            Require(font != null && rounded != null && buttonSprite != null, "Persistent gameplay font or rounded button artwork is missing.");
+            Require(!EditorUtility.IsDirty(AssetDatabase.LoadAssetAtPath<GameObject>(RewardPrefab)), "Save the existing reward prefab edits before authoring.");
+            foreach (string path in Scenes) Require(File.Exists(path), "Missing scene: " + path);
+            string backup = "Logs/LearningPopupBackups/" + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff");
+            if (!verify)
             {
-                RectTransform popup = Rect(prefab.transform, "Material Introduction Popup");
-                manager.materialPopup = BuildReader(popup.gameObject);
-                popup.gameObject.SetActive(false);
-                EditorUtility.SetDirty(manager);
-                changed = true;
+                Directory.CreateDirectory(backup);
+                File.Copy(RewardPrefab, backup + "/CollectRewardSystem.prefab");
+                foreach (string path in Scenes) File.Copy(path, backup + "/" + Path.GetFileName(path));
+                report.AppendLine("BACKUP: " + backup);
+                Undo.IncrementCurrentGroup(); undo = Undo.GetCurrentGroup(); Undo.SetCurrentGroupName("Author material and lesson readers");
             }
-            if (manager != null && manager.materialPopup != null && manager.materialPopup.card.rect.width < 800f)
+            // Finish the shared asset before loading unopened scene instances.
+            // Existing scene overrides remain intact during prefab propagation.
+            AuthorPrefab(verify);
+            report.AppendLine("PASS: shared CollectRewardSystem material reader is authored; cosmetic reward controls and callbacks preserved.");
+            foreach (string path in Scenes)
             {
-                // A full-stretch prefab root has no canvas dimensions in Prefab
-                // isolation. Seed its authored rectangles at the reference size,
-                // then restore the original root so Collect's design is untouched.
-                RectTransform rootRect = prefab.transform as RectTransform;
-                Vector2 originalSize = rootRect.sizeDelta;
+                Require(File.Exists(path), "Missing scene: " + path);
+                Scene scene = SceneManager.GetSceneByPath(path); bool opened = !scene.IsValid() || !scene.isLoaded;
+                if (opened) scene = EditorSceneManager.OpenScene(path, OpenSceneMode.Additive);
+                var target = new Target { scene = scene, opened = opened, presentBefore = setup.Any(value => value.path == path),
+                    initiallyDirty = scene.isDirty, diskHash = Hash(path), managers = All<LessonUIManager>(scene).ToArray() };
+                targets.Add(target);
+                Require(target.managers.Length == 1 && target.managers[0].Panel != null, "Expected one existing lesson reader in " + path);
+                Require(!target.managers[0].transform.IsChildOf(target.managers[0].Panel.transform), "Lesson manager must remain outside its hidden panel.");
+                RequiredReferences(target.managers[0]);
+            }
+            foreach (Target target in targets)
+            {
+                Transform[] scopes = target.managers.Select(m => m.Panel.transform).ToArray();
+                var protectedComponents = All<Component>(target.scene).Where(c => c != null && !scopes.Any(root => c.transform == root || c.transform.IsChildOf(root)))
+                    .ToDictionary(c => c, EditorJsonUtility.ToJson);
+                var callbacks = All<Button>(target.scene).ToDictionary(button => button, button => JsonUtility.ToJson(button.onClick));
+                foreach (LessonUIManager manager in target.managers)
+                {
+                    if (!verify)
+                    {
+                        Undo.RegisterFullObjectHierarchyUndo(manager.Panel, "Style authored lesson reader");
+                        References refs = RequiredReferences(manager);
+                        BuildReader(manager.Panel, refs.title, refs.image, refs.body, refs.scroll, refs.close, "CLOSE");
+                        manager.Panel.SetActive(false);
+                        EditorUtility.SetDirty(manager.Panel.GetComponent<LearningPopupLayout>());
+                        target.applied = true;
+                    }
+                    ValidateReader(manager.Panel.GetComponent<LearningPopupLayout>(), "CLOSE");
+                }
+                Require(protectedComponents.All(pair => pair.Key != null && pair.Value == EditorJsonUtility.ToJson(pair.Key)), "An unrelated component or lesson manager changed in " + target.scene.name);
+                Require(callbacks.All(pair => pair.Key != null && pair.Value == JsonUtility.ToJson(pair.Key.onClick)), "A persistent button callback changed in " + target.scene.name);
+                if (!verify)
+                {
+                    EditorSceneManager.MarkSceneDirty(target.scene);
+                }
+            }
+            Require(saves == PlayerDataManager.Instance && (player == null || ReferenceEquals(player, saves.CurrentData) && JsonUtility.ToJson(player) == playerBefore), "Authoring changed player data.");
+            // All readers must pass before any scene is saved. Existing dirty
+            // scenes stay dirty so user edits remain under the user's control.
+            foreach (Target target in targets)
+            {
+                if (!verify && !target.initiallyDirty)
+                {
+                    Require(target.diskHash == Hash(target.scene.path), "Scene changed externally before save: " + target.scene.path);
+                    Require(EditorSceneManager.SaveScene(target.scene), "Could not save " + target.scene.path);
+                    target.saved = true;
+                }
+                report.AppendLine((verify ? "VERIFIED: " : target.saved ? "SAVED: " : "WAIT SAVE: ") + target.scene.name +
+                    "; real lesson panel/buttons restyled; manager references, callbacks, gameplay and existing edits preserved.");
+            }
+            if (undo >= 0) Undo.CollapseUndoOperations(undo);
+            success = true; report.Insert(0, targets.Any(t => !verify && t.initiallyDirty) ? "WAIT SAVE\n" : "PASS\n");
+        }
+        catch (Exception error)
+        {
+            report.Insert(0, "FAILED\n"); report.AppendLine(error.ToString());
+            if (undo >= 0) Undo.RevertAllDownToGroup(undo);
+        }
+        finally
+        {
+            foreach (Target target in targets.AsEnumerable().Reverse())
+                if (target.opened && target.scene.IsValid() && target.scene.isLoaded)
+                {
+                    if (!target.scene.isDirty) EditorSceneManager.CloseScene(target.scene, !target.presentBefore);
+                    else report.AppendLine("LEFT OPEN: " + target.scene.name + "; unsaved changes retained.");
+                }
+            if (active.IsValid() && active.isLoaded) SceneManager.SetActiveScene(active);
+            Selection.objects = selected;
+            try
+            {
+                Require(originalScenes.All(scene => scene.IsValid()), "An original scene entry was removed.");
+                Require(unrelated.All(pair => pair.Key.isDirty == pair.Value.isDirty && pair.Key.GetRootGameObjects().SequenceEqual(pair.Value.roots) &&
+                    (pair.Value.hash == null || Hash(pair.Key.path) == pair.Value.hash)), "An unrelated scene changed.");
+                report.AppendLine("PASS: original active scene/selection, unrelated scenes and player data preserved. No learning, discovery, reward or close callback invoked.");
+            }
+            catch (Exception error) { report.Insert(0, "FAILED SAFETY\n"); report.AppendLine(error.ToString()); success = false; }
+            Report(report.ToString()); running = false;
+            if (success) Debug.Log("[Learning UI] " + report); else Debug.LogWarning("[Learning UI] See " + ReportPath);
+        }
+    }
+
+    private static void AuthorPrefab(bool verify)
+    {
+        GameObject root = PrefabUtility.LoadPrefabContents(RewardPrefab);
+        try
+        {
+            ItemUnlockUI manager = root.GetComponent<ItemUnlockUI>(); Require(manager != null, "Existing reward manager is missing.");
+            RectTransform rootRect = root.transform as RectTransform; Require(rootRect != null, "Reward root is not a UI RectTransform.");
+            var protectedComponents = root.GetComponentsInChildren<Component>(true).Where(c => c != null && c != manager && c != rootRect &&
+                (manager.materialPopup == null || !c.transform.IsChildOf(manager.materialPopup.transform) && c.transform != manager.materialPopup.transform))
+                .ToDictionary(c => c, EditorJsonUtility.ToJson);
+            string managerBefore = WithoutMaterialPopup(EditorJsonUtility.ToJson(manager));
+            Vector2 originalSize = rootRect.sizeDelta; Vector2 originalMin = rootRect.anchorMin, originalMax = rootRect.anchorMax;
+            Vector2 originalPosition = rootRect.anchoredPosition, originalPivot = rootRect.pivot; Vector3 scale = rootRect.localScale, position = rootRect.localPosition;
+            if (!verify)
+            {
                 try
                 {
-                    rootRect.sizeDelta = new Vector2(1920f, 1080f);
+                    rootRect.sizeDelta = new Vector2(1920, 1080);
+                    LearningPopupLayout old = manager.materialPopup;
+                    RectTransform popup = old != null ? (RectTransform)old.transform : Rect(root.transform, "Material Introduction Popup");
+                    manager.materialPopup = BuildReader(popup.gameObject, old != null ? old.titleText : null, old != null ? old.contentImage : null,
+                        old != null ? old.descriptionText : null, old != null ? old.descriptionScroll : null, old != null ? old.dismissButton : null, "GOT IT");
                     BridgeMaterialSO example = AssetDatabase.LoadAssetAtPath<BridgeMaterialSO>("Assets/BridgeBuilder/Data/Resources/ConcreteBeam.asset");
-                    manager.materialPopup.SetContent("Material", example != null ? example.PopupImage : null,
-                        "Discover a material to learn its strengths, uses, and limits.");
-                    changed = true;
+                    manager.materialPopup.SetContent("Material Introduction", example != null ? example.PopupImage : null,
+                        example != null ? example.PopupDescription : "Discover a material to learn its strengths, uses, and limits.");
+                    popup.gameObject.SetActive(false); EditorUtility.SetDirty(manager);
                 }
                 finally { rootRect.sizeDelta = originalSize; }
             }
-            if (changed) PrefabUtility.SaveAsPrefabAsset(prefab, RewardPrefab);
-        }
-        finally { PrefabUtility.UnloadPrefabContents(prefab); }
-
-        foreach (string path in Scenes)
-        {
-            Scene scene = SceneManager.GetSceneByPath(path);
-            bool opened = !scene.IsValid() || !scene.isLoaded;
-            if (!opened && scene.isDirty)
+            ValidateReader(manager.materialPopup, "GOT IT");
+            Require(!manager.materialPopup.gameObject.activeSelf, "The authored material reader must start hidden.");
+            Require(managerBefore == WithoutMaterialPopup(EditorJsonUtility.ToJson(manager)) && protectedComponents.All(pair => pair.Key != null && pair.Value == EditorJsonUtility.ToJson(pair.Key)),
+                "Existing cosmetic reward controls, manager fields or callbacks changed.");
+            Require(rootRect.sizeDelta == originalSize && rootRect.anchorMin == originalMin && rootRect.anchorMax == originalMax && rootRect.anchoredPosition == originalPosition &&
+                rootRect.pivot == originalPivot && rootRect.localScale == scale && rootRect.localPosition == position, "The reward prefab root pose changed.");
+            if (!verify)
             {
-                ready = false;
-                Debug.LogWarning("[Learning UI] Save " + scene.name + ", then run Tools/Civil Craft/Author Learning Popup Layouts.");
-                continue;
+                PrefabUtility.SaveAsPrefabAsset(root, RewardPrefab);
+                AssetDatabase.ImportAsset(RewardPrefab, ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
             }
-            if (opened) scene = EditorSceneManager.OpenScene(path, OpenSceneMode.Additive);
-            try
-            {
-                bool changed = false;
-                foreach (GameObject root in scene.GetRootGameObjects())
-                    foreach (LessonUIManager manager in root.GetComponentsInChildren<LessonUIManager>(true))
-                    {
-                        if (manager.Panel == null || manager.Panel.GetComponent<LearningPopupLayout>() != null) continue;
-                        SerializedObject data = new SerializedObject(manager);
-                        TMP_Text title = data.FindProperty("lessonTitleText").objectReferenceValue as TMP_Text;
-                        Image image = data.FindProperty("lessonImage").objectReferenceValue as Image;
-                        TMP_Text body = data.FindProperty("lessonDescriptionText").objectReferenceValue as TMP_Text;
-                        ScrollRect scroll = data.FindProperty("descriptionScrollRect").objectReferenceValue as ScrollRect;
-                        Button close = data.FindProperty("closeButton").objectReferenceValue as Button;
-                        if (title == null || image == null || body == null || scroll == null || close == null)
-                        { ready = false; Debug.LogWarning("[Learning UI] Incomplete lesson references in " + scene.name); continue; }
-                        Canvas canvas = manager.Panel.GetComponentInParent<Canvas>(true);
-                        if (canvas != null)
-                        {
-                            manager.Panel.transform.SetParent(canvas.rootCanvas.transform, false);
-                            CanvasScaler scaler = canvas.rootCanvas.GetComponent<CanvasScaler>();
-                            if (scaler != null)
-                            {
-                                scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-                                scaler.referenceResolution = new Vector2(1920f, 1080f);
-                                scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-                                scaler.matchWidthOrHeight = .5f;
-                            }
-                        }
-                        BuildReader(manager.Panel, title, image, body, scroll, close);
-                        manager.Panel.SetActive(false);
-                        changed = true;
-                    }
-                if (changed) { EditorSceneManager.MarkSceneDirty(scene); EditorSceneManager.SaveScene(scene); }
-            }
-            catch (Exception exception) { ready = false; Debug.LogException(exception); }
-            finally { if (opened) EditorSceneManager.CloseScene(scene, true); }
         }
-        if (active.IsValid() && active.isLoaded) SceneManager.SetActiveScene(active);
-        if (ready) SessionState.SetBool(SessionKey, true);
-        Debug.Log("[Learning UI] Authored centered lesson/material readers using the existing artwork and Bekind font. Cosmetic Collect rewards are unchanged.");
-        if (ready && !File.Exists(Output + "/Lesson-phone.png")) CapturePreviews();
+        finally { PrefabUtility.UnloadPrefabContents(root); }
     }
 
-    private static LearningPopupLayout BuildReader(GameObject root, TMP_Text title = null, Image image = null,
-        TMP_Text body = null, ScrollRect scroll = null, Button close = null)
+    private sealed class References { public TMP_Text title, body; public Image image; public ScrollRect scroll; public Button close; }
+    private static References RequiredReferences(LessonUIManager manager)
     {
-        CozyModalLayout.Stretch(root.transform as RectTransform, 0f, 0f, 0f, 0f);
-        Image overlay = Ensure<Image>(root);
-        overlay.sprite = null; overlay.material = null;
-        overlay.color = new Color(.12f, .075f, .04f, .38f); overlay.raycastTarget = true;
+        var data = new SerializedObject(manager);
+        var refs = new References { title = data.FindProperty("lessonTitleText").objectReferenceValue as TMP_Text,
+            body = data.FindProperty("lessonDescriptionText").objectReferenceValue as TMP_Text, image = data.FindProperty("lessonImage").objectReferenceValue as Image,
+            scroll = data.FindProperty("descriptionScrollRect").objectReferenceValue as ScrollRect, close = data.FindProperty("closeButton").objectReferenceValue as Button };
+        Require(refs.title != null && refs.body != null && refs.image != null && refs.scroll != null && refs.close != null && refs.scroll.content != null && refs.scroll.viewport != null,
+            "An existing lesson reader reference is missing. No control was substituted."); return refs;
+    }
+    private static LearningPopupLayout BuildReader(GameObject root, TMP_Text title, Image image, TMP_Text body, ScrollRect scroll, Button close, string label)
+    {
+        CozyModalLayout.Stretch(root.transform as RectTransform, 0, 0, 0, 0);
+        Image overlay = Ensure<Image>(root); overlay.sprite = null; overlay.material = null;
+        overlay.color = new Color(.08f, .055f, .035f, .58f); overlay.raycastTarget = true;
         LearningPopupLayout layout = Ensure<LearningPopupLayout>(root);
-        layout.card = Panel(root.transform, "Learning Card", CozyModalLayout.Ink);
-        layout.cardSurface = Panel(layout.card, "Cream Surface", CozyModalLayout.Cream);
-        layout.cardSurface.SetAsFirstSibling();
+        layout.card = Panel(root.transform, "Learning Card", Wood);
+        layout.cardSurface = Panel(layout.card, "Cream Surface", Cream); layout.cardSurface.SetAsFirstSibling();
         layout.titleTab = Rect(layout.card, "Title Tab");
-        Image tab = Ensure<Image>(layout.titleTab.gameObject);
-        tab.sprite = header; tab.type = Image.Type.Simple; tab.color = Color.white; tab.raycastTarget = false;
-        if (title == null) title = Text(layout.titleTab, "Title", "Material", true);
-        else title.transform.SetParent(layout.titleTab, false);
-        StyleText(title, true);
-        layout.titleText = title;
-        layout.imageFrame = Panel(layout.card, "Picture Frame", new Color32(213, 155, 68, 255));
-        layout.imageSurface = Panel(layout.imageFrame, "Picture Surface", CozyModalLayout.TitleCream);
-        if (image == null) image = Ensure<Image>(Rect(layout.imageFrame, "Picture").gameObject);
-        else image.transform.SetParent(layout.imageFrame, false);
-        image.material = null; image.color = Color.white;
-        image.type = Image.Type.Simple; image.preserveAspect = true; image.raycastTarget = false;
-        layout.contentImage = image;
-        layout.descriptionFrame = Panel(layout.card, "Description Frame", CozyModalLayout.Ink);
-        layout.descriptionSurface = Panel(layout.descriptionFrame, "Description Surface", CozyModalLayout.TitleCream);
-
+        Image oldTab = layout.titleTab.GetComponent<Image>(); if (oldTab != null) { oldTab.enabled = false; oldTab.raycastTarget = false; }
+        if (title == null) title = Text(layout.titleTab, "Title", "Material Introduction", false); else title.transform.SetParent(layout.titleTab, false);
+        StyleText(title, false); title.alignment = TextAlignmentOptions.Center; layout.titleText = title;
+        layout.contextText = Text(layout.card, "Learning Context", label == "GOT IT" ? "MATERIAL INTRODUCTION" : "ENGINEERING LESSON", false);
+        layout.contextText.characterSpacing = 1f; layout.contextText.alignment = TextAlignmentOptions.Center;
+        layout.headerDivider = Rect(layout.card, "Learning Header Divider");
+        Image divider = Ensure<Image>(layout.headerDivider.gameObject);
+        divider.sprite = null; divider.type = Image.Type.Simple; divider.color = DividerInk; divider.raycastTarget = false;
+        layout.imageFrame = Panel(layout.card, "Picture Frame", Sand);
+        layout.imageSurface = Panel(layout.imageFrame, "Picture Surface", Paper); layout.imageSurface.SetAsFirstSibling();
+        if (image == null) image = Ensure<Image>(Rect(layout.imageFrame, "Picture").gameObject); else image.transform.SetParent(layout.imageFrame, false);
+        image.material = null; image.color = Color.white; image.type = Image.Type.Simple; image.preserveAspect = true; image.raycastTarget = false;
+        image.transform.SetAsLastSibling(); layout.contentImage = image;
+        layout.descriptionFrame = Panel(layout.card, "Description Frame", Sand);
+        layout.descriptionSurface = Panel(layout.descriptionFrame, "Description Surface", Paper); layout.descriptionSurface.SetAsFirstSibling();
         if (scroll == null)
         {
             scroll = Ensure<ScrollRect>(Rect(layout.descriptionFrame, "Description Scroll").gameObject);
-            scroll.viewport = Rect(scroll.transform, "Viewport");
-            scroll.content = Rect(scroll.viewport, "Content");
+            scroll.viewport = Rect(scroll.transform, "Viewport"); scroll.content = Rect(scroll.viewport, "Content");
         }
         else scroll.transform.SetParent(layout.descriptionFrame, false);
-        Image scrollHit = Ensure<Image>(scroll.gameObject);
-        scrollHit.color = Color.clear; scrollHit.sprite = null; scrollHit.material = null; scrollHit.raycastTarget = true;
-        Image viewportHit = Ensure<Image>(scroll.viewport.gameObject);
-        viewportHit.color = Color.clear; viewportHit.sprite = null; viewportHit.material = null; viewportHit.raycastTarget = true;
-        Mask oldMask = scroll.viewport.GetComponent<Mask>();
-        if (oldMask != null) oldMask.enabled = false;
+        Image hit = Ensure<Image>(scroll.gameObject); hit.color = Color.clear; hit.sprite = null; hit.material = null; hit.raycastTarget = true; hit.canvasRenderer.cullTransparentMesh = false;
+        Image viewport = Ensure<Image>(scroll.viewport.gameObject); viewport.color = Color.clear; viewport.sprite = null; viewport.material = null; viewport.raycastTarget = true;
+        Mask oldMask = scroll.viewport.GetComponent<Mask>(); if (oldMask != null) oldMask.enabled = false;
         Ensure<RectMask2D>(scroll.viewport.gameObject);
-        if (body == null) body = Text(scroll.content, "Description", "Discover a material to learn how to use it.", false);
-        else body.transform.SetParent(scroll.content, false);
-        StyleText(body, false);
-        body.alignment = TextAlignmentOptions.Center;
-        body.overflowMode = TextOverflowModes.Overflow;
-        foreach (Behaviour component in scroll.content.GetComponentsInChildren<Behaviour>(true))
-            if (component is LayoutGroup || component is ContentSizeFitter) component.enabled = false;
-        scroll.horizontal = false; scroll.vertical = true;
-        scroll.movementType = ScrollRect.MovementType.Clamped;
-        scroll.inertia = true; scroll.decelerationRate = .135f; scroll.scrollSensitivity = 34f;
-        scroll.verticalScrollbar = BuildScrollbar(scroll);
-        scroll.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.Permanent;
-        layout.descriptionScroll = scroll;
-        layout.descriptionText = body;
-        if (close == null) close = Ensure<Button>(Rect(layout.card, "Close").gameObject);
-        else close.transform.SetParent(layout.card, false);
-        Image closeHit = Ensure<Image>(close.gameObject);
-        closeHit.sprite = circle; closeHit.type = Image.Type.Simple; closeHit.color = CozyModalLayout.Ink;
-        closeHit.material = null; closeHit.raycastTarget = true;
-        RectTransform face = Rect(close.transform, "Cream Face");
-        Image faceImage = Ensure<Image>(face.gameObject);
-        faceImage.sprite = circle; faceImage.color = CozyModalLayout.Cream; faceImage.raycastTarget = false;
-        CozyModalLayout.Stretch(face, 5f, 5f, 5f, 5f);
-        TMP_Text cross = Text(close.transform, "Close Symbol", "×", true);
-        cross.fontSize = 66f; cross.alignment = TextAlignmentOptions.Center;
-        CozyModalLayout.Stretch(cross.rectTransform, 8f, 8f, 8f, 12f);
-        close.targetGraphic = closeHit;
-        close.navigation = new Navigation { mode = Navigation.Mode.None };
-        ColorBlock colors = close.colors;
-        colors.normalColor = Color.white; colors.highlightedColor = new Color(1f, .94f, .82f);
-        colors.pressedColor = new Color(.80f, .72f, .62f); colors.fadeDuration = .08f; close.colors = colors;
-        Ensure<BuildModeIconFeedback>(close.gameObject);
-        layout.dismissButton = close;
-        layout.titleTab.SetAsLastSibling();
-        close.transform.SetAsLastSibling();
-        for (int i = 0; i < root.transform.childCount; i++)
-            if (root.transform.GetChild(i) != layout.card) root.transform.GetChild(i).gameObject.SetActive(false);
-        layout.authoredVersion = 1;
-        layout.ApplyLayout();
-        EditorUtility.SetDirty(layout);
+        if (body == null) body = Text(scroll.content, "Description", "Learn how to use this material.", false); else body.transform.SetParent(scroll.content, false);
+        StyleText(body, false); body.alignment = TextAlignmentOptions.TopLeft; body.overflowMode = TextOverflowModes.Overflow;
+        foreach (Behaviour item in scroll.content.GetComponentsInChildren<Behaviour>(true)) if (item is LayoutGroup || item is ContentSizeFitter) item.enabled = false;
+        scroll.horizontal = false; scroll.vertical = true; scroll.movementType = ScrollRect.MovementType.Clamped; scroll.inertia = true;
+        scroll.decelerationRate = .135f; scroll.scrollSensitivity = 34f; scroll.verticalScrollbar = ScrollbarFor(scroll);
+        scroll.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.Permanent; layout.descriptionScroll = scroll; layout.descriptionText = body;
+        if (close == null) close = Ensure<Button>(Rect(layout.card, "Close").gameObject); else close.transform.SetParent(layout.card, false);
+        Image border = Ensure<Image>(close.gameObject); border.sprite = buttonSprite; border.type = Image.Type.Sliced; border.color = Wood;
+        border.material = null; border.enabled = true; border.raycastTarget = true;
+        RectTransform faceRect = Rect(close.transform, "Cream Face"); Image face = Ensure<Image>(faceRect.gameObject);
+        face.sprite = buttonSprite; face.type = Image.Type.Sliced; face.color = Gold; face.enabled = true; face.raycastTarget = false;
+        close.targetGraphic = face;
+        CozyModalLayout.Stretch(faceRect, 4, 4, 4, 4);
+        TMP_Text text = close.transform.Find("Label")?.GetComponent<TMP_Text>() ?? close.GetComponentInChildren<TMP_Text>(true);
+        if (text == null) text = Text(close.transform, "Label", label, true);
+        text.name = "Label"; text.transform.SetParent(close.transform, false); StyleText(text, false); text.text = label;
+        text.fontSize = text.fontSizeMax = 30f; text.fontSizeMin = 23f; text.enableAutoSizing = true;
+        text.enabled = true; text.gameObject.SetActive(true); text.alignment = TextAlignmentOptions.Center; text.enableWordWrapping = false;
+        foreach (Graphic graphic in close.GetComponentsInChildren<Graphic>(true))
+            if (graphic != border && graphic != face && graphic != text) { graphic.enabled = false; graphic.raycastTarget = false; }
+        faceRect.SetAsFirstSibling(); text.transform.SetAsLastSibling();
+        close.navigation = new Navigation { mode = Navigation.Mode.None }; close.transition = Selectable.Transition.ColorTint;
+        ColorBlock colors = close.colors; colors.normalColor = Color.white; colors.highlightedColor = new Color(1, .95f, .82f);
+        colors.pressedColor = new Color(.85f, .76f, .61f); colors.selectedColor = colors.highlightedColor; colors.disabledColor = new Color(1, 1, 1, .45f); colors.fadeDuration = .08f; close.colors = colors;
+        layout.dismissButton = close; close.transform.SetAsLastSibling();
+        for (int index = 0; index < root.transform.childCount; index++)
+            if (root.transform.GetChild(index) != layout.card) root.transform.GetChild(index).gameObject.SetActive(false);
+        layout.authoredVersion = 3; layout.ApplyLayout();
+        foreach (Component component in root.GetComponentsInChildren<Component>(true))
+        {
+            if (component == null) continue;
+            EditorUtility.SetDirty(component); EditorUtility.SetDirty(component.gameObject);
+            if (PrefabUtility.IsPartOfPrefabInstance(component)) PrefabUtility.RecordPrefabInstancePropertyModifications(component);
+            if (PrefabUtility.IsPartOfPrefabInstance(component.gameObject)) PrefabUtility.RecordPrefabInstancePropertyModifications(component.gameObject);
+        }
         return layout;
     }
-
-    private static Scrollbar BuildScrollbar(ScrollRect scroll)
+    private static Scrollbar ScrollbarFor(ScrollRect scroll)
     {
-        RectTransform rail = Rect(scroll.transform, "Reading Scrollbar");
-        rail.anchorMin = new Vector2(1f, 0f); rail.anchorMax = Vector2.one;
-        rail.pivot = new Vector2(1f, .5f); rail.anchoredPosition = Vector2.zero; rail.sizeDelta = new Vector2(7f, 0f);
+        Scrollbar bar = scroll.verticalScrollbar;
+        if (bar == null) bar = Ensure<Scrollbar>(Rect(scroll.transform, "Reading Scrollbar").gameObject);
+        RectTransform rail = (RectTransform)bar.transform; rail.anchorMin = new Vector2(1, 0); rail.anchorMax = Vector2.one;
+        rail.pivot = new Vector2(1, .5f); rail.anchoredPosition = Vector2.zero; rail.sizeDelta = new Vector2(7, 0);
         Image track = Ensure<Image>(rail.gameObject); track.color = Color.clear; track.raycastTarget = true;
-        RectTransform handle = Panel(rail, "Handle", new Color32(146, 109, 70, 255));
-        CozyModalLayout.Stretch(handle, 0f, 0f, 0f, 0f);
-        Scrollbar scrollbar = Ensure<Scrollbar>(rail.gameObject);
-        scrollbar.direction = Scrollbar.Direction.BottomToTop;
-        scrollbar.handleRect = handle; scrollbar.targetGraphic = handle.GetComponent<Image>();
-        scrollbar.navigation = new Navigation { mode = Navigation.Mode.None };
-        return scrollbar;
+        RectTransform handle = bar.handleRect != null ? bar.handleRect : Panel(rail, "Handle", new Color32(146, 109, 70, 255));
+        CozyModalLayout.Stretch(handle, 0, 0, 0, 0);
+        Image thumb = Ensure<Image>(handle.gameObject); thumb.sprite = rounded; thumb.type = Image.Type.Sliced; thumb.color = new Color32(146, 109, 70, 255); thumb.raycastTarget = false;
+        bar.direction = Scrollbar.Direction.BottomToTop; bar.handleRect = handle; bar.targetGraphic = thumb; bar.navigation = new Navigation { mode = Navigation.Mode.None }; return bar;
     }
-
-    private static TMP_Text Text(Transform parent, string name, string value, bool bold)
+    private static void ValidateReader(LearningPopupLayout layout, string label)
     {
-        TMP_Text text = Ensure<TextMeshProUGUI>(Rect(parent, name).gameObject);
-        text.text = value; StyleText(text, bold); return text;
+        Require(layout != null && layout.authoredVersion == 3 && layout.card != null && layout.cardSurface != null && layout.titleTab != null && layout.titleText != null &&
+            layout.contextText != null && layout.headerDivider != null &&
+            layout.contentImage != null && layout.imageFrame != null && layout.descriptionFrame != null && layout.descriptionText != null && layout.descriptionScroll != null && layout.dismissButton != null,
+            "The real authored learning reader is incomplete.");
+        TMP_Text caption = layout.dismissButton.GetComponentInChildren<TMP_Text>(true);
+        Require(caption != null && caption.text == label && caption.font == font && caption.fontStyle == FontStyles.Normal &&
+            layout.titleText.font == font && layout.titleText.fontStyle == FontStyles.Normal && layout.titleText.alignment == TextAlignmentOptions.Center &&
+            layout.descriptionText.font == font && layout.contentImage.preserveAspect && layout.contextText.font == font &&
+            layout.contextText.text == (label == "GOT IT" ? "MATERIAL INTRODUCTION" : "ENGINEERING LESSON") && layout.contextText.characterSpacing == 1f,
+            "The authored reader label/font/aspect differs.");
+        Require(layout.card.GetComponent<Image>().color == Wood && layout.cardSurface.GetComponent<Image>().color == Cream &&
+            layout.imageSurface.GetComponent<Image>().color == Paper && layout.descriptionSurface.GetComponent<Image>().color == Paper &&
+            layout.dismissButton.transform.Find("Cream Face").GetComponent<Image>().color == Gold && layout.dismissButton.GetComponent<Image>().color == Wood &&
+            layout.dismissButton.GetComponent<Image>().sprite == rounded && layout.dismissButton.targetGraphic == layout.dismissButton.transform.Find("Cream Face").GetComponent<Image>() &&
+            layout.headerDivider.GetComponent<Image>().color == DividerInk && layout.headerDivider.GetComponent<Image>().sprite == null,
+            "The authored Name Registration reference styling is missing.");
+        Require(layout.titleTab.GetComponent<Image>() == null || !layout.titleTab.GetComponent<Image>().enabled, "The old title plaque remains visible.");
     }
-    private static void StyleText(TMP_Text text, bool bold)
-    {
-        text.font = font; text.fontSharedMaterial = font.material;
-        text.color = CozyModalLayout.Ink; text.fontStyle = bold ? FontStyles.Bold : FontStyles.Normal;
-        text.enableAutoSizing = false; text.enableWordWrapping = true; text.richText = true;
-        text.alignment = TextAlignmentOptions.Center; text.raycastTarget = false;
-        text.margin = Vector4.zero;
-    }
-    private static RectTransform Panel(Transform parent, string name, Color color)
-    {
-        RectTransform rect = Rect(parent, name);
-        Image image = Ensure<Image>(rect.gameObject);
-        image.sprite = rounded; image.type = Image.Type.Sliced; image.color = color;
-        image.material = null; image.raycastTarget = false; return rect;
-    }
-    private static RectTransform Rect(Transform parent, string name)
-    {
-        RectTransform rect = parent.Find(name) as RectTransform;
-        if (rect != null) return rect;
-        GameObject go = new GameObject(name, typeof(RectTransform)); go.layer = 5;
-        rect = go.transform as RectTransform; rect.SetParent(parent, false); return rect;
-    }
-    private static T Ensure<T>(GameObject go) where T : Component
-    { return go.GetComponent<T>() ?? go.AddComponent<T>(); }
-    private static Sprite SpriteAt(string guid)
-    { return AssetDatabase.LoadAssetAtPath<Sprite>(AssetDatabase.GUIDToAssetPath(guid)); }
-
-    [MenuItem("Tools/Civil Craft/Capture Learning Popup Previews")]
-    public static void CapturePreviews()
-    {
-        if (EditorApplication.isPlayingOrWillChangePlaymode) return;
-        Directory.CreateDirectory(Output);
-        Scene active = SceneManager.GetActiveScene();
-        Scene scene = SceneManager.GetSceneByPath(Scenes[0]);
-        bool opened = !scene.IsValid() || !scene.isLoaded;
-        if (opened) scene = EditorSceneManager.OpenScene(Scenes[0], OpenSceneMode.Additive);
-        try
-        {
-            LessonData lesson = AssetDatabase.LoadAssetAtPath<LessonData>("Assets/BridgeBuilder/Data/Lessons/LiveLoadLesson.asset");
-            BridgeMaterialSO material = AssetDatabase.LoadAssetAtPath<BridgeMaterialSO>("Assets/BridgeBuilder/Data/Resources/ConcreteBeam.asset");
-            LearningPopupLayout lessonLayout = null;
-            foreach (GameObject root in scene.GetRootGameObjects())
-                foreach (LessonUIManager manager in root.GetComponentsInChildren<LessonUIManager>(true))
-                    if (manager.Panel != null) lessonLayout = manager.Panel.GetComponent<LearningPopupLayout>();
-            GameObject prefab = PrefabUtility.LoadPrefabContents(RewardPrefab);
-            try
-            {
-                LearningPopupLayout materialLayout = prefab.GetComponent<ItemUnlockUI>().materialPopup;
-                foreach (bool tablet in new[] { false, true })
-                {
-                    int width = tablet ? 1920 : 2340, height = tablet ? 1200 : 1080;
-                    string device = tablet ? "tablet" : "phone";
-                    if (lessonLayout != null && lesson != null)
-                        Render(lessonLayout, "Lesson-" + device, width, height, lesson.Title, lesson.Image, lesson.PopupDescription);
-                    if (materialLayout != null && material != null)
-                    {
-                        Render(materialLayout, "Material-" + device, width, height, material.GetDisplayName(), material.PopupImage, material.PopupDescription);
-                        Render(materialLayout, "LongMaterial-" + device, width, height, material.GetDisplayName(), material.PopupImage,
-                            ItemUnlockUI.BuildMaterialReferenceDetails(material));
-                        Render(materialLayout, "LongMaterialBottom-" + device, width, height, material.GetDisplayName(), material.PopupImage,
-                            ItemUnlockUI.BuildMaterialReferenceDetails(material), true);
-                        Render(materialLayout, "NoImage-" + device, width, height, "Building Material", null, material.PopupDescription);
-                    }
-                }
-            }
-            finally { PrefabUtility.UnloadPrefabContents(prefab); }
-        }
-        finally
-        {
-            if (opened) EditorSceneManager.CloseScene(scene, true);
-            if (active.IsValid() && active.isLoaded) SceneManager.SetActiveScene(active);
-        }
-        Debug.Log("[Learning UI QA] Phone/tablet previews saved to " + Output);
-    }
-
-    private static void Render(LearningPopupLayout source, string label, int width, int height,
-        string title, Sprite image, string description, bool scrollBottom = false)
-    {
-        // URP excludes editor preview scenes from a normal camera's scene mask.
-        // Use a temporary additive scene, as the existing modal QA tool does.
-        Scene staging = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
-        RenderTexture texture = new RenderTexture(width, height, 24);
-        RenderTexture previous = RenderTexture.active;
-        Texture2D pixels = null;
-        Camera camera = null;
-        try
-        {
-            GameObject cameraObject = new GameObject("Learning Preview Camera", typeof(Camera));
-            camera = cameraObject.GetComponent<Camera>();
-            camera.transform.position = new Vector3(0f, 0f, -100f);
-            camera.orthographic = true; camera.orthographicSize = 540f;
-            camera.clearFlags = CameraClearFlags.SolidColor; camera.backgroundColor = new Color(.36f, .25f, .17f);
-            camera.cullingMask = 1 << 5; camera.targetTexture = texture;
-            GameObject canvasObject = new GameObject("Learning Preview Canvas", typeof(RectTransform), typeof(Canvas));
-            canvasObject.layer = 5;
-            Canvas canvas = canvasObject.GetComponent<Canvas>();
-            canvas.renderMode = RenderMode.WorldSpace; canvas.worldCamera = camera;
-            (canvas.transform as RectTransform).sizeDelta = new Vector2(width * 1080f / height, 1080f);
-            GameObject clone = UnityEngine.Object.Instantiate(source.gameObject, canvas.transform, false);
-            CozyModalLayout.Stretch(clone.transform as RectTransform, 0f, 0f, 0f, 0f);
-            clone.SetActive(true);
-            LearningPopupLayout layout = clone.GetComponent<LearningPopupLayout>();
-            layout.SetContent(title, image, description);
-            Canvas.ForceUpdateCanvases(); layout.RefreshContent();
-            foreach (TMP_Text text in clone.GetComponentsInChildren<TMP_Text>(true)) text.ForceMeshUpdate(true);
-            Canvas.ForceUpdateCanvases();
-            if (scrollBottom)
-            {
-                layout.descriptionScroll.verticalNormalizedPosition = 0f;
-                Canvas.ForceUpdateCanvases();
-            }
-            if (layout.imageFrame != null && layout.imageFrame.gameObject.activeSelf)
-            {
-                float imageBottom = layout.imageFrame.anchoredPosition.y + layout.card.rect.height - layout.imageFrame.rect.height * .5f;
-                float descriptionTop = layout.descriptionFrame.anchoredPosition.y + layout.descriptionFrame.rect.height * .5f;
-                if (imageBottom <= descriptionTop) throw new InvalidOperationException("Image and description overlap in " + label);
-            }
-            var request = new UniversalRenderPipeline.SingleCameraRequest { destination = texture };
-            if (RenderPipeline.SupportsRenderRequest(camera, request)) RenderPipeline.SubmitRenderRequest(camera, request);
-            else camera.Render();
-            RenderTexture.active = texture;
-            pixels = new Texture2D(width, height, TextureFormat.RGB24, false);
-            pixels.ReadPixels(new Rect(0f, 0f, width, height), 0, 0); pixels.Apply();
-            File.WriteAllBytes(Output + "/" + label + ".png", pixels.EncodeToPNG());
-        }
-        finally
-        {
-            RenderTexture.active = previous;
-            if (pixels != null) UnityEngine.Object.DestroyImmediate(pixels);
-            if (camera != null) camera.targetTexture = null;
-            texture.Release(); UnityEngine.Object.DestroyImmediate(texture);
-            EditorSceneManager.CloseScene(staging, true);
-        }
-    }
+    private static string WithoutMaterialPopup(string json) => Regex.Replace(json, "\"materialPopup\"\\s*:\\s*\\{[^}]*\\}", "\"materialPopup\":{}");
+    private static TMP_Text Text(Transform parent, string name, string value, bool bold) { TMP_Text text = Ensure<TextMeshProUGUI>(Rect(parent, name).gameObject); text.text = value; StyleText(text, bold); return text; }
+    private static void StyleText(TMP_Text text, bool bold) { text.font = font; text.fontSharedMaterial = font.material; text.color = Ink; text.fontStyle = FontStyles.Normal; text.characterSpacing = 0f; text.richText = true; text.raycastTarget = false; text.enableAutoSizing = false; text.enableWordWrapping = true; text.margin = Vector4.zero; }
+    private static RectTransform Panel(Transform parent, string name, Color color) { RectTransform rect = Rect(parent, name); Image image = Ensure<Image>(rect.gameObject); image.sprite = rounded; image.type = Image.Type.Sliced; image.color = color; image.material = null; image.raycastTarget = false; return rect; }
+    private static RectTransform Rect(Transform parent, string name) { RectTransform rect = parent.Find(name) as RectTransform; if (rect != null) return rect; var item = new GameObject(name, typeof(RectTransform)); item.layer = 5; rect = (RectTransform)item.transform; rect.SetParent(parent, false); return rect; }
+    private static T Ensure<T>(GameObject item) where T : Component => item.GetComponent<T>() ?? item.AddComponent<T>();
+    private static IEnumerable<T> All<T>(Scene scene) where T : Component => scene.GetRootGameObjects().SelectMany(root => root.GetComponentsInChildren<T>(true));
+    private static string Hash(string path) { using (var sha = SHA256.Create()) return Convert.ToBase64String(sha.ComputeHash(File.ReadAllBytes(path))); }
+    private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
+    private static void Report(string value) { Directory.CreateDirectory("Logs"); File.WriteAllText(ReportPath, value); }
 }
 #endif

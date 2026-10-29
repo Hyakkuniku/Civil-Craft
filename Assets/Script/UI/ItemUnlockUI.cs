@@ -174,6 +174,9 @@ public class ItemUnlockUI : MonoBehaviour
             if (popupPanel != null) popupPanel.SetActive(false);
             materialPopup.SetContent(request.itemName, request.itemIcon,
                 request.materialToDiscover != null ? request.materialToDiscover.PopupDescription : request.detailsText);
+            TMP_Text acknowledgement = materialPopup.dismissButton != null
+                ? materialPopup.dismissButton.GetComponentInChildren<TMP_Text>(true) : null;
+            if (acknowledgement != null) acknowledgement.text = string.IsNullOrWhiteSpace(request.buttonLabel) ? "GOT IT" : request.buttonLabel;
             materialPopup.gameObject.SetActive(true);
             materialPopup.transform.SetAsLastSibling();
             return;

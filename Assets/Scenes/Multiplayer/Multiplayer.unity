@@ -2974,6 +2974,8 @@ MonoBehaviour:
   requiredNPCPhaseIndex: 1
   nextNPCPhaseIndex: 2
   completionSaveKey: 
+  requireAlmanacReviewBeforeAdvance: 0
+  almanacReviewReminder: []
 --- !u!114 &5109509
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -75868,7 +75870,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 0.90588236, b: 0.6901961, a: 1}
+  m_Color: {r: 1, g: 0.972549, b: 0.90588236, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -111525,6 +111527,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: Sequence_Movement
   requiredPreviousLesson: 
+  showInObjectives: 0
+  objectiveTitle: 
+  objectiveId: 
   playOnStart: 1
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -140371,7 +140376,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 308478061}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
   m_Name: 
@@ -144688,6 +144693,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -144706,6 +144712,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Silas
     playDialogueOnArrival: 0
+    reviewAlmanacWhileTravelling: 0
     repeatDialogue: 0
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
@@ -144747,6 +144754,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -144758,6 +144766,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Silas
     playDialogueOnArrival: 0
+    reviewAlmanacWhileTravelling: 0
     repeatDialogue: 0
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
@@ -144811,6 +144820,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -144827,6 +144837,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Silas
     playDialogueOnArrival: 1
+    reviewAlmanacWhileTravelling: 0
     repeatDialogue: 0
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
@@ -144868,6 +144879,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 11400000, guid: 9de353268b31b6d4aac7964bf7b8676c, type: 2}
     targetBuildLocation: {fileID: 4247076027259698586}
     linkedCargo: {fileID: 0}
@@ -144878,6 +144890,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Silas
     playDialogueOnArrival: 1
+    reviewAlmanacWhileTravelling: 0
     repeatDialogue: 0
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
@@ -144919,6 +144932,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -144936,6 +144950,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Silas
     playDialogueOnArrival: 0
+    reviewAlmanacWhileTravelling: 0
     repeatDialogue: 0
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
@@ -144977,6 +144992,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -144988,6 +145004,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Silas
     playDialogueOnArrival: 0
+    reviewAlmanacWhileTravelling: 0
     repeatDialogue: 0
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
@@ -145041,6 +145058,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -145064,6 +145082,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Silas
     playDialogueOnArrival: 1
+    reviewAlmanacWhileTravelling: 0
     repeatDialogue: 0
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
@@ -145105,6 +145124,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -145121,6 +145141,11 @@ MonoBehaviour:
         - "You\u2019ll now have access to <b><#E09500>Rope</color> </b>."
       material: {fileID: 11400000, guid: 4524a3fc876c6b640a735e6808fe1271, type: 2}
       materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      quizWaitingReminder: 
+      lesson: {fileID: 0}
+      reviewStepId: 
     - stepType: 0
       dialogue:
         name: Silas
@@ -145132,8 +145157,14 @@ MonoBehaviour:
         - Use the available materials and support points carefully.
       material: {fileID: 0}
       materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      quizWaitingReminder: 
+      lesson: {fileID: 0}
+      reviewStepId: 
     dialoguePrompt: Talk to Silas
     playDialogueOnArrival: 1
+    reviewAlmanacWhileTravelling: 0
     repeatDialogue: 0
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
@@ -145175,6 +145206,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 11400000, guid: 511cf4b78fcb2ee4aa7169008e424b48, type: 2}
     targetBuildLocation: {fileID: 4247076026978126500}
     linkedCargo: {fileID: 0}
@@ -145185,6 +145217,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Silas
     playDialogueOnArrival: 1
+    reviewAlmanacWhileTravelling: 0
     repeatDialogue: 0
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
@@ -145263,6 +145296,7 @@ MonoBehaviour:
   manuallyTraverseNavMeshLinks: 1
   rotateWhileTraversingLinks: 1
   travellingPrompt: Moving to the next site...
+  onlyShowExclamationWhenInteractionNeeded: 0
   onProgressionFinished:
     m_PersistentCalls:
       m_Calls: []
@@ -166268,6 +166302,8 @@ RectTransform:
   - {fileID: 709620047}
   - {fileID: 2095921127}
   - {fileID: 308478062}
+  - {fileID: 682808313}
+  - {fileID: 591628710}
   - {fileID: 5329627791898759699}
   m_Father: {fileID: 7842238823366618828}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -166289,7 +166325,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 0.29411766, g: 0.19607843, b: 0.14117648, a: 1}
+  m_Color: {r: 0.3529412, g: 0.21568628, b: 0.12156863, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -178402,6 +178438,8 @@ MonoBehaviour:
   requiredNPCPhaseIndex: 1
   nextNPCPhaseIndex: 2
   completionSaveKey: 
+  requireAlmanacReviewBeforeAdvance: 0
+  almanacReviewReminder: []
 --- !u!1 &396259004
 GameObject:
   m_ObjectHideFlags: 0
@@ -202105,6 +202143,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: Sequence_AlmanacMaterialsUnlocked
   requiredPreviousLesson: 
+  showInObjectives: 0
+  objectiveTitle: 
+  objectiveId: 
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -203748,6 +203789,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: ProceedToShopKeeper
   requiredPreviousLesson: 
+  showInObjectives: 0
+  objectiveTitle: 
+  objectiveId: 
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -217646,7 +217690,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 0.9764706, b: 0.93333334, a: 1}
+  m_Color: {r: 0.972549, g: 0.9137255, b: 0.8, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -223976,7 +224020,7 @@ GameObject:
   - component: {fileID: 489225866}
   - component: {fileID: 489225865}
   m_Layer: 5
-  m_Name: Close Symbol
+  m_Name: Label
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -224021,7 +224065,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "\xD7"
+  m_text: CLOSE
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: aaadb7eb00eeee74799e9edce7312ddb, type: 2}
   m_sharedMaterial: {fileID: 334455245469236425, guid: aaadb7eb00eeee74799e9edce7312ddb,
@@ -224032,7 +224076,7 @@ MonoBehaviour:
   m_fontColor32:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontColor: {r: 0.29411766, g: 0.19607843, b: 0.14117648, a: 1}
+  m_fontColor: {r: 0.3019608, g: 0.20784314, b: 0.14117648, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
   m_fontColorGradient:
@@ -224049,13 +224093,13 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 66
-  m_fontSizeBase: 66
+  m_fontSize: 30
+  m_fontSizeBase: 30
   m_fontWeight: 400
-  m_enableAutoSizing: 0
-  m_fontSizeMin: 0
-  m_fontSizeMax: 0
-  m_fontStyle: 1
+  m_enableAutoSizing: 1
+  m_fontSizeMin: 23
+  m_fontSizeMax: 30
+  m_fontStyle: 0
   m_HorizontalAlignment: 2
   m_VerticalAlignment: 512
   m_textAlignment: 65535
@@ -224065,7 +224109,7 @@ MonoBehaviour:
   m_lineSpacingMax: 0
   m_paragraphSpacing: 0
   m_charWidthMaxAdj: 0
-  m_enableWordWrapping: 1
+  m_enableWordWrapping: 0
   m_wordWrappingRatios: 0.4
   m_overflowMode: 0
   m_linkedTextComponent: {fileID: 0}
@@ -269090,6 +269134,81 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 591478645}
   m_CullTransparentMesh: 1
+--- !u!1 &591628709
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 591628710}
+  - component: {fileID: 591628712}
+  - component: {fileID: 591628711}
+  m_Layer: 5
+  m_Name: Learning Header Divider
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &591628710
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 591628709}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 371410054}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 0, y: 0}
+  m_SizeDelta: {x: 100, y: 100}
+  m_Pivot: {x: 0.5, y: 0.5}
+--- !u!114 &591628711
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 591628709}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_Material: {fileID: 0}
+  m_Color: {r: 0.69411767, g: 0.5137255, b: 0.29803923, a: 1}
+  m_RaycastTarget: 0
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  m_Sprite: {fileID: 0}
+  m_Type: 0
+  m_PreserveAspect: 0
+  m_FillCenter: 1
+  m_FillMethod: 4
+  m_FillAmount: 1
+  m_FillClockwise: 1
+  m_FillOrigin: 0
+  m_UseSpriteMesh: 0
+  m_PixelsPerUnitMultiplier: 1
+--- !u!222 &591628712
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 591628709}
+  m_CullTransparentMesh: 1
 --- !u!1 &591760936
 GameObject:
   m_ObjectHideFlags: 0
@@ -297261,6 +297380,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -297276,6 +297396,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 0
+    reviewAlmanacWhileTravelling: 0
     repeatDialogue: 0
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
@@ -297329,6 +297450,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -297340,6 +297462,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 1
+    reviewAlmanacWhileTravelling: 0
     repeatDialogue: 1
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
@@ -297393,6 +297516,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 1
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -297412,6 +297536,11 @@ MonoBehaviour:
           available for this project.
       material: {fileID: 0}
       materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      quizWaitingReminder: 
+      lesson: {fileID: 0}
+      reviewStepId: 
     - stepType: 1
       dialogue:
         name: Professor Bhan
@@ -297422,6 +297551,11 @@ MonoBehaviour:
         - Vehicles and other loads travel across this component.
       material: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
       materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      quizWaitingReminder: 
+      lesson: {fileID: 0}
+      reviewStepId: 
     - stepType: 1
       dialogue:
         name: Professor Bhan
@@ -297429,6 +297563,11 @@ MonoBehaviour:
         - You'll also need <b><#E09500>Wood Supports</color></b> to hold up the bridge.
       material: {fileID: 11400000, guid: b98aa9ba752ac28449feebc76f256bf2, type: 2}
       materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      quizWaitingReminder: 
+      lesson: {fileID: 0}
+      reviewStepId: 
     - stepType: 0
       dialogue:
         name: Professor Bhan
@@ -297440,8 +297579,14 @@ MonoBehaviour:
         - When you're ready, follow me to introduce the <b><#E09500>contract</color></b>.
       material: {fileID: 0}
       materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      quizWaitingReminder: 
+      lesson: {fileID: 0}
+      reviewStepId: 
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 0
+    reviewAlmanacWhileTravelling: 0
     repeatDialogue: 0
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
@@ -297507,6 +297652,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 1
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 11400000, guid: d58e962a84aed8944ad5741d6404b861, type: 2}
     targetBuildLocation: {fileID: 2406797540332427003}
     linkedCargo: {fileID: 0}
@@ -297520,6 +297666,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 0
+    reviewAlmanacWhileTravelling: 0
     repeatDialogue: 0
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
@@ -297561,6 +297708,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -297577,6 +297725,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 0
+    reviewAlmanacWhileTravelling: 0
     repeatDialogue: 0
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
@@ -297642,6 +297791,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -297664,14 +297814,25 @@ MonoBehaviour:
           for this project.
       material: {fileID: 0}
       materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      quizWaitingReminder: 
+      lesson: {fileID: 0}
+      reviewStepId: 
     - stepType: 1
       dialogue:
         name: Professor Bhan
         sentences: []
       material: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
       materialButtonLabel: 
+      quiz: {fileID: 0}
+      quizStepId: 
+      quizWaitingReminder: 
+      lesson: {fileID: 0}
+      reviewStepId: 
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 0
+    reviewAlmanacWhileTravelling: 0
     repeatDialogue: 1
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
@@ -297725,6 +297886,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 11400000, guid: 5edc8d91db6f6014190820a7c01cea37, type: 2}
     targetBuildLocation: {fileID: 358124909}
     linkedCargo: {fileID: 0}
@@ -297736,6 +297898,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 0
+    reviewAlmanacWhileTravelling: 0
     repeatDialogue: 1
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
@@ -297777,6 +297940,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -297788,6 +297952,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 1
+    reviewAlmanacWhileTravelling: 0
     repeatDialogue: 0
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
@@ -297841,6 +298006,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -297855,6 +298021,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 0
+    reviewAlmanacWhileTravelling: 0
     repeatDialogue: 0
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
@@ -297944,6 +298111,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 11400000, guid: b2c3c504e3cdd4043b4bfad718fccd86, type: 2}
     targetBuildLocation: {fileID: 1708492244}
     linkedCargo: {fileID: 0}
@@ -297954,6 +298122,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 0
+    reviewAlmanacWhileTravelling: 0
     repeatDialogue: 1
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
@@ -298007,6 +298176,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -298018,6 +298188,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 1
+    reviewAlmanacWhileTravelling: 0
     repeatDialogue: 1
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
@@ -298071,6 +298242,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -298100,6 +298272,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 0
+    reviewAlmanacWhileTravelling: 0
     repeatDialogue: 1
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: minimap
@@ -298166,6 +298339,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -298201,6 +298375,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 1
+    reviewAlmanacWhileTravelling: 0
     repeatDialogue: 0
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
@@ -298266,6 +298441,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -298277,6 +298453,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 0
+    reviewAlmanacWhileTravelling: 0
     repeatDialogue: 1
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
@@ -298330,6 +298507,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -298341,6 +298519,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 0
+    reviewAlmanacWhileTravelling: 0
     repeatDialogue: 0
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
@@ -298431,6 +298610,7 @@ MonoBehaviour:
   manuallyTraverseNavMeshLinks: 1
   rotateWhileTraversingLinks: 1
   travellingPrompt: Moving to the next site...
+  onlyShowExclamationWhenInteractionNeeded: 0
   onProgressionFinished:
     m_PersistentCalls:
       m_Calls: []
@@ -312714,6 +312894,141 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 682574108}
   m_CullTransparentMesh: 1
+--- !u!1 &682808312
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 682808313}
+  - component: {fileID: 682808315}
+  - component: {fileID: 682808314}
+  m_Layer: 5
+  m_Name: Learning Context
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &682808313
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 682808312}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 371410054}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 0, y: 0}
+  m_SizeDelta: {x: 100, y: 100}
+  m_Pivot: {x: 0.5, y: 0.5}
+--- !u!114 &682808314
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 682808312}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4688fdb7df04437aeb418b961361dc5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_Material: {fileID: 0}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_RaycastTarget: 0
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  m_text: ENGINEERING LESSON
+  m_isRightToLeft: 0
+  m_fontAsset: {fileID: 11400000, guid: aaadb7eb00eeee74799e9edce7312ddb, type: 2}
+  m_sharedMaterial: {fileID: 334455245469236425, guid: aaadb7eb00eeee74799e9edce7312ddb,
+    type: 2}
+  m_fontSharedMaterials: []
+  m_fontMaterial: {fileID: 0}
+  m_fontMaterials: []
+  m_fontColor32:
+    serializedVersion: 2
+    rgba: 4294967295
+  m_fontColor: {r: 0.3019608, g: 0.20784314, b: 0.14117648, a: 1}
+  m_enableVertexGradient: 0
+  m_colorMode: 3
+  m_fontColorGradient:
+    topLeft: {r: 1, g: 1, b: 1, a: 1}
+    topRight: {r: 1, g: 1, b: 1, a: 1}
+    bottomLeft: {r: 1, g: 1, b: 1, a: 1}
+    bottomRight: {r: 1, g: 1, b: 1, a: 1}
+  m_fontColorGradientPreset: {fileID: 0}
+  m_spriteAsset: {fileID: 0}
+  m_tintAllSprites: 0
+  m_StyleSheet: {fileID: 0}
+  m_TextStyleHashCode: 0
+  m_overrideHtmlColors: 0
+  m_faceColor:
+    serializedVersion: 2
+    rgba: 4294967295
+  m_fontSize: -99
+  m_fontSizeBase: 36
+  m_fontWeight: 400
+  m_enableAutoSizing: 0
+  m_fontSizeMin: 0
+  m_fontSizeMax: 0
+  m_fontStyle: 0
+  m_HorizontalAlignment: 2
+  m_VerticalAlignment: 512
+  m_textAlignment: 65535
+  m_characterSpacing: 1
+  m_wordSpacing: 0
+  m_lineSpacing: 0
+  m_lineSpacingMax: 0
+  m_paragraphSpacing: 0
+  m_charWidthMaxAdj: 0
+  m_enableWordWrapping: 1
+  m_wordWrappingRatios: 0.4
+  m_overflowMode: 0
+  m_linkedTextComponent: {fileID: 0}
+  parentLinkedComponent: {fileID: 0}
+  m_enableKerning: 0
+  m_enableExtraPadding: 0
+  checkPaddingRequired: 0
+  m_isRichText: 1
+  m_parseCtrlCharacters: 1
+  m_isOrthographic: 0
+  m_isCullingEnabled: 0
+  m_horizontalMapping: 0
+  m_verticalMapping: 0
+  m_uvLineOffset: 0
+  m_geometrySortingOrder: 0
+  m_IsTextObjectScaleStatic: 0
+  m_VertexBufferAutoSizeReduction: 0
+  m_useMaxVisibleDescender: 1
+  m_pageToDisplay: 1
+  m_margin: {x: 0, y: 0, z: 0, w: 0}
+  m_isUsingLegacyAnimationComponent: 0
+  m_isVolumetricText: 0
+  m_hasFontAssetChanged: 0
+  m_baseMaterial: {fileID: 0}
+  m_maskOffset: {x: 0, y: 0, z: 0, w: 0}
+--- !u!222 &682808315
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 682808312}
+  m_CullTransparentMesh: 1
 --- !u!1 &682847412
 GameObject:
   m_ObjectHideFlags: 0
@@ -324574,7 +324889,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 0.8352941, g: 0.60784316, b: 0.26666668, a: 1}
+  m_Color: {r: 0.9372549, g: 0.85882354, b: 0.69411767, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -326917,7 +327232,7 @@ RectTransform:
   m_Father: {fileID: 637657310}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 0}
+  m_AnchorMax: {x: 1, y: 1}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
@@ -386437,6 +386752,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: Go to the supply cart.
   requiredPreviousLesson: 
+  showInObjectives: 0
+  objectiveTitle: 
+  objectiveId: 
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -393730,6 +394048,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: ProceedToShopKeeper
   requiredPreviousLesson: 
+  showInObjectives: 0
+  objectiveTitle: 
+  objectiveId: 
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -394752,6 +395073,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -394764,6 +395086,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Grandma Susan
     playDialogueOnArrival: 0
+    reviewAlmanacWhileTravelling: 0
     repeatDialogue: 0
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
@@ -394805,6 +395128,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -394821,6 +395145,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Grandma Susan
     playDialogueOnArrival: 1
+    reviewAlmanacWhileTravelling: 0
     repeatDialogue: 0
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
@@ -394862,6 +395187,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -394881,6 +395207,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Grandma Susan
     playDialogueOnArrival: 1
+    reviewAlmanacWhileTravelling: 0
     repeatDialogue: 0
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: shop
@@ -394923,6 +395250,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -394940,6 +395268,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Grandma Susan
     playDialogueOnArrival: 1
+    reviewAlmanacWhileTravelling: 0
     repeatDialogue: 1
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: shop
@@ -395031,6 +395360,7 @@ MonoBehaviour:
   manuallyTraverseNavMeshLinks: 1
   rotateWhileTraversingLinks: 1
   travellingPrompt: Moving to the next site...
+  onlyShowExclamationWhenInteractionNeeded: 0
   onProgressionFinished:
     m_PersistentCalls:
       m_Calls: []
@@ -451298,6 +451628,8 @@ MonoBehaviour:
   requiredNPCPhaseIndex: 1
   nextNPCPhaseIndex: 2
   completionSaveKey: 
+  requireAlmanacReviewBeforeAdvance: 0
+  almanacReviewReminder: []
 --- !u!1 &993289193
 GameObject:
   m_ObjectHideFlags: 0
@@ -491818,6 +492150,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: Sequence_Build1
   requiredPreviousLesson: Sequence_Bridge
+  showInObjectives: 0
+  objectiveTitle: 
+  objectiveId: 
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -507106,6 +507441,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: Sequence_Shop
   requiredPreviousLesson: 
+  showInObjectives: 0
+  objectiveTitle: 
+  objectiveId: 
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -520042,6 +520380,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: LoadCargoVance
   requiredPreviousLesson: 
+  showInObjectives: 0
+  objectiveTitle: 
+  objectiveId: 
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -521466,6 +521807,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: Sequence_FirstLevelCompletion
   requiredPreviousLesson: 
+  showInObjectives: 0
+  objectiveTitle: 
+  objectiveId: 
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -659000,6 +659344,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: 'GobacktoVance '
   requiredPreviousLesson: 
+  showInObjectives: 0
+  objectiveTitle: 
+  objectiveId: 
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -714376,6 +714723,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -714398,6 +714746,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Vance
     playDialogueOnArrival: 0
+    reviewAlmanacWhileTravelling: 0
     repeatDialogue: 0
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
@@ -714439,6 +714788,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -714450,6 +714800,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Vance
     playDialogueOnArrival: 0
+    reviewAlmanacWhileTravelling: 0
     repeatDialogue: 0
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
@@ -714503,6 +714854,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -714520,6 +714872,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Vance
     playDialogueOnArrival: 1
+    reviewAlmanacWhileTravelling: 0
     repeatDialogue: 1
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
@@ -714561,6 +714914,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -714580,6 +714934,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Vance
     playDialogueOnArrival: 1
+    reviewAlmanacWhileTravelling: 0
     repeatDialogue: 0
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
@@ -714633,6 +714988,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 11400000, guid: b8ce50ba6d905d9449faec73f3fa007a, type: 2}
     targetBuildLocation: {fileID: 570591466}
     linkedCargo: {fileID: 0}
@@ -714643,6 +714999,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Vance
     playDialogueOnArrival: 0
+    reviewAlmanacWhileTravelling: 0
     repeatDialogue: 0
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
@@ -714708,6 +715065,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -714720,6 +715078,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Vance
     playDialogueOnArrival: 1
+    reviewAlmanacWhileTravelling: 0
     repeatDialogue: 0
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
@@ -714773,6 +715132,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
+    showExclamationMark: 0
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -714786,6 +715146,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     dialoguePrompt: Talk to Vance
     playDialogueOnArrival: 0
+    reviewAlmanacWhileTravelling: 0
     repeatDialogue: 0
     enableIdleRoaming: 0
     unlockFeatureIdAfterDialogue: 
@@ -714876,6 +715237,7 @@ MonoBehaviour:
   manuallyTraverseNavMeshLinks: 1
   rotateWhileTraversingLinks: 1
   travellingPrompt: Moving to the next site...
+  onlyShowExclamationWhenInteractionNeeded: 0
   onProgressionFinished:
     m_PersistentCalls:
       m_Calls: []
@@ -731954,6 +732316,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: GoBackToProfBhan
   requiredPreviousLesson: 
+  showInObjectives: 0
+  objectiveTitle: 
+  objectiveId: 
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -758730,6 +759095,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: Sequence_Bridge
   requiredPreviousLesson: Sequence_House
+  showInObjectives: 0
+  objectiveTitle: 
+  objectiveId: 
   playOnStart: 1
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -761270,6 +761638,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: Sequence_Build2
   requiredPreviousLesson: Sequence_Build1
+  showInObjectives: 0
+  objectiveTitle: 
+  objectiveId: 
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -793969,6 +794340,8 @@ MonoBehaviour:
   requiredNPCPhaseIndex: 1
   nextNPCPhaseIndex: 2
   completionSaveKey: 
+  requireAlmanacReviewBeforeAdvance: 0
+  almanacReviewReminder: []
 --- !u!1 &1772151098
 GameObject:
   m_ObjectHideFlags: 0
@@ -826091,6 +826464,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: Sequence_AlmanacLessonsUnlocked
   requiredPreviousLesson: 
+  showInObjectives: 0
+  objectiveTitle: 
+  objectiveId: 
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -853107,7 +853483,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 0.90588236, b: 0.6901961, a: 1}
+  m_Color: {r: 1, g: 0.972549, b: 0.90588236, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -861708,7 +862084,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: -10, y: -10}
+  m_SizeDelta: {x: -8, y: -8}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1913161603
 MonoBehaviour:
@@ -861723,15 +862099,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 0.9764706, b: 0.93333334, a: 1}
+  m_Color: {r: 0.90588236, g: 0.61960787, b: 0.13725491, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: cc0921ac0d17ffe48812192bd23dd726, type: 3}
-  m_Type: 0
+  m_Sprite: {fileID: 21300000, guid: 5c9d591e2ae349944bb4b30824b742f3, type: 3}
+  m_Type: 1
   m_PreserveAspect: 0
   m_FillCenter: 1
   m_FillMethod: 4
@@ -908139,6 +908515,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: Sequence_AlmanacContractsUnlocked
   requiredPreviousLesson: 
+  showInObjectives: 0
+  objectiveTitle: 
+  objectiveId: 
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -935806,7 +936185,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 0.29411766, g: 0.19607843, b: 0.14117648, a: 1}
+  m_Color: {r: 0.9372549, g: 0.85882354, b: 0.69411767, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -952839,6 +953218,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: FollowProfessorBhan
   requiredPreviousLesson: 
+  showInObjectives: 0
+  objectiveTitle: 
+  objectiveId: 
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -960654,6 +961036,10 @@ MonoBehaviour:
   horizontalGuideColor: {r: 1, g: 1, b: 1, a: 0.39215687}
   verticalGuideColor: {r: 1, g: 1, b: 1, a: 0.39215687}
   nodeDragGuideThickness: 2
+  touchPointPaddingPixels: 12
+  touchEndpointPaddingPixels: 6
+  touchDrawDragPixels: 10
+  testTouchDrawingInEditor: 1
 --- !u!64 &305401996143710708
 MeshCollider:
   m_ObjectHideFlags: 0
@@ -962514,6 +962900,9 @@ MonoBehaviour:
   hideDuringBuildMode: 1
   requiredFeatureId: shop
   requirePersistentUnlock: 1
+  showUnlockPointer: 1
+  unlockPointerOffset: {x: 110, y: 0}
+  unlockPointerRotation: 90
 --- !u!1 &438106920562189752
 GameObject:
   m_ObjectHideFlags: 0
@@ -979226,7 +979615,7 @@ CanvasRenderer:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5015166679155548074}
-  m_CullTransparentMesh: 1
+  m_CullTransparentMesh: 0
 --- !u!224 &1847663775927473909
 RectTransform:
   m_ObjectHideFlags: 0
@@ -986026,7 +986415,7 @@ MonoBehaviour:
   m_fontColor32:
     serializedVersion: 2
     rgba: 4281087822
-  m_fontColor: {r: 0.29411766, g: 0.19607843, b: 0.14117648, a: 1}
+  m_fontColor: {r: 0.3019608, g: 0.20784314, b: 0.14117648, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
   m_fontColorGradient:
@@ -986049,7 +986438,7 @@ MonoBehaviour:
   m_enableAutoSizing: 0
   m_fontSizeMin: 18
   m_fontSizeMax: 72
-  m_fontStyle: 1
+  m_fontStyle: 0
   m_HorizontalAlignment: 2
   m_VerticalAlignment: 512
   m_textAlignment: 65535
@@ -986254,6 +986643,7 @@ MonoBehaviour:
   fastTravelTarget: {fileID: 1100103757}
   advancesTutorial: 1
   onEnterBuildModeTutorial: {fileID: 1085285848}
+  restartGuidedTutorialOnFailure: 1
   enableSimulationLesson: 1
   simulationLesson: {fileID: 11400000, guid: 45a1f27ff8c2492ab299585ad551339c, type: 2}
   startingAnchors:
@@ -994868,6 +995258,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   useEvents: 0
   promptMessage: 
+  simulationSound:
+    clip: {fileID: 0}
+    output: {fileID: 0}
+    volume: 0.65
+    pitch: 1
   vehicleName: Heavy Transport
   vehicleInfoPanel: {fileID: 8880294211448637854}
   vehicleNameText: {fileID: 3652125584594633526}
@@ -1000544,6 +1000939,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   fpsText: {fileID: 5466581456570704859}
   updateInterval: 0.2
+  developmentOverlay: 0
+  safeAreaRoot: {fileID: 0}
 --- !u!224 &3465530033596677220
 RectTransform:
   m_ObjectHideFlags: 0
@@ -1001453,7 +1001850,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 0.12, g: 0.075, b: 0.04, a: 0.38}
+  m_Color: {r: 0.08, g: 0.055, b: 0.035, a: 0.58}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -1010247,6 +1010644,7 @@ MonoBehaviour:
   fastTravelTarget: {fileID: 8452136767229714997}
   advancesTutorial: 1
   onEnterBuildModeTutorial: {fileID: 0}
+  restartGuidedTutorialOnFailure: 1
   enableSimulationLesson: 0
   simulationLesson: {fileID: 0}
   startingAnchors:
@@ -1010296,6 +1010694,7 @@ MonoBehaviour:
   fastTravelTarget: {fileID: 8452136767489905931}
   advancesTutorial: 1
   onEnterBuildModeTutorial: {fileID: 0}
+  restartGuidedTutorialOnFailure: 1
   enableSimulationLesson: 0
   simulationLesson: {fileID: 0}
   startingAnchors:
@@ -1012885,6 +1013284,7 @@ MonoBehaviour:
   cameraTransform: {fileID: 797838100101898495}
   playerAnimator: {fileID: 5207813380211997476}
   speed: 8
+  useSprintThresholds: 0
   sprintStartThreshold: 0.85
   sprintStopThreshold: 0.7
   sprintSpeedMultiplier: 1.5
@@ -1016886,7 +1017286,7 @@ MonoBehaviour:
   m_fontColor32:
     serializedVersion: 2
     rgba: 4281087822
-  m_fontColor: {r: 0.29411766, g: 0.19607843, b: 0.14117648, a: 1}
+  m_fontColor: {r: 0.3019608, g: 0.20784314, b: 0.14117648, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
   m_fontColorGradient:
@@ -1016910,8 +1017310,8 @@ MonoBehaviour:
   m_fontSizeMin: 18
   m_fontSizeMax: 72
   m_fontStyle: 0
-  m_HorizontalAlignment: 2
-  m_VerticalAlignment: 512
+  m_HorizontalAlignment: 1
+  m_VerticalAlignment: 256
   m_textAlignment: 65535
   m_characterSpacing: 0
   m_wordSpacing: 0
@@ -1021289,15 +1021689,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 0.29411766, g: 0.19607843, b: 0.14117648, a: 1}
+  m_Color: {r: 0.3529412, g: 0.21568628, b: 0.12156863, a: 1}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: cc0921ac0d17ffe48812192bd23dd726, type: 3}
-  m_Type: 0
+  m_Sprite: {fileID: 21300000, guid: 5c9d591e2ae349944bb4b30824b742f3, type: 3}
+  m_Type: 1
   m_PreserveAspect: 0
   m_FillCenter: 1
   m_FillMethod: 4
@@ -1037232,6 +1037632,7 @@ MonoBehaviour:
   budgetText: {fileID: 4618717625559794873}
   weightText: {fileID: 6670438101985699355}
   navigateButton: {fileID: 8442828460949410761}
+  untrackButton: {fileID: 0}
   completeButton: {fileID: 8831439569795937266}
   rewardContainer: {fileID: 5164492396422506955}
   rewardGoldText: {fileID: 879845752448616720}
@@ -1051506,10 +1051907,13 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 4e5484c806e8ce74cbbfeaca54408ded, type: 2}
   allGameContracts:
   - {fileID: 11400000, guid: d16ef45202a457f43bc02f4d7e730647, type: 2}
+  - {fileID: 11400000, guid: 8f65c1b4d22748e581416a7e34e01dc3, type: 2}
+  - {fileID: 11400000, guid: 39d60b2d6d214147ba888941ef75ee11, type: 2}
   - {fileID: 11400000, guid: 511cf4b78fcb2ee4aa7169008e424b48, type: 2}
   - {fileID: 11400000, guid: 7bd1a236dfb47f54e96257d2d3d48be1, type: 2}
   - {fileID: 11400000, guid: 1f93c961d5b0ced468282419d064a7d3, type: 2}
   - {fileID: 11400000, guid: 08ef0a30971b46d18d7752fdf9b5470f, type: 2}
+  - {fileID: 11400000, guid: d7bfc22ac3ad49fab92c0cd06b187168, type: 2}
   - {fileID: 11400000, guid: b2c3c504e3cdd4043b4bfad718fccd86, type: 2}
   - {fileID: 11400000, guid: 9de353268b31b6d4aac7964bf7b8676c, type: 2}
   - {fileID: 11400000, guid: d58e962a84aed8944ad5741d6404b861, type: 2}
@@ -1054222,7 +1054626,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 0.000030517578, y: 0}
+  m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &7845180609255027547
@@ -1063106,10 +1063510,10 @@ MonoBehaviour:
   m_Transition: 1
   m_Colors:
     m_NormalColor: {r: 1, g: 1, b: 1, a: 1}
-    m_HighlightedColor: {r: 1, g: 0.94, b: 0.82, a: 1}
-    m_PressedColor: {r: 0.8, g: 0.72, b: 0.62, a: 1}
-    m_SelectedColor: {r: 0.9607843, g: 0.9607843, b: 0.9607843, a: 1}
-    m_DisabledColor: {r: 0.78431374, g: 0.78431374, b: 0.78431374, a: 0.5019608}
+    m_HighlightedColor: {r: 1, g: 0.95, b: 0.82, a: 1}
+    m_PressedColor: {r: 0.85, g: 0.76, b: 0.61, a: 1}
+    m_SelectedColor: {r: 1, g: 0.95, b: 0.82, a: 1}
+    m_DisabledColor: {r: 1, g: 1, b: 1, a: 0.45}
     m_ColorMultiplier: 1
     m_FadeDuration: 0.08
   m_SpriteState:
@@ -1063124,7 +1063528,7 @@ MonoBehaviour:
     m_SelectedTrigger: Selected
     m_DisabledTrigger: Disabled
   m_Interactable: 1
-  m_TargetGraphic: {fileID: 5222194729841152448}
+  m_TargetGraphic: {fileID: 1913161603}
   m_OnClick:
     m_PersistentCalls:
       m_Calls: []
@@ -1065045,6 +1065449,7 @@ MonoBehaviour:
   lessons: []
   listenForSavedBridge: 1
   triggerOnlyOnce: 1
+  waitForGameplayPresentation: 0
   onLessonTriggered:
     m_PersistentCalls:
       m_Calls: []
@@ -1066060,7 +1066465,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 0}
-  m_AnchoredPosition: {x: -0.0000019073486, y: 104}
+  m_AnchoredPosition: {x: 0, y: 104}
   m_SizeDelta: {x: -71.99998, y: 54}
   m_Pivot: {x: 0.5, y: 0}
 --- !u!114 &8825591269097318491
@@ -1067262,11 +1067667,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c408fe951e404508a1f59ec34baa0021, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  authoredVersion: 1
+  authoredVersion: 3
   card: {fileID: 371410054}
   cardSurface: {fileID: 474570506}
   titleTab: {fileID: 308478062}
   titleText: {fileID: 2393600449045075360}
+  contextText: {fileID: 682808314}
+  headerDivider: {fileID: 591628710}
   dismissButton: {fileID: 8585632068504677267}
   imageFrame: {fileID: 709620047}
   imageSurface: {fileID: 1892545815}
