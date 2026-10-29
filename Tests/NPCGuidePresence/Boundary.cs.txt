@@ -70,6 +70,8 @@ public static class Mathf { public static int Min(int first, int second) => Math
 public class GuiderWaypoint { public Transform target; public bool advancesTutorial = true; }
 public class PathGuider
 {
+    // The presence harness models the current profile's separate visual preference.
+    public bool IsObjectiveNavigationHidden;
     public Transform player;
     public List<GuiderWaypoint> waypoints;
     public float stoppingDistance = 2;

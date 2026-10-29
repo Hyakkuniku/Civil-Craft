@@ -64,6 +64,7 @@ public static class Scenarios
     {
         ObjectiveSelection(); RestartDestinations(); OwnershipAndLifecycle(); BlockingAndLateReadiness();
         DeferredAndSwitching(); TurnInNpcPresence(); DiscoveryAndExplicitNavigation();
+        UntrackedNavigationPreference();
         return checks;
     }
     private static void ObjectiveSelection()
@@ -90,6 +91,35 @@ public static class Scenarios
         Check((string)CallStatic("SavedNavigationTaskKey", first) == "contract:first", "Contract objective keys trim the persisted stable identity.");
         Check((string)CallStatic("SavedNavigationTaskKey", generic) == "task:Explore the town", "Generic objective keys retain their own namespace.");
         Check(string.IsNullOrEmpty((string)CallStatic("SavedNavigationTaskKey", (object)null)), "Missing task keys are safe.");
+    }
+    private static void UntrackedNavigationPreference()
+    {
+        Fixture startup = new Fixture();
+        startup.save.CurrentData.objectiveNavigationHidden = true;
+        startup.Tick(); startup.Tick();
+        Check(!startup.HasGuide && !startup.Visible && startup.path.binds == 0,
+            "Restart respects the saved untrack preference instead of recreating a contract card or route.");
+        Check(startup.save.CurrentData.objectiveNavigationHidden && !startup.task.isCompleted && !startup.task.isReadyToTurnIn &&
+            startup.save.CurrentData.activeObjectiveKey == "contract:" + startup.contract.ContractID && startup.save.unreadAlerts == 0,
+            "Hidden startup navigation preserves the objective selection, progress and alert state.");
+        startup.save.CurrentData.objectiveNavigationHidden = false; startup.Tick();
+        Check(startup.Visible && startup.RouteTarget == startup.location.navigationTarget.transform,
+            "Clearing the visual preference allows the same unfinished contract to restore.");
+
+        Fixture current = new Fixture(); current.Tick();
+        var route = current.path.waypoints; int binds = current.path.binds;
+        current.save.CurrentData.objectiveNavigationHidden = true; current.Tick(); current.Tick();
+        Check(!current.Visible && current.HasGuide && ReferenceEquals(route, current.path.waypoints) && current.path.binds == binds,
+            "Untracking an existing contract hides only presentation and retains its exact owned route.");
+        current.save.CurrentData.objectiveNavigationHidden = false; current.Tick();
+        Check(current.Visible && ReferenceEquals(route, current.path.waypoints) && current.path.binds == binds,
+            "Tracking again restores the same contract hint without replacing its route or cursor.");
+
+        Fixture tutorial = new Fixture(); tutorial.Tick();
+        tutorial.manager.IsTutorialActive = true; tutorial.manager.leftText.text = "Required tutorial instruction";
+        tutorial.manager.leftPanel.SetActive(true); tutorial.save.CurrentData.objectiveNavigationHidden = true; tutorial.Tick();
+        Check(tutorial.manager.leftPanel.activeSelf && tutorial.manager.leftText.text == "Required tutorial instruction",
+            "Hidden contract navigation never hides a real tutorial's shared instruction panel.");
     }
     private static void RestartDestinations()
     {

@@ -624,7 +624,7 @@ public class TutorialManager : MonoBehaviour
         }
         if (!hasStartedContractGuideRecovery || Time.unscaledTime < nextContractGuideRestoreTime) return;
         nextContractGuideRestoreTime = Time.unscaledTime + 1f;
-        if (data == null || IsContractGuidePresentationBlocked()) return;
+        if (data == null || data.objectiveNavigationHidden || IsContractGuidePresentationBlocked()) return;
         TrackedTask task = ResolveSavedNavigationTask(data);
         if (task == null || task.isTutorial || string.IsNullOrWhiteSpace(task.contractName))
         {
@@ -700,6 +700,18 @@ public class TutorialManager : MonoBehaviour
         contractGuideVisible = false;
     }
 
+    private void HideUntrackedContractGuide()
+    {
+        // Untracking is a presentation preference. Keep the owned route and its
+        // waypoint progress intact; a real tutorial still owns its instructions.
+        if (contractGuideVisible && !IsTutorialActive)
+        {
+            if (leftPanel != null) leftPanel.SetActive(false);
+            RestoreTutorialCanvas();
+        }
+        contractGuideVisible = false;
+    }
+
     private void ClearContractGuide()
     {
         SuspendContractGuide();
@@ -750,6 +762,12 @@ public class TutorialManager : MonoBehaviour
         }
         // Real tutorials keep ownership of the shared panel. Navigation never
         // starts a sequence, sets IsTutorialActive, or locks build controls.
+        if (PlayerDataManager.Instance != null && PlayerDataManager.Instance.CurrentData != null &&
+            PlayerDataManager.Instance.CurrentData.objectiveNavigationHidden)
+        {
+            HideUntrackedContractGuide();
+            return;
+        }
         if (IsContractGuidePresentationBlocked())
         {
             SuspendContractGuide();

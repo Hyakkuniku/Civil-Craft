@@ -173,16 +173,16 @@ internal static class Program
     {
         var docs = Documents(Read(Scene));
         foreach (var pair in baseline.ProtectedSceneDocuments)
-            Check(docs.TryGetValue(pair.Key, out string doc) && HashText(doc) == pair.Value, "Protected truck/cargo/slot/tutorial/movie/other-NPC changed: " + pair.Key);
+            Check(docs.TryGetValue(pair.Key, out string doc) && HashText(OriginalPresentation(pair.Key, doc)) == pair.Value, "Protected truck/cargo/slot/tutorial/movie/other-NPC changed outside approved guidance presentation: " + pair.Key);
         Check(docs.ContainsKey("1601157397"), "Keep original scene-local Vance progression component.");
         string npc = docs["1601157397"];
         Match[] phases = Phases(npc);
         Check(phases.Length == 7 && phases.Select(p => p.Groups["id"].Value.Trim()).SequenceEqual(PhaseIds), "Saved scene retains all seven original phase indexes.");
         Check(Field(npc, "progressionSaveId") == "VanceNPC", "Keep original Vance progression identity.");
-        Check(HashText(phases[6].Value) == baseline.SidePhaseHash, "Keep the entire existing realignment side phase unchanged.");
-        Check(HashText(RemoveFields(phases[3].Value, 4, "phaseDialogue")) == baseline.CargoPhaseProtectedHash,
+        Check(HashText(OriginalAttentionPresentation(phases[6].Value)) == baseline.SidePhaseHash, "Keep the realignment side phase unchanged apart from the approved attention flag.");
+        Check(HashText(OriginalAttentionPresentation(RemoveFields(phases[3].Value, 4, "phaseDialogue"))) == baseline.CargoPhaseProtectedHash,
             "Cargo phase may change its explanation only; preserve loading tutorial, unlock stage, destination and callbacks.");
-        Check(HashText(phases[4].Value) == baseline.Phase4Hash, "Preserve original loaded-contract phase, site and tutorial callbacks.");
+        Check(HashText(OriginalAttentionPresentation(phases[4].Value)) == baseline.Phase4Hash, "Preserve original loaded-contract phase, site and tutorial callbacks apart from its approved attention flag.");
         Check(phases[int.Parse(Field(Read(MainContract), "cargoUnlockAfterDialoguePhaseIndex"))].Groups["id"].Value == PhaseIds[3], "The cargo dialogue remains at the contract's unlock index3.");
         string cargoExplanation = Regex.Replace(phases[3].Value, @"\s+", " ");
         Check(cargoExplanation.Contains("four marked cargo items") && cargoExplanation.Contains("Once all four are loaded"), "Cargo-loading instructions must be present in the saved scene.");
@@ -207,6 +207,21 @@ internal static class Program
         Check(contract.Contains("80 meters") && contract.Contains("four cargo items") && contract.Contains("tension or compression"), "Saved briefing describes the actual span, loaded cargo and new lesson.");
         Check(contract.Contains("Keep all four required cargo items on the truck") && contract.Contains("complete vehicle-and-cargo load"), "Reminders and description keep the full loaded test requirement.");
     }
+
+    // The follow-up guidance tests validate the actual flags and objective settings.
+    // Restore only those approved scalar fields here, preserving this story's frozen behavior hashes.
+    private static string OriginalPresentation(string id, string text)
+    {
+        if (id == "1601157397" || id == "318150247") return OriginalAttentionPresentation(text);
+        if (new[] { "1143740769", "1487862495", "22004694", "669876432" }.Contains(id))
+        {
+            text = Regex.Replace(text, @"(?m)^  showInObjectives:[^\r\n]*", "  showInObjectives: 0");
+            return Regex.Replace(text, @"(?m)^(  objective(?:Title|Id):)[^\r\n]*", "$1 ");
+        }
+        return text;
+    }
+    private static string OriginalAttentionPresentation(string text) => Regex.Replace(text,
+        @"(?m)^( +(?:showExclamationMark|onlyShowExclamationWhenInteractionNeeded):)[^\r\n]*", "$1 0");
 
     private static Dictionary<string, string> Documents(string text) => Regex.Matches(text, @"(?ms)^--- !u!\d+ &(?<id>-?\d+)[^\r\n]*\r?\n.*?(?=^--- !u!|\z)")
         .Cast<Match>().ToDictionary(m => m.Groups["id"].Value, m => m.Value);

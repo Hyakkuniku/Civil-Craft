@@ -141,13 +141,16 @@ namespace PlayFab
         public static readonly List<QueuedCall<DataModels.GetFilesRequest, DataModels.GetFilesResponse>> Gets = new();
         public static readonly List<QueuedCall<DataModels.InitiateFileUploadsRequest, DataModels.InitiateFileUploadsResponse>> Starts = new();
         public static readonly List<QueuedCall<DataModels.FinalizeFileUploadsRequest, DataModels.FinalizeFileUploadsResponse>> Finishes = new();
-        public static void Reset() { Gets.Clear(); Starts.Clear(); Finishes.Clear(); }
+        public static readonly List<QueuedCall<DataModels.AbortFileUploadsRequest, DataModels.AbortFileUploadsResponse>> Aborts = new();
+        public static void Reset() { Gets.Clear(); Starts.Clear(); Finishes.Clear(); Aborts.Clear(); }
         public static void GetFiles(DataModels.GetFilesRequest request, Action<DataModels.GetFilesResponse> success, Action<PlayFabError> error) =>
             Gets.Add(new() { Request = request, Success = success, Error = error });
         public static void InitiateFileUploads(DataModels.InitiateFileUploadsRequest request, Action<DataModels.InitiateFileUploadsResponse> success, Action<PlayFabError> error) =>
             Starts.Add(new() { Request = request, Success = success, Error = error });
         public static void FinalizeFileUploads(DataModels.FinalizeFileUploadsRequest request, Action<DataModels.FinalizeFileUploadsResponse> success, Action<PlayFabError> error) =>
             Finishes.Add(new() { Request = request, Success = success, Error = error });
+        public static void AbortFileUploads(DataModels.AbortFileUploadsRequest request, Action<DataModels.AbortFileUploadsResponse> success, Action<PlayFabError> error) =>
+            Aborts.Add(new() { Request = request, Success = success, Error = error });
     }
 }
 namespace PlayFab.ClientModels
@@ -166,7 +169,9 @@ namespace PlayFab.DataModels
     public sealed class UploadFileMetadata { public string UploadUrl; }
     public sealed class InitiateFileUploadsResponse { public List<UploadFileMetadata> UploadDetails; public int ProfileVersion; }
     public sealed class FinalizeFileUploadsRequest { public EntityKey Entity; public List<string> FileNames; public int ProfileVersion; }
-    public sealed class FinalizeFileUploadsResponse { }
+    public sealed class FinalizeFileUploadsResponse { public int ProfileVersion = 9; }
+    public sealed class AbortFileUploadsRequest { public EntityKey Entity; public List<string> FileNames; public int ProfileVersion; }
+    public sealed class AbortFileUploadsResponse { }
 }
 namespace PlayFab.Internal
 {

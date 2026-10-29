@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("TutorialObjectiveLifecycle")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+a84d584d7b445b1dd7650c754b25487a005a2044")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+db1dd0e65b38743c71cd3c001bd12d0a7e3b4b0b")]
 [assembly: System.Reflection.AssemblyProductAttribute("TutorialObjectiveLifecycle")]
 [assembly: System.Reflection.AssemblyTitleAttribute("TutorialObjectiveLifecycle")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

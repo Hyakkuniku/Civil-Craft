@@ -352,13 +352,42 @@ public class NPCProgressionManager : MonoBehaviour
 
         if (contractGiver == null || !contractGiver.isActiveAndEnabled ||
             !contractGiver.IsInteractionAvailable) return false;
-        if (phase.contract == null) return !HasCompletedPhaseDialogue(currentPhaseIndex);
+        if (phase.contract == null) return !HasCompletedPhaseDialogue(currentPhaseIndex) ||
+            NeedsRepeatableContinuationRetry(phase);
         if (contractGiver.contractToGive != phase.contract || !contractGiver.CanRestoreContractGuide) return false;
 
         // An active build objective belongs at the site, not above the giver.
         // A cancelled contract-owned quiz is the exception: talking resumes it.
         return !contractGiver.HasAcceptedProgressionContract || contractGiver.isContractCompleted ||
             (PhaseContainsQuiz(phase) && !HasCompletedPhaseDialogue(currentPhaseIndex));
+    }
+
+    private bool NeedsRepeatableContinuationRetry(NPCProgressionPhase phase)
+    {
+        if (phase == null || !phase.repeatDialogue || phase.onDialogueFinished == null) return false;
+        bool retryAvailable = false;
+        // A camera tour can stop after its introducing dialogue has completed.
+        // Inspect only this phase's authored callbacks: ordinary completed repeat
+        // reminders do not request attention, and active continuations suppress it.
+        for (int i = 0; i < phase.onDialogueFinished.GetPersistentEventCount(); i++)
+        {
+            if (phase.onDialogueFinished.GetPersistentListenerState(i) == UnityEngine.Events.UnityEventCallState.Off) continue;
+            var target = phase.onDialogueFinished.GetPersistentTarget(i);
+            if (target == null) continue;
+            string method = phase.onDialogueFinished.GetPersistentMethodName(i);
+            if (target is CinematicDirector movie &&
+                (method == nameof(CinematicDirector.PlayCinematic) || method == nameof(CinematicDirector.PlayContractOfferCinematic)))
+            {
+                if (!movie.isActiveAndEnabled || movie.gameObject.scene != gameObject.scene || movie.IsPlaying) return false;
+                retryAvailable = true;
+            }
+            else if (target is ReedStoryIntroduction introduction && method == nameof(ReedStoryIntroduction.BeginIntroduction))
+            {
+                if (!introduction.isActiveAndEnabled || introduction.gameObject != gameObject || introduction.IsRunning) return false;
+                retryAvailable = true;
+            }
+        }
+        return retryAvailable;
     }
 
     private bool HasPresentNPCVisual()

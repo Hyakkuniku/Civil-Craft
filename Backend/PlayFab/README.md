@@ -32,7 +32,9 @@ fields, so installed builds that predate portrait upload can still call
 metadata already published by a newer build. On October 5, 2026, revision 9
 was uploaded and deployed with `submitMultiplayerResultV1` and
 `getMultiplayerLeaderboardV1`. Later on October 5, revision 10 was deployed
-to fix dashboard publishing; revision 10 is the current live revision.
+to fix dashboard publishing. On October 29, 2026, revision 11 superseded it
+with the private bridge album/dashboard compatibility change described below.
+Revision 12 later added private compact quiz answer review publication.
 The Unity submit flag is enabled in Canyon Crossing and Bhan House, and
 explicitly disabled in Multiplayer. A signed-in SilasContract completion
 reached `submitBridgeRunV1`; both of its live boards show two player entries,
@@ -235,3 +237,70 @@ This final gameplay/website check remains pending until the updated game runs.
 API references: [internal-data reads](https://learn.microsoft.com/en-us/rest/api/playfab/server/player-data-management/get-user-internal-data),
 [internal-data updates](https://learn.microsoft.com/en-us/rest/api/playfab/server/player-data-management/update-user-internal-data),
 and [CloudScript error shapes](https://learn.microsoft.com/en-us/xbox/playfab/live-service-management/service-gateway/automation/cloudscript/handling-errors-in-cloudscript).
+
+## Private bridge album compatibility — revision 11 deployed
+
+The current local dashboard feature and merged scripts preserve omitted lesson,
+quiz and snapshot fields across older clients. They support legacy region-array
+projections, preserve modern/unknown turn-in dates via `publisherVersion:2`, keep
+private ten-key data batches, and reject oversized UTF-8 argument bodies. The
+four **absolute dashboard** summary statistics now use `ForceUpdate:true`, so
+replaying a snapshot cannot add the same totals twice even under a mistakenly
+additive statistic definition. This does not change CC_E_/CC_S_ or multiplayer
+aggregation/submission behavior.
+
+On October 29, 2026, the complete live revision 10 source was read from the
+PlayFab editor and matched the local baseline after line-ending normalization
+(SHA-256 `b8eca9e00561b7719debde2b3387ff7b47af790fcfa04e5982c48354d6257bf8`).
+All 18 handler names were preserved and code outside the dashboard section was
+unchanged. Standalone/merged dashboard tests and multiplayer tests passed.
+
+The merged file was uploaded as revision 11 without deployment. Its complete
+staged editor source matched the reviewed file (SHA-256
+`be6534654b5a2244e13ec83ffc3860ae7c57d457ccd7c77fbbabc111ef1ff0b3`).
+It was then deployed, and the UI confirmed **Revision 11 (live)** for title
+`17FA03`. No synthetic progress, live-provider execution probe, balance change,
+payment configuration change or statistic-definition change was performed.
+Installed-device and two-account acceptance remain pending.
+
+For future changes, fetch and compare the actual live source before uploading;
+never replace the title with a feature-only source. See
+[the integration guide](../../Docs/GameWebsiteIntegration.md)
+for the Unity/website protocol, upload-recovery boundaries and device acceptance.
+
+## Private quiz answer reviews — revision 12 deployed
+
+On October 29, 2026, the live revision 11 source was read and verified against
+its previously published SHA-256
+`be6534654b5a2244e13ec83ffc3860ae7c57d457ccd7c77fbbabc111ef1ff0b3`.
+Revision 12 was staged without deployment, reread in full and matched against the
+reviewed merged file (SHA-256
+`7f8732efc68fbb70b7adc35eb998fc6f6c077c49e4ef7f3e095b820bae7cabfc`).
+All 18 handlers and source outside the dashboard section were preserved. The
+compatible website update was verified live before publication. PlayFab then
+confirmed **Revision 12 (live)** for Development title `17FA03`.
+
+`syncDashboardV1` accepts optional `quizReviewProgress` and writes the validated
+compact selections to Private `QuizReviewProgress` for `currentPlayerId`. Reviews
+must match a unique currently published completed aggregate. Old clients omitting
+the field preserve existing data. Matching unchanged submissions retain prior
+evidence if local reconstruction is unavailable; conflicting answer/fingerprint
+changes within one submission are rejected. Obsolete attempt references are not
+carried to a new aggregate. The response adds `quizReviewSchemaVersion: 1` only
+when the new projection is accepted, and updated Unity clients require that ack.
+
+No Entity Object or file is added, and no reward, currency, leaderboard formula
+or payment configuration is changed. The maximum ten keys per update, 10,000
+characters per projection and 30,000 UTF-8 argument bytes remain enforced. The
+full current catalog fixture uses 19,839 bytes.
+
+Verification: standalone/merged CloudScript and multiplayer tests, 54 focused
+website tests, 148 production projection/catalog parity assertions, 7,613 existing
+quiz assessment assertions, TypeScript, scoped lint and the production website
+build passed. Full Unity runtime/Editor/saved Android-target source compilation
+passed. Ten exported banks match actual C# fingerprints; their answer keys are
+absent from the public browser build. Live UI verifies on-demand loading and a
+truthful unavailable response for an older unsynchronized record. Actual answer
+delivery needs the rebuilt integration APK; no synthetic review was added to any
+player. The website protocol is documented in `docs/quiz-answer-review.md` in the
+website checkout.

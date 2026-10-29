@@ -108,6 +108,50 @@ public class PathGuider : MonoBehaviour
     private readonly RaycastHit[] surfaceHits = new RaycastHit[16];
     private DynamicNavMeshUpdater subscribedNavMeshUpdater;
 
+    /// <summary>The current player's saved trail preference, separate from objective progress.</summary>
+    public bool IsObjectiveNavigationHidden => PlayerDataManager.Instance != null &&
+        PlayerDataManager.Instance.CurrentData != null && PlayerDataManager.Instance.CurrentData.objectiveNavigationHidden;
+
+    public bool HasPendingObjectiveGuide
+    {
+        get
+        {
+            if (Instance != this || !isActiveAndEnabled || !gameObject.scene.IsValid() || !gameObject.scene.isLoaded || waypoints == null)
+                return false;
+            for (int index = currentWaypointIndex; index < waypoints.Count; index++)
+            {
+                Transform target = waypoints[index]?.target;
+                if (target != null && target.gameObject.scene == gameObject.scene) return true;
+            }
+            return false;
+        }
+    }
+    public bool CanUntrackObjectiveGuide => HasPendingObjectiveGuide && !IsObjectiveNavigationHidden &&
+        PlayerDataManager.Instance != null && PlayerDataManager.Instance.CurrentData != null && !IsProtectedGuest();
+
+    /// <summary>Hides navigation without discarding reached waypoints or completing the objective.</summary>
+    public bool UntrackObjectiveGuide()
+    {
+        PlayerDataManager saves = PlayerDataManager.Instance;
+        if (!CanUntrackObjectiveGuide || saves == null || saves.CurrentData == null || IsProtectedGuest()) return false;
+        saves.CurrentData.objectiveNavigationHidden = true;
+        ClearRocks();
+        currentlyTargetedWaypoint = null;
+        saves.SaveGame();
+        return true;
+    }
+
+    private static bool IsProtectedGuest() => FusionConnectionManager.Instance != null &&
+        (FusionConnectionManager.Instance.IsGuestInHostWorld || FusionConnectionManager.Instance.IsGuestSaveProtected);
+
+    private void ResumeObjectiveNavigation()
+    {
+        PlayerDataManager saves = PlayerDataManager.Instance;
+        if (saves == null || saves.CurrentData == null || !saves.CurrentData.objectiveNavigationHidden || IsProtectedGuest()) return;
+        saves.CurrentData.objectiveNavigationHidden = false;
+        saves.SaveGame();
+    }
+
     private void Awake()
     {
         if (Instance == null) Instance = this;
@@ -169,6 +213,15 @@ public class PathGuider : MonoBehaviour
                 TutorialManager.Instance.ShowNextStep();
             }
 
+            return;
+        }
+
+        // Arrival above remains active while untracked: walking to a tutorial
+        // destination still completes its normal step. Only the trail is hidden.
+        if (IsObjectiveNavigationHidden)
+        {
+            if (activeRocks.Count > 0 || rockContainer != null || currentRoutePoints.Count > 0) ClearRocks();
+            currentlyTargetedWaypoint = null;
             return;
         }
 
@@ -868,6 +921,7 @@ public class PathGuider : MonoBehaviour
 
     private void HandleBridgeNavMeshUpdated()
     {
+        if (IsObjectiveNavigationHidden) return;
         // A bake must not erase visible markers. Future extensions use the new
         // NavMesh; retry initial generation only when no guide exists yet.
         if (activeRocks.Count == 0) currentlyTargetedWaypoint = null;
@@ -902,7 +956,9 @@ public class PathGuider : MonoBehaviour
     // Rebuild the current tutorial guide without replaying reached waypoints.
     public void RecallTutorialGuide(List<GuiderWaypoint> tutorialWaypoints)
     {
-        if (tutorialWaypoints == null || tutorialWaypoints.Count == 0) return;
+        if (Instance != this || !isActiveAndEnabled || !gameObject.scene.IsValid() || !gameObject.scene.isLoaded ||
+            !CanRecallTutorialGuide(tutorialWaypoints)) return;
+        ResumeObjectiveNavigation();
         if (waypoints != tutorialWaypoints)
             SetNewWaypoints(tutorialWaypoints);
         else
@@ -924,6 +980,7 @@ public class PathGuider : MonoBehaviour
     /// </summary>
     public void RefreshFromPlayerPosition()
     {
+        if (IsObjectiveNavigationHidden) return;
         wasAwayFromTrail = false;
         offPathTimer = 0f;
         nextAllowedRecalculationTime = 0f;
@@ -944,6 +1001,9 @@ public class PathGuider : MonoBehaviour
 
     public void RouteToSingleTarget(Transform singleTarget)
     {
+        if (singleTarget == null || Instance != this || !isActiveAndEnabled || !gameObject.scene.IsValid() ||
+            !gameObject.scene.isLoaded || singleTarget.gameObject.scene != gameObject.scene) return;
+        ResumeObjectiveNavigation();
         waypoints = new List<GuiderWaypoint> 
         { 
             new GuiderWaypoint { target = singleTarget, advancesTutorial = false } 

@@ -1,0 +1,85 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using UnityEngine;
+namespace UnityEngine
+{
+    [AttributeUsage(AttributeTargets.Class)] public class DisallowMultipleComponent : Attribute { }
+    [AttributeUsage(AttributeTargets.Field)] public class SerializeField : Attribute { }
+    [AttributeUsage(AttributeTargets.Field)] public class Tooltip : Attribute { public Tooltip(string value) { } }
+    [AttributeUsage(AttributeTargets.Method)] public class RuntimeInitializeOnLoadMethodAttribute : Attribute { public RuntimeInitializeOnLoadMethodAttribute(RuntimeInitializeLoadType kind) { } }
+    public enum RuntimeInitializeLoadType { SubsystemRegistration }
+    public static class Application { public static bool isPlaying = true; }
+    public static class Time { public static float timeScale = 1; }
+    public class Object { public string name; }
+    public class Scene { public bool isLoaded = true, valid = true; public string path = "Assets/Scenes/CanyonCrossing.unity"; public bool IsValid() => valid; }
+    public class Component : Object
+    {
+        public GameObject gameObject;
+        public Transform transform => gameObject.transform;
+        public T GetComponent<T>() where T : class => gameObject.GetComponent<T>();
+        public bool TryGetComponent<T>(out T value) where T : class { value = GetComponent<T>(); return value != null; }
+        public void GetComponentsInChildren<T>(bool includeInactive, List<T> results) where T : class
+        { results.Clear(); results.AddRange(gameObject.components.OfType<T>()); }
+    }
+    public class Behaviour : Component { public bool enabled = true; public bool isActiveAndEnabled => enabled && gameObject.activeInHierarchy; }
+    public class MonoBehaviour : Behaviour { }
+    public class Transform : Component { public Transform parent; public int GetSiblingIndex() => 0; }
+    public class GameObject : Object
+    {
+        public Scene scene = new Scene(); public bool activeSelf = true, present = true;
+        public Transform transform; public List<Component> components = new List<Component>();
+        public bool activeInHierarchy => activeSelf && (transform.parent == null || transform.parent.gameObject.activeInHierarchy);
+        public GameObject() { transform = new Transform { gameObject = this }; }
+        public T GetComponent<T>() where T : class => components.OfType<T>().FirstOrDefault();
+        public T AddComponent<T>() where T : Component, new() { var result = new T { gameObject = this }; components.Add(result); return result; }
+    }
+    public class Mesh : Object { }
+    public class Renderer : Behaviour { public bool forceRenderingOff; }
+    public class MeshRenderer : Renderer { }
+    public class MeshFilter : Component { public Mesh sharedMesh; }
+    public class SkinnedMeshRenderer : Renderer { public Mesh sharedMesh; }
+}
+namespace TMPro { public class TMP_Text : Component { } }
+public class TutorialStep { public string message; public List<GuiderWaypoint> stepWaypoints = new List<GuiderWaypoint>(); }
+public class GuiderWaypoint { public Transform target; public bool advancesTutorial = true; }
+public class TutorialSequence : MonoBehaviour
+{
+    public bool showInObjectives = true; public string lessonName, objectiveTitle, ObjectiveId;
+    public TutorialStep[] tutorialSteps;
+}
+public class NPCProgressionPhase { public string phaseId; }
+public class NPCProgressionManager : MonoBehaviour
+{
+    public int CurrentPhaseIndex; public bool IsTravelling, dialogueCompleted;
+    public string ProgressionSaveId = "ReedNPC";
+    public List<NPCProgressionPhase> AuthoredPhases = new List<NPCProgressionPhase>();
+    public NPCProgressionPhase CurrentPhase => CurrentPhaseIndex >= 0 && CurrentPhaseIndex < AuthoredPhases.Count ? AuthoredPhases[CurrentPhaseIndex] : null;
+    public bool HasCompletedPhaseDialogue(int index) => dialogueCompleted;
+}
+public class NPCProgressionSaveData { public int currentPhaseIndex; public string currentPhaseId; public bool wasTravelling; }
+public class PlayerData
+{
+    public List<TrackedTask> activeQuests = new List<TrackedTask>(); public bool hasUnlockedObjectiveTracker, hasUnreadObjectiveAlert;
+    public List<string> completedLessons = new List<string>(); public HashSet<string> features = new HashSet<string>();
+    public Dictionary<string, NPCProgressionSaveData> savedNPC = new Dictionary<string, NPCProgressionSaveData>();
+    public string activeObjectiveKey = "contract:existing"; public int gold = 75, exp = 200;
+}
+public class PlayerDataManager
+{
+    public static PlayerDataManager Instance; public PlayerData CurrentData = new PlayerData(); public int saves, alerts;
+    public bool TryGetNPCProgression(string id, out NPCProgressionSaveData saved) => CurrentData.savedNPC.TryGetValue(id, out saved);
+    public bool IsFeatureUnlocked(string id) => CurrentData.features.Contains(id);
+    public void SaveGame() { saves++; }
+    public void MarkObjectiveAlertUnread() { CurrentData.hasUnreadObjectiveAlert = true; alerts++; SaveGame(); }
+}
+public class FusionConnectionManager { public static FusionConnectionManager Instance; public bool IsGuestInHostWorld, IsGuestSaveProtected; }
+public static class NPCSpawnConditionMonitor { public static bool CanShowNPCAttentionMarker(Transform target) => target.gameObject.present; }
+public class PathGuider { public static PathGuider Instance; public int routes; public Transform target; public void RouteToSingleTarget(Transform value) { routes++; target = value; } }
+public static class DialogueManager { public static bool IsAnyDialogueVisible; }
+public static class QuizUIManager { public static bool IsAnyQuizActive; }
+public static class LoadingScreenManager { public static bool IsLoading; }
+public class PauseManager { public static PauseManager Instance; public bool isPaused; }
+public class GameManager { public enum GameState { Normal, Building, Simulation } public static GameManager Instance; public bool IsTransitioning; public GameState CurrentState; }
+public class UIPanelCoordinator { public static UIPanelCoordinator Instance; public bool HasOpenPanel; public GameObject CurrentPanel; }
+public class ObjectiveTrackerUI { public static ObjectiveTrackerUI Instance; public GameObject trackerPanel; }

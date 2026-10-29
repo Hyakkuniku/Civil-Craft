@@ -1,0 +1,91 @@
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.UI;
+
+namespace UnityEngine
+{
+    public class Object
+    {
+        public bool destroyed;
+        public static bool operator ==(Object a, Object b) => ReferenceEquals(a, b) ||
+            ((ReferenceEquals(a, null) || a.destroyed) && (ReferenceEquals(b, null) || b.destroyed));
+        public static bool operator !=(Object a, Object b) => !(a == b);
+        public override bool Equals(object value) => ReferenceEquals(this, value);
+        public override int GetHashCode() => base.GetHashCode();
+    }
+    public struct Vector2
+    {
+        public float x, y;
+        public Vector2(float x, float y) { this.x = x; this.y = y; }
+        public static Vector2 zero => new Vector2();
+    }
+    public struct Vector3 { }
+    public enum HideFlags { HideInInspector }
+    public class Component : Object
+    {
+        public GameObject gameObject;
+        public Transform transform => gameObject.transform;
+        public T GetComponent<T>() where T : Component => gameObject.GetComponent<T>();
+    }
+    public class MonoBehaviour : Component { }
+    public class Transform : Component
+    {
+        public Transform parent;
+        public int lastSiblingChanges;
+        public void SetAsLastSibling() { lastSiblingChanges++; }
+    }
+    public class RectTransform : Transform { }
+    public class GameObject : Object
+    {
+        public bool activeSelf = true;
+        public RectTransform transform;
+        public List<Component> components = new List<Component>();
+        public bool activeInHierarchy => !destroyed && activeSelf && (transform.parent == null || transform.parent.gameObject.activeInHierarchy);
+        public GameObject()
+        {
+            transform = new RectTransform { gameObject = this };
+            components.Add(transform);
+        }
+        public void SetActive(bool active) { activeSelf = active; }
+        public T AddComponent<T>() where T : Component, new()
+        {
+            var value = new T { gameObject = this }; components.Add(value); return value;
+        }
+        public T GetComponent<T>() where T : Component => components.Find(item => item is T && item != null) as T;
+    }
+    public class Canvas : Component { public bool enabled = true; }
+    public class CanvasGroup : Component
+    {
+        public float alpha = 1;
+        public bool interactable = true, blocksRaycasts = true, ignoreParentGroups;
+        public HideFlags hideFlags;
+    }
+}
+namespace UnityEngine.UI { public class Graphic : Component { public bool raycastTarget; } }
+public static class DialogueManager { public static bool IsAnyDialogueVisible, IsAnyDialogueActive; }
+public class UIPanelCoordinator
+{
+    public static UIPanelCoordinator Instance;
+    public bool HasOpenPanel, Inside;
+    public bool IsTargetInsideTopPanel(RectTransform target) => Inside;
+}
+public class TutorialPointer : MonoBehaviour
+{
+    public int positions;
+    private void UpdatePosition() { positions++; }
+    public void Tick() { if (gameObject.activeInHierarchy) LateUpdate(); }
+    public void Enable() { OnEnable(); }
+    public void Initialize(bool top)
+    {
+        rectTransform = transform as RectTransform;
+        if (top) pointerCanvas = gameObject.AddComponent<Canvas>();
+    }
+    public bool Rendered => gameObject.activeInHierarchy && (pointerCanvas == null || pointerCanvas.enabled) &&
+        gameObject.components.TrueForAll(item => item is not CanvasGroup group || group.alpha > 0);
+    public RectTransform Target => target;
+    public Vector2 Offset => customOffset;
+    public bool Build => fitBuildTarget;
+    public float Rotation => buildPreferredRotation;
+    // ACTUAL_MEMBERS
+}

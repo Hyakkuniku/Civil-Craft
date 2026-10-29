@@ -132,9 +132,36 @@ public sealed class FusionConnectionManager
 public sealed class NPCProgressionPhase
 {
     public bool showExclamationMark;
+    public bool repeatDialogue;
+    public UnityEngine.Events.UnityEvent onDialogueFinished = new UnityEngine.Events.UnityEvent();
     public Transform targetLocation;
     public ContractSO contract;
     public List<NPCOptionalDialogueStep> optionalDialogueSequence = new List<NPCOptionalDialogueStep>();
+}
+namespace UnityEngine.Events
+{
+    public enum UnityEventCallState { Off, EditorAndRuntime, RuntimeOnly }
+    public sealed class UnityEvent
+    {
+        public readonly List<(object target, string method, UnityEventCallState state)> calls = new List<(object, string, UnityEventCallState)>();
+        public int GetPersistentEventCount() => calls.Count;
+        public object GetPersistentTarget(int index) => calls[index].target;
+        public string GetPersistentMethodName(int index) => calls[index].method;
+        public UnityEventCallState GetPersistentListenerState(int index) => calls[index].state;
+    }
+}
+public sealed class CinematicDirector
+{
+    public bool isActiveAndEnabled = true, IsPlaying;
+    public GameObject gameObject;
+    public void PlayCinematic() { throw new Exception("Marker must never start a camera tour."); }
+    public void PlayContractOfferCinematic() { throw new Exception("Marker must never start a camera tour."); }
+}
+public sealed class ReedStoryIntroduction
+{
+    public bool isActiveAndEnabled = true, IsRunning;
+    public GameObject gameObject;
+    public void BeginIntroduction() { throw new Exception("Marker must never start Reed's introduction."); }
 }
 public sealed class ContractSO { }
 public sealed class NPCOptionalDialogueStep

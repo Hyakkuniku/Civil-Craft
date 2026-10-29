@@ -92,6 +92,21 @@ public static class Scenarios
         guide.player.position = later.transform.position; guide.Tick();
         Require(guide.Index == 2 && guide.CanRecallTutorialGuide(ordered), "A finished trail can recall its final target like the existing recall action.");
         Require(!guide.CanRecallTutorialGuide(new List<GuiderWaypoint> { null, new GuiderWaypoint() }), "An empty target list remains untrackable.");
+
+        var hiddenTarget = Target(); Progression(hiddenTarget); guide = Guide(hiddenTarget.transform); guide.Tick();
+        var retainedRoute = guide.waypoints;
+        guide.IsObjectiveNavigationHidden = true; guide.Tick(); guide.Tick();
+        Require(guide.Rocks == 0 && guide.generations == 1 && guide.Index == 0 && ReferenceEquals(retainedRoute, guide.waypoints),
+            "Hidden navigation clears trail visuals without replacing the pending route or reached index.");
+        hiddenTarget.activeSelf = false; guide.player.position = hiddenTarget.transform.position; guide.Tick();
+        Require(guide.Index == 0 && TutorialManager.Instance.advances == 0,
+            "Untracked guidance still rejects arrival at an unspawned NPC.");
+        hiddenTarget.activeSelf = true; guide.Tick();
+        Require(guide.Index == 1 && TutorialManager.Instance.advances == 1 && guide.Rocks == 0,
+            "Walking to the present NPC while untracked still completes the original tutorial arrival exactly once.");
+        guide.Tick();
+        Require(TutorialManager.Instance.advances == 1 && ReferenceEquals(retainedRoute, guide.waypoints),
+            "Untracked arrival neither replays a reached target nor discards the authored route.");
         return checks;
     }
 }

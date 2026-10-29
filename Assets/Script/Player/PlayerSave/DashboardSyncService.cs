@@ -31,20 +31,56 @@ public sealed class DashboardSyncService : MonoBehaviour
     }
 
     [Serializable]
-    private sealed class DashboardCosmetic
+    private sealed class DashboardCompletion
     {
-        public string itemId;
-        public string name;
+        public string playerId;
+        public string levelId;
+        public string regionId;
+        public string resultId;
+        public string status = "success";
+        public string completedAt;
+        public int score;
+        public bool scoreKnown;
+        public string bridgeTypeId;
+        public BridgePhotoSnapshot snapshot;
     }
 
     [Serializable]
-    private sealed class DashboardCompletion
+    private sealed class DashboardLesson
     {
-        public string completedAt;
+        public string lessonId;
+        public string state = "discovered";
+    }
+
+    [Serializable]
+    private sealed class DashboardEquipment
+    {
+        public List<string> accessoryIDs = new List<string>();
+        public string hairID = string.Empty;
+        public string shirtID = string.Empty;
+        public string pantsID = string.Empty;
+        public string shoesID = string.Empty;
+    }
+
+    [Serializable]
+    private sealed class DashboardQuizAttempt
+    {
+        public string quizId;
+        public string attemptId;
+        public string title;
+        public string status = "completed";
         public int score;
-        public string bridgeTypeId;
-        public string achievementId;
-        public string completionScreenshotUrl;
+        public int totalQuestions;
+        public string completedAt;
+    }
+
+    [Serializable]
+    private sealed class DashboardQuizReview
+    {
+        public string quizId;
+        public string attemptId;
+        public string contentFingerprint;
+        public List<int> selectedIndices;
     }
 
     [Serializable]
@@ -73,7 +109,17 @@ public sealed class DashboardSyncService : MonoBehaviour
         public int overallPercent;
         public int storyPercent;
         public string currentRegion;
-        public List<DashboardRegion> regions = new List<DashboardRegion>();
+        public List<DashboardMapRegion> regions = new List<DashboardMapRegion>();
+    }
+
+    [Serializable]
+    private sealed class DashboardMapRegion
+    {
+        public string id;
+        public string name;
+        public bool completed;
+        public int missionsCompleted;
+        public int missionsTotal;
     }
 
     [Serializable]
@@ -85,6 +131,8 @@ public sealed class DashboardSyncService : MonoBehaviour
         public int journeyPercent;
         public List<string> discoveredBridgeTypeIds = new List<string>();
         public List<string> discoveredMaterials = new List<string>();
+        public List<DashboardLesson> lessonRecords = new List<DashboardLesson>();
+        public List<DashboardQuizAttempt> quizAttempts = new List<DashboardQuizAttempt>();
     }
 
     private sealed class DashboardPayload
@@ -100,6 +148,7 @@ public sealed class DashboardSyncService : MonoBehaviour
         public string achievementProgress;
         public string equippedCosmetics;
         public string almanacProgress;
+        public string quizReviewProgress;
         public string characterPortraitFile;
         public string characterPortraitUpdatedAt;
         public string characterPortraitChecksum;
@@ -108,12 +157,6 @@ public sealed class DashboardSyncService : MonoBehaviour
         public int challengesCompleted;
         public int bestSingleBuildScore;
     }
-
-    private static readonly HashSet<string> HeadwearIds = new HashSet<string>(
-        StringComparer.OrdinalIgnoreCase)
-    {
-        "EngineeringHardHat", "Accessory_SmallCap", "Accessory_LargeCap"
-    };
 
     private PlayerDataManager dataManager;
     private CloudSaveManager cloudSave;
@@ -155,11 +198,18 @@ public sealed class DashboardSyncService : MonoBehaviour
         ObserveAccountSession();
         if (!dirty || inFlight || dataManager == null || dataManager.CurrentData == null ||
             cloudSave == null || !cloudSave.CanPublishDashboard ||
+            !string.Equals(dataManager.ActiveAccountId, cloudSave.ActiveAccountId, StringComparison.Ordinal) ||
             Time.realtimeSinceStartup < nextAttemptTime ||
             !PlayFabClientAPI.IsClientLoggedIn())
             return;
 
-        Publish(BuildPayload(dataManager, DateTime.UtcNow));
+        try { Publish(BuildPayload(dataManager)); }
+        catch (Exception)
+        {
+            // Never log projection bodies, tickets or provider payloads.
+            inFlight = false;
+            ScheduleRetry("The saved dashboard projection could not be serialized safely.");
+        }
     }
 
     private void ObserveAccountSession()
@@ -194,7 +244,6 @@ public sealed class DashboardSyncService : MonoBehaviour
         int submittedRevision = revision;
         int submittedSession = cloudSave.SessionGeneration;
         string submittedAccount = cloudSave.ActiveAccountId;
-        inFlight = true;
         var parameters = new Dictionary<string, object>
         {
             { "schemaVersion", payload.schemaVersion },
@@ -208,6 +257,7 @@ public sealed class DashboardSyncService : MonoBehaviour
             { "achievementProgress", payload.achievementProgress },
             { "equippedCosmetics", payload.equippedCosmetics },
             { "almanacProgress", payload.almanacProgress },
+            { "quizReviewProgress", payload.quizReviewProgress },
             { "characterPortraitFile", payload.characterPortraitFile },
             { "characterPortraitUpdatedAt", payload.characterPortraitUpdatedAt },
             { "characterPortraitChecksum", payload.characterPortraitChecksum },
@@ -216,6 +266,13 @@ public sealed class DashboardSyncService : MonoBehaviour
             { "challengesCompleted", payload.challengesCompleted },
             { "bestSingleBuildScore", payload.bestSingleBuildScore }
         };
+
+        if (!ProjectionFits(payload, parameters))
+        {
+            ScheduleRetry("The dashboard projection exceeds its supported size. No records were truncated or sent.");
+            return;
+        }
+        inFlight = true;
 
         PlayFabClientAPI.ExecuteCloudScript(new ExecuteCloudScriptRequest
         {
@@ -232,8 +289,8 @@ public sealed class DashboardSyncService : MonoBehaviour
                 return;
             }
             if (!(result.FunctionResult is IDictionary<string, object> response) ||
-                !response.TryGetValue("accepted", out object accepted) ||
-                !(accepted is bool acceptedValue) || !acceptedValue)
+                !GameDashboardRecords.Acknowledged(response) ||
+                (payload.quizReviewProgress != null && !GameDashboardRecords.AcknowledgedQuizReview(response)))
             {
                 ScheduleRetry("CloudScript did not acknowledge the dashboard projection " +
                     "(revision " + result.Revision + ").");
@@ -255,9 +312,20 @@ public sealed class DashboardSyncService : MonoBehaviour
         });
     }
 
+    private static bool ProjectionFits(DashboardPayload payload, Dictionary<string, object> parameters)
+    {
+        foreach (string projection in new[] { payload.mapProgress, payload.achievementProgress,
+            payload.equippedCosmetics, payload.almanacProgress, payload.quizReviewProgress })
+            if (projection == null || projection.Length > 10000) return false;
+        var serializer = PluginManager.GetPlugin<ISerializerPlugin>(PluginContract.PlayFab_Serializer);
+        string encoded = serializer.SerializeObject(parameters);
+        return encoded != null && Encoding.UTF8.GetByteCount(encoded) <= 30000;
+    }
+
     private bool IsCurrentSession(int submittedSession, string submittedAccount)
     {
-        return this != null && cloudSave != null &&
+        return this != null && cloudSave != null && dataManager != null &&
+            string.Equals(dataManager.ActiveAccountId, submittedAccount, StringComparison.Ordinal) &&
             submittedSession == cloudSave.SessionGeneration &&
             string.Equals(submittedAccount, cloudSave.ActiveAccountId,
                 StringComparison.Ordinal);
@@ -332,10 +400,11 @@ public sealed class DashboardSyncService : MonoBehaviour
         Debug.LogWarning("[DashboardSync] " + message + " Sync will retry.", this);
     }
 
-    private static DashboardPayload BuildPayload(PlayerDataManager manager, DateTime synchronizedAt)
+    private static DashboardPayload BuildPayload(PlayerDataManager manager)
     {
         PlayerData data = manager.CurrentData;
-        var almanac = BuildAlmanac(manager, synchronizedAt);
+        List<QuizAggregateResult> quizResults = LatestQuizResults(data);
+        var almanac = BuildAlmanacProjection(manager, quizResults);
         string currentRegion = ResolveCurrentRegion(data, almanac.regions);
         int totalLevels = almanac.levelsTotal;
         int completedLevels = almanac.levelsCompleted;
@@ -351,7 +420,7 @@ public sealed class DashboardSyncService : MonoBehaviour
                     !seen.Add(contract.ContractID))
                     continue;
                 storyTotal++;
-                if (FindBridge(data, contract.ContractID) != null) storyCompleted++;
+                if (manager.HasContractCompletionRecord(contract.ContractID)) storyCompleted++;
             }
         }
 
@@ -360,8 +429,11 @@ public sealed class DashboardSyncService : MonoBehaviour
             overallPercent = Percent(completedLevels, totalLevels),
             storyPercent = Percent(storyCompleted, storyTotal),
             currentRegion = currentRegion,
-            regions = almanac.regions
         };
+        foreach (DashboardRegion region in almanac.regions)
+            map.regions.Add(new DashboardMapRegion { id = region.regionId, name = region.name,
+                completed = region.status == "completed", missionsTotal = region.levels.Count,
+                missionsCompleted = region.levels.FindAll(level => level.status == "completed").Count });
 
         int totalScore = 0;
         int bestScore = 0;
@@ -373,7 +445,7 @@ public sealed class DashboardSyncService : MonoBehaviour
                 int score = bridge.bestStarResult != null
                     ? bridge.bestStarResult.Stars
                     : Mathf.Max(bridge.bestStars, 1);
-                totalScore += Mathf.Max(0, score);
+                totalScore = checked(totalScore + Mathf.Max(0, score));
                 bestScore = Mathf.Max(bestScore, score);
             }
         }
@@ -393,7 +465,8 @@ public sealed class DashboardSyncService : MonoBehaviour
             mapProgress = JsonUtility.ToJson(map),
             achievementProgress = achievementProgress,
             equippedCosmetics = BuildCosmeticsJson(data.cosmeticLoadout),
-            almanacProgress = JsonUtility.ToJson(almanac),
+            almanacProgress = AlmanacJson(almanac),
+            quizReviewProgress = BuildQuizReviewJson(data, quizResults),
             characterPortraitFile = data.characterPortraitFileName ?? string.Empty,
             characterPortraitUpdatedAt = data.characterPortraitUpdatedAtUtc ?? string.Empty,
             characterPortraitChecksum = data.characterPortraitChecksum ?? string.Empty,
@@ -404,8 +477,13 @@ public sealed class DashboardSyncService : MonoBehaviour
         };
     }
 
-    private static DashboardAlmanacProgress BuildAlmanac(
-        PlayerDataManager manager, DateTime synchronizedAt)
+    private static DashboardAlmanacProgress BuildAlmanac(PlayerDataManager manager)
+    {
+        return BuildAlmanacProjection(manager, LatestQuizResults(manager.CurrentData));
+    }
+
+    private static DashboardAlmanacProgress BuildAlmanacProjection(
+        PlayerDataManager manager, List<QuizAggregateResult> quizResults)
     {
         PlayerData data = manager.CurrentData;
         var result = new DashboardAlmanacProgress();
@@ -430,7 +508,7 @@ public sealed class DashboardSyncService : MonoBehaviour
 
             var region = new DashboardRegion
             {
-                regionId = MapId(map),
+                regionId = RegionId(map),
                 name = MapName(map)
             };
             int regionCompleted = 0;
@@ -438,7 +516,7 @@ public sealed class DashboardSyncService : MonoBehaviour
             {
                 ContractSO contract = contracts[index];
                 SavedBridgeData bridge = FindBridge(data, contract.ContractID);
-                bool completed = bridge != null;
+                bool completed = manager.HasContractCompletionRecord(contract.ContractID);
                 bool current = !completed && !currentAssigned &&
                     (MatchesActiveObjective(data, contract) || !HasLaterCurrentCandidate(data, contracts, index));
                 if (current) currentAssigned = true;
@@ -455,17 +533,23 @@ public sealed class DashboardSyncService : MonoBehaviour
                 {
                     regionCompleted++;
                     result.levelsCompleted++;
-                    string bridgeType = InferBridgeType(bridge);
-                    discoveredTypes.Add(bridgeType);
-                    level.engineeringConceptIds = ConceptsForBridge(bridgeType);
+                    string bridgeType = bridge != null ? InferBridgeType(bridge) : string.Empty;
+                    if (bridgeType.Length > 0) discoveredTypes.Add(bridgeType);
+                    level.engineeringConceptIds = bridgeType.Length > 0 ? ConceptsForBridge(bridgeType) : new List<string>();
+                    bool scoreKnown = bridge?.latestStarResult != null && bridge.latestStarResult.completed;
                     level.completion = new DashboardCompletion
                     {
-                        completedAt = string.IsNullOrWhiteSpace(bridge.completedAtUtc)
-                            ? synchronizedAt.ToString("o") : bridge.completedAtUtc,
-                        score = bridge.bestStarResult != null
-                            ? Mathf.Max(1, bridge.bestStarResult.Stars)
-                            : Mathf.Max(1, bridge.bestStars),
-                        bridgeTypeId = bridgeType
+                        playerId = manager.ActiveAccountId,
+                        levelId = contract.ContractID,
+                        regionId = region.regionId,
+                        resultId = bridge?.resultId ?? string.Empty,
+                        completedAt = CompletionDate(data, contract.ContractID),
+                        score = scoreKnown ? bridge.latestStarResult.Stars : 0,
+                        scoreKnown = scoreKnown,
+                        bridgeTypeId = bridgeType,
+                        snapshot = bridge != null && GameDashboardRecords.ValidSnapshot(bridge.snapshot,
+                            contract.ContractID, bridge.resultId) && bridge.snapshot.regionId == region.regionId
+                            ? bridge.snapshot : null
                     };
                 }
                 region.levels.Add(level);
@@ -483,7 +567,182 @@ public sealed class DashboardSyncService : MonoBehaviour
         result.discoveredBridgeTypeIds.AddRange(discoveredTypes);
         result.discoveredBridgeTypeIds.Sort(StringComparer.Ordinal);
         result.discoveredMaterials = MapDiscoveredMaterials(data.discoveredMaterialIds);
+        if (data.unlockedLessonIds != null)
+        {
+            var lessons = new SortedSet<string>(StringComparer.Ordinal);
+            foreach (string id in data.unlockedLessonIds)
+                if (!string.IsNullOrWhiteSpace(id)) lessons.Add(id.Trim());
+            foreach (string id in lessons) result.lessonRecords.Add(new DashboardLesson { lessonId = id });
+        }
+        result.quizAttempts = BuildQuizResults(quizResults);
         return result;
+    }
+
+    private static string AlmanacJson(DashboardAlmanacProgress almanac)
+    {
+        // Omit optional provenance/review fields, not records. Repeating the
+        // entire media tree in MapProgress or null fields for every completion
+        // exceeds the established 10k nested/30k argument limits today.
+        var regions = new List<object>();
+        foreach (DashboardRegion region in almanac.regions)
+        {
+            var levels = new List<object>();
+            foreach (DashboardLevel level in region.levels)
+            {
+                var row = new Dictionary<string, object> { { "levelId", level.levelId }, { "order", level.order },
+                    { "levelName", level.levelName }, { "status", level.status },
+                    { "engineeringConceptIds", level.engineeringConceptIds } };
+                DashboardCompletion c = level.completion;
+                if (c != null)
+                {
+                    var completion = new Dictionary<string, object> {
+                        { "status", c.status }, { "bridgeTypeId", c.bridgeTypeId }, { "snapshot", null } };
+                    // The projection is private and the endpoint authenticates
+                    // its owner. playerId and the owning level/region IDs are
+                    // optional; stable parent IDs and strict snapshot IDs bind
+                    // every completion/image without repeating that ID twice.
+                    if (!string.IsNullOrEmpty(c.resultId)) completion["resultId"] = c.resultId;
+                    if (!string.IsNullOrEmpty(c.completedAt)) completion["completedAt"] = c.completedAt;
+                    if (c.scoreKnown) completion["score"] = c.score;
+                    else completion["scoreKnown"] = false;
+                    if (c.snapshot != null)
+                        completion["snapshot"] = new Dictionary<string, object> {
+                            { "storage", c.snapshot.storage }, { "fileName", c.snapshot.fileName },
+                            { "contractId", c.snapshot.contractId }, { "regionId", c.snapshot.regionId },
+                            { "resultId", c.snapshot.resultId }, { "entryName", c.snapshot.entryName },
+                            { "sha256", c.snapshot.sha256 }
+                        };
+                    row["completion"] = completion;
+                }
+                levels.Add(row);
+            }
+            regions.Add(new Dictionary<string, object> { { "regionId", region.regionId }, { "name", region.name },
+                { "status", region.status }, { "levels", levels } });
+        }
+        var projection = new Dictionary<string, object> {
+            { "publisherVersion", 2 }, { "regions", regions }, { "levelsCompleted", almanac.levelsCompleted }, { "levelsTotal", almanac.levelsTotal },
+            { "journeyPercent", almanac.journeyPercent }, { "discoveredBridgeTypeIds", almanac.discoveredBridgeTypeIds },
+            { "discoveredMaterials", almanac.discoveredMaterials }, { "lessonRecords", almanac.lessonRecords },
+            { "quizAttempts", almanac.quizAttempts }
+        };
+        return PluginManager.GetPlugin<ISerializerPlugin>(PluginContract.PlayFab_Serializer).SerializeObject(projection);
+    }
+
+    private static string CompletionDate(PlayerData data, string contractId)
+    {
+        ContractCompletionRecord matching = null;
+        if (data.contractCompletionRecords != null)
+            foreach (ContractCompletionRecord record in data.contractCompletionRecords)
+                if (record != null && record.contractId == contractId)
+                {
+                    if (matching != null) return string.Empty;
+                    matching = record;
+                }
+        return matching?.completedAtUtc ?? string.Empty;
+    }
+
+    private static List<QuizAggregateResult> LatestQuizResults(PlayerData data)
+    {
+        var latest = new Dictionary<string, QuizAggregateResult>(StringComparer.Ordinal);
+        var counts = new Dictionary<string, int>(StringComparer.Ordinal);
+        if (data.quizResults != null)
+        {
+            foreach (QuizAggregateResult result in data.quizResults)
+                if (result != null && !string.IsNullOrWhiteSpace(result.quizId))
+                    counts[result.quizId] = counts.TryGetValue(result.quizId, out int count) ? count + 1 : 1;
+            foreach (QuizAggregateResult result in data.quizResults)
+                if (GameDashboardRecords.ValidQuizResult(result) && counts[result.quizId] == 1)
+                    latest[result.quizId] = result;
+        }
+        var progressCounts = new Dictionary<string, int>(StringComparer.Ordinal);
+        if (data.quizProgress != null)
+            foreach (QuizProgressSaveData progress in data.quizProgress)
+                if (progress != null && progress.submitted && !string.IsNullOrWhiteSpace(progress.quizId))
+                    progressCounts[progress.quizId] = progressCounts.TryGetValue(progress.quizId, out int count) ? count + 1 : 1;
+        QuizData[] definitions = Resources.FindObjectsOfTypeAll<QuizData>();
+        // Legacy records contain no timestamp/result snapshot. Only a matching,
+        // fully retained definition can establish their real aggregate score.
+        if (data.quizProgress != null)
+            foreach (QuizProgressSaveData progress in data.quizProgress)
+            {
+                if (progress == null || !progress.submitted || string.IsNullOrWhiteSpace(progress.quizId) ||
+                    latest.ContainsKey(progress.quizId) || counts.ContainsKey(progress.quizId) ||
+                    progressCounts[progress.quizId] != 1) continue;
+                QuizData match = null;
+                bool ambiguous = false;
+                foreach (QuizData quiz in definitions)
+                    if (quiz != null && quiz.quizId?.Trim() == progress.quizId &&
+                        quiz.ContentFingerprint == progress.contentFingerprint)
+                    {
+                        if (match != null) { ambiguous = true; break; }
+                        match = quiz;
+                    }
+                if (!ambiguous && GameDashboardRecords.TryQuizResult(match, progress,
+                    GameDashboardRecords.LegacyQuizResultId(progress), string.Empty, out QuizAggregateResult aggregate))
+                    latest[aggregate.quizId] = aggregate;
+            }
+        var ordered = new List<QuizAggregateResult>(latest.Values);
+        ordered.Sort((left, right) => string.Compare(left.quizId, right.quizId, StringComparison.Ordinal));
+        return ordered;
+    }
+
+    private static List<DashboardQuizAttempt> BuildQuizResults(List<QuizAggregateResult> ordered)
+    {
+        var projection = new List<DashboardQuizAttempt>();
+        foreach (QuizAggregateResult result in ordered)
+            projection.Add(new DashboardQuizAttempt { quizId = result.quizId, attemptId = result.attemptId,
+                title = result.title, score = result.score, totalQuestions = result.totalQuestions,
+                completedAt = result.completedAt ?? string.Empty });
+        return projection;
+    }
+
+    private static string BuildQuizReviewJson(PlayerData data, List<QuizAggregateResult> results)
+    {
+        var reviews = new List<DashboardQuizReview>();
+        QuizData[] definitions = Resources.FindObjectsOfTypeAll<QuizData>();
+        foreach (QuizAggregateResult result in results)
+        {
+            QuizAggregateResult review = result;
+            // New submissions retain the compact canonical answers with the
+            // aggregate. Older saves may recover only their exact retained
+            // context and quiz version, never a different/later attempt.
+            if (result.selectedIndices == null)
+            {
+                QuizProgressSaveData progress = null;
+                bool ambiguousProgress = false;
+                if (data.quizProgress != null)
+                    foreach (QuizProgressSaveData candidate in data.quizProgress)
+                        if (candidate != null && candidate.submitted &&
+                            candidate.quizId == result.quizId && candidate.progressKey == result.progressKey &&
+                            candidate.contentFingerprint == result.contentFingerprint)
+                        {
+                            if (progress != null) { ambiguousProgress = true; break; }
+                            progress = candidate;
+                        }
+                if (progress == null || ambiguousProgress) continue;
+                QuizData definition = null;
+                bool ambiguousDefinition = false;
+                foreach (QuizData candidate in definitions)
+                    if (candidate != null && candidate.quizId?.Trim() == result.quizId &&
+                        candidate.ContentFingerprint == result.contentFingerprint)
+                    {
+                        if (definition != null) { ambiguousDefinition = true; break; }
+                        definition = candidate;
+                    }
+                if (ambiguousDefinition || !GameDashboardRecords.TryQuizResult(definition, progress,
+                    result.attemptId, result.completedAt, out review) ||
+                    review.title != result.title || review.score != result.score ||
+                    review.totalQuestions != result.totalQuestions) continue;
+            }
+            if (!GameDashboardRecords.ValidQuizReview(review)) continue;
+            reviews.Add(new DashboardQuizReview {
+                quizId = result.quizId, attemptId = result.attemptId,
+                contentFingerprint = review.contentFingerprint,
+                selectedIndices = new List<int>(review.selectedIndices)
+            });
+        }
+        return PluginManager.GetPlugin<ISerializerPlugin>(PluginContract.PlayFab_Serializer)
+            .SerializeObject(new Dictionary<string, object> { { "schemaVersion", 1 }, { "reviews", reviews } });
     }
 
     private static bool HasLaterCurrentCandidate(
@@ -571,56 +830,14 @@ public sealed class DashboardSyncService : MonoBehaviour
     private static string BuildCosmeticsJson(CosmeticLoadoutData loadout)
     {
         if (loadout == null) return "{}";
-        loadout.NormalizeAccessories();
-        var slots = new List<KeyValuePair<string, DashboardCosmetic>>();
-        AddCosmetic(slots, "hair", loadout.hairID);
-        AddCosmetic(slots, "top", loadout.shirtID);
-        AddCosmetic(slots, "pants", loadout.pantsID);
-        AddCosmetic(slots, "shoes", loadout.shoesID);
-
-        foreach (string id in loadout.GetAccessoryIDs())
-        {
-            if (HeadwearIds.Contains(id)) AddCosmetic(slots, "helmet", id);
-            else if (string.Equals(id, "Accessory_SafetyVest",
-                         StringComparison.OrdinalIgnoreCase))
-                AddCosmetic(slots, "vest", id);
-            else AddCosmetic(slots, "accessory", id);
-        }
-
-        var json = new StringBuilder("{");
-        for (int i = 0; i < slots.Count; i++)
-        {
-            if (i > 0) json.Append(',');
-            json.Append('"').Append(slots[i].Key).Append("\":")
-                .Append(JsonUtility.ToJson(slots[i].Value));
-        }
-        return json.Append('}').ToString();
-    }
-
-    private static void AddCosmetic(List<KeyValuePair<string, DashboardCosmetic>> slots,
-        string slot, string itemId)
-    {
-        if (string.IsNullOrWhiteSpace(itemId) ||
-            string.Equals(itemId, "Accessory_None", StringComparison.OrdinalIgnoreCase)) return;
-        int existing = slots.FindIndex(pair => pair.Key == slot);
-        var item = new DashboardCosmetic
-        {
-            itemId = itemId.Trim(),
-            name = CosmeticName(itemId)
+        // Never normalize/mutate the live save while reading it for a website.
+        CosmeticLoadoutData copy = loadout.Clone();
+        var equipment = new DashboardEquipment {
+            hairID = copy.hairID ?? string.Empty, shirtID = copy.shirtID ?? string.Empty,
+            pantsID = copy.pantsID ?? string.Empty, shoesID = copy.shoesID ?? string.Empty
         };
-        if (existing >= 0) slots[existing] = new KeyValuePair<string, DashboardCosmetic>(slot, item);
-        else slots.Add(new KeyValuePair<string, DashboardCosmetic>(slot, item));
-    }
-
-    private static string CosmeticName(string itemId)
-    {
-        foreach (CosmeticDefinition definition in
-                 Resources.FindObjectsOfTypeAll<CosmeticDefinition>())
-            if (definition != null && string.Equals(definition.PermanentID, itemId,
-                    StringComparison.OrdinalIgnoreCase))
-                return string.IsNullOrWhiteSpace(definition.displayName)
-                    ? Humanize(itemId) : definition.displayName.Trim();
-        return Humanize(itemId);
+        foreach (string id in copy.GetAccessoryIDs()) equipment.accessoryIDs.Add(id);
+        return JsonUtility.ToJson(equipment);
     }
 
     private static List<string> MapDiscoveredMaterials(List<string> materialIds)
@@ -648,6 +865,7 @@ public sealed class DashboardSyncService : MonoBehaviour
             case "rope": return "rope";
             case "wood road": return "wood_road";
             case "concrete road": return "concrete_road";
+            case "concretebeam": return "concrete_member";
             default: return string.Empty;
         }
     }
@@ -717,7 +935,7 @@ public sealed class DashboardSyncService : MonoBehaviour
         return total <= 0 ? 0 : Mathf.Clamp(Mathf.RoundToInt(completed * 100f / total), 0, 100);
     }
 
-    private static string MapId(ContractSO.ContractMap map)
+    public static string RegionId(ContractSO.ContractMap map)
     {
         switch (map)
         {
@@ -774,7 +992,7 @@ public sealed class DashboardSyncService : MonoBehaviour
             payload.xp.ToString(), payload.xpToNextLevel.ToString(), payload.currentRegion,
             payload.achievementsUnlocked.ToString(), payload.achievementsTotal.ToString(),
             payload.mapProgress, payload.achievementProgress, payload.equippedCosmetics,
-            payload.almanacProgress, payload.characterPortraitFile,
+            payload.almanacProgress, payload.quizReviewProgress, payload.characterPortraitFile,
             payload.characterPortraitUpdatedAt, payload.characterPortraitChecksum,
             payload.totalScore.ToString(),
             payload.bridgesCompleted.ToString(), payload.challengesCompleted.ToString(),

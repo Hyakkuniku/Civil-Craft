@@ -72,6 +72,7 @@ public class TrackedTask
 public class PlayerData
 {
     public string activeObjectiveKey;
+    public bool objectiveNavigationHidden;
     public List<TrackedTask> activeQuests = new List<TrackedTask>();
 }
 public class BridgeSaveData { }

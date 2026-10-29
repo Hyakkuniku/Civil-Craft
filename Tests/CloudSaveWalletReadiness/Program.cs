@@ -165,7 +165,7 @@ Run("confirmed source reservation excludes cloud sync and portrait operations", 
     Check(f.Cloud.TryBeginLegacyWalletImport(Fixture.A, generation), "Confirmed idle source can be reserved");
     Check(f.Cloud.CanImportLegacyWallet && !f.Cloud.TryBeginLegacyWalletImport(Fixture.A, generation),
         "Own reservation preserves dispatch rechecks but rejects a second owner");
-    Check(!f.Cloud.TryBeginAuxiliaryFileOperation(out _), "Portrait/entity file upload cannot race the import");
+    Check(!f.Cloud.TryBeginAuxiliaryFileOperation(out _, out _), "Portrait/entity file upload cannot race the import");
     int lookups = PlayFabDataAPI.Gets.Count;
     f.Manager.CommitLocal("{\"gold\":500,\"marker\":1}");
     f.Tick(); f.Call("OnApplicationPause", true); f.Call("SyncNow");
@@ -178,10 +178,25 @@ Run("confirmed source reservation excludes cloud sync and portrait operations", 
 
 Run("active auxiliary operations block first import until released", f => {
     f.Begin(CloudSaveManager.StartMode.Resume); f.DeliverCloud(Fixture.Local);
-    Check(f.Cloud.TryBeginAuxiliaryFileOperation(out _) && !f.Cloud.CanImportLegacyWallet &&
+    Check(f.Cloud.TryBeginAuxiliaryFileOperation(out _, out var reservation) && !f.Cloud.CanImportLegacyWallet &&
         !f.Cloud.TryBeginLegacyWalletImport(Fixture.A, f.Cloud.SessionGeneration), "A portrait transaction must finish first");
-    f.Cloud.EndAuxiliaryFileOperation();
+    f.Cloud.EndAuxiliaryFileOperation(reservation);
     Check(f.Cloud.CanImportLegacyWallet, "Releasing auxiliary storage restores the confirmed source gate");
+});
+
+Run("stale auxiliary callbacks cannot release a new account's media reservation", f => {
+    f.Begin(CloudSaveManager.StartMode.Resume); f.DeliverCloud(Fixture.Local);
+    Check(f.Cloud.TryBeginAuxiliaryFileOperation(out _, out var oldReservation), "First account acquires media slot");
+    Check(f.Cloud.IsAuxiliaryFileOperationCurrent(oldReservation), "Owner token is current");
+    f.Manager.Accounts[Fixture.B] = Fixture.Online;
+    f.Begin(CloudSaveManager.StartMode.Resume, Fixture.B); f.DeliverCloud(Fixture.Online, account: Fixture.B);
+    Check(f.Cloud.TryBeginAuxiliaryFileOperation(out _, out var newReservation), "Second account acquires its own media slot");
+    Check(!f.Cloud.IsAuxiliaryFileOperationCurrent(oldReservation), "Old token is invalidated by login generation");
+    f.Cloud.EndAuxiliaryFileOperation(oldReservation);
+    Check(f.Cloud.IsAuxiliaryFileOperationCurrent(newReservation) && !f.Cloud.CanImportLegacyWallet,
+        "Stale callback cannot unlock the new account's media transaction");
+    f.Cloud.EndAuxiliaryFileOperation(newReservation);
+    Check(f.Cloud.CanImportLegacyWallet, "Only the new owner's token can release its reservation");
 });
 
 Run("EndSession resets source approval, reservation and stale response authority", f => {
@@ -220,6 +235,126 @@ Run("stale upload finalization cannot mark another account source ready", f => {
     Check(!f.Cloud.IsSessionReady && !f.Cloud.IsLegacyWalletImportSourceReady, "The new account must await its own reconciliation");
     f.DeliverCloud(Fixture.Online, account: Fixture.B);
     Check(f.Cloud.CanImportLegacyWallet && f.Manager.Json == Fixture.Online, "Only the new account's confirmed response approves it");
+});
+
+Run("owned album recovery precedes strict startup save selection", f => {
+    string save = Path.Combine(f.Root, Fixture.A, "playerSaveData.json");
+    var entity = new PlayFab.DataModels.EntityKey { Id = "stub-" + Fixture.A, Type = "title_player_account" };
+    EntityMediaUploadRecovery.Record(save, Fixture.A, entity, "bridge-photos-v1.zip", 8, new byte[] { 1, 2, 3 });
+    f.Begin(CloudSaveManager.StartMode.LoadOnline);
+    PlayFabDataAPI.Gets[0].Success(new GetFilesResponse { ProfileVersion = 8, Metadata = new() });
+    Check(PlayFabDataAPI.Finishes.Count == 1 && PlayFabHttp.Downloads.Count == 0 &&
+        PlayFabDataAPI.Starts.Count == 0 && !f.Cloud.IsSessionReady,
+        "Known media operation is reconciled before reading/uploading the selected gameplay save");
+    Check(PlayFabDataAPI.Finishes[0].Request.FileNames.SequenceEqual(new[] { "bridge-photos-v1.zip" }) &&
+        PlayFabDataAPI.Finishes[0].Request.ProfileVersion == 8, "Recovery stays bound to the acknowledged file/profile");
+    PlayFabDataAPI.Finishes[0].Success(new FinalizeFileUploadsResponse());
+    Check(PlayFabDataAPI.Gets.Count == 2 && !f.Cloud.IsSessionReady, "Finalization requires a fresh lookup, not readiness or progress credit");
+    f.DeliverCloud(Fixture.Local);
+    Check(f.Cloud.IsSessionReady && f.Manager.Json == Fixture.Local,
+        "Startup can finish after media recovery without depending on already-ready media services");
+});
+
+Run("interrupted portrait recovery aborts only the exact owned profile after rechecking", f => {
+    string save = Path.Combine(f.Root, Fixture.A, "playerSaveData.json");
+    var entity = new PlayFab.DataModels.EntityKey { Id = "stub-" + Fixture.A, Type = "title_player_account" };
+    EntityMediaUploadRecovery.Record(save, Fixture.A, entity, "characterPortrait.png", 8, new byte[] { 4, 5 });
+    f.Begin(CloudSaveManager.StartMode.LoadOnline);
+    PlayFabDataAPI.Gets[0].Success(new GetFilesResponse { ProfileVersion = 8, Metadata = new() });
+    PlayFabDataAPI.Finishes[0].Fail();
+    Check(PlayFabDataAPI.Aborts.Count == 0 && PlayFabDataAPI.Gets.Count == 2, "Uncertain finalization is rechecked before any abort");
+    PlayFabDataAPI.Gets[1].Success(new GetFilesResponse { ProfileVersion = 8, Metadata = new() });
+    Check(PlayFabDataAPI.Aborts.Count == 1 && PlayFabDataAPI.Aborts[0].Request.ProfileVersion == 8 &&
+        PlayFabDataAPI.Aborts[0].Request.FileNames.Single() == "characterPortrait.png", "Only the recorded portrait transaction is eligible");
+    PlayFabDataAPI.Aborts[0].Success(new AbortFileUploadsResponse());
+    Check(EntityMediaUploadRecovery.HasUnpublished(save, Fixture.A, "characterPortrait.png"),
+        "Clearing a pending transaction does not claim the portrait metadata was published");
+    f.DeliverCloud(Fixture.Local);
+    Check(f.Cloud.IsSessionReady, "Known interrupted portrait no longer deadlocks cloud startup");
+});
+
+Run("changed remote profile is never aborted during uncertain media finalization", f => {
+    string save = Path.Combine(f.Root, Fixture.A, "playerSaveData.json");
+    EntityMediaUploadRecovery.Record(save, Fixture.A, new() { Id = "stub-" + Fixture.A, Type = "title_player_account" },
+        "bridge-photos-v1.zip", 8, new byte[] { 1 });
+    f.Begin(CloudSaveManager.StartMode.LoadOnline);
+    PlayFabDataAPI.Gets[0].Success(new GetFilesResponse { ProfileVersion = 8, Metadata = new() });
+    PlayFabDataAPI.Finishes[0].Fail();
+    PlayFabDataAPI.Gets[1].Success(new GetFilesResponse { ProfileVersion = 9, Metadata = new() });
+    Check(PlayFabDataAPI.Aborts.Count == 0 && PlayFabDataAPI.Gets.Count == 3,
+        "A newer device operation is not inferred to belong to the old receipt");
+    PlayFabDataAPI.Gets[2].Success(new GetFilesResponse { ProfileVersion = 9,
+        Metadata = new() { ["playerSaveData.json"] = new() { DownloadUrl = "mock://cloud-save" } } });
+    PlayFabHttp.Downloads[^1].Success(f.Envelope(Fixture.Local, Fixture.A));
+    Check(f.Cloud.IsSessionReady, "A changed profile still permits ordinary save verification");
+});
+
+Run("old-account recovery callback cannot affect a later account", f => {
+    string save = Path.Combine(f.Root, Fixture.A, "playerSaveData.json");
+    EntityMediaUploadRecovery.Record(save, Fixture.A, new() { Id = "stub-" + Fixture.A, Type = "title_player_account" },
+        "bridge-photos-v1.zip", 8, new byte[] { 1 });
+    f.Begin(CloudSaveManager.StartMode.LoadOnline);
+    PlayFabDataAPI.Gets[0].Success(new GetFilesResponse { ProfileVersion = 8, Metadata = new() });
+    var old = PlayFabDataAPI.Finishes[0];
+    f.Manager.Accounts[Fixture.B] = Fixture.Online;
+    f.Begin(CloudSaveManager.StartMode.LoadOnline, Fixture.B);
+    int lookups = PlayFabDataAPI.Gets.Count;
+    old.Fail();
+    Check(PlayFabDataAPI.Aborts.Count == 0 && PlayFabDataAPI.Gets.Count == lookups && !f.Cloud.IsSessionReady,
+        "An outgoing recovery callback cannot abort, requery or approve the incoming account");
+    f.DeliverCloud(Fixture.Online, account: Fixture.B);
+    Check(f.Cloud.IsSessionReady && f.Manager.Json == Fixture.Online, "Only B's verified save becomes ready");
+});
+
+Run("tampered local media candidate blocks automated recovery without changing files", f => {
+    string save = Path.Combine(f.Root, Fixture.A, "playerSaveData.json");
+    EntityMediaUploadRecovery.Record(save, Fixture.A, new() { Id = "stub-" + Fixture.A, Type = "title_player_account" },
+        "bridge-photos-v1.zip", 8, new byte[] { 1 });
+    File.WriteAllBytes(Path.Combine(Path.GetDirectoryName(save), "WebsiteMediaTransactions", "bridge-photos-v1.zip.candidate"), new byte[] { 9 });
+    f.Begin(CloudSaveManager.StartMode.LoadOnline);
+    PlayFabDataAPI.Gets[0].Success(new GetFilesResponse { ProfileVersion = 8, Metadata = new() });
+    Check(PlayFabDataAPI.Finishes.Count == 0 && PlayFabDataAPI.Aborts.Count == 0 && !f.Cloud.IsSessionReady,
+        "Unverified receipt never authorizes a mutation or a first import");
+});
+
+Run("a late older initiation receipt cannot overwrite a newer known transaction", f => {
+    string save = Path.Combine(f.Root, Fixture.A, "playerSaveData.json");
+    var entity = new PlayFab.DataModels.EntityKey { Id = "stub-" + Fixture.A, Type = "title_player_account" };
+    EntityMediaUploadRecovery.Record(save, Fixture.A, entity, "characterPortrait.png", 10, new byte[] { 1 });
+    bool rejected = false;
+    try { EntityMediaUploadRecovery.Record(save, Fixture.A, entity, "bridge-photos-v1.zip", 8, new byte[] { 2 }); }
+    catch (InvalidDataException) { rejected = true; }
+    Check(rejected && EntityMediaUploadRecovery.HasUnpublished(save, Fixture.A, "characterPortrait.png"),
+        "Stale receipt cannot replace the newer profile owner's recovery evidence");
+});
+
+Run("cached offline Resume cannot upload media before its selected save is reconciled", f => {
+    f.Begin(CloudSaveManager.StartMode.Resume); PlayFabDataAPI.Gets[0].Fail();
+    Check(f.Cloud.IsSessionReady && !f.Cloud.TryBeginAuxiliaryFileOperation(out _, out _),
+        "Offline gameplay readiness is not permission to replace online photo files");
+    f.Tick(); f.DeliverCloud(Fixture.Local);
+    Check(f.Cloud.TryBeginAuxiliaryFileOperation(out _, out var slot), "Verified selected save can reserve media");
+    f.Cloud.EndAuxiliaryFileOperation(slot);
+    f.Manager.CommitLocal("{\"gold\":501}");
+    Check(!f.Cloud.TryBeginAuxiliaryFileOperation(out _, out _), "A newly committed result must synchronize before media work starts");
+});
+
+Run("changed entity profile makes media recheck game save before rebuilding album", f => {
+    f.Begin(CloudSaveManager.StartMode.Resume); f.DeliverCloud(Fixture.Local);
+    Check(f.Cloud.TryBeginAuxiliaryFileOperation(out _, out var slot) && slot.ProfileVersion == 7,
+        "Media reservation records the last verified entity profile version");
+    Check(!f.Cloud.VerifyAuxiliaryFileProfile(slot, 8) && !f.Cloud.IsAuxiliaryFileOperationCurrent(slot),
+        "Another device's entity update invalidates the media reservation before merging");
+    int count = PlayFabDataAPI.Gets.Count; f.Tick();
+    Check(PlayFabDataAPI.Gets.Count == count + 1 && PlayFabDataAPI.Starts.Count == 0,
+        "Next operation is gameplay save reconciliation, not an album overwrite");
+});
+
+Run("a result saved during album lookup invalidates the media source", f => {
+    f.Begin(CloudSaveManager.StartMode.Resume); f.DeliverCloud(Fixture.Local);
+    Check(f.Cloud.TryBeginAuxiliaryFileOperation(out _, out var slot), "Confirmed source reserves media");
+    f.Manager.CommitLocal("{\"gold\":502}");
+    Check(!f.Cloud.VerifyAuxiliaryFileProfile(slot, 7), "Same remote profile cannot authorize an unsynchronized newer local selection");
 });
 
 Console.WriteLine($"CloudSaveWalletReadiness: {scenarios} actual-CloudSaveManager scenarios passed.");

@@ -1,0 +1,92 @@
+using System;
+using UnityEngine;
+
+public static class Scenarios
+{
+    private static int checks;
+    private static void Check(bool value, string message) { checks++; if (!value) throw new Exception(message); }
+    private static TutorialPointer Pointer(bool top = true)
+    {
+        DialogueManager.IsAnyDialogueVisible = DialogueManager.IsAnyDialogueActive = false;
+        UIPanelCoordinator.Instance = null;
+        var pointer = new GameObject().AddComponent<TutorialPointer>(); pointer.Initialize(top); return pointer;
+    }
+    public static int Run()
+    {
+        var target = new GameObject().transform;
+        var pointer = Pointer(); pointer.PointAt(target, new Vector2(5, 9));
+        Check(pointer.Rendered && pointer.Target == target, "A normal story arrow is visible.");
+        int positions = pointer.positions;
+        DialogueManager.IsAnyDialogueVisible = DialogueManager.IsAnyDialogueActive = true; pointer.Tick();
+        Check(!pointer.Rendered && pointer.Target == target && pointer.gameObject.activeSelf, "Dialogue hides rendering while keeping ownership active.");
+        Check(pointer.positions == positions, "A hidden pointer does not update placement.");
+        pointer.PointAt(target, new Vector2(7, 11));
+        Check(!pointer.Rendered && pointer.Offset.x == 7 && pointer.Offset.y == 11, "Same-target refresh remains hidden and keeps latest placement.");
+        DialogueManager.IsAnyDialogueActive = false; pointer.Tick();
+        Check(!pointer.Rendered, "Closing animation retains suppression even after active dialogue ends.");
+        DialogueManager.IsAnyDialogueVisible = false; pointer.Tick();
+        Check(pointer.Rendered && pointer.Target == target && pointer.Offset.x == 7, "After closing the existing pointer restores without a new request.");
+
+        DialogueManager.IsAnyDialogueVisible = true;
+        var replacement = new GameObject().transform; pointer.PointAt(replacement); pointer.Tick();
+        Check(!pointer.Rendered && pointer.Target == replacement && pointer.Offset.x == 0, "Target replacement during dialogue stays hidden.");
+        DialogueManager.IsAnyDialogueVisible = false; pointer.Tick();
+        Check(pointer.Rendered && pointer.Target == replacement, "Only the latest target is restored.");
+
+        DialogueManager.IsAnyDialogueVisible = true; pointer.Hide();
+        DialogueManager.IsAnyDialogueVisible = false; pointer.Tick();
+        Check(!pointer.gameObject.activeSelf && pointer.Target == null, "Owner Hide during dialogue cannot resurrect after closing.");
+        pointer.gameObject.SetActive(true); pointer.Enable();
+        Check(!pointer.gameObject.activeSelf, "Enabling a targetless pointer remains hidden.");
+
+        pointer = Pointer(); pointer.PointAt(target); DialogueManager.IsAnyDialogueVisible = true;
+        target.gameObject.SetActive(false); pointer.Tick();
+        Check(!pointer.Rendered && pointer.Target == target, "Dialogue temporarily hiding the target does not erase ownership.");
+        target.gameObject.SetActive(true); DialogueManager.IsAnyDialogueVisible = false; pointer.Tick();
+        Check(pointer.Rendered && pointer.Target == target, "A restored target becomes visible when dialogue closes.");
+        DialogueManager.IsAnyDialogueVisible = true; target.gameObject.SetActive(false); pointer.Tick();
+        DialogueManager.IsAnyDialogueVisible = false; pointer.Tick();
+        Check(pointer.Target == null && !pointer.Rendered, "A target still inactive after dialogue is safely abandoned.");
+        target.gameObject.SetActive(true);
+
+        pointer = Pointer(); DialogueManager.IsAnyDialogueVisible = true;
+        target.gameObject.SetActive(false); pointer.PointAtBuildTarget(target, new Vector2(13, 17), 80); pointer.Tick();
+        Check(!pointer.Rendered && pointer.Target == target && pointer.Build && pointer.Rotation == 80, "Build owner refresh can retain a temporarily hidden target.");
+        target.gameObject.SetActive(true); DialogueManager.IsAnyDialogueVisible = false; pointer.Tick();
+        Check(pointer.Rendered && pointer.Build && pointer.Offset.x == 13 && pointer.Rotation == 80, "Build offset and rotation survive dialogue.");
+        target.gameObject.SetActive(false); pointer.PointAtBuildTarget(target, Vector2.zero, 0);
+        Check(!pointer.Rendered && pointer.Target == null, "Inactive build targets outside dialogue keep their original rejection.");
+        target.gameObject.SetActive(true);
+
+        pointer = Pointer(); pointer.PointAt(target);
+        UIPanelCoordinator.Instance = new UIPanelCoordinator { HasOpenPanel = true }; pointer.Tick();
+        Check(!pointer.Rendered && pointer.Target == target, "Unrelated modal suppression still works.");
+        DialogueManager.IsAnyDialogueVisible = true; UIPanelCoordinator.Instance.Inside = true; pointer.Tick();
+        Check(!pointer.Rendered, "Dialogue outranks a pointer inside the active modal.");
+        DialogueManager.IsAnyDialogueVisible = false; pointer.Tick();
+        Check(pointer.Rendered, "After dialogue a target inside the active modal is allowed.");
+        UIPanelCoordinator.Instance.Inside = false; DialogueManager.IsAnyDialogueVisible = true; pointer.Tick();
+        DialogueManager.IsAnyDialogueVisible = false; pointer.Tick();
+        Check(!pointer.Rendered, "An unrelated modal remains suppressed after dialogue.");
+
+        pointer = Pointer(false); var authoredGroup = pointer.gameObject.AddComponent<CanvasGroup>(); authoredGroup.alpha = .4f;
+        pointer.PointAt(target); DialogueManager.IsAnyDialogueVisible = true; pointer.Tick();
+        Check(!pointer.Rendered && authoredGroup.alpha == .4f, "Canvas-free pointers hide without overwriting authored opacity.");
+        Check(pointer.gameObject.components.FindAll(item => item is CanvasGroup).Count == 2, "A canvas-free pointer owns a separate visibility mask.");
+        DialogueManager.IsAnyDialogueVisible = false; pointer.Tick();
+        Check(pointer.Rendered && authoredGroup.alpha == .4f, "Canvas-free restoration preserves authored opacity.");
+        pointer.PointAt(target); pointer.Tick();
+        Check(pointer.gameObject.components.FindAll(item => item is CanvasGroup).Count == 2, "Repeated refresh reuses its visibility mask.");
+
+        pointer = Pointer(); pointer.PointAt(target); var parent = new GameObject(); pointer.transform.parent = parent.transform;
+        DialogueManager.IsAnyDialogueVisible = true; pointer.Tick(); parent.SetActive(false);
+        DialogueManager.IsAnyDialogueVisible = false; pointer.Tick();
+        Check(!parent.activeSelf && !pointer.Rendered, "Dialogue closing never force-enables an inactive parent.");
+        parent.SetActive(true); pointer.Enable(); pointer.Tick();
+        Check(pointer.Rendered && pointer.Target == target, "Normal parent re-enable restores only the owned target.");
+        DialogueManager.IsAnyDialogueVisible = true; target.destroyed = true; pointer.Tick();
+        DialogueManager.IsAnyDialogueVisible = false; pointer.Tick();
+        Check(!pointer.Rendered && pointer.Target == null, "Destroyed targets are never resurrected.");
+        return checks;
+    }
+}

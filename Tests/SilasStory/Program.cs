@@ -145,7 +145,7 @@ internal static class Program
     {
         var docs = Documents(Read(Scene));
         foreach (var pair in baseline.ProtectedSceneDocuments)
-            Check(docs.TryGetValue(pair.Key, out string doc) && HashText(doc) == pair.Value, "Protected cinematic/tutorial/other-NPC/cargo/presenter changed: " + pair.Key);
+            Check(docs.TryGetValue(pair.Key, out string doc) && HashText(OriginalPresentation(pair.Key, doc)) == pair.Value, "Protected cinematic/tutorial/other-NPC/cargo/presenter changed outside approved guidance presentation: " + pair.Key);
         string npc = docs["318150247"]; Match[] phases = Phases(npc);
         Check(phases.Length == 11 && phases.Select(phase => Scalar(phase.Groups["id"].Value)).SequenceEqual(PhaseIds), "Saved scene preserves the original eleven ordered phase identities.");
         Check(Field(npc, "progressionSaveId") == "SilasNPC", "Preserve Silas's permanent progression identity.");
@@ -154,7 +154,7 @@ internal static class Program
             var excluded = new List<string> { "phaseDialogue" };
             if (i == 1 || i == 5 || i == 6) excluded.Add("repeatDialogue");
             if (new[] { 2, 4, 7, 9 }.Contains(i)) excluded.AddRange(new[] { "optionalDialogueSequence", "repeatDialogue", "playDialogueOnArrival" });
-            Check(HashText(RemoveFields(phases[i].Value, 4, excluded.ToArray())) == baseline.ProtectedPhaseHashes[i.ToString()],
+            Check(HashText(OriginalAttentionPresentation(RemoveFields(phases[i].Value, 4, excluded.ToArray()))) == baseline.ProtectedPhaseHashes[i.ToString()],
                 "Only approved narrative/ordered-flow presentation fields may change in phase " + i + "; preserve callbacks, targets, contracts and grant settings.");
         }
         Match[] distributionIntro = Steps(phases[2].Value), distributionReview = Steps(phases[4].Value), transferIntro = Steps(phases[7].Value), transferReview = Steps(phases[9].Value);
@@ -188,6 +188,20 @@ internal static class Program
             Check(Regex.Matches(docs["321885003091865885"], "guid: " + Guid(Lesson(i))).Count == 1, "Each new lesson appears exactly once in the Almanac archive.");
         }
     }
+    // Keep original story hashes; only the later guidance scalar fields are normalized.
+    private static string OriginalPresentation(string id, string text)
+    {
+        if (id == "1601157397" || id == "318150247") return OriginalAttentionPresentation(text);
+        if (new[] { "1143740769", "1487862495", "22004694", "669876432" }.Contains(id))
+        {
+            text = Regex.Replace(text, @"(?m)^  showInObjectives:[^\r\n]*", "  showInObjectives: 0");
+            return Regex.Replace(text, @"(?m)^(  objective(?:Title|Id):)[^\r\n]*", "$1 ");
+        }
+        return text;
+    }
+    private static string OriginalAttentionPresentation(string text) => Regex.Replace(text,
+        @"(?m)^( +(?:showExclamationMark|onlyShowExclamationWhenInteractionNeeded):)[^\r\n]*", "$1 0");
+
     private static string Lesson(int i) => Data + "Lessons/" + Topics[i] + ".asset";
     private static string Quiz(int i) => Data + "Quized/" + Topics[i] + "Quiz.asset";
     private static string Simulation(int i) => Data + "Simulation Lessons/" + Names[i] + " Lesson.asset";

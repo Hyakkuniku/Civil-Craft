@@ -37,3 +37,10 @@ quizzes, review ownership, dialogue, pause, build/simulation/transition states,
 unavailable givers, and preserving the previous behavior when the option is off.
 Giver availability, saved dialogue completion, and lesson-review ownership are
 boundary doubles; these tests never initiate dialogue, quests, or real saves.
+
+Completed repeatable camera introductions are checked separately: an interrupted
+camera tour or Reed introduction restores talk attention while the phase remains
+unchanged. Running, disabled, foreign-scene, or unrelated callback owners cannot
+request a retry. Ordinary completed repeat reminders remain hidden. Persistent
+callback metadata and continuation activity are boundary inputs; the real query
+is compiled from production and never invokes a camera, dialogue, or lesson.

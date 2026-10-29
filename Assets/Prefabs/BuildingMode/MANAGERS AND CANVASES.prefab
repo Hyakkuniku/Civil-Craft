@@ -33768,6 +33768,7 @@ MonoBehaviour:
   budgetText: {fileID: 6850389554625328311}
   weightText: {fileID: 2474653737160226986}
   navigateButton: {fileID: 0}
+  untrackButton: {fileID: 0}
   completeButton: {fileID: 3650587410292126641}
   rewardContainer: {fileID: 0}
   rewardGoldText: {fileID: 0}

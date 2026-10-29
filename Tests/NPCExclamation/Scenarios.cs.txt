@@ -5,6 +5,7 @@ public static class Scenarios
     {
         EligibilityMatrix();
         InteractionNeededPolicy();
+        ContinuationRetryPolicy();
         ModelPresence();
         SpawnReadiness();
         DestinationResolution();
@@ -151,6 +152,81 @@ public static class Scenarios
         GameManager.Instance = null;
     }
 
+    private static void ContinuationRetryPolicy()
+    {
+        NPCProgressionManager npc = Create(); npc.phaseHasArrived = true; npc.UseInteractionGate(true);
+        NPCProgressionPhase phase = npc.phases[0]; phase.repeatDialogue = true;
+        npc.savedCompletedDialogues.Add(0);
+        Expect(!npc.ShouldShowExclamationMark, "A completed ordinary repeat reminder, including Bhan's waiting dialogue, needs no fresh talk marker.");
+        var movie = new CinematicDirector { gameObject = new GameObject() };
+        movie.gameObject.scene = npc.gameObject.scene;
+        phase.onDialogueFinished.calls.Add((movie, "PlayCinematic", UnityEngine.Events.UnityEventCallState.RuntimeOnly));
+        Expect(npc.ShouldShowExclamationMark, "A repeatable camera introduction still in its completed dialogue phase advertises retry after interruption.");
+        movie.IsPlaying = true;
+        Expect(!npc.ShouldShowExclamationMark, "A running camera continuation retains attention on its presentation instead of advertising another conversation.");
+        movie.IsPlaying = false;
+        Expect(npc.ShouldShowExclamationMark, "Stopping the unfinished camera tour restores the talk marker without clearing saved dialogue completion.");
+        movie.isActiveAndEnabled = false;
+        Expect(!npc.ShouldShowExclamationMark, "A disabled or unavailable camera continuation cannot advertise a usable retry.");
+        movie.isActiveAndEnabled = true; movie.gameObject.scene = new Scene();
+        Expect(!npc.ShouldShowExclamationMark, "An unrelated scene's camera cannot make this NPC need another conversation.");
+        movie.gameObject.scene = npc.gameObject.scene;
+        phase.repeatDialogue = false;
+        Expect(!npc.ShouldShowExclamationMark, "Nonrepeating completed conversations cannot request a replay they do not support.");
+        phase.repeatDialogue = true;
+        phase.onDialogueFinished.calls[0] = (movie, "PlayCinematic", UnityEngine.Events.UnityEventCallState.Off);
+        Expect(!npc.ShouldShowExclamationMark, "Disabled persistent callbacks cannot make a completed phase look retryable.");
+        phase.onDialogueFinished.calls[0] = (movie, "UnrelatedMethod", UnityEngine.Events.UnityEventCallState.RuntimeOnly);
+        Expect(!npc.ShouldShowExclamationMark, "Only the actual camera-start callback can justify camera-continuation retry attention.");
+        phase.onDialogueFinished.calls[0] = (movie, "PlayContractOfferCinematic", UnityEngine.Events.UnityEventCallState.RuntimeOnly);
+        Expect(npc.ShouldShowExclamationMark, "The equivalent explicitly repeatable camera-start entry supports the same interrupted retry.");
+        phase.onDialogueFinished.calls.Add((new object(), "StartTutorial", UnityEngine.Events.UnityEventCallState.RuntimeOnly));
+        Expect(npc.ShouldShowExclamationMark, "Ordinary companion callbacks do not become marker owners or block a proven camera retry.");
+        var busyMovie = new CinematicDirector { gameObject = movie.gameObject, IsPlaying = true };
+        phase.onDialogueFinished.calls.Add((busyMovie, "PlayCinematic", UnityEngine.Events.UnityEventCallState.RuntimeOnly));
+        Expect(!npc.ShouldShowExclamationMark, "Any still-active authored camera continuation prevents a premature retry marker.");
+        phase.onDialogueFinished.calls.Clear();
+        var introduction = new ReedStoryIntroduction { gameObject = npc.gameObject };
+        phase.onDialogueFinished.calls.Add((introduction, "BeginIntroduction", UnityEngine.Events.UnityEventCallState.RuntimeOnly));
+        Expect(npc.ShouldShowExclamationMark, "Reed can be prompted to retry his interrupted combined tour and lesson flow.");
+        introduction.IsRunning = true;
+        Expect(!npc.ShouldShowExclamationMark, "Reed's running introduction retains its lock while it waits between owned camera/dialogue/lesson presentations.");
+        introduction.IsRunning = false; introduction.isActiveAndEnabled = false;
+        Expect(!npc.ShouldShowExclamationMark, "An unavailable Reed helper cannot advertise an actionable conversation.");
+        introduction.isActiveAndEnabled = true; introduction.gameObject = new GameObject();
+        Expect(!npc.ShouldShowExclamationMark, "A helper on another NPC cannot authorize this NPC's replay marker.");
+        introduction.gameObject = npc.gameObject;
+        phase.onDialogueFinished.calls[0] = (introduction, "WrongMethod", UnityEngine.Events.UnityEventCallState.RuntimeOnly);
+        Expect(!npc.ShouldShowExclamationMark, "Only Reed's actual introduction entry is eligible for this narrowly scoped retry policy.");
+        phase.onDialogueFinished.calls[0] = (introduction, "BeginIntroduction", UnityEngine.Events.UnityEventCallState.RuntimeOnly);
+        npc.runningOptionalSequencePhases.Add(0);
+        Expect(!npc.ShouldShowExclamationMark, "Owned ordered learning flows continue to suppress retry markers.");
+        npc.runningOptionalSequencePhases.Clear();
+        DialogueManager.IsAnyDialogueVisible = true;
+        Expect(!npc.ShouldShowExclamationMark, "Dialogue closing presentation still suppresses interrupted-continuation attention.");
+        DialogueManager.IsAnyDialogueVisible = false;
+        GameManager.Instance = new GameManager { CurrentState = GameManager.GameState.Building };
+        Expect(!npc.ShouldShowExclamationMark, "Camera retry attention cannot leak into Build Mode.");
+        GameManager.Instance = null;
+        npc.contractGiver.IsInteractionAvailable = false;
+        Expect(!npc.ShouldShowExclamationMark, "A gated giver remains unavailable even when its continuation can be replayed.");
+        npc.contractGiver.IsInteractionAvailable = true;
+        phase.contract = new ContractSO(); npc.contractGiver.contractToGive = phase.contract; npc.contractGiver.HasAcceptedProgressionContract = true;
+        Expect(!npc.ShouldShowExclamationMark, "A cinematic callback never overrides accepted incomplete contract attention policy.");
+        phase.contract = null;
+        npc.RenderedChildren.Clear();
+        Expect(!npc.ShouldShowExclamationMark, "An unspawned model cannot advertise an interrupted tour.");
+        npc.RenderedChildren.Add(Model());
+        phase.onDialogueFinished = null;
+        Expect(!npc.ShouldShowExclamationMark, "Missing callbacks cannot manufacture attention on a completed repeat phase.");
+        phase.onDialogueFinished = new UnityEngine.Events.UnityEvent();
+        phase.onDialogueFinished.calls.Add((new object(), "StartTutorial", UnityEngine.Events.UnityEventCallState.RuntimeOnly));
+        Expect(!npc.ShouldShowExclamationMark, "Completed tutorial callbacks and unrelated repeat reminders retain their old no-attention behavior.");
+        npc.UseInteractionGate(false); movie.IsPlaying = true;
+        phase.onDialogueFinished.calls[0] = (movie, "PlayCinematic", UnityEngine.Events.UnityEventCallState.RuntimeOnly);
+        Expect(npc.ShouldShowExclamationMark, "NPCs that did not opt into interaction-needed attention retain their authored phase-only policy.");
+        Expect(npc.savedCompletedDialogues.Contains(0), "Marker eligibility never clears or rewrites completed dialogue progression.");
+    }
     private static void ModelPresence()
     {
         NPCProgressionManager npc = Create();

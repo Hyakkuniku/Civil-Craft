@@ -99,3 +99,27 @@ MonoBehaviour:
     description: Open your <b>Almanac</b> and review your first bridge entry. After
       reading, close the book to continue.
     allowLegacyLessonMatch: 1
+  - objectiveId: Assets/Scenes/CanyonCrossing.unity|1143740769
+    lessonId: LoadCargoVance
+    scenePath: Assets/Scenes/CanyonCrossing.unity
+    title: Load all four cargo items
+    description: Load all four cargo items
+    allowLegacyLessonMatch: 1
+  - objectiveId: Assets/Scenes/CanyonCrossing.unity|1487862495
+    lessonId: 'GobacktoVance '
+    scenePath: Assets/Scenes/CanyonCrossing.unity
+    title: Return to Vance
+    description: Return to Vance
+    allowLegacyLessonMatch: 1
+  - objectiveId: Assets/Scenes/CanyonCrossing.unity|22004694
+    lessonId: EraseReedSideQuest
+    scenePath: Assets/Scenes/CanyonCrossing.unity
+    title: Inspect Reed's bridge
+    description: Inspect Reed's bridge
+    allowLegacyLessonMatch: 1
+  - objectiveId: Assets/Scenes/CanyonCrossing.unity|669876432
+    lessonId: MoveVanceSideQuest
+    scenePath: Assets/Scenes/CanyonCrossing.unity
+    title: Realign Vance's bridge
+    description: Realign Vance's bridge
+    allowLegacyLessonMatch: 1

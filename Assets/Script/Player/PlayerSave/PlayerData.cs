@@ -67,6 +67,11 @@ public class SavedBridgeData
     // UTC ISO-8601 timestamp used by the read-only web dashboard. Older saves
     // legitimately leave this empty because their completion time is unknown.
     public string completedAtUtc;
+    // Identity/date of this actual successful design, not NPC turn-in. Never
+    // generated for a legacy bridge just because its cache was reconstructed.
+    public string resultId;
+    public string capturedAtUtc;
+    public BridgePhotoSnapshot snapshot;
     public float totalSpent;
     public float maxStress;
     // Whole attempts, never merged flags from different designs. Legacy saves have null results.
@@ -219,8 +224,12 @@ public class PlayerData
     // Stable key for the unfinished objective shown when the objective panel opens.
     // Contracts use their ContractID; generic objectives use their unique title.
     public string activeObjectiveKey = "";
+    // Untrack hides navigation visuals without cancelling tutorial arrival checks.
+    // Kept separate from the objective currently selected in the clipboard.
+    public bool objectiveNavigationHidden = false;
     public List<string> unlockedLevels = new List<string> { "Tutorial" };
     public List<string> completedContracts = new List<string>();
+    public List<ContractCompletionRecord> contractCompletionRecords = new List<ContractCompletionRecord>();
     public List<string> lockedContractIds = new List<string>();
     public List<string> playedCinematicIds = new List<string>();
     // LessonData archive IDs. This is intentionally separate from completedLessons,
@@ -238,6 +247,8 @@ public class PlayerData
     public List<NPCProgressionSaveData> npcProgressions = new List<NPCProgressionSaveData>();
     // Quiz answers are independent from dialogue and lesson completion records.
     public List<QuizProgressSaveData> quizProgress = new List<QuizProgressSaveData>();
+    // Latest real submitted aggregate per quiz; not a fabricated attempt history.
+    public List<QuizAggregateResult> quizResults = new List<QuizAggregateResult>();
     public List<NPCVisibilitySaveData> npcVisibility = new List<NPCVisibilitySaveData>();
     public List<string> completedLessonCloseActions = new List<string>();
     public List<string> armedLessonCloseActions = new List<string>();

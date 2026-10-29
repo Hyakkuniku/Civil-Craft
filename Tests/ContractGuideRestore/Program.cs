@@ -15,7 +15,7 @@ string fields = string.Join("\n", type.Members.OfType<FieldDeclarationSyntax>().
 string actual = fields + type.Members.OfType<PropertyDeclarationSyntax>().Single(value => value.Identifier.ValueText == "IsTutorialPresentationSuppressed").ToFullString() + string.Join("\n", new[]
 {
     "GuideToContractLocation", "GuideToContractGiver", "SetContractLocationGuide", "SetContractGiverGuide", "RestoreContractGuideFromSave", "ResolveSavedNavigationTask", "SavedNavigationTaskKey",
-    "SetContractGuideOwner", "ContractGuideBelongsToCurrentSave", "IsContractGuidePresentationBlocked", "SuspendContractGuide", "ClearContractGuide",
+    "SetContractGuideOwner", "ContractGuideBelongsToCurrentSave", "IsContractGuidePresentationBlocked", "SuspendContractGuide", "HideUntrackedContractGuide", "ClearContractGuide",
     "BindContractGuideRoute", "UpdateContractGuide", "InvalidateContractGuideRestoreCandidates", "GetRecallableStep", "RecallCurrentTutorialGuide"
 }.Select(Method));
 string boundary = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Boundary.cs.txt")).Replace("// ACTUAL_MANAGER", actual);

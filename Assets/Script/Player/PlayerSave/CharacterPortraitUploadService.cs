@@ -31,9 +31,11 @@ public sealed class CharacterPortraitUploadService : MonoBehaviour
     private CloudSaveManager cloudSave;
     private bool dirty;
     private bool inFlight;
-    private bool fileOperationReserved;
+    private CloudSaveManager.AuxiliaryFileOperation fileOperation;
     private float nextAttemptTime;
     private int revision;
+    private int observedGeneration = int.MinValue;
+    private string observedAccount;
 
     public bool IsUploading => inFlight;
     public string LastUploadError { get; private set; }
@@ -55,6 +57,7 @@ public sealed class CharacterPortraitUploadService : MonoBehaviour
 
     public void RequestUpload()
     {
+        ObserveSession();
         dirty = true;
         revision++;
         nextAttemptTime = Time.realtimeSinceStartup + InitialDelaySeconds;
@@ -63,6 +66,7 @@ public sealed class CharacterPortraitUploadService : MonoBehaviour
 
     private void Update()
     {
+        ObserveSession();
         if (!dirty || inFlight || dataManager == null || dataManager.CurrentData == null ||
             cloudSave == null || Time.realtimeSinceStartup < nextAttemptTime ||
             !PlayFabClientAPI.IsClientLoggedIn())
@@ -73,61 +77,107 @@ public sealed class CharacterPortraitUploadService : MonoBehaviour
         // authenticated entity session needed by Entity Files.
         if (!cloudSave.IsAccountActive) return;
 
-        if (!cloudSave.TryBeginAuxiliaryFileOperation(out EntityKey entity))
+        if (!cloudSave.TryBeginAuxiliaryFileOperation(out EntityKey entity, out var reservation))
         {
             nextAttemptTime = Time.realtimeSinceStartup + 0.5f;
             return;
         }
 
-        fileOperationReserved = true;
+        fileOperation = reservation;
         inFlight = true;
         int submittedRevision = revision;
         CosmeticLoadoutData loadout = dataManager.GetCosmeticLoadoutCopy();
-        StartCoroutine(CaptureAndUpload(loadout, entity, submittedRevision));
+        StartCoroutine(CaptureAndUpload(loadout, entity, submittedRevision, reservation));
     }
 
+    private void ObserveSession()
+    {
+        if (cloudSave == null || (observedGeneration == cloudSave.SessionGeneration &&
+            string.Equals(observedAccount, cloudSave.ActiveAccountId, StringComparison.Ordinal))) return;
+        ReleaseFileOperation();
+        StopAllCoroutines();
+        observedGeneration = cloudSave.SessionGeneration;
+        observedAccount = cloudSave.ActiveAccountId;
+        dirty = dataManager != null && string.Equals(dataManager.ActiveAccountId, observedAccount, StringComparison.Ordinal) &&
+            EntityMediaUploadRecovery.HasUnpublished(dataManager.CurrentSavePath, observedAccount, PortraitFileName);
+        inFlight = false;
+        LastUploadError = null;
+    }
+
+    private bool IsCurrent(CloudSaveManager.AuxiliaryFileOperation reservation) =>
+        this != null && cloudSave != null && ReferenceEquals(fileOperation, reservation) &&
+        cloudSave.IsAuxiliaryFileOperationCurrent(reservation) && dataManager != null &&
+        string.Equals(dataManager.ActiveAccountId, reservation.AccountId, StringComparison.Ordinal);
+
     private IEnumerator CaptureAndUpload(
-        CosmeticLoadoutData loadout, EntityKey entity, int submittedRevision)
+        CosmeticLoadoutData loadout, EntityKey entity, int submittedRevision,
+        CloudSaveManager.AuxiliaryFileOperation reservation)
     {
         // Keep capture out of the UI button event and let the saved wardrobe
         // state settle before rendering the private off-screen camera.
         yield return new WaitForEndOfFrame();
+        if (!IsCurrent(reservation)) yield break;
 
         if (!TryRenderPortrait(loadout, out byte[] pngBytes, out string renderError))
         {
-            Fail(renderError);
+            Fail(reservation, renderError);
             yield break;
         }
 
         if (pngBytes.Length == 0 || pngBytes.Length > MaximumPortraitBytes)
         {
-            Fail("The rendered portrait PNG is empty or larger than 4 MB.");
+            Fail(reservation, "The rendered portrait PNG is empty or larger than 4 MB.");
             yield break;
         }
 
         string checksum = Sha256(pngBytes);
+        string submittedSavePath = dataManager.CurrentSavePath;
+        PlayFabDataAPI.GetFiles(new GetFilesRequest { Entity = entity }, files =>
+        {
+        if (!IsCurrent(reservation)) return;
+        if (files == null) { Fail(reservation, "Portrait file lookup returned no metadata."); return; }
+        if (!cloudSave.VerifyAuxiliaryFileProfile(reservation, files.ProfileVersion))
+        {
+            fileOperation = null; inFlight = false;
+            nextAttemptTime = Time.realtimeSinceStartup + 1f;
+            return;
+        }
         PlayFabDataAPI.InitiateFileUploads(new InitiateFileUploadsRequest
         {
             Entity = entity,
-            FileNames = new List<string> { PortraitFileName }
+            FileNames = new List<string> { PortraitFileName },
+            ProfileVersion = files.ProfileVersion
         }, initiated =>
         {
             if (initiated?.UploadDetails == null || initiated.UploadDetails.Count != 1 ||
-                string.IsNullOrWhiteSpace(initiated.UploadDetails[0].UploadUrl))
+                initiated.UploadDetails[0].FileName != PortraitFileName ||
+                !IsPrivateStorageUrl(initiated.UploadDetails[0].UploadUrl))
             {
-                Fail("PlayFab did not provide a portrait upload URL.");
+                Fail(reservation, "PlayFab did not provide a portrait upload URL.");
                 return;
             }
 
+            try
+            {
+                EntityMediaUploadRecovery.Record(submittedSavePath, reservation.AccountId, entity,
+                    PortraitFileName, initiated.ProfileVersion, pngBytes);
+            }
+            catch (Exception)
+            { Fail(reservation, "The portrait transaction could not be recorded. No image bytes were uploaded."); return; }
+
+            if (!IsCurrent(reservation)) return;
+
             PlayFabHttp.SimplePutCall(initiated.UploadDetails[0].UploadUrl, pngBytes,
-                _ => FinalizeUpload(entity, initiated.ProfileVersion,
-                    checksum, submittedRevision),
-                error => Fail("Portrait upload failed: " + error));
-        }, error => Fail("Starting portrait upload failed: " + error.ErrorMessage));
+                _ => { if (IsCurrent(reservation)) FinalizeUpload(entity, initiated.ProfileVersion,
+                    checksum, submittedRevision, reservation); },
+                error => Fail(reservation, "Portrait upload failed."));
+        }, error => Fail(reservation, "Starting portrait upload failed; retry will refresh the profile version."));
+        }, error => Fail(reservation, "Portrait file lookup failed."));
     }
 
     private void FinalizeUpload(
-        EntityKey entity, int profileVersion, string checksum, int submittedRevision)
+        EntityKey entity, int profileVersion, string checksum, int submittedRevision,
+        CloudSaveManager.AuxiliaryFileOperation reservation)
     {
         PlayFabDataAPI.FinalizeFileUploads(new FinalizeFileUploadsRequest
         {
@@ -136,28 +186,32 @@ public sealed class CharacterPortraitUploadService : MonoBehaviour
             ProfileVersion = profileVersion
         }, _ =>
         {
-            ReleaseFileOperation();
-            inFlight = false;
-            LastUploadError = null;
+            if (!IsCurrent(reservation)) return;
 
             string uploadedAt = DateTime.UtcNow.ToString("o");
             if (!dataManager.RecordCharacterPortraitUpload(
                     PortraitFileName, uploadedAt, checksum))
             {
-                Fail("The portrait uploaded, but its local metadata could not be saved.");
+                Fail(reservation, "The portrait uploaded, but its local metadata could not be saved.");
                 return;
             }
 
+            ReleaseFileOperation();
+            inFlight = false;
+            LastUploadError = null;
+            try { EntityMediaUploadRecovery.MarkPublished(dataManager.CurrentSavePath, reservation.AccountId, PortraitFileName); }
+            catch (Exception) { dirty = true; nextAttemptTime = Time.realtimeSinceStartup + RetrySeconds; return; }
             dirty = revision != submittedRevision;
             nextAttemptTime = dirty
                 ? Time.realtimeSinceStartup + InitialDelaySeconds
                 : float.PositiveInfinity;
             Debug.Log("[CharacterPortrait] characterPortrait.png uploaded to PlayFab.", this);
-        }, error => Fail("Finalizing portrait upload failed: " + error.ErrorMessage));
+        }, error => Fail(reservation, "Finalizing portrait upload failed."));
     }
 
-    private void Fail(string message)
+    private void Fail(CloudSaveManager.AuxiliaryFileOperation reservation, string message)
     {
+        if (!IsCurrent(reservation)) return;
         ReleaseFileOperation();
         inFlight = false;
         dirty = true;
@@ -168,10 +222,15 @@ public sealed class CharacterPortraitUploadService : MonoBehaviour
 
     private void ReleaseFileOperation()
     {
-        if (!fileOperationReserved) return;
-        fileOperationReserved = false;
-        if (cloudSave != null) cloudSave.EndAuxiliaryFileOperation();
+        if (fileOperation == null) return;
+        if (cloudSave != null) cloudSave.EndAuxiliaryFileOperation(fileOperation);
+        fileOperation = null;
     }
+
+    private static bool IsPrivateStorageUrl(string value) =>
+        Uri.TryCreate(value, UriKind.Absolute, out Uri uri) && uri.Scheme == Uri.UriSchemeHttps &&
+        uri.Host.EndsWith(".blob.core.windows.net", StringComparison.OrdinalIgnoreCase) &&
+        string.IsNullOrEmpty(uri.UserInfo) && uri.IsDefaultPort;
 
     private static bool TryRenderPortrait(
         CosmeticLoadoutData loadout, out byte[] pngBytes, out string error)

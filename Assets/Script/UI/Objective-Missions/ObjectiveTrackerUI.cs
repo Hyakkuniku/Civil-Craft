@@ -33,6 +33,7 @@ public class ObjectiveTrackerUI : MonoBehaviour
 
     [Header("Navigation UI")]
     public GameObject navigateButton;
+    public GameObject untrackButton;
 
     [Header("Final Payout UI")]
     public GameObject completeButton; 
@@ -56,12 +57,17 @@ public class ObjectiveTrackerUI : MonoBehaviour
     private TutorialManager observedTutorialManager;
     private PlayerData observedTutorialData;
     private int observedObjectiveHistoryVersion = -1;
+    private int observedStoryObjectiveVersion = -1;
     private ContractSO pendingContractOffer;
     private TrackedTask pendingContractPreview;
     private string pendingContractTargetName = string.Empty;
     private System.Action pendingContractAccepted;
     private System.Action pendingContractCancelled;
     private GameObject objectiveListBackButton;
+    private PlayerDataManager untrackDisplayedManager;
+    private PlayerData untrackDisplayedData;
+    private PathGuider untrackDisplayedGuider;
+    private List<GuiderWaypoint> untrackDisplayedRoute;
 
     private GameObject contractOfferLayout;
     private ScrollRect offerMaterialsScrollRect;
@@ -131,12 +137,14 @@ public class ObjectiveTrackerUI : MonoBehaviour
     private void Update()
     {
         SynchronizeTutorialObjective(true);
-        if (pendingContractOffer == null && tutorialObjective.Owns(currentlySelectedTask) &&
+        if (pendingContractOffer == null && TutorialObjectiveHistory.IsSequenceTask(currentlySelectedTask) &&
             trackerPanel != null && trackerPanel.activeSelf && navigateButton != null)
         {
-            bool canNavigate = tutorialObjective.CanNavigate;
+            bool canNavigate = tutorialObjective.Owns(currentlySelectedTask)
+                ? tutorialObjective.CanNavigate : NPCStoryObjectiveGuidance.CanNavigate(currentlySelectedTask);
             if (navigateButton.activeSelf != canNavigate) navigateButton.SetActive(canNavigate);
         }
+        RefreshUntrackButton();
         // --- SAFEGUARD: Forcibly keep alert icon OFF whenever the tracker panel is open ---
         if (trackerPanel != null && trackerPanel.activeSelf && newAlertIcon != null && newAlertIcon.activeSelf)
         {
@@ -157,8 +165,9 @@ public class ObjectiveTrackerUI : MonoBehaviour
             TutorialManager manager = TutorialManager.Instance;
             int version = manager != null ? manager.ObjectiveHistoryVersion : -1;
             bool historyChanged = manager != observedTutorialManager || !ReferenceEquals(data, observedTutorialData) ||
-                version != observedObjectiveHistoryVersion;
+                version != observedObjectiveHistoryVersion || observedStoryObjectiveVersion != NPCStoryObjectiveGuidance.Version;
             observedTutorialManager = manager; observedTutorialData = data; observedObjectiveHistoryVersion = version;
+            observedStoryObjectiveVersion = NPCStoryObjectiveGuidance.Version;
             if (!tutorialObjective.Sync(manager, data) && !historyChanged) return;
 
             bool added = tutorialObjective.Task != null &&
@@ -188,6 +197,11 @@ public class ObjectiveTrackerUI : MonoBehaviour
             {
                 if (currentlySelectedTask != null) SelectTask(currentlySelectedTask);
                 else ShowActiveObjectiveOrList(false);
+            }
+            else if (TutorialObjectiveHistory.IsSequenceTask(currentlySelectedTask))
+            {
+                if (IsCurrentSavedTutorialRow(currentlySelectedTask)) SelectTask(currentlySelectedTask);
+                else { currentlySelectedTask = null; ShowActiveObjectiveOrList(false); }
             }
         }
         finally { synchronizingTutorialObjective = false; }
@@ -632,7 +646,11 @@ public class ObjectiveTrackerUI : MonoBehaviour
             if (tutorialObjective.TryNavigate()) CloseTrackerPanel(false);
             return;
         }
-        if (TutorialObjectiveHistory.IsSequenceTask(currentlySelectedTask)) return;
+        if (TutorialObjectiveHistory.IsSequenceTask(currentlySelectedTask))
+        {
+            if (NPCStoryObjectiveGuidance.TryNavigate(currentlySelectedTask)) CloseTrackerPanel(false);
+            return;
+        }
 
         GameObject targetObj = null;
 
@@ -682,6 +700,80 @@ public class ObjectiveTrackerUI : MonoBehaviour
         {
             Debug.LogWarning("Could not find the navigation target in the active scene!");
         }
+    }
+
+    /// <summary>Hides the current trail; objectives, rewards and tutorial arrival checks stay intact.</summary>
+    public void OnUntrackObjectiveClicked()
+    {
+        PlayerDataManager manager = PlayerDataManager.Instance;
+        PathGuider guider = PathGuider.Instance;
+        // A queued click from an old profile, route or closed panel cannot hide a new guide.
+        if (untrackButton == null || !untrackButton.activeInHierarchy || trackerPanel == null || !trackerPanel.activeInHierarchy ||
+            pendingContractOffer != null || manager == null || manager != untrackDisplayedManager ||
+            !ReferenceEquals(manager.CurrentData, untrackDisplayedData) || guider == null || guider != untrackDisplayedGuider ||
+            !ReferenceEquals(guider.waypoints, untrackDisplayedRoute) || !guider.CanUntrackObjectiveGuide) return;
+
+        if (guider.UntrackObjectiveGuide()) RefreshUntrackButton();
+    }
+
+    private void RefreshUntrackButton()
+    {
+        if (untrackButton == null) return;
+        PathGuider guider = PathGuider.Instance;
+        PlayerDataManager manager = PlayerDataManager.Instance;
+        bool visible = trackerPanel != null && trackerPanel.activeInHierarchy && pendingContractOffer == null &&
+            manager != null && manager.CurrentData != null && guider != null &&
+            guider.gameObject.scene == gameObject.scene && guider.CanUntrackObjectiveGuide;
+        if (untrackButton.activeSelf != visible) untrackButton.SetActive(visible);
+        untrackDisplayedManager = visible ? manager : null;
+        untrackDisplayedData = visible ? manager.CurrentData : null;
+        untrackDisplayedGuider = visible ? guider : null;
+        untrackDisplayedRoute = visible ? guider.waypoints : null;
+    }
+
+    private void EnsureUntrackButton()
+    {
+        if (trackerPanel == null) return;
+        if (untrackButton == null)
+        {
+            Transform existing = trackerPanel.transform.Find("Untrack Objective");
+            untrackButton = existing != null ? existing.gameObject : new GameObject("Untrack Objective",
+                typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+            untrackButton.transform.SetParent(trackerPanel.transform, false);
+        }
+        TextMeshProUGUI label = untrackButton.GetComponentInChildren<TextMeshProUGUI>(true);
+        if (label == null)
+        {
+            GameObject textObject = new GameObject("Label", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+            textObject.transform.SetParent(untrackButton.transform, false);
+            label = textObject.GetComponent<TextMeshProUGUI>();
+        }
+        TextMeshProUGUI source = navigateButton != null ? navigateButton.GetComponentInChildren<TextMeshProUGUI>(true) : titleText;
+        if (source != null) label.font = source.font;
+        label.raycastTarget = false;
+        label.enableWordWrapping = false;
+        label.overflowMode = TextOverflowModes.Overflow;
+        StretchRect(label.rectTransform, new Vector2(16f, 6f), new Vector2(-16f, -6f));
+        ConfigureActionButton(untrackButton, "UNTRACK OBJECTIVE", SecondaryTextColor);
+        // Global navigation control: below the heading and above either content panel.
+        SetCenteredRect(untrackButton.GetComponent<RectTransform>(), new Vector2(420f, 72f), new Vector2(0f, 355f));
+        Button button = untrackButton.GetComponent<Button>();
+        if (button == null) button = untrackButton.AddComponent<Button>();
+        button.targetGraphic = untrackButton.GetComponent<Image>();
+        button.onClick.RemoveListener(OnUntrackObjectiveClicked);
+        if (!HasAuthoredUntrackCallback(button)) button.onClick.AddListener(OnUntrackObjectiveClicked);
+        untrackButton.transform.SetAsLastSibling();
+        untrackButton.SetActive(false);
+    }
+
+    private bool HasAuthoredUntrackCallback(Button button)
+    {
+        for (int index = 0; index < button.onClick.GetPersistentEventCount(); index++)
+            if (button.onClick.GetPersistentTarget(index) == this &&
+                button.onClick.GetPersistentMethodName(index) == nameof(OnUntrackObjectiveClicked) &&
+                button.onClick.GetPersistentListenerState(index) != UnityEngine.Events.UnityEventCallState.Off)
+                return true;
+        return false;
     }
 
     public void ToggleTrackerPanel()
@@ -912,6 +1004,10 @@ public class ObjectiveTrackerUI : MonoBehaviour
             {
                 canNavigate = tutorialObjective.CanNavigate;
             }
+            else if (TutorialObjectiveHistory.IsSequenceTask(task))
+            {
+                canNavigate = NPCStoryObjectiveGuidance.CanNavigate(task);
+            }
             else if (!task.isCompleted && !task.isReadyToTurnIn && !TutorialObjectiveHistory.IsSequenceTask(task))
             {
                 if (!task.isTutorial && !string.IsNullOrEmpty(task.contractName) && PlayerDataManager.Instance != null)
@@ -1066,7 +1162,7 @@ public class ObjectiveTrackerUI : MonoBehaviour
     private bool CanNavigateToTask(TrackedTask task)
     {
         if (tutorialObjective.Owns(task)) return tutorialObjective.CanNavigate;
-        if (TutorialObjectiveHistory.IsSequenceTask(task)) return false;
+        if (TutorialObjectiveHistory.IsSequenceTask(task)) return NPCStoryObjectiveGuidance.CanNavigate(task);
         if (task == null || task.isCompleted || task.isReadyToTurnIn) return false;
 
         if (!task.isTutorial && !string.IsNullOrEmpty(task.contractName) &&
@@ -1569,7 +1665,7 @@ public class ObjectiveTrackerUI : MonoBehaviour
         }
 
         Button closeButton = trackerPanel.GetComponentsInChildren<Button>(true)
-            .FirstOrDefault(button => button != null && button.transform.parent == trackerPanel.transform);
+            .FirstOrDefault(button => button != null && button.gameObject != untrackButton && button.transform.parent == trackerPanel.transform);
         if (closeButton != null)
         {
             RectTransform closeRect = closeButton.GetComponent<RectTransform>();
@@ -1636,6 +1732,7 @@ public class ObjectiveTrackerUI : MonoBehaviour
             completeButton,
             "COLLECT REWARD",
             new Color32(113, 177, 44, 255));
+        EnsureUntrackButton();
         ObjectiveMobileFit mobileFit = trackerPanel.GetComponent<ObjectiveMobileFit>();
         if (mobileFit == null) mobileFit = trackerPanel.AddComponent<ObjectiveMobileFit>();
         mobileFit.ApplyLayout();

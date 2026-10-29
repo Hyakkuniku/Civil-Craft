@@ -16,6 +16,7 @@ public class TutorialPointer : MonoBehaviour
     private Vector2 customOffset;
     private RectTransform rectTransform;
     private Canvas pointerCanvas;
+    private CanvasGroup dialogueMask;
     private bool fitBuildTarget;
     private float buildPreferredRotation;
     private readonly Vector3[] targetCorners = new Vector3[4];
@@ -24,6 +25,9 @@ public class TutorialPointer : MonoBehaviour
     {
         get
         {
+            // Dialogue keeps priority through its closing animation, even when
+            // the pointer's target is inside the currently open modal.
+            if (DialogueManager.IsAnyDialogueVisible) return true;
             UIPanelCoordinator coordinator = UIPanelCoordinator.Instance;
             return coordinator != null && coordinator.HasOpenPanel &&
                    !coordinator.IsTargetInsideTopPanel(target);
@@ -112,7 +116,7 @@ public class TutorialPointer : MonoBehaviour
     /// <summary>Build-only edge placement. Keeps existing non-build authored offsets unchanged.</summary>
     public void PointAtBuildTarget(RectTransform newTarget, Vector2 offset, float rotation)
     {
-        if (newTarget == null || !newTarget.gameObject.activeInHierarchy) { Hide(); return; }
+        if (newTarget == null || (!newTarget.gameObject.activeInHierarchy && !DialogueManager.IsAnyDialogueVisible)) { Hide(); return; }
         fitBuildTarget = true;
         buildPreferredRotation = rotation;
         target = newTarget;
@@ -132,6 +136,13 @@ public class TutorialPointer : MonoBehaviour
 
     private void LateUpdate()
     {
+        // Dialogue may temporarily hide the target's HUD. Keep its request so
+        // the arrow can return after that HUD is restored.
+        if (DialogueManager.IsAnyDialogueVisible)
+        {
+            RefreshModalVisibility();
+            return;
+        }
         if (target == null || !target.gameObject.activeInHierarchy)
         {
             Hide();
@@ -151,6 +162,20 @@ public class TutorialPointer : MonoBehaviour
     {
         if (pointerCanvas != null)
             pointerCanvas.enabled = !IsSuppressedByModal;
+        else
+        {
+            // Pointers without their own Canvas still need a dialogue mask.
+            // Its separate group leaves authored fades and parent groups intact.
+            bool hidden = DialogueManager.IsAnyDialogueVisible;
+            if (dialogueMask == null && hidden) dialogueMask = gameObject.AddComponent<CanvasGroup>();
+            if (dialogueMask != null)
+            {
+                dialogueMask.alpha = hidden ? 0f : 1f;
+                dialogueMask.interactable = false;
+                dialogueMask.blocksRaycasts = false;
+                dialogueMask.ignoreParentGroups = false;
+            }
+        }
     }
 
     private void UpdatePosition()

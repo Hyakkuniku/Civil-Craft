@@ -90,6 +90,9 @@ public class TutorialObjectiveProjection
 {
     public TrackedTask Task; public bool CanNavigate; public bool Owns(TrackedTask task) => task != null && ReferenceEquals(task,Task);
 }
+// This fixture owns non-story tutorial lifecycle rows. The separate story-guidance
+// fixture verifies authorized NPC routes; these rows have no registered NPC owner.
+public static class NPCStoryObjectiveGuidance { public static bool CanNavigate(TrackedTask task) => false; }
 public class GuiderWaypoint { }
 public class PathGuider { public static PathGuider Instance; public int Clears; public void SetNewWaypoints(List<GuiderWaypoint> values) { Clears++; } }
 public class BuildTutorialDirector { public static BuildTutorialDirector Instance; public void EndTutorial() { } }

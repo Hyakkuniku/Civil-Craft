@@ -46,6 +46,7 @@ public sealed class CloudSaveManager : MonoBehaviour
     private string accountId;
     private string syncStatePath;
     private string lastSyncedHash;
+    private int confirmedProfileVersion = -1;
     private string conflictingCloudJson;
     private string conflictingCloudHash;
     private int conflictingCloudProfileVersion;
@@ -70,6 +71,7 @@ public sealed class CloudSaveManager : MonoBehaviour
     private bool startupSelectionPending;
     private bool suspendSyncForConflict;
     private bool auxiliaryFileOperationInProgress;
+    private AuxiliaryFileOperation auxiliaryFileReservation;
     private bool legacyWalletImportInProgress;
 
     public bool IsSyncing => inFlight;
@@ -90,6 +92,22 @@ public sealed class CloudSaveManager : MonoBehaviour
     public bool CanPublishDashboard => IsAccountActive && IsSessionReady &&
         !showingConflict && !suspendSyncForConflict;
     public string LastSyncError { get; private set; }
+
+    /// <summary>An unforgeable reservation owned by one account login generation.</summary>
+    public sealed class AuxiliaryFileOperation
+    {
+        public readonly string AccountId;
+        public readonly int Generation;
+        public readonly EntityKey Entity;
+        public readonly int ProfileVersion;
+        internal AuxiliaryFileOperation(string owner, int session, EntityKey key, int profileVersion)
+        {
+            AccountId = owner;
+            Generation = session;
+            Entity = key;
+            ProfileVersion = profileVersion;
+        }
+    }
 
     private void Awake()
     {
@@ -112,6 +130,7 @@ public sealed class CloudSaveManager : MonoBehaviour
         retryRequired = false;
         suspendSyncForConflict = false;
         auxiliaryFileOperationInProgress = false;
+        auxiliaryFileReservation = null;
         legacyWalletImportInProgress = false;
         strictStartup = false;
         startupSelectionPending = false;
@@ -129,6 +148,7 @@ public sealed class CloudSaveManager : MonoBehaviour
         conflictingCloudGeneration = 0;
         conflictingCloudNeedsEncryptionUpgrade = false;
         lastSyncedHash = null;
+        confirmedProfileVersion = -1;
         LastSyncError = null;
     }
 
@@ -246,6 +266,10 @@ public sealed class CloudSaveManager : MonoBehaviour
             result =>
             {
                 if (requestGeneration != generation) return;
+                if (EntityMediaUploadRecovery.TryRecover(saveManager.CurrentSavePath, accountId, entity, result,
+                    () => this != null && requestGeneration == generation,
+                    () => { inFlight = false; SyncNow(); }, message => Fail(message))) return;
+                confirmedProfileVersion = result.ProfileVersion;
                 if (result.Metadata == null ||
                     !result.Metadata.TryGetValue(CloudFileName, out GetFileMetadata metadata))
                 {
@@ -287,21 +311,49 @@ public sealed class CloudSaveManager : MonoBehaviour
     /// wardrobe portrait. PlayFab permits only one pending file transaction on
     /// an entity, so this prevents the encrypted save and portrait from racing.
     /// </summary>
-    public bool TryBeginAuxiliaryFileOperation(out EntityKey entityKey)
+    public bool TryBeginAuxiliaryFileOperation(out EntityKey entityKey, out AuxiliaryFileOperation reservation)
     {
         entityKey = null;
-        if (!IsAccountActive || entity == null || inFlight || auxiliaryFileOperationInProgress ||
+        reservation = null;
+        if (!IsAccountActive || !IsSessionReady || startupSelectionPending || retryRequired ||
+            saveManager == null || Hash(saveManager.GetCurrentDataJson()) != lastSyncedHash ||
+            confirmedProfileVersion < 0 || entity == null || inFlight || auxiliaryFileOperationInProgress ||
             legacyWalletImportInProgress || showingConflict || suspendSyncForConflict || !PlayFabClientAPI.IsClientLoggedIn())
             return false;
 
         auxiliaryFileOperationInProgress = true;
         entityKey = new EntityKey { Id = entity.Id, Type = entity.Type };
+        reservation = auxiliaryFileReservation = new AuxiliaryFileOperation(accountId, generation, entityKey, confirmedProfileVersion);
         return true;
     }
 
-    public void EndAuxiliaryFileOperation()
+    /// <summary>Reconcile gameplay first if any other device advanced the entity since the selected save was verified.</summary>
+    public bool VerifyAuxiliaryFileProfile(AuxiliaryFileOperation reservation, int observedProfileVersion)
     {
+        if (!IsAuxiliaryFileOperationCurrent(reservation)) return false;
+        if (reservation.ProfileVersion == observedProfileVersion && !retryRequired &&
+            Hash(saveManager.GetCurrentDataJson()) == lastSyncedHash) return true;
+        EndAuxiliaryFileOperation(reservation);
+        retryRequired = true;
+        nextSyncTime = Time.realtimeSinceStartup;
+        return false;
+    }
+
+    public bool IsAuxiliaryFileOperationCurrent(AuxiliaryFileOperation reservation)
+    {
+        return reservation != null && ReferenceEquals(reservation, auxiliaryFileReservation) &&
+            auxiliaryFileOperationInProgress && reservation.Generation == generation &&
+            string.Equals(reservation.AccountId, accountId, StringComparison.Ordinal) &&
+            entity != null && string.Equals(reservation.Entity.Id, entity.Id, StringComparison.Ordinal) &&
+            string.Equals(reservation.Entity.Type, entity.Type, StringComparison.Ordinal);
+    }
+
+    public void EndAuxiliaryFileOperation(AuxiliaryFileOperation reservation)
+    {
+        // A callback from an old login must not release a newer upload's slot.
+        if (!IsAuxiliaryFileOperationCurrent(reservation)) return;
         auxiliaryFileOperationInProgress = false;
+        auxiliaryFileReservation = null;
         nextSyncTime = Mathf.Min(nextSyncTime, Time.realtimeSinceStartup + 0.25f);
     }
 
@@ -471,6 +523,7 @@ public sealed class CloudSaveManager : MonoBehaviour
                     }, finalized =>
                     {
                         if (requestGeneration != generation) return;
+                        confirmedProfileVersion = finalized.ProfileVersion;
                         MarkSynced(uploadedHash);
                         FinishOperation();
                     }, error =>
@@ -635,6 +688,7 @@ public sealed class CloudSaveManager : MonoBehaviour
             }
             else
             {
+                confirmedProfileVersion = conflictingCloudProfileVersion;
                 MarkSynced(conflictingCloudHash);
                 FinishOperation();
             }

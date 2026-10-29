@@ -21,7 +21,7 @@ internal static class Program
         string extracted = Property(manager, "ShouldShowExclamationMark") + Property(manager, "CurrentPhase") +
             Property(manager, "IsTravelling") + Method(manager, "CanRunLocalProgression") +
             Method(manager, "HasReachedPhaseDestination") + Method(manager, "HasPresentNPCVisual") +
-            Method(manager, "NeedsPhaseInteraction") + Method(manager, "PhaseContainsQuiz") +
+            Method(manager, "NeedsPhaseInteraction") + Method(manager, "NeedsRepeatableContinuationRetry") + Method(manager, "PhaseContainsQuiz") +
             manager.Members.OfType<FieldDeclarationSyntax>().Single(node => node.Declaration.Variables.Any(
                 variable => variable.Identifier.ValueText == "onlyShowExclamationWhenInteractionNeeded")).Declaration + ";";
         ClassDeclarationSyntax spawnMonitor = ReadClass(root, "Assets/Script/Interaction System/Interactables/NPCSpawnConditionMonitor.cs", "NPCSpawnConditionMonitor");
@@ -59,6 +59,13 @@ internal static class Program
         Require(!interaction.Contains("FindObject") && !interaction.Contains("Resources.") && !interaction.Contains("Start") &&
             !interaction.Contains("SetActive") && !interaction.Contains("Save"),
             "Reading marker interaction eligibility cannot scan, start flows, toggle objects, or save progress.");
+        string retry = Method(manager, "NeedsRepeatableContinuationRetry");
+        Require(retry.Contains("phase.repeatDialogue") && retry.Contains("GetPersistentTarget") && retry.Contains("UnityEventCallState.Off") &&
+            retry.Contains("movie.IsPlaying") && retry.Contains("introduction.IsRunning"),
+            "Retry attention must be limited to repeatable authored continuations and hide active or disabled callbacks.");
+        Require(!retry.Contains("FindObject") && !retry.Contains("Resources.") && !retry.Contains(".Invoke(") &&
+            !retry.Contains("SetActive") && !retry.Contains("Save") && !retry.Contains(".BeginIntroduction(") && !retry.Contains(".PlayCinematic("),
+            "Reading continuation retry attention must never start callbacks, search scenes, change visibility or write progress.");
         FieldDeclarationSyntax latch = manager.Members.OfType<FieldDeclarationSyntax>()
             .Single(node => node.Declaration.Variables.Any(variable => variable.Identifier.ValueText == "phaseHasArrived"));
         Require(!latch.AttributeLists.ToString().Contains("SerializeField"), "Arrival must not become stale persisted/serialized state.");

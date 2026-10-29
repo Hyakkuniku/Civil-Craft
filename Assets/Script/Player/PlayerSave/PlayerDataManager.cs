@@ -106,6 +106,7 @@ public class PlayerDataManager : MonoBehaviour
             gameObject.AddComponent<DashboardSyncService>();
         if (GetComponent<CharacterPortraitUploadService>() == null)
             gameObject.AddComponent<CharacterPortraitUploadService>();
+        BridgePhotoAlbumUploadService.For(this);
         GameWalletService.EnsureAttached(this);
         RegisterContracts(Resources.FindObjectsOfTypeAll<ContractSO>());
         MigrateLegacyContractLocks();
@@ -1003,6 +1004,13 @@ public class PlayerDataManager : MonoBehaviour
         bool previousObjectiveAlert = CurrentData.hasUnreadObjectiveAlert;
         List<string> newlyUnlockedFeatureIds = AddContractFeatureUnlocks(contractId);
         GameWalletRewardEvent queuedReward = null;
+        List<ContractCompletionRecord> previousCompletionRecords = CurrentData.contractCompletionRecords;
+        CurrentData.contractCompletionRecords = previousCompletionRecords != null
+            ? new List<ContractCompletionRecord>(previousCompletionRecords)
+            : new List<ContractCompletionRecord>();
+        CurrentData.contractCompletionRecords.Add(new ContractCompletionRecord {
+            contractId = contractId, completedAtUtc = DateTime.UtcNow.ToString("o")
+        });
 
         CurrentData.completedContracts.Add(contractId);
         CurrentData.lifetimeContractsCompleted++;
@@ -1021,6 +1029,7 @@ public class PlayerDataManager : MonoBehaviour
         if (!TrySaveGame())
         {
             CurrentData.completedContracts.Remove(contractId);
+            CurrentData.contractCompletionRecords = previousCompletionRecords;
             CurrentData.gold = previousGold;
             CurrentData.exp = previousExp;
             CurrentData.lifetimeGoldEarned = previousLifetimeGold;
@@ -1781,10 +1790,17 @@ public class PlayerDataManager : MonoBehaviour
             string.IsNullOrWhiteSpace(updatedAtUtc) || string.IsNullOrWhiteSpace(checksum))
             return false;
 
+        string previousFile = CurrentData.characterPortraitFileName;
+        string previousUpdatedAt = CurrentData.characterPortraitUpdatedAtUtc;
+        string previousChecksum = CurrentData.characterPortraitChecksum;
         CurrentData.characterPortraitFileName = fileName.Trim();
         CurrentData.characterPortraitUpdatedAtUtc = updatedAtUtc.Trim();
         CurrentData.characterPortraitChecksum = checksum.Trim();
-        return TrySaveGame();
+        if (TrySaveGame()) return true;
+        CurrentData.characterPortraitFileName = previousFile;
+        CurrentData.characterPortraitUpdatedAtUtc = previousUpdatedAt;
+        CurrentData.characterPortraitChecksum = previousChecksum;
+        return false;
     }
 
     private void EnsureCosmeticLoadout()
@@ -2116,6 +2132,8 @@ public class PlayerDataManager : MonoBehaviour
             schemaVersion = 2,
             contractId = contractId.Trim(),
             completedAtUtc = DateTime.UtcNow.ToString("o"),
+            resultId = Guid.NewGuid().ToString("N"),
+            capturedAtUtc = DateTime.UtcNow.ToString("o"),
             totalSpent = totalSpent,
             maxStress = maxStress
         };
@@ -2680,6 +2698,7 @@ public class PlayerDataManager : MonoBehaviour
         error = string.Empty;
         if (quiz == null || !quiz.assessmentMode || !TryGetQuizProgress(quiz, context, out QuizProgressSaveData record))
         { error = "Assessment progress is unavailable."; return false; }
+        bool wasSubmitted = record.submitted;
         if (questionOrderIds != null && !QuizProgressUtility.IsValidQuestionOrder(quiz, questionOrderIds))
         { error = "Quiz question order is invalid."; return false; }
         if (choiceOrders != null && !QuizProgressUtility.IsValidChoiceOrders(quiz, choiceOrders))
@@ -2736,8 +2755,36 @@ public class PlayerDataManager : MonoBehaviour
                 if (entry != null && !(entry.progressKey == record.progressKey && entry.quizId == record.quizId)) next.Add(entry.Clone());
         next.Add(record);
         CurrentData.quizProgress = next;
+        List<QuizAggregateResult> previousResults = CurrentData.quizResults;
+        if (record.submitted)
+        {
+            var results = previousResults != null ? new List<QuizAggregateResult>(previousResults)
+                : new List<QuizAggregateResult>();
+            QuizAggregateResult existingResult = results.Find(item => GameDashboardRecords.ValidQuizResult(item) &&
+                item.quizId == record.quizId);
+            // Continuing an older NPC context must not replace a newer quiz's
+            // submitted aggregate or manufacture another attempt/date.
+            if (!wasSubmitted || existingResult == null ||
+                (existingResult.progressKey == record.progressKey && existingResult.contentFingerprint == record.contentFingerprint))
+            {
+                string id = existingResult != null && wasSubmitted ? existingResult.attemptId :
+                    wasSubmitted ? GameDashboardRecords.LegacyQuizResultId(record) : Guid.NewGuid().ToString("N");
+                string date = existingResult != null && wasSubmitted ? existingResult.completedAt :
+                    wasSubmitted ? string.Empty : DateTime.UtcNow.ToString("o");
+                if (!GameDashboardRecords.TryQuizResult(quiz, record, id, date, out QuizAggregateResult aggregate))
+                {
+                    CurrentData.quizProgress = previous;
+                    error = "Submitted quiz result could not be verified.";
+                    return false;
+                }
+                results.RemoveAll(item => item != null && item.quizId == aggregate.quizId);
+                results.Add(aggregate);
+                CurrentData.quizResults = results;
+            }
+        }
         if (TrySaveGame()) return true;
         CurrentData.quizProgress = previous;
+        CurrentData.quizResults = previousResults;
         error = "Assessment could not be saved. Please retry.";
         return false;
     }
@@ -2855,9 +2902,9 @@ public class PlayerDataManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Stores the high-quality completion capture as a local cache. Bridge
-    /// geometry remains the synchronized source of truth, so this PNG never
-    /// needs to be uploaded and can be photographed again on another device.
+    /// Stores the original successful-result capture unchanged. A bounded,
+    /// optimized copy may be queued for the private website album; regenerated
+    /// cache warmups bypass this method and never manufacture historical photos.
     /// </summary>
     public bool TrySaveBridgePhoto(string contractId, byte[] pngBytes)
     {
@@ -2867,7 +2914,27 @@ public class PlayerDataManager : MonoBehaviour
 
         string normalizedId = contractId.Trim();
         SavedBridgeData bridge = GetSavedBridge(normalizedId);
-        return bridge != null && WriteBridgePhotoCache(bridge, pngBytes, true);
+        if (bridge == null || !WriteBridgePhotoCache(bridge, pngBytes, true)) return false;
+        ContractSO contract = FindRegisteredContract(normalizedId);
+        if (contract != null && GameDashboardRecords.IsLowerHex(bridge.resultId, 32))
+            BridgePhotoAlbumUploadService.For(this).QueuePhoto(normalizedId, bridge.resultId,
+                DashboardSyncService.RegionId(contract.contractMap), bridge.capturedAtUtc, pngBytes);
+        return true;
+    }
+
+    /// <summary>Only the finalized album entry for the selected design may enter the projection.</summary>
+    public bool TryRecordBridgePhotoSnapshot(string contractId, string resultId, BridgePhotoSnapshot snapshot)
+    {
+        SavedBridgeData bridge = GetSavedBridge(contractId);
+        ContractSO contract = FindRegisteredContract(contractId);
+        if (bridge == null || bridge.resultId != resultId || string.IsNullOrEmpty(activeAccountId) ||
+            contract == null || !GameDashboardRecords.ValidSnapshot(snapshot, bridge.contractId, resultId) ||
+            snapshot.regionId != DashboardSyncService.RegionId(contract.contractMap)) return false;
+        BridgePhotoSnapshot previous = bridge.snapshot;
+        bridge.snapshot = snapshot;
+        if (TrySaveGame()) return true;
+        bridge.snapshot = previous;
+        return false;
     }
 
     /// <summary>Schedules a missing or stale photo at the bridge's loaded build location.</summary>
@@ -2968,7 +3035,33 @@ public class PlayerDataManager : MonoBehaviour
 
     private static string ComputeBridgePhotoHash(SavedBridgeData bridge)
     {
-        return ComputeSha256(Encoding.UTF8.GetBytes(JsonUtility.ToJson(bridge)));
+        // Match the established v1 cache geometry fields and their order. A
+        // finalized website snapshot is metadata, not a changed bridge/photo;
+        // adding it must not regenerate or overwrite the original local PNG.
+        var geometry = new BridgePhotoCacheIdentity {
+            schemaVersion = bridge.schemaVersion, contractId = bridge.contractId,
+            completedAtUtc = bridge.completedAtUtc, totalSpent = bridge.totalSpent,
+            maxStress = bridge.maxStress, latestStarResult = bridge.latestStarResult,
+            bestStarResult = bridge.bestStarResult, starsEarned = bridge.starsEarned,
+            bestStars = bridge.bestStars, points = bridge.points, bars = bridge.bars
+        };
+        return ComputeSha256(Encoding.UTF8.GetBytes(JsonUtility.ToJson(geometry)));
+    }
+
+    [Serializable]
+    private sealed class BridgePhotoCacheIdentity
+    {
+        public int schemaVersion;
+        public string contractId;
+        public string completedAtUtc;
+        public float totalSpent;
+        public float maxStress;
+        public ContractStarResult latestStarResult;
+        public ContractStarResult bestStarResult;
+        public int starsEarned;
+        public int bestStars;
+        public List<SavedPointData> points;
+        public List<SavedBarData> bars;
     }
 
     private static bool IsValidPng(byte[] bytes)

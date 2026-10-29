@@ -1,0 +1,61 @@
+using System;
+using System.Collections.Generic;
+public static class Scenarios
+{
+    private static int count;
+    private static void Check(bool value, string message) { count++; if (!value) throw new Exception(message); }
+    private static PathGuider Setup(out GameObject target)
+    {
+        PlayerDataManager.Instance = new PlayerDataManager(); FusionConnectionManager.Instance = null;
+        TutorialManager.Instance = new TutorialManager(); NPCSpawnConditionMonitor.available = true;
+        var path = new PathGuider { player = new GameObject().transform };
+        target = new GameObject(); target.transform.position = new Vector3(10,0,0);
+        path.SetNewWaypoints(new List<GuiderWaypoint> { new GuiderWaypoint { target=target.transform, advancesTutorial=true } });
+        return path;
+    }
+    public static int Run()
+    {
+        var path = Setup(out var target); var original = path.waypoints; path.Tick();
+        Check(path.Rocks>0 && path.CanUntrackObjectiveGuide, "An active route can be untracked.");
+        Check(path.UntrackObjectiveGuide(), "Untrack succeeds.");
+        Check(ReferenceEquals(path.waypoints,original) && path.Index==0 && path.Rocks==0, "Untrack preserves the exact list and reached index.");
+        Check(PlayerDataManager.Instance.saves==1 && PlayerDataManager.Instance.CurrentData.objectiveNavigationHidden, "Preference saves once.");
+        Check(!path.UntrackObjectiveGuide() && PlayerDataManager.Instance.saves==1, "Repeated clicks are harmless.");
+        int generated=path.generations; path.Tick(); path.Tick(); path.BakeDone(); path.RefreshFromPlayerPosition(); path.Tick();
+        Check(path.generations==generated && path.Rocks==0 && path.Index==0, "Update, bake and teleport refresh cannot regenerate hidden markers.");
+        path.player.position=target.transform.position; path.Tick();
+        Check(path.Index==1 && TutorialManager.Instance.advances==1, "Arrival advances the genuine tutorial while hidden.");
+        Check(!path.HasPendingObjectiveGuide, "Arrived routes cannot be untracked again.");
+        path.player.position=new Vector3(0,0,0); path.RecallTutorialGuide(original); path.Tick();
+        Check(!path.IsObjectiveNavigationHidden && PlayerDataManager.Instance.saves==2 && path.Rocks>0, "Explicit Recall resumes saved trail preference.");
+        path.UntrackObjectiveGuide(); var automatic=new List<GuiderWaypoint>{ new GuiderWaypoint{target=target.transform,advancesTutorial=false} }; path.SetNewWaypoints(automatic); path.Tick();
+        Check(path.IsObjectiveNavigationHidden && ReferenceEquals(path.waypoints,automatic) && path.Rocks==0, "Automatic route replacement keeps the preference.");
+        int saved=PlayerDataManager.Instance.saves; path.RouteToSingleTarget(null);
+        Check(path.IsObjectiveNavigationHidden && PlayerDataManager.Instance.saves==saved, "Invalid explicit target cannot resume.");
+        var foreign=new GameObject {scene=new Scene{id=2,isLoaded=true}}; path.RouteToSingleTarget(foreign.transform);
+        Check(path.IsObjectiveNavigationHidden && ReferenceEquals(path.waypoints,automatic), "Foreign target cannot resume or replace route.");
+        path.RouteToSingleTarget(target.transform);
+        Check(!path.IsObjectiveNavigationHidden && PlayerDataManager.Instance.saves==saved+1 && !path.waypoints[0].advancesTutorial, "Valid explicit Track resumes a non-advancing route.");
+        path=Setup(out target); FusionConnectionManager.Instance=new FusionConnectionManager{IsGuestInHostWorld=true};
+        Check(!path.UntrackObjectiveGuide() && PlayerDataManager.Instance.saves==0, "Guest cannot alter persistent preference.");
+        FusionConnectionManager.Instance.IsGuestInHostWorld=false; FusionConnectionManager.Instance.IsGuestSaveProtected=true;
+        Check(!path.UntrackObjectiveGuide() && PlayerDataManager.Instance.saves==0, "Protected visitor cannot write.");
+        PlayerDataManager.Instance.CurrentData.objectiveNavigationHidden=true; path.RouteToSingleTarget(target.transform);
+        Check(path.IsObjectiveNavigationHidden && PlayerDataManager.Instance.saves==0, "Protected explicit route cannot unhide or save profile.");
+        FusionConnectionManager.Instance=null; var previous=PlayerDataManager.Instance.CurrentData; PlayerDataManager.Instance.CurrentData=new PlayerData();
+        Check(!path.IsObjectiveNavigationHidden, "Current profile preference is read without static leakage.");
+        PlayerDataManager.Instance.CurrentData=previous; Check(path.IsObjectiveNavigationHidden, "Returning profile retains its saved preference.");
+        path=Setup(out target); path.isActiveAndEnabled=false;
+        Check(!path.UntrackObjectiveGuide() && PlayerDataManager.Instance.saves==0, "Disabled service refuses writes.");
+        path.isActiveAndEnabled=true; var other=new PathGuider(); Check(!path.UntrackObjectiveGuide(), "Stale service refuses writes.");
+        path=Setup(out target); path.waypoints=new List<GuiderWaypoint>{new GuiderWaypoint{target=foreign.transform}};
+        Check(!path.HasPendingObjectiveGuide && !path.UntrackObjectiveGuide(), "Foreign-scene route does not expose untrack.");
+        path=Setup(out target); var manager=TutorialManager.Instance; manager.contractGuideVisible=true;
+        original=path.waypoints; manager.HideContractHint();
+        Check(!manager.leftPanel.activeSelf && !manager.contractGuideVisible && manager.canvasRestores==1, "Contract-only hint hides and restores its canvas.");
+        Check(ReferenceEquals(path.waypoints,original) && path.Index==0, "Contract hiding does not erase navigation.");
+        manager.IsTutorialActive=true; manager.contractGuideVisible=true; manager.leftPanel.activeSelf=true; manager.HideContractHint();
+        Check(manager.leftPanel.activeSelf && manager.canvasRestores==1, "Actual tutorial banner remains visible.");
+        return count;
+    }
+}

@@ -11,10 +11,25 @@ const statisticCalls = [];
 const events = [];
 let failDataCall = -1;
 let failStatistics = false;
+let storedAlmanac = null;
+let storedQuizReviews = null;
+const absoluteStatistics = new Map();
 const sandbox = {
     handlers: {},
     currentPlayerId: "dashboard-player",
     server: {
+        GetUserData(request) {
+            assert.equal(request.PlayFabId, sandbox.currentPlayerId);
+            const keys = JSON.parse(JSON.stringify(request.Keys));
+            if (keys.length === 1 && keys[0] === "QuizReviewProgress")
+                return { Data: storedQuizReviews === null ? {} : {
+                    QuizReviewProgress: { Value: storedQuizReviews }
+                } };
+            assert.deepEqual(keys, ["AlmanacProgress"]);
+            return { Data: storedAlmanac === null ? {} : {
+                AlmanacProgress: { Value: storedAlmanac }
+            } };
+        },
         UpdateUserData(request) {
             assert.ok(Object.keys(request.Data).length <= 10,
                 "PlayFab rejects more than 10 player-data updates per request");
@@ -30,6 +45,11 @@ const sandbox = {
             statisticCalls.push(request);
             events.push({ kind: "statistics", request });
             if (failStatistics) throw new Error("Simulated statistics API failure");
+            // Deliberately simulate a title configured with Sum. Absolute
+            // dashboard snapshots must still be safe to retry unchanged.
+            for (const stat of request.Statistics)
+                absoluteStatistics.set(stat.StatisticName, request.ForceUpdate
+                    ? stat.Value : (absoluteStatistics.get(stat.StatisticName) || 0) + stat.Value);
             return {};
         }
     }
@@ -109,7 +129,7 @@ assert.deepEqual(JSON.parse(JSON.stringify(statisticCalls[0].Statistics)), [
     { StatisticName: "ChallengesCompleted", Value: 2 },
     { StatisticName: "BestSingleBuildScore", Value: 3 }
 ]);
-assert.equal(statisticCalls[0].ForceUpdate, false);
+assert.equal(statisticCalls[0].ForceUpdate, true);
 
 const olderClientPayload = { ...valid };
 delete olderClientPayload.characterPortraitFile;
@@ -150,6 +170,85 @@ assertMarkerLast(events.slice(eventStart));
 assert.ok(events.slice(eventStart).every(event =>
     event.request.PlayFabId === "second-dashboard-player"));
 
+// Old installed clients must not erase new optional records or silently choose
+// among ambiguous duplicate stable IDs. All values here are synthetic fixtures.
+const photo = { storage: "archive-v1", fileName: "bridge-photos-v1.zip",
+    contractId: "ShopKeeper", regionId: "canyon-crossing", resultId: "a".repeat(32),
+    entryName: "bridge-" + "a".repeat(32) + ".png", sha256: "b".repeat(64) };
+storedAlmanac = JSON.stringify({
+    publisherVersion: 2,
+    lessonRecords: [{ lessonId: "LESSON002", state: "discovered" }],
+    quizAttempts: [{ quizId: "fixture-quiz", attemptId: "fixture-result", title: "Fixture",
+        status: "completed", score: 1, totalQuestions: 2 }],
+    regions: [{ regionId: "canyon-crossing", levels: [{ levelId: "ShopKeeper",
+        completion: { resultId: "a".repeat(32), completedAt: "2026-10-01T12:00:00Z", snapshot: photo } }] }]
+});
+const olderAlmanac = { regions: [{ regionId: "canyon-crossing", levels: [
+    { levelId: "ShopKeeper", completion: { score: 2, completedAt: "2026-10-29T12:00:00Z" } }
+] }] };
+eventStart = events.length;
+assert.equal(sandbox.handlers.syncDashboardV1({ ...valid,
+    almanacProgress: JSON.stringify(olderAlmanac) }, {}).accepted, true);
+let merged = JSON.parse(projectedData(userDataCalls.slice(-3)).AlmanacProgress);
+assert.deepEqual(merged.lessonRecords, JSON.parse(storedAlmanac).lessonRecords);
+assert.deepEqual(merged.quizAttempts, JSON.parse(storedAlmanac).quizAttempts);
+assert.deepEqual(merged.regions[0].levels[0].completion.snapshot, photo);
+assert.equal(merged.regions[0].levels[0].completion.resultId, undefined,
+    "Omitting a result identity must not manufacture a binding to an old photo");
+assert.equal(merged.regions[0].levels[0].completion.completedAt, "2026-10-01T12:00:00Z",
+    "An older client cannot substitute sync time for a genuine turn-in date");
+storedAlmanac = JSON.stringify(merged);
+sandbox.handlers.syncDashboardV1({ ...valid, almanacProgress: JSON.stringify(olderAlmanac) }, {});
+merged = JSON.parse(projectedData(userDataCalls.slice(-3)).AlmanacProgress);
+assert.equal(merged.regions[0].levels[0].completion.completedAt, "2026-10-01T12:00:00Z",
+    "Repeated older-client syncs preserve modern date provenance after result fields were omitted");
+const undatedModern = JSON.parse(storedAlmanac);
+delete undatedModern.regions[0].levels[0].completion.completedAt;
+storedAlmanac = JSON.stringify(undatedModern);
+sandbox.handlers.syncDashboardV1({ ...valid, almanacProgress: JSON.stringify(olderAlmanac) }, {});
+merged = JSON.parse(projectedData(userDataCalls.slice(-3)).AlmanacProgress);
+assert.equal(merged.regions[0].levels[0].completion.completedAt, undefined,
+    "An unknown historical completion date must not become an older client's sync timestamp");
+
+const deliberateEmpty = { ...olderAlmanac, lessonRecords: [], quizAttempts: [],
+    regions: [{ regionId: "canyon-crossing", levels: [{ levelId: "ShopKeeper",
+        completion: { resultId: "c".repeat(32), snapshot: null } }] }] };
+sandbox.handlers.syncDashboardV1({ ...valid, almanacProgress: JSON.stringify(deliberateEmpty) }, {});
+merged = JSON.parse(projectedData(userDataCalls.slice(-3)).AlmanacProgress);
+assert.deepEqual(merged.lessonRecords, []);
+assert.deepEqual(merged.quizAttempts, []);
+assert.equal(merged.regions[0].levels[0].completion.snapshot, null);
+
+const ambiguous = JSON.parse(storedAlmanac);
+ambiguous.regions.push(ambiguous.regions[0]);
+storedAlmanac = JSON.stringify(ambiguous);
+sandbox.handlers.syncDashboardV1({ ...valid, almanacProgress: JSON.stringify(olderAlmanac) }, {});
+merged = JSON.parse(projectedData(userDataCalls.slice(-3)).AlmanacProgress);
+assert.equal(merged.regions[0].levels[0].completion.snapshot, undefined);
+
+storedAlmanac = JSON.stringify([{ regionId: "canyon-crossing", levels: [] }]);
+assert.equal(sandbox.handlers.syncDashboardV1(valid, {}).accepted, true,
+    "A supported legacy array-format Almanac can be replaced by a verified object sync");
+
+let beforeRejected = userDataCalls.length;
+storedAlmanac = "invalid stored JSON";
+assert.throws(() => sandbox.handlers.syncDashboardV1(valid, {}), /requires review/);
+assert.equal(userDataCalls.length, beforeRejected);
+storedAlmanac = JSON.stringify({ quizAttempts: ["x".repeat(9999)] });
+assert.throws(() => sandbox.handlers.syncDashboardV1(valid, {}), /Invalid dashboard field/);
+assert.equal(userDataCalls.length, beforeRejected);
+storedAlmanac = null;
+assert.equal(sandbox.ccDashboardArgumentBytes({ e: "\u{1f600}", c: "\u754c" }),
+    Buffer.byteLength(JSON.stringify({ e: "\u{1f600}", c: "\u754c" }), "utf8"));
+assert.throws(() => sandbox.handlers.syncDashboardV1({ ...valid,
+    extra: "\u754c".repeat(10000) }, {}), /gateway limit/);
+assert.equal(userDataCalls.length, beforeRejected);
+sandbox.handlers.syncDashboardV1(valid, {});
+sandbox.handlers.syncDashboardV1(valid, {});
+for (const stat of statisticCalls[0].Statistics)
+    assert.equal(absoluteStatistics.get(stat.StatisticName), stat.Value,
+        "Retries must replace snapshots even with simulated Sum aggregation");
+
 const callCount = userDataCalls.length;
 assert.throws(() => sandbox.handlers.syncDashboardV1({ ...valid, schemaVersion: 2 }, {}));
 assert.throws(() => sandbox.handlers.syncDashboardV1({ ...valid, xp: -1 }, {}));
@@ -170,8 +269,66 @@ assert.throws(() => sandbox.handlers.syncDashboardV1({
 }, {}));
 assert.equal(userDataCalls.length, callCount);
 
+// Review selections remain private, owner-bound, optional for old clients and
+// immutable within one retained submission. No additional Entity File is used.
+const quizAggregate = { quizId: "fixture-quiz", attemptId: "fixture-attempt",
+    title: "Fixture Quiz", status: "completed", score: 1, totalQuestions: 2 };
+const quizReview = { quizId: quizAggregate.quizId, attemptId: quizAggregate.attemptId,
+    contentFingerprint: "a".repeat(64), selectedIndices: [0, 1] };
+const reviewArgs = { ...valid, almanacProgress: JSON.stringify({ regions: [], quizAttempts: [quizAggregate] }),
+    quizReviewProgress: JSON.stringify({ schemaVersion: 1, reviews: [quizReview] }) };
+let beforeReview = userDataCalls.length;
+const reviewAck = sandbox.handlers.syncDashboardV1(reviewArgs, {});
+assert.equal(reviewAck.quizReviewSchemaVersion, 1);
+assert.equal(projectedData(userDataCalls.slice(beforeReview)).QuizReviewProgress, reviewArgs.quizReviewProgress);
+assert.deepEqual(userDataCalls.slice(beforeReview).map(call => Object.keys(call.Data).length), [10, 6, 1]);
+assertMarkerLast(events.slice(-4));
+storedQuizReviews = reviewArgs.quizReviewProgress;
+beforeReview = userDataCalls.length;
+sandbox.handlers.syncDashboardV1(valid, {});
+assert.equal(projectedData(userDataCalls.slice(beforeReview)).QuizReviewProgress, undefined,
+    "Old clients must not clear or rewrite review selections they cannot publish");
+beforeReview = userDataCalls.length;
+sandbox.handlers.syncDashboardV1({ ...reviewArgs,
+    quizReviewProgress: JSON.stringify({ schemaVersion: 1, reviews: [] }) }, {});
+assert.deepEqual(JSON.parse(projectedData(userDataCalls.slice(beforeReview)).QuizReviewProgress).reviews, [quizReview],
+    "Missing local review evidence preserves a previously published identical submission");
+beforeReview = userDataCalls.length;
+assert.throws(() => sandbox.handlers.syncDashboardV1({ ...reviewArgs,
+    quizReviewProgress: JSON.stringify({ schemaVersion: 1, reviews: [{ ...quizReview, selectedIndices: [1, 0] }] }) }, {}),
+    /cannot change/);
+assert.equal(userDataCalls.length, beforeReview);
+beforeReview = userDataCalls.length;
+sandbox.handlers.syncDashboardV1({ ...reviewArgs,
+    almanacProgress: JSON.stringify({ regions: [], quizAttempts: [{ ...quizAggregate, attemptId: "new-attempt" }] }),
+    quizReviewProgress: JSON.stringify({ schemaVersion: 1, reviews: [] }) }, {});
+assert.deepEqual(JSON.parse(projectedData(userDataCalls.slice(beforeReview)).QuizReviewProgress).reviews, [],
+    "A new submitted aggregate must not inherit the previous submission's answers");
+storedQuizReviews = null;
+for (const bad of [
+    null, "not-json", {}, { schemaVersion: 2, reviews: [] },
+    { schemaVersion: 1, reviews: [quizReview, quizReview] },
+    { schemaVersion: 1, reviews: [{ ...quizReview, attemptId: "foreign-attempt" }] },
+    { schemaVersion: 1, reviews: [{ ...quizReview, selectedIndices: [0] }] },
+    { schemaVersion: 1, reviews: [{ ...quizReview, selectedIndices: [0, 20] }] },
+    { schemaVersion: 1, reviews: [{ ...quizReview, selectedIndices: [0, 0.5] }] },
+    { schemaVersion: 1, reviews: [{ ...quizReview, contentFingerprint: "wrong" }] },
+    { schemaVersion: 1, reviews: [{ ...quizReview, progressKey: "private-save-internal" }] },
+    { schemaVersion: 1, reviews: [], answerKey: "not allowed" }
+]) {
+    beforeReview = userDataCalls.length;
+    assert.throws(() => sandbox.handlers.syncDashboardV1({ ...reviewArgs,
+        quizReviewProgress: typeof bad === "string" ? bad : JSON.stringify(bad) }, {}));
+    assert.equal(userDataCalls.length, beforeReview, "Invalid reviews must fail before any player write");
+}
+storedQuizReviews = "malformed prior review";
+beforeReview = userDataCalls.length;
+assert.throws(() => sandbox.handlers.syncDashboardV1(reviewArgs, {}));
+assert.equal(userDataCalls.length, beforeReview);
+storedQuizReviews = null;
+
 sandbox.currentPlayerId = "";
 assert.throws(() => sandbox.handlers.syncDashboardV1(valid, {}));
-assert.equal(userDataCalls.length, callCount);
+assert.equal(userDataCalls.length, beforeReview);
 
 console.log("Civil Craft dashboard CloudScript tests passed: " + sourceFile);

@@ -1,0 +1,144 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using UnityEngine;
+public static class Scenarios
+{
+    private static int checks;
+    private static void Check(bool value, string reason) { checks++; if (!value) throw new Exception(reason); }
+    private static void Call(object owner, string method) => owner.GetType().GetMethod(method, BindingFlags.Instance | BindingFlags.NonPublic).Invoke(owner, null);
+    private sealed class Fixture
+    {
+        public PlayerDataManager save; public NPCProgressionManager npc; public NPCStoryObjectiveGuidance helper;
+        public TutorialSequence[] definitions; public SkinnedMeshRenderer body;
+        public Fixture(int index = 0, bool checkedGuides = true)
+        {
+            typeof(NPCStoryObjectiveGuidance).GetMethod("ResetRegistry", BindingFlags.NonPublic | BindingFlags.Static).Invoke(null, null);
+            PlayerDataManager.Instance = save = new PlayerDataManager();
+            FusionConnectionManager.Instance = null; DialogueManager.IsAnyDialogueVisible = QuizUIManager.IsAnyQuizActive = LoadingScreenManager.IsLoading = false;
+            PauseManager.Instance = null; GameManager.Instance = null; UIPanelCoordinator.Instance = null; ObjectiveTrackerUI.Instance = null;
+            Application.isPlaying = true; Time.timeScale = 1; PathGuider.Instance = new PathGuider();
+            var root = new GameObject(); npc = root.AddComponent<NPCProgressionManager>();
+            body = root.AddComponent<SkinnedMeshRenderer>(); body.sharedMesh = new Mesh();
+            helper = root.AddComponent<NPCStoryObjectiveGuidance>();
+            definitions = new TutorialSequence[4];
+            foreach (string name in new[] { "Meet", "Follow ", "Quiz", "Multiplayer" }) npc.AuthoredPhases.Add(new NPCProgressionPhase { phaseId = name });
+            for (int i = 0; i < definitions.Length; i++)
+            {
+                var child = new GameObject(); child.scene = root.scene;
+                var sequence = child.AddComponent<TutorialSequence>(); sequence.lessonName = "Story/" + i; sequence.objectiveTitle = "Objective " + i;
+                sequence.ObjectiveId = "scene|story|ReedNPC|" + npc.AuthoredPhases[i].phaseId;
+                sequence.showInObjectives = checkedGuides;
+                sequence.tutorialSteps = new[] { new TutorialStep { message = "Instruction " + i } };
+                if (i != 2) sequence.tutorialSteps[0].stepWaypoints.Add(new GuiderWaypoint { target = npc.transform, advancesTutorial = false });
+                definitions[i] = sequence;
+                helper.entries.Add(new NPCStoryObjectiveGuidance.Entry { phaseId = npc.AuthoredPhases[i].phaseId, objective = sequence,
+                    completeAfterDialogue = i == 3, completionFeatureId = i == 3 ? "multiplayer" : null });
+            }
+            npc.CurrentPhaseIndex = index; Commit(index);
+            Call(helper, "OnEnable");
+        }
+        public void Commit(int index, bool travelling = false)
+        { save.CurrentData.savedNPC[npc.ProgressionSaveId] = new NPCProgressionSaveData { currentPhaseIndex = index, currentPhaseId = npc.AuthoredPhases[index].phaseId, wasTravelling = travelling }; }
+        public void Phase(int index) { npc.CurrentPhaseIndex = index; Commit(index); Tick(); }
+        public void Tick() { Call(helper, "LateUpdate"); }
+        public TrackedTask Row(int index) => TutorialObjectiveHistory.Find(definitions[index], save.CurrentData);
+    }
+    public static int Run()
+    {
+        var f = new Fixture();
+        Check(f.save.CurrentData.activeQuests.Count == 1 && !f.Row(0).isCompleted && f.save.saves == 1, "Only the reached checked phase starts and saves once.");
+        Check(f.save.CurrentData.hasUnlockedObjectiveTracker, "A reached checked story objective permanently enables Objectives.");
+        Check(f.save.alerts == 1 && f.save.CurrentData.hasUnreadObjectiveAlert, "A genuinely new current guide marks the existing Objectives badge unread.");
+        for (int i = 0; i < 60; i++) f.Tick();
+        Check(f.save.saves == 1 && f.save.CurrentData.activeQuests.Count == 1, "Idle frames do not allocate rows or resave.");
+        Check(f.save.alerts == 1, "Idle synchronization does not repeat the alert.");
+        f.npc.dialogueCompleted = true; f.Tick();
+        Check(!f.Row(0).isCompleted, "Normal conversation completion cannot prematurely finish a helper-owned introduction.");
+        f.Phase(1);
+        Check(f.Row(0).isCompleted && !f.Row(1).isCompleted && f.Row(2) == null && f.save.saves == 2, "A durable phase transition crosses out the old guide and starts only the new guide in one save.");
+        Check(NPCStoryObjectiveGuidance.CanNavigate(f.Row(1)) && NPCStoryObjectiveGuidance.TryNavigate(f.Row(1)) && PathGuider.Instance.target == f.npc.transform, "Track routes the exact current objective to its nonadvancing authored waypoint.");
+        Check(!NPCStoryObjectiveGuidance.TryNavigate(f.Row(0)) && PathGuider.Instance.routes == 1, "Completed guide clicks cannot route an expired target.");
+        var replay = f.Row(0); string original = replay.description; f.definitions[0].tutorialSteps[0].message = "Changed replay";
+        f.Phase(0); Check(ReferenceEquals(replay, f.Row(0)) && replay.isCompleted && replay.description == original, "Forced story replay never reopens or overwrites completed history.");
+        Check(f.save.CurrentData.completedLessons.Count == 0 && f.save.CurrentData.gold == 75 && f.save.CurrentData.exp == 200 && f.save.CurrentData.activeObjectiveKey == "contract:existing", "Story guidance writes no lessons, rewards or selected contract key.");
+
+        f = new Fixture(2);
+        Check(f.Row(0).isCompleted && f.Row(1).isCompleted && !f.Row(2).isCompleted && f.Row(3) == null && f.save.saves == 1, "Restart backfills only preceding reached phases with durable progression proof in one batch.");
+        Check(!NPCStoryObjectiveGuidance.CanNavigate(f.Row(2)), "Quiz-only guidance without a waypoint does not offer a false NPC route.");
+        f.Phase(3); f.npc.dialogueCompleted = true; f.Tick();
+        Check(!f.Row(3).isCompleted, "Multiplayer objective waits for the persistent unlock as well as finished dialogue.");
+        f.save.CurrentData.features.Add("multiplayer"); f.Tick();
+        Check(f.Row(3).isCompleted, "A genuine finished conversation plus the persistent feature completes the terminal guide.");
+        int terminalAlerts = f.save.alerts; Call(f.helper, "OnEnable");
+        Check(f.save.alerts == terminalAlerts, "Completed history restored on enable cannot generate a new active alert.");
+        int terminalSaves = f.save.saves; for (int i = 0; i < 10; i++) f.Tick(); Check(f.save.saves == terminalSaves, "Finished terminal guidance is saved once.");
+
+        f = new Fixture(); f.npc.IsTravelling = true; f.Commit(1, true); f.Tick();
+        Check(f.Row(0).isCompleted && f.Row(1) != null && !f.Row(1).isCompleted && NPCStoryObjectiveGuidance.CanNavigate(f.Row(1)), "Committed next-phase travel exposes Follow guidance before arrival.");
+        f = new Fixture(); f.npc.IsTravelling = true; f.Commit(2, true); f.Tick();
+        Check(f.Row(2) == null && !f.Row(0).isCompleted, "An arbitrary future saved phase cannot project another profile's destination.");
+        f = new Fixture(); f.Commit(1, false); f.Tick();
+        Check(f.Row(1) == null && !NPCStoryObjectiveGuidance.CanNavigate(f.Row(0)), "A saved phase mismatch without committed travel is rejected.");
+        f = new Fixture(); f.save.CurrentData.savedNPC[f.npc.ProgressionSaveId].currentPhaseId = "Meet "; f.Tick();
+        Check(!NPCStoryObjectiveGuidance.CanNavigate(f.Row(0)), "Exact stable phase IDs are required; whitespace is not silently normalized.");
+
+        foreach (string cause in new[] { "guest", "protected", "no-save", "new-profile", "hidden-model", "force-hidden", "despawned", "unloaded", "disabled", "edit-mode" })
+        {
+            f = new Fixture(); var oldRow = f.Row(0); int before = f.save.saves;
+            if (cause == "guest") FusionConnectionManager.Instance = new FusionConnectionManager { IsGuestInHostWorld = true };
+            if (cause == "protected") FusionConnectionManager.Instance = new FusionConnectionManager { IsGuestSaveProtected = true };
+            if (cause == "no-save") f.save.CurrentData.savedNPC.Clear();
+            if (cause == "new-profile") f.save.CurrentData = new PlayerData();
+            if (cause == "hidden-model") f.body.enabled = false;
+            if (cause == "force-hidden") f.body.forceRenderingOff = true;
+            if (cause == "despawned") f.npc.gameObject.present = false;
+            if (cause == "unloaded") f.npc.gameObject.scene.isLoaded = false;
+            if (cause == "disabled") f.npc.enabled = false;
+            if (cause == "edit-mode") Application.isPlaying = false;
+            f.Tick();
+            Check(!NPCStoryObjectiveGuidance.TryNavigate(oldRow) && f.save.saves == before, "Unauthorized ownership cannot navigate or write: " + cause);
+            if (cause == "new-profile") Check(f.save.CurrentData.activeQuests.Count == 0, "A new profile without restored NPC proof receives no stale objective.");
+        }
+
+        foreach (string cause in new[] { "dialogue", "quiz", "loading", "pause", "timescale", "transition", "building", "foreign-modal" })
+        {
+            f = new Fixture();
+            if (cause == "dialogue") DialogueManager.IsAnyDialogueVisible = true;
+            if (cause == "quiz") QuizUIManager.IsAnyQuizActive = true;
+            if (cause == "loading") LoadingScreenManager.IsLoading = true;
+            if (cause == "pause") PauseManager.Instance = new PauseManager { isPaused = true };
+            if (cause == "timescale") Time.timeScale = 0;
+            if (cause == "transition") GameManager.Instance = new GameManager { IsTransitioning = true };
+            if (cause == "building") GameManager.Instance = new GameManager { CurrentState = GameManager.GameState.Building };
+            if (cause == "foreign-modal") UIPanelCoordinator.Instance = new UIPanelCoordinator { HasOpenPanel = true, CurrentPanel = new GameObject() };
+            Check(!NPCStoryObjectiveGuidance.TryNavigate(f.Row(0)) && PathGuider.Instance.routes == 0, "Track respects current UI/input owner: " + cause);
+        }
+        f = new Fixture(); var panel = new GameObject(); ObjectiveTrackerUI.Instance = new ObjectiveTrackerUI { trackerPanel = panel };
+        UIPanelCoordinator.Instance = new UIPanelCoordinator { HasOpenPanel = true, CurrentPanel = panel };
+        Check(NPCStoryObjectiveGuidance.TryNavigate(f.Row(0)), "The Objectives panel itself is allowed to issue its Track action.");
+        var forged = new TrackedTask { tutorialObjectiveId = f.Row(0).tutorialObjectiveId };
+        Check(!NPCStoryObjectiveGuidance.TryNavigate(forged), "Copied or stale task references cannot impersonate a current saved row.");
+        f.definitions[0].tutorialSteps[0].stepWaypoints[0].advancesTutorial = true;
+        Check(!NPCStoryObjectiveGuidance.CanNavigate(f.Row(0)), "Story tracking cannot route an authored advancing waypoint.");
+        f.definitions[0].tutorialSteps[0].stepWaypoints[0].advancesTutorial = false;
+        f.definitions[0].showInObjectives = false;
+        Check(!NPCStoryObjectiveGuidance.CanNavigate(f.Row(0)), "Unchecking the objective opt-in also invalidates navigation.");
+        f = new Fixture(0, false); Check(f.save.CurrentData.activeQuests.Count == 0 && f.save.saves == 0 && !f.save.CurrentData.hasUnlockedObjectiveTracker, "Unchecked definitions have no progression or unlock effect.");
+        f = new Fixture(3, false); f.definitions[0].showInObjectives = true; Call(f.helper, "OnEnable");
+        Check(f.Row(0).isCompleted && f.save.saves == 1 && f.save.alerts == 0, "Backfilling past checked guidance without a new current task saves once without alert spam.");
+        f = new Fixture(); int alertsBeforeOpen = f.save.alerts;
+        ObjectiveTrackerUI.Instance = new ObjectiveTrackerUI { trackerPanel = new GameObject() };
+        f.Phase(1);
+        Check(f.save.saves == 2 && f.save.alerts == alertsBeforeOpen, "A new current guide shown while Objectives is open saves once without a badge.");
+        f = new Fixture(); var retained = f.Row(0); int saves = f.save.saves;
+        f.helper.enabled = false; Call(f.helper, "OnDisable");
+        Check(!NPCStoryObjectiveGuidance.CanNavigate(retained) && !retained.isCompleted && f.save.saves == saves, "Disable releases navigation without completing or deleting the pending history.");
+        f.helper.enabled = true; Call(f.helper, "OnEnable"); Check(NPCStoryObjectiveGuidance.CanNavigate(retained), "Re-enable restores valid exact guide ownership.");
+        typeof(NPCStoryObjectiveGuidance).GetMethod("ResetRegistry", BindingFlags.NonPublic | BindingFlags.Static).Invoke(null, null); f.Tick();
+        Check(NPCStoryObjectiveGuidance.CanNavigate(retained) && f.save.saves == saves, "Retained helpers re-register after subsystem reset without extra saves.");
+        Call(f.helper, "OnDestroy"); Check(!NPCStoryObjectiveGuidance.CanNavigate(retained) && !retained.isCompleted, "Teardown does not force completion or leave a stale route owner.");
+        return checks;
+    }
+}

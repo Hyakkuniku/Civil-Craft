@@ -7,6 +7,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../Assets/Script/Player/PlayerSave/CloudSaveManager.cs" Link="CloudSaveManager.cs" />
+    <Compile Include="../../Assets/Script/Player/PlayerSave/EntityMediaUploadRecovery.cs" Link="EntityMediaUploadRecovery.cs" />
     <Compile Include="../../Assets/Script/Client/GameWalletModels.cs" Link="GameWalletModels.cs" />
   </ItemGroup>
 </Project>
