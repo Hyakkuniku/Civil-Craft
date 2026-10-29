@@ -64171,6 +64171,79 @@ MonoBehaviour:
   m_Center: {x: 0, y: 0, z: 0}
   m_Area: 3
   m_AffectedAgents: ffffffff
+--- !u!1 &124997862
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 124997863}
+  - component: {fileID: 124997864}
+  m_Layer: 0
+  m_Name: FordNPC - Meet Ford
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &124997863
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 124997862}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1242667979}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &124997864
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 124997862}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 61a2c41d02260a248a74764d3b3b4d29, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  lessonName: Objective/FordNPC/MeetingFord
+  requiredPreviousLesson: 
+  showInObjectives: 1
+  objectiveTitle: Meet Ford
+  objectiveId: Assets/Scenes/CanyonCrossing.unity|story|FordNPC|MeetingFord
+  playOnStart: 0
+  nextSequence: {fileID: 0}
+  autoStartNextSequence: 0
+  tutorialSteps:
+  - message: Talk to Ford about the construction route.
+    screenPosition: 1
+    showNextButton: 0
+    canSkip: 0
+    lockLook: 0
+    lockJump: 0
+    lockRun: 0
+    stepWaypoints:
+    - target: {fileID: 1652461279595174224}
+      advancesTutorial: 0
+    worldHighlightObject: {fileID: 0}
+    usePointer: 0
+    pointerTarget: {fileID: 0}
+    pointerOffset: {x: 0, y: 80}
+    pointerRotation: 180
+    advanceOnClick: 0
+    requiredAction: 0
+    OnStepStart:
+      m_PersistentCalls:
+        m_Calls: []
 --- !u!1 &125567336
 GameObject:
   m_ObjectHideFlags: 0
@@ -139889,6 +139962,78 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 276054007}
   m_Mesh: {fileID: -1579241630799410176, guid: 0cc5a0d2670e4334b86b09cd6c0e2166, type: 3}
+--- !u!1 &276320410
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 276320411}
+  - component: {fileID: 276320412}
+  m_Layer: 0
+  m_Name: FordNPC - Review Material Stress and complete the quiz
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &276320411
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 276320410}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1242667979}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &276320412
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 276320410}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 61a2c41d02260a248a74764d3b3b4d29, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  lessonName: Objective/FordNPC/FordReview
+  requiredPreviousLesson: 
+  showInObjectives: 1
+  objectiveTitle: Review Material Stress and complete the quiz
+  objectiveId: Assets/Scenes/CanyonCrossing.unity|story|FordNPC|FordReview
+  playOnStart: 0
+  nextSequence: {fileID: 0}
+  autoStartNextSequence: 0
+  tutorialSteps:
+  - message: Review Material Stress in the Almanac, then open the Quiz tab and submit
+      the quiz.
+    screenPosition: 1
+    showNextButton: 0
+    canSkip: 0
+    lockLook: 0
+    lockJump: 0
+    lockRun: 0
+    stepWaypoints: []
+    worldHighlightObject: {fileID: 0}
+    usePointer: 0
+    pointerTarget: {fileID: 0}
+    pointerOffset: {x: 0, y: 80}
+    pointerRotation: 180
+    advanceOnClick: 0
+    requiredAction: 0
+    OnStepStart:
+      m_PersistentCalls:
+        m_Calls: []
 --- !u!1 &276483060
 GameObject:
   m_ObjectHideFlags: 0
@@ -220903,6 +221048,79 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 432346045}
   m_CullTransparentMesh: 1
+--- !u!1 &432685051
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 432685052}
+  - component: {fileID: 432685053}
+  m_Layer: 0
+  m_Name: FordNPC - Talk to Ford at the construction site
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &432685052
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 432685051}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1242667979}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &432685053
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 432685051}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 61a2c41d02260a248a74764d3b3b4d29, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  lessonName: Objective/FordNPC/ExplainSituation
+  requiredPreviousLesson: 
+  showInObjectives: 1
+  objectiveTitle: Talk to Ford at the construction site
+  objectiveId: Assets/Scenes/CanyonCrossing.unity|story|FordNPC|ExplainSituation
+  playOnStart: 0
+  nextSequence: {fileID: 0}
+  autoStartNextSequence: 0
+  tutorialSteps:
+  - message: Meet Ford at the construction site and discuss the crossing.
+    screenPosition: 1
+    showNextButton: 0
+    canSkip: 0
+    lockLook: 0
+    lockJump: 0
+    lockRun: 0
+    stepWaypoints:
+    - target: {fileID: 1929835384}
+      advancesTutorial: 0
+    worldHighlightObject: {fileID: 0}
+    usePointer: 0
+    pointerTarget: {fileID: 0}
+    pointerOffset: {x: 0, y: 80}
+    pointerRotation: 180
+    advanceOnClick: 0
+    requiredAction: 0
+    OnStepStart:
+      m_PersistentCalls:
+        m_Calls: []
 --- !u!1 &432771205
 GameObject:
   m_ObjectHideFlags: 0
@@ -303149,6 +303367,80 @@ MonoBehaviour:
   m_Center: {x: 0, y: 0, z: 0}
   m_Area: 3
   m_AffectedAgents: ffffffff
+--- !u!1 &595280296
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 595280297}
+  - component: {fileID: 595280298}
+  m_Layer: 0
+  m_Name: FordNPC - Learn Material Stress
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &595280297
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 595280296}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1242667979}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &595280298
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 595280296}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 61a2c41d02260a248a74764d3b3b4d29, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  lessonName: Objective/FordNPC/LessonIntroduction
+  requiredPreviousLesson: 
+  showInObjectives: 1
+  objectiveTitle: Learn Material Stress
+  objectiveId: Assets/Scenes/CanyonCrossing.unity|story|FordNPC|LessonIntroduction
+  playOnStart: 0
+  nextSequence: {fileID: 0}
+  autoStartNextSequence: 0
+  tutorialSteps:
+  - message: Listen to Ford and read the Material Stress lesson before designing
+      the cargo-truck crossing.
+    screenPosition: 1
+    showNextButton: 0
+    canSkip: 0
+    lockLook: 0
+    lockJump: 0
+    lockRun: 0
+    stepWaypoints:
+    - target: {fileID: 1652461279595174224}
+      advancesTutorial: 0
+    worldHighlightObject: {fileID: 0}
+    usePointer: 0
+    pointerTarget: {fileID: 0}
+    pointerOffset: {x: 0, y: 80}
+    pointerRotation: 180
+    advanceOnClick: 0
+    requiredAction: 0
+    OnStepStart:
+      m_PersistentCalls:
+        m_Calls: []
 --- !u!1001 &595449915
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -337681,7 +337973,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -36.000305, y: 0}
+  m_AnchoredPosition: {x: -36.000366, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &660994319
@@ -384796,6 +385088,80 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 751507458}
   m_Mesh: {fileID: -1579241630799410176, guid: 0cc5a0d2670e4334b86b09cd6c0e2166, type: 3}
+--- !u!1 &751980800
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 751980801}
+  - component: {fileID: 751980802}
+  m_Layer: 0
+  m_Name: MarshNPC - Learn about concrete and Arch Bridges
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &751980801
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 751980800}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1242667979}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &751980802
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 751980800}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 61a2c41d02260a248a74764d3b3b4d29, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  lessonName: Objective/MarshNPC/Material Introduction
+  requiredPreviousLesson: 
+  showInObjectives: 1
+  objectiveTitle: Learn about concrete and Arch Bridges
+  objectiveId: Assets/Scenes/CanyonCrossing.unity|story|MarshNPC|Material Introduction
+  playOnStart: 0
+  nextSequence: {fileID: 0}
+  autoStartNextSequence: 0
+  tutorialSteps:
+  - message: Listen to Marsh, collect the Concrete Beam, Road and Pier introductions,
+      and read the Arch Bridge lesson.
+    screenPosition: 1
+    showNextButton: 0
+    canSkip: 0
+    lockLook: 0
+    lockJump: 0
+    lockRun: 0
+    stepWaypoints:
+    - target: {fileID: 1999832196}
+      advancesTutorial: 0
+    worldHighlightObject: {fileID: 0}
+    usePointer: 0
+    pointerTarget: {fileID: 0}
+    pointerOffset: {x: 0, y: 80}
+    pointerRotation: 180
+    advanceOnClick: 0
+    requiredAction: 0
+    OnStepStart:
+      m_PersistentCalls:
+        m_Calls: []
 --- !u!1 &752116161
 GameObject:
   m_ObjectHideFlags: 0
@@ -444673,6 +445039,79 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 872033999}
   m_Mesh: {fileID: -1579241630799410176, guid: a1527225a05d8e143acd4c38ba114c89, type: 3}
+--- !u!1 &872319516
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 872319517}
+  - component: {fileID: 872319518}
+  m_Layer: 0
+  m_Name: RonanNpc - Talk to Ronan at the southern crossing
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &872319517
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 872319516}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1242667979}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &872319518
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 872319516}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 61a2c41d02260a248a74764d3b3b4d29, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  lessonName: Objective/RonanNpc/ExplainSituation
+  requiredPreviousLesson: 
+  showInObjectives: 1
+  objectiveTitle: Talk to Ronan at the southern crossing
+  objectiveId: Assets/Scenes/CanyonCrossing.unity|story|RonanNpc|ExplainSituation
+  playOnStart: 0
+  nextSequence: {fileID: 0}
+  autoStartNextSequence: 0
+  tutorialSteps:
+  - message: Meet Ronan at the southern crossing and discuss the site.
+    screenPosition: 1
+    showNextButton: 0
+    canSkip: 0
+    lockLook: 0
+    lockJump: 0
+    lockRun: 0
+    stepWaypoints:
+    - target: {fileID: 2130887295}
+      advancesTutorial: 0
+    worldHighlightObject: {fileID: 0}
+    usePointer: 0
+    pointerTarget: {fileID: 0}
+    pointerOffset: {x: 0, y: 80}
+    pointerRotation: 180
+    advanceOnClick: 0
+    requiredAction: 0
+    OnStepStart:
+      m_PersistentCalls:
+        m_Calls: []
 --- !u!1 &872609287
 GameObject:
   m_ObjectHideFlags: 0
@@ -465245,6 +465684,79 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 910260579}
   m_CullTransparentMesh: 1
+--- !u!1 &910264669
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 910264670}
+  - component: {fileID: 910264671}
+  m_Layer: 0
+  m_Name: BrooksNpc - Talk to Brooks at the market crossing
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &910264670
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 910264669}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1242667979}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &910264671
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 910264669}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 61a2c41d02260a248a74764d3b3b4d29, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  lessonName: Objective/BrooksNpc/ExplainSituation
+  requiredPreviousLesson: 
+  showInObjectives: 1
+  objectiveTitle: Talk to Brooks at the market crossing
+  objectiveId: Assets/Scenes/CanyonCrossing.unity|story|BrooksNpc|ExplainSituation
+  playOnStart: 0
+  nextSequence: {fileID: 0}
+  autoStartNextSequence: 0
+  tutorialSteps:
+  - message: Meet Brooks at the market crossing and discuss the route.
+    screenPosition: 1
+    showNextButton: 0
+    canSkip: 0
+    lockLook: 0
+    lockJump: 0
+    lockRun: 0
+    stepWaypoints:
+    - target: {fileID: 1499115992}
+      advancesTutorial: 0
+    worldHighlightObject: {fileID: 0}
+    usePointer: 0
+    pointerTarget: {fileID: 0}
+    pointerOffset: {x: 0, y: 80}
+    pointerRotation: 180
+    advanceOnClick: 0
+    requiredAction: 0
+    OnStepStart:
+      m_PersistentCalls:
+        m_Calls: []
 --- !u!1 &910333787
 GameObject:
   m_ObjectHideFlags: 0
@@ -493614,6 +494126,78 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: 0}
+--- !u!1 &973432407
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 973432408}
+  - component: {fileID: 973432409}
+  m_Layer: 0
+  m_Name: RonanNpc - Review Shear and complete the quiz
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &973432408
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 973432407}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1242667979}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &973432409
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 973432407}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 61a2c41d02260a248a74764d3b3b4d29, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  lessonName: Objective/RonanNpc/RonanReview
+  requiredPreviousLesson: 
+  showInObjectives: 1
+  objectiveTitle: Review Shear and complete the quiz
+  objectiveId: Assets/Scenes/CanyonCrossing.unity|story|RonanNpc|RonanReview
+  playOnStart: 0
+  nextSequence: {fileID: 0}
+  autoStartNextSequence: 0
+  tutorialSteps:
+  - message: Review Shear in the Almanac, submit the quiz, and finish Ronan's conversation
+      about Ironhaven.
+    screenPosition: 1
+    showNextButton: 0
+    canSkip: 0
+    lockLook: 0
+    lockJump: 0
+    lockRun: 0
+    stepWaypoints: []
+    worldHighlightObject: {fileID: 0}
+    usePointer: 0
+    pointerTarget: {fileID: 0}
+    pointerOffset: {x: 0, y: 80}
+    pointerRotation: 180
+    advanceOnClick: 0
+    requiredAction: 0
+    OnStepStart:
+      m_PersistentCalls:
+        m_Calls: []
 --- !u!1001 &973563875
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -527355,9 +527939,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: Story/Ronan/FollowToSite-v1
   requiredPreviousLesson: 
-  showInObjectives: 0
-  objectiveTitle: 
-  objectiveId: 
+  showInObjectives: 1
+  objectiveTitle: Follow Ronan to the southern crossing
+  objectiveId: Assets/Scenes/CanyonCrossing.unity|1042508027
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -547179,8 +547763,7 @@ MonoBehaviour:
       m_PersistentCalls:
         m_Calls: []
   - message: Press and hold any <b><#E09500>material</color></b> to inspect its name,
-      cost, mass, strength limit, maximum length, and type. On a computer, hover
-      over the material to inspect it.
+      cost, mass, strength limit, maximum length, and type.
     screenPosition: 0
     showNextButton: 0
     canSkip: 0
@@ -595634,6 +596217,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7436711577060982690, guid: b82f06dcbe3da674e95e69a64637a54c,
         type: 3}
+      propertyPath: onlyShowExclamationWhenInteractionNeeded
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 7436711577060982690, guid: b82f06dcbe3da674e95e69a64637a54c,
+        type: 3}
       propertyPath: phases.Array.data[0].showExclamationMark
       value: 1
       objectReference: {fileID: 0}
@@ -596053,6 +596641,10 @@ PrefabInstance:
         type: 3}
       insertIndex: -1
       addedObject: {fileID: 1671760481}
+    - targetCorrespondingSourceObject: {fileID: 8839754168641571595, guid: b82f06dcbe3da674e95e69a64637a54c,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1671760482}
   m_SourcePrefab: {fileID: 100100000, guid: b82f06dcbe3da674e95e69a64637a54c, type: 3}
 --- !u!4 &1186642535 stripped
 Transform:
@@ -623076,6 +623668,53 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: 0}
+--- !u!1 &1242667978
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1242667979}
+  m_Layer: 0
+  m_Name: Town River Objective Guidance
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1242667979
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1242667978}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 2034638486}
+  - {fileID: 1689228935}
+  - {fileID: 751980801}
+  - {fileID: 1440562195}
+  - {fileID: 124997863}
+  - {fileID: 432685052}
+  - {fileID: 595280297}
+  - {fileID: 276320411}
+  - {fileID: 2143040368}
+  - {fileID: 910264670}
+  - {fileID: 1898464015}
+  - {fileID: 1683058502}
+  - {fileID: 1970767971}
+  - {fileID: 872319517}
+  - {fileID: 1414014094}
+  - {fileID: 973432408}
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1242706074
 GameObject:
   m_ObjectHideFlags: 0
@@ -638509,9 +639148,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: Story/Ford/FollowToSite-v1
   requiredPreviousLesson: 
-  showInObjectives: 0
-  objectiveTitle: 
-  objectiveId: 
+  showInObjectives: 1
+  objectiveTitle: Follow Ford to the construction crossing
+  objectiveId: Assets/Scenes/CanyonCrossing.unity|1274516943
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -703644,6 +704283,80 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1413966519}
   m_Mesh: {fileID: 289301614986012343, guid: 172157c52b751054b8018b8282b26752, type: 3}
+--- !u!1 &1414014093
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1414014094}
+  - component: {fileID: 1414014095}
+  m_Layer: 0
+  m_Name: RonanNpc - Learn Shear
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1414014094
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1414014093}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1242667979}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1414014095
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1414014093}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 61a2c41d02260a248a74764d3b3b4d29, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  lessonName: Objective/RonanNpc/LessonIntroduction
+  requiredPreviousLesson: 
+  showInObjectives: 1
+  objectiveTitle: Learn Shear
+  objectiveId: Assets/Scenes/CanyonCrossing.unity|story|RonanNpc|LessonIntroduction
+  playOnStart: 0
+  nextSequence: {fileID: 0}
+  autoStartNextSequence: 0
+  tutorialSteps:
+  - message: Listen to Ronan and read the Shear lesson before planning the southern
+      crossing.
+    screenPosition: 1
+    showNextButton: 0
+    canSkip: 0
+    lockLook: 0
+    lockJump: 0
+    lockRun: 0
+    stepWaypoints:
+    - target: {fileID: 1186642535}
+      advancesTutorial: 0
+    worldHighlightObject: {fileID: 0}
+    usePointer: 0
+    pointerTarget: {fileID: 0}
+    pointerOffset: {x: 0, y: 80}
+    pointerRotation: 180
+    advanceOnClick: 0
+    requiredAction: 0
+    OnStepStart:
+      m_PersistentCalls:
+        m_Calls: []
 --- !u!1 &1414183583
 GameObject:
   m_ObjectHideFlags: 0
@@ -716588,6 +717301,78 @@ MonoBehaviour:
   m_Center: {x: 0, y: 0, z: 0}
   m_Area: 3
   m_AffectedAgents: ffffffff
+--- !u!1 &1440562194
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1440562195}
+  - component: {fileID: 1440562196}
+  m_Layer: 0
+  m_Name: MarshNPC - Review Arch Bridges and complete the quiz
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1440562195
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1440562194}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1242667979}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1440562196
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1440562194}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 61a2c41d02260a248a74764d3b3b4d29, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  lessonName: Objective/MarshNPC/MarshReview
+  requiredPreviousLesson: 
+  showInObjectives: 1
+  objectiveTitle: Review Arch Bridges and complete the quiz
+  objectiveId: Assets/Scenes/CanyonCrossing.unity|story|MarshNPC|MarshReview
+  playOnStart: 0
+  nextSequence: {fileID: 0}
+  autoStartNextSequence: 0
+  tutorialSteps:
+  - message: Review the Arch Bridge lesson in the Almanac, then open the Quiz tab
+      and submit the quiz.
+    screenPosition: 1
+    showNextButton: 0
+    canSkip: 0
+    lockLook: 0
+    lockJump: 0
+    lockRun: 0
+    stepWaypoints: []
+    worldHighlightObject: {fileID: 0}
+    usePointer: 0
+    pointerTarget: {fileID: 0}
+    pointerOffset: {x: 0, y: 80}
+    pointerRotation: 180
+    advanceOnClick: 0
+    requiredAction: 0
+    OnStepStart:
+      m_PersistentCalls:
+        m_Calls: []
 --- !u!1 &1440572518
 GameObject:
   m_ObjectHideFlags: 0
@@ -833705,6 +834490,36 @@ MonoBehaviour:
   npc: {fileID: 1671760476}
   contract: {fileID: 11400000, guid: d7bfc22ac3ad49fab92c0cd06b187168, type: 2}
   reviewPhaseId: RonanReview
+--- !u!114 &1671760482
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1671760475}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5068cc71b9a84315a46fc069ae73a3ad, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  npc: {fileID: 1671760476}
+  entries:
+  - phaseId: MeetingRonan
+    objective: {fileID: 1970767972}
+    completeAfterDialogue: 0
+    completionFeatureId: 
+  - phaseId: ExplainSituation
+    objective: {fileID: 872319518}
+    completeAfterDialogue: 0
+    completionFeatureId: 
+  - phaseId: LessonIntroduction
+    objective: {fileID: 1414014095}
+    completeAfterDialogue: 0
+    completionFeatureId: 
+  - phaseId: RonanReview
+    objective: {fileID: 973432409}
+    completeAfterDialogue: 0
+    completionFeatureId: 
 --- !u!1 &1671817673
 GameObject:
   m_ObjectHideFlags: 0
@@ -839615,6 +840430,78 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1682728358}
   m_Mesh: {fileID: 289301614986012343, guid: 3606b9c859ab1af4693dba06cdc4f805, type: 3}
+--- !u!1 &1683058501
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1683058502}
+  - component: {fileID: 1683058503}
+  m_Layer: 0
+  m_Name: BrooksNpc - Review Moving Loads and complete the quiz
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1683058502
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1683058501}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1242667979}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1683058503
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1683058501}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 61a2c41d02260a248a74764d3b3b4d29, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  lessonName: Objective/BrooksNpc/BrooksReview
+  requiredPreviousLesson: 
+  showInObjectives: 1
+  objectiveTitle: Review Moving Loads and complete the quiz
+  objectiveId: Assets/Scenes/CanyonCrossing.unity|story|BrooksNpc|BrooksReview
+  playOnStart: 0
+  nextSequence: {fileID: 0}
+  autoStartNextSequence: 0
+  tutorialSteps:
+  - message: Review Moving Load in the Almanac, then open the Quiz tab and submit
+      the quiz.
+    screenPosition: 1
+    showNextButton: 0
+    canSkip: 0
+    lockLook: 0
+    lockJump: 0
+    lockRun: 0
+    stepWaypoints: []
+    worldHighlightObject: {fileID: 0}
+    usePointer: 0
+    pointerTarget: {fileID: 0}
+    pointerOffset: {x: 0, y: 80}
+    pointerRotation: 180
+    advanceOnClick: 0
+    requiredAction: 0
+    OnStepStart:
+      m_PersistentCalls:
+        m_Calls: []
 --- !u!1 &1683171613
 GameObject:
   m_ObjectHideFlags: 0
@@ -843088,6 +843975,80 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: 0}
+--- !u!1 &1689228934
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1689228935}
+  - component: {fileID: 1689228936}
+  m_Layer: 0
+  m_Name: MarshNPC - Follow Marsh and inspect the crossing
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1689228935
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1689228934}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1242667979}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1689228936
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1689228934}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 61a2c41d02260a248a74764d3b3b4d29, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  lessonName: Objective/MarshNPC/ExplainSituation
+  requiredPreviousLesson: 
+  showInObjectives: 1
+  objectiveTitle: Follow Marsh and inspect the crossing
+  objectiveId: Assets/Scenes/CanyonCrossing.unity|story|MarshNPC|ExplainSituation
+  playOnStart: 0
+  nextSequence: {fileID: 0}
+  autoStartNextSequence: 0
+  tutorialSteps:
+  - message: Follow Marsh to the residential crossing, then talk to him about the
+      site.
+    screenPosition: 1
+    showNextButton: 0
+    canSkip: 0
+    lockLook: 0
+    lockJump: 0
+    lockRun: 0
+    stepWaypoints:
+    - target: {fileID: 1166066132}
+      advancesTutorial: 0
+    worldHighlightObject: {fileID: 0}
+    usePointer: 0
+    pointerTarget: {fileID: 0}
+    pointerOffset: {x: 0, y: 80}
+    pointerRotation: 180
+    advanceOnClick: 0
+    requiredAction: 0
+    OnStepStart:
+      m_PersistentCalls:
+        m_Calls: []
 --- !u!1 &1689301449
 GameObject:
   m_ObjectHideFlags: 0
@@ -950488,6 +951449,80 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a35d4062aa371e44a8d02fbea0384ab6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!1 &1898464014
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1898464015}
+  - component: {fileID: 1898464016}
+  m_Layer: 0
+  m_Name: BrooksNpc - Learn Moving Loads
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1898464015
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1898464014}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1242667979}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1898464016
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1898464014}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 61a2c41d02260a248a74764d3b3b4d29, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  lessonName: Objective/BrooksNpc/LessonIntroduction
+  requiredPreviousLesson: 
+  showInObjectives: 1
+  objectiveTitle: Learn Moving Loads
+  objectiveId: Assets/Scenes/CanyonCrossing.unity|story|BrooksNpc|LessonIntroduction
+  playOnStart: 0
+  nextSequence: {fileID: 0}
+  autoStartNextSequence: 0
+  tutorialSteps:
+  - message: Listen to Brooks and read the Moving Load lesson before building the
+      market crossing.
+    screenPosition: 1
+    showNextButton: 0
+    canSkip: 0
+    lockLook: 0
+    lockJump: 0
+    lockRun: 0
+    stepWaypoints:
+    - target: {fileID: 4095659663883768284}
+      advancesTutorial: 0
+    worldHighlightObject: {fileID: 0}
+    usePointer: 0
+    pointerTarget: {fileID: 0}
+    pointerOffset: {x: 0, y: 80}
+    pointerRotation: 180
+    advanceOnClick: 0
+    requiredAction: 0
+    OnStepStart:
+      m_PersistentCalls:
+        m_Calls: []
 --- !u!1 &1898537342
 GameObject:
   m_ObjectHideFlags: 0
@@ -963024,9 +964059,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   lessonName: Story/Brooks/FollowToSite-v1
   requiredPreviousLesson: 
-  showInObjectives: 0
-  objectiveTitle: 
-  objectiveId: 
+  showInObjectives: 1
+  objectiveTitle: Follow Brooks to the market crossing
+  objectiveId: Assets/Scenes/CanyonCrossing.unity|1922576282
   playOnStart: 0
   nextSequence: {fileID: 0}
   autoStartNextSequence: 0
@@ -985106,6 +986141,79 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: 0}
+--- !u!1 &1970767970
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1970767971}
+  - component: {fileID: 1970767972}
+  m_Layer: 0
+  m_Name: RonanNpc - Meet Ronan
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1970767971
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1970767970}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1242667979}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1970767972
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1970767970}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 61a2c41d02260a248a74764d3b3b4d29, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  lessonName: Objective/RonanNpc/MeetingRonan
+  requiredPreviousLesson: 
+  showInObjectives: 1
+  objectiveTitle: Meet Ronan
+  objectiveId: Assets/Scenes/CanyonCrossing.unity|story|RonanNpc|MeetingRonan
+  playOnStart: 0
+  nextSequence: {fileID: 0}
+  autoStartNextSequence: 0
+  tutorialSteps:
+  - message: Talk to Ronan about the southern crossing.
+    screenPosition: 1
+    showNextButton: 0
+    canSkip: 0
+    lockLook: 0
+    lockJump: 0
+    lockRun: 0
+    stepWaypoints:
+    - target: {fileID: 1186642535}
+      advancesTutorial: 0
+    worldHighlightObject: {fileID: 0}
+    usePointer: 0
+    pointerTarget: {fileID: 0}
+    pointerOffset: {x: 0, y: 80}
+    pointerRotation: 180
+    advanceOnClick: 0
+    requiredAction: 0
+    OnStepStart:
+      m_PersistentCalls:
+        m_Calls: []
 --- !u!1 &1970973112
 GameObject:
   m_ObjectHideFlags: 0
@@ -997706,6 +998814,7 @@ GameObject:
   - component: {fileID: 1999832195}
   - component: {fileID: 1999832194}
   - component: {fileID: 1999832200}
+  - component: {fileID: 1999832201}
   m_Layer: 6
   m_Name: Marsh
   m_TagString: Untagged
@@ -997751,7 +998860,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
-    showExclamationMark: 0
+    showExclamationMark: 1
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -997811,7 +998920,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
-    showExclamationMark: 0
+    showExclamationMark: 1
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -997877,7 +998986,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
-    showExclamationMark: 0
+    showExclamationMark: 1
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -998059,7 +999168,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
-    showExclamationMark: 0
+    showExclamationMark: 1
     contract: {fileID: 11400000, guid: 7bd1a236dfb47f54e96257d2d3d48be1, type: 2}
     targetBuildLocation: {fileID: 1984790326}
     linkedCargo: {fileID: 0}
@@ -998112,7 +999221,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
-    showExclamationMark: 0
+    showExclamationMark: 1
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -998295,7 +999404,7 @@ MonoBehaviour:
   manuallyTraverseNavMeshLinks: 1
   rotateWhileTraversingLinks: 1
   travellingPrompt: Moving to the next site...
-  onlyShowExclamationWhenInteractionNeeded: 0
+  onlyShowExclamationWhenInteractionNeeded: 1
   onProgressionFinished:
     m_PersistentCalls:
       m_Calls: []
@@ -998400,6 +999509,36 @@ MonoBehaviour:
   npc: {fileID: 1999832195}
   contract: {fileID: 11400000, guid: 7bd1a236dfb47f54e96257d2d3d48be1, type: 2}
   reviewPhaseId: MarshReview
+--- !u!114 &1999832201
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1999832193}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5068cc71b9a84315a46fc069ae73a3ad, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  npc: {fileID: 1999832195}
+  entries:
+  - phaseId: MeetingMarsh
+    objective: {fileID: 2034638487}
+    completeAfterDialogue: 0
+    completionFeatureId: 
+  - phaseId: ExplainSituation
+    objective: {fileID: 1689228936}
+    completeAfterDialogue: 0
+    completionFeatureId: 
+  - phaseId: Material Introduction
+    objective: {fileID: 751980802}
+    completeAfterDialogue: 0
+    completionFeatureId: 
+  - phaseId: MarshReview
+    objective: {fileID: 1440562196}
+    completeAfterDialogue: 0
+    completionFeatureId: 
 --- !u!1 &2000070091
 GameObject:
   m_ObjectHideFlags: 0
@@ -1014525,6 +1015664,79 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2034504659}
   m_Mesh: {fileID: 289301614986012343, guid: a1527225a05d8e143acd4c38ba114c89, type: 3}
+--- !u!1 &2034638485
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2034638486}
+  - component: {fileID: 2034638487}
+  m_Layer: 0
+  m_Name: MarshNPC - Meet Marsh
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2034638486
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2034638485}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1242667979}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2034638487
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2034638485}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 61a2c41d02260a248a74764d3b3b4d29, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  lessonName: Objective/MarshNPC/MeetingMarsh
+  requiredPreviousLesson: 
+  showInObjectives: 1
+  objectiveTitle: Meet Marsh
+  objectiveId: Assets/Scenes/CanyonCrossing.unity|story|MarshNPC|MeetingMarsh
+  playOnStart: 0
+  nextSequence: {fileID: 0}
+  autoStartNextSequence: 0
+  tutorialSteps:
+  - message: Talk to Marsh about the residential crossing.
+    screenPosition: 1
+    showNextButton: 0
+    canSkip: 0
+    lockLook: 0
+    lockJump: 0
+    lockRun: 0
+    stepWaypoints:
+    - target: {fileID: 1999832196}
+      advancesTutorial: 0
+    worldHighlightObject: {fileID: 0}
+    usePointer: 0
+    pointerTarget: {fileID: 0}
+    pointerOffset: {x: 0, y: 80}
+    pointerRotation: 180
+    advanceOnClick: 0
+    requiredAction: 0
+    OnStepStart:
+      m_PersistentCalls:
+        m_Calls: []
 --- !u!1 &2035190869
 GameObject:
   m_ObjectHideFlags: 0
@@ -1064518,6 +1065730,79 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: 0}
+--- !u!1 &2143040367
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2143040368}
+  - component: {fileID: 2143040369}
+  m_Layer: 0
+  m_Name: BrooksNpc - Meet Brooks
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2143040368
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2143040367}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1242667979}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2143040369
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2143040367}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 61a2c41d02260a248a74764d3b3b4d29, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  lessonName: Objective/BrooksNpc/MeetingBrooks
+  requiredPreviousLesson: 
+  showInObjectives: 1
+  objectiveTitle: Meet Brooks
+  objectiveId: Assets/Scenes/CanyonCrossing.unity|story|BrooksNpc|MeetingBrooks
+  playOnStart: 0
+  nextSequence: {fileID: 0}
+  autoStartNextSequence: 0
+  tutorialSteps:
+  - message: Talk to Brooks about connecting the market to the main road.
+    screenPosition: 1
+    showNextButton: 0
+    canSkip: 0
+    lockLook: 0
+    lockJump: 0
+    lockRun: 0
+    stepWaypoints:
+    - target: {fileID: 4095659663883768284}
+      advancesTutorial: 0
+    worldHighlightObject: {fileID: 0}
+    usePointer: 0
+    pointerTarget: {fileID: 0}
+    pointerOffset: {x: 0, y: 80}
+    pointerRotation: 180
+    advanceOnClick: 0
+    requiredAction: 0
+    OnStepStart:
+      m_PersistentCalls:
+        m_Calls: []
 --- !u!1 &2143166804
 GameObject:
   m_ObjectHideFlags: 0
@@ -1071310,74 +1072595,6 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: -1.7519455}
   m_SizeDelta: {x: -203.22528, y: -70.07768}
   m_Pivot: {x: 0.5, y: 0.5}
---- !u!1001 &429675400998601949
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 8391520780722164119}
-    m_Modifications:
-    - target: {fileID: 1175337300969424372, guid: 351c467da0d46fd4683a1bc12102b6ee,
-        type: 3}
-      propertyPath: m_LocalPosition.x
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1175337300969424372, guid: 351c467da0d46fd4683a1bc12102b6ee,
-        type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 1.3014919
-      objectReference: {fileID: 0}
-    - target: {fileID: 1175337300969424372, guid: 351c467da0d46fd4683a1bc12102b6ee,
-        type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1175337300969424372, guid: 351c467da0d46fd4683a1bc12102b6ee,
-        type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 1175337300969424372, guid: 351c467da0d46fd4683a1bc12102b6ee,
-        type: 3}
-      propertyPath: m_LocalRotation.x
-      value: 0.000000021855694
-      objectReference: {fileID: 0}
-    - target: {fileID: 1175337300969424372, guid: 351c467da0d46fd4683a1bc12102b6ee,
-        type: 3}
-      propertyPath: m_LocalRotation.y
-      value: -1.110223e-16
-      objectReference: {fileID: 0}
-    - target: {fileID: 1175337300969424372, guid: 351c467da0d46fd4683a1bc12102b6ee,
-        type: 3}
-      propertyPath: m_LocalRotation.z
-      value: 1.1102233e-16
-      objectReference: {fileID: 0}
-    - target: {fileID: 1175337300969424372, guid: 351c467da0d46fd4683a1bc12102b6ee,
-        type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1175337300969424372, guid: 351c467da0d46fd4683a1bc12102b6ee,
-        type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1175337300969424372, guid: 351c467da0d46fd4683a1bc12102b6ee,
-        type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 3374836375916699197, guid: 351c467da0d46fd4683a1bc12102b6ee,
-        type: 3}
-      propertyPath: m_Name
-      value: SLAB_LOW.Bottom
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: 351c467da0d46fd4683a1bc12102b6ee, type: 3}
 --- !u!1 &430310956972487499
 GameObject:
   m_ObjectHideFlags: 0
@@ -1141769,12 +1142986,6 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
---- !u!4 &4656151979792936691 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: 3576672348596647407, guid: 3c9a1e4915844954ea26f3e0a6711ab2,
-    type: 3}
-  m_PrefabInstance: {fileID: 9134422562384073874}
-  m_PrefabAsset: {fileID: 0}
 --- !u!224 &4656441647283047327
 RectTransform:
   m_ObjectHideFlags: 0
@@ -1147361,6 +1148572,7 @@ GameObject:
   - component: {fileID: 6542345702712754136}
   - component: {fileID: 6542345702712754137}
   - component: {fileID: 6542345702712754138}
+  - component: {fileID: 6542345702712754139}
   m_Layer: 6
   m_Name: Ford
   m_TagString: Untagged
@@ -1152351,12 +1153563,6 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!4 &5569210578571355304 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: 1175337300969424372, guid: 351c467da0d46fd4683a1bc12102b6ee,
-    type: 3}
-  m_PrefabInstance: {fileID: 429675400998601949}
-  m_PrefabAsset: {fileID: 0}
 --- !u!23 &5571742393390865035
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -1165534,7 +1166740,7 @@ MonoBehaviour:
   manuallyTraverseNavMeshLinks: 1
   rotateWhileTraversingLinks: 1
   travellingPrompt: Moving to the next site...
-  onlyShowExclamationWhenInteractionNeeded: 0
+  onlyShowExclamationWhenInteractionNeeded: 1
   onProgressionFinished:
     m_PersistentCalls:
       m_Calls: []
@@ -1165598,6 +1166804,36 @@ MonoBehaviour:
   npc: {fileID: 6542345702712754136}
   contract: {fileID: 11400000, guid: 39d60b2d6d214147ba888941ef75ee11, type: 2}
   reviewPhaseId: FordReview
+--- !u!114 &6542345702712754139
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5139320289784941425}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5068cc71b9a84315a46fc069ae73a3ad, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  npc: {fileID: 6542345702712754136}
+  entries:
+  - phaseId: MeetingFord
+    objective: {fileID: 124997864}
+    completeAfterDialogue: 0
+    completionFeatureId: 
+  - phaseId: ExplainSituation
+    objective: {fileID: 432685053}
+    completeAfterDialogue: 0
+    completionFeatureId: 
+  - phaseId: LessonIntroduction
+    objective: {fileID: 595280298}
+    completeAfterDialogue: 0
+    completionFeatureId: 
+  - phaseId: FordReview
+    objective: {fileID: 276320412}
+    completeAfterDialogue: 0
+    completionFeatureId: 
 --- !u!33 &6544713288801081283
 MeshFilter:
   m_ObjectHideFlags: 0
@@ -1178757,6 +1179993,7 @@ GameObject:
   - component: {fileID: 8427106558270551892}
   - component: {fileID: 8427106558270551893}
   - component: {fileID: 8427106558270551894}
+  - component: {fileID: 8427106558270551895}
   m_Layer: 6
   m_Name: Brooks
   m_TagString: Untagged
@@ -1188674,23 +1189911,6 @@ RectTransform:
   m_AnchoredPosition: {x: 18, y: 0}
   m_SizeDelta: {x: 22, y: 22}
   m_Pivot: {x: 0.5, y: 0.5}
---- !u!4 &8391520780722164119
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 9169182726655347501}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 1372.2543, y: 0, z: -327.32452}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 5569210578571355304}
-  - {fileID: 4656151979792936691}
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!4 &8393496364849530765
 Transform:
   m_ObjectHideFlags: 0
@@ -1189646,7 +1190866,7 @@ MonoBehaviour:
   manuallyTraverseNavMeshLinks: 1
   rotateWhileTraversingLinks: 1
   travellingPrompt: Moving to the next site...
-  onlyShowExclamationWhenInteractionNeeded: 0
+  onlyShowExclamationWhenInteractionNeeded: 1
   onProgressionFinished:
     m_PersistentCalls:
       m_Calls: []
@@ -1189710,6 +1190930,36 @@ MonoBehaviour:
   npc: {fileID: 8427106558270551892}
   contract: {fileID: 11400000, guid: 8f65c1b4d22748e581416a7e34e01dc3, type: 2}
   reviewPhaseId: BrooksReview
+--- !u!114 &8427106558270551895
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7596029509589877757}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5068cc71b9a84315a46fc069ae73a3ad, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  npc: {fileID: 8427106558270551892}
+  entries:
+  - phaseId: MeetingBrooks
+    objective: {fileID: 2143040369}
+    completeAfterDialogue: 0
+    completionFeatureId: 
+  - phaseId: ExplainSituation
+    objective: {fileID: 910264671}
+    completeAfterDialogue: 0
+    completionFeatureId: 
+  - phaseId: LessonIntroduction
+    objective: {fileID: 1898464016}
+    completeAfterDialogue: 0
+    completionFeatureId: 
+  - phaseId: BrooksReview
+    objective: {fileID: 1683058503}
+    completeAfterDialogue: 0
+    completionFeatureId: 
 --- !u!114 &8427360739302668599
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1198835,74 +1200085,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!1001 &9134422562384073874
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 8391520780722164119}
-    m_Modifications:
-    - target: {fileID: 3576672348596647407, guid: 3c9a1e4915844954ea26f3e0a6711ab2,
-        type: 3}
-      propertyPath: m_LocalPosition.x
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: 3576672348596647407, guid: 3c9a1e4915844954ea26f3e0a6711ab2,
-        type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 1.3014919
-      objectReference: {fileID: 0}
-    - target: {fileID: 3576672348596647407, guid: 3c9a1e4915844954ea26f3e0a6711ab2,
-        type: 3}
-      propertyPath: m_LocalPosition.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 3576672348596647407, guid: 3c9a1e4915844954ea26f3e0a6711ab2,
-        type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 3576672348596647407, guid: 3c9a1e4915844954ea26f3e0a6711ab2,
-        type: 3}
-      propertyPath: m_LocalRotation.x
-      value: 0.000000021855694
-      objectReference: {fileID: 0}
-    - target: {fileID: 3576672348596647407, guid: 3c9a1e4915844954ea26f3e0a6711ab2,
-        type: 3}
-      propertyPath: m_LocalRotation.y
-      value: -1.110223e-16
-      objectReference: {fileID: 0}
-    - target: {fileID: 3576672348596647407, guid: 3c9a1e4915844954ea26f3e0a6711ab2,
-        type: 3}
-      propertyPath: m_LocalRotation.z
-      value: 1.1102233e-16
-      objectReference: {fileID: 0}
-    - target: {fileID: 3576672348596647407, guid: 3c9a1e4915844954ea26f3e0a6711ab2,
-        type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 3576672348596647407, guid: 3c9a1e4915844954ea26f3e0a6711ab2,
-        type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 3576672348596647407, guid: 3c9a1e4915844954ea26f3e0a6711ab2,
-        type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 5164192040810399473, guid: 3c9a1e4915844954ea26f3e0a6711ab2,
-        type: 3}
-      propertyPath: m_Name
-      value: SLAB_LOW.Top
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: 3c9a1e4915844954ea26f3e0a6711ab2, type: 3}
 --- !u!224 &9134621253885815738
 RectTransform:
   m_ObjectHideFlags: 0
@@ -1199384,22 +1200566,6 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 100, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
---- !u!1 &9169182726655347501
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 8391520780722164119}
-  m_Layer: 0
-  m_Name: Concreate_Pie2_V2
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
 --- !u!114 &9170384237805568633
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1200350,5 +1201516,5 @@ SceneRoots:
   - {fileID: 527066171}
   - {fileID: 473186798}
   - {fileID: 1504019036}
-  - {fileID: 8391520780722164119}
   - {fileID: 2135097972}
+  - {fileID: 1242667979}

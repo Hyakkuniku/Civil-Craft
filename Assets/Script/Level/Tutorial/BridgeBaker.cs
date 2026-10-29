@@ -132,6 +132,7 @@ public class BridgeBaker : MonoBehaviour
         foreach (Bar b in connectedBars)
         {
             if (b.startPoint == null || b.endPoint == null) continue;
+            if (b.materialData != null && b.materialData.isPier) b.RefreshPierCapSeating();
 
             GameObject ghostObj = new GameObject("Ghost_" + b.materialData.name);
             ghostObj.transform.SetParent(masterFolder.transform, true);
@@ -152,9 +153,13 @@ public class BridgeBaker : MonoBehaviour
                 visualClone.transform.localScale = mf.transform.lossyScale;
 
                 MeshFilter newMf = visualClone.AddComponent<MeshFilter>();
-                newMf.sharedMesh = mf.sharedMesh;
+                PierCapBearing bearing = mf.GetComponent<PierCapBearing>();
+                if (bearing != null)
+                    visualClone.AddComponent<PierCapBearing>().SetPrisms(bearing.CaptureVertices(), transparentMaterial != null ? transparentMaterial : PierCapBearing.Appearance(b.materialData));
+                else newMf.sharedMesh = mf.sharedMesh;
 
-                MeshRenderer newMr = visualClone.AddComponent<MeshRenderer>();
+                MeshRenderer newMr = visualClone.GetComponent<MeshRenderer>();
+                if (newMr == null) newMr = visualClone.AddComponent<MeshRenderer>();
                 if (transparentMaterial != null) newMr.material = transparentMaterial;
                 else
                 {

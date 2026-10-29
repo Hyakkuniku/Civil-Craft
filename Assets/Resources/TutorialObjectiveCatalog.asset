@@ -123,3 +123,21 @@ MonoBehaviour:
     title: Realign Vance's bridge
     description: Realign Vance's bridge
     allowLegacyLessonMatch: 1
+  - objectiveId: Assets/Scenes/CanyonCrossing.unity|1274516943
+    lessonId: Story/Ford/FollowToSite-v1
+    scenePath: Assets/Scenes/CanyonCrossing.unity
+    title: Follow Ford to the construction crossing
+    description: Follow Ford to the construction crossing
+    allowLegacyLessonMatch: 1
+  - objectiveId: Assets/Scenes/CanyonCrossing.unity|1922576282
+    lessonId: Story/Brooks/FollowToSite-v1
+    scenePath: Assets/Scenes/CanyonCrossing.unity
+    title: Follow Brooks to the market crossing
+    description: Follow Brooks to the market crossing
+    allowLegacyLessonMatch: 1
+  - objectiveId: Assets/Scenes/CanyonCrossing.unity|1042508027
+    lessonId: Story/Ronan/FollowToSite-v1
+    scenePath: Assets/Scenes/CanyonCrossing.unity
+    title: Follow Ronan to the southern crossing
+    description: Follow Ronan to the southern crossing
+    allowLegacyLessonMatch: 1

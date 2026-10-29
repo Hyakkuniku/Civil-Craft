@@ -132,7 +132,7 @@ public static class BeamTutorialBuildAuthoring
         steps[14].showNextButton = true;
         steps[14].advanceOnClick = false;
         Observe(steps[15], legacy[14], director.PromptInspectMaterial,
-            "Press and hold any <b><#E09500>material</color></b> to inspect its name, cost, mass, strength limit, maximum length, and type. On a computer, hover over the material to inspect it.");
+            "Press and hold any <b><#E09500>material</color></b> to inspect its name, cost, mass, strength limit, maximum length, and type.");
         steps[16].message = "You're ready to begin construction! Let's build your first <b><#E09500>Beam Bridge</color></b>.";
         steps[17].message = "Your bridge must connect the <b><#E09500>two red anchors</color></b>. Use the available materials to create a stable structure.";
         steps[18].message = "These highlighted points are the <b><#E09500>red anchors</color></b>. They mark the two ends that your bridge must connect.";

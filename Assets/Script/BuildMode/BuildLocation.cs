@@ -1509,6 +1509,12 @@ public class BuildLocation : Interactable
             return false;
         }
 
+        // Every road must exist before a pier cap can seat beneath its deck.
+        // Saved bars may be listed in either creation order and are disabled here.
+        foreach (Bar bar in bakedBars)
+            if (bar != null && bar.materialData != null && bar.materialData.isPier)
+                bar.RefreshPierCapSeating();
+
         NPCContractGiver[] npcs = FindObjectsOfType<NPCContractGiver>();
         foreach (var npc in npcs)
         {

@@ -315,7 +315,7 @@ public sealed class BridgeSelectionOutline
     }
 }
 
-public class Bar : MonoBehaviour
+public partial class Bar : MonoBehaviour
 {
     public Vector3 StartPosition; 
     public Vector3 EndPosition; // --- NEW: Stores the end coordinate to repair broken prefabs! ---
@@ -411,8 +411,13 @@ public class Bar : MonoBehaviour
             if (pierCapInstance != null)
             {
                 originalCapScale = pierCapInstance.transform.localScale;
-                capTopOffset = upperY - pierCapInstance.transform.position.y;
-                capBottomOffset = capTopOffset - (savedLength - baseLength);
+                // A saved cap may already have been seated below a sloped road.
+                // Its fitted position is not the source model's authored pivot.
+                if (!TryGetAuthoredPierCapOffsets(out capTopOffset, out capBottomOffset))
+                {
+                    capTopOffset = upperY - pierCapInstance.transform.position.y;
+                    capBottomOffset = capTopOffset - (savedLength - baseLength);
+                }
             }
         }
         else
@@ -522,6 +527,7 @@ public class Bar : MonoBehaviour
 
     public void Initialize(BridgeMaterialSO data)
     {
+        ClearPierSeatingCache();
         ReleaseRopeSimulationMaterial();
         materialData = data;
         visualSegments.Clear();
@@ -639,6 +645,7 @@ public class Bar : MonoBehaviour
     private void LateUpdate()
     {
         if (isHighlighted) selectionOutline?.Draw();
+        if (materialData != null && materialData.isPier) RefreshPierCapSeating();
     }
 
     public void UpdateCreatingBar(Vector3 ToPosition) 
@@ -667,6 +674,7 @@ public class Bar : MonoBehaviour
         {
             foreach (var seg in visualSegments) seg.transform.localScale = Vector3.zero;
             if (pierCapInstance != null) pierCapInstance.transform.localScale = Vector3.zero;
+            HidePierBearing();
             if (ropeSimulationVisualActive)
                 foreach (LineRenderer line in ropeSimulationLines) line.enabled = false;
             return;
@@ -739,6 +747,7 @@ public class Bar : MonoBehaviour
 
         if (ropeSimulationVisualActive)
             UpdateRopeSimulationLines(actualStart, actualEnd, totalDistance);
+        if (materialData.isPier) RefreshPierCapSeating();
     }
 
     public void SetRopeSimulationVisual(bool active, float restLength = 0f)

@@ -15,13 +15,13 @@ Compile(response, "Assembly-CSharp", "Assets/Script/Level/Tutorial/BuildTutorial
     "Assets/Script/UI/Almanac/AlmanacCloseButtonStyle.cs", "Assets/Script/Client/NPCStoryHandoff.cs",
     "Assets/Script/UI/Objective-Missions/TutorialObjectiveProjection.cs",
     "Assets/Script/UI/Objective-Missions/TutorialObjectiveHistory.cs", "Assets/Script/UI/Objective-Missions/TutorialObjectiveCatalog.cs",
-    "Assets/Script/UI/Almanac/AlmanacTutorialSkipSlot.cs", "Assets/Script/UI/DialogueHudButtonGate.cs", "Assets/Script/Client/ReedStoryIntroduction.cs", "Assets/Script/Client/NPCStoryObjectiveGuidance.cs");
+    "Assets/Script/UI/Almanac/AlmanacTutorialSkipSlot.cs", "Assets/Script/UI/DialogueHudButtonGate.cs", "Assets/Script/Client/ReedStoryIntroduction.cs", "Assets/Script/Client/NPCStoryObjectiveGuidance.cs", "Assets/Script/BuildMode/2D/Bar.PierSeating.cs", "Assets/Script/BuildMode/2D/PierCapBearing.cs", "Assets/Script/BuildMode/2D/PierCapSeatingProfiles.cs");
 Compile(Path.Combine(Path.GetDirectoryName(response)!, "Assembly-CSharp-Editor.rsp"), "Assembly-CSharp-Editor",
     "Assets/Editor/LiveLoadReviewGuidanceValidation.cs", "Assets/Editor/BeamReviewRefinementAuthoring.cs", "Assets/Editor/BuildTutorialPointerValidation.cs",
     "Assets/Editor/BuildTutorialWarningValidation.cs", "Assets/Editor/TutorialInstructionCopyValidation.cs",
-    "Assets/Editor/ShopUnlockPointerValidation.cs", "Assets/Editor/AlmanacCloseButtonValidation.cs",
+    "Assets/Editor/ShopUnlockPointerValidation.cs", "Assets/Editor/AlmanacCloseButtonValidation.cs", "Assets/Editor/PierCapSeatingProfileAuthoring.cs",
     "Assets/Editor/AlmanacCloseButtonAuthoring.cs", "Assets/Editor/BhanLolaStoryRepair.cs",
-    "Assets/Editor/TutorialObjectiveAuthoring.cs", "Assets/Editor/BhanObjectiveGuidanceAuthoring.cs", "Assets/Editor/ReedStoryAuthoring.cs", "Assets/Editor/VanceStoryAuthoring.cs", "Assets/Editor/MainContractSimulationLessonAuthoring.cs", "Assets/Editor/SilasStoryAuthoring.cs", "Assets/Editor/ReedToSilasGuidanceAuthoring.cs", "Assets/Editor/ObjectiveUntrackValidation.cs", "Assets/Editor/ObjectiveUntrackAuthoring.cs");
+    "Assets/Editor/TutorialObjectiveAuthoring.cs", "Assets/Editor/BhanObjectiveGuidanceAuthoring.cs", "Assets/Editor/ReedStoryAuthoring.cs", "Assets/Editor/VanceStoryAuthoring.cs", "Assets/Editor/MainContractSimulationLessonAuthoring.cs", "Assets/Editor/SilasStoryAuthoring.cs", "Assets/Editor/ReedToSilasGuidanceAuthoring.cs", "Assets/Editor/ObjectiveUntrackValidation.cs", "Assets/Editor/ObjectiveUntrackAuthoring.cs", "Assets/Editor/TownRiverGuidanceAuthoring.cs", "Assets/Editor/PierRoadSeatingValidation.cs");
 Console.WriteLine("PASS: full runtime and Editor sources compile against Unity's actual references/defines. Only isolated Temp outputs were written; Unity assemblies and scenes were not changed.");
 
 void Compile(string path, string name, params string[] additionalSources)

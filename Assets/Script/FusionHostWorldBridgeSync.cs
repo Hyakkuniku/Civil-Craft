@@ -353,6 +353,7 @@ public sealed class FusionHostWorldBridgeSync : MonoBehaviour
         foreach (Bar bar in location.bakedBars)
         {
             if (bar == null || bar.materialData == null) continue;
+            if (bar.materialData.isPier) bar.RefreshPierCapSeating();
             var member = new HostWorldBridgeBar
             {
                 MaterialId = bar.materialData.Id, Pose = HostWorldBridgePose.World(bar.transform)
@@ -360,10 +361,14 @@ public sealed class FusionHostWorldBridgeSync : MonoBehaviour
             foreach (Transform child in bar.transform)
             {
                 bool isCap = child.name == "PierCap";
-                if (!isCap && !child.name.StartsWith("VisualSegment", StringComparison.Ordinal)) continue;
+                PierCapBearing bearing = child.name == "PierBearing" ? child.GetComponent<PierCapBearing>() : null;
+                if (!isCap && bearing == null && !child.name.StartsWith("VisualSegment", StringComparison.Ordinal)) continue;
+                Vector3[] bearingVertices = bearing != null ? bearing.CaptureVertices() : null;
+                if (bearing != null && (bearingVertices == null || bearingVertices.Length == 0)) continue;
                 member.Parts.Add(new HostWorldBridgePart
                 {
-                    IsCap = isCap, Visible = child.gameObject.activeSelf, Pose = HostWorldBridgePose.Local(child)
+                    IsCap = isCap || bearing != null, Visible = child.gameObject.activeSelf, Pose = HostWorldBridgePose.Local(child),
+                    BearingVertices = bearingVertices
                 });
             }
             CaptureColliders(bar.transform, member.Colliders);

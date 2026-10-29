@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: de1d0936bf774099b087079d0592544b, type: 3}
+  m_Name: PierCapSeatingProfiles
+  m_EditorClassIdentifier: 
+  entries:
+  - source: {fileID: 3480219191514089514, guid: eb578acce07273e4ea2a1fb07c129abb,
+      type: 3}
+    sourceBounds:
+      m_Center: {x: 0, y: -2.3172035, z: 0}
+      m_Extent: {x: 1, y: 5.962434, z: 1}
+    topFace:
+      m_Center: {x: 0, y: 3.6452308, z: 0}
+      m_Extent: {x: 1, y: 0, z: 1}
+  - source: {fileID: 2005313539045690901, guid: 73c7cbae8bb4916418edcb57ba2aa5b0,
+      type: 3}
+    sourceBounds:
+      m_Center: {x: 0, y: 0.52792877, z: 0.00000023841858}
+      m_Extent: {x: 1.0397666, y: 0.83079374, z: 2.3506007}
+    topFace:
+      m_Center: {x: 0, y: 1.3587222, z: 0}
+      m_Extent: {x: 0.9111424, y: 0.000000059604645, z: 2.2224367}

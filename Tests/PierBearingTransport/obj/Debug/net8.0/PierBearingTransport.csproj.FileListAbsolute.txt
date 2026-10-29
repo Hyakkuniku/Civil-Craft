@@ -1,0 +1,15 @@
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\PierBearingTransport\bin\Debug\net8.0\PierBearingTransport.exe
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\PierBearingTransport\bin\Debug\net8.0\PierBearingTransport.deps.json
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\PierBearingTransport\bin\Debug\net8.0\PierBearingTransport.runtimeconfig.json
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\PierBearingTransport\bin\Debug\net8.0\PierBearingTransport.dll
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\PierBearingTransport\bin\Debug\net8.0\PierBearingTransport.pdb
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\PierBearingTransport\obj\Debug\net8.0\PierBearingTransport.GeneratedMSBuildEditorConfig.editorconfig
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\PierBearingTransport\obj\Debug\net8.0\PierBearingTransport.AssemblyInfoInputs.cache
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\PierBearingTransport\obj\Debug\net8.0\PierBearingTransport.AssemblyInfo.cs
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\PierBearingTransport\obj\Debug\net8.0\PierBearingTransport.csproj.CoreCompileInputs.cache
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\PierBearingTransport\obj\Debug\net8.0\PierBearingTransport.sourcelink.json
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\PierBearingTransport\obj\Debug\net8.0\PierBearingTransport.dll
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\PierBearingTransport\obj\Debug\net8.0\refint\PierBearingTransport.dll
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\PierBearingTransport\obj\Debug\net8.0\PierBearingTransport.pdb
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\PierBearingTransport\obj\Debug\net8.0\PierBearingTransport.genruntimeconfig.cache
+D:\THESIS\unity\VERSION CONTROL\Civil-Craft\Assets\ThesisB\Civil-Craft\Tests\PierBearingTransport\obj\Debug\net8.0\ref\PierBearingTransport.dll

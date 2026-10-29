@@ -42,6 +42,8 @@ public struct HostWorldBridgePart
     public bool IsCap;
     public bool Visible;
     public HostWorldBridgePose Pose;
+    // Eight local-space corners per visual bearing prism; no collision or gameplay data.
+    public Vector3[] BearingVertices;
 }
 
 public sealed class HostWorldBridgeNode
@@ -71,8 +73,9 @@ public struct HostWorldBridgeCollider
 /// <summary>Bounded binary geometry packets, independent of Fusion avatar array limits.</summary>
 public static class HostWorldBridgeSnapshotCodec
 {
-    public const int Version = 1;
+    public const int Version = 2;
     public const int MaxPacketBytes = 2 * 1024 * 1024;
+    public const int MaxBearingVertices = 512;
     private const int MaxMembers = 8192;
 
     public static byte[] Encode(HostWorldBridgeSnapshot snapshot)
@@ -93,6 +96,7 @@ public static class HostWorldBridgeSnapshotCodec
                     writer.Write(part.IsCap);
                     writer.Write(part.Visible);
                     WritePose(writer, part.Pose);
+                    WriteBearing(writer, part);
                 }
                 WriteColliders(writer, bar.Colliders);
             }
@@ -115,7 +119,8 @@ public static class HostWorldBridgeSnapshotCodec
         using (var stream = new MemoryStream(data.ToArray(), false))
         using (var reader = new BinaryReader(stream, Encoding.UTF8, true))
         {
-            if (reader.ReadInt32() != Version) throw new InvalidDataException("Unsupported bridge geometry version.");
+            int version = reader.ReadInt32();
+            if (version != 1 && version != Version) throw new InvalidDataException("Unsupported bridge geometry version.");
             var snapshot = new HostWorldBridgeSnapshot { Name = ReadString(reader) };
             int count = ReadCount(reader, MaxMembers);
             for (int i = 0; i < count; i++)
@@ -123,10 +128,14 @@ public static class HostWorldBridgeSnapshotCodec
                 var bar = new HostWorldBridgeBar { MaterialId = ReadString(reader), Pose = ReadPose(reader) };
                 int parts = ReadCount(reader, 16);
                 for (int j = 0; j < parts; j++)
-                    bar.Parts.Add(new HostWorldBridgePart
+                {
+                    var part = new HostWorldBridgePart
                     {
                         IsCap = reader.ReadBoolean(), Visible = reader.ReadBoolean(), Pose = ReadPose(reader)
-                    });
+                    };
+                    if (version >= 2) part.BearingVertices = ReadBearing(reader, part.IsCap);
+                    bar.Parts.Add(part);
+                }
                 ReadColliders(reader, bar.Colliders);
                 snapshot.Bars.Add(bar);
             }
@@ -143,6 +152,47 @@ public static class HostWorldBridgeSnapshotCodec
             if (stream.Position != stream.Length) throw new InvalidDataException("Unexpected bridge geometry data.");
             return snapshot;
         }
+    }
+
+    private static void WriteBearing(BinaryWriter writer, HostWorldBridgePart part)
+    {
+        int count = part.BearingVertices != null ? part.BearingVertices.Length : 0;
+        ValidateBearingCount(count, part.IsCap);
+        writer.Write(count);
+        for (int index = 0; index < count; index++)
+        {
+            Vector3 point = part.BearingVertices[index];
+            ValidateBearingCoordinate(point);
+            WriteVector(writer, point);
+        }
+    }
+
+    private static Vector3[] ReadBearing(BinaryReader reader, bool isCap)
+    {
+        int count = reader.ReadInt32();
+        ValidateBearingCount(count, isCap);
+        if (count == 0) return null;
+        var vertices = new Vector3[count];
+        for (int index = 0; index < count; index++)
+        {
+            vertices[index] = ReadVector(reader);
+            ValidateBearingCoordinate(vertices[index]);
+        }
+        return vertices;
+    }
+
+    private static void ValidateBearingCount(int count, bool isCap)
+    {
+        if (count < 0 || count > MaxBearingVertices || count % 8 != 0 || (count != 0 && !isCap))
+            throw new InvalidDataException("Invalid bridge bearing geometry.");
+    }
+
+    private static void ValidateBearingCoordinate(Vector3 point)
+    {
+        if (float.IsNaN(point.x) || float.IsInfinity(point.x) || Mathf.Abs(point.x) > 10000f ||
+            float.IsNaN(point.y) || float.IsInfinity(point.y) || Mathf.Abs(point.y) > 10000f ||
+            float.IsNaN(point.z) || float.IsInfinity(point.z) || Mathf.Abs(point.z) > 10000f)
+            throw new InvalidDataException("Invalid bridge bearing coordinate.");
     }
 
     private static void WriteColliders(BinaryWriter writer, List<HostWorldBridgeCollider> colliders)

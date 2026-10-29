@@ -38,10 +38,21 @@ public sealed class HostWorldBridgeVisual : IDisposable
             SetWorldPose(member.transform, bar.Pose);
             foreach (HostWorldBridgePart part in bar.Parts)
             {
-                GameObject source = part.IsCap ? material.pierCapPrefab : material.segmentPrefab;
-                if (source == null) continue;
-                GameObject visual = CopyMeshes(source, member.transform);
-                visual.name = part.IsCap ? "Pier Cap" : "Bridge Segment";
+                GameObject visual;
+                if (part.BearingVertices != null && part.BearingVertices.Length != 0)
+                {
+                    visual = new GameObject("Pier Bearing");
+                    visual.layer = 2;
+                    visual.transform.SetParent(member.transform, false);
+                    visual.AddComponent<PierCapBearing>().SetPrisms(part.BearingVertices, PierCapBearing.Appearance(material));
+                }
+                else
+                {
+                    GameObject source = part.IsCap ? material.pierCapPrefab : material.segmentPrefab;
+                    if (source == null) continue;
+                    visual = CopyMeshes(source, member.transform);
+                    visual.name = part.IsCap ? "Pier Cap" : "Bridge Segment";
+                }
                 visual.transform.localPosition = part.Pose.Position;
                 visual.transform.localRotation = part.Pose.Rotation;
                 visual.transform.localScale = part.Pose.Scale;

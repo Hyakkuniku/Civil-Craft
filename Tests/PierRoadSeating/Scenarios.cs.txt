@@ -1,0 +1,134 @@
+using System;
+using UnityEngine;
+
+public static class Scenarios
+{
+    private static int checks;
+    private static void Check(bool value, string reason) { checks++; if (!value) throw new Exception(reason); }
+    private static float Fit(Bounds bounds, float capAngle, float topOffset, float slope, float underside, float lo, float hi)
+        => Bar.RequiredPierCapSeatingDrop(bounds, capAngle, topOffset, slope, underside, 1f / MathF.Sqrt(1f + slope * slope), lo, hi);
+
+    public static int Run()
+    {
+        var cap = new Bounds(Vector3.zero, new Vector3(4f, .8f, 8f));
+        float flat = Fit(cap, 0, .4f, 0, -.25f, -5, 5);
+        Check(MathF.Abs(flat - .25f) < .0001f, "Flat seating must meet the rendered road underside with zero clearance.");
+        Check(Fit(cap, 0, .4f, 0, -.25f, 8, 12) == 0f, "A road domain outside the cap cannot move it.");
+        Check(Fit(cap, 0, .4f, 0, 1f, -5, 5) == 0f, "A cap already below a road cannot be raised or unnecessarily dropped.");
+
+        foreach (float angle in new[] { -45f, -30f, -15f, 0f, 15f, 30f, 45f })
+        {
+            float slope = MathF.Tan(angle * MathF.PI / 180f);
+            float drop = Fit(cap, angle, .4f, slope, -.22f, -8f, 8f);
+            Check(float.IsFinite(drop) && drop >= 0, "Every supported slope produces a finite downward-only correction.");
+            SampleContained(cap, angle, .4f, drop, slope, -.22f, -8f, 8f);
+        }
+
+        // Two segments forming a valley must constrain only their own half.
+        // Extending either underside plane across the other half would lower
+        // this cap by about a metre instead of just the road thickness.
+        float valley = MathF.Max(Fit(cap, 0, .4f, -.5f, -.1f, -10, 0), Fit(cap, 0, .4f, .5f, -.1f, 0, 10));
+        Check(valley > .1f && valley < .2f, "A valley must use each road's real domain, not two infinite planes.");
+        SampleContained(cap, 0, .4f, valley, -.5f, -.1f, -10, 0);
+        SampleContained(cap, 0, .4f, valley, .5f, -.1f, 0, 10);
+
+        float crest = MathF.Max(Fit(cap, 0, .4f, .5f, -.1f, -10, 0), Fit(cap, 0, .4f, -.5f, -.1f, 0, 10));
+        Check(crest > 1f && crest < 1.2f, "A crest must lower the cap beneath both downhill sides.");
+        SampleContained(cap, 0, .4f, crest, .5f, -.1f, -10, 0);
+        SampleContained(cap, 0, .4f, crest, -.5f, -.1f, 0, 10);
+
+        // Non-centred imported cap meshes must use their real pivot/bounds.
+        var offCenter = new Bounds(new Vector3(.45f, .5f, -.2f), new Vector3(4f, .8f, 7f));
+        foreach (float angle in new[] { -35f, 0f, 35f })
+        {
+            float slope = MathF.Tan(angle * MathF.PI / 180f);
+            float drop = Fit(offCenter, angle, .9f, slope, -.18f, -7, 7);
+            SampleContained(offCenter, angle, .9f, drop, slope, -.18f, -7, 7);
+        }
+        DepthAwareContact();
+        return checks;
+    }
+
+    private static void DepthAwareContact()
+    {
+        Check(Bar.PierSeatingDepthOverlaps(-2.35f, 2.35f, -4f, 4f), "A central deck spanning the cap must contribute its underside.");
+        Check(!Bar.PierSeatingDepthOverlaps(-2.35f, 2.35f, 3.3f, 4f), "A lower side beam outside a narrow cap must not lower it.");
+        Check(!Bar.PierSeatingDepthOverlaps(-2.35f, 2.35f, -4f, -3.3f), "The opposite outboard beam must also be ignored.");
+        Check(Bar.PierSeatingDepthOverlaps(-4f, 4f, 3.3f, 4f), "A wide wood cap really does overlap the right side beam.");
+        Check(Bar.PierSeatingDepthOverlaps(-4f, 4f, -4f, -3.3f), "A wide wood cap also overlaps the left side beam.");
+        Check(!Bar.PierSeatingDepthOverlaps(-2f, 2f, 2f, 3f), "A zero-width depth boundary cannot create a false supporting surface.");
+
+        foreach (float angle in new[] { -45f, -30f, -15f, -5f, 0f, 5f, 15f, 30f, 45f })
+        {
+            float slope = MathF.Tan(angle * MathF.PI / 180f);
+            var narrow = new Bounds(Vector3.zero, new Vector3(2.08f, .8f, 4.7f));
+            var wide = new Bounds(Vector3.zero, new Vector3(4f, .8f, 8f));
+            float narrowDrop = FitDepthParts(narrow, angle, slope);
+            float wideDrop = FitDepthParts(wide, angle, slope);
+            Check(narrowDrop + .5f < wideDrop, "Outboard beams must not create the old large gap below a narrow pier cap.");
+            float narrowGap = -.12f - HighestNormal(narrow, angle, .4f, narrowDrop, slope, -8, 8);
+            float wideGap = -.8f - HighestNormal(wide, angle, .4f, wideDrop, slope, -8, 8);
+            Check(MathF.Abs(narrowGap) <= .0001f,
+                $"Narrow cap must touch the actual central deck, angle={angle}, gap={narrowGap}.");
+            Check(MathF.Abs(wideGap) <= .0001f,
+                $"Wide cap must meet the side beams it overlaps, angle={angle}, gap={wideGap}.");
+            SampleContained(narrow, angle, .4f, narrowDrop, slope, -.12f, -8, 8);
+            SampleContained(wide, angle, .4f, wideDrop, slope, -.8f, -8, 8);
+        }
+    }
+
+    private static float FitDepthParts(Bounds cap, float angle, float slope)
+    {
+        // Three independently authored rectangular parts model the deck and
+        // two deeper outboard beams. Only their actual depth intersections count.
+        float result = 0f;
+        foreach (var part in new[] { (min: -4f, max: 4f, underside: -.12f),
+            (min: -4f, max: -3.3f, underside: -.8f), (min: 3.3f, max: 4f, underside: -.8f) })
+            if (Bar.PierSeatingDepthOverlaps(cap.min.z, cap.max.z, part.min, part.max))
+                result = MathF.Max(result, Fit(cap, angle, .4f, slope, part.underside, -8, 8));
+        return result;
+    }
+
+    private static float HighestNormal(Bounds cap, float angle, float topOffset, float drop, float slope, float minX, float maxX)
+    {
+        // Independent dense edge samples: use the actual plane distance after
+        // fitting rather than repeating the production clipping formula.
+        double radians = angle * Math.PI / 180.0, cosine = Math.Cos(radians), sine = Math.Sin(radians);
+        double normalScale = 1.0 / Math.Sqrt(1.0 + slope * slope), highest = double.NegativeInfinity;
+        for (int edge = 0; edge < 4; edge++)
+            for (int i = 0; i <= 2000; i++)
+            {
+                double t = i / 2000.0;
+                double localX = edge < 2 ? cap.min.x + t * cap.size.x : edge == 2 ? cap.min.x : cap.max.x;
+                double localY = edge >= 2 ? cap.min.y + t * cap.size.y : edge == 0 ? cap.min.y : cap.max.y;
+                double x = cosine * localX - sine * localY;
+                if (x < minX || x > maxX) continue;
+                double y = sine * localX + cosine * localY - topOffset - drop;
+                highest = Math.Max(highest, (y - slope * x) * normalScale);
+            }
+        return (float)highest;
+    }
+
+    private static void SampleContained(Bounds cap, float angle, float topOffset, float drop, float slope, float underside, float minX, float maxX)
+    {
+        double radians = angle * Math.PI / 180.0, cosine = Math.Cos(radians), sine = Math.Sin(radians);
+        double normalScale = 1.0 / Math.Sqrt(1.0 + slope * slope);
+        double highest = double.NegativeInfinity;
+        // Sample each outer rectangle edge independently of the implementation's
+        // clipping/intersection algorithm. Linear extrema are on the boundary.
+        for (int edge = 0; edge < 4; edge++)
+            for (int i = 0; i <= 2000; i++)
+            {
+                double t = i / 2000.0;
+                double localX = edge < 2 ? cap.min.x + t * cap.size.x : edge == 2 ? cap.min.x : cap.max.x;
+                double localY = edge >= 2 ? cap.min.y + t * cap.size.y : edge == 0 ? cap.min.y : cap.max.y;
+                double x = cosine * localX - sine * localY;
+                if (x < minX || x > maxX) continue;
+                double y = sine * localX + cosine * localY - topOffset - drop;
+                highest = Math.Max(highest, (y - slope * x) * normalScale);
+            }
+        Check(!double.IsNegativeInfinity(highest), "The verification case must intersect its road domain.");
+        Check(highest <= underside + .0001,
+            $"Corrected cap remains above an underside: angle={angle}, slope={slope}, highest={highest}, limit={underside}, drop={drop}.");
+    }
+}

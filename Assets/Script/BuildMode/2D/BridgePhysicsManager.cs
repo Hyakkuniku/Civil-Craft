@@ -1573,6 +1573,7 @@ public partial class BridgePhysicsManager : MonoBehaviour
                 Destroy(stressHandler);
             }
             EnsurePermanentBakedRoadCollider(b);
+            if (b.materialData != null && b.materialData.isPier) b.RefreshPierCapSeating();
             b.enabled = false; 
             targetLoc.bakedBars.Add(b); 
         }

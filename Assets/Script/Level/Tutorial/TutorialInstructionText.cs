@@ -53,7 +53,11 @@ public static class TutorialInstructionText
         },
         {
             "Press and hold any <b><#E09500>material</color></b> to inspect its name, cost, mass, strength limit, maximum length, and type. On a computer, hover over the material to inspect it.",
-            "Hold a <b><#E09500>material</color></b> (hover on PC) for its name, cost, mass, strength limit, maximum length, and type."
+            "Hold a <b><#E09500>material</color></b> for its name, cost, mass, strength limit, maximum length, and type."
+        },
+        {
+            "Press and hold any <b><#E09500>material</color></b> to inspect its name, cost, mass, strength limit, maximum length, and type.",
+            "Hold a <b><#E09500>material</color></b> for its name, cost, mass, strength limit, maximum length, and type."
         },
         {
             "You're ready to begin construction! Let's build your first <b><#E09500>Beam Bridge</color></b>.",
