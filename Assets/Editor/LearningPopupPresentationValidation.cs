@@ -22,7 +22,7 @@ public static class LearningPopupPresentationValidation
 {
     public const string RequestPath = "Temp/learning-popup-presentation.request";
     public const string ReportPath = "Logs/learning-popup-presentation.txt";
-    private const string Output = "Temp/LearningPopupPresentation";
+    private const string Output = "Temp/LearningPopupPresentation-v4";
     private const string Reward = "Assets/Prefabs/UI/CollectRewardSystem.prefab";
     private static readonly string[] Scenes = { "Assets/Scenes/CanyonCrossing.unity", "Assets/Scenes/BHAN HOUSE.unity" };
     private static bool running;
@@ -114,9 +114,10 @@ public static class LearningPopupPresentationValidation
                 Capture(materialSource, "Material-WoodRoad-" + tag, device, wood.GetDisplayName(), wood.PopupImage, wood.PopupDescription, report); cases++;
                 Capture(materialSource, "Material-ConcretePier-" + tag, device, pier.GetDisplayName(), pier.PopupImage, pier.PopupDescription, report); cases++;
                 Capture(lessonSources[0], "Lesson-LiveLoad-" + tag, device, lesson.Title, lesson.Image, lesson.PopupDescription, report); cases++;
-                string longBody = string.Join("\n\n", Enumerable.Repeat(ItemUnlockUI.BuildMaterialReferenceDetails(pier), 5));
+                string longBody = string.Join("\n\n", Enumerable.Repeat(ItemUnlockUI.BuildMaterialReferenceDetails(pier), 10));
                 Capture(materialSource, "LongReference-" + tag, device, pier.GetDisplayName(), pier.PopupImage, longBody, report, true); cases++;
                 Capture(lessonSources[0], "NoImage-" + tag, device, "Bridge Lesson", null, lesson.PopupDescription, report); cases++;
+                Capture(lessonSources[0], "NoImageLongReference-" + tag, device, "Bridge Reference", null, longBody, report, true); cases++;
             }
             Capture(lessonSources[1], "BhanHouse-Lesson-2340x1080", new Vector2Int(2340,1080), lesson.Title, lesson.Image, lesson.PopupDescription, report); cases++;
             foreach (var pair in originalComponents) Require(pair.Key != null && EditorJsonUtility.ToJson(pair.Key) == pair.Value, "A source reader, callback or data asset changed: " + pair.Key);
@@ -151,7 +152,7 @@ public static class LearningPopupPresentationValidation
 
     private static void ValidateReferences(LearningPopupLayout layout, string label, bool material)
     {
-        Require(layout.authoredVersion >= 3, "The Name Registration reference design has not been authored: " + label);
+        Require(layout.authoredVersion >= 4, "The compact field-note design has not been authored: " + label);
         Require(layout.card != null && layout.cardSurface != null && layout.titleTab != null && layout.titleText != null &&
             layout.dismissButton != null && layout.imageFrame != null && layout.imageSurface != null && layout.contentImage != null &&
             layout.descriptionFrame != null && layout.descriptionSurface != null && layout.descriptionText != null && layout.descriptionScroll != null &&
@@ -165,14 +166,19 @@ public static class LearningPopupPresentationValidation
         Require(buttonText != null && buttonText.text == (material ? "GOT IT" : "CLOSE"), "The authored rectangular button label differs: " + label);
         TMP_Text context = Field<TMP_Text>(layout,"contextText"); RectTransform divider = Field<RectTransform>(layout,"headerDivider");
         Require(context != null && !string.IsNullOrWhiteSpace(context.text) && divider != null,
-            "The authored centered introduction heading or divider is missing: " + label);
-        Require(context.font != null && context.horizontalAlignment == HorizontalAlignmentOptions.Center && layout.titleText.horizontalAlignment == HorizontalAlignmentOptions.Center,
-            "The reader no longer matches the reference's centered headings: " + label);
+            "The authored introduction heading or divider is missing: " + label);
+        Require(context.font != null && context.horizontalAlignment == HorizontalAlignmentOptions.Left && layout.titleText.horizontalAlignment == HorizontalAlignmentOptions.Left,
+            "The compact reader's headings must align with its reading column: " + label);
         Require(ColorMatches(layout.card.GetComponent<Image>()?.color,new Color32(90,55,31,255)) &&
             ColorMatches(layout.cardSurface.GetComponent<Image>()?.color,new Color32(248,233,204,255)),
-            "The thick wood frame/warm cream surface differs from the Name Registration reference: " + label);
+            "The wood/warm cream palette differs from the current reference: " + label);
         Require(layout.dismissButton.GetComponentsInChildren<Image>(true).Any(image=>ColorMatches(image.color,new Color32(231,158,35,255))),
             "The primary acknowledgement is missing the reference's gold fill: " + label);
+        Require(ColorMatches(divider.GetComponent<Image>()?.color,new Color32(231,158,35,255)),
+            "The compact field-note heading lost its gold divider accent: " + label);
+        Require(layout.descriptionFrame.GetComponent<Image>() != null && layout.descriptionFrame.GetComponent<Image>().color.a <= .005f &&
+            layout.descriptionSurface.GetComponent<Image>() != null && layout.descriptionSurface.GetComponent<Image>().color.a <= .005f,
+            "The reading column still has a nested description box instead of the unboxed field-note composition: " + label);
     }
 
     private static void Capture(LearningPopupLayout source, string label, Vector2Int device, string title, Sprite picture, string text, StringBuilder report, bool requireScroll = false)
@@ -206,9 +212,14 @@ public static class LearningPopupPresentationValidation
             Require(!close.Overlaps(heading) && !close.Overlaps(bodyFrame) && !heading.Overlaps(bodyFrame), "Reader heading, dismiss control or body overlap: " + label);
             Require(Contains(card,contextRect,.05f) && Contains(card,dividerRect,.05f) && !contextRect.Overlaps(heading) && !contextRect.Overlaps(bodyFrame) &&
                 !contextRect.Overlaps(close) && !dividerRect.Overlaps(heading) && !dividerRect.Overlaps(bodyFrame) && !dividerRect.Overlaps(close),
-                "The centered heading, divider, reading area or footer overlap: " + label);
-            Require(close.yMax <= bodyFrame.yMin + .05f && close.center.y < card.center.y && close.width >= card.width*.55f && Mathf.Abs(close.center.x-card.center.x) < 1f,
-                "The acknowledgement does not match the reference's wide centered bottom action: " + label);
+                "The heading, divider, reading area or acknowledgement overlap: " + label);
+            Require(dividerRect.width <= heading.width*.55f,"The field-note divider is still a full-width header rule: " + label);
+            Require(close.yMax <= bodyFrame.yMin + .05f && close.xMin >= bodyFrame.xMin - .1f && close.xMax <= bodyFrame.xMax + .1f,
+                "The acknowledgement is not safely positioned below the reading column: " + label);
+            if (picture != null && device.x >= device.y)
+                Require(close.width <= card.width*.45f,"The compact field-note action is still oversized: " + label);
+            if (!requireScroll && device.x == 2340 && device.y == 1080)
+                Require(card.height <= 800f,"A short introduction still occupies the previous oversized card height: " + label);
             Require(close.height * device.y / 1080f >= 43.9f && close.width * device.y / 1080f >= 43.9f, "Dismiss touch target is below 44 pixels: " + label);
             Require(!layout.titleText.isTextTruncated && !layout.titleText.isTextOverflowing, "The heading is truncated or overflows: " + label);
             Require(!context.isTextTruncated && !context.isTextOverflowing,"The introduction/lesson context heading is truncated: " + label);
@@ -239,7 +250,8 @@ public static class LearningPopupPresentationValidation
                 Save(camera,target,label + "-bottom");
             }
             report.AppendLine("LAYOUT: " + label + "; close=" + (close.width*device.y/1080f).ToString("0.0") + "x" + (close.height*device.y/1080f).ToString("0.0") +
-                "px; body=" + layout.descriptionText.fontSize.ToString("0.0") + " units; scroll=" + scrollRange.ToString("0.0") + "; full text and image aspect verified.");
+                "px; card=" + card.width.ToString("0.0") + "x" + card.height.ToString("0.0") + "; body=" + layout.descriptionText.fontSize.ToString("0.0") +
+                " units; scroll=" + scrollRange.ToString("0.0") + "; full text and image aspect verified.");
         }
         finally
         {
