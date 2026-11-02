@@ -46,7 +46,8 @@ public static class ObjectiveUntrackValidation
         var report = new StringBuilder("Objectives Untrack: detached graphics, control bindings and mobile layout\n");
         Scene[] scenes = Enumerable.Range(0, SceneManager.sceneCount).Select(SceneManager.GetSceneAt).ToArray();
         bool[] dirty = scenes.Select(scene => scene.isDirty).ToArray();
-        GameObject[][] roots = scenes.Select(scene => scene.GetRootGameObjects()).ToArray();
+        bool[] loaded = scenes.Select(scene => scene.isLoaded).ToArray();
+        GameObject[][] roots = scenes.Select(scene => scene.isLoaded ? scene.GetRootGameObjects() : Array.Empty<GameObject>()).ToArray();
         var files = scenes.Where(scene => File.Exists(scene.path)).ToDictionary(scene => scene.path, scene => Hash(scene.path));
         Scene active = SceneManager.GetActiveScene(); Object[] selection = Selection.objects; Object selected = Selection.activeObject;
         ObjectiveTrackerUI tracker = ObjectiveTrackerUI.Instance;
@@ -67,8 +68,8 @@ public static class ObjectiveUntrackValidation
             {
                 Require(SceneManager.sceneCount == scenes.Length && SceneManager.GetActiveScene() == active, "Loaded scene setup changed.");
                 for (int index = 0; index < scenes.Length; index++)
-                    Require(SceneManager.GetSceneAt(index) == scenes[index] && scenes[index].isDirty == dirty[index] &&
-                        scenes[index].GetRootGameObjects().SequenceEqual(roots[index]), "Source scene order, roots or dirty flags changed: " + scenes[index].path);
+                    Require(SceneManager.GetSceneAt(index) == scenes[index] && scenes[index].isLoaded == loaded[index] && scenes[index].isDirty == dirty[index] &&
+                        (!loaded[index] || scenes[index].GetRootGameObjects().SequenceEqual(roots[index])), "Source scene order, roots or dirty flags changed: " + scenes[index].path);
                 Require(files.All(pair => Hash(pair.Key) == pair.Value), "Saved scene bytes changed.");
                 Require(Selection.activeObject == selected && Selection.objects.SequenceEqual(selection) && Time.timeScale == time,
                     "Selection or time scale changed.");
@@ -91,6 +92,7 @@ public static class ObjectiveUntrackValidation
         var fonts = source.trackerPanel.GetComponentsInChildren<TMP_Text>(true).Select(text => text.font).Where(font => font != null).Distinct()
             .ToDictionary(font => font, EditorJsonUtility.ToJson);
         Scene preview = EditorSceneManager.NewPreviewScene(); RenderTexture previous = RenderTexture.active;
+        ContractFixture contract = null;
         try
         {
             GameObject root = Owned(preview, "Detached Objectives Canvas", typeof(RectTransform), typeof(Canvas));
@@ -99,6 +101,7 @@ public static class ObjectiveUntrackValidation
             RectTransform canvasRect = (RectTransform)root.transform;
             var map = new Dictionary<Transform, RectTransform>();
             RectTransform panel = CloneArt((RectTransform)source.trackerPanel.transform, root.transform, map);
+            RemapScrollViews(map);
             // No game behaviours are cloned; the inactive controller is used only for its styling helpers.
             GameObject owner = Owned(preview, "Detached inactive Objectives controller"); owner.SetActive(false);
             ObjectiveTrackerUI copy = owner.AddComponent<ObjectiveTrackerUI>();
@@ -145,6 +148,8 @@ public static class ObjectiveUntrackValidation
             camera.orthographic = true; camera.nearClipPlane = .1f; camera.farClipPlane = 100f; camera.transform.position = new Vector3(0f, 0f, -20f);
             camera.clearFlags = CameraClearFlags.SolidColor; camera.backgroundColor = new Color32(119, 156, 165, 255); canvas.worldCamera = camera;
             TMP_Text heading = panel.GetComponentsInChildren<TMP_Text>(true).Single(text => text.transform.parent == panel && text.text == "OBJECTIVES");
+            contract = CreateContractFixture(preview, copy);
+            AddListFixtures(preview, copy);
             CanvasScaler sourceScaler = source.trackerPanel.GetComponentInParent<CanvasScaler>(true);
             Vector2 reference = sourceScaler != null ? sourceScaler.referenceResolution : new Vector2(1920f, 1080f);
             float match = sourceScaler != null ? sourceScaler.matchWidthOrHeight : .5f;
@@ -156,49 +161,174 @@ public static class ObjectiveUntrackValidation
                 var texture = new RenderTexture(screen.x, screen.y, 24); texture.Create(); camera.targetTexture = texture;
                 try
                 {
-                panel.GetComponent<ObjectiveMobileFit>().ApplyLayout(); untrack.SetActive(true); untrack.transform.SetAsLastSibling();
-                Rect bounds = Bounds((RectTransform)untrack.transform, camera);
-                Require(Contains(camera.pixelRect, Bounds(panel, camera)) && Contains(Bounds(panel, camera), bounds), "Panel or Untrack control leaves the preview screen.");
-                Require(!bounds.Overlaps(Bounds(heading.rectTransform, camera)) && !bounds.Overlaps(Bounds((RectTransform)copy.listPanel.transform, camera)) &&
-                    !bounds.Overlaps(Bounds((RectTransform)copy.detailsPanel.transform, camera)), "Untrack overlaps the heading or page panels.");
-                Require(bounds.height >= 44f, "Untrack touch target is smaller than 44 pixels.");
-                foreach (bool details in new[] { false, true })
+                panel.GetComponent<ObjectiveMobileFit>().ApplyLayout();
+                foreach (string state in new[] { "List", "ListBottom", "Tutorial", "ActiveContract", "AcceptContract", "CollectReward", "CompletedContract", "ListUntracked", "DetailsUntracked" })
                 {
+                    bool details = !state.StartsWith("List", StringComparison.Ordinal);
                     copy.listPanel.SetActive(!details); copy.detailsPanel.SetActive(details);
-                    if (details)
+                    contract.Root.SetActive(false);
+                    if (copy.completeButton != null) copy.completeButton.SetActive(false);
+                    if (copy.rewardContainer != null) copy.rewardContainer.SetActive(false);
+                    if (details && (state == "Tutorial" || state == "DetailsUntracked"))
                     {
-                        if (copy.titleText != null) copy.titleText.text = "Follow Reed";
-                        if (copy.descriptionText != null) copy.descriptionText.text = "Follow Reed to the factory crossing, then talk to him about the bridge.";
+                        if (copy.titleText != null) { copy.titleText.gameObject.SetActive(true); copy.titleText.text = "Follow Reed"; }
+                        if (copy.descriptionText != null) { copy.descriptionText.gameObject.SetActive(true); copy.descriptionText.text = "Follow Reed to the factory crossing, then talk to him about the bridge."; }
                         if (copy.budgetText != null) copy.budgetText.gameObject.SetActive(false);
                         if (copy.weightText != null) copy.weightText.gameObject.SetActive(false);
-                        if (copy.rewardContainer != null) copy.rewardContainer.SetActive(false);
-                        if (copy.completeButton != null) copy.completeButton.SetActive(false);
                         copy.navigateButton.SetActive(true);
+                        copy.navigateButton.GetComponentInChildren<TMP_Text>(true).text = "TRACK LOCATION";
                     }
+                    else if (details)
+                    {
+                        contract.Task.isReadyToTurnIn = state == "CollectReward";
+                        contract.Task.isCompleted = state == "CompletedContract";
+                        Invoke(copy, "ShowContractDetails", contract.Contract, contract.Task, state == "AcceptContract");
+                        // This is a detached layout fixture, not a navigation availability test.
+                        // No scene route is registered and no gameplay callback is invoked.
+                        if (state == "ActiveContract") copy.navigateButton.SetActive(true);
+                    }
+                    Transform back = copy.detailsPanel.transform.Find("Back to Objective List");
+                    if (back != null) back.gameObject.SetActive(details);
+                    untrack.SetActive(!state.EndsWith("Untracked", StringComparison.Ordinal));
+                    untrack.transform.SetAsLastSibling(); copy.ApplyNavigationFooterLayout();
                     LayoutRebuilder.ForceRebuildLayoutImmediate(panel);
+                    ScrollRect listScroll = copy.listPanel.GetComponentInChildren<ScrollRect>(true);
+                    if (!details && listScroll != null) { listScroll.StopMovement(); listScroll.verticalNormalizedPosition = state == "ListBottom" ? 0f : 1f; }
                     foreach (TMP_Text text in panel.GetComponentsInChildren<TMP_Text>(true)) text.ForceMeshUpdate(true, true);
                     foreach (Graphic graphic in panel.GetComponentsInChildren<Graphic>(false)) graphic.Rebuild(CanvasUpdate.PreRender);
                     label.ForceMeshUpdate(true, true);
+                    Rect bounds = Bounds((RectTransform)untrack.transform, camera);
+                    ValidateFooter(copy, heading, camera, details, state);
                     Require(label.GetParsedText() == "UNTRACK OBJECTIVE" && !label.isTextOverflowing && !label.isTextTruncated && label.fontSize >= 21f,
                         "Untrack text is truncated, overflowing or shrunk below the shared action size.");
                     foreach (TMP_CharacterInfo character in label.textInfo.characterInfo.Take(label.textInfo.characterCount))
                         if (character.isVisible) Require(Contains(bounds, GlyphBounds(label, character, camera)), "An Untrack glyph leaves its button.");
-                    string path = "Temp/ObjectiveUntrack/" + source.gameObject.scene.name + "-" + (details ? "Details" : "List") + "-" + screen.x + "x" + screen.y + ".png";
+                    string path = "Temp/ObjectiveUntrack/" + source.gameObject.scene.name + "-" + state + "-" + screen.x + "x" + screen.y + ".png";
                     Render(camera, texture, path);
-                    report.AppendLine("PASS: " + source.gameObject.scene.name + " " + (details ? "Details" : "List") + " " + screen.x + "x" + screen.y +
-                        "; one Untrack callback, original action bindings preserved, complete glyphs, in-bounds header and " + bounds.height.ToString("0.0") + "px touch height. " + path);
+                    report.AppendLine("PASS: " + source.gameObject.scene.name + " " + state + " " + screen.x + "x" + screen.y +
+                        "; one Untrack callback, original action bindings preserved, reserved footer, complete glyphs and " + bounds.height.ToString("0.0") + "px touch height. " + path);
                 }
                 }
                 finally { camera.targetTexture = null; RenderTexture.active = previous; texture.Release(); Object.DestroyImmediate(texture); }
             }
+            Require(calls.All(pair => pair.Key != null && JsonUtility.ToJson(pair.Key.onClick) == pair.Value),
+                "Footer fixture changed existing Close, Track, Accept or Collect callbacks.");
+            report.AppendLine("Contract previews use detached field fixtures with real ShowContractDetails label/state rendering; material card allocation and route availability are excluded. No contract, navigation or reward callback runs.");
         }
         finally
         {
+            if (contract != null && contract.Contract != null) Object.DestroyImmediate(contract.Contract);
             RenderTexture.active = previous; EditorSceneManager.ClosePreviewScene(preview);
             bool originalSafe = RecordDifferences(originals, source.gameObject.scene.name, "component", report);
             bool fontsSafe = RecordDifferences(fonts.ToDictionary(pair => (Object)pair.Key, pair => pair.Value), source.gameObject.scene.name, "font", report);
             bool callbacksSafe = originalCalls.All(pair => pair.Key != null && JsonUtility.ToJson(pair.Key.onClick) == pair.Value);
             Require(originalSafe && fontsSafe && callbacksSafe, "Detached validation changed source Objectives graphics, callbacks or font assets; see exact diagnostics above.");
+        }
+    }
+
+    private sealed class ContractFixture
+    {
+        public GameObject Root;
+        public ContractSO Contract;
+        public TrackedTask Task;
+    }
+
+    private static ContractFixture CreateContractFixture(Scene scene, ObjectiveTrackerUI copy)
+    {
+        // Match the production contract card's sections, and supply its private text
+        // references. Avoid allocating through runtime helpers into the active scene.
+        GameObject Node(Transform parent, string name, Vector2 size, Vector2 position, bool surface)
+        {
+            GameObject item = surface ? Owned(scene, name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image)) : Owned(scene, name, typeof(RectTransform));
+            item.transform.SetParent(parent, false); RectTransform rect = (RectTransform)item.transform;
+            rect.anchorMin = rect.anchorMax = rect.pivot = Vector2.one * .5f; rect.sizeDelta = size; rect.anchoredPosition = position;
+            if (surface) { Image image = item.GetComponent<Image>(); image.sprite = copy.roundedPanelSprite; image.type = Image.Type.Sliced; image.color = new Color32(255, 247, 225, 255); image.raycastTarget = false; }
+            return item;
+        }
+        TextMeshProUGUI Text(Transform parent, string name, Vector2 size, Vector2 position, float fontSize, TextAlignmentOptions alignment)
+        {
+            GameObject item = Owned(scene, name, typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI)); item.transform.SetParent(parent, false);
+            var rect = (RectTransform)item.transform; rect.anchorMin = rect.anchorMax = rect.pivot = Vector2.one * .5f; rect.sizeDelta = size; rect.anchoredPosition = position;
+            var text = item.GetComponent<TextMeshProUGUI>(); text.font = copy.titleText.font; text.fontSize = fontSize; text.alignment = alignment;
+            text.color = new Color32(75, 46, 29, 255); text.enableWordWrapping = true; text.raycastTarget = false; text.isOrthographic = true; return text;
+        }
+        void Field(string name, object value) { typeof(ObjectiveTrackerUI).GetField(name, Hidden).SetValue(copy, value); }
+        GameObject root = Node(copy.detailsPanel.transform, "Detached Contract Offer Layout", new Vector2(1060f, 770f), Vector2.zero, false);
+        Field("contractOfferLayout", root);
+        Field("offerTitleLabel", Text(root.transform, "Contract Offer Title", new Vector2(950f, 54f), new Vector2(0f, 326f), 38f, TextAlignmentOptions.Center));
+        GameObject brief = Node(root.transform, "Project Brief", new Vector2(960f, 112f), new Vector2(0f, 222f), true);
+        Field("offerDescriptionLabel", Text(brief.transform, "Project Brief Text", new Vector2(920f, 88f), Vector2.zero, 25f, TextAlignmentOptions.MidlineLeft));
+        GameObject requirements = Node(root.transform, "Contract Requirements", new Vector2(960f, 76f), new Vector2(0f, 120f), true);
+        Field("offerBudgetValue", Text(requirements.transform, "Budget", new Vector2(300f, 64f), new Vector2(-320f, 0f), 27f, TextAlignmentOptions.Center));
+        Field("offerLoadValue", Text(requirements.transform, "Live Load", new Vector2(300f, 64f), Vector2.zero, 27f, TextAlignmentOptions.Center));
+        Field("offerSpanValue", Text(requirements.transform, "Required Span", new Vector2(300f, 64f), new Vector2(320f, 0f), 27f, TextAlignmentOptions.Center));
+        GameObject materials = Node(root.transform, "Allowed Materials", new Vector2(960f, 185f), new Vector2(0f, -25f), true);
+        Text(materials.transform, "Allowed Materials Header", new Vector2(600f, 28f), new Vector2(-150f, 72f), 23f, TextAlignmentOptions.MidlineLeft).text = "ALLOWED MATERIALS";
+        Text(materials.transform, "No Material Restrictions", new Vector2(920f, 110f), new Vector2(0f, -22f), 23f, TextAlignmentOptions.MidlineLeft).text = "No material restrictions for this contract.";
+        // Null skips dynamic material-card allocation while retaining the exact section bounds.
+        Field("offerMaterialsContent", null); Field("offerMaterialsScrollRect", null);
+        GameObject rewards = Node(root.transform, "Contract Rewards", new Vector2(960f, 64f), new Vector2(0f, -180f), true);
+        Field("offerRewardValue", Text(rewards.transform, "Reward Value", new Vector2(210f, 46f), new Vector2(-350f, 0f), 22f, TextAlignmentOptions.Center));
+        Field("offerGoldValue", Text(rewards.transform, "Coin Reward Value", new Vector2(125f, 46f), new Vector2(-45f, 0f), 24f, TextAlignmentOptions.MidlineLeft));
+        Field("offerExperienceValue", Text(rewards.transform, "Experience Reward Value", new Vector2(125f, 46f), new Vector2(245f, 0f), 24f, TextAlignmentOptions.MidlineLeft));
+        ContractSO contract = ScriptableObject.CreateInstance<ContractSO>(); contract.hideFlags = HideFlags.HideAndDontSave;
+        contract.clientName = "Reed"; contract.jobDescription = "Connect the factory to Central Canyonville. Build a safe crossing for the test pickup and observe how the structure responds to bending under its weight.";
+        contract.budget = 100000f; contract.liveLoadWeight = 5000f; contract.bridgeSpan = 60f; contract.goldReward = 500; contract.expReward = 100;
+        return new ContractFixture { Root = root, Contract = contract, Task = new TrackedTask { title = "Reed's Request", pendingGold = 500, pendingExp = 100 } };
+    }
+
+    private static void AddListFixtures(Scene scene, ObjectiveTrackerUI copy)
+    {
+        if (copy.questListContent == null) return;
+        for (int index = 0; index < 10; index++)
+        {
+            GameObject row = Owned(scene, "Detached Objective " + index, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(LayoutElement));
+            row.transform.SetParent(copy.questListContent, false); row.GetComponent<LayoutElement>().preferredHeight = 128f;
+            Image image = row.GetComponent<Image>(); image.sprite = copy.roundedPanelSprite; image.type = Image.Type.Sliced; image.color = new Color32(222, 204, 160, 255); image.raycastTarget = false;
+            GameObject label = Owned(scene, "Label", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI)); label.transform.SetParent(row.transform, false);
+            RectTransform rect = (RectTransform)label.transform; rect.anchorMin = Vector2.zero; rect.anchorMax = Vector2.one; rect.offsetMin = new Vector2(24f, 10f); rect.offsetMax = new Vector2(-24f, -10f);
+            var text = label.GetComponent<TextMeshProUGUI>(); text.font = copy.titleText.font; text.fontSize = 28f; text.color = new Color32(75, 46, 29, 255); text.raycastTarget = false;
+            text.text = index == 9 ? "Last objective: Talk to Silas" : "Tutorial objective " + (index + 1); text.isOrthographic = true;
+        }
+    }
+
+    private static void ValidateFooter(ObjectiveTrackerUI copy, TMP_Text heading, Camera camera, bool details, string state)
+    {
+        Rect panel = Bounds((RectTransform)copy.trackerPanel.transform, camera);
+        Rect page = Bounds((RectTransform)(details ? copy.detailsPanel : copy.listPanel).transform, camera);
+        Rect untrack = Bounds((RectTransform)copy.untrackButton.transform, camera); bool visible = copy.untrackButton.activeSelf;
+        Require(Contains(camera.pixelRect, panel) && Contains(page, untrack), "The footer leaves its panel or screen.");
+        Require(!untrack.Overlaps(Bounds(heading.rectTransform, camera)) && untrack.height >= 44f, "Untrack overlaps the heading or is smaller than 44 pixels.");
+        ScrollRect scroll = copy.listPanel.GetComponentInChildren<ScrollRect>(true);
+        Require(scroll != null && Mathf.Approximately(((RectTransform)scroll.transform).offsetMin.y, visible ? 120f : 30f), "The list footer inset does not follow Untrack visibility.");
+        if (!details && visible) Require(!untrack.Overlaps(Bounds(scroll.viewport != null ? scroll.viewport : (RectTransform)scroll.transform, camera)), "Scrollable objective rows enter the navigation footer.");
+        var actions = new List<Rect>();
+        if (visible) actions.Add(untrack);
+        if (details)
+            foreach (GameObject item in new[] { copy.navigateButton, copy.completeButton, copy.detailsPanel.transform.Find("Back to Objective List")?.gameObject })
+            {
+                if (item == null || !item.activeInHierarchy) continue;
+                Rect bounds = Bounds((RectTransform)item.transform, camera);
+                Require(Contains(page, bounds) && bounds.height >= 44f && actions.All(other => !bounds.Overlaps(other)), "Footer actions overlap or leave the touch-safe page: " + state);
+                actions.Add(bounds);
+                TMP_Text text = item.GetComponentInChildren<TMP_Text>(true); text.ForceMeshUpdate(true, true);
+                Require(!text.isTextOverflowing && !text.isTextTruncated && text.fontSize >= 21f, "Footer action text does not fit: " + state);
+                foreach (TMP_CharacterInfo glyph in text.textInfo.characterInfo.Take(text.textInfo.characterCount))
+                    if (glyph.isVisible) Require(Contains(bounds, GlyphBounds(text, glyph, camera)), "An action glyph leaves its button: " + state);
+            }
+        RectTransform primary = (RectTransform)copy.navigateButton.transform;
+        Require(primary.anchoredPosition == new Vector2(visible ? -80f : 0f, -315f) && primary.sizeDelta == new Vector2(visible ? 380f : 420f, 80f), "The primary action does not adapt when Untrack hides.");
+    }
+
+    private static void RemapScrollViews(Dictionary<Transform, RectTransform> map)
+    {
+        foreach (var pair in map)
+        {
+            ScrollRect source = pair.Key.GetComponent<ScrollRect>(), copy = pair.Value.GetComponent<ScrollRect>();
+            if (source == null || copy == null) continue;
+            copy.content = source.content != null && map.TryGetValue(source.content, out RectTransform content) ? content : null;
+            copy.viewport = source.viewport != null && map.TryGetValue(source.viewport, out RectTransform viewport) ? viewport : null;
+            copy.horizontalScrollbar = null; copy.verticalScrollbar = null;
         }
     }
 
@@ -269,7 +399,7 @@ public static class ObjectiveUntrackValidation
             foreach (string name in new[] { "CoinRewardIcon", "ExperienceRewardIcon" })
                 Child(copy.rewardContainer.transform, name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
     }
-    private static void Invoke(ObjectiveTrackerUI owner, string name) => typeof(ObjectiveTrackerUI).GetMethod(name, Hidden).Invoke(owner, null);
+    private static void Invoke(ObjectiveTrackerUI owner, string name, params object[] arguments) => typeof(ObjectiveTrackerUI).GetMethod(name, Hidden).Invoke(owner, arguments);
     private static GameObject Remap(GameObject source, Dictionary<Transform, RectTransform> map) => source != null && map.TryGetValue(source.transform, out RectTransform copy) ? copy.gameObject : null;
     private static TextMeshProUGUI Text(TextMeshProUGUI source, Dictionary<Transform, RectTransform> map) => source != null && map.TryGetValue(source.transform, out RectTransform copy) ? copy.GetComponent<TextMeshProUGUI>() : null;
     private static GameObject Owned(Scene scene, string name, params Type[] components)
@@ -284,7 +414,7 @@ public static class ObjectiveUntrackValidation
         rect.anchorMin = source.anchorMin; rect.anchorMax = source.anchorMax; rect.pivot = source.pivot;
         rect.sizeDelta = source.sizeDelta; rect.anchoredPosition = source.anchoredPosition; rect.localScale = source.localScale; rect.localRotation = source.localRotation;
         map.Add(source, rect);
-        foreach (Type type in new[] { typeof(Image), typeof(RawImage), typeof(TextMeshProUGUI), typeof(Button), typeof(RectMask2D), typeof(Mask), typeof(VerticalLayoutGroup), typeof(HorizontalLayoutGroup), typeof(ContentSizeFitter), typeof(LayoutElement) })
+        foreach (Type type in new[] { typeof(Image), typeof(RawImage), typeof(TextMeshProUGUI), typeof(Button), typeof(ScrollRect), typeof(RectMask2D), typeof(Mask), typeof(VerticalLayoutGroup), typeof(HorizontalLayoutGroup), typeof(ContentSizeFitter), typeof(LayoutElement) })
         {
             Component original = source.GetComponent(type); if (original == null) continue;
             Component copy = item.AddComponent(type); EditorUtility.CopySerialized(original, copy);

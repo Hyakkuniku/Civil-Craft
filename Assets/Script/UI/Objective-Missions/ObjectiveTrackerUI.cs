@@ -68,6 +68,7 @@ public class ObjectiveTrackerUI : MonoBehaviour
     private PlayerData untrackDisplayedData;
     private PathGuider untrackDisplayedGuider;
     private List<GuiderWaypoint> untrackDisplayedRoute;
+    private ScrollRect objectiveFooterListScroll;
 
     private GameObject contractOfferLayout;
     private ScrollRect offerMaterialsScrollRect;
@@ -724,7 +725,11 @@ public class ObjectiveTrackerUI : MonoBehaviour
         bool visible = trackerPanel != null && trackerPanel.activeInHierarchy && pendingContractOffer == null &&
             manager != null && manager.CurrentData != null && guider != null &&
             guider.gameObject.scene == gameObject.scene && guider.CanUntrackObjectiveGuide;
-        if (untrackButton.activeSelf != visible) untrackButton.SetActive(visible);
+        if (untrackButton.activeSelf != visible)
+        {
+            untrackButton.SetActive(visible);
+            ApplyNavigationFooterLayout();
+        }
         untrackDisplayedManager = visible ? manager : null;
         untrackDisplayedData = visible ? manager.CurrentData : null;
         untrackDisplayedGuider = visible ? guider : null;
@@ -755,8 +760,8 @@ public class ObjectiveTrackerUI : MonoBehaviour
         label.overflowMode = TextOverflowModes.Overflow;
         StretchRect(label.rectTransform, new Vector2(16f, 6f), new Vector2(-16f, -6f));
         ConfigureActionButton(untrackButton, "UNTRACK OBJECTIVE", SecondaryTextColor);
-        // Global navigation control: below the heading and above either content panel.
-        SetCenteredRect(untrackButton.GetComponent<RectTransform>(), new Vector2(420f, 72f), new Vector2(0f, 355f));
+        // Keep this global route action in the page footer, beside Track Location.
+        SetCenteredRect(untrackButton.GetComponent<RectTransform>(), new Vector2(360f, 80f), new Vector2(315f, -385f));
         Button button = untrackButton.GetComponent<Button>();
         if (button == null) button = untrackButton.AddComponent<Button>();
         button.targetGraphic = untrackButton.GetComponent<Image>();
@@ -764,6 +769,24 @@ public class ObjectiveTrackerUI : MonoBehaviour
         if (!HasAuthoredUntrackCallback(button)) button.onClick.AddListener(OnUntrackObjectiveClicked);
         untrackButton.transform.SetAsLastSibling();
         untrackButton.SetActive(false);
+    }
+
+    /// <summary>Shares the page footer between navigation actions without covering objective rows.</summary>
+    public void ApplyNavigationFooterLayout()
+    {
+        bool canUntrack = untrackButton != null && untrackButton.activeSelf;
+        SetCenteredRect(untrackButton != null ? untrackButton.GetComponent<RectTransform>() : null,
+            new Vector2(360f, 80f), new Vector2(315f, -385f));
+        SetCenteredRect(navigateButton != null ? navigateButton.GetComponent<RectTransform>() : null,
+            new Vector2(canUntrack ? 380f : 420f, 80f), new Vector2(canUntrack ? -80f : 0f, -315f));
+        Transform back = objectiveListBackButton != null ? objectiveListBackButton.transform :
+            detailsPanel != null ? detailsPanel.transform.Find("Back to Objective List") : null;
+        SetCenteredRect(back as RectTransform, new Vector2(210f, 80f), new Vector2(-395f, -315f));
+        if (objectiveFooterListScroll == null && listPanel != null)
+            objectiveFooterListScroll = listPanel.GetComponentInChildren<ScrollRect>(true);
+        if (objectiveFooterListScroll != null)
+            StretchRect(objectiveFooterListScroll.GetComponent<RectTransform>(),
+                new Vector2(30f, canUntrack ? 120f : 30f), new Vector2(-30f, -30f));
     }
 
     private bool HasAuthoredUntrackCallback(Button button)
@@ -992,10 +1015,6 @@ public class ObjectiveTrackerUI : MonoBehaviour
 
         if (navigateButton != null)
         {
-            SetCenteredRect(
-                navigateButton.GetComponent<RectTransform>(),
-                new Vector2(420f, 72f),
-                new Vector2(0f, -305f));
             SetActionButtonLabel(navigateButton, "TRACK LOCATION");
             SetActionButtonColor(navigateButton, TrackButtonColor);
             bool canNavigate = false;
@@ -1051,6 +1070,7 @@ public class ObjectiveTrackerUI : MonoBehaviour
 
             navigateButton.SetActive(canNavigate);
         }
+        ApplyNavigationFooterLayout();
     }
 
     private void ShowContractDetails(ContractSO contract, TrackedTask task, bool isOfferPreview)
@@ -1103,11 +1123,6 @@ public class ObjectiveTrackerUI : MonoBehaviour
 
         if (navigateButton != null)
         {
-            SetCenteredRect(
-                navigateButton.GetComponent<RectTransform>(),
-                new Vector2(420f, 72f),
-                new Vector2(0f, -315f));
-
             if (isOfferPreview)
             {
                 navigateButton.SetActive(true);
@@ -1131,6 +1146,7 @@ public class ObjectiveTrackerUI : MonoBehaviour
                 navigateButton.SetActive(false);
             }
         }
+        ApplyNavigationFooterLayout();
     }
 
     private static ContractSO ResolveContract(string contractIdentifier)
@@ -1733,6 +1749,7 @@ public class ObjectiveTrackerUI : MonoBehaviour
             "COLLECT REWARD",
             new Color32(113, 177, 44, 255));
         EnsureUntrackButton();
+        ApplyNavigationFooterLayout();
         ObjectiveMobileFit mobileFit = trackerPanel.GetComponent<ObjectiveMobileFit>();
         if (mobileFit == null) mobileFit = trackerPanel.AddComponent<ObjectiveMobileFit>();
         mobileFit.ApplyLayout();
@@ -1851,7 +1868,7 @@ public class ObjectiveTrackerUI : MonoBehaviour
         }
 
         SetCenteredRect(navigateButton != null ? navigateButton.GetComponent<RectTransform>() : null,
-            new Vector2(420f, 88f), new Vector2(0f, -305f));
+            new Vector2(420f, 80f), new Vector2(0f, -315f));
         SetCenteredRect(completeButton != null ? completeButton.GetComponent<RectTransform>() : null,
             new Vector2(360f, 80f), new Vector2(0f, -55f));
     }
@@ -1950,8 +1967,8 @@ public class ObjectiveTrackerUI : MonoBehaviour
 
         SetCenteredRect(
             objectiveListBackButton.GetComponent<RectTransform>(),
-            new Vector2(210f, 72f),
-            new Vector2(-395f, -305f));
+            new Vector2(210f, 80f),
+            new Vector2(-395f, -315f));
         objectiveListBackButton.SetActive(false);
     }
 

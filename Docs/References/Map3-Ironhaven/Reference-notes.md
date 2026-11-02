@@ -1,5 +1,7 @@
 # Map 3 — Ironhaven reference
 
+Current reference: **Ironhaven-next-to-Town-River-v2-mainland.png**. The southern foreground now continues as solid mainland. Water remains in Town River and the industrial channels; sites 4 and 9 use dry cuttings. The original v1 image is preserved. See `Revision-v2-prompt.md` for the edit prompt.
+
 Generated with the built-in image generator from the user's overhead map screenshot on 30 October 2026. This is a level-design concept, not an imported Unity map or an engineering drawing. The image's scale bar and dimensions are illustrative; choose playable spans and elevations after testing the game.
 
 Town River / Rivermere remains to the left. Ironhaven extends immediately to its right. The southern approach supplies an existing detour, while site 5 proposes a later direct regional connection. Dashed lines mark proposed player-built crossings.

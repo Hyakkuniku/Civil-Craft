@@ -15,7 +15,7 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using Object = UnityEngine.Object;
 
-/// <summary>Authors only the two scenes' owned Untrack controls; never invokes gameplay callbacks.</summary>
+/// <summary>Authors the two scenes' owned Untrack controls and reserved footer geometry; never invokes gameplay callbacks.</summary>
 [InitializeOnLoad]
 public static class ObjectiveUntrackAuthoring
 {
@@ -35,7 +35,35 @@ public static class ObjectiveUntrackAuthoring
         if (Busy || EditorApplication.timeSinceStartup < nextPoll || !File.Exists(RequestPath)) return;
         nextPoll = EditorApplication.timeSinceStartup + 1;
         string command = File.ReadAllText(RequestPath).Trim().ToLowerInvariant(); File.Delete(RequestPath);
+        if (command == "restore-unloaded-house") { RestoreUnloadedHouse(); return; }
         Run(command);
+    }
+
+    // Recover only the unloaded hierarchy entry removed by the former inspect
+    // cleanup. Never unload a loaded scene, save edits, or change the active scene.
+    private static void RestoreUnloadedHouse()
+    {
+        Scene active = SceneManager.GetActiveScene(); Object[] selection = Selection.objects; Object selected = Selection.activeObject;
+        var before = Enumerable.Range(0, SceneManager.sceneCount).Select(SceneManager.GetSceneAt).Where(scene => scene.isLoaded)
+            .ToDictionary(scene => scene, scene => new { scene.isDirty, Roots = scene.GetRootGameObjects() });
+        var report = new StringBuilder("Restore previously unloaded Bhan House heading\n");
+        try
+        {
+            const string path = "Assets/Scenes/BHAN HOUSE.unity";
+            Require(File.Exists(path), "Bhan House scene is missing.");
+            if (!EditorSceneManager.GetSceneManagerSetup().Any(scene => scene.path == path))
+                EditorSceneManager.OpenScene(path, OpenSceneMode.AdditiveWithoutLoading);
+            report.AppendLine("PASS: Bhan House is listed; existing loaded/unloaded state is retained. No scene saved.");
+        }
+        catch (Exception error) { report.Insert(0, "FAILED\n"); report.AppendLine(error.ToString()); }
+        finally
+        {
+            if (active.IsValid() && active.isLoaded) SceneManager.SetActiveScene(active);
+            Selection.objects = selection; Selection.activeObject = selected;
+            if (!before.All(pair => pair.Key.IsValid() && pair.Key.isLoaded && pair.Key.isDirty == pair.Value.isDirty && pair.Key.GetRootGameObjects().SequenceEqual(pair.Value.Roots)))
+                report.Insert(0, "FAILED SAFETY: an existing loaded scene changed.\n");
+            Directory.CreateDirectory("Logs"); File.WriteAllText(ReportPath, report.ToString());
+        }
     }
 
     [MenuItem("Tools/Civil Craft/Objectives/1. Inspect Authored Untrack Controls (Read Only)")]
@@ -48,7 +76,7 @@ public static class ObjectiveUntrackAuthoring
     private sealed class Target
     {
         public Scene Scene;
-        public bool Opened, InitiallyDirty, Applied, Saved;
+        public bool Opened, WasListed, InitiallyDirty, Applied, Saved;
         public string DiskHash;
         public ObjectiveTrackerUI Tracker;
         public TMP_FontAsset Font;
@@ -62,9 +90,10 @@ public static class ObjectiveUntrackAuthoring
         running = true;
         Scene active = SceneManager.GetActiveScene();
         Object[] selection = Selection.objects; Object selected = Selection.activeObject;
+        SceneSetup[] originalSetup = EditorSceneManager.GetSceneManagerSetup();
         Scene[] originalScenes = Enumerable.Range(0, SceneManager.sceneCount).Select(SceneManager.GetSceneAt).ToArray();
         var unrelated = originalScenes.Where(scene => !Paths.Contains(scene.path)).ToDictionary(scene => scene,
-            scene => new { scene.isDirty, Roots = scene.GetRootGameObjects(), Hash = File.Exists(scene.path) ? Hash(scene.path) : null });
+            scene => new { scene.isDirty, scene.isLoaded, Roots = scene.isLoaded ? scene.GetRootGameObjects() : Array.Empty<GameObject>(), Hash = File.Exists(scene.path) ? Hash(scene.path) : null });
         var targets = new List<Target>();
         var report = new StringBuilder("Authored Objectives Untrack controls: " + command + "\n");
         PlayerDataManager manager = PlayerDataManager.Instance; PlayerData player = manager != null ? manager.CurrentData : null;
@@ -79,7 +108,7 @@ public static class ObjectiveUntrackAuthoring
                 Require(File.Exists(path), "Required scene is missing: " + path);
                 Scene scene = SceneManager.GetSceneByPath(path); bool opened = !scene.IsValid() || !scene.isLoaded;
                 if (opened) scene = EditorSceneManager.OpenScene(path, OpenSceneMode.Additive);
-                var target = new Target { Scene = scene, Opened = opened, InitiallyDirty = scene.isDirty, DiskHash = Hash(path) };
+                var target = new Target { Scene = scene, Opened = opened, WasListed = originalSetup.Any(entry => entry.path == path), InitiallyDirty = scene.isDirty, DiskHash = Hash(path) };
                 targets.Add(target);
                 ObjectiveTrackerUI[] trackers = All<ObjectiveTrackerUI>(scene).ToArray();
                 Require(trackers.Length == 1 && trackers[0].trackerPanel != null && trackers[0].trackerPanel.transform is RectTransform &&
@@ -123,6 +152,10 @@ public static class ObjectiveUntrackAuthoring
                 foreach (Target target in targets) Validate(target);
                 Require(manager == PlayerDataManager.Instance && (player == null || ReferenceEquals(player, manager.CurrentData) && JsonUtility.ToJson(player) == playerJson),
                     "Authoring changed live player data. No callbacks should run in Edit Mode.");
+                // Finish pending Undo records before saving; a later collapse can
+                // mark an already-saved scene dirty again during cleanup.
+                Undo.FlushUndoRecordObjects();
+                Undo.CollapseUndoOperations(undo);
                 foreach (Target target in targets)
                 {
                     if (target.InitiallyDirty) report.AppendLine("WAIT SAVE: " + target.Scene.name + "; authored control is ready; pre-existing unsaved changes retained.");
@@ -134,7 +167,6 @@ public static class ObjectiveUntrackAuthoring
                         report.AppendLine("SAVED: " + target.Scene.name + "; actual Untrack button, persistent callback and tracker reference.");
                     }
                 }
-                Undo.CollapseUndoOperations(undo);
             }
             else if (command == "verify")
             {
@@ -161,15 +193,20 @@ public static class ObjectiveUntrackAuthoring
             foreach (Target target in targets.AsEnumerable().Reverse())
                 if (target.Opened && target.Scene.IsValid() && target.Scene.isLoaded)
                 {
-                    if (!target.Scene.isDirty && (!target.Applied || target.Saved || command != "apply")) EditorSceneManager.CloseScene(target.Scene, true);
+                    if (!target.Scene.isDirty && (!target.Applied || target.Saved || command != "apply"))
+                        EditorSceneManager.CloseScene(target.Scene, !target.WasListed);
                     else report.AppendLine("LEFT OPEN: " + target.Scene.name + "; unsaved changes retained.");
                 }
             if (active.IsValid() && active.isLoaded) SceneManager.SetActiveScene(active);
             Selection.objects = selection; Selection.activeObject = selected;
             try
             {
-                Require(originalScenes.All(scene => scene.IsValid() && scene.isLoaded), "An originally open scene was closed.");
-                Require(unrelated.All(pair => pair.Key.isDirty == pair.Value.isDirty && pair.Key.GetRootGameObjects().SequenceEqual(pair.Value.Roots) &&
+                SceneSetup[] restored = EditorSceneManager.GetSceneManagerSetup();
+                Require(originalSetup.Length == restored.Length && originalSetup.Zip(restored, (before, after) =>
+                    before.path == after.path && before.isLoaded == after.isLoaded && before.isActive == after.isActive).All(equal => equal),
+                    "The original loaded/unloaded scene setup changed.");
+                Require(unrelated.All(pair => pair.Key.isDirty == pair.Value.isDirty && pair.Key.isLoaded == pair.Value.isLoaded &&
+                    (!pair.Value.isLoaded || pair.Key.GetRootGameObjects().SequenceEqual(pair.Value.Roots)) &&
                     (pair.Value.Hash == null || Hash(pair.Key.path) == pair.Value.Hash)), "An unrelated scene changed.");
                 Require(manager == PlayerDataManager.Instance && (player == null || ReferenceEquals(player, manager.CurrentData) && JsonUtility.ToJson(player) == playerJson),
                     "Live player data changed.");
@@ -191,7 +228,13 @@ public static class ObjectiveUntrackAuthoring
         ObjectiveTrackerUI tracker = target.Tracker; GameObject panel = tracker.trackerPanel;
         GameObject existing = target.Existing;
         var owned = existing != null ? new HashSet<Object>(existing.GetComponentsInChildren<Component>(true).Cast<Object>()) : new HashSet<Object>();
-        var before = All<Component>(target.Scene).Where(component => component != null && component != tracker && component != panel.transform && !owned.Contains(component))
+        RectTransform navigateRect = tracker.navigateButton.transform as RectTransform;
+        RectTransform backRect = tracker.detailsPanel != null ? tracker.detailsPanel.transform.Find("Back to Objective List") as RectTransform : null;
+        ScrollRect listScroll = tracker.listPanel != null ? tracker.listPanel.GetComponentInChildren<ScrollRect>(true) : null;
+        RectTransform listScrollRect = listScroll != null ? listScroll.transform as RectTransform : null;
+        var footerRects = new HashSet<Object>(new Object[] { navigateRect, backRect, listScrollRect }.Where(item => item != null));
+        var before = All<Component>(target.Scene).Where(component => component != null && component != tracker && component != panel.transform &&
+                !owned.Contains(component) && !footerRects.Contains(component))
             .ToDictionary(component => component, component => EditorJsonUtility.ToJson(component));
         var active = All<Transform>(target.Scene).Where(item => existing == null || !item.IsChildOf(existing.transform)).ToDictionary(item => item.gameObject, item => item.gameObject.activeSelf);
         string trackerBefore = WithoutUntrack(EditorJsonUtility.ToJson(tracker));
@@ -207,7 +250,7 @@ public static class ObjectiveUntrackAuthoring
         }
         Undo.RecordObjects(control.GetComponents<Component>(), "Style authored Untrack control");
         RectTransform rect = (RectTransform)control.transform; rect.anchorMin = rect.anchorMax = rect.pivot = Vector2.one * .5f;
-        rect.anchoredPosition = new Vector2(0f, 355f); rect.sizeDelta = new Vector2(420f, 72f); rect.localScale = Vector3.one; rect.localRotation = Quaternion.identity;
+        rect.anchoredPosition = new Vector2(315f, -385f); rect.sizeDelta = new Vector2(360f, 80f); rect.localScale = Vector3.one; rect.localRotation = Quaternion.identity;
         Image image = control.GetComponent<Image>(); image.sprite = target.Sprite; image.type = Image.Type.Sliced;
         image.color = new Color32(119, 88, 61, 255); image.raycastTarget = true;
         TextMeshProUGUI label = control.GetComponentInChildren<TextMeshProUGUI>(true);
@@ -230,9 +273,12 @@ public static class ObjectiveUntrackAuthoring
         button.onClick.SetPersistentListenerState(0, UnityEngine.Events.UnityEventCallState.RuntimeOnly);
         Undo.RecordObject(tracker, "Bind authored Untrack control"); tracker.untrackButton = control;
         control.SetActive(true); control.transform.SetAsLastSibling();
+        foreach (Object footerRect in footerRects) Undo.RecordObject(footerRect, "Reserve authored Objectives footer");
+        tracker.ApplyNavigationFooterLayout();
         foreach (Component component in control.GetComponentsInChildren<Component>(true)) Mark(component);
+        foreach (Component footerRect in footerRects.Cast<Component>()) Mark(footerRect);
         Mark(tracker); target.Applied = true; target.Existing = control;
-        Require(before.All(pair => pair.Key != null && EditorJsonUtility.ToJson(pair.Key) == pair.Value), "A component outside the owned Untrack control changed: " + target.Scene.name);
+        Require(before.All(pair => pair.Key != null && EditorJsonUtility.ToJson(pair.Key) == pair.Value), "A component outside the owned Untrack control and footer RectTransforms changed: " + target.Scene.name);
         Require(active.All(pair => pair.Key != null && pair.Key.activeSelf == pair.Value), "An existing object's visibility changed: " + target.Scene.name);
         Require(WithoutUntrack(EditorJsonUtility.ToJson(tracker)) == trackerBefore, "The tracker changed outside its Untrack reference: " + target.Scene.name);
         Require(panelRect.sizeDelta == size && panelRect.anchoredPosition == position && panelRect.anchorMin == anchorMin && panelRect.anchorMax == anchorMax &&
@@ -247,9 +293,18 @@ public static class ObjectiveUntrackAuthoring
             "The actual authored Untrack control/reference/edit visibility is missing: " + target.Scene.name);
         Require(tracker.trackerPanel.GetComponentsInChildren<Button>(true).Count(button => button.name == ControlName) == 1, "Duplicate authored Untrack controls.");
         RectTransform rect = control.transform as RectTransform;
-        Require(rect != null && rect.sizeDelta == new Vector2(420f, 72f) && rect.anchoredPosition == new Vector2(0f, 355f) &&
+        Require(rect != null && rect.sizeDelta == new Vector2(360f, 80f) && rect.anchoredPosition == new Vector2(315f, -385f) &&
             rect.anchorMin == Vector2.one * .5f && rect.anchorMax == Vector2.one * .5f && rect.pivot == Vector2.one * .5f && rect.localScale == Vector3.one,
             "Untrack authored geometry differs from the shared runtime layout.");
+        RectTransform navigateRect = tracker.navigateButton.transform as RectTransform;
+        Require(navigateRect != null && navigateRect.anchoredPosition == new Vector2(-80f, -315f) && navigateRect.sizeDelta == new Vector2(380f, 80f),
+            "The authored primary action does not share the reserved navigation footer.");
+        RectTransform backRect = tracker.detailsPanel != null ? tracker.detailsPanel.transform.Find("Back to Objective List") as RectTransform : null;
+        if (backRect != null) Require(backRect.anchoredPosition == new Vector2(-395f, -315f) && backRect.sizeDelta == new Vector2(210f, 80f),
+            "The authored Back to List action is not aligned with the footer.");
+        ScrollRect listScroll = tracker.listPanel != null ? tracker.listPanel.GetComponentInChildren<ScrollRect>(true) : null;
+        Require(listScroll != null && listScroll.transform is RectTransform scrollRect && Mathf.Approximately(scrollRect.offsetMin.y, 120f),
+            "The authored objective list does not reserve space above Untrack.");
         Image image = control.GetComponent<Image>(); Button button = control.GetComponent<Button>();
         Require(image != null && image.sprite == target.Sprite && image.type == Image.Type.Sliced && image.raycastTarget &&
             image.color == (Color)new Color32(119, 88, 61, 255) && button != null && button.targetGraphic == image && button.interactable,
