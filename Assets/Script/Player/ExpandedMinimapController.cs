@@ -71,6 +71,8 @@ public sealed class ExpandedMinimapController : MonoBehaviour
     [SerializeField, Range(768, 2048)] private int expandedTextureLongEdge = 1280;
 
     [Header("Build Location Markers")]
+    [Tooltip("Largest expanded-map orthographic size that shows contract names.")]
+    [SerializeField, Min(1f)] private float contractNameZoomLimit = 100f;
     [SerializeField] private Color availableLocationColor = new Color(1f, 0.62f, 0.08f, 1f);
     [SerializeField] private Color completedLocationColor = new Color(0.28f, 0.72f, 0.34f, 1f);
     [SerializeField] private Color lockedLocationColor = new Color(0.62f, 0.58f, 0.50f, 1f);
@@ -925,6 +927,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         if (refreshMetadata) nextMarkerMetadataRefresh = Time.unscaledTime + 0.2f;
 
         Rect rect = markerLayer.rect;
+        bool showExpandedNames = isExpanded && minimapCamera.orthographicSize <= contractNameZoomLimit;
         float pulse = 1f + Mathf.Sin(Time.unscaledTime * 4.5f) * 0.12f;
         foreach (MarkerView marker in markers)
         {
@@ -947,7 +950,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
             bool isNavigationDestination = marker.location == navigationDestination;
             marker.label.gameObject.SetActive(
                 !string.IsNullOrEmpty(marker.label.text) &&
-                (isExpanded || isNavigationDestination));
+                (showExpandedNames || (!isExpanded && isNavigationDestination)));
             marker.button.interactable = isExpanded;
             bool shouldPulse = isExpanded || isNavigationDestination;
             marker.diamond.localScale = Vector3.one * (shouldPulse ? pulse : 0.78f);
