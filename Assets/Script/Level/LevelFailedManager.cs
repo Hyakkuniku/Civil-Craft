@@ -181,6 +181,11 @@ public class LevelFailedManager : MonoBehaviour
             }
 
             if (GameManager.Instance != null && GameManager.Instance.IsCargoTestActive) return;
+            if (physicsManager.MultiLoadSession != null)
+            {
+                if (physicsManager.MultiLoadSession.Failed) InitiateFailure(physicsManager.MultiLoadSession.FailureReason);
+                return; // The coordinator checks every participant; never select the first scene vehicle.
+            }
             bool hasValidVehicle = IsVehicleForCurrentContract(activeVehicle);
             if (!hasValidVehicle && activeVehicle == null && vehicleWasPresentForSimulation)
             {
@@ -337,11 +342,12 @@ public class LevelFailedManager : MonoBehaviour
         // The failure event drives lessons and UI, so make the physical break
         // happen first. This closes the gap where peak stress could fail the
         // contract even though a missing cached joint left the bridge intact.
-        bool structuralFailure = IsStructuralFailureReason(reason);
+        bool structuralFailure = !IsMultiLoadParticipantFailure(reason) && IsStructuralFailureReason(reason);
         bool collapseVisible = structuralFailure && physicsManager != null &&
             physicsManager.EnsureVisibleStructuralFailure(reason);
 
         isFailed = true; 
+        physicsManager?.MultiLoadSession?.Fail(reason);
         SimulationFailed?.Invoke(reason);
 
         if (failDelayCoroutine != null) StopCoroutine(failDelayCoroutine);
@@ -360,6 +366,15 @@ public class LevelFailedManager : MonoBehaviour
                normalized.Contains("dead load") ||
                normalized.Contains("unstable") ||
                normalized.Contains("mechanism");
+    }
+
+    private bool IsMultiLoadParticipantFailure(string reason)
+    {
+        LiveLoadTestSession session = physicsManager != null ? physicsManager.MultiLoadSession : null;
+        if (session == null || !session.Failed || session.FailureReason != reason) return false;
+        foreach (LiveLoadTestParticipant participant in session.Participants)
+            if (participant.State == LiveLoadTestParticipantState.Failed) return true;
+        return false; // A vehicle named "Stress Truck" is not a structural-collapse diagnosis.
     }
 
     private IEnumerator FailDelayRoutine(string reason, bool collapseVisible)
@@ -439,6 +454,9 @@ public class LevelFailedManager : MonoBehaviour
         FailurePresentation presentation = BuildFailurePresentation(failureReason);
         if (levelNameText != null) levelNameText.text = presentation.Summary;
         if (failureDetailText != null) failureDetailText.text = presentation.Detail;
+        LiveLoadTestSession outcome = physicsManager != null ? physicsManager.MultiLoadSession : null;
+        ContractLiveLoadPresentation.ShowScrollableText(failureDetailText, outcome != null,
+            presentation.Detail + "\n\n" + ContractLiveLoadPresentation.ResultSummary(outcome));
         if (failureRecommendationText != null)
             failureRecommendationText.text = presentation.Recommendation;
         if (contractNameText != null)

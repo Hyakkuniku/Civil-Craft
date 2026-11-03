@@ -11,6 +11,7 @@ public sealed partial class FusionMultiplayerAvatar
         if (!CanRunChallengeTests) return false;
         var state = ChallengeState;
         if (!MultiplayerChallengeRules.TryPrepareTest(ref state, revision, index)) return false;
+        state.LiveLoadPassedMask = state.LiveLoadDrivingMask = state.LiveLoadFailedMask = 0;
         state.Deadline = TickTimer.CreateFromSeconds(Runner, timeout); ChallengeState = state; return true;
     }
     internal bool StartChallengeTest(int revision, int index)
@@ -25,6 +26,8 @@ public sealed partial class FusionMultiplayerAvatar
         if (!CanRunChallengeTests) return false;
         var state = ChallengeState;
         if (!MultiplayerChallengeRules.TryRecordTest(ref state, revision, index, outcome, seconds, peakStress)) return false;
+        if (index == 1) { state.HostLiveLoadPassedMask = state.LiveLoadPassedMask; state.HostLiveLoadFailedMask = state.LiveLoadFailedMask; }
+        else { state.GuestLiveLoadPassedMask = state.LiveLoadPassedMask; state.GuestLiveLoadFailedMask = state.LiveLoadFailedMask; }
         ChallengeState = state; return true;
     }
     internal void FinishChallengeTests(int revision)
@@ -39,10 +42,18 @@ public sealed partial class FusionMultiplayerAvatar
         else if (state.Revision == revision && state.Phase == MultiplayerChallengePhase.Testing && state.TestIndex == 2)
             FailChallengeTest("The host could not verify the final budget and stress measurements.");
     }
-    internal void PublishChallengeTestProgress(float elapsed, float stress)
+    internal void PublishChallengeTestProgress(float elapsed, float stress, LiveLoadTestSession session = null)
     {
         if (!CanRunChallengeTests || ChallengeState.Phase != MultiplayerChallengePhase.Testing) return;
-        var state = ChallengeState; state.TestElapsed = elapsed; state.TestStress = stress; ChallengeState = state;
+        var state = ChallengeState; state.TestElapsed = elapsed; state.TestStress = stress;
+        state.LiveLoadPassedMask = state.LiveLoadDrivingMask = state.LiveLoadFailedMask = 0;
+        if (session != null) for (int index = 0; index < session.Participants.Count; index++)
+        {
+            if (session.Participants[index].State == LiveLoadTestParticipantState.Passed) state.LiveLoadPassedMask |= 1 << index;
+            if (session.Participants[index].State == LiveLoadTestParticipantState.Driving) state.LiveLoadDrivingMask |= 1 << index;
+            if (session.Participants[index].State == LiveLoadTestParticipantState.Failed) state.LiveLoadFailedMask |= 1 << index;
+        }
+        ChallengeState = state;
     }
     internal void FailChallengeTest(string message)
     {

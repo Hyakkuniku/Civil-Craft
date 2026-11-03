@@ -488,7 +488,8 @@ public class CinematicDirector : MonoBehaviour
             if (clientNameText != null) clientNameText.text = "Client: " + contractToDisplay.clientName;
             if (spanText != null) spanText.text = "Span: " + contractToDisplay.bridgeSpan + "m";
             if (budgetText != null) budgetText.text = $"Budget: ₱{contractToDisplay.budget:N0}";
-            if (loadText != null) loadText.text = "Live Load: " + contractToDisplay.liveLoadWeight + "kg";
+            if (loadText != null) loadText.text = (contractToDisplay.HasMultipleLiveLoads ? "Live Loads: " : "Live Load: ") +
+                ContractLiveLoadPresentation.ShortSummary(contractToDisplay);
         }
         else if (bridgeInfoCanvas != null)
         {

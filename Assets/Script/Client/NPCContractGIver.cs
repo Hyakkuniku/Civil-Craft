@@ -92,7 +92,7 @@ public class NPCContractGiver : Interactable
         linkedCargo.playerCargoContract = contractToGive.liveLoadMode == ContractSO.LiveLoadMode.PlayerCarriedCargo
             ? contractToGive : null;
         // Loaded vehicle cargo retains its own mass; the contract weight is the empty truck.
-        if (contractToGive.liveLoadMode != ContractSO.LiveLoadMode.Vehicle || !contractToGive.allowVehicleCargo)
+        if (contractToGive.liveLoadMode != ContractSO.LiveLoadMode.Vehicle || !contractToGive.AllowsAnyVehicleCargo)
             linkedCargo.SetWeight(contractToGive.liveLoadWeight);
         if (targetBuildLocation != null &&
             contractToGive.liveLoadMode == ContractSO.LiveLoadMode.PlayerCarriedCargo)

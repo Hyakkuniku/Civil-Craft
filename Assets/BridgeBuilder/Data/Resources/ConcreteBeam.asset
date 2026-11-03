@@ -47,4 +47,4 @@ MonoBehaviour:
   pierCapPrefab: {fileID: 0}
   gizmoColor: {r: 0.75, g: 0.78, b: 0.8, a: 1}
   isDualBeam: 1
-  zOffset: 3.3
+  zOffset: 4.32

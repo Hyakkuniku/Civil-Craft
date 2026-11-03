@@ -382,11 +382,28 @@ public sealed class SimulationLessonPresenter : MonoBehaviour
     private void ObserveVehicle()
     {
         if (definition == null) return;
+        LiveLoadVehicle focus = FindVehicleForCurrentContract();
+        if (physicsManager != null && physicsManager.MultiLoadSession != null && activeVehicle != focus)
+        {
+            activeVehicle = focus;
+            liveLoadMessageQueued = false;
+            vehicleEntryMessageQueued = false;
+            midpointMessageQueued = false;
+            nearEndMessageQueued = false;
+            stuckMessageQueued = false;
+            lastVehicleProgress = 0f;
+            lastVehicleMovementTime = Time.time;
+            // Discard information about the previous vehicle without replacing
+            // global warnings, broken-member messages or the final outcome.
+            pendingMessages.RemoveAll(item => item.priority == MessagePriority.Information);
+            if (titleText != null) titleText.text = definition.panelTitle +
+                (focus != null ? " · " + focus.vehicleName : string.Empty);
+        }
         if (activeVehicle == null) activeVehicle = FindVehicleForCurrentContract();
         if (activeVehicle == null) return;
 
         if (physicsManager == null ||
-            !physicsManager.TryGetCurrentVehicleRoadState(out float progress, out float loadFactor))
+            !physicsManager.TryGetVehicleRoadState(activeVehicle, out float progress, out float loadFactor))
             return;
 
         if (!liveLoadMessageQueued && loadFactor > 0.01f)
@@ -468,6 +485,8 @@ public sealed class SimulationLessonPresenter : MonoBehaviour
 
     private LiveLoadVehicle FindVehicleForCurrentContract()
     {
+        if (physicsManager != null && physicsManager.MultiLoadSession != null)
+            return physicsManager.MultiLoadSession.FocusVehicle;
         ContractSO contract = GameManager.Instance != null ? GameManager.Instance.CurrentContract : null;
         return LiveLoadVehicle.FindActiveForContract(contract);
     }

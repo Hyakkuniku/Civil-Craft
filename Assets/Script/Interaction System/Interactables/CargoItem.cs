@@ -34,10 +34,10 @@ public class CargoItem : Interactable
     public bool DeliveryRestorePending => deliveryRestorePending;
     public bool CanLoadIntoVehicle => playerCargoContract != null &&
         playerCargoContract.liveLoadMode == ContractSO.LiveLoadMode.Vehicle &&
-        playerCargoContract.allowVehicleCargo;
+        playerCargoContract.AllowsAnyVehicleCargo;
     public bool RestrictsFreeDrop => storyCargo || (playerCargoContract != null &&
         (playerCargoContract.liveLoadMode == ContractSO.LiveLoadMode.PlayerCarriedCargo ||
-         playerCargoContract.allowVehicleCargo));
+         playerCargoContract.AllowsAnyVehicleCargo));
     [SerializeField, HideInInspector] private string persistentCargoId;
     public string PersistentCargoId => persistentCargoId;
     public bool IsProgressionInteractionUnlocked => playerCargoContract == null ||

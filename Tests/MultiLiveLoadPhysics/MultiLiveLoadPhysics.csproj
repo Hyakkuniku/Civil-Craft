@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><EnableDefaultCompileItems>false</EnableDefaultCompileItems></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="../PierStressRegression/UnityStubs.cs" Link="UnityStubs.cs" />
+    <Compile Include="../../Assets/Script/BuildMode/2D/DeterministicBridgeStressSolver.cs" Link="DeterministicBridgeStressSolver.cs" />
+    <Compile Include="../../Assets/Script/BuildMode/BridgeMaterialSO.cs" Link="BridgeMaterialSO.cs" />
+  </ItemGroup>
+</Project>

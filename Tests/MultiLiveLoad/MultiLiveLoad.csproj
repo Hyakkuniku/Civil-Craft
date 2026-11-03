@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><EnableDefaultCompileItems>false</EnableDefaultCompileItems></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" /><Compile Include="Boundaries.cs" />
+    <Compile Include="../../Assets/Script/Client/ContractLiveLoadEntry.cs" Link="ContractLiveLoadEntry.cs" />
+    <Compile Include="../../Assets/Script/Client/LiveLoadTestRoster.cs" Link="LiveLoadTestRoster.cs" />
+    <Compile Include="../../Assets/Script/Client/LiveLoadTestSession.cs" Link="LiveLoadTestSession.cs" />
+  </ItemGroup>
+</Project>

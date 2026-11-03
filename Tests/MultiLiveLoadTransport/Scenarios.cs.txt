@@ -1,0 +1,64 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Collections.Generic;
+using System.Text;
+using UnityEngine;
+public static class NetworkScenarios {
+ static int checks;
+ static void Check(bool value,string label) { checks++; if(!value) throw new Exception(label); }
+ static void Reject(Action action,string label) { try { action(); } catch(InvalidDataException) {checks++;return;} catch(EndOfStreamException) {checks++;return;} throw new Exception(label); }
+ static HostWorldBridgePose Pose(int i) => new HostWorldBridgePose {Position=new Vector3(i,2,3),Rotation=new Quaternion(0,0,0,1),Scale=new Vector3(1,1,1)};
+ static ChallengeTestDescriptor Descriptor(int count,ContractSO.VehicleTestMode mode) => new ChallengeTestDescriptor {
+  Bridge=new HostWorldBridgeSnapshot {Name="Site"}, Mode=mode,
+  Vehicles=Enumerable.Range(0,count).Select(i=>new ChallengeTestVehicle {EntryId="entry-"+i,DisplayName="Vehicle "+i,VehicleKey="Site/Vehicle/"+i,
+   Weight=1000+i*2300,DepartureDelay=i*3,Poses=Enumerable.Range(0,i%2==0?5:33).Select(Pose).ToArray()}).ToArray()
+ };
+ public static void Run() {
+  foreach(var mode in new[]{ContractSO.VehicleTestMode.Sequential,ContractSO.VehicleTestMode.Together}) foreach(int count in new[]{2,3,4}) {
+   var source=Descriptor(count,mode); byte[] bytes=source.Encode(); var restored=ChallengeTestDescriptor.Decode(bytes);
+   Check(restored.Mode==mode && restored.Vehicles.Length==count,"Roster mode and count round trip");
+   for(int i=0;i<count;i++) {var a=source.Vehicles[i];var b=restored.Vehicles[i];
+    Check(a.EntryId==b.EntryId && a.VehicleKey==b.VehicleKey && a.DisplayName==b.DisplayName,"Vehicle order/identity retained");
+    Check(a.Weight==b.Weight && a.DepartureDelay==b.DepartureDelay,"Invitation mass and delay retained per participant");
+    Check(a.Poses.Length==b.Poses.Length && b.Poses.Last().Position.x==a.Poses.Last().Position.x,"Each chassis retains its own wheel range");
+   }
+   Check(bytes.SequenceEqual(restored.Encode()),"A frozen roster produces deterministic presentation bytes");
+   source.Vehicles[0].Weight+=123; source.Vehicles[0].DepartureDelay+=12;
+   Check(restored.Vehicles[0].Weight==1000 && restored.Vehicles[0].DepartureDelay==0,"Late source edits cannot mutate a delivered snapshot");
+   Reject(()=>ChallengeTestDescriptor.Decode(bytes.AsSpan(0,bytes.Length-1)),"Truncated roster must reject");
+  }
+  var single=Descriptor(1,ContractSO.VehicleTestMode.Single); var sp=ChallengeTestDescriptor.Decode(single.Encode());Check(sp.Vehicles.Length==1,"Existing single vehicle mode remains valid");
+  var legacy=Descriptor(1,ContractSO.VehicleTestMode.Single);var v=legacy.Vehicles[0];
+  using(var stream=new MemoryStream()) {using(var writer=new BinaryWriter(stream,Encoding.UTF8,true)) {
+   byte[] bridge=HostWorldBridgeSnapshotCodec.Encode(legacy.Bridge);writer.Write(2);writer.Write(bridge.Length);writer.Write(bridge);
+   writer.Write(v.VehicleKey);writer.Write(v.Weight);writer.Write(v.Poses.Length);foreach(var p in v.Poses) {ChallengeTestMotionCodec.WriteVector(writer,p.Position);ChallengeTestMotionCodec.WriteRotation(writer,p.Rotation);ChallengeTestMotionCodec.WriteVector(writer,p.Scale);}writer.Write(0);
+  } var old=ChallengeTestDescriptor.Decode(stream.ToArray());Check(old.Mode==ContractSO.VehicleTestMode.Single && old.VehiclePoses.Length==5 && old.Weight==v.Weight,"Version 2 single-vehicle descriptors remain readable");}
+  foreach(float mass in new[]{float.NaN,float.PositiveInfinity,-1f,0f,1e30f}) {var bad=Descriptor(2,ContractSO.VehicleTestMode.Together);bad.Vehicles[1].Weight=mass;Reject(()=>bad.Encode(),"Invalid mass rejected before transport");}
+  foreach(float delay in new[]{float.NaN,float.PositiveInfinity,-1f,86401f}) {var bad=Descriptor(2,ContractSO.VehicleTestMode.Together);bad.Vehicles[1].DepartureDelay=delay;Reject(()=>bad.Encode(),"Invalid departure rejected before transport");}
+  foreach(int count in new[]{0,5}) {var bad=Descriptor(count,ContractSO.VehicleTestMode.Together);Reject(()=>bad.Encode(),"Roster outside 2-4 bounds rejected");}
+  var duplicate=Descriptor(2,ContractSO.VehicleTestMode.Together);duplicate.Vehicles[1].EntryId=duplicate.Vehicles[0].EntryId;Reject(()=>duplicate.Encode(),"Duplicate identities reject");
+  duplicate=Descriptor(2,ContractSO.VehicleTestMode.Together);duplicate.Vehicles[1].VehicleKey=duplicate.Vehicles[0].VehicleKey;Reject(()=>duplicate.Encode(),"Duplicate source vehicles reject");
+  var invalid=Descriptor(2,ContractSO.VehicleTestMode.Single);Reject(()=>invalid.Encode(),"Single mode cannot silently contain multiple vehicles");
+  invalid=Descriptor(2,(ContractSO.VehicleTestMode)99);Reject(()=>invalid.Encode(),"Unknown mode rejects");
+  foreach(int count in new[]{0,34}) {var bad=Descriptor(2,ContractSO.VehicleTestMode.Together);bad.Vehicles[1].Poses=new HostWorldBridgePose[count];Reject(()=>bad.Encode(),"Wheel ranges are bounded");}
+  var bodies=new[]{12,17,22,27};
+  foreach(int body in bodies) { Check(!ChallengeTestMotionCodec.TryGetWheelBody(body,12,32,bodies,out _),"A chassis uses world space");for(int wheel=1;wheel<5;wheel++) Check(ChallengeTestMotionCodec.TryGetWheelBody(body+wheel,12,32,bodies,out int parent)&&parent==body,"A wheel uses its own chassis, never vehicle 1"); }
+  Check(!ChallengeTestMotionCodec.TryGetWheelBody(32,12,32,bodies,out _),"Boats are not vehicle wheels");
+  var assembler=new ChallengeTestPacketAssembly();byte[] data=Descriptor(4,ContractSO.VehicleTestMode.Together).Encode();byte[] packet=null;
+  for(int offset=((data.Length-1)/320)*320;offset>=0;offset-=320) {byte[] chunk=data.Skip(offset).Take(Math.Min(320,data.Length-offset)).ToArray();Check(assembler.Add(7,1,data.Length,offset,chunk,out packet),"Out-of-order reliable chunks accepted");Check(assembler.Add(7,1,data.Length,offset,chunk,out _),"Duplicate chunks idempotent");}
+  Check(packet!=null&&packet.SequenceEqual(data),"Full four-vehicle descriptor assembled without truncation");
+  Check(!assembler.Add(7,1,data.Length,0,new byte[320],out _),"Conflicting duplicate rejected");
+  Check(!assembler.Add(7,3,data.Length,0,data.Take(320).ToArray(),out _),"Vehicle count never changes host/guest design index 1/2");
+  assembler.Clear();Check(assembler.ReceivedBytes==0,"Cancellation clears descriptor assembly");
+  var maximum=Descriptor(4,ContractSO.VehicleTestMode.Together);foreach(var entry in maximum.Vehicles) entry.Poses=Enumerable.Range(0,33).Select(Pose).ToArray();
+  byte[] large=maximum.Encode();Check(large.Length>4096,"Four maximum wheel rosters exercise the former 4KiB receive mismatch");
+  for(int offset=0;offset<large.Length;offset+=320) Check(assembler.Add(8,2,large.Length,offset,large.Skip(offset).Take(Math.Min(320,large.Length-offset)).ToArray(),out packet),"Full bounded descriptor accepted with shared transfer limit");
+  Check(packet!=null&&ChallengeTestDescriptor.Decode(packet).Vehicles.All(entry=>entry.Poses.Length==33),"Maximum wheel roster reaches final decoding without truncation");
+  Check(!OrdinaryWorldPolicy.MultipleRosterIdentityChanged(new[]{"A","B"},new[]{"A","B"},2),"Stable world rosters preserve original snapshots");
+  Check(OrdinaryWorldPolicy.MultipleRosterIdentityChanged(new[]{"A","B"},new[]{"B","A"},2),"Reordered world actors restore all old owners before recapture");
+  Check(OrdinaryWorldPolicy.MultipleRosterIdentityChanged(new[]{"A","B"},new[]{"C","B"},2),"A replacement actor requires full roster restoration");
+  Check(OrdinaryWorldPolicy.MultipleRosterIdentityChanged(new[]{"A","B"},new[]{"A","B","C"},3),"Changed participant counts invalidate ownership snapshots");
+  Console.WriteLine("PASS: "+checks+" production roster codec, legacy descriptor, bounds, per-chassis wheel and reliable-assembly checks.");
+ }
+}

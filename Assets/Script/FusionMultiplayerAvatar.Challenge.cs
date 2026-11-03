@@ -67,7 +67,7 @@ public sealed partial class FusionMultiplayerAvatar
                 var avatar = obj.GetComponent<FusionMultiplayerAvatar>();
                 if (avatar != null) avatar.pendingArrival = false;
             }
-        ChallengeState = new MultiplayerChallengeState
+        var invitation = new MultiplayerChallengeState
         {
             Revision = unchecked(ChallengeState.Revision + 1), Phase = MultiplayerChallengePhase.Invited,
             MatchId = System.Guid.NewGuid().ToString("N"),
@@ -80,6 +80,12 @@ public sealed partial class FusionMultiplayerAvatar
             ChallengeVehicleWeight = vehicle != null ? vehicle.GetSessionTestWeight() : 0f,
             Deadline = TickTimer.CreateFromSeconds(Runner, challengeInvitationSeconds)
         };
+        if (!ChallengeLiveLoadRoster.TryFreeze(ref invitation, site, site.activeContract, out string loadError))
+        {
+            Debug.LogWarning("[Challenge live loads] " + loadError, this);
+            return false;
+        }
+        ChallengeState = invitation;
         return true;
     }
 

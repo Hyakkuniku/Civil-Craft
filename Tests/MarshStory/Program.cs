@@ -107,10 +107,10 @@ internal static class Program
             if (!Path.GetFullPath(other).Equals(Path.GetFullPath(Path.Combine(root, Lesson)), StringComparison.OrdinalIgnoreCase))
                 Check(OptionalField(File.ReadAllText(other), "lessonId") != lessonId, "Arch lesson must not reuse another lesson's released identity.");
 
-        // Canonical whitespace hashes captured before this migration. Material
-        // physics, visual references and shared tutorial content are out of scope.
+        // Canonical whitespace hashes protect shared material data, including
+        // the approved concrete beam deck clearance.
         foreach ((string path, string expected) in new[] {
-            (ConcreteBeam, "886F0A22A402DCC2E32DA0F3D2D148FFE9255C1D3CAD432D9BF92605D4821D53"),
+            (ConcreteBeam, "E1DF247653B23E02C3A79A7236A749627277B4DC988D8C6E3F03495B7F36DE1F"),
             (ConcreteRoad, "68652527D9796EEBFFD5F49CE1BB135245558FEA7DF6C9F1956AF06A9AAA2B33"),
             (Pier, "C12F8EA4E00011E0E16073CE82BECC190FD0324A75886E763D83EC2631165B76") })
         {

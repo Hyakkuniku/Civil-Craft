@@ -342,10 +342,8 @@ public sealed partial class MultiplayerChallengeLobbyUI : MonoBehaviour
                 buildWorkspace = ChallengeBuildWorkspace.Create(site, definition, creator, state.Revision, boundRunner.LocalPlayer.RawEncoded);
                 if (definition.liveLoadMode == ContractSO.LiveLoadMode.Vehicle)
                 {
-                    LiveLoadVehicle vehicle = ChallengeTestDescriptor.ResolveVehicle(state.ChallengeVehicleKey.ToString(), site.gameObject.scene);
-                    if (vehicle == null || !ChallengeTestMotionCodec.Finite(state.ChallengeVehicleWeight) || state.ChallengeVehicleWeight <= 0f)
-                        throw new System.InvalidOperationException("The challenge live load preview could not be prepared.");
-                    buildWorkspace.ShowLoadPreview(vehicle);
+                    LiveLoadTestRoster roster = ChallengeLiveLoadRoster.FromState(state, site, definition);
+                    buildWorkspace.ShowLoadPreviews(roster);
                 }
                 prepared = GameManager.Instance.EnterSessionChallengeBuild(buildWorkspace.Location, motor.transform);
                 if (!prepared) throw new System.InvalidOperationException("Session Build Mode entry was rejected.");

@@ -42,12 +42,20 @@ public class FinishLineTrigger : MonoBehaviour
         // --- THE FIX 2: Ensure the vehicle belongs to this specific finish line's contract ---
         if (!ContractsMatch(car.assignedContract, assignedContract)) return;
 
-        BridgePhysicsManager physicsManager = FindObjectOfType<BridgePhysicsManager>();
+        bool multipleLoads = assignedContract != null && assignedContract.HasMultipleLiveLoads;
+        BridgePhysicsManager physicsManager = multipleLoads ? car.physicsManager : FindObjectOfType<BridgePhysicsManager>();
         
         // --- THE FIX 3: ONLY allow triggering if an active simulation is currently running ---
         if (physicsManager == null || !physicsManager.isSimulating) return;
 
         if (LevelFailedManager.Instance != null && LevelFailedManager.Instance.isFailed) return;
+
+        if (multipleLoads)
+        {
+            // A missing roster must never fall through to the legacy first-car win.
+            physicsManager.MultiLoadSession?.ReportFinishCandidate(car, () => OnLevelCompleted?.Invoke());
+            return;
+        }
 
         physicsManager.lockStressTracking = true;
 

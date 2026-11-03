@@ -132,6 +132,8 @@ public class BuildUIController : MonoBehaviour
     public TextMeshProUGUI estimatedCapacityText;
     public TextMeshProUGUI efficiencyRatioText;
     public TextMeshProUGUI factorOfSafetyText; 
+    private ContractSO lastStatsLoadContract;
+    private ContractSO.VehicleTestMode lastStatsLoadMode;
     private RectTransform statsPanelRect;
     private CanvasGroup statsPanelCanvasGroup;
     private Vector2 statsPanelRestPosition;
@@ -1387,7 +1389,8 @@ public class BuildUIController : MonoBehaviour
         float theoreticalCapacityKg = cachedEstimatedCapacityKg;
 
         ContractSO currentContract = GameManager.Instance != null ? GameManager.Instance.CurrentContract : null;
-        float liveLoad = LiveLoadVehicle.GetContractTestWeight(currentContract);
+        float liveLoad = ContractLiveLoadPresentation.PreviewWeight(GameManager.Instance != null ? GameManager.Instance.ActiveBuildLocation : null, currentContract);
+        bool multipleLiveLoads = currentContract != null && currentContract.HasMultipleLiveLoads;
         
         float estimatedFoS = 0f;
         if (liveLoad > 0) estimatedFoS = theoreticalCapacityKg / liveLoad;
@@ -1395,7 +1398,9 @@ public class BuildUIController : MonoBehaviour
         float efficiencyRatio = 0f;
         if (deadLoad > 0) efficiencyRatio = theoreticalCapacityKg / deadLoad;
 
-        bool statsChanged = Mathf.Abs(lastRoadLength - roadLength) > 0.05f ||
+        bool statsChanged = lastStatsLoadContract != currentContract ||
+                            (currentContract != null && lastStatsLoadMode != currentContract.vehicleTestMode) ||
+                            Mathf.Abs(lastRoadLength - roadLength) > 0.05f ||
                             Mathf.Abs(lastDeadLoad - deadLoad) > 0.05f ||
                             Mathf.Abs(lastLiveLoad - liveLoad) > 0.05f ||
                             Mathf.Abs(lastEstimatedCapacity - theoreticalCapacityKg) > 0.05f ||
@@ -1404,6 +1409,8 @@ public class BuildUIController : MonoBehaviour
                             lastCapacityEstimatePending != capacityEstimatePending;
         if (statsChanged)
         {
+            lastStatsLoadContract = currentContract;
+            if (currentContract != null) lastStatsLoadMode = currentContract.vehicleTestMode;
             lastCapacityEstimatePending = capacityEstimatePending;
             lastRoadLength = roadLength;
             lastDeadLoad = deadLoad;
@@ -1414,14 +1421,17 @@ public class BuildUIController : MonoBehaviour
             if (totalLengthText != null) totalLengthText.text = $"<color=#F2BF72>ROAD LENGTH</color>  <b>{roadLength:F1} m</b>";
             if (deadLoadText != null) deadLoadText.text = $"<color=#F2BF72>DEAD LOAD</color>  <b>{deadLoad:F1} kg</b>";
             
-            if (targetCargoWeightText != null) targetCargoWeightText.text = $"<color=#F2BF72>LIVE LOAD</color>  <b>{liveLoad:F0} kg</b>";
+            if (targetCargoWeightText != null) targetCargoWeightText.text = multipleLiveLoads
+                ? "<color=#F2BF72>LIVE LOADS</color>  <b>" + ContractLiveLoadPresentation.ShortSummary(currentContract) + "</b>"
+                : $"<color=#F2BF72>LIVE LOAD</color>  <b>{liveLoad:F0} kg</b>";
             if (estimatedCapacityText != null) estimatedCapacityText.text = capacityEstimatePending
-                ? "<color=#F2BF72>EST. CAPACITY</color>  Calculating..." : $"<color=#F2BF72>EST. CAPACITY</color>  <b>~{theoreticalCapacityKg:F0} kg</b>";
+                ? "<color=#F2BF72>EST. CAPACITY</color>  Calculating..." : $"<color=#F2BF72>{(multipleLiveLoads ? "SINGLE-LOAD EST." : "EST. CAPACITY")}</color>  <b>~{theoreticalCapacityKg:F0} kg</b>";
             if (efficiencyRatioText != null) efficiencyRatioText.text = capacityEstimatePending
                 ? "<color=#F2BF72>EFFICIENCY RATIO</color>  Calculating..." : $"<color=#F2BF72>EFFICIENCY RATIO</color>  <b>{efficiencyRatio:F2}</b>";
             
             if (factorOfSafetyText != null)
             {
+                factorOfSafetyText.gameObject.SetActive(!multipleLiveLoads);
                 if (capacityEstimatePending) factorOfSafetyText.text = "<color=#F2BF72>EST. SAFETY</color>  Calculating...";
                 else if (estimatedFoS >= 2.0f) factorOfSafetyText.text = $"<color=#F2BF72>EST. SAFETY</color>  <color=#83DBA6><b>{estimatedFoS:F2}</b></color>";
                 else if (estimatedFoS >= 1.0f) factorOfSafetyText.text = $"<color=#F2BF72>EST. SAFETY</color>  <color=#FFE088><b>{estimatedFoS:F2}</b></color>";
@@ -1956,7 +1966,15 @@ public class BuildUIController : MonoBehaviour
         if (physicsManager != null && !physicsManager.isSimulating) 
         { 
             ContractSO testContract = GameManager.Instance != null ? GameManager.Instance.CurrentContract : null;
-            if (testContract != null && testContract.liveLoadMode == ContractSO.LiveLoadMode.Vehicle &&
+            if (testContract != null && testContract.HasMultipleLiveLoads &&
+                !LiveLoadTestRoster.TryCreate(GameManager.Instance != null ? GameManager.Instance.ActiveBuildLocation : null,
+                    testContract, out _, out string rosterError, true))
+            {
+                LogAction("Cannot start live-load tests: " + rosterError);
+                return;
+            }
+            if (testContract != null && testContract.HasMultipleLiveLoads) MultiLoadTestHUD.Ensure(this);
+            if (testContract != null && !testContract.HasMultipleLiveLoads && testContract.liveLoadMode == ContractSO.LiveLoadMode.Vehicle &&
                 testContract.allowVehicleCargo && testContract.minimumLoadedCargo > 0)
             {
                 LiveLoadVehicle vehicle = LiveLoadVehicle.FindActiveForContract(testContract);
@@ -1978,10 +1996,23 @@ public class BuildUIController : MonoBehaviour
                 }
                 return;
             }
-            if (barCreator != null) { barCreator.CancelAllModes(); barCreator.isSimulating = true; } 
+            if (barCreator != null)
+            {
+                barCreator.CancelAllModes();
+                if (testContract == null || !testContract.HasMultipleLiveLoads) barCreator.isSimulating = true;
+            }
             SetSelectionPanelActive(false);
             CancelCapacityEstimate();
             physicsManager.ActivatePhysics(); 
+            if (testContract != null && testContract.HasMultipleLiveLoads)
+            {
+                if (barCreator != null) barCreator.isSimulating = physicsManager.IsSimulationActive;
+                if (!physicsManager.IsSimulationActive)
+                {
+                    LogAction("Cannot start live-load tests: " + physicsManager.MultiLoadSetupError);
+                    return;
+                }
+            }
             LogAction("Simulation Started");
         } 
     }

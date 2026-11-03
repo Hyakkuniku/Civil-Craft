@@ -131,6 +131,31 @@ public sealed class ChallengeBuildWorkspace : IDisposable
                 HideWorldObject(original.gameObject);
     }
 
+    public void ShowLoadPreviews(LiveLoadTestRoster roster)
+    {
+        if (roster == null || Root == null || LoadPreview != null) return;
+        // These are disposable UI/test settings. Never alter the source asset,
+        // and never let later cargo/Inspector edits change the accepted matchup.
+        contract.vehicleTestMode = roster.Mode;
+        contract.liveLoadWeight = roster.Participants[0].WeightKg;
+        contract.liveLoadTests = new List<ContractLiveLoadEntry>();
+        foreach (var entry in roster.Participants) contract.liveLoadTests.Add(new ContractLiveLoadEntry {
+            entryId = entry.EntryId, displayName = entry.DisplayName, emptyWeightKg = entry.WeightKg,
+            departureDelay = entry.DepartureDelay, allowCargo = false, minimumLoadedCargo = 0 });
+        LoadPreview = new GameObject("Challenge Live Load Previews");
+        LoadPreview.transform.SetParent(Root.transform, false);
+        foreach (var participant in roster.Participants)
+        {
+            var vehicle = participant.Vehicle;
+            GameObject preview = HostWorldBridgeVisual.CopyMeshes(vehicle.gameObject, LoadPreview.transform);
+            vehicle.GetSessionTestStartPose(out Vector3 position, out Quaternion rotation);
+            preview.transform.SetPositionAndRotation(position, rotation); preview.transform.localScale = vehicle.transform.lossyScale;
+            preview.SetActive(true);
+            foreach (MeshRenderer renderer in preview.GetComponentsInChildren<MeshRenderer>(true)) renderer.enabled = true;
+            HideWorldObject(vehicle.gameObject);
+        }
+    }
+
     private Point CopyAnchor(Point source, Transform parent, Dictionary<Point, Point> copies)
     {
         if (source == null) throw new InvalidOperationException("A challenge anchor reference is missing.");

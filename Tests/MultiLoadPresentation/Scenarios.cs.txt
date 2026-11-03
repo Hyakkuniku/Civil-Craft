@@ -1,0 +1,81 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+
+namespace UnityEngine { public static class Mathf { public static float Max(float a, float b) => Math.Max(a, b); } }
+public sealed class ContractSO
+{
+    public enum VehicleTestMode { Single, Sequential, Together }
+    public VehicleTestMode vehicleTestMode; public float liveLoadWeight = 1200f;
+    public bool HasMultipleLiveLoads => vehicleTestMode != VehicleTestMode.Single;
+    public List<ContractLiveLoadEntry> liveLoadTests = new List<ContractLiveLoadEntry>();
+}
+public sealed class ContractLiveLoadEntry
+{
+    public string entryId, displayName; public float emptyWeightKg, departureDelay; public bool allowCargo; public int minimumLoadedCargo;
+}
+public sealed class ContractLiveLoadBinding { public string entryId; public LiveLoadVehicle vehicle; }
+public sealed class BuildLocation { public List<ContractLiveLoadBinding> liveLoadVehicles = new List<ContractLiveLoadBinding>(); }
+public sealed class LiveLoadVehicle
+{
+    public float TotalTestWeight; public static float GetContractTestWeight(ContractSO contract) => contract.liveLoadWeight + 250f;
+}
+public enum LiveLoadTestParticipantState { Waiting, Driving, Passed, Failed }
+public sealed class LiveLoadTestParticipantDefinition { public string EntryId, DisplayName; public float WeightKg; public LiveLoadVehicle Vehicle; }
+public sealed class LiveLoadTestParticipant { public LiveLoadTestParticipantDefinition Definition; public LiveLoadTestParticipantState State; }
+public sealed class LiveLoadTestSession
+{
+    public readonly List<LiveLoadTestParticipant> Participants = new List<LiveLoadTestParticipant>();
+    public LiveLoadVehicle FocusVehicle; public bool AllPassed, Failed; public string FailureReason;
+}
+public static class Scenarios
+{
+    public static int Run()
+    {
+        CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+        int checks = 0;
+        void Check(bool condition, string reason) { checks++; if (!condition) throw new Exception(reason); }
+        Check(ContractLiveLoadPresentation.ShortSummary(null) == "", "Null summary");
+        Check(ContractLiveLoadPresentation.Requirements(null) == "", "Null requirements");
+        Check(ContractLiveLoadPresentation.SessionStatus(null) == "", "Null status");
+        Check(ContractLiveLoadPresentation.ResultSummary(null) == "", "Null result");
+        Check(ContractLiveLoadPresentation.PreviewWeight(null, null) == 0f, "Null preview");
+        var contract = new ContractSO();
+        Check(ContractLiveLoadPresentation.ShortSummary(contract) == "1,200 kg", "Legacy contract mass unchanged");
+        Check(ContractLiveLoadPresentation.Requirements(contract) == "", "Legacy requirements unchanged");
+        Check(ContractLiveLoadPresentation.PreviewWeight(null, contract) == 1450f, "Legacy payload API retained");
+        foreach (ContractSO.VehicleTestMode mode in new[] { ContractSO.VehicleTestMode.Sequential, ContractSO.VehicleTestMode.Together })
+        for (int count = 2; count <= 4; count++)
+        {
+            contract.vehicleTestMode = mode; contract.liveLoadTests.Clear();
+            for (int index = 0; index < count; index++) contract.liveLoadTests.Add(new ContractLiveLoadEntry
+            { entryId = "id-" + index, displayName = index == 0 ? "<b>Taxi</b>" : "Truck " + index, emptyWeightKg = (index + 1) * 1000, departureDelay = index * 3, allowCargo = index == count - 1, minimumLoadedCargo = index == count - 1 ? 4 : 0 });
+            string requirements = ContractLiveLoadPresentation.Requirements(contract);
+            Check(ContractLiveLoadPresentation.ShortSummary(contract) == count + " vehicles · " + mode, "Count and crossing mode");
+            Check(requirements.Contains(count + ". Truck " + (count - 1)) && requirements.Contains((count * 1000).ToString("N0") + " kg empty"), "Last vehicle and weight retained");
+            Check(requirements.Contains("at least 4 items"), "Cargo gate visible");
+            Check(requirements.Contains("‹b›Taxi‹/b›") && !requirements.Contains("<b>Taxi</b>"), "Names cannot inject rich text");
+            Check((mode == ContractSO.VehicleTestMode.Sequential && requirements.Contains("keeps its condition")) ||
+                (mode == ContractSO.VehicleTestMode.Together && requirements.Contains("Starts after " + ((count - 1) * 3) + " s")), "Mode-specific timing and damage instructions");
+            var location = new BuildLocation();
+            location.liveLoadVehicles.Add(new ContractLiveLoadBinding { entryId = "id-0", vehicle = new LiveLoadVehicle { TotalTestWeight = 5000f } });
+            float expected = mode == ContractSO.VehicleTestMode.Sequential ? Math.Max(5000f, count * 1000f) : 5000f + (count * (count + 1) / 2 - 1) * 1000f;
+            Check(ContractLiveLoadPresentation.PreviewWeight(location, contract) == expected, "Preview uses bound payload mass and mode");
+        }
+        var session = new LiveLoadTestSession();
+        for (int index = 0; index < 4; index++) session.Participants.Add(new LiveLoadTestParticipant
+        { Definition = new LiveLoadTestParticipantDefinition { DisplayName = "Vehicle " + (index + 1), WeightKg = (index + 1) * 1250, Vehicle = new LiveLoadVehicle() }, State = index == 0 ? LiveLoadTestParticipantState.Passed : index == 3 ? LiveLoadTestParticipantState.Failed : LiveLoadTestParticipantState.Waiting });
+        session.FocusVehicle = session.Participants[1].Definition.Vehicle;
+        Check(ContractLiveLoadPresentation.SessionStatus(session).Contains("Vehicle 2/4 — Vehicle 2"), "Focus is exact participant");
+        Check(ContractLiveLoadPresentation.SessionStatus(session).Contains("1/4 passed"), "Progress counts completed vehicles");
+        string result = ContractLiveLoadPresentation.ResultSummary(session);
+        Check(result.Contains("PASSED") && result.Contains("FAILED") && result.Contains("NOT COMPLETED"), "Result state distinction");
+        Check(result.Contains("Vehicle 4 · 5,000 kg · FAILED"), "Last vehicle exact frozen mass/outcome");
+        session.Failed = true; session.FailureReason = "<size=100>Vehicle failed</size>";
+        Check(!ContractLiveLoadPresentation.SessionStatus(session).Contains("<size="), "Failure cannot inject markup");
+        session.Failed = false; session.AllPassed = true;
+        Check(ContractLiveLoadPresentation.SessionStatus(session).Contains("ALL LIVE LOADS PASSED"), "Whole-roster success");
+        Check(ContractLiveLoadPresentation.Label(" ", 3) == "Vehicle 4", "Missing display name fallback");
+        return checks;
+    }
+}

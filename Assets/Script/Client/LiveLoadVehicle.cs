@@ -50,7 +50,7 @@ public partial class LiveLoadVehicle : Interactable
                 cargo = slot.acceptedCargo;
             if (cargo != null && cargo.gameObject.activeSelf && cargo.transform.IsChildOf(transform)) payload += Mathf.Max(0f, cargo.cargoWeight);
         }
-        return Mathf.Max(0.01f, (assignedContract != null ? assignedContract.liveLoadWeight : vehicleMass) + payload);
+        return Mathf.Max(0.01f, GetConfiguredEmptyWeight() + payload);
     }
     private readonly List<VehicleCargoSlot> cargoSlots = new List<VehicleCargoSlot>();
     [Header("Smart Cargo Loading")]
@@ -61,7 +61,7 @@ public partial class LiveLoadVehicle : Interactable
     private VehicleCargoLoadingZone smartCargoLoadingZone;
     public bool UsesSmartCargoLoadingZone => smartCargoLoadingZone != null && smartCargoLoadingZone.isActiveAndEnabled;
     public bool AllowsCargo => assignedContract != null &&
-        assignedContract.liveLoadMode == ContractSO.LiveLoadMode.Vehicle && assignedContract.allowVehicleCargo;
+        assignedContract.liveLoadMode == ContractSO.LiveLoadMode.Vehicle && ConfiguredAllowsCargo;
     public bool CanChangeCargo => !IsSessionChallengeTestVehicle && isActiveAndEnabled && !isRemoteMultiplayerRepresentation && AllowsCargo && !isDriving &&
         (physicsManager == null || !physicsManager.IsSimulationActive) &&
         (GameManager.Instance == null || GameManager.Instance.CurrentState == GameManager.GameState.Normal);
@@ -101,8 +101,9 @@ public partial class LiveLoadVehicle : Interactable
             return total;
         }
     }
-    public float TotalTestWeight => IsSessionChallengeTestVehicle ? sessionTestWeight : Mathf.Max(0.01f,
-        (assignedContract != null ? assignedContract.liveLoadWeight : vehicleMass) + PayloadWeight);
+    public float TotalTestWeight => isRemoteMultiplayerRepresentation && remoteMultiplayerWeight > 0f ? remoteMultiplayerWeight :
+        multiLoadSession != null ? multiLoadFrozenWeight :
+        IsSessionChallengeTestVehicle ? sessionTestWeight : Mathf.Max(0.01f, GetConfiguredEmptyWeight() + PayloadWeight);
     public void RegisterCargoSlot(VehicleCargoSlot slot)
     {
         if (slot != null && !cargoSlots.Contains(slot)) cargoSlots.Add(slot);
@@ -159,8 +160,20 @@ public partial class LiveLoadVehicle : Interactable
     public void NotifyCargoLoaded()
     {
         RefreshCargoMass();
-        if (requiredCargoLoadedInvoked || !AllowsCargo || assignedContract.minimumLoadedCargo <= 0 ||
-            LoadedCargoCount < assignedContract.minimumLoadedCargo) return;
+        if (requiredCargoLoadedInvoked || !AllowsCargo || RequiredLoadedCargoCount <= 0 ||
+            LoadedCargoCount < RequiredLoadedCargoCount) return;
+
+        if (assignedContract.HasMultipleLiveLoads)
+        {
+            if (multiLoadBindingOwner == null || multiLoadBindingOwner.liveLoadVehicles == null) return;
+            foreach (ContractLiveLoadBinding binding in multiLoadBindingOwner.liveLoadVehicles)
+                if (binding != null && binding.vehicle != null && binding.vehicle.AllowsCargo &&
+                    binding.vehicle.LoadedCargoCount < binding.vehicle.RequiredLoadedCargoCount) return;
+            // This is a contract-level story handoff. Loading optional extra
+            // cargo later must not replay it from a different roster vehicle.
+            foreach (ContractLiveLoadBinding binding in multiLoadBindingOwner.liveLoadVehicles)
+                if (binding != null && binding.vehicle != null) binding.vehicle.requiredCargoLoadedInvoked = true;
+        }
 
         requiredCargoLoadedInvoked = true;
         AdvanceCargoNPCPhase();
@@ -657,7 +670,7 @@ public partial class LiveLoadVehicle : Interactable
 
         // PlayerDataManager loads persistent data in Awake, before any Start call,
         // so completed live loads can be hidden before the first rendered frame.
-        if (!IsSessionChallengeTestVehicle && !visibleForBuildReplay && HasSavedBridgeForAssignedContract())
+        if (!IsSessionChallengeTestVehicle && !isRemoteMultiplayerRepresentation && !visibleForBuildReplay && HasSavedBridgeForAssignedContract())
         {
             HideForSavedBridge();
         }
@@ -987,11 +1000,19 @@ public partial class LiveLoadVehicle : Interactable
 
     private void HandleSimulationStarted()
     {
+        // The coordinator releases only due participants. The global signal
+        // must not start waiting vehicles, including isolated challenge clones.
+        if (multiLoadSession != null) return;
         // Every LiveLoadVehicle listens to the shared physics manager. Never let
         // an unassigned or different contract's vehicle react to that global
         // event; otherwise a stray cart can start driving and later be reported
         // as the active contract's failed live load.
         if (!CanParticipateInCurrentSimulation() || IsPlayerCargoContract()) return;
+        StartDrivingForSimulation();
+    }
+
+    private void StartDrivingForSimulation()
+    {
         participatingInCurrentSimulation = true;
 
         if (isInspectionWindowOpen && inspectionOpenedFromBuildMode)
@@ -1148,6 +1169,7 @@ public partial class LiveLoadVehicle : Interactable
     public void SetRemoteMultiplayerRepresentation(bool remote)
     {
         isRemoteMultiplayerRepresentation = remote;
+        if (!remote) remoteMultiplayerWeight = 0f;
         if (remote) StopSimulationAudio();
     }
 
@@ -1209,6 +1231,8 @@ public partial class LiveLoadVehicle : Interactable
 
     private bool CanParticipateInCurrentSimulation()
     {
+        if (multiLoadSession != null) return multiLoadSession.Contains(this);
+        if (assignedContract != null && assignedContract.HasMultipleLiveLoads) return false;
         if (physicsManager != null && physicsManager.IsSessionChallengeTest)
             return physicsManager.SessionTestVehicle == this && IsSessionChallengeTestVehicle;
         ContractSO currentContract = GameManager.Instance != null
@@ -1300,7 +1324,7 @@ public partial class LiveLoadVehicle : Interactable
             
             float payloadWeight = PayloadWeight;
             float displayWeight = TotalTestWeight;
-            float baseWeight = assignedContract != null ? assignedContract.liveLoadWeight : vehicleMass;
+            float baseWeight = GetConfiguredEmptyWeight();
             if (vehicleWeightText != null)
             {
                 vehicleWeightText.text = AllowsCargo || payloadWeight > 0f

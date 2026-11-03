@@ -11,6 +11,13 @@ public sealed class ChallengeBridgeTestRun : IDisposable
     public BuildLocation Location { get; private set; }
     public BridgePhysicsManager Physics { get; private set; }
     public LiveLoadVehicle Vehicle { get; private set; }
+    public readonly List<LiveLoadVehicle> Vehicles = new List<LiveLoadVehicle>();
+    public readonly List<int> VehicleBodyIndices = new List<int>();
+    public LiveLoadTestRoster SourceRoster { get; private set; }
+    public int VehiclePoseCount
+    {
+        get { int count = 0; foreach (var vehicle in Vehicles) count += 1 + vehicle.wheelObjects.Length; return count; }
+    }
     public readonly List<Bar> Bars = new List<Bar>();
     public readonly List<Transform> MotionTargets = new List<Transform>();
     public readonly List<BoatBridgeCrossing> Boats = new List<BoatBridgeCrossing>();
@@ -22,7 +29,8 @@ public sealed class ChallengeBridgeTestRun : IDisposable
     public float PeakStress => Physics != null ? Mathf.Max(Physics.GetPeakDisplayedBridgeStress(), Physics.HadBrokenPartsThisRun ? 1f : 0f) : 0f;
 
     public static ChallengeBridgeTestRun Create(ChallengeBridgeSubmission graph, BuildLocation site, ContractSO definition,
-        BarCreator creator, BridgePhysicsManager settings, LiveLoadVehicle vehicleSource, float weight, int revision, int index)
+        BarCreator creator, BridgePhysicsManager settings, LiveLoadVehicle vehicleSource, float weight, int revision, int index,
+        LiveLoadTestRoster frozenRoster = null)
     {
         if (graph == null || site == null || definition == null || creator == null || settings == null || vehicleSource == null ||
             definition.liveLoadMode != ContractSO.LiveLoadMode.Vehicle || vehicleSource.startPoint == null || vehicleSource.endPoint == null)
@@ -43,6 +51,7 @@ public sealed class ChallengeBridgeTestRun : IDisposable
             run.contract.contractID = ChallengeBuildWorkspace.ContractPrefix + "test_" + revision + "_" + index;
             run.contract.isTutorialContract = run.contract.isStoryModeContract = run.contract.countsTowardMapAchievements = false;
             run.contract.autoCollectReward = run.contract.allowVehicleCargo = false;
+            if (frozenRoster != null) run.contract.vehicleTestMode = frozenRoster.Mode;
             run.Location.activeContract = run.contract;
             var catalog = ChallengeBridgeSubmissionRules.CreateMaterialCatalog(definition);
             var anchors = ChallengeBridgeSubmissionRules.GetAnchors(site);
@@ -82,16 +91,29 @@ public sealed class ChallengeBridgeTestRun : IDisposable
             // Unity JSON copies the scene's serialized physics/stress settings and
             // material references, not event delegates or runtime/private caches.
             JsonUtility.FromJsonOverwrite(JsonUtility.ToJson(settings), run.Physics);
-            vehicleSource.GetSessionTestStartPose(out Vector3 startPosition, out Quaternion startRotation);
-            GameObject vehicleObject = Object.Instantiate(vehicleSource.gameObject, startPosition, startRotation, run.Root.transform);
-            vehicleObject.transform.localScale = vehicleSource.transform.lossyScale;
+            run.SourceRoster = frozenRoster;
+            int vehicleCount = frozenRoster != null ? frozenRoster.Participants.Count : 1;
+            for (int entry = 0; entry < vehicleCount; entry++)
+            {
+            LiveLoadVehicle sourceVehicle = frozenRoster != null ? frozenRoster.Participants[entry].Vehicle : vehicleSource;
+            float frozenWeight = frozenRoster != null ? frozenRoster.Participants[entry].WeightKg : weight;
+            sourceVehicle.GetSessionTestStartPose(out Vector3 startPosition, out Quaternion startRotation);
+            GameObject vehicleObject = Object.Instantiate(sourceVehicle.gameObject, startPosition, startRotation, run.Root.transform);
+            vehicleObject.transform.localScale = sourceVehicle.transform.lossyScale;
             StripScriptsExcept<LiveLoadVehicle>(vehicleObject);
-            run.Vehicle = vehicleObject.GetComponent<LiveLoadVehicle>();
-            run.Vehicle.enabled = true; run.Vehicle.advancesTutorial = false;
-            run.Vehicle.assignedContract = run.contract; run.Vehicle.physicsManager = run.Physics;
-            run.Vehicle.vehicleInfoPanel = null;
-            run.Vehicle.ConfigureSessionChallengeTest(weight);
-            run.Physics.ConfigureSessionChallengeTest(run.Location, run.Vehicle);
+            LiveLoadVehicle participant = vehicleObject.GetComponent<LiveLoadVehicle>();
+            if (entry == 0) run.Vehicle = participant;
+            participant.enabled = true; participant.advancesTutorial = false;
+            participant.assignedContract = run.contract; participant.physicsManager = run.Physics;
+            participant.vehicleInfoPanel = null;
+            participant.ConfigureSessionChallengeTest(frozenWeight);
+            run.Vehicles.Add(participant);
+            vehicleObject.SetActive(true);
+            foreach (var obstacle in vehicleObject.GetComponentsInChildren<UnityEngine.AI.NavMeshObstacle>(true)) obstacle.enabled = false;
+            }
+            if (frozenRoster != null && frozenRoster.Mode != ContractSO.VehicleTestMode.Single)
+                run.Physics.ConfigureSessionMultiLoadTest(run.Location, frozenRoster.WithVehicles(run.Location, run.contract, run.Vehicles));
+            else run.Physics.ConfigureSessionChallengeTest(run.Location, run.Vehicle);
             foreach (BoatBridgeCrossing source in ChallengeTestDescriptor.SelectBoats(site, definition))
             {
                 source.GetSessionTestStartPose(out Vector3 boatPosition, out Quaternion boatRotation);
@@ -108,9 +130,7 @@ public sealed class ChallengeBridgeTestRun : IDisposable
                 run.Boats.Add(boat); run.BoatKeys.Add(ChallengeTestDescriptor.ObjectPath(source.transform));
             }
             run.HoldBridgeForPreparation();
-            vehicleObject.SetActive(true);
             run.Root.SetActive(true); // Awake before Start; the vehicle subscribes on the following frame.
-            foreach (var obstacle in vehicleObject.GetComponentsInChildren<UnityEngine.AI.NavMeshObstacle>(true)) obstacle.enabled = false;
             return run;
         }
         catch { run.Dispose(); throw; }
@@ -152,8 +172,12 @@ public sealed class ChallengeBridgeTestRun : IDisposable
                     record.Parts.Add(new HostWorldBridgePart { IsCap = child.name == "PierCap", Visible = true, Pose = HostWorldBridgePose.Local(child) });
             snapshot.Bars.Add(record);
         }
-        MotionTargets.Add(Vehicle.transform);
-        foreach (GameObject wheel in Vehicle.wheelObjects) MotionTargets.Add(wheel.transform);
+        VehicleBodyIndices.Clear();
+        foreach (LiveLoadVehicle participant in Vehicles)
+        {
+            VehicleBodyIndices.Add(MotionTargets.Count); MotionTargets.Add(participant.transform);
+            foreach (GameObject wheel in participant.wheelObjects) MotionTargets.Add(wheel.transform);
+        }
         foreach (BoatBridgeCrossing boat in Boats) MotionTargets.Add(boat.transform);
         return snapshot;
     }
@@ -167,6 +191,15 @@ public sealed class ChallengeBridgeTestRun : IDisposable
         if (!BridgePhysicsManager.DebugInvincibleBridge && (Physics.HadBrokenPartsThisRun ||
             Physics.IsContractStressLimitArmed && Physics.peakStressThisRun >= stressLimit))
         { Physics.EnsureVisibleStructuralFailure("Challenge bridge stress limit exceeded"); return ChallengeTestOutcome.Collapsed; }
+        if (contract.HasMultipleLiveLoads)
+        {
+            LiveLoadTestSession session = Physics.MultiLoadSession;
+            if (session == null) return ChallengeTestOutcome.None;
+            if (session.Failed) return session.FailureReason != null && session.FailureReason.IndexOf("stall", StringComparison.OrdinalIgnoreCase) >= 0
+                ? ChallengeTestOutcome.Stalled : ChallengeTestOutcome.Fell;
+            if (session.AllPassed && HasConnectedRoad()) return ChallengeTestOutcome.Crossed;
+            return Elapsed >= session.Roster.GetCompetitionTimeLimit(maximumSeconds) ? ChallengeTestOutcome.TimeLimit : ChallengeTestOutcome.None;
+        }
         if (Physics.TryGetCurrentVehicleRoadState(out _, out float load) && load > 0.01f) reachedBridge = true;
         float fallDistance = rules != null ? rules.maximumVehicleFallDistance : 6f;
         float deathY = rules != null ? rules.deathThreshold : -15f;
@@ -213,7 +246,7 @@ public sealed class ChallengeBridgeTestRun : IDisposable
         if (Root != null) { Root.SetActive(false); Destroy(Root); }
         if (contract != null) Destroy(contract);
         Root = null; Location = null; Physics = null; Vehicle = null; contract = null;
-        Bars.Clear(); MotionTargets.Clear(); Boats.Clear(); BoatKeys.Clear();
+        Bars.Clear(); MotionTargets.Clear(); Boats.Clear(); BoatKeys.Clear(); Vehicles.Clear(); VehicleBodyIndices.Clear(); SourceRoster = null;
     }
     private static void Destroy(Object obj) { if (Application.isPlaying) Object.Destroy(obj); else Object.DestroyImmediate(obj); }
 }

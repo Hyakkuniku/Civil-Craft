@@ -430,6 +430,8 @@ public sealed class FusionConnectionManager : MonoBehaviour
         // Room names are regional. Pin both players to one region until the UI
         // can include a region selector alongside the room code.
         FusionAppSettings settings = PhotonAppSettings.Global.AppSettings.GetCopy();
+        // Replicated participant arrays and challenge descriptors require matching clients.
+        settings.AppVersion = settings.AppVersion + "-loads4-v1";
         settings.FixedRegion = FixedRegion;
         return settings;
     }

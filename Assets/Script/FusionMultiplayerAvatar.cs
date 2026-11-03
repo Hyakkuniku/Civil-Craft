@@ -259,6 +259,7 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
         DestroyRemoteBridgeBars();
         ResetRemotePoseBuffer();
         RestoreRemoteLiveLoad();
+        RestoreRemoteMultipleLiveLoads();
         if (LevelCompleteManager.Instance != null)
             LevelCompleteManager.Instance.HideGuestSessionCompletion();
     }
@@ -271,6 +272,7 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
         DestroyRemoteBridgeNodes();
         DestroyRemoteBridgeBars();
         RestoreRemoteLiveLoad();
+        RestoreRemoteMultipleLiveLoads();
         if (LevelCompleteManager.Instance != null)
             LevelCompleteManager.Instance.HideGuestSessionCompletion();
     }
@@ -296,6 +298,7 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
             DestroyRemoteBridgeBars();
             ResetRemotePoseBuffer();
             RestoreRemoteLiveLoad();
+            RestoreRemoteMultipleLiveLoads();
             if (LevelCompleteManager.Instance != null)
                 LevelCompleteManager.Instance.HideGuestSessionCompletion();
             return;
@@ -429,6 +432,9 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
         if (Runner.IsForward) { UpdateChallengeAuthority(); UpdateChallengeReactionAuthority(); }
         if (HasInputAuthority && HasStateAuthority && Runner.IsServer && pendingCompletionDirty)
         {
+            // Keep the final roster and completion receipt in one network tick,
+            // even between the normal motion updates.
+            PublishHostLiveLoad();
             HostCompletion = pendingCompletion;
             HostCompletionRevision++;
             pendingCompletionDirty = false;
@@ -1153,6 +1159,7 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
 
     private void PublishHostLiveLoad()
     {
+        if (PublishHostMultipleLiveLoads()) { HostLiveLoadVisible = false; return; }
         LiveLoadVehicle active = null;
         LiveLoadVehicle parkedFallback = null;
         foreach (LiveLoadVehicle vehicle in FindObjectsOfType<LiveLoadVehicle>())
@@ -1192,6 +1199,13 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
 
     private void UpdateRemoteLiveLoad()
     {
+        if (IsBridgeBuilder && HostMultiLiveLoadCount > 0)
+        {
+            RestoreRemoteLiveLoad();
+            UpdateRemoteMultipleLiveLoads();
+            return;
+        }
+        RestoreRemoteMultipleLiveLoads();
         if (!IsBridgeBuilder || !HostLiveLoadVisible)
         {
             RestoreRemoteLiveLoad();

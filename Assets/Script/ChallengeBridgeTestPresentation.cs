@@ -4,12 +4,23 @@ using System.IO;
 using System.Text;
 using UnityEngine;
 
+public sealed class ChallengeTestVehicle
+{
+    public string EntryId, DisplayName, VehicleKey;
+    public float Weight, DepartureDelay;
+    public HostWorldBridgePose[] Poses;
+}
+
 public sealed class ChallengeTestDescriptor
 {
     public HostWorldBridgeSnapshot Bridge;
     public string VehicleKey;
     public float Weight;
     public HostWorldBridgePose[] VehiclePoses; // Body followed by the authored wheels.
+    public ContractSO.VehicleTestMode Mode;
+    public ChallengeTestVehicle[] Vehicles = Array.Empty<ChallengeTestVehicle>();
+    public ChallengeTestVehicle[] GetVehicles() => Vehicles != null && Vehicles.Length > 0 ? Vehicles :
+        new[] { new ChallengeTestVehicle { EntryId = "single", DisplayName = "Vehicle", VehicleKey = VehicleKey, Weight = Weight, Poses = VehiclePoses } };
     public const int MaxBoats = 8;
     public const int MaxPacketBytes = HostWorldBridgeSnapshotCodec.MaxPacketBytes + 32768;
     public string[] BoatKeys = Array.Empty<string>();
@@ -76,10 +87,16 @@ public sealed class ChallengeTestDescriptor
         using (var stream = new MemoryStream())
         using (var writer = new BinaryWriter(stream, Encoding.UTF8, true))
         {
-            writer.Write(2); writer.Write(bridge.Length); writer.Write(bridge);
-            writer.Write(VehicleKey); writer.Write(Weight); writer.Write(VehiclePoses.Length);
-            foreach (var pose in VehiclePoses)
-            { ChallengeTestMotionCodec.WriteVector(writer, pose.Position); ChallengeTestMotionCodec.WriteRotation(writer, pose.Rotation); ChallengeTestMotionCodec.WriteVector(writer, pose.Scale); }
+            writer.Write(3); writer.Write(bridge.Length); writer.Write(bridge);
+            var vehicles = GetVehicles(); ValidateVehicles(vehicles, Mode);
+            writer.Write((int)Mode); writer.Write(vehicles.Length);
+            foreach (var vehicle in vehicles)
+            {
+                writer.Write(vehicle.EntryId); writer.Write(vehicle.DisplayName ?? "Vehicle"); writer.Write(vehicle.VehicleKey);
+                writer.Write(vehicle.Weight); writer.Write(vehicle.DepartureDelay); writer.Write(vehicle.Poses.Length);
+                foreach (var pose in vehicle.Poses)
+                { ChallengeTestMotionCodec.WriteVector(writer, pose.Position); ChallengeTestMotionCodec.WriteRotation(writer, pose.Rotation); ChallengeTestMotionCodec.WriteVector(writer, pose.Scale); }
+            }
             if (BoatKeys.Length != BoatPoses.Length || BoatKeys.Length > MaxBoats) throw new InvalidDataException("Invalid test boats.");
             writer.Write(BoatKeys.Length);
             for (int i = 0; i < BoatKeys.Length; i++)
@@ -100,19 +117,30 @@ public sealed class ChallengeTestDescriptor
         using (var stream = new MemoryStream(data.ToArray(), false))
         using (var reader = new BinaryReader(stream, new UTF8Encoding(false, true)))
         {
-            if (reader.ReadInt32() != 2) throw new InvalidDataException("Invalid test presentation version.");
+            int version = reader.ReadInt32();
+            if (version != 2 && version != 3) throw new InvalidDataException("Invalid test presentation version.");
             int size = reader.ReadInt32();
             if (size < 0 || size > HostWorldBridgeSnapshotCodec.MaxPacketBytes || size > stream.Length - stream.Position)
                 throw new InvalidDataException("Invalid test bridge size.");
-            var descriptor = new ChallengeTestDescriptor { Bridge = HostWorldBridgeSnapshotCodec.Decode(reader.ReadBytes(size)), VehicleKey = reader.ReadString(), Weight = reader.ReadSingle() };
-            if (descriptor.VehicleKey.Length == 0 || descriptor.VehicleKey.Length > 2048 ||
-                !ChallengeTestMotionCodec.Finite(descriptor.Weight) || descriptor.Weight <= 0f) throw new InvalidDataException("Invalid test vehicle.");
+            var descriptor = new ChallengeTestDescriptor { Bridge = HostWorldBridgeSnapshotCodec.Decode(reader.ReadBytes(size)) };
+            int vehicleCount = 1;
+            if (version == 3) { descriptor.Mode = (ContractSO.VehicleTestMode)reader.ReadInt32(); vehicleCount = reader.ReadInt32(); }
+            if (vehicleCount < 1 || vehicleCount > ChallengeLiveLoadRoster.MaximumVehicles) throw new InvalidDataException("Invalid test vehicle count.");
+            descriptor.Vehicles = new ChallengeTestVehicle[vehicleCount];
+            for (int entry = 0; entry < vehicleCount; entry++)
+            {
+                var vehicle = new ChallengeTestVehicle { EntryId = version == 3 ? reader.ReadString() : "single", DisplayName = version == 3 ? reader.ReadString() : "Vehicle",
+                    VehicleKey = reader.ReadString(), Weight = reader.ReadSingle(), DepartureDelay = version == 3 ? reader.ReadSingle() : 0f };
+                int poses = reader.ReadInt32();
+                if (poses < 1 || poses > 33 || poses * 40L + 4 > stream.Length - stream.Position) throw new InvalidDataException("Invalid test wheel count.");
+                vehicle.Poses = new HostWorldBridgePose[poses];
+                for (int i = 0; i < poses; i++) vehicle.Poses[i] = new HostWorldBridgePose
+                { Position = ChallengeTestMotionCodec.ReadVector(reader), Rotation = ChallengeTestMotionCodec.ReadRotation(reader), Scale = ChallengeTestMotionCodec.ReadVector(reader) };
+                descriptor.Vehicles[entry] = vehicle;
+            }
+            ValidateVehicles(descriptor.Vehicles, descriptor.Mode);
+            descriptor.VehicleKey = descriptor.Vehicles[0].VehicleKey; descriptor.Weight = descriptor.Vehicles[0].Weight; descriptor.VehiclePoses = descriptor.Vehicles[0].Poses;
             int count = reader.ReadInt32();
-            if (count < 1 || count > 33 || count * 40L + 4 > stream.Length - stream.Position) throw new InvalidDataException("Invalid test wheel count.");
-            descriptor.VehiclePoses = new HostWorldBridgePose[count];
-            for (int i = 0; i < count; i++) descriptor.VehiclePoses[i] = new HostWorldBridgePose
-            { Position = ChallengeTestMotionCodec.ReadVector(reader), Rotation = ChallengeTestMotionCodec.ReadRotation(reader), Scale = ChallengeTestMotionCodec.ReadVector(reader) };
-            count = reader.ReadInt32();
             if (count < 0 || count > MaxBoats) throw new InvalidDataException("Invalid test boat count.");
             descriptor.BoatKeys = new string[count]; descriptor.BoatPoses = new HostWorldBridgePose[count];
             var keys = new HashSet<string>(StringComparer.Ordinal);
@@ -127,6 +155,19 @@ public sealed class ChallengeTestDescriptor
             if (stream.Position != stream.Length) throw new InvalidDataException("Unexpected test presentation data.");
             return descriptor;
         }
+    }
+
+    private static void ValidateVehicles(ChallengeTestVehicle[] vehicles, ContractSO.VehicleTestMode mode)
+    {
+        if (!Enum.IsDefined(typeof(ContractSO.VehicleTestMode), mode) || vehicles.Length < 1 || vehicles.Length > ChallengeLiveLoadRoster.MaximumVehicles ||
+            (mode == ContractSO.VehicleTestMode.Single ? vehicles.Length != 1 : vehicles.Length < 2)) throw new InvalidDataException("Invalid test roster mode.");
+        var keys = new HashSet<string>(StringComparer.Ordinal); var ids = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var vehicle in vehicles)
+            if (vehicle == null || string.IsNullOrWhiteSpace(vehicle.EntryId) || vehicle.EntryId.Length > 64 || !ids.Add(vehicle.EntryId) ||
+                string.IsNullOrWhiteSpace(vehicle.VehicleKey) || vehicle.VehicleKey.Length > 256 || !keys.Add(vehicle.VehicleKey) ||
+                (vehicle.DisplayName != null && vehicle.DisplayName.Length > 64) || !ChallengeTestMotionCodec.Finite(vehicle.Weight) || vehicle.Weight <= 0f || vehicle.Weight > LiveLoadTestRoster.MaxWeightKg ||
+                !ChallengeTestMotionCodec.Finite(vehicle.DepartureDelay) || vehicle.DepartureDelay < 0f || vehicle.DepartureDelay > LiveLoadTestRoster.MaxDepartureDelay || vehicle.Poses == null || vehicle.Poses.Length < 1 || vehicle.Poses.Length > 33)
+                throw new InvalidDataException("Invalid test vehicle identity, weight, delay or wheels.");
     }
 }
 
@@ -145,9 +186,9 @@ public sealed class ChallengeTestMotionChunk
 public static class ChallengeTestMotionCodec
 {
     public const int TargetsPerChunk = 8;
-    public const int MaxTargets = ChallengeBridgeSubmissionCodec.MaxBars + 33 + ChallengeTestDescriptor.MaxBoats;
+    public const int MaxTargets = ChallengeBridgeSubmissionCodec.MaxBars + 4 * 33 + ChallengeTestDescriptor.MaxBoats;
     public static byte[] Encode(int sequence, int offset, float time, IReadOnlyList<Transform> targets, IReadOnlyList<Bar> bars,
-        int wheelCount = -1, IReadOnlyList<BoatBridgeCrossing> boats = null)
+        int wheelCount = -1, IReadOnlyList<BoatBridgeCrossing> boats = null, IReadOnlyList<int> vehicleBodyIndices = null)
     {
         if (wheelCount < 0) wheelCount = targets.Count - bars.Count - 1;
         int boatStart = bars.Count + 1 + wheelCount;
@@ -169,12 +210,12 @@ public static class ChallengeTestMotionCodec
                     WriteVector(writer, bars[i].StartPosition); WriteVector(writer, bars[i].EndPosition);
                     writer.Write(bars[i].SessionSpectatorRopeLength);
                 }
-                else if (i > bars.Count && i < boatStart)
+                else if (TryGetWheelBody(i, bars.Count, boatStart, vehicleBodyIndices, out int bodyIndex))
                 {
                     // Wheels travel with the chassis even if its packet arrives
                     // before theirs. Independent world-space interpolation made
                     // child wheels lag behind, wobble and detach from the truck.
-                    Transform body = targets[bars.Count];
+                    Transform body = targets[bodyIndex];
                     WriteVector(writer, body.InverseTransformPoint(targets[i].position));
                     WriteRotation(writer, Quaternion.Inverse(body.rotation) * targets[i].rotation);
                 }
@@ -188,6 +229,15 @@ public static class ChallengeTestMotionCodec
             }
             return stream.ToArray();
         }
+    }
+    internal static bool TryGetWheelBody(int target, int firstBody, int boatStart, IReadOnlyList<int> bodies, out int body)
+    {
+        body = firstBody;
+        if (target < firstBody || target >= boatStart) return false;
+        if (bodies == null) return target > firstBody;
+        for (int index = bodies.Count - 1; index >= 0; index--)
+            if (target >= bodies[index]) { body = bodies[index]; return target > body; }
+        return false;
     }
     public static ChallengeTestMotionChunk Decode(byte[] bytes)
     {
@@ -260,6 +310,17 @@ public sealed class ChallengeBridgeTestView : IDisposable
     private readonly List<Transform> wakeBoats = new List<Transform>();
     private readonly List<Transform> impactSources = new List<Transform>();
     private int vehicleIndex, boatStart;
+    private readonly HashSet<int> wheelIndices = new HashSet<int>();
+    private readonly List<AdditionalVehicleAudio> additionalVehicleAudio = new List<AdditionalVehicleAudio>();
+    private sealed class AdditionalVehicleAudio
+    {
+        public int Index;
+        public VehicleSimulationLoop Loop;
+        public VehicleSimulationSound Sound;
+        public Vector3 Previous;
+        public bool HasPosition;
+        public float LastArrival = float.NegativeInfinity, LastMotion = float.NegativeInfinity;
+    }
     private readonly Dictionary<int, LineRenderer[]> ropes = new Dictionary<int, LineRenderer[]>();
     private static readonly Color RopeColor = new Color(0.72f, 0.43f, 0.25f, 1f);
     private Material ropeMaterial;
@@ -299,9 +360,6 @@ public sealed class ChallengeBridgeTestView : IDisposable
     {
         try
         {
-            LiveLoadVehicle source = ChallengeTestDescriptor.ResolveVehicle(descriptor.VehicleKey, site.gameObject.scene);
-            if (source == null || source.wheelObjects.Length + 1 != descriptor.VehiclePoses.Length)
-                throw new InvalidDataException("The guest's authored test vehicle or wheels do not match the host.");
             geometry = new HostWorldBridgeVisual(descriptor.Bridge, materials, creator.pointToInstantiate, null);
             UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(Root, site.gameObject.scene);
             Root.hideFlags = HideFlags.DontSave;
@@ -351,12 +409,19 @@ public sealed class ChallengeBridgeTestView : IDisposable
                     ropes.Add(i, lines);
                 }
             }
+            vehicleIndex = descriptor.Bridge.Bars.Count;
+            foreach (var vehicleDescriptor in descriptor.GetVehicles())
+            {
+            LiveLoadVehicle source = ChallengeTestDescriptor.ResolveVehicle(vehicleDescriptor.VehicleKey, site.gameObject.scene);
+            if (source == null || source.wheelObjects.Length + 1 != vehicleDescriptor.Poses.Length)
+                throw new InvalidDataException("The guest's authored test vehicle or wheels do not match the host.");
+            int bodyIndex = targets.Count;
             var map = new Dictionary<Transform, Transform>();
             GameObject vehicle = HostWorldBridgeVisual.CopyMeshes(source.gameObject, Root.transform, map);
             // The host's Awake can normalize an oversized FBX physics root.
             // An inactive guest source has not necessarily done so. Preserve
             // world-sized body meshes before assigning the host's root scale.
-            Vector3 sourceScale = source.transform.lossyScale, bodyScale = descriptor.VehiclePoses[0].Scale;
+            Vector3 sourceScale = source.transform.lossyScale, bodyScale = vehicleDescriptor.Poses[0].Scale;
             Vector3 normalization = new Vector3(ScaleRatio(sourceScale.x, bodyScale.x),
                 ScaleRatio(sourceScale.y, bodyScale.y), ScaleRatio(sourceScale.z, bodyScale.z));
             foreach (Transform child in vehicle.transform)
@@ -365,26 +430,27 @@ public sealed class ChallengeBridgeTestView : IDisposable
                 child.localScale = Vector3.Scale(child.localScale, normalization);
             }
             vehicle.SetActive(true); targets.Add(vehicle.transform);
-            vehicleSound = source.SimulationSound;
-            vehicleAudio = new VehicleSimulationLoop(vehicle.transform);
-            foreach (GameObject wheel in source.wheelObjects) targets.Add(map[wheel.transform]);
-            vehicleIndex = descriptor.Bridge.Bars.Count;
-            boatStart = vehicleIndex + descriptor.VehiclePoses.Length;
-            for (int i = 0; i < descriptor.VehiclePoses.Length; i++)
+            if (bodyIndex == vehicleIndex) { vehicleSound = source.SimulationSound; vehicleAudio = new VehicleSimulationLoop(vehicle.transform); }
+            else additionalVehicleAudio.Add(new AdditionalVehicleAudio { Index = bodyIndex, Loop = new VehicleSimulationLoop(vehicle.transform), Sound = source.SimulationSound });
+            foreach (GameObject wheel in source.wheelObjects) { wheelIndices.Add(targets.Count); targets.Add(map[wheel.transform]); }
+            int vehicleEnd = bodyIndex + vehicleDescriptor.Poses.Length;
+            for (int i = 0; i < vehicleDescriptor.Poses.Length; i++)
             {
-                Transform target = targets[descriptor.Bridge.Bars.Count + i]; var pose = descriptor.VehiclePoses[i];
+                Transform target = targets[bodyIndex + i]; var pose = vehicleDescriptor.Poses[i];
                 target.SetPositionAndRotation(pose.Position, pose.Rotation);
                 Vector3 scale = target.parent.lossyScale;
                 target.localScale = new Vector3(pose.Scale.x / scale.x, pose.Scale.y / scale.y, pose.Scale.z / scale.z);
             }
             // Flatten only the visual wheel parents. Physics axle objects are
             // absent on spectators and may differ between initialized editors.
-            for (int i = vehicleIndex + 1; i < boatStart; i++) targets[i].SetParent(vehicle.transform, true);
+            for (int i = bodyIndex + 1; i < vehicleEnd; i++) targets[i].SetParent(vehicle.transform, true);
             if (Application.isPlaying)
             {
-                WaterImpact.Register(vehicle.transform, vehicle.GetComponentsInChildren<Renderer>(true), null, null, descriptor.Weight);
+                WaterImpact.Register(vehicle.transform, vehicle.GetComponentsInChildren<Renderer>(true), null, null, vehicleDescriptor.Weight);
                 impactSources.Add(vehicle.transform);
             }
+            }
+            boatStart = targets.Count;
             for (int i = 0; i < descriptor.BoatKeys.Length; i++)
             {
                 BoatBridgeCrossing boatSource = ChallengeTestDescriptor.ResolveBoat(descriptor.BoatKeys[i], site.gameObject.scene);
@@ -432,6 +498,7 @@ public sealed class ChallengeBridgeTestView : IDisposable
             sample.Time = chunk.Time; sample.RopeLength = chunk.RopeLengths[j];
             sample.Sequence = chunk.Sequence; sample.Received = true; samples[index] = sample;
             if (index == vehicleIndex) lastVehicleSampleArrival = Time.unscaledTime;
+            foreach (var audio in additionalVehicleAudio) if (index == audio.Index) audio.LastArrival = Time.unscaledTime;
             if (boatRenderers.TryGetValue(index, out var boatMeshes))
                 foreach (Renderer renderer in boatMeshes) renderer.enabled = boatRendererStates[renderer] && (chunk.Stress[j] & 0x8000) == 0;
             if (index >= memberRenderers.Count) continue;
@@ -487,7 +554,7 @@ public sealed class ChallengeBridgeTestView : IDisposable
             float blend = next.Time > previous.Time ? Mathf.Clamp01((renderTime - previous.Time) / (next.Time - previous.Time)) : 1f;
             Vector3 position = Vector3.Lerp(previous.Position, next.Position, blend);
             Quaternion rotation = Quaternion.Slerp(previous.Rotation, next.Rotation, blend);
-            if (i > vehicleIndex && i < boatStart)
+            if (wheelIndices.Contains(i))
             { targets[i].localPosition = position; targets[i].localRotation = rotation; }
             else targets[i].SetPositionAndRotation(position, rotation);
             if (ropes.TryGetValue(i, out var lines))
@@ -511,6 +578,7 @@ public sealed class ChallengeBridgeTestView : IDisposable
             }
         }
         RefreshVehicleAudio(audioPaused);
+        foreach (var audio in additionalVehicleAudio) RefreshAdditionalVehicleAudio(audio, audioPaused);
     }
     private void RefreshVehicleAudio(bool audioPaused)
     {
@@ -539,13 +607,27 @@ public sealed class ChallengeBridgeTestView : IDisposable
         bool moving = Time.unscaledTime - lastVehicleAudioMotion <= VehicleAudioMotionGrace;
         vehicleAudio.Tick(vehicleSound, moving, paused);
     }
-    internal void SuspendAudio() => vehicleAudio?.Suspend();
-    internal void StopAudio() { vehicleAudioStopped = true; vehicleAudio?.Stop(); }
+    private void RefreshAdditionalVehicleAudio(AdditionalVehicleAudio audio, bool audioPaused)
+    {
+        bool paused = audioPaused || !Application.isFocused || AudioListener.pause || Time.timeScale <= 0f;
+        bool fresh = hasTimeline && !finalPose && !vehicleAudioStopped && samples[audio.Index].Received &&
+            Time.unscaledTime - audio.LastArrival <= VehicleAudioStreamTimeout;
+        if (!fresh) { audio.HasPosition = false; audio.LastMotion = float.NegativeInfinity; audio.Loop.Stop(); return; }
+        Vector3 position = targets[audio.Index].position;
+        Vector3 displacement = audio.HasPosition ? position - audio.Previous : Vector3.zero;
+        audio.Previous = position; audio.HasPosition = !paused; displacement.y = 0f;
+        float speed = Time.unscaledDeltaTime > .0001f ? displacement.magnitude / Time.unscaledDeltaTime : 0f;
+        if (!paused && ChallengeTestMotionCodec.Finite(speed) && speed >= .05f && displacement.sqrMagnitude < 25f) audio.LastMotion = Time.unscaledTime;
+        audio.Loop.Tick(audio.Sound, Time.unscaledTime - audio.LastMotion <= VehicleAudioMotionGrace, paused);
+    }
+    internal void SuspendAudio() { vehicleAudio?.Suspend(); foreach (var audio in additionalVehicleAudio) audio.Loop.Suspend(); }
+    internal void StopAudio() { vehicleAudioStopped = true; vehicleAudio?.Stop(); foreach (var audio in additionalVehicleAudio) audio.Loop.Stop(); }
     public void CompleteFinalFrame() { finalPose = true; Render(0f); }
     private static float ScaleRatio(float value, float scale) => Mathf.Abs(scale) > 0.00001f ? value / scale : 1f;
     public void Dispose()
     {
         vehicleAudio?.Dispose(); vehicleAudio = null; vehicleSound = null;
+        foreach (var audio in additionalVehicleAudio) audio.Loop.Dispose(); additionalVehicleAudio.Clear(); wheelIndices.Clear();
         foreach (Transform source in impactSources) WaterImpact.Unregister(source);
         impactSources.Clear();
         foreach (Transform boat in wakeBoats) BoatWaterWake.Unregister(boat);

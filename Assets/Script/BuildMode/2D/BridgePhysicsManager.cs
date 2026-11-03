@@ -478,13 +478,16 @@ public partial class BridgePhysicsManager : MonoBehaviour
     /// </summary>
     public bool TryGetCurrentVehicleRoadState(out float roadProgress, out float loadFactor)
     {
+        LiveLoadVehicle vehicle = MultiLoadSession != null ? MultiLoadSession.FocusVehicle :
+            deterministicLiveLoadVehicle != null ? deterministicLiveLoadVehicle :
+            sessionTestVehicle != null ? sessionTestVehicle : LiveLoadVehicle.FindActiveForContract(SimulationContract);
+        return TryGetVehicleRoadState(vehicle, out roadProgress, out loadFactor);
+    }
+
+    public bool TryGetVehicleRoadState(LiveLoadVehicle vehicle, out float roadProgress, out float loadFactor)
+    {
         roadProgress = 0f;
         loadFactor = 0f;
-
-        ContractSO contract = SimulationContract;
-        LiveLoadVehicle vehicle = deterministicLiveLoadVehicle != null
-            ? deterministicLiveLoadVehicle
-            : (sessionTestVehicle != null ? sessionTestVehicle : LiveLoadVehicle.FindActiveForContract(contract));
         if (vehicle == null || !TryResolveRoadSpan()) return false;
 
         float vehicleMinX;
@@ -653,6 +656,7 @@ public partial class BridgePhysicsManager : MonoBehaviour
 
     private void OnDestroy()
     {
+        CancelMultiLoadSession();
         WaterImpact.UnregisterManager(this);
         RestoreGlobalPhysicsSettings();
         if (IsSessionChallengeTest && sharedRoadPhysicsMat != null)
@@ -738,10 +742,13 @@ public partial class BridgePhysicsManager : MonoBehaviour
                     if (handler != null) handler.BeginTracking();
                 }
                 
+                MultiLoadSession?.BeginDriving();
                 OnSimulationStarted?.Invoke(); 
             }
             return; 
         }
+
+        if (isSimulating) MultiLoadSession?.Tick(Time.fixedDeltaTime);
 
         if (isSimulating && !lockStressTracking)
         {
@@ -758,6 +765,7 @@ public partial class BridgePhysicsManager : MonoBehaviour
             }
             using (RuntimeStressMarker.Auto())
             {
+            bool combinedStateChanged = MultiLoadSession != null && UpdateMultiLoadStress();
             bool hasDeterministicStress = deterministicStressResult != null &&
                 deterministicStressResult.IsValid;
             int deterministicSampleIndex = 0;
@@ -769,7 +777,7 @@ public partial class BridgePhysicsManager : MonoBehaviour
                 HasLiveLoadEngagedThisRun = true;
             if (hasDeterministicStress)
             {
-                deterministicLoadFactor = vehicleRoadLoadFactor;
+                deterministicLoadFactor = MultiLoadSession != null ? 1f : vehicleRoadLoadFactor;
                 if (hasVehicleRoadState && deterministicLoadFactor > 0f)
                 {
                     deterministicSampleIndex = Mathf.Clamp(
@@ -785,7 +793,7 @@ public partial class BridgePhysicsManager : MonoBehaviour
             bool usesDeterministicRuntimeState = hasDeterministicStress;
             if (usesDeterministicRuntimeState)
             {
-                bool stateChanged = !deterministicRuntimeStateApplied ||
+                bool stateChanged = combinedStateChanged || !deterministicRuntimeStateApplied ||
                     deterministicSampleIndex != lastDeterministicSampleIndex ||
                     !Mathf.Approximately(
                         deterministicLoadFactor,
@@ -981,6 +989,8 @@ public partial class BridgePhysicsManager : MonoBehaviour
         if (!IsSessionChallengeTest && (MultiplayerChallengeLobbyUI.IsChallengeActive ||
             (GameManager.Instance != null && GameManager.Instance.IsSessionChallengeBuild))) return;
         if (isSimulating || pendingSimulationStart) return;
+        if (!TryPrepareMultiLoadSession(SimulationLocation, out string rosterError))
+        { Debug.LogWarning("[Live Load Test] " + rosterError, this); return; }
         HadBrokenPartsThisRun = false;
         HasLiveLoadEngagedThisRun = false;
         FirstMemberFailureDescription = string.Empty;
@@ -1115,6 +1125,7 @@ public partial class BridgePhysicsManager : MonoBehaviour
         if (!isSimulating && !pendingSimulationStart) return;
         constructionReceipt = null;
         receiptLocation = null;
+        CancelMultiLoadSession();
         
         isSimulating = false;
         pendingSimulationStart = false;
@@ -1302,15 +1313,23 @@ public partial class BridgePhysicsManager : MonoBehaviour
         deterministicAnalysisPrepared = true;
 
         ContractSO contract = SimulationContract;
-        float liveLoadKg = sessionTestVehicle != null ? sessionTestVehicle.TotalTestWeight : LiveLoadVehicle.GetContractTestWeight(contract);
-        deterministicLiveLoadVehicle = sessionTestVehicle != null ? sessionTestVehicle : LiveLoadVehicle.FindActiveForContract(contract);
+        float liveLoadKg = MultiLoadSession != null ? 0f :
+            sessionTestVehicle != null ? sessionTestVehicle.TotalTestWeight : LiveLoadVehicle.GetContractTestWeight(contract);
+        deterministicLiveLoadVehicle = MultiLoadSession != null ? MultiLoadSession.FocusVehicle :
+            sessionTestVehicle != null ? sessionTestVehicle : LiveLoadVehicle.FindActiveForContract(contract);
         bool hasRoadSpan = TryResolveRoadSpan();
-        deterministicStressResult = DeterministicBridgeStressSolver.Analyze(
-            deterministicPoints,
-            deterministicBars,
-            liveLoadKg,
-            displayLiveLoadStressOnly,
-            deterministicLoadSamples);
+        if (MultiLoadSession != null)
+        {
+            multiLoadPreparedStress = DeterministicBridgeStressSolver.Prepare(
+                deterministicPoints, deterministicBars, displayLiveLoadStressOnly);
+            multiLoadStressInputsValid = false;
+            deterministicStressResult = multiLoadPreparedStress != null
+                ? multiLoadPreparedStress.Evaluate(Array.Empty<DeterministicBridgeStressSolver.PointLoad>()) : null;
+        }
+        else
+            deterministicStressResult = DeterministicBridgeStressSolver.Analyze(
+                deterministicPoints, deterministicBars, liveLoadKg,
+                displayLiveLoadStressOnly, deterministicLoadSamples);
 
         if (deterministicStressResult == null || !deterministicStressResult.IsValid)
         {
@@ -1367,9 +1386,17 @@ public partial class BridgePhysicsManager : MonoBehaviour
             LiveLoadVehicle.GetContractTestWeight(SimulationContract);
         // Preserve authored geometry for repeatable force calculations, but remove
         // detached members. The visual deformation monitor handles actual motion.
-        deterministicStressResult = DeterministicBridgeStressSolver.Analyze(
-            deterministicPoints, remaining, loadKg, displayLiveLoadStressOnly,
-            deterministicLoadSamples, true);
+        if (MultiLoadSession != null)
+        {
+            multiLoadPreparedStress = DeterministicBridgeStressSolver.Prepare(
+                deterministicPoints, remaining, displayLiveLoadStressOnly, true);
+            multiLoadStressInputsValid = false;
+            deterministicStressResult = multiLoadPreparedStress != null
+                ? multiLoadPreparedStress.Evaluate(Array.Empty<DeterministicBridgeStressSolver.PointLoad>()) : null;
+        }
+        else
+            deterministicStressResult = DeterministicBridgeStressSolver.Analyze(
+                deterministicPoints, remaining, loadKg, displayLiveLoadStressOnly, deterministicLoadSamples, true);
         deterministicStructureStable = deterministicStressResult != null && deterministicStressResult.IsStructurallyStable;
         deterministicRuntimeStateApplied = false;
         deterministicRuntimeStateReusable = false;

@@ -463,6 +463,12 @@ public class LevelCompleteManager : MonoBehaviour
             (GameManager.Instance != null && GameManager.Instance.IsSessionChallengeBuild)) return;
         if (levelAlreadyCompleted) return;
 
+        if (currentContract != null && currentContract.HasMultipleLiveLoads)
+        {
+            LiveLoadTestSession session = cachedPhysicsManager != null ? cachedPhysicsManager.MultiLoadSession : null;
+            if (session == null || session.Roster.Contract != currentContract || !session.AllPassed || session.Failed) return;
+        }
+
         levelAlreadyCompleted = true;
         activeContract = currentContract;
         BuildLocation completedLocation = GameManager.Instance != null
@@ -618,6 +624,9 @@ public class LevelCompleteManager : MonoBehaviour
                 ReceiptRowUI rowUI = rowObj.GetComponent<ReceiptRowUI>();
                 if (rowUI != null) rowUI.Setup(kvp.Key, kvp.Value);
             }
+            ContractLiveLoadPresentation.AppendReceiptResults(receiptContentParent,
+                ReceiptFont != null ? ReceiptFont : (feedbackText != null ? feedbackText.font : TMP_Settings.defaultFontAsset),
+                cachedPhysicsManager != null ? cachedPhysicsManager.MultiLoadSession : null);
         }
 
         SimulationLessonPresenter.HideForResultOverlay();
@@ -1460,6 +1469,9 @@ public class LevelCompleteManager : MonoBehaviour
             int rows = source != null
                 ? source.PopulateGuestReceiptRows(receiptContentParent, receiptRowPrefab,
                     result.ContractHash) : 0;
+            ContractLiveLoadPresentation.AppendReceiptResults(receiptContentParent,
+                ReceiptFont != null ? ReceiptFont : (feedbackText != null ? feedbackText.font : TMP_Settings.defaultFontAsset),
+                source != null ? source.GetRemoteMultiLoadResults() : string.Empty);
             if (rows == 0 && guestReceiptPlaceholder != null)
                 guestReceiptPlaceholder.SetActive(true);
         }

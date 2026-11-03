@@ -41,6 +41,16 @@ public class BuildLocation : Interactable
     
     [Header("Active Contract")]
     public ContractSO activeContract; 
+    [Header("Multiple Live Load Bindings")]
+    [Tooltip("Match each permanent contract entry ID to its exact scene vehicle. Leave empty for Single mode.")]
+    public List<ContractLiveLoadBinding> liveLoadVehicles = new List<ContractLiveLoadBinding>();
+
+    private void OnEnable()
+    {
+        if (liveLoadVehicles == null) return;
+        foreach (ContractLiveLoadBinding binding in liveLoadVehicles)
+            if (binding != null && binding.vehicle != null) binding.vehicle.BindMultiLoadEntry(this, binding.entryId);
+    }
 
     [Header("Completion Achievement")]
     [Tooltip("Optional. Assign an AchievementSO whose Goal Type is Build Location Completed. It unlocks after a valid bridge is saved here.")]

@@ -13,6 +13,20 @@ MonoBehaviour:
   m_Name: Ford Contract
   m_EditorClassIdentifier: 
   liveLoadMode: 0
+  vehicleTestMode: 2
+  liveLoadTests:
+  - entryId: 3b512da454a74c88b2ea8e444225f45c
+    displayName: Ford Truck 1
+    emptyWeightKg: 1000
+    departureDelay: 0
+    allowCargo: 0
+    minimumLoadedCargo: 0
+  - entryId: 0c2c6c854f754fabbe049d67ad539bae
+    displayName: Ford Truck 2
+    emptyWeightKg: 1000
+    departureDelay: 0
+    allowCargo: 0
+    minimumLoadedCargo: 0
   allowVehicleCargo: 0
   minimumLoadedCargo: 0
   cargoUnlockProgressionId: 

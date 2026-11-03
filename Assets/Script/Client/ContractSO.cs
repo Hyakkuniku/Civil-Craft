@@ -48,8 +48,15 @@ public class ContractSO : ScriptableObject
 {
     public enum WinCondition { FinishLine, Timer }
     public enum LiveLoadMode { Vehicle, PlayerCarriedCargo }
+    public enum VehicleTestMode { Single, Sequential, Together }
     [Header("Live Load Test")]
     public LiveLoadMode liveLoadMode = LiveLoadMode.Vehicle;
+    [Tooltip("Single preserves existing contracts. Sequential and Together require 2–4 explicitly bound vehicles and Finish Line completion.")]
+    public VehicleTestMode vehicleTestMode = VehicleTestMode.Single;
+    public List<ContractLiveLoadEntry> liveLoadTests = new List<ContractLiveLoadEntry>();
+    public bool HasMultipleLiveLoads => vehicleTestMode != VehicleTestMode.Single;
+    public bool AllowsAnyVehicleCargo => liveLoadMode == LiveLoadMode.Vehicle &&
+        (HasMultipleLiveLoads ? liveLoadTests != null && liveLoadTests.Exists(entry => entry != null && entry.allowCargo) : allowVehicleCargo);
     [Header("Optional Vehicle Cargo")]
     [Tooltip("Vehicle contracts only: allow the player to load cargo into the truck. Live Load Weight is the empty vehicle weight; loaded Cargo Item weights are added.")]
     public bool allowVehicleCargo;

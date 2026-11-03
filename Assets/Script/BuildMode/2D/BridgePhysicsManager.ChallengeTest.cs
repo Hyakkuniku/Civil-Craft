@@ -17,14 +17,19 @@ public partial class BridgePhysicsManager
     {
         if (location == null || !location.IsSessionChallengeLocation || vehicle == null || IsSimulationActive)
             throw new System.InvalidOperationException("Invalid isolated challenge simulation context.");
-        sessionTestLocation = location; sessionTestVehicle = vehicle;
+        sessionTestLocation = location; sessionTestVehicle = vehicle; sessionTestRoster = null;
     }
 
     internal void FreezeSessionChallengeTest()
     {
         if (!IsSessionChallengeTest) return;
         isSimulating = pendingSimulationStart = false; lockStressTracking = true;
-        sessionTestVehicle.EmergencyStop();
+        if (MultiLoadSession != null)
+        {
+            foreach (LiveLoadTestParticipant participant in MultiLoadSession.Participants)
+                if (participant.Definition.Vehicle != null) participant.Definition.Vehicle.EmergencyStop();
+        }
+        else if (sessionTestVehicle != null) sessionTestVehicle.EmergencyStop();
         foreach (Rigidbody body in sessionTestLocation.GetComponentsInChildren<Rigidbody>(true))
         {
             if (!body.isKinematic) { body.velocity = Vector3.zero; body.angularVelocity = Vector3.zero; }

@@ -1103,10 +1103,12 @@ public class ObjectiveTrackerUI : MonoBehaviour
         offerTitleLabel.text = status + "  •  " + clientName + "'s Request";
         offerDescriptionLabel.text =
             "<size=18><color=#765A43>PROJECT BRIEF</color></size>\n" + projectBrief;
+        ContractLiveLoadPresentation.ShowScrollableBrief(offerDescriptionLabel, contract, projectBrief);
         offerBudgetValue.text =
             $"<size=18><color=#765A43>BUDGET</color></size>\n<b>₱{contract.budget:N0}</b>";
         offerLoadValue.text =
-            $"<size=18><color=#765A43>LIVE LOAD</color></size>\n<b>{contract.liveLoadWeight:N0} kg</b>";
+            "<size=18><color=#765A43>LIVE LOAD" + (contract.HasMultipleLiveLoads ? "S · " + contract.vehicleTestMode : string.Empty) + "</color></size>\n<b>" +
+            (contract.HasMultipleLiveLoads ? contract.liveLoadTests.Count + " vehicles" : ContractLiveLoadPresentation.ShortSummary(contract)) + "</b>";
         offerSpanValue.text =
             $"<size=18><color=#765A43>REQUIRED SPAN</color></size>\n<b>{contract.bridgeSpan:0.#} m</b>";
         int displayedGold = task != null && task.isReadyToTurnIn

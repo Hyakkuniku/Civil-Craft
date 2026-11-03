@@ -1613,6 +1613,7 @@ MonoBehaviour:
   diveDuration: 1.2
   lockPlayerToZone: 0
   activeContract: {fileID: 0}
+  liveLoadVehicles: []
   completionAchievement: {fileID: 0}
   hideWhenAnotherBuildLocationIsActive: 1
   buildSiteVisualRoots: []

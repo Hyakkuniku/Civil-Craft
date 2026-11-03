@@ -229,7 +229,8 @@ public class ContractAlmanacTab : MonoBehaviour
         if (titleText != null) titleText.text = contract.name;
         string clientName = string.IsNullOrWhiteSpace(contract.clientName) ? "UNKNOWN CLIENT" : contract.clientName.Trim();
         if (clientText != null) clientText.text = "COMMISSIONED BY  /  " + clientName.ToUpperInvariant();
-        if (descriptionText != null) descriptionText.text = contract.jobDescription;
+        if (descriptionText != null) descriptionText.text = contract.jobDescription +
+            (contract.HasMultipleLiveLoads ? "\n\n" + ContractLiveLoadPresentation.Requirements(contract) : string.Empty);
         if (rewardsText != null)
             rewardsText.text = "<b>" + contract.goldReward.ToString("N0") + "</b>   CONTRACT PAY\n" +
                                "<b>" + contract.expReward.ToString("N0") + "</b>   EXPERIENCE";

@@ -14,7 +14,7 @@ public static class ConcreteBeamSetup
     private const string SelectedPath = "Assets/Elements/UI/bm_ui/concrete beam selected.png";
     private const string PrefabPath = "Assets/Prefabs/BuildingMode/MANAGERS AND CANVASES.prefab";
     private const string VersionKey = "CivilCraft.ConcreteBeam.Authored.v3";
-    private const string BalanceVersionKey = "CivilCraft.ConcreteMaterials.Balance.v1";
+    private const string BalanceVersionKey = "CivilCraft.ConcreteMaterials.Balance.v3";
     static ConcreteBeamSetup()
     {
         EditorApplication.delayCall += TrySetup;
@@ -43,6 +43,7 @@ public static class ConcreteBeamSetup
         BridgeMaterialSO beam = AssetDatabase.LoadAssetAtPath<BridgeMaterialSO>(MaterialPath);
         BridgeMaterialSO road = AssetDatabase.LoadAssetAtPath<BridgeMaterialSO>("Assets/BridgeBuilder/Data/Resources/Concrete Road.asset");
         if (beam == null || road == null) { Debug.LogError("[Concrete Balance] Materials missing."); return; }
+        ValidateDeckClearance(beam, road);
         ValidateConcreteDeckSupport(beam);
         ValidateLongConcreteTruss(beam, road);
     }
@@ -237,6 +238,51 @@ public static class ConcreteBeamSetup
                 { Debug.LogError("[Concrete Beam] Visual does not fit the placed endpoints: " + bounds); return; }
             }
             Debug.Log($"[Concrete Beam] PASS: two 8m visuals; size={renderers[0].bounds.size}, cost={bar.GetCost():0}, placed mass/m={material.GetPlacedMassPerMeter():0}, tension={material.maxTension:0}N, compression={material.maxCompression:0}N.");
+        }
+        finally { Object.DestroyImmediate(parent); EditorSceneManager.ClosePreviewScene(preview); }
+    }
+
+    private static void ValidateDeckClearance(BridgeMaterialSO beam, BridgeMaterialSO road)
+    {
+        Scene preview = EditorSceneManager.NewPreviewScene();
+        GameObject parent = EditorUtility.CreateGameObjectWithHideFlags("Concrete Deck Clearance", HideFlags.HideAndDontSave);
+        SceneManager.MoveGameObjectToScene(parent, preview);
+        try
+        {
+            Point joint = TestPoint(parent.transform, Vector3.zero, false);
+            Point deckEnd = TestPoint(parent.transform, new Vector3(8f, 0f, 0f), true);
+            Point braceEnd = TestPoint(parent.transform, new Vector3(5f, 4f, 0f), false);
+            Bar deck = TestBar(parent.transform, road, joint, deckEnd);
+            Bar brace = TestBar(parent.transform, beam, joint, braceEnd);
+            deck.Initialize(road);
+            brace.Initialize(beam);
+            Renderer deckRenderer = deck.GetComponentInChildren<Renderer>();
+            Renderer[] beamRenderers = brace.GetComponentsInChildren<Renderer>();
+            if (deckRenderer == null || beamRenderers.Length != 2)
+            {
+                Debug.LogError("[Concrete Beam] Missing road mesh or paired beam meshes.");
+                return;
+            }
+            float minimumClearance = float.PositiveInfinity;
+            foreach (float slope in new[] { -3f, 0f, 3f })
+            foreach (float rise in new[] { -4f, 4f })
+            {
+                deck.UpdateCreatingBar(new Vector3(8f, slope, 0f));
+                brace.UpdateCreatingBar(new Vector3(5f, rise, 0f));
+                Bounds roadBounds = deckRenderer.bounds;
+                foreach (Renderer renderer in beamRenderers)
+                {
+                    Bounds beamBounds = renderer.bounds;
+                    float clearance = beamBounds.center.z > roadBounds.center.z
+                        ? beamBounds.min.z - roadBounds.max.z
+                        : roadBounds.min.z - beamBounds.max.z;
+                    minimumClearance = Mathf.Min(minimumClearance, clearance);
+                }
+            }
+            if (minimumClearance < 0f || minimumClearance > .05f)
+                Debug.LogError($"[Concrete Beam] Side beam clearance should be 0–5 cm. Measured {minimumClearance:F3} m.");
+            else
+                Debug.Log($"[Concrete Beam] PASS: both beam sides clear flat and sloped concrete decks by at least {minimumClearance:F3} m.");
         }
         finally { Object.DestroyImmediate(parent); EditorSceneManager.ClosePreviewScene(preview); }
     }

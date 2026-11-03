@@ -36,6 +36,7 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
     private LiveLoadVehicle vehicleSource;
     private BridgePhysicsManager settings;
     private float testWeight;
+    private LiveLoadTestRoster frozenRoster;
     private readonly Dictionary<GameObject, bool> vehicleVisibility = new Dictionary<GameObject, bool>();
     private byte[] pendingPresentation, pendingFinal;
     private int pendingPresentationIndex, pendingFinalIndex;
@@ -268,7 +269,8 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
                 throw new InvalidOperationException("This milestone supports vehicle crossings; this location has no vehicle test.");
             if (vehicleSource == null)
             {
-                vehicleSource = ChallengeTestDescriptor.ResolveVehicle(state.ChallengeVehicleKey.ToString(), site.gameObject.scene);
+                frozenRoster = ChallengeLiveLoadRoster.FromState(state, site, definition);
+                vehicleSource = frozenRoster.Participants[0].Vehicle;
                 if (vehicleSource == null) throw new InvalidOperationException("No authored vehicle matches this challenge contract.");
                 testWeight = state.ChallengeVehicleWeight; // Same host-frozen loaded mass shown during building, for BOTH designs.
                 if (!ChallengeTestMotionCodec.Finite(testWeight) || testWeight <= 0f)
@@ -284,7 +286,7 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
             if (ChallengeBridgeSubmissionRules.Validate(graph, site, definition, ChallengeBridgeSubmissionRules.CreateMaterialCatalog(definition),
                 workspace.Creator.pierBaseY, out _, workspace.Creator.nodeSnapDepthTolerance) != ChallengeSubmissionError.None)
                 throw new InvalidOperationException("The accepted bridge no longer matches the challenge definition.");
-            run = ChallengeBridgeTestRun.Create(graph, site, definition, workspace.Creator, settings, vehicleSource, testWeight, revision, index);
+            run = ChallengeBridgeTestRun.Create(graph, site, definition, workspace.Creator, settings, vehicleSource, testWeight, revision, index, frozenRoster);
         }
         catch (Exception error) { FailSetup(error); yield break; }
         // Start must subscribe the isolated vehicle before the first settling event,
@@ -296,9 +298,18 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
             var descriptor = new ChallengeTestDescriptor { Bridge = run.CapturePresentation(host.ChallengeState.SiteKey.ToString()),
                 VehicleKey = ChallengeTestDescriptor.VehiclePath(vehicleSource), Weight = testWeight,
                 VehiclePoses = new HostWorldBridgePose[run.Vehicle.wheelObjects.Length + 1],
+                Mode = frozenRoster.Mode, Vehicles = new ChallengeTestVehicle[run.Vehicles.Count],
                 BoatKeys = run.BoatKeys.ToArray(), BoatPoses = new HostWorldBridgePose[run.Boats.Count] };
             descriptor.VehiclePoses[0] = HostWorldBridgePose.World(run.Vehicle.transform);
             for (int i = 0; i < run.Vehicle.wheelObjects.Length; i++) descriptor.VehiclePoses[i + 1] = HostWorldBridgePose.World(run.Vehicle.wheelObjects[i].transform);
+            for (int entry = 0; entry < run.Vehicles.Count; entry++)
+            {
+                LiveLoadVehicle participant = run.Vehicles[entry]; var frozen = frozenRoster.Participants[entry];
+                var poses = new HostWorldBridgePose[participant.wheelObjects.Length + 1]; poses[0] = HostWorldBridgePose.World(participant.transform);
+                for (int wheel = 0; wheel < participant.wheelObjects.Length; wheel++) poses[wheel + 1] = HostWorldBridgePose.World(participant.wheelObjects[wheel].transform);
+                descriptor.Vehicles[entry] = new ChallengeTestVehicle { EntryId = frozen.EntryId, DisplayName = frozen.DisplayName,
+                    VehicleKey = ChallengeTestDescriptor.VehiclePath(frozen.Vehicle), Weight = frozen.WeightKg, DepartureDelay = frozen.DepartureDelay, Poses = poses };
+            }
             for (int i = 0; i < run.Boats.Count; i++) descriptor.BoatPoses[i] = HostWorldBridgePose.World(run.Boats[i].transform);
             // Keep the immutable view until this test ends. A transport callback
             // may precede the guest's matching snapshot; it can explicitly pull
@@ -337,6 +348,17 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
                 descriptor.VehicleKey != state.ChallengeVehicleKey.ToString() || descriptor.Weight != state.ChallengeVehicleWeight ||
                 descriptor.Bridge.Bars.Count != (MultiplayerChallengeRules.TestsHostBridge(state) ? state.HostSubmittedBars : state.GuestSubmittedBars))
                 throw new InvalidDataException("The test view does not match the accepted bridge.");
+            var acceptedRoster = ChallengeLiveLoadRoster.FromState(state, site, definition);
+            var presented = descriptor.GetVehicles();
+            if (descriptor.Mode != acceptedRoster.Mode || presented.Length != acceptedRoster.Participants.Count)
+                throw new InvalidDataException("The test view has a different live-load roster.");
+            for (int entry = 0; entry < presented.Length; entry++)
+            {
+                var accepted = acceptedRoster.Participants[entry]; var received = presented[entry];
+                if (received.EntryId != accepted.EntryId || received.VehicleKey != ChallengeTestDescriptor.VehiclePath(accepted.Vehicle) ||
+                    received.Weight != accepted.WeightKg || received.DepartureDelay != accepted.DepartureDelay)
+                    throw new InvalidDataException("The test view changed a frozen vehicle, weight or departure.");
+            }
             HideWorldVehicles(site, definition);
             BridgePhysicsManager guestSettings = FindObjectOfType<BridgePhysicsManager>(true);
             view = new ChallengeBridgeTestView(descriptor, site, workspace.Creator, ChallengeBridgeSubmissionRules.CreateMaterialCatalog(definition), guestSettings);
@@ -358,14 +380,15 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
         if (!resultRecorded)
         {
             var outcome = run.Step(Time.fixedDeltaTime, LevelFailedManager.Instance, maximumTestSeconds);
+            if (outcome != ChallengeTestOutcome.None) host.PublishChallengeTestProgress(run.Elapsed, run.Physics.GetMaxBridgeStress(), run.Physics.MultiLoadSession);
             if (outcome != ChallengeTestOutcome.None && host.RecordChallengeTest(revision, index, outcome, run.Elapsed, run.PeakStress))
             {
                 resultRecorded = true; resultTime = Time.unscaledTime;
-                run.Vehicle?.StopSimulationSound();
+                foreach (var participant in run.Vehicles) participant.StopSimulationSound();
             }
         }
         if (Time.unscaledTime >= nextProgressTime)
-        { nextProgressTime = Time.unscaledTime + 0.1f; host.PublishChallengeTestProgress(run.Elapsed, run.Physics.GetMaxBridgeStress()); }
+        { nextProgressTime = Time.unscaledTime + 0.1f; host.PublishChallengeTestProgress(run.Elapsed, run.Physics.GetMaxBridgeStress(), run.Physics.MultiLoadSession); }
         if (resultRecorded && !frozen && Time.unscaledTime - resultTime >= resultObservationSeconds)
         {
             run.Physics.FreezeSessionChallengeTest();
@@ -399,7 +422,7 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
         while (cursor < run.MotionTargets.Count && messages++ < 16)
         {
             byte[] chunk = ChallengeTestMotionCodec.Encode(sequence, cursor, Time.unscaledTime - motionEpoch,
-                run.MotionTargets, run.Bars, run.Vehicle.wheelObjects.Length, run.Boats);
+                run.MotionTargets, run.Bars, run.VehiclePoseCount - 1, run.Boats, run.VehicleBodyIndices);
             float chargedBytes = chunk.Length + 64; // Include an allowance for Fusion/transport headers.
             if (motionCredit < chargedBytes) return;
             motionCredit -= chargedBytes;
@@ -440,7 +463,7 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
         }
         if (
             (kind != PresentationMessage && kind != FinalFrameMessage) || data.Length == 0 ||
-            data.Length > HostWorldBridgeSnapshotCodec.MaxPacketBytes + 4096 ||
+            data.Length > ChallengeTestPacketAssembly.MaximumBytes ||
             !CanBufferTestPacket(host.ChallengeState, receivedRevision, receivedIndex, kind == FinalFrameMessage))
         {
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
@@ -490,7 +513,7 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
             for (int offset = 0; offset < run.MotionTargets.Count; offset += ChallengeTestMotionCodec.TargetsPerChunk)
             {
                 byte[] chunk = ChallengeTestMotionCodec.Encode(sequence, offset, Time.unscaledTime - motionEpoch,
-                    run.MotionTargets, run.Bars, run.Vehicle.wheelObjects.Length, run.Boats);
+                    run.MotionTargets, run.Bars, run.VehiclePoseCount - 1, run.Boats, run.VehicleBodyIndices);
                 writer.Write(chunk.Length); writer.Write(chunk);
             }
             return stream.ToArray();
@@ -544,7 +567,7 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
         run?.Dispose(); run = null; view?.Dispose(); view = null;
         if (workspace != null && workspace.Root != null) workspace.Root.SetActive(workspaceWasActive);
         foreach (var entry in vehicleVisibility) if (entry.Key != null) entry.Key.SetActive(entry.Value);
-        vehicleVisibility.Clear(); workspace = null; vehicleSource = null; settings = null; host = null;
+        vehicleVisibility.Clear(); workspace = null; vehicleSource = null; frozenRoster = null; settings = null; host = null;
         presentationUI = null; guestIntroductionPending = false;
         pendingPresentation = pendingFinal = null;
         preparedPresentation = null; presentationRequests = presentationRequestIndex = 0;

@@ -52,8 +52,11 @@ public sealed partial class MultiplayerChallengeLobbyUI
         if (liveLoadLabel != null)
         {
             bool building = buildWorkspace != null && !MultiplayerChallengeRules.IsTestPhase(state.Phase);
-            liveLoadLabel.gameObject.SetActive(building && state.ChallengeVehicleWeight > 0f);
+            bool showLoads = building || state.LiveLoadCount > 1 && state.Phase == MultiplayerChallengePhase.Testing;
+            liveLoadLabel.gameObject.SetActive(showLoads && state.ChallengeVehicleWeight > 0f);
             liveLoadLabel.text = "LIVE LOAD\n" + Emphasis(state.ChallengeVehicleWeight.ToString("N0") + " kg", "F2CD80");
+            ContractLiveLoadPresentation.ShowScrollableText(liveLoadLabel as TextMeshProUGUI,
+                showLoads && state.LiveLoadCount > 1, ChallengeLiveLoadRoster.Describe(state));
         }
     }
 
@@ -227,7 +230,26 @@ public sealed partial class MultiplayerChallengeLobbyUI
             state.ChallengeBudget, state.HostPeakStress);
         if (resultsGuestDetails != null) resultsGuestDetails.text = ResultsDetails(state.GuestTestOutcome, state.GuestSubmittedCost,
             state.ChallengeBudget, state.GuestPeakStress);
+        ContractLiveLoadPresentation.ShowScrollableText(resultsHostDetails as TextMeshProUGUI, state.LiveLoadCount > 1,
+            ResultsDetails(state.HostTestOutcome, state.HostSubmittedCost, state.ChallengeBudget, state.HostPeakStress) +
+            ParticipantResults(state, state.HostLiveLoadPassedMask, state.HostLiveLoadFailedMask));
+        ContractLiveLoadPresentation.ShowScrollableText(resultsGuestDetails as TextMeshProUGUI, state.LiveLoadCount > 1,
+            ResultsDetails(state.GuestTestOutcome, state.GuestSubmittedCost, state.ChallengeBudget, state.GuestPeakStress) +
+            ParticipantResults(state, state.GuestLiveLoadPassedMask, state.GuestLiveLoadFailedMask));
         RefreshResultPortraits(state);
+    }
+
+    private static string ParticipantResults(MultiplayerChallengeState state, int passed, int failed)
+    {
+        var text = new System.Text.StringBuilder("\n\nLIVE LOAD RESULTS");
+        for (int index = 0; index < state.LiveLoadCount && index < 4; index++)
+        {
+            var entry = ChallengeLiveLoadRoster.Entry(state, index);
+            text.Append('\n').Append(PlainText(entry.DisplayName.ToString())).Append(": ");
+            text.Append((passed & (1 << index)) != 0 ? "<color=#376F42>Passed</color>" :
+                (failed & (1 << index)) != 0 ? "<color=#9B3F2F>Failed</color>" : "Not completed");
+        }
+        return text.ToString();
     }
 
     internal static string ScoreLabel(int hundredths) => $"<b>{hundredths / 100.0:0.00}</b><size=45%> / 100</size>";

@@ -35,15 +35,18 @@ public static class DeterministicBridgeStressSolver
         public Bar[] Bars { get; }
         public Sample[] Samples { get; }
         public Sample DeadLoadSample { get; }
-        public float PeakDisplayedStress { get; }
-        public float PeakStructuralStress { get; }
+        public float PeakDisplayedStress { get; private set; }
+        public float PeakStructuralStress { get; private set; }
         /// <summary>
         /// False when the authored bars contain a free mechanism. This is exposed
         /// for diagnostics; gameplay still uses the calculated member stresses and
         /// lets the physics simulation demonstrate the mechanism's deformation.
         /// </summary>
-        public bool IsStructurallyStable { get; }
+        public bool IsStructurallyStable { get; private set; }
         public bool IsValid => Bars.Length > 0 && Samples.Length > 0;
+
+        internal void SetCurrentState(float displayed, float structural, bool stable)
+        { PeakDisplayedStress = displayed; PeakStructuralStress = structural; IsStructurallyStable = stable; }
 
         public bool TryGetStress(Bar bar, int sampleIndex, out float displayed, out float structural, out bool tension)
         {
@@ -127,12 +130,58 @@ public static class DeterministicBridgeStressSolver
     private const decimal MillimetresPerMetre = 1000m;
     private const decimal MinimumPivot = 0.000000000001m;
 
-    public static Result Analyze(
+    /// <summary>A live-load contribution already scaled by actual wheel contact with the bridge.</summary>
+    public readonly struct PointLoad
+    {
+        public readonly float WorldX;
+        public readonly float WeightKg;
+        public PointLoad(float worldX, float weightKg) { WorldX = worldX; WeightKg = weightKg; }
+    }
+
+    /// <summary>Prepared geometry and cached active-set factors. Evaluate returns one reused current result.</summary>
+    public sealed class PreparedAnalysis
+    {
+        private readonly Func<IReadOnlyList<PointLoad>, Result> evaluate;
+        private readonly Func<int, int, float, Result> evaluateSample;
+        public float RoadMinX { get; }
+        public float RoadMaxX { get; }
+        internal PreparedAnalysis(Func<IReadOnlyList<PointLoad>, Result> evaluator,
+            Func<int, int, float, Result> sampler, float minX, float maxX)
+        { evaluate = evaluator; evaluateSample = sampler; RoadMinX = minX; RoadMaxX = maxX; }
+        public Result Evaluate(IReadOnlyList<PointLoad> loads) => evaluate(loads ?? Array.Empty<PointLoad>());
+        internal Result EvaluateSample(int index, int count, float kg) => evaluateSample(index, count, kg);
+    }
+
+    // Preserve the single-load sampling API used by Bridge Stats and legacy contracts.
+    public static Result Analyze(IList<Point> sourcePoints, IList<Bar> sourceBars, float liveLoadKg,
+        bool displayLiveLoadOnly, int requestedSampleCount, bool usePreSimulationPositions = false)
+    {
+        PreparedAnalysis prepared = Prepare(sourcePoints, sourceBars, displayLiveLoadOnly, usePreSimulationPositions);
+        if (prepared == null) return null;
+        int count = Mathf.Clamp(requestedSampleCount, 3, 201);
+        var samples = new Sample[count]; Result current = null;
+        float peakDisplayed = 0f, peakStructural = 0f; bool stable = true;
+        for (int index = 0; index < count; index++)
+        {
+            if (liveLoadKg == 0f && index > 0) { samples[index] = samples[0]; continue; }
+            current = prepared.EvaluateSample(index, count, liveLoadKg);
+            if (current == null) return null;
+            Sample source = current.Samples[0], sample = new Sample(current.Bars.Length);
+            Array.Copy(source.DisplayedRatios, sample.DisplayedRatios, current.Bars.Length);
+            Array.Copy(source.StructuralRatios, sample.StructuralRatios, current.Bars.Length);
+            Array.Copy(source.IsTension, sample.IsTension, current.Bars.Length);
+            samples[index] = sample;
+            peakDisplayed = Mathf.Max(peakDisplayed, current.PeakDisplayedStress);
+            peakStructural = Mathf.Max(peakStructural, current.PeakStructuralStress);
+            stable &= current.IsStructurallyStable;
+        }
+        return new Result(current.Bars, samples, current.DeadLoadSample, peakDisplayed, peakStructural, stable);
+    }
+
+    public static PreparedAnalysis Prepare(
         IList<Point> sourcePoints,
         IList<Bar> sourceBars,
-        float liveLoadKg,
         bool displayLiveLoadOnly,
-        int requestedSampleCount,
         bool usePreSimulationPositions = false)
     {
         if (sourcePoints == null || sourceBars == null) return null;
@@ -330,34 +379,39 @@ public static class DeterministicBridgeStressSolver
         }
         if (roadMemberIndices.Count == 0 || roadMaxX <= roadMinX) return null;
 
-        int sampleCount = Mathf.Clamp(requestedSampleCount, 3, 201);
-        Sample[] samples = new Sample[sampleCount];
-        float peakDisplayed = 0f;
-        float peakStructural = 0f;
-        decimal vehicleWeight = QuantizeMass(liveLoadKg) * Gravity;
-
-        for (int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++)
+        Bar[] resultBars = new Bar[members.Count];
+        for (int i = 0; i < members.Count; i++) resultBars[i] = members[i].Bar;
+        var sample = new Sample(members.Count);
+        var current = new Result(resultBars, new[] { sample }, deadLoadSample, 0f, 0f, isStructurallyStable);
+        var totalLoads = new decimal[degreeCount];
+        Result EvaluateCurrent(IReadOnlyList<PointLoad> loads, int sampleIndex, int sampleCount, float singleKg)
         {
-            // Without a vehicle load every route position produces exactly the
-            // same system. Preserve the requested sample indices without
-            // solving the identical dead-load case repeatedly.
-            if (vehicleWeight == 0m && sampleIndex > 0)
+            Array.Copy(deadLoads, totalLoads, degreeCount);
+            if (loads == null)
             {
-                samples[sampleIndex] = samples[0];
-                continue;
+                // Legacy samples retain their original decimal positions exactly.
+                decimal progress = (decimal)sampleIndex / (sampleCount - 1);
+                ApplyRoadPointLoad(totalLoads, nodes, members, roadMemberIndices,
+                    roadMinX + (roadMaxX - roadMinX) * progress, QuantizeMass(singleKg) * Gravity);
             }
-
-            decimal progress = (decimal)sampleIndex / (sampleCount - 1);
-            decimal loadX = roadMinX + (roadMaxX - roadMinX) * progress;
-            decimal[] totalLoads = (decimal[])deadLoads.Clone();
-            ApplyRoadPointLoad(totalLoads, nodes, members, roadMemberIndices, loadX, vehicleWeight);
-
-            decimal[] totalForces = SolveTensionOnly(
-                nodes, members, degreeCount, totalLoads, activeSystems, out bool sampleStable);
+            else
+            {
+                if (loads.Count > 4) throw new ArgumentException("A live-load test supports at most four vehicles.", nameof(loads));
+                for (int index = 0; index < loads.Count; index++)
+                {
+                    PointLoad load = loads[index];
+                    if (float.IsNaN(load.WorldX) || float.IsInfinity(load.WorldX) ||
+                        float.IsNaN(load.WeightKg) || float.IsInfinity(load.WeightKg) || load.WeightKg < 0f || load.WeightKg > 1000000000f)
+                        throw new ArgumentException("Live-load positions must be finite and weights must be between zero and 1,000,000,000 kg.", nameof(loads));
+                    if (load.WeightKg <= 0f) continue;
+                    decimal x = QuantizeMetres(Mathf.Clamp(load.WorldX, (float)roadMinX, (float)roadMaxX));
+                    x = DecimalMax(roadMinX, DecimalMin(roadMaxX, x));
+                    ApplyRoadPointLoad(totalLoads, nodes, members, roadMemberIndices, x, QuantizeMass(load.WeightKg) * Gravity);
+                }
+            }
+            decimal[] totalForces = SolveTensionOnly(nodes, members, degreeCount, totalLoads, activeSystems, out bool sampleStable);
             if (totalForces == null) return null;
-            isStructurallyStable &= sampleStable;
-            Sample sample = new Sample(members.Count);
-
+            float peakDisplayed = 0f, peakStructural = 0f;
             for (int memberIndex = 0; memberIndex < members.Count; memberIndex++)
             {
                 MemberData member = members[memberIndex];
@@ -365,39 +419,21 @@ public static class DeterministicBridgeStressSolver
                 bool tension = member.IsRope ? totalForce > 0m : totalForce >= 0m;
                 decimal limit = tension ? member.TensionLimit : member.CompressionLimit;
                 decimal structuralRatio = limit > 0m ? DecimalAbs(totalForce) / limit : 0m;
-
                 decimal displayedForce = displayLiveLoadOnly
-                    ? DecimalAbs(totalForce - deadForces[memberIndex])
-                    : DecimalAbs(totalForce);
+                    ? DecimalAbs(totalForce - deadForces[memberIndex]) : DecimalAbs(totalForce);
                 decimal displayedRatio = limit > 0m ? displayedForce / limit : 0m;
-
-                // Ropes are tension-only members. Compression is neither displayed
-                // nor allowed to trigger deterministic structural failure.
-                if (member.IsRope && !tension)
-                {
-                    displayedRatio = 0m;
-                    structuralRatio = 0m;
-                }
-
+                if (member.IsRope && !tension) { displayedRatio = 0m; structuralRatio = 0m; }
                 sample.DisplayedRatios[memberIndex] = RatioToFloat(displayedRatio);
                 sample.StructuralRatios[memberIndex] = RatioToFloat(structuralRatio);
                 sample.IsTension[memberIndex] = tension;
                 peakDisplayed = Mathf.Max(peakDisplayed, sample.DisplayedRatios[memberIndex]);
                 peakStructural = Mathf.Max(peakStructural, sample.StructuralRatios[memberIndex]);
             }
-
-            samples[sampleIndex] = sample;
+            current.SetCurrentState(peakDisplayed, peakStructural, deadLoadStable && sampleStable);
+            return current;
         }
-
-        Bar[] resultBars = new Bar[members.Count];
-        for (int i = 0; i < members.Count; i++) resultBars[i] = members[i].Bar;
-        return new Result(
-            resultBars,
-            samples,
-            deadLoadSample,
-            peakDisplayed,
-            peakStructural,
-            isStructurallyStable);
+        return new PreparedAnalysis(loads => EvaluateCurrent(loads, 0, 0, 0f),
+            (index, count, kg) => EvaluateCurrent(null, index, count, kg), (float)roadMinX, (float)roadMaxX);
     }
 
     private static List<Point> GetCanonicalPoints(
@@ -541,6 +577,9 @@ public static class DeterministicBridgeStressSolver
                     Pivots = pivots,
                     IsStructurallyStable = stable
                 };
+                // A convoy can visit more active sets than a sampled single load.
+                // Keep cached factors bounded even within one long slack-rope solve.
+                if (activeSystems.Count >= 64) activeSystems.Clear();
                 activeSystems.Add(key, system);
             }
 

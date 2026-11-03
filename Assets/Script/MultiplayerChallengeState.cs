@@ -22,6 +22,11 @@ public struct MultiplayerChallengeState : INetworkStruct
     public float ChallengeBudget;
     public NetworkString<_256> ChallengeVehicleKey;
     public float ChallengeVehicleWeight;
+    public int LiveLoadCount;
+    public ContractSO.VehicleTestMode LiveLoadMode;
+    public ChallengeLiveLoadRecord LiveLoad0, LiveLoad1, LiveLoad2, LiveLoad3;
+    public int LiveLoadPassedMask, LiveLoadDrivingMask, LiveLoadFailedMask;
+    public int HostLiveLoadPassedMask, HostLiveLoadFailedMask, GuestLiveLoadPassedMask, GuestLiveLoadFailedMask;
     public NetworkBool HostArrived;
     public NetworkBool GuestArrived;
     public NetworkBool HostReady;

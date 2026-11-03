@@ -27,9 +27,7 @@ public sealed class VehicleCargoLoadingZone : Interactable
             if (!base.IsInteractionAvailable || vehicle == null || cargo == null ||
                 !vehicle.TryGetCompatibleCargoSlot(cargo, out _)) return false;
 
-            int required = vehicle.assignedContract != null
-                ? vehicle.assignedContract.minimumLoadedCargo
-                : 0;
+            int required = vehicle.RequiredLoadedCargoCount;
             promptMessage = required > 0
                 ? $"LOAD CARGO  {vehicle.LoadedCargoCount}/{required}"
                 : "LOAD CARGO";
