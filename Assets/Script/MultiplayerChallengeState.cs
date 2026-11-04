@@ -20,6 +20,7 @@ public struct MultiplayerChallengeState : INetworkStruct
     public NetworkString<_256> SiteKey;
     public NetworkString<_128> ContractKey;
     public float ChallengeBudget;
+    public float WideRoadWidth;
     public NetworkString<_256> ChallengeVehicleKey;
     public float ChallengeVehicleWeight;
     public int LiveLoadCount;

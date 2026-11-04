@@ -60,14 +60,33 @@ public sealed class ContractLiveLoadEditor : Editor
             EditorGUILayout.PropertyField(serializedObject.FindProperty("allowVehicleCargo"));
             EditorGUILayout.PropertyField(serializedObject.FindProperty("minimumLoadedCargo"));
         }
-        DrawPropertiesExcluding(serializedObject, "m_Script", "vehicleTestMode", "liveLoadTests", "liveLoadWeight", "allowVehicleCargo", "minimumLoadedCargo");
+        SerializedProperty property = serializedObject.GetIterator();
+        bool enterChildren = true;
+        while (property.NextVisible(enterChildren))
+        {
+            enterChildren = false;
+            switch (property.name)
+            {
+                case "m_Script": case "vehicleTestMode": case "liveLoadTests": case "liveLoadWeight":
+                case "allowVehicleCargo": case "minimumLoadedCargo": break;
+                case "twoWayRoad": EditorGUILayout.PropertyField(property, new GUIContent("Two-Way Road", property.tooltip)); break;
+                case "twoWayRoadWidth":
+                    if (serializedObject.FindProperty("twoWayRoad").boolValue)
+                        EditorGUILayout.PropertyField(property, new GUIContent("Road Width (m)", property.tooltip));
+                    break;
+                default: EditorGUILayout.PropertyField(property, true); break;
+            }
+        }
         serializedObject.ApplyModifiedProperties();
         foreach (string issue in ValidateDefinition((ContractSO)target)) EditorGUILayout.HelpBox(issue, MessageType.Error);
     }
 
     public static IEnumerable<string> ValidateDefinition(ContractSO contract)
     {
-        if (contract == null || !contract.HasMultipleLiveLoads) yield break;
+        if (contract == null) yield break;
+        if (contract.twoWayRoad && !ContractSO.IsValidTwoWayRoadWidth(contract.twoWayRoadWidth))
+            yield return "Two-Way Road width must be between 8.1 and 100 metres.";
+        if (!contract.HasMultipleLiveLoads) yield break;
         if (contract.liveLoadMode != ContractSO.LiveLoadMode.Vehicle || contract.winCondition != ContractSO.WinCondition.FinishLine)
             yield return "Multiple live loads require Vehicle mode and Finish Line completion.";
         if (contract.liveLoadTests == null || contract.liveLoadTests.Count < 2 || contract.liveLoadTests.Count > 4)
@@ -92,10 +111,25 @@ public sealed class ContractLiveLoadEditor : Editor
 [CustomEditor(typeof(BuildLocation))]
 public sealed class MultiLoadBuildLocationEditor : Editor
 {
+    private ContractSO approachCheckContract;
+    private string approachReport;
+    private bool approachMatches;
+
     public override void OnInspectorGUI()
     {
         DrawDefaultInspector();
         BuildLocation location = (BuildLocation)target;
+        ContractSO definition = location.activeContract;
+        if (definition == null)
+            definition = approachCheckContract = (ContractSO)EditorGUILayout.ObjectField(
+                "Approach check contract", approachCheckContract, typeof(ContractSO), false);
+        if (definition != null && definition.twoWayRoad)
+        {
+            if (GUILayout.Button("Check Two-Way Road Approaches (Read Only)"))
+                approachMatches = CheckWideApproaches(location, definition, out approachReport);
+            if (!string.IsNullOrEmpty(approachReport))
+                EditorGUILayout.HelpBox(approachReport, approachMatches ? MessageType.Info : MessageType.Warning);
+        }
         if (location.activeContract == null || !location.activeContract.HasMultipleLiveLoads) return;
         EditorGUILayout.Space();
         EditorGUILayout.HelpBox("Choose each required vehicle entry once in the bindings, then drag its existing scene vehicle with Start and End points. No vehicle is created or assigned to other contracts automatically.", MessageType.Info);
@@ -104,6 +138,54 @@ public sealed class MultiLoadBuildLocationEditor : Editor
             bool valid = LiveLoadTestRoster.TryCreate(location, location.activeContract, out _, out string reason, false);
             if (valid) Debug.Log("[Multiple Live Loads] Setup is valid: " + location.name, location);
             else Debug.LogWarning("[Multiple Live Loads] " + reason, location);
+        }
+    }
+
+    internal static bool CheckWideApproaches(BuildLocation location, ContractSO contract, out string report)
+    {
+        float width = contract.GetWideRoadWidth();
+        if (width <= 0f) { report = "Set a valid Two-Way Road width first."; return false; }
+        var aligner = location.GetComponentInChildren<BridgeAbutmentAligner>(true);
+        if (aligner == null) aligner = location.GetComponentInParent<BridgeAbutmentAligner>(true);
+        if (aligner == null || aligner.Abutments == null)
+        {
+            report = "Assign approach colliders to this site's Bridge Abutment Aligner.";
+            return false;
+        }
+        Physics.SyncTransforms();
+        var warnings = new List<string>();
+        CheckEnd(location.startingAnchors, "Start");
+        CheckEnd(location.endingAnchors, "End");
+        report = warnings.Count == 0 ? $"Both approaches cover the {width:0.##} m deck at the anchor height." : string.Join("\n", warnings);
+        return warnings.Count == 0;
+
+        void CheckEnd(List<Point> anchors, string label)
+        {
+            if (anchors == null || anchors.Count == 0) { warnings.Add(label + " approach needs a bridge anchor."); return; }
+            foreach (Point anchor in anchors)
+            {
+                BridgeAbutmentAligner.Abutment approach = null;
+                foreach (var candidate in aligner.Abutments)
+                    if (candidate != null && candidate.anchor == anchor) { approach = candidate; break; }
+                if (anchor == null || approach?.approachCollider == null)
+                { warnings.Add(label + " approach needs an assigned collider."); continue; }
+                Collider surface = approach.approachCollider;
+                Vector3 center = anchor.transform.position;
+                center.x += approach.surfaceProbeOffset.x;
+                float expectedY = anchor.transform.position.y + aligner.TargetRoadSurfaceY - aligner.TargetAnchorY;
+                float originY = Mathf.Max(center.y, surface.bounds.max.y) + 2f;
+                for (int lane = -2; lane <= 2; lane++)
+                {
+                    float z = center.z + lane * (width - .04f) / 4f;
+                    var ray = new Ray(new Vector3(center.x, originY, z), Vector3.down);
+                    if (!surface.enabled || surface.isTrigger || !surface.Raycast(ray, out RaycastHit hit, originY - surface.bounds.min.y + 2f) ||
+                        Mathf.Abs(hit.point.y - expectedY) > .05f)
+                    {
+                        warnings.Add($"{label} approach at {anchor.name} does not cover the {width:0.##} m deck at its height. Check the width, centerline, height, and probe offset.");
+                        break;
+                    }
+                }
+            }
         }
     }
 }

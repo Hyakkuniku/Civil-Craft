@@ -322,7 +322,7 @@ public sealed class ChallengeBridgeTestView : IDisposable
         public float LastArrival = float.NegativeInfinity, LastMotion = float.NegativeInfinity;
     }
     private readonly Dictionary<int, LineRenderer[]> ropes = new Dictionary<int, LineRenderer[]>();
-    private static readonly Color RopeColor = new Color(0.72f, 0.43f, 0.25f, 1f);
+    private readonly Dictionary<int, Color> ropeTints = new Dictionary<int, Color>();
     private Material ropeMaterial;
     private Sample[] samples;
     private const int HistoryCapacity = 12;
@@ -356,7 +356,7 @@ public sealed class ChallengeBridgeTestView : IDisposable
     }
 
     public ChallengeBridgeTestView(ChallengeTestDescriptor descriptor, BuildLocation site, BarCreator creator,
-        IReadOnlyDictionary<string, BridgeMaterialSO> materials, BridgePhysicsManager settings)
+        IReadOnlyDictionary<string, BridgeMaterialSO> materials, BridgePhysicsManager settings, float wideRoadWidth = 0f)
     {
         try
         {
@@ -380,7 +380,7 @@ public sealed class ChallengeBridgeTestView : IDisposable
                 if (Application.isPlaying && !material.isRope)
                 {
                     float length = renderers.Length > 0 ? renderers[0].bounds.size.magnitude : 1f;
-                    WaterImpact.Register(member, renderers, null, null, length * material.GetPlacedMassPerMeter());
+                    WaterImpact.Register(member, renderers, null, null, length * BridgeWidthGeometry.GetPlacedMassPerMeter(material, wideRoadWidth));
                     impactSources.Add(member);
                 }
                 if (material.isRope)
@@ -388,10 +388,7 @@ public sealed class ChallengeBridgeTestView : IDisposable
                     Shader shader = Resources.Load<Shader>("Shaders/RopeSimulation");
                     if (shader == null) throw new InvalidDataException("The rope spectator shader is missing.");
                     if (ropeMaterial == null)
-                    {
                         ropeMaterial = new Material(shader);
-                        ropeMaterial.SetColor("_BaseColor", RopeColor);
-                    }
                     var lines = new LineRenderer[material.isDualBeam ? 2 : 1];
                     float width = renderers.Length > 0 ? Mathf.Clamp(renderers[0].bounds.size.y * 1.65f, 0.16f, 0.3f) : 0.16f;
                     for (int strand = 0; strand < lines.Length; strand++)
@@ -404,9 +401,11 @@ public sealed class ChallengeBridgeTestView : IDisposable
                         line.startColor = line.endColor = Color.white;
                         line.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; line.receiveShadows = false;
                         line.enabled = false;
-                        lineObject.transform.localPosition = new Vector3(0, 0, material.isDualBeam ? (strand == 0 ? material.zOffset : -material.zOffset) : 0);
+                        lineObject.transform.localPosition = new Vector3(0, 0,
+                            BridgeWidthGeometry.GetSegmentDepthPosition(material, wideRoadWidth, strand));
                     }
                     ropes.Add(i, lines);
+                    ropeTints.Add(i, Bar.GetRopeSimulationTint(material));
                 }
             }
             vehicleIndex = descriptor.Bridge.Bars.Count;
@@ -509,7 +508,7 @@ public sealed class ChallengeBridgeTestView : IDisposable
                 foreach (Renderer renderer in memberRenderers[index]) renderer.enabled = false;
                 // Each rope shares the spectator material; override its renderer
                 // so one loaded/broken strand cannot recolor every other rope.
-                Color color = StressColor(RopeColor, stress, isBroken);
+                Color color = StressColor(ropeTints[index], stress, isBroken);
                 foreach (LineRenderer line in lines)
                 {
                     block.Clear(); line.GetPropertyBlock(block);
@@ -633,6 +632,7 @@ public sealed class ChallengeBridgeTestView : IDisposable
         foreach (Transform boat in wakeBoats) BoatWaterWake.Unregister(boat);
         wakeBoats.Clear();
         geometry?.Dispose(); geometry = null; targets.Clear(); memberRenderers.Clear(); originalColors.Clear(); ropes.Clear(); boatRenderers.Clear(); boatRendererStates.Clear();
+        ropeTints.Clear();
         samples = null; history = null;
         if (ropeMaterial != null)
         { if (Application.isPlaying) UnityEngine.Object.Destroy(ropeMaterial); else UnityEngine.Object.DestroyImmediate(ropeMaterial); }

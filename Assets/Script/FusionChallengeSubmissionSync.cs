@@ -185,7 +185,7 @@ public sealed class FusionChallengeSubmissionSync : MonoBehaviour
             BarCreator creator = FindObjectOfType<BarCreator>(true);
             ChallengeSubmissionError error = ChallengeBridgeSubmissionRules.Validate(graph, site, contract,
                 ChallengeBridgeSubmissionRules.CreateMaterialCatalog(contract), creator != null ? creator.pierBaseY : -10f, out float cost,
-                creator != null ? creator.nodeSnapDepthTolerance : 1f);
+                creator != null ? creator.nodeSnapDepthTolerance : 1f, host.ChallengeState.WideRoadWidth);
             if (error != ChallengeSubmissionError.None)
             { LogRejectedSubmission("host admission", error, graph, site); Reply(sender, revision, request, error); return; }
             byte[] immutablePacket = ChallengeBridgeSubmissionCodec.Encode(graph);

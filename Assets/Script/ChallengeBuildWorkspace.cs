@@ -37,7 +37,7 @@ public sealed class ChallengeBuildWorkspace : IDisposable
     }
 
     public static ChallengeBuildWorkspace Create(BuildLocation source, ContractSO definition, BarCreator creator,
-        int revision, int playerId)
+        int revision, int playerId, float? wideRoadWidthOverride = null)
     {
         if (source == null || definition == null || creator == null || creator.pointToInstantiate == null ||
             creator.barToInstantiate == null || source.startingAnchors.Count == 0 || source.endingAnchors.Count == 0)
@@ -58,6 +58,13 @@ public sealed class ChallengeBuildWorkspace : IDisposable
             location.InitializeSessionChallenge(revision, MultiplayerChallengeRules.SiteKey(source));
             location.enabled = false; // No interaction/story Update or Start on this proxy.
             workspace.contract = Object.Instantiate(definition);
+            if (wideRoadWidthOverride.HasValue)
+            {
+                workspace.contract.twoWayRoad = wideRoadWidthOverride.Value != 0f;
+                workspace.contract.twoWayRoadWidth = wideRoadWidthOverride.Value;
+                if (workspace.contract.twoWayRoad && workspace.contract.GetWideRoadWidth() <= 0f)
+                    throw new InvalidOperationException("The challenge road width is invalid.");
+            }
             workspace.contract.name = definition.name + " (Session Only)";
             workspace.contract.hideFlags = HideFlags.DontSave;
             workspace.contract.contractID = ContractPrefix + revision + "_" + playerId;

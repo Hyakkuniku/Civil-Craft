@@ -258,7 +258,7 @@ public static class DeterministicBridgeStressSolver
                 AxialRigidity = referenceCapacity * 1000m,
                 TensionLimit = tensionLimit,
                 CompressionLimit = compressionLimit,
-                MassKg = QuantizeMass((float)length * material.GetPlacedMassPerMeter()),
+                MassKg = QuantizeMass((float)length * bar.PlacedMassPerMeter),
                 IsRope = material.isRope,
                 IsRoad = material.isRoad
             });

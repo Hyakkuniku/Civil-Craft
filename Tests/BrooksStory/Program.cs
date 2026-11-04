@@ -22,10 +22,6 @@ internal static class Program
     private const string MarshFingerprint = "CB3E196F8A95822AB9591F27D601EF2DFCBF2C8ABA79A8D612FB32E9D8412BA9";
     private const string FordFingerprint = "4DF4107BDA7DC7A475FF3AD75A7ED03804887B462992D425E5B614BB207CC620";
     private const string BrooksGateFingerprint = "DC744D75CD5D869081BDFB82352B7E6CD6B8F9215EC94897BA0779F9316AA8E4";
-    // Refreshed from the pre-Ronan scene backup: its two persistent cargo-slot
-    // IDs had already changed after the Brooks task. Keep that latest authored
-    // state exactly; do not normalize or regenerate those player-save identities.
-    private const string TruckFingerprint = "4698848A381B07F1EB26755D3EFFB79B4A1654D6B78B2B7AACBE0B9AC5C1892B";
     private const string RonanModificationsFingerprint = "7F0C8338EC354396AB7C213A3499097EE3E5E866A57C00A0A2D48118AB817031";
     private static string root;
     private static int checks;
@@ -36,7 +32,17 @@ internal static class Program
             root = FindRoot();
             bool sourceOnly = args.Contains("--source-only");
             bool helperOnly = args.Contains("--helper-only");
-            Check(args.All(argument => argument == "--source-only" || argument == "--helper-only") && !(sourceOnly && helperOnly), "Supported options: --source-only or --helper-only.");
+            bool vehiclesOnly = args.Contains("--vehicles-only");
+            Check(args.Length == 0 || args.Length == 1 && (sourceOnly || helperOnly || vehiclesOnly),
+                "Supported options: --source-only, --helper-only or --vehicles-only.");
+            if (vehiclesOnly)
+            {
+                VehicleAssets(Read(Contract));
+                string scene = Read(Scene);
+                CheckVehicleWiring(scene, SceneComponents(scene));
+                Console.WriteLine($"PASS: {checks} Brooks saved vehicle roster and route wiring assertions.");
+                return 0;
+            }
             Check(OptionalField("    - stepType: 3\n      lesson: {fileID: 0}", "stepType", 4) == "3", "Unity list-item step headers must parse correctly.");
             Assets();
             LegacyContinuation();
@@ -70,13 +76,14 @@ internal static class Program
             bool parsed = double.TryParse(Field(contract, field), NumberStyles.Float, CultureInfo.InvariantCulture, out double value);
             Check(parsed && !double.IsNaN(value) && !double.IsInfinity(value) && value > 0, "Brooks " + field + " must remain a positive, user-tunable value; do not force an inferred balance.");
         }
+        VehicleAssets(contract);
         string[] offer = Entries(contract, "offerDialogue", "sentences", 2);
         Check(offer.Length == 4 && offer.Any(line => line.Contains("market", StringComparison.OrdinalIgnoreCase)) &&
               offer.Any(line => line.Contains("taxis", StringComparison.OrdinalIgnoreCase)) && offer.Any(line => line.Contains("contract", StringComparison.OrdinalIgnoreCase)),
             "Brooks briefing must retain its four market-connection, mixed-traffic and contract-offer lines.");
         Check(Entries(contract, "reminderDialogue", "sentences", 2).Length == 1, "Brooks active contract needs its repeatable stress/support reminder.");
         Check(Entries(contract, "finishedContractDialogue", "sentences", 2).Length == 3, "Brooks turn-in must contain the three completion lines.");
-        Check(Field(contract, "allowedMaterials") == "[]" && Field(contract, "hiddenTools") == "[]" && Field(contract, "hiddenMaterials") == "[]", "Brooks does not introduce new material/tool restrictions.");
+        Check(Field(contract, "allowedMaterials") == "[]" && (Field(contract, "hiddenTools") is "" or "[]") && Field(contract, "hiddenMaterials") == "[]", "Brooks does not introduce new material/tool restrictions.");
         Check(Field(contract, "featureUnlockRewards") == "[]", "No unsupported feature/reward system should be added to Brooks.");
 
         string quiz = Read(Quiz);
@@ -99,6 +106,20 @@ internal static class Program
         foreach (string path in Directory.GetFiles(Path.Combine(root, "Assets/BridgeBuilder/Data/Lessons"), "*.asset"))
             if (!Path.GetFullPath(path).Equals(Path.GetFullPath(Path.Combine(root, Lesson)), StringComparison.OrdinalIgnoreCase))
                 Check(OptionalField(File.ReadAllText(path), "lessonId") != Field(lesson, "lessonId"), "Moving Load must not reuse an existing lesson save ID.");
+    }
+
+    private static void VehicleAssets(string contract)
+    {
+        Match[] vehicles = VehicleEntries(contract);
+        Check(Field(contract, "vehicleTestMode") == "1" && vehicles.Length == 2 &&
+            vehicles.Select(entry => Field(entry.Value, "displayName", 4)).SequenceEqual(new[] { "Taxi", "Cargo Truck" }) &&
+            vehicles.Select(entry => entry.Groups["id"].Value).Distinct(StringComparer.Ordinal).Count() == 2,
+            "Brooks must run one sequential test with a taxi first and a cargo truck second.");
+        double[] weights = vehicles.Select(entry => double.Parse(Field(entry.Value, "emptyWeightKg", 4), CultureInfo.InvariantCulture)).ToArray();
+        Check(weights.All(weight => double.IsFinite(weight) && weight > 0) && weights[1] > weights[0],
+            "The two user-tunable vehicle weights must be positive, with the cargo truck heavier than the taxi.");
+        Check(vehicles.All(entry => Field(entry.Value, "allowCargo", 4) == "0" && Field(entry.Value, "minimumLoadedCargo", 4) == "0"),
+            "Brooks's two vehicles must be ready to test without a new player cargo requirement.");
     }
 
     private static void Authoring()
@@ -160,7 +181,8 @@ internal static class Program
     private static void SavedScene()
     {
         string scene = Read(Scene);
-        Match[] blocks = Regex.Matches(scene, @"(?ms)^--- !u!114 &(?<id>-?\d+)[^\r\n]*\r?\n(?<body>.*?)(?=^--- !u!|\z)").Cast<Match>().ToArray();
+        Match[] blocks = SceneComponents(scene);
+        CheckVehicleWiring(scene, blocks);
         string progressionGuid = Guid("Assets/Script/Client/NPCProgressionManager.cs");
         Match ExactNPC(string saveId) => blocks.Single(block => block.Groups["body"].Value.Contains("guid: " + progressionGuid, StringComparison.Ordinal) && OptionalField(block.Groups["body"].Value, "progressionSaveId") == saveId);
         Match marsh = ExactNPC("MarshNPC");
@@ -202,7 +224,7 @@ internal static class Program
         Check(fordGates.Length == 1 && fordGates[0].Groups["id"].Value == "8427106558270551893" && Fingerprint(fordGates[0].Value) == BrooksGateFingerprint,
             "Keep Brooks's exact single existing Ford visibility gate, without modification or duplicates.");
         Gate(fordGates[0].Groups["body"].Value, FordContract, "FordNPC", Field(body, "m_GameObject"));
-        CheckRonanAndVehicle(scene, blocks, Gates);
+        CheckRonan(scene, Gates);
 
         string lessonTabGuid = Guid("Assets/Script/UI/Almanac/AlmanacLessonTab.cs");
         Match[] archives = blocks.Where(block => block.Groups["body"].Value.Contains("guid: " + lessonTabGuid, StringComparison.Ordinal)).ToArray();
@@ -294,11 +316,9 @@ internal static class Program
         Check(guide.Contains("target: " + site, StringComparison.Ordinal) && guide.Contains("advancesTutorial: 1", StringComparison.Ordinal), "The follow-guide waypoint must target Brooks's site and complete on arrival.");
     }
 
-    private static void CheckRonanAndVehicle(string scene, Match[] components, Func<string, Match[]> gates)
+    private static void CheckRonan(string scene, Func<string, Match[]> gates)
     {
-        // Ronan and the test truck are native prefab instances. Their inherited
-        // components do not have complete local MonoBehaviour records, so audit
-        // the explicit scene overrides and the shared source asset separately.
+        // Ronan's native prefab overrides supplement the shared source asset.
         Match[] prefabs = Regex.Matches(scene, @"(?ms)^--- !u!1001 &(?<id>-?\d+)[^\r\n]*\r?\n(?<body>.*?)(?=^--- !u!|\z)").Cast<Match>().ToArray();
         Match ronan = prefabs.Single(block => block.Groups["id"].Value == "1186642534");
         Match modifications = Regex.Match(ronan.Value, @"(?ms)^    m_Modifications:\r?\n.*?(?=^    m_RemovedComponents:)");
@@ -335,21 +355,66 @@ internal static class Program
         Gate(ronanGates[0].Groups["body"].Value, Contract, "BrooksNpc", rootReference);
         Check(ronan.Value.Contains("addedObject: {fileID: " + ronanGates[0].Groups["id"].Value + "}", StringComparison.Ordinal),
             "Ronan's visibility gate must be registered as an added component on his original prefab instance.");
-
-        Match truck = prefabs.Single(block => block.Groups["id"].Value == "649893778");
-        Check(Fingerprint(truck.Value) == TruckFingerprint,
-            "Preserve the exact existing Brooks vehicle/finish prefab and every route/cargo/physics override; do not add sequential taxi/cargo tests.");
-        foreach (string inheritedComponent in new[] { "1369226356499901863", "3922368601465291137" })
-        {
-            Match assignment = Regex.Match(truck.Value, @"(?ms)^    - target: \{fileID: " + inheritedComponent + @",.*?^      propertyPath: assignedContract\r?\n.*?^      objectReference: (?<reference>\{fileID: 11400000, guid: [a-f0-9]{32},\r?\n        type: 2\})");
-            Check(assignment.Success && AssetReferenceGuid(assignment.Groups["reference"].Value) == Guid(Contract),
-                "The existing vehicle and its finish line must remain assigned to Brooks's contract.");
-        }
-        string liveLoadGuid = Guid("Assets/Script/Client/LiveLoadVehicle.cs");
-        Check(!components.Any(block => block.Groups["body"].Value.Contains("guid: " + liveLoadGuid, StringComparison.Ordinal) &&
-              OptionalField(block.Groups["body"].Value, "assignedContract") is string assignment && AssetReferenceGuid(assignment) == Guid(Contract)),
-            "Brooks must not gain a replacement/second local live-load vehicle over its inherited single-test prefab.");
     }
+
+    private static void CheckVehicleWiring(string scene, Match[] components)
+    {
+        Match truck = Regex.Match(scene, @"(?ms)^--- !u!1001 &649893778\r?\n.*?(?=^--- !u!|\z)");
+        Check(truck.Success, "The original Brooks truck prefab instance is missing.");
+        string Override(string componentId, string path, string field)
+        {
+            Match entry = Regex.Match(truck.Value, @"(?ms)^    - target: \{fileID: " + componentId + @",.*?\r?\n(?<body>.*?)(?=^    - target: |^    m_RemovedComponents:)");
+            while (entry.Success)
+            {
+                if (Field(entry.Groups["body"].Value, "propertyPath", 6) == path)
+                    return Field(entry.Groups["body"].Value, field, 6);
+                entry = entry.NextMatch();
+            }
+            throw new InvalidOperationException("Missing Brooks truck override " + path);
+        }
+        foreach (string inheritedComponent in new[] { "1369226356499901863", "3922368601465291137" })
+            Check(AssetReferenceGuid(Override(inheritedComponent, "assignedContract", "objectReference")) == Guid(Contract),
+                "The existing vehicle and its finish line must remain assigned to Brooks's contract.");
+        Check(Override("4463698897250604490", "persistentSlotId", "value") == "9c1eaa0d49b24024a798eb9eea0d6228" &&
+            Override("8805695919974729455", "persistentSlotId", "value") == "313c81b8ae3f4aa0b6aec57846cc21e7",
+            "Brooks must preserve both persistent cargo-slot identities on the existing truck.");
+
+        string liveLoadGuid = Guid("Assets/Script/Client/LiveLoadVehicle.cs");
+        string Component(string id) => components.Single(block => block.Groups["id"].Value == id).Groups["body"].Value;
+        Match[] bindings = Regex.Matches(Component("615179062"), @"(?m)^  - entryId: (?<id>[^\s]+)\r?\n    vehicle: \{fileID: (?<vehicle>-?\d+)\}").Cast<Match>().ToArray();
+        Check(bindings.Length == 2 && bindings.Select(binding => binding.Groups["id"].Value)
+            .SequenceEqual(VehicleEntries(Read(Contract)).Select(entry => entry.Groups["id"].Value)),
+            "Brooks's original workbench must bind both permanent vehicle entries in roster order.");
+        string taxi = Component(bindings[0].Groups["vehicle"].Value);
+        string cargo = Component(bindings[1].Groups["vehicle"].Value);
+        Check(ScriptGuid(taxi) == liveLoadGuid && Field(taxi, "vehicleName") == "Taxi" &&
+            AssetReferenceGuid(Field(taxi, "assignedContract")) == Guid(Contract) &&
+            Field(cargo, "m_PrefabInstance") == "{fileID: 649893778}" &&
+            LocalId(Field(cargo, "m_CorrespondingSourceObject")) == "1369226356499901863",
+            "The duplicate taxi and the existing Brooks truck must be the two bound test vehicles.");
+        string physics = Field(taxi, "physicsManager");
+        Check(LocalId(physics) != "0" && Override("1369226356499901863", "physicsManager", "objectReference") == physics,
+            "Both Brooks vehicles must share the exact scene physics manager.");
+        string finishTransform = LocalId(Field(taxi, "endPoint"));
+        Match finish = Regex.Match(scene, @"(?ms)^--- !u!4 &" + finishTransform + @"[^\r\n]*\r?\n(?<body>.*?)(?=^--- !u!|\z)");
+        Check(finish.Success && LocalId(Field(taxi, "startPoint")) != finishTransform,
+            "The taxi must have separate scene start and finish waypoints.");
+        string finishObject = Field(finish.Groups["body"].Value, "m_GameObject");
+        string finishGuid = Guid("Assets/Script/Level/FinishLineTrigger.cs");
+        Check(components.Any(block => OptionalField(block.Groups["body"].Value, "m_GameObject") == finishObject &&
+            AssetReferenceGuid(OptionalField(block.Groups["body"].Value, "m_Script") ?? "") == finishGuid &&
+            AssetReferenceGuid(Field(block.Groups["body"].Value, "assignedContract")) == Guid(Contract)),
+            "The taxi's own finish trigger must use Brooks's contract.");
+        Check(AssetReferenceGuid(Field(Component("1396665964"), "assignedContract")) ==
+            Guid("Assets/BridgeBuilder/Data/Contract/TownRiver/Marsh Contract.asset"),
+            "The original Marsh taxi must retain its existing contract assignment.");
+    }
+
+    private static Match[] SceneComponents(string scene) => Regex.Matches(scene,
+        @"(?ms)^--- !u!114 &(?<id>-?\d+)[^\r\n]*\r?\n(?<body>.*?)(?=^--- !u!|\z)").Cast<Match>().ToArray();
+
+    private static Match[] VehicleEntries(string contract) => Regex.Matches(contract,
+        @"(?ms)^  - entryId: (?<id>[^\s]+)\r?\n.*?(?=^  (?:- entryId: |[a-zA-Z])|\z)").Cast<Match>().ToArray();
 
     private static string Fingerprint(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Regex.Replace(value, @"\s+", " ").Trim())));
     private static string NormalizeAuthorizedMarshPier(string value)

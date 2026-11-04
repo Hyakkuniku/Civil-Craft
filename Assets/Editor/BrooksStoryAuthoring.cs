@@ -92,7 +92,7 @@ public static class BrooksStoryAuthoring
             Undo.CollapseUndoOperations(group);
             report.AppendLine("PASS: Marsh and Ford progression/gates, all existing cameras, vehicle routes and bridge geometry preserved.");
             report.AppendLine("Budget/load remain editable placeholders chosen by the author; no balancing values were invented.");
-            report.AppendLine("No dual-vehicle sequencing, hints, simulation callouts, automatic traffic, side quests or new structural physics added.");
+            report.AppendLine("Simulation settings and routes were preserved by story authoring.");
             report.AppendLine("Recoverable pre-migration scene: " + backup);
             report.AppendLine("NEEDS_SAVE: CanyonCrossing. Review, then save this scene in Unity.");
             WriteReport(report.ToString());
@@ -147,7 +147,7 @@ public static class BrooksStoryAuthoring
             if (!calculated || route.status != NavMeshPathStatus.PathComplete)
                 report.AppendLine("ROUTE_REVIEW_REQUIRED: the current NavMesh does not prove a complete Brooks walk. No auto-bake, wider sampling or teleport was attempted.");
         }
-        report.AppendLine("The existing single delivery vehicle is preserved; dual taxi/cargo tests and an obsolete crossing/barriers are not implemented.");
+        report.AppendLine(VehicleTestSummary(Contract()));
         WriteReport(report.ToString());
         Debug.Log(report.ToString());
     }
@@ -178,9 +178,7 @@ public static class BrooksStoryAuthoring
             "Brooks's audited bank anchors or 58.09-metre site span differ.");
         Require(location.activeContract == null || location.activeContract == contract || location.activeContract.name == "NewContract",
             "Brooks's workbench has a different authored contract. It was not replaced.");
-        Require(All<LiveLoadVehicle>(scene).Count(v => v.assignedContract == contract) == 1 &&
-            All<FinishLineTrigger>(scene).Count(t => t.assignedContract == contract) == 1,
-            "The existing Brooks truck and finish trigger must already reference Brooks's contract exactly once.");
+        ValidateVehicleTest(scene, location, contract);
         CinematicDirector template = CinematicTemplate(scene);
         Require(template.cinematicCamera != null && template.playerActor != null && template.playerAnimator != null,
             "Marsh's existing cinematic camera/actor references are unavailable; no replacement camera was created.");
@@ -199,6 +197,48 @@ public static class BrooksStoryAuthoring
         Require(phases.Count != 0 || root == null,
             "A Brooks Story hierarchy already exists without the expected phases. Review it before migrating.");
     }
+
+    private static void ValidateVehicleTest(Scene scene, BuildLocation location, ContractSO contract)
+    {
+        int expectedCount = contract.HasMultipleLiveLoads ? 2 : 1;
+        Require(All<LiveLoadVehicle>(scene).Count(v => v.assignedContract == contract) == expectedCount &&
+            All<FinishLineTrigger>(scene).Count(t => t.assignedContract == contract) == expectedCount,
+            $"Brooks requires exactly {expectedCount} assigned vehicle(s) and finish trigger(s).");
+        if (!contract.HasMultipleLiveLoads) return;
+
+        ContractSO previous = location.activeContract;
+        LiveLoadTestRoster roster;
+        try
+        {
+            // Validate the accepted state without saving or accepting the contract.
+            location.activeContract = contract;
+            if (!LiveLoadTestRoster.TryCreate(location, contract, out roster, out string reason, requireCargo: false))
+                throw new InvalidOperationException(reason);
+        }
+        finally { location.activeContract = previous; }
+
+        Require(roster.Mode == ContractSO.VehicleTestMode.Sequential && roster.Participants.Count == 2 &&
+            roster.Participants[0].Vehicle.name == "brook's main contract taxi (1)" &&
+            roster.Participants[1].Vehicle.transform.root.name == "BrookCar" &&
+            roster.Participants[1].WeightKg > roster.Participants[0].WeightKg,
+            "Brooks must test the taxi first and the heavier cargo truck second.");
+
+        var finishTriggers = new HashSet<FinishLineTrigger>();
+        foreach (LiveLoadTestParticipantDefinition entry in roster.Participants)
+        {
+            LiveLoadVehicle vehicle = entry.Vehicle;
+            FinishLineTrigger finish = vehicle.endPoint.GetComponent<FinishLineTrigger>();
+            BoxCollider zone = finish != null ? finish.GetComponent<BoxCollider>() : null;
+            Require(finish != null && finish.isActiveAndEnabled && finish.assignedContract == contract &&
+                zone != null && zone.enabled && zone.isTrigger && finishTriggers.Add(finish) &&
+                !vehicle.startPoint.IsChildOf(vehicle.transform) && !vehicle.endPoint.IsChildOf(vehicle.transform),
+                "Each Brooks vehicle needs fixed waypoints and its own enabled finish trigger.");
+        }
+    }
+
+    private static string VehicleTestSummary(ContractSO contract) => contract.HasMultipleLiveLoads
+        ? "PASS: Taxi then heavier cargo truck with separate routes and Brooks finish triggers."
+        : "PASS: Legacy single-vehicle Brooks test wiring.";
 
     private static void ApplyCanyon(Scene scene, NPCProgressionManager brooks, BuildLocation location,
         Vector3 sitePosition, Vector3 start, Vector3 end, Vector3 direction, Vector3 side, StringBuilder report)
@@ -397,6 +437,7 @@ public static class BrooksStoryAuthoring
         report.AppendLine("PASS: Meeting Brooks > follow guide/site > animated cinematic > Moving Load lesson > normal contract acceptance.");
         report.AppendLine("PASS: durable Collect > Moving Load review > five-question assessment, any score/no rewards > Resolved > Ronan visibility.");
         report.AppendLine("PASS: BrooksMainContract ID, 58.09-metre span, 500 coins/100 XP and unpublished flags retained.");
+        report.AppendLine(VehicleTestSummary(Contract()));
     }
 
     private static Vector3 SafeSitePosition(NPCProgressionManager brooks, BuildLocation location, Vector3 desired)

@@ -1655,7 +1655,7 @@ public partial class BridgePhysicsManager : MonoBehaviour
         roadCollider.size = new Vector3(
             Mathf.Max(0.05f, length + bakedRoadColliderSeamOverlap),
             bakedRoadColliderThickness,
-            Mathf.Max(bakedRoadColliderWidth, bar.visualSize.z));
+            bar.WideRoadWidth > 0f ? bar.RoadColliderWidth : Mathf.Max(bakedRoadColliderWidth, bar.visualSize.z));
         roadCollider.center = new Vector3(
             0f,
             bakedRoadVisualTop - bakedRoadColliderThickness * 0.5f,
@@ -1720,7 +1720,7 @@ public partial class BridgePhysicsManager : MonoBehaviour
             barRb.isKinematic = true;
             barRb.useGravity = true;
             
-            barRb.mass = length * bar.materialData.GetPlacedMassPerMeter();
+            barRb.mass = length * bar.PlacedMassPerMeter;
             ConfigureVisualBridgeBody(barRb);
             barRb.interpolation = RigidbodyInterpolation.Interpolate;
             barRb.collisionDetectionMode = CollisionDetectionMode.Discrete;
@@ -1756,12 +1756,12 @@ public partial class BridgePhysicsManager : MonoBehaviour
                     float thickness = bar.materialData.isRoad
                         ? Mathf.Max(0.05f, bakedRoadColliderThickness)
                         : barColliderThickness;
-                    float depth = bar.visualSize.z; 
+                    float depth = bar.RoadColliderWidth;
 
                     if (!bar.materialData.isDualBeam && depth < 2.0f) depth = 2.0f; 
                     else if (bar.materialData.isDualBeam && depth < 0.2f) depth = 0.2f;
 
-                    float zOffsetValue = bar.materialData.isDualBeam ? ((i == 0) ? bar.materialData.zOffset : -bar.materialData.zOffset) : 0f;
+                    float zOffsetValue = i == 0 ? bar.SideOffset : -bar.SideOffset;
                     // Dynamic road bars rotate independently as the bridge flexes.
                     // Shortening their colliders exposes a vertical lip at every
                     // joint; a driven wheel can catch that lip and pitch the cart
@@ -1838,7 +1838,7 @@ public partial class BridgePhysicsManager : MonoBehaviour
                     // Solid members already carry their own Rigidbody mass. Ropes have no
                     // Rigidbody, so distribute only their mass equally to the endpoint nodes.
                     if (bar.materialData.isRope)
-                        calculatedMass += (len * bar.materialData.GetPlacedMassPerMeter()) * 0.5f;
+                        calculatedMass += len * bar.PlacedMassPerMeter * 0.5f;
                 }
                 
                 nodeRb.mass = calculatedMass;
@@ -1854,7 +1854,7 @@ public partial class BridgePhysicsManager : MonoBehaviour
             {
                 if (bar == null || !bar.gameObject.activeSelf) continue; 
 
-                if (!bar.materialData.isRope) AttachJoint(bar.gameObject, nodeRb, bar.materialData, p.transform.position);
+                if (!bar.materialData.isRope) AttachJoint(bar, nodeRb, p.transform.position);
             }
 
             // Road bars overlap at their endpoints, so a separate node collider
@@ -1989,9 +1989,11 @@ public partial class BridgePhysicsManager : MonoBehaviour
         return handler != null && handler.isBroken;
     }
 
-    private void AttachJoint(GameObject barObj, Rigidbody targetRb, BridgeMaterialSO mat, Vector3 anchorWorldPosition)
+    private void AttachJoint(Bar bar, Rigidbody targetRb, Vector3 anchorWorldPosition)
     {
-        Rigidbody barRb = barObj != null ? barObj.GetComponent<Rigidbody>() : null;
+        GameObject barObj = bar.gameObject;
+        BridgeMaterialSO mat = bar.materialData;
+        Rigidbody barRb = bar.GetComponent<Rigidbody>();
         if (barRb == null || targetRb == null || mat == null)
             return;
 
@@ -1999,7 +2001,7 @@ public partial class BridgePhysicsManager : MonoBehaviour
 
         for (int i = 0; i < jointCount; i++)
         {
-            float zOffsetValue = mat.isDualBeam ? ((i == 0) ? mat.zOffset : -mat.zOffset) : 0f;
+            float zOffsetValue = i == 0 ? bar.SideOffset : -bar.SideOffset;
             Vector3 finalAnchorWorld = anchorWorldPosition + new Vector3(0, 0, zOffsetValue);
 
             if (mat.useSpring)

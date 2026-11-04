@@ -1,0 +1,48 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d6617cda65e2ddd49ac84cabbc41a409, type: 3}
+  m_Name: SteelRope
+  m_EditorClassIdentifier:
+  materialId: SteelRope
+  displayName: Steel Rope
+  introductionDescription: A strong steel cable for suspending a bridge deck.
+    Connect it to secure anchors so it can support the deck in tension.
+  introductionImage: {fileID: 0}
+  almanacDescription: A taut steel cable carries tension and transfers load from the
+    deck to towers or anchorages. A slack cable stops supporting the deck, and it
+    cannot carry compression. Use rigid towers or braces for members that must resist
+    pushing forces. Each placement adds a matching cable on either side of the bridge.
+  almanacImage: {fileID: 0}
+  costPerMeter: 400
+  massPerMeter: 5
+  maxLength: 70
+  maxTension: 450000
+  maxCompression: 0
+  useSpring: 1
+  spring: 300000
+  damper: 2000
+  isRope: 1
+  isRoad: 0
+  isPier: 0
+  pierBucklingReferenceLength: 10
+  pierBucklingExponent: 2
+  pierMinimumCompressionMultiplier: 0.15
+  requiresExplicitContractAllowance: 1
+  unlockCost: 500
+  materialIcon: {fileID: 21300000, guid: 4783c2d97212fd640b0f8ed7b35bc094, type: 3}
+  segmentPrefab: {fileID: 5257823434873375433, guid: 2808e880f9eecbb4b9b2dd187516cec5,
+    type: 3}
+  pierCapPrefab: {fileID: 0}
+  gizmoColor: {r: 0.62, g: 0.65, b: 0.69, a: 1}
+  isDualBeam: 1
+  zOffset: 4.4
+  ropeSimulationTint: {r: 0.62, g: 0.65, b: 0.69, a: 1}

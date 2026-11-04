@@ -4,6 +4,7 @@ using UnityEngine;
 public partial class Bar
 {
     private const float PierCapNormalClearance = 0f;
+    private const float OnePiecePierSeamClearance = .004f;
     private const float MinimumSeatingRoadCosine = 0.05f;
     private static readonly Dictionary<GameObject, PierSeatingGeometry> seatingGeometry = new Dictionary<GameObject, PierSeatingGeometry>();
     private GameObject seatingCapSource;
@@ -82,25 +83,34 @@ public partial class Bar
         return IsFinite(top) && IsFinite(bottom);
     }
 
-    private bool TryGetPierCapSeatingBounds(out Bounds bounds)
+    private bool TryGetPierSeatingBounds(out Bounds bounds)
     {
         bounds = default;
-        GameObject source = materialData != null ? materialData.pierCapPrefab : null;
-        Vector3 scale = Vector3.Scale(Abs(originalCapScale), Abs(transform.lossyScale));
+        GameObject source = materialData.pierCapPrefab;
+        Vector3 sourceScale = originalCapScale;
+        if (source == null)
+        {
+            source = materialData.segmentPrefab;
+            if (source == null) return false;
+            sourceScale = source.transform.localScale;
+            sourceScale.z *= SegmentDepthScale();
+        }
+        Vector3 scale = Vector3.Scale(Abs(sourceScale), Abs(transform.lossyScale));
         if (seatingCapBoundsValid && seatingCapSource == source && seatingCapScale == scale)
         { bounds = seatingCapBounds; return true; }
         PierSeatingGeometry geometry = SeatingGeometry(source);
         if (geometry == null || geometry.corners.Length == 0) return false;
         bounds = new Bounds(Vector3.Scale(geometry.corners[0], scale), Vector3.zero);
         for (int index = 1; index < geometry.corners.Length; index++) bounds.Encapsulate(Vector3.Scale(geometry.corners[index], scale));
+        if (WideRoadWidth > 0f) bounds.center = new Vector3(bounds.center.x, bounds.center.y, 0f);
         seatingCapSource = source; seatingCapScale = scale; seatingCapBounds = bounds; seatingCapBoundsValid = true;
         return true;
     }
 
-    /// <summary>Seats only the cap mesh. Nodes, shaft, body pose, colliders and structural lengths are unchanged.</summary>
+    /// <summary>Seats the cap or one-piece pier visual without moving the structural endpoints.</summary>
     public void RefreshPierCapSeating()
     {
-        if (materialData == null || !materialData.isPier || pierCapInstance == null || !gameObject.activeInHierarchy ||
+        if (materialData == null || !materialData.isPier || !gameObject.activeInHierarchy ||
             IsBrokenForPierSeating(this)) return;
         Point topPoint = null;
         Vector3 top = StartPosition.y > EndPosition.y ? StartPosition : EndPosition;
@@ -108,6 +118,11 @@ public partial class Bar
         {
             topPoint = startPoint.transform.position.y > endPoint.transform.position.y ? startPoint : endPoint;
             top = topPoint.transform.position;
+        }
+        if (pierCapInstance == null)
+        {
+            if (materialData.pierCapPrefab == null) SeatOnePiecePier(topPoint);
+            return;
         }
         float firstSlope = 0f; bool found = false, uniform = true;
         if (topPoint != null)
@@ -122,15 +137,61 @@ public partial class Bar
         // infinitely across the opposite side of the joint.
         float angle = found && uniform ? Mathf.Atan(firstSlope) * Mathf.Rad2Deg : 0f;
         float drop = 0f;
-        if (found && TryGetPierCapSeatingBounds(out Bounds capBounds))
+        if (found && TryGetPierSeatingBounds(out Bounds capBounds))
         {
             foreach (Bar road in topPoint.ConnectedBars)
                 if (TryPierSeatingRoad(road, topPoint, top, out float slope, out float underside, out float cosine, out float minX, out float maxX))
                     drop = Mathf.Max(drop, RequiredPierCapSeatingDrop(capBounds, angle, capTopOffset, slope, underside, cosine, minX, maxX));
         }
         else angle = 0f;
-        pierCapInstance.transform.SetPositionAndRotation(top - Vector3.up * (capTopOffset + drop), Quaternion.Euler(0f, 0f, angle));
+        Vector3 seat = top - Vector3.up * (capTopOffset + drop);
+        seat.z += PierCapDepthPosition();
+        pierCapInstance.transform.SetPositionAndRotation(seat, Quaternion.Euler(0f, 0f, angle));
         RefreshPierBearing(topPoint, top, found);
+    }
+
+    private void SeatOnePiecePier(Point topPoint)
+    {
+        float height = Mathf.Abs(EndPosition.y - StartPosition.y);
+        if (visualSegments.Count == 0 || height < .01f || !TryGetPierSeatingBounds(out Bounds segmentBounds) ||
+            segmentBounds.size.y < .001f) return;
+
+        // The integral top stays horizontal. Seat its lowest contact against
+        // the finite deck underside and keep the bottom at the original base.
+        var topFace = new Bounds(new Vector3(segmentBounds.center.x, 0f, segmentBounds.center.z),
+            new Vector3(segmentBounds.size.x, 0f, segmentBounds.size.z));
+        float yScale = Mathf.Max(.001f, Mathf.Abs(transform.lossyScale.y));
+        // During and after a test the bodies can be offset from the nodes. Use
+        // the unseated mesh top as the reference while the node owns connectivity.
+        Vector3 top = transform.TransformPoint(Vector3.up * (height * .5f / yScale));
+        Vector3 up = transform.up;
+        float tilt = Mathf.Atan2(-up.x, up.y) * Mathf.Rad2Deg;
+        float drop = 0f;
+        if (topPoint != null)
+            foreach (Bar road in topPoint.ConnectedBars)
+            {
+                if (TryPierSeatingRoad(road, topPoint, top, out float slope, out float underside, out float cosine, out float minX, out float maxX))
+                {
+                    float needed = RequiredPierCapSeatingDrop(topFace, tilt, 0f, slope, underside, cosine, minX, maxX);
+                    float dropPerMeter = up.y - slope * up.x;
+                    if (needed > 0f && dropPerMeter > MinimumSeatingRoadCosine)
+                        drop = Mathf.Max(drop, (needed + OnePiecePierSeamClearance) / dropPerMeter);
+                }
+            }
+
+        drop = Mathf.Min(drop, Mathf.Max(0f, height - .05f));
+        float localShift = -drop * .5f / yScale;
+        Vector3 scale = Abs(materialData.segmentPrefab.transform.localScale);
+        scale.y *= (height - drop) / segmentBounds.size.y;
+        scale.z *= SegmentDepthScale();
+        foreach (GameObject segment in visualSegments)
+        {
+            Transform visual = segment.transform;
+            Vector3 position = visual.localPosition;
+            position.y = localShift;
+            if (visual.localPosition != position) visual.localPosition = position;
+            if (visual.localScale != scale) visual.localScale = scale;
+        }
     }
 
     private bool TryPierSeatingRoad(Bar road, Point topPoint, Vector3 top, out float slope, out float underside,
@@ -151,19 +212,32 @@ public partial class Bar
         float length = span.magnitude;
         if (length < 0.01f || span.x < 0.01f) return false;
         cosine = span.x / length;
-        if (cosine < MinimumSeatingRoadCosine) return false;
+        float sine = span.y / length;
+        Vector3 midpoint = (start + end) * .5f;
+        midpoint.z = start.z;
         PierSeatingGeometry geometry = SeatingGeometry(road.materialData.segmentPrefab);
-        if (geometry == null || geometry.corners.Length == 0 || !TryGetPierCapSeatingBounds(out Bounds capBounds)) return false;
+        if (geometry == null || geometry.corners.Length == 0 || !TryGetPierSeatingBounds(out Bounds capBounds)) return false;
         Vector3 scale = Abs(road.originalScale); scale.x *= length / Mathf.Max(Mathf.Abs(road.baseLength), 0.0001f);
-        Quaternion rotation = road.visualSegments.Count > 0 && road.visualSegments[0] != null
-            ? road.visualSegments[0].transform.localRotation : road.materialData.segmentPrefab.transform.localRotation;
-        Vector3 offset = road.visualSegments.Count > 0 && road.visualSegments[0] != null
-            ? road.visualSegments[0].transform.localPosition : Vector3.zero;
+        Transform visual = road.visualSegments.Count > 0 && road.visualSegments[0] != null
+            ? road.visualSegments[0].transform : null;
+        Quaternion rotation = visual != null ? visual.localRotation : road.materialData.segmentPrefab.transform.localRotation;
+        Vector3 offset = visual != null ? visual.localPosition : Vector3.zero;
+        bool useRenderedPose = materialData.pierCapPrefab == null && visual != null;
+        if (useRenderedPose)
+        {
+            midpoint = road.transform.position;
+            Vector3 right = road.transform.right;
+            cosine = right.x;
+            sine = right.y;
+            scale = Abs(visual.localScale);
+        }
+        if (cosine < MinimumSeatingRoadCosine) return false;
+        slope = sine / cosine;
         Vector3 worldScale = Abs(road.transform.lossyScale);
         underside = float.PositiveInfinity;
         minX = float.PositiveInfinity; maxX = float.NegativeInfinity;
-        float sine = span.y / length;
-        float midpointX = (start.x + end.x) * 0.5f - top.x;
+        float midpointX = midpoint.x - top.x;
+        float undersideOffset = useRenderedPose ? (midpoint.y - top.y - slope * midpointX) * cosine : 0f;
         for (int part = 0; part < geometry.corners.Length; part += 8)
         {
             float partBottom = float.PositiveInfinity, partMinX = float.PositiveInfinity, partMaxX = float.NegativeInfinity;
@@ -176,14 +250,14 @@ public partial class Bar
                 partLocalMinX = Mathf.Min(partLocalMinX, point.x); partLocalMaxX = Mathf.Max(partLocalMaxX, point.x);
                 float worldX = midpointX + cosine * point.x - sine * point.y;
                 partMinX = Mathf.Min(partMinX, worldX); partMaxX = Mathf.Max(partMaxX, worldX);
-                float worldZ = start.z + point.z;
+                float worldZ = midpoint.z + point.z;
                 partMinZ = Mathf.Min(partMinZ, worldZ); partMaxZ = Mathf.Max(partMaxZ, worldZ);
             }
             // Outboard road beams do not determine the height of a narrower
             // cap beneath the centre deck. Keep their bounds separate until
             // actual overlap across the road's width has been established.
             if (!PierSeatingDepthOverlaps(top.z + capBounds.min.z, top.z + capBounds.max.z, partMinZ, partMaxZ)) continue;
-            underside = Mathf.Min(underside, partBottom);
+            underside = Mathf.Min(underside, partBottom + undersideOffset);
             minX = Mathf.Min(minX, partMinX); maxX = Mathf.Max(maxX, partMaxX);
             if (collectBearingPatches)
                 bearingPatches.Add(new SeatingRoadPatch {
@@ -193,7 +267,6 @@ public partial class Bar
                     intercept = top.y - span.y / span.x * top.x + partBottom / cosine
                 });
         }
-        slope = span.y / span.x;
         return IsFinite(underside) && IsFinite(slope);
     }
 

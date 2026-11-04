@@ -381,13 +381,13 @@ public class ClipboardManager : MonoBehaviour
         if (BuildUIController.Instance == null) return true;
         
         float pasteCost = 0f;
+        float roadWidth = GameManager.Instance?.ActiveBuildLocation?.activeContract?.GetWideRoadWidth() ?? 0f;
         Quaternion rotation = Quaternion.Euler(0, 0, Mathf.Round(pasteRotationOffset / 15f) * 15f);
         var refundedBars = new HashSet<Bar>();
         foreach (var cb in copiedBars)
         {
             Vector3 p1 = copiedRelativePoints[cb.startIdx];
             Vector3 p2 = copiedRelativePoints[cb.endIdx];
-            int multiplier = cb.mat.isDualBeam ? 2 : 1;
             Vector3 targetA = pasteRootPos + rotation * p1;
             Vector3 targetB = pasteRootPos + rotation * p2;
             Point a = FindMappedPoint(targetA);
@@ -398,7 +398,7 @@ public class ClipboardManager : MonoBehaviour
             // not the slightly shorter unsnapped clipboard offsets.
             float length = Vector3.Distance(a != null ? a.transform.position : targetA,
                 b != null ? b.transform.position : targetB);
-            pasteCost += length * cb.mat.costPerMeter * multiplier;
+            pasteCost += length * BridgeWidthGeometry.GetPlacedCostPerMeter(cb.mat, roadWidth);
             if (replaced != null && refundedBars.Add(replaced)) pasteCost -= BridgeConstructionReceipt.ConstructionCost(replaced);
         }
 
@@ -653,6 +653,7 @@ public class ClipboardManager : MonoBehaviour
 
             GameObject bObj = Instantiate(barCreator.barToInstantiate, barCreator.barParent);
             Bar newBar = bObj.GetComponent<Bar>();
+            newBar.AssignOwner(GameManager.Instance?.ActiveBuildLocation);
             newBar.Initialize(cb.mat);
             newBar.StartPosition = p1.transform.position;
             newBar.UpdateCreatingBar(p2.transform.position);
@@ -751,6 +752,7 @@ public class ClipboardManager : MonoBehaviour
             gb.name = "GhostPasteBar";
             Bar bar = gb.GetComponent<Bar>();
             bar.MarkAsConstructionPreview();
+            bar.AssignOwner(GameManager.Instance?.ActiveBuildLocation);
             bar.Initialize(cb.mat);
             ghostPasteBars.Add(bar);
         }

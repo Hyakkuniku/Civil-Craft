@@ -155,10 +155,15 @@ public static class ChallengeBridgeSubmissionRules
     // simulation and final scoring, not rejected before either player can test it.
     // The host always prices its own material assets, never a client-provided cost.
     public static ChallengeSubmissionError Validate(ChallengeBridgeSubmission graph, BuildLocation site, ContractSO definition,
-        IReadOnlyDictionary<string, BridgeMaterialSO> catalog, float pierBaseY, out float cost, float nodeDepthTolerance = 1f)
+        IReadOnlyDictionary<string, BridgeMaterialSO> catalog, float pierBaseY, out float cost, float nodeDepthTolerance = 1f,
+        float? wideRoadWidthOverride = null)
     {
         cost = 0f;
         if (graph == null || site == null || definition == null || catalog == null) return ChallengeSubmissionError.WrongChallenge;
+        if (!wideRoadWidthOverride.HasValue && definition.twoWayRoad && definition.GetWideRoadWidth() <= 0f)
+            return ChallengeSubmissionError.WrongChallenge;
+        float roadWidth = wideRoadWidthOverride ?? definition.GetWideRoadWidth();
+        if (roadWidth != 0f && !ContractSO.IsValidTwoWayRoadWidth(roadWidth)) return ChallengeSubmissionError.WrongChallenge;
         if (graph.Nodes.Count > ChallengeBridgeSubmissionCodec.MaxNodes || graph.Bars.Count > ChallengeBridgeSubmissionCodec.MaxBars)
             return ChallengeSubmissionError.InvalidPacket;
         if (graph.Bars.Count == 0) return ChallengeSubmissionError.EmptyBridge;
@@ -203,10 +208,11 @@ public static class ChallengeBridgeSubmissionRules
             float length = Vector3.Distance(start, end);
             // Degenerate/non-planar members are unsafe to reconstruct. Material
             // span limits and pier placement are builder rules, not admission gates.
-            if (!Finite(material.costPerMeter) || material.costPerMeter < 0f ||
+            float unitCost = BridgeWidthGeometry.GetPlacedCostPerMeter(material, roadWidth);
+            if (!Finite(unitCost) || unitCost < 0f ||
                 length < 0.0001f || Mathf.Abs(start.z - end.z) > depthTolerance + 0.001f)
                 return ChallengeSubmissionError.InvalidMembers;
-            totalCost += (double)length * material.costPerMeter * (material.isDualBeam ? 2 : 1);
+            totalCost += (double)length * unitCost;
         }
         if (totalCost > float.MaxValue) return ChallengeSubmissionError.InvalidMembers;
         cost = (float)totalCost;

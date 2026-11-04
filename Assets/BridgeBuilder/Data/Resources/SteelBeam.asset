@@ -1,0 +1,48 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d6617cda65e2ddd49ac84cabbc41a409, type: 3}
+  m_Name: SteelBeam
+  m_EditorClassIdentifier:
+  materialId: SteelBeam
+  displayName: Steel Beam
+  introductionDescription: A rigid steel member for longer spans and heavier loads.
+    Use it in trusses and braces that need to carry both tension and compression.
+  introductionImage: {fileID: 0}
+  almanacDescription: Steel beams resist pulling forces in tension and pushing forces
+    in compression. Connect them in triangles so forces can travel from the road deck
+    through the truss to the supports. Steel Beam costs more per metre than Concrete
+    Beam but adds less weight to the bridge. Each placement adds a matching pair of
+    side beams.
+  almanacImage: {fileID: 0}
+  costPerMeter: 900
+  massPerMeter: 60
+  maxLength: 20
+  maxTension: 1200000
+  maxCompression: 2600000
+  useSpring: 0
+  spring: 5000
+  damper: 50
+  isRope: 0
+  isRoad: 0
+  isPier: 0
+  pierBucklingReferenceLength: 10
+  pierBucklingExponent: 2
+  pierMinimumCompressionMultiplier: 0.15
+  requiresExplicitContractAllowance: 1
+  unlockCost: 500
+  materialIcon: {fileID: 21300000, guid: ae202ed6a926acd4eac2a5ff433ee41c, type: 3}
+  segmentPrefab: {fileID: 6835235111057378168, guid: 390a82d6499599646822830aa89115e4,
+    type: 3}
+  pierCapPrefab: {fileID: 0}
+  gizmoColor: {r: 0.8, g: 0.172, b: 0.044, a: 1}
+  isDualBeam: 1
+  zOffset: 4.4

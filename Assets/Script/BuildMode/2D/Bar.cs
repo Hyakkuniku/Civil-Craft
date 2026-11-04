@@ -327,6 +327,11 @@ public partial class Bar : MonoBehaviour
 
     [SerializeField, HideInInspector] private BuildLocation ownerLocation;
     public BuildLocation OwnerLocation => ownerLocation;
+    public float WideRoadWidth { get; private set; }
+    public float SideOffset => BridgeWidthGeometry.GetSideOffset(materialData, WideRoadWidth);
+    public float PlacedMassPerMeter => BridgeWidthGeometry.GetPlacedMassPerMeter(materialData, WideRoadWidth);
+    public float RoadColliderWidth => WideRoadWidth > 0f && materialData != null && materialData.isRoad
+        ? WideRoadWidth : visualSize.z;
     // Runtime-only identity: a held clipboard copy is a visual, not construction.
     public bool IsConstructionPreview { get; private set; }
 
@@ -346,6 +351,8 @@ public partial class Bar : MonoBehaviour
     internal float SessionSpectatorRopeLength => ropeSimulationRestLength > 0f ? ropeSimulationRestLength : currentLength;
     private const int RopeCurvePoints = 17;
     private static readonly Color RopeLineColor = new Color(0.72f, 0.43f, 0.25f, 1f);
+    internal static Color GetRopeSimulationTint(BridgeMaterialSO material) =>
+        material.ropeSimulationTint.a > 0f ? material.ropeSimulationTint : RopeLineColor;
     private static Shader ropeSimulationShader;
     private Material ropeSimulationMaterial;
     private float baseLength = 1f; 
@@ -424,6 +431,7 @@ public partial class Bar : MonoBehaviour
         {
             baseLength = Mathf.Max(0.01f, savedLength);
         }
+        ApplyOwnerWidth();
     }
 
     public void MarkAsConstructionPreview()
@@ -437,16 +445,61 @@ public partial class Bar : MonoBehaviour
     public void AssignOwner(BuildLocation location, bool overwriteExisting = false)
     {
         if (location != null && (ownerLocation == null || overwriteExisting))
+        {
             ownerLocation = location;
+            ApplyOwnerWidth();
+        }
     }
+
+    private void ApplyOwnerWidth()
+    {
+        float width = ownerLocation != null && ownerLocation.activeContract != null
+            ? ownerLocation.activeContract.GetWideRoadWidth() : 0f;
+        if (width == WideRoadWidth) return;
+        WideRoadWidth = width;
+        if (materialData == null || visualSegments.Count == 0) return;
+
+        // Starter prefabs can already contain their segment meshes before the
+        // build location assigns ownership. Preserve their length and height.
+        GameObject source = materialData.segmentPrefab;
+        if (source != null)
+        {
+            originalScale.z = source.transform.localScale.z * SegmentDepthScale();
+            for (int i = 0; i < visualSegments.Count; i++)
+            {
+                Transform segment = visualSegments[i].transform;
+                Vector3 scale = segment.localScale;
+                scale.z = Mathf.Abs(originalScale.z);
+                segment.localScale = scale;
+                Vector3 position = segment.localPosition;
+                position.z = SegmentDepthPosition(i);
+                segment.localPosition = position;
+            }
+        }
+        if (pierCapInstance != null)
+        {
+            GameObject cap = materialData.pierCapPrefab;
+            originalCapScale.z = cap.transform.localScale.z * BridgeWidthGeometry.GetPierWidthScale(cap, WideRoadWidth);
+            Vector3 scale = pierCapInstance.transform.localScale;
+            scale.z = Mathf.Abs(originalCapScale.z);
+            pierCapInstance.transform.localScale = scale;
+        }
+    }
+
+    private float SegmentDepthScale() => BridgeWidthGeometry.GetSegmentDepthScale(materialData, WideRoadWidth);
+
+    private float SegmentDepthPosition(int index) => BridgeWidthGeometry.GetSegmentDepthPosition(materialData, WideRoadWidth, index);
+
+    private float PierCapDepthPosition() => BridgeWidthGeometry.GetCenteredDepthOffset(materialData.pierCapPrefab,
+        BridgeWidthGeometry.GetPierWidthScale(materialData.pierCapPrefab, WideRoadWidth), WideRoadWidth);
 
     public void InferOwnerFromEndpoints()
     {
         if (ownerLocation != null) return;
         if (startPoint != null && startPoint.OwnerLocation != null)
-            ownerLocation = startPoint.OwnerLocation;
+            AssignOwner(startPoint.OwnerLocation);
         else if (endPoint != null && endPoint.OwnerLocation != null)
-            ownerLocation = endPoint.OwnerLocation;
+            AssignOwner(endPoint.OwnerLocation);
     }
 
     // --- NEW: Re-knits the graph if this Bar was loaded from a Prefab and lost its scene references ---
@@ -535,6 +588,9 @@ public partial class Bar : MonoBehaviour
         ropeSimulationLines.Clear();
         ropeSimulationVisualActive = false;
         ropeSimulationRestLength = 0f;
+        pierCapInstance = null;
+        WideRoadWidth = ownerLocation != null && ownerLocation.activeContract != null
+            ? ownerLocation.activeContract.GetWideRoadWidth() : 0f;
         
         foreach (Transform child in transform)
         {
@@ -551,12 +607,13 @@ public partial class Bar : MonoBehaviour
                 GameObject newSegment = Instantiate(materialData.segmentPrefab, transform);
                 newSegment.name = materialData.isDualBeam ? $"VisualSegment_{i}" : "VisualSegment";
 
-                float offsetValue = 0f;
-                if (materialData.isDualBeam)
+                newSegment.transform.localPosition = new Vector3(0, 0, SegmentDepthPosition(i));
+                if (WideRoadWidth > 0f)
                 {
-                    offsetValue = (i == 0) ? materialData.zOffset : -materialData.zOffset;
+                    Vector3 scale = newSegment.transform.localScale;
+                    scale.z *= SegmentDepthScale();
+                    newSegment.transform.localScale = scale;
                 }
-                newSegment.transform.localPosition = new Vector3(0, 0, offsetValue);
 
                 var renderer = newSegment.GetComponentInChildren<Renderer>();
                 if (materialData.isRope)
@@ -583,7 +640,7 @@ public partial class Bar : MonoBehaviour
 
             if (ropeSimulationMaterial != null)
             {
-                ropeSimulationMaterial.SetColor("_BaseColor", RopeLineColor);
+                ropeSimulationMaterial.SetColor("_BaseColor", GetRopeSimulationTint(materialData));
                 for (int i = 0; i < spawnCount; i++)
                 {
                     GameObject lineObject = new GameObject($"SimulationRope_{i}");
@@ -612,6 +669,7 @@ public partial class Bar : MonoBehaviour
             pierCapInstance = Instantiate(materialData.pierCapPrefab, transform);
             pierCapInstance.name = "PierCap";
             originalCapScale = pierCapInstance.transform.localScale;
+            originalCapScale.z *= BridgeWidthGeometry.GetPierWidthScale(materialData.pierCapPrefab, WideRoadWidth);
 
             pierCapInstance.transform.position = Vector3.zero;
             pierCapInstance.transform.rotation = Quaternion.identity;
@@ -716,6 +774,7 @@ public partial class Bar : MonoBehaviour
                 
                 Vector3 capPos = actualEnd;
                 capPos.y -= capTopOffset; 
+                capPos.z += PierCapDepthPosition();
                 
                 pierCapInstance.transform.position = capPos;
                 pierCapInstance.transform.rotation = Quaternion.identity;
@@ -780,7 +839,7 @@ public partial class Bar : MonoBehaviour
             if (line == null) continue;
             line.enabled = true;
             float zOffset = materialData.isDualBeam
-                ? (strand == 0 ? materialData.zOffset : -materialData.zOffset) : 0f;
+                ? (strand == 0 ? SideOffset : -SideOffset) : 0f;
             for (int point = 0; point < RopeCurvePoints; point++)
             {
                 float t = (float)point / (RopeCurvePoints - 1);
@@ -884,6 +943,6 @@ public partial class Bar : MonoBehaviour
     {
         if (materialData == null) return 0f;
         int multiplier = materialData.isDualBeam ? 2 : 1;
-        return currentLength * materialData.costPerMeter * multiplier;
+        return currentLength * BridgeWidthGeometry.GetCostPerMeter(materialData, WideRoadWidth) * multiplier;
     }
 }

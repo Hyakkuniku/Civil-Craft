@@ -320,6 +320,11 @@ public class BuildLocation : Interactable
         }
 
         if (activeContract == null) { Debug.LogWarning("<color=red>Access Denied!</color> You cannot build here without a valid contract."); return; }
+        if (activeContract.twoWayRoad && activeContract.GetWideRoadWidth() <= 0f)
+        {
+            Debug.LogWarning("Build Mode requires a Two-Way Road width between 8.1 and 100 metres.", this);
+            return;
+        }
         
         if (bakedBars.Count > 0) 
         { 
@@ -1377,6 +1382,24 @@ public class BuildLocation : Interactable
             return false;
         }
 
+        if (!ReconstructSavedBridge(savedBridge, creator)) return false;
+
+        NPCContractGiver[] npcs = FindObjectsOfType<NPCContractGiver>();
+        foreach (var npc in npcs)
+        {
+            if (npc.contractToGive == activeContract) npc.isContractCompleted = true;
+        }
+
+        SetBridgeScriptsActive(false);
+
+        if (DynamicNavMeshUpdater.Instance != null)
+            DynamicNavMeshUpdater.Instance.UpdateWalkableNavMeshForLocation(this);
+
+        return true;
+    }
+
+    private bool ReconstructSavedBridge(SavedBridgeData savedBridge, BarCreator creator)
+    {
         BridgeMaterialSO[] allMats = Resources.LoadAll<BridgeMaterialSO>("");
         Dictionary<string, BridgeMaterialSO> materialsByName = new Dictionary<string, BridgeMaterialSO>();
         foreach (BridgeMaterialSO material in allMats)
@@ -1489,13 +1512,13 @@ public class BuildLocation : Interactable
                     {
                         BoxCollider col = newBar.gameObject.AddComponent<BoxCollider>();
                         float thickness = mat.isRoad ? 0.12f : 0.2f;
-                        float depth = newBar.visualSize.z; 
+                        float depth = newBar.RoadColliderWidth;
 
                         if (mat.isRoad && depth < 2.4f) depth = 2.4f;
                         else if (!mat.isDualBeam && depth < 2.0f) depth = 2.0f;
                         else if (mat.isDualBeam && depth < 0.2f) depth = 0.2f;
 
-                        float zOffsetValue = mat.isDualBeam ? ((i == 0) ? mat.zOffset : -mat.zOffset) : 0f;
+                        float zOffsetValue = i == 0 ? newBar.SideOffset : -newBar.SideOffset;
                         float physicsLength = length + (mat.isRoad ? 0.2f : 0.05f);
                         
                         col.size = new Vector3(physicsLength, thickness, depth);
@@ -1524,17 +1547,6 @@ public class BuildLocation : Interactable
         foreach (Bar bar in bakedBars)
             if (bar != null && bar.materialData != null && bar.materialData.isPier)
                 bar.RefreshPierCapSeating();
-
-        NPCContractGiver[] npcs = FindObjectsOfType<NPCContractGiver>();
-        foreach (var npc in npcs)
-        {
-            if (npc.contractToGive == activeContract) npc.isContractCompleted = true;
-        }
-
-        SetBridgeScriptsActive(false);
-
-        if (DynamicNavMeshUpdater.Instance != null)
-            DynamicNavMeshUpdater.Instance.UpdateWalkableNavMeshForLocation(this);
 
         return true;
     }

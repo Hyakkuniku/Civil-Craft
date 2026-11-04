@@ -339,7 +339,8 @@ public sealed partial class MultiplayerChallengeLobbyUI : MonoBehaviour
                 ContractSO definition = ChallengeBuildWorkspace.ResolveContract(site, state.ContractKey.ToString());
                 BarCreator creator = FindObjectOfType<BarCreator>(true);
                 ClosePanelForBuild(); // Restore the authored build Canvas; retain input/return-pose capture.
-                buildWorkspace = ChallengeBuildWorkspace.Create(site, definition, creator, state.Revision, boundRunner.LocalPlayer.RawEncoded);
+                buildWorkspace = ChallengeBuildWorkspace.Create(site, definition, creator, state.Revision,
+                    boundRunner.LocalPlayer.RawEncoded, state.WideRoadWidth);
                 if (definition.liveLoadMode == ContractSO.LiveLoadMode.Vehicle)
                 {
                     LiveLoadTestRoster roster = ChallengeLiveLoadRoster.FromState(state, site, definition);

@@ -203,6 +203,14 @@ public class ContractSO : ScriptableObject
     // --- NEW: Bridge Span added here! ---
     [Tooltip("The required span/length of the bridge in meters.")]
     public float bridgeSpan = 30f; 
+    [Tooltip("Use a wider road deck for this contract's bridge.")]
+    public bool twoWayRoad;
+    [Tooltip("Edge-to-edge bridge road width in meters. Match the scene's approaches.")]
+    public float twoWayRoadWidth = 16f;
+
+    public static bool IsValidTwoWayRoadWidth(float width) => width >= 8.1f && width <= 100f;
+
+    public float GetWideRoadWidth() => twoWayRoad && IsValidTwoWayRoadWidth(twoWayRoadWidth) ? twoWayRoadWidth : 0f;
 
     [Header("Material Restrictions")]
     [Tooltip("List the specific materials allowed for this job and their quantity limits.")]

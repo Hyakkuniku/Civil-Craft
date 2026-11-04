@@ -1249,7 +1249,7 @@ public class BuildUIController : MonoBehaviour
                 float length = GetStructuralLength(b);
                 cachedBaseM++;
                 if (b.materialData.isRoad) cachedBaseRoadLength += length;
-                cachedBaseDeadLoad += length * b.materialData.GetPlacedMassPerMeter();
+                cachedBaseDeadLoad += length * b.PlacedMassPerMeter;
             }
         }
 
@@ -1383,7 +1383,7 @@ public class BuildUIController : MonoBehaviour
             float previewLength = GetStructuralLength(preview);
             displayM++;
             if (preview.materialData.isRoad) roadLength += previewLength;
-            deadLoad += previewLength * preview.materialData.GetPlacedMassPerMeter();
+            deadLoad += previewLength * preview.PlacedMassPerMeter;
         }
 
         float theoreticalCapacityKg = cachedEstimatedCapacityKg;

@@ -40,6 +40,7 @@ public sealed partial class FusionMultiplayerAvatar
             sceneMotor != null && !CargoItem.IsCarriedBy(sceneMotor.transform) &&
             (TutorialManager.Instance == null || !TutorialManager.Instance.IsTutorialActive) &&
             MultiplayerChallengeRules.IsCompletedHostSite(site) &&
+            (!site.activeContract.twoWayRoad || site.activeContract.GetWideRoadWidth() > 0f) &&
             ChallengeCompetitionScoring.ValidMeasurements(site.activeContract.budget, 0f, 0f) &&
             site.activeContract.ContractID.Length <= 128 &&
             MultiplayerChallengeRules.SiteKey(site).Length <= 256 &&
@@ -76,6 +77,7 @@ public sealed partial class FusionMultiplayerAvatar
             Guest = guest, SiteKey = MultiplayerChallengeRules.SiteKey(site),
             ContractKey = site.activeContract.ContractID,
             ChallengeBudget = site.activeContract.budget,
+            WideRoadWidth = site.activeContract.GetWideRoadWidth(),
             ChallengeVehicleKey = vehicleKey,
             ChallengeVehicleWeight = vehicle != null ? vehicle.GetSessionTestWeight() : 0f,
             Deadline = TickTimer.CreateFromSeconds(Runner, challengeInvitationSeconds)

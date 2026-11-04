@@ -137,14 +137,16 @@ public class MaterialTooltipManager : MonoBehaviour
         if (displayedMaterial == material && tooltipCanvasGroup.alpha > 0f) return;
         displayedMaterial = material;
 
-        // Populate the UI with the exact data from your SO
+        float width = GameManager.Instance?.ActiveBuildLocation?.activeContract?.GetWideRoadWidth() ?? 0f;
+        float rate = BridgeWidthGeometry.GetCostPerMeter(material, width);
+        float mass = material.massPerMeter * BridgeWidthGeometry.GetRoadScale(material, width);
         if (materialNameText != null) materialNameText.text = material.GetDisplayName();
-        if (costText != null) costText.text = $"<color=#F2BF72>COST</color>  <b>₱{material.costPerMeter:N0} / m</b>";
+        if (costText != null) costText.text = $"<color=#F2BF72>COST</color>  <b>₱{rate:N0} / m</b>";
         if (weightText != null)
         {
             weightText.text = material.isDualBeam
-                ? $"<color=#F2BF72>MASS</color>  <b>{material.GetPlacedMassPerMeter():0.###} kg/m placed</b>\n{material.massPerMeter:0.###} kg/m per beam"
-                : $"<color=#F2BF72>MASS</color>  <b>{material.massPerMeter:0.###} kg/m</b>";
+                ? $"<color=#F2BF72>MASS</color>  <b>{mass * 2f:0.###} kg/m placed</b>\n{mass:0.###} kg/m per beam"
+                : $"<color=#F2BF72>MASS</color>  <b>{mass:0.###} kg/m</b>";
         }
         if (lengthText != null) lengthText.text = $"<color=#F2BF72>MAX LENGTH</color>  <b>{material.maxLength} m</b>";
 

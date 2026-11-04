@@ -30,7 +30,7 @@ public sealed class ChallengeBridgeTestRun : IDisposable
 
     public static ChallengeBridgeTestRun Create(ChallengeBridgeSubmission graph, BuildLocation site, ContractSO definition,
         BarCreator creator, BridgePhysicsManager settings, LiveLoadVehicle vehicleSource, float weight, int revision, int index,
-        LiveLoadTestRoster frozenRoster = null)
+        LiveLoadTestRoster frozenRoster = null, float? wideRoadWidthOverride = null)
     {
         if (graph == null || site == null || definition == null || creator == null || settings == null || vehicleSource == null ||
             definition.liveLoadMode != ContractSO.LiveLoadMode.Vehicle || vehicleSource.startPoint == null || vehicleSource.endPoint == null)
@@ -47,6 +47,13 @@ public sealed class ChallengeBridgeTestRun : IDisposable
             run.Location.enabled = false;
             run.Location.locationCamera = site.locationCamera;
             run.contract = Object.Instantiate(definition);
+            if (wideRoadWidthOverride.HasValue)
+            {
+                run.contract.twoWayRoad = wideRoadWidthOverride.Value != 0f;
+                run.contract.twoWayRoadWidth = wideRoadWidthOverride.Value;
+                if (run.contract.twoWayRoad && run.contract.GetWideRoadWidth() <= 0f)
+                    throw new InvalidOperationException("The challenge road width is invalid.");
+            }
             run.contract.hideFlags = HideFlags.DontSave;
             run.contract.contractID = ChallengeBuildWorkspace.ContractPrefix + "test_" + revision + "_" + index;
             run.contract.isTutorialContract = run.contract.isStoryModeContract = run.contract.countsTowardMapAchievements = false;

@@ -65,6 +65,7 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
         public int MaterialHash;
         public int ContractHash;
         public int Committed;
+        public float WideRoadWidth;
         public Vector3 RoadColliderSize;
         public Vector3 RoadColliderCenter;
     }
@@ -877,6 +878,7 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
                 MaterialHash = StableHash(bar.materialData.Id),
                 ContractHash = contractHash,
                 Committed = committed ? 1 : 0,
+                WideRoadWidth = bar.WideRoadWidth,
                 RoadColliderSize = roadCollider != null ? roadCollider.size : Vector3.zero,
                 RoadColliderCenter = roadCollider != null ? roadCollider.center : Vector3.zero
             };
@@ -884,7 +886,7 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
             if (previous.Start != snapshot.Start || previous.End != snapshot.End ||
                 previous.MaterialHash != snapshot.MaterialHash ||
                 previous.ContractHash != snapshot.ContractHash ||
-                previous.Committed != snapshot.Committed ||
+                previous.Committed != snapshot.Committed || previous.WideRoadWidth != snapshot.WideRoadWidth ||
                 previous.RoadColliderSize != snapshot.RoadColliderSize ||
                 previous.RoadColliderCenter != snapshot.RoadColliderCenter)
                 HostBridgeBars.Set(count, snapshot);
@@ -925,11 +927,11 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
 
             BridgeBarSnapshot snapshot = HostBridgeBars[index];
             BridgeBarVisual visual = remoteBridgeBars[index];
-            if (visual == null || visual.MaterialHash != snapshot.MaterialHash)
+            if (visual == null || visual.MaterialHash != snapshot.MaterialHash || visual.WideRoadWidth != snapshot.WideRoadWidth)
             {
                 if (visual != null) Destroy(visual.Root);
                 visual = bridgeMaterialsByHash.TryGetValue(snapshot.MaterialHash, out BridgeMaterialSO material)
-                    ? new BridgeBarVisual(material, snapshot.MaterialHash, remoteBridgeBarRoot.transform)
+                    ? new BridgeBarVisual(material, snapshot.MaterialHash, remoteBridgeBarRoot.transform, snapshot.WideRoadWidth)
                     : null;
                 if (visual == null && missingBridgeMaterialHashes.Add(snapshot.MaterialHash))
                     Debug.LogWarning("[Fusion] Guest could not find a bridge material used by the host. " +
@@ -972,6 +974,7 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
         if (!IsBridgeBuilder || parent == null || rowPrefab == null) return 0;
         if (bridgeMaterialsByHash == null) LoadBridgeMaterials();
         Dictionary<BridgeMaterialSO, float> usage = new Dictionary<BridgeMaterialSO, float>();
+        var rates = new Dictionary<BridgeMaterialSO, float>();
         int count = Mathf.Clamp(HostBridgeBarCount, 0, MaxBridgeBars);
         for (int index = 0; index < count; index++)
         {
@@ -983,13 +986,14 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
                 (material.isDualBeam ? 2f : 1f);
             usage[material] = usage.TryGetValue(material, out float previous)
                 ? previous + length : length;
+            rates[material] = BridgeWidthGeometry.GetCostPerMeter(material, bar.WideRoadWidth);
         }
 
         foreach (KeyValuePair<BridgeMaterialSO, float> entry in usage)
         {
             GameObject row = Instantiate(rowPrefab, parent);
             ReceiptRowUI receipt = row.GetComponent<ReceiptRowUI>();
-            if (receipt != null) receipt.Setup(entry.Key, entry.Value);
+            if (receipt != null) receipt.Setup(entry.Key, entry.Value, rates[entry.Key]);
         }
         return usage.Count;
     }
@@ -1007,6 +1011,7 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
     {
         public readonly GameObject Root;
         public readonly int MaterialHash;
+        public readonly float WideRoadWidth;
         private readonly BridgeMaterialSO material;
         private readonly List<Transform> segments = new List<Transform>();
         private readonly List<Vector3> segmentBaseScales = new List<Vector3>();
@@ -1015,12 +1020,14 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
         private readonly Vector3 capBaseScale;
         private readonly float capTopOffset;
         private readonly float capBottomOffset;
+        private readonly float capDepthOffset;
         private readonly float baseLength;
 
-        public BridgeBarVisual(BridgeMaterialSO bridgeMaterial, int hash, Transform parent)
+        public BridgeBarVisual(BridgeMaterialSO bridgeMaterial, int hash, Transform parent, float wideRoadWidth)
         {
             material = bridgeMaterial;
             MaterialHash = hash;
+            WideRoadWidth = wideRoadWidth;
             Root = new GameObject("Host " + material.GetDisplayName());
             Root.layer = 2;
             Root.transform.SetParent(parent, false);
@@ -1032,13 +1039,14 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
                 GameObject segment = CreateMeshOnlyCopy(material.segmentPrefab,
                     Root.transform, "Bridge Segment");
                 if (segment == null) continue;
-                segment.transform.localPosition = new Vector3(0f, 0f,
-                    material.isDualBeam ? (strand == 0 ? material.zOffset : -material.zOffset) : 0f);
+                segment.transform.localPosition = new Vector3(0f, 0f, BridgeWidthGeometry.GetSegmentDepthPosition(material, wideRoadWidth, strand));
                 Renderer renderer = segment.GetComponentInChildren<Renderer>(true);
                 if (renderer != null && strand == 0)
                     measuredLength = material.isPier ? renderer.bounds.size.y : renderer.bounds.size.x;
                 segments.Add(segment.transform);
-                segmentBaseScales.Add(segment.transform.localScale);
+                Vector3 scale = segment.transform.localScale;
+                scale.z *= BridgeWidthGeometry.GetSegmentDepthScale(material, wideRoadWidth);
+                segmentBaseScales.Add(scale);
             }
             baseLength = Mathf.Max(0.01f, measuredLength);
 
@@ -1047,7 +1055,11 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
                 GameObject capObject = CreateMeshOnlyCopy(material.pierCapPrefab,
                     Root.transform, "Pier Cap");
                 cap = capObject != null ? capObject.transform : null;
-                capBaseScale = cap != null ? cap.localScale : Vector3.one;
+                Vector3 scale = cap != null ? cap.localScale : Vector3.one;
+                float depthScale = BridgeWidthGeometry.GetPierWidthScale(material.pierCapPrefab, wideRoadWidth);
+                scale.z *= depthScale;
+                capBaseScale = scale;
+                capDepthOffset = BridgeWidthGeometry.GetCenteredDepthOffset(material.pierCapPrefab, depthScale, wideRoadWidth);
                 Renderer capRenderer = cap != null ? cap.GetComponentInChildren<Renderer>(true) : null;
                 capTopOffset = capRenderer != null ? capRenderer.bounds.max.y : 0f;
                 capBottomOffset = capRenderer != null ? capRenderer.bounds.min.y : 0f;
@@ -1081,7 +1093,7 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
                 if (cap != null)
                 {
                     cap.localScale = capBaseScale;
-                    cap.position = new Vector3(end.x, end.y - capTopOffset, end.z);
+                    cap.position = new Vector3(end.x, end.y - capTopOffset, end.z + capDepthOffset);
                     cap.rotation = Quaternion.identity;
                 }
             }

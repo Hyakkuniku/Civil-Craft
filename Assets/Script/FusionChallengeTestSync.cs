@@ -284,9 +284,10 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
             if (submissions == null || !submissions.TryGetAcceptedBridge(owner, revision, out var graph, out _))
                 throw new InvalidOperationException("The accepted bridge packet is unavailable.");
             if (ChallengeBridgeSubmissionRules.Validate(graph, site, definition, ChallengeBridgeSubmissionRules.CreateMaterialCatalog(definition),
-                workspace.Creator.pierBaseY, out _, workspace.Creator.nodeSnapDepthTolerance) != ChallengeSubmissionError.None)
+                workspace.Creator.pierBaseY, out _, workspace.Creator.nodeSnapDepthTolerance, state.WideRoadWidth) != ChallengeSubmissionError.None)
                 throw new InvalidOperationException("The accepted bridge no longer matches the challenge definition.");
-            run = ChallengeBridgeTestRun.Create(graph, site, definition, workspace.Creator, settings, vehicleSource, testWeight, revision, index, frozenRoster);
+            run = ChallengeBridgeTestRun.Create(graph, site, definition, workspace.Creator, settings, vehicleSource, testWeight,
+                revision, index, frozenRoster, state.WideRoadWidth);
         }
         catch (Exception error) { FailSetup(error); yield break; }
         // Start must subscribe the isolated vehicle before the first settling event,
@@ -361,7 +362,8 @@ public sealed class FusionChallengeTestSync : MonoBehaviour
             }
             HideWorldVehicles(site, definition);
             BridgePhysicsManager guestSettings = FindObjectOfType<BridgePhysicsManager>(true);
-            view = new ChallengeBridgeTestView(descriptor, site, workspace.Creator, ChallengeBridgeSubmissionRules.CreateMaterialCatalog(definition), guestSettings);
+            view = new ChallengeBridgeTestView(descriptor, site, workspace.Creator,
+                ChallengeBridgeSubmissionRules.CreateMaterialCatalog(definition), guestSettings, state.WideRoadWidth);
             guestIntroductionPending = true;
         }
         catch (Exception error)

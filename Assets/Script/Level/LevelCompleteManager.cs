@@ -622,7 +622,7 @@ public class LevelCompleteManager : MonoBehaviour
             {
                 GameObject rowObj = Instantiate(receiptRowPrefab, receiptContentParent);
                 ReceiptRowUI rowUI = rowObj.GetComponent<ReceiptRowUI>();
-                if (rowUI != null) rowUI.Setup(kvp.Key, kvp.Value);
+                if (rowUI != null) rowUI.Setup(kvp.Key, kvp.Value, constructionReceipt.GetCostPerMeter(kvp.Key));
             }
             ContractLiveLoadPresentation.AppendReceiptResults(receiptContentParent,
                 ReceiptFont != null ? ReceiptFont : (feedbackText != null ? feedbackText.font : TMP_Settings.defaultFontAsset),

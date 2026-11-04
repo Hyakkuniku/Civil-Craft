@@ -35,7 +35,7 @@ public partial class BarCreator
         if (BuildUIController.Instance != null && activeMaterial != null)
         {
             float remainingBudget = BuildUIController.Instance.maxBudget - BuildUIController.Instance.GetTotalCost();
-            float costPerMeter = activeMaterial.costPerMeter * (activeMaterial.isDualBeam ? 2 : 1);
+            float costPerMeter = BridgeWidthGeometry.GetPlacedCostPerMeter(activeMaterial, ActiveRoadWidth);
             float maxAffordable = Mathf.Max(0f, remainingBudget / costPerMeter);
             if (maxAffordable < limit) limit = maxAffordable;
         }

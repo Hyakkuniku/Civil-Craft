@@ -10,12 +10,14 @@ public class ReceiptRowUI : MonoBehaviour
     public TextMeshProUGUI quantityText;
     public TextMeshProUGUI totalText;
 
-    public void Setup(BridgeMaterialSO mat, float billableLength)
+    public void Setup(BridgeMaterialSO mat, float billableLength) => Setup(mat, billableLength, mat != null ? mat.costPerMeter : 0f);
+
+    public void Setup(BridgeMaterialSO mat, float billableLength, float costPerUnit)
     {
         if (mat == null) return;
         if (transform.parent != null && transform.parent.name == "Receipt Items")
         {
-            SetupPaperRow(mat, billableLength);
+            SetupPaperRow(mat, billableLength, costPerUnit);
             return;
         }
         // 1. Set the Icon
@@ -31,7 +33,6 @@ public class ReceiptRowUI : MonoBehaviour
         }
 
         // 3. Do the Math
-        float costPerUnit = mat.costPerMeter;
         float rowTotal = billableLength * costPerUnit;
 
         // 4. Fill out the rest of the text
@@ -40,7 +41,7 @@ public class ReceiptRowUI : MonoBehaviour
         if (totalText != null) totalText.text = $"= ₱{rowTotal:N0}";
     }
 
-    private void SetupPaperRow(BridgeMaterialSO mat, float length)
+    private void SetupPaperRow(BridgeMaterialSO mat, float length, float costPerUnit)
     {
         if (mat == null) return;
         TMP_FontAsset font = materialNameText != null ? materialNameText.font : TMP_Settings.defaultFontAsset;
@@ -56,8 +57,8 @@ public class ReceiptRowUI : MonoBehaviour
         element.ignoreLayout = false; element.minHeight = 96; element.preferredHeight = 96; element.flexibleHeight = 0;
         string title = mat.GetDisplayName();
         CompletionReceiptLayout.Label(transform,"Item",title,0,.49f,.62f,1,28,font);
-        CompletionReceiptLayout.Label(transform,"Amount",$"₱{length * mat.costPerMeter:N0}",.63f,.49f,1,1,28,font,TextAlignmentOptions.MidlineRight);
-        CompletionReceiptLayout.Label(transform,"Quantity and rate",$"{length:F1} m × ₱{mat.costPerMeter:N0}/m",0,.12f,1,.48f,23,font);
+        CompletionReceiptLayout.Label(transform,"Amount",$"₱{length * costPerUnit:N0}",.63f,.49f,1,1,28,font,TextAlignmentOptions.MidlineRight);
+        CompletionReceiptLayout.Label(transform,"Quantity and rate",$"{length:F1} m × ₱{costPerUnit:N0}/m",0,.12f,1,.48f,23,font);
         CompletionReceiptLayout.Divider(transform,"Dashed divider",0,.04f,1);
     }
 }

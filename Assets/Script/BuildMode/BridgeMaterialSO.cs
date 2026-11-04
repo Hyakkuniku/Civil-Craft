@@ -87,6 +87,8 @@ public class BridgeMaterialSO : ScriptableObject
     public GameObject pierCapPrefab; 
     
     public Color gizmoColor = Color.white;
+    [Tooltip("Optional rope color during simulation. A transparent value uses the standard rope color.")]
+    public Color ropeSimulationTint;
     public bool isDualBeam = false;
     public float zOffset = 0.5f;
 

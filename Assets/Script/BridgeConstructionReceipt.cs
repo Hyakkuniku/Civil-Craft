@@ -5,8 +5,10 @@ using UnityEngine;
 public sealed class BridgeConstructionReceipt
 {
     private readonly Dictionary<BridgeMaterialSO, float> materialMeters = new Dictionary<BridgeMaterialSO, float>();
+    private readonly Dictionary<BridgeMaterialSO, float> materialRates = new Dictionary<BridgeMaterialSO, float>();
     public IReadOnlyDictionary<BridgeMaterialSO, float> MaterialMeters => materialMeters;
     public float TotalCost { get; private set; }
+    public float GetCostPerMeter(BridgeMaterialSO material) => materialRates[material];
 
     public static bool IsLogicalMember(Bar bar) => bar != null && !bar.IsConstructionPreview &&
         (bar.transform.parent == null || bar.transform.parent.GetComponentInParent<Bar>() == null);
@@ -16,7 +18,7 @@ public sealed class BridgeConstructionReceipt
         : Mathf.Max(0f, bar.currentLength);
 
     public static float ConstructionCost(Bar bar) => bar != null && !bar.IsConstructionPreview && bar.materialData != null
-        ? ConstructionLength(bar) * bar.materialData.costPerMeter * (bar.materialData.isDualBeam ? 2 : 1) : 0f;
+        ? ConstructionLength(bar) * BridgeWidthGeometry.GetPlacedCostPerMeter(bar.materialData, bar.WideRoadWidth) : 0f;
 
     public static BridgeConstructionReceipt Capture(BuildLocation location, IEnumerable<Bar> candidates,
         Bar preview = null, bool includeDisabled = false)
@@ -32,7 +34,9 @@ public sealed class BridgeConstructionReceipt
             float meters = ConstructionLength(bar) * (bar.materialData.isDualBeam ? 2 : 1);
             receipt.materialMeters.TryGetValue(bar.materialData, out float previous);
             receipt.materialMeters[bar.materialData] = previous + meters;
-            total += (double)ConstructionLength(bar) * bar.materialData.costPerMeter * (bar.materialData.isDualBeam ? 2 : 1);
+            float rate = BridgeWidthGeometry.GetCostPerMeter(bar.materialData, bar.WideRoadWidth);
+            receipt.materialRates[bar.materialData] = rate;
+            total += (double)meters * rate;
         }
         receipt.TotalCost = (float)total;
         return receipt;

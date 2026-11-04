@@ -439,6 +439,12 @@ public partial class GameManager : MonoBehaviour
 
     public bool EnterBuildMode(BuildLocation location, Transform player)
     {
+        ContractSO contract = location != null ? location.activeContract : null;
+        if (contract != null && contract.twoWayRoad && contract.GetWideRoadWidth() <= 0f)
+        {
+            Debug.LogWarning("Build Mode requires a Two-Way Road width between 8.1 and 100 metres.", location);
+            return false;
+        }
         if (MultiplayerChallengeLobbyUI.IsChallengeActive) return false;
         if (FusionConnectionManager.Instance != null &&
             FusionConnectionManager.Instance.IsGuestInHostWorld) return false;

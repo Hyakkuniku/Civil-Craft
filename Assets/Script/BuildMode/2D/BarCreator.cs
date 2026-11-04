@@ -657,7 +657,7 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
                 if (BuildUIController.Instance != null)
                 {
                     float remainingBudget = BuildUIController.Instance.maxBudget - BuildUIController.Instance.GetTotalCost();
-                    float costPerMeter = activeMaterial.costPerMeter * (activeMaterial.isDualBeam ? 2 : 1);
+                    float costPerMeter = BridgeWidthGeometry.GetPlacedCostPerMeter(activeMaterial, ActiveRoadWidth);
                     float maxAffordable = Mathf.Max(0f, remainingBudget / costPerMeter);
                     if (maxAffordable < maxLen) maxLen = maxAffordable;
                 }
@@ -736,7 +736,7 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
             if (BuildUIController.Instance != null && activeMaterial != null)
             {
                 float remainingBudget = BuildUIController.Instance.maxBudget - BuildUIController.Instance.GetTotalCost();
-                float costPerMeter = activeMaterial.costPerMeter * (activeMaterial.isDualBeam ? 2 : 1);
+                float costPerMeter = BridgeWidthGeometry.GetPlacedCostPerMeter(activeMaterial, ActiveRoadWidth);
                 float maxAffordableLength = Mathf.Max(0f, remainingBudget / costPerMeter);
                 if (maxAffordableLength < maxLen) maxLen = maxAffordableLength;
             }
@@ -870,6 +870,7 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
         GameObject obj = Instantiate(barToInstantiate, barParent);
         obj.name = "GhostPierBar";
         ghostPierBar = obj.GetComponent<Bar>();
+        ghostPierBar.AssignOwner(GameManager.Instance?.ActiveBuildLocation);
         ghostPierBar.Initialize(activeMaterial);
     }
 
@@ -1498,7 +1499,11 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
             if (barCreationStarted) DrawRadiusVisual(); 
             
             if (!activeMaterial.isPier && ghostPierBar != null) { Destroy(ghostPierBar.gameObject); ghostPierBar = null; }
-            else if (activeMaterial.isPier && ghostPierBar != null) ghostPierBar.Initialize(activeMaterial);
+            else if (activeMaterial.isPier && ghostPierBar != null)
+            {
+                ghostPierBar.AssignOwner(GameManager.Instance?.ActiveBuildLocation, true);
+                ghostPierBar.Initialize(activeMaterial);
+            }
             
             CancelAllModes();
         }
@@ -1895,6 +1900,7 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
         GameObject newBar = Instantiate(barToInstantiate, barParent);
         newBar.name = "Bar";
         currentBar = newBar.GetComponent<Bar>();
+        currentBar.AssignOwner(GameManager.Instance?.ActiveBuildLocation);
         currentBar.Initialize(activeMaterial);
         
         currentBar.StartPosition = startPosition;
@@ -1997,6 +2003,7 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
             {
                 GameObject bObj = Instantiate(barToInstantiate, barParent);
                 Bar newBar = bObj.GetComponent<Bar>();
+                newBar.AssignOwner(barToSplit.OwnerLocation ?? GameManager.Instance?.ActiveBuildLocation);
                 newBar.Initialize(barToSplit.materialData);
                 newBar.StartPosition = finalPosition;
                 newBar.EndPosition = originalEnd.transform.position; 
@@ -2012,6 +2019,7 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
             {
                 GameObject bObj = Instantiate(barToInstantiate, barParent);
                 Bar newBar = bObj.GetComponent<Bar>();
+                newBar.AssignOwner(barToSplit.OwnerLocation ?? GameManager.Instance?.ActiveBuildLocation);
                 newBar.Initialize(barToSplit.materialData);
                 newBar.StartPosition = finalPosition;
                 newBar.EndPosition = originalStart.transform.position; 
@@ -2027,6 +2035,7 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
             {
                 GameObject bObj1 = Instantiate(barToInstantiate, barParent);
                 Bar newBar1 = bObj1.GetComponent<Bar>();
+                newBar1.AssignOwner(barToSplit.OwnerLocation ?? GameManager.Instance?.ActiveBuildLocation);
                 newBar1.Initialize(barToSplit.materialData);
                 newBar1.StartPosition = originalStart.transform.position;
                 newBar1.EndPosition = finalPosition; 
@@ -2038,6 +2047,7 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
 
                 GameObject bObj2 = Instantiate(barToInstantiate, barParent);
                 Bar newBar2 = bObj2.GetComponent<Bar>();
+                newBar2.AssignOwner(barToSplit.OwnerLocation ?? GameManager.Instance?.ActiveBuildLocation);
                 newBar2.Initialize(barToSplit.materialData);
                 newBar2.StartPosition = finalPosition;
                 newBar2.EndPosition = originalEnd.transform.position; 
@@ -2235,7 +2245,7 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
         float plannedLength = 0f;
         for (int i = 1; i < positions.Count; i++)
             plannedLength += Vector3.Distance(positions[i - 1], positions[i]);
-        float cost = plannedLength * material.costPerMeter * (material.isDualBeam ? 2f : 1f);
+        float cost = plannedLength * BridgeWidthGeometry.GetPlacedCostPerMeter(material, ActiveRoadWidth);
         if (BuildUIController.Instance != null &&
             cost > BuildUIController.Instance.maxBudget - BuildUIController.Instance.GetTotalCost() + 0.01f)
             error = "Not enough bridge budget for this span.";
@@ -2385,6 +2395,8 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
     private static bool HasContractMaterialOptIn(BridgeMaterialSO material) => material != null &&
         material.CanUseInContract(GameManager.Instance != null ? GameManager.Instance.CurrentContract : null);
 
+    private static float ActiveRoadWidth => GameManager.Instance?.ActiveBuildLocation?.activeContract?.GetWideRoadWidth() ?? 0f;
+
     private void PlaceAutoDrawRing(RectTransform ring, Vector3 position)
     {
         Camera camera = GetActiveCamera();
@@ -2429,7 +2441,7 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
         if (BuildUIController.Instance != null)
         {
             float remainingBudget = BuildUIController.Instance.maxBudget - BuildUIController.Instance.GetTotalCost();
-            float costPerMeter = activeMaterial.costPerMeter * (activeMaterial.isDualBeam ? 2 : 1);
+            float costPerMeter = BridgeWidthGeometry.GetPlacedCostPerMeter(activeMaterial, ActiveRoadWidth);
             float maxAffordable = Mathf.Max(0f, remainingBudget / costPerMeter);
             if (maxAffordable < limit) limit = maxAffordable;
         }
