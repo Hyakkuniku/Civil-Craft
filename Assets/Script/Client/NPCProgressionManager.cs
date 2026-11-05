@@ -14,7 +14,8 @@ public class NPCOptionalDialogueStep
         MaterialUnlock = 1,
         Quiz = 2,
         LessonIntroduction = 3,
-        AlmanacReview = 4
+        AlmanacReview = 4,
+        ReferenceReview = 5
     }
 
     [Tooltip("Choose whether this step opens dialogue, a material introduction/unlock panel, or a quiz.")]
@@ -43,6 +44,11 @@ public class NPCOptionalDialogueStep
 
     [Tooltip("Stable identity for an Almanac open-and-close review. Preserve after release.")]
     public string reviewStepId;
+
+    [Tooltip("Review-only popup title. Does not unlock or register a formal lesson.")]
+    public string referenceTitle;
+    [TextArea(3, 12)] public string referenceDescription;
+    public Sprite referenceImage;
 }
 
 [System.Serializable]
@@ -88,6 +94,9 @@ public class NPCProgressionPhase
 
     [Tooltip("Optional ordered flow played after a contract offer is accepted, or on interaction for a contract-free phase. Add Dialogue, Material Unlock, and Quiz entries in any order. When this list has usable entries (or an authored Quiz), it replaces the legacy fields below. Quiz-only phases need no Contract; clear the default feature reward if no reward is intended.")]
     public List<NPCOptionalDialogueStep> optionalDialogueSequence = new List<NPCOptionalDialogueStep>();
+
+    [Tooltip("For a contract phase, defer its ordered review/quiz until the bridge has been successfully saved. Completing the sequence permits the normal turn-in dialogue on the next interaction; it does not advance the phase or award rewards. Disable Auto Collect Reward on the contract. Off preserves the existing post-offer timing.")]
+    public bool runOptionalSequenceBeforeTurnIn;
 
     [Tooltip("Interaction prompt shown while this contract-free phase is active.")]
     public string dialoguePrompt = "Talk";
@@ -359,7 +368,8 @@ public class NPCProgressionManager : MonoBehaviour
         // An active build objective belongs at the site, not above the giver.
         // A cancelled contract-owned quiz is the exception: talking resumes it.
         return !contractGiver.HasAcceptedProgressionContract || contractGiver.isContractCompleted ||
-            (PhaseContainsQuiz(phase) && !HasCompletedPhaseDialogue(currentPhaseIndex));
+            (PhaseContainsQuiz(phase) && !HasCompletedPhaseDialogue(currentPhaseIndex) &&
+             CanStartOptionalSequenceForContractState(currentPhaseIndex, phase));
     }
 
     private bool NeedsRepeatableContinuationRetry(NPCProgressionPhase phase)
@@ -2516,7 +2526,10 @@ public class NPCProgressionManager : MonoBehaviour
         // the accepted quest from disk. Claim only this interaction; no global
         // giver lock can be left behind if the quiz is unavailable.
         if (phase.contract != null && sender.HasAcceptedProgressionContract &&
-            PhaseContainsQuiz(phase) && !HasCompletedPhaseDialogue(currentPhaseIndex))
+            (PhaseContainsQuiz(phase) ||
+             (phase.runOptionalSequenceBeforeTurnIn && HasOrderedOptionalSequence(phase))) &&
+            !HasCompletedPhaseDialogue(currentPhaseIndex) &&
+            CanStartOptionalSequenceForContractState(currentPhaseIndex, phase))
         {
             sender.SuppressCurrentInteractionForProgression();
             TryStartOrderedOptionalSequence(currentPhaseIndex, phase);
@@ -2784,6 +2797,12 @@ public class NPCProgressionManager : MonoBehaviour
         if (phase != null && phase.cinematicAfterOffer != null)
             phase.cinematicAfterOffer.PlayContractOfferCinematic();
 
+        // Final-project reviews belong after the saved test, not the offer.
+        // Keep the same contract phase throughout so restoration cannot mistake
+        // a second phase with the same contract for an already-finished job.
+        if (phase != null && phase.contract != null && phase.runOptionalSequenceBeforeTurnIn)
+            return;
+
         if (HasOrderedOptionalSequence(phase))
             TryStartOrderedOptionalSequence(currentPhaseIndex, phase);
         else
@@ -2806,7 +2825,8 @@ public class NPCProgressionManager : MonoBehaviour
             if (step.stepType == NPCOptionalDialogueStep.StepType.Quiz)
                 return true;
             if (step.stepType == NPCOptionalDialogueStep.StepType.LessonIntroduction ||
-                step.stepType == NPCOptionalDialogueStep.StepType.AlmanacReview)
+                step.stepType == NPCOptionalDialogueStep.StepType.AlmanacReview ||
+                step.stepType == NPCOptionalDialogueStep.StepType.ReferenceReview)
                 return true;
         }
 
@@ -2823,7 +2843,8 @@ public class NPCProgressionManager : MonoBehaviour
     {
         if (phase == null || !CanRunLocalProgression() || IsTravelling ||
             currentPhaseIndex != phaseIndex || CurrentPhase != phase ||
-            !HasOrderedOptionalSequence(phase)) return;
+            !HasOrderedOptionalSequence(phase) ||
+            !CanStartOptionalSequenceForContractState(phaseIndex, phase)) return;
         if (!phase.repeatDialogue && completedDialoguePhases.Contains(phaseIndex)) return;
         if (!TryValidateOrderedQuizzes(phase, out string error))
         {
@@ -2843,6 +2864,16 @@ public class NPCProgressionManager : MonoBehaviour
             introducedMaterialPhases.Add(phaseIndex);
 
         PlayOrderedOptionalStep(phaseIndex, phase, 0, showMaterialSteps, false, sequenceVersion);
+    }
+
+    private bool CanStartOptionalSequenceForContractState(int phaseIndex, NPCProgressionPhase phase)
+    {
+        if (phase == null) return false;
+        if (phase.contract == null || !phase.runOptionalSequenceBeforeTurnIn) return true;
+        // HasCompletedPhaseDialogue includes the saved completion marker. A
+        // restart after the review must permit turn-in without replaying it.
+        return contractGiver != null && contractGiver.contractToGive == phase.contract &&
+               contractGiver.isContractCompleted && !HasCompletedPhaseDialogue(phaseIndex);
     }
 
     private void PlayOrderedOptionalStep(
@@ -2952,7 +2983,8 @@ public class NPCProgressionManager : MonoBehaviour
             }
 
             if (step.stepType == NPCOptionalDialogueStep.StepType.LessonIntroduction ||
-                step.stepType == NPCOptionalDialogueStep.StepType.AlmanacReview)
+                step.stepType == NPCOptionalDialogueStep.StepType.AlmanacReview ||
+                step.stepType == NPCOptionalDialogueStep.StepType.ReferenceReview)
             {
                 if (orderedLearningFlow == null)
                     orderedLearningFlow = GetComponent<NPCOrderedLearningFlow>() ?? gameObject.AddComponent<NPCOrderedLearningFlow>();
@@ -2961,6 +2993,8 @@ public class NPCProgressionManager : MonoBehaviour
                 System.Action unavailable = () => StopOrderedOptionalSequence(phaseIndex, sequenceVersion);
                 bool opened = step.stepType == NPCOptionalDialogueStep.StepType.LessonIntroduction
                     ? orderedLearningFlow.TryShowLesson(step.lesson, resume, unavailable)
+                    : step.stepType == NPCOptionalDialogueStep.StepType.ReferenceReview
+                    ? orderedLearningFlow.TryShowReference(step.referenceTitle, step.referenceImage, step.referenceDescription, resume, unavailable)
                     : orderedLearningFlow.TryReviewAlmanac(progressionSaveId + "/" + phase.phaseId + "/" + step.reviewStepId, resume, unavailable);
                 if (!opened)
                 {
@@ -3022,6 +3056,11 @@ public class NPCProgressionManager : MonoBehaviour
 
         if (!phase.repeatDialogue)
             completedDialoguePhases.Add(phaseIndex);
+
+        // This completion only acknowledges the review. Keep official turn-in,
+        // payout and progression on the existing contract dialogue/Collect path.
+        if (phase.contract != null && phase.runOptionalSequenceBeforeTurnIn)
+            return;
 
         // Legacy contract phases never granted this optional phase feature after
         // acceptance. Preserve that behavior so adding an ordered material flow
@@ -3192,6 +3231,12 @@ public class NPCProgressionManager : MonoBehaviour
         bool hasQuiz = false;
         foreach (NPCOptionalDialogueStep step in phase.optionalDialogueSequence)
         {
+            if (step != null && step.stepType == NPCOptionalDialogueStep.StepType.ReferenceReview &&
+                (string.IsNullOrWhiteSpace(step.referenceTitle) || string.IsNullOrWhiteSpace(step.referenceDescription)))
+            {
+                error = "A Reference Review step needs a title and review text.";
+                return false;
+            }
             if (step != null && step.stepType == NPCOptionalDialogueStep.StepType.LessonIntroduction && step.lesson == null)
             {
                 error = "A Lesson Introduction step is missing its Lesson Data asset.";

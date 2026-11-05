@@ -250,6 +250,10 @@ MonoBehaviour:
   - {fileID: 0}
   - {fileID: 0}
   ownerLocation: {fileID: 0}
+  widthVisual: {fileID: 0}
+  originalVisualScale: {x: 0, y: 0, z: 0}
+  originalVisualPosition: {x: 0, y: 0, z: 0}
+  hasWidthVisualBaseline: 0
   preSimPos: {x: 355, y: 16.999996, z: -4}
   preSimRot: {x: -0, y: -0, z: -0, w: 1}
   preSimParent: {fileID: 0}

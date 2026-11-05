@@ -17,6 +17,12 @@ public sealed class NPCOptionalDialogueStepDrawer : PropertyDrawer
             height += FieldHeight(property, "material") + FieldHeight(property, "materialButtonLabel");
         else if (stepType == (int)NPCOptionalDialogueStep.StepType.Quiz)
             height += FieldHeight(property, "quiz") + FieldHeight(property, "quizStepId") + FieldHeight(property, "quizWaitingReminder");
+        else if (stepType == (int)NPCOptionalDialogueStep.StepType.LessonIntroduction)
+            height += FieldHeight(property, "lesson");
+        else if (stepType == (int)NPCOptionalDialogueStep.StepType.AlmanacReview)
+            height += FieldHeight(property, "reviewStepId");
+        else if (stepType == (int)NPCOptionalDialogueStep.StepType.ReferenceReview)
+            height += FieldHeight(property, "referenceTitle") + FieldHeight(property, "referenceDescription") + FieldHeight(property, "referenceImage");
         return height;
     }
 
@@ -56,6 +62,16 @@ public sealed class NPCOptionalDialogueStepDrawer : PropertyDrawer
                     id.stringValue = "quiz-" + Guid.NewGuid().ToString("N");
                 DrawField(ref row, id);
                 DrawField(ref row, property.FindPropertyRelative("quizWaitingReminder"));
+            }
+            else if (stepType == (int)NPCOptionalDialogueStep.StepType.LessonIntroduction)
+                DrawField(ref row, property.FindPropertyRelative("lesson"));
+            else if (stepType == (int)NPCOptionalDialogueStep.StepType.AlmanacReview)
+                DrawField(ref row, property.FindPropertyRelative("reviewStepId"));
+            else if (stepType == (int)NPCOptionalDialogueStep.StepType.ReferenceReview)
+            {
+                DrawField(ref row, property.FindPropertyRelative("referenceTitle"));
+                DrawField(ref row, property.FindPropertyRelative("referenceDescription"));
+                DrawField(ref row, property.FindPropertyRelative("referenceImage"));
             }
             EditorGUI.indentLevel--;
         }

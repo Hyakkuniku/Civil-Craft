@@ -186,6 +186,7 @@ internal static class SteelMaterialValidation
                     MeshRenderer top = support.GetComponentsInChildren<MeshRenderer>().OrderByDescending(r => r.bounds.size.z).First();
                     Require(Mathf.Abs(top.bounds.size.z - width) < Tolerance && top.bounds.max.y < start.y + .25f,
                         "Pier bearing does not reach both deck edges or is above the deck.");
+                    CheckWidePierReplica(site, support);
                 }
             }
         }
@@ -215,16 +216,39 @@ internal static class SteelMaterialValidation
         Type replicaType = typeof(FusionMultiplayerAvatar).GetNestedType("BridgeBarVisual", BindingFlags.NonPublic);
         object replica = Activator.CreateInstance(replicaType, road, 1, site.transform, wide.WideRoadWidth);
         var replicaRoot = (GameObject)replicaType.GetField("Root").GetValue(replica);
-        replicaType.GetMethod("SetEndpoints").Invoke(replica, new object[] { start, end });
+        replicaType.GetMethod("SetEndpoints").Invoke(replica, new object[] { start, end, Vector4.zero });
         var collider = wide.GetComponent<BoxCollider>();
         var snapshot = new FusionMultiplayerAvatar.BridgeBarSnapshot
         {
-            Committed = 1, WideRoadWidth = wide.WideRoadWidth, RoadColliderCenter = collider.center, RoadColliderSize = collider.size
+            Committed = 1, WideRoadWidth = wide.WideRoadWidth, ShapeOffset = collider.center, ShapeSize = collider.size
         };
         replicaType.GetMethod("SetRoadCollider").Invoke(replica, new object[] { snapshot });
         Bounds bounds = GetRoadBounds(replicaRoot);
         Require(Mathf.Abs(bounds.size.z - wide.WideRoadWidth) < Tolerance && replicaRoot.GetComponent<BoxCollider>().size == collider.size,
             "Guest road geometry or collision differs from the host.");
+    }
+
+    private static void CheckWidePierReplica(BuildLocation site, Bar pier)
+    {
+        Type replicaType = typeof(FusionMultiplayerAvatar).GetNestedType("BridgeBarVisual", BindingFlags.NonPublic);
+        object replica = Activator.CreateInstance(replicaType, pier.materialData, 1, site.transform, pier.WideRoadWidth);
+        var replicaRoot = (GameObject)replicaType.GetField("Root").GetValue(replica);
+        var captureSeat = typeof(Bar).GetMethod("CaptureWidePierSeat", PrivateInstance);
+        var seat = (Vector4)captureSeat.Invoke(pier, null);
+        replicaType.GetMethod("SetEndpoints").Invoke(replica,
+            new object[] { pier.startPoint.transform.position, pier.endPoint.transform.position, seat });
+        Require(seat.y > 0f, "Host did not capture the wide pier seat.");
+        ComparePart("VisualSegment", "Bridge Segment");
+        if (pier.materialData.pierCapPrefab != null) ComparePart("PierCap", "Pier Cap");
+
+        void ComparePart(string hostName, string guestName)
+        {
+            Bounds host = GetRoadBounds(pier.transform.Find(hostName).gameObject);
+            Bounds guest = GetRoadBounds(replicaRoot.transform.Find(guestName).gameObject);
+            Require(Vector3.Distance(host.center, guest.center) < Tolerance && Vector3.Distance(host.size, guest.size) < Tolerance,
+                $"Guest {pier.materialData.GetDisplayName()} {guestName} differs from the host seat. " +
+                $"Host center/size {host.center:F3}/{host.size:F3}, guest {guest.center:F3}/{guest.size:F3}.");
+        }
     }
 
     private static Bounds GetRoadBounds(GameObject root)

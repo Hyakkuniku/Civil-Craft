@@ -55,6 +55,10 @@ MonoBehaviour:
   selectedMaterial: {fileID: 2100000, guid: f93b0b02c4e3f9449bf6707a8d16354d, type: 2}
   ConnectedBars: []
   ownerLocation: {fileID: 0}
+  widthVisual: {fileID: 0}
+  originalVisualScale: {x: 0, y: 0, z: 0}
+  originalVisualPosition: {x: 0, y: 0, z: 0}
+  hasWidthVisualBaseline: 0
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}

@@ -102,6 +102,7 @@ public sealed class FusionConnectionManager { public static FusionConnectionMana
 public sealed class PlayerData
 {
     public List<QuizProgressSaveData> quizProgress = new List<QuizProgressSaveData>();
+    public List<QuizAggregateResult> quizResults = new List<QuizAggregateResult>();
     public int gold;
 }
 public sealed class PlayerDataManager

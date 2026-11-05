@@ -55,11 +55,15 @@ public sealed class LessonUIManager : MonoBehaviour
     private bool controlsAreLocked;
 
     public LessonData CurrentLesson { get; private set; }
+    public object CurrentReferenceOwner { get; private set; }
     public GameObject Panel => lessonPanel;
     public bool IsOpen => lessonPanel != null && lessonPanel.activeSelf;
 
     public event Action<LessonData> LessonOpened;
     public event Action<LessonData> LessonClosed;
+    public event Action<object> ReferenceOpened;
+    public event Action<object> ReferenceClosed;
+    public event Action<object> ReferenceCancelled;
 
     private void Awake()
     {
@@ -87,11 +91,15 @@ public sealed class LessonUIManager : MonoBehaviour
 
     private void OnDisable()
     {
+        bool ownedReference = CurrentReferenceOwner != null;
+        InvalidateReference();
+        if (ownedReference) CloseLesson();
         RestoreHiddenCanvases();
     }
 
     private void OnDestroy()
     {
+        InvalidateReference();
         if (closeButton != null)
             closeButton.onClick.RemoveListener(CloseLesson);
 
@@ -129,6 +137,31 @@ public sealed class LessonUIManager : MonoBehaviour
         ShowContent(title, image, description);
     }
 
+    /// <summary>Opens a review without discovering a lesson. Ownership is runtime-only.</summary>
+    public bool TryShowOwnedReference(object owner, string title, Sprite image, string description)
+    {
+        if (owner == null || IsOpen || !isActiveAndEnabled ||
+            string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(description)) return false;
+        if (!ShowContent(title, image, description)) return false;
+        CurrentReferenceOwner = owner;
+        ReferenceOpened?.Invoke(owner);
+        return IsOpen && ReferenceEquals(CurrentReferenceOwner, owner);
+    }
+
+    public void CancelOwnedReference(object owner)
+    {
+        if (owner == null || !ReferenceEquals(CurrentReferenceOwner, owner)) return;
+        InvalidateReference(); // Cancellation never counts as reading completion.
+        CloseLesson();
+    }
+
+    private void InvalidateReference()
+    {
+        object previous = CurrentReferenceOwner;
+        CurrentReferenceOwner = null;
+        if (previous != null) ReferenceCancelled?.Invoke(previous);
+    }
+
     private bool ShowContent(string title, Sprite image, string description)
     {
         if (lessonPanel == null || lessonTitleText == null || lessonDescriptionText == null)
@@ -139,6 +172,7 @@ public sealed class LessonUIManager : MonoBehaviour
 
         RepairCollapsedLessonCanvas();
 
+        InvalidateReference(); // Replacing the reader cannot complete the old owner.
         bool wasAlreadyOpen = IsOpen;
         CurrentLesson = null;
         lessonTitleText.text = title;
@@ -183,6 +217,8 @@ public sealed class LessonUIManager : MonoBehaviour
         }
 
         LessonData closedLesson = CurrentLesson;
+        object closedReference = CurrentReferenceOwner;
+        CurrentReferenceOwner = null;
 
         if (resetScrollRoutine != null)
         {
@@ -200,6 +236,7 @@ public sealed class LessonUIManager : MonoBehaviour
         RestorePlayerControls();
         MinimapUnlockController.RefreshAll();
         if (closedLesson != null) LessonClosed?.Invoke(closedLesson);
+        if (closedReference != null) ReferenceClosed?.Invoke(closedReference);
     }
 
     private IEnumerator ResetScrollToTopNextFrame()

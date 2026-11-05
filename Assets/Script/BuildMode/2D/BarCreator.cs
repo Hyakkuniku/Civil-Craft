@@ -1058,6 +1058,7 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
                 GameObject startObj = Instantiate(pointToInstantiate, startPos, Quaternion.identity, pointParent);
                 startObj.name = "PierTip";
                 currentStartPoint = startObj.GetComponent<Point>();
+                currentStartPoint.AssignOwner(GameManager.Instance?.ActiveBuildLocation);
                 // This is a temporary foundation supplied by the pier itself,
                 // not a permanent scene-authored anchor.
                 currentStartPoint.originalIsAnchor = false;
@@ -1908,6 +1909,7 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
         GameObject endObj = Instantiate(pointToInstantiate, startPosition, Quaternion.identity, pointParent);
         endObj.name = "GhostPoint";
         currentEndPoint = endObj.GetComponent<Point>();
+        currentEndPoint.AssignOwner(GameManager.Instance?.ActiveBuildLocation);
         DrawRadiusVisual();
 
         if (showMagnifierWhileDrawing && magnifyingGlass != null)

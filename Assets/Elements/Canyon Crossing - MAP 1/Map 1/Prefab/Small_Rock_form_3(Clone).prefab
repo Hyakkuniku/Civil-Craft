@@ -139,6 +139,10 @@ MonoBehaviour:
   ConnectedBars:
   - {fileID: 0}
   ownerLocation: {fileID: 0}
+  widthVisual: {fileID: 0}
+  originalVisualScale: {x: 0, y: 0, z: 0}
+  originalVisualPosition: {x: 0, y: 0, z: 0}
+  hasWidthVisualBaseline: 0
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
@@ -333,6 +337,10 @@ MonoBehaviour:
   ConnectedBars:
   - {fileID: 0}
   ownerLocation: {fileID: 0}
+  widthVisual: {fileID: 0}
+  originalVisualScale: {x: 0, y: 0, z: 0}
+  originalVisualPosition: {x: 0, y: 0, z: 0}
+  hasWidthVisualBaseline: 0
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}

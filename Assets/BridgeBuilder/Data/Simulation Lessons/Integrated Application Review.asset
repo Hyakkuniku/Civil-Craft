@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6f37df8d20f74e62a3e88f7fa41df9b0, type: 3}
+  m_Name: Integrated Application Review
+  m_EditorClassIdentifier:
+  panelTitle: INTEGRATED APPLICATION
+  minimumMessageDuration: 3.5
+  fadeDuration: 0.2
+  slideDistance: 24
+  enableSlowMotion: 1
+  simulationTimeScale: 0.5
+  vehicleEnteredProgress: 0.1
+  vehicleMidpointProgress: 0.5
+  vehicleNearEndProgress: 0.85
+  highStressThreshold: 0.7
+  vehicleStuckDelay: 5
+  simulationStarted: "The bus will test the workers' crossing. Consider how the whole bridge carries the required traffic."
+  liveLoadStarted: "The bus's weight is reaching the bridge. Follow the load path through the roadway, members, and supports."
+  vehicleEnteredBridge: "The bus is entering the bridge. Check that the roadway and supporting members remain connected."
+  vehicleReachedMidpoint: "The bus is near the middle. Watch how individual members share the load as its position changes."
+  vehicleApproachingEnd: "The bus is approaching the opposite bank. Keep observing until the entire vehicle has crossed."
+  highStressDetected: "Some members are using a large share of their capacity. Inspect their supports and the surrounding load path."
+  stressLimitExceeded: "The bridge exceeded the contract's stress limit. Review the overloaded area before changing your design."
+  firstMemberBreak: "A member failed. Identify where the first problem began and how the remaining members carry the load."
+  vehicleStuck: "The bus has stopped moving. Check the road alignment, clearance, and connections."
+  vehicleFailed: "The bus could not finish the crossing. Use the results to identify which parts need improvement."
+  bridgeSucceeded: "The bus reached the far bank. Your connected bridge carried the required live load through the crossing."
+  simulationStopped: "Simulation stopped. Review the results and use your reasoning to guide any changes."

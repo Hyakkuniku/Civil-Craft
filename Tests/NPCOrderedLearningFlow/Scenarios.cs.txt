@@ -50,7 +50,99 @@ public static class Scenarios
         PendingQueryIsReadOnlyAndOwnerBound();
         FirstBeamEntryHasItsOwnArrowAndCompletion();
         ReviewObjectivesAreOptInAndOwnerConfigured();
+        ReferenceReviewCompletesOnlyItsOwnClose();
+        ReferenceReviewCancellationAndReplacement();
+        ReferenceReviewRejectsInvalidOwnersAndContent();
+        ReferenceReviewCanContinueIntoAnotherReader();
         return checks;
+    }
+
+    private static bool BeginReference(Fixture f) => f.Flow.TryShowReference("INTEGRATED APPLICATION", null,
+        "Review the existing load paths and member capacities.", f.Done, f.Unavailable);
+
+    private static void ReferenceTick(Fixture f) => typeof(NPCOrderedLearningFlow).GetMethod("LateUpdate", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(f.Flow, null);
+
+    private static void ReferenceReviewCompletesOnlyItsOwnClose()
+    {
+        var f = new Fixture();
+        Check(BeginReference(f), "An owned reference opens without a LessonData asset.");
+        Check(f.Reader.IsOpen && f.Reader.CurrentLesson == null && f.Reader.CurrentReferenceOwner != null,
+            "Reference has its own identity, independent of lesson discovery.");
+        Check(f.Save.CurrentData.completedLessons.Count == 0 && f.Tutorial.Starts == 0, "Review-only content adds no formal lesson or tutorial completion.");
+        object owner = f.Reader.CurrentReferenceOwner;
+        f.Reader.RaiseReferenceClosed(new object());
+        Check(f.Completed == 0 && f.Failed == 0, "A foreign reference close cannot advance the story.");
+        f.Reader.IsOpen = false; ReferenceTick(f);
+        Check(f.Completed == 0 && f.Failed == 0, "Temporarily hidden reader is not a completed review.");
+        f.Reader.IsOpen = true; f.Reader.CloseLesson();
+        Check(f.Completed == 1 && f.Failed == 0, "The genuine owned close advances once.");
+        f.Reader.RaiseReferenceClosed(owner); f.Reader.CloseLesson();
+        Check(f.Completed == 1 && f.Failed == 0, "Stale and repeated closes cannot advance twice.");
+        Check(f.Reader.ReferenceSubscribers == 0 && f.Reader.OpenedSubscribers == 0, "Completion releases all reader subscriptions.");
+        Check(f.Save.CurrentData.completedLessons.Count == 0, "Closing the review never discovers an entry.");
+    }
+
+    private static void ReferenceReviewCancellationAndReplacement()
+    {
+        var f = new Fixture(); Check(BeginReference(f), "Reference begins before cancellation.");
+        f.Flow.Cancel();
+        Check(!f.Reader.IsOpen && f.Reader.CurrentReferenceOwner == null && f.Completed == 0 && f.Failed == 0,
+            "Explicit cancellation silently closes only its own reference.");
+        Check(f.Reader.ReferenceSubscribers == 0 && f.Reader.ReferenceCancels == 1, "Cancel detaches before closing its reader.");
+        Check(BeginReference(f), "Cancelled reference can be retried.");
+        typeof(NPCOrderedLearningFlow).GetMethod("OnDisable", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(f.Flow, null);
+        Check(!f.Reader.IsOpen && f.Completed == 0 && f.Failed == 0, "Owner disable never completes review.");
+        f = new Fixture(); BeginReference(f); object other = new object(); f.Reader.ReplaceReference(other);
+        Check(f.Completed == 0 && f.Failed == 1 && ReferenceEquals(f.Reader.CurrentReferenceOwner, other) && f.Reader.IsOpen,
+            "Replacing the reader fails the old stage without closing the replacement.");
+        f.Flow.Cancel();
+        Check(f.Reader.IsOpen && ReferenceEquals(f.Reader.CurrentReferenceOwner, other), "Stale owner teardown cannot close the replacement reader.");
+        f = new Fixture(); BeginReference(f); var lesson = new LessonData(); f.Reader.ShowLesson(lesson);
+        Check(f.Completed == 0 && f.Failed == 1 && f.Reader.IsOpen && f.Reader.CurrentLesson == lesson,
+            "A lesson replacing a reference is preserved and cannot complete the reference.");
+        foreach (int invalidation in new[] {0, 1, 2})
+        {
+            f = new Fixture(); BeginReference(f);
+            if (invalidation == 0) f.Save.CurrentData = new PlayerData();
+            if (invalidation == 1) FusionConnectionManager.Instance = new FusionConnectionManager { IsGuestSaveProtected = true };
+            if (invalidation == 2) f.Reader.isActiveAndEnabled = false;
+            ReferenceTick(f);
+            Check(f.Completed == 0 && f.Failed == 1 && !f.Reader.IsOpen && f.Reader.ReferenceSubscribers == 0,
+                "Profile, guest or manager invalidation cancels review: " + invalidation);
+        }
+    }
+
+    private static void ReferenceReviewRejectsInvalidOwnersAndContent()
+    {
+        var f = new Fixture();
+        Check(!f.Flow.TryShowReference("", null, "Body", f.Done), "A missing reference title is rejected.");
+        Check(!f.Flow.TryShowReference("Title", null, " ", f.Done), "Missing review text is rejected.");
+        Check(!f.Flow.TryShowReference("Title", null, "Body", null), "Missing continuation is rejected.");
+        f.Reader.RefuseOpen = true;
+        Check(!BeginReference(f) && f.Reader.ReferenceSubscribers == 0 && f.Reader.OpenedSubscribers == 0,
+            "Unavailable UI leaves the stage retryable and unsubscribed.");
+        f.Reader.RefuseOpen = false; PlayerDataManager.Instance = null;
+        Check(!BeginReference(f), "A reference cannot start without its save owner.");
+        PlayerDataManager.Instance = f.Save; f.Reader.IsOpen = true;
+        Check(!BeginReference(f), "Existing open UI cannot be stolen.");
+        f.Reader.IsOpen = false; FusionConnectionManager.Instance = new FusionConnectionManager { IsGuestSaveProtected = true };
+        Check(!BeginReference(f), "Protected guest cannot start a story review.");
+    }
+
+    private static void ReferenceReviewCanContinueIntoAnotherReader()
+    {
+        var f = new Fixture(); bool openedNext = false;
+        Check(f.Flow.TryShowReference("First review", null, "First content", () =>
+        {
+            f.Completed++;
+            openedNext = f.Flow.TryShowReference("Second review", null, "Second content", f.Done, f.Unavailable);
+        }, f.Unavailable), "First review opens for a synchronous continuation.");
+        f.Reader.CloseLesson();
+        Check(openedNext && f.Reader.IsOpen && f.Completed == 1 && f.Reader.ReferenceSubscribers == 3,
+            "Completion releases old ownership before the next review opens.");
+        f.Reader.CloseLesson();
+        Check(f.Completed == 2 && f.Failed == 0 && f.Reader.ReferenceSubscribers == 0,
+            "Each reader advances only its own ordered step.");
     }
 
     private static void ReviewObjectivesAreOptInAndOwnerConfigured()

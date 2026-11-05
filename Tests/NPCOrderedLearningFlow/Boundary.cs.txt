@@ -18,6 +18,7 @@ namespace UnityEngine
         public void SetParent(Transform parent, bool worldPositionStays) { Parent = parent; }
     }
     public sealed class RectTransform { }
+    public sealed class Sprite { }
     public sealed class Scene { public string path = "Assets/Scenes/CanyonCrossing.unity"; }
     public struct Vector2
     {
@@ -76,7 +77,7 @@ public sealed class FusionConnectionManager
     public bool IsGuestSaveProtected;
 }
 public sealed class LessonData { }
-public sealed class LessonUIManager
+public sealed class LessonUIManager : UnityEngine.MonoBehaviour
 {
     public static LessonUIManager Instance;
     private Action<LessonData> closed, opened;
@@ -87,10 +88,24 @@ public sealed class LessonUIManager
     public bool IsOpen;
     public LessonData CurrentLesson;
     public bool RefuseOpen;
+    public object CurrentReferenceOwner;
+    private Action<object> referenceOpened, referenceClosed, referenceCancelled;
+    public event Action<object> ReferenceOpened { add { referenceOpened += value; } remove { referenceOpened -= value; } }
+    public event Action<object> ReferenceClosed { add { referenceClosed += value; } remove { referenceClosed -= value; } }
+    public event Action<object> ReferenceCancelled { add { referenceCancelled += value; } remove { referenceCancelled -= value; } }
+    public int ReferenceSubscribers => (referenceOpened?.GetInvocationList().Length ?? 0) + (referenceClosed?.GetInvocationList().Length ?? 0) + (referenceCancelled?.GetInvocationList().Length ?? 0);
+    public int ReferenceOpens, ReferenceCancels;
+    public bool TryShowOwnedReference(object owner, string title, UnityEngine.Sprite image, string description)
+    { if (RefuseOpen || IsOpen || !isActiveAndEnabled) return false; ReferenceOpens++; CurrentReferenceOwner = owner; CurrentLesson = null; IsOpen = true; referenceOpened?.Invoke(owner); return ReferenceEquals(owner, CurrentReferenceOwner); }
+    public void CancelOwnedReference(object owner)
+    { if (owner == null || !ReferenceEquals(owner, CurrentReferenceOwner)) return; ReferenceCancels++; var prior = CurrentReferenceOwner; CurrentReferenceOwner = null; IsOpen = false; referenceCancelled?.Invoke(prior); }
+    public void ReplaceReference(object other)
+    { var prior=CurrentReferenceOwner;CurrentReferenceOwner=null;referenceCancelled?.Invoke(prior);CurrentReferenceOwner=other;IsOpen=true;referenceOpened?.Invoke(other); }
+    public void RaiseReferenceClosed(object owner) { referenceClosed?.Invoke(owner); }
     public void ShowLesson(LessonData lesson)
-    { if (RefuseOpen) return; CurrentLesson = lesson; IsOpen = true; opened?.Invoke(lesson); }
+    { if (RefuseOpen) return; var reference=CurrentReferenceOwner;CurrentReferenceOwner=null;if(reference!=null)referenceCancelled?.Invoke(reference); CurrentLesson = lesson; IsOpen = true; opened?.Invoke(lesson); }
     public void CloseLesson()
-    { LessonData prior = CurrentLesson; CurrentLesson = null; IsOpen = false; closed?.Invoke(prior); }
+    { LessonData prior = CurrentLesson;object reference=CurrentReferenceOwner;CurrentReferenceOwner=null; CurrentLesson = null; IsOpen = false; if(reference!=null)referenceClosed?.Invoke(reference);else closed?.Invoke(prior); }
     public void RaiseClosed(LessonData lesson) { closed?.Invoke(lesson); }
 }
 public sealed class AlmanacManager

@@ -612,6 +612,7 @@ public class ClipboardManager : MonoBehaviour
             {
                 GameObject pObj = Instantiate(barCreator.pointToInstantiate, targetPos, Quaternion.identity, barCreator.pointParent);
                 mappedPoint = pObj.GetComponent<Point>();
+                mappedPoint.AssignOwner(GameManager.Instance?.ActiveBuildLocation);
                 // Copy beam geometry, never the fixed status of an authored anchor
                 // or an anchor flag accidentally enabled on the point prefab.
                 mappedPoint.Runtime = true;
@@ -740,7 +741,11 @@ public class ClipboardManager : MonoBehaviour
             AnchorEdgeSnap edgeSnap = gp.GetComponent<AnchorEdgeSnap>();
             if (edgeSnap != null) edgeSnap.enabled = false;
             Point previewPoint = gp.GetComponent<Point>();
-            if (previewPoint != null) previewPoint.enabled = false;
+            if (previewPoint != null)
+            {
+                previewPoint.AssignOwner(GameManager.Instance?.ActiveBuildLocation);
+                previewPoint.enabled = false;
+            }
             foreach (Collider collider in gp.GetComponentsInChildren<Collider>(true))
                 collider.enabled = false;
             ghostPastePoints.Add(gp);

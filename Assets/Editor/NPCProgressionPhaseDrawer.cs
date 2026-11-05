@@ -70,6 +70,16 @@ public sealed class NPCProgressionPhaseDrawer : PropertyDrawer
         List<string> warnings = new List<string>();
         SerializedProperty sequence = phase.FindPropertyRelative("optionalDialogueSequence");
         if (sequence == null || !sequence.isArray) return warnings;
+        if (phase.FindPropertyRelative("runOptionalSequenceBeforeTurnIn")?.boolValue == true)
+        {
+            ContractSO contract = phase.FindPropertyRelative("contract").objectReferenceValue as ContractSO;
+            if (contract == null)
+                warnings.Add("Before-turn-in review requires a Contract on this phase. Contract-free phases retain their normal interaction timing.");
+            else if (contract.autoCollectReward)
+                warnings.Add("Disable Auto Collect Reward on this contract. Automatic collection would finish and reward it before the review.");
+            if (sequence.arraySize == 0)
+                warnings.Add("Add an ordered review/quiz sequence. An empty sequence cannot provide a before-turn-in review.");
+        }
         bool hasQuiz = false;
         bool hasOtherUsableStep = false;
         string contentWarning = null;
@@ -99,8 +109,15 @@ public sealed class NPCProgressionPhaseDrawer : PropertyDrawer
             }
             else if (type == (int)NPCOptionalDialogueStep.StepType.MaterialUnlock)
                 hasOtherUsableStep |= step.FindPropertyRelative("material").objectReferenceValue != null;
+            else if (type == (int)NPCOptionalDialogueStep.StepType.ReferenceReview)
+            {
+                bool usable = !string.IsNullOrWhiteSpace(step.FindPropertyRelative("referenceTitle").stringValue) &&
+                    !string.IsNullOrWhiteSpace(step.FindPropertyRelative("referenceDescription").stringValue);
+                hasOtherUsableStep |= usable;
+                if (!usable) contentWarning = contentWarning ?? "A Reference Review needs a title and review text. It does not unlock a lesson.";
+            }
         }
-        if (!hasQuiz) return warnings;
+        if (!hasQuiz) { if (contentWarning != null) warnings.Add(contentWarning); return warnings; }
         if (contentWarning != null) warnings.Add(contentWarning);
         SerializedProperty progressionId = phase.serializedObject.FindProperty("progressionSaveId");
         string phaseId = phase.FindPropertyRelative("phaseId").stringValue;

@@ -1,0 +1,103 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8277db26963c4a7a81a4dcb5e6307197, type: 3}
+  m_Name: TorsionQuiz
+  m_EditorClassIdentifier:
+  quizId: civil-craft-torsion-quiz-v1
+  title: Torsion Quiz
+  assessmentMode: 1
+  questions:
+  - questionId: torsion
+    prompt: "What is <b><#E09500>Torsion</color></b> in structural engineering?"
+    choices:
+    - text: "A force that stretches a structural member along its length."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "A force that compresses a structural member downward."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "A force that causes a structural member to bend vertically."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "A twisting effect caused by a moment acting around a structural member's longitudinal axis."
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 3
+    feedback: "Torsion twists a member around its longitudinal axis. It differs from axial stretching, compression, and vertical bending."
+  - questionId: off-center-loading
+    prompt: "What can happen when a vehicle travels closer to one side of a bridge instead of near the center?"
+    choices:
+    - text: "The load can create an uneven structural response and cause twisting."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "The vehicle's weight is automatically reduced."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "The bridge stops experiencing bending forces."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "The supports no longer carry the vehicle's load."
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 0
+    feedback: "An off-center load can produce a twisting moment as well as downward loading. Its weight still needs to reach the supports."
+  - questionId: twisting-moment
+    prompt: "What can increase the <b><#E09500>twisting effect</color></b> caused by an off-center vehicle load?"
+    choices:
+    - text: "Reducing the vehicle's weight while keeping its position unchanged."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Moving the vehicle closer to the structure's center of resistance."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Increasing the distance between the applied load and the structure's center of resistance."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Removing the load from the bridge."
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 2
+    feedback: "For the same force, a greater sideways distance from the center of resistance creates a larger twisting moment."
+  - questionId: vehicle-position
+    prompt: "Why is the position of the traffic lane important when designing a bridge?"
+    choices:
+    - text: "It determines the color of the structural materials."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "It affects how the vehicle's load acts on the structure and whether twisting may occur."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "It eliminates the need to consider structural forces."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "It ensures that every structural member carries exactly the same load."
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 1
+    feedback: "Lane position changes where the vehicle's weight acts. Engineers consider the resulting load path and possible twisting moment."
+  - questionId: structural-safety
+    prompt: "What may happen if a bridge cannot safely resist the <b><#E09500>Torsion</color></b> caused by an off-center load?"
+    choices:
+    - text: "The bridge automatically becomes more stable."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "The twisting forces disappear without affecting the structure."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "The vehicle's weight becomes evenly distributed regardless of its position."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "The structure may experience excessive twisting, cracking, or failure."
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 3
+    feedback: "Excessive torsion can deform or damage a real structure. A bridge's shape, connections, and supports affect its resistance."

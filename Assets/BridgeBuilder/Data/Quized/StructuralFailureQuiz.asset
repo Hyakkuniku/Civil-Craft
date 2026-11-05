@@ -1,0 +1,103 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8277db26963c4a7a81a4dcb5e6307197, type: 3}
+  m_Name: StructuralFailureQuiz
+  m_EditorClassIdentifier:
+  quizId: civil-craft-structural-failure-quiz-v1
+  title: Structural Failure Quiz
+  assessmentMode: 1
+  questions:
+  - questionId: structural-failure
+    prompt: "What is <b><#E09500>Structural Failure</color></b> in bridge engineering?"
+    choices:
+    - text: "The normal movement of a bridge under a passing vehicle."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "The distribution of forces between structural supports."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "The process of transferring loads toward the ground."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "When a structure or component can no longer safely resist applied forces or perform its intended function."
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 3
+    feedback: "Structural failure means a structure or component can no longer safely resist the required forces or do its intended job."
+  - questionId: causes-of-failure
+    prompt: "What can cause a structural member or connection to fail?"
+    choices:
+    - text: "Applied loads exceeding its safe capacity."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Loads remaining within its allowable limits."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Structural members safely carrying the required forces."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Supports adequately resisting the applied loads."
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 0
+    feedback: "A member or connection can fail when the demand exceeds the capacity it can safely provide."
+  - questionId: warning-signs
+    prompt: "Which of the following may indicate that a bridge is experiencing <b><#E09500>Structural Failure</color></b>?"
+    choices:
+    - text: "Normal elastic movement within safe limits."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Balanced support reactions under the required load."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Excessive deformation, cracking, or buckling."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Structural members safely resisting the applied forces."
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 2
+    feedback: "Excessive deformation, cracking, or buckling can indicate failure in a real structure. Normal movement within safe limits is different."
+  - questionId: component-failure
+    prompt: "Which statement about structural failure is correct?"
+    choices:
+    - text: "Structural failure always causes the entire bridge to collapse immediately."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Failure can begin in an individual structural member or connection."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Structural failure occurs only when the roadway breaks apart."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "A bridge cannot experience structural failure while its supports remain standing."
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 1
+    feedback: "A single member or connection may fail before the entire bridge collapses. Finding the first problem helps explain what happened."
+  - questionId: failure-analysis
+    prompt: "If a bridge fails during the Mobile Crane test, what should the engineer do before modifying the design?"
+    choices:
+    - text: "Replace every structural component without checking the results."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Increase the bridge's length without identifying the cause."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Repeat the same design without making adjustments."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Observe where the failure begins and identify which part needs improvement."
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 3
+    feedback: "Study where the first problem began, then improve the area that needs attention and test the design again."

@@ -1,0 +1,103 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8277db26963c4a7a81a4dcb5e6307197, type: 3}
+  m_Name: SuspensionBridgeQuiz
+  m_EditorClassIdentifier:
+  quizId: civil-craft-suspension-bridge-quiz-v1
+  title: Suspension Bridge Quiz
+  assessmentMode: 1
+  questions:
+  - questionId: suspension-bridge
+    prompt: "What is the main structural characteristic of a <b><#E09500>Suspension Bridge</color></b>?"
+    choices:
+    - text: "It uses only horizontal beams to carry the roadway."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "It uses curved arches to support the roadway."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "It uses main cables supported by towers, with hangers connecting the cables to the roadway."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "It uses triangular members without cables."
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 2
+    feedback: "The roadway hangs from main cables, which pass over towers and pull against anchorages."
+  - questionId: hangers
+    prompt: "What is the main function of the <b><#E09500>Hangers</color></b> in a Suspension Bridge?"
+    choices:
+    - text: "To transfer loads from the roadway to the main cables."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "To resist the pulling forces at the cable anchorages."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "To carry compressive forces directly into the ground."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "To replace the main cables supporting the roadway."
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 0
+    feedback: "Hangers connect the roadway to the main cables and carry the roadway's load up to them."
+  - questionId: main-cables
+    prompt: "What type of force do the <b><#E09500>Main Cables</color></b> primarily carry?"
+    choices:
+    - text: Compression
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: Bending
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: Shear
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: Tension
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 3
+    feedback: "The main cables resist pulling forces, so they work primarily in tension."
+  - questionId: towers-and-anchorages
+    prompt: "Which statement correctly describes the roles of <b><#E09500>Towers and Anchorages</color></b>?"
+    choices:
+    - text: "Towers carry tension, while anchorages support the roadway directly."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Towers primarily carry compression, while anchorages resist the cables' pulling forces."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Towers eliminate the need for cables, while anchorages support the hangers."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Towers carry only bending forces, while anchorages transfer vehicle loads to the deck."
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 1
+    feedback: "Towers transfer compression toward their foundations. Anchorages hold the cable ends against tension."
+  - questionId: structural-connections
+    prompt: "Why must the roadway, hangers, main cables, towers, and anchorages be properly connected?"
+    choices:
+    - text: "To ensure every component experiences exactly the same force."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "To prevent the roadway from carrying any vehicle weight."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "To allow the components to work together and transfer loads safely toward the ground."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "To eliminate the need for structural supports."
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 2
+    feedback: "Proper connections create a continuous path for the vehicle's load to reach the ground."

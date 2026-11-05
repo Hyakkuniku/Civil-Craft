@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a4da58d2dc2409c459ef20449bf92a90, type: 3}
+  m_Name: Suspension Bridge
+  m_EditorClassIdentifier:
+  lessonId: civil-craft-suspension-bridge-lesson-v1
+  lessonTitle: Suspension Bridge
+  lessonImage: {fileID: 0}
+  popupDescription: "A <b><#E09500>Suspension Bridge</color></b> hangs its roadway from main cables supported by towers.\n\nHangers transfer the roadway load to the main cables. The cables carry tension, the towers carry compression, and the anchorages resist the pull of the cables. These connections form a continuous load path to the ground.\n\nReview the parts and their roles in your <b><#E09500>Almanac</color></b>."
+  almanacImage: {fileID: 0}
+  lessonDescription: "A <b><#E09500>Suspension Bridge</color></b> uses main cables supported by towers, with vertical hangers connecting the cables to the roadway. This arrangement can span long distances when the components and their connections safely carry the load.\n\n<b><#E09500>Hangers</color></b> transfer loads from the roadway to the main cables. The <b><#E09500>main cables</color></b> primarily carry tension. The <b><#E09500>towers</color></b> primarily carry compression toward the ground, and the <b><#E09500>anchorages</color></b> resist the cables' pulling forces.\n\nA truck puts weight on the roadway as it moves. The roadway, hangers, cables, towers, and anchorages need to stay connected so that their forces can reach the foundations and ground. At Clark's Freight Passage, watch how the load shifts across the span and check those connections if the truck cannot finish the crossing."

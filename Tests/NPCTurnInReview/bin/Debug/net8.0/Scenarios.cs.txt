@@ -1,0 +1,66 @@
+using System;
+using System.Collections.Generic;
+public static class Scenarios
+{
+    private static int checks;
+    private static void Check(bool value, string message) { checks++; if (!value) throw new InvalidOperationException(message); }
+    private static NPCProgressionManager NPC(bool deferred = true)
+    {
+        PlayerDataManager.Instance = new PlayerDataManager { saved = new NPCProgressionSaveData { currentPhaseId = "final" } };
+        var contract = new ContractSO();
+        var phase = new NPCProgressionPhase { contract = contract, runOptionalSequenceBeforeTurnIn = deferred };
+        phase.optionalDialogueSequence.Add(new NPCOptionalDialogueStep { stepType = NPCOptionalDialogueStep.StepType.Quiz, quiz = new QuizData(), quizStepId = "final-quiz" });
+        return new NPCProgressionManager { phases = new List<NPCProgressionPhase> { phase }, contractGiver = new NPCContractGiver { contractToGive = contract } };
+    }
+    public static int Run()
+    {
+        NPCProgressionManager npc = NPC();
+        Check(!npc.CanStart(), "Final review cannot start before bridge success.");
+        npc.Offer(); Check(npc.playedSteps == 0 && npc.legacyMaterialCalls == 0, "Offer never starts deferred review or legacy material flow.");
+        npc.Tap(); Check(!npc.contractGiver.suppressed && npc.playedSteps == 0, "Building-time taps retain ordinary contract reminder.");
+        Check(!npc.NeedsTalk(), "A final quiz does not create premature NPC exclamation while building.");
+        npc.Start(); Check(npc.playedSteps == 0, "Direct sequence entry is also guarded before bridge success.");
+        npc.contractGiver.isContractCompleted = true;
+        Check(npc.CanStart() && npc.NeedsTalk(), "Saved successful bridge permits final review and attention.");
+        npc.Offer(); Check(npc.playedSteps == 0, "Offer callback never opens a deferred review, even if success is already restored.");
+        npc.Tap(); Check(npc.contractGiver.suppressed && npc.playedSteps == 1, "Post-test tap claims giver interaction and starts review.");
+        int firstVersion = npc.optionalSequenceVersion;
+        Check(!npc.NeedsTalk(), "Running review hides attention.");
+        npc.Tap(); Check(npc.contractGiver.suppressed && npc.playedSteps == 1, "Repeated tap cannot duplicate review or reveal reward flow.");
+        npc.Stop(firstVersion);
+        Check(!npc.HasCompletedPhaseDialogue(0) && npc.NeedsTalk(), "Cancellation/unavailable outcome leaves review incomplete and retryable.");
+        npc.Finish(firstVersion); Check(!npc.HasCompletedPhaseDialogue(0), "Cancelled callback cannot mark completion.");
+        npc.Tap(); Check(npc.playedSteps == 2 && npc.contractGiver.suppressed, "Next tap retries a cancelled final review.");
+        int retryVersion = npc.optionalSequenceVersion;
+        npc.Finish(retryVersion);
+        Check(npc.HasCompletedPhaseDialogue(0) && !npc.CanStart(), "Completed review is recorded and cannot run again.");
+        Check(npc.currentPhaseIndex == 0 && npc.CurrentPhase.contract == npc.contractGiver.contractToGive, "Review completion leaves the same contract phase active.");
+        Check(npc.CurrentPhase.dialogueEvents == 0 && npc.CurrentPhase.materialEvents == 0 && npc.featureGrants == 0, "Review completion cannot fire advancement or feature-reward events.");
+        Check(PlayerDataManager.Instance.saved.completedDialoguePhaseIds.Contains("final"), "Review completion persists stable phase identity.");
+        npc.Tap(); Check(!npc.contractGiver.suppressed && npc.playedSteps == 2, "Next tap is released to ordinary final turn-in dialogue.");
+        npc.completedDialoguePhases.Clear();
+        Check(npc.HasCompletedPhaseDialogue(0) && !npc.CanStart(), "Reloaded completion reads persisted marker instead of transient hash set.");
+        npc.Tap(); Check(!npc.contractGiver.suppressed, "Restored completed review permits ordinary turn-in.");
+
+        npc = NPC(); npc.contractGiver.isContractCompleted = true; npc.validationAvailable = false;
+        npc.Tap(); Check(npc.contractGiver.suppressed && npc.playedSteps == 0 && !npc.HasCompletedPhaseDialogue(0), "Invalid/unavailable authored review blocks turn-in without completing anything.");
+        npc.validationAvailable = true; npc.Tap(); Check(npc.playedSteps == 1, "Unavailable review recovers on next tap.");
+        int oldVersion = npc.optionalSequenceVersion;
+        npc.Cancel(); Check(!npc.HasCompletedPhaseDialogue(0) && npc.runningOptionalSequencePhases.Count == 0, "Disable/teardown cancellation clears ownership without progress.");
+        npc.Finish(oldVersion); Check(!npc.HasCompletedPhaseDialogue(0), "Teardown callback cannot finish later.");
+        npc.Tap(); Check(npc.playedSteps == 2, "Re-enabled final review remains retryable.");
+        npc.local = false; npc.Finish(npc.optionalSequenceVersion); Check(!npc.HasCompletedPhaseDialogue(0), "Inactive or guest owner cannot finish review.");
+
+        npc = NPC(false);
+        Check(npc.CanStart() && npc.NeedsTalk(), "Existing contract-owned quiz still starts before bridge test.");
+        npc.Offer(); Check(npc.playedSteps == 1, "Default false preserves ordinary post-offer quizzes.");
+        npc.Finish(npc.optionalSequenceVersion); Check(npc.CurrentPhase.dialogueEvents == 1, "Existing sequence still invokes its phase continuation.");
+        npc = NPC(); npc.CurrentPhase.contract = null;
+        Check(npc.CanStart(), "Flag on contract-free phases retains original sequence semantics.");
+        npc = NPC(); npc.contractGiver.isContractCompleted = true; npc.contractGiver.contractToGive = new ContractSO();
+        Check(!npc.CanStart(), "A giver rebound to another contract cannot run a stale final review.");
+        npc = NPC(); npc.contractGiver.isContractCompleted = true; npc.CurrentPhase.optionalDialogueSequence[0] = new NPCOptionalDialogueStep { stepType = NPCOptionalDialogueStep.StepType.ReferenceReview, referenceTitle = "Review", referenceDescription = "Use load paths." };
+        npc.Tap(); Check(npc.contractGiver.suppressed && npc.playedSteps == 1, "A review-only deferred flow also owns turn-in interaction.");
+        return checks;
+    }
+}

@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6f37df8d20f74e62a3e88f7fa41df9b0, type: 3}
+  m_Name: Final Integrated Application Review
+  m_EditorClassIdentifier:
+  panelTitle: FINAL INTEGRATED APPLICATION
+  minimumMessageDuration: 3.5
+  fadeDuration: 0.2
+  slideDistance: 24
+  enableSlowMotion: 1
+  simulationTimeScale: 0.5
+  vehicleEnteredProgress: 0.1
+  vehicleMidpointProgress: 0.5
+  vehicleNearEndProgress: 0.85
+  highStressThreshold: 0.7
+  vehicleStuckDelay: 5
+  simulationStarted: "Test your final design as a complete structure. Use the results to review its load paths, connections, and required crossing."
+  liveLoadStarted: "The test vehicle's weight is reaching the bridge. Follow the load through the roadway, members, and supports."
+  vehicleEnteredBridge: "The vehicle is entering. Check that the roadway and supporting members remain connected as the load moves onto the span."
+  vehicleReachedMidpoint: "The vehicle is near the middle. Watch how the stress in individual members changes with the vehicle's position."
+  vehicleApproachingEnd: "The vehicle is approaching the far side. Continue observing until the whole vehicle clears the bridge."
+  highStressDetected: "Some members are using a large share of their capacity. Inspect their connections and the surrounding load path."
+  stressLimitExceeded: "The bridge exceeded the contract's stress limit. Locate the overloaded area and review the design before testing again."
+  firstMemberBreak: "A member failed. Identify the first problem and consider how that failure changes the connected structure."
+  vehicleStuck: "The vehicle has stopped moving. Check road alignment, clearance, and connections before changing the structure."
+  vehicleFailed: "The vehicle could not complete the crossing. Review the results and improve the part that prevented a safe passage."
+  bridgeSucceeded: "The required test vehicle cleared the crossing. Review the peak stress and connections before returning to Mills."
+  simulationStopped: "Simulation stopped. Use the results and the lessons from earlier projects to guide your next design decision."

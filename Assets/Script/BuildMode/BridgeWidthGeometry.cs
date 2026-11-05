@@ -5,9 +5,14 @@ using UnityEngine;
 public static class BridgeWidthGeometry
 {
     private static readonly Dictionary<GameObject, Bounds> PrefabBounds = new Dictionary<GameObject, Bounds>();
+    private static BridgeMaterialSO[] pointMaterials;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    private static void ResetCache() => PrefabBounds.Clear();
+    private static void ResetCache()
+    {
+        PrefabBounds.Clear();
+        pointMaterials = null;
+    }
 
     public static Bounds GetPrefabBounds(GameObject prefab)
     {
@@ -80,5 +85,38 @@ public static class BridgeWidthGeometry
         if (material.isDualBeam) return (index == 0 ? 1f : -1f) * GetSideOffset(material, wideWidth);
         return material.isRoad || (material.isPier && material.pierCapPrefab == null)
             ? GetCenteredDepthOffset(material.segmentPrefab, GetSegmentDepthScale(material, wideWidth), wideWidth) : 0f;
+    }
+
+    public static float GetPointVisualDepth(float wideWidth, BridgeMaterialSO material = null)
+    {
+        float halfDepth = wideWidth * .5f + .9f;
+        if (material != null && material.isDualBeam && !material.isRoad)
+        {
+            Bounds shape = GetPrefabBounds(material.segmentPrefab);
+            float memberDepth = Mathf.Max(Mathf.Abs(shape.min.z), Mathf.Abs(shape.max.z));
+            halfDepth = Mathf.Max(halfDepth, GetSideOffset(material, wideWidth) + memberDepth + .2f);
+        }
+        return halfDepth * 2f;
+    }
+
+    public static float GetPointVisualDepth(ContractSO contract)
+    {
+        float width = contract != null ? contract.GetWideRoadWidth() : 0f;
+        if (width <= 0f) return 0f;
+        float depth = GetPointVisualDepth(width);
+        if (contract.allowedMaterials != null && contract.allowedMaterials.Count > 0)
+        {
+            foreach (MaterialAllowance allowance in contract.allowedMaterials)
+                if (allowance?.material != null && !contract.IsMaterialHidden(allowance.material))
+                    depth = Mathf.Max(depth, GetPointVisualDepth(width, allowance.material));
+        }
+        else
+        {
+            if (pointMaterials == null) pointMaterials = Resources.LoadAll<BridgeMaterialSO>(string.Empty);
+            foreach (BridgeMaterialSO material in pointMaterials)
+                if (material != null && !contract.IsMaterialHidden(material))
+                    depth = Mathf.Max(depth, GetPointVisualDepth(width, material));
+        }
+        return depth;
     }
 }

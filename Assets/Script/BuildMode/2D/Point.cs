@@ -42,6 +42,14 @@ public class Point : MonoBehaviour
     private BridgeSelectionOutline selectionOutline;
     private AnchorEdgeSnap edgeSnap;
 
+    // Preserve the authored child dimensions when a wide point is cloned or changes owner.
+    [SerializeField, HideInInspector] private Transform widthVisual;
+    [SerializeField, HideInInspector] private Vector3 originalVisualScale;
+    [SerializeField, HideInInspector] private Vector3 originalVisualPosition;
+    [SerializeField, HideInInspector] private bool hasWidthVisualBaseline;
+    private float appliedRoadWidth = -1f;
+    private ContractSO appliedWidthContract;
+
     [HideInInspector] public Vector3 preSimPos;
     [HideInInspector] public Quaternion preSimRot;
     [HideInInspector] public Transform preSimParent;
@@ -53,6 +61,7 @@ public class Point : MonoBehaviour
 
         if (Application.isPlaying && ownerLocation == null && GameManager.Instance != null)
             ownerLocation = GameManager.Instance.ActiveBuildLocation;
+        RefreshWidthVisual();
 
         if (Application.isPlaying && !hasInitializedAnchor)
         {
@@ -63,8 +72,52 @@ public class Point : MonoBehaviour
 
     public void AssignOwner(BuildLocation location, bool overwriteExisting = false)
     {
-        if (location != null && (ownerLocation == null || overwriteExisting))
-            ownerLocation = location;
+        if (location == null || (ownerLocation != null && ownerLocation != location && !overwriteExisting)) return;
+        ownerLocation = location;
+        RefreshWidthVisual();
+    }
+
+    public void RefreshWidthVisual()
+    {
+        ContractSO contract = ownerLocation != null ? ownerLocation.activeContract : null;
+        float width = contract != null ? contract.GetWideRoadWidth() : 0f;
+        appliedRoadWidth = width;
+        appliedWidthContract = contract;
+        if (width <= 0f && !hasWidthVisualBaseline) return;
+        if (pointRenderer == null) pointRenderer = GetComponentInChildren<Renderer>(true);
+        if (pointRenderer == null || pointRenderer.transform == transform) return;
+        if (!hasWidthVisualBaseline || widthVisual != pointRenderer.transform)
+        {
+            widthVisual = pointRenderer.transform;
+            originalVisualScale = widthVisual.localScale;
+            originalVisualPosition = widthVisual.localPosition;
+            hasWidthVisualBaseline = true;
+        }
+        widthVisual.localScale = originalVisualScale;
+        widthVisual.localPosition = originalVisualPosition;
+        if (width <= 0f) return;
+
+        // Stretch the mesh along its depth axis. The logical point and its physics stay at the joint.
+        Bounds bounds = pointRenderer.localBounds;
+        Matrix4x4 shape = widthVisual.localToWorldMatrix;
+        int depthAxis = 0;
+        float axisDepth = 0f;
+        float originalDepth = 0f;
+        for (int axis = 0; axis < 3; axis++)
+        {
+            Vector3 direction = Vector3.zero;
+            direction[axis] = bounds.size[axis];
+            float contribution = Mathf.Abs(shape.MultiplyVector(direction).z);
+            originalDepth += contribution;
+            if (contribution > axisDepth) { axisDepth = contribution; depthAxis = axis; }
+        }
+        if (axisDepth <= .0001f) return;
+        float targetDepth = Mathf.Max(originalDepth, BridgeWidthGeometry.GetPointVisualDepth(contract));
+        Vector3 scale = originalVisualScale;
+        scale[depthAxis] *= (targetDepth - originalDepth + axisDepth) / axisDepth;
+        widthVisual.localScale = scale;
+        float centerZ = widthVisual.TransformPoint(bounds.center).z;
+        widthVisual.localPosition += widthVisual.parent.InverseTransformVector(Vector3.forward * (transform.position.z - centerZ));
     }
 
     private void OnEnable()
@@ -84,6 +137,7 @@ public class Point : MonoBehaviour
         }
         
         UpdateMaterial();
+        RefreshWidthVisual();
     }
 
     private void OnDisable()
@@ -105,6 +159,7 @@ public class Point : MonoBehaviour
     private void OnTransformChildrenChanged()
     {
         drawingPickRenderers = null;
+        appliedRoadWidth = -1f;
     }
 
     // Points have visible depth but need no extra physics collider for touch input.
@@ -142,6 +197,9 @@ public class Point : MonoBehaviour
 
     private void Update()
     {
+        ContractSO contract = ownerLocation != null ? ownerLocation.activeContract : null;
+        float width = contract != null ? contract.GetWideRoadWidth() : 0f;
+        if (contract != appliedWidthContract || width != appliedRoadWidth) RefreshWidthVisual();
         if (!transform.hasChanged) return;
         if (!Application.isPlaying && edgeSnap == null)
             edgeSnap = GetComponent<AnchorEdgeSnap>();

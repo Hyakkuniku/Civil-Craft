@@ -1,0 +1,93 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
+  m_Name: Clark Contract
+  m_EditorClassIdentifier: 
+  liveLoadMode: 0
+  vehicleTestMode: 0
+  liveLoadTests: []
+  allowVehicleCargo: 0
+  minimumLoadedCargo: 0
+  cargoUnlockProgressionId: 
+  cargoUnlockAfterDialoguePhaseIndex: -1
+  cargoLoadedNPCPhaseId: 
+  contractID: ClarkMainContract
+  hideFromLeaderboard: 1
+  efficiencyStarBudgetRatio: 0.85
+  strengthStarMaxStress: 60
+  contractMap: 2
+  countsTowardMapAchievements: 0
+  isStoryModeContract: 1
+  isTutorialContract: 0
+  autoCollectReward: 0
+  featureUnlockRewards: []
+  clientName: Clark
+  jobDescription: Freight Passage connects Ironhaven's freight yard directly to the
+    warehouse district. Build a 110-meter bridge that safely carries a cargo truck
+    across the channel. Consider how the roadway, hangers, cables, towers, and anchorages
+    work together.
+  budget: 60000000
+  liveLoadWeight: 15000
+  bridgeSpan: 110
+  twoWayRoad: 1
+  twoWayRoadWidth: 16
+  allowedMaterials:
+  - material: {fileID: 11400000, guid: 0d3952b3dcb84cfe89fba5d0ee4cfa3e, type: 2}
+    maxPieces: 0
+  - material: {fileID: 11400000, guid: 3c8daed34b294b92b5c53aa30792d8b1, type: 2}
+    maxPieces: 0
+  - material: {fileID: 11400000, guid: 4b7960a9d30f4e1b9d6d858aee7d8d31, type: 2}
+    maxPieces: 0
+  - material: {fileID: 11400000, guid: 57a46c6632dd61b4094902963cf1c5be, type: 2}
+    maxPieces: 0
+  hiddenTools: 
+  hiddenMaterials: []
+  enforceMaxStress: 0
+  maxAllowedStress: 100
+  isTimeAttack: 0
+  timeAttackDuration: 60
+  winCondition: 0
+  requiredIntactTime: 5
+  goldReward: 500
+  expReward: 100
+  offerDialogue:
+    name: Clark
+    sentences:
+    - Alright, let's put those materials and that new bridge type to use.
+    - We need a crossing that connects the freight yard directly to the warehouse
+      district.
+    - A <b><#E09500>cargo truck</color></b> will be used to test your design, so
+      the bridge needs to support its weight throughout the entire crossing.
+    - You have the <b><#E09500>steel components</color></b> available. Make sure
+      the roadway, hangers, cables, towers, and anchorages form a structure that
+      can safely carry the load.
+    - Take a good look at the site before you decide how to build it. If you're ready,
+      I'll hand over the contract.
+  continueOfferDialogue:
+    name: Clark
+    sentences: []
+  reminderDialogue:
+    name: Clark
+    sentences:
+    - Don't rush into changing the whole design if the test doesn't go well. <b><#E09500>Check
+      how the components connect and where the structure needs more support</color></b>.
+  finishedContractDialogue:
+    name: Clark
+    sentences:
+    - That should make things easier for the freight crews. They can move cargo between
+      the yard and the warehouses without going all the way around the factory blocks.
+    - You've also seen how a <b><#E09500>Suspension Bridge</color></b> uses cables,
+      hangers, towers, and anchorages to support its roadway.
+    - That was a longer span than the crossings you handled in Town River, but you
+      managed it well, {PlayerName}.
+    - I have another site farther into the factory district. The challenge there
+      is a little different, so we'll need to approach it another way.

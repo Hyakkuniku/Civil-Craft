@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6f37df8d20f74e62a3e88f7fa41df9b0, type: 3}
+  m_Name: Torsion Lesson
+  m_EditorClassIdentifier:
+  panelTitle: TORSION - OFFSET LOADING
+  minimumMessageDuration: 3.5
+  fadeDuration: 0.2
+  slideDistance: 24
+  enableSlowMotion: 1
+  simulationTimeScale: 0.5
+  vehicleEnteredProgress: 0.1
+  vehicleMidpointProgress: 0.5
+  vehicleNearEndProgress: 0.85
+  highStressThreshold: 0.7
+  vehicleStuckDelay: 5
+  simulationStarted: "The SUV will follow the offset lane. In a real bridge, an off-center load can create a twisting moment."
+  liveLoadStarted: "The SUV's weight is reaching the roadway and supports. This test checks pulling and compression; twisting across the bridge width is not measured."
+  vehicleEnteredBridge: "The SUV is entering the crossing. Check the roadway connections and consider why the lane's position matters in a real bridge."
+  vehicleReachedMidpoint: "The SUV is near the middle. Watch how the supporting members share its weight as it moves."
+  vehicleApproachingEnd: "The SUV is approaching the far bank. Keep observing the roadway and supports until it fully crosses."
+  highStressDetected: "Orange or red members are using a large share of their capacity. Check their connections and supports."
+  stressLimitExceeded: "The bridge exceeded the contract's allowed stress. Review the load path and strengthen the members that need support."
+  firstMemberBreak: "A member failed. Check its connections and how the remaining parts carry the load."
+  vehicleStuck: "The SUV has stopped moving. Check the roadway alignment, clearance, and connections along its lane."
+  vehicleFailed: "The SUV could not finish the crossing. Review the roadway and supporting members before testing again."
+  bridgeSucceeded: "The SUV reached the far bank. Review the Torsion lesson to connect the offset lane with the real-world twisting effect."
+  simulationStopped: "Simulation stopped. Return to editing to check the roadway and supports."

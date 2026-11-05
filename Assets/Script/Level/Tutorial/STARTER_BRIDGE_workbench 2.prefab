@@ -164,6 +164,10 @@ MonoBehaviour:
   - {fileID: 3900115090940489654}
   - {fileID: 4375104573952861305}
   ownerLocation: {fileID: 0}
+  widthVisual: {fileID: 0}
+  originalVisualScale: {x: 0, y: 0, z: 0}
+  originalVisualPosition: {x: 0, y: 0, z: 0}
+  hasWidthVisualBaseline: 0
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
@@ -2123,6 +2127,10 @@ MonoBehaviour:
   - {fileID: 740899761152478245}
   - {fileID: 4375104573952861305}
   ownerLocation: {fileID: 0}
+  widthVisual: {fileID: 0}
+  originalVisualScale: {x: 0, y: 0, z: 0}
+  originalVisualPosition: {x: 0, y: 0, z: 0}
+  hasWidthVisualBaseline: 0
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
@@ -2266,6 +2274,10 @@ MonoBehaviour:
   - {fileID: 6080576006990917707}
   - {fileID: 3807838068698603647}
   ownerLocation: {fileID: 0}
+  widthVisual: {fileID: 0}
+  originalVisualScale: {x: 0, y: 0, z: 0}
+  originalVisualPosition: {x: 0, y: 0, z: 0}
+  hasWidthVisualBaseline: 0
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
@@ -2325,6 +2337,10 @@ MonoBehaviour:
   - {fileID: 646199972184187332}
   - {fileID: 740899761152478245}
   ownerLocation: {fileID: 0}
+  widthVisual: {fileID: 0}
+  originalVisualScale: {x: 0, y: 0, z: 0}
+  originalVisualPosition: {x: 0, y: 0, z: 0}
+  hasWidthVisualBaseline: 0
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
@@ -2609,6 +2625,10 @@ MonoBehaviour:
   - {fileID: 3900115090940489654}
   - {fileID: 5623003978676572383}
   ownerLocation: {fileID: 0}
+  widthVisual: {fileID: 0}
+  originalVisualScale: {x: 0, y: 0, z: 0}
+  originalVisualPosition: {x: 0, y: 0, z: 0}
+  hasWidthVisualBaseline: 0
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
@@ -3145,6 +3165,10 @@ MonoBehaviour:
   - {fileID: 6080576006990917707}
   - {fileID: 2925465017705739720}
   ownerLocation: {fileID: 0}
+  widthVisual: {fileID: 0}
+  originalVisualScale: {x: 0, y: 0, z: 0}
+  originalVisualPosition: {x: 0, y: 0, z: 0}
+  hasWidthVisualBaseline: 0
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
@@ -3777,6 +3801,10 @@ MonoBehaviour:
   - {fileID: 3611125389671127344}
   - {fileID: 646199972184187332}
   ownerLocation: {fileID: 0}
+  widthVisual: {fileID: 0}
+  originalVisualScale: {x: 0, y: 0, z: 0}
+  originalVisualPosition: {x: 0, y: 0, z: 0}
+  hasWidthVisualBaseline: 0
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}

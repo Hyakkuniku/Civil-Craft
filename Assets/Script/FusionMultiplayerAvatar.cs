@@ -66,8 +66,10 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
         public int ContractHash;
         public int Committed;
         public float WideRoadWidth;
-        public Vector3 RoadColliderSize;
-        public Vector3 RoadColliderCenter;
+        // Road collider size/center, or the shaft scale and pier-seat offsets.
+        // Roads and piers are exclusive. Sharing this payload keeps the avatar under Fusion's state limit.
+        public Vector3 ShapeSize;
+        public Vector3 ShapeOffset;
     }
 
     public struct SessionCompletionSnapshot : INetworkStruct
@@ -137,6 +139,7 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
     private Material remoteBridgeNodeAppearanceMaterial;
     private Vector3 remoteBridgeNodeScale = Vector3.one * 0.28f;
     private readonly List<Transform> remoteBridgeNodeMarkers = new List<Transform>();
+    private readonly Dictionary<Vector3, float> remoteBridgeNodeDepths = new Dictionary<Vector3, float>();
     private GameObject remoteBridgeBarRoot;
     private readonly List<BridgeBarVisual> remoteBridgeBars = new List<BridgeBarVisual>();
     private Dictionary<int, BridgeMaterialSO> bridgeMaterialsByHash;
@@ -728,6 +731,11 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
 
         if (remoteBridgeNodeRoot == null) CreateRemoteBridgeNodeRoot();
         remoteBridgeNodeRoot.SetActive(true);
+        if (bridgeMaterialsByHash == null) LoadBridgeMaterials();
+        remoteBridgeNodeDepths.Clear();
+        int barCount = Mathf.Clamp(HostBridgeBarCount, 0, MaxBridgeBars);
+        for (int index = 0; index < barCount; index++)
+            AccumulateRemoteBridgeNodeDepth(HostBridgeBars[index]);
         while (remoteBridgeNodeMarkers.Count < count)
         {
             GameObject marker = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -749,8 +757,27 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
             Transform marker = remoteBridgeNodeMarkers[index];
             bool visible = index < count;
             if (marker.gameObject.activeSelf != visible) marker.gameObject.SetActive(visible);
-            if (visible) marker.position = HostBridgeNodes[index];
+            if (visible) ApplyRemoteBridgeNodePose(marker, HostBridgeNodes[index]);
         }
+    }
+
+    private void AccumulateRemoteBridgeNodeDepth(BridgeBarSnapshot bar)
+    {
+        if (bar.WideRoadWidth <= 0f) return;
+        bridgeMaterialsByHash.TryGetValue(bar.MaterialHash, out BridgeMaterialSO material);
+        float depth = BridgeWidthGeometry.GetPointVisualDepth(bar.WideRoadWidth, material);
+        if (!remoteBridgeNodeDepths.TryGetValue(bar.Start, out float startDepth) || depth > startDepth)
+            remoteBridgeNodeDepths[bar.Start] = depth;
+        if (!remoteBridgeNodeDepths.TryGetValue(bar.End, out float endDepth) || depth > endDepth)
+            remoteBridgeNodeDepths[bar.End] = depth;
+    }
+
+    private void ApplyRemoteBridgeNodePose(Transform marker, Vector3 position)
+    {
+        marker.position = position;
+        Vector3 size = remoteBridgeNodeScale;
+        if (remoteBridgeNodeDepths.TryGetValue(position, out float depth)) size.z = Mathf.Max(size.z, depth);
+        marker.localScale = size;
     }
 
     private void CreateRemoteBridgeNodeRoot()
@@ -787,6 +814,7 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
         remoteBridgeNodeAppearanceMaterial = null;
         remoteBridgeNodeScale = Vector3.one * 0.28f;
         remoteBridgeNodeMarkers.Clear();
+        remoteBridgeNodeDepths.Clear();
     }
 
     public static int StableHash(string value)
@@ -871,6 +899,7 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
 
             BoxCollider roadCollider = committed && bar.materialData.isRoad
                 ? bar.GetComponent<BoxCollider>() : null;
+            Vector4 pierSeat = bar.CaptureWidePierSeat();
             BridgeBarSnapshot snapshot = new BridgeBarSnapshot
             {
                 Start = bar.startPoint.transform.position,
@@ -879,16 +908,15 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
                 ContractHash = contractHash,
                 Committed = committed ? 1 : 0,
                 WideRoadWidth = bar.WideRoadWidth,
-                RoadColliderSize = roadCollider != null ? roadCollider.size : Vector3.zero,
-                RoadColliderCenter = roadCollider != null ? roadCollider.center : Vector3.zero
+                ShapeSize = roadCollider != null ? roadCollider.size : new Vector3(0f, pierSeat.y, 0f),
+                ShapeOffset = roadCollider != null ? roadCollider.center : new Vector3(pierSeat.z, pierSeat.x, pierSeat.w)
             };
             BridgeBarSnapshot previous = HostBridgeBars[count];
             if (previous.Start != snapshot.Start || previous.End != snapshot.End ||
                 previous.MaterialHash != snapshot.MaterialHash ||
                 previous.ContractHash != snapshot.ContractHash ||
                 previous.Committed != snapshot.Committed || previous.WideRoadWidth != snapshot.WideRoadWidth ||
-                previous.RoadColliderSize != snapshot.RoadColliderSize ||
-                previous.RoadColliderCenter != snapshot.RoadColliderCenter)
+                previous.ShapeSize != snapshot.ShapeSize || previous.ShapeOffset != snapshot.ShapeOffset)
                 HostBridgeBars.Set(count, snapshot);
             count++;
         }
@@ -940,7 +968,8 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
             }
             if (visual == null) continue;
             visual.Root.SetActive(true);
-            visual.SetEndpoints(snapshot.Start, snapshot.End);
+            var pierSeat = new Vector4(snapshot.ShapeOffset.y, snapshot.ShapeSize.y, snapshot.ShapeOffset.x, snapshot.ShapeOffset.z);
+            visual.SetEndpoints(snapshot.Start, snapshot.End, pierSeat);
             visual.SetRoadCollider(snapshot);
         }
     }
@@ -1066,7 +1095,7 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
             }
         }
 
-        public void SetEndpoints(Vector3 start, Vector3 end)
+        public void SetEndpoints(Vector3 start, Vector3 end, Vector4 widePierSeat)
         {
             if (material.isPier ? start.y > end.y :
                 start.x > end.x || (Mathf.Approximately(start.x, end.x) && start.y > end.y))
@@ -1081,20 +1110,28 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
             float length = direction.magnitude;
             if (material.isPier)
             {
+                bool hasHostSeat = WideRoadWidth > 0f && widePierSeat.y > 0f;
                 float adjusted = Mathf.Max(0.05f, end.y - capTopOffset + capBottomOffset - start.y);
                 Root.transform.SetPositionAndRotation(start + Vector3.up * (adjusted * 0.5f),
                     Quaternion.identity);
                 for (int i = 0; i < segments.Count; i++)
                 {
                     Vector3 original = segmentBaseScales[i];
+                    if (WideRoadWidth > 0f)
+                    {
+                        Vector3 position = segments[i].localPosition;
+                        position.y = hasHostSeat ? widePierSeat.x : 0f;
+                        segments[i].localPosition = position;
+                    }
                     segments[i].localScale = new Vector3(original.x,
-                        original.y * adjusted / baseLength, original.z);
+                        hasHostSeat ? widePierSeat.y : original.y * adjusted / baseLength, original.z);
                 }
                 if (cap != null)
                 {
                     cap.localScale = capBaseScale;
-                    cap.position = new Vector3(end.x, end.y - capTopOffset, end.z + capDepthOffset);
-                    cap.rotation = Quaternion.identity;
+                    cap.position = new Vector3(end.x, end.y + (hasHostSeat ? widePierSeat.z : -capTopOffset),
+                        end.z + capDepthOffset);
+                    cap.rotation = hasHostSeat ? Quaternion.Euler(0f, 0f, widePierSeat.w) : Quaternion.identity;
                 }
             }
             else
@@ -1115,7 +1152,7 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
         public void SetRoadCollider(BridgeBarSnapshot snapshot)
         {
             bool isCommittedRoad = material.isRoad && snapshot.Committed != 0 &&
-                snapshot.RoadColliderSize.sqrMagnitude > 0f;
+                snapshot.ShapeSize.sqrMagnitude > 0f;
             if (isCommittedRoad && roadCollider == null)
                 roadCollider = Root.AddComponent<BoxCollider>();
             if (roadCollider != null)
@@ -1123,8 +1160,8 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
                 roadCollider.enabled = isCommittedRoad;
                 if (isCommittedRoad)
                 {
-                    roadCollider.size = snapshot.RoadColliderSize;
-                    roadCollider.center = snapshot.RoadColliderCenter;
+                    roadCollider.size = snapshot.ShapeSize;
+                    roadCollider.center = snapshot.ShapeOffset;
                     roadCollider.isTrigger = false;
                 }
             }

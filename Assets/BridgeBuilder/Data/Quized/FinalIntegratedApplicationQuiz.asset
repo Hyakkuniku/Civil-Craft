@@ -1,0 +1,103 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8277db26963c4a7a81a4dcb5e6307197, type: 3}
+  m_Name: FinalIntegratedApplicationQuiz
+  m_EditorClassIdentifier:
+  quizId: civil-craft-final-integrated-application-quiz-v1
+  title: Final Integrated Application Quiz
+  assessmentMode: 1
+  questions:
+  - questionId: final-load-transfer
+    prompt: "What is the main purpose of load transfer in a bridge?"
+    choices:
+    - text: "To distribute decorative elements across the bridge."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "To prevent vehicles from changing position."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "To carry applied loads through structural components toward supports and the ground."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "To keep every bridge member under the same force."
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 2
+    feedback: "Loads travel through the roadway, connected members, and supports toward the ground. The forces need not be equal in every member."
+  - questionId: final-structural-forces
+    prompt: "Which set contains the structural forces reviewed throughout the Engineer's journey?"
+    choices:
+    - text: "Bending, tension, compression, and shear."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Friction, buoyancy, magnetism, and gravity."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Expansion, evaporation, condensation, and contraction."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Acceleration, velocity, momentum, and displacement."
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 0
+    feedback: "Bending, tension, compression, and shear describe important ways a structure responds to loading. Their effects depend on the load and the structural arrangement."
+  - questionId: final-moving-load
+    prompt: "Why must an Engineer consider a vehicle's position when testing a bridge?"
+    choices:
+    - text: "Vehicle position determines the bridge's material color."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Vehicle position eliminates the need for structural supports."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Vehicle position prevents all members from experiencing stress."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Vehicle position can change how loads and structural responses are distributed."
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 3
+    feedback: "A moving vehicle changes where its weight acts. Observe the entire crossing because different vehicle positions can load different parts of the bridge."
+  - questionId: final-off-center-load
+    prompt: "A vehicle travels closer to one side of a bridge instead of along its center. Which structural effect should the Engineer consider?"
+    choices:
+    - text: "The bridge automatically becomes stronger on both sides."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "The off-center load may cause twisting due to torsion."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "The vehicle's weight no longer acts on the bridge."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "The bridge experiences compression only, regardless of its design."
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 1
+    feedback: "An off-center load can create a twisting effect called torsion. Engineers consider how the bridge's connected components resist that effect."
+  - questionId: final-failure-review
+    prompt: "After a bridge fails its simulation, what should the Engineer do before testing again?"
+    choices:
+    - text: "Ignore the results and rebuild the same design."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Add materials randomly until the bridge passes."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Review the results, identify the weak component, and improve the design."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Remove all supports so the load is distributed evenly."
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 2
+    feedback: "Use the results to locate the first problem, review its load path and connections, then make a reasoned change before retesting."

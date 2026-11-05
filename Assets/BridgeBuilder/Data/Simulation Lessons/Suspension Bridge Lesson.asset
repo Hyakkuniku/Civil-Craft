@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6f37df8d20f74e62a3e88f7fa41df9b0, type: 3}
+  m_Name: Suspension Bridge Lesson
+  m_EditorClassIdentifier:
+  panelTitle: SUSPENSION BRIDGE
+  minimumMessageDuration: 3.5
+  fadeDuration: 0.2
+  slideDistance: 24
+  enableSlowMotion: 1
+  simulationTimeScale: 0.5
+  vehicleEnteredProgress: 0.1
+  vehicleMidpointProgress: 0.5
+  vehicleNearEndProgress: 0.85
+  highStressThreshold: 0.7
+  vehicleStuckDelay: 5
+  simulationStarted: "Watch how the roadway and supports respond as the cargo truck moves toward the bridge."
+  liveLoadStarted: "The truck's weight is now on the roadway. Follow its load path through the supporting components."
+  vehicleEnteredBridge: "The cargo truck is entering the crossing. If your design uses hangers and main cables, watch how they carry the roadway's load."
+  vehicleReachedMidpoint: "The truck is approaching midspan. Watch how the supports respond as the load changes position."
+  vehicleApproachingEnd: "The truck is approaching the opposite bank. Follow the connected load path through the supports to the ground."
+  highStressDetected: "Orange or red members are using a large share of their capacity. Check their connections to the surrounding structure."
+  stressLimitExceeded: "The bridge exceeded the contract's allowed stress. Review the load path and strengthen the members that need it."
+  firstMemberBreak: "A structural member failed. Look at how that changes the load path through the remaining parts of the bridge."
+  vehicleStuck: "The cargo truck has stopped moving. Check the roadway alignment, clearance, and continuity."
+  vehicleFailed: "The cargo truck could not finish the crossing. Check how the roadway connects to the structure and its supports."
+  bridgeSucceeded: "The cargo truck reached the opposite bank. The bridge supported the load throughout the crossing."
+  simulationStopped: "Simulation stopped. Return to editing to review the connections and adjust the design."

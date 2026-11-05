@@ -11,6 +11,7 @@ namespace UnityEngine
     public class Object { public bool Destroyed;public static void Destroy(Object value){if(value!=null)value.Destroyed=true;} }
     public class Transform {public void SetParent(Transform parent,bool worldPositionStays){}}
     public class RectTransform:Object{}
+    public class Sprite:Object{}
     public struct Vector2 {public float x,y;public Vector2(float x,float y){this.x=x;this.y=y;}}
     public class Animator:Object {public bool Open;public bool GetBool(string key)=>Open;}
     public class Scene {public string path="Assets/Scenes/CanyonCrossing.unity";public bool Valid=true,isLoaded=true;public bool IsValid()=>Valid;}
@@ -67,6 +68,10 @@ public class LessonData{}
 public class LessonUIManager
 {
     public static LessonUIManager Instance;public bool IsOpen;public LessonData CurrentLesson;
+    public bool isActiveAndEnabled=true;public object CurrentReferenceOwner;
+    public event Action<object> ReferenceClosed,ReferenceOpened,ReferenceCancelled;
+    public bool TryShowOwnedReference(object owner,string title,UnityEngine.Sprite image,string description){if(IsOpen)return false;CurrentReferenceOwner=owner;IsOpen=true;ReferenceOpened?.Invoke(owner);return true;}
+    public void CancelOwnedReference(object owner){if(!ReferenceEquals(owner,CurrentReferenceOwner))return;CurrentReferenceOwner=null;IsOpen=false;ReferenceCancelled?.Invoke(owner);}
     public event Action<LessonData> LessonClosed,LessonOpened;
     public void ShowLesson(LessonData lesson){CurrentLesson=lesson;IsOpen=true;LessonOpened?.Invoke(lesson);}
     public void CloseLesson(){var prior=CurrentLesson;CurrentLesson=null;IsOpen=false;LessonClosed?.Invoke(prior);}

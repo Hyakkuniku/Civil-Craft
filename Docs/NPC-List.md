@@ -21,10 +21,10 @@
 
 ## Map 3 · Ironhaven
 
-| Order | NPC | Planned main contracts |
+| Order | NPC | Main contracts |
 |---|---|---|
-| 10 | Clark | Freight Passage → The Offset Road |
-| 11 | Mills | Heavy Equipment Route → Workers’ Crossing → Reconnecting Arcadia |
+| 10 | Clark | Freight Passage → The Offset Road, then unlocks Mills. Both main contracts are authored. |
+| 11 | Mills | Heavy Equipment Route → Workers’ Crossing → Reconnecting Arcadia. All three main contracts are authored; temporary vehicles and provisional balancing still need playtesting. |
 
 ## Optional contracts
 

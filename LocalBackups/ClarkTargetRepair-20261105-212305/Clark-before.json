@@ -1,0 +1,1636 @@
+{
+    "MonoBehaviour": {
+        "m_Enabled": true,
+        "m_EditorHideFlags": 0,
+        "m_Name": "",
+        "m_EditorClassIdentifier": "",
+        "contractGiver": {
+            "instanceID": 0
+        },
+        "navMeshAgent": {
+            "instanceID": 0
+        },
+        "animator": {
+            "instanceID": 0
+        },
+        "dialogueManager": {
+            "instanceID": 0
+        },
+        "authoredSpawnLocation": {
+            "instanceID": 0
+        },
+        "phases": [
+            {
+                "phaseId": "MeetingClark",
+                "targetLocation": {
+                    "instanceID": 0
+                },
+                "teleportToTargetLocation": false,
+                "travelWaypoints": [],
+                "useGroundedWaypoints": false,
+                "running": false,
+                "showExclamationMark": true,
+                "contract": {
+                    "instanceID": 0
+                },
+                "targetBuildLocation": {
+                    "instanceID": 0
+                },
+                "linkedCargo": {
+                    "instanceID": 0
+                },
+                "cinematicAfterOffer": {
+                    "instanceID": 0
+                },
+                "phaseDialogue": {
+                    "name": "Clark",
+                    "sentences": [
+                        "You must be the engineer Ronan told me about. I'm <b><#E09500>Clark</color></b>.",
+                        "I coordinate the freight routes around Ironhaven's factories and warehouses.",
+                        "Ronan mentioned the work you did in Town River. Sounds like you've improved quite a few routes down there.",
+                        "Things are different here. We have heavier traffic, active factories, and less room to work around.",
+                        "There's a freight route nearby that needs work. Come with me and I'll show you."
+                    ]
+                },
+                "optionalDialogueSequence": [],
+                "dialoguePrompt": "Talk to Clark",
+                "playDialogueOnArrival": false,
+                "reviewAlmanacWhileTravelling": false,
+                "repeatDialogue": true,
+                "enableIdleRoaming": false,
+                "unlockFeatureIdAfterDialogue": "",
+                "featureUnlockDisplayName": "",
+                "featureUnlockIcon": {
+                    "instanceID": 0
+                },
+                "showFeatureCollectPopup": false,
+                "materialIntroduction": {
+                    "instanceID": 0
+                },
+                "materialIntroductions": [],
+                "materialIntroductionButtonLabel": "CONTINUE",
+                "introduceMaterialOnlyOnce": false,
+                "onMaterialIntroductionClosed": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onMaterialIntroductionClosedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                },
+                "onDialogueFinished": {
+                    "m_PersistentCalls": {
+                        "m_Calls": [
+                            {
+                                "m_Target": {
+                                    "instanceID": 0
+                                },
+                                "m_TargetAssemblyTypeName": "TutorialSequence, Assembly-CSharp",
+                                "m_MethodName": "StartTutorial",
+                                "m_Mode": 0,
+                                "m_Arguments": {
+                                    "m_ObjectArgument": {
+                                        "instanceID": 0
+                                    },
+                                    "m_ObjectArgumentAssemblyTypeName": "",
+                                    "m_IntArgument": 0,
+                                    "m_FloatArgument": 0.0,
+                                    "m_StringArgument": "",
+                                    "m_BoolArgument": false
+                                },
+                                "m_CallState": 2
+                            }
+                        ]
+                    }
+                },
+                "onDialogueFinishedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": "ExplainSituation"
+                },
+                "onNPCInteracted": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onNPCInteractedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                },
+                "invokeInteractionEventOnlyOnce": true,
+                "onNPCArrived": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onNPCArrivedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                }
+            },
+            {
+                "phaseId": "ExplainSituation",
+                "targetLocation": {
+                    "instanceID": 0
+                },
+                "teleportToTargetLocation": false,
+                "travelWaypoints": [],
+                "useGroundedWaypoints": true,
+                "running": false,
+                "showExclamationMark": true,
+                "contract": {
+                    "instanceID": 0
+                },
+                "targetBuildLocation": {
+                    "instanceID": 0
+                },
+                "linkedCargo": {
+                    "instanceID": 0
+                },
+                "cinematicAfterOffer": {
+                    "instanceID": 0
+                },
+                "phaseDialogue": {
+                    "name": "Clark",
+                    "sentences": [
+                        "Take a look across the passage."
+                    ]
+                },
+                "optionalDialogueSequence": [],
+                "dialoguePrompt": "Talk to Clark",
+                "playDialogueOnArrival": false,
+                "reviewAlmanacWhileTravelling": false,
+                "repeatDialogue": true,
+                "enableIdleRoaming": false,
+                "unlockFeatureIdAfterDialogue": "",
+                "featureUnlockDisplayName": "",
+                "featureUnlockIcon": {
+                    "instanceID": 0
+                },
+                "showFeatureCollectPopup": false,
+                "materialIntroduction": {
+                    "instanceID": 0
+                },
+                "materialIntroductions": [],
+                "materialIntroductionButtonLabel": "CONTINUE",
+                "introduceMaterialOnlyOnce": false,
+                "onMaterialIntroductionClosed": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onMaterialIntroductionClosedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                },
+                "onDialogueFinished": {
+                    "m_PersistentCalls": {
+                        "m_Calls": [
+                            {
+                                "m_Target": {
+                                    "instanceID": 0
+                                },
+                                "m_TargetAssemblyTypeName": "CinematicDirector, Assembly-CSharp",
+                                "m_MethodName": "PlayCinematic",
+                                "m_Mode": 0,
+                                "m_Arguments": {
+                                    "m_ObjectArgument": {
+                                        "instanceID": 0
+                                    },
+                                    "m_ObjectArgumentAssemblyTypeName": "",
+                                    "m_IntArgument": 0,
+                                    "m_FloatArgument": 0.0,
+                                    "m_StringArgument": "",
+                                    "m_BoolArgument": false
+                                },
+                                "m_CallState": 2
+                            }
+                        ]
+                    }
+                },
+                "onDialogueFinishedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                },
+                "onNPCInteracted": {
+                    "m_PersistentCalls": {
+                        "m_Calls": [
+                            {
+                                "m_Target": {
+                                    "instanceID": 0
+                                },
+                                "m_TargetAssemblyTypeName": "TutorialSequence, Assembly-CSharp",
+                                "m_MethodName": "Skip",
+                                "m_Mode": 0,
+                                "m_Arguments": {
+                                    "m_ObjectArgument": {
+                                        "instanceID": 0
+                                    },
+                                    "m_ObjectArgumentAssemblyTypeName": "",
+                                    "m_IntArgument": 0,
+                                    "m_FloatArgument": 0.0,
+                                    "m_StringArgument": "",
+                                    "m_BoolArgument": false
+                                },
+                                "m_CallState": 2
+                            }
+                        ]
+                    }
+                },
+                "onNPCInteractedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                },
+                "invokeInteractionEventOnlyOnce": true,
+                "onNPCArrived": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onNPCArrivedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                }
+            },
+            {
+                "phaseId": "MaterialIntroduction",
+                "targetLocation": {
+                    "instanceID": 0
+                },
+                "teleportToTargetLocation": false,
+                "travelWaypoints": [],
+                "useGroundedWaypoints": false,
+                "running": false,
+                "showExclamationMark": true,
+                "contract": {
+                    "instanceID": 0
+                },
+                "targetBuildLocation": {
+                    "instanceID": 0
+                },
+                "linkedCargo": {
+                    "instanceID": 0
+                },
+                "cinematicAfterOffer": {
+                    "instanceID": 0
+                },
+                "phaseDialogue": {
+                    "name": "Clark",
+                    "sentences": []
+                },
+                "optionalDialogueSequence": [
+                    {
+                        "stepType": 0,
+                        "dialogue": {
+                            "name": "Clark",
+                            "sentences": [
+                                "That's one of Ironhaven's freight yards. The warehouses are just across the channel, but the trucks have to go around several factory blocks to reach them.",
+                                "That detour adds time to every delivery. <b><#E09500>A crossing here would give the freight crews a direct route</color></b>.",
+                                "You used wood in CanyonCrossing and concrete in Town River. Here in Ironhaven, we'll use steel for more demanding projects.",
+                                "A <b><#E09500>Steel Beam</color></b> supports the structure and transfers loads. It can carry both tension and compression."
+                            ]
+                        },
+                        "material": {
+                            "instanceID": 0
+                        },
+                        "materialButtonLabel": "",
+                        "quiz": {
+                            "instanceID": 0
+                        },
+                        "quizStepId": "",
+                        "quizWaitingReminder": "",
+                        "lesson": {
+                            "instanceID": 0
+                        },
+                        "reviewStepId": ""
+                    },
+                    {
+                        "stepType": 1,
+                        "dialogue": {
+                            "name": "",
+                            "sentences": []
+                        },
+                        "material": {
+                            "fileID": 11400000,
+                            "guid": "0d3952b3dcb84cfe89fba5d0ee4cfa3e",
+                            "type": 2
+                        },
+                        "materialButtonLabel": "CONTINUE",
+                        "quiz": {
+                            "instanceID": 0
+                        },
+                        "quizStepId": "",
+                        "quizWaitingReminder": "",
+                        "lesson": {
+                            "instanceID": 0
+                        },
+                        "reviewStepId": ""
+                    },
+                    {
+                        "stepType": 0,
+                        "dialogue": {
+                            "name": "Clark",
+                            "sentences": [
+                                "A <b><#E09500>Steel Pier</color></b> adds a support beneath the bridge and carries load into its foundation.",
+                                "A pier can help support a long span. Where you place it and how it connects to the bridge matter."
+                            ]
+                        },
+                        "material": {
+                            "instanceID": 0
+                        },
+                        "materialButtonLabel": "",
+                        "quiz": {
+                            "instanceID": 0
+                        },
+                        "quizStepId": "",
+                        "quizWaitingReminder": "",
+                        "lesson": {
+                            "instanceID": 0
+                        },
+                        "reviewStepId": ""
+                    },
+                    {
+                        "stepType": 1,
+                        "dialogue": {
+                            "name": "",
+                            "sentences": []
+                        },
+                        "material": {
+                            "fileID": 11400000,
+                            "guid": "3c8daed34b294b92b5c53aa30792d8b1",
+                            "type": 2
+                        },
+                        "materialButtonLabel": "CONTINUE",
+                        "quiz": {
+                            "instanceID": 0
+                        },
+                        "quizStepId": "",
+                        "quizWaitingReminder": "",
+                        "lesson": {
+                            "instanceID": 0
+                        },
+                        "reviewStepId": ""
+                    },
+                    {
+                        "stepType": 0,
+                        "dialogue": {
+                            "name": "Clark",
+                            "sentences": [
+                                "The <b><#E09500>Steel Rope</color></b> works as a suspension cable. It carries tension and helps hold up the deck.",
+                                "A <b><#E09500>Suspension Bridge</color></b> is worth considering for a channel this wide."
+                            ]
+                        },
+                        "material": {
+                            "instanceID": 0
+                        },
+                        "materialButtonLabel": "",
+                        "quiz": {
+                            "instanceID": 0
+                        },
+                        "quizStepId": "",
+                        "quizWaitingReminder": "",
+                        "lesson": {
+                            "instanceID": 0
+                        },
+                        "reviewStepId": ""
+                    },
+                    {
+                        "stepType": 1,
+                        "dialogue": {
+                            "name": "",
+                            "sentences": []
+                        },
+                        "material": {
+                            "fileID": 11400000,
+                            "guid": "4b7960a9d30f4e1b9d6d858aee7d8d31",
+                            "type": 2
+                        },
+                        "materialButtonLabel": "CONTINUE",
+                        "quiz": {
+                            "instanceID": 0
+                        },
+                        "quizStepId": "",
+                        "quizWaitingReminder": "",
+                        "lesson": {
+                            "instanceID": 0
+                        },
+                        "reviewStepId": ""
+                    }
+                ],
+                "dialoguePrompt": "Talk to Clark",
+                "playDialogueOnArrival": true,
+                "reviewAlmanacWhileTravelling": false,
+                "repeatDialogue": true,
+                "enableIdleRoaming": false,
+                "unlockFeatureIdAfterDialogue": "",
+                "featureUnlockDisplayName": "",
+                "featureUnlockIcon": {
+                    "instanceID": 0
+                },
+                "showFeatureCollectPopup": false,
+                "materialIntroduction": {
+                    "instanceID": 0
+                },
+                "materialIntroductions": [],
+                "materialIntroductionButtonLabel": "CONTINUE",
+                "introduceMaterialOnlyOnce": false,
+                "onMaterialIntroductionClosed": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onMaterialIntroductionClosedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                },
+                "onDialogueFinished": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onDialogueFinishedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": "LessonIntroduction"
+                },
+                "onNPCInteracted": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onNPCInteractedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                },
+                "invokeInteractionEventOnlyOnce": true,
+                "onNPCArrived": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onNPCArrivedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                }
+            },
+            {
+                "phaseId": "LessonIntroduction",
+                "targetLocation": {
+                    "instanceID": 0
+                },
+                "teleportToTargetLocation": false,
+                "travelWaypoints": [],
+                "useGroundedWaypoints": false,
+                "running": false,
+                "showExclamationMark": true,
+                "contract": {
+                    "instanceID": 0
+                },
+                "targetBuildLocation": {
+                    "instanceID": 0
+                },
+                "linkedCargo": {
+                    "instanceID": 0
+                },
+                "cinematicAfterOffer": {
+                    "instanceID": 0
+                },
+                "phaseDialogue": {
+                    "name": "Clark",
+                    "sentences": []
+                },
+                "optionalDialogueSequence": [
+                    {
+                        "stepType": 0,
+                        "dialogue": {
+                            "name": "Clark",
+                            "sentences": [
+                                "A <b><#E09500>Suspension Bridge</color></b> uses main cables supported by towers. Vertical cables called <b><#E09500>hangers</color></b> connect the main cables to the roadway.",
+                                "When a truck crosses, the hangers transfer the deck load to the main cables. Those cables mainly carry <b><#E09500>tension</color></b>.",
+                                "The towers mainly carry <b><#E09500>compression</color></b> down to the ground, and the <b><#E09500>anchorages</color></b> resist the cables' pull.",
+                                "Keep those connections in mind. A suspension bridge can span a long distance when all its parts work together."
+                            ]
+                        },
+                        "material": {
+                            "instanceID": 0
+                        },
+                        "materialButtonLabel": "",
+                        "quiz": {
+                            "instanceID": 0
+                        },
+                        "quizStepId": "",
+                        "quizWaitingReminder": "",
+                        "lesson": {
+                            "instanceID": 0
+                        },
+                        "reviewStepId": ""
+                    },
+                    {
+                        "stepType": 3,
+                        "dialogue": {
+                            "name": "",
+                            "sentences": []
+                        },
+                        "material": {
+                            "instanceID": 0
+                        },
+                        "materialButtonLabel": "",
+                        "quiz": {
+                            "instanceID": 0
+                        },
+                        "quizStepId": "",
+                        "quizWaitingReminder": "",
+                        "lesson": {
+                            "fileID": 11400000,
+                            "guid": "b29d35cea29a45b4bfb07e12ccbfc3bf",
+                            "type": 2
+                        },
+                        "reviewStepId": ""
+                    }
+                ],
+                "dialoguePrompt": "Talk to Clark",
+                "playDialogueOnArrival": true,
+                "reviewAlmanacWhileTravelling": false,
+                "repeatDialogue": true,
+                "enableIdleRoaming": false,
+                "unlockFeatureIdAfterDialogue": "",
+                "featureUnlockDisplayName": "",
+                "featureUnlockIcon": {
+                    "instanceID": 0
+                },
+                "showFeatureCollectPopup": false,
+                "materialIntroduction": {
+                    "instanceID": 0
+                },
+                "materialIntroductions": [],
+                "materialIntroductionButtonLabel": "CONTINUE",
+                "introduceMaterialOnlyOnce": false,
+                "onMaterialIntroductionClosed": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onMaterialIntroductionClosedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                },
+                "onDialogueFinished": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onDialogueFinishedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": "ProjectBriefing"
+                },
+                "onNPCInteracted": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onNPCInteractedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                },
+                "invokeInteractionEventOnlyOnce": true,
+                "onNPCArrived": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onNPCArrivedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                }
+            },
+            {
+                "phaseId": "ProjectBriefing",
+                "targetLocation": {
+                    "instanceID": 0
+                },
+                "teleportToTargetLocation": false,
+                "travelWaypoints": [],
+                "useGroundedWaypoints": false,
+                "running": false,
+                "showExclamationMark": true,
+                "contract": {
+                    "fileID": 11400000,
+                    "guid": "c2693778ebf348228dd8b34f786b901d",
+                    "type": 2
+                },
+                "targetBuildLocation": {
+                    "instanceID": 0
+                },
+                "linkedCargo": {
+                    "instanceID": 0
+                },
+                "cinematicAfterOffer": {
+                    "instanceID": 0
+                },
+                "phaseDialogue": {
+                    "name": "Clark",
+                    "sentences": []
+                },
+                "optionalDialogueSequence": [],
+                "dialoguePrompt": "Talk to Clark",
+                "playDialogueOnArrival": true,
+                "reviewAlmanacWhileTravelling": false,
+                "repeatDialogue": true,
+                "enableIdleRoaming": false,
+                "unlockFeatureIdAfterDialogue": "",
+                "featureUnlockDisplayName": "",
+                "featureUnlockIcon": {
+                    "instanceID": 0
+                },
+                "showFeatureCollectPopup": false,
+                "materialIntroduction": {
+                    "instanceID": 0
+                },
+                "materialIntroductions": [],
+                "materialIntroductionButtonLabel": "CONTINUE",
+                "introduceMaterialOnlyOnce": false,
+                "onMaterialIntroductionClosed": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onMaterialIntroductionClosedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                },
+                "onDialogueFinished": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onDialogueFinishedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                },
+                "onNPCInteracted": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onNPCInteractedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                },
+                "invokeInteractionEventOnlyOnce": true,
+                "onNPCArrived": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onNPCArrivedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                }
+            },
+            {
+                "phaseId": "ClarkFreightReview",
+                "targetLocation": {
+                    "instanceID": 0
+                },
+                "teleportToTargetLocation": false,
+                "travelWaypoints": [],
+                "useGroundedWaypoints": false,
+                "running": false,
+                "showExclamationMark": true,
+                "contract": {
+                    "instanceID": 0
+                },
+                "targetBuildLocation": {
+                    "instanceID": 0
+                },
+                "linkedCargo": {
+                    "instanceID": 0
+                },
+                "cinematicAfterOffer": {
+                    "instanceID": 0
+                },
+                "phaseDialogue": {
+                    "name": "Clark",
+                    "sentences": []
+                },
+                "optionalDialogueSequence": [
+                    {
+                        "stepType": 3,
+                        "dialogue": {
+                            "name": "",
+                            "sentences": []
+                        },
+                        "material": {
+                            "instanceID": 0
+                        },
+                        "materialButtonLabel": "",
+                        "quiz": {
+                            "instanceID": 0
+                        },
+                        "quizStepId": "",
+                        "quizWaitingReminder": "",
+                        "lesson": {
+                            "fileID": 11400000,
+                            "guid": "b29d35cea29a45b4bfb07e12ccbfc3bf",
+                            "type": 2
+                        },
+                        "reviewStepId": ""
+                    },
+                    {
+                        "stepType": 0,
+                        "dialogue": {
+                            "name": "Clark",
+                            "sentences": [
+                                "You can review the <b><#E09500>Suspension Bridge lesson</color></b> in your Almanac before the quiz.",
+                                "When you're ready, go to the <b><#E09500>Quiz tab</color></b> and press <b><#E09500>Start Quiz</color></b>."
+                            ]
+                        },
+                        "material": {
+                            "instanceID": 0
+                        },
+                        "materialButtonLabel": "",
+                        "quiz": {
+                            "instanceID": 0
+                        },
+                        "quizStepId": "",
+                        "quizWaitingReminder": "",
+                        "lesson": {
+                            "instanceID": 0
+                        },
+                        "reviewStepId": ""
+                    },
+                    {
+                        "stepType": 2,
+                        "dialogue": {
+                            "name": "",
+                            "sentences": []
+                        },
+                        "material": {
+                            "instanceID": 0
+                        },
+                        "materialButtonLabel": "",
+                        "quiz": {
+                            "fileID": 11400000,
+                            "guid": "beec3505998d414a97538dea6f9bbe4a",
+                            "type": 2
+                        },
+                        "quizStepId": "clark-suspension-assessment-v1",
+                        "quizWaitingReminder": "Review the Suspension Bridge lesson in your Almanac, then press Start Quiz when you're ready.",
+                        "lesson": {
+                            "instanceID": 0
+                        },
+                        "reviewStepId": ""
+                    }
+                ],
+                "dialoguePrompt": "Talk to Clark",
+                "playDialogueOnArrival": true,
+                "reviewAlmanacWhileTravelling": false,
+                "repeatDialogue": true,
+                "enableIdleRoaming": false,
+                "unlockFeatureIdAfterDialogue": "",
+                "featureUnlockDisplayName": "",
+                "featureUnlockIcon": {
+                    "instanceID": 0
+                },
+                "showFeatureCollectPopup": false,
+                "materialIntroduction": {
+                    "instanceID": 0
+                },
+                "materialIntroductions": [],
+                "materialIntroductionButtonLabel": "CONTINUE",
+                "introduceMaterialOnlyOnce": false,
+                "onMaterialIntroductionClosed": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onMaterialIntroductionClosedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                },
+                "onDialogueFinished": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onDialogueFinishedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": "FreightPassageComplete"
+                },
+                "onNPCInteracted": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onNPCInteractedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                },
+                "invokeInteractionEventOnlyOnce": true,
+                "onNPCArrived": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onNPCArrivedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                }
+            },
+            {
+                "phaseId": "FreightPassageComplete",
+                "targetLocation": {
+                    "instanceID": 0
+                },
+                "teleportToTargetLocation": true,
+                "travelWaypoints": [],
+                "useGroundedWaypoints": false,
+                "running": false,
+                "showExclamationMark": true,
+                "contract": {
+                    "instanceID": 0
+                },
+                "targetBuildLocation": {
+                    "instanceID": 0
+                },
+                "linkedCargo": {
+                    "instanceID": 0
+                },
+                "cinematicAfterOffer": {
+                    "instanceID": 0
+                },
+                "phaseDialogue": {
+                    "name": "Clark",
+                    "sentences": [
+                        "Good to see you again, {PlayerName}. There's another site farther into the factory district that I'd like you to look at.",
+                        "This is the factory access road. The surrounding equipment limits where we can place the crossing. Let me show you the challenge."
+                    ]
+                },
+                "optionalDialogueSequence": [],
+                "dialoguePrompt": "Talk to Clark",
+                "playDialogueOnArrival": false,
+                "reviewAlmanacWhileTravelling": false,
+                "repeatDialogue": true,
+                "enableIdleRoaming": false,
+                "unlockFeatureIdAfterDialogue": "",
+                "featureUnlockDisplayName": "",
+                "featureUnlockIcon": {
+                    "instanceID": 0
+                },
+                "showFeatureCollectPopup": false,
+                "materialIntroduction": {
+                    "instanceID": 0
+                },
+                "materialIntroductions": [],
+                "materialIntroductionButtonLabel": "CONTINUE",
+                "introduceMaterialOnlyOnce": false,
+                "onMaterialIntroductionClosed": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onMaterialIntroductionClosedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                },
+                "onDialogueFinished": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onDialogueFinishedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": "ClarkOffsetExplain"
+                },
+                "onNPCInteracted": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onNPCInteractedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                },
+                "invokeInteractionEventOnlyOnce": true,
+                "onNPCArrived": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onNPCArrivedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                }
+            },
+            {
+                "phaseId": "ClarkOffsetExplain",
+                "targetLocation": {
+                    "instanceID": 0
+                },
+                "teleportToTargetLocation": false,
+                "travelWaypoints": [],
+                "useGroundedWaypoints": false,
+                "running": false,
+                "showExclamationMark": true,
+                "contract": {
+                    "instanceID": 0
+                },
+                "targetBuildLocation": {
+                    "instanceID": 0
+                },
+                "linkedCargo": {
+                    "instanceID": 0
+                },
+                "cinematicAfterOffer": {
+                    "instanceID": 0
+                },
+                "phaseDialogue": {
+                    "name": "Clark",
+                    "sentences": [
+                        "Have a look at the approach to the passage."
+                    ]
+                },
+                "optionalDialogueSequence": [],
+                "dialoguePrompt": "Talk to Clark",
+                "playDialogueOnArrival": true,
+                "reviewAlmanacWhileTravelling": false,
+                "repeatDialogue": true,
+                "enableIdleRoaming": false,
+                "unlockFeatureIdAfterDialogue": "",
+                "featureUnlockDisplayName": "",
+                "featureUnlockIcon": {
+                    "instanceID": 0
+                },
+                "showFeatureCollectPopup": false,
+                "materialIntroduction": {
+                    "instanceID": 0
+                },
+                "materialIntroductions": [],
+                "materialIntroductionButtonLabel": "GOT IT",
+                "introduceMaterialOnlyOnce": true,
+                "onMaterialIntroductionClosed": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onMaterialIntroductionClosedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                },
+                "onDialogueFinished": {
+                    "m_PersistentCalls": {
+                        "m_Calls": [
+                            {
+                                "m_Target": {
+                                    "instanceID": 0
+                                },
+                                "m_TargetAssemblyTypeName": "CinematicDirector, Assembly-CSharp",
+                                "m_MethodName": "PlayCinematic",
+                                "m_Mode": 0,
+                                "m_Arguments": {
+                                    "m_ObjectArgument": {
+                                        "instanceID": 0
+                                    },
+                                    "m_ObjectArgumentAssemblyTypeName": "",
+                                    "m_IntArgument": 0,
+                                    "m_FloatArgument": 0.0,
+                                    "m_StringArgument": "",
+                                    "m_BoolArgument": false
+                                },
+                                "m_CallState": 2
+                            }
+                        ]
+                    }
+                },
+                "onDialogueFinishedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                },
+                "onNPCInteracted": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onNPCInteractedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                },
+                "invokeInteractionEventOnlyOnce": true,
+                "onNPCArrived": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onNPCArrivedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                }
+            },
+            {
+                "phaseId": "ClarkOffsetLesson",
+                "targetLocation": {
+                    "instanceID": 0
+                },
+                "teleportToTargetLocation": false,
+                "travelWaypoints": [],
+                "useGroundedWaypoints": false,
+                "running": false,
+                "showExclamationMark": true,
+                "contract": {
+                    "instanceID": 0
+                },
+                "targetBuildLocation": {
+                    "instanceID": 0
+                },
+                "linkedCargo": {
+                    "instanceID": 0
+                },
+                "cinematicAfterOffer": {
+                    "instanceID": 0
+                },
+                "phaseDialogue": {
+                    "name": "Clark",
+                    "sentences": []
+                },
+                "optionalDialogueSequence": [
+                    {
+                        "stepType": 0,
+                        "dialogue": {
+                            "name": "Clark",
+                            "sentences": [
+                                "These utilities and factory structures are still in use. Moving them would interrupt operations, so we must work around them.",
+                                "That leaves the traffic lane <b><#E09500>closer to one side of the bridge</color></b>. The factory still needs a usable connection.",
+                                "A load near the center and the same load near an edge can affect a real bridge differently.",
+                                "An off-center load can create <b><#E09500>Torsion</color></b>: a twisting effect around a member's length.",
+                                "For the same weight, a greater sideways distance from the center of resistance can increase the twisting moment.",
+                                "Engineers consider both the downward load and that twisting effect. Here, the lesson explains torsion while your bridge test checks its load-carrying members."
+                            ]
+                        },
+                        "material": {
+                            "instanceID": 0
+                        },
+                        "materialButtonLabel": "",
+                        "quiz": {
+                            "instanceID": 0
+                        },
+                        "quizStepId": "",
+                        "quizWaitingReminder": "",
+                        "lesson": {
+                            "instanceID": 0
+                        },
+                        "reviewStepId": ""
+                    },
+                    {
+                        "stepType": 3,
+                        "dialogue": {
+                            "name": "",
+                            "sentences": []
+                        },
+                        "material": {
+                            "instanceID": 0
+                        },
+                        "materialButtonLabel": "",
+                        "quiz": {
+                            "instanceID": 0
+                        },
+                        "quizStepId": "",
+                        "quizWaitingReminder": "",
+                        "lesson": {
+                            "fileID": 11400000,
+                            "guid": "a54fe5902bfd4e86a5775d0a07918fb2",
+                            "type": 2
+                        },
+                        "reviewStepId": ""
+                    }
+                ],
+                "dialoguePrompt": "Talk to Clark",
+                "playDialogueOnArrival": true,
+                "reviewAlmanacWhileTravelling": false,
+                "repeatDialogue": true,
+                "enableIdleRoaming": false,
+                "unlockFeatureIdAfterDialogue": "",
+                "featureUnlockDisplayName": "",
+                "featureUnlockIcon": {
+                    "instanceID": 0
+                },
+                "showFeatureCollectPopup": false,
+                "materialIntroduction": {
+                    "instanceID": 0
+                },
+                "materialIntroductions": [],
+                "materialIntroductionButtonLabel": "GOT IT",
+                "introduceMaterialOnlyOnce": true,
+                "onMaterialIntroductionClosed": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onMaterialIntroductionClosedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                },
+                "onDialogueFinished": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onDialogueFinishedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": "ClarkOffsetBriefing"
+                },
+                "onNPCInteracted": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onNPCInteractedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                },
+                "invokeInteractionEventOnlyOnce": true,
+                "onNPCArrived": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onNPCArrivedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                }
+            },
+            {
+                "phaseId": "ClarkOffsetBriefing",
+                "targetLocation": {
+                    "instanceID": 0
+                },
+                "teleportToTargetLocation": false,
+                "travelWaypoints": [],
+                "useGroundedWaypoints": false,
+                "running": false,
+                "showExclamationMark": true,
+                "contract": {
+                    "fileID": 11400000,
+                    "guid": "4c553eb687f446899e194d65f9e56d92",
+                    "type": 2
+                },
+                "targetBuildLocation": {
+                    "instanceID": 0
+                },
+                "linkedCargo": {
+                    "instanceID": 0
+                },
+                "cinematicAfterOffer": {
+                    "instanceID": 0
+                },
+                "phaseDialogue": {
+                    "name": "Clark",
+                    "sentences": []
+                },
+                "optionalDialogueSequence": [],
+                "dialoguePrompt": "Talk to Clark",
+                "playDialogueOnArrival": true,
+                "reviewAlmanacWhileTravelling": false,
+                "repeatDialogue": true,
+                "enableIdleRoaming": false,
+                "unlockFeatureIdAfterDialogue": "",
+                "featureUnlockDisplayName": "",
+                "featureUnlockIcon": {
+                    "instanceID": 0
+                },
+                "showFeatureCollectPopup": false,
+                "materialIntroduction": {
+                    "instanceID": 0
+                },
+                "materialIntroductions": [],
+                "materialIntroductionButtonLabel": "GOT IT",
+                "introduceMaterialOnlyOnce": true,
+                "onMaterialIntroductionClosed": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onMaterialIntroductionClosedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                },
+                "onDialogueFinished": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onDialogueFinishedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                },
+                "onNPCInteracted": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onNPCInteractedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                },
+                "invokeInteractionEventOnlyOnce": true,
+                "onNPCArrived": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onNPCArrivedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                }
+            },
+            {
+                "phaseId": "ClarkOffsetReview",
+                "targetLocation": {
+                    "instanceID": 0
+                },
+                "teleportToTargetLocation": false,
+                "travelWaypoints": [],
+                "useGroundedWaypoints": false,
+                "running": false,
+                "showExclamationMark": true,
+                "contract": {
+                    "instanceID": 0
+                },
+                "targetBuildLocation": {
+                    "instanceID": 0
+                },
+                "linkedCargo": {
+                    "instanceID": 0
+                },
+                "cinematicAfterOffer": {
+                    "instanceID": 0
+                },
+                "phaseDialogue": {
+                    "name": "Clark",
+                    "sentences": []
+                },
+                "optionalDialogueSequence": [
+                    {
+                        "stepType": 3,
+                        "dialogue": {
+                            "name": "",
+                            "sentences": []
+                        },
+                        "material": {
+                            "instanceID": 0
+                        },
+                        "materialButtonLabel": "",
+                        "quiz": {
+                            "instanceID": 0
+                        },
+                        "quizStepId": "",
+                        "quizWaitingReminder": "",
+                        "lesson": {
+                            "fileID": 11400000,
+                            "guid": "a54fe5902bfd4e86a5775d0a07918fb2",
+                            "type": 2
+                        },
+                        "reviewStepId": ""
+                    },
+                    {
+                        "stepType": 0,
+                        "dialogue": {
+                            "name": "Clark",
+                            "sentences": [
+                                "Review the <b><#E09500>Torsion lesson</color></b> in your Almanac. When you're ready, open the <b><#E09500>Quiz tab</color></b> and press <b><#E09500>Start Quiz</color></b>."
+                            ]
+                        },
+                        "material": {
+                            "instanceID": 0
+                        },
+                        "materialButtonLabel": "",
+                        "quiz": {
+                            "instanceID": 0
+                        },
+                        "quizStepId": "",
+                        "quizWaitingReminder": "",
+                        "lesson": {
+                            "instanceID": 0
+                        },
+                        "reviewStepId": ""
+                    },
+                    {
+                        "stepType": 2,
+                        "dialogue": {
+                            "name": "",
+                            "sentences": []
+                        },
+                        "material": {
+                            "instanceID": 0
+                        },
+                        "materialButtonLabel": "",
+                        "quiz": {
+                            "fileID": 11400000,
+                            "guid": "22feea17b3644319bcd4ad4ec0468a7c",
+                            "type": 2
+                        },
+                        "quizStepId": "clark-torsion-assessment-v1",
+                        "quizWaitingReminder": "Review how an off-center load can create torsion, then open the Almanac Quiz tab and press Start Quiz when you're ready.",
+                        "lesson": {
+                            "instanceID": 0
+                        },
+                        "reviewStepId": ""
+                    }
+                ],
+                "dialoguePrompt": "Talk to Clark",
+                "playDialogueOnArrival": true,
+                "reviewAlmanacWhileTravelling": false,
+                "repeatDialogue": true,
+                "enableIdleRoaming": false,
+                "unlockFeatureIdAfterDialogue": "",
+                "featureUnlockDisplayName": "",
+                "featureUnlockIcon": {
+                    "instanceID": 0
+                },
+                "showFeatureCollectPopup": false,
+                "materialIntroduction": {
+                    "instanceID": 0
+                },
+                "materialIntroductions": [],
+                "materialIntroductionButtonLabel": "GOT IT",
+                "introduceMaterialOnlyOnce": true,
+                "onMaterialIntroductionClosed": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onMaterialIntroductionClosedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                },
+                "onDialogueFinished": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onDialogueFinishedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": "ClarkResolved"
+                },
+                "onNPCInteracted": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onNPCInteractedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                },
+                "invokeInteractionEventOnlyOnce": true,
+                "onNPCArrived": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onNPCArrivedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                }
+            },
+            {
+                "phaseId": "ClarkResolved",
+                "targetLocation": {
+                    "instanceID": 0
+                },
+                "teleportToTargetLocation": false,
+                "travelWaypoints": [],
+                "useGroundedWaypoints": false,
+                "running": false,
+                "showExclamationMark": false,
+                "contract": {
+                    "instanceID": 0
+                },
+                "targetBuildLocation": {
+                    "instanceID": 0
+                },
+                "linkedCargo": {
+                    "instanceID": 0
+                },
+                "cinematicAfterOffer": {
+                    "instanceID": 0
+                },
+                "phaseDialogue": {
+                    "name": "Clark",
+                    "sentences": [
+                        "The factory has its direct connection now. Thanks for your help, {PlayerName}.",
+                        "Mills handles the larger equipment projects farther into Ironhaven. He's the person to speak to next."
+                    ]
+                },
+                "optionalDialogueSequence": [],
+                "dialoguePrompt": "Talk to Clark",
+                "playDialogueOnArrival": false,
+                "reviewAlmanacWhileTravelling": false,
+                "repeatDialogue": true,
+                "enableIdleRoaming": false,
+                "unlockFeatureIdAfterDialogue": "",
+                "featureUnlockDisplayName": "",
+                "featureUnlockIcon": {
+                    "instanceID": 0
+                },
+                "showFeatureCollectPopup": false,
+                "materialIntroduction": {
+                    "instanceID": 0
+                },
+                "materialIntroductions": [],
+                "materialIntroductionButtonLabel": "GOT IT",
+                "introduceMaterialOnlyOnce": true,
+                "onMaterialIntroductionClosed": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onMaterialIntroductionClosedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                },
+                "onDialogueFinished": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onDialogueFinishedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                },
+                "onNPCInteracted": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onNPCInteractedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                },
+                "invokeInteractionEventOnlyOnce": true,
+                "onNPCArrived": {
+                    "m_PersistentCalls": {
+                        "m_Calls": []
+                    }
+                },
+                "onNPCArrivedPhaseMove": {
+                    "npc": {
+                        "instanceID": 0
+                    },
+                    "phaseId": ""
+                }
+            }
+        ],
+        "progressionSaveId": "Clark",
+        "persistProgression": true,
+        "restoreSavedPhaseBridgesOnStart": true,
+        "placeAtResolvedPhaseOnStart": true,
+        "automaticallyAdvanceOnContractCompletion": true,
+        "movementMode": 0,
+        "arrivalPadding": 0.15000000596046449,
+        "navMeshSampleRadius": 3.0,
+        "pathTimeout": 45.0,
+        "rebindNearbyNavMeshBeforeTravel": false,
+        "stalledRepathDelay": 1.5,
+        "stalledMovementTolerance": 0.029999999329447748,
+        "maximumRepathAttempts": 3,
+        "teleportDissolveDuration": 0.3499999940395355,
+        "teleportDissolveEdgeColor": {
+            "r": 1.0,
+            "g": 0.550000011920929,
+            "b": 0.11999999731779099,
+            "a": 1.0
+        },
+        "teleportDissolveNoiseScale": 14.0,
+        "teleportDissolveEdgeWidth": 0.07999999821186066,
+        "waypointMovementSpeed": 2.5,
+        "waypointTurnSpeed": 260.0,
+        "waypointArrivalDistance": 0.10000000149011612,
+        "waypointGroundLayers": {
+            "serializedVersion": "2",
+            "m_Bits": 3585
+        },
+        "waypointGroundProbeHeight": 2.0,
+        "waypointGroundProbeDepth": 6.0,
+        "waypointGroundOffset": 0.0,
+        "requireGroundForWaypointMovement": true,
+        "missingGroundGraceTime": 0.5,
+        "waypointRoadNodeWeldDistance": 0.25,
+        "waypointRoadGroundConnectionDistance": 20.0,
+        "waypointGroundConnectionSampleSpacing": 0.75,
+        "waypointNavMeshLinkCorridorWidth": 35.0,
+        "walkingBoolParameter": "isWalking",
+        "runningBoolParameter": "isRunning",
+        "talkingBoolParameter": "isTalking",
+        "idleRoamingRadius": 1.5,
+        "idleRoamingSpeed": 1.2000000476837159,
+        "idlePauseDuration": 2.0,
+        "idleRoamingArrivalDistance": 0.07999999821186066,
+        "useSceneNavMeshLinksInWaypointMode": true,
+        "manuallyTraverseNavMeshLinks": true,
+        "rotateWhileTraversingLinks": true,
+        "travellingPrompt": "Moving to the next site...",
+        "onlyShowExclamationWhenInteractionNeeded": true,
+        "onProgressionFinished": {
+            "m_PersistentCalls": {
+                "m_Calls": []
+            }
+        },
+        "onMovementFailed": {
+            "m_PersistentCalls": {
+                "m_Calls": []
+            }
+        }
+    }
+}

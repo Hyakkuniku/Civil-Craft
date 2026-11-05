@@ -139,6 +139,10 @@ MonoBehaviour:
   ConnectedBars:
   - {fileID: 7006059126146152962}
   ownerLocation: {fileID: 0}
+  widthVisual: {fileID: 0}
+  originalVisualScale: {x: 0, y: 0, z: 0}
+  originalVisualPosition: {x: 0, y: 0, z: 0}
+  hasWidthVisualBaseline: 0
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
@@ -608,6 +612,10 @@ MonoBehaviour:
   - {fileID: 7685277233790076439}
   - {fileID: 1765818610599262079}
   ownerLocation: {fileID: 0}
+  widthVisual: {fileID: 0}
+  originalVisualScale: {x: 0, y: 0, z: 0}
+  originalVisualPosition: {x: 0, y: 0, z: 0}
+  hasWidthVisualBaseline: 0
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
@@ -918,6 +926,10 @@ MonoBehaviour:
   ConnectedBars:
   - {fileID: 2210537766382540712}
   ownerLocation: {fileID: 0}
+  widthVisual: {fileID: 0}
+  originalVisualScale: {x: 0, y: 0, z: 0}
+  originalVisualPosition: {x: 0, y: 0, z: 0}
+  hasWidthVisualBaseline: 0
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
@@ -2055,6 +2067,10 @@ MonoBehaviour:
   - {fileID: 0}
   - {fileID: 0}
   ownerLocation: {fileID: 0}
+  widthVisual: {fileID: 0}
+  originalVisualScale: {x: 0, y: 0, z: 0}
+  originalVisualPosition: {x: 0, y: 0, z: 0}
+  hasWidthVisualBaseline: 0
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
@@ -2499,6 +2515,10 @@ MonoBehaviour:
   - {fileID: 7685277233790076439}
   - {fileID: 0}
   ownerLocation: {fileID: 0}
+  widthVisual: {fileID: 0}
+  originalVisualScale: {x: 0, y: 0, z: 0}
+  originalVisualPosition: {x: 0, y: 0, z: 0}
+  hasWidthVisualBaseline: 0
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
@@ -3226,6 +3246,10 @@ MonoBehaviour:
   - {fileID: 9093973088301207443}
   - {fileID: 0}
   ownerLocation: {fileID: 0}
+  widthVisual: {fileID: 0}
+  originalVisualScale: {x: 0, y: 0, z: 0}
+  originalVisualPosition: {x: 0, y: 0, z: 0}
+  hasWidthVisualBaseline: 0
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
@@ -3676,6 +3700,10 @@ MonoBehaviour:
   ConnectedBars:
   - {fileID: 3834067446327740991}
   ownerLocation: {fileID: 0}
+  widthVisual: {fileID: 0}
+  originalVisualScale: {x: 0, y: 0, z: 0}
+  originalVisualPosition: {x: 0, y: 0, z: 0}
+  hasWidthVisualBaseline: 0
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
@@ -4063,6 +4091,10 @@ MonoBehaviour:
   - {fileID: 3834067446327740991}
   - {fileID: 2210537766382540712}
   ownerLocation: {fileID: 0}
+  widthVisual: {fileID: 0}
+  originalVisualScale: {x: 0, y: 0, z: 0}
+  originalVisualPosition: {x: 0, y: 0, z: 0}
+  hasWidthVisualBaseline: 0
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
@@ -4854,6 +4886,10 @@ MonoBehaviour:
   ConnectedBars:
   - {fileID: 4224335571760722330}
   ownerLocation: {fileID: 0}
+  widthVisual: {fileID: 0}
+  originalVisualScale: {x: 0, y: 0, z: 0}
+  originalVisualPosition: {x: 0, y: 0, z: 0}
+  hasWidthVisualBaseline: 0
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
@@ -6643,6 +6679,10 @@ MonoBehaviour:
   - {fileID: 0}
   - {fileID: 0}
   ownerLocation: {fileID: 0}
+  widthVisual: {fileID: 0}
+  originalVisualScale: {x: 0, y: 0, z: 0}
+  originalVisualPosition: {x: 0, y: 0, z: 0}
+  hasWidthVisualBaseline: 0
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
@@ -7420,6 +7460,10 @@ MonoBehaviour:
   - {fileID: 6301012796258891663}
   - {fileID: 0}
   ownerLocation: {fileID: 0}
+  widthVisual: {fileID: 0}
+  originalVisualScale: {x: 0, y: 0, z: 0}
+  originalVisualPosition: {x: 0, y: 0, z: 0}
+  hasWidthVisualBaseline: 0
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
@@ -7507,6 +7551,10 @@ MonoBehaviour:
   - {fileID: 9049366671934232537}
   - {fileID: 7008173838678641483}
   ownerLocation: {fileID: 0}
+  widthVisual: {fileID: 0}
+  originalVisualScale: {x: 0, y: 0, z: 0}
+  originalVisualPosition: {x: 0, y: 0, z: 0}
+  hasWidthVisualBaseline: 0
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
@@ -7592,6 +7640,10 @@ MonoBehaviour:
   ConnectedBars:
   - {fileID: 9049366671934232537}
   ownerLocation: {fileID: 0}
+  widthVisual: {fileID: 0}
+  originalVisualScale: {x: 0, y: 0, z: 0}
+  originalVisualPosition: {x: 0, y: 0, z: 0}
+  hasWidthVisualBaseline: 0
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
@@ -8100,6 +8152,10 @@ MonoBehaviour:
   ConnectedBars:
   - {fileID: 3138821131195435480}
   ownerLocation: {fileID: 0}
+  widthVisual: {fileID: 0}
+  originalVisualScale: {x: 0, y: 0, z: 0}
+  originalVisualPosition: {x: 0, y: 0, z: 0}
+  hasWidthVisualBaseline: 0
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
@@ -8271,6 +8327,10 @@ MonoBehaviour:
   - {fileID: 8179331494471421392}
   - {fileID: 0}
   ownerLocation: {fileID: 0}
+  widthVisual: {fileID: 0}
+  originalVisualScale: {x: 0, y: 0, z: 0}
+  originalVisualPosition: {x: 0, y: 0, z: 0}
+  hasWidthVisualBaseline: 0
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
@@ -8356,6 +8416,10 @@ MonoBehaviour:
   ConnectedBars:
   - {fileID: 7008173838678641483}
   ownerLocation: {fileID: 0}
+  widthVisual: {fileID: 0}
+  originalVisualScale: {x: 0, y: 0, z: 0}
+  originalVisualPosition: {x: 0, y: 0, z: 0}
+  hasWidthVisualBaseline: 0
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}

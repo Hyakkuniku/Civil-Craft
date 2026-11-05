@@ -18106,9 +18106,13 @@ MonoBehaviour:
   allGameContracts:
   - {fileID: 11400000, guid: d16ef45202a457f43bc02f4d7e730647, type: 2}
   - {fileID: 11400000, guid: 8f65c1b4d22748e581416a7e34e01dc3, type: 2}
+  - {fileID: 11400000, guid: c2693778ebf348228dd8b34f786b901d, type: 2}
+  - {fileID: 11400000, guid: 4c553eb687f446899e194d65f9e56d92, type: 2}
   - {fileID: 11400000, guid: 39d60b2d6d214147ba888941ef75ee11, type: 2}
   - {fileID: 11400000, guid: 511cf4b78fcb2ee4aa7169008e424b48, type: 2}
   - {fileID: 11400000, guid: 7bd1a236dfb47f54e96257d2d3d48be1, type: 2}
+  - {fileID: 11400000, guid: 51a23ae6a4b544e98c4d3d234401debe, type: 2}
+  - {fileID: 11400000, guid: 25c1c75517e6409eb94639ac144aee37, type: 2}
   - {fileID: 11400000, guid: 1f93c961d5b0ced468282419d064a7d3, type: 2}
   - {fileID: 11400000, guid: 08ef0a30971b46d18d7752fdf9b5470f, type: 2}
   - {fileID: 11400000, guid: d7bfc22ac3ad49fab92c0cd06b187168, type: 2}

@@ -1,0 +1,97 @@
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+namespace UnityEngine
+{
+    public sealed class Sprite { }
+    public static class Debug { public static void LogWarning(string message, object owner) { } }
+    public static class Time { public static float timeScale = 1; }
+    [AttributeUsage(AttributeTargets.Field)] public sealed class TooltipAttribute : Attribute { public TooltipAttribute(string value) { } }
+    [AttributeUsage(AttributeTargets.Field)] public sealed class TextAreaAttribute : Attribute { public TextAreaAttribute(int min, int max) { } }
+}
+public sealed class Dialogue { public string name; public string[] sentences; }
+public sealed class BridgeMaterialSO { }
+public sealed class LessonData { }
+public sealed class QuizData { }
+public sealed class ContractSO { }
+public sealed class CinematicDirector { public int plays; public void PlayContractOfferCinematic() { plays++; } }
+public sealed class NPCProgressionSaveData
+{
+    public int currentPhaseIndex;
+    public string currentPhaseId;
+    public List<string> completedDialoguePhaseIds = new List<string>();
+}
+public sealed class PlayerDataManager
+{
+    public static PlayerDataManager Instance;
+    public NPCProgressionSaveData saved;
+    public bool TryGetNPCProgression(string id, out NPCProgressionSaveData state) { state = saved; return saved != null; }
+    public void MarkNPCPhaseDialogueCompleted(string id, string phase) { if (saved == null) saved = new NPCProgressionSaveData(); saved.completedDialoguePhaseIds.Add(phase); }
+}
+public sealed class NPCContractGiver
+{
+    public ContractSO contractToGive;
+    public bool isContractCompleted, HasAcceptedProgressionContract = true, suppressed;
+    public bool isActiveAndEnabled = true, IsInteractionAvailable = true, CanRestoreContractGuide = true;
+    public void SuppressCurrentInteractionForProgression() { suppressed = true; }
+}
+public static class DialogueManager { public static bool IsAnyDialogueVisible; }
+public static class QuizUIManager { public static bool IsAnyQuizActive; public static void CancelOwnedSession(object owner) { } }
+public static class AlmanacQuizAccess { public static void CancelOwned(object owner) { } }
+public sealed class PauseManager { public static PauseManager Instance; public bool isPaused; }
+public sealed class GameManager
+{
+    public enum GameState { Normal, Other }
+    public static GameManager Instance;
+    public bool IsTransitioning;
+    public GameState CurrentState;
+}
+public static class LessonTrigger { public static bool TryGetPendingAlmanacReview(object owner, out object trigger) { trigger = null; return false; } }
+public sealed class NPCOrderedLearningFlow { public void Cancel() { } }
+// ACTUAL_STEP
+public sealed class NPCProgressionPhase
+{
+    public string phaseId = "final";
+    public ContractSO contract;
+    public bool runOptionalSequenceBeforeTurnIn, repeatDialogue, introduceMaterialOnlyOnce = true, invokeInteractionEventOnlyOnce;
+    public List<NPCOptionalDialogueStep> optionalDialogueSequence = new List<NPCOptionalDialogueStep>();
+    public CinematicDirector cinematicAfterOffer;
+    public int dialogueEvents, materialEvents, interactionEvents;
+    public void InvokeDialogueFinished() { dialogueEvents++; }
+    public void InvokeMaterialIntroductionClosed() { materialEvents++; }
+    public void InvokeNPCInteracted() { interactionEvents++; }
+}
+public sealed class NPCProgressionManager
+{
+    public string progressionSaveId = "Mills";
+    public bool persistProgression = true, IsTravelling, local = true, validationAvailable = true;
+    public List<NPCProgressionPhase> phases = new List<NPCProgressionPhase>();
+    public int currentPhaseIndex, optionalSequenceVersion, arrivalDialogueVersion, playedSteps, featureGrants, legacyMaterialCalls, legacyDialogueCalls;
+    public bool isInvokingPhaseDialogueFinished;
+    public NPCOrderedLearningFlow orderedLearningFlow;
+    public HashSet<int> completedDialoguePhases = new HashSet<int>(), runningOptionalSequencePhases = new HashSet<int>(), introducedMaterialPhases = new HashSet<int>(), invokedInteractionPhases = new HashSet<int>();
+    public NPCContractGiver contractGiver;
+    public NPCProgressionPhase CurrentPhase => phases[currentPhaseIndex];
+    private bool CanRunLocalProgression() => local;
+    private bool HasPendingTravelAlmanacReview(int index, NPCProgressionPhase phase) => false;
+    private bool TryHandleWaitingQuizInteraction(int index, NPCProgressionPhase phase) => runningOptionalSequencePhases.Contains(index);
+    private bool TryHandleLessonReviewInteraction(int index, NPCProgressionPhase phase) => false;
+    private bool NeedsRepeatableContinuationRetry(NPCProgressionPhase phase) => false;
+    private bool TryValidateOrderedQuizzes(NPCProgressionPhase phase, out string error) { error = "Unavailable"; return validationAvailable; }
+    private void TryStartPhaseDialogue(int index, NPCProgressionPhase phase) { legacyDialogueCalls++; }
+    private void TryShowMaterialIntroduction(int index, NPCProgressionPhase phase) { legacyMaterialCalls++; }
+    private void PlayOrderedOptionalStep(int index, NPCProgressionPhase phase, int step, bool showMaterial, bool displayedMaterial, int version) { playedSteps++; }
+    private void GrantConfiguredPhaseFeature(NPCProgressionPhase phase) { featureGrants++; }
+    private void CancelQuizWaitingReminder() { }
+    private void CancelLessonReviewReminder() { }
+    private void ClearTravelAlmanacReviewState() { }
+    public void Offer() => HandleOfferDialogueCompleted(contractGiver);
+    public void Tap() { contractGiver.suppressed = false; HandleNPCInteracted(contractGiver); }
+    public void Start() => TryStartOrderedOptionalSequence(currentPhaseIndex, CurrentPhase);
+    public void Finish(int version) => FinishOrderedOptionalSequence(currentPhaseIndex, CurrentPhase, false, version);
+    public void Stop(int version) => StopOrderedOptionalSequence(currentPhaseIndex, version);
+    public void Cancel() => CancelOrderedOptionalSequence();
+    public bool CanStart() => CanStartOptionalSequenceForContractState(currentPhaseIndex, CurrentPhase);
+    public bool NeedsTalk() => NeedsPhaseInteraction();
+    // ACTUAL_METHODS
+}

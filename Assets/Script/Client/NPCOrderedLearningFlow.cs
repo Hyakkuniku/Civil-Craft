@@ -14,6 +14,7 @@ public sealed class NPCOrderedLearningFlow : MonoBehaviour
 
     private LessonUIManager lessonManager;
     private LessonData expectedLesson;
+    private object expectedReference;
     private Action completed;
     private Coroutine reviewRoutine;
     private TutorialSequence reviewSequence;
@@ -61,6 +62,54 @@ public sealed class NPCOrderedLearningFlow : MonoBehaviour
     private void LessonOpened(LessonData lesson)
     {
         if (lesson != expectedLesson) Fail();
+    }
+
+    public bool TryShowReference(string title, Sprite image, string description, Action onCompleted, Action onUnavailable = null)
+    {
+        if (!isActiveAndEnabled || ProtectedVisit() || onCompleted == null || completed != null ||
+            string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(description) ||
+            LessonUIManager.Instance == null || LessonUIManager.Instance.IsOpen ||
+            PlayerDataManager.Instance == null || PlayerDataManager.Instance.CurrentData == null) return false;
+        lessonManager = LessonUIManager.Instance;
+        expectedReference = new object();
+        completed = onCompleted;
+        unavailable = onUnavailable;
+        saveOwner = PlayerDataManager.Instance.CurrentData;
+        lessonManager.ReferenceOpened += ReferenceOpened;
+        lessonManager.ReferenceClosed += ReferenceClosed;
+        lessonManager.ReferenceCancelled += ReferenceCancelled;
+        lessonManager.LessonOpened += ReferenceReplacedByLesson;
+        if (lessonManager.TryShowOwnedReference(expectedReference, title, image, description)) return true;
+        Cancel();
+        return false;
+    }
+
+    private void ReferenceOpened(object owner)
+    {
+        if (!ReferenceEquals(owner, expectedReference)) Fail();
+    }
+
+    private void ReferenceClosed(object owner)
+    {
+        if (!ReferenceEquals(owner, expectedReference)) return;
+        if (!IsAuthorized()) { Fail(); return; }
+        Action callback = completed;
+        ClearLesson();
+        completed = unavailable = null;
+        callback?.Invoke();
+    }
+
+    private void ReferenceCancelled(object owner)
+    {
+        if (ReferenceEquals(owner, expectedReference)) Fail();
+    }
+
+    private void ReferenceReplacedByLesson(LessonData lesson) => Fail();
+
+    private void LateUpdate()
+    {
+        if (expectedReference != null && (!IsAuthorized() || lessonManager == null ||
+            !lessonManager.isActiveAndEnabled || !ReferenceEquals(lessonManager.CurrentReferenceOwner, expectedReference))) Fail();
     }
 
     public bool TryReviewAlmanac(string reviewId, Action onCompleted, Action onUnavailable = null,
@@ -163,8 +212,10 @@ public sealed class NPCOrderedLearningFlow : MonoBehaviour
         unavailable = null;
         LessonUIManager reader = lessonManager;
         LessonData lesson = expectedLesson;
+        object reference = expectedReference;
         ClearLesson();
-        if (reader != null && reader.IsOpen && reader.CurrentLesson == lesson) reader.CloseLesson();
+        if (reader != null && reference != null) reader.CancelOwnedReference(reference);
+        else if (reader != null && lesson != null && reader.IsOpen && reader.CurrentLesson == lesson) reader.CloseLesson();
         if (reviewRoutine != null) StopCoroutine(reviewRoutine);
         reviewRoutine = null;
         ClearReviewBook();
@@ -196,9 +247,14 @@ public sealed class NPCOrderedLearningFlow : MonoBehaviour
         {
             lessonManager.LessonClosed -= LessonClosed;
             lessonManager.LessonOpened -= LessonOpened;
+            lessonManager.ReferenceOpened -= ReferenceOpened;
+            lessonManager.ReferenceClosed -= ReferenceClosed;
+            lessonManager.ReferenceCancelled -= ReferenceCancelled;
+            lessonManager.LessonOpened -= ReferenceReplacedByLesson;
         }
         lessonManager = null;
         expectedLesson = null;
+        expectedReference = null;
     }
 
     private bool IsAuthorized() => PlayerDataManager.Instance != null &&

@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a4da58d2dc2409c459ef20449bf92a90, type: 3}
+  m_Name: Structural Failure
+  m_EditorClassIdentifier:
+  lessonId: civil-craft-structural-failure-lesson-v1
+  lessonTitle: Structural Failure
+  lessonImage: {fileID: 0}
+  popupDescription: "<b><#E09500>Structural Failure</color></b> occurs when a structure or component can no longer safely carry its load or perform its intended function.\n\nFailure can begin in one member or connection without the whole bridge collapsing. Normal movement within safe limits is not automatically failure. During this test, inspect member stress and broken parts to find where a problem begins before changing the design."
+  almanacImage: {fileID: 0}
+  lessonDescription: "<b><#E09500>Structural Failure</color></b> occurs when a structure or component can no longer safely resist the applied forces or perform its intended function. A bridge must carry its required load and remain usable.\n\n<b><#E09500>Where failure begins</color></b> matters. The first problem may occur in one member or connection, without an immediate collapse of the entire bridge. The remaining members may then have to carry a different share of the load.\n\nIn real structures, failure can involve excessive bending, cracking, buckling, connection damage, or loss of stability. A member under compression may buckle; a beam may deform excessively; a connection may be unable to transfer the required forces. Different problems call for different changes.\n\n<b><#E09500>Movement is not always failure.</color></b> Some movement under load is normal. Engineers consider whether movement stays within safe limits and whether the structure can continue performing its intended function.\n\nAt Mills's <b><#E09500>Heavy Equipment Route</color></b>, watch the mobile crane throughout the crossing. If the test fails, identify the first overloaded or broken area, check how its members connect, and improve the load path before testing again. Avoid changing the whole bridge without examining the results.\n\n<b><#E09500>About this test</color></b>: the game checks pulling and compression forces against configured member limits and tracks broken parts. It does not separately calculate every real-world bending, shear, twisting, cracking, or connection failure. The lesson describes the broader engineering concept; passing the game test is not a real-world load rating."

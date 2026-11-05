@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6f37df8d20f74e62a3e88f7fa41df9b0, type: 3}
+  m_Name: Structural Failure Lesson
+  m_EditorClassIdentifier:
+  panelTitle: STRUCTURAL FAILURE
+  minimumMessageDuration: 3.5
+  fadeDuration: 0.2
+  slideDistance: 24
+  enableSlowMotion: 1
+  simulationTimeScale: 0.5
+  vehicleEnteredProgress: 0.1
+  vehicleMidpointProgress: 0.5
+  vehicleNearEndProgress: 0.85
+  highStressThreshold: 0.7
+  vehicleStuckDelay: 5
+  simulationStarted: "The mobile crane will test the crossing. Watch how the roadway and supporting members carry its load."
+  liveLoadStarted: "The crane's weight is reaching the bridge. Check how the connected members share the load."
+  vehicleEnteredBridge: "The crane is entering the bridge. Watch for overloaded members and a continuous roadway."
+  vehicleReachedMidpoint: "The crane is near the middle. Look for members using a large share of their capacity."
+  vehicleApproachingEnd: "The crane is approaching the far bank. Keep observing until it has completely crossed."
+  highStressDetected: "Orange or red members are using a large share of their capacity. Inspect their supports and connections."
+  stressLimitExceeded: "The bridge exceeded the contract's allowed stress. Locate the overloaded area before changing the design."
+  firstMemberBreak: "A member failed. Note where the first break occurred and how the remaining members carry the load."
+  vehicleStuck: "The crane has stopped moving. Check the roadway alignment, clearance, and connections."
+  vehicleFailed: "The crane could not finish the crossing. Examine the failed area and the load path before testing again."
+  bridgeSucceeded: "The crane reached the far bank. The bridge carried the required live load through the full crossing."
+  simulationStopped: "Simulation stopped. Review the test results before deciding what to change."

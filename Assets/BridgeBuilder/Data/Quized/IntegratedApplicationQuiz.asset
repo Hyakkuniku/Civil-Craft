@@ -1,0 +1,103 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8277db26963c4a7a81a4dcb5e6307197, type: 3}
+  m_Name: IntegratedApplicationQuiz
+  m_EditorClassIdentifier:
+  quizId: civil-craft-integrated-application-quiz-v1
+  title: Integrated Application Quiz
+  assessmentMode: 1
+  questions:
+  - questionId: load-transfer
+    prompt: "Why must a bridge transfer loads safely through its structural members and supports?"
+    choices:
+    - text: "To make the bridge look more symmetrical."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "To eliminate the vehicle's weight."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "To carry the applied loads safely toward the supports and ground."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "To ensure that every member experiences exactly the same force."
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 2
+    feedback: "A connected load path carries the applied loads through members and supports toward the ground."
+  - questionId: structural-forces
+    prompt: "Which set contains structural effects or forces that an engineer should consider when designing a bridge?"
+    choices:
+    - text: "Bending, tension, compression, and shear."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Color, texture, shape, and decoration."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Speed, fuel consumption, and engine temperature."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Sound, lighting, and road markings."
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 0
+    feedback: "Bending, tension, compression, and shear describe structural effects or forces that can influence a real bridge's response."
+  - questionId: moving-loads
+    prompt: "Why should an engineer observe a bridge throughout the entire vehicle crossing?"
+    choices:
+    - text: "The vehicle becomes lighter as it approaches the opposite end."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "The supports stop carrying loads once the vehicle reaches the middle."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "The bridge experiences the same structural response at every vehicle position."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "The forces and structural response can change as the vehicle moves."
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 3
+    feedback: "A moving load changes position, so the forces carried by individual members can change throughout the crossing."
+  - questionId: torsion
+    prompt: "When should an engineer consider the possibility of <b><#E09500>Torsion</color></b>?"
+    choices:
+    - text: "When the bridge is painted a different color."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "When a load acts away from the center and may cause the structure to twist."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "When the bridge has no vehicles crossing it."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "When the road is completely straight."
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 1
+    feedback: "An off-center load can create a twisting moment. The position of the load matters as well as its weight."
+  - questionId: structural-safety
+    prompt: "During the bus test, the bridge shows excessive deformation and one member appears unable to carry the load safely. What should the engineer do?"
+    choices:
+    - text: "Ignore the result if the bus is almost across."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Rebuild the entire bridge without checking the results."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Review the test results, identify the weak component, and adjust the design."
+      image: {fileID: 0}
+      imageFingerprint:
+    - text: "Remove all supports to allow the bridge to move freely."
+      image: {fileID: 0}
+      imageFingerprint:
+    correctChoiceIndex: 2
+    feedback: "Inspect where the problem begins, improve the weak area or load path, and test the revised bridge again."

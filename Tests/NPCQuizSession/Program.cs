@@ -23,6 +23,7 @@ internal static class Program
             CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(root, "Assets/Script/UI/Quizzes/QuizData.cs"))),
             CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(root, "Assets/Script/UI/Quizzes/QuizProgress.cs"))),
             CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(root, "Assets/Script/UI/Quizzes/QuizProgressSaveData.cs"))),
+            CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(root, "Assets/Script/Player/PlayerSave/GameDashboardRecords.cs"))),
             CSharpSyntaxTree.ParseText(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Scenarios.cs.txt")))
         };
         var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator).Select(path => MetadataReference.CreateFromFile(path));

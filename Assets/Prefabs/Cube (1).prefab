@@ -247,6 +247,10 @@ MonoBehaviour:
   ConnectedBars:
   - {fileID: 0}
   ownerLocation: {fileID: 0}
+  widthVisual: {fileID: 0}
+  originalVisualScale: {x: 0, y: 0, z: 0}
+  originalVisualPosition: {x: 0, y: 0, z: 0}
+  hasWidthVisualBaseline: 0
   preSimPos: {x: 32, y: 33, z: -1}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}

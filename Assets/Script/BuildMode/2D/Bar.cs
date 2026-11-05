@@ -444,11 +444,9 @@ public partial class Bar : MonoBehaviour
 
     public void AssignOwner(BuildLocation location, bool overwriteExisting = false)
     {
-        if (location != null && (ownerLocation == null || overwriteExisting))
-        {
-            ownerLocation = location;
-            ApplyOwnerWidth();
-        }
+        if (location == null || (ownerLocation != null && ownerLocation != location && !overwriteExisting)) return;
+        ownerLocation = location;
+        ApplyOwnerWidth();
     }
 
     private void ApplyOwnerWidth()

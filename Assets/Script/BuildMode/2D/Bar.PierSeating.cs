@@ -107,6 +107,26 @@ public partial class Bar
         return true;
     }
 
+    internal Vector4 CaptureWidePierSeat()
+    {
+        if (WideRoadWidth <= 0f || materialData == null || !materialData.isPier ||
+            startPoint == null || endPoint == null || visualSegments.Count == 0)
+            return Vector4.zero;
+
+        RefreshPierCapSeating();
+        Transform shaft = visualSegments[0].transform;
+        float capOffset = 0f;
+        float capAngle = 0f;
+        if (pierCapInstance != null)
+        {
+            Transform cap = pierCapInstance.transform;
+            float top = Mathf.Max(startPoint.transform.position.y, endPoint.transform.position.y);
+            capOffset = cap.position.y - top;
+            capAngle = Mathf.DeltaAngle(0f, cap.eulerAngles.z);
+        }
+        return new Vector4(shaft.localPosition.y, shaft.localScale.y, capOffset, capAngle);
+    }
+
     /// <summary>Seats the cap or one-piece pier visual without moving the structural endpoints.</summary>
     public void RefreshPierCapSeating()
     {
