@@ -86,6 +86,10 @@ public class BuildLocation : Interactable
     public List<Point> startingAnchors = new List<Point>();
     public List<Point> endingAnchors = new List<Point>(); 
 
+    [SerializeField, Range(0.1f, 1f)]
+    [Tooltip("Optional compatibility for a deliberately raised road anchor at this site. Existing saves may reuse the exact same X/Z permanent LeftAnchor or RightAnchor within this vertical distance. The default preserves normal 0.1 m matching; other saved nodes never move.")]
+    private float savedRoadAnchorVerticalTolerance = 0.1f;
+
     [HideInInspector] public List<Bar> bakedBars = new List<Bar>();
     [HideInInspector] public List<Point> bakedPoints = new List<Point>();
 
@@ -1398,6 +1402,44 @@ public class BuildLocation : Interactable
         return true;
     }
 
+    // Use the same narrow compatibility rule for reconstruction and saved-photo
+    // verification. The saved record stays unchanged until the player retests.
+    public bool MatchesSavedBridgePoint(Point point, SavedPointData savedPoint)
+    {
+        if (point == null || savedPoint?.position == null) return false;
+        if (Vector3.Distance(point.transform.position, savedPoint.position.ToVector3()) < 0.1f) return true;
+        return FindMigratedSavedRoadAnchor(savedPoint) == point;
+    }
+
+    private Point FindMigratedSavedRoadAnchor(SavedPointData savedPoint)
+    {
+        if (savedPoint?.position == null || !savedPoint.originalIsAnchor ||
+            float.IsNaN(savedRoadAnchorVerticalTolerance) || float.IsInfinity(savedRoadAnchorVerticalTolerance) ||
+            savedRoadAnchorVerticalTolerance <= 0.1f) return null;
+
+        Vector3 position = savedPoint.position.ToVector3();
+        if (float.IsNaN(position.x) || float.IsNaN(position.y) || float.IsNaN(position.z) ||
+            float.IsInfinity(position.x) || float.IsInfinity(position.y) || float.IsInfinity(position.z)) return null;
+        float tolerance = Mathf.Min(savedRoadAnchorVerticalTolerance, 1f);
+        Point match = null;
+        foreach (List<Point> anchors in new[] { startingAnchors, endingAnchors })
+        {
+            if (anchors == null) continue;
+            foreach (Point anchor in anchors)
+            {
+                if (anchor == null || !anchor.originalIsAnchor ||
+                    (anchor.name != "LeftAnchor" && anchor.name != "RightAnchor")) continue;
+                Vector3 difference = anchor.transform.position - position;
+                if (difference.x * difference.x + difference.z * difference.z >= 0.0001f ||
+                    Mathf.Abs(difference.y) > tolerance) continue;
+                // A copied binding must never choose between two scene nodes.
+                if (match != null && match != anchor) return null;
+                match = anchor;
+            }
+        }
+        return match;
+    }
+
     private bool ReconstructSavedBridge(SavedBridgeData savedBridge, BarCreator creator)
     {
         BridgeMaterialSO[] allMats = Resources.LoadAll<BridgeMaterialSO>("");
@@ -1441,6 +1483,7 @@ public class BuildLocation : Interactable
 
             foreach (var anchor in startingAnchors) { if (anchor != null && Vector3.Distance(anchor.transform.position, pos) < 0.1f) matchedAnchor = anchor; }
             foreach (var anchor in endingAnchors) { if (anchor != null && Vector3.Distance(anchor.transform.position, pos) < 0.1f) matchedAnchor = anchor; }
+            if (matchedAnchor == null) matchedAnchor = FindMigratedSavedRoadAnchor(ptData);
 
             if (matchedAnchor != null)
             {

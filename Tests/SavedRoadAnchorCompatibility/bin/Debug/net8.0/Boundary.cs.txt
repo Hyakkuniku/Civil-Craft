@@ -1,0 +1,32 @@
+using System;
+using System.Collections.Generic;
+public struct Vector3
+{
+    public float x,y,z;
+    public Vector3(float x,float y,float z){this.x=x;this.y=y;this.z=z;}
+    public static Vector3 operator -(Vector3 a,Vector3 b)=>new Vector3(a.x-b.x,a.y-b.y,a.z-b.z);
+    public static float Distance(Vector3 a,Vector3 b){var d=a-b;return MathF.Sqrt(d.x*d.x+d.y*d.y+d.z*d.z);}
+}
+public static class Mathf { public static float Abs(float value)=>MathF.Abs(value); public static float Min(float a,float b)=>MathF.Min(a,b); }
+public class Transform { public Vector3 position; }
+public class Point { public string name;public bool originalIsAnchor;public Transform transform=new Transform(); }
+public class SerializableVector3 { public float x,y,z;public SerializableVector3(Vector3 p){x=p.x;y=p.y;z=p.z;}public Vector3 ToVector3()=>new Vector3(x,y,z); }
+public class SavedPointData { public int index;public bool originalIsAnchor;public SerializableVector3 position; }
+public class Material { public string name; }
+public class Bar { public Point startPoint,endPoint;public Material materialData; }
+public class SavedBarData { public int startPointIndex,endPointIndex;public string materialName; }
+public class SavedBridgeData { public List<SavedPointData> points=new List<SavedPointData>();public List<SavedBarData> bars=new List<SavedBarData>(); }
+public class BuildLocation
+{
+    public List<Point> startingAnchors=new List<Point>(),endingAnchors=new List<Point>(),bakedPoints=new List<Point>();
+    public List<Bar> bakedBars=new List<Bar>();
+    // ACTUAL_FIELD
+    public void Tolerance(float value){savedRoadAnchorVerticalTolerance=value;}
+    public Point Resolve(SavedPointData point)=>FindMigratedSavedRoadAnchor(point);
+    // ACTUAL_ANCHOR_METHODS
+}
+public class PhotoVerifier
+{
+    public static bool Match(BuildLocation location,SavedBridgeData saved)=>DoesLoadedBridgeMatch(location,saved);
+    // ACTUAL_PHOTO_METHOD
+}

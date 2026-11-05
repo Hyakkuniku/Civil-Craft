@@ -201,6 +201,14 @@ public class Point : MonoBehaviour
         float width = contract != null ? contract.GetWideRoadWidth() : 0f;
         if (contract != appliedWidthContract || width != appliedRoadWidth) RefreshWidthVisual();
         if (!transform.hasChanged) return;
+        // Scene and session anchors define the bank/deck join. Their authored
+        // fractional coordinates must survive Play Mode; the legacy grid snap
+        // below can otherwise raise a 4.684m anchor to 5m on its first update.
+        if (Application.isPlaying && IsScenePlacedAnchor)
+        {
+            transform.hasChanged = false;
+            return;
+        }
         if (!Application.isPlaying && edgeSnap == null)
             edgeSnap = GetComponent<AnchorEdgeSnap>();
         if (transform.hasChanged && edgeSnap != null)

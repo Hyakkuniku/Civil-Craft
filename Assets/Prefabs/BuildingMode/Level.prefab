@@ -1637,6 +1637,7 @@ MonoBehaviour:
   - {fileID: 7041708869184496851}
   endingAnchors:
   - {fileID: 808856719226515779}
+  savedRoadAnchorVerticalTolerance: 0.1
   bakedBars: []
   bakedPoints: []
   buildModeOnlyStarterBridge: {fileID: 0}

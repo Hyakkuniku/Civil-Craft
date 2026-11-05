@@ -1,0 +1,46 @@
+using System;
+public static class Scenarios
+{
+    private static int checks;
+    private static void Check(bool value,string message){checks++;if(!value)throw new Exception(message);}
+    private static Point Point(string name,float x,float y,float z=0,bool original=true)=>new Point{name=name,originalIsAnchor=original,transform=new Transform{position=new Vector3(x,y,z)}};
+    private static SavedPointData Save(int index,float x,float y,float z=0,bool original=true)=>new SavedPointData{index=index,originalIsAnchor=original,position=new SerializableVector3(new Vector3(x,y,z))};
+    public static int Run()
+    {
+        var location=new BuildLocation();var left=Point("LeftAnchor",0,.2045f);location.startingAnchors.Add(left);var saved=Save(0,0,0);
+        Check(!location.MatchesSavedBridgePoint(left,saved),"Default preserves strict 0.1m matching.");
+        location.Tolerance(.25f);
+        Check(location.MatchesSavedBridgePoint(left,saved)&&location.Resolve(saved)==left,"Opt-in resolves a raised old road anchor.");
+        Check(saved.position.y==0&&left.transform.position.y==.2045f,"Resolution changes neither the save nor scene anchor.");
+        Check(!location.MatchesSavedBridgePoint(left,Save(0,0,0,0,false)),"Interior nodes and temporary pier anchors are not migrated.");
+        Check(!location.MatchesSavedBridgePoint(left,Save(0,.02f,0)),"Horizontal drift is not migrated.");
+        Check(!location.MatchesSavedBridgePoint(left,Save(0,0,0,.02f)),"Depth drift is not migrated.");
+        Check(!location.MatchesSavedBridgePoint(left,Save(0,0,-.1f)),"Vertical change beyond configured tolerance is rejected.");
+        Check(location.MatchesSavedBridgePoint(left,Save(0,.004f,0,.004f)),"Subcentimeter horizontal import noise is allowed.");
+        var foreign=Point("LeftAnchor",0,.2045f);
+        Check(!location.MatchesSavedBridgePoint(foreign,saved),"Coincident foreign anchor cannot match this site's migration.");
+        location.endingAnchors.Add(left);Check(location.Resolve(saved)==left,"Same reference in both lists remains unique.");
+        location.endingAnchors.Add(foreign);Check(location.Resolve(saved)==null,"Ambiguous distinct anchors are rejected.");location.endingAnchors.Clear();
+        left.originalIsAnchor=false;Check(location.Resolve(saved)==null,"Current node must also be a permanent authored anchor.");left.originalIsAnchor=true;
+        left.name="PierFoot";Check(location.Resolve(saved)==null,"Other support names cannot use road migration.");left.name="LeftAnchor";
+        location.Tolerance(float.NaN);Check(location.Resolve(saved)==null,"NaN tolerance is safe.");
+        location.Tolerance(float.PositiveInfinity);Check(location.Resolve(saved)==null,"Infinite tolerance is safe.");
+        location.Tolerance(.25f);Check(!location.MatchesSavedBridgePoint(null,saved)&&!location.MatchesSavedBridgePoint(left,null),"Missing data is safe.");
+        Check(location.Resolve(Save(0,float.NaN,0))==null&&location.Resolve(Save(0,0,float.NaN))==null&&location.Resolve(Save(0,0,0,float.NaN))==null,"NaN saved positions cannot select an arbitrary scene anchor.");
+        Check(location.Resolve(Save(0,float.PositiveInfinity,0))==null&&location.Resolve(Save(0,0,float.NegativeInfinity))==null,"Infinite saved positions cannot migrate.");
+        var interior=Point("Interior",4,0,0,false);var interiorSaved=Save(1,4,0,0,false);
+        Check(location.MatchesSavedBridgePoint(interior,interiorSaved),"Exact interior points preserve existing comparison.");
+        location.bakedPoints.Add(left);location.bakedPoints.Add(interior);
+        location.bakedBars.Add(new Bar{startPoint=left,endPoint=interior,materialData=new Material{name="Road"}});
+        var bridge=new SavedBridgeData();bridge.points.Add(saved);bridge.points.Add(interiorSaved);bridge.bars.Add(new SavedBarData{startPointIndex=0,endPointIndex=1,materialName="Road"});
+        Check(PhotoVerifier.Match(location,bridge),"Photo verification accepts the same canonical road-anchor binding.");
+        location.bakedBars[0].startPoint=interior;location.bakedBars[0].endPoint=left;
+        Check(PhotoVerifier.Match(location,bridge),"Reversed bars retain canonical endpoint matching.");
+        interior.transform.position=new Vector3(4,.2f,0);
+        Check(!PhotoVerifier.Match(location,bridge),"Photo verification still rejects moved interior points.");interior.transform.position=new Vector3(4,0,0);
+        location.bakedBars[0].materialData.name="Different";Check(!PhotoVerifier.Match(location,bridge),"Photo verification still rejects wrong materials.");location.bakedBars[0].materialData.name="Road";
+        location.bakedBars[0].endPoint=foreign;Check(!PhotoVerifier.Match(location,bridge),"Bar endpoints cannot substitute a foreign coincident anchor.");location.bakedBars[0].endPoint=left;
+        location.Tolerance(.1f);Check(!PhotoVerifier.Match(location,bridge),"Sites without explicit opt-in remain strict in photo verification too.");
+        return checks;
+    }
+}

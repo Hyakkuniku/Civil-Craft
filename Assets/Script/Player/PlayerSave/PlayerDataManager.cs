@@ -3185,9 +3185,8 @@ public class PlayerDataManager : MonoBehaviour
         foreach (SavedPointData savedPoint in bridge.points)
         {
             if (savedPoint?.position == null) return false;
-            Vector3 position = savedPoint.position.ToVector3();
             int matchIndex = unmatchedPoints.FindIndex(point => point != null &&
-                Vector3.Distance(point.transform.position, position) < 0.1f);
+                location.MatchesSavedBridgePoint(point, savedPoint));
             if (matchIndex < 0) return false;
             unmatchedPoints.RemoveAt(matchIndex);
         }
@@ -3206,14 +3205,10 @@ public class PlayerDataManager : MonoBehaviour
                 SavedPointData savedEnd = bridge.points.Find(point =>
                     point != null && point.index == savedBar.endPointIndex);
                 if (savedStart?.position == null || savedEnd?.position == null) return false;
-                Vector3 actualStart = bar.startPoint.transform.position;
-                Vector3 actualEnd = bar.endPoint.transform.position;
-                Vector3 expectedStart = savedStart.position.ToVector3();
-                Vector3 expectedEnd = savedEnd.position.ToVector3();
-                return (Vector3.Distance(actualStart, expectedStart) < 0.1f &&
-                        Vector3.Distance(actualEnd, expectedEnd) < 0.1f) ||
-                       (Vector3.Distance(actualStart, expectedEnd) < 0.1f &&
-                        Vector3.Distance(actualEnd, expectedStart) < 0.1f);
+                return (location.MatchesSavedBridgePoint(bar.startPoint, savedStart) &&
+                        location.MatchesSavedBridgePoint(bar.endPoint, savedEnd)) ||
+                       (location.MatchesSavedBridgePoint(bar.startPoint, savedEnd) &&
+                        location.MatchesSavedBridgePoint(bar.endPoint, savedStart));
             });
             if (matchIndex < 0) return false;
             unmatchedBars.RemoveAt(matchIndex);

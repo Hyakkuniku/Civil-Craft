@@ -1,0 +1,48 @@
+using System;
+using System.Collections.Generic;
+public static class Application { public static bool isPlaying; }
+public struct Vector3
+{
+    public float x, y, z;
+    public Vector3(float x, float y, float z) { this.x = x; this.y = y; this.z = z; }
+}
+public struct Vector3Int
+{
+    public int x, y, z;
+    public static Vector3Int RoundToInt(Vector3 value) => new Vector3Int { x = (int)MathF.Round(value.x), y = (int)MathF.Round(value.y), z = (int)MathF.Round(value.z) };
+}
+public sealed class Transform { public bool hasChanged; public Vector3 position; }
+public sealed class ContractSO { public float width; public float GetWideRoadWidth() => width; }
+public sealed class BuildLocation
+{
+    public bool IsSessionChallengeLocation;
+    public List<Point> startingAnchors = new(), endingAnchors = new();
+    public ContractSO activeContract;
+}
+public sealed class AnchorEdgeSnap
+{
+    public bool control, preserve;
+    public int calls;
+    public bool ControlsEditorPlacement => !Application.isPlaying && control;
+    public bool PreservesExistingAnchorPlacement => !Application.isPlaying && preserve;
+    public void HandleEditorTransformChanged() { calls++; }
+}
+public sealed class Point
+{
+    public bool Runtime = true, originalIsAnchor;
+    public Transform transform = new();
+    public BuildLocation ownerLocation;
+    public AnchorEdgeSnap edgeSnap, availableSnap;
+    public ContractSO appliedWidthContract;
+    public float appliedRoadWidth;
+    public int widthRefreshes, componentQueries;
+    private T GetComponent<T>() where T : class { componentQueries++; return availableSnap as T; }
+    private void RefreshWidthVisual()
+    {
+        widthRefreshes++;
+        appliedWidthContract = ownerLocation?.activeContract;
+        appliedRoadWidth = appliedWidthContract?.GetWideRoadWidth() ?? 0f;
+    }
+    public void Tick() => Update();
+    // ACTUAL_POINT
+}

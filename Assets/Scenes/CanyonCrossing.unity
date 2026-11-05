@@ -11050,7 +11050,17 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   referenceAnchor: {fileID: 279206031}
   roadSurfaceAboveAnchor: 0.025
-  abutments: []
+  abutments:
+  - anchor: {fileID: 279206031}
+    approachCollider: {fileID: 606095437}
+    movableRoot: {fileID: 606095435}
+    surfaceProbeOffset: {x: -1, y: -0, z: -0}
+    additionalSurfaceOffset: 0
+  - anchor: {fileID: 785495735}
+    approachCollider: {fileID: 473682226}
+    movableRoot: {fileID: 473682225}
+    surfaceProbeOffset: {x: 1, y: 0, z: 0}
+    additionalSurfaceOffset: -0.0000023841858
   buildLocation: {fileID: 20928680}
   environmentLayers:
     serializedVersion: 2
@@ -11139,6 +11149,7 @@ MonoBehaviour:
   - {fileID: 0}
   endingAnchors:
   - {fileID: 785495735}
+  savedRoadAnchorVerticalTolerance: 0.25
   bakedBars: []
   bakedPoints: []
   buildModeOnlyStarterBridge: {fileID: 0}
@@ -61846,7 +61857,17 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   referenceAnchor: {fileID: 2143449769}
   roadSurfaceAboveAnchor: 0.025
-  abutments: []
+  abutments:
+  - anchor: {fileID: 2143449769}
+    approachCollider: {fileID: 1883140861}
+    movableRoot: {fileID: 1883140859}
+    surfaceProbeOffset: {x: -1, y: -0, z: -0}
+    additionalSurfaceOffset: 0
+  - anchor: {fileID: 1576189868}
+    approachCollider: {fileID: 818041419}
+    movableRoot: {fileID: 818041418}
+    surfaceProbeOffset: {x: 1, y: 0, z: 0}
+    additionalSurfaceOffset: -0.0000042915344
   buildLocation: {fileID: 118251705}
   environmentLayers:
     serializedVersion: 2
@@ -61931,6 +61952,7 @@ MonoBehaviour:
   - {fileID: 2143449769}
   endingAnchors:
   - {fileID: 1576189868}
+  savedRoadAnchorVerticalTolerance: 0.25
   bakedBars: []
   bakedPoints: []
   buildModeOnlyStarterBridge: {fileID: 0}
@@ -66882,7 +66904,7 @@ Transform:
   m_GameObject: {fileID: 126837644}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 97.19989, y: -0.30000085, z: 3.630001}
+  m_LocalPosition: {x: 97.19989, y: -0.09551591, z: 3.630001}
   m_LocalScale: {x: 1, y: 1, z: 1.3938}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -144636,7 +144658,7 @@ Transform:
   m_GameObject: {fileID: 273731546}
   serializedVersion: 2
   m_LocalRotation: {x: 0.7071068, y: -0, z: -0, w: 0.7071067}
-  m_LocalPosition: {x: 0.59716797, y: -27.4852, z: 4.042204}
+  m_LocalPosition: {x: 0.6442871, y: -27.485203, z: 4.042202}
   m_LocalScale: {x: 0.16086619, y: 0.23216887, z: 0.66202235}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -147470,7 +147492,7 @@ Transform:
   m_GameObject: {fileID: 279206030}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 7.2, y: -0.3, z: 3.630001}
+  m_LocalPosition: {x: 7.19989, y: -0.09551209, z: 3.630001}
   m_LocalScale: {x: 1, y: 1, z: 1.3938}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -170973,7 +170995,7 @@ Transform:
   m_GameObject: {fileID: 321992749}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 150, y: 0, z: 0}
+  m_LocalPosition: {x: 150, y: -0.00019264221, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -253142,7 +253164,7 @@ Transform:
   m_GameObject: {fileID: 473682224}
   serializedVersion: 2
   m_LocalRotation: {x: 0.7071068, y: -0, z: -0, w: 0.7071067}
-  m_LocalPosition: {x: 30.1, y: -27.4063, z: 4}
+  m_LocalPosition: {x: 30.350342, y: -27.4063, z: 3.9999988}
   m_LocalScale: {x: 0.16086619, y: 0.19944637, z: 0.660172}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -261497,7 +261519,17 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   referenceAnchor: {fileID: 1658422707}
   roadSurfaceAboveAnchor: 0.025
-  abutments: []
+  abutments:
+  - anchor: {fileID: 1658422707}
+    approachCollider: {fileID: 641252933}
+    movableRoot: {fileID: 641252932}
+    surfaceProbeOffset: {x: -1, y: -0, z: -0}
+    additionalSurfaceOffset: 0
+  - anchor: {fileID: 321992752}
+    approachCollider: {fileID: 807121242}
+    movableRoot: {fileID: 807121241}
+    surfaceProbeOffset: {x: 1, y: 0, z: 0}
+    additionalSurfaceOffset: -0.00019216537
   buildLocation: {fileID: 489749776}
   environmentLayers:
     serializedVersion: 2
@@ -261582,6 +261614,7 @@ MonoBehaviour:
   - {fileID: 1658422707}
   endingAnchors:
   - {fileID: 321992752}
+  savedRoadAnchorVerticalTolerance: 0.25
   bakedBars: []
   bakedPoints: []
   buildModeOnlyStarterBridge: {fileID: 0}
@@ -320008,7 +320041,7 @@ Transform:
   m_GameObject: {fileID: 606095434}
   serializedVersion: 2
   m_LocalRotation: {x: 0.7071068, y: -0, z: -0, w: 0.7071067}
-  m_LocalPosition: {x: 0.59716797, y: -27.4852, z: 4.042204}
+  m_LocalPosition: {x: 0.6437988, y: -27.485203, z: 4.042202}
   m_LocalScale: {x: 0.16086619, y: 0.23216887, z: 0.66202235}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -325393,6 +325426,7 @@ MonoBehaviour:
   - {fileID: 181955598}
   endingAnchors:
   - {fileID: 2075638072}
+  savedRoadAnchorVerticalTolerance: 0.1
   bakedBars: []
   bakedPoints: []
   buildModeOnlyStarterBridge: {fileID: 0}
@@ -339826,7 +339860,7 @@ Transform:
   m_GameObject: {fileID: 641252930}
   serializedVersion: 2
   m_LocalRotation: {x: 0.7071068, y: -0, z: -0, w: 0.7071067}
-  m_LocalPosition: {x: 0.59716797, y: -27.4852, z: 4.042204}
+  m_LocalPosition: {x: 0.64404297, y: -27.4852, z: 4.042202}
   m_LocalScale: {x: 0.16086619, y: 0.23216887, z: 0.66202235}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -350232,7 +350266,17 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   referenceAnchor: {fileID: 2130672366}
   roadSurfaceAboveAnchor: 0.025
-  abutments: []
+  abutments:
+  - anchor: {fileID: 2130672366}
+    approachCollider: {fileID: 273731549}
+    movableRoot: {fileID: 273731547}
+    surfaceProbeOffset: {x: -1, y: -0, z: -0}
+    additionalSurfaceOffset: 0
+  - anchor: {fileID: 126837645}
+    approachCollider: {fileID: 2095554201}
+    movableRoot: {fileID: 2095554200}
+    surfaceProbeOffset: {x: 1, y: 0, z: 0}
+    additionalSurfaceOffset: -0.00000333786
   buildLocation: {fileID: 657834874}
   environmentLayers:
     serializedVersion: 2
@@ -350317,6 +350361,7 @@ MonoBehaviour:
   - {fileID: 2130672366}
   endingAnchors:
   - {fileID: 126837645}
+  savedRoadAnchorVerticalTolerance: 0.25
   bakedBars: []
   bakedPoints: []
   buildModeOnlyStarterBridge: {fileID: 0}
@@ -365621,7 +365666,17 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   referenceAnchor: {fileID: 1651583450}
   roadSurfaceAboveAnchor: 0.025
-  abutments: []
+  abutments:
+  - anchor: {fileID: 1651583450}
+    approachCollider: {fileID: 1166600757}
+    movableRoot: {fileID: 1166600755}
+    surfaceProbeOffset: {x: -1, y: -0, z: -0}
+    additionalSurfaceOffset: 0
+  - anchor: {fileID: 872920772}
+    approachCollider: {fileID: 1181277602}
+    movableRoot: {fileID: 1181277601}
+    surfaceProbeOffset: {x: 1, y: 0, z: 0}
+    additionalSurfaceOffset: -0.000008106232
   buildLocation: {fileID: 686005278}
   environmentLayers:
     serializedVersion: 2
@@ -365718,6 +365773,7 @@ MonoBehaviour:
   - {fileID: 35903456}
   endingAnchors:
   - {fileID: 872920772}
+  savedRoadAnchorVerticalTolerance: 0.25
   bakedBars: []
   bakedPoints: []
   buildModeOnlyStarterBridge: {fileID: 0}
@@ -417575,7 +417631,7 @@ Transform:
   m_GameObject: {fileID: 785495734}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 87.19989, y: -0.30000085, z: 3.630001}
+  m_LocalPosition: {x: 87.19989, y: -0.095514, z: 3.630001}
   m_LocalScale: {x: 1, y: 1, z: 1.3938}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -429168,7 +429224,7 @@ Transform:
   m_GameObject: {fileID: 807121240}
   serializedVersion: 2
   m_LocalRotation: {x: 0.7071068, y: -0, z: -0, w: 0.7071067}
-  m_LocalPosition: {x: -39.8, y: -41.3405, z: 4}
+  m_LocalPosition: {x: -39.649414, y: -41.340496, z: 4.0000005}
   m_LocalScale: {x: 0.16086619, y: 0.19944637, z: 0.9881454}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -435048,7 +435104,7 @@ Transform:
   m_GameObject: {fileID: 818041417}
   serializedVersion: 2
   m_LocalRotation: {x: 0.7071068, y: -0, z: -0, w: 0.7071067}
-  m_LocalPosition: {x: 10.23, y: -27.4063, z: 4}
+  m_LocalPosition: {x: 10.350586, y: -27.4063, z: 4.000001}
   m_LocalScale: {x: 0.16086619, y: 0.19944637, z: 0.660172}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -462434,7 +462490,7 @@ Transform:
   m_GameObject: {fileID: 872920771}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 117.19989, y: -0.1200005, z: 3.630001}
+  m_LocalPosition: {x: 117.19989, y: -0.09551591, z: 3.630001}
   m_LocalScale: {x: 1, y: 1, z: 1.3938}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -611385,7 +611441,7 @@ Transform:
   m_GameObject: {fileID: 1166600754}
   serializedVersion: 2
   m_LocalRotation: {x: 0.7071068, y: -0, z: -0, w: 0.7071067}
-  m_LocalPosition: {x: 0.59716797, y: -27.4852, z: 4.042204}
+  m_LocalPosition: {x: 0.64404297, y: -27.485199, z: 4.042202}
   m_LocalScale: {x: 0.16086619, y: 0.23216887, z: 0.66202235}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -617263,7 +617319,7 @@ Transform:
   m_GameObject: {fileID: 1181277600}
   serializedVersion: 2
   m_LocalRotation: {x: 0.7071068, y: -0, z: -0, w: 0.7071067}
-  m_LocalPosition: {x: 0.59716797, y: -27.4063, z: 4.042204}
+  m_LocalPosition: {x: 0.5971676, y: -27.4063, z: 4.042202}
   m_LocalScale: {x: 0.16086619, y: 0.19944637, z: 0.660172}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -783981,6 +784037,7 @@ MonoBehaviour:
   - {fileID: 1792442204}
   endingAnchors:
   - {fileID: 1511747789}
+  savedRoadAnchorVerticalTolerance: 0.1
   bakedBars: []
   bakedPoints: []
   buildModeOnlyStarterBridge: {fileID: 0}
@@ -820510,7 +820567,7 @@ Transform:
   m_GameObject: {fileID: 1576189867}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 107.19989, y: -0.30000085, z: 3.630001}
+  m_LocalPosition: {x: 107.19989, y: -0.09551591, z: 3.630001}
   m_LocalScale: {x: 1, y: 1, z: 1.3938}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -860840,7 +860897,7 @@ Transform:
   m_GameObject: {fileID: 1651583449}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 7.2, y: -0.1200005, z: 3.630001}
+  m_LocalPosition: {x: 7.19989, y: -0.09550828, z: 3.630001}
   m_LocalScale: {x: 1, y: 1, z: 1.3938}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -864102,7 +864159,7 @@ Transform:
   m_GameObject: {fileID: 1658422706}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 7.2, y: -0.3, z: 3.630001}
+  m_LocalPosition: {x: 7.19989, y: -0.095510185, z: 3.630001}
   m_LocalScale: {x: 1, y: 1, z: 1.3938}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -982506,7 +982563,7 @@ Transform:
   m_GameObject: {fileID: 1883140858}
   serializedVersion: 2
   m_LocalRotation: {x: 0.7071068, y: -0, z: -0, w: 0.7071067}
-  m_LocalPosition: {x: 0.59716797, y: -27.4852, z: 4.042204}
+  m_LocalPosition: {x: 0.6437988, y: -27.485203, z: 4.042202}
   m_LocalScale: {x: 0.16086619, y: 0.23216887, z: 0.66202235}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -987499,6 +987556,7 @@ MonoBehaviour:
   endingAnchors:
   - {fileID: 310101923}
   - {fileID: 575530341}
+  savedRoadAnchorVerticalTolerance: 0.1
   bakedBars: []
   bakedPoints: []
   buildModeOnlyStarterBridge: {fileID: 0}
@@ -1033311,6 +1033369,7 @@ MonoBehaviour:
   - {fileID: 537837918}
   endingAnchors:
   - {fileID: 821820055}
+  savedRoadAnchorVerticalTolerance: 0.1
   bakedBars: []
   bakedPoints: []
   buildModeOnlyStarterBridge: {fileID: 0}
@@ -1086544,7 +1086603,7 @@ Transform:
   m_GameObject: {fileID: 2095554199}
   serializedVersion: 2
   m_LocalRotation: {x: 0.7071068, y: -0, z: -0, w: 0.7071067}
-  m_LocalPosition: {x: 20.4, y: -27.4063, z: 4}
+  m_LocalPosition: {x: 20.399902, y: -27.4063, z: 3.9999979}
   m_LocalScale: {x: 0.16086619, y: 0.19944637, z: 0.660172}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1103864,7 +1103923,7 @@ Transform:
   m_GameObject: {fileID: 2130672365}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 7.2, y: -0.3, z: 3.630001}
+  m_LocalPosition: {x: 7.19989, y: -0.09551209, z: 3.630001}
   m_LocalScale: {x: 1, y: 1, z: 1.3938}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -1110381,7 +1110440,7 @@ Transform:
   m_GameObject: {fileID: 2143449768}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 7.2, y: -0.3, z: 3.630001}
+  m_LocalPosition: {x: 7.19989, y: -0.09551209, z: 3.630001}
   m_LocalScale: {x: 1, y: 1, z: 1.3938}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -1158246,6 +1158305,7 @@ MonoBehaviour:
   - {fileID: 3664463397886575887}
   endingAnchors:
   - {fileID: 3664463397953338636}
+  savedRoadAnchorVerticalTolerance: 0.1
   bakedBars: []
   bakedPoints: []
   buildModeOnlyStarterBridge: {fileID: 0}
@@ -1160321,6 +1160381,7 @@ MonoBehaviour:
   - {fileID: 1190143702}
   endingAnchors:
   - {fileID: 214058935}
+  savedRoadAnchorVerticalTolerance: 0.1
   bakedBars: []
   bakedPoints: []
   buildModeOnlyStarterBridge: {fileID: 0}
@@ -1182951,6 +1183012,7 @@ MonoBehaviour:
   - {fileID: 900526503}
   endingAnchors:
   - {fileID: 6004695474466014149}
+  savedRoadAnchorVerticalTolerance: 0.1
   bakedBars: []
   bakedPoints: []
   buildModeOnlyStarterBridge: {fileID: 0}
@@ -1183002,6 +1183064,7 @@ MonoBehaviour:
   - {fileID: 937110211}
   endingAnchors:
   - {fileID: 6004695474719601915}
+  savedRoadAnchorVerticalTolerance: 0.1
   bakedBars: []
   bakedPoints: []
   buildModeOnlyStarterBridge: {fileID: 0}

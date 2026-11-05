@@ -1,0 +1,37 @@
+using System;
+public static class Scenarios
+{
+    private static int checks;
+    private static void Check(bool value, string message) { checks++; if (!value) throw new InvalidOperationException(message); }
+    private static Point Node(float x = 2533.63f, float y = 4.68421f, float z = -30.90378f) => new Point { Runtime = false, transform = new Transform { position = new Vector3(x, y, z), hasChanged = true } };
+    private static void Exact(Point point, Vector3 before, string message) => Check(point.transform.position.x == before.x && point.transform.position.y == before.y && point.transform.position.z == before.z, message);
+    public static int Run()
+    {
+        Application.isPlaying = true;
+        foreach (float height in new[] { 4.67422f, 4.68421f, 4.48422f, 26.984f, -15.23027f })
+        {
+            Point point = Node(y: height); point.originalIsAnchor = true; var before = point.transform.position;
+            point.Tick(); Exact(point, before, "Permanent anchor must retain exact fractional X/Y/Z in Play Mode.");
+            Check(!point.transform.hasChanged && point.componentQueries == 0, "Permanent Play Mode anchor clears stale dirty flag without Editor component lookups.");
+            point.transform.hasChanged = true; point.Tick(); Exact(point, before, "Repeated dirty transforms cannot reintroduce an integer road step.");
+        }
+        Point runtimeAnchor = Node(); runtimeAnchor.Runtime = true; runtimeAnchor.originalIsAnchor = true; var runtimeBefore = runtimeAnchor.transform.position;
+        runtimeAnchor.Tick(); Exact(runtimeAnchor, runtimeBefore, "Permanent anchor protection is based on identity, not Runtime flag.");
+        Point session = Node(); session.ownerLocation = new BuildLocation { IsSessionChallengeLocation = true }; session.ownerLocation.startingAnchors.Add(session); var sessionBefore = session.transform.position;
+        Check(session.IsScenePlacedAnchor && session.IsSessionAnchor, "Session starting anchor uses actual production identity.");
+        session.Tick(); Exact(session, sessionBefore, "Multiplayer session anchor retains host's fractional coordinates.");
+        Point sessionEnd = Node(); sessionEnd.ownerLocation = new BuildLocation { IsSessionChallengeLocation = true }; sessionEnd.ownerLocation.endingAnchors.Add(sessionEnd); var endBefore = sessionEnd.transform.position;
+        sessionEnd.Tick(); Exact(sessionEnd, endBefore, "Session ending anchor is protected too.");
+        Point width = Node(); width.originalIsAnchor = true; width.ownerLocation = new BuildLocation { activeContract = new ContractSO { width = 16f } }; var widthBefore = width.transform.position;
+        width.Tick(); Check(width.widthRefreshes == 1 && width.appliedRoadWidth == 16f, "Permanent anchor protection still refreshes its wide-road visual."); Exact(width, widthBefore, "Visual width refresh never moves permanent anchor.");
+        Point unchanged = Node(); unchanged.originalIsAnchor = true; unchanged.transform.hasChanged = false; unchanged.Tick(); Check(!unchanged.transform.hasChanged, "Unchanged anchors remain unchanged.");
+        Point legacy = Node(1.3f, 4.68f, -2.7f); legacy.Tick(); Check(legacy.transform.position.x == 1f && legacy.transform.position.y == 5f && legacy.transform.position.z == -3f, "Ordinary non-runtime nonanchor retains legacy integer placement.");
+        Point ordinaryRuntime = Node(); ordinaryRuntime.Runtime = true; var ordinaryBefore = ordinaryRuntime.transform.position; ordinaryRuntime.Tick(); Exact(ordinaryRuntime, ordinaryBefore, "Runtime player node retains existing free placement.");
+        Point falseSession = Node(1.3f, 4.68f, -2.7f); falseSession.ownerLocation = new BuildLocation { IsSessionChallengeLocation = true }; falseSession.Tick(); Check(falseSession.transform.position.y == 5f, "Unlisted node does not inherit session-anchor protection.");
+        Application.isPlaying = false;
+        Point editorSnap = Node(); editorSnap.availableSnap = new AnchorEdgeSnap { control = true }; editorSnap.Tick(); Check(editorSnap.availableSnap.calls == 1 && editorSnap.componentQueries == 1, "Explicit Editor edge-placement helper still runs.");
+        Point editorPreserve = Node(); editorPreserve.originalIsAnchor = true; editorPreserve.availableSnap = new AnchorEdgeSnap { preserve = true }; var editorBefore = editorPreserve.transform.position; editorPreserve.Tick(); Exact(editorPreserve, editorBefore, "Editor authored-anchor preservation remains intact."); Check(!editorPreserve.transform.hasChanged, "Editor preserve clears dirty flag.");
+        Point editorLegacy = Node(1.3f, 4.68f, -2.7f); editorLegacy.Tick(); Check(editorLegacy.transform.position.y == 5f, "Editor generic integer placement remains intact.");
+        return checks;
+    }
+}

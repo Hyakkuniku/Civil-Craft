@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("MillsStoryCompile")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+2b523e26569167392aeeb675c9679f5e288df8f4")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+6574ed44fa0351f30bff2124b1a22a34a80fe53f")]
 [assembly: System.Reflection.AssemblyProductAttribute("MillsStoryCompile")]
 [assembly: System.Reflection.AssemblyTitleAttribute("MillsStoryCompile")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
