@@ -263,7 +263,8 @@ public sealed partial class MultiplayerChallengeLobbyUI : MonoBehaviour
             bool guest = boundRunner.LocalPlayer == state.Guest;
             SetInvitationControls(guest, guest, !guest);
             challengeTitle.text = guest ? "BRIDGE CHALLENGE" : "INVITATION SENT";
-            string siteName = site != null ? site.name : "build location";
+            ContractSO invitationContract = ChallengeBuildWorkspace.ResolveContract(site, state.ContractKey.ToString());
+            string siteName = invitationContract != null ? invitationContract.DisplayName : site != null ? site.name : "build location";
             float seconds = state.Deadline.RemainingTime(boundRunner) ?? 0f;
             challengeMessage.text = guest
                 ? $"{Emphasis(host.MapPlayerName)} challenges you at {Emphasis(siteName)}.\nAccept to travel to the lobby.\n{Emphasis(Mathf.CeilToInt(seconds) + " seconds remaining", "98601C")}."
@@ -305,7 +306,8 @@ public sealed partial class MultiplayerChallengeLobbyUI : MonoBehaviour
         }
         // Arrival acknowledgements and host pose validation gate the lobby.
         ShowPanel(lobbyPanel);
-        lobbyTitle.text = $"CHALLENGE LOBBY — {PlainText(site != null ? site.name : "Bridge")}";
+        ContractSO lobbyContract = ChallengeBuildWorkspace.ResolveContract(site, state.ContractKey.ToString());
+        lobbyTitle.text = $"CHALLENGE LOBBY — {PlainText(lobbyContract != null ? lobbyContract.DisplayName : site != null ? site.name : "Bridge")}";
         bool countingDown = state.Phase == MultiplayerChallengePhase.Countdown;
         float remaining = state.Deadline.RemainingTime(boundRunner) ?? 0f;
         lobbyStatus.text = countingDown

@@ -525,8 +525,8 @@ public sealed class DashboardSyncService : MonoBehaviour
                 {
                     levelId = contract.ContractID,
                     order = index + 1,
-                    levelName = string.IsNullOrWhiteSpace(contract.name)
-                        ? Humanize(contract.ContractID) : contract.name,
+                    levelName = string.IsNullOrWhiteSpace(contract.DisplayName)
+                        ? Humanize(contract.ContractID) : contract.DisplayName,
                     status = completed ? "completed" : current ? "current" : "locked"
                 };
                 if (completed)

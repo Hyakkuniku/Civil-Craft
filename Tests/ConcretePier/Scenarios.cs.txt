@@ -40,7 +40,7 @@ public static class ConcretePierScenarios
         Check(legacy.CanUseInContract(null) && legacy.CanUseInContract(new ContractSO { allowedMaterials = null }), "The additional guard must not restrict legacy null/unrestricted contexts.");
         var legacyHidden = With(legacy);
         legacyHidden.hiddenMaterials.Add(legacy);
-        Check(legacy.CanUseInContract(legacyHidden) && legacyHidden.IsMaterialHidden(legacy), "Legacy explicit hiding remains owned by the production contract/UI checks.");
+        Check(!legacy.CanUseInContract(legacyHidden) && legacyHidden.IsMaterialHidden(legacy), "A hard contract exclusion must block legacy materials at drawing and paste boundaries too.");
         Check(!legacyHidden.IsMaterialHidden(null), "Null-material hidden behavior must remain unchanged.");
         Reset(null);
         Check(ui.CanSelectMaterial(legacy) && !ui.CanSelectMaterial(pier), "Actual UI selection must distinguish legacy/new material with no active contract.");
@@ -73,6 +73,11 @@ public static class ConcretePierScenarios
         clipboard.copiedBars.Add(new CopiedBarInfo { mat = legacy });
         Reset(null);
         Check(clipboard.BoundaryMayPaste() && BarCreator.BoundaryMayUse(legacy), "Actual clipboard/draw guards must retain legacy null-contract behavior.");
+        Reset(legacyHidden);
+        PlayerDataManager.Instance.OwnsMaterial = true;
+        Check(!clipboard.BoundaryMayPaste() && !BarCreator.BoundaryMayUse(legacy) && !ui.CanSelectMaterial(legacy),
+            "Regional exclusions must reject a purchased legacy material through selection, drawing and blueprint paste.");
+        Reset(null);
         clipboard.copiedBars.Add(new CopiedBarInfo { mat = pier });
         Check(!clipboard.BoundaryMayPaste() && !BarCreator.BoundaryMayUse(pier), "Actual copied-material/draw guards must reject opt-in materials with no contract.");
         GameManager.Instance.CurrentContract = new ContractSO();

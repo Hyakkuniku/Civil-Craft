@@ -13,6 +13,8 @@ MonoBehaviour:
   m_Name: Vance Side Realignment
   m_EditorClassIdentifier: 
   liveLoadMode: 0
+  vehicleTestMode: 0
+  liveLoadTests: []
   allowVehicleCargo: 0
   minimumLoadedCargo: 0
   cargoUnlockProgressionId: 
@@ -34,7 +36,17 @@ MonoBehaviour:
   budget: 75000
   liveLoadWeight: 1000
   bridgeSpan: 30
-  allowedMaterials: []
+  twoWayRoad: 0
+  twoWayRoadWidth: 16
+  allowedMaterials:
+  - material: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
+    maxPieces: 0
+  - material: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
+    maxPieces: 0
+  - material: {fileID: 11400000, guid: b98aa9ba752ac28449feebc76f256bf2, type: 2}
+    maxPieces: 0
+  - material: {fileID: 11400000, guid: 4524a3fc876c6b640a735e6808fe1271, type: 2}
+    maxPieces: 0
   hiddenTools: 0300000004000000050000000600000007000000080000000d0000000000000002000000
   hiddenMaterials:
   - {fileID: 11400000, guid: 57a46c6632dd61b4094902963cf1c5be, type: 2}
@@ -43,6 +55,10 @@ MonoBehaviour:
   - {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
   - {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
   - {fileID: 11400000, guid: 9377a255283b8cc499761c693baf53dd, type: 2}
+  - {fileID: 11400000, guid: 7fbcf5a7e459d434f970d2c976504d5c, type: 2}
+  - {fileID: 11400000, guid: 0d3952b3dcb84cfe89fba5d0ee4cfa3e, type: 2}
+  - {fileID: 11400000, guid: 3c8daed34b294b92b5c53aa30792d8b1, type: 2}
+  - {fileID: 11400000, guid: 4b7960a9d30f4e1b9d6d858aee7d8d31, type: 2}
   enforceMaxStress: 0
   maxAllowedStress: 100
   isTimeAttack: 0

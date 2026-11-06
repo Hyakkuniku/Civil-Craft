@@ -1055,7 +1055,7 @@ public class PlayerDataManager : MonoBehaviour
         OnContractCompleted?.Invoke(contractId);
         ContractSO completedContract = FindRegisteredContract(contractId);
         AchievementPopupNotification.NotifyAlmanacEntry(
-            completedContract != null ? completedContract.name : contractId,
+            completedContract != null ? completedContract.DisplayName : contractId,
             "Contract");
         CheckAllAchievements();
         return true;

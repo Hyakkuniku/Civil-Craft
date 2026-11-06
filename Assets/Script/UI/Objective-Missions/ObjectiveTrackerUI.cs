@@ -344,7 +344,7 @@ public class ObjectiveTrackerUI : MonoBehaviour
     {
         return new TrackedTask
         {
-            title = contract.clientName + "'s Request",
+            title = contract.DisplayName,
             description = description,
             contractName = contract.ContractID,
             budget = contract.budget,
@@ -983,7 +983,8 @@ public class ObjectiveTrackerUI : MonoBehaviour
         if (titleText != null)
         {
             titleText.gameObject.SetActive(true);
-            titleText.text = task.isCompleted ? "[Done] " + task.title : task.title;
+            string displayedTitle = GetTaskDisplayTitle(task);
+            titleText.text = task.isCompleted ? "[Done] " + displayedTitle : displayedTitle;
         }
 
         if (descriptionText != null) descriptionText.gameObject.SetActive(true);
@@ -1087,9 +1088,6 @@ public class ObjectiveTrackerUI : MonoBehaviour
         if (rewardContainer != null) rewardContainer.SetActive(false);
         if (completeButton != null) completeButton.SetActive(false);
 
-        string clientName = string.IsNullOrWhiteSpace(contract.clientName)
-            ? "Client"
-            : contract.clientName.Trim();
         string projectBrief = string.IsNullOrWhiteSpace(contract.jobDescription)
             ? "Review the project requirements before accepting this contract."
             : contract.jobDescription.Trim();
@@ -1100,7 +1098,7 @@ public class ObjectiveTrackerUI : MonoBehaviour
                 : task != null && task.isReadyToTurnIn
                     ? "READY TO TURN IN"
                     : "ACTIVE CONTRACT";
-        offerTitleLabel.text = status + "  •  " + clientName + "'s Request";
+        offerTitleLabel.text = "<size=18>" + status + "</size>\n" + contract.DisplayName;
         offerDescriptionLabel.text =
             "<size=18><color=#765A43>PROJECT BRIEF</color></size>\n" + projectBrief;
         ContractLiveLoadPresentation.ShowScrollableBrief(offerDescriptionLabel, contract, projectBrief);
@@ -1149,6 +1147,15 @@ public class ObjectiveTrackerUI : MonoBehaviour
             }
         }
         ApplyNavigationFooterLayout();
+    }
+
+    /// <summary>Projects current contract names onto saved objectives without rewriting their IDs or titles.</summary>
+    public static string GetTaskDisplayTitle(TrackedTask task)
+    {
+        if (task == null) return string.Empty;
+        if (task.isTutorial || TutorialObjectiveHistory.IsSequenceTask(task)) return task.title;
+        ContractSO contract = ResolveContract(task.contractName);
+        return contract != null ? contract.DisplayName : task.title;
     }
 
     private static ContractSO ResolveContract(string contractIdentifier)
@@ -1229,11 +1236,15 @@ public class ObjectiveTrackerUI : MonoBehaviour
         offerTitleLabel = CreateOfferText(
             contractOfferLayout.transform,
             "Contract Offer Title",
-            38f,
+            32f,
             FontStyles.Bold,
             TextAlignmentOptions.Center,
-            new Vector2(950f, 54f),
-            new Vector2(0f, 326f));
+            new Vector2(950f, 86f),
+            new Vector2(0f, 342f));
+        // Full contract titles include their NPC and contract number. Keep the
+        // status on a short first line and let the title wrap above the divider.
+        offerTitleLabel.enableWordWrapping = true;
+        offerTitleLabel.fontSizeMin = 22f;
 
         CreateOfferDivider(
             contractOfferLayout.transform,

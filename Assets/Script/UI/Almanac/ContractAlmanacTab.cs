@@ -226,7 +226,7 @@ public class ContractAlmanacTab : MonoBehaviour
         ContractSO contract = completedContractsList[index];
         displayedContract = contract;
 
-        if (titleText != null) titleText.text = contract.name;
+        if (titleText != null) titleText.text = contract.DisplayName;
         string clientName = string.IsNullOrWhiteSpace(contract.clientName) ? "UNKNOWN CLIENT" : contract.clientName.Trim();
         if (clientText != null) clientText.text = "COMMISSIONED BY  /  " + clientName.ToUpperInvariant();
         if (descriptionText != null) descriptionText.text = contract.jobDescription +
@@ -401,8 +401,9 @@ public class ContractAlmanacTab : MonoBehaviour
         SetNormalizedRect(snapshotCaptionText.rectTransform,
             new Vector2(0.12f, 0.12f), new Vector2(0.88f, 0.28f));
 
-        ConfigureText(titleText, 46f, 36f, 48f, FontStyles.Bold,
+        ConfigureText(titleText, 46f, 24f, 48f, FontStyles.Bold,
             TextAlignmentOptions.TopLeft, Ink);
+        if (titleText != null) titleText.enableWordWrapping = true;
         SetNormalizedRect(titleText.rectTransform,
             new Vector2(0.11f, 0.75f), new Vector2(0.92f, 0.90f));
 

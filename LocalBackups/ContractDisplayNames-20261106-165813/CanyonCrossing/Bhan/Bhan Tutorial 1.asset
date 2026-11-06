@@ -1,0 +1,114 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
+  m_Name: Bhan Tutorial 1
+  m_EditorClassIdentifier: 
+  liveLoadMode: 0
+  vehicleTestMode: 0
+  liveLoadTests: []
+  allowVehicleCargo: 0
+  minimumLoadedCargo: 0
+  cargoUnlockProgressionId: 
+  cargoUnlockAfterDialoguePhaseIndex: -1
+  cargoLoadedNPCPhaseId: 
+  contractID: TUT_CONTRACT1
+  hideFromLeaderboard: 0
+  efficiencyStarBudgetRatio: 0.85
+  strengthStarMaxStress: 60
+  contractMap: 0
+  countsTowardMapAchievements: 1
+  isStoryModeContract: 1
+  isTutorialContract: 1
+  autoCollectReward: 0
+  featureUnlockRewards: []
+  clientName: Professor Bhan
+  jobDescription: Construct a simple Beam Bridge that safely connects both sides
+    of the canyon and carries the 200 kg vehicle within the available budget.
+  budget: 75000
+  liveLoadWeight: 200
+  bridgeSpan: 30
+  twoWayRoad: 0
+  twoWayRoadWidth: 16
+  allowedMaterials:
+  - material: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
+    maxPieces: 0
+  - material: {fileID: 11400000, guid: b98aa9ba752ac28449feebc76f256bf2, type: 2}
+    maxPieces: 0
+  hiddenTools: 010000000000000002000000
+  hiddenMaterials:
+  - {fileID: 11400000, guid: 57a46c6632dd61b4094902963cf1c5be, type: 2}
+  - {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
+  - {fileID: 11400000, guid: 4524a3fc876c6b640a735e6808fe1271, type: 2}
+  - {fileID: 11400000, guid: 9377a255283b8cc499761c693baf53dd, type: 2}
+  - {fileID: 11400000, guid: 7fbcf5a7e459d434f970d2c976504d5c, type: 2}
+  - {fileID: 11400000, guid: 0d3952b3dcb84cfe89fba5d0ee4cfa3e, type: 2}
+  - {fileID: 11400000, guid: 3c8daed34b294b92b5c53aa30792d8b1, type: 2}
+  - {fileID: 11400000, guid: 4b7960a9d30f4e1b9d6d858aee7d8d31, type: 2}
+  enforceMaxStress: 0
+  maxAllowedStress: 100
+  isTimeAttack: 0
+  timeAttackDuration: 20
+  winCondition: 0
+  requiredIntactTime: 6
+  goldReward: 500
+  expReward: 150
+  offerDialogue:
+    name: Professor Bhan
+    sentences:
+    - Now you understand how a beam bridge works.
+    - You've also learned about the load your bridge needs to carry and the materials
+      available for construction.
+    - It's time to apply what you've learned.
+    - Your first project will be a simple crossing between two sides of the canyon.
+    - I think you're ready for your first <b><#E09500>contract</color></b>.
+    - Oh, and there's one more thing you should know before accepting your first
+      contract.
+    - Throughout your journey, you'll encounter different <b><#E09500>engineering
+      lessons</color></b>.
+    - After your bridge passes its test, we'll take a short <b><#E09500>quiz</color></b>
+      to review what you've learned.
+    - These short reviews will help you connect your <b><#E09500>engineering lessons</color></b>
+      to the bridges you've built.
+    - As you gain experience, you'll meet people who need help with their construction
+      projects. Those projects will give you another chance to <b><#E09500>practice
+      what you've learned</color></b>.
+    - So pay attention to each lesson. You'll need that knowledge not only to build
+      your bridges, but also to answer the questions afterward.
+    - Now, are you ready to take your first contract?
+  continueOfferDialogue:
+    name: Professor Bhan
+    sentences:
+    - Your first contract is a simple bridge construction project.
+    - The crossing ahead needs a safe and reliable connection between both sides
+      of the canyon.
+    - You'll use the <b><#E09500>Beam Bridge</color></b> design we just discussed.
+    - Your job is to construct the bridge and make sure it can safely carry the <b><#E09500>200
+      kg vehicle</color></b>.
+    - Remember, the roadway must be properly supported, and your design must stay
+      within the available budget.
+    - Review the contract carefully before entering Build Mode.
+  reminderDialogue:
+    name: Professor Bhan
+    sentences:
+    - You can now go to the <b><#E09500>construction site</color></b> whenever you
+      are ready.
+    - Enter the <b><#E09500>Blueprint</color></b> and begin construction.
+  finishedContractDialogue:
+    name: Professor Bhan
+    sentences:
+    - Good work, {PlayerName}.
+    - Your first training bridge has passed its test.
+    - You now know how to accept a <b><#E09500>contract</color></b>, use the <b><#E09500>blueprint</color></b>,
+      build a bridge, and test your design.
+    - But your work is not finished yet.
+    - An engineer should inspect the structure after construction.
+    - Open your <b><#E09500>Almanac</color></b> and review your first entry.

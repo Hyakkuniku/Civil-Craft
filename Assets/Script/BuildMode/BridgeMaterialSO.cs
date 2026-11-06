@@ -95,14 +95,16 @@ public class BridgeMaterialSO : ScriptableObject
     public string Id => string.IsNullOrWhiteSpace(materialId) ? name.Trim() : materialId.Trim();
 
     /// <summary>
-    /// Additional opt-in guard, not a replacement for legacy allowance, purchase
-    /// or quantity checks. Old assets remain unchanged when the new flag is off.
+    /// Hidden materials are a hard contract restriction, including drawing and
+    /// blueprint paste. Other allowance, purchase and quantity checks stay with
+    /// their existing owners. Additional opt-in is required only when configured.
     /// Reconstruction and read-only network visuals do not use this build gate.
     /// </summary>
     public bool CanUseInContract(ContractSO contract)
     {
+        if (contract != null && contract.hiddenMaterials != null && contract.hiddenMaterials.Contains(this)) return false;
         if (!requiresExplicitContractAllowance) return true;
-        if (contract == null || (contract.hiddenMaterials != null && contract.hiddenMaterials.Contains(this))) return false;
+        if (contract == null) return false;
         if (contract.allowedMaterials == null) return false;
         foreach (MaterialAllowance allowance in contract.allowedMaterials)
             if (allowance != null && allowance.material == this) return true;

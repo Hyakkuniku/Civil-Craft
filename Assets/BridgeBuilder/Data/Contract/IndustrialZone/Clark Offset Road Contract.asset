@@ -11,16 +11,17 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
   m_Name: Clark Offset Road Contract
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   liveLoadMode: 0
   vehicleTestMode: 0
   liveLoadTests: []
   allowVehicleCargo: 0
   minimumLoadedCargo: 0
-  cargoUnlockProgressionId:
+  cargoUnlockProgressionId: 
   cargoUnlockAfterDialoguePhaseIndex: -1
-  cargoLoadedNPCPhaseId:
+  cargoLoadedNPCPhaseId: 
   contractID: ClarkOffsetRoad
+  displayName: Clark Main Contract 2 - The Offset Road
   hideFromLeaderboard: 1
   efficiencyStarBudgetRatio: 0.85
   strengthStarMaxStress: 60
@@ -31,7 +32,10 @@ MonoBehaviour:
   autoCollectReward: 0
   featureUnlockRewards: []
   clientName: Clark
-  jobDescription: "Connect the factory access road across the 80-meter channel. Keep the SUV's lane closer to one side to work around the existing equipment, and carry it safely to the opposite bank. Review why an off-center load can create torsion in a real bridge."
+  jobDescription: Connect the factory access road across the 80-meter channel. Keep
+    the SUV's lane closer to one side to work around the existing equipment, and
+    carry it safely to the opposite bank. Review why an off-center load can create
+    torsion in a real bridge.
   budget: 600000
   liveLoadWeight: 1000
   bridgeSpan: 80
@@ -46,8 +50,14 @@ MonoBehaviour:
     maxPieces: 0
   - material: {fileID: 11400000, guid: 57a46c6632dd61b4094902963cf1c5be, type: 2}
     maxPieces: 0
-  hiddenTools:
-  hiddenMaterials: []
+  hiddenTools: 
+  hiddenMaterials:
+  - {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
+  - {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
+  - {fileID: 11400000, guid: b98aa9ba752ac28449feebc76f256bf2, type: 2}
+  - {fileID: 11400000, guid: 4524a3fc876c6b640a735e6808fe1271, type: 2}
+  - {fileID: 11400000, guid: 9377a255283b8cc499761c693baf53dd, type: 2}
+  - {fileID: 11400000, guid: 7fbcf5a7e459d434f970d2c976504d5c, type: 2}
   enforceMaxStress: 0
   maxAllowedStress: 100
   isTimeAttack: 0
@@ -59,23 +69,33 @@ MonoBehaviour:
   offerDialogue:
     name: Clark
     sentences:
-    - "Now it's time to apply that concept."
-    - "We need a bridge connecting the factory access road to the other side of the channel. Keep the lane <b><#E09500>closer to one side</color></b> to work around the existing equipment."
-    - "We'll use an <b><#E09500>SUV</color></b> to test the crossing. Make sure the roadway and supports carry it safely from one bank to the other."
-    - "In a real bridge, that off-center load can also create a <b><#E09500>twisting moment</color></b>. Keep the lesson in mind when considering the lane's position."
-    - "Build around the conditions at this site, {PlayerName}. If you're ready, you can take the contract."
+    - Now it's time to apply that concept.
+    - We need a bridge connecting the factory access road to the other side of the
+      channel. Keep the lane <b><#E09500>closer to one side</color></b> to work around
+      the existing equipment.
+    - We'll use an <b><#E09500>SUV</color></b> to test the crossing. Make sure the
+      roadway and supports carry it safely from one bank to the other.
+    - In a real bridge, that off-center load can also create a <b><#E09500>twisting
+      moment</color></b>. Keep the lesson in mind when considering the lane's position.
+    - Build around the conditions at this site, {PlayerName}. If you're ready, you
+      can take the contract.
   continueOfferDialogue:
     name: Clark
     sentences: []
   reminderDialogue:
     name: Clark
     sentences:
-    - "Remember, we can't move the existing equipment to make room for your bridge."
-    - "Keep the SUV's lane clear, check the roadway connections, and remember why an <b><#E09500>off-center load can create torsion</color></b> in a real bridge."
+    - Remember, we can't move the existing equipment to make room for your bridge.
+    - Keep the SUV's lane clear, check the roadway connections, and remember why
+      an <b><#E09500>off-center load can create torsion</color></b> in a real bridge.
   finishedContractDialogue:
     name: Clark
     sentences:
-    - "Good work, {PlayerName}. The crossing fits the site, and the factory can keep operating without us moving the existing equipment."
-    - "You worked with the conditions instead of expecting the site to accommodate your design."
-    - "You've also considered why the <b><#E09500>position of a load matters when torsion comes into play</color></b>."
-    - "There's a larger equipment project ahead. After we review this lesson, <b><#E09500>Mills</color></b> is the person to speak to about it."
+    - Good work, {PlayerName}. The crossing fits the site, and the factory can keep
+      operating without us moving the existing equipment.
+    - You worked with the conditions instead of expecting the site to accommodate
+      your design.
+    - You've also considered why the <b><#E09500>position of a load matters when
+      torsion comes into play</color></b>.
+    - There's a larger equipment project ahead. After we review this lesson, <b><#E09500>Mills</color></b>
+      is the person to speak to about it.

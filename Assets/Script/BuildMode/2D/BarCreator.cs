@@ -2392,8 +2392,8 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
             (BuildTutorialDirector.Instance == null || BuildTutorialDirector.Instance.CanPlaceMaterials);
     }
 
-    // Legacy materials return true here; their existing placement, quantity,
-    // purchase and tutorial behavior stays with the original owners.
+    // Enforce hard hidden-material and explicit opt-in gates at placement too;
+    // quantity, purchase and tutorial behavior stays with the original owners.
     private static bool HasContractMaterialOptIn(BridgeMaterialSO material) => material != null &&
         material.CanUseInContract(GameManager.Instance != null ? GameManager.Instance.CurrentContract : null);
 

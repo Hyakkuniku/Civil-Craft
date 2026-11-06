@@ -491,7 +491,7 @@ public class NPCProgressionManager : MonoBehaviour
         string label = string.IsNullOrWhiteSpace(phase.phaseId)
             ? $"Phase {phaseIndex}"
             : phase.phaseId;
-        string contractName = phase.contract != null ? phase.contract.name : "No Contract";
+        string contractName = phase.contract != null ? phase.contract.DisplayName : "No Contract";
         return $"{phaseIndex}: {label} - {contractName}";
     }
 

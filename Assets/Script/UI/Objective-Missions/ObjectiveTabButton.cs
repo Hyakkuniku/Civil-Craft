@@ -78,7 +78,7 @@ public class ObjectiveTabButton : MonoBehaviour
             string accentHex = ColorUtility.ToHtmlStringRGB(accentColor);
             questTitleText.text =
                 $"<size=20><b><color=#{accentHex}>{category}  •  {status}</color></b></size>\n" +
-                task.title;
+                ObjectiveTrackerUI.GetTaskDisplayTitle(task);
             questTitleText.color = new Color32(73, 45, 29, 255);
             questTitleText.fontSize = 31f;
             questTitleText.enableAutoSizing = true;

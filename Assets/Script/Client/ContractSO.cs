@@ -128,6 +128,10 @@ public class ContractSO : ScriptableObject
     [Tooltip("Permanent unique save ID, for example CONTRACT_CANYON_001. Never change this after release.")]
     public string contractID;
 
+    [Tooltip("Player-facing contract title. Asset names and permanent save IDs remain unchanged. Leave blank to use the asset name.")]
+    public string displayName;
+    public string DisplayName => string.IsNullOrWhiteSpace(displayName) ? name : displayName.Trim();
+
     [Header("Leaderboard")]
     [Tooltip("Hide test or non-playable contract assets from the contract picker.")]
     public bool hideFromLeaderboard;

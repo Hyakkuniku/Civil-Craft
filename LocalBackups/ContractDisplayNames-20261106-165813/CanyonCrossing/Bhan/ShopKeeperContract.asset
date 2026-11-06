@@ -1,0 +1,111 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
+  m_Name: ShopKeeperContract
+  m_EditorClassIdentifier: 
+  liveLoadMode: 0
+  vehicleTestMode: 0
+  liveLoadTests: []
+  allowVehicleCargo: 0
+  minimumLoadedCargo: 0
+  cargoUnlockProgressionId: 
+  cargoUnlockAfterDialoguePhaseIndex: -1
+  cargoLoadedNPCPhaseId: 
+  contractID: ShopKeeper
+  hideFromLeaderboard: 0
+  efficiencyStarBudgetRatio: 0.85
+  strengthStarMaxStress: 60
+  contractMap: 0
+  countsTowardMapAchievements: 1
+  isStoryModeContract: 1
+  isTutorialContract: 1
+  autoCollectReward: 0
+  featureUnlockRewards: []
+  clientName: Professor Bhan
+  jobDescription: Build a safe bridge connecting the shop to Canyonville.
+  budget: 75000
+  liveLoadWeight: 1000
+  bridgeSpan: 50
+  twoWayRoad: 0
+  twoWayRoadWidth: 16
+  allowedMaterials:
+  - material: {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
+    maxPieces: 0
+  - material: {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
+    maxPieces: 0
+  - material: {fileID: 11400000, guid: b98aa9ba752ac28449feebc76f256bf2, type: 2}
+    maxPieces: 0
+  hiddenTools: 
+  hiddenMaterials:
+  - {fileID: 11400000, guid: 4524a3fc876c6b640a735e6808fe1271, type: 2}
+  - {fileID: 11400000, guid: 9377a255283b8cc499761c693baf53dd, type: 2}
+  - {fileID: 11400000, guid: 57a46c6632dd61b4094902963cf1c5be, type: 2}
+  - {fileID: 11400000, guid: 7fbcf5a7e459d434f970d2c976504d5c, type: 2}
+  - {fileID: 11400000, guid: 0d3952b3dcb84cfe89fba5d0ee4cfa3e, type: 2}
+  - {fileID: 11400000, guid: 3c8daed34b294b92b5c53aa30792d8b1, type: 2}
+  - {fileID: 11400000, guid: 4b7960a9d30f4e1b9d6d858aee7d8d31, type: 2}
+  enforceMaxStress: 0
+  maxAllowedStress: 100
+  isTimeAttack: 0
+  timeAttackDuration: 60
+  winCondition: 0
+  requiredIntactTime: 5
+  goldReward: 500
+  expReward: 100
+  offerDialogue:
+    name: Professor Bhan
+    sentences:
+    - The road ends here because the canyon separates the settlement from the land
+      on the other side.
+    - That shop belongs to one of the <b><#E09500>local merchants</color></b>.
+    - Right now, people have to take a long route around the canyon just to reach
+      it.
+    - 'The <b><#E09500>Shopkeeper</color></b> commissioned a bridge to create a direct
+      connection to Canyonville.
+
+'
+    - 'This will be your <b><#E09500>first real project</color></b>.
+
+'
+    - Remember what you've learned.
+    - Consider the <b><#E09500>structure</color></b>, the <b><#E09500>loads</color></b>
+      it will carry, and how your design will support them.
+    - During training, I showed you exactly what to build.
+    - This time, the <b><#E09500>decision is yours</color></b>.
+    - You may use a <b><#E09500>beam</color></b> or <b><#E09500>truss design</color></b>.
+    - Study the site, review the <b><#E09500>required load</color></b>, and choose
+      the structure you believe is appropriate.
+  continueOfferDialogue:
+    name: Professor Bhan
+    sentences: []
+  reminderDialogue:
+    name: Professor Bhan
+    sentences:
+    - This is your <b><#E09500>first real contract</color></b>, {PlayerName}.
+    - You already know the basics from your training.
+    - Now it's time to <b><#E09500>apply what you've learned</color></b>.
+    - You may choose the <b><#E09500>bridge design</color></b> you believe is most
+      suitable for the site.
+    - Just make sure your bridge connects both sides and meets the <b><#E09500>contract
+      requirements</color></b>.
+    - The <b><#E09500>construction site</color></b> is just ahead.
+    - Once you're ready, head to the <b><#E09500>Blueprint</color></b>.
+    - That's where you'll begin construction.
+  finishedContractDialogue:
+    name: Professor Bhan
+    sentences:
+    - Well done.
+    - You successfully connected the shop to Canyonville.
+    - More importantly, you <b><#E09500>made the decision yourself</color></b>.
+    - 'You chose your approach, built the structure, and tested your design.
+
+'

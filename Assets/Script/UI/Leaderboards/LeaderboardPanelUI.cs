@@ -172,7 +172,7 @@ public sealed partial class LeaderboardPanelUI : MonoBehaviour
         if (requestedContract != null)
             AddContracts(new[] { requestedContract }, seen, applyVisibility);
 
-        displayedContracts.Sort((a, b) => string.Compare(a.name, b.name,
+        displayedContracts.Sort((a, b) => string.Compare(a.DisplayName, b.DisplayName,
             StringComparison.OrdinalIgnoreCase));
         List<TMP_Dropdown.OptionData> options = new List<TMP_Dropdown.OptionData>(
             displayedContracts.Count);
@@ -180,7 +180,7 @@ public sealed partial class LeaderboardPanelUI : MonoBehaviour
         for (int i = 0; i < displayedContracts.Count; i++)
         {
             ContractSO contract = displayedContracts[i];
-            options.Add(new TMP_Dropdown.OptionData(contract.name));
+            options.Add(new TMP_Dropdown.OptionData(contract.DisplayName));
             if (contract.ContractID == selectedId) selection = i;
         }
         contractDropdown.ClearOptions();

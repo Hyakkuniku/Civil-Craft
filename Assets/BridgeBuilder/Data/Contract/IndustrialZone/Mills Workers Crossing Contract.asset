@@ -11,16 +11,17 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
   m_Name: Mills Workers Crossing Contract
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   liveLoadMode: 0
   vehicleTestMode: 0
   liveLoadTests: []
   allowVehicleCargo: 0
   minimumLoadedCargo: 0
-  cargoUnlockProgressionId:
+  cargoUnlockProgressionId: 
   cargoUnlockAfterDialoguePhaseIndex: -1
-  cargoLoadedNPCPhaseId:
+  cargoLoadedNPCPhaseId: 
   contractID: MillsWorkersCrossing
+  displayName: Mills Main Contract 2 - Workers' Crossing
   hideFromLeaderboard: 1
   efficiencyStarBudgetRatio: 0.85
   strengthStarMaxStress: 60
@@ -31,7 +32,10 @@ MonoBehaviour:
   autoCollectReward: 0
   featureUnlockRewards: []
   clientName: Mills
-  jobDescription: "Build a 100-meter crossing that gives worker buses a direct route into Ironhaven's industrial district. Carry the bus safely from one bank to the other. Consider how the roadway, members, and supports work together, and use the test results to guide any changes."
+  jobDescription: Build a 100-meter crossing that gives worker buses a direct route
+    into Ironhaven's industrial district. Carry the bus safely from one bank to the
+    other. Consider how the roadway, members, and supports work together, and use
+    the test results to guide any changes.
   budget: 1000000
   liveLoadWeight: 12000
   bridgeSpan: 100
@@ -46,8 +50,14 @@ MonoBehaviour:
     maxPieces: 0
   - material: {fileID: 11400000, guid: 57a46c6632dd61b4094902963cf1c5be, type: 2}
     maxPieces: 0
-  hiddenTools:
-  hiddenMaterials: []
+  hiddenTools: 
+  hiddenMaterials:
+  - {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
+  - {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
+  - {fileID: 11400000, guid: b98aa9ba752ac28449feebc76f256bf2, type: 2}
+  - {fileID: 11400000, guid: 4524a3fc876c6b640a735e6808fe1271, type: 2}
+  - {fileID: 11400000, guid: 9377a255283b8cc499761c693baf53dd, type: 2}
+  - {fileID: 11400000, guid: 7fbcf5a7e459d434f970d2c976504d5c, type: 2}
   enforceMaxStress: 0
   maxAllowedStress: 100
   isTimeAttack: 0
@@ -59,24 +69,33 @@ MonoBehaviour:
   offerDialogue:
     name: Mills
     sentences:
-    - "Here's the project."
-    - "Build a crossing that gives worker buses a direct route into the industrial district."
-    - "We'll use a <b><#E09500>Bus</color></b> to test it. Your design must meet the site's requirements and carry it safely across."
-    - "Consider the span, supports, materials, and how loads travel through the structure."
-    - "I won't give you a layout to follow. <b><#E09500>Use what you've learned, build your design, and let the results guide any changes</color></b>."
-    - "You've handled many different projects, {PlayerName}. I'm looking forward to seeing how you put everything together. If you're ready, take the contract."
+    - Here's the project.
+    - Build a crossing that gives worker buses a direct route into the industrial
+      district.
+    - We'll use a <b><#E09500>Bus</color></b> to test it. Your design must meet the
+      site's requirements and carry it safely across.
+    - Consider the span, supports, materials, and how loads travel through the structure.
+    - I won't give you a layout to follow. <b><#E09500>Use what you've learned, build
+      your design, and let the results guide any changes</color></b>.
+    - You've handled many different projects, {PlayerName}. I'm looking forward to
+      seeing how you put everything together. If you're ready, take the contract.
   continueOfferDialogue:
     name: Mills
     sentences: []
   reminderDialogue:
     name: Mills
     sentences:
-    - "You've got the requirements and the experience to work through this one."
-    - "<b><#E09500>Trust your reasoning and use the test results carefully</color></b> if something needs to change."
+    - You've got the requirements and the experience to work through this one.
+    - <b><#E09500>Trust your reasoning and use the test results carefully</color></b>
+      if something needs to change.
   finishedContractDialogue:
     name: Mills
     sentences:
-    - "The buses have their own crossing now. That should make the journey into the industrial district easier and reduce traffic on the busiest freight roads."
-    - "You had to consider how the whole bridge responds to the load, rather than focusing on a single concept."
-    - "That's an important step, {PlayerName}. The final project will ask you to apply that same judgment to a much larger connection."
-    - "First, let's review what you've put into practice here. There's one last site I'd like you to see afterward."
+    - The buses have their own crossing now. That should make the journey into the
+      industrial district easier and reduce traffic on the busiest freight roads.
+    - You had to consider how the whole bridge responds to the load, rather than
+      focusing on a single concept.
+    - That's an important step, {PlayerName}. The final project will ask you to apply
+      that same judgment to a much larger connection.
+    - First, let's review what you've put into practice here. There's one last site
+      I'd like you to see afterward.

@@ -11,16 +11,17 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
   m_Name: Mills Reconnecting Arcadia Contract
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   liveLoadMode: 0
   vehicleTestMode: 0
   liveLoadTests: []
   allowVehicleCargo: 0
   minimumLoadedCargo: 0
-  cargoUnlockProgressionId:
+  cargoUnlockProgressionId: 
   cargoUnlockAfterDialoguePhaseIndex: -1
-  cargoLoadedNPCPhaseId:
+  cargoLoadedNPCPhaseId: 
   contractID: MillsReconnectingArcadia
+  displayName: Mills Main Contract 3 - Reconnecting Arcadia
   hideFromLeaderboard: 1
   efficiencyStarBudgetRatio: 0.85
   strengthStarMaxStress: 60
@@ -31,7 +32,11 @@ MonoBehaviour:
   autoCollectReward: 0
   featureUnlockRewards: []
   clientName: Mills
-  jobDescription: "Complete the 150-meter gap in a corridor connecting Ironhaven more directly with Rivermere and the route toward Canyon Crossing. Design a bridge that meets the site's requirements and carries the required test vehicle safely across. Apply the lessons from earlier projects, review the results, and improve any weak connections before returning to Mills."
+  jobDescription: Complete the 150-meter gap in a corridor connecting Ironhaven more
+    directly with Rivermere and the route toward Canyon Crossing. Design a bridge
+    that meets the site's requirements and carries the required test vehicle safely
+    across. Apply the lessons from earlier projects, review the results, and improve
+    any weak connections before returning to Mills.
   budget: 1000000
   liveLoadWeight: 12000
   bridgeSpan: 150
@@ -46,8 +51,14 @@ MonoBehaviour:
     maxPieces: 0
   - material: {fileID: 11400000, guid: 57a46c6632dd61b4094902963cf1c5be, type: 2}
     maxPieces: 0
-  hiddenTools:
-  hiddenMaterials: []
+  hiddenTools: 
+  hiddenMaterials:
+  - {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
+  - {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
+  - {fileID: 11400000, guid: b98aa9ba752ac28449feebc76f256bf2, type: 2}
+  - {fileID: 11400000, guid: 4524a3fc876c6b640a735e6808fe1271, type: 2}
+  - {fileID: 11400000, guid: 9377a255283b8cc499761c693baf53dd, type: 2}
+  - {fileID: 11400000, guid: 7fbcf5a7e459d434f970d2c976504d5c, type: 2}
   enforceMaxStress: 0
   maxAllowedStress: 100
   isTimeAttack: 0
@@ -59,25 +70,34 @@ MonoBehaviour:
   offerDialogue:
     name: Mills
     sentences:
-    - "Now, this is your project."
-    - "I could suggest a bridge type or tell you where I'd place supports, but I want to see your solution."
-    - "Review the site and the contract requirements. Choose your design and materials, and consider how all the components work together."
-    - "<b><#E09500>Build and test under the required conditions, then use the results to identify any improvements</color></b>."
-    - "You've come a long way, {PlayerName}. Take your time and give this the thought it deserves. If you're ready, take the contract."
+    - Now, this is your project.
+    - I could suggest a bridge type or tell you where I'd place supports, but I want
+      to see your solution.
+    - Review the site and the contract requirements. Choose your design and materials,
+      and consider how all the components work together.
+    - <b><#E09500>Build and test under the required conditions, then use the results
+      to identify any improvements</color></b>.
+    - You've come a long way, {PlayerName}. Take your time and give this the thought
+      it deserves. If you're ready, take the contract.
   continueOfferDialogue:
     name: Mills
     sentences: []
   reminderDialogue:
     name: Mills
     sentences:
-    - "You know the requirements, {PlayerName}."
-    - "<b><#E09500>Take your time with the design and work through the test results carefully</color></b>."
+    - You know the requirements, {PlayerName}.
+    - <b><#E09500>Take your time with the design and work through the test results
+      carefully</color></b>.
   finishedContractDialogue:
     name: Mills
     sentences:
-    - "Well, {PlayerName}. You did it."
-    - "When Clark first told me Professor Bhan's student was coming to Ironhaven, I was curious how you'd handle the projects here."
-    - "I've watched you work through the sites, test your designs, and make adjustments when things didn't go as planned."
-    - "This final bridge asked you to consider the requirements and make the decisions yourself."
-    - "That's what I wanted to see: an engineer who studies the problem and works toward a solution."
-    - "Good work, {PlayerName}. You've earned my respect."
+    - Well, {PlayerName}. You did it.
+    - When Clark first told me Professor Bhan's student was coming to Ironhaven,
+      I was curious how you'd handle the projects here.
+    - I've watched you work through the sites, test your designs, and make adjustments
+      when things didn't go as planned.
+    - This final bridge asked you to consider the requirements and make the decisions
+      yourself.
+    - 'That''s what I wanted to see: an engineer who studies the problem and works
+      toward a solution.'
+    - Good work, {PlayerName}. You've earned my respect.

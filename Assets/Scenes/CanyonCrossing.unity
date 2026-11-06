@@ -26608,7 +26608,7 @@ GameObject:
   m_Component:
   - component: {fileID: 48101326}
   m_Layer: 0
-  m_Name: FordSideContract
+  m_Name: BrookContract
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -45418,7 +45418,7 @@ Camera:
   far clip plane: 1000
   field of view: 75.7
   orthographic: 1
-  orthographic size: 26
+  orthographic size: 40
   m_Depth: 0
   m_CullingMask:
     serializedVersion: 2
@@ -45486,13 +45486,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 84789738}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.11297196, y: -0, z: -0, w: 0.99359816}
-  m_LocalPosition: {x: 0, y: 25.3, z: 0}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 51.09996, y: -6.5216126, z: -76.88999}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 736890321}
-  m_LocalEulerAnglesHint: {x: 12.973, y: 0, z: 0}
+  m_Father: {fileID: 320816777}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &84789742
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -171171,6 +171171,7 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
+  - {fileID: 84789741}
   - {fileID: 736890321}
   - {fileID: 456595749}
   - {fileID: 1890576946}
@@ -382600,6 +382601,7 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
+  - {fileID: 1822211028}
   - {fileID: 1575551617}
   - {fileID: 976071386}
   - {fileID: 1984790323}
@@ -393706,7 +393708,7 @@ Camera:
   far clip plane: 5000
   field of view: 40
   orthographic: 1
-  orthographic size: 25
+  orthographic size: 40
   m_Depth: -1
   m_CullingMask:
     serializedVersion: 2
@@ -393778,8 +393780,7 @@ Transform:
   m_LocalPosition: {x: 51.1, y: -6.5216126, z: -76.88999}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 84789741}
+  m_Children: []
   m_Father: {fileID: 320816777}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &736890322
@@ -553265,7 +553266,7 @@ TerrainCollider:
     m_Bits: 0
   m_LayerOverridePriority: 0
   m_ProvidesContacts: 0
-  m_Enabled: 1
+  m_Enabled: 0
   serializedVersion: 2
   m_TerrainData: {fileID: 15600000, guid: 1bdc8772c20559048a6d6bdf08d72694, type: 2}
   m_EnableTreeColliders: 1
@@ -820959,8 +820960,7 @@ Transform:
   m_LocalPosition: {x: 51.1, y: -6.5216126, z: -76.88999}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 1822211028}
+  m_Children: []
   m_Father: {fileID: 714494293}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1575551618
@@ -952117,7 +952117,7 @@ Camera:
   far clip plane: 1000
   field of view: 75.7
   orthographic: 1
-  orthographic size: 26
+  orthographic size: 35
   m_Depth: 0
   m_CullingMask:
     serializedVersion: 2
@@ -952185,13 +952185,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1822211025}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.11297196, y: -0, z: -0, w: 0.99359816}
-  m_LocalPosition: {x: 0, y: 25.3, z: 0}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 51.099945, y: -6.5216136, z: -76.88999}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 1575551617}
-  m_LocalEulerAnglesHint: {x: 12.973, y: 0, z: 0}
+  m_Father: {fileID: 714494293}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1822211029
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1073745,7 +1073745,7 @@ GameObject:
   m_Component:
   - component: {fileID: 2062136823}
   m_Layer: 0
-  m_Name: BrookMainContract
+  m_Name: RonanMainContract
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

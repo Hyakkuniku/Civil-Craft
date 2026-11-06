@@ -1158,7 +1158,7 @@ public sealed class DeveloperDebugManager : MonoBehaviour
             ObjectiveTrackerUI.Instance.SetObjective(contract, destination);
         }
 
-        SetStatus($"Unlocked '{contract.name}' at '{location.name}'. Build Mode is now accessible.");
+        SetStatus($"Unlocked '{contract.DisplayName}' at '{location.name}'. Build Mode is now accessible.");
         RefreshDropdownValues();
     }
 
@@ -1482,7 +1482,7 @@ public sealed class DeveloperDebugManager : MonoBehaviour
         // Closing that panel still runs the normal bridge-save/finalization checks.
         LevelCompleteManager.Instance.ResetCompletionState();
         LevelCompleteManager.Instance.CompleteLevel(contract);
-        SetStatus($"Triggered success sequence for: {contract.name}");
+        SetStatus($"Triggered success sequence for: {contract.DisplayName}");
         CloseMenu();
     }
 
@@ -1658,7 +1658,7 @@ public sealed class DeveloperDebugManager : MonoBehaviour
     private static string GetBuildLocationLabel(BuildLocation location)
     {
         if (location == null) return "Missing Location";
-        string contractName = location.activeContract != null ? location.activeContract.name : "No Contract";
+        string contractName = location.activeContract != null ? location.activeContract.DisplayName : "No Contract";
         return $"{location.name} - {contractName}";
     }
 

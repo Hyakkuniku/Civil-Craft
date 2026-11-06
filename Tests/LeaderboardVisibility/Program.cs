@@ -17,7 +17,7 @@ internal static class Program
     {
         try
         {
-            Parser(); Opening(); CompletionSelection(); FailuresAndMultiplayer(); CloseAndReopen(); ManualRefresh();
+            Parser(); Opening(); CompletionSelection(); DisplayTitles(); FailuresAndMultiplayer(); CloseAndReopen(); ManualRefresh();
             CompletionVisibilityChecks.Run(Check);
             Console.WriteLine($"LeaderboardVisibility: {checks} checks passed (production parser/controller/completion action gate; engine, HTTP and PlayFab boundaries doubled; no live requests or player saves).");
             return 0;
@@ -43,6 +43,20 @@ internal static class Program
         return board;
     }
     private static string Status(LeaderboardPanelUI board) => Get<TMP_Text>(board, "statusText").text;
+    private static void DisplayTitles()
+    {
+        var first = Contract("ReedsContract", "ZZZ Legacy Asset");
+        first.displayName = "Reed Main Contract 1 - The Supply Route";
+        var second = Contract("VancesContract", "AAA Legacy Asset");
+        second.displayName = "Vance Main Contract 1 - Ridge Community";
+        var board = Board(second, first);
+        board.Open(); Respond(board, Feed("ReedsContract", "VancesContract"));
+        Check(Dropdown(board).options.Select(option => option.text).SequenceEqual(new[] { first.DisplayName, second.DisplayName }),
+            "Leaderboard labels and ordering must follow display titles rather than legacy asset names.");
+        Check(Selected(board) == first && PlayFabClientAPI.Leaderboards.Last().StatisticName == "ReedsContract_COST",
+            "Renamed display titles must not change the selected permanent ranking ID.");
+        Check(first.name == "ZZZ Legacy Asset" && second.name == "AAA Legacy Asset", "Presentation must not rename legacy assets.");
+    }
     private static TMP_Dropdown Dropdown(LeaderboardPanelUI board) => Get<TMP_Dropdown>(board, "contractDropdown");
     private static ContractSO Selected(LeaderboardPanelUI board) => (ContractSO)board.GetType().GetProperty("SelectedContract", Fields).GetValue(board);
     private static IEnumerator ActiveFetch(LeaderboardPanelUI board) => Get<Coroutine>(board, "visibilityRoutine").Iterator;

@@ -11,16 +11,17 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4b65a981db6ffa147946662628c707ac, type: 3}
   m_Name: Mills Heavy Equipment Contract
-  m_EditorClassIdentifier:
+  m_EditorClassIdentifier: 
   liveLoadMode: 0
   vehicleTestMode: 0
   liveLoadTests: []
   allowVehicleCargo: 0
   minimumLoadedCargo: 0
-  cargoUnlockProgressionId:
+  cargoUnlockProgressionId: 
   cargoUnlockAfterDialoguePhaseIndex: -1
-  cargoLoadedNPCPhaseId:
+  cargoLoadedNPCPhaseId: 
   contractID: MillsMainContract
+  displayName: Mills Main Contract 1 - Heavy Equipment Route
   hideFromLeaderboard: 1
   efficiencyStarBudgetRatio: 0.85
   strengthStarMaxStress: 60
@@ -31,7 +32,10 @@ MonoBehaviour:
   autoCollectReward: 0
   featureUnlockRewards: []
   clientName: Mills
-  jobDescription: "Build a direct crossing across the 90-meter excavation between Ironhaven's equipment storage area and active work site. Carry the mobile crane safely to the opposite side. During testing, examine overloaded or broken members and identify where a problem begins before revising the design."
+  jobDescription: Build a direct crossing across the 90-meter excavation between
+    Ironhaven's equipment storage area and active work site. Carry the mobile crane
+    safely to the opposite side. During testing, examine overloaded or broken members
+    and identify where a problem begins before revising the design.
   budget: 1000000
   liveLoadWeight: 30000
   bridgeSpan: 90
@@ -46,8 +50,14 @@ MonoBehaviour:
     maxPieces: 0
   - material: {fileID: 11400000, guid: 57a46c6632dd61b4094902963cf1c5be, type: 2}
     maxPieces: 0
-  hiddenTools:
-  hiddenMaterials: []
+  hiddenTools: 
+  hiddenMaterials:
+  - {fileID: 11400000, guid: d96454d8483949a4fb084d742f9a0ac8, type: 2}
+  - {fileID: 11400000, guid: d168cda963676074692e7020faf3c791, type: 2}
+  - {fileID: 11400000, guid: b98aa9ba752ac28449feebc76f256bf2, type: 2}
+  - {fileID: 11400000, guid: 4524a3fc876c6b640a735e6808fe1271, type: 2}
+  - {fileID: 11400000, guid: 9377a255283b8cc499761c693baf53dd, type: 2}
+  - {fileID: 11400000, guid: 7fbcf5a7e459d434f970d2c976504d5c, type: 2}
   enforceMaxStress: 0
   maxAllowedStress: 100
   isTimeAttack: 0
@@ -59,25 +69,33 @@ MonoBehaviour:
   offerDialogue:
     name: Mills
     sentences:
-    - "This project will put those ideas to the test."
-    - "Build a direct crossing between the equipment storage area and the active work site. We'll use a <b><#E09500>Mobile Crane</color></b> to test it."
-    - "I'm not going to hand you a design. Study the requirements and decide how the structure should be built."
-    - "During testing, <b><#E09500>watch for overloaded members or parts that can no longer carry the load</color></b>."
-    - "If the bridge fails, don't change everything at once. <b><#E09500>Look at the results and work out where the problem begins</color></b>."
-    - "Take your time with this one, {PlayerName}. Here's the contract."
+    - This project will put those ideas to the test.
+    - Build a direct crossing between the equipment storage area and the active work
+      site. We'll use a <b><#E09500>Mobile Crane</color></b> to test it.
+    - I'm not going to hand you a design. Study the requirements and decide how the
+      structure should be built.
+    - During testing, <b><#E09500>watch for overloaded members or parts that can
+      no longer carry the load</color></b>.
+    - If the bridge fails, don't change everything at once. <b><#E09500>Look at the
+      results and work out where the problem begins</color></b>.
+    - Take your time with this one, {PlayerName}. Here's the contract.
   continueOfferDialogue:
     name: Mills
     sentences: []
   reminderDialogue:
     name: Mills
     sentences:
-    - "If the crane test doesn't go as planned, study the results first."
-    - "<b><#E09500>Find the first overloaded or broken area</color></b>, then decide which part of the structure needs attention."
+    - If the crane test doesn't go as planned, study the results first.
+    - <b><#E09500>Find the first overloaded or broken area</color></b>, then decide
+      which part of the structure needs attention.
   finishedContractDialogue:
     name: Mills
     sentences:
-    - "There we are. The crane made it across."
-    - "This project wasn't simply about building for a heavy vehicle. It was about examining the structure's response and using that information to make decisions."
-    - "<b><#E09500>When a design fails, there's a reason behind it</color></b>. Finding that reason is part of the work."
-    - "You handled this project well, {PlayerName}."
-    - "The next crossing will bring several of those concepts together. First, let's review what you've learned here."
+    - There we are. The crane made it across.
+    - This project wasn't simply about building for a heavy vehicle. It was about
+      examining the structure's response and using that information to make decisions.
+    - <b><#E09500>When a design fails, there's a reason behind it</color></b>. Finding
+      that reason is part of the work.
+    - You handled this project well, {PlayerName}.
+    - The next crossing will bring several of those concepts together. First, let's
+      review what you've learned here.

@@ -168,7 +168,8 @@ namespace PlayFab.ClientModels
     public sealed class ExecuteCloudScriptResult { public object Error, FunctionResult; }
 }
 public sealed class ContractSO
-{ public string name, contractID; public bool hideFromLeaderboard; public string ContractID => contractID; }
+{ public string name, contractID, displayName; public bool hideFromLeaderboard; public string ContractID => contractID;
+  public string DisplayName => string.IsNullOrWhiteSpace(displayName) ? name : displayName.Trim(); }
 public sealed class PlayerDataManager
 {
     public static PlayerDataManager Instance;

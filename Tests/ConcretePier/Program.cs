@@ -30,8 +30,15 @@ internal static class Program
     {
         try
         {
-            Check(args.All(value => value == "--source-only"), "Supported option: --source-only.");
+            Check(args.All(value => value == "--source-only" || value == "--policy-only"), "Supported options: --source-only, --policy-only.");
             root = FindRoot();
+            if (args.Contains("--policy-only"))
+            {
+                ExecuteProductionMethods();
+                ActionBoundaryGuards();
+                Console.WriteLine($"PASS: {checks} material access, selection, purchase and placement guard assertions. No Unity or player data modified.");
+                return 0;
+            }
             Preservation(!args.Contains("--source-only"));
             CroppedSpritePreservation();
             ExecuteProductionMethods();
@@ -182,10 +189,6 @@ internal static class Program
         ClassDeclarationSyntax contract = Type(Contract, "ContractSO");
         ClassDeclarationSyntax ui = Type(UI, "BuildUIController");
         string predicate = Method(material, "CanUseInContract").ToFullString();
-        var predicateNode = Method(material, "CanUseInContract");
-        Check(predicateNode.Body.Statements.First() is IfStatementSyntax first &&
-            first.Condition.ToString() == "!requiresExplicitContractAllowance" && first.Statement.ToString().Contains("return true", StringComparison.Ordinal),
-            "Legacy materials must immediately retain the original allowance/purchase behavior.");
         Check(!predicate.Contains("PlayerData", StringComparison.Ordinal) && !predicate.Contains("Wallet", StringComparison.Ordinal) &&
             !predicate.Contains("unlockCost", StringComparison.Ordinal), "The pure opt-in predicate must not grant purchased entitlements or charge a wallet.");
         string boundary = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Boundary.cs.txt"))

@@ -2090,7 +2090,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
             ? GetUnlockedGuestContract(PlayerDataManager.Instance, GetGuestLocationContracts(location))
             : location.activeContract;
         if (IsHostWorldGuest && contract == null) return "Locked Build Location";
-        string label = contract != null ? contract.name : location.name;
+        string label = contract != null ? contract.DisplayName : location.name;
         return string.IsNullOrWhiteSpace(label) ? "Build Location" : label.Replace('_', ' ');
     }
 

@@ -462,7 +462,7 @@ public class LevelFailedManager : MonoBehaviour
         if (contractNameText != null)
         {
             ContractSO contract = GameManager.Instance != null ? GameManager.Instance.CurrentContract : null;
-            string contractLabel = contract != null ? contract.name : string.Empty;
+            string contractLabel = contract != null ? contract.DisplayName : string.Empty;
             contractNameText.text = !string.IsNullOrWhiteSpace(contractLabel)
                 ? $"CONTRACT TEST  •  {contractLabel.ToUpperInvariant()}"
                 : "STRUCTURAL TEST REPORT";
