@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("MaterialToolbarOrdering")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e3f9375855e7d8c9689b9ce9dee69a8e78c254e6")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ece617bc106fedf34e9d6386221eabcfd58c7397")]
 [assembly: System.Reflection.AssemblyProductAttribute("MaterialToolbarOrdering")]
 [assembly: System.Reflection.AssemblyTitleAttribute("MaterialToolbarOrdering")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

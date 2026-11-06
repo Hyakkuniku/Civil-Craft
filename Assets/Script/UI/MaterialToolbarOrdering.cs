@@ -22,6 +22,16 @@ internal static class MaterialToolbarOrdering
         return 1;
     }
 
+    internal static Transform ResolveCell(MaterialButtonTrigger button)
+    {
+        Transform cell = button.parentWrapper != null ? button.parentWrapper.transform : button.transform;
+        if (cell != button.transform && !button.transform.IsChildOf(cell)) return null;
+        // Older shared toolbars keep the input object inside an unassigned
+        // wrapper. Move the direct layout child rather than sorting its icon.
+        while (cell.parent != null && cell.parent.GetComponent<LayoutGroup>() == null) cell = cell.parent;
+        return cell.parent != null ? cell : null;
+    }
+
     internal static void Apply(MaterialButtonTrigger[] buttons, Scene scene, bool resetScroll)
     {
         var groups = new Dictionary<Transform, List<Entry>>();
@@ -29,8 +39,8 @@ internal static class MaterialToolbarOrdering
         foreach (MaterialButtonTrigger button in buttons)
         {
             if (button == null || button.gameObject.scene != scene) continue;
-            Transform cell = button.parentWrapper != null ? button.parentWrapper.transform : button.transform;
-            if (cell != button.transform && !button.transform.IsChildOf(cell)) continue;
+            Transform cell = ResolveCell(button);
+            if (cell == null) continue;
             Transform parent = cell.parent;
             if (parent == null || parent.GetComponent<LayoutGroup>() == null || !cells.Add(cell)) continue;
             if (!groups.TryGetValue(parent, out List<Entry> group)) groups[parent] = group = new List<Entry>();

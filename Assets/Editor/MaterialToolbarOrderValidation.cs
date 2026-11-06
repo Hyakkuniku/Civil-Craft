@@ -41,11 +41,15 @@ internal static class MaterialToolbarOrderValidation
         try
         {
             var root = new GameObject("Detached toolbar", typeof(RectTransform), typeof(Canvas)); SceneManager.MoveGameObjectToScene(root, preview);
+            // Prevent material OnEnable callbacks from evaluating the live
+            // contract before the detached fixture supplies its own states.
+            root.SetActive(false);
             root.GetComponent<Canvas>().renderMode = RenderMode.WorldSpace;
             var dock = UnityEngine.Object.Instantiate(source, root.transform, false); dock.gameObject.SetActive(true);
             var buttons = dock.GetComponentsInChildren<MaterialButtonTrigger>(true);
             foreach (var button in buttons) button.enabled = false;
             var identities = buttons.ToDictionary(button => button, button => new { wrapper = button.parentWrapper, parent = button.transform.parent, material = button.buttonMaterial, normal = button.defaultSprite, selected = button.selectedOutlineSprite });
+            root.SetActive(true);
             var apply = typeof(MaterialButtonTrigger).Assembly.GetType("MaterialToolbarOrdering").GetMethod("Apply", BindingFlags.Static | BindingFlags.NonPublic);
             foreach (Vector2 resolution in new[] { new Vector2(1280, 720), new Vector2(1600, 1200) })
             {
@@ -56,14 +60,14 @@ internal static class MaterialToolbarOrderValidation
                     {
                         bool steel = button.buttonMaterial.Id.StartsWith("Steel", StringComparison.Ordinal);
                         bool hidden = scenario == "steel hidden" && steel;
-                        button.parentWrapper.SetActive(!hidden);
+                        Cell(button).gameObject.SetActive(!hidden);
                         Set(button, "isMaterialHidden", hidden);
                         Set(button, "isMaterialAllowed", scenario != "steel available first" || steel || button.buttonMaterial.name == "Concrete Road");
                         Set(button, "hasReachedQuantityLimit", scenario == "steel beam exhausted" && button.buttonMaterial.Id == "SteelBeam");
                     }
                     apply.Invoke(null, new object[] { buttons, preview, false });
                     LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)root.transform); LayoutRebuilder.ForceRebuildLayoutImmediate(dock.content);
-                    var ordered = buttons.OrderBy(button => button.parentWrapper.transform.GetSiblingIndex()).ToArray();
+                    var ordered = buttons.OrderBy(button => Cell(button).GetSiblingIndex()).ToArray();
                     for (int i = 1; i < ordered.Length; i++)
                     {
                         int a = Rank(ordered[i - 1]), b = Rank(ordered[i]);
@@ -75,14 +79,14 @@ internal static class MaterialToolbarOrderValidation
                         var before = identities[button];
                         if (button.parentWrapper != before.wrapper || button.transform.parent != before.parent || button.buttonMaterial != before.material || button.defaultSprite != before.normal || button.selectedOutlineSprite != before.selected) throw new InvalidOperationException("Ordering changed a material/icon/input binding.");
                         bool hidden = scenario == "steel hidden" && button.buttonMaterial.Id.StartsWith("Steel", StringComparison.Ordinal);
-                        if (button.parentWrapper.activeSelf == hidden) throw new InvalidOperationException("Sorting changed a hidden material's active state.");
+                        if (Cell(button).gameObject.activeSelf == hidden) throw new InvalidOperationException("Sorting changed a hidden material's active state.");
                         if (hidden) continue;
-                        var cell = (RectTransform)button.parentWrapper.transform;
+                        var cell = (RectTransform)Cell(button);
                         float x = dock.content.InverseTransformPoint(cell.TransformPoint(cell.rect.center)).x;
                         if (x <= lastX || cell.rect.width <= 0 || cell.rect.height <= 0) throw new InvalidOperationException("Material cells did not reflow in order.");
                         lastX = x;
                     }
-                    report.AppendLine($"PASS {label} {resolution.x:0}x{resolution.y:0} {scenario}: " + string.Join(" > ", ordered.Where(button => button.parentWrapper.activeSelf).Select(button => button.buttonMaterial.GetDisplayName())));
+                    report.AppendLine($"PASS {label} {resolution.x:0}x{resolution.y:0} {scenario}: " + string.Join(" > ", ordered.Where(button => Cell(button).gameObject.activeSelf).Select(button => button.buttonMaterial.GetDisplayName())));
                 }
             }
         }
@@ -94,6 +98,7 @@ internal static class MaterialToolbarOrderValidation
         var material = button.buttonMaterial;
         return (available ? 0 : 10) + (material.isRoad ? 0 : material.isPier ? 2 : material.isRope ? 3 : 1);
     }
+    private static Transform Cell(MaterialButtonTrigger button) => (Transform)typeof(MaterialButtonTrigger).Assembly.GetType("MaterialToolbarOrdering").GetMethod("ResolveCell", BindingFlags.Static | BindingFlags.NonPublic).Invoke(null, new object[] { button });
     private static void Set(MaterialButtonTrigger button, string field, bool value) => typeof(MaterialButtonTrigger).GetField(field, BindingFlags.NonPublic | BindingFlags.Instance).SetValue(button, value);
 }
 #endif

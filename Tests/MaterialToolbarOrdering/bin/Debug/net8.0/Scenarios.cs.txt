@@ -66,6 +66,13 @@ public static class Scenarios
         MaterialToolbarOrdering.Apply(new[] { rope, road }, local, false); Check(Order(noLayout) == "Rope,Road", "Non-layout parents are ignored.");
         parent = Parent("NoWrapper", local); rope = Button(parent, "Rope", 3, wrapper:false); road = Button(parent, "Road", 0, wrapper:false);
         MaterialToolbarOrdering.Apply(new[] { rope, road, road, null }, local, false); Check(Order(parent) == "Road,Rope", "No-wrapper controls sort safely; duplicate/null entries do not duplicate cells.");
+        parent = Parent("NestedNoWrapper", local); rope = Button(parent, "Rope", 3); road = Button(parent, "Road", 0);
+        var originalRoadCell = road.parentWrapper; var originalRopeCell = rope.parentWrapper;
+        road.parentWrapper = null; rope.parentWrapper = null;
+        MaterialToolbarOrdering.Apply(new[] { rope, road }, local, false);
+        Check(Order(parent) == "Road,Rope", "Legacy nested inputs with unassigned wrappers sort their direct layout cells.");
+        Check(road.transform.parent == originalRoadCell.transform && rope.transform.parent == originalRopeCell.transform,
+            "Legacy nested inputs and their touch areas remain in their original wrappers.");
         var wrongParent = Parent("WrongWrapper", local); var unrelated = new GameObject("Unrelated", local); unrelated.transform.SetParent(wrongParent);
         rope = Button(wrongParent, "Rope", 3); road = Button(wrongParent, "Road", 0); road.parentWrapper = unrelated;
         MaterialToolbarOrdering.Apply(new[] { rope, road }, local, false); Check(Order(wrongParent) == "Unrelated,Rope,Road", "An unrelated wrapper reference is rejected.");
