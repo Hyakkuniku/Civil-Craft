@@ -125597,8 +125597,61 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 3174841006442395853, guid: c2903c802a430d44399383a68892196b,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 236860270}
   m_SourcePrefab: {fileID: 100100000, guid: c2903c802a430d44399383a68892196b, type: 3}
+--- !u!1 &236860268 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 3174841006442395853, guid: c2903c802a430d44399383a68892196b,
+    type: 3}
+  m_PrefabInstance: {fileID: 236860267}
+  m_PrefabAsset: {fileID: 0}
+--- !u!4 &236860269 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 5747441450561768263, guid: c2903c802a430d44399383a68892196b,
+    type: 3}
+  m_PrefabInstance: {fileID: 236860267}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &236860270
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 236860268}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d537a2cf84cc48549ddfdc830902b6df, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  canyon: {fileID: 236860269}
+  surfaceShader: {fileID: 4800000, guid: 2d89e1b20a774d1596892ff915524445, type: 3}
+  width: 0.075
+  edgeSoftness: 0.35
+  strength: 0.65
+  dirtTint: {r: 0.78, g: 0.7, b: 0.6, a: 1}
+  roadTint: {r: 0.3, g: 0.32, b: 0.34, a: 1}
+  sidewalkWidth: 0.22
+  sidewalkTint: {r: 0.66, g: 0.65, b: 0.62, a: 1}
+  curbTint: {r: 0.82, g: 0.8, b: 0.74, a: 1}
+  stoneTint: {r: 0.86, g: 0.75, b: 0.62, a: 1}
+  groutTint: {r: 0.69, g: 0.59, b: 0.48, a: 1}
+  stoneVariation: 0.05
+  stonesAcross: 4
+  stoneAspect: 1.2
+  jointWidth: 0.03
+  streets:
+  - from: {x: 0.020000065, y: 0.23955876}
+    to: {x: 0.9271067, y: 0.23985103}
+    widthMultiplier: 2
+    surfaceShader: {fileID: 0}
+  - from: {x: 0.51377565, y: 1.02644}
+    to: {x: 0.4835726, y: 0.23985103}
+    widthMultiplier: 2
+    surfaceShader: {fileID: 0}
 --- !u!1 &237438135
 GameObject:
   m_ObjectHideFlags: 0
@@ -213181,8 +213234,57 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 8632502658610048157, guid: d59f45ce4b7f0134297af41724ae5a08,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 405627272}
   m_SourcePrefab: {fileID: 100100000, guid: d59f45ce4b7f0134297af41724ae5a08, type: 3}
+--- !u!1 &405627270 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 8632502658610048157, guid: d59f45ce4b7f0134297af41724ae5a08,
+    type: 3}
+  m_PrefabInstance: {fileID: 405627269}
+  m_PrefabAsset: {fileID: 0}
+--- !u!4 &405627271 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 1257094166076954745, guid: d59f45ce4b7f0134297af41724ae5a08,
+    type: 3}
+  m_PrefabInstance: {fileID: 405627269}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &405627272
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 405627270}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d537a2cf84cc48549ddfdc830902b6df, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  canyon: {fileID: 405627271}
+  surfaceShader: {fileID: 4800000, guid: 2d89e1b20a774d1596892ff915524445, type: 3}
+  width: 0.075
+  edgeSoftness: 0.35
+  strength: 0.65
+  dirtTint: {r: 0.78, g: 0.7, b: 0.6, a: 1}
+  roadTint: {r: 0.3, g: 0.32, b: 0.34, a: 1}
+  sidewalkWidth: 0.22
+  sidewalkTint: {r: 0.66, g: 0.65, b: 0.62, a: 1}
+  curbTint: {r: 0.82, g: 0.8, b: 0.74, a: 1}
+  stoneTint: {r: 0.86, g: 0.75, b: 0.62, a: 1}
+  groutTint: {r: 0.69, g: 0.59, b: 0.48, a: 1}
+  stoneVariation: 0.05
+  stonesAcross: 4
+  stoneAspect: 1.2
+  jointWidth: 0.03
+  streets:
+  - from: {x: 0.09714877, y: 0.41318938}
+    to: {x: 0.84900194, y: 0.43181062}
+    widthMultiplier: 2
+    surfaceShader: {fileID: 0}
 --- !u!1 &405792002
 GameObject:
   m_ObjectHideFlags: 0
@@ -326098,8 +326200,57 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 7670022546800578809, guid: b9743b73e620f0549af3f91d7f5bade3,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 615340043}
   m_SourcePrefab: {fileID: 100100000, guid: b9743b73e620f0549af3f91d7f5bade3, type: 3}
+--- !u!1 &615340041 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 7670022546800578809, guid: b9743b73e620f0549af3f91d7f5bade3,
+    type: 3}
+  m_PrefabInstance: {fileID: 615340040}
+  m_PrefabAsset: {fileID: 0}
+--- !u!4 &615340042 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 4148850001200261768, guid: b9743b73e620f0549af3f91d7f5bade3,
+    type: 3}
+  m_PrefabInstance: {fileID: 615340040}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &615340043
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 615340041}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d537a2cf84cc48549ddfdc830902b6df, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  canyon: {fileID: 615340042}
+  surfaceShader: {fileID: 4800000, guid: 2d89e1b20a774d1596892ff915524445, type: 3}
+  width: 0.075
+  edgeSoftness: 0.35
+  strength: 0.65
+  dirtTint: {r: 0.78, g: 0.7, b: 0.6, a: 1}
+  roadTint: {r: 0.3, g: 0.32, b: 0.34, a: 1}
+  sidewalkWidth: 0.22
+  sidewalkTint: {r: 0.66, g: 0.65, b: 0.62, a: 1}
+  curbTint: {r: 0.82, g: 0.8, b: 0.74, a: 1}
+  stoneTint: {r: 0.86, g: 0.75, b: 0.62, a: 1}
+  groutTint: {r: 0.69, g: 0.59, b: 0.48, a: 1}
+  stoneVariation: 0.05
+  stonesAcross: 4
+  stoneAspect: 1.2
+  jointWidth: 0.03
+  streets:
+  - from: {x: 0.02000036, y: 0.4282342}
+    to: {x: 1.1311859, y: 0.40594634}
+    widthMultiplier: 2
+    surfaceShader: {fileID: 0}
 --- !u!1 &615350089
 GameObject:
   m_ObjectHideFlags: 0
@@ -451389,8 +451540,61 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 7670022546800578809, guid: b9743b73e620f0549af3f91d7f5bade3,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 850684389}
   m_SourcePrefab: {fileID: 100100000, guid: b9743b73e620f0549af3f91d7f5bade3, type: 3}
+--- !u!1 &850684387 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 7670022546800578809, guid: b9743b73e620f0549af3f91d7f5bade3,
+    type: 3}
+  m_PrefabInstance: {fileID: 850684386}
+  m_PrefabAsset: {fileID: 0}
+--- !u!4 &850684388 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 4148850001200261768, guid: b9743b73e620f0549af3f91d7f5bade3,
+    type: 3}
+  m_PrefabInstance: {fileID: 850684386}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &850684389
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 850684387}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d537a2cf84cc48549ddfdc830902b6df, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  canyon: {fileID: 850684388}
+  surfaceShader: {fileID: 4800000, guid: 2d89e1b20a774d1596892ff915524445, type: 3}
+  width: 0.075
+  edgeSoftness: 0.35
+  strength: 0.65
+  dirtTint: {r: 0.78, g: 0.7, b: 0.6, a: 1}
+  roadTint: {r: 0.3, g: 0.32, b: 0.34, a: 1}
+  sidewalkWidth: 0.22
+  sidewalkTint: {r: 0.66, g: 0.65, b: 0.62, a: 1}
+  curbTint: {r: 0.82, g: 0.8, b: 0.74, a: 1}
+  stoneTint: {r: 0.86, g: 0.75, b: 0.62, a: 1}
+  groutTint: {r: 0.69, g: 0.59, b: 0.48, a: 1}
+  stoneVariation: 0.05
+  stonesAcross: 4
+  stoneAspect: 1.2
+  jointWidth: 0.03
+  streets:
+  - from: {x: 0.020000145, y: 0.2936505}
+    to: {x: 1.038053, y: 0.29612008}
+    widthMultiplier: 1.276
+    surfaceShader: {fileID: 0}
+  - from: {x: 0.4539448, y: 1.2027656}
+    to: {x: 0.4437948, y: 0.29612008}
+    widthMultiplier: 1.276
+    surfaceShader: {fileID: 0}
 --- !u!4 &850830459 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 4156907150165446014, guid: f4ace0a8cb9406c4eaf0671f09ad3a39,
@@ -799536,8 +799740,69 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 7670022546800578809, guid: b9743b73e620f0549af3f91d7f5bade3,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1538181118}
   m_SourcePrefab: {fileID: 100100000, guid: b9743b73e620f0549af3f91d7f5bade3, type: 3}
+--- !u!1 &1538181116 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 7670022546800578809, guid: b9743b73e620f0549af3f91d7f5bade3,
+    type: 3}
+  m_PrefabInstance: {fileID: 1538181115}
+  m_PrefabAsset: {fileID: 0}
+--- !u!4 &1538181117 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 4148850001200261768, guid: b9743b73e620f0549af3f91d7f5bade3,
+    type: 3}
+  m_PrefabInstance: {fileID: 1538181115}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &1538181118
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1538181116}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d537a2cf84cc48549ddfdc830902b6df, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  canyon: {fileID: 1538181117}
+  surfaceShader: {fileID: 4800000, guid: 2d89e1b20a774d1596892ff915524445, type: 3}
+  width: 0.075
+  edgeSoftness: 0.35
+  strength: 0.65
+  dirtTint: {r: 0.78, g: 0.7, b: 0.6, a: 1}
+  roadTint: {r: 0.3, g: 0.32, b: 0.34, a: 1}
+  sidewalkWidth: 0.22
+  sidewalkTint: {r: 0.66, g: 0.65, b: 0.62, a: 1}
+  curbTint: {r: 0.82, g: 0.8, b: 0.74, a: 1}
+  stoneTint: {r: 0.86, g: 0.75, b: 0.62, a: 1}
+  groutTint: {r: 0.69, g: 0.59, b: 0.48, a: 1}
+  stoneVariation: 0.05
+  stonesAcross: 4
+  stoneAspect: 1.2
+  jointWidth: 0.03
+  streets:
+  - from: {x: 0.34515932, y: 0.33281606}
+    to: {x: 0.76280075, y: 0.35973892}
+    widthMultiplier: 1.473
+    surfaceShader: {fileID: 0}
+  - from: {x: 0.7655529, y: 0.3545681}
+    to: {x: 0.78934205, y: 0.20340574}
+    widthMultiplier: 1.473
+    surfaceShader: {fileID: 0}
+  - from: {x: 1.0027729, y: 0.20577693}
+    to: {x: 0.78934205, y: 0.20340574}
+    widthMultiplier: 1.473
+    surfaceShader: {fileID: 0}
+  - from: {x: 0.67314285, y: 0.976653}
+    to: {x: 0.78934205, y: 0.20340574}
+    widthMultiplier: 1.473
+    surfaceShader: {fileID: 0}
 --- !u!1 &1538251160
 GameObject:
   m_ObjectHideFlags: 0
@@ -1001256,7 +1001521,7 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1870683347}
   m_HandleRect: {fileID: 1870683345}
   m_Direction: 0
-  m_Value: -0.0000008682492
+  m_Value: -0.00000080146077
   m_Size: 0.5676822
   m_NumberOfSteps: 0
   m_OnValueChanged:
@@ -1147033,7 +1147298,7 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 19.45
+  m_fontSize: 18.2
   m_fontSizeBase: 20
   m_fontWeight: 400
   m_enableAutoSizing: 1
