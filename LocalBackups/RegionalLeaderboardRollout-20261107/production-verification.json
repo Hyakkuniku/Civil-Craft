@@ -1,0 +1,150 @@
+{
+  "verified": true,
+  "legacyVisible": 7,
+  "regionalVisible": 9,
+  "totalVisible": 16,
+  "hiddenTutorialsPreserved": true,
+  "boards": [
+    {
+      "id": "MarshID",
+      "mode": "efficient",
+      "status": 200,
+      "rows": 0,
+      "version": 0
+    },
+    {
+      "id": "MarshID",
+      "mode": "strongest",
+      "status": 200,
+      "rows": 0,
+      "version": 0
+    },
+    {
+      "id": "FordMainContract",
+      "mode": "efficient",
+      "status": 200,
+      "rows": 0,
+      "version": 0
+    },
+    {
+      "id": "FordMainContract",
+      "mode": "strongest",
+      "status": 200,
+      "rows": 0,
+      "version": 0
+    },
+    {
+      "id": "BrooksMainContract",
+      "mode": "efficient",
+      "status": 200,
+      "rows": 0,
+      "version": 0
+    },
+    {
+      "id": "BrooksMainContract",
+      "mode": "strongest",
+      "status": 200,
+      "rows": 0,
+      "version": 0
+    },
+    {
+      "id": "RonanMainContract",
+      "mode": "efficient",
+      "status": 200,
+      "rows": 0,
+      "version": 0
+    },
+    {
+      "id": "RonanMainContract",
+      "mode": "strongest",
+      "status": 200,
+      "rows": 0,
+      "version": 0
+    },
+    {
+      "id": "ClarkMainContract",
+      "mode": "efficient",
+      "status": 200,
+      "rows": 0,
+      "version": 0
+    },
+    {
+      "id": "ClarkMainContract",
+      "mode": "strongest",
+      "status": 200,
+      "rows": 0,
+      "version": 0
+    },
+    {
+      "id": "ClarkOffsetRoad",
+      "mode": "efficient",
+      "status": 200,
+      "rows": 0,
+      "version": 0
+    },
+    {
+      "id": "ClarkOffsetRoad",
+      "mode": "strongest",
+      "status": 200,
+      "rows": 0,
+      "version": 0
+    },
+    {
+      "id": "MillsMainContract",
+      "mode": "efficient",
+      "status": 200,
+      "rows": 0,
+      "version": 0
+    },
+    {
+      "id": "MillsMainContract",
+      "mode": "strongest",
+      "status": 200,
+      "rows": 0,
+      "version": 0
+    },
+    {
+      "id": "MillsWorkersCrossing",
+      "mode": "efficient",
+      "status": 200,
+      "rows": 0,
+      "version": 0
+    },
+    {
+      "id": "MillsWorkersCrossing",
+      "mode": "strongest",
+      "status": 200,
+      "rows": 0,
+      "version": 0
+    },
+    {
+      "id": "MillsReconnectingArcadia",
+      "mode": "efficient",
+      "status": 200,
+      "rows": 0,
+      "version": 0
+    },
+    {
+      "id": "MillsReconnectingArcadia",
+      "mode": "strongest",
+      "status": 200,
+      "rows": 0,
+      "version": 0
+    },
+    {
+      "id": "ShopKeeper",
+      "mode": "efficient",
+      "status": 200,
+      "rows": 3,
+      "version": 0
+    },
+    {
+      "id": "ShopKeeper",
+      "mode": "strongest",
+      "status": 200,
+      "rows": 3,
+      "version": 0
+    }
+  ],
+  "checkedAt": "2026-11-06T20:54:29.834Z"
+}

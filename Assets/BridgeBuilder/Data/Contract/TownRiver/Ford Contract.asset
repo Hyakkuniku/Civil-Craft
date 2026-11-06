@@ -34,7 +34,7 @@ MonoBehaviour:
   cargoLoadedNPCPhaseId: 
   contractID: FordMainContract
   displayName: Ford Main Contract 1 - The Construction Route
-  hideFromLeaderboard: 1
+  hideFromLeaderboard: 0
   efficiencyStarBudgetRatio: 0.85
   strengthStarMaxStress: 60
   contractMap: 1

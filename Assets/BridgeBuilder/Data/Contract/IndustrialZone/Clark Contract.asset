@@ -46,7 +46,7 @@ MonoBehaviour:
   cargoLoadedNPCPhaseId: 
   contractID: ClarkMainContract
   displayName: Clark Main Contract 1 - Freight Channel
-  hideFromLeaderboard: 1
+  hideFromLeaderboard: 0
   efficiencyStarBudgetRatio: 0.85
   strengthStarMaxStress: 60
   contractMap: 2

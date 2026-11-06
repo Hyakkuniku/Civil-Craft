@@ -16,7 +16,16 @@ var ccLeaderboardContracts = {
     "ReedSideInspection": "6CC5505F08AAC340",
     "VanceSideRealignment": "0FCFDEF8DF951749",
     "SilasMainContract": "B57A013AC08B9A90",
-    "MainContractSilas": "DD46490E01484D5A"
+    "MainContractSilas": "DD46490E01484D5A",
+    "MarshID": "D6EE67B65EEF073D",
+    "FordMainContract": "BCAE90CADABA1B87",
+    "BrooksMainContract": "63EF9CAF706EA1D6",
+    "RonanMainContract": "5A27416534D60004",
+    "ClarkMainContract": "3137FD2A6860E889",
+    "ClarkOffsetRoad": "4B0972A49F7127D7",
+    "MillsMainContract": "A2F5945203D4B83B",
+    "MillsWorkersCrossing": "6416AEF8A2BAB8BB",
+    "MillsReconnectingArcadia": "D774265AB8CA6C0E"
 };
 
 var ccLeaderboardMaxCost = 1000000;

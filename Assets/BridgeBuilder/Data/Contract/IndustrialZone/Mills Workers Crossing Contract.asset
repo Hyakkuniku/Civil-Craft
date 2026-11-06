@@ -22,7 +22,7 @@ MonoBehaviour:
   cargoLoadedNPCPhaseId: 
   contractID: MillsWorkersCrossing
   displayName: Mills Main Contract 2 - Workers' Crossing
-  hideFromLeaderboard: 1
+  hideFromLeaderboard: 0
   efficiencyStarBudgetRatio: 0.85
   strengthStarMaxStress: 60
   contractMap: 2

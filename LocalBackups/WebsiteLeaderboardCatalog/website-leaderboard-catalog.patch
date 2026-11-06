@@ -1,0 +1,286 @@
+diff --git a/src/components/dashboard/YourRanking.tsx b/src/components/dashboard/YourRanking.tsx
+index 6357201..6c6e5df 100644
+--- a/src/components/dashboard/YourRanking.tsx
++++ b/src/components/dashboard/YourRanking.tsx
+@@ -7,6 +7,7 @@ import {
+   DEFAULT_CONTRACT,
+   DEFAULT_MODE,
+   LEADERBOARD_CONTRACTS,
++  leaderboardContractLabel,
+ } from "@/lib/playfab/leaderboard-shared";
+ import type { LeaderboardContract, LeaderboardMode } from "@/lib/playfab/leaderboard-shared";
+ import { Button } from "@/components/ui/button";
+@@ -37,7 +38,7 @@ export function YourRanking() {
+             >
+               {LEADERBOARD_CONTRACTS.map((value) => (
+                 <option key={value} value={value}>
+-                  {value}
++                  {leaderboardContractLabel(value)}
+                 </option>
+               ))}
+             </select>
+diff --git a/src/components/site/PublicLeaderboard.tsx b/src/components/site/PublicLeaderboard.tsx
+index c88df33..fe1395f 100644
+--- a/src/components/site/PublicLeaderboard.tsx
++++ b/src/components/site/PublicLeaderboard.tsx
+@@ -8,6 +8,7 @@ import {
+   DEFAULT_CONTRACT,
+   DEFAULT_MODE,
+   LEADERBOARD_CONTRACTS,
++  leaderboardContractLabel,
+ } from "@/lib/playfab/leaderboard-shared";
+ import type { LeaderboardContract, LeaderboardMode } from "@/lib/playfab/leaderboard-shared";
+ import { getPublicLeaderboard } from "@/lib/playfab/public-leaderboard";
+@@ -44,7 +45,7 @@ function BridgeLeaderboard() {
+           >
+             {LEADERBOARD_CONTRACTS.map((value) => (
+               <option key={value} value={value}>
+-                {value}
++                {leaderboardContractLabel(value)}
+               </option>
+             ))}
+           </select>
+diff --git a/src/lib/playfab/leaderboard-config.server.ts b/src/lib/playfab/leaderboard-config.server.ts
+index b5faa52..25422b9 100644
+--- a/src/lib/playfab/leaderboard-config.server.ts
++++ b/src/lib/playfab/leaderboard-config.server.ts
+@@ -1,6 +1,6 @@
+ import { AdminApiError } from "./admin-client.server.ts";
+ import type { LeaderboardContract, LeaderboardMode } from "./leaderboard-shared.ts";
+-// Exact allowlist from deployed CloudScript Revision 4.
++// Stable FNV-1a names shared with Unity and submitBridgeRunV1. Existing boards retain their scores.
+ export const BRIDGE_STATISTICS = {
+   ShopKeeper: {
+     efficient: "CC_E_24A0506A7A79A0DB",
+@@ -38,6 +38,42 @@ export const BRIDGE_STATISTICS = {
+     efficient: "CC_E_DD46490E01484D5A",
+     strongest: "CC_S_DD46490E01484D5A",
+   },
++  MarshID: {
++    efficient: "CC_E_D6EE67B65EEF073D",
++    strongest: "CC_S_D6EE67B65EEF073D",
++  },
++  FordMainContract: {
++    efficient: "CC_E_BCAE90CADABA1B87",
++    strongest: "CC_S_BCAE90CADABA1B87",
++  },
++  BrooksMainContract: {
++    efficient: "CC_E_63EF9CAF706EA1D6",
++    strongest: "CC_S_63EF9CAF706EA1D6",
++  },
++  RonanMainContract: {
++    efficient: "CC_E_5A27416534D60004",
++    strongest: "CC_S_5A27416534D60004",
++  },
++  ClarkMainContract: {
++    efficient: "CC_E_3137FD2A6860E889",
++    strongest: "CC_S_3137FD2A6860E889",
++  },
++  ClarkOffsetRoad: {
++    efficient: "CC_E_4B0972A49F7127D7",
++    strongest: "CC_S_4B0972A49F7127D7",
++  },
++  MillsMainContract: {
++    efficient: "CC_E_A2F5945203D4B83B",
++    strongest: "CC_S_A2F5945203D4B83B",
++  },
++  MillsWorkersCrossing: {
++    efficient: "CC_E_6416AEF8A2BAB8BB",
++    strongest: "CC_S_6416AEF8A2BAB8BB",
++  },
++  MillsReconnectingArcadia: {
++    efficient: "CC_E_D774265AB8CA6C0E",
++    strongest: "CC_S_D774265AB8CA6C0E",
++  },
+ } as const satisfies Record<LeaderboardContract, Record<LeaderboardMode, string>>;
+ export function bridgeStatistic(contract: string, mode: string): string {
+   if (!Object.hasOwn(BRIDGE_STATISTICS, contract) || (mode !== "efficient" && mode !== "strongest"))
+diff --git a/src/lib/playfab/leaderboard-shared.ts b/src/lib/playfab/leaderboard-shared.ts
+index 18165a7..0938a5f 100644
+--- a/src/lib/playfab/leaderboard-shared.ts
++++ b/src/lib/playfab/leaderboard-shared.ts
+@@ -27,17 +27,52 @@ export interface MultiplayerLeaderboardPage {
+ }
+ 
+ export const LEADERBOARD_CONTRACTS = [
+-  "ShopKeeper",
+   "TUT_CONTRACT1",
++  "TUT_CONTRACT2",
++  "ShopKeeper",
+   "ReedsContract",
+   "VancesContract",
+-  "TUT_CONTRACT2",
+-  "ReedSideInspection",
+-  "VanceSideRealignment",
+   "SilasMainContract",
+   "MainContractSilas",
++  "MarshID",
++  "FordMainContract",
++  "BrooksMainContract",
++  "RonanMainContract",
++  "ClarkMainContract",
++  "ClarkOffsetRoad",
++  "MillsMainContract",
++  "MillsWorkersCrossing",
++  "MillsReconnectingArcadia",
++  "ReedSideInspection",
++  "VanceSideRealignment",
+ ] as const;
+ export type LeaderboardContract = (typeof LEADERBOARD_CONTRACTS)[number];
++/** Display labels only. Permanent contract IDs and existing statistic names never change. */
++export const LEADERBOARD_CONTRACT_LABELS = {
++  TUT_CONTRACT1: "Professor Bhan Tutorial 1 - Beam Bridge",
++  TUT_CONTRACT2: "Professor Bhan Tutorial 2 - Truss Bridge",
++  ShopKeeper: "Shopkeeper - Shop Extension",
++  ReedsContract: "Reed Main Contract 1 - The Supply Route",
++  VancesContract: "Vance Main Contract 1 - Ridge Community",
++  SilasMainContract: "Silas Main Contract 1 - The Community Connection",
++  MainContractSilas: "Silas Main Contract 2 - The Grand Gorge",
++  MarshID: "Marsh Main Contract 1 - Across Rivermere",
++  FordMainContract: "Ford Main Contract 1 - The Construction Route",
++  BrooksMainContract: "Brooks Main Contract 1 - Market Connection",
++  RonanMainContract: "Ronan Main Contract 1 - The Southern Connection",
++  ClarkMainContract: "Clark Main Contract 1 - Freight Channel",
++  ClarkOffsetRoad: "Clark Main Contract 2 - The Offset Road",
++  MillsMainContract: "Mills Main Contract 1 - Heavy Equipment Route",
++  MillsWorkersCrossing: "Mills Main Contract 2 - Workers' Crossing",
++  MillsReconnectingArcadia: "Mills Main Contract 3 - Reconnecting Arcadia",
++  ReedSideInspection: "Reed Side Inspection",
++  VanceSideRealignment: "Vance Side Realignment",
++} as const satisfies Record<LeaderboardContract, string>;
++export function leaderboardContractLabel(contract: string): string {
++  return Object.hasOwn(LEADERBOARD_CONTRACT_LABELS, contract)
++    ? LEADERBOARD_CONTRACT_LABELS[contract as LeaderboardContract]
++    : contract;
++}
+ export type LeaderboardMode = "efficient" | "strongest";
+ export const DEFAULT_CONTRACT: LeaderboardContract = "ShopKeeper";
+ export const DEFAULT_MODE: LeaderboardMode = "efficient";
+diff --git a/src/routes/admin.index.tsx b/src/routes/admin.index.tsx
+index b7bce87..8e9723b 100644
+--- a/src/routes/admin.index.tsx
++++ b/src/routes/admin.index.tsx
+@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
+ import { formatDate, useCms } from "@/lib/cms/store";
+ import { request } from "@/lib/playfab/admin-service";
+ import type { AdminAnalytics, AnalyticsSection } from "@/lib/playfab/analytics-types";
++import { DEFAULT_CONTRACT, leaderboardContractLabel } from "@/lib/playfab/leaderboard-shared";
+ 
+ export const Route = createFileRoute("/admin/")({ component: AdminOverview });
+ 
+@@ -265,7 +266,7 @@ function AdminOverview() {
+           </Module>
+         </Panel>
+         <Panel
+-          title="Top engineers / ShopKeeper / Efficient"
++          title={`Top engineers / ${leaderboardContractLabel(DEFAULT_CONTRACT)} / Efficient`}
+           icon={Trophy}
+           className="min-w-0"
+           actions={
+@@ -280,7 +281,7 @@ function AdminOverview() {
+                 <div className="overflow-x-auto">
+                   <table className="w-full text-sm">
+                     <caption className="sr-only">
+-                      ShopKeeper / Efficient: top five engineers
++                      {leaderboardContractLabel(DEFAULT_CONTRACT)} / Efficient: top five engineers
+                     </caption>
+                     <thead>
+                       <tr className="border-b border-border text-left">
+diff --git a/tests/admin-playfab.test.ts b/tests/admin-playfab.test.ts
+index c95aa00..5771d53 100644
+--- a/tests/admin-playfab.test.ts
++++ b/tests/admin-playfab.test.ts
+@@ -645,7 +645,7 @@ async function board(path = "", ticket = "", cookie = "") {
+   );
+ }
+ 
+-test("every Revision 4 contract and mode selects the same statistic for top and current-player ranks", async () => {
++test("every supported contract and mode selects the same stable statistic for top and current-player ranks", async () => {
+   const contracts = {
+     ShopKeeper: "24A0506A7A79A0DB",
+     TUT_CONTRACT1: "6C19CA5B77A6FF90",
+@@ -656,6 +656,15 @@ test("every Revision 4 contract and mode selects the same statistic for top and
+     VanceSideRealignment: "0FCFDEF8DF951749",
+     SilasMainContract: "B57A013AC08B9A90",
+     MainContractSilas: "DD46490E01484D5A",
++    MarshID: "D6EE67B65EEF073D",
++    FordMainContract: "BCAE90CADABA1B87",
++    BrooksMainContract: "63EF9CAF706EA1D6",
++    RonanMainContract: "5A27416534D60004",
++    ClarkMainContract: "3137FD2A6860E889",
++    ClarkOffsetRoad: "4B0972A49F7127D7",
++    MillsMainContract: "A2F5945203D4B83B",
++    MillsWorkersCrossing: "6416AEF8A2BAB8BB",
++    MillsReconnectingArcadia: "D774265AB8CA6C0E",
+   };
+   for (const [contractId, suffix] of Object.entries(contracts)) {
+     for (const mode of ["efficient", "strongest"]) {
+diff --git a/tests/bridge-score.test.ts b/tests/bridge-score.test.ts
+index 31ca9ab..cc4332e 100644
+--- a/tests/bridge-score.test.ts
++++ b/tests/bridge-score.test.ts
+@@ -5,6 +5,32 @@ import {
+   decodeBridgeScore,
+ } from "../src/lib/playfab/leaderboard-config.server.ts";
+ import { mapLeaderboard } from "../src/lib/playfab/leaderboard.server.ts";
++import {
++  LEADERBOARD_CONTRACTS,
++  LEADERBOARD_CONTRACT_LABELS,
++  leaderboardContractLabel,
++} from "../src/lib/playfab/leaderboard-shared.ts";
++
++test("all 18 playable and side boards use permanent-ID hashes and the updated story labels", () => {
++  assert.equal(LEADERBOARD_CONTRACTS.length, 18);
++  assert.equal(new Set(LEADERBOARD_CONTRACTS).size, 18);
++  assert.equal(Object.keys(LEADERBOARD_CONTRACT_LABELS).length, 18);
++  for (const id of LEADERBOARD_CONTRACTS) {
++    let hash = 14695981039346656037n;
++    for (let index = 0; index < id.length; index++) {
++      hash = BigInt.asUintN(64, (hash ^ BigInt(id.charCodeAt(index))) * 1099511628211n);
++    }
++    const suffix = hash.toString(16).toUpperCase().padStart(16, "0");
++    assert.equal(bridgeStatistic(id, "efficient"), "CC_E_" + suffix);
++    assert.equal(bridgeStatistic(id, "strongest"), "CC_S_" + suffix);
++    assert.notEqual(leaderboardContractLabel(id), id);
++  }
++  assert.equal(leaderboardContractLabel("SilasMainContract"), "Silas Main Contract 1 - The Community Connection");
++  assert.equal(leaderboardContractLabel("MainContractSilas"), "Silas Main Contract 2 - The Grand Gorge");
++  assert.equal(leaderboardContractLabel("MillsWorkersCrossing"), "Mills Main Contract 2 - Workers' Crossing");
++  assert.equal(leaderboardContractLabel("unknown-board"), "unknown-board");
++  assert.equal(leaderboardContractLabel("__proto__"), "__proto__");
++});
+ 
+ test("Revision 4 codec decodes known runs and inclusive bounds in both modes", () => {
+   assert.deepEqual(decodeBridgeScore(2135125720, "efficient"), { cost: 12345, peakStress: 58.2 });
+diff --git a/tests/public-leaderboard-ui.test.mjs b/tests/public-leaderboard-ui.test.mjs
+index 382c4c6..a797d48 100644
+--- a/tests/public-leaderboard-ui.test.mjs
++++ b/tests/public-leaderboard-ui.test.mjs
+@@ -195,6 +195,27 @@ test("single-player rankings retain measurements, colors and isolated paging ver
+   }
+ });
+ 
++test("contract choices show full story titles while requests retain permanent board IDs", async () => {
++  const f = fixture();
++  try {
++    await f.mount();
++    const options = f.renderer.root.findAllByType("option");
++    for (const id of shared.LEADERBOARD_CONTRACTS) {
++      const option = options.find((node) => node.props.value === id);
++      assert.ok(option, "Missing board " + id);
++      assert.equal(option.children.join(""), shared.leaderboardContractLabel(id));
++    }
++    await act(async () =>
++      f.renderer.root.findAllByType("select")[0].props.onChange({ target: { value: "MillsReconnectingArcadia" } }),
++    );
++    await settle();
++    assert.deepEqual(f.bridgeCalls.at(-1), ["MillsReconnectingArcadia", shared.DEFAULT_MODE, 0, undefined]);
++    assert.match(JSON.stringify(f.renderer.toJSON()), /Mills Main Contract 3 - Reconnecting Arcadia/);
++  } finally {
++    await f.dispose();
++  }
++});
++
+ test("multiplayer tab fetches only its board, colors names and excludes draws from win rate", async () => {
+   const f = fixture();
+   try {

@@ -80,6 +80,12 @@ internal static class Program
         }) Check(!LeaderboardContractVisibility.TryParse(invalid, out var rejected) && rejected == null, "Malformed/unsupported feed fails closed");
         var supported = new[] { "ShopKeeper", "TUT_CONTRACT1", "ReedsContract", "VancesContract", "TUT_CONTRACT2", "ReedSideInspection", "VanceSideRealignment", "SilasMainContract", "MainContractSilas" };
         Check(LeaderboardContractVisibility.TryParse(Feed(supported), out var all) && all.Count == 9, "All current website IDs supported");
+        var regional = new[] { "MarshID", "FordMainContract", "BrooksMainContract", "RonanMainContract", "ClarkMainContract",
+            "ClarkOffsetRoad", "MillsMainContract", "MillsWorkersCrossing", "MillsReconnectingArcadia" };
+        Check(LeaderboardContractVisibility.TryParse(Feed(supported.Concat(regional).ToArray()), out var expanded) && expanded.Count == 18,
+            "All eighteen production boards must be accepted without dropping regional IDs.");
+        Check(!LeaderboardContractVisibility.TryParse(Feed(supported.Concat(regional).Append("123").ToArray()), out _),
+            "The placeholder test contract must remain unsupported.");
     }
     private static void Opening()
     {

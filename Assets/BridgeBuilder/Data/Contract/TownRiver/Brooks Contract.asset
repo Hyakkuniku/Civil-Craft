@@ -34,7 +34,7 @@ MonoBehaviour:
   cargoLoadedNPCPhaseId: 
   contractID: BrooksMainContract
   displayName: Brooks Main Contract 1 - Market Connection
-  hideFromLeaderboard: 1
+  hideFromLeaderboard: 0
   efficiencyStarBudgetRatio: 0.85
   strengthStarMaxStress: 60
   contractMap: 1

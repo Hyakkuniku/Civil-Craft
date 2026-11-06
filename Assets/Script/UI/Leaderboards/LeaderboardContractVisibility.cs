@@ -9,12 +9,14 @@ using UnityEngine.Networking;
 /// <summary>Validated public display policy; never changes progression or score submission.</summary>
 public static class LeaderboardContractVisibility
 {
-    public const string FeedUrl = "https://civil-craft.vercel.app/api/leaderboard/contracts";
+    public const string FeedUrl = "https://civil-craft.vercel.app/api/leaderboard/contracts?catalogVersion=2";
     public const int TimeoutSeconds = 10;
     public const int MaxResponseBytes = 4096;
     private static readonly HashSet<string> Supported = new HashSet<string>(StringComparer.Ordinal) {
         "ShopKeeper", "TUT_CONTRACT1", "ReedsContract", "VancesContract", "TUT_CONTRACT2",
-        "ReedSideInspection", "VanceSideRealignment", "SilasMainContract", "MainContractSilas"
+        "ReedSideInspection", "VanceSideRealignment", "SilasMainContract", "MainContractSilas",
+        "MarshID", "FordMainContract", "BrooksMainContract", "RonanMainContract",
+        "ClarkMainContract", "ClarkOffsetRoad", "MillsMainContract", "MillsWorkersCrossing", "MillsReconnectingArcadia"
     };
 
     public static UnityWebRequest CreateRequest(out BoundedDownloadHandler handler)

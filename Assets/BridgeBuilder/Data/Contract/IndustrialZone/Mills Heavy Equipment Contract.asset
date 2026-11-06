@@ -22,7 +22,7 @@ MonoBehaviour:
   cargoLoadedNPCPhaseId: 
   contractID: MillsMainContract
   displayName: Mills Main Contract 1 - Heavy Equipment Route
-  hideFromLeaderboard: 1
+  hideFromLeaderboard: 0
   efficiencyStarBudgetRatio: 0.85
   strengthStarMaxStress: 60
   contractMap: 2

@@ -22,7 +22,7 @@ MonoBehaviour:
   cargoLoadedNPCPhaseId: 
   contractID: ClarkOffsetRoad
   displayName: Clark Main Contract 2 - The Offset Road
-  hideFromLeaderboard: 1
+  hideFromLeaderboard: 0
   efficiencyStarBudgetRatio: 0.85
   strengthStarMaxStress: 60
   contractMap: 2

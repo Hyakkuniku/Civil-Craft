@@ -1,0 +1,179 @@
+{
+  "Statistics": [
+    {
+      "StatisticName": "CC_E_24A0506A7A79A0DB",
+      "CurrentVersion": 0,
+      "DeletionInProgress": false,
+      "VersionChangeInterval": "Never",
+      "AggregationMethod": "Max"
+    },
+    {
+      "StatisticName": "CC_S_24A0506A7A79A0DB",
+      "CurrentVersion": 0,
+      "DeletionInProgress": false,
+      "VersionChangeInterval": "Never",
+      "AggregationMethod": "Max"
+    },
+    {
+      "StatisticName": "CC_E_6C19CA5B77A6FF90",
+      "CurrentVersion": 0,
+      "DeletionInProgress": false,
+      "VersionChangeInterval": "Never",
+      "AggregationMethod": "Max"
+    },
+    {
+      "StatisticName": "CC_S_6C19CA5B77A6FF90",
+      "CurrentVersion": 0,
+      "DeletionInProgress": false,
+      "VersionChangeInterval": "Never",
+      "AggregationMethod": "Max"
+    },
+    {
+      "StatisticName": "CC_E_7AD47CC6EE895E44",
+      "CurrentVersion": 0,
+      "DeletionInProgress": false,
+      "VersionChangeInterval": "Never",
+      "AggregationMethod": "Max"
+    },
+    {
+      "StatisticName": "CC_S_7AD47CC6EE895E44",
+      "CurrentVersion": 0,
+      "DeletionInProgress": false,
+      "VersionChangeInterval": "Never",
+      "AggregationMethod": "Max"
+    },
+    {
+      "StatisticName": "CC_E_C29D1DB10DD4940D",
+      "CurrentVersion": 0,
+      "DeletionInProgress": false,
+      "VersionChangeInterval": "Never",
+      "AggregationMethod": "Max"
+    },
+    {
+      "StatisticName": "CC_S_C29D1DB10DD4940D",
+      "CurrentVersion": 0,
+      "DeletionInProgress": false,
+      "VersionChangeInterval": "Never",
+      "AggregationMethod": "Max"
+    },
+    {
+      "StatisticName": "CC_E_6C19CD5B77A704A9",
+      "CurrentVersion": 0,
+      "DeletionInProgress": false,
+      "VersionChangeInterval": "Never",
+      "AggregationMethod": "Max"
+    },
+    {
+      "StatisticName": "CC_S_6C19CD5B77A704A9",
+      "CurrentVersion": 0,
+      "DeletionInProgress": false,
+      "VersionChangeInterval": "Never",
+      "AggregationMethod": "Max"
+    },
+    {
+      "StatisticName": "CC_E_6CC5505F08AAC340",
+      "CurrentVersion": 0,
+      "DeletionInProgress": false,
+      "VersionChangeInterval": "Never",
+      "AggregationMethod": "Max"
+    },
+    {
+      "StatisticName": "CC_S_6CC5505F08AAC340",
+      "CurrentVersion": 0,
+      "DeletionInProgress": false,
+      "VersionChangeInterval": "Never",
+      "AggregationMethod": "Max"
+    },
+    {
+      "StatisticName": "CC_E_0FCFDEF8DF951749",
+      "CurrentVersion": 0,
+      "DeletionInProgress": false,
+      "VersionChangeInterval": "Never",
+      "AggregationMethod": "Max"
+    },
+    {
+      "StatisticName": "CC_S_0FCFDEF8DF951749",
+      "CurrentVersion": 0,
+      "DeletionInProgress": false,
+      "VersionChangeInterval": "Never",
+      "AggregationMethod": "Max"
+    },
+    {
+      "StatisticName": "CC_E_B57A013AC08B9A90",
+      "CurrentVersion": 0,
+      "DeletionInProgress": false,
+      "VersionChangeInterval": "Never",
+      "AggregationMethod": "Max"
+    },
+    {
+      "StatisticName": "CC_S_B57A013AC08B9A90",
+      "CurrentVersion": 0,
+      "DeletionInProgress": false,
+      "VersionChangeInterval": "Never",
+      "AggregationMethod": "Max"
+    },
+    {
+      "StatisticName": "CC_E_DD46490E01484D5A",
+      "CurrentVersion": 0,
+      "DeletionInProgress": false,
+      "VersionChangeInterval": "Never",
+      "AggregationMethod": "Max"
+    },
+    {
+      "StatisticName": "CC_S_DD46490E01484D5A",
+      "CurrentVersion": 0,
+      "DeletionInProgress": false,
+      "VersionChangeInterval": "Never",
+      "AggregationMethod": "Max"
+    },
+    {
+      "StatisticName": "CC_MP_Wins",
+      "CurrentVersion": 0,
+      "DeletionInProgress": false,
+      "VersionChangeInterval": "Never",
+      "AggregationMethod": "Max"
+    },
+    {
+      "StatisticName": "CC_MP_Losses",
+      "CurrentVersion": 0,
+      "DeletionInProgress": false,
+      "VersionChangeInterval": "Never",
+      "AggregationMethod": "Max"
+    },
+    {
+      "StatisticName": "CC_MP_Draws",
+      "CurrentVersion": 0,
+      "DeletionInProgress": false,
+      "VersionChangeInterval": "Never",
+      "AggregationMethod": "Max"
+    },
+    {
+      "StatisticName": "TotalScore",
+      "CurrentVersion": 0,
+      "DeletionInProgress": false,
+      "VersionChangeInterval": "Never",
+      "AggregationMethod": "Last"
+    },
+    {
+      "StatisticName": "BridgesCompleted",
+      "CurrentVersion": 0,
+      "DeletionInProgress": false,
+      "VersionChangeInterval": "Never",
+      "AggregationMethod": "Last"
+    },
+    {
+      "StatisticName": "ChallengesCompleted",
+      "CurrentVersion": 0,
+      "DeletionInProgress": false,
+      "VersionChangeInterval": "Never",
+      "AggregationMethod": "Last"
+    },
+    {
+      "StatisticName": "BestSingleBuildScore",
+      "CurrentVersion": 0,
+      "DeletionInProgress": false,
+      "VersionChangeInterval": "Never",
+      "AggregationMethod": "Last"
+    }
+  ]
+}
