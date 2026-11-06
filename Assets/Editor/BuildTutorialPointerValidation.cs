@@ -71,16 +71,17 @@ public static class BuildTutorialPointerValidation
             BuildUIController controls = Object.FindObjectsOfType<BuildUIController>(true)
                 .Single(item => item.gameObject.scene == director.gameObject.scene);
             TutorialSequence beam = sequences.Single(item => item.lessonName == "Sequence_Build1");
+            TutorialStep[] beamSteps = BridgeStatisticsTutorialAuthoring.WithoutExplanationSteps(beam.tutorialSteps);
             TutorialSequence truss = sequences.Single(item => item.lessonName == "Sequence_Build2");
             // Camera reset is intentionally wired straight to the camera, not
             // through BuildUIController's optional tool binding.
-            Button cameraButton = beam.tutorialSteps[5].pointerTarget.GetComponent<Button>();
+            Button cameraButton = beamSteps[5].pointerTarget.GetComponent<Button>();
             Check(cameraButton != null && Enumerable.Range(0, cameraButton.onClick.GetPersistentEventCount())
                 .Any(index => cameraButton.onClick.GetPersistentTarget(index) is BuildCameraController &&
                     cameraButton.onClick.GetPersistentMethodName(index) == nameof(BuildCameraController.ResetCameraRotation)),
                 "The camera-reset arrow is not bound to the existing camera-reset action.");
-            foreach (var pair in new[] { (beam.tutorialSteps[11], BuildModeTool.Statistics), (beam.tutorialSteps[12], BuildModeTool.Grid),
-                (beam.tutorialSteps[27], BuildModeTool.Simulate), (truss.tutorialSteps[4], BuildModeTool.Delete),
+            foreach (var pair in new[] { (beamSteps[11], BuildModeTool.Statistics), (beamSteps[12], BuildModeTool.Grid),
+                (beamSteps[27], BuildModeTool.Simulate), (truss.tutorialSteps[4], BuildModeTool.Delete),
                 (truss.tutorialSteps[5], BuildModeTool.Move), (truss.tutorialSteps[12], BuildModeTool.Select),
                 (truss.tutorialSteps[14], BuildModeTool.Copy), (truss.tutorialSteps[16], BuildModeTool.Paste) })
             {

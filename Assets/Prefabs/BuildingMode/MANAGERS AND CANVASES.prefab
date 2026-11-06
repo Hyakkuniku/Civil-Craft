@@ -80653,6 +80653,7 @@ MonoBehaviour:
   estimatedCapacityText: {fileID: 2648740572680961248}
   efficiencyRatioText: {fileID: 8971953765719636341}
   factorOfSafetyText: {fileID: 0}
+  showEstimatedSafetyReadout: 0
   selectionActionPanel: {fileID: 281007393344633211}
   liveBeamStatsPanel: {fileID: 9175537449070659706}
   liveBeamLengthText: {fileID: 4530840123609366553}

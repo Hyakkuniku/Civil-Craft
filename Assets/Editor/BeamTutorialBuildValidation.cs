@@ -194,6 +194,13 @@ public static class BeamTutorialBuildValidation
         controller.usedBudgetText = cost.GetComponent<TextMeshProUGUI>();
         controller.maxBudgetText = budget.GetComponent<TextMeshProUGUI>();
         controller.budgetFillBar = fill.GetComponent<Image>();
+        controller.targetCargoWeightText = StatLabel(ui.transform, "Live Load");
+        controller.deadLoadText = StatLabel(ui.transform, "Dead Load");
+        controller.totalLengthText = StatLabel(ui.transform, "Road Length");
+        controller.membersCountText = StatLabel(ui.transform, "Structure");
+        controller.estimatedCapacityText = StatLabel(ui.transform, "Estimated Capacity");
+        controller.efficiencyRatioText = StatLabel(ui.transform, "Efficiency Ratio");
+        controller.factorOfSafetyText = StatLabel(ui.transform, "Estimated Safety");
         var gestures = new GameObject("Detached gesture callbacks", typeof(CanvasGroup), typeof(TutorialGestureUI));
         gestures.transform.SetParent(fixture.transform, false);
         TutorialGestureUI gesture = gestures.GetComponent<TutorialGestureUI>();
@@ -233,13 +240,16 @@ public static class BeamTutorialBuildValidation
 
             string[] legacyBefore = legacy.Select(JsonUtility.ToJson).ToArray();
             TutorialStep[] first = BeamTutorialBuildAuthoring.BuildUpdatedSteps(legacy, director, controller);
-            require(first.Length == 28, "original 27-step factory input produces exactly 28 instructions");
+            int explanationCount = TutorialInstructionText.BridgeStatisticsExplanations.Length;
+            TutorialStep[] firstBase = BridgeStatisticsTutorialAuthoring.WithoutExplanationSteps(first);
+            require(firstBase.Length == 28 && first.Length == 28 + explanationCount,
+                "original 27-step factory input preserves the 28 logical instructions and adds the statistics explanations");
             VerifyFactoryOutput(first, director, require);
             // The previous migration inserted only these two feedback entries.
             // Reconstruct its 29-step shape with the retired close callback to
             // prove it can be removed without altering the other live gates.
-            var old29 = first.ToList();
-            TutorialStep close = CloneStep(first[11]);
+            var old29 = firstBase.ToList();
+            TutorialStep close = CloneStep(firstBase[11]);
             close.message = "Legacy statistics-close fixture";
             close.OnStepStart = new UnityEvent();
             UnityEventTools.AddPersistentListener(close.OnStepStart, director.PromptCloseStatistics);
@@ -247,10 +257,13 @@ public static class BeamTutorialBuildValidation
             TutorialStep[] previous = old29.ToArray();
             string[] previousBefore = previous.Select(JsonUtility.ToJson).ToArray();
             TutorialStep[] migrated = BeamTutorialBuildAuthoring.BuildUpdatedSteps(previous, director, controller);
-            require(migrated.Length == 28 && SameSteps(first, migrated), "previous 29-step factory input removes only the retired instruction");
+            TutorialStep[] migratedBase = BridgeStatisticsTutorialAuthoring.WithoutExplanationSteps(migrated);
+            require(migratedBase.Length == 28 && migrated.Length == 28 + explanationCount && SameSteps(first, migrated),
+                "previous 29-step factory input removes the retired instruction and adds the same statistics explanations");
             VerifyFactoryOutput(migrated, director, require);
             TutorialStep[] repeated = BeamTutorialBuildAuthoring.BuildUpdatedSteps(migrated, director, controller);
-            require(repeated.Length == 28 && SameSteps(migrated, repeated), "current 28-step factory input is idempotent without reintroducing close");
+            require(repeated.Length == 28 + explanationCount && SameSteps(migrated, repeated),
+                "expanded factory input is idempotent without duplicating explanations or reintroducing close");
             require(legacyBefore.SequenceEqual(legacy.Select(JsonUtility.ToJson)) && previousBefore.SequenceEqual(previous.Select(JsonUtility.ToJson)),
                 "factory calls do not mutate either source array or its authored event/reference fields");
 
@@ -261,7 +274,7 @@ public static class BeamTutorialBuildValidation
             {
                 int resultIndex = sourceIndex < 12 ? sourceIndex : sourceIndex < 22 ? sourceIndex - 1 : sourceIndex;
                 if (sourceIndex == 26) resultIndex = 27;
-                TutorialStep before = legacy[sourceIndex], after = first[resultIndex];
+                TutorialStep before = legacy[sourceIndex], after = firstBase[resultIndex];
                 require(!ReferenceEquals(before, after) && ReferenceEquals(before.OnStepStart, after.OnStepStart),
                     "retained step copies its original callback object: " + sourceIndex);
                 require(ReferenceEquals(before.stepWaypoints, after.stepWaypoints) && before.worldHighlightObject == after.worldHighlightObject &&
@@ -276,11 +289,11 @@ public static class BeamTutorialBuildValidation
                 // These two gates are deliberately reauthored by Observe, and
                 // the two explanatory feedback steps get fresh LockAllUI events.
                 if (index == 13 || index == 15 || index == 22 || index == 27) continue;
-                require(ReferenceEquals(previous[index].OnStepStart, migrated[index - 1].OnStepStart),
+                require(ReferenceEquals(previous[index].OnStepStart, migratedBase[index - 1].OnStepStart),
                     "29-to-28 retains following callback identity: " + index);
             }
             bool rejected = false;
-            try { BeamTutorialBuildAuthoring.BuildUpdatedSteps(first.Take(26).ToArray(), director, controller); }
+            try { BeamTutorialBuildAuthoring.BuildUpdatedSteps(firstBase.Take(26).ToArray(), director, controller); }
             catch (InvalidOperationException) { rejected = true; }
             require(rejected, "unexpected/custom step counts remain guarded instead of guessed");
         }
@@ -292,10 +305,24 @@ public static class BeamTutorialBuildValidation
     {
         Func<TutorialStep, string, bool> calls = (step, method) => Enumerable.Range(0, step.OnStepStart.GetPersistentEventCount())
             .Any(index => step.OnStepStart.GetPersistentTarget(index) == director && step.OnStepStart.GetPersistentMethodName(index) == method);
+        TutorialStep[] expanded = steps;
+        steps = BridgeStatisticsTutorialAuthoring.WithoutExplanationSteps(expanded);
+        int openIndex = Array.FindIndex(expanded, step => calls(step, nameof(BuildTutorialDirector.PromptOpenStatistics)));
+        require(openIndex >= 0, "the expanded sequence retains its actual statistics-open action");
+        for (int i = 0; i < TutorialInstructionText.BridgeStatisticsExplanations.Length; i++)
+        {
+            TutorialStep explanation = expanded[openIndex + 1 + i];
+            require(explanation.message == TutorialInstructionText.BridgeStatisticsExplanations[i] &&
+                calls(explanation, nameof(BuildTutorialDirector.ExplainBridgeStatistics)) &&
+                explanation.showNextButton && !explanation.advanceOnClick && explanation.requiredAction == TutorialStepAction.None,
+                "statistics explanation " + i + " uses the authored readout callback and deliberate Next gate");
+        }
+        require(calls(expanded[openIndex + 1 + TutorialInstructionText.BridgeStatisticsExplanations.Length], nameof(BuildTutorialDirector.PromptToggleGrid)),
+            "Grid follows the explanation pages and retains its real state-change gate");
         require(calls(steps[11], nameof(BuildTutorialDirector.PromptOpenStatistics)) && !steps[11].showNextButton && !steps[11].advanceOnClick,
             "statistics still requires its real open action, without a new Next shortcut");
         require(calls(steps[12], nameof(BuildTutorialDirector.PromptToggleGrid)) && !steps[12].showNextButton && !steps[12].advanceOnClick,
-            "Grid immediately follows statistics and retains its real state-change gate");
+            "Grid retains its original logical slot and real state-change gate");
         require(calls(steps[14], nameof(BuildTutorialDirector.PromptInspectMaterial)) && !steps[14].showNextButton && !steps[14].advanceOnClick,
             "material inspection retains its deliberate hold gate");
         require(!steps.Any(step => calls(step, nameof(BuildTutorialDirector.PromptCloseStatistics))),
@@ -303,6 +330,13 @@ public static class BeamTutorialBuildValidation
         require(calls(steps[20], nameof(BuildTutorialDirector.PromptDrawBridge)) && calls(steps[23], nameof(BuildTutorialDirector.PromptDrawBridge)) &&
             calls(steps[25], nameof(BuildTutorialDirector.PromptDrawBridge)) && calls(steps[27], nameof(BuildTutorialDirector.UnlockSimulation)),
             "road, both pier drawing callbacks and final simulation unlock keep their order");
+    }
+
+    private static TextMeshProUGUI StatLabel(Transform parent, string name)
+    {
+        var owner = new GameObject("Detached " + name, typeof(RectTransform), typeof(TextMeshProUGUI));
+        owner.transform.SetParent(parent, false);
+        return owner.GetComponent<TextMeshProUGUI>();
     }
 
     private static TutorialStep CloneStep(TutorialStep source) => (TutorialStep)typeof(object)

@@ -77,6 +77,9 @@ public static class BeamTutorialBuildAuthoring
     internal static TutorialStep[] BuildUpdatedSteps(
         TutorialStep[] source, BuildTutorialDirector director, BuildUIController controller)
     {
+        // Normalize only our recognized readout explanations before applying the
+        // audited legacy instruction map. Never strip unrelated authored steps.
+        source = BridgeStatisticsTutorialAuthoring.WithoutExplanationSteps(source);
         // Restore only an in-memory alignment slot for the original index map.
         // The deleted statistics-close instruction is never returned or invoked.
         // Its pointer used to be shared with the preceding open-statistics step.
@@ -125,7 +128,7 @@ public static class BeamTutorialBuildAuthoring
         steps[10].message = "<color=#25833D>Green = Safe</color>\n<color=#9C7600>Yellow = Moderate Stress</color>\n<color=#BD5E00>Orange = High Stress</color>\n<color=#B72D29>Red = Critical Stress</color>\n<color=#252525>Black = Failure</color>";
 
         Observe(steps[11], legacy[12], director.PromptOpenStatistics,
-            "Open the <b><#E09500>Bridge Statistics</color></b> panel. It shows live load, dead load, road length, member count, estimated capacity, efficiency, and factor of safety.");
+            TutorialInstructionText.BridgeStatisticsPrompt);
         Observe(steps[13], legacy[13], director.PromptToggleGrid,
             "The <b><#E09500>Grid</color></b> turns the construction grid on or off and helps align components accurately. Toggle it once to continue.");
         steps[14].message = "This section contains the <b><#E09500>materials</color></b> available for your current project.";
@@ -147,10 +150,10 @@ public static class BeamTutorialBuildAuthoring
         var result = new List<TutorialStep>(steps);
         result.Insert(22, NewMessage(RoadFeedback, director));
         result.Insert(result.Count - 1, NewMessage(BeamComplete, director));
-        // Keep the real open action, then continue straight to Grid. The
-        // click-through statistics readout closes on accepted bridge placement.
+        // Keep the real open action and remove only the retired close action.
+        // The explanatory Next pages retain the open, click-through readout.
         result.RemoveAt(12);
-        return result.ToArray();
+        return BridgeStatisticsTutorialAuthoring.AddExplanationSteps(result.ToArray(), director, controller);
     }
 
     private static void RequireEvent(TutorialStep step, string method)

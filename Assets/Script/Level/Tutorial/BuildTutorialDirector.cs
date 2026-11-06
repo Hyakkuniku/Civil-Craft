@@ -430,6 +430,18 @@ public class BuildTutorialDirector : MonoBehaviour
         PromptObservedTool(BuildModeTool.Statistics, RequiredObservation.StatisticsOpened);
     }
 
+    /// <summary>Read-only explanation page; Continue advances without another tool click.</summary>
+    public void ExplainBridgeStatistics()
+    {
+        LockAllUI();
+        LockBuilding();
+        if (BuildUIController.Instance != null)
+            BuildUIController.Instance.ShowStatisticsForTutorial();
+        TutorialStep step = TutorialManager.Instance != null ? TutorialManager.Instance.CurrentStep : null;
+        if (step != null && step.usePointer && step.pointerTarget != null)
+            PointArrow(step.pointerTarget, step.pointerOffset, step.pointerRotation);
+    }
+
     /// <summary>Pairs with PromptOpenStatistics so the readout is closed before building.</summary>
     public void PromptCloseStatistics()
     {

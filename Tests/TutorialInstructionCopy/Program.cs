@@ -12,7 +12,7 @@ internal static class Program
         new("cost", "This is the current <b><#E09500>construction cost</color></b>. It displays the total cost of the materials currently used in your bridge.", "cost", "material"),
         new("budget usage", "Compare the construction cost with the <b><#E09500>budget progress bar</color></b> to see how much of your available budget has been used and how much remains.", "budget", "used|remaining|left"),
         new("budget limit", "This is the <b><#E09500>budget limit</color></b>. Stay within it to complete the project. Using too many materials may prevent you from meeting the contract requirements.", "budget", "within|under|limit"),
-        new("statistics", "Open the <b><#E09500>Bridge Statistics</color></b> panel. It shows live load, dead load, road length, member count, estimated capacity, efficiency, and factor of safety.", "Open", "Bridge Statistics", "load|capacity|safety"),
+        new("statistics", "Open the <b><#E09500>Bridge Statistics</color></b> panel. It shows live load, dead load, road length, member count, estimated capacity, efficiency, and factor of safety.", "Open", "Bridge Statistics", "readout"),
         new("grid", "The <b><#E09500>Grid</color></b> turns the construction grid on or off and helps align components accurately. Toggle it once to continue.", "Grid", "toggle|tap", "once"),
         new("material inspection", "Press and hold any <b><#E09500>material</color></b> to inspect its name, cost, mass, strength limit, maximum length, and type.", "hold", "material", "name", "cost", "mass", "strength limit", "maximum length", "type"),
         new("beam complete", "<b><#E09500>BEAM BRIDGE COMPLETE!</color></b> Excellent! Your first Beam Bridge is complete. You connected the anchors using a roadway and structural supports. Now test whether it can carry the required load.", "Beam Bridge", "test", "load"),
@@ -53,6 +53,21 @@ internal static class Program
             Check(TutorialInstructionText.Compact(compact) == compact, "Repeated presentation is exactly idempotent: " + item.Label);
             Check(original == item.Original, "Formatting never mutates its input fixture: " + item.Label);
         }
+        string legacyCompactStats = "Open <b><#E09500>Bridge Statistics</color></b>: live/dead load, road length, member count, estimated capacity, efficiency, and factor of safety.";
+        Check(TutorialInstructionText.Compact(legacyCompactStats) == TutorialInstructionText.BridgeStatisticsPrompt,
+            "Already-compacted saved objectives also remove the legacy FoS wording.");
+        string[] stats = { "Live Load", "Road Length", "Structure", "Dead Load", "Estimated Capacity", "Efficiency Ratio" };
+        Check(TutorialInstructionText.BridgeStatisticsExplanations.Length == stats.Length, "Every displayed statistic gets its own explanation.");
+        for (int i = 0; i < stats.Length; i++)
+        {
+            string page = TutorialInstructionText.BridgeStatisticsExplanations[i];
+            Check(page.Contains(stats[i], StringComparison.Ordinal), "Explanation matches the displayed label: " + stats[i]);
+            Check(Balanced(page) && Plain(page).Length <= 220, "Statistics explanation stays balanced and compact: " + stats[i]);
+            Check(!Regex.IsMatch(page, @"\bFoS\b|factor of safety", RegexOptions.IgnoreCase), "No legacy FoS wording is displayed: " + stats[i]);
+        }
+        Check(TutorialInstructionText.BridgeStatisticsExplanations[4].Contains("simulation") &&
+            TutorialInstructionText.BridgeStatisticsExplanations[5].Contains("divided by dead load"),
+            "Capacity remains a preview and efficiency describes the actual mass-based calculation.");
         foreach (string custom in new[]
         {
             "", "  ", "My custom tutorial instruction.", "<b>Custom Wood Beam guidance</b>.",

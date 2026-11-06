@@ -132,6 +132,8 @@ public class BuildUIController : MonoBehaviour
     public TextMeshProUGUI estimatedCapacityText;
     public TextMeshProUGUI efficiencyRatioText;
     public TextMeshProUGUI factorOfSafetyText; 
+    [SerializeField, Tooltip("Optional legacy estimated-safety readout. Hidden by default; bridge calculations are retained.")]
+    private bool showEstimatedSafetyReadout = false;
     private ContractSO lastStatsLoadContract;
     private ContractSO.VehicleTestMode lastStatsLoadMode;
     private RectTransform statsPanelRect;
@@ -1438,7 +1440,7 @@ public class BuildUIController : MonoBehaviour
             
             if (factorOfSafetyText != null)
             {
-                factorOfSafetyText.gameObject.SetActive(!multipleLiveLoads);
+                factorOfSafetyText.gameObject.SetActive(showEstimatedSafetyReadout && !multipleLiveLoads);
                 if (capacityEstimatePending) factorOfSafetyText.text = "<color=#F2BF72>EST. SAFETY</color>  Calculating...";
                 else if (estimatedFoS >= 2.0f) factorOfSafetyText.text = $"<color=#F2BF72>EST. SAFETY</color>  <color=#83DBA6><b>{estimatedFoS:F2}</b></color>";
                 else if (estimatedFoS >= 1.0f) factorOfSafetyText.text = $"<color=#F2BF72>EST. SAFETY</color>  <color=#FFE088><b>{estimatedFoS:F2}</b></color>";
@@ -1749,6 +1751,12 @@ public class BuildUIController : MonoBehaviour
         SetStatsPanelVisible(!statsPanelVisible);
     }
 
+    /// <summary>Keep the readout open while the authored explanation pages are read.</summary>
+    public void ShowStatisticsForTutorial()
+    {
+        SetStatsPanelVisible(true);
+    }
+
     // Called only after BarCreator accepts an actual bridge-placement start.
     public void OnBridgePlacementStarted()
     {
@@ -1789,7 +1797,8 @@ public class BuildUIController : MonoBehaviour
                 label.gameObject.SetActive(false);
         }
 
-        bool showSafetyRow = factorOfSafetyText != null;
+        bool showSafetyRow = showEstimatedSafetyReadout && factorOfSafetyText != null;
+        if (factorOfSafetyText != null) factorOfSafetyText.gameObject.SetActive(showSafetyRow);
         statsPanelRect.sizeDelta = new Vector2(471f, showSafetyRow ? 370f : 330f);
         Image background = statsPanel.GetComponent<Image>();
         if (background != null)

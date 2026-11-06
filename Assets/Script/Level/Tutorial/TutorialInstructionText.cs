@@ -8,6 +8,16 @@ using System.Collections.Generic;
 /// </summary>
 public static class TutorialInstructionText
 {
+    public const string BridgeStatisticsPrompt = "Open <b><#E09500>Bridge Statistics</color></b> to learn what each readout means.";
+    public static readonly string[] BridgeStatisticsExplanations =
+    {
+        "<b><#E09500>Live Load</color></b> is the weight of the test vehicle plus its loaded cargo. The number follows the current contract's test load.",
+        "<b><#E09500>Road Length</color></b> totals the road pieces you have placed, including slopes. It measures your roadway, not just the gap between the banks.",
+        "<b><#E09500>Structure</color></b> counts members and joints. Members are road and support pieces; joints connect them. A paired beam counts as one member in the side-view model.",
+        "<b><#E09500>Dead Load</color></b> is the bridge materials' own weight. Longer or heavier pieces increase the weight the structure must support.",
+        "<b><#E09500>Estimated Capacity</color></b> previews the vehicle-and-cargo weight your design may carry. It updates as you build. Run the full simulation to check the crossing.",
+        "<b><#E09500>Efficiency Ratio</color></b> is estimated capacity divided by dead load. A higher ratio means more estimated capacity per kg of bridge material. Check it alongside the simulation results."
+    };
     private static readonly Dictionary<string, string> Replacements = new Dictionary<string, string>(StringComparer.Ordinal)
     {
         // Build Mode basics. Keep every named tool, property and required action.
@@ -41,7 +51,12 @@ public static class TutorialInstructionText
         },
         {
             "Open the <b><#E09500>Bridge Statistics</color></b> panel. It shows live load, dead load, road length, member count, estimated capacity, efficiency, and factor of safety.",
-            "Open <b><#E09500>Bridge Statistics</color></b>: live/dead load, road length, member count, estimated capacity, efficiency, and factor of safety."
+            BridgeStatisticsPrompt
+        },
+        {
+            // Compatibility with already-compacted saved tutorial objectives.
+            "Open <b><#E09500>Bridge Statistics</color></b>: live/dead load, road length, member count, estimated capacity, efficiency, and factor of safety.",
+            BridgeStatisticsPrompt
         },
         {
             "The <b><#E09500>Grid</color></b> turns the construction grid on or off and helps align components accurately. Toggle it once to continue.",

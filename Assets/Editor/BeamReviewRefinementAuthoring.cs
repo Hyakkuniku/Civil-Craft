@@ -53,7 +53,8 @@ public static class BeamReviewRefinementAuthoring
     {
         Scene scene = GetScene(out TutorialSequence sequence, out NPCProgressionManager bhan);
         var dead = bhan.AuthoredPhases[4];
-        TutorialStep[] old = sequence.tutorialSteps;
+        TutorialStep[] authored = sequence.tutorialSteps;
+        TutorialStep[] old = BridgeStatisticsTutorialAuthoring.WithoutExplanationSteps(authored);
         bool remove = old.Length == 29;
         Check(old.Length == 29 || old.Length == 28, "Expected the audited 29-step build tutorial or its 28-step refinement.");
         Check(HasCall(old[11], "PromptOpenStatistics") &&
@@ -62,6 +63,9 @@ public static class BeamReviewRefinementAuthoring
             Check(old[12].message.StartsWith("Review the bridge information", StringComparison.Ordinal) &&
                 HasCall(old[12], "PromptCloseStatistics"), "Step 12 is not the pictured closing instruction; no substitute step will be removed.");
         else Check(!old.Any(step => HasCall(step, "PromptCloseStatistics")), "An unexpected closing instruction remains in the compact tutorial.");
+        int removedIndex = remove ? Array.FindIndex(authored, step => step != null &&
+            step.message.StartsWith("Review the bridge information", StringComparison.Ordinal) && HasCall(step, "PromptCloseStatistics")) : -1;
+        Check(!remove || removedIndex >= 0, "The retired close instruction cannot be located in the authored sequence.");
         Check(old.All(step => step != null) && old[remove ? 22 : 21].message.Contains("Wood Road") &&
             old[remove ? 27 : 26].message.Contains("BEAM BRIDGE COMPLETE") &&
             HasCall(old.Last(), "UnlockSimulation"), "Road tracing/completion/simulation landmarks differ; no changes applied.");
@@ -77,12 +81,12 @@ public static class BeamReviewRefinementAuthoring
 
         var proof = new PreservationProof {
             phases = bhan.AuthoredPhases.Select(JsonUtility.ToJson).ToArray(),
-            steps = old.Select(JsonUtility.ToJson).ToArray(), contract = EditorJsonUtility.ToJson(contract)
+            steps = authored.Select(JsonUtility.ToJson).ToArray(), contract = EditorJsonUtility.ToJson(contract)
         };
         string expectedDead = proof.phases[4]
             .Replace("\"playDialogueOnArrival\":false", "\"playDialogueOnArrival\":true")
             .Replace("\"reviewAlmanacWhileTravelling\":false", "\"reviewAlmanacWhileTravelling\":true");
-        string[] expectedSteps = remove ? proof.steps.Where((step, index) => index != 12).ToArray() : proof.steps;
+        string[] expectedSteps = remove ? proof.steps.Where((step, index) => index != removedIndex).ToArray() : proof.steps;
         // Run the read-only detached factory/action checks before scene mutation.
         string detached = BeamTutorialBuildValidation.ValidateDetached();
         int group;
@@ -93,7 +97,7 @@ public static class BeamReviewRefinementAuthoring
             if (remove)
             {
                 Undo.RecordObject(sequence, "Remove the extra Statistics closing instruction");
-                sequence.tutorialSteps = old.Where((step, index) => index != 12).ToArray();
+                sequence.tutorialSteps = authored.Where((step, index) => index != removedIndex).ToArray();
                 EditorUtility.SetDirty(sequence);
             }
             if (!dead.playDialogueOnArrival || !dead.reviewAlmanacWhileTravelling)
@@ -117,7 +121,7 @@ public static class BeamReviewRefinementAuthoring
         Directory.CreateDirectory("Temp"); File.WriteAllText(Proof, JsonUtility.ToJson(proof, true));
         var report = new StringBuilder("Beam Statistics + first-entry Almanac guidance\n");
         report.AppendLine(detached);
-        report.AppendLine("PASS: 29 -> 28 steps (or already refined); only the pictured closing instruction removed. Statistics still opens, stays click-through, and retains normal placement cleanup.");
+        report.AppendLine("PASS: 29 -> 28 logical steps (or already refined); only the pictured closing instruction removed. Existing statistics explanation pages are preserved. Statistics still opens, stays click-through, and retains normal placement cleanup.");
         report.AppendLine("PASS: first-entry Almanac guidance begins during Bhan's post-turn-in walk once reward/dialogue/Pause panels close. A genuine review while walking counts once; follow-up dialogue waits for arrival. Original HUD arrow/review identity retained.");
         report.AppendLine("PASS: all other steps, camera/ghost references, callbacks, phases, destinations, IDs, contract, budget, load and rewards preserved.");
         report.AppendLine("No scenes opened, closed or saved; no player saves accessed. Review and save CanyonCrossing in Unity.");
@@ -130,7 +134,8 @@ public static class BeamReviewRefinementAuthoring
         Scene scene = GetScene(out TutorialSequence sequence, out NPCProgressionManager bhan);
         Check(File.Exists(Proof), "Run the scoped refinement first to create its preservation proof.");
         var proof = JsonUtility.FromJson<PreservationProof>(File.ReadAllText(Proof));
-        Check(sequence.tutorialSteps.Length == 28 && sequence.tutorialSteps.Select(JsonUtility.ToJson).SequenceEqual(proof.steps),
+        Check(BridgeStatisticsTutorialAuthoring.WithoutExplanationSteps(sequence.tutorialSteps).Length == 28 &&
+            sequence.tutorialSteps.Select(JsonUtility.ToJson).SequenceEqual(proof.steps),
             "The compact sequence differs from the checked refinement.");
         Check(bhan.AuthoredPhases.Select(JsonUtility.ToJson).SequenceEqual(proof.phases), "A checked Bhan phase changed.");
         Check(EditorJsonUtility.ToJson(bhan.AuthoredPhases[3].contract) == proof.contract, "The original contract changed.");
@@ -138,7 +143,7 @@ public static class BeamReviewRefinementAuthoring
         Check(phase.playDialogueOnArrival && phase.reviewAlmanacWhileTravelling &&
             phase.optionalDialogueSequence[0].reviewStepId == "training-bridge-record-review",
             "Automatic first-entry review is not configured.");
-        Write("PASS: loaded 28-step tutorial, all preserved step/phase/contract data, automatic first-entry guidance and unchanged review identity.\n" +
+        Write("PASS: loaded 28-logical-step tutorial, existing statistics explanation pages and all preserved step/phase/contract data, automatic first-entry guidance and unchanged review identity.\n" +
             (scene.isDirty ? "CanyonCrossing still has unsaved edits; save it in Unity.\n" : "PASS: CanyonCrossing is saved and clean.\n"));
     }
 
