@@ -17,6 +17,10 @@ public class SettingsManager : MonoBehaviour
     [Header("UI Panel Visibility")]
     public GameObject settingsPanel;
 
+    [Header("Development Builds")]
+    [Tooltip("Authored Settings footer button. Hidden in ordinary release builds.")]
+    public Button developerButton;
+
     [Header("Audio Mixers & Mute")]
     public AudioMixer mainAudioMixer;
     [Tooltip("Check this to mute everything")]
@@ -70,6 +74,23 @@ public class SettingsManager : MonoBehaviour
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetLogoutBackState() => logoutBackHandledFrame = -1;
+
+    private void Awake() => RefreshDeveloperButton();
+
+    public void RefreshDeveloperButton()
+    {
+        if (developerButton != null)
+            developerButton.gameObject.SetActive(DevelopmentSettingsAccess.IsSupportedBuild);
+    }
+
+    /// <summary>Opens the existing developer overlay without changing Pause or Settings state.</summary>
+    public void OpenDeveloperMenu()
+    {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        if (settingsPanel == null || !settingsPanel.activeInHierarchy || IsLogoutConfirmationOpen) return;
+        DevelopmentSettingsAccess.OpenMenu();
+#endif
+    }
 
     private void Start()
     {
@@ -132,6 +153,7 @@ public class SettingsManager : MonoBehaviour
     public void OpenSettings()
     {
         if (settingsPanel == null) return;
+        RefreshDeveloperButton();
         DevelopmentPerformanceSettings.Ensure(this);
         CancelLogout();
         LoadSettings();

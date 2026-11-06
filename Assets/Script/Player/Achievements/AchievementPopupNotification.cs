@@ -6,7 +6,7 @@ using UnityEngine.UI;
 
 /// <summary>
 /// Global, queued passive toast using authored UI. Important panels take priority;
-/// a toast uses clear space at the top or waits without losing its readable time.
+/// a toast waits for its fixed space below Pause without losing its readable time.
 /// </summary>
 [DisallowMultipleComponent]
 public sealed class AchievementPopupNotification : MonoBehaviour
@@ -39,19 +39,11 @@ public sealed class AchievementPopupNotification : MonoBehaviour
     [Min(0.25f)] [SerializeField] private float visibleDuration = 3.5f;
 
     [Header("Position")]
-    [Tooltip("Horizontal offset from safe-area center and inset from its top edge, in Canvas units.")]
-    [SerializeField] private Vector2 visiblePosition = new Vector2(0f, 28f);
     [SerializeField] private Vector2 hiddenPosition = new Vector2(0f, -180f);
-    [Tooltip("Safe-area inset in Canvas units. The notification never moves into the central play area.")]
+    [Tooltip("Safe-area inset in Canvas units. The notification waits if its fixed position cannot fit.")]
     [SerializeField, Min(0f)] private float screenEdgeMargin = 16f;
-    [Tooltip("Space kept between the notification and visible controls/panels, in Canvas units.")]
+    [Tooltip("Space below the Pause button's full touch area, in notification Canvas units.")]
     [SerializeField, Min(0f)] private float protectedPanelGap = 12f;
-    private Vector2 settledPosition;
-    private bool hasSettledPlacement;
-    private Vector2 preferredScreenCenter;
-    private int preferredScreenWidth = -1, preferredScreenHeight = -1;
-    private Rect preferredSafeArea, preferredPopupBounds;
-    private float preferredCanvasScale = -1f;
     private float nextPlacementRetryTime;
 
     [Header("Achievement Colors")]
@@ -291,7 +283,6 @@ public sealed class AchievementPopupNotification : MonoBehaviour
             // UI changes cannot drop an unlock or use up its readable duration.
             popupGroup.alpha = 0f;
             popupRoot.SetActive(true);
-            hasSettledPlacement = false;
             nextPlacementRetryTime = 0f;
             while (!TryPresentPopup())
             {
@@ -354,7 +345,12 @@ public sealed class AchievementPopupNotification : MonoBehaviour
         (UIPanelCoordinator.Instance != null && UIPanelCoordinator.Instance.HasOpenPanel) ||
         (PauseManager.Instance != null && PauseManager.Instance.isPaused) ||
         (LessonUIManager.Instance != null && LessonUIManager.Instance.IsOpen) ||
-        (GameManager.Instance != null && GameManager.Instance.IsTransitioning) ||
+        (GameManager.Instance != null && (GameManager.Instance.IsTransitioning ||
+         GameManager.Instance.CurrentState != GameManager.GameState.Normal)) ||
+        (AlmanacManager.Instance != null && (AlmanacManager.Instance.IsOpeningOrClosing ||
+         (AlmanacManager.Instance.Panel != null && AlmanacManager.Instance.Panel.activeInHierarchy))) ||
+        (ObjectiveTrackerUI.Instance != null && ObjectiveTrackerUI.Instance.trackerPanel != null &&
+         ObjectiveTrackerUI.Instance.trackerPanel.activeInHierarchy) ||
         (FusionConnectionManager.Instance != null && FusionConnectionManager.Instance.IsNetworkSceneLoading) ||
         (ClipboardManager.Instance != null && ClipboardManager.Instance.overrideConfirmPanel != null &&
          ClipboardManager.Instance.overrideConfirmPanel.activeInHierarchy);
@@ -363,43 +359,29 @@ public sealed class AchievementPopupNotification : MonoBehaviour
     {
         if (PriorityUIVisible || popupRoot == null || !popupRoot.activeSelf ||
             popupRect == null || popupCanvas == null) return false;
-        // A busy build HUD can leave the top occupied for a long time. Retry
-        // that search at 8 Hz, while priority changes still suppress immediately.
+        // Keep a single location. If it is occupied, wait rather than relocating
+        // around the HUD. Priority state is still checked every rendered frame.
         if (Time.unscaledTime < nextPlacementRetryTime) return false;
 
         float scale = Mathf.Max(.01f, popupCanvas.scaleFactor);
-        Rect safe = Screen.safeArea;
-        if (safe.width <= 0f || safe.height <= 0f)
-            safe = new Rect(0f, 0f, Screen.width, Screen.height);
-        if (preferredScreenWidth != Screen.width || preferredScreenHeight != Screen.height ||
-            preferredSafeArea != safe || preferredPopupBounds != popupRect.rect ||
-            !Mathf.Approximately(preferredCanvasScale, scale))
-        {
-            bool measured = UIReservedRegionLayout.TryGetScreenRect(popupRect, out Rect bounds);
-            if (!measured) return false;
-            // Older scene/prefab cards are bottom-anchored. Position from measured
-            // screen bounds instead, so they still appear at the top without
-            // rewriting authored anchors or saving scenes.
-            float topInset = Mathf.Max(screenEdgeMargin, Mathf.Abs(visiblePosition.y)) * scale;
-            preferredScreenCenter = new Vector2(safe.center.x + visiblePosition.x * scale,
-                safe.yMax - topInset - bounds.height * .5f);
-            preferredScreenWidth = Screen.width;
-            preferredScreenHeight = Screen.height;
-            preferredSafeArea = safe;
-            preferredPopupBounds = popupRect.rect;
-            preferredCanvasScale = scale;
-        }
+        RectTransform pause = PauseManager.Instance != null && PauseManager.Instance.pauseButton != null
+            ? PauseManager.Instance.pauseButton.transform as RectTransform : null;
+        if (pause == null) return false;
+        // Mobile Pause has a larger tap target than its visible artwork. Use its
+        // actual screen scale, which can differ from the persistent toast Canvas.
+        float touchBelow = 0f;
+        Graphic graphic = pause.GetComponent<Graphic>();
+        if (graphic != null && UIReservedRegionLayout.TryGetScreenRect(pause, out Rect pauseBounds))
+            touchBelow = Mathf.Max(0f, -graphic.raycastPadding.y) *
+                pauseBounds.height / Mathf.Max(.01f, pause.rect.height);
 
-        if (hasSettledPlacement) popupRect.anchoredPosition = settledPosition;
-        if (!UIReservedRegionLayout.TryFindTopEdgePlacement(popupRect, preferredScreenCenter,
-                hasSettledPlacement, screenEdgeMargin * scale, protectedPanelGap * scale,
+        if (!UIReservedRegionLayout.TryFindFixedPlacementBelow(popupRect, pause,
+                touchBelow, screenEdgeMargin * scale, protectedPanelGap * scale,
                 out Vector2 center) || !UIReservedRegionLayout.TrySetScreenCenter(popupRect, center))
         {
             nextPlacementRetryTime = Time.unscaledTime + .12f;
             return false;
         }
-        settledPosition = popupRect.anchoredPosition;
-        hasSettledPlacement = true;
         return true;
     }
 

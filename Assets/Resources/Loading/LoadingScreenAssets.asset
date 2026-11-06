@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: LoadingScreenAssets
   m_EditorClassIdentifier: 
   minimumDisplaySeconds: 1.5
+  showPlayerPreview: 0
   fallbackPlayerPrefab: {fileID: 1727446433889453544, guid: b9ce3444454cd1d40940405f2bd4f100,
     type: 3}
   playerAnimatorController: {fileID: 9100000, guid: e5767e2c7e11353478f549d71bc86baa,

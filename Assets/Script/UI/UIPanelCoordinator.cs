@@ -361,8 +361,8 @@ public class UIPanelCoordinator : MonoBehaviour
             if (canvas == null || !canvas.enabled || !canvas.gameObject.activeInHierarchy)
                 continue;
 
-            // Achievement toasts are a global overlay and must remain visible
-            // even when Level Complete, Almanac, Lessons, or Settings is open.
+            // The persistent toast owns its visibility and pauses its queue for
+            // modal panels. Do not restore a stale Canvas state over that policy.
             if (canvas.GetComponent<AchievementPopupNotification>() != null)
                 continue;
 

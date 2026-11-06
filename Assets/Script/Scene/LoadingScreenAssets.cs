@@ -9,6 +9,9 @@ public sealed class LoadingScreenAssets : ScriptableObject
     public float minimumDisplaySeconds = 1.5f;
 
     [Header("Player Preview")]
+    [Tooltip("Optional running character above the loading bar. Off by default.")]
+    public bool showPlayerPreview;
+
     [Tooltip("Visual-only player used when the current scene has no gameplay player to clone.")]
     public GameObject fallbackPlayerPrefab;
 

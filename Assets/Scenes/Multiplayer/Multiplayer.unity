@@ -5098,6 +5098,160 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 9599987}
   m_Mesh: {fileID: 2534964839176971238, guid: 21bf630e9f981fd4cb2d530c1512d521, type: 3}
+--- !u!1 &9717851
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 9717852}
+  - component: {fileID: 9717855}
+  - component: {fileID: 9717854}
+  - component: {fileID: 9717856}
+  - component: {fileID: 9717853}
+  m_Layer: 5
+  m_Name: DeveloperSettingsButton
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &9717852
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9717851}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 1382991638}
+  m_Father: {fileID: 3374807490654577292}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 1}
+  m_AnchoredPosition: {x: 1080.2732, y: -35}
+  m_SizeDelta: {x: 696.1821, y: 70}
+  m_Pivot: {x: 0.5, y: 0.5}
+--- !u!114 &9717853
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9717851}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 306cc8c2b49d7114eaa3623786fc2126, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_IgnoreLayout: 0
+  m_MinWidth: 120
+  m_MinHeight: -1
+  m_PreferredWidth: 120
+  m_PreferredHeight: 60
+  m_FlexibleWidth: 0
+  m_FlexibleHeight: -1
+  m_LayoutPriority: 1
+--- !u!114 &9717854
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9717851}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_Material: {fileID: 0}
+  m_Color: {r: 0.9372549, g: 0.8862745, b: 0.8, a: 1}
+  m_RaycastTarget: 1
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  m_Sprite: {fileID: 21300000, guid: 5c9d591e2ae349944bb4b30824b742f3, type: 3}
+  m_Type: 1
+  m_PreserveAspect: 0
+  m_FillCenter: 1
+  m_FillMethod: 4
+  m_FillAmount: 1
+  m_FillClockwise: 1
+  m_FillOrigin: 0
+  m_UseSpriteMesh: 0
+  m_PixelsPerUnitMultiplier: 1
+--- !u!222 &9717855
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9717851}
+  m_CullTransparentMesh: 1
+--- !u!114 &9717856
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9717851}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4e29b1a8efbd4b44bb3f3716e73f07ff, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_Navigation:
+    m_Mode: 0
+    m_WrapAround: 0
+    m_SelectOnUp: {fileID: 0}
+    m_SelectOnDown: {fileID: 0}
+    m_SelectOnLeft: {fileID: 0}
+    m_SelectOnRight: {fileID: 0}
+  m_Transition: 1
+  m_Colors:
+    m_NormalColor: {r: 1, g: 1, b: 1, a: 1}
+    m_HighlightedColor: {r: 1.08, g: 1.08, b: 1.08, a: 1}
+    m_PressedColor: {r: 0.78, g: 0.78, b: 0.78, a: 1}
+    m_SelectedColor: {r: 1.08, g: 1.08, b: 1.08, a: 1}
+    m_DisabledColor: {r: 0.78431374, g: 0.78431374, b: 0.78431374, a: 0.5019608}
+    m_ColorMultiplier: 1
+    m_FadeDuration: 0.1
+  m_SpriteState:
+    m_HighlightedSprite: {fileID: 0}
+    m_PressedSprite: {fileID: 0}
+    m_SelectedSprite: {fileID: 0}
+    m_DisabledSprite: {fileID: 0}
+  m_AnimationTriggers:
+    m_NormalTrigger: Normal
+    m_HighlightedTrigger: Highlighted
+    m_PressedTrigger: Pressed
+    m_SelectedTrigger: Selected
+    m_DisabledTrigger: Disabled
+  m_Interactable: 1
+  m_TargetGraphic: {fileID: 9717854}
+  m_OnClick:
+    m_PersistentCalls:
+      m_Calls:
+      - m_Target: {fileID: 5021880858817104562}
+        m_TargetAssemblyTypeName: SettingsManager, Assembly-CSharp
+        m_MethodName: OpenDeveloperMenu
+        m_Mode: 0
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: 
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!1 &10035836
 GameObject:
   m_ObjectHideFlags: 0
@@ -144710,6 +144864,7 @@ MonoBehaviour:
       - We need one more bridge to complete the delivery route.
       - Come with me. I'll show you the final crossing.
     optionalDialogueSequence: []
+    runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Silas
     playDialogueOnArrival: 0
     reviewAlmanacWhileTravelling: 0
@@ -144764,6 +144919,7 @@ MonoBehaviour:
       sentences:
       - Take a look across the canyon.
     optionalDialogueSequence: []
+    runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Silas
     playDialogueOnArrival: 0
     reviewAlmanacWhileTravelling: 0
@@ -144835,6 +144991,7 @@ MonoBehaviour:
       - Build a safe crossing here, and the route from the factory to the community
         will finally be complete.
     optionalDialogueSequence: []
+    runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Silas
     playDialogueOnArrival: 1
     reviewAlmanacWhileTravelling: 0
@@ -144888,6 +145045,7 @@ MonoBehaviour:
       name: Silas
       sentences: []
     optionalDialogueSequence: []
+    runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Silas
     playDialogueOnArrival: 1
     reviewAlmanacWhileTravelling: 0
@@ -144948,6 +145106,7 @@ MonoBehaviour:
       - Beyond it is the road leading toward <b><#E09500>Town River</color></b>.
       - Come with me.
     optionalDialogueSequence: []
+    runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Silas
     playDialogueOnArrival: 0
     reviewAlmanacWhileTravelling: 0
@@ -145002,6 +145161,7 @@ MonoBehaviour:
       sentences:
       - Take a look ahead.
     optionalDialogueSequence: []
+    runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Silas
     playDialogueOnArrival: 0
     reviewAlmanacWhileTravelling: 0
@@ -145080,6 +145240,7 @@ MonoBehaviour:
       - "Finish this crossing, and the route you\u2019ve built will finally lead
         beyond the canyon."
     optionalDialogueSequence: []
+    runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Silas
     playDialogueOnArrival: 1
     reviewAlmanacWhileTravelling: 0
@@ -145146,6 +145307,9 @@ MonoBehaviour:
       quizWaitingReminder: 
       lesson: {fileID: 0}
       reviewStepId: 
+      referenceTitle: 
+      referenceDescription: 
+      referenceImage: {fileID: 0}
     - stepType: 0
       dialogue:
         name: Silas
@@ -145162,6 +145326,10 @@ MonoBehaviour:
       quizWaitingReminder: 
       lesson: {fileID: 0}
       reviewStepId: 
+      referenceTitle: 
+      referenceDescription: 
+      referenceImage: {fileID: 0}
+    runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Silas
     playDialogueOnArrival: 1
     reviewAlmanacWhileTravelling: 0
@@ -145215,6 +145383,7 @@ MonoBehaviour:
       name: Silas
       sentences: []
     optionalDialogueSequence: []
+    runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Silas
     playDialogueOnArrival: 1
     reviewAlmanacWhileTravelling: 0
@@ -297562,6 +297731,7 @@ MonoBehaviour:
         bridge.
       - Follow me to the Vehicle.
     optionalDialogueSequence: []
+    runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 0
     reviewAlmanacWhileTravelling: 0
@@ -297628,6 +297798,7 @@ MonoBehaviour:
       sentences:
       - Inspect the supply cart.
     optionalDialogueSequence: []
+    runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 1
     reviewAlmanacWhileTravelling: 0
@@ -297709,6 +297880,9 @@ MonoBehaviour:
       quizWaitingReminder: 
       lesson: {fileID: 0}
       reviewStepId: 
+      referenceTitle: 
+      referenceDescription: 
+      referenceImage: {fileID: 0}
     - stepType: 1
       dialogue:
         name: Professor Bhan
@@ -297724,6 +297898,9 @@ MonoBehaviour:
       quizWaitingReminder: 
       lesson: {fileID: 0}
       reviewStepId: 
+      referenceTitle: 
+      referenceDescription: 
+      referenceImage: {fileID: 0}
     - stepType: 1
       dialogue:
         name: Professor Bhan
@@ -297736,6 +297913,9 @@ MonoBehaviour:
       quizWaitingReminder: 
       lesson: {fileID: 0}
       reviewStepId: 
+      referenceTitle: 
+      referenceDescription: 
+      referenceImage: {fileID: 0}
     - stepType: 0
       dialogue:
         name: Professor Bhan
@@ -297752,6 +297932,10 @@ MonoBehaviour:
       quizWaitingReminder: 
       lesson: {fileID: 0}
       reviewStepId: 
+      referenceTitle: 
+      referenceDescription: 
+      referenceImage: {fileID: 0}
+    runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 0
     reviewAlmanacWhileTravelling: 0
@@ -297832,6 +298016,7 @@ MonoBehaviour:
 
 '
     optionalDialogueSequence: []
+    runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 0
     reviewAlmanacWhileTravelling: 0
@@ -297891,6 +298076,7 @@ MonoBehaviour:
         weight.
       - That weight is called dead load.
     optionalDialogueSequence: []
+    runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 0
     reviewAlmanacWhileTravelling: 0
@@ -297987,6 +298173,9 @@ MonoBehaviour:
       quizWaitingReminder: 
       lesson: {fileID: 0}
       reviewStepId: 
+      referenceTitle: 
+      referenceDescription: 
+      referenceImage: {fileID: 0}
     - stepType: 1
       dialogue:
         name: Professor Bhan
@@ -297998,6 +298187,10 @@ MonoBehaviour:
       quizWaitingReminder: 
       lesson: {fileID: 0}
       reviewStepId: 
+      referenceTitle: 
+      referenceDescription: 
+      referenceImage: {fileID: 0}
+    runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 0
     reviewAlmanacWhileTravelling: 0
@@ -298064,6 +298257,7 @@ MonoBehaviour:
       sentences:
       - fdsadsdsdasd
     optionalDialogueSequence: []
+    runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 0
     reviewAlmanacWhileTravelling: 0
@@ -298118,6 +298312,7 @@ MonoBehaviour:
       sentences:
       - Follow me
     optionalDialogueSequence: []
+    runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 1
     reviewAlmanacWhileTravelling: 0
@@ -298187,6 +298382,7 @@ MonoBehaviour:
       - The <b><#E09500>shop owner</color></b> contacted us and needs our help.
       - Come with me.
     optionalDialogueSequence: []
+    runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 0
     reviewAlmanacWhileTravelling: 0
@@ -298288,6 +298484,7 @@ MonoBehaviour:
       name: 
       sentences: []
     optionalDialogueSequence: []
+    runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 0
     reviewAlmanacWhileTravelling: 0
@@ -298354,6 +298551,7 @@ MonoBehaviour:
       sentences:
       - Go to the Shopkeeper
     optionalDialogueSequence: []
+    runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 1
     reviewAlmanacWhileTravelling: 0
@@ -298438,6 +298636,7 @@ MonoBehaviour:
       - And farther ahead is the <b><#E09500>Industrial Zone</color></b>,  where
         you'll face more demanding projects.
     optionalDialogueSequence: []
+    runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 0
     reviewAlmanacWhileTravelling: 0
@@ -298541,6 +298740,7 @@ MonoBehaviour:
 '
       - Go find <b><#E09500>Reed</color></b>. He'll tell you what he needs.
     optionalDialogueSequence: []
+    runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 1
     reviewAlmanacWhileTravelling: 0
@@ -298619,6 +298819,7 @@ MonoBehaviour:
       sentences:
       - Explore the City and Find Reed
     optionalDialogueSequence: []
+    runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 0
     reviewAlmanacWhileTravelling: 0
@@ -298685,6 +298886,7 @@ MonoBehaviour:
       sentences:
       - Explore the City and Find Reed
     optionalDialogueSequence: []
+    runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Professor Bhan
     playDialogueOnArrival: 0
     reviewAlmanacWhileTravelling: 0
@@ -395252,6 +395454,7 @@ MonoBehaviour:
       - Ah, there you are!
       - I can see the bridge is finally complete.
     optionalDialogueSequence: []
+    runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Grandma Susan
     playDialogueOnArrival: 0
     reviewAlmanacWhileTravelling: 0
@@ -395311,6 +395514,7 @@ MonoBehaviour:
       - Thank you, {PlayerName}.
       - You've done exactly what I needed.
     optionalDialogueSequence: []
+    runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Grandma Susan
     playDialogueOnArrival: 1
     reviewAlmanacWhileTravelling: 0
@@ -395373,6 +395577,7 @@ MonoBehaviour:
       - Some items can also be <b><#E09500>equipped</color></b> to customize your
         appearance.
     optionalDialogueSequence: []
+    runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Grandma Susan
     playDialogueOnArrival: 1
     reviewAlmanacWhileTravelling: 0
@@ -395434,6 +395639,7 @@ MonoBehaviour:
       - Some items can also be <b><#E09500>equipped</color></b> to customize your
         appearance.
     optionalDialogueSequence: []
+    runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Grandma Susan
     playDialogueOnArrival: 1
     reviewAlmanacWhileTravelling: 0
@@ -619419,6 +619625,141 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1382777707}
   m_Mesh: {fileID: 2534964839176971238, guid: 21bf630e9f981fd4cb2d530c1512d521, type: 3}
+--- !u!1 &1382991637
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1382991638}
+  - component: {fileID: 1382991640}
+  - component: {fileID: 1382991639}
+  m_Layer: 5
+  m_Name: Label
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &1382991638
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1382991637}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 9717852}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 1, y: 1}
+  m_AnchoredPosition: {x: 0, y: 0}
+  m_SizeDelta: {x: -16, y: -16}
+  m_Pivot: {x: 0.5, y: 0.5}
+--- !u!114 &1382991639
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1382991637}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4688fdb7df04437aeb418b961361dc5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_Material: {fileID: 0}
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_RaycastTarget: 0
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  m_text: DEV
+  m_isRightToLeft: 0
+  m_fontAsset: {fileID: 11400000, guid: aaadb7eb00eeee74799e9edce7312ddb, type: 2}
+  m_sharedMaterial: {fileID: 334455245469236425, guid: aaadb7eb00eeee74799e9edce7312ddb,
+    type: 2}
+  m_fontSharedMaterials: []
+  m_fontMaterial: {fileID: 0}
+  m_fontMaterials: []
+  m_fontColor32:
+    serializedVersion: 2
+    rgba: 4280430667
+  m_fontColor: {r: 0.29411766, g: 0.19607843, b: 0.14117648, a: 1}
+  m_enableVertexGradient: 0
+  m_colorMode: 3
+  m_fontColorGradient:
+    topLeft: {r: 1, g: 1, b: 1, a: 1}
+    topRight: {r: 1, g: 1, b: 1, a: 1}
+    bottomLeft: {r: 1, g: 1, b: 1, a: 1}
+    bottomRight: {r: 1, g: 1, b: 1, a: 1}
+  m_fontColorGradientPreset: {fileID: 0}
+  m_spriteAsset: {fileID: 0}
+  m_tintAllSprites: 0
+  m_StyleSheet: {fileID: 0}
+  m_TextStyleHashCode: -1183493901
+  m_overrideHtmlColors: 0
+  m_faceColor:
+    serializedVersion: 2
+    rgba: 4294967295
+  m_fontSize: 24.519684
+  m_fontSizeBase: 24.519684
+  m_fontWeight: 400
+  m_enableAutoSizing: 1
+  m_fontSizeMin: 18
+  m_fontSizeMax: 24.519684
+  m_fontStyle: 0
+  m_HorizontalAlignment: 2
+  m_VerticalAlignment: 512
+  m_textAlignment: 65535
+  m_characterSpacing: 0
+  m_wordSpacing: 0
+  m_lineSpacing: 0
+  m_lineSpacingMax: 0
+  m_paragraphSpacing: 0
+  m_charWidthMaxAdj: 0
+  m_enableWordWrapping: 0
+  m_wordWrappingRatios: 0.4
+  m_overflowMode: 1
+  m_linkedTextComponent: {fileID: 0}
+  parentLinkedComponent: {fileID: 0}
+  m_enableKerning: 0
+  m_enableExtraPadding: 0
+  checkPaddingRequired: 0
+  m_isRichText: 1
+  m_parseCtrlCharacters: 1
+  m_isOrthographic: 1
+  m_isCullingEnabled: 0
+  m_horizontalMapping: 0
+  m_verticalMapping: 0
+  m_uvLineOffset: 0
+  m_geometrySortingOrder: 0
+  m_IsTextObjectScaleStatic: 0
+  m_VertexBufferAutoSizeReduction: 0
+  m_useMaxVisibleDescender: 1
+  m_pageToDisplay: 1
+  m_margin: {x: 0, y: 0, z: 0, w: 0}
+  m_isUsingLegacyAnimationComponent: 0
+  m_isVolumetricText: 0
+  m_hasFontAssetChanged: 0
+  m_baseMaterial: {fileID: 0}
+  m_maskOffset: {x: 0, y: 0, z: 0, w: 0}
+--- !u!222 &1382991640
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1382991637}
+  m_CullTransparentMesh: 1
 --- !u!1 &1383082350
 GameObject:
   m_ObjectHideFlags: 0
@@ -715266,6 +715607,7 @@ MonoBehaviour:
         much longer than it should.
       - ' Come with me. I''ll show you where we can shorten the route.'
     optionalDialogueSequence: []
+    runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Vance
     playDialogueOnArrival: 0
     reviewAlmanacWhileTravelling: 0
@@ -715320,6 +715662,7 @@ MonoBehaviour:
       sentences:
       - Look at the route ahead.
     optionalDialogueSequence: []
+    runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Vance
     playDialogueOnArrival: 0
     reviewAlmanacWhileTravelling: 0
@@ -715392,6 +715735,7 @@ MonoBehaviour:
       - There will still be another gap between the middle ravine and the community.
       - First, we need to get the supplies as far as that middle point.
     optionalDialogueSequence: []
+    runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Vance
     playDialogueOnArrival: 1
     reviewAlmanacWhileTravelling: 0
@@ -715454,6 +715798,7 @@ MonoBehaviour:
         <b><#E09500>combined vehicle-and-cargo live load</color></b>.
       - Your bridge must carry the vehicle and its cargo safely to the middle ravine.
     optionalDialogueSequence: []
+    runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Vance
     playDialogueOnArrival: 1
     reviewAlmanacWhileTravelling: 0
@@ -715519,6 +715864,7 @@ MonoBehaviour:
       name: Vance
       sentences: []
     optionalDialogueSequence: []
+    runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Vance
     playDialogueOnArrival: 0
     reviewAlmanacWhileTravelling: 0
@@ -715598,6 +715944,7 @@ MonoBehaviour:
       - "Goodbye for now, {PlayerName}. I hope we\u2019ll see each other again. There
         may be another route I could use your help with someday."
     optionalDialogueSequence: []
+    runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Vance
     playDialogueOnArrival: 1
     reviewAlmanacWhileTravelling: 0
@@ -715666,6 +716013,7 @@ MonoBehaviour:
       - I'm still preparing another local route project. I'll let you know when it's
         ready.
     optionalDialogueSequence: []
+    runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Vance
     playDialogueOnArrival: 0
     reviewAlmanacWhileTravelling: 0
@@ -975891,7 +976239,7 @@ MonoBehaviour:
     m_Bottom: 0
   m_ChildAlignment: 4
   m_Spacing: 11.837089
-  m_ChildForceExpandWidth: 1
+  m_ChildForceExpandWidth: 0
   m_ChildForceExpandHeight: 1
   m_ChildControlWidth: 1
   m_ChildControlHeight: 1
@@ -987173,6 +987521,7 @@ MonoBehaviour:
   - {fileID: 3664463397886575887}
   endingAnchors:
   - {fileID: 3664463397953338636}
+  savedRoadAnchorVerticalTolerance: 0.1
   bakedBars: []
   bakedPoints: []
   buildModeOnlyStarterBridge: {fileID: 0}
@@ -999257,6 +999606,7 @@ RectTransform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 2099811306443779589}
+  - {fileID: 9717852}
   - {fileID: 4548094010740226807}
   m_Father: {fileID: 3420854863561137197}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -1004456,6 +1004806,10 @@ MonoBehaviour:
   selectedMaterial: {fileID: 2100000, guid: f93b0b02c4e3f9449bf6707a8d16354d, type: 2}
   ConnectedBars: []
   ownerLocation: {fileID: 0}
+  widthVisual: {fileID: 0}
+  originalVisualScale: {x: 0, y: 0, z: 0}
+  originalVisualPosition: {x: 0, y: 0, z: 0}
+  hasWidthVisualBaseline: 0
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
@@ -1004480,6 +1004834,10 @@ MonoBehaviour:
   selectedMaterial: {fileID: 2100000, guid: f93b0b02c4e3f9449bf6707a8d16354d, type: 2}
   ConnectedBars: []
   ownerLocation: {fileID: 0}
+  widthVisual: {fileID: 0}
+  originalVisualScale: {x: 0, y: 0, z: 0}
+  originalVisualPosition: {x: 0, y: 0, z: 0}
+  hasWidthVisualBaseline: 0
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
@@ -1011178,6 +1011536,7 @@ MonoBehaviour:
   - {fileID: 900526503}
   endingAnchors:
   - {fileID: 6004695474466014149}
+  savedRoadAnchorVerticalTolerance: 0.1
   bakedBars: []
   bakedPoints: []
   buildModeOnlyStarterBridge: {fileID: 0}
@@ -1011229,6 +1011588,7 @@ MonoBehaviour:
   - {fileID: 937110211}
   endingAnchors:
   - {fileID: 6004695474719601915}
+  savedRoadAnchorVerticalTolerance: 0.1
   bakedBars: []
   bakedPoints: []
   buildModeOnlyStarterBridge: {fileID: 0}
@@ -1020258,6 +1020618,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   settingsPanel: {fileID: 4823082753043881868}
+  developerButton: {fileID: 9717856}
   mainAudioMixer: {fileID: 24100000, guid: 842026f4aa4a40c45a58164f3ab562be, type: 2}
   globalMuteToggle: {fileID: 8492308950788912827}
   masterVolumeSlider: {fileID: 2160256261910998820}
@@ -1031277,6 +1031638,10 @@ MonoBehaviour:
   selectedMaterial: {fileID: 2100000, guid: f93b0b02c4e3f9449bf6707a8d16354d, type: 2}
   ConnectedBars: []
   ownerLocation: {fileID: 4247076026978126500}
+  widthVisual: {fileID: 0}
+  originalVisualScale: {x: 0, y: 0, z: 0}
+  originalVisualPosition: {x: 0, y: 0, z: 0}
+  hasWidthVisualBaseline: 0
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
@@ -1031301,6 +1031666,10 @@ MonoBehaviour:
   selectedMaterial: {fileID: 2100000, guid: f93b0b02c4e3f9449bf6707a8d16354d, type: 2}
   ConnectedBars: []
   ownerLocation: {fileID: 4247076027259698586}
+  widthVisual: {fileID: 0}
+  originalVisualScale: {x: 0, y: 0, z: 0}
+  originalVisualPosition: {x: 0, y: 0, z: 0}
+  hasWidthVisualBaseline: 0
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
@@ -1047061,6 +1047430,10 @@ MonoBehaviour:
   selectedMaterial: {fileID: 2100000, guid: f93b0b02c4e3f9449bf6707a8d16354d, type: 2}
   ConnectedBars: []
   ownerLocation: {fileID: 0}
+  widthVisual: {fileID: 0}
+  originalVisualScale: {x: 0, y: 0, z: 0}
+  originalVisualPosition: {x: 0, y: 0, z: 0}
+  hasWidthVisualBaseline: 0
   preSimPos: {x: 355, y: 16.999996, z: -4}
   preSimRot: {x: -0, y: -0, z: -0, w: 1}
   preSimParent: {fileID: 0}
@@ -1052451,9 +1052824,14 @@ MonoBehaviour:
   allGameContracts:
   - {fileID: 11400000, guid: d16ef45202a457f43bc02f4d7e730647, type: 2}
   - {fileID: 11400000, guid: 8f65c1b4d22748e581416a7e34e01dc3, type: 2}
+  - {fileID: 11400000, guid: c2693778ebf348228dd8b34f786b901d, type: 2}
+  - {fileID: 11400000, guid: 4c553eb687f446899e194d65f9e56d92, type: 2}
   - {fileID: 11400000, guid: 39d60b2d6d214147ba888941ef75ee11, type: 2}
   - {fileID: 11400000, guid: 511cf4b78fcb2ee4aa7169008e424b48, type: 2}
   - {fileID: 11400000, guid: 7bd1a236dfb47f54e96257d2d3d48be1, type: 2}
+  - {fileID: 11400000, guid: 51a23ae6a4b544e98c4d3d234401debe, type: 2}
+  - {fileID: 11400000, guid: df1ab9e026d64c41ad7e9c65f01ee3b9, type: 2}
+  - {fileID: 11400000, guid: 25c1c75517e6409eb94639ac144aee37, type: 2}
   - {fileID: 11400000, guid: 1f93c961d5b0ced468282419d064a7d3, type: 2}
   - {fileID: 11400000, guid: 08ef0a30971b46d18d7752fdf9b5470f, type: 2}
   - {fileID: 11400000, guid: d7bfc22ac3ad49fab92c0cd06b187168, type: 2}
@@ -1053512,6 +1053890,10 @@ MonoBehaviour:
   selectedMaterial: {fileID: 2100000, guid: f93b0b02c4e3f9449bf6707a8d16354d, type: 2}
   ConnectedBars: []
   ownerLocation: {fileID: 4247076027259698586}
+  widthVisual: {fileID: 0}
+  originalVisualScale: {x: 0, y: 0, z: 0}
+  originalVisualPosition: {x: 0, y: 0, z: 0}
+  hasWidthVisualBaseline: 0
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
@@ -1053536,6 +1053918,10 @@ MonoBehaviour:
   selectedMaterial: {fileID: 2100000, guid: f93b0b02c4e3f9449bf6707a8d16354d, type: 2}
   ConnectedBars: []
   ownerLocation: {fileID: 4247076026978126500}
+  widthVisual: {fileID: 0}
+  originalVisualScale: {x: 0, y: 0, z: 0}
+  originalVisualPosition: {x: 0, y: 0, z: 0}
+  hasWidthVisualBaseline: 0
   preSimPos: {x: 0, y: 0, z: 0}
   preSimRot: {x: 0, y: 0, z: 0, w: 0}
   preSimParent: {fileID: 0}
@@ -1057522,6 +1057908,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5d6caba8fc96ab4285ae1d0111bdfc8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  showVehicleCount: 0
   physics: {fileID: 4160294175809346214}
   panel: {fileID: 417140052}
   status: {fileID: 1285208911}

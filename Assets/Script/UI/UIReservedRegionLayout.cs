@@ -349,6 +349,36 @@ public static class UIReservedRegionLayout
         return Fits(chosenCenter, halfWidth, halfHeight, safe);
     }
 
+    /// <summary>
+    /// Measures a passive notification even while its Canvas is hidden, so a
+    /// deferred notification can resume. There is one fixed slot below the
+    /// priority control's touch bounds; occupied space defers rather than moves it.
+    /// </summary>
+    public static bool TryFindFixedPlacementBelow(RectTransform item, RectTransform priorityControl,
+        float touchBelowPixels, float edgeMarginPixels, float regionGapPixels, out Vector2 chosenCenter)
+    {
+        chosenCenter = default;
+        if (!IsRenderable(priorityControl) || !TryGetScreenRect(item, out Rect itemRect) ||
+            !TryGetScreenRect(priorityControl, out Rect controlRect)) return false;
+
+        Rect safe = Screen.safeArea;
+        if (safe.width <= 0f || safe.height <= 0f)
+            safe = new Rect(0f, 0f, Screen.width, Screen.height);
+        float edge = Mathf.Max(0f, edgeMarginPixels);
+        safe = Rect.MinMaxRect(safe.xMin + edge, safe.yMin + edge,
+            safe.xMax - edge, safe.yMax - edge);
+        float halfWidth = itemRect.width * .5f, halfHeight = itemRect.height * .5f;
+        if (safe.width < itemRect.width || safe.height < itemRect.height) return false;
+
+        float gap = Mathf.Max(0f, regionGapPixels);
+        chosenCenter = new Vector2(controlRect.center.x,
+            controlRect.yMin - Mathf.Max(0f, touchBelowPixels) - gap - halfHeight);
+        GatherReservations(item, gap);
+        GatherActiveControls(item, gap);
+        GatherTouchControls(item, gap);
+        return Fits(chosenCenter, halfWidth, halfHeight, safe);
+    }
+
     public static bool TrySetScreenCenter(RectTransform item, Vector2 screenCenter)
     {
         if (item == null || !(item.parent is RectTransform parent) ||

@@ -126,7 +126,7 @@ public static class AchievementPopupUIAuthoring
         TextStyle(coinValue, 22, 16, FontStyles.Bold); TextStyle(expValue, 22, 16, FontStyles.Bold);
         TextRect(coinValue, new Vector2(268, -111), new Vector2(110, 30)); TextRect(expValue, new Vector2(408, -111), new Vector2(110, 30));
         coinImage.gameObject.SetActive(false); expImage.gameObject.SetActive(false); coinValue.gameObject.SetActive(false); expValue.gameObject.SetActive(false);
-        data.FindProperty("visiblePosition").vector2Value = new Vector2(0, 28); data.FindProperty("hiddenPosition").vector2Value = new Vector2(0, -180);
+        data.FindProperty("hiddenPosition").vector2Value = new Vector2(0, -180);
         data.FindProperty("slideDuration").floatValue = .3f;
         foreach (string prefix in new[] { "", "feature", "cosmetic", "almanac" })
         {

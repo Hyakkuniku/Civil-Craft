@@ -248,6 +248,13 @@ public sealed class DeveloperDebugManager : MonoBehaviour
 
     private void SetMenuVisible(bool visible, bool manageCursor)
     {
+        // Settings/Pause coordination can disable this persistent Canvas. The
+        // developer overlay must render above them while leaving their state intact.
+        if (visible && debugCanvas != null)
+        {
+            debugCanvas.gameObject.SetActive(true);
+            debugCanvas.enabled = true;
+        }
         if (debugWindow != null)
             debugWindow.SetActive(visible);
         else if (debugCanvas != null)

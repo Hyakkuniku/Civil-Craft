@@ -57,6 +57,7 @@ public sealed class LoadingScreenManager : MonoBehaviour
     private Sprite roundedUiSprite;
     private TMP_FontAsset loadingFont;
     private LoadingScreenAssets assets;
+    private bool PlayerPreviewEnabled => assets != null && assets.showPlayerPreview;
     private bool isLoading;
     private int lastDisplayedPercent = -1;
     private float currentProgress;
@@ -174,8 +175,7 @@ public sealed class LoadingScreenManager : MonoBehaviour
         SetVisible(true, false);
         canvasGroup.alpha = 0f;
 
-        // Render the overlay before any optional preview setup or scene-loading
-        // work can occupy the main thread.
+        // Render the overlay before scene-loading work can occupy the main thread.
         float fadeElapsed = 0f;
         while (fadeElapsed < 0.18f)
         {
@@ -185,21 +185,22 @@ public sealed class LoadingScreenManager : MonoBehaviour
         }
 
         canvasGroup.alpha = 1f;
-        // Keep the runner in the persistent loading hierarchy and give its
-        // Animator a rendered frame before the destination scene starts loading.
-        try
+        if (PlayerPreviewEnabled)
         {
-            PreparePlayerPreview();
-        }
-        catch (System.Exception exception)
-        {
-            Debug.LogWarning($"[LoadingScreen] Optional player preview failed: {exception.Message}", this);
-            ReleasePreviewModel();
-            if (playerImage != null) playerImage.enabled = false;
+            try
+            {
+                PreparePlayerPreview();
+            }
+            catch (System.Exception exception)
+            {
+                Debug.LogWarning($"[LoadingScreen] Optional player preview failed: {exception.Message}", this);
+                ReleasePreviewModel();
+                if (playerImage != null) playerImage.enabled = false;
+            }
         }
         yield return null;
 #if UNITY_EDITOR
-        LogPreviewRenderDiagnostics();
+        if (PlayerPreviewEnabled) LogPreviewRenderDiagnostics();
         loadingPhase = "Scene loading";
 #endif
 
@@ -500,18 +501,21 @@ public sealed class LoadingScreenManager : MonoBehaviour
         barShadowImage.sprite = roundedUiSprite;
         barShadowImage.type = Image.Type.Sliced;
 
-        GameObject rawImageObject = new GameObject(
-            "Running Player",
-            typeof(RectTransform),
-            typeof(CanvasRenderer),
-            typeof(RawImage));
-        rawImageObject.transform.SetParent(background, false);
-        playerRect = rawImageObject.GetComponent<RectTransform>();
-        SetCentered(playerRect, new Vector2(320f, 320f), new Vector2(-700f, 65f));
-        playerRect.pivot = new Vector2(0.5f, 0f);
-        playerImage = rawImageObject.GetComponent<RawImage>();
-        playerImage.color = Color.white;
-        playerImage.raycastTarget = false;
+        if (PlayerPreviewEnabled)
+        {
+            GameObject rawImageObject = new GameObject(
+                "Running Player",
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(RawImage));
+            rawImageObject.transform.SetParent(background, false);
+            playerRect = rawImageObject.GetComponent<RectTransform>();
+            SetCentered(playerRect, new Vector2(320f, 320f), new Vector2(-700f, 65f));
+            playerRect.pivot = new Vector2(0.5f, 0f);
+            playerImage = rawImageObject.GetComponent<RawImage>();
+            playerImage.color = Color.white;
+            playerImage.raycastTarget = false;
+        }
 
         progressTrack = CreateImage(
             background,
@@ -577,10 +581,11 @@ public sealed class LoadingScreenManager : MonoBehaviour
             new Vector2(1080f, 72f),
             Vector2.zero);
 
-        // Keep the complete runner visible above the loading track.
-        playerRect.SetAsLastSibling();
-
-        BuildPreviewStage();
+        if (playerRect != null)
+        {
+            playerRect.SetAsLastSibling();
+            BuildPreviewStage();
+        }
     }
 
     private void BuildPreviewStage()
@@ -635,6 +640,11 @@ public sealed class LoadingScreenManager : MonoBehaviour
     private void PreparePlayerPreview()
     {
         ReleasePreviewModel();
+        if (!PlayerPreviewEnabled || previewStage == null || previewCamera == null)
+        {
+            if (playerImage != null) playerImage.enabled = false;
+            return;
+        }
 
         // Every transition should show the same wardrobe-capable character.
         // A live scene visual may still be an older/base rig even when a saved
