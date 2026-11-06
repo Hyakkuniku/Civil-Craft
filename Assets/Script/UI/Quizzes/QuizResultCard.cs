@@ -33,7 +33,7 @@ public sealed class QuizResultCard : MonoBehaviour
         public Image artwork;
     }
 
-    /// <summary>Builds plain-text review content from the submitted selection, not from the live choice controls.</summary>
+    /// <summary>Builds authored review content from the submitted selection, not from the live choice controls.</summary>
     public static QuizResultCard Create(Transform parent, TMP_FontAsset font, Sprite cardSprite,
         QuizQuestion question, int questionNumber, int selectedIndex, IReadOnlyList<int> choiceOrder = null)
     {
@@ -55,7 +55,7 @@ public sealed class QuizResultCard : MonoBehaviour
             "Question " + questionNumber + (card.IsCorrect ? "  -  Correct" : selected != null ? "  -  Incorrect" : "  -  Not answered"));
         card.StatusLabel.color = card.IsCorrect ? CorrectInk : IncorrectInk;
         card.StatusLabel.fontStyle = FontStyles.Bold;
-        card.QuestionLabel = NewText(item.transform, "Question", font, question != null ? question.prompt ?? string.Empty : string.Empty);
+        card.QuestionLabel = NewText(item.transform, "Question", font, question != null ? question.prompt ?? string.Empty : string.Empty, richText: true);
         card.yourAnswer = NewChoice(item.transform, "Your answer", font, selected,
             QuizProgressUtility.ChoiceDisplayIndex(question, choiceOrder, selectedIndex), "No answer");
         card.correctAnswer = NewChoice(item.transform, "Correct answer", font, correct,
@@ -63,7 +63,7 @@ public sealed class QuizResultCard : MonoBehaviour
                 question != null ? question.correctChoiceIndex : -1), "Answer unavailable");
         card.correctAnswer.rect.gameObject.SetActive(!card.IsCorrect);
         card.FeedbackLabel = NewText(item.transform, "Explanation", font,
-            !string.IsNullOrWhiteSpace(question != null ? question.feedback : null) ? "Explanation: " + question.feedback : string.Empty);
+            !string.IsNullOrWhiteSpace(question != null ? question.feedback : null) ? "Explanation: " + question.feedback : string.Empty, richText: true);
         card.FeedbackLabel.gameObject.SetActive(!string.IsNullOrWhiteSpace(card.FeedbackLabel.text));
         return card;
     }
@@ -171,7 +171,7 @@ public sealed class QuizResultCard : MonoBehaviour
         {
             rect = item.GetComponent<RectTransform>(),
             heading = NewText(item.transform, "Label", font, heading),
-            label = NewText(item.transform, "Answer", font, answer),
+            label = NewText(item.transform, "Answer", font, answer, richText: true),
             artwork = NewImage(item.transform, "Answer Image", choice != null ? choice.image : null, Color.white)
         };
         block.heading.fontStyle = FontStyles.Bold;
@@ -187,7 +187,7 @@ public sealed class QuizResultCard : MonoBehaviour
             ? question.choices[index] : null;
     }
 
-    private static TMP_Text NewText(Transform parent, string name, TMP_FontAsset font, string text)
+    private static TMP_Text NewText(Transform parent, string name, TMP_FontAsset font, string text, bool richText = false)
     {
         GameObject item = new GameObject(name, typeof(RectTransform), typeof(TextMeshProUGUI));
         item.layer = parent.gameObject.layer;
@@ -196,7 +196,7 @@ public sealed class QuizResultCard : MonoBehaviour
         if (font != null) label.font = font;
         label.text = text;
         label.color = QuizUILayout.Ink;
-        label.richText = false;
+        label.richText = richText;
         label.raycastTarget = false;
         label.enableAutoSizing = false;
         label.enableWordWrapping = true;

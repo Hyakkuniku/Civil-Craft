@@ -1,0 +1,97 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.UI;
+
+namespace UnityEngine.SceneManagement
+{
+    public struct Scene : IEquatable<Scene>
+    {
+        public int id;
+        public Scene(int id) { this.id = id; }
+        public bool Equals(Scene other) => id == other.id;
+        public override bool Equals(object value) => value is Scene other && Equals(other);
+        public override int GetHashCode() => id;
+        public static bool operator ==(Scene a, Scene b) => a.Equals(b);
+        public static bool operator !=(Scene a, Scene b) => !a.Equals(b);
+    }
+}
+namespace UnityEngine
+{
+    public class Component
+    {
+        public GameObject gameObject;
+        public Transform transform => gameObject.transform;
+        public T GetComponent<T>() where T : class => gameObject.GetComponent<T>();
+        public T GetComponentInParent<T>(bool includeInactive) where T : class
+        {
+            for (Transform value = transform; value != null; value = value.parent)
+            { var result = value.gameObject.GetComponent<T>(); if (result != null) return result; }
+            return null;
+        }
+    }
+    public sealed class GameObject
+    {
+        public string name;
+        public bool activeSelf = true;
+        public Scene scene;
+        public Transform transform;
+        private readonly List<Component> components = new();
+        public GameObject(string name, Scene scene) { this.name = name; this.scene = scene; transform = new RectTransform { gameObject = this }; components.Add(transform); }
+        public T Add<T>() where T : Component, new() { var result = new T { gameObject = this }; components.Add(result); return result; }
+        public T GetComponent<T>() where T : class => components.OfType<T>().FirstOrDefault();
+        public void SetActive(bool value) => activeSelf = value;
+    }
+    public class Transform : Component
+    {
+        public readonly List<Transform> children = new();
+        public Transform parent;
+        public int siblingChanges;
+        public int childCount => children.Count;
+        public Transform GetChild(int index) => children[index];
+        public int GetSiblingIndex() => parent == null ? 0 : parent.children.IndexOf(this);
+        public bool IsChildOf(Transform value) { for (Transform current = parent; current != null; current = current.parent) if (current == value) return true; return false; }
+        public void SetParent(Transform value) { parent?.children.Remove(this); parent = value; parent?.children.Add(this); }
+        public void SetSiblingIndex(int index) { siblingChanges++; parent.children.Remove(this); parent.children.Insert(Math.Clamp(index, 0, parent.children.Count), this); }
+    }
+    public sealed class RectTransform : Transform { public int rebuilds; }
+}
+namespace UnityEngine.UI
+{
+    public sealed class LayoutGroup : Component { }
+    public sealed class ScrollRect : Component
+    {
+        public Transform content;
+        private float scroll;
+        public int writes;
+        public float horizontalNormalizedPosition { get => scroll; set { writes++; scroll = value; } }
+    }
+    public static class LayoutRebuilder { public static void MarkLayoutForRebuild(RectTransform value) { value.rebuilds++; } }
+}
+public sealed class BridgeMaterialSO { public string name; public bool isRoad, isPier, isRope; }
+public sealed class ContractSO { }
+public sealed class GameManager { public static GameManager Instance; public ContractSO CurrentContract; }
+public sealed class MaterialButtonTrigger : Component
+{
+    public BridgeMaterialSO buttonMaterial;
+    public GameObject parentWrapper;
+    private bool isMaterialAllowed = true, hasReachedQuantityLimit, isMaterialHidden;
+    public int evaluations;
+    public readonly object tapReference = new();
+    public void State(bool allowed, bool limit = false, bool hidden = false) { isMaterialAllowed = allowed; hasReachedQuantityLimit = limit; isMaterialHidden = hidden; }
+    public void EvaluateMaterialRestriction() { evaluations++; }
+    // ACTUAL_BUTTON
+}
+public sealed class BuildUIController : Component
+{
+    public static MaterialButtonTrigger[] registry = Array.Empty<MaterialButtonTrigger>();
+    private MaterialButtonTrigger[] materialButtons;
+    private bool hasOrderedMaterialsContract;
+    private ContractSO orderedMaterialsContract;
+    public int visibilityRefreshes;
+    private T[] FindObjectsOfType<T>(bool includeInactive) => registry.Cast<T>().ToArray();
+    private void RefreshMaterialPanelVisibility() { visibilityRefreshes++; }
+    // ACTUAL_REFRESH
+}

@@ -335,7 +335,8 @@ public static class QuizUIAuthoring
                 view.ShowQuestion(longQuiz, 0, new string[0]); layout.ApplyLayout(); Canvas.ForceUpdateCanvases();
                 Check(layout.questionContent.rect.height > layout.questionViewport.rect.height, "Long prompt is not scrollable.");
                 Check(view.choiceContent.rect.height > layout.choiceViewport.rect.height, "Long/dynamic choices are not scrollable on " + names[i]);
-                Check(view.VisibleChoices.Count == 23 && !view.question.richText, "Dynamic/plain-text content regression.");
+                Check(view.VisibleChoices.Count == 23 && view.question.richText && view.VisibleChoices.All(choice => choice.label.richText),
+                    "Dynamic/authored quiz formatting regression.");
                 Check(view.question.fontSize * physicalScale >= 19.9f && view.VisibleChoices[0].label.fontSize * physicalScale >= 19.9f,
                     "Question or choice text is too small in physical pixels.");
                 report.AppendLine("PASS: " + name + " " + size.x + "x" + size.y + ": no quiz Pause button, full-width header, safe paper/NPC regions, adaptive columns, text/image/mixed choices, Submit/retry/Next/Finish, independent long-content scrolling and transparent full-screen click blockade.");

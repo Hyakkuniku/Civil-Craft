@@ -161,6 +161,8 @@ public class BuildUIController : MonoBehaviour
     [Tooltip("Optional material-button scroll panel. If empty, it is found from the material buttons' ScrollRect.")]
     [SerializeField] private GameObject materialsPanel;
     private MaterialButtonTrigger[] materialButtons = System.Array.Empty<MaterialButtonTrigger>();
+    private ContractSO orderedMaterialsContract;
+    private bool hasOrderedMaterialsContract;
     private bool materialsPanelHiddenForEmpty;
 
     [Header("Tool Highlighting")]
@@ -438,6 +440,11 @@ public class BuildUIController : MonoBehaviour
             if (b.gameObject.scene != gameObject.scene) continue;
             b.EvaluateMaterialRestriction();
         }
+        ContractSO contract = GameManager.Instance != null ? GameManager.Instance.CurrentContract : null;
+        bool contractChanged = !hasOrderedMaterialsContract || orderedMaterialsContract != contract;
+        MaterialToolbarOrdering.Apply(materialButtons, gameObject.scene, contractChanged);
+        orderedMaterialsContract = contract;
+        hasOrderedMaterialsContract = true;
         RefreshMaterialPanelVisibility();
     }
 

@@ -304,7 +304,8 @@ public sealed class QuizUILayout : MonoBehaviour
     private static void FitText(TMP_Text text, RectTransform content, RectTransform viewport, float u)
     {
         if (text == null || content == null || viewport == null) return;
-        text.richText = false; text.enableAutoSizing = false; text.enableWordWrapping = true; text.overflowMode = TextOverflowModes.Overflow;
+        // Preserve the view's authored-formatting/plain-status policy while measuring and resizing.
+        text.enableAutoSizing = false; text.enableWordWrapping = true; text.overflowMode = TextOverflowModes.Overflow;
         float padding = 14f * u;
         // The gameplay font's capital glyphs extend above its nominal ascent.
         // Include real text gutters in both wrapping and content-height measures.

@@ -23,6 +23,7 @@ internal static class Program
         VerifyChoiceInteractions();
         VerifyCardsAndImages();
         VerifyMeasuredLayout();
+        VerifyAuthoredFormatting();
         VerifySourceBoundaries();
         Console.WriteLine($"PASS: {checks} production-source assessment review, result-card, and integration assertions. Unity hierarchy/input/TMP measurement are doubles; actual phone/tablet rendering is checked separately. No live saves, scenes, accounts, rewards, or network accessed.");
     }
@@ -98,7 +99,11 @@ internal static class Program
             }
             Check(card.FeedbackLabel.text.Contains(question.feedback), "Optional explanation is retained in the result review.");
             Check(card.GetComponentsInChildren<Button>(true).Length == 0, "Review cards are read-only, not answer controls.");
-            Check(card.GetComponentsInChildren<TMP_Text>(true).All(t => !t.richText && !t.raycastTarget && t.font == Font), "Remote/authored copy is plain text in the existing font and does not block scroll input.");
+            Check(card.GetComponentsInChildren<TMP_Text>(true).All(t => !t.raycastTarget && t.font == Font), "Review copy keeps the existing font and does not block scroll input.");
+            Check(card.QuestionLabel.richText && card.YourAnswerLabel.richText && card.CorrectAnswerLabel.richText && card.FeedbackLabel.richText,
+                "Authored prompts, answers and explanations retain their formatting in review.");
+            Check(card.GetComponentsInChildren<TMP_Text>(true).Where(t => t != card.QuestionLabel && t != card.YourAnswerLabel &&
+                t != card.CorrectAnswerLabel && t != card.FeedbackLabel).All(t => !t.richText), "Review status and headings remain plain text.");
         }
         Check(data.ContentFingerprint == fingerprint && answers.Count == count, "Review never edits quiz content, saved identities, or player answers.");
         Check(answerEvents == 0 && completionEvents == 0, "Rendering a result does not submit new choices or continue NPC progression.");
@@ -237,7 +242,7 @@ internal static class Program
         foreach (int selected in new[] { 0, 1, 2 })
         {
             QuizQuestion question = Question(2, 4);
-            question.prompt = string.Join(" ", Enumerable.Repeat("A long structural question with mixed image and text choices <b>must stay plain</b>.", 4));
+            question.prompt = string.Join(" ", Enumerable.Repeat("A long structural question with mixed image and text choices <b>retains authored emphasis</b>.", 4));
             question.choices[0].text = string.Join(" ", Enumerable.Repeat("Long caption that should wrap and scroll instead of shrinking.", 5));
             QuizResultCard card = QuizResultCard.Create(root.transform, Font, Paper, question, 3, selected);
             string before = card.QuestionLabel.text;
@@ -266,6 +271,46 @@ internal static class Program
             }
             Check(card.QuestionLabel.text == before && Math.Abs(card.RequiredHeight(width, unit, physicalScale) - height) < .01f, "Repeated layout preserves content and has stable dimensions.");
         }
+    }
+
+    private static void VerifyAuthoredFormatting()
+    {
+        QuizData data = Quiz(1);
+        data.title = "<b><#E09500>Bending</color></b> quiz";
+        QuizQuestion question = data.questions[0];
+        question.prompt = "What is <b><#E09500>Bending</color></b>?";
+        question.feedback = "The member <b><color=#E09500>bends</color></b> under load.";
+        question.choices[0].text = "<b><#E09500>Correct</color></b> answer";
+        question.choices[1].text = "<color=#E09500>Other</color> answer";
+        string fingerprint = data.ContentFingerprint;
+        QuizView view = View();
+        view.title.richText = view.question.richText = view.feedback.richText = false;
+        view.choiceTemplate.label.richText = false;
+        view.ShowQuestion(data, 0, null);
+        Check(view.title.text == data.title && view.title.richText && view.question.text == question.prompt && view.question.richText,
+            "An authored colored title and prompt enable TMP formatting without rewriting the source copy.");
+        Check(view.VisibleChoices.Select((card, index) => card.label.richText && card.label.text == question.choices[index].text).All(value => value),
+            "Both shorthand and explicit hex-color answer text enable TMP formatting.");
+        Check(!view.feedback.richText, "Static answer instructions remain plain text.");
+        view.ShowFeedback(true, question.feedback);
+        Check(view.feedback.richText && view.feedback.text.EndsWith(question.feedback), "Correct practice explanations preserve authored color and bold tags.");
+        view.ShowFeedback(false, question.feedback);
+        Check(!view.feedback.richText && view.feedback.text == "Try again.", "Retry instructions clear the authored explanation's rich-text state.");
+        view.ShowCompletion(data);
+        Check(view.title.richText && !view.question.richText && !view.feedback.richText, "Completion keeps authored title formatting while its static messages remain plain text.");
+        var answers = new Dictionary<string, int> { [question.questionId.Trim()] = 1 };
+        view.ShowAssessmentResult(data, 0, answers);
+        QuizResultCard result = view.VisibleResultCards.Single();
+        Check(result.QuestionLabel.richText && result.QuestionLabel.text == question.prompt &&
+            result.YourAnswerLabel.richText && result.YourAnswerLabel.text.EndsWith(question.choices[1].text) &&
+            result.CorrectAnswerLabel.richText && result.CorrectAnswerLabel.text.EndsWith(question.choices[0].text) &&
+            result.FeedbackLabel.richText && result.FeedbackLabel.text.EndsWith(question.feedback),
+            "Submitted review preserves colored prompt, selected/correct answers and explanation together.");
+        Check(!result.StatusLabel.richText && !view.question.richText && !view.feedback.richText, "Result status and score instructions stay plain text.");
+        view.ShowQuestion(data, 0, null);
+        Check(view.question.richText && !view.feedback.richText, "Returning from a result restores authored question formatting and plain instructions.");
+        Check(data.ContentFingerprint == fingerprint && QuizProgressUtility.AssessmentScore(data, answers) == 0,
+            "Presentation does not alter quiz fingerprints, source answer identities or grading.");
     }
 
     private static void VerifySourceBoundaries()
@@ -335,7 +380,7 @@ internal static class Program
     }
     private static QuizQuestion Question(int i, int count)
     {
-        var question = new QuizQuestion { questionId = "  question-" + i + "  ", prompt = "Question " + i + " <b>plain text</b>", correctChoiceIndex = i % count, feedback = "Explanation " + i + " helps the player learn." };
+        var question = new QuizQuestion { questionId = "  question-" + i + "  ", prompt = "Question " + i + " <b>authored emphasis</b>", correctChoiceIndex = i % count, feedback = "Explanation " + i + " helps the player learn." };
         for (int choice = 0; choice < count; choice++)
         {
             bool image = choice % 3 != 0, text = choice % 3 != 1;

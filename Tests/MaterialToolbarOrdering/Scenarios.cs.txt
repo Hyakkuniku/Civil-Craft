@@ -1,0 +1,102 @@
+using System;
+using System.Linq;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using UnityEngine.UI;
+
+public static class Scenarios
+{
+    private static int checks;
+    private static Scene local = new Scene(1), foreign = new Scene(2);
+    private static void Check(bool value, string message) { checks++; if (!value) throw new Exception(message); }
+    private static string Order(Transform parent) => string.Join(",", parent.children.Select(child => child.gameObject.name));
+    private static Transform Parent(string name, Scene scene, bool layout = true) { var value = new GameObject(name, scene); if (layout) value.Add<LayoutGroup>(); return value.transform; }
+    private static MaterialButtonTrigger Button(Transform parent, string name, int category = 1, bool allowed = true, bool limit = false, bool hidden = false, bool wrapper = true)
+    {
+        var cell = new GameObject(name, parent.gameObject.scene); cell.transform.SetParent(parent); cell.SetActive(!hidden);
+        var target = wrapper ? new GameObject(name + "Button", parent.gameObject.scene) : cell; if (wrapper) target.transform.SetParent(cell.transform);
+        var result = target.Add<MaterialButtonTrigger>(); result.parentWrapper = wrapper ? cell : null;
+        result.buttonMaterial = new BridgeMaterialSO { name = name, isRoad = category == 0, isPier = category == 2, isRope = category == 3 };
+        result.State(allowed, limit, hidden); return result;
+    }
+    public static int Run()
+    {
+        var parent = Parent("Mixed", local);
+        var rope = Button(parent, "Rope", 3); var pier = Button(parent, "Pier", 2); var beam = Button(parent, "Beam", 1); var road = Button(parent, "Road", 0);
+        var buttons = new[] { rope, pier, beam, road }; var tap = road.tapReference; var tapChild = road.transform; var roadCell = road.parentWrapper;
+        MaterialToolbarOrdering.Apply(buttons, local, false);
+        Check(Order(parent) == "Road,Beam,Pier,Rope", "Available cells follow requested Road/Beam/Pier/Rope order.");
+        Check(road.parentWrapper == roadCell && road.transform == tapChild && road.tapReference == tap && road.transform.parent == roadCell.transform, "Sorting preserves the wrapper, touch child and direct UI bindings.");
+        int changes = parent.children.Sum(child => child.siblingChanges); int rebuilds = ((RectTransform)parent).rebuilds;
+        MaterialToolbarOrdering.Apply(buttons.Reverse().ToArray(), local, false);
+        Check(parent.children.Sum(child => child.siblingChanges) == changes && ((RectTransform)parent).rebuilds == rebuilds, "An unchanged refresh has no sibling moves or layout rebuild.");
+
+        parent = Parent("Availability", local); var lockedRoad = Button(parent, "LockedRoad", 0, false); rope = Button(parent, "AvailableRope", 3);
+        var cappedBeam = Button(parent, "CappedBeam", 1, true, true); beam = Button(parent, "AvailableBeam", 1);
+        buttons = new[] { lockedRoad, rope, cappedBeam, beam }; MaterialToolbarOrdering.Apply(buttons, local, false);
+        Check(Order(parent) == "AvailableBeam,AvailableRope,LockedRoad,CappedBeam", "Available rope precedes unavailable road; categories apply within each availability tier.");
+        Check(!lockedRoad.IsAvailableForSelection && !cappedBeam.IsAvailableForSelection && beam.IsAvailableForSelection, "Allowed, purchased and remaining-count evaluation drives availability.");
+        cappedBeam.State(true); MaterialToolbarOrdering.Apply(buttons, local, false);
+        Check(Order(parent) == "CappedBeam,AvailableBeam,AvailableRope,LockedRoad", "Undo/restored quantity returns a capped beam to its original stable category position.");
+        lockedRoad.State(true); MaterialToolbarOrdering.Apply(buttons, local, false);
+        Check(Order(parent) == "LockedRoad,CappedBeam,AvailableBeam,AvailableRope", "Newly unlocked road moves to the available road group.");
+
+        parent = Parent("Stable", local); var beamZ = Button(parent, "BeamZ"); var beamA = Button(parent, "BeamA"); road = Button(parent, "Road", 0);
+        buttons = new[] { road, beamA, beamZ }; MaterialToolbarOrdering.Apply(buttons, local, false);
+        Check(Order(parent) == "Road,BeamZ,BeamA", "Category ties retain authored order rather than array/name order.");
+        beamZ.State(false); MaterialToolbarOrdering.Apply(buttons, local, false); beamZ.State(true); MaterialToolbarOrdering.Apply(buttons, local, false);
+        Check(Order(parent) == "Road,BeamZ,BeamA", "Authored order survives a lock/unlock cycle.");
+
+        parent = Parent("HiddenAndSlots", local); rope = Button(parent, "Rope", 3); var spacer = new GameObject("Spacer", local); spacer.transform.SetParent(parent);
+        var hiddenRoad = Button(parent, "HiddenRoad", 0, true, false, true); beam = Button(parent, "Beam"); var footer = new GameObject("Footer", local); footer.transform.SetParent(parent);
+        buttons = new[] { rope, hiddenRoad, beam }; MaterialToolbarOrdering.Apply(buttons, local, false);
+        Check(Order(parent) == "Beam,Spacer,Rope,HiddenRoad,Footer", "Only material sibling slots are reordered; nonmaterial controls retain their indices.");
+        Check(!hiddenRoad.parentWrapper.activeSelf && hiddenRoad.gameObject.activeSelf && !hiddenRoad.IsAvailableForSelection, "Hidden cell remains hidden, consumes no active layout slot, and its child state is unchanged.");
+        Check(spacer.transform.GetSiblingIndex() == 1 && footer.transform.GetSiblingIndex() == 4, "Spacer and footer positions are unchanged.");
+
+        var one = Parent("One", local); var two = Parent("Two", local); var otherScene = Parent("OtherScene", foreign);
+        var oneRope = Button(one, "OneRope", 3); var oneRoad = Button(one, "OneRoad", 0); var twoPier = Button(two, "TwoPier", 2); var twoBeam = Button(two, "TwoBeam");
+        var foreignRope = Button(otherScene, "ForeignRope", 3); var foreignRoad = Button(otherScene, "ForeignRoad", 0);
+        buttons = new[] { oneRope, twoPier, foreignRope, oneRoad, twoBeam, foreignRoad }; MaterialToolbarOrdering.Apply(buttons, local, false);
+        Check(Order(one) == "OneRoad,OneRope" && Order(two) == "TwoBeam,TwoPier", "Each content parent is independently sorted.");
+        Check(Order(otherScene) == "ForeignRope,ForeignRoad", "Other scenes remain untouched.");
+        Check(oneRoad.parentWrapper.transform.parent == one && twoBeam.parentWrapper.transform.parent == two, "Cells never move between parents.");
+
+        var noLayout = Parent("NoLayout", local, false); rope = Button(noLayout, "Rope", 3); road = Button(noLayout, "Road", 0);
+        MaterialToolbarOrdering.Apply(new[] { rope, road }, local, false); Check(Order(noLayout) == "Rope,Road", "Non-layout parents are ignored.");
+        parent = Parent("NoWrapper", local); rope = Button(parent, "Rope", 3, wrapper:false); road = Button(parent, "Road", 0, wrapper:false);
+        MaterialToolbarOrdering.Apply(new[] { rope, road, road, null }, local, false); Check(Order(parent) == "Road,Rope", "No-wrapper controls sort safely; duplicate/null entries do not duplicate cells.");
+        var wrongParent = Parent("WrongWrapper", local); var unrelated = new GameObject("Unrelated", local); unrelated.transform.SetParent(wrongParent);
+        rope = Button(wrongParent, "Rope", 3); road = Button(wrongParent, "Road", 0); road.parentWrapper = unrelated;
+        MaterialToolbarOrdering.Apply(new[] { rope, road }, local, false); Check(Order(wrongParent) == "Unrelated,Rope,Road", "An unrelated wrapper reference is rejected.");
+
+        parent = Parent("ReparentOld", local); beam = Button(parent, "Beam"); road = Button(parent, "Road", 0);
+        Check(beam.GetToolbarAuthoredIndex(beam.parentWrapper.transform) == 0, "Original parent index is captured.");
+        var newParent = Parent("ReparentNew", local); var newSpacer = new GameObject("Spacer", local); newSpacer.transform.SetParent(newParent);
+        beam.parentWrapper.transform.SetParent(newParent); Check(beam.GetToolbarAuthoredIndex(beam.parentWrapper.transform) == 1, "Moving a cell to a new parent captures that parent's baseline.");
+        var replacement = new GameObject("Replacement", local); replacement.transform.SetParent(newParent); beam.transform.SetParent(replacement.transform); beam.parentWrapper = replacement;
+        Check(beam.GetToolbarAuthoredIndex(replacement.transform) == 2, "Changing the wrapper captures its new baseline.");
+        Check(MaterialToolbarOrdering.Category(null) == 4, "Missing materials have a deterministic final category.");
+        var invalidFlags = new BridgeMaterialSO { isRoad = true, isPier = true, isRope = true }; Check(MaterialToolbarOrdering.Category(invalidFlags) == 0, "Road category has deterministic priority for mixed legacy flags.");
+        var nullMaterial = Button(newParent, "NullMaterial"); nullMaterial.buttonMaterial = null; Check(!nullMaterial.IsAvailableForSelection, "Unassigned material cannot be available.");
+
+        parent = Parent("ScrollContent", local); var scrollObject = new GameObject("Scroll", local); var scroll = scrollObject.Add<ScrollRect>(); parent.SetParent(scrollObject.transform); scroll.content = parent;
+        rope = Button(parent, "Rope", 3); road = Button(parent, "Road", 0); buttons = new[] { rope, road };
+        scroll.horizontalNormalizedPosition = .7f; int writes = scroll.writes; MaterialToolbarOrdering.Apply(buttons, local, false);
+        Check(scroll.horizontalNormalizedPosition == .7f && scroll.writes == writes, "Ordinary refresh preserves the user's scroll position.");
+        MaterialToolbarOrdering.Apply(buttons, local, true); Check(scroll.horizontalNormalizedPosition == 0f && scroll.writes == writes + 1, "Contract-change flag resets the owning material scroll.");
+        var externalScroll = scrollObject.Add<ScrollRect>(); externalScroll.content = new GameObject("OtherContent", local).transform;
+        scroll.content = externalScroll.content; scroll.horizontalNormalizedPosition = .8f; MaterialToolbarOrdering.Apply(buttons, local, true);
+        Check(scroll.horizontalNormalizedPosition == .8f, "An ancestor scroll with different content is not reset."); scroll.content = parent;
+
+        var controller = new GameObject("Controller", local).Add<BuildUIController>(); BuildUIController.registry = new[] { rope, road, foreignRoad };
+        GameManager.Instance = new GameManager { CurrentContract = new ContractSO() }; controller.RefreshAllMaterialButtons(); int afterFirst = scroll.writes;
+        Check(rope.evaluations == 1 && road.evaluations == 1 && foreignRoad.evaluations == 0, "Production refresh evaluates only its own scene's buttons.");
+        Check(controller.visibilityRefreshes == 1 && scroll.horizontalNormalizedPosition == 0, "Production refresh sorts then updates panel visibility.");
+        scroll.horizontalNormalizedPosition = .6f; afterFirst = scroll.writes; controller.RefreshAllMaterialButtons();
+        Check(scroll.horizontalNormalizedPosition == .6f && scroll.writes == afterFirst, "Same-contract production refresh preserves scroll.");
+        GameManager.Instance.CurrentContract = new ContractSO(); controller.RefreshAllMaterialButtons(); Check(scroll.horizontalNormalizedPosition == 0 && scroll.writes == afterFirst + 1, "New contract resets scroll exactly once.");
+        scroll.horizontalNormalizedPosition = .4f; afterFirst = scroll.writes; controller.RefreshAllMaterialButtons(); Check(scroll.horizontalNormalizedPosition == .4f && scroll.writes == afterFirst, "Subsequent quantity/undo refresh does not reset scroll.");
+        return checks;
+    }
+}

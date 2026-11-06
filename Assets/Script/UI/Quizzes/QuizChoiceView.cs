@@ -24,7 +24,7 @@ public sealed class QuizChoiceView : MonoBehaviour
         hasImage = choice != null && choice.image != null;
         hasText = choice != null && !string.IsNullOrWhiteSpace(choice.text);
         if (number != null) number.text = index < 26 ? ((char)('A' + index)).ToString() : (index + 1).ToString();
-        if (label != null) { label.text = choice != null ? choice.text ?? string.Empty : string.Empty; label.richText = false; label.gameObject.SetActive(hasText); }
+        if (label != null) { label.text = choice != null ? choice.text ?? string.Empty : string.Empty; label.richText = true; label.gameObject.SetActive(hasText); }
         if (artwork != null) { artwork.sprite = choice != null ? choice.image : null; artwork.preserveAspect = true; artwork.gameObject.SetActive(hasImage); }
         if (button != null)
         {

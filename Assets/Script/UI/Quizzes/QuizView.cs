@@ -98,6 +98,7 @@ public sealed class QuizView : MonoBehaviour
         assessment = false;
         selection = -1; answered = false; complete = false; busy = false; saveError = false;
         title.text = data.title;
+        title.richText = true;
         progress.text = "Question " + (index + 1) + " of " + data.questions.Count;
         QuizQuestion item = data.questions[QuizProgressUtility.QuestionIndexAt(data, questionOrderIds, index)];
         sourceChoiceIndices.Clear();
@@ -105,8 +106,9 @@ public sealed class QuizView : MonoBehaviour
         for (int displayIndex = 0; displayIndex < item.choices.Count; displayIndex++)
             sourceChoiceIndices.Add(QuizProgressUtility.ChoiceIndexAt(item, choiceOrder, displayIndex));
         question.text = item.prompt;
-        question.richText = false;
+        question.richText = true;
         feedback.text = "Choose one answer, then press Submit.";
+        feedback.richText = false;
         feedback.color = QuizUILayout.Ink;
         if (choiceTemplate != null)
         {
@@ -138,6 +140,7 @@ public sealed class QuizView : MonoBehaviour
         if (answered || complete || busy || saveError) return;
         selection = sourceChoiceIndices.IndexOf(index);
         feedback.text = assessment ? "Choose one answer. You may review your answers before submitting." : "Choose one answer, then press Submit.";
+        feedback.richText = false;
         feedback.color = QuizUILayout.Ink;
         for (int i = 0; i < choices.Count; i++) choices[i].SetSelected(i == selection, answered || busy || saveError);
         RefreshButtons();
@@ -147,6 +150,7 @@ public sealed class QuizView : MonoBehaviour
     {
         busy = false; saveError = false; answered = correct;
         feedback.text = correct ? "Correct!" + (string.IsNullOrWhiteSpace(explanation) ? string.Empty : " " + explanation) : "Try again.";
+        feedback.richText = correct;
         feedback.color = correct ? new Color32(47, 105, 63, 255) : new Color32(162, 65, 37, 255);
         for (int i = 0; i < choices.Count; i++) choices[i].SetSelected(i == selection, answered);
         RefreshButtons();
@@ -157,8 +161,11 @@ public sealed class QuizView : MonoBehaviour
     {
         Wire(); ClearChoices(); ClearResultCards(); busy = false; saveError = false; complete = true; answered = true; selection = -1;
         title.text = data.title; progress.text = "Quiz complete";
+        title.richText = true;
         question.text = "Well done! You answered every question correctly.";
+        question.richText = false;
         feedback.text = "Press Finish to continue your conversation.";
+        feedback.richText = false;
         feedback.color = QuizUILayout.Ink;
         RefreshButtons(); ResetScroll();
         if (layout != null) layout.ApplyLayout();
@@ -235,6 +242,7 @@ public sealed class QuizView : MonoBehaviour
     {
         busy = false; saveError = true;
         feedback.text = string.IsNullOrWhiteSpace(message) ? "Progress could not be saved. Retry, or leave safely and return later." : message;
+        feedback.richText = false;
         feedback.color = new Color32(162, 65, 37, 255);
         RefreshButtons();
         for (int i = 0; i < choices.Count; i++) choices[i].SetSelected(i == selection, true);

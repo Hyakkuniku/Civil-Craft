@@ -74,7 +74,7 @@ public static class QuizAssessmentReviewValidation
             try
             {
                 mixed.assessmentMode = true;
-                mixed.title = "Image and Mixed Answer Review";
+                BuildFormattedFixture(mixed);
                 BuildLongFixture(longQuiz);
                 foreach (QuizData data in new[] { beam, mixed, longQuiz }) Capture(prefab, data, report);
             }
@@ -180,6 +180,12 @@ public static class QuizAssessmentReviewValidation
                 ValidateQuestion(view, data.questions[QuizProgressUtility.QuestionIndexAt(data, order, 0)],
                     0, data.QuestionCount, -1, false, choiceOrders);
                 ValidateChoiceClicks(view, data.questions[QuizProgressUtility.QuestionIndexAt(data, order, 0)], choiceOrders);
+                QuizQuestion practice = data.questions[QuizProgressUtility.QuestionIndexAt(data, order, 0)];
+                view.ShowFeedback(true, practice.feedback); layout.ApplyLayout();
+                Require(view.feedback.richText, "Correct practice feedback lost authored formatting after layout.");
+                CheckFormattedText(view.feedback);
+                view.ShowFeedback(false, practice.feedback); layout.ApplyLayout();
+                Require(!view.feedback.richText, "Static retry feedback inherited authored formatting.");
                 Require(JsonUtility.ToJson(data) == authoredJson, "Shuffled presentation mutated the quiz or its authored choice ordering.");
                 Require(QuizProgressUtility.AssessmentScore(data, answers) == score, "Detached choice clicks changed the submitted source-index score.");
                 report.AppendLine("PASS: " + file + "; shuffled ID order [" + string.Join(", ", order) + "]; " + data.QuestionCount +
@@ -281,7 +287,12 @@ public static class QuizAssessmentReviewValidation
             CheckImage(card.YourAnswerImage, selectedChoice.image);
             if (!correct) CheckImage(card.CorrectAnswerImage, correctChoice.image);
             foreach (TMP_Text text in card.GetComponentsInChildren<TMP_Text>(false))
-            { CheckText(text); Inside(text.rectTransform, (RectTransform)card.transform, "Review text leaves its answer card: " + text.name); }
+            {
+                bool authored = text == card.QuestionLabel || text == card.YourAnswerLabel ||
+                    text == card.CorrectAnswerLabel || text == card.FeedbackLabel;
+                CheckText(text, authored);
+                Inside(text.rectTransform, (RectTransform)card.transform, "Review text leaves its answer card: " + text.name);
+            }
             Rect bounds = Bounds((RectTransform)card.transform, view.choiceContent);
             Require(bounds.xMin >= view.choiceContent.rect.xMin - 1 && bounds.xMax <= view.choiceContent.rect.xMax + 1,
                 "Result card extends outside the scroll content width.");
@@ -291,7 +302,7 @@ public static class QuizAssessmentReviewValidation
         Inside(view.layout.choiceViewport, view.layout.safeContent, "Review viewport leaves the paper.");
         Rect scroll = Bounds(view.layout.choiceViewport, view.layout.safeContent), footer = Bounds(view.layout.footer, view.layout.safeContent);
         Require(!scroll.Overlaps(footer), "Review list overlaps the feedback/Continue footer.");
-        foreach (TMP_Text text in new[] { view.title, view.progress, view.question, view.feedback }) CheckText(text);
+        foreach (TMP_Text text in new[] { view.title, view.progress, view.question, view.feedback }) CheckText(text, text == view.title);
     }
 
     private static string AnswerLabel(int index, QuizChoice choice) =>
@@ -304,6 +315,9 @@ public static class QuizAssessmentReviewValidation
             "Returning to ordered question presentation retained result cards or another question's choice count.");
         Require(view.question.text == expected.prompt && view.progress.text.StartsWith("Question " + (displayIndex + 1) + " of " + total,
             StringComparison.Ordinal), "Next/Previous presentation shows another stable question ID's prompt or display number.");
+        Require(view.title.richText && view.question.richText && !view.progress.richText && !view.feedback.richText,
+            "Authored question/title formatting or plain-text progress/instructions changed.");
+        CheckFormattedText(view.title); CheckFormattedText(view.question);
         for (int index = 0; index < expected.choices.Count; index++)
         {
             int sourceIndex = QuizProgressUtility.ChoiceIndexAt(expected,
@@ -312,6 +326,8 @@ public static class QuizAssessmentReviewValidation
             string letter = index < 26 ? ((char)('A' + index)).ToString() : (index + 1).ToString();
             Require(card.number != null && card.number.text == letter && card.label != null &&
                 card.label.text == (choice.text ?? string.Empty), "Displayed choice letter/content does not match its per-question permutation.");
+            Require(card.label.richText, "Authored answer formatting is disabled.");
+            CheckFormattedText(card.label);
             Require(card.face != null && card.face.color == (sourceIndex == selected ? QuizUILayout.Gold : QuizUILayout.Cream),
                 "The selected choice no longer belongs to this stable question ID.");
             CheckImage(card.artwork, choice.image);
@@ -353,10 +369,12 @@ public static class QuizAssessmentReviewValidation
         finally { view.ChoiceSelected -= observer; }
     }
 
-    private static void CheckText(TMP_Text text)
+    private static void CheckText(TMP_Text text, bool authored)
     {
-        Require(text != null && !text.richText, "Remote/authored review strings must render as plain text.");
+        Require(text != null && text.richText == authored,
+            "Only authored quiz content should enable rich text: " + (text != null ? text.name : "missing text"));
         text.ForceMeshUpdate(false, true);
+        CheckFormattedText(text);
         float contentWidth = Mathf.Max(1f, text.rectTransform.rect.width - text.margin.x - text.margin.z);
         Require(!text.isTextTruncated && text.GetPreferredValues(text.text, contentWidth, 0).y <= text.rectTransform.rect.height + 1.5f,
             "Result text clips vertically: " + TextDiagnostics(text));
@@ -371,6 +389,26 @@ public static class QuizAssessmentReviewValidation
                 "; character[" + i + "]=" + character.character + "; bottomLeft=" + character.bottomLeft.ToString("F3") +
                 "; topRight=" + character.topRight.ToString("F3") + "; origin=" + character.origin +
                 "; baseline=" + character.baseLine + "; ascender=" + character.ascender + "; descender=" + character.descender);
+        }
+    }
+
+    private static void CheckFormattedText(TMP_Text text)
+    {
+        if (text == null || !text.text.Contains(">Formatted</color></b>")) return;
+        Require(text.richText, "Formatted fixture is rendering its tags literally: " + text.name);
+        text.ForceMeshUpdate(false, true);
+        string parsed = text.GetParsedText();
+        Require(!parsed.Contains("#E09500") && !parsed.Contains("<b>") && !parsed.Contains("</color>"),
+            "A hex color or formatting tag leaked into visible quiz text: " + text.name);
+        const string marker = "Formatted";
+        int start = parsed.IndexOf(marker, StringComparison.Ordinal);
+        Require(start >= 0 && start + marker.Length <= text.textInfo.characterCount, "Formatted fixture text disappeared.");
+        for (int i = start; i < start + marker.Length; i++)
+        {
+            TMP_CharacterInfo character = text.textInfo.characterInfo[i];
+            Require(character.color.r == 224 && character.color.g == 149 && character.color.b == 0 &&
+                (character.style & FontStyles.Bold) != 0,
+                "TMP did not apply the authored orange and bold styling: " + text.name);
         }
     }
 
@@ -431,6 +469,18 @@ public static class QuizAssessmentReviewValidation
         var hits = new List<RaycastResult>();
         root.GetComponent<GraphicRaycaster>().Raycast(new PointerEventData(null) { position = position }, hits);
         return hits.OrderByDescending(hit => hit.depth).ToList();
+    }
+
+    private static void BuildFormattedFixture(QuizData data)
+    {
+        data.title = "<b><#E09500>Formatted</color></b> Mixed Review";
+        foreach (QuizQuestion question in data.questions)
+        {
+            question.prompt = "<b><#E09500>Formatted</color></b> " + question.prompt;
+            foreach (QuizChoice choice in question.choices)
+                if (!string.IsNullOrWhiteSpace(choice.text)) choice.text = "<b><color=#E09500>Formatted</color></b> " + choice.text;
+            question.feedback = "<b><color=#E09500>Formatted</color></b> " + question.feedback;
+        }
     }
 
     private static void BuildLongFixture(QuizData data)

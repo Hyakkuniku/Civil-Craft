@@ -35,6 +35,22 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
     private bool isMaterialAllowed = true;
     private bool hasReachedQuantityLimit = false;
     private bool isMaterialHidden;
+    public bool IsAvailableForSelection => buttonMaterial != null && isMaterialAllowed &&
+        !isMaterialHidden && !hasReachedQuantityLimit;
+    private Transform toolbarOrderCell;
+    private Transform toolbarOrderParent;
+    private int toolbarAuthoredIndex;
+
+    internal int GetToolbarAuthoredIndex(Transform cell)
+    {
+        if (toolbarOrderCell != cell || toolbarOrderParent != cell.parent)
+        {
+            toolbarOrderCell = cell;
+            toolbarOrderParent = cell.parent;
+            toolbarAuthoredIndex = cell.GetSiblingIndex();
+        }
+        return toolbarAuthoredIndex;
+    }
 
     private void Awake()
     {
