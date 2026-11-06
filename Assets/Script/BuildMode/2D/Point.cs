@@ -321,10 +321,13 @@ public class Point : MonoBehaviour
 
     private void OnDrawGizmos()
     {
+        // The actual point mesh already marks this joint. A second solid debug
+        // cube at its centre can look like another anchor in the Scene view.
+        if (pointRenderer != null && pointRenderer.enabled && pointRenderer.gameObject.activeInHierarchy) return;
         if (isAnchor)
         {
             Gizmos.color = Color.red;
-            Gizmos.DrawCube(transform.position, Vector3.one * 1f);
+            Gizmos.DrawWireCube(transform.position, Vector3.one * 1f);
         }
         else if (!Runtime)
         {

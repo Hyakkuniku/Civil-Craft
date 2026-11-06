@@ -633,18 +633,10 @@ public partial class LiveLoadVehicle : Interactable
 
         npcObstacle.shape = NavMeshObstacleShape.Box;
 
-        if (chassisCollider != null)
+        if (VehicleNPCObstacleGeometry.TryGetLocalBounds(chassisCollider, transform, npcObstaclePadding, out Bounds obstacleBounds))
         {
-            Vector3 scale = transform.lossyScale;
-            Vector3 worldSize = chassisCollider.bounds.size;
-            npcObstacle.center = transform.InverseTransformPoint(chassisCollider.bounds.center);
-            npcObstacle.size = new Vector3(
-                (worldSize.x + npcObstaclePadding * 2f) /
-                    Mathf.Max(Mathf.Abs(scale.x), 0.0001f),
-                (worldSize.y + npcObstaclePadding * 2f) /
-                    Mathf.Max(Mathf.Abs(scale.y), 0.0001f),
-                (worldSize.z + npcObstaclePadding * 2f) /
-                    Mathf.Max(Mathf.Abs(scale.z), 0.0001f));
+            npcObstacle.center = obstacleBounds.center;
+            npcObstacle.size = obstacleBounds.size;
         }
 
         // Moving obstacles should use local avoidance. Carving a moving physics

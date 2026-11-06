@@ -25,7 +25,7 @@ internal static class IndustrialRoadSeamPhysicsCheck
 
     internal static void Validate(Scene sourceScene, IEnumerable<Collider> sourceColliders,
         Vector3 seam, float roadTop, float laneZ, float landDirection, float wheelRadius,
-        StringBuilder report)
+        StringBuilder report, bool followApproachProfile = false)
     {
         Require(!Application.isPlaying && sourceScene.IsValid() && sourceScene.isLoaded,
             "Run detached seam checks with the source scene loaded in Edit Mode.");
@@ -58,8 +58,8 @@ internal static class IndustrialRoadSeamPhysicsCheck
             {
                 Collider copy = CopyCollider(source, detached);
                 geometry.Add(copy.gameObject);
-                // A sheared hierarchy cannot be faithfully represented by a
-                // detached TRS clone. Refuse an inaccurate success in that case.
+                // Mesh colliders retain their complete transform hierarchy;
+                // refuse success if any copied collider still differs in bounds.
                 Physics.SyncTransforms();
                 Require(Vector3.Distance(copy.bounds.center, source.bounds.center) < .02f &&
                     Vector3.Distance(copy.bounds.size, source.bounds.size) < .04f,
@@ -71,7 +71,7 @@ internal static class IndustrialRoadSeamPhysicsCheck
             float[] baselineExcursion = new float[2];
             for (int direction = 0; direction < 2; direction++)
                 baselineExcursion[direction] = Run(physics, detached, seam.x, roadTop, laneZ,
-                    wheelRadius, direction == 0 ? -land : land, grip);
+                    wheelRadius, direction == 0 ? -land : land, grip, followApproachProfile);
             baseline.SetActive(false);
             foreach (GameObject value in geometry) value.SetActive(true);
             const float bridgeLength = 4f;
@@ -82,7 +82,7 @@ internal static class IndustrialRoadSeamPhysicsCheck
             for (int direction = 0; direction < 2; direction++)
             {
                 float excursion = Run(physics, detached, seam.x, roadTop, laneZ,
-                    wheelRadius, direction == 0 ? -land : land, grip);
+                    wheelRadius, direction == 0 ? -land : land, grip, followApproachProfile);
                 float additional = Mathf.Max(0f, excursion - baselineExcursion[direction]);
                 Require(additional <= MaximumAdditionalExcursion,
                     $"Seam caused {additional * 100f:0.##}cm extra vertical wheel excursion " +
@@ -91,7 +91,8 @@ internal static class IndustrialRoadSeamPhysicsCheck
                 report.AppendLine($"PASS detached wheel {(direction == 0 ? "land→bridge" : "bridge→land")}: " +
                     $"X={seam.x:0.###}, Z={laneZ:0.###}, radius={wheelRadius:0.###}m, " +
                     $"extra vertical excursion={additional * 100f:0.###}cm at {Speed:0.#}m/s; " +
-                    $"{sources.Length} actual static collider(s), permanent-road overlap={RoadOverlap:0.#}m.");
+                    $"{sources.Length} actual static collider(s), permanent-road overlap={RoadOverlap:0.#}m; " +
+                    $"profile={(followApproachProfile ? "actual approach surface" : "flat road reference")}.");
             }
         }
         finally
@@ -103,13 +104,17 @@ internal static class IndustrialRoadSeamPhysicsCheck
     }
 
     private static float Run(PhysicsScene physics, Scene scene, float seamX, float roadTop,
-        float laneZ, float radius, float direction, PhysicMaterial grip)
+        float laneZ, float radius, float direction, PhysicMaterial grip, bool followApproachProfile)
     {
         GameObject wheel = New(scene, "Detached representative wheel");
         try
         {
-            wheel.transform.position = new Vector3(seamX - direction * StartDistance,
-                roadTop + radius + .01f, laneZ);
+            var groundHits = followApproachProfile ? new RaycastHit[128] : null;
+            float startX = seamX - direction * StartDistance;
+            float startTop = followApproachProfile
+                ? GroundHeight(physics, startX, laneZ, roadTop, null, groundHits)
+                : roadTop;
+            wheel.transform.position = new Vector3(startX, startTop + radius + .01f, laneZ);
             SphereCollider sphere = wheel.AddComponent<SphereCollider>(); sphere.radius = radius; sphere.sharedMaterial = grip;
             Rigidbody body = wheel.AddComponent<Rigidbody>(); body.mass = 100f; body.drag = body.angularDrag = 0f;
             body.useGravity = true; body.maxAngularVelocity = 50f; body.sleepThreshold = 0f;
@@ -129,8 +134,16 @@ internal static class IndustrialRoadSeamPhysicsCheck
                 float progress = (body.position.x - seamX) * direction;
                 Require(body.velocity.x * direction > .1f,
                     $"Representative wheel stalled/reversed near seam X={seamX:0.###}, lane Z={laneZ:0.###}.");
+                float expectedTop = followApproachProfile
+                    ? GroundHeight(physics, body.position.x, body.position.z, roadTop, body, groundHits)
+                    : roadTop;
+                float separation = body.position.y - radius - expectedTop;
+                if (followApproachProfile)
+                    Require(separation <= MaximumAdditionalExcursion,
+                        $"Representative wheel became airborne by {separation * 100f:0.##}cm above the actual approach " +
+                        $"near X={body.position.x:0.###}, lane Z={laneZ:0.###}.");
                 if (Mathf.Abs(body.position.x - seamX) < 1.25f)
-                    excursion = Mathf.Max(excursion, Mathf.Abs(body.position.y - radius - roadTop));
+                    excursion = Mathf.Max(excursion, Mathf.Abs(separation));
                 if (progress >= PastSeamDistance) { passed = true; break; }
             }
             Require(passed, $"Representative wheel failed to clear seam X={seamX:0.###}, lane Z={laneZ:0.###} within two simulation seconds.");
@@ -139,11 +152,37 @@ internal static class IndustrialRoadSeamPhysicsCheck
         finally { UnityEngine.Object.DestroyImmediate(wheel); }
     }
 
+    private static float GroundHeight(PhysicsScene physics, float x, float z, float roadTop,
+        Rigidbody ownBody, RaycastHit[] hits)
+    {
+        // Sampling only the detached physics world cannot touch gameplay bodies.
+        // A profile may be graded, but missing ground and airborne motion remain
+        // failures rather than being hidden by subtracting a changing baseline.
+        int count = physics.Raycast(new Vector3(x, roadTop + 1f, z), Vector3.down,
+            hits, 2f, ~0, QueryTriggerInteraction.Ignore);
+        Require(count < hits.Length, "Too many overlapping approach surfaces for an unambiguous wheel-profile check.");
+        bool found = false; float highest = float.NegativeInfinity;
+        for (int i = 0; i < count; i++)
+        {
+            RaycastHit hit = hits[i];
+            if (hit.collider == null || hit.rigidbody != null && hit.rigidbody == ownBody ||
+                hit.normal.y <= .5f || Mathf.Abs(hit.point.y - roadTop) >= 1f) continue;
+            if (!found || hit.point.y > highest) { highest = hit.point.y; found = true; }
+        }
+        Require(found, $"No upward-facing approach surface within 1m of road height at X={x:0.###}, lane Z={z:0.###}.");
+        return highest;
+    }
+
     private static Collider CopyCollider(Collider source, Scene scene)
     {
         GameObject copy = New(scene, "Source collider: " + source.name);
-        copy.transform.SetPositionAndRotation(source.transform.position, source.transform.rotation);
-        copy.transform.localScale = source.transform.lossyScale;
+        if (source is MeshCollider)
+            CopyMeshTransformHierarchy(source.transform, copy.transform, scene);
+        else
+        {
+            copy.transform.SetPositionAndRotation(source.transform.position, source.transform.rotation);
+            copy.transform.localScale = source.transform.lossyScale;
+        }
         Collider result;
         if (source is BoxCollider box)
         {
@@ -171,6 +210,30 @@ internal static class IndustrialRoadSeamPhysicsCheck
         else throw new InvalidOperationException("Unsupported static collider in seam check: " + source.GetType().Name);
         result.sharedMaterial = source.sharedMaterial; result.contactOffset = source.contactOffset;
         return result;
+    }
+    private static void CopyMeshTransformHierarchy(Transform source, Transform copy, Scene scene)
+    {
+        // Rotation below a nonuniformly scaled parent introduces shear. Replacing
+        // that chain with world position/rotation/lossyScale changes the collision
+        // surface. Copy transform-only ancestors to retain the full matrix,
+        // without activating any gameplay scripts, renderers or source objects.
+        var chain = new Stack<Transform>();
+        for (Transform value = source.parent; value != null; value = value.parent) chain.Push(value);
+        Transform parent = null;
+        while (chain.Count > 0)
+        {
+            Transform original = chain.Pop();
+            Transform ancestor = New(scene, "Source transform: " + original.name).transform;
+            ancestor.SetParent(parent, false);
+            ancestor.localPosition = original.localPosition;
+            ancestor.localRotation = original.localRotation;
+            ancestor.localScale = original.localScale;
+            parent = ancestor;
+        }
+        copy.SetParent(parent, false);
+        copy.localPosition = source.localPosition;
+        copy.localRotation = source.localRotation;
+        copy.localScale = source.localScale;
     }
     private static GameObject Box(Scene scene, string name, Vector3 center, Vector3 size, PhysicMaterial material)
     {

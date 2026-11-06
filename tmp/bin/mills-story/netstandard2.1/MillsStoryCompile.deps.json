@@ -14,6 +14,8 @@
           "Unity.Cecil": "0.10.0.0",
           "Unity.Cecil.Mdb": "0.10.0.0",
           "Unity.Cecil.Pdb": "0.10.0.0",
+          "Unity.RenderPipelines.Core.Runtime": "0.0.0.0",
+          "Unity.RenderPipelines.Universal.Runtime": "0.0.0.0",
           "Unity.TextMeshPro": "0.0.0.0",
           "UnityEditor.CoreModule": "0.0.0.0",
           "UnityEditor.DeviceSimulatorModule": "0.0.0.0",
@@ -142,6 +144,22 @@
           "Unity.Cecil.Pdb.dll": {
             "assemblyVersion": "0.10.0.0",
             "fileVersion": "0.10.0.0"
+          }
+        }
+      },
+      "Unity.RenderPipelines.Core.Runtime/0.0.0.0": {
+        "runtime": {
+          "Unity.RenderPipelines.Core.Runtime.dll": {
+            "assemblyVersion": "0.0.0.0",
+            "fileVersion": "0.0.0.0"
+          }
+        }
+      },
+      "Unity.RenderPipelines.Universal.Runtime/0.0.0.0": {
+        "runtime": {
+          "Unity.RenderPipelines.Universal.Runtime.dll": {
+            "assemblyVersion": "0.0.0.0",
+            "fileVersion": "0.0.0.0"
           }
         }
       },
@@ -841,22 +859,6 @@
           }
         }
       },
-      "Unity.RenderPipelines.Universal.Runtime/0.0.0.0": {
-        "runtime": {
-          "Unity.RenderPipelines.Universal.Runtime.dll": {
-            "assemblyVersion": "0.0.0.0",
-            "fileVersion": "0.0.0.0"
-          }
-        }
-      },
-      "Unity.RenderPipelines.Core.Runtime/0.0.0.0": {
-        "runtime": {
-          "Unity.RenderPipelines.Core.Runtime.dll": {
-            "assemblyVersion": "0.0.0.0",
-            "fileVersion": "0.0.0.0"
-          }
-        }
-      },
       "PlayFab/0.0.0.0": {
         "runtime": {
           "PlayFab.dll": {
@@ -998,6 +1000,16 @@
       "sha512": ""
     },
     "Unity.Cecil.Pdb/0.10.0.0": {
+      "type": "reference",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Unity.RenderPipelines.Core.Runtime/0.0.0.0": {
+      "type": "reference",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Unity.RenderPipelines.Universal.Runtime/0.0.0.0": {
       "type": "reference",
       "serviceable": false,
       "sha512": ""
@@ -1433,16 +1445,6 @@
       "sha512": ""
     },
     "Unity.InputSystem/1.14.2.0": {
-      "type": "reference",
-      "serviceable": false,
-      "sha512": ""
-    },
-    "Unity.RenderPipelines.Universal.Runtime/0.0.0.0": {
-      "type": "reference",
-      "serviceable": false,
-      "sha512": ""
-    },
-    "Unity.RenderPipelines.Core.Runtime/0.0.0.0": {
       "type": "reference",
       "serviceable": false,
       "sha512": ""

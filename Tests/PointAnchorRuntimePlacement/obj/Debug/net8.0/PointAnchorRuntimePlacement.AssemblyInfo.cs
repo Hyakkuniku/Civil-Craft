@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("PointAnchorRuntimePlacement")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+6574ed44fa0351f30bff2124b1a22a34a80fe53f")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+2e344ed97d1850b85046d2cb5e8cd7cfc176398d")]
 [assembly: System.Reflection.AssemblyProductAttribute("PointAnchorRuntimePlacement")]
 [assembly: System.Reflection.AssemblyTitleAttribute("PointAnchorRuntimePlacement")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
