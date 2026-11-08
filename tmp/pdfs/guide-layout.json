@@ -1,0 +1,52 @@
+[
+  {
+    "page": 1,
+    "bottom_y": 135.4,
+    "title": "Read this first"
+  },
+  {
+    "page": 2,
+    "bottom_y": 177.0,
+    "title": "Feature and demo map"
+  },
+  {
+    "page": 3,
+    "bottom_y": 190.0,
+    "title": "How your stress calculation works"
+  },
+  {
+    "page": 4,
+    "bottom_y": 177.8,
+    "title": "Design choices and scope"
+  },
+  {
+    "page": 5,
+    "bottom_y": 193.0,
+    "title": "Stress, loads, and simulation"
+  },
+  {
+    "page": 6,
+    "bottom_y": 177.8,
+    "title": "Purpose and educational value"
+  },
+  {
+    "page": 7,
+    "bottom_y": 132.2,
+    "title": "Methodology, evaluation, and evidence"
+  },
+  {
+    "page": 8,
+    "bottom_y": 147.4,
+    "title": "Accounts, multiplayer, and the website"
+  },
+  {
+    "page": 9,
+    "bottom_y": 147.4,
+    "title": "Limits, risks, and follow-up questions"
+  },
+  {
+    "page": 10,
+    "bottom_y": 128.0,
+    "title": "Final rehearsal and paper checks"
+  }
+]
