@@ -388,6 +388,11 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
 
     private void Update()
     {
+        if (toolbarPierDrawing)
+        {
+            if (!CanContinueToolbarPierDrag()) CancelCreation();
+            return;
+        }
         if (ClipboardManager.IsBuildInputBlocked) return;
         // The public selection field and an already-started gesture can survive
         // a contract change. Never commit a newly opt-in material through either.
@@ -876,6 +881,7 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
 
     public void OnPointerDown(PointerEventData eventData)
     {
+        if (toolbarPierDrawing) return;
         if (ClipboardManager.IsBuildInputBlocked) return;
         if (GameManager.Instance != null && GameManager.Instance.IsSessionChallengeBuild &&
             !GameManager.Instance.CanEditSessionChallengeBuild) return;
@@ -1032,45 +1038,7 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
             if (activeMaterial.isPier)
             {
                 Vector3 worldPos = GetWorldMousePosition(screenPos);
-                float alignedX = worldPos.x;
-                float snapThreshold = 1.5f; 
-                float bridgeZ = GetBuildPlaneZ();
-
-                foreach (Point p in Point.AllPoints)
-                {
-                    if (p != null && p.gameObject.activeInHierarchy &&
-                        Mathf.Abs(p.transform.position.z - bridgeZ) <= nodeSnapDepthTolerance &&
-                        (GameManager.Instance == null || GameManager.Instance.ActiveBuildLocation == null ||
-                         p.OwnerLocation == null || p.OwnerLocation == GameManager.Instance.ActiveBuildLocation))
-                    {
-                        float xDiff = Mathf.Abs(p.transform.position.x - worldPos.x);
-                        if (xDiff < snapThreshold)
-                        {
-                            snapThreshold = xDiff;
-                            alignedX = p.transform.position.x;
-                        }
-                    }
-                }
-
-                if (isGridSnappingEnabled && snapThreshold == 1.5f) alignedX = Mathf.Round(alignedX);
-                Vector3 startPos = new Vector3(alignedX, pierBaseY, bridgeZ);
-
-                GameObject startObj = Instantiate(pointToInstantiate, startPos, Quaternion.identity, pointParent);
-                startObj.name = "PierTip";
-                currentStartPoint = startObj.GetComponent<Point>();
-                currentStartPoint.AssignOwner(GameManager.Instance?.ActiveBuildLocation);
-                // This is a temporary foundation supplied by the pier itself,
-                // not a permanent scene-authored anchor.
-                currentStartPoint.originalIsAnchor = false;
-                currentStartPoint.isAnchor = true; 
-                currentStartPoint.UpdateMaterial();
-                
-                createdStartPoint = true;
-                barCreationStarted = true; 
-                
-                if (ghostPierBar != null) ghostPierBar.gameObject.SetActive(false); 
-                CaptureDrawingPointer(eventData, startPos, false);
-                StartBarCreation(startPos);
+                BeginPierDrawing(eventData, GetPierFoundation(worldPos));
             }
             else if (existingNode != null) 
             {
@@ -1940,7 +1908,8 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
             BuildUIController.Instance.LogAction("Beam stopped by terrain");
         }
 
-        if (Vector3.Distance(startPos, finalPosition) < 0.1f) 
+        if (Vector3.Distance(startPos, finalPosition) < 0.1f ||
+            (toolbarPierDrawing && finalPosition.y <= startPos.y))
         { 
             CancelCreation(); 
             if (Vector3.Distance(preClampPos, finalPosition) <= 0.05f && BuildUIController.Instance != null) 

@@ -16,6 +16,7 @@ public partial class BarCreator
     [SerializeField] private bool testTouchDrawingInEditor = true;
 #endif
     private bool drawingPointerCaptured;
+    private bool toolbarPierDrawing;
     private bool drawingGestureMoved;
     private int drawingEventPointerId;
     private int drawingTouchId = -1;
@@ -147,9 +148,160 @@ public partial class BarCreator
     private void ResetDrawingPointer()
     {
         drawingPointerCaptured = false;
+        toolbarPierDrawing = false;
         drawingGestureMoved = false;
         drawingTouchId = -1;
         drawingScreenOffset = Vector2.zero;
+    }
+
+    internal bool CanAimToolbarPierAt(PointerEventData eventData) => TryGetToolbarPierAim(eventData, out _);
+
+    internal bool TryBeginToolbarPierDrag(BridgeMaterialSO material, PointerEventData eventData)
+    {
+        BuildUIController ui = BuildUIController.Instance;
+        if (barCreationStarted || material == null || !material.isPier || ui == null ||
+            !CanUseToolbarPierInput() || !ui.CanSelectMaterial(material) ||
+            !TryGetToolbarPierAim(eventData, out Vector3 aim)) return false;
+
+        ui.OnMaterialSelected(material);
+        if (activeMaterial != material || !CanUseToolbarPierInput() || !CanPlaceToolbarPier()) return false;
+
+        BeginPierDrawing(eventData, GetPierFoundation(aim));
+        toolbarPierDrawing = barCreationStarted;
+        UpdateToolbarPierDrag(eventData, finish: false);
+        return toolbarPierDrawing;
+    }
+
+    internal void UpdateToolbarPierDrag(PointerEventData eventData, bool finish)
+    {
+        if (!toolbarPierDrawing || drawingEventPointerId != eventData.pointerId) return;
+        if (!CanContinueToolbarPierDrag())
+        {
+            CancelCreation();
+            return;
+        }
+        if (!TryGetToolbarPierAim(eventData, out Vector3 aim))
+        {
+            if (finish) CancelCreation();
+            else if (currentBar.gameObject.activeSelf)
+            {
+                SetToolbarPierPreviewVisible(false);
+                if (radiusIndicator != null) radiusIndicator.enabled = false;
+                if (magnifyingGlass != null) magnifyingGlass.HideMagnifier();
+            }
+            return;
+        }
+
+        UpdateDrawingGesture(eventData.position);
+        Vector3 foundation = GetPierFoundation(aim);
+        currentStartPoint.transform.position = foundation;
+        currentBar.StartPosition = foundation;
+        CheckForDrawingPoint(eventData.position, out Point endpoint, out Vector3 snap);
+        if (endpoint == currentStartPoint || endpoint == currentEndPoint || snap.y <= foundation.y) endpoint = null;
+
+        if (!currentBar.gameObject.activeSelf)
+        {
+            SetToolbarPierPreviewVisible(true);
+            DrawRadiusVisual();
+        }
+
+        if (finish)
+        {
+            FinishBarCreation(aim, endpoint, snap);
+            return;
+        }
+
+        Vector3 target = ResolveDrawingEndpoint(aim, ref endpoint, snap, out _, out _);
+        currentEndPoint.transform.position = target;
+        currentBar.UpdateCreatingBar(target);
+        UpdateDrawingMagnifier(eventData.position, target);
+    }
+
+    private void SetToolbarPierPreviewVisible(bool visible)
+    {
+        currentStartPoint.gameObject.SetActive(visible);
+        currentEndPoint.gameObject.SetActive(visible);
+        currentBar.gameObject.SetActive(visible);
+    }
+
+    internal void CancelToolbarPierDrag(int pointerId)
+    {
+        if (toolbarPierDrawing && drawingEventPointerId == pointerId) CancelCreation();
+    }
+
+    private bool CanUseToolbarPierInput()
+    {
+        GameManager game = GameManager.Instance;
+        return isActiveAndEnabled && !isSimulating && !IsAutoDrawing && !ClipboardManager.IsBuildInputBlocked &&
+            !SessionChatUI.IsOpen && Touch.activeTouches.Count <= 1 &&
+            (PauseManager.Instance == null || !PauseManager.Instance.isPaused) &&
+            game != null && game.ActiveBuildLocation != null && !game.IsTransitioning &&
+            game.CurrentState == GameManager.GameState.Building &&
+            (!game.IsSessionChallengeBuild || game.CanEditSessionChallengeBuild);
+    }
+
+    private static bool CanPlaceToolbarPier() =>
+        BuildTutorialDirector.Instance == null || BuildTutorialDirector.Instance.CanPlaceMaterials;
+
+    private bool CanContinueToolbarPierDrag() => CanUseToolbarPierInput() && DrawingSessionIsValid() &&
+        CanPlaceToolbarPier() && currentBar != null && currentBar.OwnerLocation == GameManager.Instance.ActiveBuildLocation &&
+        activeMaterial != null && activeMaterial == currentBar.materialData &&
+        BuildUIController.Instance != null && BuildUIController.Instance.CanSelectMaterial(activeMaterial);
+
+    private bool TryGetToolbarPierAim(PointerEventData eventData, out Vector3 aim)
+    {
+        aim = default;
+        if (ExecuteEvents.GetEventHandler<IPointerDownHandler>(eventData.pointerCurrentRaycast.gameObject) != gameObject)
+            return false;
+        Camera camera = GetActiveCamera();
+        if (camera == null || !camera.isActiveAndEnabled || !camera.pixelRect.Contains(eventData.position)) return false;
+
+        Plane buildPlane = new Plane(Vector3.back, new Vector3(0f, 0f, GetBuildPlaneZ()));
+        Ray ray = camera.ScreenPointToRay(eventData.position);
+        if (!buildPlane.Raycast(ray, out float distance)) return false;
+        aim = ray.GetPoint(distance);
+        return aim.y > pierBaseY;
+    }
+
+    private Vector3 GetPierFoundation(Vector3 aim)
+    {
+        float alignedX = aim.x;
+        float closest = 1.5f;
+        float bridgeZ = GetBuildPlaneZ();
+        BuildLocation location = GameManager.Instance?.ActiveBuildLocation;
+        foreach (Point point in Point.AllPoints)
+        {
+            if (point == null || point == currentStartPoint || point == currentEndPoint ||
+                !point.gameObject.activeInHierarchy ||
+                Mathf.Abs(point.transform.position.z - bridgeZ) > nodeSnapDepthTolerance ||
+                (location != null && point.OwnerLocation != null && point.OwnerLocation != location)) continue;
+
+            float distance = Mathf.Abs(point.transform.position.x - aim.x);
+            if (distance >= closest) continue;
+            closest = distance;
+            alignedX = point.transform.position.x;
+        }
+
+        if (isGridSnappingEnabled && closest == 1.5f) alignedX = Mathf.Round(alignedX);
+        return new Vector3(alignedX, pierBaseY, bridgeZ);
+    }
+
+    private void BeginPierDrawing(PointerEventData eventData, Vector3 foundation)
+    {
+        GameObject start = Instantiate(pointToInstantiate, foundation, Quaternion.identity, pointParent);
+        start.name = "PierTip";
+        currentStartPoint = start.GetComponent<Point>();
+        currentStartPoint.AssignOwner(GameManager.Instance?.ActiveBuildLocation);
+        // The pier supplies this temporary anchor. It is not an authored anchor.
+        currentStartPoint.originalIsAnchor = false;
+        currentStartPoint.isAnchor = true;
+        currentStartPoint.UpdateMaterial();
+        createdStartPoint = true;
+        barCreationStarted = true;
+
+        if (ghostPierBar != null) ghostPierBar.gameObject.SetActive(false);
+        CaptureDrawingPointer(eventData, foundation, false);
+        StartBarCreation(foundation);
     }
 
     private void OnApplicationFocus(bool focused)

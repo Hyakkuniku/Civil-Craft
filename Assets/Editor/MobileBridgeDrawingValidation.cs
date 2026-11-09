@@ -114,8 +114,12 @@ public static class MobileBridgeDrawingValidation
             ValidateGesture(camera, point, creator);
             ValidateLogicalAim(preview, camera, point, creator, location, material);
             ValidateEndpointRules(preview, point, creator, material);
+            ValidatePierToolbarGesture(preview);
+            ValidatePierToolbarPlacement(preview, camera, creator, location);
             ValidateMagnifierDisable(preview, creator);
             report.AppendLine("PASS: actual Point renderer cache and drawing picker preserve owner/depth/start/ghost/visibility filters, whole-mesh starting priority and list-order-independent ties. Destination picking follows only the logical endpoint, not a second raw-finger target. Whole-mesh grab offset, drag threshold, coherent aim and mismatched pointer release passed.");
+            report.AppendLine("PASS: pier toolbar gestures preserve tap eligibility, forward horizontal scrolling, and consume upward placement drags. Non-pier toolbar buttons still delegate drag input to the scroll view.");
+            report.AppendLine("PASS: an authored Wood Pier previews in the workspace, hides over UI, and commits at the release position with one undo entry.");
 
             passed = true;
         }
@@ -513,6 +517,144 @@ public static class MobileBridgeDrawingValidation
         split = (Bar)args[4];
         terrain = (bool)args[5];
         return result;
+    }
+
+    private static void ValidatePierToolbarGesture(Scene preview)
+    {
+        var root = new GameObject("Detached materials scroll view", typeof(RectTransform), typeof(ScrollRect));
+        SceneManager.MoveGameObjectToScene(root, preview);
+        ScrollRect scroll = root.GetComponent<ScrollRect>();
+        ((RectTransform)root.transform).sizeDelta = new Vector2(200f, 80f);
+        scroll.horizontal = true;
+        scroll.vertical = false;
+        scroll.movementType = ScrollRect.MovementType.Unrestricted;
+        scroll.inertia = false;
+        scroll.content = (RectTransform)new GameObject("Toolbar content", typeof(RectTransform)).transform;
+        scroll.content.SetParent(root.transform, false);
+        scroll.content.sizeDelta = new Vector2(600f, 80f);
+
+        var pier = ScriptableObject.CreateInstance<BridgeMaterialSO>();
+        var road = ScriptableObject.CreateInstance<BridgeMaterialSO>();
+        pier.isPier = true;
+        try
+        {
+            GameObject pierButton = NewMaterialButton(scroll.content, pier);
+            GameObject roadButton = NewMaterialButton(scroll.content, road);
+            Check(ExecuteEvents.GetEventHandler<IDragHandler>(pierButton) == pierButton, "Pier button owns its drag gesture");
+            Check(ExecuteEvents.GetEventHandler<IDragHandler>(roadButton) == root, "Non-pier button delegates dragging to the toolbar");
+
+            var gesture = new PointerEventData(null)
+            {
+                pointerId = 80,
+                button = PointerEventData.InputButton.Left,
+                pressPosition = new Vector2(100f, 40f),
+                position = new Vector2(100f, 40f),
+                eligibleForClick = true
+            };
+            ExecuteEvents.Execute(pierButton, gesture, ExecuteEvents.initializePotentialDrag);
+            Check(gesture.eligibleForClick, "Potential pier drag keeps tap-to-select available");
+
+            gesture.position += new Vector2(20f, 2f);
+            ExecuteEvents.Execute(pierButton, gesture, ExecuteEvents.beginDragHandler);
+            Check(!gesture.eligibleForClick, "Horizontal pier drag suppresses material clicks");
+            gesture.position += new Vector2(30f, 1f);
+            ExecuteEvents.Execute(pierButton, gesture, ExecuteEvents.dragHandler);
+            Check(scroll.content.anchoredPosition.x > 20f, "Horizontal pier drag scrolls real toolbar content");
+            ExecuteEvents.Execute(pierButton, gesture, ExecuteEvents.endDragHandler);
+
+            Vector2 scrollPosition = scroll.content.anchoredPosition;
+            gesture.position = gesture.pressPosition;
+            gesture.eligibleForClick = true;
+            ExecuteEvents.Execute(pierButton, gesture, ExecuteEvents.initializePotentialDrag);
+            gesture.position += new Vector2(2f, 20f);
+            ExecuteEvents.Execute(pierButton, gesture, ExecuteEvents.beginDragHandler);
+            Check(!gesture.eligibleForClick, "Upward pier drag suppresses material clicks");
+            gesture.position += new Vector2(35f, 25f);
+            ExecuteEvents.Execute(pierButton, gesture, ExecuteEvents.dragHandler);
+            ExecuteEvents.Execute(pierButton, gesture, ExecuteEvents.endDragHandler);
+            Check(scroll.content.anchoredPosition == scrollPosition, "Upward pier gesture stays reserved for placement even with no active build UI");
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(root);
+            UnityEngine.Object.DestroyImmediate(pier);
+            UnityEngine.Object.DestroyImmediate(road);
+        }
+    }
+
+    private static GameObject NewMaterialButton(Transform parent, BridgeMaterialSO material)
+    {
+        var button = new GameObject("Detached material button", typeof(RectTransform));
+        button.SetActive(false);
+        button.transform.SetParent(parent, false);
+        var trigger = button.AddComponent<MaterialButtonTrigger>();
+        trigger.buttonMaterial = material;
+        button.SetActive(true);
+        Invoke(trigger, "Awake");
+        // Runtime component messages do not run in the detached Edit Mode fixture.
+        foreach (MonoBehaviour component in button.GetComponents<MonoBehaviour>())
+            if (component is IDragHandler) Invoke(component, "Awake");
+        return button;
+    }
+
+    private static void ValidatePierToolbarPlacement(Scene preview, Camera camera, BarCreator creator, BuildLocation location)
+    {
+        var pier = AssetDatabase.LoadAssetAtPath<BridgeMaterialSO>("Assets/BridgeBuilder/Data/Resources/Pier.asset");
+        Check(pier != null && pier.isPier, "The authored Wood Pier is available for the drag fixture");
+        var ui = NewObject(preview, "Inactive pier builder UI", false).AddComponent<BuildUIController>();
+        var history = NewObject(preview, "Inactive pier history", false).AddComponent<CommandManager>();
+        CommandManager originalHistory = CommandManager.Instance;
+        ui.barCreator = creator;
+        ui.fallbackMaxBudget = 10000f;
+        creator.barToInstantiate = NewObject(preview, "Detached bar source", true).AddComponent<Bar>().gameObject;
+        creator.pointToInstantiate = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/BridgeBuilder/Prefabs/Point 1.prefab");
+        creator.barParent = NewObject(preview, "Detached bars", true).transform;
+        creator.pointParent = NewObject(preview, "Detached points", true).transform;
+        creator.pierBaseY = -4f;
+        creator.isGridSnappingEnabled = false;
+        creator.gameObject.SetActive(true);
+        var workspace = new GameObject("Detached grid");
+        workspace.transform.SetParent(creator.transform, false);
+        SetProperty(typeof(BuildUIController), "Instance", null, ui);
+        SetProperty(typeof(CommandManager), "Instance", null, history);
+        try
+        {
+            Oblique(camera);
+            var gesture = new PointerEventData(null)
+            {
+                pointerId = 91,
+                button = PointerEventData.InputButton.Left,
+                position = ScreenPoint(camera, new Vector3(3f, 1f, 0f)),
+                pointerCurrentRaycast = new RaycastResult { gameObject = workspace }
+            };
+            Check((bool)Invoke(creator, "TryBeginToolbarPierDrag", pier, gesture),
+                "A pier drag starts on a child of the real build handler");
+            Bar placedPier = creator.currentBar;
+            Check(placedPier != null && placedPier.OwnerLocation == location && creator.IsCreating,
+                "The drag previews an owned member before committing");
+            Check(Field<Stack<HistoryAction>>(history, "undoStack").Count == 0,
+                "Previewing the pier does not write bridge history");
+            gesture.pointerCurrentRaycast = new RaycastResult { gameObject = ui.gameObject };
+            Invoke(creator, "UpdateToolbarPierDrag", gesture, false);
+            Check(!placedPier.gameObject.activeSelf, "Dragging over another UI surface hides the preview");
+            gesture.pointerCurrentRaycast = new RaycastResult { gameObject = workspace };
+            gesture.position = ScreenPoint(camera, new Vector3(5f, 1f, 0f));
+            Invoke(creator, "UpdateToolbarPierDrag", gesture, true);
+            Check(!creator.IsCreating && placedPier.gameObject.activeSelf && placedPier.startPoint != null && placedPier.endPoint != null,
+                "Releasing in the workspace commits a connected pier");
+            Near(placedPier.StartPosition.x, 5f, "The foundation follows the release X");
+            Near(placedPier.EndPosition.x, 5f, "The pier stays vertical");
+            Near(placedPier.StartPosition.y, -4f, "The pier starts at the configured foundation");
+            Near(placedPier.EndPosition.y, 1f, "The pier top follows the release Y");
+            var undo = Field<Stack<HistoryAction>>(history, "undoStack");
+            Check(undo.Count == 1 && undo.Peek().affectedObjects.Count == 3,
+                "Placement records one undo action for the pier and its two points");
+        }
+        finally
+        {
+            SetProperty(typeof(CommandManager), "Instance", null, originalHistory);
+            SetProperty(typeof(BuildUIController), "Instance", null, null);
+        }
     }
 
     private static void ValidateMagnifierDisable(Scene preview, BarCreator creator)

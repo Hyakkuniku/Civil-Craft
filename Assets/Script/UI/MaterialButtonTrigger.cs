@@ -57,6 +57,8 @@ public class MaterialButtonTrigger : MonoBehaviour, IPointerEnterHandler, IPoint
         rectTransform = GetComponent<RectTransform>();
         if (rectTransform != null) originalPosition = rectTransform.anchoredPosition;
         if (buttonImage != null) originalColor = buttonImage.color;
+        if (buttonMaterial != null && buttonMaterial.isPier)
+            gameObject.AddComponent<MaterialPierDrag>();
     }
 
     private void Start()
