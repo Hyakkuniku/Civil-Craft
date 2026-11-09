@@ -19,6 +19,7 @@ public sealed class SessionChatUI : MonoBehaviour
     [SerializeField] private Button sendButton;
     [SerializeField] private TMP_Text status;
     [SerializeField] private TMP_Text unreadBadge;
+    [SerializeField] private Button randomChallengeButton;
     private readonly SessionChatHistory history = new SessionChatHistory();
     private NetworkRunner boundRunner;
     private PlayerMotor motor;
@@ -26,8 +27,11 @@ public sealed class SessionChatUI : MonoBehaviour
     private bool captured, motorEnabled, inputEnabled, lookEnabled;
     private int unread;
     private float nextRefresh;
+    private string challengeFeedback;
+    private float challengeFeedbackUntil;
     public static bool IsOpen { get; private set; }
     public TMP_FontAsset ChatFont => messages != null ? messages.font : TMP_Settings.defaultFontAsset;
+    public Button RandomChallengeButton => randomChallengeButton;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetOpenState() { IsOpen = false; }
@@ -35,6 +39,7 @@ public sealed class SessionChatUI : MonoBehaviour
     private void Awake()
     {
         if (panel != null) panel.SetActive(false);
+        RandomChallengeChatLayout.Apply(randomChallengeButton, messageScroll, false);
         // Only the formatter's sender highlight is markup; names/messages are escaped.
         if (messages != null) messages.richText = true;
         if (messageInput != null) { messageInput.characterLimit = SessionChatHistory.MessageLimit; messageInput.richText = false; }
@@ -42,7 +47,12 @@ public sealed class SessionChatUI : MonoBehaviour
     }
     private void OnEnable() { FusionMultiplayerAvatar.ChatMessageReceived += Receive; }
     private void OnDisable() { FusionMultiplayerAvatar.ChatMessageReceived -= Receive; Close(); }
-    private void OnDestroy() { FusionMultiplayerAvatar.ChatMessageReceived -= Receive; Close(); }
+    private void OnDestroy()
+    {
+        FusionMultiplayerAvatar.ChatMessageReceived -= Receive;
+        Close();
+        RandomChallengeChatLayout.Release(randomChallengeButton);
+    }
 
     private static NetworkRunner ActiveRunner()
     {
@@ -59,6 +69,7 @@ public sealed class SessionChatUI : MonoBehaviour
         NetworkRunner current = ActiveRunner();
         if (boundRunner == current) return;
         Close(); boundRunner = current; history.Clear(); unread = 0;
+        challengeFeedback = null;
         if (messageInput != null) messageInput.SetTextWithoutNotify(string.Empty);
         RefreshHistory(true);
     }
@@ -111,6 +122,27 @@ public sealed class SessionChatUI : MonoBehaviour
     }
     public void SubmitInput(string unused) { Send(); }
 
+    public void SendRandomChallenge()
+    {
+        BindSession();
+        if (!captured) return;
+        FusionMultiplayerAvatar avatar = LocalAvatar(boundRunner);
+        string reason = null;
+        if (avatar != null && avatar.TryInviteRandomChallenge(out reason))
+        {
+            challengeFeedback = null;
+            Close();
+            return;
+        }
+        else
+        {
+            challengeFeedback = avatar == null ? "Wait for multiplayer to finish connecting." :
+                string.IsNullOrWhiteSpace(reason) ? "No ready crossing is available right now." : reason;
+            challengeFeedbackUntil = Time.unscaledTime + 8f;
+            RefreshControls();
+        }
+    }
+
     private void Update()
     {
         BindSession();
@@ -128,10 +160,17 @@ public sealed class SessionChatUI : MonoBehaviour
     {
         if (openButton != null) openButton.interactable = CanOpen;
         FusionMultiplayerAvatar avatar = LocalAvatar(boundRunner);
+        FusionConnectionManager connection = FusionConnectionManager.Instance;
+        bool hostChallenge = boundRunner != null && connection != null && connection.Runner == boundRunner &&
+            connection.IsHosting && !connection.IsNetworkSceneLoading && avatar != null && avatar.IsSessionHost;
+        RandomChallengeChatLayout.Apply(randomChallengeButton, messageScroll, hostChallenge);
+        if (randomChallengeButton != null) randomChallengeButton.interactable = hostChallenge && avatar.CanInviteRandomChallenge;
         bool canSend = avatar != null && avatar.CanSendChat;
         if (sendButton != null) sendButton.interactable = canSend && messageInput != null && SessionChatHistory.Normalize(messageInput.text).Length > 0;
-        if (status != null) status.text = boundRunner == null ? "Turn on multiplayer to chat." :
+        if (status != null) status.text = challengeFeedback != null && Time.unscaledTime < challengeFeedbackUntil ? challengeFeedback :
+            boundRunner == null ? "Turn on multiplayer to chat." :
             FusionConnectionManager.Instance != null && FusionConnectionManager.Instance.ConnectedPlayerCount < 2 ? "Waiting for a guest to join..." :
+            hostChallenge && !avatar.AreChallengeCompletionsReady ? "Checking both players' completed crossings..." :
             avatar == null ? "Connecting chat..." : !canSend ? "Please wait a moment before sending again." : "Enter to send  •  Session only";
         if (unreadBadge != null) { unreadBadge.gameObject.SetActive(unread > 0); unreadBadge.text = unread > 9 ? "9+" : unread.ToString(); }
     }

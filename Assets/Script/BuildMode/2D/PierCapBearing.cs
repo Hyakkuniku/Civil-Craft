@@ -15,8 +15,9 @@ public sealed class PierCapBearing : MonoBehaviour
 
     public static Material Appearance(BridgeMaterialSO material)
     {
-        Renderer source = material != null && material.pierCapPrefab != null
-            ? material.pierCapPrefab.GetComponentInChildren<Renderer>(true) : null;
+        GameObject prefab = material != null
+            ? material.pierCapPrefab != null ? material.pierCapPrefab : material.segmentPrefab : null;
+        Renderer source = prefab != null ? prefab.GetComponentInChildren<Renderer>(true) : null;
         return source != null ? source.sharedMaterial : null;
     }
 

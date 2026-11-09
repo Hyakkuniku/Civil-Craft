@@ -14,7 +14,11 @@ public sealed partial class FusionMultiplayerAvatar
         string account = MultiplayerResultReportingService.AuthenticatedAccountId;
         if (lastPublishedAccountId == account) return;
         lastPublishedAccountId = account;
-        if (HasStateAuthority) AuthenticatedPlayFabId = account;
+        if (HasStateAuthority)
+        {
+            InvalidateChallengeCompletionSnapshot();
+            AuthenticatedPlayFabId = account;
+        }
         else RPC_PublishAuthenticatedAccountIdentity(account);
     }
 
@@ -26,6 +30,7 @@ public sealed partial class FusionMultiplayerAvatar
     {
         if (!HasStateAuthority || accountId == null ||
             accountId.Length != 0 && !MultiplayerResultPolicy.IsAccountId(accountId)) return;
+        if (AuthenticatedPlayFabId.ToString() != accountId) InvalidateChallengeCompletionSnapshot();
         AuthenticatedPlayFabId = accountId;
     }
 

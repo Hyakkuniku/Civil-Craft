@@ -193,6 +193,10 @@ public static class PierRoadSeatingValidation
         Require(protectedTransforms.Select(Pose).SequenceEqual(poses) && JsonUtility.ToJson(pier.materialData) == material &&
             colliderBounds == shaftCollider.bounds && colliderCenter == shaftCollider.center && colliderSize == shaftCollider.size &&
             nodes.SequenceEqual(new[] { fixture.Top.transform.position, fixture.Bottom.transform.position, fixture.Left.transform.position, fixture.Right.transform.position }), "Seating changed structural/root/shaft/collider/material data: " + label);
+        float expectedCapThickness = pier.materialData.name == "Concrete Pier" ? 1.3f : 1f;
+        float actualCapThickness = cap.localScale.y / Mathf.Abs(pier.materialData.pierCapPrefab.transform.localScale.y);
+        Require(Mathf.Abs(actualCapThickness - expectedCapThickness) <= .0001f,
+            "Rendered cap thickness ratio " + actualCapThickness.ToString("F4") + " differs from " + expectedCapThickness.ToString("F4") + ": " + label);
         Bounds capBounds = LocalBounds(cap); float capWorst = float.NegativeInfinity, shaftWorst = float.NegativeInfinity;
         int capContacts = 0; bool uniformGrade = true; Vector3 firstNormal = Vector3.zero;
         foreach (Bar road in fixture.Roads.Where(item => item.gameObject.activeInHierarchy))
@@ -381,26 +385,46 @@ public static class PierRoadSeatingValidation
     {
         y = float.PositiveInfinity;
         foreach (Bar road in fixture.Roads.Where(item => item.gameObject.activeInHierarchy))
+        {
+            Transform frame = road.transform;
+            Vector3 origin = frame.InverseTransformPoint(point);
+            Vector3 direction = frame.InverseTransformVector(Vector3.up);
             foreach (MeshPart part in MeshParts(road.transform))
-            {
-                Vector3 normal = road.transform.up;
-                if (normal.y <= .05f) continue;
-                Vector3 onPlane = road.transform.TransformPoint(new Vector3(0f, part.Bounds.min.y, 0f));
-                float candidate = (Vector3.Dot(normal, onPlane) - normal.x * point.x - normal.z * point.z) / normal.y;
-                Vector3 roadLocal = road.transform.InverseTransformPoint(new Vector3(point.x, candidate, point.z));
-                if (roadLocal.x < part.Bounds.min.x - .0000005f || roadLocal.x > part.Bounds.max.x + .0000005f ||
-                    roadLocal.z < part.Bounds.min.z - .0000005f || roadLocal.z > part.Bounds.max.z + .0000005f) continue;
-                y = Mathf.Min(y, candidate);
-            }
+                if (TryEnterMeshBounds(origin, direction, part.Bounds, out float entry))
+                    y = Mathf.Min(y, point.y + entry);
+        }
         return !float.IsPositiveInfinity(y);
+    }
+
+    private static bool TryEnterMeshBounds(Vector3 origin, Vector3 direction, Bounds bounds, out float entry)
+    {
+        // Intersect a world-vertical line with the finite mesh part in road
+        // coordinates. The first hit can be the bottom or a downward cut end.
+        entry = float.NegativeInfinity;
+        float exit = float.PositiveInfinity;
+        Vector3 min = bounds.min, max = bounds.max;
+        for (int axis = 0; axis < 3; axis++)
+        {
+            if (Mathf.Abs(direction[axis]) < .0000005f)
+            {
+                if (origin[axis] < min[axis] - .0000005f || origin[axis] > max[axis] + .0000005f) return false;
+                continue;
+            }
+            float a = (min[axis] - origin[axis]) / direction[axis];
+            float b = (max[axis] - origin[axis]) / direction[axis];
+            entry = Mathf.Max(entry, Mathf.Min(a, b));
+            exit = Mathf.Min(exit, Mathf.Max(a, b));
+            if (entry > exit + .0000005f) return false;
+        }
+        return !float.IsInfinity(entry);
     }
 
     private static void VerifyNoRoad(Fixture fixture)
     {
         Transform cap = fixture.Pier.transform.Find("PierCap");
-        float topOffset = (float)typeof(Bar).GetField("capTopOffset", Hidden).GetValue(fixture.Pier);
-        Require(Vector3.Distance(cap.position, fixture.Top.transform.position - Vector3.up * topOffset) < .0002f && Quaternion.Angle(cap.rotation, Quaternion.identity) < .001f,
-            "Removing roads did not restore the original unsupported cap pose.");
+        float topY = cap.TransformPoint(Vector3.up * LocalBounds(cap).max.y).y;
+        Require(Mathf.Abs(topY - fixture.Top.transform.position.y) < .0002f && Quaternion.Angle(cap.rotation, Quaternion.identity) < .001f,
+            "Removing roads did not restore the actual scaled cap top to the unsupported node.");
         PierCapBearing bearing = fixture.Pier.GetComponentInChildren<PierCapBearing>(true);
         Require(bearing == null || !bearing.gameObject.activeInHierarchy || bearing.CaptureVertices().Length == 0, "Removing every road left a floating bearing.");
     }
@@ -572,7 +596,7 @@ public static class PierRoadSeatingValidation
     private static void SetPreviousAggregatePose(Fixture fixture, float angle)
     {
         Transform cap = fixture.Pier.transform.Find("PierCap");
-        float topOffset = (float)typeof(Bar).GetField("capTopOffset", Hidden).GetValue(fixture.Pier);
+        float topOffset = cap.lossyScale.y * LocalBounds(cap).max.y;
         Vector3 baseline = fixture.Top.transform.position - Vector3.up * topOffset;
         cap.SetPositionAndRotation(baseline, Quaternion.Euler(0f, 0f, angle));
         Bounds capBounds = LocalBounds(cap); float lower = 0f;

@@ -417,7 +417,9 @@ public partial class Bar : MonoBehaviour
             baseLength = Mathf.Max(0.05f, (transform.position.y - lowerY) * 2f);
             if (pierCapInstance != null)
             {
-                originalCapScale = pierCapInstance.transform.localScale;
+                originalCapScale = materialData.pierCapPrefab != null
+                    ? materialData.pierCapPrefab.transform.localScale : pierCapInstance.transform.localScale;
+                ApplyPierCapDepth();
                 // A saved cap may already have been seated below a sloped road.
                 // Its fitted position is not the source model's authored pivot.
                 if (!TryGetAuthoredPierCapOffsets(out capTopOffset, out capBottomOffset))
@@ -474,22 +476,30 @@ public partial class Bar : MonoBehaviour
                 segment.localPosition = position;
             }
         }
-        if (pierCapInstance != null)
-        {
-            GameObject cap = materialData.pierCapPrefab;
-            originalCapScale.z = cap.transform.localScale.z * BridgeWidthGeometry.GetPierWidthScale(cap, WideRoadWidth);
-            Vector3 scale = pierCapInstance.transform.localScale;
-            scale.z = Mathf.Abs(originalCapScale.z);
-            pierCapInstance.transform.localScale = scale;
-        }
+        if (pierCapInstance != null) ApplyPierCapDepth();
+    }
+
+    private void ApplyPierCapDepth()
+    {
+        GameObject source = materialData.pierCapPrefab;
+        if (source == null) return;
+        originalCapScale.z = source.transform.localScale.z * BridgeWidthGeometry.GetPierCapWidthScale(source, WideRoadWidth);
+        Vector3 scale = pierCapInstance.transform.localScale;
+        scale.z = Mathf.Abs(originalCapScale.z);
+        pierCapInstance.transform.localScale = scale;
     }
 
     private float SegmentDepthScale() => BridgeWidthGeometry.GetSegmentDepthScale(materialData, WideRoadWidth);
 
     private float SegmentDepthPosition(int index) => BridgeWidthGeometry.GetSegmentDepthPosition(materialData, WideRoadWidth, index);
 
-    private float PierCapDepthPosition() => BridgeWidthGeometry.GetCenteredDepthOffset(materialData.pierCapPrefab,
-        BridgeWidthGeometry.GetPierWidthScale(materialData.pierCapPrefab, WideRoadWidth), WideRoadWidth);
+    private float PierCapDepthPosition()
+    {
+        GameObject source = materialData.pierCapPrefab;
+        if (WideRoadWidth <= 0f || source == null || Mathf.Abs(source.transform.localScale.z) < .0001f) return 0f;
+        return BridgeWidthGeometry.GetCenteredDepthOffset(source,
+            originalCapScale.z / source.transform.localScale.z, WideRoadWidth);
+    }
 
     public void InferOwnerFromEndpoints()
     {
@@ -667,7 +677,7 @@ public partial class Bar : MonoBehaviour
             pierCapInstance = Instantiate(materialData.pierCapPrefab, transform);
             pierCapInstance.name = "PierCap";
             originalCapScale = pierCapInstance.transform.localScale;
-            originalCapScale.z *= BridgeWidthGeometry.GetPierWidthScale(materialData.pierCapPrefab, WideRoadWidth);
+            ApplyPierCapDepth();
 
             pierCapInstance.transform.position = Vector3.zero;
             pierCapInstance.transform.rotation = Quaternion.identity;

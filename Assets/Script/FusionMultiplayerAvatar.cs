@@ -242,6 +242,7 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
         nextLocalChatTime = nextServerChatTime = 0f;
         nextChatSequence = lastDeliveredChatSequence = 0;
         if (HasStateAuthority) IsSessionHost = HasInputAuthority;
+        ResetChallengeCompletionPublication();
         lastPublishedAccountId = null;
         nextAccountIdentityCheck = 0f;
         if (HasInputAuthority) PublishAuthenticatedAccountIdentity();
@@ -255,6 +256,7 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
 
     public override void Despawned(NetworkRunner runner, bool hasState)
     {
+        DisposeChallengeCompletionPublication();
         ClearChatBubble();
         PlayerCosmetics.LoadoutChanged -= PublishAppearance;
         BindSceneMotor(null);
@@ -270,6 +272,7 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
 
     private void OnDestroy()
     {
+        DisposeChallengeCompletionPublication();
         PlayerCosmetics.LoadoutChanged -= PublishAppearance;
         BindSceneMotor(null);
         ResetRemotePoseBuffer();
@@ -289,7 +292,10 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
             return;
         }
         if (Object != null && Object.IsValid && HasInputAuthority)
+        {
             ObserveCompletedMultiplayerResults();
+            UpdateChallengeCompletionPublication();
+        }
         if (FusionConnectionManager.Instance == null ||
             !FusionConnectionManager.Instance.IsAvatarScene)
         {
@@ -1085,8 +1091,9 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
                     Root.transform, "Pier Cap");
                 cap = capObject != null ? capObject.transform : null;
                 Vector3 scale = cap != null ? cap.localScale : Vector3.one;
-                float depthScale = BridgeWidthGeometry.GetPierWidthScale(material.pierCapPrefab, wideRoadWidth);
+                float depthScale = BridgeWidthGeometry.GetPierCapWidthScale(material.pierCapPrefab, wideRoadWidth);
                 scale.z *= depthScale;
+                scale.y *= material.PierCapThicknessScale;
                 capBaseScale = scale;
                 capDepthOffset = BridgeWidthGeometry.GetCenteredDepthOffset(material.pierCapPrefab, depthScale, wideRoadWidth);
                 Renderer capRenderer = cap != null ? cap.GetComponentInChildren<Renderer>(true) : null;
@@ -1110,26 +1117,23 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
             float length = direction.magnitude;
             if (material.isPier)
             {
-                bool hasHostSeat = WideRoadWidth > 0f && widePierSeat.y > 0f;
+                bool hasHostSeat = widePierSeat.y > 0f;
                 float adjusted = Mathf.Max(0.05f, end.y - capTopOffset + capBottomOffset - start.y);
                 Root.transform.SetPositionAndRotation(start + Vector3.up * (adjusted * 0.5f),
                     Quaternion.identity);
                 for (int i = 0; i < segments.Count; i++)
                 {
                     Vector3 original = segmentBaseScales[i];
-                    if (WideRoadWidth > 0f)
-                    {
-                        Vector3 position = segments[i].localPosition;
-                        position.y = hasHostSeat ? widePierSeat.x : 0f;
-                        segments[i].localPosition = position;
-                    }
+                    Vector3 position = segments[i].localPosition;
+                    position.y = hasHostSeat ? widePierSeat.x : 0f;
+                    segments[i].localPosition = position;
                     segments[i].localScale = new Vector3(original.x,
                         hasHostSeat ? widePierSeat.y : original.y * adjusted / baseLength, original.z);
                 }
                 if (cap != null)
                 {
                     cap.localScale = capBaseScale;
-                    cap.position = new Vector3(end.x, end.y + (hasHostSeat ? widePierSeat.z : -capTopOffset),
+                    cap.position = new Vector3(end.x, end.y + (hasHostSeat ? widePierSeat.z : -capTopOffset * material.PierCapThicknessScale),
                         end.z + capDepthOffset);
                     cap.rotation = hasHostSeat ? Quaternion.Euler(0f, 0f, widePierSeat.w) : Quaternion.identity;
                 }

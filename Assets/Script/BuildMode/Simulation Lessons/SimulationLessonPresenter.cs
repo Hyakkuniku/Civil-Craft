@@ -65,8 +65,6 @@ public sealed class SimulationLessonPresenter : MonoBehaviour
     private float outcomePresentedAt = float.NegativeInfinity;
     private bool lessonPanelOpen;
     private bool slowMotionApplied;
-    private float timeScaleBeforeLesson = 1f;
-    private float appliedLessonTimeScale = 1f;
 
     /// <summary>
     /// Returns the time the active result flow must still wait before replacing
@@ -243,6 +241,7 @@ public sealed class SimulationLessonPresenter : MonoBehaviour
 
     private void UnbindPhysicsManager()
     {
+        RestoreSimulationSpeed();
         if (physicsManager == null) return;
         physicsManager.OnSettlePhaseStarted -= HandleSettleStarted;
         physicsManager.OnSimulationStarted -= HandleSimulationStarted;
@@ -689,28 +688,15 @@ public sealed class SimulationLessonPresenter : MonoBehaviour
             return;
         }
 
-        timeScaleBeforeLesson = Time.timeScale;
-        appliedLessonTimeScale = timeScaleBeforeLesson *
-            Mathf.Clamp(definition.simulationTimeScale, 0.1f, 1f);
-
-        // Deliberately leave Time.fixedDeltaTime untouched. PhysX continues to
-        // solve the exact same fixed-size steps and deterministic stress samples;
-        // those steps are simply presented less frequently in wall-clock time.
-        Time.timeScale = appliedLessonTimeScale;
-        slowMotionApplied = true;
+        slowMotionApplied = physicsManager.SetSimulationLessonPlayback(this,
+            Mathf.Clamp(definition.simulationTimeScale, 0.1f, 1f));
     }
 
     private void RestoreSimulationSpeed()
     {
         if (!slowMotionApplied) return;
 
-        // Do not overwrite a pause, debug speed, or another system's later
-        // change. Restore only when our own scale is still the active value.
-        if (Mathf.Approximately(Time.timeScale, appliedLessonTimeScale))
-            Time.timeScale = timeScaleBeforeLesson;
-
+        physicsManager?.ClearSimulationLessonPlayback(this);
         slowMotionApplied = false;
-        timeScaleBeforeLesson = 1f;
-        appliedLessonTimeScale = 1f;
     }
 }

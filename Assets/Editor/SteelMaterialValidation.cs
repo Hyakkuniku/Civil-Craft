@@ -177,15 +177,35 @@ internal static class SteelMaterialValidation
                         Require(Mathf.Min(Mathf.Abs(renderer.bounds.min.z), Mathf.Abs(renderer.bounds.max.z)) > width * .5f,
                             "Paired support enters the driving lane.");
                     Require(member.PlacedMassPerMeter == side.GetPlacedMassPerMeter(), "Side support mass changed.");
+                    if (side == beam)
+                    {
+                        member.startPoint = upper;
+                        member.endPoint = far;
+                        member.NormalizeEndpointOrder();
+                    }
                 }
                 foreach (BridgeMaterialSO column in new[] { pier, Load("Concrete Pier") })
                 {
                     Bar support = Draw(scene, column, Vector3.zero, start, site);
                     support.startPoint = Node(scene, Vector3.zero); support.endPoint = upper;
                     support.NormalizeEndpointOrder();
-                    MeshRenderer top = support.GetComponentsInChildren<MeshRenderer>().OrderByDescending(r => r.bounds.size.z).First();
-                    Require(Mathf.Abs(top.bounds.size.z - width) < Tolerance && top.bounds.max.y < start.y + .25f,
-                        "Pier bearing does not reach both deck edges or is above the deck.");
+                    support.RefreshPierCapSeating();
+                    bool integral = column.pierCapPrefab == null;
+                    Transform shaft = support.transform.Find("VisualSegment");
+                    Transform head = support.transform.Find(integral ? "PierBearing" : "PierCap");
+                    string label = column.GetDisplayName() + " under " + road.GetDisplayName() + " at " + width + " m";
+                    Require(head != null && head.gameObject.activeInHierarchy,
+                        label + " has no visible head despite the connected deck and girders.");
+                    Bounds top = GetRoadBounds(head.gameObject);
+                    float expectedDepth = BridgeWidthGeometry.GetPierSupportWidth(width);
+                    Require(top.size.z >= expectedDepth - Tolerance && Mathf.Abs(top.center.z) < Tolerance,
+                        $"{label} bearing depth {top.size.z:F3} m at Z {top.center.z:F3} must span {expectedDepth:F3} m.");
+                    if (integral)
+                    {
+                        float shaftWidth = GetRoadBounds(shaft.gameObject).size.z;
+                        Require(Mathf.Abs(shaftWidth - width) < Tolerance && head.GetComponentsInChildren<Collider>(true).Length == 0,
+                            $"{label} has a {shaftWidth:F3} m structural shaft or unexpected collision on the visual head.");
+                    }
                     CheckWidePierReplica(site, support);
                 }
             }
@@ -387,7 +407,7 @@ internal static class SteelMaterialValidation
             pier.startPoint = ground;
             pier.endPoint = top;
             pier.NormalizeEndpointOrder();
-            MeshFilter shaft = pier.GetComponentsInChildren<MeshFilter>().Single();
+            MeshFilter shaft = pier.transform.Find("VisualSegment").GetComponentsInChildren<MeshFilter>(true).First();
             var surface = shaft.GetComponent<MeshRenderer>().sharedMaterial;
             Require(UsesUrpShader(surface), "Steel Pier needs a URP material.");
             Require(Mathf.Abs(shaft.GetComponent<Renderer>().bounds.max.y - 10f) < Tolerance,
@@ -429,9 +449,9 @@ internal static class SteelMaterialValidation
                 pier.RefreshPierCapSeating();
                 Bounds displacedPier = shaft.GetComponent<Renderer>().bounds;
                 float clearance = LowestRenderedRoadUnderside(road, displacedPier) - displacedPier.max.y;
-                Require(clearance >= .001f && clearance <= .025f &&
+                Require(clearance >= -.001f && clearance <= .001f &&
                     top.transform.position.y == 10f && ground.transform.position.y == 0f,
-                    $"Steel Pier must stay just below the displaced {roadMaterial.GetDisplayName()} surface. Clearance {clearance:F4} m.");
+                    $"Steel Pier must contact the displaced {roadMaterial.GetDisplayName()} surface without the old seam clearance. Clearance {clearance:F4} m.");
                 road.transform.SetPositionAndRotation(roadPosition, roadRotation);
                 pier.transform.position = pierPosition;
             }

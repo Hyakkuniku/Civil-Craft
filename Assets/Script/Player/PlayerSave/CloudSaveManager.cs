@@ -647,6 +647,12 @@ public sealed class CloudSaveManager : MonoBehaviour
         }
     }
 
+    public void ReplacePausedTimeScale(float expected, float replacement)
+    {
+        if (pausedForConflict && Mathf.Approximately(previousTimeScale, expected))
+            previousTimeScale = replacement;
+    }
+
     private void CloseConflictOverlay()
     {
         if (conflictDialog != null) conflictDialog.Hide();

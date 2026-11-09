@@ -6,6 +6,7 @@ The handwritten font and existing book art remain unchanged. Runtime presentatio
 - Visible bookmarks use consecutive slots. Locked or always-hidden Materials does not leave a vacant gap. Once a material is discovered, the normal Materials unlock rule shows its bookmark again.
 - Quiz uses the same exposed header strip as other bookmarks and dark text on the cream face. It no longer floats over the page or inherits a pale-on-pale label.
 - Profile currency cards use an icon/label header and a separate full-width value. `Unavailable` and large balances stay truthful, readable and on one line. Rank, experience and footer fields have separate bounds; long names remain inside their own card.
+- Materials show discovered entries first, grouped as **roads → beams → piers → ropes**, followed by undiscovered entries in the same category order. Alphabetical sorting applies within each group. The book index and legacy grid share this order; contract restrictions do not hide discovered knowledge.
 
 ## Verification
 

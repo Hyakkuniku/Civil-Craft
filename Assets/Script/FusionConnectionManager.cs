@@ -431,7 +431,7 @@ public sealed class FusionConnectionManager : MonoBehaviour
         // can include a region selector alongside the room code.
         FusionAppSettings settings = PhotonAppSettings.Global.AppSettings.GetCopy();
         // Replicated participant arrays and challenge descriptors require matching clients.
-        settings.AppVersion = settings.AppVersion + "-loads4-wide-v3";
+        settings.AppVersion = settings.AppVersion + "-loads4-wide-mutual-v5";
         settings.FixedRegion = FixedRegion;
         return settings;
     }

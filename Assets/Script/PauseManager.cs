@@ -57,6 +57,7 @@ public class PauseManager : MonoBehaviour
     private Vector3 restingScale;
     private Coroutine panelMotion;
     private bool isClosingPause;
+    private float timeScaleBeforePause = 1f;
 
     private void Awake()
     {
@@ -178,7 +179,10 @@ public class PauseManager : MonoBehaviour
 
         isPaused = true;
         if (freezeTimeOnPause)
+        {
+            timeScaleBeforePause = Time.timeScale;
             Time.timeScale = 0f;
+        }
 
         if (AudioManager.Instance != null)
             AudioManager.Instance.PauseMusic();
@@ -223,13 +227,21 @@ public class PauseManager : MonoBehaviour
         FinishResumeGame();
     }
 
+    // A simulation can finish while the pause menu is open. Restore its entry
+    // speed on Resume without unpausing or overwriting another pause owner.
+    public void ReplacePausedTimeScale(float expected, float replacement)
+    {
+        if (freezeTimeOnPause && isPaused && Mathf.Approximately(timeScaleBeforePause, expected))
+            timeScaleBeforePause = replacement;
+    }
+
     private void FinishResumeGame()
     {
         StopPanelMotion();
         isClosingPause = false;
         isPaused = false;
         if (freezeTimeOnPause)
-            Time.timeScale = 1f;
+            Time.timeScale = timeScaleBeforePause;
 
         if (AudioManager.Instance != null)
             AudioManager.Instance.ResumeMusic();

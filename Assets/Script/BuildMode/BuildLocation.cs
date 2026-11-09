@@ -41,6 +41,19 @@ public class BuildLocation : Interactable
     
     [Header("Active Contract")]
     public ContractSO activeContract; 
+    // Story locks can clear activeContract in Start. Session challenges may read
+    // the authored definition without unlocking or accepting the story job.
+    private ContractSO authoredChallengeContract;
+    public ContractSO ChallengeContractDefinition
+    {
+        get
+        {
+            if (activeContract != null) return activeContract;
+            if (authoredChallengeContract == null)
+                authoredChallengeContract = RandomChallengeSiteSelector.ResolveAuthoredDefinition(this);
+            return authoredChallengeContract;
+        }
+    }
     [Header("Multiple Live Load Bindings")]
     [Tooltip("Match each permanent contract entry ID to its exact scene vehicle. Leave empty for Single mode.")]
     public List<ContractLiveLoadBinding> liveLoadVehicles = new List<ContractLiveLoadBinding>();
@@ -147,6 +160,7 @@ public class BuildLocation : Interactable
 
     private void Awake()
     {
+        if (activeContract != null) authoredChallengeContract = activeContract;
         BuildGridRendering.Ensure(gridImage);
         if (IsSessionChallengeLocation) return;
         if (buildModeOnlyStarterBridge == null)

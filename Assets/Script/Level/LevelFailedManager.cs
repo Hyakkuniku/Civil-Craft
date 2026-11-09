@@ -227,7 +227,7 @@ public class LevelFailedManager : MonoBehaviour
                 belowRoute |= physicalHeight < deathThreshold;
 
                 vehicleBelowRouteTimer = belowRoute
-                    ? vehicleBelowRouteTimer + Time.unscaledDeltaTime
+                    ? vehicleBelowRouteTimer + Time.deltaTime
                     : 0f;
 
                 if (vehicleBelowRouteTimer >= Mathf.Max(0.05f, vehicleFallConfirmationDuration))

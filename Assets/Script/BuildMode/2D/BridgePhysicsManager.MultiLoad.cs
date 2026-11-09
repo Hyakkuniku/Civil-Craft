@@ -79,6 +79,7 @@ public partial class BridgePhysicsManager
 
     private void OnDisable()
     {
+        DisposeSimulationPlayback();
         if (IsSimulationActive) StopPhysicsAndReset();
         CancelMultiLoadSession();
         RestoreGlobalPhysicsSettings();

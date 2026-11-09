@@ -656,6 +656,7 @@ public partial class BridgePhysicsManager : MonoBehaviour
 
     private void OnDestroy()
     {
+        DisposeSimulationPlayback();
         CancelMultiLoadSession();
         WaterImpact.UnregisterManager(this);
         RestoreGlobalPhysicsSettings();
@@ -1096,6 +1097,7 @@ public partial class BridgePhysicsManager : MonoBehaviour
         needsPhysicsRelease = true;
         currentSettleFrame = 0;
         pendingSimulationStart = true;
+        BeginSimulationPlayback();
         if (Application.isPlaying)
             foreach (Bar bar in deterministicBars)
                 if (bar != null && !bar.IsConstructionPreview && bar.materialData != null && !bar.materialData.isRope)

@@ -323,8 +323,6 @@ public sealed class AlmanacLearningHub : MonoBehaviour
         }
 
         List<BridgeMaterialSO> materials = GetMaterialDatabase();
-        materials.Sort((a, b) => string.Compare(a.GetDisplayName(), b.GetDisplayName(),
-            System.StringComparison.OrdinalIgnoreCase));
         CreateSectionLabel(indexContent, "MATERIALS", materials.Count);
         for (int i = 0; i < materials.Count; i++)
         {

@@ -40,6 +40,7 @@ MonoBehaviour:
     type: 3}
   pierCapPrefab: {fileID: 2005313539045690901, guid: 73c7cbae8bb4916418edcb57ba2aa5b0,
     type: 3}
+  pierCapVisualThickness: 1.3
   gizmoColor: {r: 1, g: 1, b: 1, a: 1}
   isDualBeam: 0
   zOffset: 0.5

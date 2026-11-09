@@ -312,6 +312,7 @@ public class BuildUIController : MonoBehaviour
 
         InitializeActionLog();
         RegisterActionLogProtectedRegions();
+        SimulationSpeedHUD.Ensure(this);
 
         MarkBridgeDirty();
 

@@ -85,6 +85,11 @@ public class BridgeMaterialSO : ScriptableObject
     public GameObject segmentPrefab;
     [Tooltip("For Piers: This is the T-Shaped Cap that sits at the top.")]
     public GameObject pierCapPrefab; 
+    [Min(1f)]
+    [Tooltip("Visual thickness of the pier head. The top stays fitted to the connected bridge.")]
+    public float pierCapVisualThickness = 1f;
+
+    public float PierCapThicknessScale => Mathf.Clamp(pierCapVisualThickness, 1f, 2f);
     
     public Color gizmoColor = Color.white;
     [Tooltip("Optional rope color during simulation. A transparent value uses the standard rope color.")]

@@ -73,7 +73,9 @@ public sealed class LiveLoadTestRoster
     public static bool TryCreate(BuildLocation location, ContractSO contract, out LiveLoadTestRoster roster, out string reason, bool requireCargo = true)
     {
         roster = null; reason = string.Empty;
-        if (location == null || contract == null || location.activeContract != contract) return Error("Select the contract's exact build location.", out reason);
+        if (location == null || contract == null || (location.activeContract != contract &&
+            (requireCargo || location.ChallengeContractDefinition != contract)))
+            return Error("Select the contract's exact build location.", out reason);
         if (!contract.HasMultipleLiveLoads) return Error("This contract uses the existing Single live load mode.", out reason);
         if (contract.liveLoadMode != ContractSO.LiveLoadMode.Vehicle || contract.winCondition != ContractSO.WinCondition.FinishLine)
             return Error("Multiple live loads require Vehicle mode and Finish Line completion.", out reason);

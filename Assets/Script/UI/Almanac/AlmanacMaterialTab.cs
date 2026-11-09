@@ -19,6 +19,7 @@ public sealed class AlmanacMaterialTab : MonoBehaviour
     [SerializeField] private AlmanacMaterialButton materialButtonPrefab;
     [Tooltip("When off, only materials acknowledged with GOT IT are listed.")]
     [SerializeField] private bool showLockedMaterials;
+    [Tooltip("Sort names within each discovery/category group. Discovered materials appear first, ordered Roads, Beams, Piers, then Ropes.")]
     [SerializeField] private bool sortAlphabetically = true;
 
     [Header("Empty State")]
@@ -57,12 +58,6 @@ public sealed class AlmanacMaterialTab : MonoBehaviour
         }
 
         List<BridgeMaterialSO> database = BuildDatabase();
-        if (sortAlphabetically)
-        {
-            database.Sort((a, b) => string.Compare(
-                a.GetDisplayName(), b.GetDisplayName(),
-                System.StringComparison.OrdinalIgnoreCase));
-        }
 
         foreach (BridgeMaterialSO material in database)
         {
@@ -86,7 +81,39 @@ public sealed class AlmanacMaterialTab : MonoBehaviour
 
         AddUnique(allMaterials, database, seenIds);
         AddUnique(Resources.LoadAll<BridgeMaterialSO>(string.Empty), database, seenIds);
+        SortDatabase(database);
         return database;
+    }
+
+    private void SortDatabase(List<BridgeMaterialSO> database)
+    {
+        // Snapshot discovery once per refresh. Almanac knowledge is independent
+        // of the current contract's building restrictions.
+        var discovered = new HashSet<BridgeMaterialSO>();
+        var authoredOrder = new Dictionary<BridgeMaterialSO, int>();
+        for (int i = 0; i < database.Count; i++)
+        {
+            BridgeMaterialSO material = database[i];
+            authoredOrder.Add(material, i);
+            if (MaterialDiscoverySaveManager.IsDiscovered(material)) discovered.Add(material);
+        }
+
+        database.Sort((a, b) =>
+        {
+            int availability = discovered.Contains(b).CompareTo(discovered.Contains(a));
+            if (availability != 0) return availability;
+            int category = MaterialToolbarOrdering.Category(a).CompareTo(MaterialToolbarOrdering.Category(b));
+            if (category != 0) return category;
+            if (sortAlphabetically)
+            {
+                int name = string.Compare(a.GetDisplayName(), b.GetDisplayName(),
+                    System.StringComparison.OrdinalIgnoreCase);
+                if (name != 0) return name;
+                int id = string.Compare(a.Id, b.Id, System.StringComparison.Ordinal);
+                if (id != 0) return id;
+            }
+            return authoredOrder[a].CompareTo(authoredOrder[b]);
+        });
     }
 
     private static void AddUnique(

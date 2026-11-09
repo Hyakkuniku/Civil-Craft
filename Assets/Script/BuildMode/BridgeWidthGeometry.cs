@@ -5,12 +5,14 @@ using UnityEngine;
 public static class BridgeWidthGeometry
 {
     private static readonly Dictionary<GameObject, Bounds> PrefabBounds = new Dictionary<GameObject, Bounds>();
+    private static readonly Dictionary<float, float> PierSupportWidths = new Dictionary<float, float>();
     private static BridgeMaterialSO[] pointMaterials;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetCache()
     {
         PrefabBounds.Clear();
+        PierSupportWidths.Clear();
         pointMaterials = null;
     }
 
@@ -60,6 +62,55 @@ public static class BridgeWidthGeometry
         if (wideWidth <= 0f) return 1f;
         float originalWidth = GetPrefabBounds(prefab).size.z;
         return originalWidth > .001f ? wideWidth / originalWidth : 1f;
+    }
+
+    /// <summary>Visual bearing width, including the paired rigid girders outside the roadway.</summary>
+    public static float GetPierSupportWidth(float wideWidth)
+    {
+        if (float.IsNaN(wideWidth) || float.IsInfinity(wideWidth) || wideWidth < 0f) wideWidth = 0f;
+        if (Application.isPlaying && PierSupportWidths.TryGetValue(wideWidth, out float cached)) return cached;
+        if (pointMaterials == null) pointMaterials = Resources.LoadAll<BridgeMaterialSO>(string.Empty);
+
+        const float bearingEdgeMargin = .075f;
+        float width = wideWidth;
+        foreach (BridgeMaterialSO material in pointMaterials)
+        {
+            if (material == null || material.segmentPrefab == null) continue;
+            Bounds shape = GetPrefabBounds(material.segmentPrefab);
+            if (material.isRoad)
+            {
+                if (wideWidth <= 0f) width = Mathf.Max(width, shape.size.z);
+                continue;
+            }
+            if (!material.isDualBeam || material.isPier || material.isRope || material.useSpring) continue;
+            float halfDepth = Mathf.Max(Mathf.Abs(shape.min.z), Mathf.Abs(shape.max.z));
+            width = Mathf.Max(width, 2f * (Mathf.Abs(GetSideOffset(material, wideWidth)) + halfDepth));
+        }
+        if (width > 0f) width += bearingEdgeMargin * 2f;
+        if (Application.isPlaying) PierSupportWidths[wideWidth] = width;
+        return width;
+    }
+
+    /// <summary>Fits the actual flat cap face without changing road dimensions or material rates.</summary>
+    public static float GetPierCapWidthScale(GameObject prefab, float wideWidth)
+    {
+        if (prefab == null) return 1f;
+        float originalWidth = GetPrefabBounds(prefab).size.z;
+        if (PierCapSeatingProfiles.TryGetTopFace(prefab, out Bounds face))
+        {
+            Matrix4x4 source = Matrix4x4.TRS(Vector3.zero, prefab.transform.localRotation, prefab.transform.localScale);
+            float near = float.PositiveInfinity, far = float.NegativeInfinity;
+            for (int corner = 0; corner < 8; corner++)
+            {
+                Vector3 point = source.MultiplyPoint3x4(new Vector3(
+                    (corner & 1) == 0 ? face.min.x : face.max.x,
+                    (corner & 2) == 0 ? face.min.y : face.max.y,
+                    (corner & 4) == 0 ? face.min.z : face.max.z));
+                near = Mathf.Min(near, point.z); far = Mathf.Max(far, point.z);
+            }
+            originalWidth = far - near;
+        }
+        return originalWidth > .001f ? Mathf.Max(1f, GetPierSupportWidth(wideWidth) / originalWidth) : 1f;
     }
 
     public static float GetSideOffset(BridgeMaterialSO material, float wideWidth)

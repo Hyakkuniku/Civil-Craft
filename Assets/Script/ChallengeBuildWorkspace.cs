@@ -26,7 +26,8 @@ public sealed class ChallengeBuildWorkspace : IDisposable
     public static ContractSO ResolveContract(BuildLocation source, string key)
     {
         if (string.IsNullOrEmpty(key)) return null;
-        if (source != null && source.activeContract != null && source.activeContract.ContractID == key) return source.activeContract;
+        if (source != null && source.ChallengeContractDefinition != null && source.ChallengeContractDefinition.ContractID == key)
+            return source.ChallengeContractDefinition;
         PlayerDataManager data = PlayerDataManager.Instance;
         if (data != null && data.allGameContracts != null)
             foreach (ContractSO candidate in data.allGameContracts)

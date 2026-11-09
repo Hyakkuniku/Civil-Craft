@@ -29,17 +29,31 @@ public sealed partial class FusionMultiplayerAvatar
         return null;
     }
 
+    public bool CanInviteRandomChallenge
+    {
+        get
+        {
+            FusionConnectionManager connection = FusionConnectionManager.Instance;
+            GameManager game = GameManager.Instance;
+            return HasInputAuthority && HasStateAuthority && IsSessionHost && !IsChallengeBusy &&
+                connection != null && connection.Runner == Runner && connection.IsHostWorldSession &&
+                !connection.IsNetworkSceneLoading && connection.ConnectedPlayerCount == 2 &&
+                game != null && game.CurrentState == GameManager.GameState.Normal && !game.IsTransitioning &&
+                IsChallengeWorldAvailable &&
+                sceneMotor != null && !CargoItem.IsCarriedBy(sceneMotor.transform) &&
+                (TutorialManager.Instance == null || !TutorialManager.Instance.IsTutorialActive) &&
+                AreChallengeCompletionsReady;
+        }
+    }
+
+    private static bool IsChallengeWorldAvailable => Time.timeScale > 0f && !LoadingScreenManager.IsLoading &&
+        !DialogueManager.IsAnyDialogueVisible && (PauseManager.Instance == null || !PauseManager.Instance.isPaused);
+
     public bool CanInvite(BuildLocation site)
     {
-        FusionConnectionManager connection = FusionConnectionManager.Instance;
-        GameManager game = GameManager.Instance;
-        return HasInputAuthority && HasStateAuthority && IsSessionHost && !IsChallengeBusy &&
-            connection != null && connection.Runner == Runner && connection.IsHostWorldSession &&
-            !connection.IsNetworkSceneLoading && connection.ConnectedPlayerCount == 2 &&
-            game != null && game.CurrentState == GameManager.GameState.Normal && !game.IsTransitioning &&
-            sceneMotor != null && !CargoItem.IsCarriedBy(sceneMotor.transform) &&
-            (TutorialManager.Instance == null || !TutorialManager.Instance.IsTutorialActive) &&
+        return CanInviteRandomChallenge &&
             MultiplayerChallengeRules.IsCompletedHostSite(site) &&
+            BothPlayersCompletedChallengeContract(site.activeContract.ContractID) &&
             (!site.activeContract.twoWayRoad || site.activeContract.GetWideRoadWidth() > 0f) &&
             ChallengeCompetitionScoring.ValidMeasurements(site.activeContract.budget, 0f, 0f) &&
             site.activeContract.ContractID.Length <= 128 &&
@@ -50,24 +64,41 @@ public sealed partial class FusionMultiplayerAvatar
     public bool TryInvite(BuildLocation site)
     {
         if (!CanInvite(site)) return false;
+        return TryInviteValidatedSite(site, out _);
+    }
+
+    public bool TryInviteRandomChallenge(out string reason)
+    {
+        reason = "Only the host can start a challenge with a connected guest while both players are free.";
+        if (!CanInviteRandomChallenge) return false;
+        CharacterController controller = sceneMotor != null ? sceneMotor.GetComponent<CharacterController>() : null;
+        if (!RandomChallengeSiteSelector.TrySelect(FindObjectsOfType<BuildLocation>(true), controller,
+            out BuildLocation site, out reason, candidate =>
+                BothPlayersCompletedChallengeContract(candidate.ChallengeContractDefinition.ContractID))) return false;
+        return TryInviteValidatedSite(site, out reason);
+    }
+
+    private bool TryInviteValidatedSite(BuildLocation site, out string reason)
+    {
+        reason = "The challenge is no longer available. Please try again.";
+        if (!CanInviteRandomChallenge) return false;
+        if (!MultiplayerChallengeRules.IsCompletedHostSite(site) &&
+            !RandomChallengeSiteSelector.IsValidSite(site, out reason)) return false;
+        ContractSO definition = site.ChallengeContractDefinition;
+        if (!BothPlayersCompletedChallengeContract(definition.ContractID))
+        { reason = "Both players must complete this crossing in their own saves first."; return false; }
         PlayerRef guest = PlayerRef.None;
         FusionMultiplayerAvatar guestAvatar = null;
         foreach (PlayerRef player in Runner.ActivePlayers)
             if (player != Object.InputAuthority && Runner.TryGetPlayerObject(player, out NetworkObject obj) &&
                 obj != null && obj.IsValid && obj.GetComponent<FusionMultiplayerAvatar>() is FusionMultiplayerAvatar avatar &&
                 avatar.IsAvatarPoseReady) { guest = player; guestAvatar = avatar; }
-        if (guest == PlayerRef.None) return false;
-        LiveLoadVehicle vehicle = ChallengeTestDescriptor.SelectVehicle(site, site.activeContract);
+        if (guest == PlayerRef.None) { reason = "Wait for the guest to finish connecting."; return false; }
+        LiveLoadVehicle vehicle = ChallengeTestDescriptor.SelectVehicle(site, definition);
         string vehicleKey = vehicle != null ? ChallengeTestDescriptor.VehiclePath(vehicle) : string.Empty;
         if (vehicleKey.Length > 256 || vehicle != null &&
-            ChallengeTestDescriptor.ResolveVehicle(vehicleKey, site.gameObject.scene) != vehicle) return false;
-        authorityChallengeSite = site;
-        foreach (PlayerRef player in Runner.ActivePlayers)
-            if (Runner.TryGetPlayerObject(player, out NetworkObject obj) && obj != null)
-            {
-                var avatar = obj.GetComponent<FusionMultiplayerAvatar>();
-                if (avatar != null) avatar.pendingArrival = false;
-            }
+            ChallengeTestDescriptor.ResolveVehicle(vehicleKey, site.gameObject.scene) != vehicle)
+        { reason = "The selected crossing's vehicle could not be found."; return false; }
         var invitation = new MultiplayerChallengeState
         {
             Revision = unchecked(ChallengeState.Revision + 1), Phase = MultiplayerChallengePhase.Invited,
@@ -75,25 +106,41 @@ public sealed partial class FusionMultiplayerAvatar
             HostAccountId = MultiplayerResultReportingService.AuthenticatedAccountId,
             GuestAccountId = guestAvatar != null ? guestAvatar.AuthenticatedPlayFabId.ToString() : string.Empty,
             Guest = guest, SiteKey = MultiplayerChallengeRules.SiteKey(site),
-            ContractKey = site.activeContract.ContractID,
-            ChallengeBudget = site.activeContract.budget,
-            WideRoadWidth = site.activeContract.GetWideRoadWidth(),
+            ContractKey = definition.ContractID,
+            ChallengeBudget = definition.budget,
+            WideRoadWidth = definition.GetWideRoadWidth(),
             ChallengeVehicleKey = vehicleKey,
             ChallengeVehicleWeight = vehicle != null ? vehicle.GetSessionTestWeight() : 0f,
             Deadline = TickTimer.CreateFromSeconds(Runner, challengeInvitationSeconds)
         };
-        if (!ChallengeLiveLoadRoster.TryFreeze(ref invitation, site, site.activeContract, out string loadError))
+        if (!ChallengeLiveLoadRoster.TryFreeze(ref invitation, site, definition, out string loadError))
         {
             Debug.LogWarning("[Challenge live loads] " + loadError, this);
+            reason = "The selected crossing's vehicles are not ready for a challenge.";
             return false;
         }
+        authorityChallengeSite = site;
+        foreach (PlayerRef player in Runner.ActivePlayers)
+            if (Runner.TryGetPlayerObject(player, out NetworkObject obj) && obj != null)
+            {
+                var avatar = obj.GetComponent<FusionMultiplayerAvatar>();
+                if (avatar != null) avatar.pendingArrival = false;
+            }
         ChallengeState = invitation;
+        reason = null;
         return true;
     }
 
     public void RespondToChallenge(int revision, bool accept)
     {
         if (Object == null || !Object.IsValid || !HasInputAuthority) return;
+        if (accept)
+        {
+            FusionMultiplayerAvatar host = FindHost(Runner);
+            PlayerDataManager data = PlayerDataManager.Instance;
+            if (host == null || !IsPersonalChallengeSaveReady(data) ||
+                !data.IsContractCompleted(host.ChallengeState.ContractKey.ToString())) accept = false;
+        }
         RPC_RespondToChallenge(revision, accept);
     }
 
@@ -107,8 +154,11 @@ public sealed partial class FusionMultiplayerAvatar
         if (host.ChallengeState.Deadline.ExpiredOrNotRunning(Runner))
         { host.EndChallenge(MultiplayerChallengeResult.TimedOut); return; }
         BuildLocation site = MultiplayerChallengeRules.ResolveSite(host.ChallengeState.SiteKey.ToString());
-        if (!MultiplayerChallengeRules.IsCompletedHostSite(site) || GameManager.Instance == null ||
-            GameManager.Instance.CurrentState != GameManager.GameState.Normal || GameManager.Instance.IsTransitioning)
+        if (!host.BothPlayersCompletedChallengeContract(host.ChallengeState.ContractKey.ToString()) ||
+            (!MultiplayerChallengeRules.IsCompletedHostSite(site) && !RandomChallengeSiteSelector.IsValidSite(site, out _)) ||
+            site.ChallengeContractDefinition.ContractID != host.ChallengeState.ContractKey.ToString() || GameManager.Instance == null ||
+            GameManager.Instance.CurrentState != GameManager.GameState.Normal || GameManager.Instance.IsTransitioning ||
+            !IsChallengeWorldAvailable)
         { host.EndChallenge(MultiplayerChallengeResult.Cancelled); return; }
         MultiplayerChallengeState state = host.ChallengeState;
         state.Phase = MultiplayerChallengePhase.Teleporting;
