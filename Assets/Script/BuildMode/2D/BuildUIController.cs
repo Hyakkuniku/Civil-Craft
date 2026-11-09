@@ -262,6 +262,11 @@ public class BuildUIController : MonoBehaviour
 
     private void OnDisable()
     {
+        if (resizeToolsPanelCoroutine != null)
+        {
+            StopCoroutine(resizeToolsPanelCoroutine);
+            resizeToolsPanelCoroutine = null;
+        }
         CancelCapacityEstimate();
         UIReservedRegionLayout.LayoutChanging -= HideActionLogTemporarily;
         UnregisterActionLogProtectedRegions();
@@ -691,7 +696,7 @@ public class BuildUIController : MonoBehaviour
 
     private void ScheduleToolsPanelResize()
     {
-        if (EffectiveToolsPanel == null) return;
+        if (!isActiveAndEnabled || EffectiveToolsPanel == null) return;
         if (resizeToolsPanelCoroutine != null) StopCoroutine(resizeToolsPanelCoroutine);
         resizeToolsPanelCoroutine = StartCoroutine(ResizeToolsPanelAfterLayout());
     }

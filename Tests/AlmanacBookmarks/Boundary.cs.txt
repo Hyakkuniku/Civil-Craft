@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
-using TMPro;
 
 namespace UnityEngine
 {
@@ -37,11 +36,7 @@ namespace UnityEngine
         public override bool Equals(object other) => other is Quaternion value&&this==value;
         public override int GetHashCode() => HashCode.Combine(x,y,z,w);
     }
-    public struct Color32
-    {
-        public byte r,g,b,a;
-        public Color32(byte r,byte g,byte b,byte a) { this.r=r;this.g=g;this.b=b;this.a=a; }
-    }
+    public static class Mathf { public static float Lerp(float a, float b, float t) => a + (b - a) * Math.Clamp(t, 0f, 1f); }
     public sealed class GameObject
     {
         public string name;
@@ -58,12 +53,22 @@ namespace UnityEngine
         public GameObject gameObject;
         public Transform parent;
         public readonly List<Transform> children=new();
+        public readonly List<object> components=new();
         public Vector3 localScale=Vector3.one;
         public Quaternion localRotation=Quaternion.identity;
         public void SetParent(Transform target,bool worldPositionStays) { parent?.children.Remove(this);parent=target;target?.children.Add(this); }
         public void SetAsFirstSibling() { if(parent==null)return;parent.children.Remove(this);parent.children.Insert(0,this); }
         public int GetSiblingIndex() => parent?.children.IndexOf(this) ?? 0;
         public Transform Find(string name) => children.Find(child=>child.gameObject.name==name);
+        public bool IsChildOf(Transform target) => this == target || parent != null && parent.IsChildOf(target);
+        public T[] GetComponentsInChildren<T>(bool includeInactive)
+        {
+            var found = new List<T>();
+            foreach (object component in components) if (component is T value) found.Add(value);
+            foreach (Transform child in children) if (includeInactive || child.gameObject.activeSelf)
+                found.AddRange(child.GetComponentsInChildren<T>(includeInactive));
+            return found.ToArray();
+        }
     }
     public class RectTransform : Transform
     {
@@ -71,21 +76,14 @@ namespace UnityEngine
         public Vector2 offsetMin,offsetMax;
     }
 }
-namespace UnityEngine.UI { public sealed class Button { public Transform transform;public bool interactable=true; } }
-namespace TMPro
+namespace UnityEngine.UI
 {
-    public enum FontStyles { Normal, Bold }
-    public enum TextOverflowModes { Overflow, Ellipsis }
-    public enum TextAlignmentOptions { TopLeft, Center }
-    public sealed class TMP_Text
+    public sealed class Button { public Transform transform; public GameObject gameObject => transform.gameObject; }
+    public sealed class Image
     {
-        public RectTransform rectTransform=new();
-        public float fontSize,fontSizeMin,fontSizeMax;
-        public bool enableAutoSizing,enableWordWrapping,raycastTarget;
-        public TextOverflowModes overflowMode;
-        public TextAlignmentOptions alignment;
-        public Color32 color;
-        public FontStyles fontStyle;
+        public RectTransform rectTransform;
+        public Transform transform => rectTransform;
+        public bool preserveAspect;
     }
 }
 public enum TabVisibility { Normal,AlwaysHidden }
@@ -94,21 +92,13 @@ public sealed class AlmanacCategory
     public Button tabButton;
     public TabVisibility visibilityMode;
     public Transform leftPageZone;
+    public GameObject tabAlertIcon;
 }
 public sealed class AlmanacManager { public IList<AlmanacCategory> categories; }
-public sealed class QuizUILayout { public static Color32 Ink=new(69,47,31,255); }
 public sealed class LayerHarness
 {
     public AlmanacManager manager;
     public GameObject[] chapterFrames;
     public void Apply() => LayerCoversBehindBookmarks();
     // ACTUAL_LAYER
-}
-public sealed class ContrastHarness
-{
-    public TMP_Text tabLabel;
-    public Button tab;
-    public int selectedCategory=-1,quizCategoryIndex=4;
-    public void Apply() => RefreshTabContrast();
-    // ACTUAL_CONTRAST
 }

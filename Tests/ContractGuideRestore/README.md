@@ -6,4 +6,4 @@ This harness compiles production `TutorialManager` contract-navigation recovery,
 
 Scenarios cover restart to an accepted contract or pending turn-in, active-objective selection and fallback, late scene/save/path readiness, profile replacement, stale or ineligible targets, real tutorial and modal deferral, route ownership, and recall. Source guards forbid saving, rewards or progression from navigation recovery. No live scene, player save, account, navigation mesh or network is accessed.
 
-The Untrack Objective follow-up also executes the production presentation-only hide method. It verifies that the saved hidden-navigation preference suppresses startup restoration, retains an existing route and objective progress, and leaves real tutorial instructions alone. The boundary field defaults to false for every existing scenario.
+The Untrack Objective checks verify that both the contract reminder and trail stay hidden after closing Objectives and restarting. They also cover tracking the same location again, retaining the owned route and objective progress, and leaving real tutorial instructions alone.

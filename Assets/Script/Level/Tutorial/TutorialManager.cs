@@ -572,6 +572,20 @@ public class TutorialManager : MonoBehaviour
             current != null ? current.CurrentData : null);
     }
 
+    internal List<GuiderWaypoint> GetRetainedContractGuide(TrackedTask task)
+    {
+        if (!isActiveAndEnabled || task == null || task.isCompleted || task.isTutorial ||
+            contractGuideContract == null || !contractGuideContract.MatchesIdentifier(task.contractName) ||
+            !ContractGuideBelongsToCurrentSave() || contractGuideSaveOwner?.activeQuests == null ||
+            !contractGuideSaveOwner.activeQuests.Contains(task)) return null;
+
+        List<GuiderWaypoint> route = contractNavigationSteps != null && contractNavigationSteps.Length > 0
+            ? contractNavigationSteps[0]?.stepWaypoints : null;
+        Transform target = route != null && route.Count > 0 ? route[0]?.target : null;
+        return target != null && target.gameObject.activeInHierarchy && target.gameObject.scene == gameObject.scene
+            ? route : null;
+    }
+
     /// <summary>Recheck live phase bindings after an NPC spawns/configures; never scans every frame.</summary>
     public void InvalidateContractGuideRestoreCandidates()
     {
@@ -692,18 +706,11 @@ public class TutorialManager : MonoBehaviour
         if (owned != null && current != null && current != contractGuideBoundGuider && ReferenceEquals(current.waypoints, owned))
             current.SetNewWaypoints(new List<GuiderWaypoint>());
         contractGuideBoundGuider = null;
-        if (contractGuideVisible && !IsTutorialActive)
-        {
-            if (leftPanel != null) leftPanel.SetActive(false);
-            RestoreTutorialCanvas();
-        }
-        contractGuideVisible = false;
+        HideContractGuidePresentation();
     }
 
-    private void HideUntrackedContractGuide()
+    private void HideContractGuidePresentation()
     {
-        // Untracking is a presentation preference. Keep the owned route and its
-        // waypoint progress intact; a real tutorial still owns its instructions.
         if (contractGuideVisible && !IsTutorialActive)
         {
             if (leftPanel != null) leftPanel.SetActive(false);
@@ -734,7 +741,12 @@ public class TutorialManager : MonoBehaviour
         if (guider.gameObject.scene != gameObject.scene) return false;
         bool ownsRoute = ReferenceEquals(guider.waypoints, waypoints);
         if (!ownsRoute && !contractGuideMayReplaceRoute && guider.waypoints != null && guider.waypoints.Count > 0)
-            return false; // Respect an explicit map/Objective Track destination.
+        {
+            // Keep an explicit Track Location route and show its matching contract text.
+            GuiderWaypoint tracked = guider.waypoints[0];
+            return guider.waypoints.Count == 1 && tracked != null && !tracked.advancesTutorial &&
+                tracked.target == waypoints[0].target;
+        }
         if (contractGuideBoundGuider != null && contractGuideBoundGuider != guider &&
             ReferenceEquals(contractGuideBoundGuider.waypoints, waypoints))
             contractGuideBoundGuider.SetNewWaypoints(new List<GuiderWaypoint>());
@@ -762,10 +774,10 @@ public class TutorialManager : MonoBehaviour
         }
         // Real tutorials keep ownership of the shared panel. Navigation never
         // starts a sequence, sets IsTutorialActive, or locks build controls.
-        if (PlayerDataManager.Instance != null && PlayerDataManager.Instance.CurrentData != null &&
-            PlayerDataManager.Instance.CurrentData.objectiveNavigationHidden)
+        PlayerDataManager saves = PlayerDataManager.Instance;
+        if (saves != null && saves.CurrentData?.objectiveNavigationHidden == true)
         {
-            HideUntrackedContractGuide();
+            HideContractGuidePresentation();
             return;
         }
         if (IsContractGuidePresentationBlocked())
@@ -790,7 +802,7 @@ public class TutorialManager : MonoBehaviour
         PrepareTutorialCanvas();
         ApplyPanelPosition(TutorialPosition.Left);
         if (leftPanel != null) leftPanel.SetActive(true);
-        if (leftText != null) leftText.text = contractNavigationSteps[0].message;
+        if (leftText != null) leftText.text = guideStep.message;
         if (nextButton != null) nextButton.SetActive(false);
         if (skipButton != null) skipButton.SetActive(false);
         contractGuideVisible = true;

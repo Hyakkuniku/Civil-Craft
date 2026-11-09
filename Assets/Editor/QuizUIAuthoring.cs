@@ -699,16 +699,16 @@ public static class QuizUIAuthoring
                 left.rectTransform.offsetMin = left.rectTransform.offsetMax = right.rectTransform.offsetMin = right.rectTransform.offsetMax = Vector2.zero;
                 book.categories.Add(new AlmanacCategory { categoryName = "Existing " + i, tabType = (AlmanacTabType)i, tabButton = button, leftPageZone = left.transform, rightPageZone = right.transform });
             }
-            Vector2[] oldMin = book.categories.Select(category => ((RectTransform)category.tabButton.transform).anchorMin).ToArray();
             AlmanacQuizAccess.Install(book); AlmanacQuizAccess.Install(book);
             Check(book.categories.Count == 5, "Quiz category install is not idempotent.");
             AlmanacCategory quizCategory = book.categories[4];
-            Check(quizCategory.tabType == AlmanacTabType.Quiz && !quizCategory.tabButton.interactable, "Quiz tab must exist but be disabled without an NPC offer.");
-            TMP_Text quizTabLabel = quizCategory.tabButton.GetComponentInChildren<TMP_Text>(true);
-            Check(quizTabLabel.color.r > .7f && quizTabLabel.color.g > .65f, "Disabled Quiz tab label must contrast with the dark tab face.");
+            Check(quizCategory.tabType == AlmanacTabType.Quiz && !quizCategory.tabButton.gameObject.activeSelf &&
+                !quizCategory.tabButton.interactable, "Quiz tab must stay hidden without an NPC offer.");
+            Image quizIcon = quizCategory.tabButton.transform.Find("Quiz Icon")?.GetComponent<Image>();
+            Check(quizIcon != null && quizIcon.sprite != null && quizIcon.preserveAspect && !quizIcon.raycastTarget &&
+                quizCategory.tabButton.GetComponentInChildren<TMP_Text>(true) == null, "Quiz bookmark needs its non-blocking sprite instead of a text label.");
             for (int i = 0; i < 4; i++)
             {
-                Check(((RectTransform)book.categories[i].tabButton.transform).anchorMin == oldMin[i], "Adding Quiz moved an existing tab.");
                 book.categories[i].leftPageZone.gameObject.SetActive(false); book.categories[i].rightPageZone.gameObject.SetActive(false);
             }
             Check(quizCategory.leftPageZone.GetComponent<Image>() != null && quizCategory.rightPageZone.GetComponent<Image>() != null,
@@ -718,12 +718,9 @@ public static class QuizUIAuthoring
             Check(!start.gameObject.activeSelf, "No NPC offer must not provide a playable quiz.");
             // Presentation fixture only: simulate offered text, never call TryOffer or touch player data.
             start.gameObject.SetActive(true); start.interactable = true;
+            quizCategory.tabButton.gameObject.SetActive(true);
             quizCategory.tabButton.interactable = true;
-            book.OnCategoryChanged?.Invoke(4);
-            Check(quizTabLabel.color == QuizUILayout.Gold, "Real selected Quiz state must use the high-contrast gold label.");
-            book.OnCategoryChanged?.Invoke(0);
-            Check(quizTabLabel.color == QuizUILayout.Cream, "Unselected available Quiz state must use the high-contrast cream label.");
-            book.OnCategoryChanged?.Invoke(4);
+            AlmanacBookmarkLayout.Reflow(book.categories);
             TMP_Text title = quizCategory.leftPageZone.Find("Quiz Introduction/Quiz Title").GetComponent<TMP_Text>();
             TMP_Text description = quizCategory.leftPageZone.Find("Quiz Introduction/Quiz Guidance").GetComponent<TMP_Text>();
             title.text = "Beam Bridge Quiz";
@@ -756,7 +753,7 @@ public static class QuizUIAuthoring
                 Capture(camera, target, "Temp/npc-quiz-almanac-" + size.x + "x" + size.y + ".png");
                 camera.targetTexture = null; Release(target); target = null;
             }
-            report.AppendLine("PASS: Almanac Quiz tab added once without moving existing tabs; inactive without NPC offer; paper backgrounds, Start/Back, readable phone/tablet/desktop introduction and separate touch targets.");
+            report.AppendLine("PASS: Almanac Quiz bookmark hidden without an offer; icon, paper backgrounds, Start/Back, readable phone/tablet/desktop introduction and separate touch targets.");
         }
         finally { Release(target); EditorSceneManager.ClosePreviewScene(preview); }
     }

@@ -50,12 +50,23 @@ public static class Scenarios
         path.isActiveAndEnabled=true; var other=new PathGuider(); Check(!path.UntrackObjectiveGuide(), "Stale service refuses writes.");
         path=Setup(out target); path.waypoints=new List<GuiderWaypoint>{new GuiderWaypoint{target=foreign.transform}};
         Check(!path.HasPendingObjectiveGuide && !path.UntrackObjectiveGuide(), "Foreign-scene route does not expose untrack.");
-        path=Setup(out target); var manager=TutorialManager.Instance; manager.contractGuideVisible=true;
-        original=path.waypoints; manager.HideContractHint();
-        Check(!manager.leftPanel.activeSelf && !manager.contractGuideVisible && manager.canvasRestores==1, "Contract-only hint hides and restores its canvas.");
-        Check(ReferenceEquals(path.waypoints,original) && path.Index==0, "Contract hiding does not erase navigation.");
-        manager.IsTutorialActive=true; manager.contractGuideVisible=true; manager.leftPanel.activeSelf=true; manager.HideContractHint();
-        Check(manager.leftPanel.activeSelf && manager.canvasRestores==1, "Actual tutorial banner remains visible.");
+        path = Setup(out target); var manager = TutorialManager.Instance;
+        var task = new TrackedTask { contractName = "Reed" };
+        PlayerDataManager.Instance.CurrentData.activeQuests.Add(task);
+        var retained = new List<GuiderWaypoint> { new GuiderWaypoint { target = target.transform, advancesTutorial = false } };
+        manager.RetainGuideDuringObjectives(task, retained);
+        Check(!path.HasPendingObjectiveGuide && ReferenceEquals(path.GetUntrackableObjectiveGuide(task), retained),
+            "Active Contract can untrack its guide while the Objectives panel has suspended the live waypoints.");
+        Check(path.GetUntrackableObjectiveGuide(new TrackedTask { contractName = "Reed" }) == null,
+            "An outdated task from another profile cannot expose its old Untrack button.");
+        Check(!path.UntrackObjectiveGuide(task, original) && PlayerDataManager.Instance.saves == 0,
+            "A stale button cannot untrack a replacement contract route.");
+        Check(path.UntrackObjectiveGuide(task, retained) && path.IsObjectiveNavigationHidden &&
+            PlayerDataManager.Instance.saves == 1 && !task.isCompleted && path.waypoints.Count == 0,
+            "Untracking from Active Contract saves only the navigation preference.");
+        Check(path.GetUntrackableObjectiveGuide(task) == null, "Untrack hides immediately after use.");
+        path.RouteToSingleTarget(target.transform);
+        Check(path.CanUntrackObjectiveGuide && !path.IsObjectiveNavigationHidden, "Track Location restores navigation for the same contract.");
         return count;
     }
 }

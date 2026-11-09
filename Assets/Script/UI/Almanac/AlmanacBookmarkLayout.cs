@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -9,6 +8,7 @@ public static class AlmanacBookmarkLayout
     public const float SelectedLift = 8f;
     public const float Baseline = 22f;
     public const float IconSize = 56f;
+    public const float AlertSize = 30f;
 
     public static void TuckBehindPage(AlmanacCategory category)
     {
@@ -31,7 +31,7 @@ public static class AlmanacBookmarkLayout
             SetTopDecoration(image.rectTransform, .5f, IconSize, IconSize, 34f);
             image.preserveAspect = true;
         }
-        if (alert is RectTransform badge) SetTopDecoration(badge, .86f, 20f, 22f, 20f);
+        if (alert is RectTransform badge) SetTopDecoration(badge, .86f, AlertSize, AlertSize, 24f);
     }
 
     private static void SetTopDecoration(RectTransform rect, float x, float width, float height, float inset)
@@ -78,27 +78,4 @@ public static class AlmanacBookmarkLayout
         if (covers != null) covers.SetAsFirstSibling();
     }
 
-    public static void ConfigureQuizLabel(TMP_Text label)
-    {
-        if (label == null) return;
-        RectTransform rect = label.rectTransform;
-        // Keep the word in the same exposed strip as the larger icons.
-        RectTransform tab = (RectTransform)rect.parent;
-        bool paperBookmark = tab.anchorMax.x - tab.anchorMin.x > .001f;
-        if (paperBookmark) SetTopDecoration(rect, .5f, 100f, IconSize, 34f);
-        else
-        {
-            rect.anchorMin = new Vector2(.08f, .67f);
-            rect.anchorMax = new Vector2(.92f, .98f);
-            rect.offsetMin = rect.offsetMax = Vector2.zero;
-        }
-        label.fontSize = paperBookmark ? 34f : 25f;
-        label.enableAutoSizing = true;
-        label.fontSizeMin = paperBookmark ? 28f : 21f;
-        label.fontSizeMax = label.fontSize;
-        label.enableWordWrapping = false;
-        label.overflowMode = TextOverflowModes.Ellipsis;
-        label.alignment = TextAlignmentOptions.Center;
-        label.raycastTarget = false;
-    }
 }

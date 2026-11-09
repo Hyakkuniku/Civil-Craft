@@ -29,6 +29,7 @@ public static class ConcretePierAssetAuthoring
     private const string BottomPath = Models + "SLAB_LOW.Bottom.prefab";
     private const string TopPath = Models + "SLAB_LOW.Top.prefab";
     private const string ShaftPath = Models + "ConcretePier_Shaft.prefab";
+    private const float ShaftWidthScale = 1.25f;
     private const string CapPath = Models + "ConcretePier_Cap.prefab";
     private const string FbxPath = Models + "Concreate_Pie2_V2.fbx";
     private const string OriginalDefaultSprite = "Assets/Elements/UI/bm_ui/concrete pier2 not selected.png";
@@ -247,6 +248,7 @@ public static class ConcretePierAssetAuthoring
                 Renderer renderer = child.GetComponentInChildren<Renderer>();
                 Vector3 localCenter = root.transform.InverseTransformPoint(renderer.bounds.center);
                 child.transform.localPosition -= localCenter;
+                root.transform.localScale = new Vector3(ShaftWidthScale, 1f, 1f);
             }
             root.hideFlags = HideFlags.None;
             GameObject saved = PrefabUtility.SaveAsPrefabAsset(root, path, out bool success);
@@ -283,7 +285,15 @@ public static class ConcretePierAssetAuthoring
             RequireHashes(baseline.sources, "An original source changed since setup.");
             RequireSamePaths(baseline.contracts, ContractFiles(), "Contract file set changed since setup; inspect the separate story changes before revalidating this baseline.");
             RequireContractBaseline(baseline.contracts);
-            RequireHashes(baseline.wrappers, "A generated wrapper differs from its setup baseline; no custom file was overwritten.");
+            Require(baseline.wrappers != null && baseline.wrappers.Count > 0, "Wrapper hash baseline is missing.");
+            foreach (Entry wrapper in baseline.wrappers)
+            {
+                if (Hash(wrapper.path) == wrapper.value) continue;
+                string originalShaft = wrapper.path == ShaftPath ? File.ReadAllText(ShaftPath).Replace(
+                    "  m_LocalScale: {x: 1.25, y: 1, z: 1}", "  m_LocalScale: {x: 1, y: 1, z: 1}") : null;
+                Require(originalShaft != null && Hash(Encoding.UTF8.GetBytes(originalShaft)) == wrapper.value,
+                    "A generated wrapper differs from its setup baseline: " + wrapper.path);
+            }
             bool numbersUnchanged = SameValues(baseline.numbers, NumericValues(material));
             report.AppendLine(numbersUnchanged ? "Numeric settings match their original setup backup exactly." :
                 "Numeric settings were edited after setup; current user values are retained, not reset to the backup.");
@@ -336,9 +346,10 @@ public static class ConcretePierAssetAuthoring
             asset.GetComponents<Component>().Length == 1 && asset.GetComponentsInChildren<MonoBehaviour>(true).Length == 0 &&
             asset.GetComponentsInChildren<Collider>(true).Length == 0,
             "Generated wrapper has unexpected custom components, children or colliders; it was not overwritten.");
+        Vector3 expectedScale = centered ? new Vector3(ShaftWidthScale, 1f, 1f) : Vector3.one;
         Require(asset.transform.localPosition.sqrMagnitude < .000001f &&
             Quaternion.Angle(asset.transform.localRotation, Quaternion.identity) < .001f &&
-            (asset.transform.localScale - Vector3.one).sqrMagnitude < .000001f, "Wrapper root must have an identity transform.");
+            (asset.transform.localScale - expectedScale).sqrMagnitude < .000001f, "Wrapper root has an unexpected transform.");
         Transform child = asset.transform.GetChild(0);
         Require(PrefabUtility.GetCorrespondingObjectFromSource(child.gameObject) == source &&
             (child.localScale - source.transform.localScale).sqrMagnitude < .000001f &&
@@ -349,7 +360,7 @@ public static class ConcretePierAssetAuthoring
         Require(filter != null && filter.sharedMesh == source.GetComponent<MeshFilter>().sharedMesh && renderer != null &&
             renderer.sharedMaterials.SequenceEqual(sourceRenderer.sharedMaterials), "Wrapper changed a supplied mesh or material.");
         Bounds actual = SourceBounds(asset, preview);
-        Require((actual.size - expected.size).sqrMagnitude < .00001f, "Wrapper changed model dimensions.");
+        Require((actual.size - Vector3.Scale(expected.size, expectedScale)).sqrMagnitude < .00001f, "Wrapper has unexpected model dimensions.");
         if (centered) Require(actual.center.sqrMagnitude < .00001f, "Shaft mesh is not centered for existing Y-axis pier stretching.");
         else Require(child.localPosition.sqrMagnitude < .000001f && (actual.center - expected.center).sqrMagnitude < .00001f,
             "Cap must keep the supplied mesh shape and zero child position; existing Bar handles its offsets.");
@@ -442,7 +453,7 @@ public static class ConcretePierAssetAuthoring
                     shaft.SetActive(true); cap.SetActive(true);
                     float pillarHeight = Mathf.Max(.05f, height - topBounds.size.y);
                     shaft.transform.localPosition = Vector3.up * (pillarHeight * .5f);
-                    shaft.transform.localScale = new Vector3(1f, pillarHeight / bottomBounds.size.y, 1f);
+                    shaft.transform.localScale = new Vector3(ShaftWidthScale, pillarHeight / bottomBounds.size.y, 1f);
                     cap.transform.localPosition = Vector3.up * (height - topBounds.max.y);
                     cap.transform.localScale = Vector3.one;
                     Bounds shaftBounds = shaft.GetComponentInChildren<Renderer>().bounds;
@@ -559,8 +570,12 @@ public static class ConcretePierAssetAuthoring
     private static string Hash(string path)
     {
         Require(File.Exists(path), "Missing source asset/meta: " + path);
+        return Hash(File.ReadAllBytes(path));
+    }
+    private static string Hash(byte[] bytes)
+    {
         using (SHA256 sha = SHA256.Create())
-            return BitConverter.ToString(sha.ComputeHash(File.ReadAllBytes(path))).Replace("-", string.Empty);
+            return BitConverter.ToString(sha.ComputeHash(bytes)).Replace("-", string.Empty);
     }
     private static void RequireHashes(List<Entry> expected, string message)
     {

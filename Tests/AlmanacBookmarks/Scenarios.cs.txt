@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
-using TMPro;
 
 public static class Scenarios
 {
@@ -20,7 +19,7 @@ public static class Scenarios
     public static int Run()
     {
         AlmanacBookmarkLayout.Reflow(null);AlmanacBookmarkLayout.Reflow(new List<AlmanacCategory>());checks+=2;
-        PackingAndOrder();Layering();LabelsAndContrast();
+        PackingAndOrder();Layering();IconLayout();
         return checks;
     }
     private static void PackingAndOrder()
@@ -51,6 +50,9 @@ public static class Scenarios
         Check(Near(((RectTransform)quiz.tabButton.transform).anchorMin.x,.418f),"Unlocked Materials was not restored to category order.");
         material.visibilityMode=TabVisibility.AlwaysHidden;AlmanacBookmarkLayout.Reflow(categories);
         Check(Near(((RectTransform)quiz.tabButton.transform).anchorMin.x,.326f),"AlwaysHidden tab used a visible slot.");
+        quiz.tabButton.gameObject.SetActive(false);
+        material.visibilityMode=TabVisibility.Normal;AlmanacBookmarkLayout.Reflow(categories);
+        Check(Near(((RectTransform)material.tabButton.transform).anchorMin.x,.326f),"The hidden Quiz tab must leave the material slot intact.");
         var unrelated=Rect("Other parent");var foreign=Category("Foreign",unrelated,.2f,.3f,13);
         categories.Add(foreign);AlmanacBookmarkLayout.Reflow(categories);
         Check(Near(((RectTransform)foreign.tabButton.transform).anchorMin.x,.2f),"Foreign parent was repositioned.");
@@ -85,19 +87,17 @@ public static class Scenarios
         Check(rotated.parent==chapter&&rotated.localRotation==new Quaternion {z=.1f,w=.99f},"Custom rotated binding was migrated or rotated.");
         var missing=new LayerHarness();missing.Apply();checks++;
     }
-    private static void LabelsAndContrast()
+    private static void IconLayout()
     {
-        AlmanacBookmarkLayout.ConfigureQuizLabel(null);checks++;
-        var text=new TMP_Text { enableWordWrapping=true,raycastTarget=true };AlmanacBookmarkLayout.ConfigureQuizLabel(text);
-        Check(text.rectTransform.anchorMin==new Vector2(.08f,.67f)&&text.rectTransform.anchorMax==new Vector2(.92f,.98f),"Quiz label not in exposed header strip.");
-        Check(text.rectTransform.offsetMin==Vector2.zero&&text.rectTransform.offsetMax==Vector2.zero,"Quiz label stale offsets retained.");
-        Check(!text.enableWordWrapping&&!text.raycastTarget,"Quiz label wraps or intercepts clicks.");
-        Check(text.enableAutoSizing&&text.fontSizeMin>=21&&text.fontSizeMax==25,"Quiz label sizing unreadable.");
-        Check(text.alignment==TextAlignmentOptions.Center&&text.overflowMode==TextOverflowModes.Ellipsis,"Quiz label alignment or overflow wrong.");
-        var contrast=new ContrastHarness { tabLabel=text,tab=new Button() };contrast.Apply();
-        Check(text.color.r==QuizUILayout.Ink.r&&text.color.g==QuizUILayout.Ink.g&&text.color.b==QuizUILayout.Ink.b,"Available Quiz uses low contrast ink.");
-        contrast.tab.interactable=false;contrast.Apply();
-        Check(text.color.r<160&&text.color.g<140&&text.color.b<120&&text.color.a==255,"Disabled Quiz pale/transparent against cream.");
-        contrast.tabLabel=null;contrast.Apply();checks++;
+        var container=Rect("Book");
+        var chapter=Rect("Chapter",container);chapter.anchorMin=new(.02f,.04f);chapter.anchorMax=new(.98f,.85f);
+        var quiz=Category("Quiz",container,.416f,.494f,4);
+        quiz.leftPageZone=Rect("Quiz page",chapter);
+        var rect=Rect("Quiz Icon",quiz.tabButton.transform);
+        var icon=new Image { rectTransform=rect };rect.components.Add(icon);
+        AlmanacBookmarkLayout.TuckBehindPage(quiz);
+        Check(icon.preserveAspect,"Quiz icon should preserve its proportions.");
+        Check(rect.anchorMin==new Vector2(.5f,1f)&&rect.anchorMax==rect.anchorMin,"Quiz icon must center in the exposed bookmark header.");
+        Check(rect.sizeDelta==new Vector2(AlmanacBookmarkLayout.IconSize,AlmanacBookmarkLayout.IconSize),"Quiz icon must use the shared bookmark size.");
     }
 }

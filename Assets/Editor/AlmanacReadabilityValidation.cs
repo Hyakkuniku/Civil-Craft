@@ -98,6 +98,16 @@ public static class AlmanacReadabilityValidation
             AlmanacQuizAccess.Install(owner);
             Require(owner.categories.Count == source.categories.Count + 1, "Runtime Quiz category missing/duplicated.");
             typeof(AlmanacManager).GetMethod("InitializeBook", Private).Invoke(owner, null);
+            Button quizTab = owner.categories.Last().tabButton;
+            typeof(AlmanacManager).GetMethod("RefreshTabVisibility", Private).Invoke(owner, new object[] { new PlayerData() });
+            Require(!quizTab.gameObject.activeSelf && !quizTab.interactable, "A tab unlock refresh revealed Quiz without an NPC offer.");
+            Image quizIcon = quizTab.transform.Find("Quiz Icon")?.GetComponent<Image>();
+            Require(quizIcon != null && quizIcon.sprite != null &&
+                AssetDatabase.GetAssetPath(quizIcon.sprite) == "Assets/Elements/Almanac/quiz icon tab.png" &&
+                quizIcon.preserveAspect && !quizIcon.raycastTarget && quizTab.GetComponentInChildren<TMP_Text>(true) == null,
+                "Quiz bookmark must use the supplied artwork and let its button receive clicks. Children: " +
+                string.Join(", ", quizTab.transform.Cast<Transform>().Select(child => child.name)) +
+                ". Icon asset: " + (quizIcon != null ? AssetDatabase.GetAssetPath(quizIcon.sprite) : "missing"));
             TMP_FontAsset font = Resources.Load<TMP_FontAsset>(AlmanacTypography.FontResource);
             Require(font != null && source.Panel.GetComponentsInChildren<TMP_Text>(true).All(text => text.font == font),
                 "A saved Almanac label uses a different font.");
@@ -143,9 +153,13 @@ public static class AlmanacReadabilityValidation
                     Render(camera, screen, file);
                     // Native CanvasRenderer depths are assigned by rendering,
                     // not merely by ForceUpdateCanvases in a preview scene.
-                    ValidateClick(owner.categories.Last().tabButton, root.GetComponent<GraphicRaycaster>(), camera, true);
-                    if (quizSelected) ValidateClick((Button)typeof(AlmanacQuizAccess).GetField("start", Private)
-                        .GetValue(owner.GetComponent<AlmanacQuizAccess>()), root.GetComponent<GraphicRaycaster>(), camera, false);
+                    if (quizSelected)
+                    {
+                        ValidateClick(quizTab, root.GetComponent<GraphicRaycaster>(), camera, quizIcon.rectTransform);
+                        ValidateClick((Button)typeof(AlmanacQuizAccess).GetField("start", Private)
+                            .GetValue(owner.GetComponent<AlmanacQuizAccess>()), root.GetComponent<GraphicRaycaster>(), camera);
+                    }
+                    else Require(!quizTab.gameObject.activeSelf, "Quiz tab is visible in the no-offer preview.");
                     report.AppendLine("PASS: " + file + "; cover < tabs < pages, compact visible slots, readable one-line currency.");
                 }
             }
@@ -167,7 +181,8 @@ public static class AlmanacReadabilityValidation
         book.categories.Last().tabButton.interactable = false;
         foreach (AlmanacCategory category in book.categories)
         {
-            category.tabButton.gameObject.SetActive(category.tabType != AlmanacTabType.Materials || materialsUnlocked);
+            category.tabButton.gameObject.SetActive(category.tabType == AlmanacTabType.Quiz ? category == book.categories[selected] :
+                category.tabType != AlmanacTabType.Materials || materialsUnlocked);
             if (category.tabAlertIcon != null) category.tabAlertIcon.SetActive(category != book.categories[selected]);
             foreach (Transform zone in new[] { category.leftPageZone, category.rightPageZone })
             {
@@ -184,10 +199,16 @@ public static class AlmanacReadabilityValidation
 
     private static void ValidateAlertMotion(AlmanacManager book)
     {
+        Sprite expectedBadge = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Elements/UI/AlmanacUnreadBadge.png");
+        Require(expectedBadge != null, "Unread badge sprite is missing.");
         foreach (AlmanacCategory category in book.categories)
         {
             if (category.tabAlertIcon == null || category.visibilityMode == TabVisibility.AlwaysHidden) continue;
             var badge = (RectTransform)category.tabAlertIcon.transform;
+            var image = badge.GetComponent<Image>();
+            Require(image != null && image.sprite == expectedBadge && !image.raycastTarget &&
+                badge.rect.width >= AlmanacBookmarkLayout.AlertSize && badge.rect.height >= AlmanacBookmarkLayout.AlertSize,
+                "Unread bookmark badge is small, missing its contrasting sprite, or intercepts input: " + category.categoryName);
             var pulse = badge.GetComponent<UIPulseAnimation>();
             Require(pulse != null && pulse.bobHeight > 0f, "Unread bookmark is missing its bounce: " + category.categoryName);
             Vector2 rest = badge.anchoredPosition;
@@ -209,17 +230,16 @@ public static class AlmanacReadabilityValidation
         // Presentation fixture only: no TryOffer, real callback owner or session.
         AlmanacQuizAccess access = book.GetComponent<AlmanacQuizAccess>();
         Button tab = book.categories.Last().tabButton; tab.interactable = true;
-        typeof(AlmanacQuizAccess).GetMethod("RefreshTabContrast", Private).Invoke(access, null);
         SetText(book.Panel, "Quiz Title", "Truss Bridge Quiz");
         SetText(book.Panel, "Quiz Guidance", "Review your lessons before starting.\n\nAnswer all 5 questions, then press Submit. You can move between questions before submitting.\n\nOnce started, finish the quiz before returning to the Almanac. Any score lets you continue; no rewards are added.");
         Button start = (Button)typeof(AlmanacQuizAccess).GetField("start", Private).GetValue(access);
         start.gameObject.SetActive(true); start.interactable = true;
     }
 
-    private static void ValidateClick(Button button, GraphicRaycaster raycaster, Camera camera, bool bookmark)
+    private static void ValidateClick(Button button, GraphicRaycaster raycaster, Camera camera, RectTransform target = null)
     {
         Require(button != null, "Preview button is missing.");
-        RectTransform rect = bookmark ? button.GetComponentInChildren<TMP_Text>(true).rectTransform : (RectTransform)button.transform;
+        RectTransform rect = target != null ? target : (RectTransform)button.transform;
         Vector2 point = RectTransformUtility.WorldToScreenPoint(camera, rect.TransformPoint(rect.rect.center));
         var hits = new List<RaycastResult>();
         raycaster.Raycast(new PointerEventData(null) { position = point }, hits);
@@ -249,12 +269,16 @@ public static class AlmanacReadabilityValidation
             if (icon != null)
                 Require(icon.preserveAspect && icon.rectTransform.rect.height >= AlmanacBookmarkLayout.IconSize &&
                     Corners(icon.rectTransform)[0].y > paperTop, "Bookmark icon is undersized or covered by paper: " + tab.name);
+            if (category.tabAlertIcon != null && category.tabAlertIcon.activeInHierarchy)
+            {
+                Vector3[] badge = Corners((RectTransform)category.tabAlertIcon.transform);
+                Vector3[] tabCorners = Corners(tab);
+                Require(badge[0].x >= tabCorners[0].x && badge[2].x <= tabCorners[2].x && badge[0].y > paperTop &&
+                    badge[2].y < tabCorners[2].y, "Unread badge exceeds its exposed tab: " + tab.name);
+            }
             previousRight = tab.anchorMax.x;
         }
         Require(frames.All(frame => frame == null || frame.transform.parent == covers), "A chapter cover remained above bookmarks.");
-        TMP_Text label = book.categories.Last().tabButton.GetComponentInChildren<TMP_Text>(true);
-        Require(label != null && !label.raycastTarget && !label.enableWordWrapping && label.textInfo.lineCount <= 1 &&
-            !label.isTextOverflowing && !label.isTextTruncated && label.color.r < .6f, "Quiz bookmark label is unreadable or intercepts input.");
     }
 
     private static void ValidateProfile(GameObject clone)

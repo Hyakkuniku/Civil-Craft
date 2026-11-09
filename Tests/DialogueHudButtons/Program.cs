@@ -16,11 +16,13 @@ var gate = Read("Assets/Script/UI/DialogueHudButtonGate.cs", "DialogueHudButtonG
 var almanac = Read("Assets/Script/UI/Almanac/AlmanacManager.cs", "AlmanacManager");
 var objectives = Read("Assets/Script/UI/Objective-Missions/ObjectiveTrackerUI.cs", "ObjectiveTrackerUI");
 var shop = Read("Assets/Script/UI/Shop/ShopButtonTrigger.cs", "ShopButtonTrigger");
+var multiplayer = Read("Assets/Script/WorldMultiplayerPanelUI.cs", "WorldMultiplayerPanelUI");
 var dialogue = Read("Assets/Script/Dialogue/DialogueManager.cs", "DialogueManager");
 string boundary = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Boundary.cs.txt"))
     .Replace("// ALMANAC_ELIGIBILITY", Property(almanac, "CanShowHudOpenButton"))
     .Replace("// OBJECTIVES_ELIGIBILITY", Property(objectives, "CanShowHudEntry"))
     .Replace("// SHOP_ELIGIBILITY", Property(shop, "CanShowHudEntry"))
+    .Replace("// MULTIPLAYER_ELIGIBILITY", Property(multiplayer, "HasMultiplayerAccess") + Method(multiplayer, "CanShowHudEntry"))
     .Replace("// DIALOGUE_VISIBILITY", Property(dialogue, "IsAnyDialogueVisible") +
         Method(dialogue, "HideDialogueElements") + Method(dialogue, "RestoreDialogueElements"));
 var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator)
@@ -57,4 +59,11 @@ Check(Method(shop, "Awake").Contains("DialogueHudButtonGate.BindShop(gameObject,
     "Every authored ShopButtonTrigger must bind its exact existing HUD object during Awake.");
 Check(!Method(shop, "OpenShop").Contains("DialogueManager"),
     "Programmatic Shop opening remains available to its existing story flow; only the HUD entry is masked.");
+Check(Method(multiplayer, "Awake").Contains("DialogueHudButtonGate.BindMultiplayer(openButton.gameObject, this)"),
+    "World Multiplayer must bind its authored HUD entry.");
+string openMultiplayer = Method(multiplayer, "Open");
+Check(openMultiplayer.Contains("DialogueManager.IsAnyDialogueVisible") &&
+    openMultiplayer.IndexOf("DialogueManager.IsAnyDialogueVisible", StringComparison.Ordinal) <
+    openMultiplayer.IndexOf("inputCaptured = true", StringComparison.Ordinal),
+    "A queued click may not open Multiplayer or capture movement during dialogue.");
 Console.WriteLine($"PASS: {checks} production HUD mask/owner eligibility/dialogue-visibility checks and source guards. Unity lifecycle, CanvasGroup composition, dialogue transitions and modal snapshots are boundary inputs; no live UI, saves or scenes touched.");

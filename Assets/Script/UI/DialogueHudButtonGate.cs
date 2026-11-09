@@ -10,6 +10,7 @@ public sealed class DialogueHudButtonGate : MonoBehaviour
     [SerializeField, HideInInspector] private AlmanacManager almanac;
     [SerializeField, HideInInspector] private ObjectiveTrackerUI objectives;
     [SerializeField, HideInInspector] private ShopButtonTrigger shop;
+    [SerializeField, HideInInspector] private WorldMultiplayerPanelUI multiplayer;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetRegistry() { gates.Clear(); }
@@ -18,7 +19,7 @@ public sealed class DialogueHudButtonGate : MonoBehaviour
     {
         if (button == null || owner == null) return;
         DialogueHudButtonGate gate = GetGate(button);
-        gate.almanac = owner; gate.objectives = null; gate.shop = null;
+        gate.almanac = owner; gate.objectives = null; gate.shop = null; gate.multiplayer = null;
         gate.ApplyVisibility();
     }
 
@@ -26,7 +27,7 @@ public sealed class DialogueHudButtonGate : MonoBehaviour
     {
         if (button == null || owner == null) return;
         DialogueHudButtonGate gate = GetGate(button);
-        gate.objectives = owner; gate.almanac = null; gate.shop = null;
+        gate.objectives = owner; gate.almanac = null; gate.shop = null; gate.multiplayer = null;
         gate.ApplyVisibility();
     }
 
@@ -34,7 +35,15 @@ public sealed class DialogueHudButtonGate : MonoBehaviour
     {
         if (button == null || owner == null) return;
         DialogueHudButtonGate gate = GetGate(button);
-        gate.shop = owner; gate.almanac = null; gate.objectives = null;
+        gate.shop = owner; gate.almanac = null; gate.objectives = null; gate.multiplayer = null;
+        gate.ApplyVisibility();
+    }
+
+    public static void BindMultiplayer(GameObject button, WorldMultiplayerPanelUI owner)
+    {
+        if (button == null || owner == null) return;
+        DialogueHudButtonGate gate = GetGate(button);
+        gate.multiplayer = owner; gate.almanac = null; gate.objectives = null; gate.shop = null;
         gate.ApplyVisibility();
     }
 
@@ -50,7 +59,7 @@ public sealed class DialogueHudButtonGate : MonoBehaviour
     {
         if (button == null) return false;
         DialogueHudButtonGate gate = button.GetComponent<DialogueHudButtonGate>();
-        return gate != null && (gate.almanac != null || gate.objectives != null || gate.shop != null);
+        return gate != null && (gate.almanac != null || gate.objectives != null || gate.shop != null || gate.multiplayer != null);
     }
 
     public static void RefreshAll()
@@ -72,6 +81,7 @@ public sealed class DialogueHudButtonGate : MonoBehaviour
         allowed |= objectives != null && ObjectiveTrackerUI.Instance == objectives &&
             objectives.openTrackerButton == gameObject && objectives.CanShowHudEntry;
         allowed |= shop != null && shop.gameObject == gameObject && shop.CanShowHudEntry;
+        allowed |= multiplayer != null && multiplayer.CanShowHudEntry(gameObject);
         SetMask(DialogueManager.IsAnyDialogueVisible || !allowed);
     }
 

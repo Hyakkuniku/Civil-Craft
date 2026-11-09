@@ -199,7 +199,43 @@ public static class Scenarios
         var untouched = new GameObject(); DialogueHudButtonGate.BindAlmanac(untouched, null); DialogueHudButtonGate.BindObjectives(null, staleObjectives);
         Check(untouched.components.Count == 0, "Null bindings cannot create unowned components or masks.");
         ShopTransitions();
+        MultiplayerTransitions();
         return checks;
+    }
+
+    private static void MultiplayerTransitions()
+    {
+        _ = new Fixture(true);
+        var owner = new GameObject().AddComponent<WorldMultiplayerPanelUI>();
+        var button = new GameObject();
+        owner.openButton = button.AddComponent<Button>();
+        MultiplayerProgressionGate.IsUnlocked = true;
+        DialogueHudButtonGate.BindMultiplayer(button, owner);
+        Check(DialogueHudButtonGate.IsBoundButton(button) && Mask(button).alpha == 1f, "Unlocked Multiplayer button is visible before dialogue.");
+
+        var dialogue = Dialogue();
+        dialogue.elementsToHide.Add(button);
+        dialogue.Begin(); dialogue.HideConfiguredElements();
+        Check(Mask(button).alpha == 0f && !Mask(button).blocksRaycasts && !Mask(button).interactable && button.activationWrites == 0,
+            "Dialogue immediately hides Multiplayer and blocks clicks without changing its authored activation.");
+        dialogue.RestoreConfiguredElements(); dialogue.BeginClose();
+        Check(Mask(button).alpha == 0f, "Multiplayer stays hidden through the closing animation.");
+        dialogue.FinishClose();
+        Check(Mask(button).alpha == 1f && Mask(button).interactable, "Multiplayer returns when dialogue closes.");
+
+        dialogue.Begin(); MultiplayerProgressionGate.IsUnlocked = false;
+        dialogue.BeginClose(); dialogue.FinishClose();
+        Check(Mask(button).alpha == 0f, "Dialogue cannot reveal Multiplayer after its progression access changes.");
+        FusionConnectionManager.Instance = new FusionConnectionManager { IsHosting = true };
+        DialogueHudButtonGate.RefreshAll();
+        Check(Mask(button).alpha == 1f, "An existing host retains access outside dialogue.");
+        FusionConnectionManager.Instance.IsHosting = false;
+        FusionConnectionManager.Instance.IsClientConnected = true;
+        dialogue.Begin(); dialogue.Remove();
+        Check(Mask(button).alpha == 1f, "A connected guest recovers access after an interrupted dialogue.");
+        owner.enabled = false; DialogueHudButtonGate.RefreshAll();
+        Check(Mask(button).alpha == 0f, "A disabled multiplayer owner cannot expose its button.");
+        FusionConnectionManager.Instance = null;
     }
 
     private static void ShopTransitions()

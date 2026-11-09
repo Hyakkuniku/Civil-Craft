@@ -98,6 +98,18 @@ public sealed class ShopButtonTrigger : MonoBehaviour
     private static bool IsBuilding() => building;
     // SHOP_ELIGIBILITY
 }
+public sealed class Button : MonoBehaviour { }
+public static class MultiplayerProgressionGate { public static bool IsUnlocked; }
+public sealed class FusionConnectionManager
+{
+    public static FusionConnectionManager Instance;
+    public bool IsHosting, IsClientConnected;
+}
+public sealed class WorldMultiplayerPanelUI : MonoBehaviour
+{
+    public Button openButton;
+    // MULTIPLAYER_ELIGIBILITY
+}
 public sealed class DialogueManager : MonoBehaviour
 {
     private static readonly HashSet<DialogueManager> knownManagers = new HashSet<DialogueManager>();

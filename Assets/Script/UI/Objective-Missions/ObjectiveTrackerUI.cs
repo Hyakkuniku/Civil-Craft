@@ -68,6 +68,7 @@ public class ObjectiveTrackerUI : MonoBehaviour
     private PlayerData untrackDisplayedData;
     private PathGuider untrackDisplayedGuider;
     private List<GuiderWaypoint> untrackDisplayedRoute;
+    private TrackedTask untrackDisplayedTask;
     private ScrollRect objectiveFooterListScroll;
 
     private GameObject contractOfferLayout;
@@ -712,9 +713,10 @@ public class ObjectiveTrackerUI : MonoBehaviour
         if (untrackButton == null || !untrackButton.activeInHierarchy || trackerPanel == null || !trackerPanel.activeInHierarchy ||
             pendingContractOffer != null || manager == null || manager != untrackDisplayedManager ||
             !ReferenceEquals(manager.CurrentData, untrackDisplayedData) || guider == null || guider != untrackDisplayedGuider ||
-            !ReferenceEquals(guider.waypoints, untrackDisplayedRoute) || !guider.CanUntrackObjectiveGuide) return;
+            guider.gameObject.scene != gameObject.scene || untrackDisplayedRoute == null ||
+            !ReferenceEquals(currentlySelectedTask, untrackDisplayedTask)) return;
 
-        if (guider.UntrackObjectiveGuide()) RefreshUntrackButton();
+        if (guider.UntrackObjectiveGuide(currentlySelectedTask, untrackDisplayedRoute)) RefreshUntrackButton();
     }
 
     private void RefreshUntrackButton()
@@ -722,9 +724,10 @@ public class ObjectiveTrackerUI : MonoBehaviour
         if (untrackButton == null) return;
         PathGuider guider = PathGuider.Instance;
         PlayerDataManager manager = PlayerDataManager.Instance;
-        bool visible = trackerPanel != null && trackerPanel.activeInHierarchy && pendingContractOffer == null &&
+        List<GuiderWaypoint> route = trackerPanel != null && trackerPanel.activeInHierarchy && pendingContractOffer == null &&
             manager != null && manager.CurrentData != null && guider != null &&
-            guider.gameObject.scene == gameObject.scene && guider.CanUntrackObjectiveGuide;
+            guider.gameObject.scene == gameObject.scene ? guider.GetUntrackableObjectiveGuide(currentlySelectedTask) : null;
+        bool visible = route != null;
         if (untrackButton.activeSelf != visible)
         {
             untrackButton.SetActive(visible);
@@ -733,7 +736,8 @@ public class ObjectiveTrackerUI : MonoBehaviour
         untrackDisplayedManager = visible ? manager : null;
         untrackDisplayedData = visible ? manager.CurrentData : null;
         untrackDisplayedGuider = visible ? guider : null;
-        untrackDisplayedRoute = visible ? guider.waypoints : null;
+        untrackDisplayedRoute = route;
+        untrackDisplayedTask = visible ? currentlySelectedTask : null;
     }
 
     private void EnsureUntrackButton()

@@ -98,22 +98,45 @@ public static class Scenarios
         startup.save.CurrentData.objectiveNavigationHidden = true;
         startup.Tick(); startup.Tick();
         Check(!startup.HasGuide && !startup.Visible && startup.path.binds == 0,
-            "Restart respects the saved untrack preference instead of recreating a contract card or route.");
+            "Restart keeps the untracked contract reminder and trail hidden.");
         Check(startup.save.CurrentData.objectiveNavigationHidden && !startup.task.isCompleted && !startup.task.isReadyToTurnIn &&
             startup.save.CurrentData.activeObjectiveKey == "contract:" + startup.contract.ContractID && startup.save.unreadAlerts == 0,
             "Hidden startup navigation preserves the objective selection, progress and alert state.");
         startup.save.CurrentData.objectiveNavigationHidden = false; startup.Tick();
-        Check(startup.Visible && startup.RouteTarget == startup.location.navigationTarget.transform,
-            "Clearing the visual preference allows the same unfinished contract to restore.");
+        Check(startup.Visible && startup.RouteTarget == startup.location.navigationTarget.transform && startup.manager.leftText.text.Contains("Follow the trail"),
+            "Tracking again restores the trail and its instruction for the same unfinished contract.");
 
         Fixture current = new Fixture(); current.Tick();
         var route = current.path.waypoints; int binds = current.path.binds;
         current.save.CurrentData.objectiveNavigationHidden = true; current.Tick(); current.Tick();
         Check(!current.Visible && current.HasGuide && ReferenceEquals(route, current.path.waypoints) && current.path.binds == binds,
-            "Untracking an existing contract hides only presentation and retains its exact owned route.");
+            "Untracking hides the contract reminder and retains the exact owned route.");
         current.save.CurrentData.objectiveNavigationHidden = false; current.Tick();
         Check(current.Visible && ReferenceEquals(route, current.path.waypoints) && current.path.binds == binds,
             "Tracking again restores the same contract hint without replacing its route or cursor.");
+
+        UIPanelCoordinator.Instance = new UIPanelCoordinator { HasOpenPanel = true };
+        current.Tick();
+        Check(!current.Visible && current.RouteTarget == null, "The Objectives panel suspends the contract presentation.");
+        current.save.CurrentData.objectiveNavigationHidden = true; current.Tick();
+        Check(!current.Visible, "Untracking inside Objectives does not show the contract reminder over the panel.");
+        UIPanelCoordinator.Instance.HasOpenPanel = false; current.Tick();
+        Check(!current.Visible && current.RouteTarget == null,
+            "Closing Objectives after Untrack keeps the reminder hidden without binding a trail.");
+        var trackedRoute = new List<GuiderWaypoint> { new GuiderWaypoint { target = current.location.navigationTarget.transform, advancesTutorial = false } };
+        current.path.SetNewWaypoints(trackedRoute);
+        current.save.CurrentData.objectiveNavigationHidden = false; current.Tick();
+        Check(current.Visible && ReferenceEquals(current.path.waypoints, trackedRoute) && current.manager.leftText.text.Contains("Follow the trail"),
+            "Track Location keeps its route and restores the matching trail instruction.");
+
+        Fixture turnIn = new Fixture();
+        turnIn.task.isReadyToTurnIn = true;
+        turnIn.Tick();
+        Check(turnIn.Visible && turnIn.manager.leftText.text.Contains("Turn in your contract with <b>Ford</b>"),
+            "The tracked turn-in shows the client reminder.");
+        turnIn.save.CurrentData.objectiveNavigationHidden = true; turnIn.Tick();
+        Check(!turnIn.Visible && turnIn.task.isReadyToTurnIn,
+            "Untracking hides the client reminder and keeps the contract ready to turn in.");
 
         Fixture tutorial = new Fixture(); tutorial.Tick();
         tutorial.manager.IsTutorialActive = true; tutorial.manager.leftText.text = "Required tutorial instruction";

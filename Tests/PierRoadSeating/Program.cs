@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -14,8 +15,18 @@ void Check(bool value, string reason) { checks++; if (!value) throw new Exceptio
 
 using JsonDocument baseline = JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Baseline.json")));
 foreach (JsonProperty asset in baseline.RootElement.GetProperty("PreservedAssets").EnumerateObject())
-    Check(Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(Path.Combine(root, asset.Name)))) == asset.Value.GetString(),
+{
+    byte[] contents = File.ReadAllBytes(Path.Combine(root, asset.Name));
+    if (asset.Name == "Assets/BridgeBuilder/Prefabs/materials/map2/ConcretePier_Shaft.prefab")
+    {
+        const string thickerScale = "  m_LocalScale: {x: 1.25, y: 1, z: 1}";
+        string shaft = Encoding.UTF8.GetString(contents);
+        Check(shaft.Contains(thickerScale), "The Concrete Pier shaft must use its wider side profile.");
+        contents = Encoding.UTF8.GetBytes(shaft.Replace(thickerScale, "  m_LocalScale: {x: 1, y: 1, z: 1}"));
+    }
+    Check(Convert.ToHexString(SHA256.HashData(contents)) == asset.Value.GetString(),
         "Pier visual seating changed an authored material, physics value or imported visual asset: " + asset.Name);
+}
 
 string helper = Read("Assets/Script/BuildMode/2D/Bar.PierSeating.cs");
 var syntax = CSharpSyntaxTree.ParseText(helper).GetRoot();

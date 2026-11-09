@@ -112,11 +112,14 @@ public class PathGuider : MonoBehaviour
     public bool IsObjectiveNavigationHidden => PlayerDataManager.Instance != null &&
         PlayerDataManager.Instance.CurrentData != null && PlayerDataManager.Instance.CurrentData.objectiveNavigationHidden;
 
+    private bool IsCurrentObjectiveGuideService => Instance == this && isActiveAndEnabled &&
+        gameObject.scene.IsValid() && gameObject.scene.isLoaded;
+
     public bool HasPendingObjectiveGuide
     {
         get
         {
-            if (Instance != this || !isActiveAndEnabled || !gameObject.scene.IsValid() || !gameObject.scene.isLoaded || waypoints == null)
+            if (!IsCurrentObjectiveGuideService || waypoints == null)
                 return false;
             for (int index = currentWaypointIndex; index < waypoints.Count; index++)
             {
@@ -126,14 +129,27 @@ public class PathGuider : MonoBehaviour
             return false;
         }
     }
-    public bool CanUntrackObjectiveGuide => HasPendingObjectiveGuide && !IsObjectiveNavigationHidden &&
-        PlayerDataManager.Instance != null && PlayerDataManager.Instance.CurrentData != null && !IsProtectedGuest();
+    public bool CanUntrackObjectiveGuide => GetUntrackableObjectiveGuide(null) != null;
+
+    internal List<GuiderWaypoint> GetUntrackableObjectiveGuide(TrackedTask selectedTask)
+    {
+        if (!IsCurrentObjectiveGuideService || IsObjectiveNavigationHidden || PlayerDataManager.Instance == null ||
+            PlayerDataManager.Instance.CurrentData == null || IsProtectedGuest()) return null;
+        if (HasPendingObjectiveGuide) return waypoints;
+
+        // The Objectives panel suspends automatically presented contract routes.
+        // Their retained waypoints still identify what the player can turn off.
+        TutorialManager tutorial = TutorialManager.Instance;
+        return tutorial != null && tutorial.gameObject.scene == gameObject.scene
+            ? tutorial.GetRetainedContractGuide(selectedTask) : null;
+    }
 
     /// <summary>Hides navigation without discarding reached waypoints or completing the objective.</summary>
-    public bool UntrackObjectiveGuide()
+    public bool UntrackObjectiveGuide(TrackedTask selectedTask = null, List<GuiderWaypoint> expectedGuide = null)
     {
+        List<GuiderWaypoint> guide = GetUntrackableObjectiveGuide(selectedTask);
+        if (guide == null || (expectedGuide != null && !ReferenceEquals(guide, expectedGuide))) return false;
         PlayerDataManager saves = PlayerDataManager.Instance;
-        if (!CanUntrackObjectiveGuide || saves == null || saves.CurrentData == null || IsProtectedGuest()) return false;
         saves.CurrentData.objectiveNavigationHidden = true;
         ClearRocks();
         currentlyTargetedWaypoint = null;

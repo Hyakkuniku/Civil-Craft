@@ -60,6 +60,7 @@ public sealed class WorldMultiplayerPanelUI : MonoBehaviour
         if (hostName != null) hostName.richText = false;
         if (guestName != null) guestName.richText = false;
         if (kickGuestName != null) kickGuestName.richText = false;
+        if (openButton != null) DialogueHudButtonGate.BindMultiplayer(openButton.gameObject, this);
         RefreshOpenButton();
     }
 
@@ -67,6 +68,9 @@ public sealed class WorldMultiplayerPanelUI : MonoBehaviour
     private bool HasMultiplayerAccess => MultiplayerProgressionGate.IsUnlocked ||
         (FusionConnectionManager.Instance?.IsHosting ?? false) ||
         (FusionConnectionManager.Instance?.IsClientConnected ?? false);
+
+    internal bool CanShowHudEntry(GameObject button) => isActiveAndEnabled && openButton != null &&
+        openButton.gameObject == button && HasMultiplayerAccess;
 
     private bool CanOpen => HasMultiplayerAccess && !stopping && !LoadingScreenManager.IsLoading &&
         gameObject.scene.name == FusionConnectionManager.HostWorldSceneName &&
@@ -76,7 +80,7 @@ public sealed class WorldMultiplayerPanelUI : MonoBehaviour
 
     public void Open()
     {
-        if (panel == null || !CanOpen || inputCaptured) return;
+        if (panel == null || !CanOpen || inputCaptured || DialogueManager.IsAnyDialogueVisible) return;
         SessionChatUI.CloseForTransition(gameObject.scene);
         foreach (PlayerMotor candidate in FindObjectsOfType<PlayerMotor>(true))
             if (candidate.gameObject.scene == gameObject.scene) { motor = candidate; break; }

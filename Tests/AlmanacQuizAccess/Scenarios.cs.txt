@@ -39,18 +39,12 @@ public static class Scenarios
     }
     public static int Run()
     {
-        Fixture contrast = new Fixture(); TMP_Text label = new TMP_Text();
-        Set(contrast.access, "tabLabel", label); Set(contrast.access, "quizCategoryIndex", 4);
-        Call(contrast.access, "RefreshTabContrast");
-        Check(label.color.Equals(new Color32(126, 99, 71, 255)) && label.fontStyle == FontStyles.Normal, "Unavailable pale Quiz tab keeps dark normal text.");
-        contrast.Offer();
-        Check(label.color.Equals(QuizUILayout.Ink) && label.fontStyle == FontStyles.Normal, "Available unselected Quiz tab keeps dark readable text.");
-        typeof(AlmanacQuizAccess).GetMethod("ApplySelection", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(contrast.access, new object[] { 4 });
-        Check(label.color.Equals(QuizUILayout.Ink) && label.fontStyle == FontStyles.Bold, "Selected Quiz tab uses dark bold text, not low-contrast cream/gold.");
-        contrast.Start();
-        Check(label.color.Equals(new Color32(126, 99, 71, 255)) && label.fontStyle == FontStyles.Bold, "Starting/disabled Quiz tab remains legible.");
-        Fixture f = new Fixture(); Check(f.Offer(), "Valid assessment offer accepted.");
-        Check(f.tab.interactable && f.start.interactable && f.start.gameObject.activeSelf && QuizUIManager.opens == 0, "Offer enables Quiz tab but never auto-starts.");
+        Fixture f = new Fixture();
+        f.tab.gameObject.SetActive(true); Call(f.access, "Refresh");
+        Check(!f.tab.gameObject.activeSelf && !f.tab.interactable, "Initial refresh hides Quiz without an offer.");
+        Check(f.Offer(), "Valid assessment offer accepted.");
+        Check(f.tab.gameObject.activeSelf && f.tab.interactable && f.start.interactable && f.start.gameObject.activeSelf &&
+            QuizUIManager.opens == 0, "Offer reveals Quiz tab and leaves Start to the player.");
         f.context.stepId = "changed-caller";
         Check(!f.Offer(), "Duplicate offer cannot overwrite pending callback.");
         f.Start(); f.Start();
@@ -59,7 +53,8 @@ public static class Scenarios
         Check(f.book.restores == 1 && QuizUIManager.opens == 1 && QuizUIManager.openedContext.stepId == "quiz", "Quiz opens only after book close and with copied identity.");
         Check(f.results.Count == 0, "Opening does not advance NPC.");
         QuizUIManager.Resolve(QuizOutcome.Completed);
-        Check(f.results.Count == 1 && f.results[0] == QuizOutcome.Completed && !f.tab.interactable && !f.start.gameObject.activeSelf, "Completed result disables offer and resolves once.");
+        Check(f.results.Count == 1 && f.results[0] == QuizOutcome.Completed && !f.tab.gameObject.activeSelf &&
+            !f.tab.interactable && !f.start.gameObject.activeSelf, "Completed result hides the bookmark and resolves once.");
         AlmanacQuizAccess.CancelOwned(f.owner); Call(f.access, "OnDisable"); Call(f.access, "OnDestroy");
         Check(f.results.Count == 1, "Repeated teardown cannot repeat completed callback.");
         f = new Fixture(); f.Offer(); f.Start(); AlmanacQuizAccess.CancelOwned(f.owner); f.book.FinishClose();
@@ -70,7 +65,8 @@ public static class Scenarios
         f = new Fixture(); f.Offer(); f.book.blockClose = true; f.Start();
         Check(f.tab.interactable && f.start.interactable && !Get<bool>(f.access, "starting"), "Required Almanac tutorial blocking close leaves Start retryable.");
         f.book.blockClose = false; QuizUIManager.openSucceeds = false; f.Start(); f.book.FinishClose();
-        Check(f.results.Count == 0 && f.book.opens == 1 && f.tab.interactable, "Unavailable quiz UI reopens review safely without advancing.");
+        Check(f.results.Count == 0 && f.book.opens == 1 && f.tab.gameObject.activeSelf && f.tab.interactable,
+            "Unavailable quiz UI keeps the offered bookmark available for retry.");
         f.Tick();Check(f.book.selectedCategory==4&&!Get<bool>(f.access,"waitingQuizOpenRequested")&&f.book.opens==1,"Unavailable quiz UI returns to the Quiz tab once instead of the General page or a repeated input capture.");
         QuizUIManager.openSucceeds = true; f.Start(); f.book.FinishClose(); QuizUIManager.Resolve(QuizOutcome.Completed);
         Check(f.results.Count == 1, "Retry after unavailable open succeeds with original callback.");
@@ -83,7 +79,8 @@ public static class Scenarios
             if (change == "disable") Call(f.access, "OnDisable");
             if (change == "destroy") Call(f.access, "OnDestroy");
             f.book.FinishClose();
-            Check(f.results.Count == 1 && f.results[0] == QuizOutcome.Cancelled && QuizUIManager.opens == 0 && !f.tab.interactable, "Lifecycle invalidation cancels pending callback before stale close: " + change);
+            Check(f.results.Count == 1 && f.results[0] == QuizOutcome.Cancelled && QuizUIManager.opens == 0 &&
+                !f.tab.gameObject.activeSelf && !f.tab.interactable, "Lifecycle invalidation hides the bookmark before stale close: " + change);
         }
         f = new Fixture(); f.quiz.assessmentMode = false; Check(f.Offer(), "Practice quiz now receives the same reviewable Quiz-tab offer.");
         Check(AlmanacQuizAccess.TryGetWaitingQuiz(f.owner,out QuizData practice,out QuizContext practiceContext)&&practice==f.quiz&&practiceContext.stepId=="quiz","Practice quizzes are eligible for the same owner-authorized reminder query.");

@@ -7,9 +7,10 @@ using UnityEngine.UI;
 [DisallowMultipleComponent]
 public sealed class AlmanacQuizAccess : MonoBehaviour
 {
+    private const string BookmarkIconResource = "UI/AlmanacQuizBookmark";
     private AlmanacManager book;
     private Button tab, start, back;
-    private TMP_Text title, description, tabLabel;
+    private TMP_Text title, description;
     private QuizData quiz;
     private QuizContext context;
     private UnityEngine.Object owner;
@@ -18,7 +19,6 @@ public sealed class AlmanacQuizAccess : MonoBehaviour
     private PlayerDataManager saveManager;
     private bool starting;
     private int generation;
-    private int selectedCategory = -1;
     private int quizCategoryIndex = -1;
     private bool waitingQuizOpenRequested;
     private bool waitingQuizBookOpenAttempted;
@@ -30,7 +30,6 @@ public sealed class AlmanacQuizAccess : MonoBehaviour
         AlmanacQuizAccess access = manager.gameObject.AddComponent<AlmanacQuizAccess>();
         access.book = manager;
         access.BuildTab();
-        manager.OnCategoryChanged += access.ApplySelection;
     }
 
     /// <summary>Owns one callback and queues the Quiz tab, never the quiz itself.</summary>
@@ -154,11 +153,7 @@ public sealed class AlmanacQuizAccess : MonoBehaviour
         saveManager != null && PlayerDataManager.Instance == saveManager &&
         ReferenceEquals(saveOwner, saveManager.CurrentData) && !ProtectedVisit();
 
-    private void OnDestroy()
-    {
-        if (book != null) book.OnCategoryChanged -= ApplySelection;
-        Resolve(QuizOutcome.Cancelled);
-    }
+    private void OnDestroy() { Resolve(QuizOutcome.Cancelled); }
     private void OnDisable() { Resolve(QuizOutcome.Cancelled); }
 
     private void Resolve(QuizOutcome outcome)
@@ -209,9 +204,16 @@ public sealed class AlmanacQuizAccess : MonoBehaviour
 
     private void Refresh()
     {
-        bool available = closed != null && owner != null && !ProtectedVisit();
-        if (tab != null) tab.interactable = available && !starting;
-        RefreshTabContrast();
+        bool available = closed != null && IsAuthorized();
+        if (tab != null)
+        {
+            tab.interactable = available && !starting;
+            if (tab.gameObject.activeSelf != available)
+            {
+                tab.gameObject.SetActive(available);
+                AlmanacBookmarkLayout.Reflow(book.categories);
+            }
+        }
         if (start != null) { start.interactable = available && !starting; start.gameObject.SetActive(available); }
         if (back != null) back.interactable = !starting;
         if (title != null) title.text = available && quiz != null ? quiz.title : "Quiz";
@@ -220,21 +222,6 @@ public sealed class AlmanacQuizAccess : MonoBehaviour
             : quiz.assessmentMode
                 ? "Review your lessons before starting.\n\nAnswer all " + quiz.QuestionCount + " questions, then press Submit. You can move between questions before submitting.\n\nOnce started, finish the quiz before returning to the Almanac. Any score lets you continue; no rewards are added."
                 : "Review your lessons before starting.\n\nAnswer each of the " + quiz.QuestionCount + " questions correctly to continue. Select an answer and press Submit; incorrect answers can be retried.\n\nYou may leave and resume this practice quiz later. No rewards are added.";
-    }
-
-    private void ApplySelection(int categoryIndex)
-    {
-        selectedCategory = categoryIndex;
-        RefreshTabContrast();
-    }
-
-    private void RefreshTabContrast()
-    {
-        // Current bookmark faces are cream paper, not the legacy dark sprite.
-        // Keep the label readable in both available and disabled states.
-        if (tabLabel == null || tab == null) return;
-        tabLabel.color = !tab.interactable ? new Color32(126, 99, 71, 255) : QuizUILayout.Ink;
-        tabLabel.fontStyle = selectedCategory == quizCategoryIndex ? FontStyles.Bold : FontStyles.Normal;
     }
 
     private void BuildTab()
@@ -255,9 +242,13 @@ public sealed class AlmanacQuizAccess : MonoBehaviour
             child.gameObject.SetActive(false);
             if (Application.isPlaying) Destroy(child.gameObject); else DestroyImmediate(child.gameObject);
         }
-        tabLabel = Text("Quiz Label", tab.transform, 24, TextAlignmentOptions.Center);
-        tabLabel.text = "Quiz";
-        AlmanacBookmarkLayout.ConfigureQuizLabel(tabLabel);
+        GameObject iconPrefab = Resources.Load<GameObject>(BookmarkIconResource);
+        if (iconPrefab != null)
+        {
+            GameObject icon = Instantiate(iconPrefab, tab.transform, false);
+            icon.name = "Quiz Icon";
+            icon.layer = tab.gameObject.layer;
+        }
         Transform left = CloneZone(template.leftPageZone, "Quiz Left Page Zone");
         Transform right = CloneZone(template.rightPageZone, "Quiz Right Page Zone");
         RectTransform leftPage = Rect("Quiz Introduction", left);
@@ -277,7 +268,6 @@ public sealed class AlmanacQuizAccess : MonoBehaviour
         book.categories.Add(new AlmanacCategory { categoryName = "Quiz", tabType = AlmanacTabType.Quiz, tabButton = tab,
             inactiveSprite = template.inactiveSprite, activeSprite = template.activeSprite, leftPageZone = left, rightPageZone = right });
         quizCategoryIndex = book.categories.Count - 1;
-        AlmanacBookmarkLayout.Reflow(book.categories);
         book.BookMotion?.AddChapterFrame(book.categories.IndexOf(template), book.categories.Count - 1);
         Refresh();
     }

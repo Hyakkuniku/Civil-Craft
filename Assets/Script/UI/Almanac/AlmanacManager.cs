@@ -331,6 +331,12 @@ public class AlmanacManager : MonoBehaviour
     private void Update()
     {
         if (almanacCanvas == null || !almanacCanvas.activeInHierarchy) return;
+        AlmanacCategory selected = currentCategoryIndex < categories.Count ? categories[currentCategoryIndex] : null;
+        if (selected != null && selected.tabType == AlmanacTabType.Quiz &&
+            selected.tabButton != null && !selected.tabButton.gameObject.activeSelf &&
+            !isAnimating && !isSwitchingCategory && !isFlipping && (bookMotion == null || !bookMotion.IsTurning))
+            SelectFirstVisibleCategory();
+
         float blend = 1f - Mathf.Exp(-Mathf.Max(0f, tabTransitionSpeed) * Time.unscaledDeltaTime);
         foreach (var kvp in targetTabYPositions)
         {
@@ -384,7 +390,8 @@ public class AlmanacManager : MonoBehaviour
     {
         foreach (var cat in categories)
         {
-            if (cat.tabButton != null)
+            // Only the NPC offer can reveal the Quiz bookmark.
+            if (cat.tabButton != null && cat.tabType != AlmanacTabType.Quiz)
             {
                 bool shouldBeVisible = true;
                 
@@ -1249,6 +1256,9 @@ public class AlmanacManager : MonoBehaviour
     private void ApplyCategorySelection(int index)
     {
         if (index < 0 || index >= categories.Count || isFlipping || !IsSupportedCategory(categories[index])) return;
+        AlmanacCategory requested = categories[index];
+        if (requested.tabType == AlmanacTabType.Quiz &&
+            (requested.tabButton == null || !requested.tabButton.gameObject.activeSelf)) return;
 
         useVirtualPagination = false;
         OnVirtualPageTurn = null;

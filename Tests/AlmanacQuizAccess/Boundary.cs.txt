@@ -38,10 +38,12 @@ public class DialogueManager {public static bool IsAnyDialogueVisible;}
 public class PauseManager {public static PauseManager Instance;public bool isPaused;}
 public class GameManager {public enum GameState {Normal,Building,Simulation}public static GameManager Instance;public GameState CurrentState=GameState.Normal;public bool IsTransitioning;}
 public class UIPanelCoordinator {public static UIPanelCoordinator Instance;public bool HasOpenPanel,IsOwnBookTop;public bool IsTargetInsideTopPanel(UnityEngine.Transform target)=>IsOwnBookTop;}
+public static class AlmanacBookmarkLayout { public static void Reflow(object categories) {} }
 public class AlmanacManager
 {
     public static AlmanacManager Instance;
     public AlmanacQuizAccess access;
+    public object categories;
     public bool IsOpenAndReady = true;
     public bool IsOpeningOrClosing,blockClose,blockQuizSelection,deferOpenAnimation;
     public GameObject Panel=new(){activeSelf=true};

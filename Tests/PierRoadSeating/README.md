@@ -6,6 +6,8 @@ dotnet run --project Tests/PierRoadSeating/PierRoadSeating.csproj
 
 The asset baseline was captured before the pier seating implementation. It protects both road and pier material assets, their imported visual sources and metadata, and the shared material physics/balancing code. This suite does not change strength, mass, cost, bridge nodes, colliders, player data, or scene assets.
 
+The Concrete Pier shaft wrapper now scales its side profile by 1.25. The baseline check normalizes only that exact prefab scale change before comparing the original hash.
+
 Native `PierRoadSeatingValidation` complements these checks with the actual imported meshes and detached Unity geometry/rendering tests. Engine geometry is not inferred from screenshots or prefab YAML alone.
 
 The gap regression also executes the production depth-overlap filter. A narrow cap must contact the central deck while ignoring deeper beams outside its footprint; a wide cap must still clear beams it actually overlaps. Dense independent edge samples check both non-penetration and zero contact gap across flat and positive/negative slopes. Native checks allow only 0.2 mm of floating-point tolerance. The original asset baseline is unchanged.

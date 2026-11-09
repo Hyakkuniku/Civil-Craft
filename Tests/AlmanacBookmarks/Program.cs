@@ -12,9 +12,8 @@ var motion = CSharpSyntaxTree.ParseText(Source("AlmanacBookMotion")).GetRoot().D
 string layer = motion.Members.OfType<MethodDeclarationSyntax>().Single(method => method.Identifier.ValueText == "LayerCoversBehindBookmarks").ToFullString();
 var access = CSharpSyntaxTree.ParseText(Source("AlmanacQuizAccess")).GetRoot().DescendantNodes()
     .OfType<ClassDeclarationSyntax>().Single(type => type.Identifier.ValueText == "AlmanacQuizAccess");
-string contrast = access.Members.OfType<MethodDeclarationSyntax>().Single(method => method.Identifier.ValueText == "RefreshTabContrast").ToFullString();
 string boundary = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Boundary.cs.txt"))
-    .Replace("// ACTUAL_LAYER", layer).Replace("// ACTUAL_CONTRAST", contrast);
+    .Replace("// ACTUAL_LAYER", layer);
 var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator).Select(path => MetadataReference.CreateFromFile(path));
 var compilation = CSharpCompilation.Create("AlmanacBookmarkChecks_" + Guid.NewGuid().ToString("N"),
     new[] { CSharpSyntaxTree.ParseText(Source("AlmanacBookmarkLayout")), CSharpSyntaxTree.ParseText(boundary),
@@ -29,11 +28,12 @@ catch (TargetInvocationException error) { throw new InvalidOperationException("A
 int guards = 0;
 void Guard(bool success, string detail) { if (!success) throw new InvalidOperationException(detail); guards++; }
 string build = access.Members.OfType<MethodDeclarationSyntax>().Single(method => method.Identifier.ValueText == "BuildTab").ToFullString();
-Guard(build.Contains("AlmanacBookmarkLayout.ConfigureQuizLabel(tabLabel)"), "Runtime-created Quiz label bypasses the shared layout.");
-Guard(build.Contains("AlmanacBookmarkLayout.Reflow(book.categories)"), "Runtime-added Quiz bypasses bookmark stacking.");
+Guard(build.Contains("Resources.Load<GameObject>(BookmarkIconResource)"), "Runtime Quiz must use its authored icon prefab.");
+string refresh = access.Members.OfType<MethodDeclarationSyntax>().Single(method => method.Identifier.ValueText == "Refresh").ToFullString();
+Guard(refresh.Contains("AlmanacBookmarkLayout.Reflow(book.categories)"), "Quiz visibility changes must repack visible bookmarks.");
 string bind = motion.Members.OfType<MethodDeclarationSyntax>().Single(method => method.Identifier.ValueText == "Bind").ToFullString();
 Guard(bind.Contains("LayerCoversBehindBookmarks();"), "Book binding does not split covers behind bookmarks.");
 Guard(!layer.Contains("Destroy("), "Layer migration unexpectedly destroys content.");
 Guard(!Source("AlmanacBookmarkLayout").Contains("FindObject"), "Bookmark layout introduced scene-wide searches.");
 Guard(!Source("AlmanacBookmarkLayout").Contains("SaveGame"), "Bookmark layout modifies player progress.");
-Console.WriteLine($"PASS: {checks} extracted-production bookmark/cover/contrast checks and {guards} integration guards. Unity transforms/text are isolated boundary doubles; no scenes, player saves, or live runtime globals touched. Native rendering/corner checks remain separate.");
+Console.WriteLine($"PASS: {checks} extracted-production bookmark/cover/icon checks and {guards} integration guards. Unity transforms and images are isolated boundary doubles; no scenes, player saves, or live runtime globals touched. Native rendering/corner checks remain separate.");
