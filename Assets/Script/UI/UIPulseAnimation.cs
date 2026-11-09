@@ -12,18 +12,31 @@ public class UIPulseAnimation : MonoBehaviour
     [Tooltip("The largest size the icon grows to.")]
     public float maxScale = 1.15f;
 
+    [Min(0f)] public float bobHeight;
+
     private Vector3 originalScale;
+    private RectTransform rect;
+    private Vector2 restingPosition;
+    private float enabledAt;
 
     private void Awake()
     {
         // Remember the native size of your icon so it scales proportionally
         originalScale = transform.localScale;
+        rect = transform as RectTransform;
+        if (rect != null) restingPosition = rect.anchoredPosition;
     }
 
     private void OnEnable()
     {
         // Whenever the ObjectiveTrackerUI turns this icon back on, snap it back to normal first
         transform.localScale = originalScale;
+        enabledAt = Time.unscaledTime;
+    }
+
+    private void OnDisable()
+    {
+        if (rect != null && bobHeight > 0f) rect.anchoredPosition = restingPosition;
     }
 
     private void Update()
@@ -34,5 +47,10 @@ public class UIPulseAnimation : MonoBehaviour
         float currentScale = Mathf.Lerp(minScale, maxScale, sineWave);
         
         transform.localScale = originalScale * currentScale;
+        if (rect != null && bobHeight > 0f)
+        {
+            float bounce = (1f - Mathf.Cos((Time.unscaledTime - enabledAt) * pulseSpeed)) * .5f;
+            rect.anchoredPosition = restingPosition + Vector2.up * (bounce * bobHeight);
+        }
     }
 }

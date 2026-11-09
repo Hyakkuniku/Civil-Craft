@@ -98,6 +98,12 @@ public static class AlmanacReadabilityValidation
             AlmanacQuizAccess.Install(owner);
             Require(owner.categories.Count == source.categories.Count + 1, "Runtime Quiz category missing/duplicated.");
             typeof(AlmanacManager).GetMethod("InitializeBook", Private).Invoke(owner, null);
+            TMP_FontAsset font = Resources.Load<TMP_FontAsset>(AlmanacTypography.FontResource);
+            Require(font != null && source.Panel.GetComponentsInChildren<TMP_Text>(true).All(text => text.font == font),
+                "A saved Almanac label uses a different font.");
+            Require(clone.GetComponentsInChildren<TMP_Text>(true).All(text => text.font == font),
+                "A runtime Almanac label uses a different font.");
+            ValidateAlertMotion(owner);
             frames = (GameObject[])typeof(AlmanacBookMotion).GetField("chapterFrames", Private).GetValue(motion);
             var corners = frames.Where(frame => frame != null).ToDictionary(frame => frame, frame => Corners((RectTransform)frame.transform));
             motion.Bind(owner);
@@ -162,17 +168,40 @@ public static class AlmanacReadabilityValidation
         foreach (AlmanacCategory category in book.categories)
         {
             category.tabButton.gameObject.SetActive(category.tabType != AlmanacTabType.Materials || materialsUnlocked);
-            if (category.tabAlertIcon != null) category.tabAlertIcon.SetActive(false);
+            if (category.tabAlertIcon != null) category.tabAlertIcon.SetActive(category != book.categories[selected]);
             foreach (Transform zone in new[] { category.leftPageZone, category.rightPageZone })
             {
                 zone.gameObject.SetActive(true);
                 foreach (Transform child in zone) child.gameObject.SetActive(category == book.categories[selected]);
             }
             RectTransform rect = (RectTransform)category.tabButton.transform;
-            rect.anchoredPosition = new Vector2(rect.anchoredPosition.x, 4f + (category == book.categories[selected] ? book.selectedTabUpOffset : 0f));
+            rect.anchoredPosition = new Vector2(rect.anchoredPosition.x, AlmanacBookmarkLayout.Baseline +
+                (category == book.categories[selected] ? book.selectedTabUpOffset : 0f));
         }
         AlmanacBookmarkLayout.Reflow(book.categories);
         book.OnCategoryChanged?.Invoke(selected); // Preview-local visuals only; no SelectCategory/mark-read actions.
+    }
+
+    private static void ValidateAlertMotion(AlmanacManager book)
+    {
+        foreach (AlmanacCategory category in book.categories)
+        {
+            if (category.tabAlertIcon == null || category.visibilityMode == TabVisibility.AlwaysHidden) continue;
+            var badge = (RectTransform)category.tabAlertIcon.transform;
+            var pulse = badge.GetComponent<UIPulseAnimation>();
+            Require(pulse != null && pulse.bobHeight > 0f, "Unread bookmark is missing its bounce: " + category.categoryName);
+            Vector2 rest = badge.anchoredPosition;
+            typeof(UIPulseAnimation).GetMethod("Awake", Private).Invoke(pulse, null);
+            typeof(UIPulseAnimation).GetMethod("OnEnable", Private).Invoke(pulse, null);
+            typeof(UIPulseAnimation).GetField("enabledAt", Private).SetValue(pulse,
+                Time.unscaledTime - Mathf.PI / pulse.pulseSpeed);
+            typeof(UIPulseAnimation).GetMethod("Update", Private).Invoke(pulse, null);
+            Require(Mathf.Abs(badge.anchoredPosition.x - rest.x) < .01f && badge.anchoredPosition.y > rest.y + 4f,
+                "Unread bookmark does not bounce upward: " + category.categoryName);
+            typeof(UIPulseAnimation).GetMethod("OnDisable", Private).Invoke(pulse, null);
+            Require(badge.anchoredPosition == rest, "Hidden badge did not return to its resting position.");
+            typeof(UIPulseAnimation).GetMethod("OnEnable", Private).Invoke(pulse, null);
+        }
     }
 
     private static void ShowAvailableQuizFixture(AlmanacManager book)
@@ -208,11 +237,18 @@ public static class AlmanacReadabilityValidation
         Transform covers = first.parent.Find("Almanac Cover Layer");
         Require(covers != null, "Separate cover layer missing.");
         float previousRight = -1;
+        float paperTop = Corners((RectTransform)book.categories[0].leftPageZone)[1].y;
         foreach (AlmanacCategory category in visible)
         {
             var tab = (RectTransform)category.tabButton.transform;
             Require(covers.GetSiblingIndex() < tab.GetSiblingIndex() && tab.GetSiblingIndex() < category.leftPageZone.parent.GetSiblingIndex(), "Bookmark must render above cover and below paper.");
             Require(tab.anchorMin.x > previousRight && tab.anchorMax.x < 1f, "Visible bookmarks overlap or leave the book.");
+            Require(Corners(tab)[0].y < paperTop, "Bookmark is detached from the page: " + tab.name);
+            Image icon = tab.GetComponentsInChildren<Image>(true).FirstOrDefault(image => image.transform != tab &&
+                (category.tabAlertIcon == null || !image.transform.IsChildOf(category.tabAlertIcon.transform)));
+            if (icon != null)
+                Require(icon.preserveAspect && icon.rectTransform.rect.height >= AlmanacBookmarkLayout.IconSize &&
+                    Corners(icon.rectTransform)[0].y > paperTop, "Bookmark icon is undersized or covered by paper: " + tab.name);
             previousRight = tab.anchorMax.x;
         }
         Require(frames.All(frame => frame == null || frame.transform.parent == covers), "A chapter cover remained above bookmarks.");

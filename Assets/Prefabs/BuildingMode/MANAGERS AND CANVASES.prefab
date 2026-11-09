@@ -3078,10 +3078,10 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 3494360987517306515}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 3.185}
-  m_AnchorMin: {x: 0.049920004, y: 0.925}
+  m_AnchorMin: {x: 0.049920004, y: 0.835}
   m_AnchorMax: {x: 0.12558001, y: 0.925}
-  m_AnchoredPosition: {x: 0, y: 4}
-  m_SizeDelta: {x: 0, y: 100}
+  m_AnchoredPosition: {x: 0, y: 22}
+  m_SizeDelta: {x: 0, y: 44}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &1072014196319930718
 CanvasRenderer:
@@ -17865,10 +17865,10 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 3494360987517306515}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: -1.319}
-  m_AnchorMin: {x: 0.13915999, y: 0.925}
+  m_AnchorMin: {x: 0.13915999, y: 0.835}
   m_AnchorMax: {x: 0.21482, y: 0.925}
-  m_AnchoredPosition: {x: 0, y: 4}
-  m_SizeDelta: {x: 0, y: 100}
+  m_AnchoredPosition: {x: 0, y: 22}
+  m_SizeDelta: {x: 0, y: 44}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &8021556746600236713
 CanvasRenderer:
@@ -19682,7 +19682,7 @@ MonoBehaviour:
     rightPageZone: {fileID: 4607099154568815192}
     leftPages: []
     rightPages: []
-  selectedTabUpOffset: 32
+  selectedTabUpOffset: 8
   tabTransitionSpeed: 14
   tabSwitchDuration: 0.28
   tabSwitchSlide: 26

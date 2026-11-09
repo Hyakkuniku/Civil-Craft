@@ -21,7 +21,8 @@ public static class AlmanacLayoutAuthoring
     private const string Prefab = "Assets/Prefabs/BuildingMode/MANAGERS AND CANVASES.prefab";
     private static readonly string[] Scenes = { "Assets/Scenes/CanyonCrossing.unity", "Assets/Scenes/BHAN HOUSE.unity" };
     private static double nextCheck;
-    private const float FrameTop = .925f, BookmarkBaseline = 4f, SelectedLift = 32f;
+    private const float FrameTop = .925f;
+    private const float BookmarkBaseline = AlmanacBookmarkLayout.Baseline, SelectedLift = AlmanacBookmarkLayout.SelectedLift;
 
     [InitializeOnLoadMethod]
     private static void Watch() { EditorApplication.update -= Check; EditorApplication.update += Check; }
@@ -79,7 +80,7 @@ public static class AlmanacLayoutAuthoring
             finally { if (opened) EditorSceneManager.CloseScene(scene, true); }
         }
         AssetDatabase.SaveAssets();
-        report.AppendLine("PASS: shared prefab and both scenes saved. All chapters use the larger authored frame; bookmarks share book-relative anchors/baselines and render behind every chapter; selected lift is 32 px. 16:9/16:10/wide-phone bounds and full icon visibility checked. Existing profile data, unlock rules, portrait textures and callbacks preserved. No player saves changed. Live navigation still requires testing.");
+        report.AppendLine("PASS: shared prefab and both scenes saved. Larger icons fit in the exposed bookmarks, which extend behind the pages in both selection states. 16:9/16:10/wide-phone bounds, profile data and callbacks checked.");
         File.WriteAllText(Report, report.ToString());
         Debug.Log("[Almanac layout] Larger book and aligned bookmarks validated in both scenes.");
     }
@@ -113,7 +114,7 @@ public static class AlmanacLayoutAuthoring
             // No world coordinates: the closed Canvas has zero scale, and tabs must also resize at 16:10.
             tab.anchorMin = new Vector2(Mathf.Lerp(frame.anchorMin.x, frame.anchorMax.x, center - .039f), frame.anchorMax.y);
             tab.anchorMax = new Vector2(Mathf.Lerp(frame.anchorMin.x, frame.anchorMax.x, center + .039f), frame.anchorMax.y);
-            tab.pivot = Vector2.one * .5f; tab.anchoredPosition = new Vector2(0, BookmarkBaseline); tab.sizeDelta = new Vector2(0, 100);
+            tab.pivot = Vector2.one * .5f; tab.sizeDelta = Vector2.zero;
             tab.localScale = Vector3.one; tab.localRotation = Quaternion.identity;
             Image background = tab.GetComponent<Image>();
             if (background != null && rounded != null)
@@ -125,14 +126,9 @@ public static class AlmanacLayoutAuthoring
                 category.activeSprite = category.inactiveSprite = rounded;
                 Record(background);
             }
+            AlmanacBookmarkLayout.TuckBehindPage(category);
             foreach (var image in tab.GetComponentsInChildren<Image>(true))
-                if (image.transform != tab && (category.tabAlertIcon == null || !image.transform.IsChildOf(category.tabAlertIcon.transform)))
-                { Place(image.rectTransform, .28f, .67f, .72f, .98f); image.preserveAspect = true; Record(image); Record(image.rectTransform); }
-            if (category.tabAlertIcon != null)
-            {
-                var alert = category.tabAlertIcon.transform as RectTransform;
-                Place(alert, .80f, .78f, .97f, .98f); Record(alert);
-            }
+            { Record(image); Record(image.rectTransform); }
             Record(tab);
         }
         // Moving a tab from before a chapter TO that chapter's old index shifts
@@ -278,7 +274,7 @@ public static class AlmanacLayoutAuthoring
                         throw new Exception("Opening the Player tab moved a bookmark in front of the page.");
             }
         }
-        report.AppendLine("PASS: real initialization and HUD-opening category selection select Player, keep bookmarks above the cover and behind pages, target only Player's 32 px lift, and reset a previous chapter on reopen. No live HUD/input or save calls used.");
+        report.AppendLine("PASS: real initialization and HUD-opening category selection lift only the Player bookmark and reset a previous chapter on reopen.");
     }
 
     private static void Validate(AlmanacManager source, StringBuilder report)
@@ -309,8 +305,10 @@ public static class AlmanacLayoutAuthoring
                     if (cover.width < canvasRect.rect.width * .92f || cover.height < canvasRect.rect.height * .85f) throw new Exception("Book did not enlarge at " + screen);
                     AssertInside(cover, canvasRect.rect, "chapter");
                     var tab = clone.transform.Find(AnimationUtility.CalculateTransformPath(category.tabButton.transform, sourcePanel)) as RectTransform;
+                    var page = clone.transform.Find(AnimationUtility.CalculateTransformPath(category.leftPageZone, sourcePanel)) as RectTransform;
+                    Rect paper = Bounds(page, canvasRect);
                     Rect tabBounds = Bounds(tab, canvasRect); AssertInside(tabBounds, canvasRect.rect, "bookmark");
-                    if (Mathf.Abs(tab.anchoredPosition.y - BookmarkBaseline) > .001f || Mathf.Abs(tab.anchorMin.y - FrameTop) > .001f)
+                    if (Mathf.Abs(tab.anchoredPosition.y - BookmarkBaseline) > .001f || Mathf.Abs(tab.anchorMax.y - FrameTop) > .001f)
                         throw new Exception("Bookmark baselines differ.");
                     if (previous.width > 0 && previous.xMax > tabBounds.xMin) throw new Exception("Bookmarks overlap at " + screen);
                     foreach (var candidate in source.categories)
@@ -323,14 +321,14 @@ public static class AlmanacLayoutAuthoring
                         if (icon.transform != tab && (category.tabAlertIcon == null || !icon.transform.IsChildOf(clone.transform.Find(AnimationUtility.CalculateTransformPath(category.tabAlertIcon.transform, sourcePanel)))))
                         {
                             Rect iconBounds = Bounds(icon.rectTransform, canvasRect);
-                            // The paper cover extends ~1.8% above the frame. Icons must sit above it, not behind it.
-                            if (iconBounds.yMin < cover.yMax + cover.height * .018f - 1) throw new Exception("Bookmark icon is cut by the cover: " + category.categoryName);
+                            if (iconBounds.yMin < paper.yMax || iconBounds.height < AlmanacBookmarkLayout.IconSize - 1f)
+                                throw new Exception("Large bookmark icon is clipped: " + category.categoryName);
                         }
                     tab.anchoredPosition += Vector2.up * source.selectedTabUpOffset;
                     Rect selected = Bounds(tab, canvasRect);
                     AssertInside(selected, canvasRect.rect, "selected bookmark");
-                    if (Mathf.Abs(selected.yMin - tabBounds.yMin - SelectedLift) > .05f || canvasRect.rect.yMax - selected.yMax < 7)
-                        throw new Exception("Selected bookmark has the wrong lift or too little screen-edge clearance.");
+                    if (Mathf.Abs(selected.yMin - tabBounds.yMin - SelectedLift) > .05f || selected.yMin > paper.yMax - 12f)
+                        throw new Exception("Selected bookmark has the wrong lift or does not overlap the paper.");
                     tab.anchoredPosition -= Vector2.up * source.selectedTabUpOffset;
                 }
                 var controls = new List<Button> { source.prevButton, source.nextButton };
@@ -344,7 +342,7 @@ public static class AlmanacLayoutAuthoring
                     var rect = clone.transform.Find(AnimationUtility.CalculateTransformPath(button.transform, sourcePanel)) as RectTransform;
                     AssertInside(Bounds(rect, canvasRect), canvasRect.rect, "navigation");
                 }
-                report.AppendLine("PASS: " + source.gameObject.scene.name + " at " + screen + ": larger frame, aligned/non-overlapping bookmarks behind all covers, full icons, 32 px lift and navigation bounds (actual CanvasScaler dimensions).");
+                report.AppendLine("PASS: " + source.gameObject.scene.name + " at " + screen + ": enlarged icons, tabs overlap paper at full lift, and controls fit the canvas.");
             }
         }
         finally { EditorSceneManager.ClosePreviewScene(preview); }

@@ -41,8 +41,7 @@ public static class AlmanacPhotoMountValidation
         {
             Require(!EditorApplication.isPlayingOrWillChangePlaymode, "Leave Play Mode before this check.");
             CheckDecoration(report);
-            TMP_FontAsset font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(
-                "Assets/Resources/Fonts/Internet Friends SDF.asset");
+            TMP_FontAsset font = Resources.Load<TMP_FontAsset>(AlmanacTypography.FontResource);
             Require(font != null, "Existing Almanac font has not imported.");
             AlmanacManager source = Resources.FindObjectsOfTypeAll<AlmanacManager>().FirstOrDefault(book =>
                 book != null && book.gameObject.scene.IsValid() && book.gameObject.scene.isLoaded &&

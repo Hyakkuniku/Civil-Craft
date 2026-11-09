@@ -9,19 +9,15 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using UnityEngine.TextCore.LowLevel;
 using UnityEngine.UI;
 using Object = UnityEngine.Object;
 
-/// <summary>Opt-in font asset generation and isolated book previews; never saves a scene.</summary>
+/// <summary>Isolated book typography previews. Never saves scenes or font assets.</summary>
 [InitializeOnLoad]
 public static class AlmanacTypographyAuthoring
 {
     private const string Request = "Temp/AlmanacTypography.request";
     private const string Report = "Temp/AlmanacTypographyValidation.txt";
-    private const string FontPath = "Assets/Resources/Fonts/Internet Friends SDF.asset";
-    private const string SourcePath = "Assets/Font/Internet Friends.ttf";
-    private const string LiberationPath = "Assets/TextMesh Pro/Fonts/LiberationSans.ttf";
     private static readonly BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
     private static double nextCheck;
     private static bool running;
@@ -39,7 +35,7 @@ public static class AlmanacTypographyAuthoring
         Run();
     }
 
-    [MenuItem("Tools/Civil Craft/Almanac/Generate Handwritten Font and Check Readability")]
+    [MenuItem("Tools/Civil Craft/Almanac/Check Book Font and Readability")]
     public static void Run()
     {
         if (running || EditorApplication.isPlayingOrWillChangePlaymode || EditorApplication.isCompiling ||
@@ -49,17 +45,16 @@ public static class AlmanacTypographyAuthoring
         var report = new StringBuilder();
         try
         {
-            TMP_FontAsset font = EnsureFont(report);
+            TMP_FontAsset font = Resources.Load<TMP_FontAsset>(AlmanacTypography.FontResource);
+            if (font == null) throw new InvalidOperationException("The Almanac font asset is missing.");
             AlmanacManager source = Resources.FindObjectsOfTypeAll<AlmanacManager>()
                 .FirstOrDefault(book => book != null && book.gameObject.scene.IsValid() &&
                     book.gameObject.scene.isLoaded && !EditorSceneManager.IsPreviewScene(book.gameObject.scene) &&
                     book.Panel != null && book.categories.Count > 0);
             if (source != null) CaptureBook(source, font, report);
-            else report.AppendLine("WAIT: Font generated successfully. Open a scene containing an Almanac and run this menu again for mobile previews. No scene was opened or saved.");
-            EditorUtility.SetDirty(font);
-            AssetDatabase.SaveAssetIfDirty(font);
+            else report.AppendLine("WAIT: Open a scene containing an Almanac and run this menu again for mobile previews.");
             File.WriteAllText(Report, (source != null ? "PASS: " : "WAIT: ") +
-                "Handwritten font generated; isolated preview status below.\n" + report);
+                "Bekind Sans typography preview.\n" + report);
             Debug.Log("[Almanac typography] " + report);
         }
         catch (Exception error)
@@ -70,150 +65,6 @@ public static class AlmanacTypographyAuthoring
         finally { running = false; }
     }
 
-    private static TMP_FontAsset EnsureFont(StringBuilder report)
-    {
-        Font source = AssetDatabase.LoadAssetAtPath<Font>(SourcePath);
-        if (source == null) throw new InvalidOperationException("Internet Friends source font is missing or not imported: " + SourcePath);
-        if (!AssetDatabase.IsValidFolder("Assets/Resources")) AssetDatabase.CreateFolder("Assets", "Resources");
-        if (!AssetDatabase.IsValidFolder("Assets/Resources/Fonts")) AssetDatabase.CreateFolder("Assets/Resources", "Fonts");
-
-        TMP_FontAsset font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(FontPath);
-        if (font == null)
-        {
-            if (File.Exists(FontPath)) throw new InvalidOperationException("Another asset already occupies the new font path; nothing overwritten.");
-            font = TMP_FontAsset.CreateFontAsset(source, 90, 9, GlyphRenderMode.SDFAA,
-                1024, 1024, AtlasPopulationMode.Dynamic, true);
-            if (font == null) throw new InvalidOperationException("Internet Friends font face could not be loaded.");
-            font.name = "Internet Friends SDF";
-            AssetDatabase.CreateAsset(font, FontPath);
-            PersistSubassets(font, font);
-        }
-        if (font.sourceFontFile != source || font.atlasPopulationMode != AtlasPopulationMode.Dynamic)
-            throw new InvalidOperationException("Existing Internet Friends SDF does not reference the requested dynamic source. Nothing replaced.");
-
-        TMP_FontAsset bekind = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(
-            "Assets/TextMesh Pro/Resources/Fonts & Materials/Bekind Sans SDF.asset");
-        TMP_FontAsset liberation = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(
-            "Assets/TextMesh Pro/Resources/Fonts & Materials/LiberationSans SDF.asset");
-        string characters = CollectCharacters();
-        font.TryAddCharacters(characters, out string missing, true);
-        EnsurePrimaryUnderline(font, report);
-        foreach (char character in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
-            if (!font.HasCharacter(character))
-                throw new InvalidOperationException("The handwriting face lacks a required letter/digit: " + character);
-
-        // Existing static fallbacks are read-only. A private symbols face prevents
-        // currency glyphs from modifying Liberation's shared dynamic fallback.
-        TMP_FontAsset symbols = AssetDatabase.LoadAllAssetsAtPath(FontPath).OfType<TMP_FontAsset>()
-            .FirstOrDefault(asset => asset != font && asset.name == "Almanac Symbols SDF");
-        string extra = new string((missing ?? string.Empty).Where(character =>
-            !char.IsControl(character) && !char.IsWhiteSpace(character) &&
-            (bekind == null || !bekind.HasCharacter(character)) &&
-            (liberation == null || !liberation.HasCharacter(character))).Distinct().ToArray());
-        if (!string.IsNullOrEmpty(extra) && symbols == null)
-        {
-            Font symbolSource = AssetDatabase.LoadAssetAtPath<Font>(LiberationPath);
-            if (symbolSource == null) throw new InvalidOperationException("Existing Liberation font source is missing for book symbols.");
-            symbols = TMP_FontAsset.CreateFontAsset(symbolSource, 72, 8, GlyphRenderMode.SDFAA,
-                512, 512, AtlasPopulationMode.Dynamic, true);
-            if (symbols == null) throw new InvalidOperationException("Book symbol font could not be created.");
-            symbols.name = "Almanac Symbols SDF";
-            AssetDatabase.AddObjectToAsset(symbols, font);
-            PersistSubassets(symbols, font);
-        }
-        if (symbols != null)
-        {
-            symbols.TryAddCharacters(extra, out string unavailable, true);
-            string stillUnavailable = new string((unavailable ?? string.Empty)
-                .Where(character => !symbols.HasCharacter(character)).Distinct().ToArray());
-            if (!string.IsNullOrEmpty(stillUnavailable))
-                report.AppendLine("Unprovided font symbols: " + UnicodeList(stillUnavailable));
-            PersistSubassets(symbols, font);
-            EditorUtility.SetDirty(symbols);
-        }
-        font.fallbackFontAssetTable = new List<TMP_FontAsset>();
-        if (symbols != null) font.fallbackFontAssetTable.Add(symbols);
-        if (bekind != null) font.fallbackFontAssetTable.Add(bekind);
-        if (liberation != null) font.fallbackFontAssetTable.Add(liberation);
-        PersistSubassets(font, font);
-        foreach (char character in "AaZz 0123456789 ₱ % kg N m ’ • –")
-            if (!char.IsWhiteSpace(character) && !font.HasCharacter(character, true, false))
-                throw new InvalidOperationException("Missing essential book glyph: " + UnicodeList(character.ToString()));
-        EditorUtility.SetDirty(font);
-        AssetDatabase.SaveAssetIfDirty(font);
-        report.AppendLine("FONT: " + FontPath + "; " + font.characterTable.Count + " handwritten glyphs; " +
-            font.atlasTextures.Length + " prewarmed 1024px atlas(es). Source font retained for dynamic names; private symbol fallback, shared fonts and TMP defaults unchanged.");
-        return font;
-    }
-
-    private static void EnsurePrimaryUnderline(TMP_FontAsset font, StringBuilder report)
-    {
-        // TMP reads its underline texture from the primary face, not fallbacks.
-        // Internet Friends omits '_'; its own existing hyphen is the same simple
-        // stroke needed by TMP's underline strip. Alias that baked glyph only.
-        font.ReadFontAssetDefinition();
-        if (!font.HasCharacter('_'))
-        {
-            if (!font.characterLookupTable.TryGetValue(0x2D, out TMP_Character hyphen) ||
-                hyphen.glyph == null || hyphen.glyph.glyphRect.width <= 0 || hyphen.glyph.glyphRect.height <= 0 ||
-                hyphen.glyph.atlasIndex < 0 || hyphen.glyph.atlasIndex >= font.atlasTextures.Length ||
-                font.atlasTextures[hyphen.glyph.atlasIndex] == null)
-                throw new InvalidOperationException("Internet Friends has no baked hyphen glyph for its primary underline stroke.");
-            font.characterTable.Add(new TMP_Character(0x5F, font, hyphen.glyph));
-            font.ReadFontAssetDefinition();
-            report.AppendLine("PRIMARY GLYPH: underscore uses Internet Friends' existing baked hyphen stroke; no new atlas or source-font edit.");
-        }
-        if (!font.HasCharacter('_')) throw new InvalidOperationException("Primary underline glyph is still unavailable.");
-        // Keeping baked dynamic data prevents build processing from discarding
-        // both the warmed atlas and the primary-font alias.
-        var serialized = new SerializedObject(font);
-        SerializedProperty clearOnBuild = serialized.FindProperty("m_ClearDynamicDataOnBuild");
-        if (clearOnBuild == null) throw new InvalidOperationException("TMP clear-dynamic-data build setting is unavailable.");
-        clearOnBuild.boolValue = false;
-        serialized.ApplyModifiedPropertiesWithoutUndo();
-        EditorUtility.SetDirty(font);
-    }
-
-    private static void PersistSubassets(TMP_FontAsset face, TMP_FontAsset owner)
-    {
-        if (face.material != null)
-        {
-            face.material.name = face.name + " Material";
-            if (!AssetDatabase.Contains(face.material)) AssetDatabase.AddObjectToAsset(face.material, owner);
-            EditorUtility.SetDirty(face.material);
-        }
-        for (int i = 0; i < face.atlasTextures.Length; i++)
-        {
-            Texture2D atlas = face.atlasTextures[i];
-            if (atlas == null) continue;
-            atlas.name = face.name + " Atlas " + i;
-            if (!AssetDatabase.Contains(atlas)) AssetDatabase.AddObjectToAsset(atlas, owner);
-            EditorUtility.SetDirty(atlas);
-        }
-    }
-
-    private static string CollectCharacters()
-    {
-        var characters = new HashSet<char>();
-        for (int i = 32; i <= 126; i++) characters.Add((char)i);
-        AddCharacters(characters, "₱ % × ° ² ³ • ’ ‘ “ ” – — … ← → é ñ Engineering Engineer Guest Novice Builder");
-        foreach (string type in new[] { "LessonData", "BridgeMaterialSO", "ContractSO" })
-            foreach (string guid in AssetDatabase.FindAssets("t:" + type))
-            {
-                Object data = AssetDatabase.LoadMainAssetAtPath(AssetDatabase.GUIDToAssetPath(guid));
-                if (data == null) continue;
-                var serialized = new SerializedObject(data);
-                SerializedProperty property = serialized.GetIterator();
-                while (property.Next(true))
-                    if (property.propertyType == SerializedPropertyType.String) AddCharacters(characters, property.stringValue);
-            }
-        return new string(characters.Where(character => !char.IsControl(character) && !char.IsSurrogate(character))
-            .OrderBy(character => character).ToArray());
-    }
-
-    private static void AddCharacters(ISet<char> destination, string value)
-    { if (value != null) foreach (char character in value) destination.Add(character); }
-
     private static string UnicodeList(string value)
     { return string.Join(" ", value.Distinct().Select(character => "U+" + ((int)character).ToString("X4"))); }
 
@@ -221,6 +72,7 @@ public static class AlmanacTypographyAuthoring
     {
         if (source.categories[0].leftPageZone == null) throw new InvalidOperationException("Loaded book has no first page zone.");
         Transform sourcePanel = source.categories[0].leftPageZone.parent.parent.parent;
+        Canvas.ForceUpdateCanvases();
         var snapshots = sourcePanel.GetComponentsInChildren<Component>(true).Where(component => component != null)
             .ToDictionary(component => component, component => EditorJsonUtility.ToJson(component));
         bool originalDirty = source.gameObject.scene.isDirty;
@@ -250,12 +102,7 @@ public static class AlmanacTypographyAuthoring
                     leftPageZone = FindClone(clone.transform, category.leftPageZone, sourcePanel),
                     rightPageZone = FindClone(clone.transform, category.rightPageZone, sourcePanel)
                 });
-            // Assign before building runtime entries so their template has the new atlas.
-            foreach (TMP_Text label in clone.GetComponentsInChildren<TMP_Text>(true))
-            { label.font = font; label.fontSharedMaterial = font.material; }
             typeof(AlmanacManager).GetMethod("InitializeBook", PrivateInstance).Invoke(owner, null);
-            Type typography = typeof(AlmanacManager).Assembly.GetType("AlmanacTypography", true);
-            typography.GetMethod("ApplyExistingBook", BindingFlags.Public | BindingFlags.Static).Invoke(null, new object[] { owner });
             foreach (AlmanacCategory category in owner.categories)
                 foreach (GameObject page in category.leftPages.Concat(category.rightPages)) page.SetActive(true);
 
@@ -283,7 +130,8 @@ public static class AlmanacTypographyAuthoring
                         contract.rewardsText.text = "<b>2,500</b> CONTRACT PAY\n<b>150</b> EXPERIENCE";
                     }
                 }
-                CaptureSizes(source, owner, canvasRect, camera, category.tabType.ToString(), font, report);
+                bool hasPhoto = category.tabType == AlmanacTabType.General || category.tabType == AlmanacTabType.Contracts;
+                CaptureSizes(source, owner, canvasRect, camera, category.tabType.ToString(), font, report, hasPhoto);
                 if (category.tabType == AlmanacTabType.Lessons || category.tabType == AlmanacTabType.Materials)
                 {
                     AlmanacLearningContent content = category.tabType == AlmanacTabType.Lessons
@@ -308,7 +156,7 @@ public static class AlmanacTypographyAuthoring
                     typeof(AlmanacLearningHub).GetMethod("PopulateDetail", PrivateInstance).Invoke(hub,
                         new object[] { content == AlmanacLearningContent.Lessons ? "ENGINEERING LESSON" : "BUILDING MATERIAL", title, image, description, facts });
                     typeof(AlmanacLearningHub).GetMethod("SetDetailVisible", PrivateInstance).Invoke(hub, new object[] { true });
-                    CaptureSizes(source, owner, canvasRect, camera, category.tabType + "_Detail", font, report);
+                    CaptureSizes(source, owner, canvasRect, camera, category.tabType + "_Detail", font, report, image != null);
                 }
             }
         }
@@ -316,9 +164,10 @@ public static class AlmanacTypographyAuthoring
         {
             RenderTexture.active = previous;
             EditorSceneManager.ClosePreviewScene(preview);
-            if (source.gameObject.scene.isDirty != originalDirty || snapshots.Any(pair => pair.Key == null ||
-                    EditorJsonUtility.ToJson(pair.Key) != pair.Value))
-                throw new InvalidOperationException("Source book changed during isolated preview; scene was not saved.");
+            string[] changed = snapshots.Where(pair => pair.Key == null || EditorJsonUtility.ToJson(pair.Key) != pair.Value)
+                .Select(pair => pair.Key != null ? pair.Key.name + "/" + pair.Key.GetType().Name : "Missing component").ToArray();
+            if (source.gameObject.scene.isDirty != originalDirty || changed.Length != 0)
+                throw new InvalidOperationException("Source book changed during isolated preview: " + string.Join(", ", changed) + ". Scene was not saved.");
         }
         report.AppendLine("ISOLATION: source book components and scene dirty state unchanged. No player saves, discoveries, purchases, or scene edits.");
     }
@@ -344,7 +193,7 @@ public static class AlmanacTypographyAuthoring
     }
 
     private static void CaptureSizes(AlmanacManager source, AlmanacManager owner, RectTransform canvas, Camera camera,
-        string label, TMP_FontAsset font, StringBuilder report)
+        string label, TMP_FontAsset font, StringBuilder report, bool hasPhoto)
     {
         foreach (bool phone in new[] { true, false })
         {
@@ -364,7 +213,7 @@ public static class AlmanacTypographyAuthoring
                 if (mount.raycastTarget || mount.transform.parent.GetComponent<RawImage>() != null ||
                     mount.transform.GetSiblingIndex() != mount.transform.parent.childCount - 1)
                     throw new InvalidOperationException(label + ": picture tape blocks input, follows the shared portrait, or renders behind the picture.");
-            if ((label == "General" || label == "Contracts" || label.EndsWith("_Detail", StringComparison.Ordinal)) && mounts.Length == 0)
+            if (hasPhoto && mounts.Length == 0)
                 throw new InvalidOperationException(label + ": visible picture has no book tape.");
             report.AppendLine("PICTURES: " + label + "; " + mounts.Length + " visible taped photo mounts, non-raycasting and frontmost.");
             int checkedText = 0;
@@ -375,7 +224,8 @@ public static class AlmanacTypographyAuthoring
                 if (text.font != font) throw new InvalidOperationException(label + ": book text retained the old font: " + text.name);
                 foreach (TMP_CharacterInfo character in text.textInfo.characterInfo.Take(text.textInfo.characterCount))
                     if (!char.IsWhiteSpace(character.character) && !char.IsControl(character.character) &&
-                        !font.HasCharacter(character.character, true, false))
+                        !font.HasCharacter(character.character, true, false) &&
+                        (TMP_Settings.defaultFontAsset == null || !TMP_Settings.defaultFontAsset.HasCharacter(character.character, true, false)))
                         throw new InvalidOperationException(label + ": missing glyph " + UnicodeList(character.character.ToString()));
                 if (text.isTextOverflowing || text.isTextTruncated)
                     report.AppendLine("OVERFLOW REVIEW: " + label + "/" + text.name + " at " + text.fontSize.ToString("0.#") + "pt (" + (phone ? "phone" : "tablet") + ").");

@@ -4,7 +4,7 @@ using UnityEngine;
 /// <summary>Book-only typography. Other menus and the TMP default font stay unchanged.</summary>
 public static class AlmanacTypography
 {
-    public const string FontResource = "Fonts/Internet Friends SDF";
+    public const string FontResource = "Fonts & Materials/Bekind Sans SDF";
     private static TMP_FontAsset bookFont;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -23,7 +23,11 @@ public static class AlmanacTypography
 
     public static void ApplyExistingBook(AlmanacManager book)
     {
-        if (book == null || book.categories == null) return;
+        if (book == null) return;
+        if (book.Panel != null)
+            foreach (TMP_Text text in book.Panel.GetComponentsInChildren<TMP_Text>(true))
+                ApplyFont(text);
+        if (book.categories == null) return;
         foreach (AlmanacCategory category in book.categories)
         {
             if (category == null) continue;
@@ -37,7 +41,6 @@ public static class AlmanacTypography
         if (page == null) return;
         foreach (TMP_Text text in page.GetComponentsInChildren<TMP_Text>(true))
         {
-            ApplyFont(text);
             if (text.name == "DividerStar")
             {
                 // A decorative glyph in the thin title divider is not body copy.

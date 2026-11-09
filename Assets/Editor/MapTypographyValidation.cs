@@ -42,7 +42,9 @@ public static class MapTypographyValidation
         {
             TMP_FontAsset mapFont = Resources.Load<TMP_FontAsset>("Fonts & Materials/Bekind Sans SDF");
             TMP_FontAsset bookFont = Resources.Load<TMP_FontAsset>(AlmanacTypography.FontResource);
-            Require(mapFont != null && bookFont != null && mapFont != bookFont, "Both distinct font assets must exist.");
+            TMP_FontAsset staleFont = Resources.Load<TMP_FontAsset>("Fonts/Internet Friends SDF");
+            Require(mapFont != null && bookFont == mapFont && staleFont != null && staleFont != mapFont,
+                "Map and Almanac must share Bekind, with a distinct font available for the stale-font fixture.");
             var root = new GameObject("MapFontIsolationPreview", typeof(RectTransform), typeof(Canvas));
             SceneManager.MoveGameObjectToScene(root, preview);
             root.GetComponent<RectTransform>().sizeDelta = new Vector2(1920, 1080);
@@ -53,13 +55,13 @@ public static class MapTypographyValidation
             image.rectTransform.sizeDelta = Vector2.zero;
             var oldMapLabel = NewRect("ExistingCompactLabel", panel).gameObject.AddComponent<TextMeshProUGUI>();
             oldMapLabel.text = "Existing compact map";
-            oldMapLabel.font = bookFont; oldMapLabel.fontSharedMaterial = bookFont.material;
+            oldMapLabel.font = staleFont; oldMapLabel.fontSharedMaterial = staleFont.material;
             oldMapLabel.fontSize = 23f; oldMapLabel.color = Color.magenta;
             oldMapLabel.enableAutoSizing = false; oldMapLabel.raycastTarget = false;
             var bookLabel = NewRect("AlmanacOnlyLabel", root.transform).gameObject.AddComponent<TextMeshProUGUI>();
             bookLabel.text = "Engineer field notes";
             AlmanacTypography.ApplyFont(bookLabel);
-            Require(bookLabel.font == bookFont, "Almanac must still use Internet Friends.");
+            Require(bookLabel.font == bookFont, "Almanac must use Bekind Sans SDF.");
             var unrelated = NewRect("UnrelatedMenuLabel", root.transform).gameObject.AddComponent<TextMeshProUGUI>();
             unrelated.text = "Other menu"; unrelated.font = originalDefault;
             Material otherMaterial = unrelated.fontSharedMaterial;
@@ -70,7 +72,7 @@ public static class MapTypographyValidation
             var controller = cameraObject.AddComponent<ExpandedMinimapController>();
             Set(controller, "minimapCamera", camera); Set(controller, "minimapPanel", panel); Set(controller, "mapImage", image);
             // Exercise stale cached handwriting and existing wrong-atlas labels.
-            Set(controller, "uiFont", bookFont);
+            Set(controller, "uiFont", staleFont);
             // Do not register a disposable panel in the live UI reservation system.
             Set(controller, "reservedMinimapRegion", panel);
             Invoke(controller, "ResolveReferencesAndBuildUI");
@@ -96,7 +98,7 @@ public static class MapTypographyValidation
             Require(unrelated.font == originalDefault && unrelated.fontSharedMaterial == otherMaterial &&
                 TMP_Settings.defaultFontAsset == originalDefault, "Map repair changed another menu or the TMP default.");
             int count = panel.GetComponentsInChildren<TMP_Text>(true).Length;
-            File.WriteAllText(Report, "PASS: " + count + " compact/expanded map labels, controls, contract markers and remote-player labels use Bekind Sans SDF with its matching material. Cached Internet Friends and pre-existing wrong font repaired; label sizing/colors/input retained; Almanac stays Internet Friends; other menus and TMP default unchanged. Disposable preview scene only, no scene or player save writes.\n");
+            File.WriteAllText(Report, "PASS: " + count + " compact/expanded map labels, controls, contract markers and remote-player labels use Bekind Sans SDF with its matching material. Cached Internet Friends and pre-existing wrong font repaired; label sizing/colors/input retained; Almanac uses Bekind; other menus and TMP default unchanged. Disposable preview scene only, no scene or player save writes.\n");
             Debug.Log("[Map typography] PASS: compact/expanded font isolation and matching atlas.");
             Set(controller, "reservedMinimapRegion", null);
         }

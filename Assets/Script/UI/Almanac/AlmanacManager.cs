@@ -127,7 +127,7 @@ public class AlmanacManager : MonoBehaviour
 
     [Header("Tabs & Categories")]
     public List<AlmanacCategory> categories = new List<AlmanacCategory>();
-    public float selectedTabUpOffset = 15f; 
+    public float selectedTabUpOffset = AlmanacBookmarkLayout.SelectedLift;
     public float tabTransitionSpeed = 10f;
     [Min(0.1f)] public float tabSwitchDuration = 0.28f;
     [Min(0f)] public float tabSwitchSlide = 26f;
@@ -201,7 +201,7 @@ public class AlmanacManager : MonoBehaviour
     private void EnsureCloseButtonStyle()
     {
         if (almanacCanvas == null) return;
-        var font = Resources.Load<TMPro.TMP_FontAsset>("Fonts & Materials/Bekind Sans SDF");
+        var font = Resources.Load<TMPro.TMP_FontAsset>(AlmanacTypography.FontResource);
         foreach (Button button in almanacCanvas.GetComponentsInChildren<Button>(true))
             for (int index = 0; index < button.onClick.GetPersistentEventCount(); index++)
                 if (button.onClick.GetPersistentTarget(index) == this &&
@@ -464,6 +464,7 @@ public class AlmanacManager : MonoBehaviour
     {
         AlmanacTypography.ApplyExistingBook(this);
         AlmanacPhotoMount.ApplyProfile(this);
+        foreach (AlmanacCategory category in categories) AlmanacBookmarkLayout.TuckBehindPage(category);
         AlmanacBookmarkLayout.Reflow(categories);
         InitializeLearningHubs();
 
@@ -485,6 +486,14 @@ public class AlmanacManager : MonoBehaviour
                 originalTabYPositions[rect] = rect.anchoredPosition.y;
                 targetTabYPositions[rect] = rect.anchoredPosition.y;
                 cat.tabButton.onClick.AddListener(() => RequestCategory(index));
+            }
+
+            if (cat.tabAlertIcon != null && !cat.tabAlertIcon.TryGetComponent(out UIPulseAnimation _))
+            {
+                var pulse = cat.tabAlertIcon.AddComponent<UIPulseAnimation>();
+                pulse.bobHeight = 6f;
+                pulse.minScale = .96f;
+                pulse.maxScale = 1.10f;
             }
 
             if (cat.leftPageZone != null)
