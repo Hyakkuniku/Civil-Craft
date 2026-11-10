@@ -11,6 +11,7 @@ internal sealed class CinematicCaptionOverlay
     private readonly RectTransform safeArea;
     private readonly RectTransform panel;
     private readonly CanvasGroup group;
+    private readonly Image background;
     private readonly TextMeshProUGUI title;
     private readonly TextMeshProUGUI body;
     private Vector2Int lastScreenSize;
@@ -32,12 +33,7 @@ internal sealed class CinematicCaptionOverlay
 
         safeArea = CreateRect(root.transform, "Safe area");
         panel = CreateRect(safeArea, "Caption panel");
-        panel.anchorMax = new Vector2(0.72f, 0f);
-        panel.anchorMin = Vector2.zero;
-        panel.offsetMin = new Vector2(32f, 30f);
-
-        var background = panel.gameObject.AddComponent<Image>();
-        background.color = new Color(0.10f, 0.075f, 0.05f, 0.88f);
+        background = panel.gameObject.AddComponent<Image>();
         background.raycastTarget = false;
 
         group = panel.gameObject.AddComponent<CanvasGroup>();
@@ -52,7 +48,7 @@ internal sealed class CinematicCaptionOverlay
         canvas.enabled = false;
     }
 
-    public void Show(string heading, string text)
+    public void Show(string heading, string text, bool asLetter)
     {
         bool hasHeading = !string.IsNullOrWhiteSpace(heading);
         bool hasBody = !string.IsNullOrWhiteSpace(text);
@@ -61,8 +57,14 @@ internal sealed class CinematicCaptionOverlay
         title.text = heading;
         body.text = text;
 
+        background.color = asLetter ? new Color32(248, 234, 203, 248) : new Color32(26, 19, 13, 224);
+        title.color = asLetter ? new Color32(116, 66, 28, 255) : new Color32(255, 217, 147, 255);
+        body.color = asLetter ? new Color32(53, 35, 20, 255) : new Color32(255, 249, 235, 255);
+        body.fontStyle = asLetter ? FontStyles.Italic : FontStyles.Normal;
+
         float height = hasHeading ? (hasBody ? 116f : 60f) : 76f;
-        panel.offsetMax = new Vector2(-16f, 30f + height);
+        SetBounds(panel, Vector2.zero, new Vector2(asLetter ? 0.60f : 0.72f, 0f),
+            new Vector2(32f, 30f), new Vector2(-16f, 30f + height));
         SetBounds(body.rectTransform, Vector2.zero, Vector2.one,
             new Vector2(22f, 10f), new Vector2(-22f, hasHeading ? -50f : -10f));
 

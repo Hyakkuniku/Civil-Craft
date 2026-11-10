@@ -1276,7 +1276,7 @@ public partial class LiveLoadVehicle : Interactable
         RaycastHit[] hits = Physics.RaycastAll(
             ray,
             buildCamera.farClipPlane,
-            Physics.DefaultRaycastLayers,
+            CampaignEdgeGuards.ExcludeFrom(Physics.DefaultRaycastLayers),
             QueryTriggerInteraction.Collide);
         Array.Sort(hits, (left, right) => left.distance.CompareTo(right.distance));
 
@@ -1693,7 +1693,7 @@ public partial class LiveLoadVehicle : Interactable
                 wheel.physObj.transform.position,
                 Vector3.down,
                 wheelRadius + wheelGroundCheckDistance,
-                Physics.DefaultRaycastLayers,
+                CampaignEdgeGuards.ExcludeFrom(Physics.DefaultRaycastLayers),
                 QueryTriggerInteraction.Ignore);
 
             bool grounded = false;

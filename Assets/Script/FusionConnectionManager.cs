@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using System.Threading.Tasks;
 using Fusion;
 using Fusion.Photon.Realtime;
+using Photon.Realtime;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -17,11 +18,13 @@ public sealed class FusionConnectionManager : MonoBehaviour
     private const string RoomAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private const int RoomCodeLength = 6;
     private const string FixedRegion = "asia";
+    private const ushort AlternateSecureNameServerPort = 19093;
     private const string ModeSelectionSceneName = "Mode Selection";
     public const string HostWorldSceneName = "CanyonCrossing";
 
     private NetworkRunner runner;
     private int operationVersion;
+    private bool sessionStarting;
     private bool clientSessionEstablished;
     private bool guestVisitedHostWorld;
     private bool guestSaveProtected;
@@ -94,7 +97,7 @@ public sealed class FusionConnectionManager : MonoBehaviour
         if (next.name == HostWorldSceneName && IsClientConnected)
             guestVisitedHostWorld = true;
         if ((previous.name == "Multiplayer" || previous.name == HostWorldSceneName) &&
-            next.name != previous.name && runner != null && !networkSceneLoading)
+            next.name != previous.name && (runner != null || sessionStarting) && !networkSceneLoading)
             StopSession();
     }
 
@@ -125,40 +128,18 @@ public sealed class FusionConnectionManager : MonoBehaviour
 
     private async Task<string> StartHostSessionAsync(NetworkSceneInfo? initialScene)
     {
-        if (IsSessionStopping) throw new InvalidOperationException("Wait for the previous session to finish closing.");
         if (IsHosting) return HostJoinCode;
-        if (runner != null) throw new InvalidOperationException("A Fusion session is already starting or running.");
-
-        pendingHostLeftNotice = false;
-        int version = ++operationVersion;
         string roomCode = CreateRoomCode();
-        NetworkRunner newRunner = CreateRunner();
-        networkSceneLoading = initialScene.HasValue;
-        try
+        await StartSessionAsync(new StartGameArgs
         {
-            StartGameResult result = await newRunner.StartGame(new StartGameArgs
-            {
-                GameMode = GameMode.Host,
-                SessionName = roomCode,
-                PlayerCount = 2,
-                IsOpen = true,
-                IsVisible = false,
-                Scene = initialScene,
-                SceneManager = newRunner.GetComponent<NetworkSceneManagerDefault>(),
-                CustomPhotonAppSettings = BuildPhotonSettings()
-            });
-
-            if (version != operationVersion) throw new OperationCanceledException();
-            if (!result.Ok) throw new InvalidOperationException($"Fusion host failed: {result.ShutdownReason}");
-            HostJoinCode = roomCode;
-            return roomCode;
-        }
-        catch
-        {
-            if (runner == newRunner) networkSceneLoading = false;
-            await ShutdownRunnerAsync(newRunner);
-            throw;
-        }
+            GameMode = GameMode.Host,
+            SessionName = roomCode,
+            PlayerCount = 2,
+            IsOpen = true,
+            IsVisible = false,
+            Scene = initialScene
+        });
+        return roomCode;
     }
 
     public bool TryGetGuest(out PlayerRef guest, out NetworkObject avatar)
@@ -191,34 +172,75 @@ public sealed class FusionConnectionManager : MonoBehaviour
 
     public async Task JoinAsync(string roomCode)
     {
-        if (IsSessionStopping) throw new InvalidOperationException("Wait for the previous session to finish closing.");
-        if (runner != null) throw new InvalidOperationException("A Fusion session is already starting or running.");
         if (string.IsNullOrWhiteSpace(roomCode)) throw new ArgumentException("Enter a room code.", nameof(roomCode));
+        await StartSessionAsync(new StartGameArgs
+        {
+            GameMode = GameMode.Client,
+            SessionName = roomCode.ToUpperInvariant(),
+            EnableClientSessionCreation = false
+        });
+    }
 
+    private async Task StartSessionAsync(StartGameArgs args)
+    {
+        if (IsSessionStopping) throw new InvalidOperationException("Wait for the previous session to finish closing.");
+        if (sessionStarting || runner != null) throw new InvalidOperationException("A Fusion session is already starting or running.");
+
+        FusionAppSettings settings = BuildPhotonSettings();
         pendingHostLeftNotice = false;
         int version = ++operationVersion;
-        NetworkRunner newRunner = CreateRunner();
+        sessionStarting = true;
+        networkSceneLoading = args.Scene.HasValue;
         try
         {
-            StartGameResult result = await newRunner.StartGame(new StartGameArgs
-            {
-                GameMode = GameMode.Client,
-                SessionName = roomCode.ToUpperInvariant(),
-                EnableClientSessionCreation = false,
-                SceneManager = newRunner.GetComponent<NetworkSceneManagerDefault>(),
-                CustomPhotonAppSettings = BuildPhotonSettings()
-            });
+            StartGameResult result = await StartRunnerAsync(args, settings);
+            if (version != operationVersion || this == null) throw new OperationCanceledException();
 
-            if (version != operationVersion) throw new OperationCanceledException();
-            if (!result.Ok) throw new InvalidOperationException($"Fusion join failed: {result.ShutdownReason}");
-            clientSessionEstablished = true;
+            if (ShouldRetrySecureConnection(settings, result))
+            {
+                await DetachAndShutdownRunnerAsync();
+                if (version != operationVersion || this == null) throw new OperationCanceledException();
+
+                settings.Port = AlternateSecureNameServerPort;
+                Debug.Log($"[Fusion] Retrying the secure Photon connection on port {settings.Port}.", this);
+                result = await StartRunnerAsync(args, settings);
+                if (version != operationVersion || this == null) throw new OperationCanceledException();
+            }
+
+            if (!result.Ok)
+                throw new InvalidOperationException($"Fusion {args.GameMode} failed: {result.ShutdownReason}. {result.ErrorMessage}");
+
+            if (args.GameMode == GameMode.Host) HostJoinCode = args.SessionName;
+            else clientSessionEstablished = true;
         }
         catch
         {
-            await ShutdownRunnerAsync(newRunner);
+            if (version == operationVersion)
+            {
+                networkSceneLoading = false;
+                await DetachAndShutdownRunnerAsync();
+            }
             throw;
         }
+        finally
+        {
+            sessionStarting = false;
+        }
     }
+
+    private Task<StartGameResult> StartRunnerAsync(StartGameArgs args, FusionAppSettings settings)
+    {
+        NetworkRunner newRunner = CreateRunner();
+        args.SceneManager = newRunner.GetComponent<NetworkSceneManagerDefault>();
+        args.CustomPhotonAppSettings = settings;
+        return newRunner.StartGame(args);
+    }
+
+    private static bool ShouldRetrySecureConnection(FusionAppSettings settings, StartGameResult result) =>
+        !result.Ok && result.ShutdownReason == ShutdownReason.Error &&
+        settings.IsDefaultNameServer && settings.IsDefaultPort &&
+        settings.AuthMode == AuthModeOption.AuthOnceWss &&
+        result.ErrorMessage?.StartsWith("DisconnectException: ExceptionOnConnect", StringComparison.Ordinal) == true;
 
     public bool StartMultiplayerScene(string sceneName)
     {
@@ -306,6 +328,11 @@ public sealed class FusionConnectionManager : MonoBehaviour
         HostJoinCode = null;
         clientSessionEstablished = false;
         networkSceneLoading = false;
+        return DetachAndShutdownRunnerAsync();
+    }
+
+    private Task DetachAndShutdownRunnerAsync()
+    {
         NetworkRunner oldRunner = runner;
         runner = null;
         if (oldRunner != null) pendingShutdown = ShutdownRunnerAsync(oldRunner);

@@ -215,7 +215,7 @@ public class PlayerLook : MonoBehaviour
             direction,
             sphereCastHits,
             desiredDistance,
-            collisionMask,
+            CampaignEdgeGuards.ExcludeFrom(collisionMask),
             QueryTriggerInteraction.Ignore);
         nearestDistance = FindNearestValidDistance(sphereCastHits, sphereHitCount, nearestDistance);
 
@@ -226,7 +226,7 @@ public class PlayerLook : MonoBehaviour
             direction,
             raycastHits,
             desiredDistance,
-            collisionMask,
+            CampaignEdgeGuards.ExcludeFrom(collisionMask),
             QueryTriggerInteraction.Ignore);
         nearestDistance = FindNearestValidDistance(raycastHits, rayHitCount, nearestDistance);
 

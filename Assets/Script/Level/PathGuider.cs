@@ -829,7 +829,7 @@ public class PathGuider : MonoBehaviour
             Vector3.down,
             surfaceHits,
             probeHeight * 2f,
-            GetGuideSurfaceMask(),
+            CampaignEdgeGuards.ExcludeFrom(GetGuideSurfaceMask()),
             QueryTriggerInteraction.Ignore);
 
         int bestIndex = -1;

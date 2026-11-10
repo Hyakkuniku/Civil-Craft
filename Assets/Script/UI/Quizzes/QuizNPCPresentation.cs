@@ -235,7 +235,7 @@ public sealed class QuizNPCPresentation : MonoBehaviour
         float distance = delta.magnitude;
         if (localLook == null || localLook.collisionMask.value == 0 || distance <= 0.01f) return true;
         int count = Physics.SphereCastNonAlloc(focus, 0.14f, delta / distance, collisionHits, distance,
-            localLook.collisionMask, QueryTriggerInteraction.Ignore);
+            CampaignEdgeGuards.ExcludeFrom(localLook.collisionMask), QueryTriggerInteraction.Ignore);
         // A full non-alloc buffer cannot prove that all nearer obstructions
         // were observed. Use the normal quiz UI rather than guess a safe shot.
         if (count >= collisionHits.Length) return false;

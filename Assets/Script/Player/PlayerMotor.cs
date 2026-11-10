@@ -8,6 +8,7 @@ public class PlayerMotor : MonoBehaviour
     public event System.Action Jumped;
 
     private CharacterController controller;
+    private CampaignEdgeGuards edgeGuards;
     private PlayerMovementAudio movementAudio;
     private Vector3 playerVelocity;
     private Vector3 previousFixedPosition;
@@ -145,6 +146,7 @@ public class PlayerMotor : MonoBehaviour
     private void Start()
     {
         controller = GetComponent<CharacterController>();
+        edgeGuards = GetComponent<CampaignEdgeGuards>();
         movementAudio = PlayerMovementAudio.Attach(gameObject, false);
         visualRoot = transform.Find("NewCharacterModel");
         if (visualRoot != null) visualRootBaseLocalPosition = visualRoot.localPosition;
@@ -242,7 +244,16 @@ public class PlayerMotor : MonoBehaviour
             ? Mathf.Min(speed, carryingWalkSpeed) * moveAmount
             : speed * moveAmount * (isSprinting ? sprintSpeedMultiplier : 1f);
         if (!isGrounded) currentSpeed *= airSpeedMultiplier;
-        controller.Move(moveDirection * currentSpeed * Time.deltaTime);
+        Vector3 horizontalVelocity = moveDirection * currentSpeed;
+        Vector3 movement = horizontalVelocity * Time.deltaTime;
+        if (edgeGuards != null && edgeGuards.isActiveAndEnabled)
+        {
+            Vector3 limited = edgeGuards.LimitMovement(horizontalVelocity, Time.deltaTime, playerVelocity.y > 0f);
+            if (movement.sqrMagnitude > 0f && limited.sqrMagnitude < movement.sqrMagnitude)
+                moveAmount *= limited.magnitude / movement.magnitude;
+            movement = limited;
+        }
+        controller.Move(movement);
         
         playerVelocity.y += gravity * Time.deltaTime;
         

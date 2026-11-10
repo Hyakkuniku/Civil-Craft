@@ -76,7 +76,8 @@ public class PlayerInteract : MonoBehaviour
             nearbyInteractables.Clear();
 
             // 2. Use NonAlloc! This fills our existing array instead of creating a new one in RAM.
-            int numColliders = Physics.OverlapSphereNonAlloc(transform.position, interactionRadius, hitColliders, mask);
+            int numColliders = Physics.OverlapSphereNonAlloc(transform.position, interactionRadius, hitColliders,
+                CampaignEdgeGuards.ExcludeFrom(mask));
 
             // 3. Only loop through the ones we actually hit
             for (int i = 0; i < numColliders; i++)

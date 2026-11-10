@@ -38388,10 +38388,10 @@ RectTransform:
   - {fileID: 20058184}
   - {fileID: 80474956}
   - {fileID: 1028129894}
-  - {fileID: 1842507917}
   - {fileID: 1145091055}
   - {fileID: 1190689351}
   - {fileID: 2059781785}
+  - {fileID: 1842507917}
   m_Father: {fileID: 151635440}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}

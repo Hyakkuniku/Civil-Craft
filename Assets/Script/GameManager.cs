@@ -284,6 +284,11 @@ public partial class GameManager : MonoBehaviour
     public GameObject redoConfirmPanel;
     [Tooltip("Add things here that you want hidden ONLY when the Redo Panel is open (Optional)")]
     public List<GameObject> extraElementsToHideOnRedo = new List<GameObject>(); 
+
+    [Header("Open World Safety")]
+    [Tooltip("Use the forward footing probe to stop the player before stepping off a protected drop. Physical guards and fall recovery are always available.")]
+    [SerializeField] private bool preventWalkingOffEdges = true;
+    public bool PreventWalkingOffEdges => preventWalkingOffEdges;
     
     [Header("Build Mode Audio")]
     [Tooltip("AudioManager SFX ID played once when the blueprint camera transition begins.")]

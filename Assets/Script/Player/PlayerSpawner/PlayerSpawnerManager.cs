@@ -77,7 +77,8 @@ public class PlayerSpawnManager : MonoBehaviour
                 {
                     Vector3 savedPosition =
                         PlayerDataManager.Instance.CurrentData.lastSavedPosition.ToVector3();
-                    if (!IsSavedSpawnSafe(savedPosition))
+                    if ((TryGetComponent(out CampaignEdgeGuards guards) && guards.OverlapsGuard(savedPosition)) ||
+                        !IsSavedSpawnSafe(savedPosition))
                     {
                         Debug.LogWarning(
                             $"Saved player position {savedPosition} is not on accessible ground. " +

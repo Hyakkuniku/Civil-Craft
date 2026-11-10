@@ -4318,20 +4318,20 @@ MonoBehaviour:
   askNameDialogue:
     name: Professor Bhan
     sentences:
-    - "Ah, you must be the young <b><#E09500>civil engineer</color></b> I've been expecting."
-    - "I'm Professor Bhan. Come in."
-    - "I heard you've been studying bridge construction."
-    - "Good. Out here, you'll get to put that to work."
-    - "I've been getting things ready for our first trip out."
+    - "Ah, you found my note."
+    - "I'm Professor Bhan. I'm glad you came."
+    - "I looked over your bridge drawings."
+    - "I'd like to see what you make of the road outside."
+    - "We'll walk it together once you're settled."
     - "Before we begin, what should I call you?"
   fetchAlmanacDialogue:
     name: Professor Bhan
     sentences:
     - "<b><#E09500>{PlayerName}...</color></b>"
-    - "Welcome to <b><#E09500>Arcadia</color></b>. Here in Canyon Crossing, a ravine can send a delivery miles out of its way."
-    - "A well-placed bridge gives people a shorter, safer route they can count on."
-    - "You know how structures carry loads. I'll help you use that knowledge on your first crossings."
-    - "We'll build, test, and revise our designs out in the field."
+    - "There's a place nearby where the road makes a long bend. I'd like to take you there."
+    - "When we go outside, tell me where you'd want to cross."
+    - "We'll look at the ground and find out what has to get through."
+    - "Then we'll test a design together before anyone has to depend on it."
     - "Before we go outside, you'll need the <b><#E09500>Almanac</color></b>."
     - "It's your <b><#E09500>engineering record</color></b> of the lessons, discoveries, and projects you encounter."
     - "Keep it handy. You'll refer to it as your projects get more demanding."

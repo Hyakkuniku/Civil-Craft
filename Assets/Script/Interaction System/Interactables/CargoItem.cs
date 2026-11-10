@@ -651,7 +651,7 @@ public class CargoItem : Interactable
             Ray ray = new Ray(playerTransform.position + Vector3.up * 0.5f, Vector3.down);
             
             // Check if the player is standing on something (within 2 meters down)
-            if (Physics.Raycast(ray, out RaycastHit hit, 2f))
+            if (Physics.Raycast(ray, out RaycastHit hit, 2f, CampaignEdgeGuards.ExcludeFrom(Physics.DefaultRaycastLayers)))
             {
                 // Check if the thing they are standing on is a physical object (like our bridge bars)
                 Rigidbody bridgePiece = hit.collider.attachedRigidbody;

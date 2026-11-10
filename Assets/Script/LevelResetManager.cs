@@ -62,6 +62,7 @@ public class LevelResetManager : MonoBehaviour
     public UnityEvent onReset; 
 
     private CharacterController playerController;
+    private CampaignEdgeGuards edgeGuards;
     private BridgePhysicsManager bridgeManager;
     private Vector3 lastSafePlayerPosition;
     private Quaternion lastSafePlayerRotation;
@@ -101,6 +102,7 @@ public class LevelResetManager : MonoBehaviour
             return;
 
         playerController = playerTransform.GetComponent<CharacterController>();
+        edgeGuards = playerTransform.GetComponent<CampaignEdgeGuards>();
 
         bool playerAlreadyRegistered = objectsToReset.Exists(
             resetable => resetable != null && resetable.objectTransform == playerTransform);
@@ -129,6 +131,14 @@ public class LevelResetManager : MonoBehaviour
     {
         if (!initializationComplete)
             return;
+
+        if (edgeGuards != null && (bridgeManager == null || !bridgeManager.isSimulating) &&
+            edgeGuards.TryRecoverOverworldPlayer(useLastSafePlayerPosition && hasSafePlayerPose,
+                lastSafePlayerPosition, lastSafePlayerRotation))
+        {
+            RegisterCurrentPlayerPoseAsSafe();
+            return;
+        }
 
         CaptureSafePlayerPose(false);
 
@@ -249,8 +259,12 @@ public class LevelResetManager : MonoBehaviour
             if (bridgeManager != null && bridgeManager.isSimulating)
                 return;
 
-            if (!HasSafeWalkableGround(playerTransform.position))
+            Collider support = FindSafeWalkableGround(playerTransform.position);
+            if (support == null)
                 return;
+
+            if (edgeGuards != null)
+                edgeGuards.RememberBank(playerTransform.position, playerTransform.rotation, support);
 
             // A normal slope or staircase updates in small increments. A large
             // vertical drop means the player fell into a ravine or onto buried
@@ -267,6 +281,8 @@ public class LevelResetManager : MonoBehaviour
         lastSafePlayerRotation = playerTransform.rotation;
         hasSafePlayerPose = true;
         groundedSince = Time.unscaledTime;
+        if (force && edgeGuards != null)
+            edgeGuards.RememberBank(lastSafePlayerPosition, lastSafePlayerRotation, FindSafeWalkableGround(lastSafePlayerPosition));
     }
 
     /// <summary>
@@ -285,6 +301,8 @@ public class LevelResetManager : MonoBehaviour
         groundedSince = Time.unscaledTime;
         nextSafePositionSampleTime = Time.unscaledTime +
                                      Mathf.Max(0.05f, safePositionSampleInterval);
+        if (edgeGuards != null)
+            edgeGuards.RememberBank(lastSafePlayerPosition, lastSafePlayerRotation, FindSafeWalkableGround(lastSafePlayerPosition));
     }
 
     public bool TryGetLastSafePlayerPosition(out Vector3 position)
@@ -293,7 +311,7 @@ public class LevelResetManager : MonoBehaviour
         return useLastSafePlayerPosition && hasSafePlayerPose;
     }
 
-    private bool HasSafeWalkableGround(Vector3 playerPosition)
+    private Collider FindSafeWalkableGround(Vector3 playerPosition)
     {
         if (playerController == null)
             playerController = playerTransform != null
@@ -317,11 +335,11 @@ public class LevelResetManager : MonoBehaviour
             Vector3.down,
             groundHits,
             distance,
-            safeGroundLayers,
+            CampaignEdgeGuards.ExcludeFrom(safeGroundLayers),
             QueryTriggerInteraction.Ignore);
 
         float bestDistance = float.PositiveInfinity;
-        bool foundWalkableGround = false;
+        Collider support = null;
         for (int i = 0; i < hitCount; i++)
         {
             RaycastHit hit = groundHits[i];
@@ -333,11 +351,11 @@ public class LevelResetManager : MonoBehaviour
             if (hit.distance < bestDistance)
             {
                 bestDistance = hit.distance;
-                foundWalkableGround = true;
+                support = hit.collider;
             }
         }
 
-        return foundWalkableGround;
+        return support;
     }
 
     private bool IsPlayerCollider(Collider candidate)

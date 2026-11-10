@@ -35,6 +35,7 @@ public class CinematicShot
     [Header("Caption (Optional)")]
     public string captionTitle;
     [TextArea(1, 3)] public string captionText;
+    public bool captionAsLetter;
 
     [Header("Timing")]
     public AnimationCurve movementCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
@@ -506,7 +507,7 @@ public class CinematicDirector : MonoBehaviour
         }
 
         captionOverlay ??= new CinematicCaptionOverlay(gameObject.scene);
-        captionOverlay.Show(shot.captionTitle, shot.captionText);
+        captionOverlay.Show(shot.captionTitle, shot.captionText, shot.captionAsLetter);
     }
 
     private IEnumerator PlayShot(CinematicShot shot)

@@ -1181,8 +1181,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   rotationTarget: {fileID: 0}
   cameraToKeepFixed: {fileID: 0}
-  degreesPerScreenWidth: 180
-  maximumYaw: 70
   returnDuration: 0.25
 --- !u!114 &6452207253960502254
 MonoBehaviour:
@@ -69325,6 +69323,7 @@ MonoBehaviour:
   decorativeCanyonsToHide: []
   redoConfirmPanel: {fileID: 958456519141442972}
   extraElementsToHideOnRedo: []
+  preventWalkingOffEdges: 1
   enterBuildModeSfxId: BuildModeEnter
   transitionFader: {fileID: 0}
   fadeDuration: 0.25
