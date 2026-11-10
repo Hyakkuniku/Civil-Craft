@@ -16,6 +16,10 @@ MonoBehaviour:
   displayName: Wood Pier
   introductionDescription: Supports the bridge structure and transfers loads toward
     the ground. Place Wood Piers beneath the roadway where structural support is available.
+  almanacDescription: A Wood Pier is a low-cost support for lighter loads. Connect
+    its top to a bridge joint so it can carry the load down to the foundation
+    in compression. Taller piers can buckle under less load, so check their stress
+    while the vehicle crosses.
   costPerMeter: 500
   massPerMeter: 182.5
   maxLength: 50

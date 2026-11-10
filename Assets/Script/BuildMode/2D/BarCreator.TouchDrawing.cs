@@ -260,7 +260,7 @@ public partial class BarCreator
         Ray ray = camera.ScreenPointToRay(eventData.position);
         if (!buildPlane.Raycast(ray, out float distance)) return false;
         aim = ray.GetPoint(distance);
-        return aim.y > pierBaseY;
+        return aim.y > ActivePierFoundationY;
     }
 
     private Vector3 GetPierFoundation(Vector3 aim)
@@ -283,7 +283,7 @@ public partial class BarCreator
         }
 
         if (isGridSnappingEnabled && closest == 1.5f) alignedX = Mathf.Round(alignedX);
-        return new Vector3(alignedX, pierBaseY, bridgeZ);
+        return new Vector3(alignedX, ActivePierFoundationY, bridgeZ);
     }
 
     private void BeginPierDrawing(PointerEventData eventData, Vector3 foundation)

@@ -7,6 +7,7 @@ using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using Object = UnityEngine.Object;
@@ -41,6 +42,7 @@ public static class AlmanacPhotoMountValidation
         {
             Require(!EditorApplication.isPlayingOrWillChangePlaymode, "Leave Play Mode before this check.");
             CheckDecoration(report);
+            CheckPortraitRotation(report);
             TMP_FontAsset font = Resources.Load<TMP_FontAsset>(AlmanacTypography.FontResource);
             Require(font != null, "Existing Almanac font has not imported.");
             AlmanacManager source = Resources.FindObjectsOfTypeAll<AlmanacManager>().FirstOrDefault(book =>
@@ -99,7 +101,7 @@ public static class AlmanacPhotoMountValidation
                 frame.anchoredPosition == position && frame.localScale == scale && frame.localRotation == rotation,
                 "Tape changed photo texture/crop or existing frame geometry.");
             MethodInfo populate = typeof(AlmanacPhotoMount).GetMethod("OnPopulateMesh",
-                BindingFlags.Instance | BindingFlags.NonPublic);
+                BindingFlags.Instance | BindingFlags.NonPublic, null, new[] { typeof(VertexHelper) }, null);
             using (var vertices = new VertexHelper())
             {
                 populate.Invoke(first, new object[] { vertices });
@@ -129,6 +131,57 @@ public static class AlmanacPhotoMountValidation
             frame.gameObject.SetActive(false);
             Require(!first.gameObject.activeInHierarchy, "Tape stayed visible after photo frame was hidden.");
             report.AppendLine("SAFETY: idempotent setup, frontmost/non-raycasting, resize-safe; photo and frame layout untouched; tape stays in book during wardrobe reparenting and hides with missing pictures.");
+        }
+        finally { EditorSceneManager.ClosePreviewScene(preview); }
+    }
+
+    private static void CheckPortraitRotation(StringBuilder report)
+    {
+        Scene preview = EditorSceneManager.NewPreviewScene();
+        try
+        {
+            var root = new GameObject("Detached Portrait Rig", typeof(RectTransform), typeof(RawImage));
+            SceneManager.MoveGameObjectToScene(root, preview);
+            var rect = (RectTransform)root.transform;
+            var model = new GameObject("Portrait Model").transform;
+            model.SetParent(rect, false);
+            model.localRotation = Quaternion.Euler(0f, 25f, 0f);
+            var camera = new GameObject("Portrait Camera").transform;
+            camera.SetParent(model, false);
+            camera.SetLocalPositionAndRotation(Vector3.forward * 10f, Quaternion.Euler(0f, 180f, 0f));
+            Vector3 cameraPosition = camera.position;
+            Quaternion cameraRotation = camera.rotation;
+            Quaternion front = model.localRotation;
+            var rotator = root.AddComponent<AlmanacPortraitRotator>();
+            const BindingFlags privateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
+            void Call(string method) => typeof(AlmanacPortraitRotator).GetMethod(method, privateInstance).Invoke(rotator, null);
+            typeof(AlmanacPortraitRotator).GetField("rotationTarget", privateInstance).SetValue(rotator, model);
+            typeof(AlmanacPortraitRotator).GetField("cameraToKeepFixed", privateInstance).SetValue(rotator, camera);
+            Call("Awake");
+
+            foreach (float width in new[] { 240f, 440f })
+            foreach (int direction in new[] { -1, 1 })
+            {
+                rect.sizeDelta = new Vector2(width, 200f);
+                var drag = new PointerEventData(null) { pointerId = 7, delta = Vector2.right * (width * .25f * direction) };
+                rotator.OnBeginDrag(drag);
+                for (int quarter = 1; quarter <= 5; quarter++)
+                {
+                    rotator.OnDrag(drag);
+                    Call("LateUpdate");
+                    Quaternion expected = front * Quaternion.Euler(0f, -90f * quarter * direction, 0f);
+                    Require(Quaternion.Angle(model.localRotation, expected) < .1f, "The portrait did not follow a continuous full turn.");
+                    Require(Vector3.Distance(camera.position, cameraPosition) < .001f && Quaternion.Angle(camera.rotation, cameraRotation) < .1f,
+                        "Dragging the model moved its camera.");
+                    if (quarter == 1)
+                        Require(Vector3.Dot(camera.right, model.forward) * direction > .99f, "The character turned against the swipe.");
+                }
+                rotator.OnEndDrag(drag);
+                typeof(AlmanacPortraitRotator).GetField("returnElapsed", privateInstance).SetValue(rotator, 1f);
+                Call("LateUpdate");
+                Require(Quaternion.Angle(model.localRotation, front) < .1f, "The portrait did not return to its front pose after release.");
+            }
+            report.AppendLine("ROTATION: left and right swipes pass 360 degrees at both portrait widths. Camera pose stays fixed and release restores the front pose.");
         }
         finally { EditorSceneManager.ClosePreviewScene(preview); }
     }

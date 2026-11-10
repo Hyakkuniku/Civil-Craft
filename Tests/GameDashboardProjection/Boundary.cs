@@ -61,6 +61,8 @@ public sealed class ContractSO : UnityEngine.Object
 {
     public enum ContractMap { CanyonCrossing,TownRiver,IndustrialZone }
     public string ContractID; public ContractMap contractMap; public bool isStoryModeContract=true,hideFromLeaderboard;
+    public string displayName;
+    public string DisplayName => string.IsNullOrWhiteSpace(displayName) ? name : displayName.Trim();
     public bool MatchesIdentifier(string value)=>value==ContractID;
 }
 public class PlayerDataManager

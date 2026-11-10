@@ -19,6 +19,10 @@ MonoBehaviour:
     patterns of a Truss Bridge. These connected arrangements help carry loads
     toward the supports. Timber beams can resist pulling and pushing forces and
     are placed as a matching pair across the bridge.
+  almanacDescription: Wood beams resist pulling (tension) and pushing (compression).
+    Connect them in triangles to carry loads from the roadway to the supports.
+    They are light and inexpensive, making them useful for short truss members.
+    Each placement adds one beam on each side of the deck.
   costPerMeter: 100
   massPerMeter: 3
   maxLength: 10

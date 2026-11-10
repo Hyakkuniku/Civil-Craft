@@ -908,7 +908,7 @@ public class ClipboardManager : MonoBehaviour
                 if (cb.mat.isPier)
                 {
                     float bottomY = Mathf.Min(ghostPastePoints[cb.startIdx].transform.position.y, ghostPastePoints[cb.endIdx].transform.position.y);
-                    if (Mathf.Abs(bottomY - barCreator.pierBaseY) > 1.5f) 
+                    if (Mathf.Abs(bottomY - barCreator.ActivePierFoundationY) > 1.5f)
                     {
                         isValidPaste = false; 
                         break;

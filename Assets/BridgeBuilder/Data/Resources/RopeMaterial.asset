@@ -18,7 +18,10 @@ MonoBehaviour:
     best under tension. Rope cannot carry meaningful compression, so anchor it securely
     above a supported road deck.
   introductionImage: {fileID: 0}
-  almanacDescription: 
+  almanacDescription: Support Rope is a light, low-cost way to suspend parts of
+    a deck. Connect the rope to secure supports above the deck so it can carry
+    load when pulled taut. A slack rope provides no support, and a rope cannot
+    carry compression. Each placement adds one rope on each side of the deck.
   almanacImage: {fileID: 0}
   costPerMeter: 125
   massPerMeter: 0.216

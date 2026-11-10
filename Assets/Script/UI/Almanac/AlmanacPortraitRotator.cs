@@ -21,8 +21,6 @@ public sealed class AlmanacPortraitRotator : MonoBehaviour,
     public Transform RotationTarget => rotationTarget;
 
     [Header("Interaction")]
-    [SerializeField, Min(1f)] private float degreesPerScreenWidth = 180f;
-    [SerializeField, Range(1f, 180f)] private float maximumYaw = 70f;
     [SerializeField, Min(0.01f)] private float returnDuration = 0.25f;
 
     private Quaternion restLocalRotation;
@@ -30,6 +28,7 @@ public sealed class AlmanacPortraitRotator : MonoBehaviour,
     private Vector3 cameraPositionInStableSpace;
     private Quaternion cameraRotationInStableSpace;
     private float currentYaw;
+    private float dragWidth;
     private float returnStartYaw;
     private float returnElapsed;
     private int activePointerId = int.MinValue;
@@ -66,8 +65,20 @@ public sealed class AlmanacPortraitRotator : MonoBehaviour,
 
     public void OnBeginDrag(PointerEventData eventData)
     {
-        if (!poseCached || rotationTarget == null)
+        if (!poseCached || rotationTarget == null || activePointerId != int.MinValue)
             return;
+
+        dragWidth = Mathf.Max(1f, Screen.width);
+        if (transform is RectTransform portrait)
+        {
+            Rect rect = portrait.rect;
+            Vector2 left = RectTransformUtility.WorldToScreenPoint(eventData.pressEventCamera,
+                portrait.TransformPoint(new Vector3(rect.xMin, rect.center.y, 0f)));
+            Vector2 right = RectTransformUtility.WorldToScreenPoint(eventData.pressEventCamera,
+                portrait.TransformPoint(new Vector3(rect.xMax, rect.center.y, 0f)));
+            float width = Mathf.Abs(right.x - left.x);
+            if (width > 1f) dragWidth = width;
+        }
 
         activePointerId = eventData.pointerId;
         returning = false;
@@ -81,9 +92,9 @@ public sealed class AlmanacPortraitRotator : MonoBehaviour,
             return;
         }
 
-        float screenWidth = Mathf.Max(1f, Screen.width);
-        currentYaw += eventData.delta.x / screenWidth * degreesPerScreenWidth;
-        currentYaw = Mathf.Clamp(currentYaw, -maximumYaw, maximumYaw);
+        // The portrait camera faces the model from the front. Negative yaw
+        // follows a rightward drag, and wrapping keeps the return path short.
+        currentYaw = Mathf.DeltaAngle(0f, currentYaw - eventData.delta.x / dragWidth * 360f);
     }
 
     public void OnEndDrag(PointerEventData eventData)
@@ -177,8 +188,6 @@ public sealed class AlmanacPortraitRotator : MonoBehaviour,
 
     private void OnValidate()
     {
-        degreesPerScreenWidth = Mathf.Max(1f, degreesPerScreenWidth);
-        maximumYaw = Mathf.Clamp(maximumYaw, 1f, 180f);
         returnDuration = Mathf.Max(0.01f, returnDuration);
     }
 }

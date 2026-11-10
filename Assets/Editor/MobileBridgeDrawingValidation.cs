@@ -605,12 +605,16 @@ public static class MobileBridgeDrawingValidation
         var history = NewObject(preview, "Inactive pier history", false).AddComponent<CommandManager>();
         CommandManager originalHistory = CommandManager.Instance;
         ui.barCreator = creator;
-        ui.fallbackMaxBudget = 10000f;
+        ui.fallbackMaxBudget = 20000f;
         creator.barToInstantiate = NewObject(preview, "Detached bar source", true).AddComponent<Bar>().gameObject;
         creator.pointToInstantiate = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/BridgeBuilder/Prefabs/Point 1.prefab");
         creator.barParent = NewObject(preview, "Detached bars", true).transform;
         creator.pointParent = NewObject(preview, "Detached points", true).transform;
         creator.pierBaseY = -4f;
+        Near(((Vector3)Invoke(creator, "GetPierFoundation", Vector3.zero)).y, -4f,
+            "A site without a foundation override keeps the original height");
+        Set(location, "overridePierFoundation", true);
+        Set(location, "pierFoundationY", -25f);
         creator.isGridSnappingEnabled = false;
         creator.gameObject.SetActive(true);
         var workspace = new GameObject("Detached grid");
@@ -632,6 +636,7 @@ public static class MobileBridgeDrawingValidation
             Bar placedPier = creator.currentBar;
             Check(placedPier != null && placedPier.OwnerLocation == location && creator.IsCreating,
                 "The drag previews an owned member before committing");
+            Near(placedPier.StartPosition.y, -25f, "The pier preview uses the active site's foundation height");
             Check(Field<Stack<HistoryAction>>(history, "undoStack").Count == 0,
                 "Previewing the pier does not write bridge history");
             gesture.pointerCurrentRaycast = new RaycastResult { gameObject = ui.gameObject };
@@ -644,7 +649,7 @@ public static class MobileBridgeDrawingValidation
                 "Releasing in the workspace commits a connected pier");
             Near(placedPier.StartPosition.x, 5f, "The foundation follows the release X");
             Near(placedPier.EndPosition.x, 5f, "The pier stays vertical");
-            Near(placedPier.StartPosition.y, -4f, "The pier starts at the configured foundation");
+            Near(placedPier.StartPosition.y, -25f, "The placed pier keeps the active site's foundation height");
             Near(placedPier.EndPosition.y, 1f, "The pier top follows the release Y");
             var undo = Field<Stack<HistoryAction>>(history, "undoStack");
             Check(undo.Count == 1 && undo.Peek().affectedObjects.Count == 3,
@@ -652,6 +657,7 @@ public static class MobileBridgeDrawingValidation
         }
         finally
         {
+            Set(location, "overridePierFoundation", false);
             SetProperty(typeof(CommandManager), "Instance", null, originalHistory);
             SetProperty(typeof(BuildUIController), "Instance", null, null);
         }

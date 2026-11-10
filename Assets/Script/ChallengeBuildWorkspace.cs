@@ -56,7 +56,7 @@ public sealed class ChallengeBuildWorkspace : IDisposable
             workspace.Root.SetActive(false);
             workspace.Location = workspace.Root.AddComponent<BuildLocation>();
             BuildLocation location = workspace.Location;
-            location.InitializeSessionChallenge(revision, MultiplayerChallengeRules.SiteKey(source));
+            location.InitializeSessionChallenge(revision, MultiplayerChallengeRules.SiteKey(source), source);
             location.enabled = false; // No interaction/story Update or Start on this proxy.
             workspace.contract = Object.Instantiate(definition);
             if (wideRoadWidthOverride.HasValue)

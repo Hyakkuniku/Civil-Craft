@@ -17,7 +17,10 @@ MonoBehaviour:
   introductionDescription: A concrete vertical support placed beneath a bridge to
     help carry loads and transfer them to the ground or foundation.
   introductionImage: {fileID: 0}
-  almanacDescription: 
+  almanacDescription: A Concrete Pier carries loads from a bridge joint down to
+    the foundation in compression. It can carry more compression than a Wood Pier
+    of the same height, and it adds more weight and cost. Check tall piers during
+    the test because their compression capacity drops as they get taller.
   almanacImage: {fileID: 0}
   costPerMeter: 900
   massPerMeter: 240

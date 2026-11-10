@@ -17,6 +17,10 @@ MonoBehaviour:
   introductionDescription: Used as the roadway of the bridge. Vehicles and other loads
     travel across this component. Build a continuous roadway between both sides and
     support it with structural members or piers.
+  almanacDescription: Wood Road gives vehicles a continuous path across the bridge.
+    It is light and inexpensive, which helps keep the bridge's own weight and cost
+    down. Connect each road segment to the next and use beams or piers to carry
+    the load toward the supports.
   costPerMeter: 300
   massPerMeter: 9
   maxLength: 10

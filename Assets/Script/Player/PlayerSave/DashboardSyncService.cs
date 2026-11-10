@@ -580,38 +580,30 @@ public sealed class DashboardSyncService : MonoBehaviour
 
     private static string AlmanacJson(DashboardAlmanacProgress almanac)
     {
-        // Omit optional provenance/review fields, not records. Repeating the
-        // entire media tree in MapProgress or null fields for every completion
-        // exceeds the established 10k nested/30k argument limits today.
+        // Keep IDs and turn-in dates visible to the existing CloudScript merge.
+        // Compact level fields preserve the current catalog within its size budget.
         var regions = new List<object>();
         foreach (DashboardRegion region in almanac.regions)
         {
             var levels = new List<object>();
             foreach (DashboardLevel level in region.levels)
             {
-                var row = new Dictionary<string, object> { { "levelId", level.levelId }, { "order", level.order },
-                    { "levelName", level.levelName }, { "status", level.status },
-                    { "engineeringConceptIds", level.engineeringConceptIds } };
+                var row = new Dictionary<string, object> {
+                    { "levelId", level.levelId },
+                    { "details", new object[] { level.levelName, level.status, level.engineeringConceptIds } }
+                };
                 DashboardCompletion c = level.completion;
                 if (c != null)
                 {
                     var completion = new Dictionary<string, object> {
-                        { "status", c.status }, { "bridgeTypeId", c.bridgeTypeId }, { "snapshot", null } };
-                    // The projection is private and the endpoint authenticates
-                    // its owner. playerId and the owning level/region IDs are
-                    // optional; stable parent IDs and strict snapshot IDs bind
-                    // every completion/image without repeating that ID twice.
-                    if (!string.IsNullOrEmpty(c.resultId)) completion["resultId"] = c.resultId;
+                        { "details", new object[] { c.bridgeTypeId, c.scoreKnown ? (object)c.score : null } },
+                        // The album entry and owner IDs are derived from this
+                        // level, region and result. Null clears an older photo.
+                        { "snapshot", c.snapshot == null ? null : EncodeAlbumBinding(c.snapshot) }
+                    };
+                    if (c.snapshot == null && !string.IsNullOrEmpty(c.resultId))
+                        completion["resultId"] = c.resultId;
                     if (!string.IsNullOrEmpty(c.completedAt)) completion["completedAt"] = c.completedAt;
-                    if (c.scoreKnown) completion["score"] = c.score;
-                    else completion["scoreKnown"] = false;
-                    if (c.snapshot != null)
-                        completion["snapshot"] = new Dictionary<string, object> {
-                            { "storage", c.snapshot.storage }, { "fileName", c.snapshot.fileName },
-                            { "contractId", c.snapshot.contractId }, { "regionId", c.snapshot.regionId },
-                            { "resultId", c.snapshot.resultId }, { "entryName", c.snapshot.entryName },
-                            { "sha256", c.snapshot.sha256 }
-                        };
                     row["completion"] = completion;
                 }
                 levels.Add(row);
@@ -620,12 +612,25 @@ public sealed class DashboardSyncService : MonoBehaviour
                 { "status", region.status }, { "levels", levels } });
         }
         var projection = new Dictionary<string, object> {
-            { "publisherVersion", 2 }, { "regions", regions }, { "levelsCompleted", almanac.levelsCompleted }, { "levelsTotal", almanac.levelsTotal },
+            { "publisherVersion", 2 }, { "contractEncoding", 1 }, { "regions", regions },
+            { "levelsCompleted", almanac.levelsCompleted }, { "levelsTotal", almanac.levelsTotal },
             { "journeyPercent", almanac.journeyPercent }, { "discoveredBridgeTypeIds", almanac.discoveredBridgeTypeIds },
-            { "discoveredMaterials", almanac.discoveredMaterials }, { "lessonRecords", almanac.lessonRecords },
+            { "discoveredMaterials", almanac.discoveredMaterials },
+            { "lessonRecords", almanac.lessonRecords.ConvertAll(lesson => lesson.lessonId) },
             { "quizAttempts", almanac.quizAttempts }
         };
         return PluginManager.GetPlugin<ISerializerPlugin>(PluginContract.PlayFab_Serializer).SerializeObject(projection);
+    }
+
+    private static string EncodeAlbumBinding(BridgePhotoSnapshot snapshot)
+    {
+        // ValidSnapshot already checked both hexadecimal values. Keep the
+        // result ID and checksum together so a photo cannot follow a redesign.
+        string hex = snapshot.resultId + snapshot.sha256;
+        var bytes = new byte[hex.Length / 2];
+        for (int i = 0; i < bytes.Length; i++)
+            bytes[i] = Convert.ToByte(hex.Substring(i * 2, 2), 16);
+        return Convert.ToBase64String(bytes);
     }
 
     private static string CompletionDate(PlayerData data, string contractId)
@@ -857,7 +862,9 @@ public sealed class DashboardSyncService : MonoBehaviour
     private static string MapMaterial(string id)
     {
         if (string.IsNullOrWhiteSpace(id)) return string.Empty;
-        switch (id.Trim().ToLowerInvariant())
+        string authoredId = id.Trim();
+        if (authoredId.Length > 200) return string.Empty;
+        switch (authoredId.ToLowerInvariant())
         {
             case "beam": return "wood_beam";
             case "pier": return "wood_support";
@@ -866,7 +873,8 @@ public sealed class DashboardSyncService : MonoBehaviour
             case "wood road": return "wood_road";
             case "concrete road": return "concrete_road";
             case "concretebeam": return "concrete_member";
-            default: return string.Empty;
+            // New materials use their authored ID in the website catalog.
+            default: return authoredId;
         }
     }
 

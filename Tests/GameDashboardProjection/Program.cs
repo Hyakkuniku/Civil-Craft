@@ -243,7 +243,7 @@ internal static class Program
         foreach(string path in Directory.GetFiles(Path.Combine(dataRoot,"Contract"),"*.asset",SearchOption.AllDirectories))
         {
             string text=File.ReadAllText(path),id=Scalar(text,"contractID");if(string.IsNullOrWhiteSpace(id)||Scalar(text,"hideFromLeaderboard")=="1")continue;
-            var contract=new ContractSO {ContractID=id,name=Scalar(text,"m_Name"),contractMap=(ContractSO.ContractMap)int.Parse(Scalar(text,"contractMap")),isStoryModeContract=Scalar(text,"isStoryModeContract")=="1"};
+            var contract=new ContractSO {ContractID=id,name=Scalar(text,"m_Name"),displayName=Scalar(text,"displayName"),contractMap=(ContractSO.ContractMap)int.Parse(Scalar(text,"contractMap")),isStoryModeContract=Scalar(text,"isStoryModeContract")=="1"};
             manager.allGameContracts.Add(contract);manager.CurrentData.completedContracts.Add(id);
             string resultId=(ordinal++).ToString("x32");
             manager.CurrentData.savedBridges.Add(new(){contractId=id,resultId=resultId,capturedAtUtc="2026-10-29T12:00:00.0000000Z",latestStarResult=new(){completed=true,efficient=true,strong=true},
@@ -269,7 +269,11 @@ internal static class Program
         }
         foreach(string path in Directory.GetFiles(Path.Combine(dataRoot,"Achievements"),"*.asset",SearchOption.AllDirectories))
         { string text=File.ReadAllText(path),id=Scalar(text,"achievementID");if(id.Length==0)continue;manager.allGameAchievements.Add(new(){achievementID=id,achievementName=Scalar(text,"achievementName"),description=Scalar(text,"description")});manager.CurrentData.unlockedAchievements.Add(id);manager.CurrentData.achievementUnlocks.Add(new(){achievementId=id,unlockedAtUtc="2026-10-29T12:00:00.0000000Z"}); }
-        manager.CurrentData.discoveredMaterialIds.AddRange(new[]{"Beam","Pier","RopeMaterial","Wood Road","Concrete Road","ConcreteBeam"});
+        foreach(string path in Directory.GetFiles(Path.Combine(dataRoot,"Resources"),"*.asset",SearchOption.AllDirectories))
+        {
+            string id=Scalar(File.ReadAllText(path),"materialId");
+            if(id.Length>0)manager.CurrentData.discoveredMaterialIds.Add(id);
+        }
         manager.CurrentData.cosmeticLoadout.accessoryIDs.AddRange(new[]{"EngineeringHardHat","Accessory_SafetyVest","Accessory_SmallCap"});
         manager.CurrentData.cosmeticLoadout.hairID="Hair_2";manager.CurrentData.cosmeticLoadout.shirtID="Shirt_Polo";manager.CurrentData.cosmeticLoadout.pantsID="Pants_3";manager.CurrentData.cosmeticLoadout.shoesID="Shoes_1";
         var payload=Invoke("BuildPayload",manager);var parameters=new Dictionary<string,object>();
@@ -277,8 +281,23 @@ internal static class Program
         int args=System.Text.Encoding.UTF8.GetByteCount(new Serializer().SerializeObject(parameters));
         string almanac=(string)parameters["almanacProgress"],map=(string)parameters["mapProgress"],reviews=(string)parameters["quizReviewProgress"];
         Console.WriteLine($"Current catalog budget: {manager.allGameContracts.Count} contracts, {manager.CurrentData.unlockedLessonIds.Count} lessons, {manager.CurrentData.quizResults.Count} quizzes, {manager.allGameAchievements.Count} achievements; Almanac={almanac.Length}, Map={map.Length}, QuizReviews={reviews.Length}, args UTF8={args}.");
+        var almanacDocument=JsonDocument.Parse(almanac).RootElement;
+        var materials=almanacDocument.GetProperty("discoveredMaterials").EnumerateArray().Select(item=>item.GetString()).ToHashSet();
+        Check(materials.Contains("wood_beam")&&materials.Contains("Concrete Pier")&&materials.Contains("SteelBeam")&&
+            materials.Contains("SteelPier")&&materials.Contains("SteelRope"),"The projection retains legacy aliases and newer material discoveries.");
         Check(JsonDocument.Parse(reviews).RootElement.GetProperty("reviews").GetArrayLength()==manager.CurrentData.quizResults.Count,"Every current quiz fits a compact review without truncation.");
         Check((bool)Invoke("ProjectionFits",payload,parameters),"Full current asset catalog must fit existing projection/argument limits.");
+        var projectedLevels=almanacDocument.GetProperty("regions").EnumerateArray().SelectMany(region=>region.GetProperty("levels").EnumerateArray()).ToArray();
+        Check(projectedLevels.Length==manager.allGameContracts.Count,"Every current contract remains in the compact projection.");
+        foreach(var level in projectedLevels)
+        {
+            var bridge=manager.CurrentData.savedBridges.Single(item=>item.contractId==level.GetProperty("levelId").GetString());
+            var albumBinding=level.GetProperty("completion").GetProperty("snapshot").GetString();
+            Check(Convert.ToHexString(Convert.FromBase64String(albumBinding)).ToLowerInvariant()==bridge.resultId+bridge.snapshot.sha256,
+                "The compact photo binding retains the exact result ID and digest for "+bridge.contractId+".");
+        }
+        Check(almanacDocument.GetProperty("lessonRecords").EnumerateArray().Select(record=>record.GetString()).ToHashSet()
+            .SetEquals(manager.CurrentData.unlockedLessonIds.Select(id=>id.Trim())),"Every real lesson discovery stays in the projection.");
         manager.CurrentData.savedBridges[0].snapshot=null;
         var sparsePayload=Invoke("BuildPayload",manager);var sparse=JsonDocument.Parse((string)sparsePayload.GetType().GetField("almanacProgress").GetValue(sparsePayload)).RootElement;
         var firstId=manager.CurrentData.savedBridges[0].contractId;

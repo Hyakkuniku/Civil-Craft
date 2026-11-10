@@ -228,7 +228,7 @@ public static class DeterministicBridgeStressSolver
             if (length <= 0m) continue;
 
             BridgeMaterialSO material = bar.materialData;
-            // BarCreator places player pier bases at pierBaseY and deliberately
+            // BarCreator places player pier bases at the site's foundation height and deliberately
             // leaves originalIsAnchor false. They are foundations even when bank
             // anchors exist. Only constrain the lower end: fixing both runtime
             // isAnchor endpoints would bypass the column and its buckling limit.

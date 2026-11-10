@@ -23,23 +23,23 @@ public static class BeamTutorialHouseAuthoring
     private static readonly string[] Greeting =
     {
         "Ah, you must be the young " + Em("civil engineer") + " I've been expecting.",
-        "You may already have some knowledge about engineering.",
-        "But " + Em("knowledge") + " and " + Em("experience") + " are two different things.",
-        Em("Arcadia") + " will give you the chance to put what you've learned into practice.",
-        "Every " + Em("project") + " you complete will teach you something new.",
+        "I'm Professor Bhan. Come in.",
+        "I heard you've been studying bridge construction.",
+        "Good. Out here, you'll get to put that to work.",
+        "I've been getting things ready for our first trip out.",
         "Before we begin, what should I call you?"
     };
 
     private static readonly string[] FetchAlmanac =
     {
         Em("{PlayerName}..."),
-        "A fitting name for someone beginning an engineering journey.",
-        "You'll be working on real bridge projects soon.",
-        "But first, there's something important you will need.",
-        "There is a book called the " + Em("Almanac") + ".",
-        "It will become your " + Em("engineering record") + " throughout your journey.",
-        "It won't only record your achievements.",
-        "It will also record the " + Em("lessons") + ", " + Em("discoveries") + ", and " + Em("projects") + " you encounter.",
+        "Welcome to " + Em("Arcadia") + ". Here in Canyon Crossing, a ravine can send a delivery miles out of its way.",
+        "A well-placed bridge gives people a shorter, safer route they can count on.",
+        "You know how structures carry loads. I'll help you use that knowledge on your first crossings.",
+        "We'll build, test, and revise our designs out in the field.",
+        "Before we go outside, you'll need the " + Em("Almanac") + ".",
+        "It's your " + Em("engineering record") + " of the lessons, discoveries, and projects you encounter.",
+        "Keep it handy. You'll refer to it as your projects get more demanding.",
         "Go to the other room and retrieve it."
     };
 

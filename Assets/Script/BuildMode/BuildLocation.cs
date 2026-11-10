@@ -9,11 +9,16 @@ public class BuildLocation : Interactable
     public int SessionChallengeRevision { get; private set; }
     public string SessionSourceSiteKey { get; private set; }
 
-    public void InitializeSessionChallenge(int revision, string sourceKey)
+    public void InitializeSessionChallenge(int revision, string sourceKey, BuildLocation source = null)
     {
         IsSessionChallengeLocation = true;
         SessionChallengeRevision = revision;
         SessionSourceSiteKey = sourceKey;
+        if (source != null)
+        {
+            overridePierFoundation = source.overridePierFoundation;
+            pierFoundationY = source.pierFoundationY;
+        }
     }
     [Header("Player-Carried Live Load")]
     [Tooltip("Exact scene cargo required for this location's player-carried contract test.")]
@@ -98,6 +103,12 @@ public class BuildLocation : Interactable
     [Header("Pre-placed Anchors")]
     public List<Point> startingAnchors = new List<Point>();
     public List<Point> endingAnchors = new List<Point>(); 
+
+    [SerializeField] private bool overridePierFoundation;
+    [SerializeField, Tooltip("World-space height where newly placed piers start at this site.")]
+    private float pierFoundationY = -10f;
+
+    internal float GetPierFoundationY(float defaultHeight) => overridePierFoundation ? pierFoundationY : defaultHeight;
 
     [SerializeField, Range(0.1f, 1f)]
     [Tooltip("Optional compatibility for a deliberately raised road anchor at this site. Existing saves may reuse the exact same X/Z permanent LeftAnchor or RightAnchor within this vertical distance. The default preserves normal 0.1 m matching; other saved nodes never move.")]

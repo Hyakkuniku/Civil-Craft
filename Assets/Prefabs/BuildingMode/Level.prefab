@@ -1637,6 +1637,8 @@ MonoBehaviour:
   - {fileID: 7041708869184496851}
   endingAnchors:
   - {fileID: 808856719226515779}
+  overridePierFoundation: 0
+  pierFoundationY: -10
   savedRoadAnchorVerticalTolerance: 0.1
   bakedBars: []
   bakedPoints: []

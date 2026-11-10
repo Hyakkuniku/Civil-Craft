@@ -126,6 +126,14 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
 
     [Header("Pier Settings")]
     public float pierBaseY = -10f; 
+    internal float ActivePierFoundationY
+    {
+        get
+        {
+            BuildLocation site = GameManager.Instance != null ? GameManager.Instance.ActiveBuildLocation : null;
+            return site != null ? site.GetPierFoundationY(pierBaseY) : pierBaseY;
+        }
+    }
     private Bar ghostPierBar; 
 
     [Header("Snapping Sensitivity")]
@@ -492,8 +500,8 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
 
                 Vector3 proposedPos = currentMoveAction.originalPositions[p] + finalDelta;
 
-                // Pier foundations intentionally sit at pierBaseY inside the
-                // terrain. Treating that contact as an obstruction makes every
+                // Pier foundations can touch or sit inside terrain. Treating
+                // that contact as an obstruction makes every
                 // pier drag invalid before the top has a chance to move.
                 if (!IsPierFoundationPoint(p) && Physics.CheckSphere(proposedPos, 0.2f, envMask))
                 {
@@ -579,7 +587,7 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
                             botPos.x = topPos.x;
                         else topPos.x = botPos.x;
                         
-                        if (!pBot.IsScenePlacedAnchor) botPos.y = pierBaseY;
+                        if (!pBot.IsScenePlacedAnchor) botPos.y = Mathf.Min(startY, endY);
                         
                         if (!pTop.IsScenePlacedAnchor)
                             topPos.y = Mathf.Clamp(topPos.y, botPos.y + 1f,
@@ -626,37 +634,16 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
 
                 Vector2 screenPos = GetPointerPosition();
                 Vector3 worldPos = GetWorldMousePosition(screenPos);
-                
-                float snapThreshold = 1.5f; 
-                float alignedX = worldPos.x;
-                float bridgeZ = GetBuildPlaneZ();
-
-                foreach (Point p in Point.AllPoints)
-                {
-                    if (p != null && p.gameObject.activeInHierarchy &&
-                        Mathf.Abs(p.transform.position.z - bridgeZ) <= nodeSnapDepthTolerance &&
-                        (GameManager.Instance == null || GameManager.Instance.ActiveBuildLocation == null ||
-                         p.OwnerLocation == null || p.OwnerLocation == GameManager.Instance.ActiveBuildLocation))
-                    {
-                        float xDiff = Mathf.Abs(p.transform.position.x - worldPos.x);
-                        if (xDiff < snapThreshold)
-                        {
-                            snapThreshold = xDiff;
-                            alignedX = p.transform.position.x;
-                        }
-                    }
-                }
-
-                Vector3 floorPos = new Vector3(alignedX, pierBaseY, bridgeZ);
-                float targetY = Mathf.Max(worldPos.y, pierBaseY + 0.5f); 
+                Vector3 floorPos = GetPierFoundation(worldPos);
+                float targetY = Mathf.Max(worldPos.y, floorPos.y + 0.5f);
                 
                 if (isGridSnappingEnabled)
                 {
                     targetY = Mathf.Round(targetY);
-                    if (targetY <= pierBaseY) targetY = pierBaseY + 1f;
+                    if (targetY <= floorPos.y) targetY = floorPos.y + 1f;
                 }
 
-                Vector3 targetPos = new Vector3(alignedX, targetY, bridgeZ);
+                Vector3 targetPos = new Vector3(floorPos.x, targetY, floorPos.z);
                 float maxLen = activeMaterial.maxLength;
                 
                 if (BuildUIController.Instance != null)
@@ -733,7 +720,7 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
                 currentBar.StartPosition = newStartPos;
                 
                 targetPos.x = alignedX;
-                if (targetPos.y <= pierBaseY + 0.5f) targetPos.y = pierBaseY + 1f;
+                if (targetPos.y <= newStartPos.y + 0.5f) targetPos.y = newStartPos.y + 1f;
             }
 
             float maxLen = activeMaterial != null ? activeMaterial.maxLength : 5f;

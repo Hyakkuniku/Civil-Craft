@@ -29,6 +29,13 @@ public class CinematicShot
     [Tooltip("Check this to display the Bridge Info Canvas during this specific shot.")]
     public bool showBridgeInfoCanvas = false;
 
+    [Tooltip("Optional visual-only actor, initially inactive and visible only for this shot.")]
+    public GameObject shotVisual;
+
+    [Header("Caption (Optional)")]
+    public string captionTitle;
+    [TextArea(1, 3)] public string captionText;
+
     [Header("Timing")]
     public AnimationCurve movementCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
     [Tooltip("Delay before moving to the next shot.")]
@@ -44,6 +51,9 @@ public class CinematicDirector : MonoBehaviour
     public bool playOnlyOnce = true;
     [Tooltip("If true, it plays automatically when the scene loads.")]
     public bool playOnStart = true;
+
+    [Tooltip("Wait for the scene loading overlay to close before autoplay.")]
+    public bool waitForLoadingScreen;
 
     [Header("Actors")]
     public Camera cinematicCamera;
@@ -112,6 +122,8 @@ public class CinematicDirector : MonoBehaviour
     private readonly Dictionary<GameObject, bool> fallbackHudStates = new Dictionary<GameObject, bool>();
     private readonly Dictionary<Canvas, bool> fallbackCanvasStates = new Dictionary<Canvas, bool>();
 
+    private CinematicCaptionOverlay captionOverlay;
+    private GameObject activeShotVisual;
     private GameObject dynamicallySpawnedRockTrail;
 
     private void Start()
@@ -120,8 +132,21 @@ public class CinematicDirector : MonoBehaviour
 
         if (playOnStart)
         {
+            if (waitForLoadingScreen)
+            {
+                StartCoroutine(PlayAfterLoading());
+                return;
+            }
             PlayCinematic();
         }
+    }
+
+    private IEnumerator PlayAfterLoading()
+    {
+        // Let the loaded scene finish startup before hiding UI and taking the camera.
+        yield return null;
+        while (LoadingScreenManager.IsLoading) yield return null;
+        PlayCinematic();
     }
 
     public void PlayCinematic()
@@ -219,8 +244,11 @@ public class CinematicDirector : MonoBehaviour
 
         foreach (CinematicShot shot in shots)
         {
-            if (shot != null) yield return StartCoroutine(PlayShot(shot));
+            if (shot != null) yield return PlayShot(shot);
         }
+
+        HideShotVisual();
+        captionOverlay?.Hide();
 
         if (cinematicCamera != null)
         {
@@ -269,6 +297,7 @@ public class CinematicDirector : MonoBehaviour
             if (ps != null) ps.Clear();
 
             dynamicallySpawnedRockTrail.SetActive(true);
+            dynamicallySpawnedRockTrail = null;
         }
 
         if (playerAnimator != null && shotHasWalked)
@@ -299,6 +328,12 @@ public class CinematicDirector : MonoBehaviour
         StopAllCoroutines();
         EndCinematicUIIsolation();
         isPlaying = false;
+        HideShotVisual();
+        if (dynamicallySpawnedRockTrail != null)
+        {
+            dynamicallySpawnedRockTrail.SetActive(true);
+            dynamicallySpawnedRockTrail = null;
+        }
         RestoreCancelledShot();
         ReleaseOcclusionSuspension();
     }
@@ -415,6 +450,9 @@ public class CinematicDirector : MonoBehaviour
 
     private void EndCinematicUIIsolation()
     {
+        captionOverlay?.Destroy();
+        captionOverlay = null;
+
         // Close the coordinator first so our saved state is the FINAL state applied.
         if (cinematicPanelFrameOpen && coordinatedCinematicPanel != null &&
             UIPanelCoordinator.Instance != null)
@@ -453,6 +491,24 @@ public class CinematicDirector : MonoBehaviour
         fallbackCanvasStates.Clear();
     }
 
+    private void HideShotVisual()
+    {
+        if (activeShotVisual != null) activeShotVisual.SetActive(false);
+        activeShotVisual = null;
+    }
+
+    private void SetShotCaption(CinematicShot shot)
+    {
+        if (string.IsNullOrWhiteSpace(shot.captionTitle) && string.IsNullOrWhiteSpace(shot.captionText))
+        {
+            captionOverlay?.Hide();
+            return;
+        }
+
+        captionOverlay ??= new CinematicCaptionOverlay(gameObject.scene);
+        captionOverlay.Show(shot.captionTitle, shot.captionText);
+    }
+
     private IEnumerator PlayShot(CinematicShot shot)
     {
         if (cinematicCamera == null) yield break;
@@ -474,7 +530,22 @@ public class CinematicDirector : MonoBehaviour
         // still gets its full duration and the info panel does not flash early.
         if (bridgeInfoCanvas != null) bridgeInfoCanvas.SetActive(false);
         if (playerAnimator != null) SetWalkAnimation(false);
-        yield return BlendCamera(camStartPos, camStartRot, cameraTransitionDuration);
+        if (cameraTransitionDuration > 0f)
+        {
+            HideShotVisual();
+            captionOverlay?.Hide();
+            yield return BlendCamera(camStartPos, camStartRot, cameraTransitionDuration);
+        }
+        else
+        {
+            cinematicCamera.transform.SetPositionAndRotation(camStartPos, camStartRot);
+        }
+
+        HideShotVisual();
+        activeShotVisual = shot.shotVisual;
+        if (activeShotVisual != null) activeShotVisual.SetActive(true);
+
+        SetShotCaption(shot);
 
         if (shot.playerStartPoint != null && playerActor != null) playerActor.position = playerStartPos;
 
@@ -499,6 +570,7 @@ public class CinematicDirector : MonoBehaviour
         while (elapsed < shot.duration)
         {
             elapsed += Time.deltaTime;
+            captionOverlay?.SetProgress(elapsed, shot.duration);
             float t = shot.movementCurve.Evaluate(elapsed / shot.duration);
 
             if (dynamicallySpawnedRockTrail == null)
@@ -558,6 +630,8 @@ public class CinematicDirector : MonoBehaviour
 
         if (shot.postShotDelay > 0f)
         {
+            HideShotVisual();
+            captionOverlay?.Hide();
             yield return new WaitForSeconds(shot.postShotDelay);
         }
     }

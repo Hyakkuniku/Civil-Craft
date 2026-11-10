@@ -43,7 +43,7 @@ public sealed class ChallengeBridgeTestRun : IDisposable
             run.Root.SetActive(false);
             SceneManager.MoveGameObjectToScene(run.Root, site.gameObject.scene);
             run.Location = run.Root.AddComponent<BuildLocation>();
-            run.Location.InitializeSessionChallenge(revision, MultiplayerChallengeRules.SiteKey(site));
+            run.Location.InitializeSessionChallenge(revision, MultiplayerChallengeRules.SiteKey(site), site);
             run.Location.enabled = false;
             run.Location.locationCamera = site.locationCamera;
             run.contract = Object.Instantiate(definition);
