@@ -304,6 +304,7 @@ public sealed class ChallengeBridgeTestView : IDisposable
     public int TargetCount => targets.Count;
     private readonly List<Transform> targets = new List<Transform>();
     private readonly List<Renderer[]> memberRenderers = new List<Renderer[]>();
+    private readonly List<BridgeMaterialSO> memberMaterials = new List<BridgeMaterialSO>();
     private readonly Dictionary<Renderer, Color[]> originalColors = new Dictionary<Renderer, Color[]>();
     private readonly Dictionary<int, Renderer[]> boatRenderers = new Dictionary<int, Renderer[]>();
     private readonly Dictionary<Renderer, bool> boatRendererStates = new Dictionary<Renderer, bool>();
@@ -343,6 +344,7 @@ public sealed class ChallengeBridgeTestView : IDisposable
     private struct Sample
     {
         public bool Received;
+        public bool BreakSoundHandled;
         public int Sequence;
         public float Time;
         public float RopeLength;
@@ -377,6 +379,7 @@ public sealed class ChallengeBridgeTestView : IDisposable
                     originalColors[renderer] = colors;
                 }
                 BridgeMaterialSO material = materials[descriptor.Bridge.Bars[i].MaterialId];
+                memberMaterials.Add(material);
                 if (Application.isPlaying && !material.isRope)
                 {
                     float length = renderers.Length > 0 ? renderers[0].bounds.size.magnitude : 1f;
@@ -503,6 +506,14 @@ public sealed class ChallengeBridgeTestView : IDisposable
             if (index >= memberRenderers.Count) continue;
             float stress = (chunk.Stress[j] & 0x3fff) / 16383f;
             bool isBroken = (chunk.Stress[j] & 0x8000) != 0;
+            if (isBroken && !sample.BreakSoundHandled)
+            {
+                // Reliable final poses and later motion packets repeat this bit.
+                // A member can announce its fracture only once per test view.
+                sample.BreakSoundHandled = true;
+                samples[index] = sample;
+                MaterialBreakAudio.Play(memberMaterials[index]);
+            }
             if (ropes.TryGetValue(index, out var lines))
             {
                 foreach (Renderer renderer in memberRenderers[index]) renderer.enabled = false;
@@ -631,7 +642,7 @@ public sealed class ChallengeBridgeTestView : IDisposable
         impactSources.Clear();
         foreach (Transform boat in wakeBoats) BoatWaterWake.Unregister(boat);
         wakeBoats.Clear();
-        geometry?.Dispose(); geometry = null; targets.Clear(); memberRenderers.Clear(); originalColors.Clear(); ropes.Clear(); boatRenderers.Clear(); boatRendererStates.Clear();
+        geometry?.Dispose(); geometry = null; targets.Clear(); memberRenderers.Clear(); memberMaterials.Clear(); originalColors.Clear(); ropes.Clear(); boatRenderers.Clear(); boatRendererStates.Clear();
         ropeTints.Clear();
         samples = null; history = null;
         if (ropeMaterial != null)

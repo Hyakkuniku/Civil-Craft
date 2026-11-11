@@ -1,0 +1,261 @@
+{
+  "pack": "Civil Craft - Build Tools",
+  "wired_to_gameplay": true,
+  "format": "Dry mono 44.1 kHz / 16-bit PCM WAV",
+  "style": "Clear tactile construction, pencil, paper and damped tool contact; no ambience",
+  "sounds": [
+    {
+      "action": "Select",
+      "label": "Select tool",
+      "sfx_id": "Build_Select",
+      "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_select.wav",
+      "audio_guid": "d52d2ae4829f4167b5082eb9d1b7c6ec",
+      "seconds": 0.2,
+      "peak_dbfs": -3.5,
+      "rms_dbfs": -17.21,
+      "sha256": "0078fe5b943be448a8a332d9a23f8cb573a3853938b7e892540b332e1dc2b81c"
+    },
+    {
+      "action": "Move",
+      "label": "Move tool",
+      "sfx_id": "Build_Move",
+      "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_move.wav",
+      "audio_guid": "552849c57f7a41f0bd0a5da29b775634",
+      "seconds": 0.27,
+      "peak_dbfs": -3.5,
+      "rms_dbfs": -15.33,
+      "sha256": "b41d429a0775f7478bf04a9e132fadd81dab0c6d0726e3d11c9f320b7febb6f5"
+    },
+    {
+      "action": "Erase",
+      "label": "Eraser tool",
+      "sfx_id": "Build_Erase",
+      "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_erase.wav",
+      "audio_guid": "c1f820e39c3d4b269dd119f993eebbc2",
+      "seconds": 0.25,
+      "peak_dbfs": -3.5,
+      "rms_dbfs": -17.44,
+      "sha256": "ce2db1f2ceea8b533b8d5df592cf828238fc47e311c523f839c00e7ced97a4e9"
+    },
+    {
+      "action": "GridOn",
+      "label": "Grid on",
+      "sfx_id": "Build_GridOn",
+      "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_grid_on.wav",
+      "audio_guid": "94c35e72628f4aa2803b5549e4250cbe",
+      "seconds": 0.23,
+      "peak_dbfs": -3.5,
+      "rms_dbfs": -16.8,
+      "sha256": "55236f6c796e8002961a8346aeae1f3f647f2ca0be4e9dd2c7eef11652a5a4a5"
+    },
+    {
+      "action": "GridOff",
+      "label": "Grid off",
+      "sfx_id": "Build_GridOff",
+      "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_grid_off.wav",
+      "audio_guid": "ec0d8b895b06444faa25a4c5a803a8f8",
+      "seconds": 0.23,
+      "peak_dbfs": -3.5,
+      "rms_dbfs": -16.7,
+      "sha256": "299eeac12caeffc359ec828f573e2f8f24e3ef1207663274c45c3234c5ec7466"
+    },
+    {
+      "action": "CancelDrawing",
+      "label": "Cancel drawing",
+      "sfx_id": "Build_CancelDrawing",
+      "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_cancel_drawing.wav",
+      "audio_guid": "bd0cfa056b7f41bdb70ea6e461ff1769",
+      "seconds": 0.22,
+      "peak_dbfs": -3.5,
+      "rms_dbfs": -17.54,
+      "sha256": "1ca850c1895614ec331345153302bb387ea891220968d500938f41882ceb913d"
+    },
+    {
+      "action": "Exit",
+      "label": "Exit build mode",
+      "sfx_id": "Build_Exit",
+      "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_exit.wav",
+      "audio_guid": "faec00a1a8064bd8a02adfae1d540c65",
+      "seconds": 0.3,
+      "peak_dbfs": -3.5,
+      "rms_dbfs": -16.43,
+      "sha256": "77eb42af7c2b376fe3b7d0a7ed8191d24dcf2f5e8def9bead6a425ed0cf1fcfc"
+    },
+    {
+      "action": "ResetCamera",
+      "label": "Reset camera",
+      "sfx_id": "Build_ResetCamera",
+      "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_reset_camera.wav",
+      "audio_guid": "ae3d475bb41c480cb16e177d8db03c4c",
+      "seconds": 0.27,
+      "peak_dbfs": -3.5,
+      "rms_dbfs": -16.97,
+      "sha256": "d128fb7d0b2407d9bd8ed66459ae5ef68d225d7a0e69c471238899b0fff30e11"
+    },
+    {
+      "action": "StatisticsOpen",
+      "label": "Open statistics",
+      "sfx_id": "Build_StatisticsOpen",
+      "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_statistics_open.wav",
+      "audio_guid": "426a7a0afe0e4d59ae1bd5ec2a65595a",
+      "seconds": 0.3,
+      "peak_dbfs": -3.5,
+      "rms_dbfs": -15.86,
+      "sha256": "6ff3f996c33d7600c25f141152ea535879f8576df5519f306f0843653ebc0e6b"
+    },
+    {
+      "action": "StatisticsClose",
+      "label": "Close statistics",
+      "sfx_id": "Build_StatisticsClose",
+      "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_statistics_close.wav",
+      "audio_guid": "9407907468c34c8fa88de4c440f0395f",
+      "seconds": 0.27,
+      "peak_dbfs": -3.5,
+      "rms_dbfs": -17.26,
+      "sha256": "90e1ce94ebe1c8d0743b66358dd31362efd747d55856f5bac32321f33b7d94a7"
+    },
+    {
+      "action": "Cut",
+      "label": "Cut",
+      "sfx_id": "Build_Cut",
+      "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_cut.wav",
+      "audio_guid": "aa7e0fb0cc4d463a99125400e77480e0",
+      "seconds": 0.24,
+      "peak_dbfs": -3.5,
+      "rms_dbfs": -16.88,
+      "sha256": "076130c415cada6e43baf662928567c6737f61092ca2128a64fd9a0ba49b0ac9"
+    },
+    {
+      "action": "Copy",
+      "label": "Copy",
+      "sfx_id": "Build_Copy",
+      "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_copy.wav",
+      "audio_guid": "207e88cad06a4198abc9206c2c32e3b6",
+      "seconds": 0.25,
+      "peak_dbfs": -3.5,
+      "rms_dbfs": -16.64,
+      "sha256": "9f3e9fa6279127f0d9cdefdca406428d66a89ac240e5985d0d9de5ec4172cd69"
+    },
+    {
+      "action": "Paste",
+      "label": "Paste",
+      "sfx_id": "Build_Paste",
+      "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_paste.wav",
+      "audio_guid": "6bd8b048b3014f618f67a3ce1a3b5b8d",
+      "seconds": 0.28,
+      "peak_dbfs": -3.5,
+      "rms_dbfs": -19.28,
+      "sha256": "bd8e6d87d9c8142b070e0b18915d0e9fe0a1f46f672851e879c8e871f2ed3c57"
+    },
+    {
+      "action": "Undo",
+      "label": "Undo",
+      "sfx_id": "Build_Undo",
+      "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_undo.wav",
+      "audio_guid": "2b15f4ef9d2e4eac99de4cc3b75f0423",
+      "seconds": 0.31,
+      "peak_dbfs": -3.5,
+      "rms_dbfs": -16.51,
+      "sha256": "08acb36226833f6c59c4c0c6ee74f89ce14ff535b0db3dae0e0b853853744978"
+    },
+    {
+      "action": "Redo",
+      "label": "Redo",
+      "sfx_id": "Build_Redo",
+      "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_redo.wav",
+      "audio_guid": "e7029b08cd2c437592a668eccb02a7fa",
+      "seconds": 0.31,
+      "peak_dbfs": -3.5,
+      "rms_dbfs": -15.65,
+      "sha256": "cd2783feea2bc536112797559926666423deb78c493563214dfe287c492e2139"
+    },
+    {
+      "action": "DeleteSelected",
+      "label": "Delete selection",
+      "sfx_id": "Build_DeleteSelected",
+      "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_delete_selected.wav",
+      "audio_guid": "605a8e2c3d43419ea383afe58c5c1074",
+      "seconds": 0.28,
+      "peak_dbfs": -3.5,
+      "rms_dbfs": -18.26,
+      "sha256": "6dbbed12a395560834fcd22bd17f9de294c26dec5fa05d7d64a472cc89acf93c"
+    },
+    {
+      "action": "Simulate",
+      "label": "Start simulation",
+      "sfx_id": "Build_Simulate",
+      "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_simulate.wav",
+      "audio_guid": "c97e6731d8ce44ed8bb04d9e70cabbb7",
+      "seconds": 0.34,
+      "peak_dbfs": -3.5,
+      "rms_dbfs": -17.7,
+      "sha256": "99dba7fe4a02a93a1d9b0a5273ceaef5488790dad942ed43b7510c693a5950b1"
+    },
+    {
+      "action": "StopSimulation",
+      "label": "Stop simulation",
+      "sfx_id": "Build_StopSimulation",
+      "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_stop_simulation.wav",
+      "audio_guid": "3bfdc2cd884e457e936f8dd7e31cba52",
+      "seconds": 0.29,
+      "peak_dbfs": -3.5,
+      "rms_dbfs": -17.88,
+      "sha256": "a3a9324cc9df2bb436add9bd4c3b30beb7b373499fe6fca8f99d2a9ffa6dd825"
+    },
+    {
+      "action": "ClearSelection",
+      "label": "Clear selection",
+      "sfx_id": "Build_ClearSelection",
+      "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_clear_selection.wav",
+      "audio_guid": "1c27e10641b9492db2d5f6d0f2e68382",
+      "seconds": 0.2,
+      "peak_dbfs": -3.5,
+      "rms_dbfs": -17.4,
+      "sha256": "b36aff2af693fd42a1695526919f478a279a116e634ec5fcca3747139e680f01"
+    },
+    {
+      "action": "EraseStroke",
+      "label": "Erase stroke",
+      "sfx_id": "Build_EraseStroke",
+      "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_erase_stroke.wav",
+      "audio_guid": "f53f03d5c6024eafba92e701fcad8725",
+      "seconds": 0.27,
+      "peak_dbfs": -3.5,
+      "rms_dbfs": -19.17,
+      "sha256": "4037e5334698ac015124f430a82cfa8d126eb2259b3695b057c24c4f63dde16f"
+    },
+    {
+      "action": "MovePlaced",
+      "label": "Finish move / merge",
+      "sfx_id": "Build_MovePlaced",
+      "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_move_placed.wav",
+      "audio_guid": "a6830675e837481e816abc58ec49a379",
+      "seconds": 0.24,
+      "peak_dbfs": -3.5,
+      "rms_dbfs": -15.8,
+      "sha256": "be05626c1dfce538cb3dea87d1cbf470313e8ce478cab4003a159bdfffdebaf5"
+    },
+    {
+      "action": "SelectionChanged",
+      "label": "Select member / point",
+      "sfx_id": "Build_SelectionChanged",
+      "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_selection_changed.wav",
+      "audio_guid": "36af066f0fab42ba8d6de28303bce62d",
+      "seconds": 0.16,
+      "peak_dbfs": -4.5,
+      "rms_dbfs": -17.12,
+      "sha256": "512eddc0c959243c444a5d5bfd5c9149bf0c882b842ccf7ccae97420da595a48"
+    },
+    {
+      "action": "CameraRotate",
+      "label": "Rotate camera",
+      "sfx_id": "Build_CameraRotate",
+      "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_camera_rotate.wav",
+      "audio_guid": "d1f14bdb64cb4cdab40df29b408cc60b",
+      "seconds": 0.26,
+      "peak_dbfs": -3.5,
+      "rms_dbfs": -14.97,
+      "sha256": "ca1c78bba0dd12b6db1670e9228cb48d502933ec54a872fbbfbf5439e2f05b55"
+    }
+  ]
+}

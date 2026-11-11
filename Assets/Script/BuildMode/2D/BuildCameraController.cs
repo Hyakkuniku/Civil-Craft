@@ -74,6 +74,8 @@ public class BuildCameraController : MonoBehaviour
 
     private bool isInitialized = false;
     private float lockedZPosition; 
+    private float MinimumOrthographicZoom => Mathf.Min(minZoom, defaultOrthographicSize);
+    private float MaximumOrthographicZoom => Mathf.Max(maxZoom, defaultOrthographicSize);
 
     private HashSet<int> uiTouches = new HashSet<int>();
     // Reuse this buffer while fingers move; allocating a List every rendered
@@ -203,7 +205,7 @@ public class BuildCameraController : MonoBehaviour
 
                 if (Mathf.Abs(zoomDelta) > 0.001f)
                 {
-                    if (activeCamera.orthographic) activeCamera.orthographicSize = Mathf.Clamp(activeCamera.orthographicSize + zoomDelta, minZoom, maxZoom);
+                    if (activeCamera.orthographic) activeCamera.orthographicSize = Mathf.Clamp(activeCamera.orthographicSize + zoomDelta, MinimumOrthographicZoom, MaximumOrthographicZoom);
                     else activeCamera.fieldOfView = Mathf.Clamp(activeCamera.fieldOfView + zoomDelta, minZoom, maxZoom);
                 }
 
@@ -256,7 +258,7 @@ public class BuildCameraController : MonoBehaviour
             if (Mathf.Abs(scroll) > 0.001f && !IsPointerOverUI(mousePosition))
             {
                 float zoomDelta = scroll * -pcZoomSpeed;
-                if (activeCamera.orthographic) activeCamera.orthographicSize = Mathf.Clamp(activeCamera.orthographicSize + zoomDelta, minZoom, maxZoom);
+                if (activeCamera.orthographic) activeCamera.orthographicSize = Mathf.Clamp(activeCamera.orthographicSize + zoomDelta, MinimumOrthographicZoom, MaximumOrthographicZoom);
                 else activeCamera.fieldOfView = Mathf.Clamp(activeCamera.fieldOfView + zoomDelta, minZoom, maxZoom);
             }
 
@@ -313,8 +315,8 @@ public class BuildCameraController : MonoBehaviour
     private void ApplyConstraints()
     {
         Vector3 localPos = activeCamera.transform.localPosition;
-        localPos.x = Mathf.Clamp(localPos.x, minHorizontal, maxHorizontal);
-        localPos.y = Mathf.Clamp(localPos.y, minHeight, maxHeight);
+        localPos.x = Mathf.Clamp(localPos.x, Mathf.Min(minHorizontal, defaultLocalPosition.x), Mathf.Max(maxHorizontal, defaultLocalPosition.x));
+        localPos.y = Mathf.Clamp(localPos.y, Mathf.Min(minHeight, defaultLocalPosition.y), Mathf.Max(maxHeight, defaultLocalPosition.y));
         localPos.z = lockedZPosition;
         activeCamera.transform.localPosition = localPos;
     }
@@ -336,6 +338,7 @@ public class BuildCameraController : MonoBehaviour
 
         activeCamera.transform.localRotation = Quaternion.Euler(newPitch, activeCamera.transform.localEulerAngles.y, activeCamera.transform.localEulerAngles.z);
         ApplyConstraints();
+        BuildToolAudio.Play(BuildToolSound.CameraRotate);
     }
 
     public void ResetCameraRotation()
@@ -344,6 +347,7 @@ public class BuildCameraController : MonoBehaviour
         if (activeCamera == null)
             return;
 
+        BuildToolAudio.Play(BuildToolSound.ResetCamera);
         if (!hasDefaultCameraState || defaultStateCamera != activeCamera)
             CaptureDefaultCameraState(activeCamera);
 
@@ -354,6 +358,9 @@ public class BuildCameraController : MonoBehaviour
         }
 
         isInSimTransition = false;
+        if (GameManager.Instance != null &&
+            FrameBuildLocation(GameManager.Instance.ActiveBuildLocation))
+            return;
         activeCamera.transform.localPosition = defaultLocalPosition;
         activeCamera.transform.localRotation = defaultLocalRotation;
 
@@ -363,6 +370,22 @@ public class BuildCameraController : MonoBehaviour
             activeCamera.fieldOfView = defaultFieldOfView;
 
         lockedZPosition = defaultLocalPosition.z;
+    }
+
+    public bool FrameBuildLocation(BuildLocation location)
+    {
+        if (!BuildCameraFraming.TryFrame(location)) return false;
+        if (simTransitionRoutine != null)
+        {
+            StopCoroutine(simTransitionRoutine);
+            simTransitionRoutine = null;
+        }
+        isInSimTransition = false;
+        activeCamera = location.locationCamera;
+        cameraDefaultStates.Remove(activeCamera);
+        CaptureDefaultCameraState(activeCamera);
+        isInitialized = true;
+        return true;
     }
 
     private void ResolveActiveCamera()

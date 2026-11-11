@@ -13,6 +13,9 @@ MonoBehaviour:
   m_Name: Concrete Pier
   m_EditorClassIdentifier: 
   materialId: Concrete Pier
+  equipSfxId: Equip_ConcretePier
+  placeSfxId: Place_ConcretePier
+  breakSfxId: Break_ConcretePier
   displayName: Concrete Pier
   introductionDescription: A concrete vertical support placed beneath a bridge to
     help carry loads and transfer them to the ground or foundation.

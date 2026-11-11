@@ -4,6 +4,9 @@ using UnityEngine;
 
 public sealed partial class FusionMultiplayerAvatar
 {
+    [Header("Chat Audio")]
+    [Tooltip("AudioManager SFX ID for a new message from another player.")]
+    [SerializeField] private string incomingMessageSfxId = "PlayerMessage";
     public static event Action<NetworkRunner, int, string, string> ChatMessageReceived;
     private float nextLocalChatTime;
     private float nextServerChatTime;
@@ -59,6 +62,14 @@ public sealed partial class FusionMultiplayerAvatar
     {
         if (!IsSessionHost || sequence <= lastDeliveredChatSequence) return;
         lastDeliveredChatSequence = sequence;
+        // Play at the deduplicated delivery point, even while chat is closed.
+        // The authenticated PlayerRef distinguishes peers with identical names.
+        FusionConnectionManager connection = FusionConnectionManager.Instance;
+        if (Runner != null && Runner.IsRunning && sender != PlayerRef.None && sender != Runner.LocalPlayer &&
+            connection != null && connection.Runner == Runner && connection.IsHostWorldSession &&
+            !connection.IsNetworkSceneLoading && !string.IsNullOrWhiteSpace(message) &&
+            AudioManager.Instance != null && !string.IsNullOrWhiteSpace(incomingMessageSfxId))
+            AudioManager.Instance.PlaySFX(incomingMessageSfxId);
         // Identity comes from the validated avatar, never from typed names. Do not
         // replay a bubble later if its sender is no longer spawned on this client.
         if (Runner != null && Runner.TryGetPlayerObject(sender, out NetworkObject player) &&

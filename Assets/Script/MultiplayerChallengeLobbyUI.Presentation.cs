@@ -96,6 +96,12 @@ public sealed partial class MultiplayerChallengeLobbyUI
     [SerializeField] private TMP_Text resultsHostDetails;
     [SerializeField] private TMP_Text resultsGuestDetails;
 
+    [Header("Challenge Result Audio")]
+    [SerializeField] private string victorySfxId = "Level_Complete";
+    [SerializeField] private string defeatSfxId = "Level_Fail";
+    private Fusion.NetworkRunner resultAudioRunner;
+    private int resultAudioRevision = int.MinValue;
+
     private static MultiplayerChallengeLobbyUI presentationOwner;
     private bool statusExpanded;
     private string lastSubmissionNotice;
@@ -217,6 +223,7 @@ public sealed partial class MultiplayerChallengeLobbyUI
 
     private void RefreshResultsPresentation(MultiplayerChallengeState state, string hostPlayer, string guestPlayer)
     {
+        PlayResultSoundOnce(state);
         string winner = state.Winner == ChallengeWinner.Host ? "WINNER: " + hostPlayer :
             state.Winner == ChallengeWinner.Guest ? "WINNER: " + guestPlayer :
             state.Winner == ChallengeWinner.Draw ? "DRAW — equal scores" : "NO WINNER — neither bridge qualified";
@@ -237,6 +244,28 @@ public sealed partial class MultiplayerChallengeLobbyUI
             ResultsDetails(state.GuestTestOutcome, state.GuestSubmittedCost, state.ChallengeBudget, state.GuestPeakStress) +
             ParticipantResults(state, state.GuestLiveLoadPassedMask, state.GuestLiveLoadFailedMask));
         RefreshResultPortraits(state);
+    }
+
+    private void PlayResultSoundOnce(MultiplayerChallengeState state)
+    {
+        if (boundRunner == null || !boundRunner.IsRunning || host == null ||
+            host.Object == null || !host.Object.IsValid || resultsPanel == null ||
+            !resultsPanel.activeInHierarchy || AudioManager.Instance == null ||
+            resultAudioRunner == boundRunner && resultAudioRevision == state.Revision) return;
+
+        // Reuse the final authoritative participant outcome used by the victory
+        // and crying animations. Draws, pending tests and cancelled matches are neutral.
+        ChallengeReaction reaction = ChallengeReactionPolicy.ForParticipant(state, state.Result,
+            boundRunner.LocalPlayer, host.Object.InputAuthority);
+        if (reaction == ChallengeReaction.None) return;
+        string sfxId = reaction == ChallengeReaction.Winning ? victorySfxId : defeatSfxId;
+        if (string.IsNullOrWhiteSpace(sfxId)) return;
+
+        // Results are refreshed every frame; closing/reopening their panel must
+        // not replay the cue. A new runner or challenge revision can play again.
+        resultAudioRunner = boundRunner;
+        resultAudioRevision = state.Revision;
+        AudioManager.Instance.PlaySFX(sfxId);
     }
 
     private static string ParticipantResults(MultiplayerChallengeState state, int passed, int failed)

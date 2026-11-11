@@ -124,6 +124,7 @@ public class CommandManager : MonoBehaviour
     {
         if (GameManager.Instance != null && GameManager.Instance.IsSessionChallengeBuild &&
             !GameManager.Instance.CanEditSessionChallengeBuild) return;
+        if (undoStack.Count == 0) return;
         BarCreator barCreator = FindObjectOfType<BarCreator>();
         if (barCreator != null && (barCreator.isSimulating || undoStack.Count == 0 || (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building))) return;
         
@@ -150,6 +151,7 @@ public class CommandManager : MonoBehaviour
             BuildUIController.Instance.LogAction("Undid Last Action");
         }
 
+        BuildToolAudio.Play(BuildToolSound.Undo);
         if (BuildTutorialDirector.Instance != null)
             BuildTutorialDirector.Instance.OnHistoryActionUndone(action);
     }
@@ -158,6 +160,7 @@ public class CommandManager : MonoBehaviour
     {
         if (GameManager.Instance != null && GameManager.Instance.IsSessionChallengeBuild &&
             !GameManager.Instance.CanEditSessionChallengeBuild) return;
+        if (redoStack.Count == 0) return;
         BarCreator barCreator = FindObjectOfType<BarCreator>();
         if (barCreator != null && (barCreator.isSimulating || redoStack.Count == 0 || (GameManager.Instance != null && GameManager.Instance.CurrentState != GameManager.GameState.Building))) return;
         
@@ -185,6 +188,7 @@ public class CommandManager : MonoBehaviour
         }
 
 
+        BuildToolAudio.Play(BuildToolSound.Redo);
         if (BuildTutorialDirector.Instance != null)
             BuildTutorialDirector.Instance.OnHistoryActionRedone(action);
     }

@@ -13,6 +13,9 @@ MonoBehaviour:
   m_Name: SteelRope
   m_EditorClassIdentifier:
   materialId: SteelRope
+  equipSfxId: Equip_SteelRope
+  placeSfxId: Place_SteelRope
+  breakSfxId: Break_SteelRope
   displayName: Steel Rope
   introductionDescription: A strong steel cable for suspending a bridge deck.
     Connect it to secure anchors so it can support the deck in tension.

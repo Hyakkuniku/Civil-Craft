@@ -13,6 +13,9 @@ MonoBehaviour:
   m_Name: SteelBeam
   m_EditorClassIdentifier:
   materialId: SteelBeam
+  equipSfxId: Equip_SteelBeam
+  placeSfxId: Place_SteelBeam
+  breakSfxId: Break_SteelBeam
   displayName: Steel Beam
   introductionDescription: A rigid steel member for longer spans and heavier loads.
     Use it in trusses and braces that need to carry both tension and compression.

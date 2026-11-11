@@ -63,6 +63,31 @@ public sealed class CampaignEdgeGuards : MonoBehaviour
 
     public static int ExcludeFrom(int layers) => layers & ~GuardMask;
 
+    /// <summary>Map navigation follows the authored campaign perimeter even when guard collisions are off.</summary>
+    public bool TryGetMapBounds(out Bounds bounds)
+    {
+        bounds = default;
+        if (guardRoot == null) return false;
+        bool found = false;
+        foreach (BoxCollider guard in guardRoot.GetComponentsInChildren<BoxCollider>(true))
+        {
+            if (guard.gameObject.layer != LayerIndex) continue;
+            Vector3 half = guard.size * .5f;
+            for (int corner = 0; corner < 8; corner++)
+            {
+                Vector3 local = guard.center + new Vector3(
+                    (corner & 1) == 0 ? -half.x : half.x,
+                    (corner & 2) == 0 ? -half.y : half.y,
+                    (corner & 4) == 0 ? -half.z : half.z);
+                Vector3 world = guard.transform.TransformPoint(local);
+                if (!float.IsFinite(world.x) || !float.IsFinite(world.y) || !float.IsFinite(world.z)) continue;
+                if (found) bounds.Encapsulate(world);
+                else { bounds = new Bounds(world, Vector3.zero); found = true; }
+            }
+        }
+        return found && bounds.size.x > .1f && bounds.size.z > .1f;
+    }
+
     private void Awake()
     {
         controller = GetComponent<CharacterController>();

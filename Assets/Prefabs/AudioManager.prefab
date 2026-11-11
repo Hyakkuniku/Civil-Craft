@@ -56,6 +56,276 @@ MonoBehaviour:
     pitch: 1
     randomPitchRange: 0
   soundEffects:
+  - id: Build_CameraRotate
+    clip: {fileID: 8300000, guid: d1f14bdb64cb4cdab40df29b408cc60b, type: 3}
+    volume: 0.95
+    pitch: 1
+    randomPitchRange: 0.01
+  - id: Build_Select
+    clip: {fileID: 8300000, guid: d52d2ae4829f4167b5082eb9d1b7c6ec, type: 3}
+    volume: 0.95
+    pitch: 1
+    randomPitchRange: 0.01
+  - id: Build_Move
+    clip: {fileID: 8300000, guid: 552849c57f7a41f0bd0a5da29b775634, type: 3}
+    volume: 0.95
+    pitch: 1
+    randomPitchRange: 0.01
+  - id: Build_Erase
+    clip: {fileID: 8300000, guid: c1f820e39c3d4b269dd119f993eebbc2, type: 3}
+    volume: 0.95
+    pitch: 1
+    randomPitchRange: 0.01
+  - id: Build_GridOn
+    clip: {fileID: 8300000, guid: 94c35e72628f4aa2803b5549e4250cbe, type: 3}
+    volume: 0.95
+    pitch: 1
+    randomPitchRange: 0.01
+  - id: Build_GridOff
+    clip: {fileID: 8300000, guid: ec0d8b895b06444faa25a4c5a803a8f8, type: 3}
+    volume: 0.95
+    pitch: 1
+    randomPitchRange: 0.01
+  - id: Build_CancelDrawing
+    clip: {fileID: 8300000, guid: bd0cfa056b7f41bdb70ea6e461ff1769, type: 3}
+    volume: 0.95
+    pitch: 1
+    randomPitchRange: 0.01
+  - id: Build_Exit
+    clip: {fileID: 8300000, guid: faec00a1a8064bd8a02adfae1d540c65, type: 3}
+    volume: 0.95
+    pitch: 1
+    randomPitchRange: 0.01
+  - id: Build_ResetCamera
+    clip: {fileID: 8300000, guid: ae3d475bb41c480cb16e177d8db03c4c, type: 3}
+    volume: 0.95
+    pitch: 1
+    randomPitchRange: 0.01
+  - id: Build_StatisticsOpen
+    clip: {fileID: 8300000, guid: 426a7a0afe0e4d59ae1bd5ec2a65595a, type: 3}
+    volume: 0.95
+    pitch: 1
+    randomPitchRange: 0.01
+  - id: Build_StatisticsClose
+    clip: {fileID: 8300000, guid: 9407907468c34c8fa88de4c440f0395f, type: 3}
+    volume: 0.95
+    pitch: 1
+    randomPitchRange: 0.01
+  - id: Build_Cut
+    clip: {fileID: 8300000, guid: aa7e0fb0cc4d463a99125400e77480e0, type: 3}
+    volume: 0.95
+    pitch: 1
+    randomPitchRange: 0.01
+  - id: Build_Copy
+    clip: {fileID: 8300000, guid: 207e88cad06a4198abc9206c2c32e3b6, type: 3}
+    volume: 0.95
+    pitch: 1
+    randomPitchRange: 0.01
+  - id: Build_Paste
+    clip: {fileID: 8300000, guid: 6bd8b048b3014f618f67a3ce1a3b5b8d, type: 3}
+    volume: 0.95
+    pitch: 1
+    randomPitchRange: 0.01
+  - id: Build_Undo
+    clip: {fileID: 8300000, guid: 2b15f4ef9d2e4eac99de4cc3b75f0423, type: 3}
+    volume: 0.95
+    pitch: 1
+    randomPitchRange: 0.01
+  - id: Build_Redo
+    clip: {fileID: 8300000, guid: e7029b08cd2c437592a668eccb02a7fa, type: 3}
+    volume: 0.95
+    pitch: 1
+    randomPitchRange: 0.01
+  - id: Build_DeleteSelected
+    clip: {fileID: 8300000, guid: 605a8e2c3d43419ea383afe58c5c1074, type: 3}
+    volume: 0.95
+    pitch: 1
+    randomPitchRange: 0.01
+  - id: Build_Simulate
+    clip: {fileID: 8300000, guid: c97e6731d8ce44ed8bb04d9e70cabbb7, type: 3}
+    volume: 0.95
+    pitch: 1
+    randomPitchRange: 0.01
+  - id: Build_StopSimulation
+    clip: {fileID: 8300000, guid: 3bfdc2cd884e457e936f8dd7e31cba52, type: 3}
+    volume: 0.95
+    pitch: 1
+    randomPitchRange: 0.01
+  - id: Build_ClearSelection
+    clip: {fileID: 8300000, guid: 1c27e10641b9492db2d5f6d0f2e68382, type: 3}
+    volume: 0.95
+    pitch: 1
+    randomPitchRange: 0.01
+  - id: Build_EraseStroke
+    clip: {fileID: 8300000, guid: f53f03d5c6024eafba92e701fcad8725, type: 3}
+    volume: 0.95
+    pitch: 1
+    randomPitchRange: 0.01
+  - id: Build_MovePlaced
+    clip: {fileID: 8300000, guid: a6830675e837481e816abc58ec49a379, type: 3}
+    volume: 0.95
+    pitch: 1
+    randomPitchRange: 0.01
+  - id: Build_SelectionChanged
+    clip: {fileID: 8300000, guid: 36af066f0fab42ba8d6de28303bce62d, type: 3}
+    volume: 0.95
+    pitch: 1
+    randomPitchRange: 0.01
+  - id: Equip_WoodBeam
+    clip: {fileID: 8300000, guid: 2d476872d8f64d2ea9cb5ebbea1019b9, type: 3}
+    volume: 1
+    pitch: 1
+    randomPitchRange: 0.015
+  - id: Place_WoodBeam
+    clip: {fileID: 8300000, guid: b9eaedb2ec1f4abc9fe8041bf8913333, type: 3}
+    volume: 1
+    pitch: 1
+    randomPitchRange: 0.015
+  - id: Equip_WoodRoad
+    clip: {fileID: 8300000, guid: fd177d302707436382ca1feb49bf2f3c, type: 3}
+    volume: 1
+    pitch: 1
+    randomPitchRange: 0.015
+  - id: Place_WoodRoad
+    clip: {fileID: 8300000, guid: 680338b1287b42dbaf47df6c02e35ee8, type: 3}
+    volume: 1
+    pitch: 1
+    randomPitchRange: 0.015
+  - id: Equip_WoodPier
+    clip: {fileID: 8300000, guid: 268f9012e910436ba64ec3677eb6271a, type: 3}
+    volume: 1
+    pitch: 1
+    randomPitchRange: 0.015
+  - id: Place_WoodPier
+    clip: {fileID: 8300000, guid: d4c39e1e6e2c42a5b23d6a4a2a13ad5a, type: 3}
+    volume: 1
+    pitch: 1
+    randomPitchRange: 0.015
+  - id: Equip_ConcreteBeam
+    clip: {fileID: 8300000, guid: 0095a5a461914036ae4c31f54a98b981, type: 3}
+    volume: 1
+    pitch: 1
+    randomPitchRange: 0.015
+  - id: Place_ConcreteBeam
+    clip: {fileID: 8300000, guid: 146581671e1c48f28cb5b98921e84707, type: 3}
+    volume: 1
+    pitch: 1
+    randomPitchRange: 0.015
+  - id: Equip_ConcreteRoad
+    clip: {fileID: 8300000, guid: fa2992998ae04405aff69dfe209e5201, type: 3}
+    volume: 1
+    pitch: 1
+    randomPitchRange: 0.015
+  - id: Place_ConcreteRoad
+    clip: {fileID: 8300000, guid: 4a01d9cb8913444f972b427d80f6bb12, type: 3}
+    volume: 1
+    pitch: 1
+    randomPitchRange: 0.015
+  - id: Equip_ConcretePier
+    clip: {fileID: 8300000, guid: c378300bc44b41e99283c09a70790cae, type: 3}
+    volume: 1
+    pitch: 1
+    randomPitchRange: 0.015
+  - id: Place_ConcretePier
+    clip: {fileID: 8300000, guid: 58b5cc38a4714b6baf9152ad899d9d90, type: 3}
+    volume: 1
+    pitch: 1
+    randomPitchRange: 0.015
+  - id: Equip_SteelBeam
+    clip: {fileID: 8300000, guid: bdad6575cd7b47e9b67f2155896cec9f, type: 3}
+    volume: 1
+    pitch: 1
+    randomPitchRange: 0.015
+  - id: Place_SteelBeam
+    clip: {fileID: 8300000, guid: 85a863ef6fd04fa781b059958ee962a5, type: 3}
+    volume: 1
+    pitch: 1
+    randomPitchRange: 0.015
+  - id: Equip_SteelPier
+    clip: {fileID: 8300000, guid: ef9e934916fa4581a1ce7362beb9ac87, type: 3}
+    volume: 1
+    pitch: 1
+    randomPitchRange: 0.015
+  - id: Place_SteelPier
+    clip: {fileID: 8300000, guid: 33199ff67f944ffa9010b7a504a726b1, type: 3}
+    volume: 1
+    pitch: 1
+    randomPitchRange: 0.015
+  - id: Equip_SupportRope
+    clip: {fileID: 8300000, guid: 0525021a37c44a5bb487266c03c3226c, type: 3}
+    volume: 1
+    pitch: 1
+    randomPitchRange: 0.015
+  - id: Place_SupportRope
+    clip: {fileID: 8300000, guid: 48f91d33396c4eada3b612344068b1db, type: 3}
+    volume: 1
+    pitch: 1
+    randomPitchRange: 0.015
+  - id: Equip_SteelRope
+    clip: {fileID: 8300000, guid: 27455b16009f4fda8cb2415c19b594dd, type: 3}
+    volume: 1
+    pitch: 1
+    randomPitchRange: 0.015
+  - id: Place_SteelRope
+    clip: {fileID: 8300000, guid: c4696aafd91540b699aec7a108f02412, type: 3}
+    volume: 1
+    pitch: 1
+    randomPitchRange: 0.015
+  - id: Break_WoodBeam
+    clip: {fileID: 8300000, guid: 6b91227ff4054b489ebbe6b821826b63, type: 3}
+    volume: 0.65
+    pitch: 1
+    randomPitchRange: 0.025
+  - id: Break_WoodRoad
+    clip: {fileID: 8300000, guid: aa14f064970845d0aca7023db0a9f903, type: 3}
+    volume: 0.65
+    pitch: 1
+    randomPitchRange: 0.025
+  - id: Break_WoodPier
+    clip: {fileID: 8300000, guid: a1c0630767564977b2ab7147838cf3d0, type: 3}
+    volume: 0.65
+    pitch: 1
+    randomPitchRange: 0.025
+  - id: Break_ConcreteBeam
+    clip: {fileID: 8300000, guid: e8a2d4f24eca458f8d27ca659fed1ffc, type: 3}
+    volume: 0.65
+    pitch: 1
+    randomPitchRange: 0.025
+  - id: Break_ConcreteRoad
+    clip: {fileID: 8300000, guid: a6b98e49fbcd4d67a5753c201ca5b87e, type: 3}
+    volume: 0.65
+    pitch: 1
+    randomPitchRange: 0.025
+  - id: Break_ConcretePier
+    clip: {fileID: 8300000, guid: 528b93e7f542470f92b4ebb5f75907fd, type: 3}
+    volume: 0.65
+    pitch: 1
+    randomPitchRange: 0.025
+  - id: Break_SteelBeam
+    clip: {fileID: 8300000, guid: c72ecbec97ec40e5883be3d577d99e68, type: 3}
+    volume: 0.65
+    pitch: 1
+    randomPitchRange: 0.025
+  - id: Break_SteelPier
+    clip: {fileID: 8300000, guid: bf231da2a4d64b98ba957e010fb3361e, type: 3}
+    volume: 0.65
+    pitch: 1
+    randomPitchRange: 0.025
+  - id: Break_SupportRope
+    clip: {fileID: 8300000, guid: 8b7ee9f06b1d425b89133f98452d4518, type: 3}
+    volume: 0.65
+    pitch: 1
+    randomPitchRange: 0.025
+  - id: Break_SteelRope
+    clip: {fileID: 8300000, guid: 95b9c1e63f0f4be281fd0cbf2d1cae45, type: 3}
+    volume: 0.65
+    pitch: 1
+    randomPitchRange: 0.025
+  - id: PlayerMessage
+    clip: {fileID: 8300000, guid: 8d8c09a340204f0c89d0a8f4ed353987, type: 3}
+    volume: 0.75
+    pitch: 1
+    randomPitchRange: 0
   - id: BuildModeEnter
     clip: {fileID: 8300000, guid: 6802928f11ef4979ba3884a65c8b4577, type: 3}
     volume: 1

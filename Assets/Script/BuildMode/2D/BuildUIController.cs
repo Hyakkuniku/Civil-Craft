@@ -1706,7 +1706,7 @@ public class BuildUIController : MonoBehaviour
 
     public void OnCloseSelectionPanelButtonClicked()
     {
-        PlayBuildButtonClickSfx();
+        BuildToolAudio.Play(BuildToolSound.ClearSelection);
         if (barCreator != null) barCreator.CancelAllModes();
         SetSelectionPanelActive(false);
         LogAction("Selection Cleared");
@@ -1743,18 +1743,34 @@ public class BuildUIController : MonoBehaviour
         return true;
     }
 
-    public void OnToggleSelectModeButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed(BuildModeTool.Select)) return; if (barCreator != null) barCreator.ToggleSelectMode(); }
-    public void OnToggleMoveModeButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed(BuildModeTool.Move) || IsTopologyEditBlockedDuringTracing()) return; if (barCreator != null) barCreator.ToggleMoveMode(); }
-    public void OnToggleDeleteModeButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed(BuildModeTool.Delete) || IsTopologyEditBlockedDuringTracing()) return; if (barCreator != null) barCreator.ToggleDeleteMode(); }
-    public void OnToggleGridButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed(BuildModeTool.Grid)) return; if (barCreator != null) barCreator.ToggleGrid(); }
-    public void OnCancelDrawingButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed(BuildModeTool.CancelDrawing)) return; if (barCreator != null) barCreator.CancelCreation(); }
-    public void OnExitBuildModeButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed(BuildModeTool.ExitBuildMode)) return; if (GameManager.Instance != null) GameManager.Instance.ExitBuildMode(); }
-    public void OnResetCameraButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed(BuildModeTool.ResetCamera)) return; BuildCameraController camCtrl = FindObjectOfType<BuildCameraController>(); if (camCtrl != null) camCtrl.ResetCameraRotation(); }
+    public void OnToggleSelectModeButtonClicked() { if (!IsToolAllowed(BuildModeTool.Select)) return; if (barCreator != null) barCreator.ToggleSelectMode(); }
+    public void OnToggleMoveModeButtonClicked() { if (!IsToolAllowed(BuildModeTool.Move) || IsTopologyEditBlockedDuringTracing()) return; if (barCreator != null) barCreator.ToggleMoveMode(); }
+    public void OnToggleDeleteModeButtonClicked() { if (!IsToolAllowed(BuildModeTool.Delete) || IsTopologyEditBlockedDuringTracing()) return; if (barCreator != null) barCreator.ToggleDeleteMode(); }
+    public void OnToggleGridButtonClicked() { if (!IsToolAllowed(BuildModeTool.Grid)) return; if (barCreator != null) barCreator.ToggleGrid(); }
+    public void OnCancelDrawingButtonClicked()
+    {
+        if (!IsToolAllowed(BuildModeTool.CancelDrawing) || barCreator == null) return;
+        barCreator.CancelCreation();
+        BuildToolAudio.Play(BuildToolSound.CancelDrawing);
+    }
+    public void OnExitBuildModeButtonClicked()
+    {
+        if (!IsToolAllowed(BuildModeTool.ExitBuildMode) || GameManager.Instance == null) return;
+        GameManager.Instance.ExitBuildMode();
+    }
+    public void OnResetCameraButtonClicked()
+    {
+        if (!IsToolAllowed(BuildModeTool.ResetCamera)) return;
+        BuildCameraController camCtrl = FindObjectOfType<BuildCameraController>();
+        if (camCtrl == null) return;
+        camCtrl.ResetCameraRotation();
+    }
     public void OnToggleStatsButtonClicked()
     {
-        PlayBuildButtonClickSfx();
         if (!IsToolAllowed(BuildModeTool.Statistics)) return;
         SetStatsPanelVisible(!statsPanelVisible);
+        if (statsPanel != null)
+            BuildToolAudio.Play(statsPanelVisible ? BuildToolSound.StatisticsOpen : BuildToolSound.StatisticsClose);
     }
 
     /// <summary>Keep the readout open while the authored explanation pages are read.</summary>
@@ -1934,7 +1950,6 @@ public class BuildUIController : MonoBehaviour
     }
     public void OnCutSelectedButtonClicked()
     {
-        PlayBuildButtonClickSfx();
         BuildTutorialDirector director = BuildTutorialDirector.Instance;
         if (director != null && director.IsCutBlockedForCurrentTutorial())
         {
@@ -1947,11 +1962,10 @@ public class BuildUIController : MonoBehaviour
         if (ClipboardManager.Instance != null && barCreator != null)
             ClipboardManager.Instance.CutSelected(barCreator.GetSelectedPoints());
     }
-    public void OnCopyButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed(BuildModeTool.Copy)) return; if (ClipboardManager.Instance != null && barCreator != null) ClipboardManager.Instance.CopySelected(barCreator.GetSelectedPoints()); }
-    public void OnPasteButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed(BuildModeTool.Paste)) return; if (ClipboardManager.Instance != null) ClipboardManager.Instance.StampPaste(); }
+    public void OnCopyButtonClicked() { if (!IsToolAllowed(BuildModeTool.Copy)) return; if (ClipboardManager.Instance != null && barCreator != null) ClipboardManager.Instance.CopySelected(barCreator.GetSelectedPoints()); }
+    public void OnPasteButtonClicked() { if (!IsToolAllowed(BuildModeTool.Paste)) return; if (ClipboardManager.Instance != null) ClipboardManager.Instance.StampPaste(); }
     public void OnUndoButtonClicked()
     {
-        PlayBuildButtonClickSfx();
         BuildTutorialDirector director = BuildTutorialDirector.Instance;
         if (director == null || !director.IsAwaitingInvalidBarUndo)
         {
@@ -1961,8 +1975,8 @@ public class BuildUIController : MonoBehaviour
         if (CommandManager.Instance != null) CommandManager.Instance.Undo();
         if (director != null) director.NotifyUndoCompleted();
     }
-    public void OnRedoButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed(BuildModeTool.Redo)) return; if (CommandManager.Instance != null) CommandManager.Instance.Redo(); }
-    public void OnDeleteSelectedButtonClicked() { PlayBuildButtonClickSfx(); if (!IsToolAllowed(BuildModeTool.DeleteSelected) || IsTopologyEditBlockedDuringTracing()) return; if (barCreator != null) barCreator.DeleteSelected(); }
+    public void OnRedoButtonClicked() { if (!IsToolAllowed(BuildModeTool.Redo)) return; if (CommandManager.Instance != null) CommandManager.Instance.Redo(); }
+    public void OnDeleteSelectedButtonClicked() { if (!IsToolAllowed(BuildModeTool.DeleteSelected) || IsTopologyEditBlockedDuringTracing()) return; if (barCreator != null) barCreator.DeleteSelected(); }
 
     public void OnToggleSimulationButtonClicked() 
     { 
@@ -1974,7 +1988,6 @@ public class BuildUIController : MonoBehaviour
     public void OnSimulateButtonClicked() 
     { 
         if (barCreator != null && barCreator.IsAutoDrawing) return;
-        PlayBuildButtonClickSfx();
         if (!IsToolAllowed(BuildModeTool.Simulate)) return;
 
         BuildTutorialDirector director = BuildTutorialDirector.Instance;
@@ -2012,6 +2025,7 @@ public class BuildUIController : MonoBehaviour
             {
                 if (GameManager.Instance.TryBeginCargoTest(physicsManager))
                 {
+                    BuildToolAudio.Play(BuildToolSound.Simulate);
                     if (barCreator != null) { barCreator.CancelAllModes(); barCreator.isSimulating = true; }
                     SetSelectionPanelActive(false);
                     LogAction("Cargo crossing test started. Carry the assigned cargo to its drop location and tap Place Cargo.");
@@ -2035,6 +2049,7 @@ public class BuildUIController : MonoBehaviour
                     return;
                 }
             }
+            BuildToolAudio.Play(BuildToolSound.Simulate);
             LogAction("Simulation Started");
         } 
     }
@@ -2042,8 +2057,11 @@ public class BuildUIController : MonoBehaviour
     public void OnRestartButtonClicked() 
     { 
         if (GameManager.Instance != null && GameManager.Instance.IsCargoTestActive)
-        { GameManager.Instance.CancelCargoTest(); return; }
-        PlayBuildButtonClickSfx();
+        {
+            GameManager.Instance.CancelCargoTest();
+            BuildToolAudio.Play(BuildToolSound.StopSimulation);
+            return;
+        }
         if (IsTutorialContractActive())
         {
             LogAction("Simulation cannot be stopped early during a tutorial.");
@@ -2054,6 +2072,7 @@ public class BuildUIController : MonoBehaviour
         if (physicsManager != null && physicsManager.isSimulating) 
         { 
             physicsManager.StopPhysicsAndReset(); 
+            BuildToolAudio.Play(BuildToolSound.StopSimulation);
             if (barCreator != null) barCreator.isSimulating = false; 
             LogAction("Simulation Stopped");
         } 
@@ -2198,7 +2217,6 @@ public class BuildUIController : MonoBehaviour
     public void OnMaterialSelected(BridgeMaterialSO newMaterial) 
     { 
         if (!CanSelectMaterial(newMaterial)) return;
-        PlayBuildButtonClickSfx();
         if (BuildTutorialDirector.Instance != null && BuildTutorialDirector.Instance.IsAwaitingInvalidBarUndo)
         {
             LogAction("Undo the invalid bar before selecting another material.");
@@ -2209,6 +2227,8 @@ public class BuildUIController : MonoBehaviour
         { 
             barCreator.isDeleteMode = false; 
             barCreator.SetActiveMaterial(newMaterial); 
+            if (barCreator.activeMaterial == newMaterial)
+                MaterialBuildAudio.PlayEquip(newMaterial, buildButtonClickSfxId);
             SetSelectionPanelActive(false);
             LogAction($"Selected Material: {newMaterial.name}");
 

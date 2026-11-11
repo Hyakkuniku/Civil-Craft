@@ -13,6 +13,9 @@ MonoBehaviour:
   m_Name: Wood Road
   m_EditorClassIdentifier: 
   materialId: Wood Road
+  equipSfxId: Equip_WoodRoad
+  placeSfxId: Place_WoodRoad
+  breakSfxId: Break_WoodRoad
   displayName: Wood Road
   introductionDescription: Used as the roadway of the bridge. Vehicles and other loads
     travel across this component. Build a continuous roadway between both sides and

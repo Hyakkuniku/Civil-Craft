@@ -13,6 +13,9 @@ MonoBehaviour:
   m_Name: Concrete Road
   m_EditorClassIdentifier: 
   materialId: Concrete Road
+  equipSfxId: Equip_ConcreteRoad
+  placeSfxId: Place_ConcreteRoad
+  breakSfxId: Break_ConcreteRoad
   displayName: Reinforced Concrete Road Deck
   introductionDescription: A stronger but more expensive driving surface. Reinforcement
     carries pulling forces while the concrete carries much larger compression loads,

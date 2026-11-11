@@ -13,6 +13,9 @@ MonoBehaviour:
   m_Name: SteelPier
   m_EditorClassIdentifier:
   materialId: SteelPier
+  equipSfxId: Equip_SteelPier
+  placeSfxId: Place_SteelPier
+  breakSfxId: Break_SteelPier
   displayName: Steel Pier
   introductionDescription: A braced steel tower that supports the bridge from
     below. Connect it between a solid foundation and a bridge joint to carry heavy

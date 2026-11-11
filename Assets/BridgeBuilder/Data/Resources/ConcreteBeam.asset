@@ -13,6 +13,9 @@ MonoBehaviour:
   m_Name: ConcreteBeam
   m_EditorClassIdentifier: 
   materialId: ConcreteBeam
+  equipSfxId: Equip_ConcreteBeam
+  placeSfxId: Place_ConcreteBeam
+  breakSfxId: Break_ConcreteBeam
   displayName: Concrete Beam
   introductionDescription: A reinforced concrete support beam for heavier road decks.
     Concrete carries compression and steel reinforcement carries tension. Connect

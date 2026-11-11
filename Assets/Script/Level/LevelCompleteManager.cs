@@ -544,51 +544,20 @@ public class LevelCompleteManager : MonoBehaviour
 
         if (currentContract != null)
         {
-            Camera snapCam = null;
-            BuildLocation targetLoc = null;
-            BuildLocation[] allLocs = Resources.FindObjectsOfTypeAll<BuildLocation>();
-            
-            foreach (var loc in allLocs)
+            BuildLocation targetLoc = completedLocation;
+            if (targetLoc == null)
             {
-                if (loc.gameObject.scene.name != null && loc.activeContract == currentContract)
+                foreach (BuildLocation location in FindObjectsOfType<BuildLocation>(true))
                 {
-                    targetLoc = loc;
-                    snapCam = loc.cinematicCamera != null ? loc.cinematicCamera : loc.locationCamera;
+                    if (location.gameObject.scene != gameObject.scene || location.activeContract != currentContract)
+                        continue;
+                    targetLoc = location;
                     break;
                 }
             }
 
-            Texture2D screenImage;
-
-            if (snapCam != null)
-            {
-                int resWidth = 1920;
-                int resHeight = 1080;
-                
-                RenderTexture rt = new RenderTexture(resWidth, resHeight, 24);
-                snapCam.targetTexture = rt;
-                
-                bool wasEnabled = snapCam.enabled;
-                snapCam.enabled = true;
-
-                bool locGridWasOn = targetLoc != null && targetLoc.gridImage != null && targetLoc.gridImage.enabled;
-                if (locGridWasOn) targetLoc.gridImage.enabled = false;
-
-                snapCam.Render();
-                
-                RenderTexture.active = rt;
-                screenImage = new Texture2D(resWidth, resHeight, TextureFormat.RGB24, false);
-                screenImage.ReadPixels(new Rect(0, 0, resWidth, resHeight), 0, 0);
-                screenImage.Apply();
-                
-                snapCam.enabled = wasEnabled;
-                snapCam.targetTexture = null;
-                RenderTexture.active = null;
-                Destroy(rt);
-
-                if (locGridWasOn) targetLoc.gridImage.enabled = true;
-            }
-            else
+            Texture2D screenImage = BridgePhotoCapture.Capture(targetLoc, 1920, 1080);
+            if (screenImage == null)
             {
                 screenImage = new Texture2D(Screen.width, Screen.height, TextureFormat.RGB24, false);
                 screenImage.ReadPixels(new Rect(0, 0, Screen.width, Screen.height), 0, 0);
@@ -1504,42 +1473,19 @@ public class LevelCompleteManager : MonoBehaviour
         if (currentBridgePhoto != null) Destroy(currentBridgePhoto);
         currentBridgePhoto = null;
         if (bridgePhotoDisplay != null) bridgePhotoDisplay.texture = null;
-        Camera camera = null;
+        BuildLocation target = null;
         foreach (BuildLocation location in FindObjectsOfType<BuildLocation>(true))
         {
             if (location == null || location.gameObject.scene != gameObject.scene ||
                 location.activeContract == null ||
                 FusionMultiplayerAvatar.StableHash(location.activeContract.ContractID) != contractHash)
                 continue;
-            camera = location.cinematicCamera != null
-                ? location.cinematicCamera : location.locationCamera;
+            target = location;
             break;
         }
-        if (camera == null || bridgePhotoDisplay == null) return;
-
-        RenderTexture render = new RenderTexture(960, 540, 24);
-        RenderTexture previousActive = RenderTexture.active;
-        RenderTexture previousTarget = camera.targetTexture;
-        bool wasEnabled = camera.enabled;
-        try
-        {
-            camera.targetTexture = render;
-            camera.enabled = true;
-            camera.Render();
-            RenderTexture.active = render;
-            Texture2D photo = new Texture2D(960, 540, TextureFormat.RGB24, false);
-            photo.ReadPixels(new Rect(0, 0, 960, 540), 0, 0);
-            photo.Apply();
-            currentBridgePhoto = photo;
-            bridgePhotoDisplay.texture = photo;
-        }
-        finally
-        {
-            camera.enabled = wasEnabled;
-            camera.targetTexture = previousTarget;
-            RenderTexture.active = previousActive;
-            Destroy(render);
-        }
+        if (target == null || bridgePhotoDisplay == null) return;
+        currentBridgePhoto = BridgePhotoCapture.Capture(target, 960, 540);
+        bridgePhotoDisplay.texture = currentBridgePhoto;
     }
 
     private IEnumerator ShowTurnInGuideAfterExit(NPCContractGiver giver, ContractSO contract)

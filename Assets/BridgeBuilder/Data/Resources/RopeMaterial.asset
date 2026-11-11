@@ -13,6 +13,9 @@ MonoBehaviour:
   m_Name: RopeMaterial
   m_EditorClassIdentifier: 
   materialId: RopeMaterial
+  equipSfxId: Equip_SupportRope
+  placeSfxId: Place_SupportRope
+  breakSfxId: Break_SupportRope
   displayName: Support Rope
   introductionDescription: A flexible support for suspension-style bridges that works
     best under tension. Rope cannot carry meaningful compression, so anchor it securely

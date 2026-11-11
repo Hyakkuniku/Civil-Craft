@@ -175,6 +175,7 @@ public partial class BridgePhysicsManager : MonoBehaviour
         if (brokenMember == null || !IsSimulationActive) return;
 
         Bar bar = brokenMember.Bar;
+        if (bar != null) MaterialBreakAudio.Play(bar.materialData);
         if (bar != null && (breakParticleSystem != null || smokeParticleSystem != null))
         {
             Vector3 position = bar.startPoint != null && bar.endPoint != null

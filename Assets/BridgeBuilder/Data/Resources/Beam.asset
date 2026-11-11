@@ -13,6 +13,9 @@ MonoBehaviour:
   m_Name: Beam
   m_EditorClassIdentifier: 
   materialId: Beam
+  equipSfxId: Equip_WoodBeam
+  placeSfxId: Place_WoodBeam
+  breakSfxId: Break_WoodBeam
   displayName: Wood Beam
   introductionDescription: A Wood Beam is a structural member that connects with
     other members to form load-bearing arrangements, including the triangular

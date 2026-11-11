@@ -6,6 +6,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
+using UnityEngine.Serialization;
 using UnityEngine.UI;
 
 /// <summary>
@@ -64,8 +65,9 @@ public sealed class ExpandedMinimapController : MonoBehaviour
     [Header("Map Navigation")]
     [SerializeField, Min(1f)] private float minimumZoom = 3f;
     [SerializeField, Min(2f)] private float maximumZoom = 180f;
-    [Tooltip("Optional legacy restriction. Off allows exploring beyond build-location markers.")]
-    [SerializeField] private bool constrainPanToLocations = false;
+    [Tooltip("Keep the expanded map inside the campaign perimeter, accounting for the current zoom. Scenes without edge guards use their build locations.")]
+    [FormerlySerializedAs("constrainPanToLocations")]
+    [SerializeField] private bool constrainExpandedMap = true;
     [SerializeField, Min(0f)] private float boundsPadding = 12f;
     [SerializeField] private bool frameBuildLocationsWhenOpened = true;
     [SerializeField, Range(768, 2048)] private int expandedTextureLongEdge = 1280;
@@ -1459,7 +1461,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
                 elapsed += Time.unscaledDeltaTime;
                 float t = SmoothTravelTime(elapsed / fastTravelFocusDuration);
                 SetWorldTravelFade(t);
-                minimapCamera.transform.position = Vector3.Lerp(start, destination, t);
+                SetCameraCenterClamped(Vector3.Lerp(start, destination, t));
                 UpdateMarkerPositions();
                 yield return null;
             }
@@ -1587,24 +1589,30 @@ public sealed class ExpandedMinimapController : MonoBehaviour
     private void BuildWorldBoundsAndFraming()
     {
         hasWorldBounds = false;
-        Vector3 sum = Vector3.zero;
-        int count = 0;
+        foreach (CampaignEdgeGuards guards in Resources.FindObjectsOfTypeAll<CampaignEdgeGuards>())
+        {
+            if (guards == null || guards.gameObject.scene != gameObject.scene ||
+                !guards.TryGetMapBounds(out Bounds bounds)) continue;
+            EncapsulateWorldPoint(bounds.min);
+            EncapsulateWorldPoint(bounds.max);
+        }
+        bool hasCampaignPerimeter = hasWorldBounds;
 
         foreach (BuildLocation location in Resources.FindObjectsOfTypeAll<BuildLocation>())
         {
             if (location == null || location.gameObject.scene != gameObject.scene) continue;
             Vector3 point = GetLocationWorldPosition(location);
             EncapsulateWorldPoint(point);
-            sum += point;
-            count++;
+            foreach (Point anchor in location.startingAnchors)
+                if (anchor != null) EncapsulateWorldPoint(anchor.transform.position);
+            foreach (Point anchor in location.endingAnchors)
+                if (anchor != null) EncapsulateWorldPoint(anchor.transform.position);
         }
 
-        if (minimapFollow != null && minimapFollow.player != null)
+        if (!hasCampaignPerimeter && minimapFollow != null && minimapFollow.player != null)
         {
             Vector3 playerPoint = minimapFollow.player.position;
             EncapsulateWorldPoint(playerPoint);
-            sum += playerPoint;
-            count++;
         }
 
         if (!hasWorldBounds)
@@ -1622,7 +1630,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
         minWorldZ -= boundsPadding;
         maxWorldZ += boundsPadding;
 
-        framedCenter = count > 0 ? sum / count : minimapCamera.transform.position;
+        framedCenter = minimapCamera.transform.position;
         framedCenter.x = (minWorldX + maxWorldX) * 0.5f;
         framedCenter.z = (minWorldZ + maxWorldZ) * 0.5f;
         framedCenter.y = minimapCamera.transform.position.y;
@@ -1639,10 +1647,13 @@ public sealed class ExpandedMinimapController : MonoBehaviour
             framedCenter = compactCameraPosition;
             framedSize = compactOrthographicSize;
         }
+        framedSize = Mathf.Clamp(framedSize, minimumZoom, GetMaximumExpandedZoom());
+        framedCenter = ClampCameraCenter(framedCenter, framedSize);
     }
 
     private void EncapsulateWorldPoint(Vector3 point)
     {
+        if (!float.IsFinite(point.x) || !float.IsFinite(point.z)) return;
         if (!hasWorldBounds)
         {
             minWorldX = maxWorldX = point.x;
@@ -1692,34 +1703,41 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
     private void SetZoom(float size)
     {
-        if (!isExpanded || minimapCamera == null) return;
+        if (!isExpanded || isAnimating || minimapCamera == null || !float.IsFinite(size)) return;
+        minimapCamera.orthographicSize = Mathf.Clamp(size, minimumZoom, GetMaximumExpandedZoom());
+        SetCameraCenterClamped(minimapCamera.transform.position);
+        UpdateMarkerPositions();
+    }
+
+    private float GetMaximumExpandedZoom()
+    {
         float overviewSize = hasWorldBounds
             ? Mathf.Max((maxWorldZ - minWorldZ) * 0.5f,
                 (maxWorldX - minWorldX) * 0.5f / Mathf.Max(0.1f, GetMapAspect()))
             : maximumZoom;
-        float zoomLimit = Mathf.Max(minimumZoom, maximumZoom, overviewSize * 1.5f);
-        minimapCamera.orthographicSize = Mathf.Clamp(size, minimumZoom, zoomLimit);
-        SetCameraCenterClamped(minimapCamera.transform.position);
-        UpdateMarkerPositions();
+        return constrainExpandedMap && hasWorldBounds
+            ? Mathf.Max(minimumZoom, overviewSize)
+            : Mathf.Max(minimumZoom, maximumZoom, overviewSize * 1.5f);
     }
 
     private void SetCameraCenterClamped(Vector3 center)
     {
         if (minimapCamera == null) return;
         center.y = minimapCamera.transform.position.y;
-
-        if (hasWorldBounds && constrainPanToLocations)
-        {
-            float halfHeight = minimapCamera.orthographicSize;
-            float halfWidth = halfHeight * GetMapAspect();
-            center.x = ClampAxis(center.x, minWorldX, maxWorldX, halfWidth);
-            center.z = ClampAxis(center.z, minWorldZ, maxWorldZ, halfHeight);
-        }
+        center = ClampCameraCenter(center, minimapCamera.orthographicSize);
 
         if (minimapFollow != null)
             minimapFollow.SetManualCenter(center);
         else
             minimapCamera.transform.position = center;
+    }
+
+    private Vector3 ClampCameraCenter(Vector3 center, float size)
+    {
+        if (!hasWorldBounds || !constrainExpandedMap) return center;
+        center.x = ClampAxis(center.x, minWorldX, maxWorldX, size * GetMapAspect());
+        center.z = ClampAxis(center.z, minWorldZ, maxWorldZ, size);
+        return center;
     }
 
     private static float ClampAxis(float value, float minimum, float maximum, float halfView)
@@ -1880,6 +1898,7 @@ public sealed class ExpandedMinimapController : MonoBehaviour
 
         if (opening)
         {
+            SetCameraCenterClamped(minimapCamera.transform.position);
             UpdateMarkerPositions();
             yield break;
         }

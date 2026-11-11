@@ -773,6 +773,7 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
         if (deleteAction.affectedObjects.Count > 0)
         {
             if (CommandManager.Instance != null) CommandManager.Instance.RecordAction(deleteAction);
+            BuildToolAudio.Play(BuildToolSound.DeleteSelected);
         }
 
         ClearSelection();
@@ -1145,6 +1146,7 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
                     if (positionChanged)
                     {
                         if (CommandManager.Instance != null) CommandManager.Instance.RecordAction(currentMoveAction);
+                        BuildToolAudio.Play(BuildToolSound.MovePlaced);
                         if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("Selection Moved");
                     }
                 }
@@ -1196,6 +1198,7 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
             }
 
             TutorialDragSelectionAnim.NotifySelectionChanged(this);
+            BuildToolAudio.Play(BuildToolSound.SelectionChanged);
             if (BuildTutorialDirector.Instance != null)
                 BuildTutorialDirector.Instance.NotifySelectionChanged(this);
 
@@ -1207,6 +1210,7 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
             if (currentSwipeDeleteAction != null && currentSwipeDeleteAction.affectedObjects.Count > 0) 
             {
                 if (CommandManager.Instance != null) CommandManager.Instance.RecordAction(currentSwipeDeleteAction);
+                BuildToolAudio.Play(BuildToolSound.EraseStroke);
             }
             currentSwipeDeleteAction = null;
             return;
@@ -1290,6 +1294,7 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
         ClearSelection();
 
         if (CommandManager.Instance != null) CommandManager.Instance.RecordAction(mergeAction);
+        BuildToolAudio.Play(BuildToolSound.MovePlaced);
 
         if (BuildUIController.Instance != null)
         {
@@ -1405,6 +1410,7 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
         }
         
         if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("Select Mode: " + (isSelectMode ? "ON" : "OFF"));
+        BuildToolAudio.Play(isSelectMode ? BuildToolSound.Select : BuildToolSound.ClearSelection);
     }
 
     public void ToggleMoveMode()
@@ -1422,6 +1428,7 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
         else if (radiusIndicator != null) radiusIndicator.enabled = false;
 
         if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("Move Mode: " + (isMoveMode ? "ON" : "OFF"));
+        BuildToolAudio.Play(isMoveMode ? BuildToolSound.Move : BuildToolSound.CancelDrawing);
     }
 
     public void ToggleDeleteMode() 
@@ -1436,6 +1443,7 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
             OnActiveMaterialChanged?.Invoke(null);
         } 
         if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("Delete Mode: " + (isDeleteMode ? "ON" : "OFF"));
+        BuildToolAudio.Play(isDeleteMode ? BuildToolSound.Erase : BuildToolSound.CancelDrawing);
     }
 
     public void SetActiveMaterial(BridgeMaterialSO newMaterial)
@@ -1699,6 +1707,7 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
         }
 
         if (BuildUIController.Instance != null) BuildUIController.Instance.LogAction("Grid Snapping: " + (isGridSnappingEnabled ? "ON" : "OFF"));
+        BuildToolAudio.Play(isGridSnappingEnabled ? BuildToolSound.GridOn : BuildToolSound.GridOff);
     }
 
     // --- THE FIX: We added "Straight Line Assist" to automatically enforce perfectly flat roads! ---
@@ -2029,8 +2038,7 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
 
         if (CommandManager.Instance != null) CommandManager.Instance.RecordAction(buildAction);
 
-        if (AudioManager.Instance != null && !string.IsNullOrWhiteSpace(placeBarSfxId))
-            AudioManager.Instance.PlaySFX(placeBarSfxId);
+        MaterialBuildAudio.PlayPlace(currentBar.materialData, placeBarSfxId);
 
         if (magnifyingGlass != null) magnifyingGlass.HideMagnifier();
 
@@ -2322,8 +2330,7 @@ public partial class BarCreator : MonoBehaviour, IPointerDownHandler, IPointerUp
                 nodes[i].transform.localScale = size;
             }
             bar.startPoint.EvaluateAnchorState(); bar.endPoint.EvaluateAnchorState();
-            if (AudioManager.Instance != null && !string.IsNullOrWhiteSpace(placeBarSfxId))
-                AudioManager.Instance.PlaySFX(placeBarSfxId);
+            MaterialBuildAudio.PlayPlace(bar.materialData, placeBarSfxId);
         }
         HistoryAction completed = pendingAutoDraw;
         pendingAutoDraw = null;

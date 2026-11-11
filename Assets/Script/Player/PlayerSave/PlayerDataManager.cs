@@ -3239,30 +3239,11 @@ public class PlayerDataManager : MonoBehaviour
 
     private bool CaptureActualBridgePhoto(BuildLocation location, SavedBridgeData bridge)
     {
-        Camera camera = location.cinematicCamera != null
-            ? location.cinematicCamera : location.locationCamera;
-        if (camera == null || !camera.gameObject.activeInHierarchy) return false;
-
-        const int width = 960;
-        const int height = 540;
-        RenderTexture render = RenderTexture.GetTemporary(width, height, 24,
-            RenderTextureFormat.ARGB32);
-        RenderTexture previousActive = RenderTexture.active;
-        RenderTexture previousTarget = camera.targetTexture;
-        bool cameraWasEnabled = camera.enabled;
-        bool gridWasEnabled = location.gridImage != null && location.gridImage.enabled;
         Texture2D photo = null;
         try
         {
-            if (gridWasEnabled) location.gridImage.enabled = false;
-            camera.targetTexture = render;
-            camera.enabled = true;
-            camera.Render();
-            RenderTexture.active = render;
-            photo = new Texture2D(width, height, TextureFormat.RGB24, false);
-            photo.ReadPixels(new Rect(0, 0, width, height), 0, 0);
-            photo.Apply(false, false);
-            return WriteBridgePhotoCache(bridge, photo.EncodeToPNG(), true);
+            photo = BridgePhotoCapture.Capture(location, 960, 540);
+            return photo != null && WriteBridgePhotoCache(bridge, photo.EncodeToPNG(), true);
         }
         catch (Exception exception)
         {
@@ -3273,11 +3254,6 @@ public class PlayerDataManager : MonoBehaviour
         finally
         {
             if (photo != null) Destroy(photo);
-            camera.enabled = cameraWasEnabled;
-            camera.targetTexture = previousTarget;
-            RenderTexture.active = previousActive;
-            if (gridWasEnabled) location.gridImage.enabled = true;
-            RenderTexture.ReleaseTemporary(render);
         }
     }
 

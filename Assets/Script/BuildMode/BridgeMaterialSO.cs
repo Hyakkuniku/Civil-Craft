@@ -58,6 +58,14 @@ public class BridgeMaterialSO : ScriptableObject
     public bool isRoad = false; 
     public bool isPier = false; 
 
+    [Header("Material Audio")]
+    [Tooltip("AudioManager SFX ID played when the player equips this material.")]
+    public string equipSfxId;
+    [Tooltip("AudioManager SFX ID played when the player places this material.")]
+    public string placeSfxId;
+    [Tooltip("AudioManager SFX ID played when a member made from this material breaks.")]
+    public string breakSfxId;
+
     [Header("Road Bending (Newton-metres)")]
     [Min(0f)]
     [Tooltip("Bending moment that breaks one road panel between its joints. Zero disables the bending check for this material.")]

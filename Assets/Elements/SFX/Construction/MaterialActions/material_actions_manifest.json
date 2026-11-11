@@ -1,0 +1,330 @@
+{
+  "pack": "Civil Craft - Material Equip and Placement",
+  "format": "Mono 44.1 kHz / 16-bit PCM WAV",
+  "style": "Short dry material impacts with an underlying pop attack; timber knock, stone clack, steel clink and taut cord/wire plucks",
+  "mastering": "Fast contact; no swish, wind, sustained noise or reverb; equip -2.5 / place -2 dBFS peak",
+  "wired_to_gameplay": true,
+  "materials": [
+    {
+      "material_id": "Beam",
+      "display_name": "Wood Beam",
+      "material_asset": "Assets\\BridgeBuilder\\Data\\Resources\\Beam.asset",
+      "material_guid": "d168cda963676074692e7020faf3c791",
+      "family": "wood",
+      "actions": {
+        "equip": {
+          "sfx_id": "Equip_WoodBeam",
+          "audio_file": "Assets/Elements/SFX/Construction/MaterialActions/wood_beam_equip.wav",
+          "audio_guid": "2d476872d8f64d2ea9cb5ebbea1019b9",
+          "seconds": 0.12499,
+          "peak_dbfs": -2.5,
+          "rms_dbfs": -17.99,
+          "sha256": "6647c374258f66caf1eff70fa8f2c2df96fc49cda248202a6d753121d4853dbd",
+          "energy_90_percent_seconds": 0.0136,
+          "maximum_contact_excitation_seconds": 0.0011
+        },
+        "place": {
+          "sfx_id": "Place_WoodBeam",
+          "audio_file": "Assets/Elements/SFX/Construction/MaterialActions/wood_beam_place.wav",
+          "audio_guid": "b9eaedb2ec1f4abc9fe8041bf8913333",
+          "seconds": 0.15501,
+          "peak_dbfs": -2,
+          "rms_dbfs": -18.63,
+          "sha256": "1c53894640137ae49176cd8c25b74952bbac704825b1145f0fd371043a80df2f",
+          "energy_90_percent_seconds": 0.0182,
+          "maximum_contact_excitation_seconds": 0.0011
+        }
+      },
+      "character": "Hollow timber knock with short wooden overtones"
+    },
+    {
+      "material_id": "Wood Road",
+      "display_name": "Wood Road",
+      "material_asset": "Assets\\BridgeBuilder\\Data\\Resources\\Wood Road.asset",
+      "material_guid": "d96454d8483949a4fb084d742f9a0ac8",
+      "family": "wood",
+      "actions": {
+        "equip": {
+          "sfx_id": "Equip_WoodRoad",
+          "audio_file": "Assets/Elements/SFX/Construction/MaterialActions/wood_road_equip.wav",
+          "audio_guid": "fd177d302707436382ca1feb49bf2f3c",
+          "seconds": 0.12499,
+          "peak_dbfs": -2.5,
+          "rms_dbfs": -19.22,
+          "sha256": "3c67ab6f6ec47e4b93b8f128516977bf97c571ef513f7f5c2e4ae07f5a902fe9",
+          "energy_90_percent_seconds": 0.0131,
+          "maximum_contact_excitation_seconds": 0.0011
+        },
+        "place": {
+          "sfx_id": "Place_WoodRoad",
+          "audio_file": "Assets/Elements/SFX/Construction/MaterialActions/wood_road_place.wav",
+          "audio_guid": "680338b1287b42dbaf47df6c02e35ee8",
+          "seconds": 0.15501,
+          "peak_dbfs": -2,
+          "rms_dbfs": -19.53,
+          "sha256": "424a1c2d3a5381d119862f5c0fc361e60a4a050e7ebda90e4a15d93a06e4823f",
+          "energy_90_percent_seconds": 0.0176,
+          "maximum_contact_excitation_seconds": 0.0011
+        }
+      },
+      "character": "Hollow timber knock with short wooden overtones"
+    },
+    {
+      "material_id": "Pier",
+      "display_name": "Wood Pier",
+      "material_asset": "Assets\\BridgeBuilder\\Data\\Resources\\Pier.asset",
+      "material_guid": "b98aa9ba752ac28449feebc76f256bf2",
+      "family": "wood",
+      "actions": {
+        "equip": {
+          "sfx_id": "Equip_WoodPier",
+          "audio_file": "Assets/Elements/SFX/Construction/MaterialActions/wood_pier_equip.wav",
+          "audio_guid": "268f9012e910436ba64ec3677eb6271a",
+          "seconds": 0.14,
+          "peak_dbfs": -2.5,
+          "rms_dbfs": -18.32,
+          "sha256": "8cfa17183f51c6f88ad8c45b4a020bd5a98d1168732b3cd3c0ab49b3e825e6f5",
+          "energy_90_percent_seconds": 0.0156,
+          "maximum_contact_excitation_seconds": 0.0011
+        },
+        "place": {
+          "sfx_id": "Place_WoodPier",
+          "audio_file": "Assets/Elements/SFX/Construction/MaterialActions/wood_pier_place.wav",
+          "audio_guid": "d4c39e1e6e2c42a5b23d6a4a2a13ad5a",
+          "seconds": 0.17,
+          "peak_dbfs": -2,
+          "rms_dbfs": -17.7,
+          "sha256": "f7318ccc8dca6234a03c99f95ae59db07847508d28fcf1595e03d93f2554499c",
+          "energy_90_percent_seconds": 0.0201,
+          "maximum_contact_excitation_seconds": 0.0011
+        }
+      },
+      "character": "Hollow timber knock with short wooden overtones"
+    },
+    {
+      "material_id": "ConcreteBeam",
+      "display_name": "Concrete Beam",
+      "material_asset": "Assets\\BridgeBuilder\\Data\\Resources\\ConcreteBeam.asset",
+      "material_guid": "9377a255283b8cc499761c693baf53dd",
+      "family": "concrete",
+      "actions": {
+        "equip": {
+          "sfx_id": "Equip_ConcreteBeam",
+          "audio_file": "Assets/Elements/SFX/Construction/MaterialActions/concrete_beam_equip.wav",
+          "audio_guid": "0095a5a461914036ae4c31f54a98b981",
+          "seconds": 0.12,
+          "peak_dbfs": -2.5,
+          "rms_dbfs": -20.42,
+          "sha256": "f84ab26047a1b489daf28a2dc2c5851565343a61d16bd7a57ea9d05a3788a183",
+          "energy_90_percent_seconds": 0.0085,
+          "maximum_contact_excitation_seconds": 0.0028
+        },
+        "place": {
+          "sfx_id": "Place_ConcreteBeam",
+          "audio_file": "Assets/Elements/SFX/Construction/MaterialActions/concrete_beam_place.wav",
+          "audio_guid": "146581671e1c48f28cb5b98921e84707",
+          "seconds": 0.14499,
+          "peak_dbfs": -2,
+          "rms_dbfs": -23.54,
+          "sha256": "9c6cc0abebcf48936ef17ca6fc1d6361ff32e5157b51800f2a5f519d4a35506b",
+          "energy_90_percent_seconds": 0.0111,
+          "maximum_contact_excitation_seconds": 0.0028
+        }
+      },
+      "character": "Dense stone clack with tiny aggregate contact ticks"
+    },
+    {
+      "material_id": "Concrete Road",
+      "display_name": "Reinforced Concrete Road Deck",
+      "material_asset": "Assets\\BridgeBuilder\\Data\\Resources\\Concrete Road.asset",
+      "material_guid": "57a46c6632dd61b4094902963cf1c5be",
+      "family": "concrete",
+      "actions": {
+        "equip": {
+          "sfx_id": "Equip_ConcreteRoad",
+          "audio_file": "Assets/Elements/SFX/Construction/MaterialActions/concrete_road_equip.wav",
+          "audio_guid": "fa2992998ae04405aff69dfe209e5201",
+          "seconds": 0.12499,
+          "peak_dbfs": -2.5,
+          "rms_dbfs": -20.4,
+          "sha256": "e56370b401f8c7b0999b377b4570be8614eb0439487f9457737bbda094be9794",
+          "energy_90_percent_seconds": 0.0081,
+          "maximum_contact_excitation_seconds": 0.0028
+        },
+        "place": {
+          "sfx_id": "Place_ConcreteRoad",
+          "audio_file": "Assets/Elements/SFX/Construction/MaterialActions/concrete_road_place.wav",
+          "audio_guid": "4a01d9cb8913444f972b427d80f6bb12",
+          "seconds": 0.15,
+          "peak_dbfs": -2,
+          "rms_dbfs": -21.85,
+          "sha256": "98f9ea353d9ceffeadd99fc5548ac479c5b935d7244bffa5c437fa5c309dfde9",
+          "energy_90_percent_seconds": 0.0102,
+          "maximum_contact_excitation_seconds": 0.0028
+        }
+      },
+      "character": "Dense stone clack with tiny aggregate contact ticks"
+    },
+    {
+      "material_id": "Concrete Pier",
+      "display_name": "Concrete Pier",
+      "material_asset": "Assets\\BridgeBuilder\\Data\\Resources\\Concrete Pier.asset",
+      "material_guid": "7fbcf5a7e459d434f970d2c976504d5c",
+      "family": "concrete",
+      "actions": {
+        "equip": {
+          "sfx_id": "Equip_ConcretePier",
+          "audio_file": "Assets/Elements/SFX/Construction/MaterialActions/concrete_pier_equip.wav",
+          "audio_guid": "c378300bc44b41e99283c09a70790cae",
+          "seconds": 0.13,
+          "peak_dbfs": -2.5,
+          "rms_dbfs": -22.11,
+          "sha256": "030c32929add3225f01fa1c6bd76b2038602ccd82fce808245a9786e6594faa7",
+          "energy_90_percent_seconds": 0.008,
+          "maximum_contact_excitation_seconds": 0.0028
+        },
+        "place": {
+          "sfx_id": "Place_ConcretePier",
+          "audio_file": "Assets/Elements/SFX/Construction/MaterialActions/concrete_pier_place.wav",
+          "audio_guid": "58b5cc38a4714b6baf9152ad899d9d90",
+          "seconds": 0.16,
+          "peak_dbfs": -2,
+          "rms_dbfs": -23.72,
+          "sha256": "2b05743603ef7728d938cc589c7d96fa386cfbc9eddbdfe283047fe6634ef999",
+          "energy_90_percent_seconds": 0.0106,
+          "maximum_contact_excitation_seconds": 0.0028
+        }
+      },
+      "character": "Dense stone clack with tiny aggregate contact ticks"
+    },
+    {
+      "material_id": "SteelBeam",
+      "display_name": "Steel Beam",
+      "material_asset": "Assets\\BridgeBuilder\\Data\\Resources\\SteelBeam.asset",
+      "material_guid": "0d3952b3dcb84cfe89fba5d0ee4cfa3e",
+      "family": "steel",
+      "actions": {
+        "equip": {
+          "sfx_id": "Equip_SteelBeam",
+          "audio_file": "Assets/Elements/SFX/Construction/MaterialActions/steel_beam_equip.wav",
+          "audio_guid": "bdad6575cd7b47e9b67f2155896cec9f",
+          "seconds": 0.17499,
+          "peak_dbfs": -2.5,
+          "rms_dbfs": -20.82,
+          "sha256": "b92b9bfe8a8bcf64d4368fbf662ffe1a0c88cdff9a444f1499085baa45492005",
+          "energy_90_percent_seconds": 0.0198,
+          "maximum_contact_excitation_seconds": 0.0012
+        },
+        "place": {
+          "sfx_id": "Place_SteelBeam",
+          "audio_file": "Assets/Elements/SFX/Construction/MaterialActions/steel_beam_place.wav",
+          "audio_guid": "85a863ef6fd04fa781b059958ee962a5",
+          "seconds": 0.20499,
+          "peak_dbfs": -2,
+          "rms_dbfs": -20.26,
+          "sha256": "cb956e74b324bf7db8f2e6701d51d55091b36a98f1a733112ce6e77734c47194",
+          "energy_90_percent_seconds": 0.0284,
+          "maximum_contact_excitation_seconds": 0.0012
+        }
+      },
+      "character": "Compact metal clink with brief inharmonic ringing"
+    },
+    {
+      "material_id": "SteelPier",
+      "display_name": "Steel Pier",
+      "material_asset": "Assets\\BridgeBuilder\\Data\\Resources\\SteelPier.asset",
+      "material_guid": "3c8daed34b294b92b5c53aa30792d8b1",
+      "family": "steel",
+      "actions": {
+        "equip": {
+          "sfx_id": "Equip_SteelPier",
+          "audio_file": "Assets/Elements/SFX/Construction/MaterialActions/steel_pier_equip.wav",
+          "audio_guid": "ef9e934916fa4581a1ce7362beb9ac87",
+          "seconds": 0.18,
+          "peak_dbfs": -2.5,
+          "rms_dbfs": -20.86,
+          "sha256": "306bc8e515b8e9d3686d8207b58af04512e30ff15551d3d528c4febdfcb0e565",
+          "energy_90_percent_seconds": 0.0185,
+          "maximum_contact_excitation_seconds": 0.0012
+        },
+        "place": {
+          "sfx_id": "Place_SteelPier",
+          "audio_file": "Assets/Elements/SFX/Construction/MaterialActions/steel_pier_place.wav",
+          "audio_guid": "33199ff67f944ffa9010b7a504a726b1",
+          "seconds": 0.21,
+          "peak_dbfs": -2,
+          "rms_dbfs": -20.44,
+          "sha256": "3dc426f8c11bcc4214920b06fe386a5b37bb11895c330be0e973cbc2ea146839",
+          "energy_90_percent_seconds": 0.026,
+          "maximum_contact_excitation_seconds": 0.0012
+        }
+      },
+      "character": "Compact metal clink with brief inharmonic ringing"
+    },
+    {
+      "material_id": "RopeMaterial",
+      "display_name": "Support Rope",
+      "material_asset": "Assets\\BridgeBuilder\\Data\\Resources\\RopeMaterial.asset",
+      "material_guid": "4524a3fc876c6b640a735e6808fe1271",
+      "family": "rope",
+      "actions": {
+        "equip": {
+          "sfx_id": "Equip_SupportRope",
+          "audio_file": "Assets/Elements/SFX/Construction/MaterialActions/support_rope_equip.wav",
+          "audio_guid": "0525021a37c44a5bb487266c03c3226c",
+          "seconds": 0.13501,
+          "peak_dbfs": -2.5,
+          "rms_dbfs": -16.9,
+          "sha256": "81e36ff838c842d322b13b4c006a75f2d189a1e43ef6886b8497f7136caa6e13",
+          "energy_90_percent_seconds": 0.0219,
+          "maximum_contact_excitation_seconds": 0.0008
+        },
+        "place": {
+          "sfx_id": "Place_SupportRope",
+          "audio_file": "Assets/Elements/SFX/Construction/MaterialActions/support_rope_place.wav",
+          "audio_guid": "48f91d33396c4eada3b612344068b1db",
+          "seconds": 0.16499,
+          "peak_dbfs": -2,
+          "rms_dbfs": -16.07,
+          "sha256": "35dfd6ebb367a5f117fd4a705c6c4f8418cf42ff5ff033c369c2c368ef3b63e2",
+          "energy_90_percent_seconds": 0.0287,
+          "maximum_contact_excitation_seconds": 0.0008
+        }
+      },
+      "character": "Muted taut-fibre pluck with rapidly damped harmonics"
+    },
+    {
+      "material_id": "SteelRope",
+      "display_name": "Steel Rope",
+      "material_asset": "Assets\\BridgeBuilder\\Data\\Resources\\SteelRope.asset",
+      "material_guid": "4b7960a9d30f4e1b9d6d858aee7d8d31",
+      "family": "cable",
+      "actions": {
+        "equip": {
+          "sfx_id": "Equip_SteelRope",
+          "audio_file": "Assets/Elements/SFX/Construction/MaterialActions/steel_rope_equip.wav",
+          "audio_guid": "27455b16009f4fda8cb2415c19b594dd",
+          "seconds": 0.16,
+          "peak_dbfs": -2.5,
+          "rms_dbfs": -18.33,
+          "sha256": "1599b399701dd1c0a00cbc1109b1d202a19d95c72b30a342b9db3d1e3507cbd2",
+          "energy_90_percent_seconds": 0.0271,
+          "maximum_contact_excitation_seconds": 0.0008
+        },
+        "place": {
+          "sfx_id": "Place_SteelRope",
+          "audio_file": "Assets/Elements/SFX/Construction/MaterialActions/steel_rope_place.wav",
+          "audio_guid": "c4696aafd91540b699aec7a108f02412",
+          "seconds": 0.19,
+          "peak_dbfs": -2,
+          "rms_dbfs": -17.69,
+          "sha256": "763272c7577fc2c4cc8b51ca49c6d4d1fc1021501c57eb431c298b2612278c67",
+          "energy_90_percent_seconds": 0.0345,
+          "maximum_contact_excitation_seconds": 0.0008
+        }
+      },
+      "character": "Tight wire pluck with short bright steel overtones"
+    }
+  ],
+  "revision": "Material character over approved pop"
+}

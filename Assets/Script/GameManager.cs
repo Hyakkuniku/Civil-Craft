@@ -584,6 +584,9 @@ public partial class GameManager : MonoBehaviour
         HideDecorativeCanyons();
         location.ShowBuildModeOnlyStarterBridge();
         foreach (GameObject uiElement in buildModeUIElements) if (uiElement != null) uiElement.SetActive(true);
+        BuildCameraController buildCamera = FindObjectOfType<BuildCameraController>(true);
+        if (buildCamera != null) buildCamera.FrameBuildLocation(location);
+        else BuildCameraFraming.TryFrame(location);
         InvokeEventSafely(OnEnterBuildMode);
 
         // BuildUI may only have awakened when its parent was enabled above, so do not
@@ -617,9 +620,15 @@ public partial class GameManager : MonoBehaviour
         if (IsSessionChallengeBuild)
         {
             MultiplayerChallengeLobbyUI.RequestLeaveChallengeBuild();
+            BuildToolAudio.Play(BuildToolSound.Exit);
             return;
         }
-        if (IsCargoTestActive) { CancelCargoTest(); return; }
+        if (IsCargoTestActive)
+        {
+            CancelCargoTest();
+            BuildToolAudio.Play(BuildToolSound.StopSimulation);
+            return;
+        }
         BridgePhysicsManager physicsManager = FindObjectOfType<BridgePhysicsManager>();
         if (physicsManager != null && physicsManager.IsSimulationActive)
         {
@@ -634,7 +643,8 @@ public partial class GameManager : MonoBehaviour
         }
 
         if (CurrentState == GameState.Normal || isTransitioning) return;
-        
+
+        BuildToolAudio.Play(BuildToolSound.Exit);
         StartCoroutine(ExitBuildModeRoutine());
     }
 

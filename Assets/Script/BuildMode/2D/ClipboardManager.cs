@@ -262,6 +262,7 @@ public class ClipboardManager : MonoBehaviour
             BuildUIController.Instance.SetSelectionPanelActive(true);
             BuildUIController.Instance.LogAction("Selection Copied");
         }
+        BuildToolAudio.Play(BuildToolSound.Copy);
     }
     
     public void CutSelected(List<Point> ignoredPointsParam)
@@ -373,6 +374,7 @@ public class ClipboardManager : MonoBehaviour
             BuildUIController.Instance.MarkBridgeDirty();
             BuildUIController.Instance.LogAction("Selection Cut");
         }
+        BuildToolAudio.Play(BuildToolSound.Cut);
     }
 
     private bool CanAffordPaste()
@@ -583,6 +585,7 @@ public class ClipboardManager : MonoBehaviour
     {
         if (!overrideConfirmationPending) return;
         CloseOverrideConfirmation();
+        BuildToolAudio.Play(BuildToolSound.CancelDrawing);
         
         if (BuildUIController.Instance != null) 
         {
@@ -597,7 +600,7 @@ public class ClipboardManager : MonoBehaviour
             !GameManager.Instance.CanEditSessionChallengeBuild) { CancelPasteMode(); return; }
         HistoryAction pasteAction = new HistoryAction { isBuildEvent = true };
         List<Point> newRealPoints = new List<Point>();
-        bool placedAnyBar = false;
+        List<BridgeMaterialSO> placedMaterials = new List<BridgeMaterialSO>();
         
         float snappedRotation = Mathf.Round(pasteRotationOffset / 15f) * 15f;
         Quaternion rotation = Quaternion.Euler(0, 0, snappedRotation);
@@ -666,15 +669,17 @@ public class ClipboardManager : MonoBehaviour
             if (!p2.ConnectedBars.Contains(newBar)) p2.ConnectedBars.Add(newBar);
             
             pasteAction.affectedObjects.Add(bObj);
-            placedAnyBar = true;
+            if (!placedMaterials.Contains(newBar.materialData))
+                placedMaterials.Add(newBar.materialData);
         }
 
         foreach(Point p in newRealPoints) p.EvaluateAnchorState();
 
         CommandManager.Instance.RecordAction(pasteAction);
 
-        if (placedAnyBar && AudioManager.Instance != null && !string.IsNullOrWhiteSpace(placeBarSfxId))
-            AudioManager.Instance.PlaySFX(placeBarSfxId);
+        foreach (BridgeMaterialSO material in placedMaterials)
+            MaterialBuildAudio.PlayPlace(material, placeBarSfxId);
+        if (placedMaterials.Count > 0) BuildToolAudio.Play(BuildToolSound.Paste);
 
         // Pasted bars are a normal build action. Route the complete atomic paste
         // through the same strict ghost validation used by manually drawn bars.
