@@ -58,6 +58,11 @@ public class BridgeMaterialSO : ScriptableObject
     public bool isRoad = false; 
     public bool isPier = false; 
 
+    [Header("Road Bending (Newton-metres)")]
+    [Min(0f)]
+    [Tooltip("Bending moment that breaks one road panel between its joints. Zero disables the bending check for this material.")]
+    public float roadBendingMomentLimit;
+
     [Header("Pier Buckling")]
     [Min(0.01f)]
     [Tooltip("Pier height that retains the full compression limit. Taller piers lose compression strength according to the buckling exponent.")]

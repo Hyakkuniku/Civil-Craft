@@ -38,6 +38,8 @@ static partial class Program
         public int Sample;
         public float Ratio;
         public bool Tension;
+        public float AxialRatio;
+        public float BendingRatio;
     }
 
     static int Main(string[] args)
@@ -232,6 +234,9 @@ static partial class Program
                 {
                     peak.Ratio = result.Samples[sample].DisplayedRatios[barIndex];
                     peak.Tension = result.Samples[sample].IsTension[barIndex];
+                    var stress = result.Samples[sample].MemberStresses[barIndex];
+                    peak.AxialRatio = stress.DisplayedAxial;
+                    peak.BendingRatio = stress.DisplayedBending;
                     peak.Sample = sample;
                 }
             peaks.Add(peak);
@@ -250,7 +255,10 @@ static partial class Program
             Vector3 a = peak.Bar.startPoint.transform.position, b = peak.Bar.endPoint.transform.position;
             result.TryGetDeadLoadStress(peak.Bar, out float dead, out _, out bool deadTension);
             result.TryGetStress(peak.Bar, peak.Sample, out _, out float structural, out _);
-            Console.WriteLine($"  bar#{peak.Record.Index} {peak.Record.Material} node#{peak.Record.A}({a.x:F4},{a.y:F4})->node#{peak.Record.B}({b.x:F4},{b.y:F4}); length={Length(a,b):F4} m; peak={peak.Ratio:P3}; structural={structural:P3}; {Direction(peak.Tension)} limit={Limit(peak.Bar,peak.Tension):F1} N; approx axial={peak.Ratio * Limit(peak.Bar,peak.Tension):F1} N; sample={peak.Sample}/{samples-1} progress={(float)peak.Sample/(samples-1):P2}; dead={dead:P3} {Direction(deadTension)}.");
+            result.TryGetSimulationStress(peak.Bar, peak.Sample, 0f, out _, out _, out _,
+                out float deadAxial, out float deadBending);
+            string deadMode = StressMode(deadAxial, deadBending, deadTension);
+            Console.WriteLine($"  bar#{peak.Record.Index} {peak.Record.Material} node#{peak.Record.A}({a.x:F4},{a.y:F4})->node#{peak.Record.B}({b.x:F4},{b.y:F4}); length={Length(a,b):F4} m; peak={peak.Ratio:P3}; structural={structural:P3}; {LoadLabel(peak)}; sample={peak.Sample}/{samples-1} progress={(float)peak.Sample/(samples-1):P2}; dead={dead:P3} {deadMode}.");
         }
     }
 
@@ -275,20 +283,36 @@ static partial class Program
     static BridgeMaterialSO ReadMaterial(string path, string name)
     {
         string source = File.ReadAllText(path);
-        float Number(string field)
+        float Number(string field, float? defaultValue = null)
         {
             Match match = Regex.Match(source, "(?m)^  " + Regex.Escape(field) + @":\s*([^\r\n]+)");
+            if (!match.Success && defaultValue.HasValue) return defaultValue.Value;
             Require(match.Success, "Missing material field: " + field + " in " + name);
             return float.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
         }
-        return new BridgeMaterialSO { name = name, isPier = Number("isPier") != 0, isRoad = Number("isRoad") != 0,
+        var material = new BridgeMaterialSO { name = name, isPier = Number("isPier") != 0, isRoad = Number("isRoad") != 0,
             isRope = Number("isRope") != 0, isDualBeam = Number("isDualBeam") != 0,
             maxTension = Number("maxTension"), maxCompression = Number("maxCompression"),
             massPerMeter = Number("massPerMeter"), costPerMeter = Number("costPerMeter"), maxLength = Number("maxLength"),
-            pierBucklingReferenceLength = Number("pierBucklingReferenceLength"), pierBucklingExponent = Number("pierBucklingExponent"),
-            pierMinimumCompressionMultiplier = Number("pierMinimumCompressionMultiplier") };
+            roadBendingMomentLimit = Number("roadBendingMomentLimit", 0f) };
+        material.pierBucklingReferenceLength = Number("pierBucklingReferenceLength", material.pierBucklingReferenceLength);
+        material.pierBucklingExponent = Number("pierBucklingExponent", material.pierBucklingExponent);
+        material.pierMinimumCompressionMultiplier = Number("pierMinimumCompressionMultiplier", material.pierMinimumCompressionMultiplier);
+        return material;
     }
-    static string PeakLabel(MemberPeak peak) => $"{peak.Ratio:P3} {Direction(peak.Tension)}, limit={Limit(peak.Bar,peak.Tension):F1}N, approx force={peak.Ratio * Limit(peak.Bar,peak.Tension):F1}N, sample={peak.Sample}";
+    static string PeakLabel(MemberPeak peak) => $"{peak.Ratio:P3} {LoadLabel(peak)}, sample={peak.Sample}";
+    static string LoadLabel(MemberPeak peak)
+    {
+        float axialForce = peak.AxialRatio * Limit(peak.Bar, peak.Tension);
+        string axial = $"{Direction(peak.Tension)} {peak.AxialRatio:P2} ({axialForce:F1} N)";
+        if (peak.BendingRatio <= 0f) return axial;
+        float moment = peak.BendingRatio * peak.Bar.materialData.roadBendingMomentLimit *
+            (peak.Bar.materialData.isDualBeam ? 2f : 1f);
+        string bending = $"BENDING {peak.BendingRatio:P2} ({moment:F1} N·m)";
+        return peak.AxialRatio >= .0005f ? $"{axial} + {bending}" : bending;
+    }
+    static string StressMode(float axial, float bending, bool tension) => bending < .0005f ? Direction(tension)
+        : axial < .0005f ? "BENDING" : $"{Direction(tension)} + BENDING";
     static float Limit(Bar bar, bool tension)
     {
         // Use the production solver's own quantization/square-root helpers so

@@ -3,8 +3,8 @@ using UnityEngine.UI;
 using TMPro; 
 using PlayFab;
 using PlayFab.ClientModels;
-using UnityEngine.SceneManagement; 
-using System.Text.RegularExpressions; 
+using System.Collections;
+using System.Collections.Generic;
 using System;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
@@ -26,6 +26,8 @@ public class PlayFabAuthManager : MonoBehaviour
     private bool returnToMainMenuAfterLogin;
     private bool playAfterAutomaticLogin;
     private bool manualLoginInProgress;
+    private bool registrationInProgress;
+    private bool openingAccountSave;
     private int authenticationGeneration;
     private Action cancelSaveChoice;
 
@@ -51,22 +53,31 @@ public class PlayFabAuthManager : MonoBehaviour
     public TextMeshProUGUI playerNameDisplay; 
 
     [Header("Login Inputs")]
-    [Tooltip("Username must match its registered capitalization. Email login is unchanged.")]
     public TMP_InputField loginUsername;
     public TMP_InputField loginPassword;
+    [SerializeField] private Button resendVerificationButton;
+    private TMP_Text resendVerificationLabel;
+    private string verificationTicket;
+    private string verificationIdentifier;
+    private string verificationNotice;
+    private bool resendInProgress;
+    private float resendAvailableAt;
 
     [Header("Register Inputs")]
     public TMP_InputField registerUsername;
     public TMP_InputField registerEmail;
     public TMP_InputField registerPassword;
     public TMP_InputField registerConfirmPassword; 
+    [SerializeField] private Toggle termsAgreementToggle;
+    [SerializeField] private Toggle emailUpdatesToggle;
 
     [Header("Forgot Password Inputs")]
     public TMP_InputField resetEmailInput; 
     public Button forgotPasswordSubmitButton;      
     public TextMeshProUGUI forgotPasswordButtonText; 
 
-    private float forgotPasswordCooldown = 0f;     
+    private bool recoveryInProgress;
+    private float recoveryAvailableAt;
     
     [Header("Password Visibility Icons")]
     public Image loginPasswordToggleImage;
@@ -96,6 +107,9 @@ public class PlayFabAuthManager : MonoBehaviour
 
         if (authCanvas != null) authCanvas.SetActive(false);
         if (saveChoiceDialog != null) saveChoiceDialog.Hide();
+        if (resendVerificationButton != null)
+            resendVerificationLabel = resendVerificationButton.GetComponentInChildren<TMP_Text>(true);
+        RefreshResendButton();
     }
 
 #if UNITY_EDITOR
@@ -147,9 +161,9 @@ public class PlayFabAuthManager : MonoBehaviour
         if (authBackground != null)
             authBackground.color = new Color(0.08f, 0.055f, 0.04f, 0.76f);
 
-        StyleAuthCard(loginPanel, new Vector2(720f, 680f), outlineSprite, surfaceSprite,
+        StyleAuthCard(loginPanel, new Vector2(720f, 736f), outlineSprite, surfaceSprite,
             brown, cream);
-        StyleAuthCard(registerPanel, new Vector2(720f, 790f), outlineSprite, surfaceSprite,
+        StyleAuthCard(registerPanel, new Vector2(720f, 802f), outlineSprite, surfaceSprite,
             brown, cream);
         if (forgotPasswordPanel != null)
             StyleAuthCard(forgotPasswordPanel, new Vector2(700f, 560f), outlineSprite,
@@ -180,32 +194,32 @@ public class PlayFabAuthManager : MonoBehaviour
         StyleCloseButton(loginPanel, "btn_exit", new Vector2(303f, 289f), brown);
 
         TMP_Text registerTitle = FindText(registerPanel, "txt_Title");
-        StyleTitle(registerTitle, "CREATE ACCOUNT", new Vector2(0f, 302f), brown);
+        StyleTitle(registerTitle, "CREATE ACCOUNT", new Vector2(0f, 350f), brown);
         CreateSubtitle(registerPanel, registerTitle, "Save your progress and play on another device",
-            new Vector2(0f, 252f), muted);
+            new Vector2(0f, 303f), muted);
 
         StyleFieldLabel(FindText(registerPanel, "txt_Email"), "EMAIL",
-            new Vector2(0f, 195f), brown);
+            new Vector2(0f, 256f), brown);
         StyleFieldLabel(FindText(registerPanel, "txt_RegUSer"), "USERNAME",
-            new Vector2(0f, 91f), brown);
+            new Vector2(0f, 182f), brown);
         StyleFieldLabel(FindText(registerPanel, "txt_RegPass"), "PASSWORD",
-            new Vector2(0f, -13f), brown);
+            new Vector2(0f, 108f), brown);
         StyleFieldLabel(FindText(registerPanel, "txt_ConfRegPass"), "CONFIRM PASSWORD",
-            new Vector2(0f, -117f), brown);
-        StyleInput(registerEmail, registerPanel.transform, new Vector2(0f, 155f),
-            new Vector2(520f, 56f), controlSprite, brown, white, "Email address");
-        StyleInput(registerUsername, registerPanel.transform, new Vector2(0f, 51f),
-            new Vector2(520f, 56f), controlSprite, brown, white, "Choose a username");
-        StyleInput(registerPassword, registerPanel.transform, new Vector2(0f, -53f),
-            new Vector2(520f, 56f), controlSprite, brown, white, "Create a password");
-        StyleInput(registerConfirmPassword, registerPanel.transform, new Vector2(0f, -157f),
-            new Vector2(520f, 56f), controlSprite, brown, white, "Repeat your password");
+            new Vector2(0f, -1f), brown);
+        StyleInput(registerEmail, registerPanel.transform, new Vector2(0f, 222f),
+            new Vector2(520f, 50f), controlSprite, brown, white, "Email address");
+        StyleInput(registerUsername, registerPanel.transform, new Vector2(0f, 148f),
+            new Vector2(520f, 50f), controlSprite, brown, white, "3–24 letters, numbers or underscores");
+        StyleInput(registerPassword, registerPanel.transform, new Vector2(0f, 74f),
+            new Vector2(520f, 50f), controlSprite, brown, white, "Create a password");
+        StyleInput(registerConfirmPassword, registerPanel.transform, new Vector2(0f, -35f),
+            new Vector2(520f, 50f), controlSprite, brown, white, "Repeat your password");
 
-        StyleNamedButton(registerPanel, "btn_Register", "CREATE ACCOUNT", new Vector2(0f, -250f),
+        StyleNamedButton(registerPanel, "btn_Register", "CREATE ACCOUNT", new Vector2(0f, -278f),
             new Vector2(520f, 62f), true, controlSprite, brown, cream);
-        StyleNamedButton(registerPanel, "btn_signup", "BACK TO SIGN IN", new Vector2(0f, -325f),
+        StyleNamedButton(registerPanel, "btn_signup", "BACK TO SIGN IN", new Vector2(0f, -348f),
             new Vector2(260f, 46f), false, controlSprite, brown, cream, true);
-        StyleCloseButton(registerPanel, "btn_exit (2)", new Vector2(303f, 337f), brown);
+        StyleCloseButton(registerPanel, "btn_exit (2)", new Vector2(303f, 347f), brown);
 
         if (forgotPasswordPanel != null)
         {
@@ -230,7 +244,7 @@ public class PlayFabAuthManager : MonoBehaviour
 
         if (feedbackText != null)
         {
-            SetRect(feedbackText.rectTransform, new Vector2(0f, -375f), new Vector2(900f, 52f));
+            SetRect(feedbackText.rectTransform, new Vector2(0f, -405f), new Vector2(900f, 60f));
             feedbackText.enableAutoSizing = true;
             feedbackText.fontSizeMin = 18f;
             feedbackText.fontSizeMax = 26f;
@@ -529,11 +543,12 @@ public class PlayFabAuthManager : MonoBehaviour
 
         IsAutomaticLoginInProgress = true;
         int generation = ++authenticationGeneration;
-        var info = new GetPlayerCombinedInfoRequestParams { GetPlayerProfile = true };
+        var client = new PlayFabClientInstanceAPI();
+        var info = AccountInfoRequest();
 
         if (Application.platform == RuntimePlatform.Android)
         {
-            PlayFabClientAPI.LoginWithAndroidDeviceID(new LoginWithAndroidDeviceIDRequest
+            client.LoginWithAndroidDeviceID(new LoginWithAndroidDeviceIDRequest
             {
                 AndroidDeviceId = deviceId,
                 CreateAccount = false,
@@ -543,7 +558,7 @@ public class PlayFabAuthManager : MonoBehaviour
         }
         else
         {
-            PlayFabClientAPI.LoginWithIOSDeviceID(new LoginWithIOSDeviceIDRequest
+            client.LoginWithIOSDeviceID(new LoginWithIOSDeviceIDRequest
             {
                 DeviceId = deviceId,
                 CreateAccount = false,
@@ -555,17 +570,12 @@ public class PlayFabAuthManager : MonoBehaviour
 
     private void OnAutomaticLoginSuccess(LoginResult result, string expectedPlayFabId, int generation)
     {
-        if (generation != authenticationGeneration)
-        {
-            PlayFabClientAPI.ForgetAllCredentials();
-            return;
-        }
+        if (this == null || generation != authenticationGeneration) return;
 
-        if (!string.Equals(result.PlayFabId, expectedPlayFabId, StringComparison.Ordinal))
+        if (result == null || !string.Equals(result.PlayFabId, expectedPlayFabId, StringComparison.Ordinal))
         {
             // A device may have been re-linked outside this installation. Never
             // accept a different account merely because its device login worked.
-            PlayFabClientAPI.ForgetAllCredentials();
             PlayerPrefs.DeleteKey(RememberedPlayFabIdKey);
             PlayerPrefs.Save();
             Debug.LogWarning("Automatic login returned a different PlayFab account. Please sign in manually.", this);
@@ -574,6 +584,31 @@ public class PlayFabAuthManager : MonoBehaviour
             return;
         }
 
+        StartCoroutine(CivilCraftAccountWebsite.CheckEmail(result.SessionTicket, result.PlayFabId, status =>
+        {
+            if (this == null || generation != authenticationGeneration) return;
+            if (status == CivilCraftAccountPolicy.Verification.Confirmed)
+                CompleteAutomaticLogin(result, generation);
+            else
+            {
+                IsAutomaticLoginInProgress = false;
+                var account = result.InfoResultPayload?.AccountInfo;
+                string identifier = account?.PrivateInfo?.Email ?? account?.Username;
+                ShowVerificationResult(result, identifier, status);
+                FinishAutomaticLogin(false);
+            }
+        }));
+    }
+
+    private void CompleteAutomaticLogin(LoginResult result, int generation)
+    {
+        if (!ActivateVerifiedSession(result))
+        {
+            IsAutomaticLoginInProgress = false;
+            FinishAutomaticLogin(false);
+            return;
+        }
+        ClearVerificationPrompt();
         isGuest = false;
         string displayName = result.InfoResultPayload?.PlayerProfile?.DisplayName;
         loggedInPlayerName = string.IsNullOrWhiteSpace(displayName)
@@ -614,20 +649,15 @@ public class PlayFabAuthManager : MonoBehaviour
             cancelSaveChoice?.Invoke();
             return;
         }
-        if (forgotPasswordCooldown > 0f)
+        if (forgotPasswordPanel != null && forgotPasswordPanel.activeInHierarchy)
         {
-            forgotPasswordCooldown -= Time.deltaTime;
-            
-            if (forgotPasswordSubmitButton != null) forgotPasswordSubmitButton.interactable = false;
-            if (forgotPasswordButtonText != null) forgotPasswordButtonText.text = $"Wait {Mathf.CeilToInt(forgotPasswordCooldown)}s";
+            int seconds = Mathf.Max(0, Mathf.CeilToInt(recoveryAvailableAt - Time.realtimeSinceStartup));
+            if (forgotPasswordSubmitButton != null) forgotPasswordSubmitButton.interactable = !recoveryInProgress && seconds == 0;
+            if (forgotPasswordButtonText != null) forgotPasswordButtonText.text = recoveryInProgress
+                ? "SENDING…" : seconds > 0 ? $"WAIT {seconds}s" : "SEND RECOVERY EMAIL";
         }
-        else if (forgotPasswordCooldown < 0f) 
-        {
-            forgotPasswordCooldown = 0f;
-            
-            if (forgotPasswordSubmitButton != null) forgotPasswordSubmitButton.interactable = true;
-            if (forgotPasswordButtonText != null) forgotPasswordButtonText.text = "Send Email";
-        }
+        if (resendVerificationButton != null && resendVerificationButton.gameObject.activeInHierarchy)
+            RefreshResendButton();
     }
 
     private static bool SaveChoiceEscapePressed()
@@ -731,11 +761,16 @@ public class PlayFabAuthManager : MonoBehaviour
 
     public void CloseAuthCanvas()
     {
+        if (registrationInProgress) return;
         if (manualLoginInProgress)
         {
             authenticationGeneration++;
-            FailPendingLogin("Account switch canceled. Your guest save is unchanged.");
+            if (openingAccountSave)
+                FailPendingLogin("Account switch canceled. Your guest save is unchanged.");
+            else
+                manualLoginInProgress = false;
         }
+        ClearVerificationPrompt();
         CloseSaveChoice();
         returnToMainMenuAfterLogin = false;
         if (loginPanel != null) loginPanel.SetActive(true);
@@ -753,6 +788,9 @@ public class PlayFabAuthManager : MonoBehaviour
         IsAutomaticLoginInProgress = false;
         playAfterAutomaticLogin = false;
         manualLoginInProgress = false;
+        openingAccountSave = false;
+        registrationInProgress = false;
+        ClearVerificationPrompt();
         IsCloudSaveReady = false;
         CloudSaveManager cloud = PlayerDataManager.Instance != null
             ? PlayerDataManager.Instance.GetComponent<CloudSaveManager>() : null;
@@ -774,11 +812,14 @@ public class PlayFabAuthManager : MonoBehaviour
 
     public void OnPlayAsGuestClicked()
     {
+        if (registrationInProgress) return;
         CloseSaveChoice();
         authenticationGeneration++;
         IsAutomaticLoginInProgress = false;
         playAfterAutomaticLogin = false;
         manualLoginInProgress = false;
+        openingAccountSave = false;
+        ClearVerificationPrompt();
         IsCloudSaveReady = false;
         CloudSaveManager cloud = PlayerDataManager.Instance != null
             ? PlayerDataManager.Instance.GetComponent<CloudSaveManager>() : null;
@@ -808,24 +849,32 @@ public class PlayFabAuthManager : MonoBehaviour
 
     public void ShowLoginPanel()
     {
+        if (registrationInProgress) return;
         loginPanel.SetActive(true);
         registerPanel.SetActive(false);
         if (forgotPasswordPanel != null) forgotPasswordPanel.SetActive(false);
-        PositionFeedback(-375f);
-        SetFeedbackMessage("", Color.white);
+        PositionFeedback(-405f);
+        SetFeedbackMessage(verificationNotice ?? string.Empty, verificationNotice == null ? Color.white : errorColor);
+        RefreshResendButton();
     }
 
     public void ShowRegisterPanel()
     {
+        if (registrationInProgress || manualLoginInProgress || IsAutomaticLoginInProgress) return;
+        ClearVerificationPrompt();
+        if (termsAgreementToggle != null) termsAgreementToggle.SetIsOnWithoutNotify(false);
+        if (emailUpdatesToggle != null) emailUpdatesToggle.SetIsOnWithoutNotify(false);
         loginPanel.SetActive(false);
         registerPanel.SetActive(true);
         if (forgotPasswordPanel != null) forgotPasswordPanel.SetActive(false);
-        PositionFeedback(-430f);
+        PositionFeedback(-429f);
         SetFeedbackMessage("", Color.white);
     }
 
     public void ShowForgotPasswordPanel()
     {
+        if (registrationInProgress || manualLoginInProgress) return;
+        ClearVerificationPrompt();
         loginPanel.SetActive(false);
         registerPanel.SetActive(false);
         if (forgotPasswordPanel != null) forgotPasswordPanel.SetActive(true);
@@ -892,146 +941,131 @@ public class PlayFabAuthManager : MonoBehaviour
     // PLAYFAB API CALLS
     // ────────────────────────────────────────────────
 
+
     public void OnLoginButtonClicked()
     {
-        if (manualLoginInProgress) return;
+        if (manualLoginInProgress || registrationInProgress) return;
         if (IsAutomaticLoginInProgress)
         {
-            SetFeedbackMessage("Finishing automatic sign-in. Please wait...", processColor);
+            SetFeedbackMessage("Finishing automatic sign-in. Please wait…", processColor);
             return;
         }
 
-        var attempt = new PlayFabUsernameLoginPolicy(loginUsername.text);
-        string inputId = attempt.Identifier;
-
-        if (string.IsNullOrEmpty(inputId) || string.IsNullOrEmpty(loginPassword.text))
+        string identifier = CivilCraftAccountPolicy.TrimIdentifier(loginUsername.text);
+        string password = loginPassword.text;
+        string validationError = CivilCraftAccountPolicy.LoginError(identifier, password);
+        if (validationError != null)
         {
-            SetFeedbackMessage("Please enter Username/Email and Password.", errorColor);
+            SetFeedbackMessage(validationError, errorColor);
             return;
         }
 
-        SetFeedbackMessage("Logging in...", processColor);
-
-        var infoParams = new GetPlayerCombinedInfoRequestParams
-        {
-            GetPlayerProfile = true,
-            GetUserAccountInfo = true, 
-            ProfileConstraints = new PlayerProfileViewConstraints
-            {
-                ShowContactEmailAddresses = true,
-                ShowDisplayName = true
-            }
-        };
-
+        ClearVerificationPrompt();
+        SetFeedbackMessage("Signing in…", processColor);
         manualLoginInProgress = true;
         int generation = ++authenticationGeneration;
+        var client = new PlayFabClientInstanceAPI();
+        var info = AccountInfoRequest();
 
-        if (attempt.IsEmailLogin)
+        // Keep the provisional credentials out of the global SDK session until
+        // the website confirms this account and the player chooses its save.
+        if (CivilCraftAccountPolicy.IsEmailLogin(identifier))
         {
-            var request = new LoginWithEmailAddressRequest
+            client.LoginWithEmailAddress(new LoginWithEmailAddressRequest
             {
-                Email = inputId,
-                Password = loginPassword.text,
-                InfoRequestParameters = infoParams
-            };
-            PlayFabClientAPI.LoginWithEmailAddress(request,
-                result => OnLoginSuccess(result, generation, attempt),
-                error => OnLoginError(error, generation));
+                Email = identifier,
+                Password = password,
+                InfoRequestParameters = info
+            }, result => OnLoginSuccess(result, generation, identifier),
+               error => OnLoginError(error, generation));
         }
         else
         {
-            var request = new LoginWithPlayFabRequest
+            client.LoginWithPlayFab(new LoginWithPlayFabRequest
             {
-                Username = inputId,
-                Password = loginPassword.text,
-                InfoRequestParameters = infoParams
-            };
-            PlayFabClientAPI.LoginWithPlayFab(request,
-                result => OnLoginSuccess(result, generation, attempt),
-                error => OnLoginError(error, generation));
+                Username = identifier,
+                Password = password,
+                InfoRequestParameters = info
+            }, result => OnLoginSuccess(result, generation, identifier),
+               error => OnLoginError(error, generation));
         }
     }
 
-    public void OnRegisterButtonClicked()
-    {
-        // Do not replace the SDK session while a submitted username is being verified.
-        if (manualLoginInProgress || IsAutomaticLoginInProgress)
+    private static GetPlayerCombinedInfoRequestParams AccountInfoRequest() =>
+        new GetPlayerCombinedInfoRequestParams
         {
-            SetFeedbackMessage("Finishing sign-in. Please wait before registering an account.", processColor);
-            return;
-        }
-        string trimmedUser = registerUsername.text.Trim();
-        string trimmedEmail = registerEmail.text.Trim();
-
-        if (string.IsNullOrEmpty(trimmedUser) || string.IsNullOrEmpty(trimmedEmail) || 
-            string.IsNullOrEmpty(registerPassword.text) || (registerConfirmPassword != null && string.IsNullOrEmpty(registerConfirmPassword.text)))
-        {
-            SetFeedbackMessage("Please fill out all fields.", errorColor);
-            return;
-        }
-
-        if (!PlayerNamePolicy.TryValidate(trimmedUser, out string nameError))
-        {
-            SetFeedbackMessage(nameError, errorColor);
-            return;
-        }
-
-        if (registerConfirmPassword != null && registerPassword.text != registerConfirmPassword.text)
-        {
-            SetFeedbackMessage("Passwords do not match.", errorColor);
-            return;
-        }
-
-        string passwordRegex = @"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$";
-        if (!Regex.IsMatch(registerPassword.text, passwordRegex))
-        {
-            SetFeedbackMessage("Password must be at least 8 characters, include an uppercase letter, a lowercase letter, and a number.", errorColor);
-            return;
-        }
-
-        SetFeedbackMessage("Registering account...", processColor);
-
-        var request = new RegisterPlayFabUserRequest
-        {
-            Username = trimmedUser,
-            Email = trimmedEmail,
-            Password = registerPassword.text,
-            RequireBothUsernameAndEmail = true 
+            GetUserAccountInfo = true,
+            GetPlayerProfile = true,
+            ProfileConstraints = new PlayerProfileViewConstraints { ShowDisplayName = true }
         };
 
-        PlayFabClientAPI.RegisterPlayFabUser(request,
-            result => OnRegisterSuccess(result, trimmedUser), OnRegisterError);
+    public void OnRegisterButtonClicked()
+    {
+        if (registrationInProgress || manualLoginInProgress || IsAutomaticLoginInProgress) return;
+        string username = CivilCraftAccountPolicy.TrimIdentifier(registerUsername.text);
+        string email = CivilCraftAccountPolicy.TrimIdentifier(registerEmail.text);
+        string password = registerPassword.text;
+        string errorMessage = CivilCraftAccountPolicy.RegistrationError(username, email, password,
+            registerConfirmPassword != null ? registerConfirmPassword.text : null,
+            termsAgreementToggle != null && termsAgreementToggle.isOn);
+        if (errorMessage != null)
+        {
+            SetFeedbackMessage(errorMessage, errorColor);
+            return;
+        }
+
+        bool emailUpdates = emailUpdatesToggle != null && emailUpdatesToggle.isOn;
+        string acceptedAt = DateTime.UtcNow.ToString("o");
+        registrationInProgress = true;
+        int generation = ++authenticationGeneration;
+        SetFeedbackMessage("Creating account…", processColor);
+        var client = new PlayFabClientInstanceAPI();
+        client.RegisterPlayFabUser(new RegisterPlayFabUserRequest
+        {
+            Username = username,
+            DisplayName = username,
+            Email = email,
+            Password = password,
+            RequireBothUsernameAndEmail = true
+        }, result =>
+        {
+            if (this == null || generation != authenticationGeneration) return;
+            registerPassword.text = string.Empty;
+            registerConfirmPassword.text = string.Empty;
+            StartCoroutine(CompleteRegistration(result, username, email, emailUpdates, acceptedAt, generation));
+        }, error =>
+        {
+            if (this == null || generation != authenticationGeneration) return;
+            registrationInProgress = false;
+            SetFeedbackMessage("Could not create account. " + error.ErrorMessage, errorColor);
+        });
     }
 
     public void OnForgotPasswordButtonClicked()
     {
-        string resetEmail = resetEmailInput.text.Trim();
-
-        if (string.IsNullOrEmpty(resetEmail))
+        if (recoveryInProgress || Time.realtimeSinceStartup < recoveryAvailableAt) return;
+        string email = CivilCraftAccountPolicy.TrimIdentifier(resetEmailInput.text);
+        if (!CivilCraftAccountPolicy.IsEmail(email))
         {
-            SetFeedbackMessage("Please enter your email address.", errorColor);
+            SetFeedbackMessage("Enter a valid email address.", errorColor);
             return;
         }
 
-        string emailRegex = @"^[^@\s]+@[^@\s]+\.[^@\s]+$";
-        if (!Regex.IsMatch(resetEmail, emailRegex))
+        SetFeedbackMessage("Requesting a recovery email…", processColor);
+        recoveryInProgress = true;
+        StartCoroutine(CivilCraftAccountWebsite.SendRecovery(email, succeeded =>
         {
-            SetFeedbackMessage("Please enter a valid email address.", errorColor);
-            return;
-        }
-
-        SetFeedbackMessage("Sending recovery email...", processColor);
-
-        forgotPasswordCooldown = 60f;
-
-        var request = new SendAccountRecoveryEmailRequest
-        {
-            Email = resetEmail,
-            TitleId = PlayFabSettings.staticSettings.TitleId 
-        };
-
-        PlayFabClientAPI.SendAccountRecoveryEmail(request, OnPasswordResetSuccess, OnPasswordResetError);
+            recoveryInProgress = false;
+            if (succeeded) recoveryAvailableAt = Time.realtimeSinceStartup + 60f;
+            if (forgotPasswordPanel == null || !forgotPasswordPanel.activeInHierarchy) return;
+            SetFeedbackMessage(succeeded ? CivilCraftAccountWebsite.RecoveryRequested :
+                "Unable to request password recovery. Please try again later.", succeeded ? successColor : errorColor);
+        }));
     }
+
+    public void OpenAccountTerms() => Application.OpenURL(CivilCraftAccountWebsite.Origin + "/terms");
+    public void OpenAccountPrivacy() => Application.OpenURL(CivilCraftAccountWebsite.Origin + "/privacy");
+
 
     public void SubmitNewDisplayName(string newName)
     {
@@ -1057,91 +1091,115 @@ public class PlayFabAuthManager : MonoBehaviour
     // PLAYFAB SUCCESS/ERROR CALLBACKS
     // ────────────────────────────────────────────────
 
-    private void OnLoginSuccess(LoginResult result, int generation, PlayFabUsernameLoginPolicy attempt)
+
+    private void OnLoginSuccess(LoginResult result, int generation, string identifier)
     {
         if (this == null || generation != authenticationGeneration) return;
-        // A successful account switch replaces the PlayFab credentials. Stop
-        // the previous account's pending sync before any further API calls.
-        CloudSaveManager previousCloud = PlayerDataManager.Instance != null
-            ? PlayerDataManager.Instance.GetComponent<CloudSaveManager>() : null;
-        if (previousCloud != null) previousCloud.EndSession();
-        IsCloudSaveReady = false;
         loginPassword.text = string.Empty;
-        if (result == null || attempt == null || string.IsNullOrWhiteSpace(result.PlayFabId))
-        {
-            RejectUsernameLogin(PlayFabUsernameLoginPolicy.VerificationError, generation);
-            return;
-        }
-
-        if (attempt.IsEmailLogin) { AcceptVerifiedManualLogin(result, generation); return; }
-
-        UserAccountInfo account = result.InfoResultPayload?.AccountInfo;
-        if (account != null && !string.IsNullOrWhiteSpace(account.PlayFabId) &&
-            !string.Equals(account.PlayFabId, result.PlayFabId, StringComparison.Ordinal))
-        {
-            RejectUsernameLogin(PlayFabUsernameLoginPolicy.VerificationError, generation);
-            return;
-        }
-        PlayFabUsernameVerification verification = attempt.Verify(account?.Username);
-        if (verification == PlayFabUsernameVerification.RequiresAccountInfo)
-        {
-            VerifySubmittedUsername(result, generation, attempt);
-            return;
-        }
-        FinishUsernameVerification(result, generation, verification);
-    }
-
-    private void VerifySubmittedUsername(LoginResult result, int generation, PlayFabUsernameLoginPolicy attempt)
-    {
-        // Missing optional login payload must not bypass capitalization checks.
-        // Fetch the authenticated account by ID, never by a mutable input/display name.
-        if (string.IsNullOrWhiteSpace(result.SessionTicket))
-        {
-            RejectUsernameLogin(PlayFabUsernameLoginPolicy.VerificationError, generation);
-            return;
-        }
-        SetFeedbackMessage("Verifying username...", processColor);
-        var context = new PlayFabAuthenticationContext { ClientSessionTicket = result.SessionTicket,
-            PlayFabId = result.PlayFabId };
-        var request = new GetAccountInfoRequest { PlayFabId = result.PlayFabId, AuthenticationContext = context };
-        PlayFabClientAPI.GetAccountInfo(request, info =>
+        SetFeedbackMessage("Checking email verification…", processColor);
+        StartCoroutine(CivilCraftAccountWebsite.CheckEmail(result?.SessionTicket, result?.PlayFabId, status =>
         {
             if (this == null || generation != authenticationGeneration) return;
-            UserAccountInfo account = info?.AccountInfo;
-            if (account == null || !string.Equals(account.PlayFabId, result.PlayFabId, StringComparison.Ordinal))
+            if (status == CivilCraftAccountPolicy.Verification.Confirmed)
+                AcceptVerifiedManualLogin(result, generation);
+            else
             {
-                RejectUsernameLogin(PlayFabUsernameLoginPolicy.VerificationError, generation);
-                return;
+                manualLoginInProgress = false;
+                ShowVerificationResult(result, identifier, status);
             }
-            FinishUsernameVerification(result, generation, attempt.Verify(account.Username));
-        }, error =>
-        {
-            if (this == null || generation != authenticationGeneration) return;
-            RejectUsernameLogin(PlayFabUsernameLoginPolicy.VerificationError, generation);
-        });
+        }));
     }
 
-    private void FinishUsernameVerification(LoginResult result, int generation, PlayFabUsernameVerification verification)
+    private void ShowVerificationResult(LoginResult result, string identifier, CivilCraftAccountPolicy.Verification status)
     {
-        if (this == null || generation != authenticationGeneration) return;
-        if (verification != PlayFabUsernameVerification.Matches)
+        if (status == CivilCraftAccountPolicy.Verification.Unconfirmed)
+            RememberVerificationPrompt(result.SessionTicket,
+                result.InfoResultPayload?.AccountInfo?.PrivateInfo?.Email ?? identifier,
+                CivilCraftAccountWebsite.VerificationRequired);
+        else
+            RememberVerificationPrompt(null, null, CivilCraftAccountWebsite.VerificationUnavailable);
+
+        if (loginPanel != null && loginPanel.activeInHierarchy)
+            SetFeedbackMessage(verificationNotice, errorColor);
+    }
+
+    private void RememberVerificationPrompt(string ticket, string identifier, string message)
+    {
+        verificationTicket = ticket;
+        verificationIdentifier = identifier;
+        verificationNotice = message;
+        RefreshResendButton();
+    }
+
+    private void ClearVerificationPrompt()
+    {
+        RememberVerificationPrompt(null, null, null);
+    }
+
+    private void RefreshResendButton()
+    {
+        if (resendVerificationButton == null) return;
+        bool available = !string.IsNullOrWhiteSpace(verificationTicket) &&
+                         !string.IsNullOrWhiteSpace(verificationIdentifier);
+        resendVerificationButton.gameObject.SetActive(available);
+        if (!available) return;
+
+        int seconds = Mathf.Max(0, Mathf.CeilToInt(resendAvailableAt - Time.realtimeSinceStartup));
+        resendVerificationButton.interactable = !resendInProgress && seconds == 0;
+        if (resendVerificationLabel != null)
+            resendVerificationLabel.text = resendInProgress ? "SENDING…" :
+                seconds > 0 ? $"RESEND IN {seconds}s" : "RESEND VERIFICATION EMAIL";
+    }
+
+    public void OnResendVerificationClicked()
+    {
+        if (resendInProgress || manualLoginInProgress || IsAutomaticLoginInProgress ||
+            Time.realtimeSinceStartup < resendAvailableAt || string.IsNullOrWhiteSpace(verificationTicket) ||
+            string.IsNullOrWhiteSpace(verificationIdentifier)) return;
+
+        string ticket = verificationTicket;
+        string identifier = verificationIdentifier;
+        resendInProgress = true;
+        RefreshResendButton();
+        StartCoroutine(CivilCraftAccountWebsite.RequestVerification(ticket, identifier,
+            (code, reply) => FinishVerificationResend(ticket, code, reply)));
+    }
+
+    private void FinishVerificationResend(string ticket, long code, CivilCraftAccountWebsite.ResendReply reply)
+    {
+        resendInProgress = false;
+        if (ticket != verificationTicket)
         {
-            RejectUsernameLogin(verification == PlayFabUsernameVerification.Mismatch
-                ? PlayFabUsernameLoginPolicy.CapitalizationError : PlayFabUsernameLoginPolicy.VerificationError,
-                generation);
+            RefreshResendButton();
             return;
         }
-        AcceptVerifiedManualLogin(result, generation);
+        if (reply != null && reply.success)
+        {
+            if (reply.alreadyVerified) ClearVerificationPrompt();
+            else resendAvailableAt = Time.realtimeSinceStartup + Mathf.Clamp(reply.cooldownSeconds, 1, 600);
+            SetFeedbackMessage(reply.alreadyVerified ? "Your email is verified. Sign in to continue." :
+                "Verification requested. Check your inbox and spam folder.", successColor);
+        }
+        else
+        {
+            if (code == 429) resendAvailableAt = Time.realtimeSinceStartup + 60f;
+            if (code == 401) ClearVerificationPrompt();
+            Debug.LogWarning($"Verification resend request failed (HTTP {code}).", this);
+            SetFeedbackMessage(code == 429 ? "Please wait before requesting another verification email." :
+                code == 401 ? "Sign in again to request a new verification email." :
+                "Could not request verification. Try again later or contact Civil Craft support.", errorColor);
+        }
+        RefreshResendButton();
     }
 
-    private void RejectUsernameLogin(string message, int generation)
+    private static bool ActivateVerifiedSession(LoginResult result)
     {
-        if (this == null || generation != authenticationGeneration) return;
-        manualLoginInProgress = false;
-        IsCloudSaveReady = false;
-        PlayFabClientAPI.ForgetAllCredentials();
-        SetFeedbackMessage(message, errorColor);
+        if (result?.AuthenticationContext == null || !result.AuthenticationContext.IsClientLoggedIn() ||
+            !result.AuthenticationContext.IsEntityLoggedIn()) return false;
+        PlayFabSettings.staticPlayer.CopyFrom(result.AuthenticationContext);
+        return true;
     }
+
 
     private void AcceptVerifiedManualLogin(LoginResult result, int generation)
     {
@@ -1211,6 +1269,12 @@ public class PlayFabAuthManager : MonoBehaviour
     {
         if (generation != authenticationGeneration) return;
         CloseSaveChoice();
+        if (!ActivateVerifiedSession(result))
+        {
+            FailPendingLogin("Could not open a verified account session. Please sign in again.");
+            return;
+        }
+        openingAccountSave = true;
         SetFeedbackMessage("Opening account save...", processColor);
         BeginCloudSaveLogin(result, mode, generation, succeeded =>
         {
@@ -1264,6 +1328,7 @@ public class PlayFabAuthManager : MonoBehaviour
     {
         if (generation != authenticationGeneration) return;
         manualLoginInProgress = false;
+        openingAccountSave = false;
         string welcomeName = string.IsNullOrEmpty(loggedInPlayerName)
             ? "Player" : loggedInPlayerName;
         PlayerPrefs.SetInt("LoginChoice", 2);
@@ -1294,6 +1359,7 @@ public class PlayFabAuthManager : MonoBehaviour
     {
         CloseSaveChoice();
         manualLoginInProgress = false;
+        openingAccountSave = false;
         IsCloudSaveReady = false;
         PlayFabClientAPI.ForgetAllCredentials();
         if (PlayerDataManager.Instance != null) PlayerDataManager.Instance.UseGuestSave();
@@ -1312,6 +1378,12 @@ public class PlayFabAuthManager : MonoBehaviour
     {
         CloseSaveChoice();
         manualLoginInProgress = false;
+        if (!openingAccountSave)
+        {
+            SetFeedbackMessage(message, errorColor);
+            return;
+        }
+        openingAccountSave = false;
         IsCloudSaveReady = false;
         CloudSaveManager cloud = PlayerDataManager.Instance != null
             ? PlayerDataManager.Instance.GetComponent<CloudSaveManager>() : null;
@@ -1376,7 +1448,7 @@ public class PlayFabAuthManager : MonoBehaviour
 
     private void OnLoginError(PlayFabError error, int generation)
     {
-        if (generation != authenticationGeneration) return;
+        if (this == null || generation != authenticationGeneration) return;
         manualLoginInProgress = false;
         loginPassword.text = string.Empty;
         SetFeedbackMessage("Login Failed: " + error.ErrorMessage, errorColor);
@@ -1390,46 +1462,80 @@ public class PlayFabAuthManager : MonoBehaviour
         MainMenuAuthenticationSucceeded?.Invoke();
     }
 
-    private void OnRegisterSuccess(RegisterPlayFabUserResult result, string registeredName)
+
+    [Serializable]
+    private sealed class PolicyAgreement
     {
-        registeredName = (registeredName ?? string.Empty).Trim();
-        if (!PlayerNamePolicy.TryValidate(registeredName, out string nameError))
+        public string termsVersion = CivilCraftAccountPolicy.TermsVersion;
+        public string privacyVersion = CivilCraftAccountPolicy.PrivacyVersion;
+        public string acceptedAt;
+    }
+
+    private IEnumerator CompleteRegistration(RegisterPlayFabUserResult result, string username,
+        string email, bool emailUpdates, string acceptedAt, int generation)
+    {
+        var context = result?.AuthenticationContext;
+        string ticket = context?.ClientSessionTicket;
+        bool policySaved = false, preferenceSaved = false;
+        bool verificationRequested = false, alreadyVerified = false;
+        long verificationStatus = 0;
+        float nextResendAt = 0f;
+        if (context != null && context.IsClientLoggedIn())
         {
-            SetFeedbackMessage(nameError, errorColor);
-            return;
+            int waitingFor = 2;
+            PlayFabClientAPI.UpdateUserData(new UpdateUserDataRequest
+            {
+                AuthenticationContext = context,
+                Permission = UserDataPermission.Private,
+                Data = new Dictionary<string, string>
+                {
+                    ["PolicyAcceptedAt"] = acceptedAt,
+                    ["TermsAcceptedVersion"] = CivilCraftAccountPolicy.TermsVersion,
+                    ["PrivacyAcceptedVersion"] = CivilCraftAccountPolicy.PrivacyVersion,
+                    ["PolicyAgreement"] = JsonUtility.ToJson(new PolicyAgreement { acceptedAt = acceptedAt })
+                }
+            }, _ => { policySaved = true; waitingFor--; }, _ => waitingFor--);
+
+            // The news preference is independent of the required verification request.
+            float deadline = Time.realtimeSinceStartup + 25f;
+            StartCoroutine(CivilCraftAccountWebsite.SaveEmailPreference(ticket, emailUpdates, succeeded =>
+            {
+                preferenceSaved = succeeded;
+                waitingFor--;
+            }));
+
+            SetFeedbackMessage("Requesting verification email…", processColor);
+            yield return CivilCraftAccountWebsite.RequestVerification(ticket, email, (code, reply) =>
+            {
+                verificationStatus = code;
+                verificationRequested = reply?.success == true;
+                alreadyVerified = verificationRequested && reply.alreadyVerified;
+                if (verificationRequested && !alreadyVerified)
+                    nextResendAt = Time.realtimeSinceStartup + Mathf.Clamp(reply.cooldownSeconds, 1, 600);
+                else if (code == 429)
+                    nextResendAt = Time.realtimeSinceStartup + 60f;
+                if (!verificationRequested) Debug.LogWarning($"Website verification request failed (HTTP {code}).", this);
+            });
+            yield return new WaitUntil(() => waitingFor == 0 || Time.realtimeSinceStartup >= deadline ||
+                generation != authenticationGeneration);
         }
 
-        SetFeedbackMessage("Registration Successful!", successColor);
-        
-        var displayNameRequest = new UpdateUserTitleDisplayNameRequest { DisplayName = registeredName };
-        PlayFabClientAPI.UpdateUserTitleDisplayName(displayNameRequest, 
-            nameResult => Debug.Log("Name set to: " + nameResult.DisplayName), 
-            nameError => Debug.LogWarning("Failed to set display name: " + nameError.ErrorMessage));
-
-        registerPassword.text = "";
-        if (registerConfirmPassword != null) registerConfirmPassword.text = ""; 
-        loginUsername.text = registeredName;
-        
-        // We removed the AddOrUpdateContactEmailRequest so it no longer attempts to trigger a verification email!
-
-        Invoke(nameof(ShowLoginPanel), 2.5f);
+        if (generation != authenticationGeneration) yield break;
+        registrationInProgress = false;
+        loginUsername.text = username;
+        string message = alreadyVerified ? "Account created. Your email is verified. Sign in to continue." :
+            verificationRequested ? "Account created. Verification requested. Check your inbox before signing in." :
+            string.IsNullOrEmpty(ticket) || verificationStatus == 401
+                ? "Account created. Sign in to request your verification email."
+                : "Account created, but verification could not be requested. Select Resend Verification Email to try again.";
+        if (!policySaved)
+            message += " Your agreement could not be recorded. Contact Civil Craft support.";
+        else if (!preferenceSaved && emailUpdates)
+            message += " Set email updates in Player Settings on the website.";
+        resendAvailableAt = nextResendAt;
+        RememberVerificationPrompt(alreadyVerified || verificationStatus == 401 ? null : ticket, email, message);
+        ShowLoginPanel();
+        SetFeedbackMessage(message, verificationRequested && policySaved && (preferenceSaved || !emailUpdates) ? successColor : errorColor);
     }
 
-    private void OnRegisterError(PlayFabError error)
-    {
-        SetFeedbackMessage("Registration Failed: " + error.ErrorMessage, errorColor);
-    }
-
-    private void OnPasswordResetSuccess(SendAccountRecoveryEmailResult result)
-    {
-        SetFeedbackMessage("Recovery email sent! Check your inbox.", successColor);
-        resetEmailInput.text = ""; 
-        Invoke(nameof(ShowLoginPanel), 2.0f);
-    }
-
-    private void OnPasswordResetError(PlayFabError error)
-    {
-        SetFeedbackMessage("Password Reset Failed: " + error.ErrorMessage, errorColor);
-        forgotPasswordCooldown = -1f; 
-    }
 }

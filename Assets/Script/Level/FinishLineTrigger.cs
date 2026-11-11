@@ -48,6 +48,7 @@ public class FinishLineTrigger : MonoBehaviour
         // --- THE FIX 3: ONLY allow triggering if an active simulation is currently running ---
         if (physicsManager == null || !physicsManager.isSimulating) return;
 
+        if (!BridgePhysicsManager.DebugInvincibleBridge && physicsManager.HadBrokenPartsThisRun) return;
         if (LevelFailedManager.Instance != null && LevelFailedManager.Instance.isFailed) return;
 
         if (multipleLoads)

@@ -104,7 +104,8 @@ static partial class Program
                 MemberPeak governing = Peaks(actual, a).First();
                 float pierPeak = Peaks(actual, a).Where(peak => peak.Bar.materialData.isPier).Max(peak => peak.Ratio);
                 heightRows.Add((load, a.PeakStructuralStress, pierPeak));
-                Console.WriteLine(FormattableString.Invariant($"{height:F1},{shortest:F4},{load:F0},{a.PeakStructuralStress * 100:F1},{pierPeak * 100:F1},{ExistingPeak(a) * 100:F1},{b.PeakStructuralStress * 100:F1},{c.PeakStructuralStress * 100:F1},{a.IsStructurallyStable},{governing.Record.Material}#{governing.Record.Index},{Direction(governing.Tension)},{governing.Sample}/{samples-1}"));
+                string mode = StressMode(governing.AxialRatio, governing.BendingRatio, governing.Tension);
+                Console.WriteLine(FormattableString.Invariant($"{height:F1},{shortest:F4},{load:F0},{a.PeakStructuralStress * 100:F1},{pierPeak * 100:F1},{ExistingPeak(a) * 100:F1},{b.PeakStructuralStress * 100:F1},{c.PeakStructuralStress * 100:F1},{a.IsStructurallyStable},{governing.Record.Material}#{governing.Record.Index},{mode},{governing.Sample}/{samples-1}"));
                 rows++;
             }
             string FirstOver(Func<(float Load, float Overall, float Pier), bool> predicate)

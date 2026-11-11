@@ -24,7 +24,12 @@ namespace UnityEngine
         public static void LogError(object text, object context = null) => Messages.Add(Convert.ToString(text));
     }
     public static class Time { public static float realtimeSinceStartup; public static float timeScale = 1; }
-    public static class Mathf { public static float Min(float first, float second) => Math.Min(first, second); }
+    public static class Mathf
+    {
+        public static float Min(float first, float second) => Math.Min(first, second);
+        public static bool Approximately(float first, float second) =>
+            Math.Abs(first - second) < Math.Max(0.000001f * Math.Max(Math.Abs(first), Math.Abs(second)), float.Epsilon * 8f);
+    }
     public static class JsonUtility
     {
         private static readonly JsonSerializerOptions Options = new() { IncludeFields = true };
@@ -123,6 +128,11 @@ public static class SaveEncryption
 
 namespace PlayFab
 {
+    public sealed class PlayFabAuthenticationContext
+    {
+        public string EntityToken;
+        public bool IsEntityLoggedIn() => !string.IsNullOrEmpty(EntityToken);
+    }
     public sealed class PlayFabError { public string ErrorMessage; }
     public static class PlayFabClientAPI
     {
@@ -155,14 +165,23 @@ namespace PlayFab
 }
 namespace PlayFab.ClientModels
 {
-    public sealed class LoginResult { public string PlayFabId; public EntityTokenResponse EntityToken; }
+    public sealed class LoginResult
+    {
+        public string PlayFabId;
+        public EntityTokenResponse EntityToken;
+        public PlayFabAuthenticationContext AuthenticationContext;
+    }
     public sealed class EntityTokenResponse { public EntityKey Entity; }
     public sealed class EntityKey { public string Id; public string Type; }
 }
 namespace PlayFab.DataModels
 {
     public sealed class EntityKey { public string Id; public string Type; }
-    public sealed class GetFilesRequest { public EntityKey Entity; }
+    public sealed class GetFilesRequest
+    {
+        public EntityKey Entity;
+        public PlayFabAuthenticationContext AuthenticationContext;
+    }
     public sealed class GetFileMetadata { public string DownloadUrl; }
     public sealed class GetFilesResponse { public Dictionary<string, GetFileMetadata> Metadata; public int ProfileVersion; }
     public sealed class InitiateFileUploadsRequest { public EntityKey Entity; public List<string> FileNames; public int ProfileVersion; }

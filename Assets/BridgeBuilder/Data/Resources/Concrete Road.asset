@@ -36,6 +36,7 @@ MonoBehaviour:
   isRope: 0
   isRoad: 1
   isPier: 0
+  roadBendingMomentLimit: 800000
   pierBucklingReferenceLength: 10
   pierBucklingExponent: 2
   pierMinimumCompressionMultiplier: 0.15

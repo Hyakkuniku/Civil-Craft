@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Deterministic, quasi-static 2D truss analysis used for gameplay stress.
+/// Deterministic 2D truss and local road-panel bending analysis for gameplay stress.
 /// Geometry and material inputs are quantized before decimal arithmetic, so the
 /// same bridge and contract produce the same samples independently of PhysX.
 /// </summary>
@@ -12,6 +12,7 @@ public static class DeterministicBridgeStressSolver
     public sealed class Result
     {
         private readonly Dictionary<Bar, int> barIndices;
+        private readonly bool displayLiveLoadOnly;
 
         internal Result(
             Bar[] bars,
@@ -19,7 +20,8 @@ public static class DeterministicBridgeStressSolver
             Sample deadLoadSample,
             float peakDisplayed,
             float peakStructural,
-            bool isStructurallyStable)
+            bool isStructurallyStable,
+            bool displayLiveLoadOnly)
         {
             Bars = bars;
             Samples = samples;
@@ -27,6 +29,7 @@ public static class DeterministicBridgeStressSolver
             PeakDisplayedStress = peakDisplayed;
             PeakStructuralStress = peakStructural;
             IsStructurallyStable = isStructurallyStable;
+            this.displayLiveLoadOnly = displayLiveLoadOnly;
             barIndices = new Dictionary<Bar, int>(bars.Length);
             for (int i = 0; i < bars.Length; i++)
                 if (bars[i] != null) barIndices[bars[i]] = i;
@@ -76,6 +79,70 @@ public static class DeterministicBridgeStressSolver
             tension = DeadLoadSample.IsTension[barIndex];
             return true;
         }
+
+        public bool TryGetSimulationStress(Bar bar, int sampleIndex, float loadFactor,
+            out float displayed, out float structural, out bool tension, out float axialRatio, out float bendingRatio)
+        {
+            displayed = structural = axialRatio = bendingRatio = 0f;
+            tension = false;
+            if (bar == null || Samples.Length == 0 || !barIndices.TryGetValue(bar, out int barIndex))
+                return false;
+
+            Sample sample = Samples[Mathf.Clamp(sampleIndex, 0, Samples.Length - 1)];
+            if (loadFactor <= 0f || loadFactor >= 1f)
+            {
+                Sample applied = loadFactor <= 0f ? DeadLoadSample : sample;
+                displayed = applied.DisplayedRatios[barIndex];
+                structural = applied.StructuralRatios[barIndex];
+                tension = applied.IsTension[barIndex];
+                axialRatio = applied.MemberStresses[barIndex].Axial;
+                bendingRatio = applied.MemberStresses[barIndex].Bending;
+                return true;
+            }
+
+            MemberStress loaded = sample.MemberStresses[barIndex];
+            MemberStress dead = DeadLoadSample.MemberStresses[barIndex];
+            axialRatio = Mathf.Lerp(dead.Axial, loaded.Axial, loadFactor);
+            float displayedAxial = Mathf.Lerp(dead.DisplayedAxial, loaded.DisplayedAxial, loadFactor);
+            bendingRatio = Mathf.Lerp(dead.Bending, loaded.Bending, loadFactor);
+            tension = sample.IsTension[barIndex];
+            BridgeMaterialSO material = bar.materialData;
+            if (material != null && material.isRoad && material.roadBendingMomentLimit > 0f &&
+                tension != DeadLoadSample.IsTension[barIndex])
+            {
+                // Opposite axial loads can cancel during entry or exit. Blend
+                // force before applying the tension or compression capacity.
+                float tensionLimit = material.maxTension;
+                float compressionLimit = material.maxCompression;
+                float deadForce = tension ? -dead.Axial * compressionLimit : dead.Axial * tensionLimit;
+                float loadedForce = tension ? loaded.Axial * tensionLimit : -loaded.Axial * compressionLimit;
+                float force = Mathf.Lerp(deadForce, loadedForce, loadFactor);
+                tension = force >= 0f;
+                float capacity = tension ? tensionLimit : compressionLimit;
+                axialRatio = capacity > 0f ? Math.Abs(force) / capacity : 0f;
+                displayedAxial = displayLiveLoadOnly && capacity > 0f ? Math.Abs(force - deadForce) / capacity : axialRatio;
+            }
+            displayed = Math.Min(MaxStressRatio,
+                displayedAxial + Mathf.Lerp(dead.DisplayedBending, loaded.DisplayedBending, loadFactor));
+            structural = Math.Min(MaxStressRatio, axialRatio + bendingRatio);
+            return true;
+        }
+    }
+
+    internal readonly struct MemberStress
+    {
+        public readonly float Axial;
+        public readonly float Bending;
+        public readonly float DisplayedAxial;
+        public readonly float DisplayedBending;
+
+        public MemberStress(decimal axial, decimal bending, decimal displayedAxial, decimal displayedBending)
+        {
+            Axial = (float)DecimalMin(MaxStressRatio, axial);
+            Bending = (float)DecimalMin(MaxStressRatio, bending);
+            DisplayedAxial = (float)DecimalMin(MaxStressRatio, displayedAxial);
+            DisplayedBending = (float)DecimalMin(MaxStressRatio, displayedBending);
+        }
     }
 
     public sealed class Sample
@@ -85,11 +152,26 @@ public static class DeterministicBridgeStressSolver
             DisplayedRatios = new float[barCount];
             StructuralRatios = new float[barCount];
             IsTension = new bool[barCount];
+            MemberStresses = new MemberStress[barCount];
         }
 
         public float[] DisplayedRatios { get; }
         public float[] StructuralRatios { get; }
         public bool[] IsTension { get; }
+        public Bar UnsupportedRoad { get; internal set; }
+        internal MemberStress[] MemberStresses { get; }
+
+        internal void SetStress(int index, decimal axial, decimal bending, decimal displayedAxial,
+            decimal displayedBending, bool tension)
+        {
+            MemberStresses[index] = new MemberStress(axial, bending, displayedAxial, displayedBending);
+            // Axial and bending stress reinforce each other on one face of the
+            // panel. Use a linear capacity interaction for the same load case.
+            // For members without a bending limit, the bending term is zero.
+            StructuralRatios[index] = RatioToFloat(axial + bending);
+            DisplayedRatios[index] = RatioToFloat(displayedAxial + displayedBending);
+            IsTension[index] = tension;
+        }
     }
 
     private sealed class NodeData
@@ -114,6 +196,7 @@ public static class DeterministicBridgeStressSolver
         public decimal AxialRigidity;
         public decimal TensionLimit;
         public decimal CompressionLimit;
+        public decimal BendingMomentLimit;
         public decimal MassKg;
         public bool IsRope;
         public bool IsRoad;
@@ -124,11 +207,27 @@ public static class DeterministicBridgeStressSolver
         public decimal[,] Factor;
         public int[] Pivots;
         public bool IsStructurallyStable;
+        public decimal Regularization;
     }
 
     private const decimal Gravity = 9.81m;
     private const decimal MillimetresPerMetre = 1000m;
     private const decimal MinimumPivot = 0.000000000001m;
+    private const int MaxStressRatio = 1000000;
+
+    private readonly struct RoadPointLoad
+    {
+        public readonly int MemberIndex;
+        public readonly decimal Fraction;
+        public readonly decimal Weight;
+
+        public RoadPointLoad(int memberIndex, decimal fraction, decimal weight)
+        {
+            MemberIndex = memberIndex;
+            Fraction = fraction;
+            Weight = weight;
+        }
+    }
 
     /// <summary>A live-load contribution already scaled by actual wheel contact with the bridge.</summary>
     public readonly struct PointLoad
@@ -170,12 +269,15 @@ public static class DeterministicBridgeStressSolver
             Array.Copy(source.DisplayedRatios, sample.DisplayedRatios, current.Bars.Length);
             Array.Copy(source.StructuralRatios, sample.StructuralRatios, current.Bars.Length);
             Array.Copy(source.IsTension, sample.IsTension, current.Bars.Length);
+            Array.Copy(source.MemberStresses, sample.MemberStresses, current.Bars.Length);
+            sample.UnsupportedRoad = source.UnsupportedRoad;
             samples[index] = sample;
             peakDisplayed = Mathf.Max(peakDisplayed, current.PeakDisplayedStress);
             peakStructural = Mathf.Max(peakStructural, current.PeakStructuralStress);
             stable &= current.IsStructurallyStable;
         }
-        return new Result(current.Bars, samples, current.DeadLoadSample, peakDisplayed, peakStructural, stable);
+        return new Result(current.Bars, samples, current.DeadLoadSample, peakDisplayed, peakStructural, stable,
+            displayLiveLoadOnly);
     }
 
     public static PreparedAnalysis Prepare(
@@ -258,6 +360,9 @@ public static class DeterministicBridgeStressSolver
                 AxialRigidity = referenceCapacity * 1000m,
                 TensionLimit = tensionLimit,
                 CompressionLimit = compressionLimit,
+                BendingMomentLimit = material.isRoad && material.roadBendingMomentLimit > 0f &&
+                    !float.IsInfinity(material.roadBendingMomentLimit)
+                    ? QuantizeNewtons(material.roadBendingMomentLimit) * parallelMembers : 0m,
                 MassKg = QuantizeMass((float)length * bar.PlacedMassPerMeter),
                 IsRope = material.isRope,
                 IsRoad = material.isRoad
@@ -329,7 +434,10 @@ public static class DeterministicBridgeStressSolver
             node.XDegree = degreeCount++;
             node.YDegree = degreeCount++;
         }
-        if (degreeCount == 0) return null;
+        // A panel between two fixed joints has no axial displacement to solve,
+        // but still bends under its own weight and vehicles.
+        if (degreeCount == 0 && !members.Exists(member => member.BendingMomentLimit > 0m))
+            return null;
 
         // Cache factorizations for rope active sets. A slack rope must be removed
         // from stiffness, not merely hidden from the reported stress: otherwise
@@ -346,13 +454,13 @@ public static class DeterministicBridgeStressSolver
         }
 
         decimal[] deadForces = SolveTensionOnly(
-            nodes, members, degreeCount, deadLoads, activeSystems, out bool deadLoadStable);
+            nodes, members, degreeCount, deadLoads, activeSystems, out bool deadLoadStable, out Bar unsupportedDeadLoadRoad);
         if (deadForces == null) return null;
         isStructurallyStable &= deadLoadStable;
 
         // The unloaded stress is identical at every route sample. Keep it with
         // the loaded result instead of solving the whole bridge a second time.
-        Sample deadLoadSample = new Sample(members.Count);
+        Sample deadLoadSample = new Sample(members.Count) { UnsupportedRoad = unsupportedDeadLoadRoad };
         for (int memberIndex = 0; memberIndex < members.Count; memberIndex++)
         {
             MemberData member = members[memberIndex];
@@ -361,10 +469,11 @@ public static class DeterministicBridgeStressSolver
             decimal limit = tension ? member.TensionLimit : member.CompressionLimit;
             decimal structuralRatio = limit > 0m ? DecimalAbs(deadForce) / limit : 0m;
             if (member.IsRope && !tension) structuralRatio = 0m;
-            deadLoadSample.StructuralRatios[memberIndex] = RatioToFloat(structuralRatio);
-            deadLoadSample.DisplayedRatios[memberIndex] = displayLiveLoadOnly
-                ? 0f : deadLoadSample.StructuralRatios[memberIndex];
-            deadLoadSample.IsTension[memberIndex] = tension;
+            decimal bendingRatio = member.BendingMomentLimit > 0m
+                ? member.MassKg * Gravity * DecimalAbs(member.Length * member.Cos) / (8m * member.BendingMomentLimit)
+                : 0m;
+            deadLoadSample.SetStress(memberIndex, structuralRatio, bendingRatio,
+                displayLiveLoadOnly ? 0m : structuralRatio, displayLiveLoadOnly ? 0m : bendingRatio, tension);
         }
 
         List<int> roadMemberIndices = new List<int>();
@@ -382,19 +491,22 @@ public static class DeterministicBridgeStressSolver
         Bar[] resultBars = new Bar[members.Count];
         for (int i = 0; i < members.Count; i++) resultBars[i] = members[i].Bar;
         var sample = new Sample(members.Count);
-        var current = new Result(resultBars, new[] { sample }, deadLoadSample, 0f, 0f, isStructurallyStable);
+        var current = new Result(resultBars, new[] { sample }, deadLoadSample, 0f, 0f, isStructurallyStable,
+            displayLiveLoadOnly);
         var totalLoads = new decimal[degreeCount];
+        var bendingLoads = new List<RoadPointLoad>(4);
         Result EvaluateCurrent(IReadOnlyList<PointLoad> loads, int sampleIndex, int sampleCount, float singleKg)
         {
             Array.Copy(deadLoads, totalLoads, degreeCount);
-            if (loads == null)
+            bendingLoads.Clear();
+            if (loads == null && singleKg > 0f)
             {
                 // Legacy samples retain their original decimal positions exactly.
                 decimal progress = (decimal)sampleIndex / (sampleCount - 1);
-                ApplyRoadPointLoad(totalLoads, nodes, members, roadMemberIndices,
+                ApplyRoadPointLoad(totalLoads, nodes, members, roadMemberIndices, bendingLoads,
                     roadMinX + (roadMaxX - roadMinX) * progress, QuantizeMass(singleKg) * Gravity);
             }
-            else
+            else if (loads != null)
             {
                 if (loads.Count > 4) throw new ArgumentException("A live-load test supports at most four vehicles.", nameof(loads));
                 for (int index = 0; index < loads.Count; index++)
@@ -406,11 +518,16 @@ public static class DeterministicBridgeStressSolver
                     if (load.WeightKg <= 0f) continue;
                     decimal x = QuantizeMetres(Mathf.Clamp(load.WorldX, (float)roadMinX, (float)roadMaxX));
                     x = DecimalMax(roadMinX, DecimalMin(roadMaxX, x));
-                    ApplyRoadPointLoad(totalLoads, nodes, members, roadMemberIndices, x, QuantizeMass(load.WeightKg) * Gravity);
+                    ApplyRoadPointLoad(totalLoads, nodes, members, roadMemberIndices, bendingLoads,
+                        x, QuantizeMass(load.WeightKg) * Gravity);
                 }
             }
-            decimal[] totalForces = SolveTensionOnly(nodes, members, degreeCount, totalLoads, activeSystems, out bool sampleStable);
+            decimal[] totalForces = SolveTensionOnly(nodes, members, degreeCount, totalLoads, activeSystems,
+                out bool sampleStable, out Bar unsupportedRoad);
             if (totalForces == null) return null;
+            if (bendingLoads.Count > 1)
+                bendingLoads.Sort((left, right) => left.Fraction.CompareTo(right.Fraction));
+            sample.UnsupportedRoad = unsupportedRoad;
             float peakDisplayed = 0f, peakStructural = 0f;
             for (int memberIndex = 0; memberIndex < members.Count; memberIndex++)
             {
@@ -423,9 +540,20 @@ public static class DeterministicBridgeStressSolver
                     ? DecimalAbs(totalForce - deadForces[memberIndex]) : DecimalAbs(totalForce);
                 decimal displayedRatio = limit > 0m ? displayedForce / limit : 0m;
                 if (member.IsRope && !tension) { displayedRatio = 0m; structuralRatio = 0m; }
-                sample.DisplayedRatios[memberIndex] = RatioToFloat(displayedRatio);
-                sample.StructuralRatios[memberIndex] = RatioToFloat(structuralRatio);
-                sample.IsTension[memberIndex] = tension;
+                decimal bendingRatio = 0m;
+                decimal displayedBending = 0m;
+                if (member.BendingMomentLimit > 0m)
+                {
+                    decimal horizontalLength = DecimalAbs(member.Length * member.Cos);
+                    decimal deadWeight = member.MassKg * Gravity;
+                    bendingRatio = CalculatePeakBendingMoment(memberIndex, bendingLoads, deadWeight, horizontalLength)
+                        / member.BendingMomentLimit;
+                    displayedBending = displayLiveLoadOnly
+                        ? CalculatePeakBendingMoment(memberIndex, bendingLoads, 0m, horizontalLength)
+                            / member.BendingMomentLimit
+                        : bendingRatio;
+                }
+                sample.SetStress(memberIndex, structuralRatio, bendingRatio, displayedRatio, displayedBending, tension);
                 peakDisplayed = Mathf.Max(peakDisplayed, sample.DisplayedRatios[memberIndex]);
                 peakStructural = Mathf.Max(peakStructural, sample.StructuralRatios[memberIndex]);
             }
@@ -532,8 +660,15 @@ public static class DeterministicBridgeStressSolver
         int degreeCount,
         decimal[] loads,
         Dictionary<string, ActiveSystem> activeSystems,
-        out bool isStable)
+        out bool isStable,
+        out Bar unsupportedRoad)
     {
+        unsupportedRoad = null;
+        if (degreeCount == 0)
+        {
+            isStable = true;
+            return new decimal[members.Count];
+        }
         bool[] slack = new bool[members.Count];
         int ropeCount = 0;
         for (int i = 0; i < members.Count; i++)
@@ -575,7 +710,8 @@ public static class DeterministicBridgeStressSolver
                 {
                     Factor = factor,
                     Pivots = pivots,
-                    IsStructurallyStable = stable
+                    IsStructurallyStable = stable,
+                    Regularization = regularization
                 };
                 // A convoy can visit more active sets than a sampled single load.
                 // Keep cached factors bounded even within one long slack-rope solve.
@@ -601,11 +737,40 @@ public static class DeterministicBridgeStressSolver
 
             if (removedRope) continue;
             isStable = system.IsStructurallyStable;
+            if (!isStable)
+                unsupportedRoad = FindUnsupportedRoad(nodes, members, loads, displacements, system.Regularization);
             return forces;
         }
 
         isStable = false;
         return null;
+    }
+
+    private static Bar FindUnsupportedRoad(List<NodeData> nodes, List<MemberData> members,
+        decimal[] loads, decimal[] displacements, decimal regularization)
+    {
+        decimal largestVerticalLoad = 0m;
+        foreach (NodeData node in nodes)
+            if (node.YDegree >= 0) largestVerticalLoad = DecimalMax(largestVerticalLoad, -loads[node.YDegree]);
+
+        // The regularization acts as a weak spring at every free degree of freedom.
+        // Its upward reaction identifies downward load that the actual members cannot carry.
+        // Ignore small numerical reactions and mechanisms away from the roadway.
+        decimal largestUnsupportedLoad = DecimalMax(1m, largestVerticalLoad / 100m);
+        Bar unsupportedRoad = null;
+        foreach (MemberData member in members)
+        {
+            if (!member.IsRoad) continue;
+            int startY = nodes[member.NodeA].YDegree;
+            int endY = nodes[member.NodeB].YDegree;
+            decimal startReaction = startY >= 0 ? DecimalMax(0m, -displacements[startY] * regularization) : 0m;
+            decimal endReaction = endY >= 0 ? DecimalMax(0m, -displacements[endY] * regularization) : 0m;
+            decimal unsupportedLoad = startReaction + endReaction;
+            if (unsupportedLoad <= largestUnsupportedLoad) continue;
+            largestUnsupportedLoad = unsupportedLoad;
+            unsupportedRoad = member.Bar;
+        }
+        return unsupportedRoad;
     }
 
     private static bool HasFullRank(decimal[,] source)
@@ -700,6 +865,7 @@ public static class DeterministicBridgeStressSolver
         List<NodeData> nodes,
         List<MemberData> members,
         List<int> roadIndices,
+        List<RoadPointLoad> bendingLoads,
         decimal loadX,
         decimal weight)
     {
@@ -727,6 +893,44 @@ public static class DeterministicBridgeStressSolver
         decimal fraction = dx == 0m ? 0.5m : DecimalClamp((loadX - nodeA.X) / dx, 0m, 1m);
         AddVerticalLoad(loads, nodeA, -weight * (1m - fraction));
         AddVerticalLoad(loads, nodeB, -weight * fraction);
+        if (selected.BendingMomentLimit > 0m && dx != 0m && fraction > 0m && fraction < 1m && weight > 0m)
+            bendingLoads.Add(new RoadPointLoad(selectedIndex, fraction, weight));
+    }
+
+    // The truss receives the same support reactions as before. Between the
+    // joints, treat each deck panel as a simply supported beam. Using the
+    // horizontal lever arm accounts for vertical loads on a sloped panel.
+    private static decimal CalculatePeakBendingMoment(int memberIndex, List<RoadPointLoad> pointLoads,
+        decimal distributedWeight, decimal horizontalLength)
+    {
+        decimal shear = distributedWeight / 2m;
+        foreach (RoadPointLoad load in pointLoads)
+            if (load.MemberIndex == memberIndex) shear += load.Weight * (1m - load.Fraction);
+
+        decimal moment = 0m;
+        decimal peak = 0m;
+        decimal previousFraction = 0m;
+        foreach (RoadPointLoad load in pointLoads)
+        {
+            if (load.MemberIndex != memberIndex) continue;
+            AdvanceTo(load.Fraction);
+            shear -= load.Weight;
+        }
+        AdvanceTo(1m);
+        return peak * horizontalLength;
+
+        void AdvanceTo(decimal fraction)
+        {
+            decimal interval = fraction - previousFraction;
+            // Moment peaks at zero shear or at an interval boundary.
+            decimal peakOffset = distributedWeight > 0m
+                ? DecimalClamp(shear / distributedWeight, 0m, interval)
+                : shear > 0m ? interval : 0m;
+            peak = DecimalMax(peak, moment + (shear - distributedWeight * peakOffset / 2m) * peakOffset);
+            moment += (shear - distributedWeight * interval / 2m) * interval;
+            shear -= distributedWeight * interval;
+            previousFraction = fraction;
+        }
     }
 
     private static void AddVerticalLoad(decimal[] loads, NodeData node, decimal force)
@@ -838,7 +1042,7 @@ public static class DeterministicBridgeStressSolver
     private static float RatioToFloat(decimal ratio)
     {
         decimal rounded = decimal.Round(DecimalMax(0m, ratio), 3, MidpointRounding.AwayFromZero);
-        if (rounded >= 1000000m) return 1000000f;
+        if (rounded >= MaxStressRatio) return MaxStressRatio;
         return (float)rounded;
     }
 

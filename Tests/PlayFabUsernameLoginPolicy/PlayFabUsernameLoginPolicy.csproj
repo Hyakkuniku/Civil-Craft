@@ -6,7 +6,7 @@
     <Nullable>disable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="../../Assets/Script/Client/PlayFabUsernameLoginPolicy.cs" Link="PlayFabUsernameLoginPolicy.cs" />
+    <Compile Include="../../Assets/Script/Client/CivilCraftAccountPolicy.cs" Link="CivilCraftAccountPolicy.cs" />
     <Compile Include="../../Assets/Script/Player/PlayerSave/PlayerNamePolicy.cs" Link="PlayerNamePolicy.cs" />
   </ItemGroup>
 </Project>

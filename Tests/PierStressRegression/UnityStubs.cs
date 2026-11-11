@@ -13,6 +13,7 @@ namespace UnityEngine
     {
         public static int Clamp(int x, int a, int b) => Math.Clamp(x,a,b);
         public static float Clamp(float x, float a, float b) => Math.Clamp(x,a,b);
+        public static float Lerp(float a, float b, float t) => a + (b - a) * Math.Clamp(t, 0f, 1f);
         public static float Max(float a, float b) => Math.Max(a,b);
         public static float Pow(float a, float b) => (float)Math.Pow(a,b);
     }

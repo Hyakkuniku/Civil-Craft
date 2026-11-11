@@ -122,6 +122,7 @@ public partial class BridgePhysicsManager : MonoBehaviour
     public string FirstMemberFailureDescription { get; private set; }
     public bool FirstMemberFailedUnderDeadLoad { get; private set; }
     public bool FirstMemberFailedByExternalImpact { get; private set; }
+    public bool FirstMemberFailedFromUnsupportedRoad { get; private set; }
     private bool externalImpactInProgress;
     /// <summary>
     /// Optional contract limits below material capacity wait for the truck to
@@ -146,6 +147,7 @@ public partial class BridgePhysicsManager : MonoBehaviour
         currentVisualMaxStress = 1f;
         FirstMemberFailedByExternalImpact = externalImpactInProgress;
         FirstMemberFailedUnderDeadLoad = !HasLiveLoadEngagedThisRun && !externalImpactInProgress;
+        FirstMemberFailedFromUnsupportedRoad = brokenMember != null && brokenMember.FailedFromUnsupportedRoad;
         FirstMemberFailureDescription = brokenMember != null
             ? brokenMember.FailureDescription
             : "A structural member exceeded its capacity.";
@@ -153,11 +155,13 @@ public partial class BridgePhysicsManager : MonoBehaviour
         {
             Bar failedBar = brokenMember.Bar;
             string barName = failedBar != null ? failedBar.name : "Unknown member";
+            string bendingLoad = brokenMember.FailureBendingMomentNm > 0f
+                ? $" BendingMoment={brokenMember.FailureBendingMomentNm:0.#} N·m;" : string.Empty;
             Debug.LogWarning(
                 $"[BridgeFailure] '{barName}' failed via {brokenMember.FailureSource}. " +
                 $"Cause={brokenMember.FailureCause}; " +
                 $"Stress={brokenMember.currentStructuralStressPercent * 100f:0.#}%; " +
-                $"Force={brokenMember.FailureForceNewtons:0.#} N; " +
+                $"Force={brokenMember.FailureForceNewtons:0.#} N;{bendingLoad} " +
                 $"VehicleLoadFactor={lastDeterministicLoadFactor:0.###}; " +
                 $"Sample={lastDeterministicSampleIndex}; " +
                 $"LiveLoadEngaged={HasLiveLoadEngagedThisRun}.",
@@ -787,6 +791,18 @@ public partial class BridgePhysicsManager : MonoBehaviour
                         0,
                         deterministicStressResult.Samples.Length - 1);
                 }
+
+                // Let the released deck settle, then detach a road piece that has
+                // no load path for its weight. For single-vehicle samples, wait
+                // for full contact before using the sampled live-load mechanism.
+                if (!HadBrokenPartsThisRun && !DebugInvincibleBridge)
+                {
+                    Bar unsupportedRoad = deterministicStressResult.DeadLoadSample.UnsupportedRoad;
+                    if (unsupportedRoad == null && deterministicLoadFactor >= 0.999f)
+                        unsupportedRoad = deterministicStressResult.Samples[deterministicSampleIndex].UnsupportedRoad;
+                    if (unsupportedRoad != null)
+                        unsupportedRoad.GetComponent<BarStressHandler>()?.BreakUnsupportedRoad();
+                }
             }
             // A deterministic sample is immutable. Reapplying the same sample
             // and load factor to every member cannot change stress or failure,
@@ -821,39 +837,22 @@ public partial class BridgePhysicsManager : MonoBehaviour
                 // PhysX still moves the bridge, but a deterministic sample is
                 // authoritative for stress. Avoid reading and recoloring every
                 // joint just before replacing that result in the same tick.
-                if (hasDeterministicStress && deterministicStressResult.TryGetStress(
+                if (hasDeterministicStress && deterministicStressResult.TryGetSimulationStress(
                         handler.Bar,
                         deterministicSampleIndex,
+                        deterministicLoadFactor,
                         out float displayedStress,
                         out float structuralStress,
-                        out bool isTension))
+                        out bool isTension,
+                        out float axialStress,
+                        out float bendingStress))
                 {
-                    if (deterministicStressResult.TryGetDeadLoadStress(
-                            handler.Bar,
-                            out float deadDisplayedStress,
-                            out float deadStructuralStress,
-                            out bool deadIsTension))
-                    {
-                        displayedStress = Mathf.Lerp(
-                            deadDisplayedStress,
-                            displayedStress,
-                            deterministicLoadFactor);
-                        structuralStress = Mathf.Lerp(
-                            deadStructuralStress,
-                            structuralStress,
-                            deterministicLoadFactor);
-                        if (deterministicLoadFactor <= 0f) isTension = deadIsTension;
-                    }
-                    else
-                    {
-                        displayedStress *= deterministicLoadFactor;
-                        structuralStress *= deterministicLoadFactor;
-                    }
-
                     handler.ApplyDeterministicStress(
                         displayedStress,
                         structuralStress,
-                        isTension);
+                        isTension,
+                        axialRatio: axialStress,
+                        bendingRatio: bendingStress);
                 }
                 else
                 {
@@ -997,6 +996,7 @@ public partial class BridgePhysicsManager : MonoBehaviour
         FirstMemberFailureDescription = string.Empty;
         FirstMemberFailedUnderDeadLoad = false;
         FirstMemberFailedByExternalImpact = false;
+        FirstMemberFailedFromUnsupportedRoad = false;
 
         // Build locations may contain endpoint ramps saved by older revisions.
         // Clear those legacy invisible colliders before releasing the bridge.
@@ -1347,8 +1347,7 @@ public partial class BridgePhysicsManager : MonoBehaviour
             {
                 Debug.LogWarning(
                     "[BridgePhysicsManager] The bridge contains a free structural mechanism. " +
-                    "This is not an automatic failure: member stress remains active while PhysX " +
-                    "allows the unsupported geometry to deform or collapse.", this);
+                    "Road members with unsupported vertical loads can detach during simulation.", this);
             }
         }
 
@@ -2238,11 +2237,16 @@ public class BarStressHandler : MonoBehaviour
     public string FailureCause { get; private set; }
     public string FailureSource { get; private set; }
     public float FailureForceNewtons { get; private set; }
+    public float FailureBendingMomentNm { get; private set; }
+    private const string UnsupportedRoadFailureSource = "missing vertical support";
+    public bool FailedFromUnsupportedRoad => FailureSource == UnsupportedRoadFailureSource;
     public string FailureDescription
     {
         get
         {
             string memberName = material != null ? material.GetDisplayName() : "Structural member";
+            if (FailedFromUnsupportedRoad)
+                return $"{memberName} detached because the span lacked vertical support.";
             string cause = string.IsNullOrWhiteSpace(FailureCause) ? "excessive force" : FailureCause;
             if (FailureSource == "sustained physical deformation")
                 return $"{memberName} failed from {cause.ToLowerInvariant()} after sustained deformation.";
@@ -2275,6 +2279,12 @@ public class BarStressHandler : MonoBehaviour
         float force = Mathf.Max(0f, limit) * Mathf.Max(1f, currentStructuralStressPercent);
         BreakBar(cause, force, sampledJoint, "level-rule forced collapse");
         return isBroken;
+    }
+
+    internal void BreakUnsupportedRoad()
+    {
+        if (material != null && material.isRoad)
+            BreakBar("Lack of vertical support", 0f, null, UnsupportedRoadFailureSource);
     }
 
     public void WakeFailureBodies()
@@ -2312,6 +2322,7 @@ public class BarStressHandler : MonoBehaviour
         FailureCause = string.Empty;
         FailureSource = string.Empty;
         FailureForceNewtons = 0f;
+        FailureBendingMomentNm = 0f;
         joints = null;
         ropeJoint = null;
         forceHistory.Clear();
@@ -2678,7 +2689,9 @@ public class BarStressHandler : MonoBehaviour
         float displayedRatio,
         float structuralRatio,
         bool isTension,
-        bool allowBreaking = true)
+        bool allowBreaking = true,
+        float? axialRatio = null,
+        float bendingRatio = 0f)
     {
         if (!canTrackStress || isBroken || material == null) return;
 
@@ -2699,7 +2712,22 @@ public class BarStressHandler : MonoBehaviour
             ? ropeJoint
             : joints != null && joints.Length > 0 ? joints[0] : null;
 
+        float axial = axialRatio ?? structuralRatio;
+        float parallelMembers = material.isDualBeam ? 2f : 1f;
         float limit = isTension ? material.maxTension : material.GetCompressionLimit(restLength);
+        float axialForce = Mathf.Max(0f, limit) * axial * parallelMembers;
+        if (bendingRatio > 0f)
+        {
+            FailureBendingMomentNm = material.roadBendingMomentLimit * bendingRatio * parallelMembers;
+            if (bendingRatio >= 1f || axial < 1f)
+            {
+                string roadCause = bendingRatio >= 1f || axial <= 0f ? "Bending"
+                    : isTension ? "Combined bending and tension" : "Combined bending and compression";
+                BreakBar(roadCause, axialForce, breakingJoint, "deterministic road-panel analysis");
+                return;
+            }
+        }
+
         string cause = material.isRope
             ? "Tension (Rope Snapped)"
             : isTension
@@ -2707,7 +2735,7 @@ public class BarStressHandler : MonoBehaviour
                 : material.isPier ? "Compression (Pier Buckled)" : "Compression (Buckled)";
         BreakBar(
             cause,
-            Mathf.Max(0f, limit) * currentStructuralStressPercent,
+            axialForce,
             breakingJoint,
             "deterministic truss analysis");
     }

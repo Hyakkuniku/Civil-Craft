@@ -163,9 +163,12 @@ public class LevelFailedManager : MonoBehaviour
             if (!BridgePhysicsManager.DebugInvincibleBridge &&
                 physicsManager.HadBrokenPartsThisRun)
             {
-                stressFailReason = physicsManager.FirstMemberFailedByExternalImpact
-                    ? "Bridge collapsed after boat impact!"
-                    : physicsManager.FirstMemberFailedUnderDeadLoad
+                if (physicsManager.FirstMemberFailedFromUnsupportedRoad)
+                    stressFailReason = "Unstable span: " + physicsManager.FirstMemberFailureDescription;
+                else
+                    stressFailReason = physicsManager.FirstMemberFailedByExternalImpact
+                        ? "Bridge collapsed after boat impact!"
+                        : physicsManager.FirstMemberFailedUnderDeadLoad
                         ? "Dead load capacity exceeded: " + physicsManager.FirstMemberFailureDescription
                         : "Member capacity exceeded: " + physicsManager.FirstMemberFailureDescription;
                 InitiateFailure(stressFailReason);
@@ -512,8 +515,8 @@ public class LevelFailedManager : MonoBehaviour
         {
             return new FailurePresentation(
                 "UNSTABLE STRUCTURAL SYSTEM",
-                "The bridge can fold without developing normal member resistance, so its low axial stress does not represent real strength.",
-                "Close the open panels with complete triangles and connect the structural load path to both anchors.");
+                "A section of the deck lost its support and detached during the test.",
+                "Add piers under the unsupported joints, or use triangular bracing to connect the deck to the anchors.");
         }
 
         if (normalized.Contains("fell") || normalized.Contains("ravine"))

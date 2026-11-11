@@ -462,6 +462,8 @@ public class LevelCompleteManager : MonoBehaviour
         if (MultiplayerChallengeLobbyUI.IsChallengeActive ||
             (GameManager.Instance != null && GameManager.Instance.IsSessionChallengeBuild)) return;
         if (levelAlreadyCompleted) return;
+        if (cachedPhysicsManager != null && cachedPhysicsManager.isSimulating &&
+            cachedPhysicsManager.HadBrokenPartsThisRun && !BridgePhysicsManager.DebugInvincibleBridge) return;
 
         if (currentContract != null && currentContract.HasMultipleLiveLoads)
         {

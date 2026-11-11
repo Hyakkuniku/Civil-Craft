@@ -156,6 +156,7 @@ public sealed class CloudSaveManager : MonoBehaviour
     public void InspectAccount(LoginResult login, Action<SaveAvailability> onResult)
     {
         if (saveManager == null || login?.EntityToken?.Entity == null ||
+            login.AuthenticationContext == null || !login.AuthenticationContext.IsEntityLoggedIn() ||
             string.IsNullOrWhiteSpace(login.PlayFabId))
         {
             onResult?.Invoke(SaveAvailability.Unavailable);
@@ -167,7 +168,7 @@ public sealed class CloudSaveManager : MonoBehaviour
             Id = login.EntityToken.Entity.Id,
             Type = login.EntityToken.Entity.Type
         };
-        PlayFabDataAPI.GetFiles(new GetFilesRequest { Entity = key }, result =>
+        PlayFabDataAPI.GetFiles(new GetFilesRequest { Entity = key, AuthenticationContext = login.AuthenticationContext }, result =>
         {
             if (result.Metadata != null && result.Metadata.ContainsKey(CloudFileName))
                 onResult?.Invoke(SaveAvailability.Online);

@@ -20,6 +20,31 @@ void Run(string name, Action<Fixture> test, bool cached = true, string synced = 
     Console.WriteLine("PASS " + name);
 }
 
+Run("sign-in save inspection uses the candidate account's isolated entity session", f => {
+    PlayFabClientAPI.LoggedIn = false;
+    var login = new LoginResult
+    {
+        PlayFabId = Fixture.A,
+        EntityToken = new EntityTokenResponse
+        {
+            Entity = new PlayFab.ClientModels.EntityKey { Id = "candidate", Type = "title_player_account" }
+        }
+    };
+    CloudSaveManager.SaveAvailability? availability = null;
+    f.Cloud.InspectAccount(login, result => availability = result);
+    Check(availability == CloudSaveManager.SaveAvailability.Unavailable && PlayFabDataAPI.Gets.Count == 0,
+        "No entity token means no request, even if an entity ID was returned.");
+
+    login.AuthenticationContext = new PlayFabAuthenticationContext { EntityToken = "candidate-token" };
+    f.Cloud.InspectAccount(login, result => availability = result);
+    var request = PlayFabDataAPI.Gets.Single().Request;
+    Check(ReferenceEquals(login.AuthenticationContext, request.AuthenticationContext) && request.Entity.Id == "candidate",
+        "The request uses the candidate's context and entity without a global login.");
+    f.DeliverMissing();
+    Check(availability == CloudSaveManager.SaveAvailability.LocalOnly && f.Manager.CurrentSavePath == null &&
+        PlayFabDataAPI.Starts.Count == 0, "The read-only lookup leaves the player's current save untouched.");
+});
+
 Run("failed Resume permits offline play/journaling and existing wallet reads, not a first import", f => {
     f.Begin(CloudSaveManager.StartMode.Resume);
     PlayFabDataAPI.Gets[0].Fail();
