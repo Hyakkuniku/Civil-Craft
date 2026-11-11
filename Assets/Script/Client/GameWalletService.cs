@@ -616,7 +616,8 @@ public sealed class GameWalletService : MonoBehaviour
         if (data.completedContracts != null)
             foreach (string id in data.completedContracts) selectedCompleted.Add("contract:" + CanonicalContractSource(id));
         if (data.unlockedAchievements != null)
-            foreach (string id in data.unlockedAchievements) selectedCompleted.Add("achievement:" + id);
+            foreach (string id in data.unlockedAchievements)
+                if (!playerData.HasPendingAchievementReward(id)) selectedCompleted.Add("achievement:" + id);
         return journal.rewards.Exists(reward => GameWalletPolicy.IsReward(reward) &&
             selectedCompleted.Contains(CanonicalRewardKey(reward)) && !selectedPending.Contains(CanonicalRewardKey(reward)));
     }
@@ -631,7 +632,7 @@ public sealed class GameWalletService : MonoBehaviour
         List<string> contracts = data.completedContracts != null ? data.completedContracts.ConvertAll(CanonicalContractSource) : new List<string>();
         List<string> achievements = data.unlockedAchievements != null ? new List<string>(data.unlockedAchievements) : new List<string>();
         contracts.RemoveAll(pendingContracts.Contains);
-        achievements.RemoveAll(pendingAchievements.Contains);
+        achievements.RemoveAll(id => pendingAchievements.Contains(id) || playerData.HasPendingAchievementReward(id));
         string json = playerData.GetCurrentDataJson();
         string hash;
         using (SHA256 sha = SHA256.Create()) hash = BitConverter.ToString(sha.ComputeHash(Encoding.UTF8.GetBytes(json))).Replace("-", "").ToLowerInvariant();

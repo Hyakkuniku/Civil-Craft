@@ -34,6 +34,7 @@ public class PlayerDataManager : MonoBehaviour
     /// <summary>Raised whenever the persistent feature-unlock collection changes.</summary>
     public Action OnFeatureUnlocksChanged;
     public Action<AchievementSO> OnAchievementUnlocked; 
+    public event Action<AchievementSO> OnAchievementRewardClaimed;
     /// <summary>Raised once when a contract is newly added to persistent completion data.</summary>
     public Action<string> OnContractCompleted;
     /// <summary>Raised once when a LessonData ID is newly added to the archive.</summary>
@@ -919,17 +920,6 @@ public class PlayerDataManager : MonoBehaviour
         return quote.fromCapture;
     }
 
-    private GameWalletRewardEvent AddWalletReward(string kind, string sourceId, GameWalletRewardEvidence evidence)
-    {
-        if (CurrentData.walletRewardOutbox == null) CurrentData.walletRewardOutbox = new List<GameWalletRewardEvent>();
-        string eventId = kind + ":" + sourceId;
-        if (CurrentData.walletRewardOutbox.Exists(item => item != null && item.eventId == eventId)) return null;
-        var reward = new GameWalletRewardEvent { kind = kind, sourceId = sourceId, eventId = eventId, evidence = evidence };
-        if (!GameWalletPolicy.IsReward(reward)) return null;
-        CurrentData.walletRewardOutbox.Add(reward);
-        return reward;
-    }
-
     private GameWalletRewardEvent AddWalletReward(GameWalletRewardEvent reward)
     {
         if (!GameWalletPolicy.IsReward(reward)) return null;
@@ -1580,20 +1570,18 @@ public class PlayerDataManager : MonoBehaviour
 
     public void CheckAllAchievements()
     {
-        // 1. Prevent checking if the list is empty
-        if (allGameAchievements == null || allGameAchievements.Count == 0) return;
-        
-        // 2. Prevent an infinite loop if unlocking an achievement triggers another AddGold!
-        if (isCheckingAchievements) return; 
-        
+        if (CurrentData == null || allGameAchievements == null || isCheckingAchievements) return;
+
         isCheckingAchievements = true;
-
-        foreach (AchievementSO ach in allGameAchievements)
+        try
         {
-            CheckAchievement(ach);
+            foreach (AchievementSO achievement in allGameAchievements)
+                CheckAchievement(achievement);
         }
-
-        isCheckingAchievements = false;
+        finally
+        {
+            isCheckingAchievements = false;
+        }
     }
 
     private void CheckAchievement(AchievementSO achievement)
@@ -1626,7 +1614,7 @@ public class PlayerDataManager : MonoBehaviour
         return UnlockAchievement(achievement);
     }
 
-    /// <summary>Developer tooling only: force the normal unlock/reward/popup pipeline.</summary>
+    /// <summary>Developer tooling only: unlock an achievement through the normal pipeline.</summary>
     public bool DebugUnlockAchievement(AchievementSO achievement)
     {
         return UnlockAchievement(achievement);
@@ -1636,81 +1624,114 @@ public class PlayerDataManager : MonoBehaviour
     {
         if (achievement == null || CurrentData == null ||
             string.IsNullOrWhiteSpace(achievement.achievementID)) return false;
-        if (CurrentData.unlockedAchievements.Contains(achievement.achievementID)) return false;
-        bool serverCoins = UsesServerCoins;
-        string previousState = serverCoins ? JsonUtility.ToJson(CurrentData) : null;
+        PlayerData data = CurrentData;
+        string id = achievement.achievementID;
+        if (data.unlockedAchievements.Contains(id)) return false;
 
-        CurrentData.unlockedAchievements.Add(achievement.achievementID);
-        if (CurrentData.achievementUnlocks == null)
-            CurrentData.achievementUnlocks = new List<AchievementUnlockData>();
-        CurrentData.achievementUnlocks.RemoveAll(record =>
-            record == null || string.Equals(record.achievementId,
-                achievement.achievementID, StringComparison.Ordinal));
-        CurrentData.achievementUnlocks.Add(new AchievementUnlockData {
-            achievementId = achievement.achievementID,
-            unlockedAtUtc = DateTime.UtcNow.ToString("o")
+        List<AchievementUnlockData> previousUnlocks = data.achievementUnlocks;
+        data.achievementUnlocks = previousUnlocks != null
+            ? new List<AchievementUnlockData>(previousUnlocks)
+            : new List<AchievementUnlockData>();
+        data.achievementUnlocks.RemoveAll(record => record == null || record.achievementId == id);
+        data.achievementUnlocks.Add(new AchievementUnlockData {
+            achievementId = id,
+            unlockedAtUtc = DateTime.UtcNow.ToString("o"),
+            rewardPending = achievement.HasReward
         });
+        data.unlockedAchievements.Add(id);
 
-        // These methods also update the received-currency lifetime counters.
-        if (serverCoins)
+        bool opensArchive = !IsFeatureUnlocked(AchievementsFeatureId);
+        if (opensArchive)
         {
-            AddWalletReward("achievement", achievement.achievementID, null);
-            // The server counts this earned reward when its durable event is
-            // accepted. Pending/offline rewards are not available currency.
-            CurrentData.exp += Mathf.Max(0, achievement.bonusExp);
-            CurrentData.lifetimeExpEarned += Mathf.Max(0, achievement.bonusExp);
-        }
-        else
-        {
-            if (achievement.bonusGold > 0) AddGold(achievement.bonusGold);
-            if (achievement.bonusExp > 0) AddExp(achievement.bonusExp);
+            EnsureFeatureUnlockList();
+            data.unlockedFeatureIds.Add(AchievementsFeatureId);
         }
 
-        bool hasCosmeticReward = achievement.grantsCosmeticReward &&
-                                 !string.IsNullOrWhiteSpace(achievement.rewardCosmeticID);
-        if (hasCosmeticReward)
+        if (!TrySaveGame())
         {
-            if (CurrentData.unlockedCosmeticIDs == null)
-                CurrentData.unlockedCosmeticIDs = new List<string>();
-            if (!CurrentData.unlockedCosmeticIDs.Contains(achievement.rewardCosmeticID))
-                CurrentData.unlockedCosmeticIDs.Add(achievement.rewardCosmeticID);
+            data.unlockedAchievements.Remove(id);
+            data.achievementUnlocks = previousUnlocks;
+            if (opensArchive) data.unlockedFeatureIds.Remove(AchievementsFeatureId);
+            return false;
         }
 
-        if (serverCoins)
-        {
-            if (!TrySaveGame())
-            {
-                CurrentData = JsonUtility.FromJson<PlayerData>(previousState);
-                return false;
-            }
-            OnCurrencyChanged?.Invoke();
-        }
-        else SaveGame();
         OnAchievementUnlocked?.Invoke(achievement);
         AchievementPopupNotification.NotifyAchievement(achievement);
-
-        // The first achievement introduces and permanently unlocks the archive.
-        // This queues the feature notification after the achievement notification.
-        if (!IsFeatureUnlocked(AchievementsFeatureId))
-            UnlockFeature(AchievementsFeatureId);
-
-        if (hasCosmeticReward)
+        if (opensArchive)
         {
-            if (ItemUnlockUI.Instance != null)
-            {
-                ItemUnlockUI.Instance.ShowReward(
-                    achievement.rewardDisplayName,
-                    achievement.rewardIcon,
-                    achievement.rewardCosmeticID,
-                    null);
-            }
-            else
-            {
-                UnlockCosmeticReward(achievement.rewardCosmeticID, true);
-            }
+            OnFeatureUnlocksChanged?.Invoke();
+            AchievementPopupNotification.NotifyFeatureUnlock(GetFeatureDisplayName(AchievementsFeatureId));
         }
 
         Debug.Log($"<color=green>ACHIEVEMENT UNLOCKED: {achievement.achievementName}!</color>");
+        return true;
+    }
+
+    private AchievementUnlockData FindPendingAchievementReward(string id) =>
+        CurrentData?.achievementUnlocks?.Find(record => record != null && record.rewardPending &&
+            string.Equals(record.achievementId, id, StringComparison.Ordinal));
+
+    public bool HasPendingAchievementReward(string id) => FindPendingAchievementReward(id) != null;
+
+    public bool HasPendingAchievementRewards =>
+        CurrentData?.achievementUnlocks?.Exists(record => record != null && record.rewardPending) == true;
+
+    public bool TryClaimAchievementReward(string id)
+    {
+        PlayerData data = CurrentData;
+        if (data == null || string.IsNullOrWhiteSpace(id) ||
+            (FusionConnectionManager.Instance != null && FusionConnectionManager.Instance.IsGuestSaveProtected) ||
+            !data.unlockedAchievements.Contains(id)) return false;
+
+        AchievementUnlockData unlock = FindPendingAchievementReward(id);
+        AchievementSO achievement = allGameAchievements?.Find(item => item != null && item.achievementID == id);
+        if (unlock == null || achievement == null || !achievement.HasReward) return false;
+
+        int coins = Mathf.Max(0, achievement.bonusGold);
+        int exp = Mathf.Max(0, achievement.bonusExp);
+        bool serverCoins = UsesServerCoins;
+        if ((!serverCoins && (data.gold > int.MaxValue - coins || data.lifetimeGoldEarned > int.MaxValue - coins)) ||
+            data.exp > int.MaxValue - exp || data.lifetimeExpEarned > int.MaxValue - exp) return false;
+
+        GameWalletRewardEvent queuedReward = null;
+        if (serverCoins && coins > 0)
+        {
+            var reward = new GameWalletRewardEvent { kind = "achievement", sourceId = id, eventId = "achievement:" + id };
+            if (!GameWalletPolicy.IsReward(reward)) return false;
+            queuedReward = AddWalletReward(reward);
+        }
+
+        string cosmeticId = achievement.HasCosmeticReward ? achievement.rewardCosmeticID.Trim() : null;
+        bool addsCosmetic = cosmeticId != null && !IsCosmeticUnlocked(cosmeticId);
+        if (addsCosmetic)
+        {
+            data.unlockedCosmeticIDs ??= new List<string>();
+            data.unlockedCosmeticIDs.Add(cosmeticId);
+        }
+
+        int localCoins = serverCoins ? 0 : coins;
+        data.gold += localCoins;
+        data.lifetimeGoldEarned += localCoins;
+        data.exp += exp;
+        data.lifetimeExpEarned += exp;
+        unlock.rewardPending = false;
+
+        if (!TrySaveGame())
+        {
+            unlock.rewardPending = true;
+            data.gold -= localCoins;
+            data.lifetimeGoldEarned -= localCoins;
+            data.exp -= exp;
+            data.lifetimeExpEarned -= exp;
+            if (addsCosmetic) data.unlockedCosmeticIDs.Remove(cosmeticId);
+            if (queuedReward != null) data.walletRewardOutbox.Remove(queuedReward);
+            return false;
+        }
+
+        OnAchievementRewardClaimed?.Invoke(achievement);
+        if (coins > 0 || exp > 0) OnCurrencyChanged?.Invoke();
+        if (addsCosmetic) OnItemOwnershipChanged?.Invoke();
+        CheckAllAchievements();
         return true;
     }
 

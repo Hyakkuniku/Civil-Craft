@@ -4,6 +4,8 @@ using UnityEngine.UI;
 
 public class AlmanacPlayerStats : MonoBehaviour
 {
+    private const string ClaimBadgeResource = "UI/AlmanacAchievementClaimBadge";
+
     [Header("Profile Card Layout")]
     [Tooltip("When enabled, text fields contain values only because their labels are supplied by the designed cards.")]
     public bool useProfileCardLayout;
@@ -27,6 +29,9 @@ public class AlmanacPlayerStats : MonoBehaviour
     public TextMeshProUGUI contractsCompletedText; 
     public TextMeshProUGUI totalGoldEarnedText;
 
+    private Transform achievementSummaryCard;
+    private GameObject claimBadge;
+
     private void OnEnable()
     {
         Subscribe();
@@ -48,10 +53,11 @@ public class AlmanacPlayerStats : MonoBehaviour
 
     public void RefreshStats()
     {
-        if (PlayerDataManager.Instance == null || PlayerDataManager.Instance.CurrentData == null) 
-            return;
+        PlayerDataManager manager = PlayerDataManager.Instance;
+        RefreshClaimBadge(useProfileCardLayout && manager != null && manager.HasPendingAchievementRewards);
+        if (manager == null || manager.CurrentData == null) return;
 
-        PlayerData data = PlayerDataManager.Instance.CurrentData;
+        PlayerData data = manager.CurrentData;
 
         if (useProfileCardLayout)
         {
@@ -169,22 +175,35 @@ public class AlmanacPlayerStats : MonoBehaviour
         if (fill != null)
             expProgressFill = fill.GetComponent<Image>();
 
-        Transform achievementCard = FindDescendant(design, "AchievementSummaryCard");
-        if (achievementCard != null)
+        achievementSummaryCard = FindDescendant(design, "AchievementSummaryCard");
+        if (achievementSummaryCard != null)
         {
-            Image cardImage = achievementCard.GetComponent<Image>();
+            Image cardImage = achievementSummaryCard.GetComponent<Image>();
             if (cardImage != null) cardImage.raycastTarget = true;
 
-            Button cardButton = achievementCard.GetComponent<Button>();
+            Button cardButton = achievementSummaryCard.GetComponent<Button>();
             if (cardButton == null)
-                cardButton = achievementCard.gameObject.AddComponent<Button>();
+                cardButton = achievementSummaryCard.gameObject.AddComponent<Button>();
             if (cardImage != null) cardButton.targetGraphic = cardImage;
             achievementPanelButton = cardButton;
 
-            Transform obsoleteButton = FindDescendant(achievementCard, "OpenAchievementsButton");
-            if (obsoleteButton != null && obsoleteButton != achievementCard)
+            Transform obsoleteButton = FindDescendant(achievementSummaryCard, "OpenAchievementsButton");
+            if (obsoleteButton != null && obsoleteButton != achievementSummaryCard)
                 obsoleteButton.gameObject.SetActive(false);
         }
+    }
+
+    private void RefreshClaimBadge(bool visible)
+    {
+        if (visible && claimBadge == null && achievementSummaryCard != null)
+        {
+            GameObject prefab = Resources.Load<GameObject>(ClaimBadgeResource);
+            if (prefab != null)
+                claimBadge = Instantiate(prefab, achievementSummaryCard, false);
+        }
+
+        if (claimBadge != null && claimBadge.activeSelf != visible)
+            claimBadge.SetActive(visible);
     }
 
     private static Transform FindDescendant(Transform parent, string objectName)
@@ -253,8 +272,10 @@ public class AlmanacPlayerStats : MonoBehaviour
         PlayerDataManager.Instance.OnCurrencyChanged += RefreshStats;
         PlayerDataManager.Instance.OnContractCompleted -= HandleContractCompleted;
         PlayerDataManager.Instance.OnContractCompleted += HandleContractCompleted;
-        PlayerDataManager.Instance.OnAchievementUnlocked -= HandleAchievementUnlocked;
-        PlayerDataManager.Instance.OnAchievementUnlocked += HandleAchievementUnlocked;
+        PlayerDataManager.Instance.OnAchievementUnlocked -= HandleAchievementChanged;
+        PlayerDataManager.Instance.OnAchievementUnlocked += HandleAchievementChanged;
+        PlayerDataManager.Instance.OnAchievementRewardClaimed -= HandleAchievementChanged;
+        PlayerDataManager.Instance.OnAchievementRewardClaimed += HandleAchievementChanged;
     }
 
     private void Unsubscribe()
@@ -262,7 +283,8 @@ public class AlmanacPlayerStats : MonoBehaviour
         if (PlayerDataManager.Instance == null) return;
         PlayerDataManager.Instance.OnCurrencyChanged -= RefreshStats;
         PlayerDataManager.Instance.OnContractCompleted -= HandleContractCompleted;
-        PlayerDataManager.Instance.OnAchievementUnlocked -= HandleAchievementUnlocked;
+        PlayerDataManager.Instance.OnAchievementUnlocked -= HandleAchievementChanged;
+        PlayerDataManager.Instance.OnAchievementRewardClaimed -= HandleAchievementChanged;
     }
 
     private void HandleContractCompleted(string contractId)
@@ -270,7 +292,7 @@ public class AlmanacPlayerStats : MonoBehaviour
         RefreshStats();
     }
 
-    private void HandleAchievementUnlocked(AchievementSO achievement)
+    private void HandleAchievementChanged(AchievementSO achievement)
     {
         RefreshStats();
     }

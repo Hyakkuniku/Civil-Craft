@@ -139,6 +139,7 @@ public sealed class PlayerData
     public List<GameWalletRewardEvent> walletRewardOutbox = new();
     public List<GameWalletContractEvidence> walletContractEvidence = new();
     public List<string> completedContracts = new(), unlockedAchievements = new(), purchasedShopItemIds = new(), unlockedCosmeticIDs = new(), unlockedContractMaterials = new();
+    public HashSet<string> pendingAchievementRewards = new();
 }
 public sealed class PlayerDataManager : UnityEngine.MonoBehaviour
 {
@@ -151,6 +152,7 @@ public sealed class PlayerDataManager : UnityEngine.MonoBehaviour
     public Action WalletNotification;
     public void NotifyWalletChanged() { NotificationCount++; WalletNotification?.Invoke(); }
     public void CheckAllAchievements() => AchievementCheckCount++;
+    public bool HasPendingAchievementReward(string id) => CurrentData.pendingAchievementRewards.Contains(id);
     public bool TrySaveGame() { SaveCount++; if (FailSave) return false; OnSaveCommitted?.Invoke(); return true; }
     public bool TryApplyWalletSnapshot(int coins, long version, int? earned = null, int? spent = null)
     {

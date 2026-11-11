@@ -48,10 +48,13 @@ public class AchievementSO : ScriptableObject
     public int bonusExp = 500;
 
     [Header("Optional Cosmetic Reward")]
-    [Tooltip("Show the same collectible reward flow used by the Safety Helmet when this achievement unlocks.")]
+    [Tooltip("Add this cosmetic to the wardrobe when the player claims the achievement reward.")]
     public bool grantsCosmeticReward = false;
     [Tooltip("Must match a Cosmetic Item ID on PlayerCosmetics, for example EngineerHardHat.")]
     public string rewardCosmeticID = "";
     public string rewardDisplayName = "Achievement Reward";
     public Sprite rewardIcon;
+
+    public bool HasCosmeticReward => grantsCosmeticReward && !string.IsNullOrWhiteSpace(rewardCosmeticID);
+    public bool HasReward => bonusGold > 0 || bonusExp > 0 || HasCosmeticReward;
 }

@@ -773,6 +773,8 @@ internal static class Program
         var data = fixture.Data.CurrentData;
         data.completedContracts.Add("OldLegacy");
         data.unlockedAchievements.Add("ACH_001");
+        data.unlockedAchievements.Add("ACH_003");
+        data.pendingAchievementRewards.Add("ACH_003");
         data.purchasedShopItemIds.Add("shop_hat");
         data.unlockedCosmeticIDs.Add("Hat");
         data.unlockedContractMaterials.Add("ShopKeeper_Beam");
@@ -797,7 +799,8 @@ internal static class Program
             ["unlockedCosmeticIDs"] = "Hat", ["unlockedContractMaterials"] = "ShopKeeper_Beam",
         }) {
             var values = (IList)body[expected.Key];
-            Check(values.Count == 1 && (string)values[0] == expected.Value, "Snapshot arrays must remain bound to the original selected save: " + expected.Key);
+            Check(values.Count == 1 && (string)values[0] == expected.Value,
+                "Snapshot arrays must reflect the original selected save and exclude unclaimed rewards: " + expected.Key);
         }
         Check(fixture.Cloud.ImportReservationEnds == 1 && !fixture.Cloud.ImportReservationActive, "Release the successful immutable snapshot reservation");
     }

@@ -128,7 +128,10 @@ public class AchievementUIManager : MonoBehaviour
     private void OnDestroy()
     {
         if (boundDataManager != null)
-            boundDataManager.OnAchievementUnlocked -= HandleAchievementUnlocked;
+        {
+            boundDataManager.OnAchievementUnlocked -= HandleAchievementChanged;
+            boundDataManager.OnAchievementRewardClaimed -= HandleAchievementChanged;
+        }
 
         UnregisterFilterListeners();
     }
@@ -188,9 +191,11 @@ public class AchievementUIManager : MonoBehaviour
 
         refreshWhenDataIsReady = false;
 
-        PlayerData data = PlayerDataManager.Instance.CurrentData;
+        PlayerDataManager manager = PlayerDataManager.Instance;
+        PlayerData data = manager.CurrentData;
 
-        // 2. Separate them into two lists for sorting/filtering.
+        // Keep rewards ready to claim at the top of All and Complete.
+        List<AchievementSO> claimableList = new List<AchievementSO>();
         List<AchievementSO> completedList = new List<AchievementSO>();
         List<AchievementSO> inProgressList = new List<AchievementSO>();
 
@@ -199,7 +204,10 @@ public class AchievementUIManager : MonoBehaviour
             if (ach == null) continue;
             if (data.unlockedAchievements.Contains(ach.achievementID))
             {
-                completedList.Add(ach);
+                if (manager.HasPendingAchievementReward(ach.achievementID))
+                    claimableList.Add(ach);
+                else
+                    completedList.Add(ach);
             }
             else
             {
@@ -208,9 +216,17 @@ public class AchievementUIManager : MonoBehaviour
         }
 
         if (unlockedCountText != null)
-            unlockedCountText.text = $"{completedList.Count}/{completedList.Count + inProgressList.Count} Unlocked";
+        {
+            int unlocked = claimableList.Count + completedList.Count;
+            unlockedCountText.text = $"{unlocked}/{unlocked + inProgressList.Count} Unlocked";
+        }
 
-        // All keeps unfinished goals first. The other tabs show only their state.
+        if (activeFilter != AchievementFilter.Incomplete)
+        {
+            foreach (AchievementSO ach in claimableList)
+                CreateRow(ach, true, rewardPending: true);
+        }
+
         if (activeFilter != AchievementFilter.Complete)
         {
             foreach(AchievementSO ach in inProgressList)
@@ -351,10 +367,14 @@ public class AchievementUIManager : MonoBehaviour
         if (current == null || current == boundDataManager) return;
 
         if (boundDataManager != null)
-            boundDataManager.OnAchievementUnlocked -= HandleAchievementUnlocked;
+        {
+            boundDataManager.OnAchievementUnlocked -= HandleAchievementChanged;
+            boundDataManager.OnAchievementRewardClaimed -= HandleAchievementChanged;
+        }
 
         boundDataManager = current;
-        boundDataManager.OnAchievementUnlocked += HandleAchievementUnlocked;
+        boundDataManager.OnAchievementUnlocked += HandleAchievementChanged;
+        boundDataManager.OnAchievementRewardClaimed += HandleAchievementChanged;
         MergeAchievements(boundDataManager.allGameAchievements);
         MergeAchievements(Resources.FindObjectsOfTypeAll<AchievementSO>());
         boundDataManager.RegisterAchievements(allAchievements);
@@ -395,13 +415,13 @@ public class AchievementUIManager : MonoBehaviour
         achievementCheckQueued = false;
     }
 
-    private void HandleAchievementUnlocked(AchievementSO achievement)
+    private void HandleAchievementChanged(AchievementSO achievement)
     {
         if (achievementPanel != null && achievementPanel.activeInHierarchy)
             RefreshUI();
     }
 
-    private void CreateRow(AchievementSO achievement, bool isCompleted)
+    private void CreateRow(AchievementSO achievement, bool isCompleted, bool rewardPending = false)
     {
         GameObject rowObj = Instantiate(achievementRowPrefab, contentParent);
         rowObj.SetActive(true);
@@ -421,7 +441,7 @@ public class AchievementUIManager : MonoBehaviour
         {
             int currentProg = PlayerDataManager.Instance.GetAchievementProgress(achievement);
             int targetProgress = PlayerDataManager.Instance.GetAchievementTarget(achievement);
-            rowUI.Setup(achievement, currentProg, isCompleted, targetProgress);
+            rowUI.Setup(achievement, currentProg, isCompleted, targetProgress, rewardPending);
         }
         else
         {

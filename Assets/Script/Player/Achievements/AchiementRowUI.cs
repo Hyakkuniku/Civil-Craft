@@ -26,12 +26,14 @@ public class AchievementRowUI : MonoBehaviour
     [Header("Completion Visuals")]
     public GameObject completedCheckmark; 
     public CanvasGroup canvasGroup; // Optional: To slightly fade out completed achievements
+    [SerializeField] private Button claimButton;
 
     public void Setup(
         AchievementSO achievement,
         int currentProgress,
         bool isCompleted,
-        int targetAmountOverride = -1)
+        int targetAmountOverride = -1,
+        bool rewardPending = false)
     {
         if (achievement == null) return;
 
@@ -66,6 +68,10 @@ public class AchievementRowUI : MonoBehaviour
         EnsureRewardIcons();
         ApplyRewardLayout(achievement, hideDetails);
 
+        bool canClaim = isCompleted && rewardPending && achievement.HasReward;
+        if (claimButton != null) claimButton.gameObject.SetActive(canClaim);
+        if (progressFill != null) progressFill.transform.parent.gameObject.SetActive(!canClaim);
+
         if (hideDetails)
         {
             if (progressText != null) progressText.text = "???";
@@ -78,7 +84,8 @@ public class AchievementRowUI : MonoBehaviour
         if (isCompleted)
         {
             // Completed State
-            if (progressText != null) progressText.text = "Completed!";
+            if (progressText != null)
+                progressText.text = canClaim ? "Reward ready" : achievement.HasReward ? "Claimed" : "Completed!";
             SetDisplayedProgress(1f);
             if (completedCheckmark != null) completedCheckmark.SetActive(true);
             if (canvasGroup != null) canvasGroup.alpha = 1f;
@@ -99,6 +106,28 @@ public class AchievementRowUI : MonoBehaviour
             SetDisplayedProgress(targetAmount > 0
                 ? (float)clampedProgress / targetAmount
                 : 0f);
+        }
+    }
+
+    public void ClaimReward()
+    {
+        if (currentAchievement == null || claimButton == null || !claimButton.gameObject.activeInHierarchy) return;
+
+        PlayerDataManager manager = PlayerDataManager.Instance;
+        if (manager != null && manager.TryClaimAchievementReward(currentAchievement.achievementID))
+        {
+            if (gameObject.activeInHierarchy)
+            {
+                claimButton.gameObject.SetActive(false);
+                if (progressFill != null) progressFill.transform.parent.gameObject.SetActive(true);
+                if (progressText != null) progressText.text = "Claimed";
+            }
+            AudioManager.Instance?.PlaySFX("Click");
+        }
+        else if (progressText != null)
+        {
+            bool visiting = FusionConnectionManager.Instance != null && FusionConnectionManager.Instance.IsGuestSaveProtected;
+            progressText.text = visiting ? "Visiting" : "Try again";
         }
     }
 
@@ -231,7 +260,7 @@ public class AchievementRowUI : MonoBehaviour
         {
             ConfigureTextRect(progressText,
                 new Vector2(0f, 1f), new Vector2(1f, 1f),
-                new Vector2(0.5f, 1f), new Vector2(0f, 0f), new Vector2(0f, 36f),
+                new Vector2(0.5f, 1f), new Vector2(0f, 0f), new Vector2(0f, 32f),
                 26f, FontStyles.Bold);
             progressText.alignment = TextAlignmentOptions.TopRight;
         }
@@ -306,8 +335,10 @@ public class AchievementRowUI : MonoBehaviour
 
         if (rewardText != null)
         {
-            rewardText.text = hideDetails ? "???" : hasReward ? "Reward" : "Completed";
-            rewardText.rectTransform.sizeDelta = new Vector2(hasReward ? 82f : 130f, 32f);
+            rewardText.text = hideDetails ? "???" : hasReward ? "Reward" :
+                achievement.HasCosmeticReward ? achievement.rewardDisplayName : "Completed";
+            float width = hasReward ? 82f : achievement.HasCosmeticReward ? 190f : 130f;
+            rewardText.rectTransform.sizeDelta = new Vector2(width, 32f);
         }
 
         if (rewardCoinIcon != null)

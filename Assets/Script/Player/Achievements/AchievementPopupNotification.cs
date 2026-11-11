@@ -26,8 +26,6 @@ public sealed class AchievementPopupNotification : MonoBehaviour
         public string detail;
         public Sprite icon;
         public PopupKind kind;
-        public int goldReward;
-        public int experienceReward;
     }
 
     private const int AbsoluteSortingOrder = 32767;
@@ -174,11 +172,9 @@ public sealed class AchievementPopupNotification : MonoBehaviour
         PopupRequest request = new PopupRequest
         {
             title = achievement.achievementName,
-            detail = BuildRewardText(achievement),
+            detail = achievement.HasReward ? "Claim your reward in Achievements" : "Achievement completed",
             icon = achievement.achievementIcon,
-            kind = PopupKind.Achievement,
-            goldReward = achievement.bonusGold,
-            experienceReward = achievement.bonusExp
+            kind = PopupKind.Achievement
         };
 
         Dispatch(request);
@@ -450,10 +446,7 @@ public sealed class AchievementPopupNotification : MonoBehaviour
         ApplyStyle(request.kind);
         achievementNameText.text = request.title;
         EnsureRewardIcons();
-        if (request.kind == PopupKind.Achievement)
-            ApplyAchievementRewardLayout(request);
-        else
-            ApplyStandardDetailLayout(request.detail);
+        ApplyStandardDetailLayout(request.detail);
 
         if (iconImage != null)
         {
@@ -541,17 +534,6 @@ public sealed class AchievementPopupNotification : MonoBehaviour
         return null;
     }
 
-    private static string BuildRewardText(AchievementSO achievement)
-    {
-        if (achievement.bonusGold > 0 && achievement.bonusExp > 0)
-            return $"Reward:       {achievement.bonusGold:N0}          {achievement.bonusExp:N0}";
-        if (achievement.bonusGold > 0)
-            return $"Reward:       {achievement.bonusGold:N0}";
-        if (achievement.bonusExp > 0)
-            return $"Reward:       {achievement.bonusExp:N0}";
-        return "Achievement completed";
-    }
-
     private void EnsureRewardIcons()
     {
         if (popupRoot == null) return;
@@ -568,50 +550,6 @@ public sealed class AchievementPopupNotification : MonoBehaviour
     {
         Transform child = popupRoot.transform.Find(name);
         return child != null ? child.GetComponent<T>() : null;
-    }
-
-    private void ApplyAchievementRewardLayout(PopupRequest request)
-    {
-        bool showGold = request.goldReward > 0;
-        bool showExperience = request.experienceReward > 0;
-        bool hasReward = showGold || showExperience;
-
-        ConfigurePopupTextRect(
-            rewardText,
-            new Vector2(158f, -111f),
-            new Vector2(hasReward ? 78f : 570f, 30f));
-        rewardText.text = hasReward ? "Reward" : "Achievement completed";
-
-        if (rewardCoinIcon != null)
-        {
-            rewardCoinIcon.rectTransform.anchoredPosition = new Vector2(250f, -44f);
-            rewardCoinIcon.gameObject.SetActive(showGold && rewardCoinIcon.sprite != null);
-        }
-        if (rewardCoinValueText != null)
-        {
-            rewardCoinValueText.text = request.goldReward.ToString("N0");
-            rewardCoinValueText.color = rewardText.color;
-            rewardCoinValueText.gameObject.SetActive(showGold);
-        }
-
-        float experienceIconX = showGold ? 390f : 250f;
-        float experienceValueX = showGold ? 408f : 268f;
-        if (rewardExperienceIcon != null)
-        {
-            rewardExperienceIcon.rectTransform.anchoredPosition = new Vector2(experienceIconX, -44f);
-            rewardExperienceIcon.gameObject.SetActive(
-                showExperience && rewardExperienceIcon.sprite != null);
-        }
-        if (rewardExperienceValueText != null)
-        {
-            ConfigurePopupTextRect(
-                rewardExperienceValueText,
-                new Vector2(experienceValueX, -111f),
-                new Vector2(110f, 30f));
-            rewardExperienceValueText.text = request.experienceReward.ToString("N0");
-            rewardExperienceValueText.color = rewardText.color;
-            rewardExperienceValueText.gameObject.SetActive(showExperience);
-        }
     }
 
     private void ApplyStandardDetailLayout(string detail)

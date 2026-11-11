@@ -89,6 +89,8 @@ public class AchievementUnlockData
 {
     public string achievementId;
     public string unlockedAtUtc;
+    // Legacy saves omit this flag because their unlocks already paid out.
+    public bool rewardPending;
 }
 
 [System.Serializable]
