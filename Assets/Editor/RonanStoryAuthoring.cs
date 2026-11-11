@@ -224,7 +224,7 @@ public static class RonanStoryAuthoring
         guide.nextSequence = null;
         guide.autoStartNextSequence = false;
         guide.tutorialSteps = new[] { new TutorialStep { message = "Follow Ronan to the southern crossing.",
-            screenPosition = TutorialPosition.Left, showNextButton = false, canSkip = true,
+            screenPosition = TutorialPosition.Left, showNextButton = false, canSkip = false,
             stepWaypoints = new List<GuiderWaypoint> { new GuiderWaypoint { target = site, advancesTutorial = true } } } };
         EditorUtility.SetDirty(guide);
         GameObject movieRoot = NewObject(scene, "Southern Connection Cinematic", root.transform);
@@ -364,7 +364,7 @@ public static class RonanStoryAuthoring
             Calls(movie.OnCinematicFinished, continuation, "ContinueAfterSituationCinematic"), "Ronan's cinematic continuation is not guarded.");
         TutorialSequence guide = root.GetComponentsInChildren<TutorialSequence>(true).Single();
         Require(guide.lessonName == FollowLessonId && !guide.playOnStart && !guide.autoStartNextSequence && guide.nextSequence == null &&
-            guide.tutorialSteps.Length == 1 && guide.tutorialSteps[0].canSkip && !guide.tutorialSteps[0].showNextButton &&
+            guide.tutorialSteps.Length == 1 && !guide.tutorialSteps[0].canSkip && !guide.tutorialSteps[0].showNextButton &&
             guide.tutorialSteps[0].stepWaypoints.Single().target == site && Calls(phases[0].onDialogueFinished, guide, "StartTutorial") &&
             Calls(phases[1].onNPCInteracted, guide, "Skip"), "Ronan's optional follow guide must close before the site conversation.");
         SerializedObject saved = new SerializedObject(continuation);

@@ -94,12 +94,12 @@ internal static class MillsFinalStoryAuthoring
                 Say("The bridge has passed the test.",
                     "Before we finish the contract, review your results and the concepts you've applied.",
                     "I want you to understand not only that the design worked, but why it met the requirements.",
-                    "Complete the final review and quiz, then speak to me again to officially close the project."),
+                    "Complete the final review and quiz. Professor Bhan will meet you on the far side of the bridge."),
                 ReferenceReview(),
                 Say("You can revisit your earlier lessons in the Almanac. Open the " + Em("Quiz tab") + " and press " + Em("Start Quiz") + " when you're ready."),
                 new NPCOptionalDialogueStep { stepType = NPCOptionalDialogueStep.StepType.Quiz, quiz = quiz, quizStepId = "mills-final-integrated-assessment-v1",
-                    quizWaitingReminder = "Complete the Final Integrated Application quiz in the Almanac, then speak to me again to turn in the project. You can review your earlier lessons first." },
-                Say("You've completed the final review. Speak to me again when you're ready to turn in the contract.")
+                    quizWaitingReminder = "Complete the Final Integrated Application quiz in the Almanac. Professor Bhan will be waiting across the bridge." },
+                Say("You've earned this, {PlayerName}. Professor Bhan is across the bridge. Go speak to him to close the project.")
             };
             var done = Phase(AddedIds[3], wait); done.showExclamationMark = false;
             done.phaseDialogue = Dialogue("You've completed the final crossing, {PlayerName}. You've earned my respect.", "Keep studying each problem, testing your ideas, and learning from the results. That's how an engineer keeps improving.");

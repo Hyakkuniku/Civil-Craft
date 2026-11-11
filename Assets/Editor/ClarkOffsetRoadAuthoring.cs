@@ -263,7 +263,7 @@ internal static class ClarkOffsetRoadAuthoring
     private static TutorialSequence Objective(Scene scene,Transform parent,string id,string title,Transform target,bool follow=false)
     {
         var value=Undo.AddComponent<TutorialSequence>(NewObject(scene,title,parent));value.lessonName=id;value.showInObjectives=true;value.objectiveTitle=title;value.ConfigureObjectiveIdentity(id);value.playOnStart=false;
-        value.tutorialSteps=new[]{new TutorialStep{message=title+".",screenPosition=TutorialPosition.Left,showNextButton=false,canSkip=follow,
+        value.tutorialSteps=new[]{new TutorialStep{message=title+".",screenPosition=TutorialPosition.Left,showNextButton=false,canSkip=false,
             stepWaypoints=target==null?new List<GuiderWaypoint>():new List<GuiderWaypoint>{new GuiderWaypoint{target=target,advancesTutorial=follow}}}};Mark(value);return value;
     }
     private static NPCProgressionPhase Phase(string id,Transform target,bool automatic=false)=>new NPCProgressionPhase{phaseId=id,targetLocation=target,dialoguePrompt="Talk to Clark",phaseDialogue=Dialogue(),repeatDialogue=true,playDialogueOnArrival=automatic,showExclamationMark=true,

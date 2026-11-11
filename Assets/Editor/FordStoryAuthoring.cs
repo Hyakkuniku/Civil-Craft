@@ -274,7 +274,7 @@ public static class FordStoryAuthoring
         guide.nextSequence = null;
         guide.autoStartNextSequence = false;
         guide.tutorialSteps = new[] { new TutorialStep { message = "Follow Ford to the construction crossing.",
-            screenPosition = TutorialPosition.Left, showNextButton = false, canSkip = true,
+            screenPosition = TutorialPosition.Left, showNextButton = false, canSkip = false,
             stepWaypoints = new List<GuiderWaypoint> { new GuiderWaypoint { target = site, advancesTutorial = true } } } };
         EditorUtility.SetDirty(guide);
 
@@ -448,7 +448,7 @@ public static class FordStoryAuthoring
             "Ford's cinematic must use the guarded continuation, not an unconditional phase move.");
         TutorialSequence guide = root.GetComponentsInChildren<TutorialSequence>(true).Single();
         Require(guide.lessonName == FollowLessonId && !guide.playOnStart && !guide.autoStartNextSequence && guide.nextSequence == null &&
-            guide.tutorialSteps.Length == 1 && guide.tutorialSteps[0].canSkip && !guide.tutorialSteps[0].showNextButton &&
+            guide.tutorialSteps.Length == 1 && !guide.tutorialSteps[0].canSkip && !guide.tutorialSteps[0].showNextButton &&
             guide.tutorialSteps[0].stepWaypoints.Single().target == site &&
             Calls(phases[0].onDialogueFinished, guide, "StartTutorial") && Calls(phases[1].onNPCInteracted, guide, "Skip"),
             "Ford's optional follow guide must start after meeting and safely close before talking at the site.");

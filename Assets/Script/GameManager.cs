@@ -286,7 +286,7 @@ public partial class GameManager : MonoBehaviour
     public List<GameObject> extraElementsToHideOnRedo = new List<GameObject>(); 
 
     [Header("Open World Safety")]
-    [Tooltip("Use the forward footing probe to stop the player before stepping off a protected drop. Physical guards and fall recovery are always available.")]
+    [Tooltip("Enable the invisible edge guards and the forward footing check. Fall recovery stays active in either mode.")]
     [SerializeField] private bool preventWalkingOffEdges = true;
     public bool PreventWalkingOffEdges => preventWalkingOffEdges;
     

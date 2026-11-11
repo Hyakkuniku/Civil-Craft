@@ -323,7 +323,9 @@ public class PauseManager : MonoBehaviour
         bool isInBuildMode = GameManager.Instance != null &&
                              GameManager.Instance.CurrentState == GameManager.GameState.Building;
 
-        return (!allowPauseInBuildMode && isInBuildMode) || IsPauseBlockedByTutorialContract();
+        GameObject modal = UIPanelCoordinator.Instance != null ? UIPanelCoordinator.Instance.CurrentPanel : null;
+        return (!allowPauseInBuildMode && isInBuildMode) || IsPauseBlockedByTutorialContract() ||
+            (modal != null && modal.TryGetComponent<MainMenuCredits>(out _));
     }
 
     private GameObject FindPauseButton()

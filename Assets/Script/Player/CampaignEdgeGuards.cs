@@ -90,15 +90,28 @@ public sealed class CampaignEdgeGuards : MonoBehaviour
             Array.TrueForAll(cinematics, cinematic => cinematic == null || !cinematic.IsPlaying);
     }
 
+    private void Start() => ApplyEdgeProtection();
+
+    private bool ApplyEdgeProtection()
+    {
+        GameManager game = GameManager.Instance;
+        if (guardRoot == null || game == null) return false;
+
+        bool preventFalls = game.PreventWalkingOffEdges;
+        if (guardRoot.gameObject.activeSelf != preventFalls)
+            guardRoot.gameObject.SetActive(preventFalls);
+        return preventFalls;
+    }
+
     internal Vector3 LimitMovement(Vector3 horizontalVelocity, float deltaTime, bool jumping)
     {
         Vector3 movement = horizontalVelocity * deltaTime;
-        if (movement.sqrMagnitude < 0.000001f || guardRoot == null || !CanShowRail()) return movement;
+        if (!ApplyEdgeProtection() || movement.sqrMagnitude < 0.000001f || !CanShowRail()) return movement;
 
         if (horizontalVelocity.sqrMagnitude >= 0.04f && TryFindApproachingGuard(horizontalVelocity, out RaycastHit hit))
             RememberContact((BoxCollider)hit.collider, hit.point, -Vector3.Dot(horizontalVelocity.normalized, hit.normal));
 
-        return GameManager.Instance.PreventWalkingOffEdges && !jumping && controller.isGrounded
+        return !jumping && controller.isGrounded
             ? LimitStepOverDrop(movement, horizontalVelocity.magnitude)
             : movement;
     }
@@ -214,10 +227,10 @@ public sealed class CampaignEdgeGuards : MonoBehaviour
 
     private void LateUpdate()
     {
+        bool preventFalls = ApplyEdgeProtection();
         if (contact == null && dropDirection == Vector3.zero) return;
         float age = Time.unscaledTime - contactTime;
-        if (age >= ContactHold + FadeTime || !CanShowRail() ||
-            (contact == null && !GameManager.Instance.PreventWalkingOffEdges))
+        if (!preventFalls || age >= ContactHold + FadeTime || !CanShowRail())
         {
             ClearContact();
             return;
@@ -308,6 +321,7 @@ public sealed class CampaignEdgeGuards : MonoBehaviour
 
     public bool OverlapsGuard(Vector3 position)
     {
+        if (GameManager.Instance != null && !GameManager.Instance.PreventWalkingOffEdges) return false;
         CharacterController capsule = controller != null ? controller : GetComponent<CharacterController>();
         CapsuleAt(capsule, position, transform.rotation, out Vector3 bottom, out Vector3 top, out float radius);
         return Physics.CheckCapsule(bottom, top, radius, GuardMask, QueryTriggerInteraction.Ignore);

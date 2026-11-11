@@ -381,7 +381,7 @@ public static class ClarkStoryAuthoring
         sequence.ConfigureObjectiveIdentity(id);
         sequence.playOnStart = false;
         sequence.tutorialSteps = new[] { new TutorialStep { message = title + ".", screenPosition = TutorialPosition.Left,
-            showNextButton = false, canSkip = follow, stepWaypoints = target == null ? new List<GuiderWaypoint>() :
+            showNextButton = false, canSkip = false, stepWaypoints = target == null ? new List<GuiderWaypoint>() :
                 new List<GuiderWaypoint> { new GuiderWaypoint { target = target, advancesTutorial = follow } } } };
         Mark(sequence);
         return sequence;
