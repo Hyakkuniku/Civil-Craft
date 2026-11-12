@@ -217,6 +217,7 @@ public class BuildUIController : MonoBehaviour
     private HashSet<Point> activePoints = new HashSet<Point>();
 
     private float lastStressPercent = -1f;
+    private string lastEnvironmentalStressLabel;
     private float lastStressFillAmount = -1f;
     private static readonly Color StressReadoutColor = new Color(0.973f, 0.918f, 0.843f, 1f);
     private float nextStressTextUpdateTime;
@@ -1646,23 +1647,28 @@ public class BuildUIController : MonoBehaviour
             lastStressFillAmount = displayedStress;
 
             bool failureValue = currentStress >= 1f;
-            if (!Mathf.Approximately(stressPercent, lastStressPercent) &&
-                (failureValue || Time.unscaledTime >= nextStressTextUpdateTime))
+            string condition = sessionTest ? null : physicsManager.EnvironmentalStressLabel;
+            if (condition != lastEnvironmentalStressLabel ||
+                (!Mathf.Approximately(stressPercent, lastStressPercent) &&
+                    (failureValue || Time.unscaledTime >= nextStressTextUpdateTime)))
             {
+                lastEnvironmentalStressLabel = condition;
                 nextStressTextUpdateTime = Time.unscaledTime +
                     1f / Mathf.Max(5f, stressTextUpdatesPerSecond);
                 lastStressPercent = stressPercent;
                 if (stressText != null) 
                 { 
-                    stressText.text = $"<size=15><color=#F8EAD7>BRIDGE STRESS</color></size>\n<size=31>{stressPercent:0.0}%</size>";
+                    string title = condition ?? "BRIDGE STRESS";
+                    stressText.text = $"<size=15><color=#F8EAD7>{title}</color></size>\n<size=31>{stressPercent:0.0}%</size>";
                     stressText.color = StressReadoutColor;
                 }
             }
         }
         else
         {
-            if (!Mathf.Approximately(lastStressPercent, 0f))
+            if (lastEnvironmentalStressLabel != null || !Mathf.Approximately(lastStressPercent, 0f))
             {
+                lastEnvironmentalStressLabel = null;
                 lastStressPercent = 0f;
                 if (stressText != null)
                 {

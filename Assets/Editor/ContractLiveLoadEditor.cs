@@ -69,6 +69,10 @@ public sealed class ContractLiveLoadEditor : Editor
             {
                 case "m_Script": case "vehicleTestMode": case "liveLoadTests": case "liveLoadWeight":
                 case "allowVehicleCargo": case "minimumLoadedCargo": break;
+                case "environmentalTest":
+                    if (serializedObject.FindProperty("liveLoadMode").enumValueIndex == (int)ContractSO.LiveLoadMode.Vehicle)
+                        EditorGUILayout.PropertyField(property, new GUIContent("Wind and Earthquake", property.tooltip), true);
+                    break;
                 case "twoWayRoad": EditorGUILayout.PropertyField(property, new GUIContent("Two-Way Road", property.tooltip)); break;
                 case "twoWayRoadWidth":
                     if (serializedObject.FindProperty("twoWayRoad").boolValue)

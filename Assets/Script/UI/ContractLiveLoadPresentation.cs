@@ -129,8 +129,23 @@ public static class ContractLiveLoadPresentation
     public static void ShowScrollableBrief(TextMeshProUGUI source, ContractSO contract, string brief)
     {
         bool multiple = contract != null && contract.HasMultipleLiveLoads;
-        ShowScrollableText(source, multiple,
-            multiple ? "<size=18><color=#765A43>PROJECT BRIEF · DRAG TO SCROLL</color></size>\n" + brief + "\n\n" + Requirements(contract) : string.Empty);
+        string environment = EnvironmentalRequirements(contract);
+        bool scroll = multiple || environment.Length > 0;
+        string text = scroll ? "<size=18><color=#765A43>PROJECT BRIEF · DRAG TO SCROLL</color></size>\n" + brief : string.Empty;
+        if (environment.Length > 0) text += "\n\n" + environment;
+        if (multiple) text += "\n\n" + Requirements(contract);
+        ShowScrollableText(source, scroll, text);
+    }
+
+    private static string EnvironmentalRequirements(ContractSO contract)
+    {
+        BridgeEnvironmentalTest test = contract != null && contract.liveLoadMode == ContractSO.LiveLoadMode.Vehicle
+            ? contract.environmentalTest : null;
+        if (test == null || !test.IsEnabled) return string.Empty;
+        test = test.Freeze();
+        string conditions = test.HasWind && test.HasEarthquake ? "Wind gusts and earthquake shaking" :
+            test.HasWind ? "Wind gusts" : "Earthquake shaking";
+        return $"<b>SOLO SIMULATION CONDITIONS</b>\n{conditions} start {test.startDelay:0.#} s after settling and last {test.duration:0.#} s.";
     }
 
     /// <summary>Touch-scrolls a frozen multiplayer roster in its existing authored text slot.</summary>

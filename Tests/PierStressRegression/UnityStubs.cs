@@ -37,6 +37,7 @@ public class Bar
     public Point startPoint, endPoint;
     public BridgeMaterialSO materialData;
     public float PlacedMassPerMeter => materialData.GetPlacedMassPerMeter();
+    public float RoadColliderWidth = 8f;
     public UnityEngine.GameObject gameObject = new UnityEngine.GameObject();
     public bool enabled = true;
 }

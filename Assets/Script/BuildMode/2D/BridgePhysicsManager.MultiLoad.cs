@@ -14,6 +14,8 @@ public partial class BridgePhysicsManager
     private readonly List<DeterministicBridgeStressSolver.PointLoad> previousMultiLoadStressInputs =
         new List<DeterministicBridgeStressSolver.PointLoad>(4);
     private bool multiLoadStressInputsValid;
+    private DeterministicBridgeStressSolver.EnvironmentalLoad previousEnvironmentalLoad;
+    private float singleVehicleTestMass;
 
     /// <summary>Preflights the immutable roster before releasing any bridge or vehicle physics.</summary>
     public bool TryPrepareMultiLoadSession(BuildLocation location, out string reason)
@@ -81,30 +83,41 @@ public partial class BridgePhysicsManager
     {
         DisposeSimulationPlayback();
         if (IsSimulationActive) StopPhysicsAndReset();
+        ClearEnvironmentalTest();
         CancelMultiLoadSession();
         RestoreGlobalPhysicsSettings();
     }
 
     // One ordered vector of simultaneous physical load contributions. No per-frame scene lookups.
-    private bool UpdateMultiLoadStress()
+    private bool UpdateCombinedStress(float singleProgress, float singleContact)
     {
         multiLoadStressInputs.Clear();
-        for (int participantIndex = 0; participantIndex < MultiLoadSession.Participants.Count; participantIndex++)
+        if (MultiLoadSession != null)
         {
-            LiveLoadTestParticipant participant = MultiLoadSession.Participants[participantIndex];
-            // Passed vehicles can still brake/roll, and stopped failed vehicles
-            // can remain on the deck. Their physical weight cannot disappear.
-            if (participant.State == LiveLoadTestParticipantState.Waiting) continue;
-            LiveLoadVehicle vehicle = participant.Definition.Vehicle;
-            if (vehicle == null || !TryGetVehicleRoadState(vehicle, out float progress, out float fraction) || fraction <= 0f)
-                continue;
-            if (fraction > .01f) HasLiveLoadEngagedThisRun = true;
-            // Match the solver's millimetre/gram precision when deciding whether a new solve is needed.
-            float x = Mathf.Round(Mathf.Lerp(deterministicRoadMinX, deterministicRoadMaxX, progress) * 1000f) / 1000f;
-            float kg = Mathf.Round(participant.Definition.WeightKg * fraction * 1000f) / 1000f;
-            if (kg > 0f) multiLoadStressInputs.Add(new DeterministicBridgeStressSolver.PointLoad(x, kg));
+            for (int index = 0; index < MultiLoadSession.Participants.Count; index++)
+            {
+                LiveLoadTestParticipant participant = MultiLoadSession.Participants[index];
+                // Passed vehicles can still brake/roll, and stopped failed vehicles
+                // can remain on the deck. Their physical weight cannot disappear.
+                if (participant.State == LiveLoadTestParticipantState.Waiting) continue;
+                LiveLoadVehicle vehicle = participant.Definition.Vehicle;
+                if (vehicle == null || !TryGetVehicleRoadState(vehicle, out float progress, out float fraction) || fraction <= 0f)
+                    continue;
+                if (fraction > .01f) HasLiveLoadEngagedThisRun = true;
+                AddCombinedLiveLoad(progress, participant.Definition.WeightKg * fraction);
+                if (environmentalTest != null) ApplyEnvironmentalVehicleAcceleration(vehicle, fraction);
+            }
         }
-        bool changed = !multiLoadStressInputsValid || multiLoadStressInputs.Count != previousMultiLoadStressInputs.Count;
+        else if (singleContact > 0f)
+        {
+            AddCombinedLiveLoad(singleProgress, singleVehicleTestMass * singleContact);
+            ApplyEnvironmentalVehicleAcceleration(deterministicLiveLoadVehicle, singleContact);
+        }
+
+        bool changed = !multiLoadStressInputsValid || multiLoadStressInputs.Count != previousMultiLoadStressInputs.Count ||
+            environmentalLoad.WindPressure != previousEnvironmentalLoad.WindPressure ||
+            environmentalLoad.AccelerationX != previousEnvironmentalLoad.AccelerationX ||
+            environmentalLoad.AccelerationY != previousEnvironmentalLoad.AccelerationY;
         if (!changed)
             for (int index = 0; index < multiLoadStressInputs.Count; index++)
                 if (multiLoadStressInputs[index].WorldX != previousMultiLoadStressInputs[index].WorldX ||
@@ -112,12 +125,21 @@ public partial class BridgePhysicsManager
                 { changed = true; break; }
         if (!changed) return false;
         previousMultiLoadStressInputs.Clear(); previousMultiLoadStressInputs.AddRange(multiLoadStressInputs);
+        previousEnvironmentalLoad = environmentalLoad;
         multiLoadStressInputsValid = true;
         if (multiLoadPreparedStress != null)
         {
-            deterministicStressResult = multiLoadPreparedStress.Evaluate(multiLoadStressInputs);
+            deterministicStressResult = multiLoadPreparedStress.Evaluate(multiLoadStressInputs, environmentalLoad);
             deterministicStructureStable = deterministicStressResult != null && deterministicStressResult.IsStructurallyStable;
         }
         return true;
+    }
+
+    private void AddCombinedLiveLoad(float progress, float supportedMass)
+    {
+        // Match the solver's millimetre/gram precision when checking for changes.
+        float x = Mathf.Round(Mathf.Lerp(deterministicRoadMinX, deterministicRoadMaxX, progress) * 1000f) / 1000f;
+        float kg = Mathf.Round(supportedMass * 1000f) / 1000f;
+        if (kg > 0f) multiLoadStressInputs.Add(new DeterministicBridgeStressSolver.PointLoad(x, kg));
     }
 }

@@ -198,6 +198,8 @@ public static class DeterministicBridgeStressSolver
         public decimal CompressionLimit;
         public decimal BendingMomentLimit;
         public decimal MassKg;
+        public decimal WindProfileArea;
+        public decimal WindDeckArea;
         public bool IsRope;
         public bool IsRoad;
     }
@@ -237,17 +239,45 @@ public static class DeterministicBridgeStressSolver
         public PointLoad(float worldX, float weightKg) { WorldX = worldX; WeightKg = weightKg; }
     }
 
+    public readonly struct EnvironmentalLoad
+    {
+        public readonly decimal WindPressure;
+        public readonly decimal AccelerationX;
+        public readonly decimal AccelerationY;
+        public bool IsActive => WindPressure != 0m || AccelerationX != 0m || AccelerationY != 0m;
+
+        public EnvironmentalLoad(float windPressure, float accelerationX, float accelerationY)
+        {
+            WindPressure = (decimal)windPressure;
+            AccelerationX = (decimal)accelerationX;
+            AccelerationY = (decimal)accelerationY;
+        }
+
+        public void MemberForce(decimal mass, decimal profileArea, decimal deckArea, out decimal x, out decimal y)
+        {
+            x = mass * AccelerationX + profileArea * WindPressure;
+            y = mass * AccelerationY - deckArea * DecimalAbs(WindPressure) * .15m;
+        }
+
+        public static float ProfileArea(float length, bool road, bool rope, bool paired) =>
+            length * (road ? .25f : (rope ? .06f : .3f) * (paired ? 2f : 1f));
+
+        public static decimal DeckArea(float length, float width) =>
+            float.IsFinite(width) ? (decimal)length * (decimal)Mathf.Clamp(width, 0f, 100f) : 0m;
+    }
+
     /// <summary>Prepared geometry and cached active-set factors. Evaluate returns one reused current result.</summary>
     public sealed class PreparedAnalysis
     {
-        private readonly Func<IReadOnlyList<PointLoad>, Result> evaluate;
+        private readonly Func<IReadOnlyList<PointLoad>, EnvironmentalLoad, Result> evaluate;
         private readonly Func<int, int, float, Result> evaluateSample;
         public float RoadMinX { get; }
         public float RoadMaxX { get; }
-        internal PreparedAnalysis(Func<IReadOnlyList<PointLoad>, Result> evaluator,
+        internal PreparedAnalysis(Func<IReadOnlyList<PointLoad>, EnvironmentalLoad, Result> evaluator,
             Func<int, int, float, Result> sampler, float minX, float maxX)
         { evaluate = evaluator; evaluateSample = sampler; RoadMinX = minX; RoadMaxX = maxX; }
-        public Result Evaluate(IReadOnlyList<PointLoad> loads) => evaluate(loads ?? Array.Empty<PointLoad>());
+        public Result Evaluate(IReadOnlyList<PointLoad> loads, EnvironmentalLoad environment = default) =>
+            evaluate(loads ?? Array.Empty<PointLoad>(), environment);
         internal Result EvaluateSample(int index, int count, float kg) => evaluateSample(index, count, kg);
     }
 
@@ -364,6 +394,8 @@ public static class DeterministicBridgeStressSolver
                     !float.IsInfinity(material.roadBendingMomentLimit)
                     ? QuantizeNewtons(material.roadBendingMomentLimit) * parallelMembers : 0m,
                 MassKg = QuantizeMass((float)length * bar.PlacedMassPerMeter),
+                WindProfileArea = (decimal)EnvironmentalLoad.ProfileArea((float)length, material.isRoad, material.isRope, material.isDualBeam),
+                WindDeckArea = material.isRoad ? EnvironmentalLoad.DeckArea((float)length, bar.RoadColliderWidth) : 0m,
                 IsRope = material.isRope,
                 IsRoad = material.isRoad
             });
@@ -495,10 +527,26 @@ public static class DeterministicBridgeStressSolver
             displayLiveLoadOnly);
         var totalLoads = new decimal[degreeCount];
         var bendingLoads = new List<RoadPointLoad>(4);
-        Result EvaluateCurrent(IReadOnlyList<PointLoad> loads, int sampleIndex, int sampleCount, float singleKg)
+        var environmentalDeckWeights = new decimal[members.Count];
+        Result EvaluateCurrent(IReadOnlyList<PointLoad> loads, int sampleIndex, int sampleCount, float singleKg,
+            EnvironmentalLoad environment)
         {
             Array.Copy(deadLoads, totalLoads, degreeCount);
             bendingLoads.Clear();
+            if (environment.IsActive)
+            {
+                for (int index = 0; index < members.Count; index++)
+                {
+                    MemberData member = members[index];
+                    environment.MemberForce(member.MassKg, member.WindProfileArea, member.WindDeckArea,
+                        out decimal x, out decimal y);
+                    AddHorizontalLoad(totalLoads, nodes[member.NodeA], x / 2m);
+                    AddHorizontalLoad(totalLoads, nodes[member.NodeB], x / 2m);
+                    AddVerticalLoad(totalLoads, nodes[member.NodeA], y / 2m);
+                    AddVerticalLoad(totalLoads, nodes[member.NodeB], y / 2m);
+                    environmentalDeckWeights[index] = -y;
+                }
+            }
             if (loads == null && singleKg > 0f)
             {
                 // Legacy samples retain their original decimal positions exactly.
@@ -518,8 +566,9 @@ public static class DeterministicBridgeStressSolver
                     if (load.WeightKg <= 0f) continue;
                     decimal x = QuantizeMetres(Mathf.Clamp(load.WorldX, (float)roadMinX, (float)roadMaxX));
                     x = DecimalMax(roadMinX, DecimalMin(roadMaxX, x));
+                    decimal mass = QuantizeMass(load.WeightKg);
                     ApplyRoadPointLoad(totalLoads, nodes, members, roadMemberIndices, bendingLoads,
-                        x, QuantizeMass(load.WeightKg) * Gravity);
+                        x, mass * (Gravity - environment.AccelerationY), mass * environment.AccelerationX);
                 }
             }
             decimal[] totalForces = SolveTensionOnly(nodes, members, degreeCount, totalLoads, activeSystems,
@@ -545,11 +594,12 @@ public static class DeterministicBridgeStressSolver
                 if (member.BendingMomentLimit > 0m)
                 {
                     decimal horizontalLength = DecimalAbs(member.Length * member.Cos);
-                    decimal deadWeight = member.MassKg * Gravity;
-                    bendingRatio = CalculatePeakBendingMoment(memberIndex, bendingLoads, deadWeight, horizontalLength)
+                    decimal environmentalWeight = environment.IsActive ? environmentalDeckWeights[memberIndex] : 0m;
+                    decimal totalDistributedWeight = member.MassKg * Gravity + environmentalWeight;
+                    bendingRatio = CalculatePeakBendingMoment(memberIndex, bendingLoads, totalDistributedWeight, horizontalLength)
                         / member.BendingMomentLimit;
                     displayedBending = displayLiveLoadOnly
-                        ? CalculatePeakBendingMoment(memberIndex, bendingLoads, 0m, horizontalLength)
+                        ? CalculatePeakBendingMoment(memberIndex, bendingLoads, environmentalWeight, horizontalLength)
                             / member.BendingMomentLimit
                         : bendingRatio;
                 }
@@ -560,8 +610,8 @@ public static class DeterministicBridgeStressSolver
             current.SetCurrentState(peakDisplayed, peakStructural, deadLoadStable && sampleStable);
             return current;
         }
-        return new PreparedAnalysis(loads => EvaluateCurrent(loads, 0, 0, 0f),
-            (index, count, kg) => EvaluateCurrent(null, index, count, kg), (float)roadMinX, (float)roadMaxX);
+        return new PreparedAnalysis((loads, environment) => EvaluateCurrent(loads, 0, 0, 0f, environment),
+            (index, count, kg) => EvaluateCurrent(null, index, count, kg, default), (float)roadMinX, (float)roadMaxX);
     }
 
     private static List<Point> GetCanonicalPoints(
@@ -867,7 +917,7 @@ public static class DeterministicBridgeStressSolver
         List<int> roadIndices,
         List<RoadPointLoad> bendingLoads,
         decimal loadX,
-        decimal weight)
+        decimal weight, decimal horizontalForce = 0m)
     {
         int selectedIndex = roadIndices[0];
         decimal selectedDistance = decimal.MaxValue;
@@ -891,6 +941,11 @@ public static class DeterministicBridgeStressSolver
         NodeData nodeB = nodes[selected.NodeB];
         decimal dx = nodeB.X - nodeA.X;
         decimal fraction = dx == 0m ? 0.5m : DecimalClamp((loadX - nodeA.X) / dx, 0m, 1m);
+        if (horizontalForce != 0m)
+        {
+            AddHorizontalLoad(loads, nodeA, horizontalForce * (1m - fraction));
+            AddHorizontalLoad(loads, nodeB, horizontalForce * fraction);
+        }
         AddVerticalLoad(loads, nodeA, -weight * (1m - fraction));
         AddVerticalLoad(loads, nodeB, -weight * fraction);
         if (selected.BendingMomentLimit > 0m && dx != 0m && fraction > 0m && fraction < 1m && weight > 0m)
@@ -923,11 +978,12 @@ public static class DeterministicBridgeStressSolver
         {
             decimal interval = fraction - previousFraction;
             // Moment peaks at zero shear or at an interval boundary.
-            decimal peakOffset = distributedWeight > 0m
+            decimal peakOffset = distributedWeight != 0m
                 ? DecimalClamp(shear / distributedWeight, 0m, interval)
-                : shear > 0m ? interval : 0m;
-            peak = DecimalMax(peak, moment + (shear - distributedWeight * peakOffset / 2m) * peakOffset);
+                : interval;
+            peak = DecimalMax(peak, DecimalAbs(moment + (shear - distributedWeight * peakOffset / 2m) * peakOffset));
             moment += (shear - distributedWeight * interval / 2m) * interval;
+            peak = DecimalMax(peak, DecimalAbs(moment));
             shear -= distributedWeight * interval;
             previousFraction = fraction;
         }
@@ -936,6 +992,11 @@ public static class DeterministicBridgeStressSolver
     private static void AddVerticalLoad(decimal[] loads, NodeData node, decimal force)
     {
         if (node.YDegree >= 0) loads[node.YDegree] += force;
+    }
+
+    private static void AddHorizontalLoad(decimal[] loads, NodeData node, decimal force)
+    {
+        if (node.XDegree >= 0) loads[node.XDegree] += force;
     }
 
     private static decimal[] CalculateMemberForces(

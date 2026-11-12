@@ -54,6 +54,8 @@ public class ContractSO : ScriptableObject
     [Tooltip("Single preserves existing contracts. Sequential and Together require 2–4 explicitly bound vehicles and Finish Line completion.")]
     public VehicleTestMode vehicleTestMode = VehicleTestMode.Single;
     public List<ContractLiveLoadEntry> liveLoadTests = new List<ContractLiveLoadEntry>();
+    [Tooltip("Optional wind and earthquake loads for solo vehicle tests.")]
+    public BridgeEnvironmentalTest environmentalTest = new BridgeEnvironmentalTest();
     public bool HasMultipleLiveLoads => vehicleTestMode != VehicleTestMode.Single;
     public bool AllowsAnyVehicleCargo => liveLoadMode == LiveLoadMode.Vehicle &&
         (HasMultipleLiveLoads ? liveLoadTests != null && liveLoadTests.Exists(entry => entry != null && entry.allowCargo) : allowVehicleCargo);
