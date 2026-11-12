@@ -5,18 +5,19 @@ using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
 
-/// <summary>One scene-authored picker for one distinct item material. No runtime UI creation.</summary>
+/// <summary>One authored picker for a distinct wardrobe material.</summary>
 public sealed class CosmeticMaterialColorRow : MonoBehaviour
 {
     [SerializeField] private TMP_Text label;
     [SerializeField] private List<CosmeticColorButtonBinding> swatches = new List<CosmeticColorButtonBinding>();
     private readonly Dictionary<Button, UnityAction> listeners = new Dictionary<Button, UnityAction>();
+    private readonly Dictionary<Button, Image> diamondBadges = new Dictionary<Button, Image>();
     private Action<int, int> onSelected;
     private int materialIndex;
 
     public int Capacity => swatches.Count;
 
-    public void Bind(int index, Color[] palette, Color selected, Action<int, int> callback)
+    public void Bind(int index, Color[] palette, Color selected, Action<int, int> callback, Func<Color, bool> isOwned = null)
     {
         materialIndex = index;
         onSelected = callback;
@@ -35,10 +36,20 @@ public sealed class CosmeticMaterialColorRow : MonoBehaviour
             bool visible = palette != null && i < palette.Length;
             swatch.button.gameObject.SetActive(visible);
             if (!visible) continue;
+            bool locked = palette[i].a > .001f && isOwned != null && !isOwned(palette[i]);
             if (swatch.colorImage != null)
-                swatch.colorImage.color = palette[i].a <= .001f ? Color.white : palette[i];
+                swatch.colorImage.color = palette[i].a <= .001f ? Color.white :
+                    locked ? Color.Lerp(palette[i], new Color(.23f, .18f, .14f), .32f) : palette[i];
             if (swatch.selectedVisual != null)
-                swatch.selectedVisual.SetActive(Distance(palette[i], selected) < .02f);
+                swatch.selectedVisual.SetActive(!locked && Distance(palette[i], selected) < .02f);
+            if (locked && !diamondBadges.ContainsKey(swatch.button))
+            {
+                Image badge = CurrencyIconCatalog.EnsureIcon(swatch.button.transform, "Locked color diamond",
+                    CurrencyIconKind.Diamond, new Vector2(.48f, .02f), new Vector2(.98f, .52f));
+                diamondBadges.Add(swatch.button, badge);
+            }
+            if (diamondBadges.TryGetValue(swatch.button, out Image existingBadge) && existingBadge != null)
+                existingBadge.gameObject.SetActive(locked && existingBadge.sprite != null);
         }
     }
 

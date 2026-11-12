@@ -16,7 +16,7 @@ using UnityEngine.SceneManagement;
 /// Its encrypted operation journal survives replacing a story/cloud save.
 /// </summary>
 [DisallowMultipleComponent]
-public sealed class GameWalletService : MonoBehaviour
+public sealed partial class GameWalletService : MonoBehaviour
 {
     private sealed class Reply {
         public long code;
@@ -65,7 +65,7 @@ public sealed class GameWalletService : MonoBehaviour
     public string WalletStatus { get; private set; } = "Sign in to use the online wallet.";
     public bool IsRefreshing => inFlight;
     public bool CanSpendOnline => !RequiresSignIn && !inFlight && CoinsAvailable && journalAvailable && IsCurrentSession(accountId, generation) &&
-        journal != null && !journal.purchases.Exists(p => p != null && !p.completed);
+        journal != null && !journal.purchases.Exists(p => p != null && !p.completed && !GameWalletPolicy.IsDiamondPurchase(p));
 
     public static GameWalletService EnsureAttached(PlayerDataManager data)
     {
@@ -147,6 +147,7 @@ public sealed class GameWalletService : MonoBehaviour
         journalAvailable = false;
         journalDirty = false;
         CoinsAvailable = DiamondsAvailable = false;
+        diamondShopReady = false;
         RequiresSignIn = false;
         observedLegacySourceReady = false;
         verifiedLegacyAccount = false;
@@ -355,6 +356,7 @@ public sealed class GameWalletService : MonoBehaviour
         if (RequiresSignIn) return;
         RequiresSignIn = true;
         CoinsAvailable = DiamondsAvailable = false;
+        diamondShopReady = false;
         WalletStatus = "Your session has expired. Sign in again to use the shop.";
         playerData?.NotifyWalletChanged();
     }
@@ -369,6 +371,8 @@ public sealed class GameWalletService : MonoBehaviour
             // historical-consumption baseline, never during that selection.
             if (!IsCurrentSession(expectedAccount, expectedGeneration) || !MergeOutbox())
             { Fail(); yield break; }
+            yield return SynchronizeDiamondShop(expectedAccount, expectedGeneration);
+            if (!IsCurrentSession(expectedAccount, expectedGeneration) || RequiresSignIn) yield break;
             if (shopCurrency != null)
             {
                 string currency = shopCurrency;
@@ -474,7 +478,7 @@ public sealed class GameWalletService : MonoBehaviour
             { FailCoins("Coin operations must be saved before synchronization. Please retry when device storage is available."); yield break; }
             // Recover a possibly debited operation before submitting earnings.
             // A rejected reward must not strand already-purchased ownership.
-            GameWalletPendingPurchase pending = journal.purchases.Find(p => !p.completed);
+            GameWalletPendingPurchase pending = journal.purchases.Find(p => !p.completed && !GameWalletPolicy.IsDiamondPurchase(p));
             if (pending != null)
             {
                 var purchase = new Reply();
@@ -585,6 +589,11 @@ public sealed class GameWalletService : MonoBehaviour
         finally
         {
             inFlight = false;
+            if (DiamondShopAvailable)
+            {
+                DiamondsAvailable = true;
+                DiamondBalance = diamondShopBalance;
+            }
             playerData?.NotifyWalletChanged();
         }
     }
@@ -656,6 +665,11 @@ public sealed class GameWalletService : MonoBehaviour
         var purchase = new GameWalletPendingPurchase {
             operationId = Guid.NewGuid().ToString("D"), targetKind = kind, targetId = target, contractId = contract
         };
+        return PersistPurchase(purchase, callback);
+    }
+
+    private bool PersistPurchase(GameWalletPendingPurchase purchase, Action<bool, string> callback)
+    {
         if (!GameWalletPolicy.IsPurchase(purchase)) { callback?.Invoke(false, "The shop item is not configured correctly."); return false; }
         journal.purchases.Add(purchase);
         if (!SaveJournal()) { journal.purchases.Remove(purchase); callback?.Invoke(false, WalletStatus); return false; }

@@ -755,7 +755,10 @@ public class ShopManager : MonoBehaviour
         {
             if (sortItemsByPrice)
             {
-                int priceComparison = left.price.CompareTo(right.price);
+                int currencyComparison = left.CostsDiamonds.CompareTo(right.CostsDiamonds);
+                if (currencyComparison != 0) return currencyComparison;
+                int priceComparison = left.CostsDiamonds ? left.diamondPrice.CompareTo(right.diamondPrice) :
+                    left.price.CompareTo(right.price);
                 if (priceComparison != 0) return priceComparison;
             }
 
@@ -938,14 +941,15 @@ public class ShopManager : MonoBehaviour
 
     public string FormatItemPrice(ShopItemData item)
     {
-        return IsFreeTutorialItem(item) ? "FREE" : FormatPrice(item.price);
+        if (IsFreeTutorialItem(item)) return "FREE";
+        return item.CostsDiamonds ? $"{item.diamondPrice:N0} Diamonds" : FormatPrice(item.price);
     }
 
     public bool CanInteractWithItem(ShopItemData item)
     {
         GameWalletService wallet = GameWalletService.Instance;
         return item != null && !walletPurchasePending &&
-            (IsFreeTutorialItem(item) || wallet == null || !wallet.UsesSharedCoins || wallet.CanSpendOnline) &&
+            (IsFreeTutorialItem(item) || item.CostsDiamonds || wallet == null || !wallet.UsesSharedCoins || wallet.CanSpendOnline) &&
             (FusionConnectionManager.Instance == null || !FusionConnectionManager.Instance.IsGuestSaveProtected) &&
             (!IsVestShopTutorialLocked || item.ItemId == SafetyVestItemId);
     }
@@ -1092,7 +1096,7 @@ public class ShopManager : MonoBehaviour
     private bool CanPurchase(ShopItemData item, out string rejection)
     {
         GameWalletService wallet = GameWalletService.Instance;
-        if (walletPurchasePending || !IsFreeTutorialItem(item) &&
+        if (walletPurchasePending || item != null && !item.CostsDiamonds && !IsFreeTutorialItem(item) &&
             wallet != null && wallet.UsesSharedCoins && !wallet.CanSpendOnline)
         {
             rejection = walletPurchasePending ? "A purchase is awaiting confirmation. Please wait." :
@@ -1129,6 +1133,16 @@ public class ShopManager : MonoBehaviour
             return false;
         }
 
+        if (item.CostsDiamonds && !IsFreeTutorialItem(item))
+        {
+            if (wallet == null)
+            {
+                rejection = "Sign in to spend Diamonds.";
+                return false;
+            }
+            return wallet.CanBuyWithDiamonds(item.diamondPrice, out rejection);
+        }
+
         if (!IsFreeTutorialItem(item) && boundPlayerData.CurrentData.gold < item.price)
         {
             rejection = $"You do not have enough money for {item.itemName}.\n" +
@@ -1161,16 +1175,20 @@ public class ShopManager : MonoBehaviour
         }
 
         GameWalletService wallet = GameWalletService.Instance;
-        if (wallet != null && wallet.UsesSharedCoins)
+        if (item.CostsDiamonds || wallet != null && wallet.UsesSharedCoins)
         {
             CaptureWalletRequestScope();
             walletPurchasePending = true;
-            bool queued = wallet.PurchaseCosmetic(item.ItemId, (success, error) => {
+            void CompleteOnlinePurchase(bool success, string error)
+            {
                 if (this == null) return;
                 walletPurchasePending = false;
                 if (!success) { RejectPurchase(error); return; }
                 FinishPurchasePresentation(item);
-            });
+            }
+            bool queued = item.CostsDiamonds
+                ? wallet.PurchaseWithDiamonds("diamond_cosmetic", item.ItemId, item.diamondPrice, CompleteOnlinePurchase)
+                : wallet.PurchaseCosmetic(item.ItemId, CompleteOnlinePurchase);
             if (!queued) walletPurchasePending = false;
             return queued;
         }
@@ -1219,7 +1237,13 @@ public class ShopManager : MonoBehaviour
             confirmationPriceText.text = FormatItemPrice(item);
         if (purchaseConfirmationPanel != null)
             foreach (Transform control in purchaseConfirmationPanel.GetComponentsInChildren<Transform>(true))
-                if (control.name == "ConfirmationCoinIcon") control.gameObject.SetActive(!freeTutorialItem);
+            {
+                if (control.name != "ConfirmationCoinIcon") continue;
+                Image icon = control.GetComponent<Image>();
+                if (icon != null)
+                    icon.sprite = CurrencyIconCatalog.Get(item.CostsDiamonds ? CurrencyIconKind.Diamond : CurrencyIconKind.Coin);
+                control.gameObject.SetActive(!freeTutorialItem && icon != null && icon.sprite != null);
+            }
         if (confirmationIconImage != null)
         {
             Sprite displayIcon = item.cosmeticDefinition != null && item.cosmeticDefinition.icon != null

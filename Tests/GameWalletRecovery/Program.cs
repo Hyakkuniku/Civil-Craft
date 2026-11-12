@@ -13,6 +13,12 @@ internal static class Program
     {
         try {
             Run("verified legacy authority preserves gold without import and resets on account switching", LegacyCohort);
+            Run("Diamond purchase recovers the same operation after a lost response", DiamondLostResponse);
+            Run("Diamond ownership must save before acknowledging the debit", DiamondOwnershipSaveFailure);
+            Run("a changed account cannot receive Diamond ownership", DiamondAccountChange);
+            Run("a successful Diamond receipt must include the exact purchased color", DiamondMissingColor);
+            Run("a Diamond product recovers its linked wardrobe model", DiamondItemRecovery);
+            Run("insufficient Diamonds completes the operation without granting ownership", DiamondInsufficientFunds);
             Run("migrated saves cannot downgrade to legacy authority", RejectLegacyDowngrade);
             Run("the production PlayFab JSON parser accepts bounded unsigned balances", ProductionJsonNumericBalances);
             Run("the production parser mirrors full wallet balances, versions and lifetime counters", ProductionJsonWalletAndCounters);
@@ -292,6 +298,110 @@ internal static class Program
     };
     private static void Reply(string method, string path, object body, long code = 200, Action after = null) =>
         UnityWebRequest.Script.Enqueue(new(method, path, code, body, after));
+
+    private const string DiamondColor = "Shirt_Base:30496BFF";
+    private static Dictionary<string, object> DiamondState(long diamonds, object[] shops = null, string[] colors = null) => new()
+    {
+        ["diamonds"] = diamonds,
+        ["shopItems"] = shops ?? Array.Empty<object>(),
+        ["colors"] = colors ?? Array.Empty<string>()
+    };
+
+    private static void DiamondReply(string status = "completed", string kind = "cosmetic_color",
+        string target = DiamondColor, Action after = null)
+    {
+        Reply("POST", "/api/game/diamond-shop", new Dictionary<string, object>
+        {
+            ["operationId"] = OperationId, ["targetKind"] = kind, ["targetId"] = target, ["status"] = status
+        }, after: after);
+    }
+
+    private static void AddDiamondPending(Fixture fixture, string kind = "cosmetic_color", string target = DiamondColor)
+    {
+        fixture.AddPending(kind, target);
+        fixture.Pending.quotedPrice = 5;
+        Check(Invoke(fixture.Service, "SaveJournal") is true, "Persist the original Diamond quote");
+    }
+
+    private static void DiamondLostResponse()
+    {
+        using var fixture = new Fixture();
+        AddDiamondPending(fixture);
+        Reply("POST", "/api/game/diamond-shop", null, 0);
+        Startup(fixture);
+        fixture.Sync();
+        AssertPending(fixture);
+        DiamondReply();
+        Reply("GET", "/api/game/diamond-shop", DiamondState(20, colors: new[] { DiamondColor }));
+        Startup(fixture);
+        fixture.Sync();
+        Check(fixture.Pending.completed && fixture.Data.CurrentData.purchasedCosmeticColors.Contains(DiamondColor),
+            "Confirmed color must recover before operation completion");
+        var posts = UnityWebRequest.DiamondRequests.Where(request => request.Method == "POST").ToArray();
+        Check(posts.Length == 2 && posts[0].Body == posts[1].Body, "Retry must resend the original ID and displayed quote");
+        Check(fixture.Service.DiamondShopAvailable && fixture.Service.DiamondBalance == 20,
+            "The independent Diamond state must supersede an older general wallet read");
+    }
+
+    private static void DiamondOwnershipSaveFailure()
+    {
+        using var fixture = new Fixture();
+        AddDiamondPending(fixture);
+        fixture.Data.FailMerge = true;
+        DiamondReply();
+        Reply("GET", "/api/game/diamond-shop", DiamondState(20, colors: new[] { DiamondColor }));
+        Reply("GET", "/api/game/wallet", null, 0);
+        fixture.Sync();
+        AssertPending(fixture);
+        Check(fixture.Callbacks.Count == 0, "A failed ownership write cannot acknowledge the purchase");
+    }
+
+    private static void DiamondAccountChange()
+    {
+        using var fixture = new Fixture();
+        AddDiamondPending(fixture);
+        DiamondReply(after: () => fixture.Cloud.SessionGeneration++);
+        fixture.Sync();
+        AssertPending(fixture);
+        Check(fixture.Data.CurrentData.purchasedCosmeticColors.Count == 0 && !fixture.Service.DiamondShopAvailable,
+            "The response from the old session must be discarded");
+    }
+
+    private static void DiamondMissingColor()
+    {
+        using var fixture = new Fixture();
+        AddDiamondPending(fixture);
+        DiamondReply();
+        Reply("GET", "/api/game/diamond-shop", DiamondState(20));
+        Startup(fixture);
+        fixture.Sync();
+        AssertPending(fixture);
+    }
+
+    private static void DiamondItemRecovery()
+    {
+        using var fixture = new Fixture();
+        AddDiamondPending(fixture, "diamond_cosmetic", "shop_hat");
+        DiamondReply(kind: "diamond_cosmetic", target: "shop_hat");
+        Reply("GET", "/api/game/diamond-shop", DiamondState(20, new object[] { Shop() }));
+        Startup(fixture);
+        fixture.Sync();
+        Check(fixture.Pending.completed && fixture.Data.CurrentData.purchasedShopItemIds.Contains("shop_hat") &&
+            fixture.Data.CurrentData.unlockedCosmeticIDs.Contains("Hat"), "The purchased item and its wearable model must both unlock");
+    }
+
+    private static void DiamondInsufficientFunds()
+    {
+        using var fixture = new Fixture();
+        AddDiamondPending(fixture);
+        DiamondReply("insufficient_funds");
+        Reply("GET", "/api/game/diamond-shop", DiamondState(0));
+        Startup(fixture);
+        fixture.Sync();
+        Check(fixture.Pending.completed && fixture.Pending.status == "insufficient_funds" &&
+            fixture.Callbacks.SequenceEqual(new[] { false }) && fixture.Data.CurrentData.purchasedCosmeticColors.Count == 0,
+            "Insufficient funds must be terminal and grant no color");
+    }
 
     private static void Startup(Fixture fixture)
     {

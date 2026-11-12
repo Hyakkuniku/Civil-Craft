@@ -22,7 +22,7 @@ public sealed class CosmeticColorButtonBinding
 }
 
 [DisallowMultipleComponent]
-public sealed class CharacterCustomizationController : MonoBehaviour
+public sealed partial class CharacterCustomizationController : MonoBehaviour
 {
     [Header("Authored Panels")]
     [SerializeField] private GameObject customizationPanel;
@@ -133,6 +133,7 @@ public sealed class CharacterCustomizationController : MonoBehaviour
 
     private void OnDisable()
     {
+        CloseColorPurchase();
         // Almanac close buttons may disable the canvas without going through
         // Cancel. Always return the one shared portrait to the Profile page.
         if (isCustomizationOpen || isTransitioning)
@@ -161,6 +162,7 @@ public sealed class CharacterCustomizationController : MonoBehaviour
 
     private void OnDestroy()
     {
+        if (colorPurchaseDialog != null) Destroy(colorPurchaseDialog.gameObject);
         foreach (var entry in tabActions)
             if (entry.Key != null) entry.Key.onClick.RemoveListener(entry.Value);
     }
@@ -176,6 +178,7 @@ public sealed class CharacterCustomizationController : MonoBehaviour
             return;
         }
         InitializeButtons();
+        GameWalletService.Instance?.RefreshWallet();
         originalLoadout = PlayerDataManager.Instance != null
             ? PlayerDataManager.Instance.GetCosmeticLoadoutCopy()
             : new CosmeticLoadoutData();
@@ -298,7 +301,7 @@ public sealed class CharacterCustomizationController : MonoBehaviour
             Debug.LogError("[Customization] Author more color rows for this item's materials.", this);
         if (materialHint != null) materialHint.text = selectedMaterials.Count == 0
             ? "This item has no colors to edit."
-            : "Pick a color for each part. Changes stay in your preview until Save Look.";
+            : "Default is free. Tap a Diamond swatch to unlock that color for this item.";
         UpdateAccessoryAction();
         RefreshColorSlots();
         if (materialColorScroll != null)
@@ -312,6 +315,7 @@ public sealed class CharacterCustomizationController : MonoBehaviour
 
     public void CloseItemEditor()
     {
+        CloseColorPurchase();
         if (selectedItemPanel != null) selectedItemPanel.SetActive(false);
         if (itemListPanel != null) itemListPanel.SetActive(true);
         selectedMaterials.Clear();
@@ -351,8 +355,19 @@ public sealed class CharacterCustomizationController : MonoBehaviour
             index < 0 || index >= selectedDefinition.availableColors.Length ||
             materialIndex < 0 || materialIndex >= selectedMaterials.Count) return;
 
-        previewLoadout.SetMaterialColor(selectedDefinition.PermanentID,
-            selectedMaterials[materialIndex].Key, selectedDefinition.availableColors[index]);
+        Color color = selectedDefinition.availableColors[index];
+        string slot = selectedMaterials[materialIndex].Key;
+        if (!OwnsSelectedColor(color))
+        {
+            OfferColorPurchase(selectedDefinition, slot, color);
+            return;
+        }
+        ApplyMaterialColor(selectedDefinition.PermanentID, slot, color);
+    }
+
+    private void ApplyMaterialColor(string cosmeticId, string slot, Color color)
+    {
+        previewLoadout.SetMaterialColor(cosmeticId, slot, color);
         ApplyPreview();
         RefreshColorSlots();
     }
@@ -437,7 +452,7 @@ public sealed class CharacterCustomizationController : MonoBehaviour
             Color selected = previewLoadout != null && selectedDefinition != null
                 ? previewLoadout.GetMaterialColor(selectedDefinition.PermanentID, selectedMaterials[i].Key, currentCategory)
                 : Color.clear;
-            row.Bind(i, colors, selected, SelectMaterialColor);
+            row.Bind(i, colors, selected, SelectMaterialColor, OwnsSelectedColor);
         }
     }
 
@@ -508,6 +523,7 @@ public sealed class CharacterCustomizationController : MonoBehaviour
 
     private void BeginReturnTransition()
     {
+        CloseColorPurchase();
         if (transitionRoutine != null) StopCoroutine(transitionRoutine);
         transitionRoutine = StartCoroutine(TransitionToProfile());
     }

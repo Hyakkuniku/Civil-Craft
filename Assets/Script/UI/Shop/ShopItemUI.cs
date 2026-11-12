@@ -74,18 +74,22 @@ public class ShopItemUI : MonoBehaviour
         if (ownedBadge != null)
             ownedBadge.SetActive(owned);
 
+        bool diamond = valid && item.CostsDiamonds;
+        Sprite priceIcon = CurrencyIconCatalog.Get(diamond ? CurrencyIconKind.Diamond : CurrencyIconKind.Coin);
         if (priceText != null)
         {
             priceText.text = owned
                 ? "OWNED"
                 : owner != null && item != null
-                    ? owner.FormatItemPrice(item)
+                    ? diamond && priceCoinIcon != null && priceIcon != null && !owner.IsFreeTutorialItem(item)
+                        ? item.diamondPrice.ToString("N0")
+                        : owner.FormatItemPrice(item)
                     : "--";
         }
 
         if (priceCoinIcon != null)
         {
-            priceCoinIcon.sprite = CurrencyIconCatalog.Get(CurrencyIconKind.Coin);
+            priceCoinIcon.sprite = priceIcon;
             priceCoinIcon.preserveAspect = true;
             priceCoinIcon.raycastTarget = false;
             priceCoinIcon.gameObject.SetActive(valid && !owned && !owner.IsFreeTutorialItem(item) && priceCoinIcon.sprite != null);

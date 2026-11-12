@@ -414,8 +414,10 @@ public static class ShopWardrobeAuthoring
             if (!((GameObject)Field(controller, "selectedItemPanel")).activeSelf || ((GameObject)Field(controller, "itemListPanel")).activeSelf ||
                 rows.Count(row => row.gameObject.activeSelf) != 2) throw new Exception("Item editor did not open both color pickers.");
             var swatches = (List<CosmeticColorButtonBinding>)Field(rows[1], "swatches");
-            swatches[2].button.onClick.Invoke();
             var slots = CosmeticBindingUtility.GetMaterialSlots(mirror.cosmeticBindings[0]);
+            // Purchase authorization has its own wallet regression checks.
+            // Exercise the paid-color apply callback to check material isolation.
+            Invoke(controller, "ApplyMaterialColor", definition.PermanentID, slots[1].Key, Color.blue);
             if (loadout.GetMaterialColor(definition.PermanentID, slots[1].Key, CosmeticCategory.Shirt) != Color.blue ||
                 loadout.GetMaterialColor(definition.PermanentID, slots[0].Key, CosmeticCategory.Shirt) != Color.clear || original.materialColors.Count != 0)
                 throw new Exception("Item editor changed the wrong material or original save draft.");
@@ -432,8 +434,8 @@ public static class ShopWardrobeAuthoring
                 model.GetComponent<Renderer>().sharedMaterials = extraMaterials.ToArray();
                 Invoke(controller, "OpenItemEditor");
                 if (rows.Any(row => !row.gameObject.activeSelf)) throw new Exception("Maximum catalog color count was truncated.");
-                ((List<CosmeticColorButtonBinding>)Field(rows.Last(), "swatches"))[1].button.onClick.Invoke();
                 var allSlots = CosmeticBindingUtility.GetMaterialSlots(mirror.cosmeticBindings[0]);
+                Invoke(controller, "ApplyMaterialColor", definition.PermanentID, allSlots.Last().Key, Color.red);
                 if (loadout.GetMaterialColor(definition.PermanentID, allSlots.Last().Key, CosmeticCategory.Shirt) != Color.red)
                     throw new Exception("Last color picker did not apply independently.");
                 controller.ResetItemColors();

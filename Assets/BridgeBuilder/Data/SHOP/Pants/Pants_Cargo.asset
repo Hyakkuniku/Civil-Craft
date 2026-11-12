@@ -19,4 +19,5 @@ MonoBehaviour:
   category: 3
   cosmeticDefinition: {fileID: 11400000, guid: e23f922b64214e648a98ed070f83b721, type: 2}
   price: 100
+  diamondPrice: 25
   canPurchaseMultipleTimes: 0

@@ -50,6 +50,7 @@ public sealed class GameWalletPendingPurchase
     public string targetKind;
     public string targetId;
     public string contractId;
+    public int quotedPrice;
     public bool completed;
     public string status;
 }
@@ -195,9 +196,36 @@ public static class GameWalletPolicy
         };
     }
 
-    public static bool IsPurchase(GameWalletPendingPurchase purchase) => purchase != null &&
-        Guid.TryParseExact(purchase.operationId, "D", out _) && IsSourceId(purchase.targetId) &&
-        (purchase.targetKind == "cosmetic" || purchase.targetKind == "material" && IsSourceId(purchase.contractId));
+    public static bool IsDiamondPurchase(GameWalletPendingPurchase purchase) => purchase != null &&
+        (purchase.targetKind == "diamond_cosmetic" || purchase.targetKind == "cosmetic_color");
+
+    public static bool IsCosmeticColorId(string id)
+    {
+        if (!IsSourceId(id)) return false;
+        int separator = id.IndexOf(':');
+        if (separator < 1 || id.Length - separator != 9) return false;
+        for (int i = 0; i < separator; i++)
+        {
+            char c = id[i];
+            if (!(c >= 'a' && c <= 'z') && !(c >= 'A' && c <= 'Z') &&
+                !(c >= '0' && c <= '9') && c != '_') return false;
+        }
+        for (int i = separator + 1; i < id.Length; i++)
+        {
+            char c = id[i];
+            if (!(c >= '0' && c <= '9') && !(c >= 'A' && c <= 'F')) return false;
+        }
+        return id.Substring(id.Length - 2) != "00";
+    }
+
+    public static bool IsPurchase(GameWalletPendingPurchase purchase)
+    {
+        if (purchase == null || !Guid.TryParseExact(purchase.operationId, "D", out _) || !IsSourceId(purchase.targetId))
+            return false;
+        if (IsDiamondPurchase(purchase))
+            return purchase.quotedPrice > 0 && (purchase.targetKind != "cosmetic_color" || IsCosmeticColorId(purchase.targetId));
+        return purchase.targetKind == "cosmetic" || purchase.targetKind == "material" && IsSourceId(purchase.contractId);
+    }
 
     public static bool IsAllowedShopUrl(string rawUrl, string rawExpiry, DateTime nowUtc)
     {

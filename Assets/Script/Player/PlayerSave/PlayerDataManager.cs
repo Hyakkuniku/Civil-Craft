@@ -760,13 +760,30 @@ public class PlayerDataManager : MonoBehaviour
 
     public bool TryMergeWalletEntitlements(List<GameWalletShopEntitlement> shops, List<GameWalletMaterialEntitlement> materials)
     {
-        if (!CanApplyWalletData || CurrentData == null || shops == null || materials == null) return false;
+        if (!CanApplyWalletData || shops == null || materials == null) return false;
+        return MergePurchaseOwnership(shops, materials, null);
+    }
+
+    public bool TryMergeDiamondShopOwnership(List<GameWalletShopEntitlement> shops, List<string> colors)
+    {
+        CloudSaveManager cloud = GetComponent<CloudSaveManager>();
+        if (shops == null || colors == null || cloud == null || !cloud.CanPublishDashboard ||
+            !GameWalletPolicy.SameAccount(activeAccountId, cloud.ActiveAccountId)) return false;
+        return MergePurchaseOwnership(shops, null, colors);
+    }
+
+    private bool MergePurchaseOwnership(List<GameWalletShopEntitlement> shops,
+        List<GameWalletMaterialEntitlement> materials, List<string> colors)
+    {
+        if (CurrentData == null) return false;
         List<string> oldShops = CurrentData.purchasedShopItemIds;
         List<string> oldCosmetics = CurrentData.unlockedCosmeticIDs;
         List<string> oldMaterials = CurrentData.unlockedContractMaterials;
+        List<string> oldColors = CurrentData.purchasedCosmeticColors;
         var nextShops = oldShops != null ? new List<string>(oldShops) : new List<string>();
         var nextCosmetics = oldCosmetics != null ? new List<string>(oldCosmetics) : new List<string>();
         var nextMaterials = oldMaterials != null ? new List<string>(oldMaterials) : new List<string>();
+        var nextColors = oldColors != null ? new List<string>(oldColors) : new List<string>();
         var added = new List<string>();
         bool changed = false;
         foreach (GameWalletShopEntitlement item in shops)
@@ -774,17 +791,23 @@ public class PlayerDataManager : MonoBehaviour
             if (!nextShops.Contains(item.itemId)) { nextShops.Add(item.itemId); added.Add(item.itemId); changed = true; }
             if (!nextCosmetics.Contains(item.cosmeticId)) { nextCosmetics.Add(item.cosmeticId); changed = true; }
         }
-        foreach (GameWalletMaterialEntitlement item in materials)
-            if (!nextMaterials.Contains(item.saveKey)) { nextMaterials.Add(item.saveKey); changed = true; }
+        if (materials != null)
+            foreach (GameWalletMaterialEntitlement item in materials)
+                if (!nextMaterials.Contains(item.saveKey)) { nextMaterials.Add(item.saveKey); changed = true; }
+        if (colors != null)
+            foreach (string id in colors)
+                if (!nextColors.Contains(id)) { nextColors.Add(id); changed = true; }
         if (!changed) return true;
         CurrentData.purchasedShopItemIds = nextShops;
         CurrentData.unlockedCosmeticIDs = nextCosmetics;
         CurrentData.unlockedContractMaterials = nextMaterials;
+        CurrentData.purchasedCosmeticColors = nextColors;
         if (!TrySaveGame())
         {
             CurrentData.purchasedShopItemIds = oldShops;
             CurrentData.unlockedCosmeticIDs = oldCosmetics;
             CurrentData.unlockedContractMaterials = oldMaterials;
+            CurrentData.purchasedCosmeticColors = oldColors;
             return false;
         }
         OnItemOwnershipChanged?.Invoke();
@@ -849,7 +872,8 @@ public class PlayerDataManager : MonoBehaviour
     public bool HasWalletPurchaseEntitlement(GameWalletPendingPurchase purchase)
     {
         if (CurrentData == null || !GameWalletPolicy.IsPurchase(purchase)) return false;
-        if (purchase.targetKind == "cosmetic")
+        if (purchase.targetKind == "cosmetic_color") return OwnsCosmeticColor(purchase.targetId);
+        if (purchase.targetKind == "cosmetic" || purchase.targetKind == "diamond_cosmetic")
         {
             string cosmetic = WalletCosmeticIdForShopItem(purchase.targetId);
             return cosmetic != null && OwnsShopItem(purchase.targetId) &&
@@ -1772,10 +1796,15 @@ public class PlayerDataManager : MonoBehaviour
     public CosmeticLoadoutData GetCosmeticLoadoutCopy()
     {
         EnsureCosmeticLoadout();
-        return CurrentData != null && CurrentData.cosmeticLoadout != null
+        CosmeticLoadoutData copy = CurrentData != null && CurrentData.cosmeticLoadout != null
             ? CurrentData.cosmeticLoadout.Clone()
             : new CosmeticLoadoutData();
+        copy.KeepPurchasedColors(OwnsCosmeticColor);
+        return copy;
     }
+
+    public bool OwnsCosmeticColor(string colorId) => GameWalletPolicy.IsCosmeticColorId(colorId) &&
+        CurrentData?.purchasedCosmeticColors != null && CurrentData.purchasedCosmeticColors.Contains(colorId);
 
     /// <summary>Saves all five wardrobe categories in one persistent write.</summary>
     public bool SaveCosmeticLoadout(CosmeticLoadoutData loadout)
@@ -1786,6 +1815,7 @@ public class PlayerDataManager : MonoBehaviour
         string previousHatID = CurrentData.equippedHatID;
         int previousLoadoutVersion = CurrentData.cosmeticLoadoutVersion;
         CurrentData.cosmeticLoadout = loadout.Clone();
+        CurrentData.cosmeticLoadout.KeepPurchasedColors(OwnsCosmeticColor);
         CurrentData.cosmeticLoadout.NormalizeAccessories();
         CurrentData.cosmeticLoadoutVersion = Mathf.Max(
             CurrentData.cosmeticLoadoutVersion, 2);

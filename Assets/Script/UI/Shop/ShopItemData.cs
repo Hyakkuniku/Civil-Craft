@@ -32,6 +32,9 @@ public class ShopItemData : ScriptableObject
 
     [Header("Purchase")]
     [Min(0)] public int price = 100;
+    [Min(0), Tooltip("A positive price makes this a Diamond item. Zero uses the Coin price.")]
+    public int diamondPrice;
+    public bool CostsDiamonds => diamondPrice > 0;
 
     [Tooltip("Enable only for consumables or bundles that may be bought repeatedly.")]
     public bool canPurchaseMultipleTimes;
@@ -42,6 +45,7 @@ public class ShopItemData : ScriptableObject
     private void OnValidate()
     {
         price = Mathf.Max(0, price);
+        diamondPrice = Mathf.Max(0, diamondPrice);
 
         // The wardrobe definition owns the visual/model pairing. Keeping the
         // shop presentation derived from it prevents a card from advertising

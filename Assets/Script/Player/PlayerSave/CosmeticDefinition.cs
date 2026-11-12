@@ -73,6 +73,16 @@ public class CosmeticLoadoutData
         saved.rgba = ColorUtility.ToHtmlStringRGBA(color);
     }
 
+    public void KeepPurchasedColors(Func<string, bool> isOwned)
+    {
+        // Old per-category tints could carry over to every item in that
+        // category. Paid colors are scoped to a specific wardrobe item.
+        accessoriesColor = hairColor = shirtColor = pantsColor = shoesColor = Color.clear;
+        materialColors?.RemoveAll(entry => entry == null ||
+            !ColorUtility.TryParseHtmlString("#" + entry.rgba, out Color color) ||
+            color.a > .001f && !isOwned(CosmeticDefinition.ColorPurchaseId(entry.itemID, color)));
+    }
+
     public CosmeticLoadoutData EquippedAppearanceCopy()
     {
         CosmeticLoadoutData copy = Clone();
@@ -238,6 +248,11 @@ public class CosmeticLoadoutData
 [CreateAssetMenu(fileName = "CosmeticDefinition", menuName = "Civil Craft/Cosmetic Definition")]
 public sealed class CosmeticDefinition : ScriptableObject
 {
+    public const int DiamondColorPrice = 5;
+
+    public static string ColorPurchaseId(string cosmeticId, Color color) =>
+        cosmeticId + ":" + ColorUtility.ToHtmlStringRGBA(color);
+
     [Header("Permanent Identity")]
     [SerializeField] private string permanentID;
     public string displayName = "New Cosmetic";

@@ -7,6 +7,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../Assets/Script/Client/GameWalletService.cs" Link="GameWalletService.cs" />
+    <Compile Include="../../Assets/Script/Client/GameWalletService.Diamonds.cs" Link="GameWalletService.Diamonds.cs" />
     <Compile Include="../../Assets/Script/Client/GameWalletModels.cs" Link="GameWalletModels.cs" />
     <Compile Include="../../Assets/PlayFabSDK/Shared/Internal/SimpleJson.cs" Link="PlayFabSimpleJson.cs" />
   </ItemGroup>

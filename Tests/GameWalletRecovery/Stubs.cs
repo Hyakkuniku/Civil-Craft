@@ -80,6 +80,7 @@ namespace UnityEngine.Networking
         public sealed record Response(string Method, string Path, long Code, object Body, Action AfterResponse = null);
         public static readonly Queue<Response> Script = new();
         public static readonly List<Recorded> Requests = new();
+        public static readonly List<Recorded> DiamondRequests = new();
         public readonly string url, method;
         public DownloadHandler downloadHandler;
         public UploadHandler uploadHandler;
@@ -91,7 +92,7 @@ namespace UnityEngine.Networking
         public void SetRequestHeader(string key, string value) => headers[key] = value;
         public IEnumerator SendWebRequest() => new ScriptedOperation(this);
         public void Dispose() { }
-        public static void Reset() { Script.Clear(); Requests.Clear(); }
+        public static void Reset() { Script.Clear(); Requests.Clear(); DiamondRequests.Clear(); }
         private sealed class ScriptedOperation : IEnumerator
         {
             private readonly UnityWebRequest request;
@@ -104,8 +105,20 @@ namespace UnityEngine.Networking
                 served = true;
                 Uri uri = new(request.url);
                 string body = request.uploadHandler == null ? null : Encoding.UTF8.GetString(request.uploadHandler.data);
-                Requests.Add(new(request.method, uri.PathAndQuery, body, new Dictionary<string, string>(request.headers), request.redirectLimit, request.timeout, request.url));
+                var record = new Recorded(request.method, uri.PathAndQuery, body, new Dictionary<string, string>(request.headers), request.redirectLimit, request.timeout, request.url);
+                bool diamonds = uri.AbsolutePath == "/api/game/diamond-shop";
+                if (diamonds) DiamondRequests.Add(record);
+                else Requests.Add(record);
                 if (uri.Scheme != "https" || uri.Host != "civil-craft.vercel.app") throw new Exception("Unexpected request origin");
+                // Existing Coin-recovery cases run with the optional Diamond
+                // endpoint unavailable. Diamond cases script its replies explicitly.
+                if (diamonds && request.method == "GET" && (Script.Count == 0 || Script.Peek().Path != uri.PathAndQuery))
+                {
+                    request.responseCode = 503;
+                    request.downloadHandler.text = "{\"error\":\"Diamond purchases are temporarily unavailable.\"}";
+                    request.downloadedBytes = (ulong)Encoding.UTF8.GetByteCount(request.downloadHandler.text);
+                    return false;
+                }
                 if (Script.Count == 0) throw new Exception($"Unscripted request: {request.method} {uri.PathAndQuery}");
                 Response next = Script.Dequeue();
                 if (next.Method != request.method || next.Path != uri.PathAndQuery)
@@ -139,6 +152,7 @@ public sealed class PlayerData
     public List<GameWalletRewardEvent> walletRewardOutbox = new();
     public List<GameWalletContractEvidence> walletContractEvidence = new();
     public List<string> completedContracts = new(), unlockedAchievements = new(), purchasedShopItemIds = new(), unlockedCosmeticIDs = new(), unlockedContractMaterials = new();
+    public List<string> purchasedCosmeticColors = new();
     public HashSet<string> pendingAchievementRewards = new();
 }
 public sealed class PlayerDataManager : UnityEngine.MonoBehaviour
@@ -176,6 +190,19 @@ public sealed class PlayerDataManager : UnityEngine.MonoBehaviour
             if (!CurrentData.unlockedContractMaterials.Contains(item.saveKey)) CurrentData.unlockedContractMaterials.Add(item.saveKey);
         return TrySaveGame();
     }
+    public bool TryMergeDiamondShopOwnership(List<GameWalletShopEntitlement> shops, List<string> colors)
+    {
+        if (FailMerge || FailSave) return false;
+        if (SkipOwnershipMerge) return true;
+        foreach (GameWalletShopEntitlement item in shops)
+        {
+            if (!CurrentData.purchasedShopItemIds.Contains(item.itemId)) CurrentData.purchasedShopItemIds.Add(item.itemId);
+            if (!CurrentData.unlockedCosmeticIDs.Contains(item.cosmeticId)) CurrentData.unlockedCosmeticIDs.Add(item.cosmeticId);
+        }
+        foreach (string id in colors)
+            if (!CurrentData.purchasedCosmeticColors.Contains(id)) CurrentData.purchasedCosmeticColors.Add(id);
+        return TrySaveGame();
+    }
     public bool AcknowledgeWalletRewards(List<string> ids)
     {
         AckCount++;
@@ -192,7 +219,8 @@ public sealed class PlayerDataManager : UnityEngine.MonoBehaviour
     public string WalletCanonicalMaterialId(string id) => id == "BeamAlias" ? "Beam" : id;
     public bool HasWalletPurchaseEntitlement(GameWalletPendingPurchase pending)
     {
-        if (pending.targetKind == "cosmetic")
+        if (pending.targetKind == "cosmetic_color") return CurrentData.purchasedCosmeticColors.Contains(pending.targetId);
+        if (pending.targetKind == "cosmetic" || pending.targetKind == "diamond_cosmetic")
             return CurrentData.purchasedShopItemIds.Contains(pending.targetId) && CurrentData.unlockedCosmeticIDs.Contains(WalletCosmeticIdForShopItem(pending.targetId));
         return CurrentData.unlockedContractMaterials.Contains(WalletCanonicalContractId(pending.contractId) + "_" + WalletCanonicalMaterialId(pending.targetId));
     }
