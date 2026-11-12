@@ -56,6 +56,11 @@ MonoBehaviour:
     pitch: 1
     randomPitchRange: 0
   soundEffects:
+  - id: Interact
+    clip: {fileID: 8300000, guid: 6cfe2487b8e14441a272b18ab34d11fd, type: 3}
+    volume: 0.95
+    pitch: 1
+    randomPitchRange: 0
   - id: Build_CameraRotate
     clip: {fileID: 8300000, guid: d1f14bdb64cb4cdab40df29b408cc60b, type: 3}
     volume: 0.95

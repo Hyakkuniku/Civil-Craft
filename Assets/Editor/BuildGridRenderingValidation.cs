@@ -285,6 +285,20 @@ public static class BuildGridRenderingValidation
                     "Blueprint rendering did not change the world-water background at pitch " + pitch + ".");
                 report.AppendLine("PASS: Actual URP render at pitch " + pitch + " degrees keeps solid blue over transparent world water and opaque green foreground in front; PNG " + capturePath + ".");
             }
+            foreach (float depth in new[] { 80f, 120f })
+            {
+                canvas.planeDistance = depth;
+                Bounds construction = new Bounds(Vector3.zero, new Vector3(100f, 20f, 16f));
+                BuildCameraFraming.Frame(camera, construction, canvas);
+                RebuildFixtureCanvas(canvas);
+                string capturePath = "Temp/BuildGridRendering_framed_" + depth.ToString("0") + ".png";
+                Color32[] pixels = Render(camera, target, capturePath);
+                Color32 foregroundPixel = pixels[180 * 640 + 320];
+                Check(foregroundPixel.g > foregroundPixel.r * 1.5f && foregroundPixel.g > foregroundPixel.b * 1.5f && foregroundPixel.g > 80,
+                    "Framed blueprint hides the bridge at grid depth " + depth + ": " + foregroundPixel);
+                Check(canvas.planeDistance == depth, "Camera framing changed the authored grid distance.");
+                report.AppendLine("PASS: Actual URP render after 2D framing at grid distance " + depth + " keeps the opaque bridge visible; PNG " + capturePath + ".");
+            }
         }
         finally
         {
@@ -379,8 +393,25 @@ public static class BuildGridRenderingValidation
     private static void AssertOriginalsUnchanged(Dictionary<Material, string> materials)
     {
         foreach (KeyValuePair<Material, string> material in materials)
-            Check(material.Key != null && EditorJsonUtility.ToJson(material.Key) == material.Value,
-                "An original material asset/default was changed or destroyed.");
+        {
+            Check(material.Key != null && MatchesOriginalMaterial(material.Key, material.Value),
+                "An original material asset/default was changed or destroyed: " + (material.Key != null ? material.Key.name + " (" + AssetDatabase.GetAssetPath(material.Key) + ")" : "destroyed material"));
+        }
+    }
+
+    private static bool MatchesOriginalMaterial(Material material, string snapshot)
+    {
+        string current = EditorJsonUtility.ToJson(material);
+        if (current == snapshot) return true;
+        // URP initializes an embedded Shader Graph default's unset queue-control
+        // sentinel on first render (BaseShaderGUI.GetAutomaticQueueControlSetting).
+        // Accept only that exact -1 -> Auto initialization; the queue, shader,
+        // user properties, and every other serialized field must still match.
+        const string unset = "\"first\":\"_QueueControl\",\"second\":-1.0";
+        const string automatic = "\"first\":\"_QueueControl\",\"second\":0.0";
+        return AssetDatabase.GetAssetPath(material).EndsWith(".shadergraph", StringComparison.OrdinalIgnoreCase) &&
+            snapshot.Contains(unset) && snapshot.Replace(unset, automatic) == current &&
+            new SerializedObject(material).FindProperty("m_CustomRenderQueue").intValue == -1;
     }
 
     private static void PreserveProperty(Material copy, Material original, string property)

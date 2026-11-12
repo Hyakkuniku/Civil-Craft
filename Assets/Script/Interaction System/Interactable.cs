@@ -25,6 +25,12 @@ public abstract class Interactable : MonoBehaviour
     {
         if (!IsInteractionAvailable) return;
 
+        // Play before callbacks can open a paused menu, disable this object,
+        // or switch scenes. Every interaction button uses this shared entry.
+        if (Application.isPlaying && AudioManager.Instance != null &&
+            Time.timeScale > 0f && !AudioListener.pause)
+            AudioManager.Instance.PlaySFX("Interact");
+
         if (useEvents)
         {
             GetComponent<InteractionEvent>().OnInteract.Invoke();

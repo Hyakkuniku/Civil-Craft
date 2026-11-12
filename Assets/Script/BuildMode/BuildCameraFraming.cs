@@ -30,11 +30,12 @@ public static class BuildCameraFraming
     {
         if (location == null || location.locationCamera == null || !TryGetBounds(location, out Bounds bounds))
             return false;
-        Frame(location.locationCamera, bounds);
+        Frame(location.locationCamera, bounds,
+            location.gridImage != null ? location.gridImage.GetComponentInParent<Canvas>(true) : null);
         return true;
     }
 
-    public static void Frame(Camera camera, Bounds bounds)
+    public static void Frame(Camera camera, Bounds bounds, Canvas gridCanvas = null)
     {
         float aspect = camera.aspect;
         if (!float.IsFinite(aspect) || aspect <= 0f) return;
@@ -43,13 +44,22 @@ public static class BuildCameraFraming
         Vector2 offset = ConstructionViewport.center - Vector2.one * .5f;
         Vector3 position = bounds.center - new Vector3(offset.x * size * 2f * aspect, offset.y * size * 2f, 0f);
         float distance = Mathf.Max(100f, bounds.size.z + 30f);
+        if (gridCanvas != null && gridCanvas.renderMode == RenderMode.ScreenSpaceCamera &&
+            gridCanvas.worldCamera == camera && float.IsFinite(gridCanvas.planeDistance))
+        {
+            // An orthographic fit does not need extra camera depth. Respect the
+            // authored backdrop distance so it stays behind the whole bridge.
+            float availableDepth = gridCanvas.planeDistance - bounds.size.z - 10f;
+            distance = Mathf.Min(distance, Mathf.Max(2f, availableDepth));
+        }
         position.z = bounds.min.z - distance;
         camera.transform.SetPositionAndRotation(position, Quaternion.identity);
         camera.rect = new Rect(0f, 0f, 1f, 1f);
         camera.orthographic = true;
         camera.orthographicSize = size;
         camera.nearClipPlane = .1f;
-        camera.farClipPlane = Mathf.Max(camera.farClipPlane, distance + bounds.size.z + 100f);
+        camera.farClipPlane = Mathf.Max(camera.farClipPlane, distance + bounds.size.z + 100f,
+            gridCanvas != null ? gridCanvas.planeDistance + 20f : 0f);
         camera.useOcclusionCulling = false;
         camera.ResetProjectionMatrix();
     }

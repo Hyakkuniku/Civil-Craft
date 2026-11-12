@@ -15,16 +15,69 @@ using Object = UnityEngine.Object;
 public static class BuildCameraFramingAuthoring
 {
     private const string Request = "Temp/build-camera-framing.request";
+    private const string BrooksRequest = "Temp/brooks-grid-depth.request";
+    public const string BrooksReport = "Logs/brooks-grid-depth.txt";
     public const string Report = "Logs/build-camera-framing.txt";
     static BuildCameraFramingAuthoring() { EditorApplication.update += Poll; }
 
     private static void Poll()
     {
         if (EditorApplication.isPlayingOrWillChangePlaymode || EditorApplication.isCompiling ||
-            EditorApplication.isUpdating || !File.Exists(Request)) return;
+            EditorApplication.isUpdating) return;
+        if (File.Exists(BrooksRequest))
+        {
+            File.Delete(BrooksRequest);
+            try { RepairBrooksGrid(); }
+            catch (Exception exception) { Directory.CreateDirectory("Logs"); File.WriteAllText(BrooksReport, "FAILED\n" + exception); Debug.LogException(exception); }
+        }
+        if (!File.Exists(Request)) return;
         File.Delete(Request);
         try { Apply(); }
         catch (Exception exception) { File.WriteAllText(Report, "FAILED\n" + exception); Debug.LogException(exception); }
+    }
+
+    [MenuItem("Tools/Civil Craft/Build/Repair Brooks Grid Distance (120)")]
+    public static void RepairBrooksGrid()
+    {
+        Require(!EditorApplication.isPlayingOrWillChangePlaymode, "Stop Play Mode before repairing Brooks's grid.");
+        BuildLocation[] matches = LoadedSites().Where(site => site.name == "workbenchbrooks" &&
+            site.gameObject.scene.path == "Assets/Scenes/CanyonCrossing.unity").ToArray();
+        Require(matches.Length == 1, "Open CanyonCrossing with its single workbenchbrooks before repairing the grid.");
+        BuildLocation site = matches[0];
+        Canvas canvas = site.gridImage != null ? site.gridImage.GetComponentInParent<Canvas>(true) : null;
+        Require(canvas != null && canvas.renderMode == RenderMode.ScreenSpaceCamera &&
+            canvas.worldCamera == site.locationCamera, "Brooks's screen-space grid must reference its own build camera.");
+        Require(BuildCameraFraming.TryGetBounds(site, out Bounds bounds), "Brooks's construction bounds are missing.");
+        Scene scene = site.gameObject.scene;
+        bool wasDirty = scene.isDirty;
+        int group = Undo.GetCurrentGroup();
+        Undo.SetCurrentGroupName("Repair Brooks grid distance");
+        Undo.RecordObjects(new Object[] { canvas, site.locationCamera, site.locationCamera.transform }, "Repair Brooks grid distance");
+        float previousDistance = canvas.planeDistance;
+        canvas.planeDistance = 120f;
+        BuildCameraFraming.TryFrame(site);
+        Check(site.locationCamera, bounds);
+        CheckBackdrop(site.locationCamera, bounds, canvas.planeDistance);
+        foreach (Object edited in new Object[] { canvas, site.locationCamera, site.locationCamera.transform })
+            PrefabUtility.RecordPrefabInstancePropertyModifications(edited);
+        EditorSceneManager.MarkSceneDirty(scene);
+        Undo.CollapseUndoOperations(group);
+        bool saved = !wasDirty && EditorSceneManager.SaveScene(scene);
+        string report = $"PASS: Brooks grid distance {previousDistance:F1} -> {canvas.planeDistance:F1}.\n" +
+            $"Both banks and bridge bounds are in front of the grid; camera {site.locationCamera.transform.position:F3}.\n" +
+            (saved ? "Saved the scoped repair to the previously clean CanyonCrossing scene.\n" :
+                "Scene changes are unsaved; existing unsaved edits were preserved. Save CanyonCrossing when ready.\n");
+        Directory.CreateDirectory("Logs");
+        File.WriteAllText(BrooksReport, report);
+        Debug.Log(report);
+    }
+
+    private static void CheckBackdrop(Camera camera, Bounds bounds, float distance)
+    {
+        foreach (Vector3 corner in BridgePhotoCapture.Corners(bounds))
+            Require(camera.WorldToViewportPoint(corner).z < distance - .01f,
+                "The blue grid backdrop is in front of part of the construction area.");
+        Require(camera.farClipPlane > distance, "The grid backdrop is outside the camera's rendering distance.");
     }
 
     [MenuItem("Tools/Civil Craft/Build/Frame Authored 2D Build Cameras")]
@@ -42,7 +95,8 @@ public static class BuildCameraFramingAuthoring
             if (camera == null || !BuildCameraFraming.TryGetBounds(site, out Bounds bounds)) continue;
             if (!edited.Add(camera)) continue;
             Undo.RecordObjects(new Object[] { camera, camera.transform }, "Fit 2D build camera");
-            BuildCameraFraming.Frame(camera, bounds);
+            BuildCameraFraming.Frame(camera, bounds,
+                site.gridImage != null ? site.gridImage.GetComponentInParent<Canvas>(true) : null);
             PrefabUtility.RecordPrefabInstancePropertyModifications(camera);
             PrefabUtility.RecordPrefabInstancePropertyModifications(camera.transform);
             EditorSceneManager.MarkSceneDirty(camera.gameObject.scene);
@@ -93,6 +147,12 @@ public static class BuildCameraFramingAuthoring
             Camera camera = cameraObject.AddComponent<Camera>();
             camera.enabled = false;
             var controller = cameraObject.AddComponent<BuildCameraController>();
+            var gridObject = new GameObject("Detached grid depth", typeof(RectTransform), typeof(Canvas), typeof(UnityEngine.UI.Image));
+            SceneManager.MoveGameObjectToScene(gridObject, preview);
+            Canvas grid = gridObject.GetComponent<Canvas>();
+            grid.renderMode = RenderMode.ScreenSpaceCamera;
+            grid.worldCamera = camera;
+            gridObject.SetActive(false);
             int sites = 0;
             foreach (BuildLocation site in LoadedSites().ToArray())
             {
@@ -102,6 +162,14 @@ public static class BuildCameraFramingAuthoring
                     camera.aspect = aspect;
                     BuildCameraFraming.Frame(camera, bounds);
                     Check(camera, bounds);
+                    foreach (float depth in new[] { 80f, 120f })
+                    {
+                        grid.planeDistance = depth;
+                        BuildCameraFraming.Frame(camera, bounds, grid);
+                        Check(camera, bounds);
+                        CheckBackdrop(camera, bounds, depth);
+                        Require(grid.planeDistance == depth, "Framing overwrote an authored grid distance.");
+                    }
                 }
                 report.AppendLine($"{site.name}: 3 aspect ratios, anchors + construction grid + saved members, {bounds.ToString("F2")}");
                 sites++;
@@ -121,7 +189,11 @@ public static class BuildCameraFramingAuthoring
             }
             AddAnchor(-100f); AddAnchor(100f);
             fixture.locationCamera = camera;
+            fixture.gridImage = gridObject.GetComponent<UnityEngine.UI.Image>();
+            grid.planeDistance = 120f;
             Require(controller.FrameBuildLocation(fixture), "Build entry did not frame the active site.");
+            BuildCameraFraming.TryGetBounds(fixture, out Bounds fixtureBounds);
+            CheckBackdrop(camera, fixtureBounds, grid.planeDistance);
             float initialSize = camera.orthographicSize;
             Vector3 initialPosition = camera.transform.position;
             camera.orthographicSize = 20f;
@@ -130,7 +202,10 @@ public static class BuildCameraFramingAuthoring
             Require(camera.orthographicSize == initialSize && camera.transform.position == initialPosition &&
                 Quaternion.Angle(camera.transform.rotation, Quaternion.identity) < .01f,
                 "Reset did not return to the fitted 2D view.");
-            report.Insert(0, $"PASS: {sites} sites in 3 aspect ratios, plus build entry and Reset.\n");
+            CheckBackdrop(camera, fixtureBounds, grid.planeDistance);
+            Require(grid.planeDistance == 120f, "Build entry or Reset changed the 120 m grid setting.");
+            report.Insert(0, $"PASS: {sites} sites in 3 aspect ratios with 80/120 m grid depths, plus build entry and Reset preserving 120 m.\n");
+            Directory.CreateDirectory("Logs");
             File.WriteAllText("Logs/build-camera-framing-validation.txt", report.ToString());
             Debug.Log(report.ToString());
         }
@@ -140,6 +215,15 @@ public static class BuildCameraFramingAuthoring
             if (opened) EditorSceneManager.CloseScene(source, true);
             if (originalActive.IsValid() && originalActive.isLoaded) SceneManager.SetActiveScene(originalActive);
         }
+    }
+
+    public static void ValidateGridDepth()
+    {
+        Validate();
+        BuildGridRenderingValidation.Validate();
+        Directory.CreateDirectory("Logs/BuildGridRendering");
+        foreach (string artifact in Directory.GetFiles("Temp", "BuildGridRendering*"))
+            File.Copy(artifact, Path.Combine("Logs/BuildGridRendering", Path.GetFileName(artifact)), true);
     }
 
     private static void Require(bool value, string reason)

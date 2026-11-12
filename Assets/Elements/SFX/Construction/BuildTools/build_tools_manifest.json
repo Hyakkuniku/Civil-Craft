@@ -2,7 +2,7 @@
   "pack": "Civil Craft - Build Tools",
   "wired_to_gameplay": true,
   "format": "Dry mono 44.1 kHz / 16-bit PCM WAV",
-  "style": "Clear tactile construction, pencil, paper and damped tool contact; no ambience",
+  "style": "Dry action-shaped UI gestures; no sliding, wind, sustained noise, ambience or reverb",
   "sounds": [
     {
       "action": "Select",
@@ -10,10 +10,12 @@
       "sfx_id": "Build_Select",
       "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_select.wav",
       "audio_guid": "d52d2ae4829f4167b5082eb9d1b7c6ec",
-      "seconds": 0.2,
+      "seconds": 0.10499,
       "peak_dbfs": -3.5,
-      "rms_dbfs": -17.21,
-      "sha256": "0078fe5b943be448a8a332d9a23f8cb573a3853938b7e892540b332e1dc2b81c"
+      "rms_dbfs": -20.76,
+      "sha256": "10a63effd912cff93837a9f3ae6642a6d7b1cc1cab0b3377100a0321b6a107a1",
+      "description": "A cursor latches onto a target with one positive snap",
+      "maximum_contact_excitation_seconds": 0.0009
     },
     {
       "action": "Move",
@@ -21,10 +23,12 @@
       "sfx_id": "Build_Move",
       "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_move.wav",
       "audio_guid": "552849c57f7a41f0bd0a5da29b775634",
-      "seconds": 0.27,
+      "seconds": 0.13,
       "peak_dbfs": -3.5,
-      "rms_dbfs": -15.33,
-      "sha256": "b41d429a0775f7478bf04a9e132fadd81dab0c6d0726e3d11c9f320b7febb6f5"
+      "rms_dbfs": -18.94,
+      "sha256": "65a333b3e6b0e49d295ab6a2b6a0f3fb455e1ce2f8f62c36520ad045cc115df2",
+      "description": "A pickup click followed by a lighter lifted pop",
+      "maximum_contact_excitation_seconds": 0.0009
     },
     {
       "action": "Erase",
@@ -32,10 +36,12 @@
       "sfx_id": "Build_Erase",
       "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_erase.wav",
       "audio_guid": "c1f820e39c3d4b269dd119f993eebbc2",
-      "seconds": 0.25,
+      "seconds": 0.10499,
       "peak_dbfs": -3.5,
-      "rms_dbfs": -17.44,
-      "sha256": "ce2db1f2ceea8b533b8d5df592cf828238fc47e311c523f839c00e7ced97a4e9"
+      "rms_dbfs": -19.06,
+      "sha256": "81b0520e645dd81394bcae1347da86d48585b19f7364a5447bdd37c131dfb39a",
+      "description": "An eraser cap pops off, ready to erase",
+      "maximum_contact_excitation_seconds": 0.0009
     },
     {
       "action": "GridOn",
@@ -43,10 +49,12 @@
       "sfx_id": "Build_GridOn",
       "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_grid_on.wav",
       "audio_guid": "94c35e72628f4aa2803b5549e4250cbe",
-      "seconds": 0.23,
+      "seconds": 0.12,
       "peak_dbfs": -3.5,
-      "rms_dbfs": -16.8,
-      "sha256": "55236f6c796e8002961a8346aeae1f3f647f2ca0be4e9dd2c7eef11652a5a4a5"
+      "rms_dbfs": -20.27,
+      "sha256": "e845df182257176d9808807caabdc2d5d2d04158d52c03c40306486266517009",
+      "description": "A square grid snaps into alignment with two rigid detents",
+      "maximum_contact_excitation_seconds": 0.0009
     },
     {
       "action": "GridOff",
@@ -54,10 +62,12 @@
       "sfx_id": "Build_GridOff",
       "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_grid_off.wav",
       "audio_guid": "ec0d8b895b06444faa25a4c5a803a8f8",
-      "seconds": 0.23,
+      "seconds": 0.11501,
       "peak_dbfs": -3.5,
-      "rms_dbfs": -16.7,
-      "sha256": "299eeac12caeffc359ec828f573e2f8f24e3ef1207663274c45c3234c5ec7466"
+      "rms_dbfs": -19.68,
+      "sha256": "2dc6f64ec58cfbab7625d62493d56e337835dbe2e0c6c6c7290536b9d9be18f3",
+      "description": "The grid unlatches and folds down",
+      "maximum_contact_excitation_seconds": 0.0009
     },
     {
       "action": "CancelDrawing",
@@ -65,10 +75,12 @@
       "sfx_id": "Build_CancelDrawing",
       "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_cancel_drawing.wav",
       "audio_guid": "bd0cfa056b7f41bdb70ea6e461ff1769",
-      "seconds": 0.22,
+      "seconds": 0.11,
       "peak_dbfs": -3.5,
-      "rms_dbfs": -17.54,
-      "sha256": "1ca850c1895614ec331345153302bb387ea891220968d500938f41882ceb913d"
+      "rms_dbfs": -18.34,
+      "sha256": "bc56430ba9bef63b09f2207e12e49acdf780cf10fcd32614ef15bf830d550f7e",
+      "description": "A compact snap back and release",
+      "maximum_contact_excitation_seconds": 0.0009
     },
     {
       "action": "Exit",
@@ -76,10 +88,12 @@
       "sfx_id": "Build_Exit",
       "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_exit.wav",
       "audio_guid": "faec00a1a8064bd8a02adfae1d540c65",
-      "seconds": 0.3,
+      "seconds": 0.15501,
       "peak_dbfs": -3.5,
-      "rms_dbfs": -16.43,
-      "sha256": "77eb42af7c2b376fe3b7d0a7ed8191d24dcf2f5e8def9bead6a425ed0cf1fcfc"
+      "rms_dbfs": -20.27,
+      "sha256": "b08599505e63dc81fbb4c1ccdf8e9d57042f38bbf030c4fcd5425b3a96ab8dd3",
+      "description": "A latch closes with a small final shut",
+      "maximum_contact_excitation_seconds": 0.0022
     },
     {
       "action": "ResetCamera",
@@ -87,10 +101,12 @@
       "sfx_id": "Build_ResetCamera",
       "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_reset_camera.wav",
       "audio_guid": "ae3d475bb41c480cb16e177d8db03c4c",
-      "seconds": 0.27,
+      "seconds": 0.14499,
       "peak_dbfs": -3.5,
-      "rms_dbfs": -16.97,
-      "sha256": "d128fb7d0b2407d9bd8ed66459ae5ef68d225d7a0e69c471238899b0fff30e11"
+      "rms_dbfs": -20.99,
+      "sha256": "d4c963e1729a4f0ae71315e1aa436ec0451043b6070b66a08e433d2f5d47773c",
+      "description": "A camera shutter-like snap refocuses and locks in the center",
+      "maximum_contact_excitation_seconds": 0.0009
     },
     {
       "action": "StatisticsOpen",
@@ -98,10 +114,12 @@
       "sfx_id": "Build_StatisticsOpen",
       "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_statistics_open.wav",
       "audio_guid": "426a7a0afe0e4d59ae1bd5ec2a65595a",
-      "seconds": 0.3,
+      "seconds": 0.13501,
       "peak_dbfs": -3.5,
-      "rms_dbfs": -15.86,
-      "sha256": "6ff3f996c33d7600c25f141152ea535879f8576df5519f306f0843653ebc0e6b"
+      "rms_dbfs": -17.97,
+      "sha256": "66946275dc3e0cde254a57d6e4514ce67b3e7207723f6498b0ed2d4d5f39ef62",
+      "description": "A tab pops open and clicks into place",
+      "maximum_contact_excitation_seconds": 0.0009
     },
     {
       "action": "StatisticsClose",
@@ -109,10 +127,12 @@
       "sfx_id": "Build_StatisticsClose",
       "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_statistics_close.wav",
       "audio_guid": "9407907468c34c8fa88de4c440f0395f",
-      "seconds": 0.27,
+      "seconds": 0.12,
       "peak_dbfs": -3.5,
-      "rms_dbfs": -17.26,
-      "sha256": "90e1ce94ebe1c8d0743b66358dd31362efd747d55856f5bac32321f33b7d94a7"
+      "rms_dbfs": -20.36,
+      "sha256": "5aedb5664a440c7e104d263fe3fe19f9fbe70243de3199bda18a63b17b508909",
+      "description": "A tab folds shut and latches",
+      "maximum_contact_excitation_seconds": 0.0009
     },
     {
       "action": "Cut",
@@ -120,10 +140,12 @@
       "sfx_id": "Build_Cut",
       "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_cut.wav",
       "audio_guid": "aa7e0fb0cc4d463a99125400e77480e0",
-      "seconds": 0.24,
+      "seconds": 0.11501,
       "peak_dbfs": -3.5,
-      "rms_dbfs": -16.88,
-      "sha256": "076130c415cada6e43baf662928567c6737f61092ca2128a64fd9a0ba49b0ac9"
+      "rms_dbfs": -20.83,
+      "sha256": "9d01c8735a1bab86dab30223d3c950201d3db420adb5efcf07bc94a84b635163",
+      "description": "A tight metal scissors snip and closing blade catch",
+      "maximum_contact_excitation_seconds": 0.0016
     },
     {
       "action": "Copy",
@@ -131,10 +153,12 @@
       "sfx_id": "Build_Copy",
       "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_copy.wav",
       "audio_guid": "207e88cad06a4198abc9206c2c32e3b6",
-      "seconds": 0.25,
+      "seconds": 0.14499,
       "peak_dbfs": -3.5,
-      "rms_dbfs": -16.64,
-      "sha256": "9f3e9fa6279127f0d9cdefdca406428d66a89ac240e5985d0d9de5ec4172cd69"
+      "rms_dbfs": -18.99,
+      "sha256": "f8750f1638ff2bf9e9e96d895f95118e81cacdfd1a162d27b297c42246f1d2db",
+      "description": "One source click followed by two identical duplicate clicks",
+      "maximum_contact_excitation_seconds": 0
     },
     {
       "action": "Paste",
@@ -142,10 +166,12 @@
       "sfx_id": "Build_Paste",
       "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_paste.wav",
       "audio_guid": "6bd8b048b3014f618f67a3ce1a3b5b8d",
-      "seconds": 0.28,
+      "seconds": 0.15501,
       "peak_dbfs": -3.5,
-      "rms_dbfs": -19.28,
-      "sha256": "bd8e6d87d9c8142b070e0b18915d0e9fe0a1f46f672851e879c8e871f2ed3c57"
+      "rms_dbfs": -20.26,
+      "sha256": "b1a461fc0354850545e2ec9625768609814658797e5963eda56282fb239d1360",
+      "description": "A stamp presses down firmly and catches on the surface",
+      "maximum_contact_excitation_seconds": 0.0022
     },
     {
       "action": "Undo",
@@ -153,10 +179,12 @@
       "sfx_id": "Build_Undo",
       "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_undo.wav",
       "audio_guid": "2b15f4ef9d2e4eac99de4cc3b75f0423",
-      "seconds": 0.31,
+      "seconds": 0.15,
       "peak_dbfs": -3.5,
-      "rms_dbfs": -16.51,
-      "sha256": "08acb36226833f6c59c4c0c6ee74f89ce14ff535b0db3dae0e0b853853744978"
+      "rms_dbfs": -18.75,
+      "sha256": "090074864eb4f5e425b488528eadd3f4d9f6225d2c4ad23e03a2f90db2867fa3",
+      "description": "Three backward detents descend to an earlier position",
+      "maximum_contact_excitation_seconds": 0.0009
     },
     {
       "action": "Redo",
@@ -164,10 +192,12 @@
       "sfx_id": "Build_Redo",
       "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_redo.wav",
       "audio_guid": "e7029b08cd2c437592a668eccb02a7fa",
-      "seconds": 0.31,
+      "seconds": 0.15,
       "peak_dbfs": -3.5,
-      "rms_dbfs": -15.65,
-      "sha256": "cd2783feea2bc536112797559926666423deb78c493563214dfe287c492e2139"
+      "rms_dbfs": -18.84,
+      "sha256": "294b88f90b86b57020de4b84ecaba676b34099705a3652054eb9b9b9a9a321c9",
+      "description": "Three forward detents ascend back into position",
+      "maximum_contact_excitation_seconds": 0.0009
     },
     {
       "action": "DeleteSelected",
@@ -175,10 +205,12 @@
       "sfx_id": "Build_DeleteSelected",
       "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_delete_selected.wav",
       "audio_guid": "605a8e2c3d43419ea383afe58c5c1074",
-      "seconds": 0.28,
+      "seconds": 0.15501,
       "peak_dbfs": -3.5,
-      "rms_dbfs": -18.26,
-      "sha256": "6dbbed12a395560834fcd22bd17f9de294c26dec5fa05d7d64a472cc89acf93c"
+      "rms_dbfs": -19.11,
+      "sha256": "315d9c64f7ac13d6b6a6d14b41e9f58868b31819960ab677354d748f2ca26d79",
+      "description": "Several objects pop out, shrinking downward and fading away",
+      "maximum_contact_excitation_seconds": 0.0009
     },
     {
       "action": "Simulate",
@@ -186,10 +218,12 @@
       "sfx_id": "Build_Simulate",
       "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_simulate.wav",
       "audio_guid": "c97e6731d8ce44ed8bb04d9e70cabbb7",
-      "seconds": 0.34,
+      "seconds": 0.16,
       "peak_dbfs": -3.5,
-      "rms_dbfs": -17.7,
-      "sha256": "99dba7fe4a02a93a1d9b0a5273ceaef5488790dad942ed43b7510c693a5950b1"
+      "rms_dbfs": -18.94,
+      "sha256": "258c512d11b5464da6d64bfc2554049294b1cde839ac7d43c37e523e373f89a7",
+      "description": "A play switch engages followed by a forward starting pulse",
+      "maximum_contact_excitation_seconds": 0.0009
     },
     {
       "action": "StopSimulation",
@@ -197,10 +231,12 @@
       "sfx_id": "Build_StopSimulation",
       "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_stop_simulation.wav",
       "audio_guid": "3bfdc2cd884e457e936f8dd7e31cba52",
-      "seconds": 0.29,
+      "seconds": 0.12499,
       "peak_dbfs": -3.5,
-      "rms_dbfs": -17.88,
-      "sha256": "a3a9324cc9df2bb436add9bd4c3b30beb7b373499fe6fca8f99d2a9ffa6dd825"
+      "rms_dbfs": -19.35,
+      "sha256": "2148651323015feac69fbf545ee067405b502626a878a40982181ea96b756adb",
+      "description": "A stop switch cuts off and seats with a low final click",
+      "maximum_contact_excitation_seconds": 0.0022
     },
     {
       "action": "ClearSelection",
@@ -208,10 +244,12 @@
       "sfx_id": "Build_ClearSelection",
       "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_clear_selection.wav",
       "audio_guid": "1c27e10641b9492db2d5f6d0f2e68382",
-      "seconds": 0.2,
+      "seconds": 0.1,
       "peak_dbfs": -3.5,
-      "rms_dbfs": -17.4,
-      "sha256": "b36aff2af693fd42a1695526919f478a279a116e634ec5fcca3747139e680f01"
+      "rms_dbfs": -20.42,
+      "sha256": "4105a5f4a912a0455e9efcf2ae932333d8ca8208f6547c8d68f68ba6f5766f72",
+      "description": "A short unclipping release",
+      "maximum_contact_excitation_seconds": 0.0009
     },
     {
       "action": "EraseStroke",
@@ -219,10 +257,12 @@
       "sfx_id": "Build_EraseStroke",
       "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_erase_stroke.wav",
       "audio_guid": "f53f03d5c6024eafba92e701fcad8725",
-      "seconds": 0.27,
+      "seconds": 0.12499,
       "peak_dbfs": -3.5,
-      "rms_dbfs": -19.17,
-      "sha256": "4037e5334698ac015124f430a82cfa8d126eb2259b3695b057c24c4f63dde16f"
+      "rms_dbfs": -19.98,
+      "sha256": "789d6a24c54be53f07a390c5a4b1b48ba485ff048b049828c0e0eb18e9358119",
+      "description": "A compact removal crunch collapses into a disappearing pop",
+      "maximum_contact_excitation_seconds": 0.0011
     },
     {
       "action": "MovePlaced",
@@ -230,10 +270,12 @@
       "sfx_id": "Build_MovePlaced",
       "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_move_placed.wav",
       "audio_guid": "a6830675e837481e816abc58ec49a379",
-      "seconds": 0.24,
+      "seconds": 0.12499,
       "peak_dbfs": -3.5,
-      "rms_dbfs": -15.8,
-      "sha256": "be05626c1dfce538cb3dea87d1cbf470313e8ce478cab4003a159bdfffdebaf5"
+      "rms_dbfs": -20.17,
+      "sha256": "ebb83893dd149690315fb0a90b28940de3b656245ce8a5b0e3c79cadbf821b90",
+      "description": "A small object sets down and locks into position",
+      "maximum_contact_excitation_seconds": 0.0022
     },
     {
       "action": "SelectionChanged",
@@ -241,10 +283,12 @@
       "sfx_id": "Build_SelectionChanged",
       "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_selection_changed.wav",
       "audio_guid": "36af066f0fab42ba8d6de28303bce62d",
-      "seconds": 0.16,
+      "seconds": 0.07501,
       "peak_dbfs": -4.5,
-      "rms_dbfs": -17.12,
-      "sha256": "512eddc0c959243c444a5d5bfd5c9149bf0c882b842ccf7ccae97420da595a48"
+      "rms_dbfs": -21.96,
+      "sha256": "c0d8a825104fd65b50ddc442f2b82c09df9750407961adfbf92062a51b8b105a",
+      "description": "A small precise selection tick",
+      "maximum_contact_excitation_seconds": 0.0009
     },
     {
       "action": "CameraRotate",
@@ -252,10 +296,22 @@
       "sfx_id": "Build_CameraRotate",
       "audio_file": "Assets/Elements/SFX/Construction/BuildTools/build_camera_rotate.wav",
       "audio_guid": "d1f14bdb64cb4cdab40df29b408cc60b",
-      "seconds": 0.26,
+      "seconds": 0.15,
       "peak_dbfs": -3.5,
-      "rms_dbfs": -14.97,
-      "sha256": "ca1c78bba0dd12b6db1670e9228cb48d502933ec54a872fbbfbf5439e2f05b55"
+      "rms_dbfs": -21.23,
+      "sha256": "a06c39761bfd343cdffba027db0086ee0a2b318516ba3a7ec30aef6ec4864989",
+      "description": "A short fixed-pitch rotation ratchet locks into its new angle",
+      "maximum_contact_excitation_seconds": 0.0009
     }
+  ],
+  "revision": "Recognizable tool actions",
+  "focus_preview_order": [
+    "DeleteSelected",
+    "Cut",
+    "Copy",
+    "Paste",
+    "Undo",
+    "Redo",
+    "Select"
   ]
 }
