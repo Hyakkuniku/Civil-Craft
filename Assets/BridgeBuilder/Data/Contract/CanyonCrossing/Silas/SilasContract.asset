@@ -15,6 +15,12 @@ MonoBehaviour:
   liveLoadMode: 0
   vehicleTestMode: 0
   liveLoadTests: []
+  environmentalTest:
+    windPressureKPa: 0
+    windFromRight: 0
+    earthquakeStrengthG: 0
+    startDelay: 1
+    duration: 6
   allowVehicleCargo: 0
   minimumLoadedCargo: 0
   cargoUnlockProgressionId: 
@@ -36,7 +42,7 @@ MonoBehaviour:
     community. Build a safe 100-meter crossing and observe how its members and supports
     distribute the test vehicle's load.
   budget: 200000
-  liveLoadWeight: 1000
+  liveLoadWeight: 3000
   bridgeSpan: 100
   twoWayRoad: 0
   twoWayRoadWidth: 16

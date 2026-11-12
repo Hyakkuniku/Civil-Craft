@@ -15,6 +15,12 @@ MonoBehaviour:
   liveLoadMode: 0
   vehicleTestMode: 0
   liveLoadTests: []
+  environmentalTest:
+    windPressureKPa: 0
+    windFromRight: 0
+    earthquakeStrengthG: 0
+    startDelay: 1
+    duration: 6
   allowVehicleCargo: 1
   minimumLoadedCargo: 4
   cargoUnlockProgressionId: VanceNPC
@@ -36,7 +42,7 @@ MonoBehaviour:
     bridge. Load all four marked cargo items before testing, and carry the complete
     vehicle-and-cargo load safely across.
   budget: 150000
-  liveLoadWeight: 5000
+  liveLoadWeight: 3000
   bridgeSpan: 80
   twoWayRoad: 0
   twoWayRoadWidth: 16
