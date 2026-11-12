@@ -17632,11 +17632,11 @@ PrefabInstance:
         type: 3}
       propertyPath: simulationSound.clip
       value: 
-      objectReference: {fileID: 8300000, guid: f3d77f4de27740d6b39d3f6c9e656bd7, type: 3}
+      objectReference: {fileID: 8300000, guid: e3e54279357c4aa59b8f520cc4430e65, type: 3}
     - target: {fileID: 1369226356499901863, guid: 8ec4d71c4aff70e409b32509171bc20a,
         type: 3}
       propertyPath: simulationSound.pitch
-      value: 0.985
+      value: 1.015
       objectReference: {fileID: 0}
     - target: {fileID: 1369226356499901863, guid: 8ec4d71c4aff70e409b32509171bc20a,
         type: 3}
@@ -56632,7 +56632,7 @@ PrefabInstance:
         type: 3}
       propertyPath: simulationSound.clip
       value: 
-      objectReference: {fileID: 8300000, guid: f3d77f4de27740d6b39d3f6c9e656bd7, type: 3}
+      objectReference: {fileID: 8300000, guid: e3e54279357c4aa59b8f520cc4430e65, type: 3}
     - target: {fileID: 1369226356499901863, guid: 8ec4d71c4aff70e409b32509171bc20a,
         type: 3}
       propertyPath: simulationSound.pitch
@@ -120487,10 +120487,10 @@ MonoBehaviour:
   useEvents: 0
   promptMessage: 
   simulationSound:
-    clip: {fileID: 0}
+    clip: {fileID: 8300000, guid: 7a4698908d2140a5a3b1073861cfd374, type: 3}
     output: {fileID: 0}
-    volume: 0.65
-    pitch: 1
+    volume: 0.75
+    pitch: 1.015
   vehicleName: Cargo Truck
   vehicleInfoPanel: {fileID: 0}
   vehicleNameText: {fileID: 0}
@@ -280635,10 +280635,10 @@ MonoBehaviour:
   useEvents: 0
   promptMessage: 
   simulationSound:
-    clip: {fileID: 0}
+    clip: {fileID: 8300000, guid: 7a4698908d2140a5a3b1073861cfd374, type: 3}
     output: {fileID: 0}
-    volume: 0.65
-    pitch: 1
+    volume: 0.75
+    pitch: 0.985
   vehicleName: Cargo Truck
   vehicleInfoPanel: {fileID: 0}
   vehicleNameText: {fileID: 0}
@@ -290656,10 +290656,10 @@ MonoBehaviour:
   useEvents: 0
   promptMessage: 
   simulationSound:
-    clip: {fileID: 0}
+    clip: {fileID: 8300000, guid: 7a4698908d2140a5a3b1073861cfd374, type: 3}
     output: {fileID: 0}
-    volume: 0.65
-    pitch: 1
+    volume: 0.75
+    pitch: 0.985
   vehicleName: Cargo Truck
   vehicleInfoPanel: {fileID: 0}
   vehicleNameText: {fileID: 0}
@@ -444175,10 +444175,10 @@ MonoBehaviour:
   useEvents: 0
   promptMessage: 
   simulationSound:
-    clip: {fileID: 0}
+    clip: {fileID: 8300000, guid: f3d77f4de27740d6b39d3f6c9e656bd7, type: 3}
     output: {fileID: 0}
-    volume: 0.65
-    pitch: 1
+    volume: 0.75
+    pitch: 1.015
   vehicleName: SUV
   vehicleInfoPanel: {fileID: 0}
   vehicleNameText: {fileID: 0}
@@ -461607,7 +461607,7 @@ PrefabInstance:
         type: 3}
       propertyPath: simulationSound.clip
       value: 
-      objectReference: {fileID: 8300000, guid: f3d77f4de27740d6b39d3f6c9e656bd7, type: 3}
+      objectReference: {fileID: 8300000, guid: e3e54279357c4aa59b8f520cc4430e65, type: 3}
     - target: {fileID: 1369226356499901863, guid: 8ec4d71c4aff70e409b32509171bc20a,
         type: 3}
       propertyPath: simulationSound.pitch
@@ -532227,10 +532227,10 @@ MonoBehaviour:
   useEvents: 0
   promptMessage: 
   simulationSound:
-    clip: {fileID: 0}
+    clip: {fileID: 8300000, guid: 264cfd1f19034627857ac707a47790b6, type: 3}
     output: {fileID: 0}
-    volume: 0.65
-    pitch: 1
+    volume: 0.75
+    pitch: 0.985
   vehicleName: Regional Traffic (Temporary SUV)
   vehicleInfoPanel: {fileID: 0}
   vehicleNameText: {fileID: 0}
@@ -544607,10 +544607,10 @@ MonoBehaviour:
   useEvents: 0
   promptMessage: 
   simulationSound:
-    clip: {fileID: 0}
+    clip: {fileID: 8300000, guid: f3d77f4de27740d6b39d3f6c9e656bd7, type: 3}
     output: {fileID: 0}
-    volume: 0.65
-    pitch: 1
+    volume: 0.75
+    pitch: 0.985
   vehicleName: SUV
   vehicleInfoPanel: {fileID: 0}
   vehicleNameText: {fileID: 0}
@@ -552970,10 +552970,10 @@ MonoBehaviour:
   useEvents: 0
   promptMessage: 
   simulationSound:
-    clip: {fileID: 0}
+    clip: {fileID: 8300000, guid: 7a4698908d2140a5a3b1073861cfd374, type: 3}
     output: {fileID: 0}
-    volume: 0.65
-    pitch: 1
+    volume: 0.75
+    pitch: 1.015
   vehicleName: Cargo Truck
   vehicleInfoPanel: {fileID: 0}
   vehicleNameText: {fileID: 0}
@@ -745232,9 +745232,9 @@ MonoBehaviour:
   useEvents: 0
   promptMessage: 
   simulationSound:
-    clip: {fileID: 0}
+    clip: {fileID: 8300000, guid: e11056cfd8c64f4daabf9bd7851a9a76, type: 3}
     output: {fileID: 0}
-    volume: 0.65
+    volume: 0.75
     pitch: 1
   vehicleName: Mobile Crane
   vehicleInfoPanel: {fileID: 0}
@@ -769698,10 +769698,10 @@ MonoBehaviour:
   useEvents: 0
   promptMessage: 
   simulationSound:
-    clip: {fileID: 0}
+    clip: {fileID: 8300000, guid: 7a4698908d2140a5a3b1073861cfd374, type: 3}
     output: {fileID: 0}
-    volume: 0.65
-    pitch: 1
+    volume: 0.75
+    pitch: 0.985
   vehicleName: Cargo Truck
   vehicleInfoPanel: {fileID: 0}
   vehicleNameText: {fileID: 0}
@@ -819084,10 +819084,10 @@ MonoBehaviour:
   useEvents: 0
   promptMessage: 
   simulationSound:
-    clip: {fileID: 0}
+    clip: {fileID: 8300000, guid: 264cfd1f19034627857ac707a47790b6, type: 3}
     output: {fileID: 0}
-    volume: 0.65
-    pitch: 1
+    volume: 0.75
+    pitch: 1.015
   vehicleName: Cargo Truck
   vehicleInfoPanel: {fileID: 0}
   vehicleNameText: {fileID: 0}
@@ -916858,10 +916858,10 @@ MonoBehaviour:
   useEvents: 0
   promptMessage: 
   simulationSound:
-    clip: {fileID: 0}
+    clip: {fileID: 8300000, guid: f3d77f4de27740d6b39d3f6c9e656bd7, type: 3}
     output: {fileID: 0}
-    volume: 0.65
-    pitch: 1
+    volume: 0.75
+    pitch: 0.985
   vehicleName: SUV
   vehicleInfoPanel: {fileID: 0}
   vehicleNameText: {fileID: 0}
@@ -1093713,10 +1093713,10 @@ MonoBehaviour:
   useEvents: 0
   promptMessage: 
   simulationSound:
-    clip: {fileID: 0}
+    clip: {fileID: 8300000, guid: 7a4698908d2140a5a3b1073861cfd374, type: 3}
     output: {fileID: 0}
-    volume: 0.65
-    pitch: 1
+    volume: 0.75
+    pitch: 1.015
   vehicleName: Cargo Truck
   vehicleInfoPanel: {fileID: 0}
   vehicleNameText: {fileID: 0}
@@ -1115232,6 +1115232,21 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 923930542271798979}
     m_Modifications:
+    - target: {fileID: 1269347307529433923, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_SizeDelta.x
+      value: 1592.6317
+      objectReference: {fileID: 0}
+    - target: {fileID: 1269347307529433923, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_SizeDelta.y
+      value: 134.0854
+      objectReference: {fileID: 0}
+    - target: {fileID: 1269347307529433923, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: 131.0427
+      objectReference: {fileID: 0}
     - target: {fileID: 2204390821771082819, guid: 19f751a4d64a06848a6260104d870eb6,
         type: 3}
       propertyPath: m_Pivot.x
@@ -1115332,10 +1115347,165 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 4089281680832565341, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_SizeDelta.x
+      value: 1048.2523
+      objectReference: {fileID: 0}
+    - target: {fileID: 4168727850930111632, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_SizeDelta.x
+      value: 493.71582
+      objectReference: {fileID: 0}
+    - target: {fileID: 4168727850930111632, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 310.8579
+      objectReference: {fileID: 0}
+    - target: {fileID: 4168727850930111632, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: -409.5073
+      objectReference: {fileID: 0}
+    - target: {fileID: 4223760442242766869, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_SizeDelta.x
+      value: 1592.6317
+      objectReference: {fileID: 0}
+    - target: {fileID: 4223760442242766869, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_SizeDelta.y
+      value: 91.421875
+      objectReference: {fileID: 0}
+    - target: {fileID: 4223760442242766869, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: -179.80104
+      objectReference: {fileID: 0}
+    - target: {fileID: 4636317585614453760, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_SizeDelta.x
+      value: -98.743164
+      objectReference: {fileID: 0}
+    - target: {fileID: 4957043031406640057, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_fontSize
+      value: 42.66354
+      objectReference: {fileID: 0}
+    - target: {fileID: 5137500258273089848, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_SizeDelta.x
+      value: 12.189583
+      objectReference: {fileID: 0}
+    - target: {fileID: 5641055718884004965, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_SizeDelta.x
+      value: -20.189583
+      objectReference: {fileID: 0}
+    - target: {fileID: 5641055718884004965, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: -10.094791
+      objectReference: {fileID: 0}
+    - target: {fileID: 5681445571628100285, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_AnchorMax.x
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 5681445571628100285, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 6887441483656314251, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_SizeDelta.x
+      value: 1720.6317
+      objectReference: {fileID: 0}
+    - target: {fileID: 6887441483656314251, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_SizeDelta.y
+      value: 758.06665
+      objectReference: {fileID: 0}
+    - target: {fileID: 7179630789498304922, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_SizeDelta.x
+      value: 1592.6317
+      objectReference: {fileID: 0}
+    - target: {fileID: 7179630789498304922, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_SizeDelta.y
+      value: 3.0473957
+      objectReference: {fileID: 0}
+    - target: {fileID: 7179630789498304922, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: -257.50964
+      objectReference: {fileID: 0}
     - target: {fileID: 7252479680327597838, guid: 19f751a4d64a06848a6260104d870eb6,
         type: 3}
       propertyPath: m_Name
       value: CollectRewardSystem
+      objectReference: {fileID: 0}
+    - target: {fileID: 7779976900657642044, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_SizeDelta.x
+      value: 1592.6317
+      objectReference: {fileID: 0}
+    - target: {fileID: 7779976900657642044, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_SizeDelta.y
+      value: 54.853123
+      objectReference: {fileID: 0}
+    - target: {fileID: 7779976900657642044, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: -91.42656
+      objectReference: {fileID: 0}
+    - target: {fileID: 8010861413928223974, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_fontSize
+      value: 42.66354
+      objectReference: {fileID: 0}
+    - target: {fileID: 8010861413928223974, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_fontSizeBase
+      value: 42.66354
+      objectReference: {fileID: 0}
+    - target: {fileID: 8682085269651047204, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_fontSize
+      value: 36.56875
+      objectReference: {fileID: 0}
+    - target: {fileID: 8682085269651047204, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_fontSizeBase
+      value: 36.56875
+      objectReference: {fileID: 0}
+    - target: {fileID: 8757256487362958493, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_SizeDelta.x
+      value: 1068.4419
+      objectReference: {fileID: 0}
+    - target: {fileID: 8757256487362958493, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 1122.4106
+      objectReference: {fileID: 0}
+    - target: {fileID: 8757256487362958493, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: -409.5073
+      objectReference: {fileID: 0}
+    - target: {fileID: 8998436390340753008, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_fontSize
+      value: 60.947914
+      objectReference: {fileID: 0}
+    - target: {fileID: 8998436390340753008, guid: 19f751a4d64a06848a6260104d870eb6,
+        type: 3}
+      propertyPath: m_fontSizeBase
+      value: 60.947914
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -1165252,7 +1165422,7 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1870683347}
   m_HandleRect: {fileID: 1870683345}
   m_Direction: 0
-  m_Value: -0.00000093503786
+  m_Value: -0.0000011354031
   m_Size: 0.5676823
   m_NumberOfSteps: 0
   m_OnValueChanged:
@@ -1169935,9 +1170105,9 @@ MonoBehaviour:
   useEvents: 0
   promptMessage: 
   simulationSound:
-    clip: {fileID: 0}
+    clip: {fileID: 8300000, guid: c6362e2c1ccc47c49bb3251b57af1ca4, type: 3}
     output: {fileID: 0}
-    volume: 0.65
+    volume: 0.75
     pitch: 1
   vehicleName: Cargo Truck
   vehicleInfoPanel: {fileID: 0}
@@ -1217209,10 +1217379,10 @@ MonoBehaviour:
   useEvents: 0
   promptMessage: 
   simulationSound:
-    clip: {fileID: 0}
+    clip: {fileID: 8300000, guid: f3d77f4de27740d6b39d3f6c9e656bd7, type: 3}
     output: {fileID: 0}
-    volume: 0.65
-    pitch: 1
+    volume: 0.75
+    pitch: 1.015
   vehicleName: SUV
   vehicleInfoPanel: {fileID: 0}
   vehicleNameText: {fileID: 0}
@@ -1332297,7 +1332467,7 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 15.1
+  m_fontSize: 16.3
   m_fontSizeBase: 20
   m_fontWeight: 400
   m_enableAutoSizing: 1
@@ -1437160,6 +1437330,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   authoredVersion: 4
+  useRegistrationStyle: 0
   card: {fileID: 1361657880}
   cardSurface: {fileID: 706319912}
   titleTab: {fileID: 1196037281}

@@ -148,21 +148,60 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5b8b966bdddd31e4d83214d41e36eaa9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  useEvents: 0
+  promptMessage: 
+  simulationSound:
+    clip: {fileID: 8300000, guid: fa170e0440e943f4ab08694e8d00ef63, type: 3}
+    output: {fileID: 0}
+    volume: 0.75
+    pitch: 1
+  vehicleName: Heavy Transport
+  vehicleInfoPanel: {fileID: 0}
+  vehicleNameText: {fileID: 0}
+  vehicleWeightText: {fileID: 0}
+  vehicleSpeedText: {fileID: 0}
+  uiElementsToHide: []
+  assignedContract: {fileID: 0}
+  useSmartCargoLoadingZone: 1
+  cargoLoadingZonePadding: 1.5
+  onRequiredCargoLoaded:
+    m_PersistentCalls:
+      m_Calls: []
+  advancesTutorial: 0
+  onInspectionWindowClosed:
+    m_PersistentCalls:
+      m_Calls: []
   startPoint: {fileID: 0}
   endPoint: {fileID: 0}
+  resetToStartPointBeforeSimulation: 1
+  useWaypointRotation: 1
   maxSpeed: 8
   engineTorque: 1500
   vehicleMass: 250
   centerOfMassOffset: -0.5
+  freezeChassisZRotationWhileDriving: 1
+  normalizeOverscaledPhysicsRoot: 1
+  physicsRootScaleThreshold: 10
   wheelObjects:
   - {fileID: 7888312879510282129}
   - {fileID: 545067000499271204}
   - {fileID: 5009155191751162514}
   - {fileID: 2530124706754365451}
   wheelRadius: 0.5
+  useWheelMeshRadius: 0
   wheelMass: 50
   spinAxis: {x: -1, y: 0, z: 0}
+  alignWheelAxisToMesh: 1
+  brakeTorque: 3000
+  stoppedLinearSpeed: 0.08
+  stoppedAngularSpeed: 0.15
+  wheelGroundCheckDistance: 0.12
+  requiredSettledTime: 0.5
+  configureNPCObstacle: 1
+  npcObstaclePadding: 0.2
+  npcObstacle: {fileID: 0}
   physicsManager: {fileID: 0}
+  isParkedAtFinish: 0
 --- !u!65 &4699274970279241459
 BoxCollider:
   m_ObjectHideFlags: 0

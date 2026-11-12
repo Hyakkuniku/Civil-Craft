@@ -22,7 +22,7 @@ public static class LearningPopupPresentationValidation
 {
     public const string RequestPath = "Temp/learning-popup-presentation.request";
     public const string ReportPath = "Logs/learning-popup-presentation.txt";
-    private const string Output = "Temp/LearningPopupPresentation-v4";
+    private const string Output = "Temp/LearningPopupPresentation-v5";
     private const string Reward = "Assets/Prefabs/UI/CollectRewardSystem.prefab";
     private static readonly string[] Scenes = { "Assets/Scenes/CanyonCrossing.unity", "Assets/Scenes/BHAN HOUSE.unity" };
     private static bool running;
@@ -39,7 +39,14 @@ public static class LearningPopupPresentationValidation
     }
 
     [MenuItem("Tools/Civil Craft/Learning Popups/Validate Authored Phone and Tablet Layouts")]
-    public static void Run()
+    public static void Run() { Run(false); }
+    public static void TrialMaterialStyleBatch()
+    {
+        Require(Application.isBatchMode, "Use the ordinary preview command in the interactive Editor.");
+        EditorSceneManager.OpenScene(Scenes[0], OpenSceneMode.Single);
+        Run(true);
+    }
+    private static void Run(bool previewMaterialStyle)
     {
         if (Busy) return;
         running = true; var report = new StringBuilder("Authored material and lesson readers: layout, text, scrolling and preserved callbacks\n");
@@ -97,6 +104,7 @@ public static class LearningPopupPresentationValidation
             ItemUnlockUI rewardManager = prefab.GetComponent<ItemUnlockUI>();
             Require(rewardManager != null && rewardManager.materialPopup != null, "The shared reward prefab lacks its authored material reader.");
             LearningPopupLayout materialSource = rewardManager.materialPopup;
+            if (previewMaterialStyle) LearningPopupAuthoring.StyleMaterialPreview(materialSource);
             ValidateReferences(materialSource, "Shared Material Introduction", true);
             Require(!materialSource.gameObject.activeSelf, "The shared material introduction starts open.");
             Remember(rewardManager, originalComponents); RememberTree(materialSource, originalComponents);
@@ -120,6 +128,12 @@ public static class LearningPopupPresentationValidation
                 Capture(lessonSources[0], "NoImageLongReference-" + tag, device, "Bridge Reference", null, longBody, report, true); cases++;
             }
             Capture(lessonSources[1], "BhanHouse-Lesson-2340x1080", new Vector2Int(2340,1080), lesson.Title, lesson.Image, lesson.PopupDescription, report); cases++;
+            foreach (BridgeMaterialSO material in AssetDatabase.FindAssets("t:BridgeMaterialSO").Select(AssetDatabase.GUIDToAssetPath)
+                .Select(AssetDatabase.LoadAssetAtPath<BridgeMaterialSO>).Where(material => material != null))
+            {
+                Capture(materialSource, "Material-" + material.name.Replace(" ", "") + "-2340x1080", new Vector2Int(2340,1080),
+                    material.GetDisplayName(), material.PopupImage, material.PopupDescription, report); cases++;
+            }
             foreach (var pair in originalComponents) Require(pair.Key != null && EditorJsonUtility.ToJson(pair.Key) == pair.Value, "A source reader, callback or data asset changed: " + pair.Key);
             report.Insert(0, "PASS\n"); report.AppendLine("PASS: " + cases + " detached phone/tablet/portrait layouts; authored controls, full scrollable text and image aspect ratios verified.");
         }
@@ -167,15 +181,16 @@ public static class LearningPopupPresentationValidation
         TMP_Text context = Field<TMP_Text>(layout,"contextText"); RectTransform divider = Field<RectTransform>(layout,"headerDivider");
         Require(context != null && !string.IsNullOrWhiteSpace(context.text) && divider != null,
             "The authored introduction heading or divider is missing: " + label);
-        Require(context.font != null && context.horizontalAlignment == HorizontalAlignmentOptions.Left && layout.titleText.horizontalAlignment == HorizontalAlignmentOptions.Left,
-            "The compact reader's headings must align with its reading column: " + label);
+        HorizontalAlignmentOptions expected = layout.useRegistrationStyle ? HorizontalAlignmentOptions.Center : HorizontalAlignmentOptions.Left;
+        Require(context.font != null && context.horizontalAlignment == expected && layout.titleText.horizontalAlignment == expected,
+            "The authored reader headings have the wrong alignment: " + label);
         Require(ColorMatches(layout.card.GetComponent<Image>()?.color,new Color32(90,55,31,255)) &&
             ColorMatches(layout.cardSurface.GetComponent<Image>()?.color,new Color32(248,233,204,255)),
             "The wood/warm cream palette differs from the current reference: " + label);
         Require(layout.dismissButton.GetComponentsInChildren<Image>(true).Any(image=>ColorMatches(image.color,new Color32(231,158,35,255))),
             "The primary acknowledgement is missing the reference's gold fill: " + label);
-        Require(ColorMatches(divider.GetComponent<Image>()?.color,new Color32(231,158,35,255)),
-            "The compact field-note heading lost its gold divider accent: " + label);
+        Require(ColorMatches(divider.GetComponent<Image>()?.color, layout.useRegistrationStyle ? new Color32(177,131,76,255) : new Color32(231,158,35,255)),
+            "The reader heading lost its reference divider accent: " + label);
         Require(layout.descriptionFrame.GetComponent<Image>() != null && layout.descriptionFrame.GetComponent<Image>().color.a <= .005f &&
             layout.descriptionSurface.GetComponent<Image>() != null && layout.descriptionSurface.GetComponent<Image>().color.a <= .005f,
             "The reading column still has a nested description box instead of the unboxed field-note composition: " + label);
@@ -213,10 +228,16 @@ public static class LearningPopupPresentationValidation
             Require(Contains(card,contextRect,.05f) && Contains(card,dividerRect,.05f) && !contextRect.Overlaps(heading) && !contextRect.Overlaps(bodyFrame) &&
                 !contextRect.Overlaps(close) && !dividerRect.Overlaps(heading) && !dividerRect.Overlaps(bodyFrame) && !dividerRect.Overlaps(close),
                 "The heading, divider, reading area or acknowledgement overlap: " + label);
-            Require(dividerRect.width <= heading.width*.55f,"The field-note divider is still a full-width header rule: " + label);
-            Require(close.yMax <= bodyFrame.yMin + .05f && close.xMin >= bodyFrame.xMin - .1f && close.xMax <= bodyFrame.xMax + .1f,
+            if (layout.useRegistrationStyle)
+            {
+                Require(Mathf.Abs(dividerRect.width-heading.width) < .1f && Mathf.Abs(close.width-heading.width) < .1f &&
+                    Mathf.Abs(close.center.x-card.center.x) < .1f && Mathf.Abs(heading.center.x-card.center.x) < .1f,
+                    "Material heading, divider or full-width action does not match the centered registration composition: " + label);
+            }
+            else Require(dividerRect.width <= heading.width*.55f,"The field-note divider is still a full-width header rule: " + label);
+            Require(close.yMax <= bodyFrame.yMin + .05f && (layout.useRegistrationStyle || close.xMin >= bodyFrame.xMin - .1f && close.xMax <= bodyFrame.xMax + .1f),
                 "The acknowledgement is not safely positioned below the reading column: " + label);
-            if (picture != null && device.x >= device.y)
+            if (!layout.useRegistrationStyle && picture != null && device.x >= device.y)
                 Require(close.width <= card.width*.45f,"The compact field-note action is still oversized: " + label);
             if (!requireScroll && device.x == 2340 && device.y == 1080)
                 Require(card.height <= 800f,"A short introduction still occupies the previous oversized card height: " + label);

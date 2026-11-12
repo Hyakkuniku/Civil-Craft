@@ -123,6 +123,8 @@ public class DialogueManager : MonoBehaviour
     private Queue<string> sentences = new Queue<string>();
     private bool isTyping;
     private bool isDialogueActive;
+    private bool restoreSkipAfterCollectible;
+    public static bool IsCollectibleOverlayActive => false;
     private Coroutine typingCoroutine, hideDialogueCoroutine;
     private WaitForSeconds cachedTypingWait;
     private GameObject dialogueBox = new GameObject();
@@ -141,6 +143,7 @@ public class DialogueManager : MonoBehaviour
     private void ApplyReadableDialogueStyle() { }
     private void EnsureSkipDialogueButton() { }
     private void SetSkipButtonVisible(bool value) { }
+    private void RefreshCollectiblePresentation() { }
     private void HideDialogueElements(bool value) { }
     private void RestoreDialogueElements() { }
     private void StopActiveSpeakerTalking() { }
@@ -154,7 +157,9 @@ public class AudioManager
     public void PauseMusic() { }
     public void ResumeMusic() { }
     public void PlaySFX(string key) { }
+    public void PlaySFX(string key, float volume) { }
 }
+public static class SceneInteractionAudio { public static bool IsSupportedScene => false; }
 public class UIPanelCoordinator
 {
     public static UIPanelCoordinator Instance;
@@ -167,6 +172,7 @@ public class PauseManager : MonoBehaviour
     public static PauseManager Instance;
     public bool isPaused, isClosingPause;
     public bool freezeTimeOnPause = true;
+    private float timeScaleBeforePause = 1f;
     public float closeDuration;
     public string pauseOpenSfxId;
     public GameObject pausePanel = new GameObject(), settingsPanel;

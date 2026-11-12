@@ -10,6 +10,26 @@ public class DialogueManager : MonoBehaviour
 {
     private static Sprite skipRoundedSprite;
     private static readonly HashSet<DialogueManager> knownManagers = new HashSet<DialogueManager>();
+    private static readonly HashSet<UnityEngine.Object> collectibleOverlays = new HashSet<UnityEngine.Object>();
+    public static bool IsCollectibleOverlayActive => collectibleOverlays.Count > 0;
+
+    /// <summary>Collectible readers cover a conversation without completing or disabling its owner.</summary>
+    public static void SetCollectibleOverlay(UnityEngine.Object owner, bool visible)
+    {
+        if (ReferenceEquals(owner, null)) return;
+        if (visible) collectibleOverlays.Add(owner);
+        else collectibleOverlays.Remove(owner);
+        foreach (DialogueManager manager in knownManagers)
+            if (manager != null && manager.isActiveAndEnabled) manager.RefreshCollectiblePresentation();
+    }
+
+    public static bool IsDialoguePresentationObject(GameObject target)
+    {
+        foreach (DialogueManager manager in knownManagers)
+            if (manager != null && (target == manager.gameObject || target == manager.dialogueBox ||
+                (manager.skipDialogueButton != null && target == manager.skipDialogueButton.gameObject))) return true;
+        return false;
+    }
 
     /// <summary>Input remains owned by a running conversation, not its closing animation.</summary>
     public static bool IsAnyDialogueActive
@@ -36,9 +56,9 @@ public class DialogueManager : MonoBehaviour
     }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    private static void ResetDialogueVisibility() { knownManagers.Clear(); }
+    private static void ResetDialogueVisibility() { knownManagers.Clear(); collectibleOverlays.Clear(); }
 
-    private void OnEnable() { knownManagers.Add(this); }
+    private void OnEnable() { knownManagers.Add(this); RefreshCollectiblePresentation(); }
     private void OnDestroy() { knownManagers.Remove(this); }
 
     public TextMeshProUGUI nameText;
@@ -100,6 +120,11 @@ public class DialogueManager : MonoBehaviour
     private RectTransform skipButtonRect;
     private Canvas skipButtonCanvas;
     private bool isDialogueActive;
+    private CanvasGroup collectiblePresentationGroup;
+    private bool collectiblePresentationHidden;
+    private float dialogueAlphaBeforeCollectible;
+    private bool dialogueGroupEnabledBeforeCollectible, dialogueInteractableBeforeCollectible, dialogueRaycastsBeforeCollectible;
+    private bool restoreSkipAfterCollectible;
     private Rect lastSafeArea;
     private Vector2Int lastScreenSize;
     private readonly Dictionary<GameObject, bool> elementVisibilityBeforeDialogue =
@@ -182,6 +207,13 @@ public class DialogueManager : MonoBehaviour
 
     private void LateUpdate()
     {
+        RefreshCollectiblePresentation();
+        if (restoreSkipAfterCollectible && !IsCollectibleOverlayActive && !IsPaused &&
+            isDialogueActive && dialogueBox != null && dialogueBox.activeInHierarchy)
+        {
+            restoreSkipAfterCollectible = false;
+            SetSkipButtonVisible(true);
+        }
         if (skipDialogueButton == null || !skipDialogueButton.gameObject.activeInHierarchy)
             return;
 
@@ -220,6 +252,7 @@ public class DialogueManager : MonoBehaviour
             dialogueBox.SetActive(true);
 
         isDialogueActive = true;
+        RefreshCollectiblePresentation();
         DialogueHudButtonGate.RefreshAll();
         SetSkipButtonVisible(true);
 
@@ -248,7 +281,7 @@ public class DialogueManager : MonoBehaviour
 
     public void DisplayNextSentence ()
     {
-        if (!isDialogueActive || IsPaused) return;
+        if (!isDialogueActive || IsPaused || IsCollectibleOverlayActive) return;
 
         if (isTyping)
         {
@@ -288,12 +321,12 @@ public class DialogueManager : MonoBehaviour
         {
             // Multiplayer pause does not freeze the world's time scale. Keep
             // this conversation's typewriter at the same character regardless.
-            while (IsPaused) yield return null;
+            while (IsPaused || IsCollectibleOverlayActive) yield return null;
             dialogueText.maxVisibleCharacters = i;
             yield return cachedTypingWait; 
         }
 
-        while (IsPaused) yield return null;
+        while (IsPaused || IsCollectibleOverlayActive) yield return null;
         isTyping = false;
     }
 
@@ -301,6 +334,7 @@ public class DialogueManager : MonoBehaviour
     {
         if (!isDialogueActive) return;
         isDialogueActive = false;
+        restoreSkipAfterCollectible = false;
         SetSkipButtonVisible(false);
         StopActiveSpeakerTalking();
 
@@ -332,7 +366,7 @@ public class DialogueManager : MonoBehaviour
     /// <summary>Ends the complete current dialogue and invokes its completion flow once.</summary>
     public void SkipDialogue()
     {
-        if (!isDialogueActive || IsPaused) return;
+        if (!isDialogueActive || IsPaused || IsCollectibleOverlayActive) return;
 
         if (typingCoroutine != null)
         {
@@ -382,7 +416,9 @@ public class DialogueManager : MonoBehaviour
     private void OnDisable()
     {
         isDialogueActive = false;
+        restoreSkipAfterCollectible = false;
         SetSkipButtonVisible(false);
+        RestoreCollectiblePresentation();
         if (dialogueBox != null && dialogueBox != gameObject) dialogueBox.SetActive(false);
         RestoreDialogueElements();
         DialogueHudButtonGate.RefreshAll();
@@ -399,6 +435,59 @@ public class DialogueManager : MonoBehaviour
         }
 
         StopActiveSpeakerTalking();
+    }
+
+    private void RefreshCollectiblePresentation()
+    {
+        bool hide = IsCollectibleOverlayActive;
+        if (hide == collectiblePresentationHidden) return;
+        ResolveDialogueBox();
+        if (hide)
+        {
+            if (dialogueBox != null)
+            {
+                // Unity permits one CanvasGroup on this object. Preserve the
+                // authored values rather than adding a competing component.
+                if (collectiblePresentationGroup == null)
+                    collectiblePresentationGroup = dialogueBox.GetComponent<CanvasGroup>() ?? dialogueBox.AddComponent<CanvasGroup>();
+                dialogueGroupEnabledBeforeCollectible = collectiblePresentationGroup.enabled;
+                dialogueAlphaBeforeCollectible = collectiblePresentationGroup.alpha;
+                dialogueInteractableBeforeCollectible = collectiblePresentationGroup.interactable;
+                dialogueRaycastsBeforeCollectible = collectiblePresentationGroup.blocksRaycasts;
+                collectiblePresentationGroup.enabled = true;
+                collectiblePresentationGroup.alpha = 0f;
+                collectiblePresentationGroup.interactable = collectiblePresentationGroup.blocksRaycasts = false;
+                // Finished dialogue must not reappear if Collect is pressed
+                // before its normal closing animation has had time to finish.
+                if (!isDialogueActive && dialogueBox.activeSelf)
+                {
+                    if (hideDialogueCoroutine != null) StopCoroutine(hideDialogueCoroutine);
+                    hideDialogueCoroutine = null;
+                    dialogueBox.SetActive(false);
+                }
+            }
+            collectiblePresentationHidden = true;
+            SetSkipButtonVisible(false);
+        }
+        else
+        {
+            RestoreCollectiblePresentation();
+            // A separate modal may still own the box. Never reopen its root.
+            restoreSkipAfterCollectible = isDialogueActive && (IsPaused || dialogueBox == null || !dialogueBox.activeInHierarchy);
+            SetSkipButtonVisible(isDialogueActive && !IsPaused && dialogueBox != null && dialogueBox.activeInHierarchy);
+        }
+    }
+
+    private void RestoreCollectiblePresentation()
+    {
+        if (collectiblePresentationHidden && collectiblePresentationGroup != null)
+        {
+            collectiblePresentationGroup.alpha = dialogueAlphaBeforeCollectible;
+            collectiblePresentationGroup.interactable = dialogueInteractableBeforeCollectible;
+            collectiblePresentationGroup.blocksRaycasts = dialogueRaycastsBeforeCollectible;
+            collectiblePresentationGroup.enabled = dialogueGroupEnabledBeforeCollectible;
+        }
+        collectiblePresentationHidden = false;
     }
 
     private void HideDialogueElements(bool captureCurrentState)
@@ -760,6 +849,7 @@ public class DialogueManager : MonoBehaviour
 
     private void SetSkipButtonVisible(bool visible)
     {
+        visible = visible && !IsCollectibleOverlayActive;
         if (skipDialogueButton == null && visible)
             EnsureSkipDialogueButton();
         if (skipDialogueButton == null) return;

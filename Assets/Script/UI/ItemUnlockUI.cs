@@ -69,6 +69,9 @@ public class ItemUnlockUI : MonoBehaviour
     private float defaultFontSizeMax;
     private bool layoutCached;
 
+    private void OnEnable() { DialogueManager.SetCollectibleOverlay(this, rewardVisible); }
+    private void OnDisable() { DialogueManager.SetCollectibleOverlay(this, false); }
+
     private void Awake()
     {
         Instance = this;
@@ -85,6 +88,7 @@ public class ItemUnlockUI : MonoBehaviour
 
     private void OnDestroy()
     {
+        DialogueManager.SetCollectibleOverlay(this, false);
         if (collectButtonBound && collectButton != null)
             collectButton.onClick.RemoveListener(OnCollectClicked);
         if (materialCloseBound && materialPopup != null && materialPopup.dismissButton != null)
@@ -149,6 +153,7 @@ public class ItemUnlockUI : MonoBehaviour
         onCollectCallback = request.onCollect;
         pendingMaterialToDiscover = request.materialToDiscover;
         rewardVisible = true;
+        DialogueManager.SetCollectibleOverlay(this, true);
 
         // --- NEW: Hide background UI ---
         temporarilyHiddenUI.Clear();
@@ -251,16 +256,22 @@ public class ItemUnlockUI : MonoBehaviour
 
         // The reward callback runs only after the panel is closed, so feature
         // notifications triggered by it naturally appear after Collect.
-        callback?.Invoke();
-
-        if (pendingRewards.Count > 0)
-            ShowNextReward();
+        try { callback?.Invoke(); }
+        finally
+        {
+            // A continuation may synchronously show another collectible or
+            // start the next dialogue. Keep it covered until the queue is done.
+            if (!rewardVisible && pendingRewards.Count > 0 && isActiveAndEnabled)
+                ShowNextReward();
+            DialogueManager.SetCollectibleOverlay(this, rewardVisible && isActiveAndEnabled);
+        }
     }
 
     private void TrackAndHide(GameObject target)
     {
         // Only restore objects that were active before this popup hid them.
-        if (target == null || !target.activeSelf || temporarilyHiddenUI.Contains(target))
+        if (target == null || !target.activeSelf || temporarilyHiddenUI.Contains(target) ||
+            DialogueManager.IsDialoguePresentationObject(target))
             return;
 
         temporarilyHiddenUI.Add(target);

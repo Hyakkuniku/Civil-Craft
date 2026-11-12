@@ -39,8 +39,11 @@ public static class LearningPopupAuthoring
         nextPoll = EditorApplication.timeSinceStartup + 1;
         string command = File.ReadAllText(RequestPath).Trim(); File.Delete(RequestPath);
         if (command == "apply") Author();
+        else if (command == "materials") AuthorMaterialIntroduction();
         else if (command == "validate") Validate();
         else if (command == "preview") CapturePreviews();
+        else if (command == "status") Report("EDIT MODE\n" + string.Join("\n", Enumerable.Range(0, SceneManager.sceneCount)
+            .Select(index => SceneManager.GetSceneAt(index)).Select(scene => scene.path + "; loaded=" + scene.isLoaded + "; unsaved=" + scene.isDirty)));
         else Report("FAILED\nUse apply, validate or preview for learning popup authoring.");
     }
     private sealed class Target
@@ -49,25 +52,30 @@ public static class LearningPopupAuthoring
         public bool opened, presentBefore, initiallyDirty, saved, applied;
         public string diskHash;
         public LessonUIManager[] managers;
+        public ItemUnlockUI[] rewards;
     }
 
     [MenuItem("Tools/Civil Craft/Author Learning Popup Layouts")]
     public static void Author() { Run(false); }
+    [MenuItem("Tools/Civil Craft/Learning Popups/Match Material Introduction to Name Registration")]
+    public static void AuthorMaterialIntroduction() { Run(false, true); }
     [MenuItem("Tools/Civil Craft/Validate Authored Learning Popup Layouts")]
     public static void Validate() { Run(true); }
     [MenuItem("Tools/Civil Craft/Capture Learning Popup Previews")]
     public static void CapturePreviews() { if (!Busy) LearningPopupPresentationValidation.Run(); }
 
-    private static void Run(bool verify)
+    private static void Run(bool verify, bool materialsOnly = false)
     {
         if (Busy) return;
+        if (!verify && ParrelSync.ClonesManager.IsClone()) throw new InvalidOperationException("Author popup assets from the original Editor.");
         running = true;
         Scene active = SceneManager.GetActiveScene(); Object[] selected = Selection.objects;
         SceneSetup[] setup = EditorSceneManager.GetSceneManagerSetup();
         Scene[] originalScenes = Enumerable.Range(0, SceneManager.sceneCount).Select(SceneManager.GetSceneAt).ToArray();
+        var originalDirty = originalScenes.ToDictionary(scene => scene.path, scene => scene.isDirty);
         var unrelated = originalScenes.Where(s => s.isLoaded && !Scenes.Contains(s.path)).ToDictionary(s => s,
             s => new { s.isDirty, roots = s.GetRootGameObjects(), hash = File.Exists(s.path) ? Hash(s.path) : null });
-        var targets = new List<Target>(); var report = new StringBuilder("AUTHORED STYLE: Compact Field Note (v4)\n"); int undo = -1; bool success = false;
+        var targets = new List<Target>(); var report = new StringBuilder(materialsOnly ? "AUTHORED STYLE: Material Introduction / Name Registration (v5)\n" : "AUTHORED STYLE: Learning readers\n"); int undo = -1; bool success = false;
         PlayerDataManager saves = PlayerDataManager.Instance; PlayerData player = saves != null ? saves.CurrentData : null;
         string playerBefore = player != null ? JsonUtility.ToJson(player) : null;
         try
@@ -97,19 +105,30 @@ public static class LearningPopupAuthoring
                 Scene scene = SceneManager.GetSceneByPath(path); bool opened = !scene.IsValid() || !scene.isLoaded;
                 if (opened) scene = EditorSceneManager.OpenScene(path, OpenSceneMode.Additive);
                 var target = new Target { scene = scene, opened = opened, presentBefore = setup.Any(value => value.path == path),
-                    initiallyDirty = scene.isDirty, diskHash = Hash(path), managers = All<LessonUIManager>(scene).ToArray() };
+                    initiallyDirty = originalDirty.TryGetValue(path, out bool dirty) ? dirty : scene.isDirty, diskHash = Hash(path),
+                    managers = All<LessonUIManager>(scene).ToArray(), rewards = All<ItemUnlockUI>(scene).ToArray() };
                 targets.Add(target);
                 Require(target.managers.Length == 1 && target.managers[0].Panel != null, "Expected one existing lesson reader in " + path);
                 Require(!target.managers[0].transform.IsChildOf(target.managers[0].Panel.transform), "Lesson manager must remain outside its hidden panel.");
                 RequiredReferences(target.managers[0]);
+                if (materialsOnly) Require(target.rewards.Length > 0 && target.rewards.All(manager => manager.materialPopup != null), "Missing authored material popup in " + path);
             }
             foreach (Target target in targets)
             {
-                Transform[] scopes = target.managers.Select(m => m.Panel.transform).ToArray();
+                Transform[] scopes = materialsOnly ? target.rewards.Select(m => m.materialPopup.transform).ToArray() : target.managers.Select(m => m.Panel.transform).ToArray();
                 var protectedComponents = All<Component>(target.scene).Where(c => c != null && !scopes.Any(root => c.transform == root || c.transform.IsChildOf(root)))
                     .ToDictionary(c => c, EditorJsonUtility.ToJson);
                 var callbacks = All<Button>(target.scene).ToDictionary(button => button, button => JsonUtility.ToJson(button.onClick));
-                foreach (LessonUIManager manager in target.managers)
+                if (materialsOnly) foreach (ItemUnlockUI manager in target.rewards)
+                {
+                    LearningPopupLayout layout = manager.materialPopup;
+                    Undo.RegisterFullObjectHierarchyUndo(layout.gameObject, "Style authored material introduction");
+                    BuildReader(layout.gameObject, layout.titleText, layout.contentImage, layout.descriptionText, layout.descriptionScroll, layout.dismissButton, "GOT IT");
+                    layout.gameObject.SetActive(false);
+                    ValidateReader(layout, "GOT IT");
+                    target.applied = true;
+                }
+                else foreach (LessonUIManager manager in target.managers)
                 {
                     if (!verify)
                     {
@@ -141,7 +160,8 @@ public static class LearningPopupAuthoring
                     target.saved = true;
                 }
                 report.AppendLine((verify ? "VERIFIED: " : target.saved ? "SAVED: " : "WAIT SAVE: ") + target.scene.name +
-                    "; real lesson panel/buttons restyled; manager references, callbacks, gameplay and existing edits preserved.");
+                    (materialsOnly ? "; material introduction matches Name Registration; lesson panels unchanged." : "; real lesson panel/buttons restyled.") +
+                    " Manager references, callbacks, gameplay and existing edits preserved.");
             }
             if (undo >= 0) Undo.CollapseUndoOperations(undo);
             success = true; report.Insert(0, targets.Any(t => !verify && t.initiallyDirty) ? "WAIT SAVE\n" : "PASS\n");
@@ -218,6 +238,13 @@ public static class LearningPopupAuthoring
         finally { PrefabUtility.UnloadPrefabContents(root); }
     }
 
+    internal static void StyleMaterialPreview(LearningPopupLayout layout)
+    {
+        font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>("Assets/TextMesh Pro/Resources/Fonts & Materials/Bekind Sans SDF.asset");
+        rounded = buttonSprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Elements/UI/LevelResultRounded.png");
+        BuildReader(layout.gameObject, layout.titleText, layout.contentImage, layout.descriptionText, layout.descriptionScroll, layout.dismissButton, "GOT IT");
+    }
+
     private sealed class References { public TMP_Text title, body; public Image image; public ScrollRect scroll; public Button close; }
     private static References RequiredReferences(LessonUIManager manager)
     {
@@ -234,6 +261,7 @@ public static class LearningPopupAuthoring
         Image overlay = Ensure<Image>(root); overlay.sprite = null; overlay.material = null;
         overlay.color = new Color(.08f, .055f, .035f, .58f); overlay.raycastTarget = true;
         LearningPopupLayout layout = Ensure<LearningPopupLayout>(root);
+        layout.useRegistrationStyle = label == "GOT IT";
         layout.card = Panel(root.transform, "Learning Card", Wood);
         layout.cardSurface = Panel(layout.card, "Cream Surface", Cream); layout.cardSurface.SetAsFirstSibling();
         Shadow cardShadow = Ensure<Shadow>(layout.card.gameObject);
@@ -241,13 +269,15 @@ public static class LearningPopupAuthoring
         layout.titleTab = Rect(layout.card, "Title Tab");
         Image oldTab = layout.titleTab.GetComponent<Image>(); if (oldTab != null) { oldTab.enabled = false; oldTab.raycastTarget = false; }
         if (title == null) title = Text(layout.titleTab, "Title", "Material Introduction", false); else title.transform.SetParent(layout.titleTab, false);
-        StyleText(title, false); title.alignment = TextAlignmentOptions.MidlineLeft; layout.titleText = title;
+        StyleText(title, false); title.alignment = layout.useRegistrationStyle ? TextAlignmentOptions.Center : TextAlignmentOptions.MidlineLeft; layout.titleText = title;
         layout.contextText = Text(layout.card, "Learning Context", label == "GOT IT" ? "MATERIAL INTRODUCTION" : "ENGINEERING LESSON", false);
-        layout.contextText.characterSpacing = 1.5f; layout.contextText.alignment = TextAlignmentOptions.MidlineLeft;
-        layout.contextText.color = new Color32(77, 53, 36, 191);
+        layout.contextText.characterSpacing = layout.useRegistrationStyle ? 1f : 1.5f;
+        layout.contextText.alignment = layout.useRegistrationStyle ? TextAlignmentOptions.Center : TextAlignmentOptions.MidlineLeft;
+        layout.contextText.color = layout.useRegistrationStyle ? Ink : new Color32(77, 53, 36, 191);
         layout.headerDivider = Rect(layout.card, "Learning Header Divider");
         Image divider = Ensure<Image>(layout.headerDivider.gameObject);
-        divider.sprite = null; divider.type = Image.Type.Simple; divider.color = Gold; divider.raycastTarget = false;
+        divider.sprite = null; divider.type = Image.Type.Simple;
+        divider.color = layout.useRegistrationStyle ? new Color32(177, 131, 76, 255) : Gold; divider.raycastTarget = false;
         layout.imageFrame = Panel(layout.card, "Picture Frame", Sand);
         layout.imageSurface = Panel(layout.imageFrame, "Picture Surface", Paper); layout.imageSurface.SetAsFirstSibling();
         if (image == null) image = Ensure<Image>(Rect(layout.imageFrame, "Picture").gameObject); else image.transform.SetParent(layout.imageFrame, false);
@@ -296,7 +326,7 @@ public static class LearningPopupAuthoring
         layout.dismissButton = close; close.transform.SetAsLastSibling();
         for (int index = 0; index < root.transform.childCount; index++)
             if (root.transform.GetChild(index) != layout.card) root.transform.GetChild(index).gameObject.SetActive(false);
-        layout.authoredVersion = 4; layout.ApplyLayout();
+        layout.authoredVersion = layout.useRegistrationStyle ? 5 : 4; layout.ApplyLayout();
         foreach (Component component in root.GetComponentsInChildren<Component>(true))
         {
             if (component == null) continue;
@@ -320,23 +350,24 @@ public static class LearningPopupAuthoring
     }
     private static void ValidateReader(LearningPopupLayout layout, string label)
     {
-        Require(layout != null && layout.authoredVersion == 4 && layout.card != null && layout.cardSurface != null && layout.titleTab != null && layout.titleText != null &&
+        bool registration = label == "GOT IT";
+        Require(layout != null && layout.authoredVersion == (registration ? 5 : 4) && layout.useRegistrationStyle == registration && layout.card != null && layout.cardSurface != null && layout.titleTab != null && layout.titleText != null &&
             layout.contextText != null && layout.headerDivider != null &&
             layout.contentImage != null && layout.imageFrame != null && layout.descriptionFrame != null && layout.descriptionText != null && layout.descriptionScroll != null && layout.dismissButton != null,
             "The real authored learning reader is incomplete.");
         TMP_Text caption = layout.dismissButton.GetComponentInChildren<TMP_Text>(true);
         Require(caption != null && caption.text == label && caption.font == font && caption.fontStyle == FontStyles.Normal &&
-            layout.titleText.font == font && layout.titleText.fontStyle == FontStyles.Normal && layout.titleText.alignment == TextAlignmentOptions.MidlineLeft &&
+            layout.titleText.font == font && layout.titleText.fontStyle == FontStyles.Normal && layout.titleText.alignment == (registration ? TextAlignmentOptions.Center : TextAlignmentOptions.MidlineLeft) &&
             layout.descriptionText.font == font && layout.contentImage.preserveAspect && layout.contextText.font == font &&
-            layout.contextText.text == (label == "GOT IT" ? "MATERIAL INTRODUCTION" : "ENGINEERING LESSON") && layout.contextText.characterSpacing == 1.5f &&
-            layout.contextText.alignment == TextAlignmentOptions.MidlineLeft && layout.contextText.color == new Color32(77, 53, 36, 191),
+            layout.contextText.text == (registration ? "MATERIAL INTRODUCTION" : "ENGINEERING LESSON") && layout.contextText.characterSpacing == (registration ? 1f : 1.5f) &&
+            layout.contextText.alignment == (registration ? TextAlignmentOptions.Center : TextAlignmentOptions.MidlineLeft) && layout.contextText.color == (registration ? Ink : new Color32(77, 53, 36, 191)),
             "The authored reader label/font/aspect differs.");
         Require(layout.card.GetComponent<Image>().color == Wood && layout.cardSurface.GetComponent<Image>().color == Cream &&
             layout.imageFrame.GetComponent<Image>().color == Sand && layout.imageSurface.GetComponent<Image>().color == Paper &&
             layout.descriptionFrame.GetComponent<Image>().color == Color.clear && layout.descriptionSurface.GetComponent<Image>().color == Color.clear &&
             layout.dismissButton.transform.Find("Cream Face").GetComponent<Image>().color == Gold && layout.dismissButton.GetComponent<Image>().color == Wood &&
             layout.dismissButton.GetComponent<Image>().sprite == rounded && layout.dismissButton.targetGraphic == layout.dismissButton.transform.Find("Cream Face").GetComponent<Image>() &&
-            layout.headerDivider.GetComponent<Image>().color == Gold && layout.headerDivider.GetComponent<Image>().sprite == null && layout.card.GetComponent<Shadow>() != null,
+            layout.headerDivider.GetComponent<Image>().color == (registration ? new Color32(177, 131, 76, 255) : Gold) && layout.headerDivider.GetComponent<Image>().sprite == null && layout.card.GetComponent<Shadow>() != null,
             "The authored compact field-note styling is missing.");
         Require(layout.titleTab.GetComponent<Image>() == null || !layout.titleTab.GetComponent<Image>().enabled, "The old title plaque remains visible.");
     }

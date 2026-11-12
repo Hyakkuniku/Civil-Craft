@@ -153,6 +153,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 84245413ee264888af481104105f58ac, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  simulationSound:
+    clip: {fileID: 8300000, guid: 9aff59b819af4ff397689a099d37386c, type: 3}
+    output: {fileID: 0}
+    volume: 0.7
+    pitch: 1
   assignedContract: {fileID: 11400000, guid: 511cf4b78fcb2ee4aa7169008e424b48, type: 2}
   travelDirection: {x: 0, y: 0, z: -1}
   travelDistance: 100
@@ -160,6 +165,7 @@ MonoBehaviour:
   startDelay: 0
   physicsManager: {fileID: 0}
   useManualHull: 0
+  impactHullMesh: {fileID: 0}
   hullCenter: {x: 0, y: 0, z: 0}
   hullSize: {x: 2, y: 1, z: 4}
   bridgeCollisionLayers:
@@ -170,3 +176,4 @@ MonoBehaviour:
   maxBrokenMembers: 4
   impactSpacing: 3
   impactDeflectionSpeed: 0.45
+  pierToppleSpeed: 1.5

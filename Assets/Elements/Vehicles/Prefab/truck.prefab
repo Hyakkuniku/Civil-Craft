@@ -138,6 +138,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   useEvents: 0
   promptMessage: Inspect Heavy Transport
+  simulationSound:
+    clip: {fileID: 8300000, guid: ab51364e12624e9fae136be49a433608, type: 3}
+    output: {fileID: 0}
+    volume: 0.75
+    pitch: 1
   vehicleName: Heavy Transport
   vehicleInfoPanel: {fileID: 0}
   vehicleNameText: {fileID: 0}
@@ -171,8 +176,10 @@ MonoBehaviour:
   - {fileID: 2170172189573192859}
   - {fileID: 3243586262072119500}
   wheelRadius: 0.6
+  useWheelMeshRadius: 0
   wheelMass: 50
   spinAxis: {x: 1, y: 0, z: 0}
+  alignWheelAxisToMesh: 1
   brakeTorque: 3000
   stoppedLinearSpeed: 0.08
   stoppedAngularSpeed: 0.15

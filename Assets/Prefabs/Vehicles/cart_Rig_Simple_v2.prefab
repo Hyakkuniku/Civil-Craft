@@ -248,6 +248,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   useEvents: 0
   promptMessage: 
+  simulationSound:
+    clip: {fileID: 8300000, guid: fa170e0440e943f4ab08694e8d00ef63, type: 3}
+    output: {fileID: 0}
+    volume: 0.75
+    pitch: 1
   vehicleName: Cart
   vehicleInfoPanel: {fileID: 0}
   vehicleNameText: {fileID: 0}
@@ -256,24 +261,46 @@ MonoBehaviour:
   uiElementsToHide:
   - {fileID: 0}
   assignedContract: {fileID: 11400000, guid: d58e962a84aed8944ad5741d6404b861, type: 2}
+  useSmartCargoLoadingZone: 1
+  cargoLoadingZonePadding: 1.5
+  onRequiredCargoLoaded:
+    m_PersistentCalls:
+      m_Calls: []
+  advancesTutorial: 0
+  onInspectionWindowClosed:
+    m_PersistentCalls:
+      m_Calls: []
   startPoint: {fileID: 0}
   endPoint: {fileID: 0}
+  resetToStartPointBeforeSimulation: 1
+  useWaypointRotation: 1
   maxSpeed: 8
   engineTorque: 1500
   vehicleMass: 50
   centerOfMassOffset: -0.5
+  freezeChassisZRotationWhileDriving: 1
+  normalizeOverscaledPhysicsRoot: 1
+  physicsRootScaleThreshold: 10
   wheelObjects:
   - {fileID: 50105607069549408}
   - {fileID: 7663613092952042197}
   - {fileID: 2904522790736111203}
   - {fileID: 5680770922491090170}
   wheelRadius: 0.5
+  useWheelMeshRadius: 0
   wheelMass: 50
   spinAxis: {x: -1, y: 0, z: 0}
+  alignWheelAxisToMesh: 1
+  brakeTorque: 3000
+  stoppedLinearSpeed: 0.08
+  stoppedAngularSpeed: 0.15
+  wheelGroundCheckDistance: 0.12
+  requiredSettledTime: 0.5
   configureNPCObstacle: 1
   npcObstaclePadding: 0.2
   npcObstacle: {fileID: 0}
   physicsManager: {fileID: 0}
+  isParkedAtFinish: 0
 --- !u!65 &132897088148926006
 BoxCollider:
   m_ObjectHideFlags: 0

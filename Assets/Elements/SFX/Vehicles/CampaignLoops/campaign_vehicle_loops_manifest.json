@@ -1,7 +1,8 @@
 {
   "maps": [
     "CanyonCrossing",
-    "TownRiver"
+    "TownRiver",
+    "IndustrialZone"
   ],
   "clips": [
     {
@@ -37,6 +38,22 @@
       "loop": true
     },
     {
+      "profile": "service_van",
+      "asset": "Assets/Elements/SFX/Vehicles/CampaignLoops/service_van_slow_drive_loop.wav",
+      "guid": "1c4ef80cf76e4176b172c41490bbc6a4",
+      "sha256": "0f02061c13ad94b224952ae214e40433ca44633a7015981f01d2cde5bf6494f7",
+      "seconds": 8,
+      "loop": true
+    },
+    {
+      "profile": "scooter",
+      "asset": "Assets/Elements/SFX/Vehicles/CampaignLoops/scooter_slow_drive_loop.wav",
+      "guid": "e5630b0393074bba95554deea51a15f3",
+      "sha256": "dc6d35a0630c583fcbebad93d22c23b9a8ed544a999f74f786582c51112aed9b",
+      "seconds": 8,
+      "loop": true
+    },
+    {
       "profile": "delivery_truck",
       "asset": "Assets/Elements/SFX/Vehicles/CampaignLoops/delivery_truck_slow_drive_loop.wav",
       "guid": "ab51364e12624e9fae136be49a433608",
@@ -53,10 +70,50 @@
       "loop": true
     },
     {
+      "profile": "regional_truck",
+      "asset": "Assets/Elements/SFX/Vehicles/CampaignLoops/regional_truck_slow_drive_loop.wav",
+      "guid": "264cfd1f19034627857ac707a47790b6",
+      "sha256": "4916ae34f6addac6923fddb0fa5a852952f99b2ade08ed9e5af9396f70c80796",
+      "seconds": 8,
+      "loop": true
+    },
+    {
+      "profile": "tanker_truck",
+      "asset": "Assets/Elements/SFX/Vehicles/CampaignLoops/tanker_truck_slow_drive_loop.wav",
+      "guid": "c6362e2c1ccc47c49bb3251b57af1ca4",
+      "sha256": "3358421243a524a42dbeed203cc25d9d0e925ea5c0a8a57f57a036549054d3dd",
+      "seconds": 8,
+      "loop": true
+    },
+    {
+      "profile": "worker_bus",
+      "asset": "Assets/Elements/SFX/Vehicles/CampaignLoops/worker_bus_slow_drive_loop.wav",
+      "guid": "e3e54279357c4aa59b8f520cc4430e65",
+      "sha256": "3936df6c3b49d12d4ff97548fd125e38510a65240078f97db6e88ff2f35c6bb4",
+      "seconds": 8,
+      "loop": true
+    },
+    {
+      "profile": "mobile_crane",
+      "asset": "Assets/Elements/SFX/Vehicles/CampaignLoops/mobile_crane_slow_drive_loop.wav",
+      "guid": "e11056cfd8c64f4daabf9bd7851a9a76",
+      "sha256": "ce0428811e594caeeca6a6ddd33b57c2c9f6ad9667773b8091cafcf176f57357",
+      "seconds": 8,
+      "loop": true
+    },
+    {
       "profile": "boat",
       "asset": "Assets/Elements/SFX/Vehicles/CampaignLoops/boat_slow_drive_loop.wav",
       "guid": "9aff59b819af4ff397689a099d37386c",
       "sha256": "ef27ff2857b502397b3cca5e5cc2fe8fbcf27df03dd4e09a22aa57a586884f78",
+      "seconds": 8,
+      "loop": true
+    },
+    {
+      "profile": "propeller_plane",
+      "asset": "Assets/Elements/SFX/Vehicles/CampaignLoops/propeller_plane_slow_drive_loop.wav",
+      "guid": "3b7ae93dffb14d729bafc6bcf2402d40",
+      "sha256": "b82f4ed5e1a08d4505fe4a976baae2a24135ca00796608d6a98cb61e3b7fe669",
       "seconds": 8,
       "loop": true
     },

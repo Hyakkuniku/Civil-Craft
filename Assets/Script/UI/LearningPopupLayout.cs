@@ -7,6 +7,8 @@ using UnityEngine.UI;
 public sealed class LearningPopupLayout : MonoBehaviour
 {
     [HideInInspector] public int authoredVersion;
+    [Tooltip("Use the centered Name Registration composition for material introductions.")]
+    public bool useRegistrationStyle;
     public RectTransform card;
     public RectTransform cardSurface;
     public RectTransform titleTab;
@@ -74,6 +76,12 @@ public sealed class LearningPopupLayout : MonoBehaviour
             }
         }
         if (available.width < 160f || available.height < 160f) return;
+
+        if (useRegistrationStyle)
+        {
+            ApplyRegistrationLayout(parent, available, canvas);
+            return;
+        }
 
         Canvas rootCanvas = canvas != null ? canvas.rootCanvas : null;
         float pixelScale = rootCanvas != null ? Mathf.Max(.01f, rootCanvas.scaleFactor) : 1f;
@@ -181,6 +189,88 @@ public sealed class LearningPopupLayout : MonoBehaviour
         lastParentRect = parent.rect; lastSafeArea = Screen.safeArea;
         lastScreen = new Vector2Int(Screen.width, Screen.height);
         authoredVersion = 4; applied = true;
+    }
+
+    private void ApplyRegistrationLayout(RectTransform parent, Rect available, Canvas canvas)
+    {
+        Canvas rootCanvas = canvas != null ? canvas.rootCanvas : null;
+        float pixelScale = rootCanvas != null ? Mathf.Max(.01f, rootCanvas.scaleFactor) : 1f;
+        float margin = Mathf.Max(12f, 28f * Mathf.Min(1f, available.height / 720f));
+        float width = Mathf.Min(Mathf.Max(1000f, 650f / pixelScale), available.width - margin * 2f);
+        float u = Mathf.Min(1f, width / 1000f);
+        float padding = Mathf.Max(64f * u, 16f / pixelScale);
+        float gap = Mathf.Max(24f * u, 10f / pixelScale);
+        float smallGap = Mathf.Max(12f * u, 5f / pixelScale);
+        float innerWidth = width - padding * 2f;
+        float maxHeight = Mathf.Min(780f, available.height - margin * 2f);
+        bool hasImage = contentImage != null && contentImage.sprite != null;
+        bool stacked = available.width < available.height;
+        float titleFont = Mathf.Max(46f * u, 20f / pixelScale);
+        float bodyFont = Mathf.Max(30f * u, 14f / pixelScale);
+        float contextFont = Mathf.Max(20f * u, 12f / pixelScale);
+        SetReadingText(contextText, contextFont, TextAlignmentOptions.Center);
+        if (contextText != null) contextText.characterSpacing = 1f;
+        SetReadingText(titleText, titleFont, TextAlignmentOptions.Center);
+        float contextHeight = contextText != null ? PreferredHeight(contextText, innerWidth, contextFont) : 0f;
+        float titleHeight = PreferredHeight(titleText, innerWidth, titleFont);
+        float ruleHeight = Mathf.Max(2f * u, 1f / pixelScale);
+        float headerHeight = contextHeight + smallGap + titleHeight + gap + ruleHeight + gap;
+        float buttonHeight = Mathf.Max(76f * u, 44f / pixelScale);
+        float imageWidth = hasImage && !stacked ? innerWidth * .31f : innerWidth;
+        float copyWidth = hasImage && !stacked ? innerWidth - imageWidth - gap : innerWidth;
+        float scrollbarWidth = Mathf.Clamp(6f * u, 4f / pixelScale, 12f / pixelScale);
+        SetReadingText(descriptionText, bodyFont, TextAlignmentOptions.TopLeft);
+        if (descriptionText != null) { descriptionText.lineSpacing = 2f * u; descriptionText.paragraphSpacing = 10f * u; }
+        float preferred = PreferredHeight(descriptionText, copyWidth - scrollbarWidth - 8f * u, bodyFont);
+        float imageHeight = hasImage ? 240f * u : 0f;
+        if (stacked) imageHeight = Mathf.Min(imageHeight, Mathf.Max(0f,
+            maxHeight - padding * 2f - headerHeight - buttonHeight - gap * 2f - bodyFont * 2f));
+        float stackedImage = hasImage && stacked ? imageHeight + gap : 0f;
+        float desiredMiddle = stackedImage + Mathf.Max(preferred, hasImage && !stacked ? imageHeight : 0f);
+        float height = Mathf.Clamp(padding * 2f + headerHeight + desiredMiddle + gap + buttonHeight,
+            Mathf.Min(maxHeight, 600f * u), maxHeight);
+        float middleHeight = Mathf.Max(1f, height - padding * 2f - headerHeight - gap - buttonHeight);
+        Place(card, new Vector2(.5f, .5f), available.center - parent.rect.center, new Vector2(width, height));
+        CozyModalLayout.Stretch(cardSurface, 8f * u, 8f * u, 8f * u, 8f * u);
+        float cursor = padding;
+        if (contextText != null)
+            Place(contextText.rectTransform, new Vector2(.5f, 1f), new Vector2(0, -cursor - contextHeight * .5f), new Vector2(innerWidth, contextHeight));
+        cursor += contextHeight + smallGap;
+        Place(titleTab, new Vector2(.5f, 1f), new Vector2(0, -cursor - titleHeight * .5f), new Vector2(innerWidth, titleHeight));
+        if (titleText != null) CozyModalLayout.Stretch(titleText.rectTransform, 0, 0, 0, 0);
+        cursor += titleHeight + gap;
+        Place(headerDivider, new Vector2(.5f, 1f), new Vector2(0, -cursor - ruleHeight * .5f), new Vector2(innerWidth, ruleHeight));
+        cursor += ruleHeight + gap;
+        float bodyHeight = Mathf.Max(1f, middleHeight - stackedImage);
+        float bodyLeft = padding + (hasImage && !stacked ? imageWidth + gap : 0f);
+        Place(descriptionFrame, new Vector2(0, 1), new Vector2(bodyLeft + copyWidth * .5f,
+            -cursor - stackedImage - bodyHeight * .5f), new Vector2(copyWidth, bodyHeight));
+        CozyModalLayout.Stretch(descriptionSurface, 0, 0, 0, 0);
+        if (imageFrame != null) imageFrame.gameObject.SetActive(hasImage);
+        if (hasImage)
+        {
+            float stageHeight = stacked ? imageHeight : middleHeight;
+            Place(imageFrame, new Vector2(0, 1), new Vector2(padding + imageWidth * .5f,
+                -cursor - stageHeight * .5f), new Vector2(imageWidth, stageHeight));
+            CozyModalLayout.Stretch(imageSurface, 4f * u, 4f * u, 4f * u, 4f * u);
+            CozyModalLayout.Stretch(contentImage.rectTransform, imageWidth * .10f, stageHeight * .10f, imageWidth * .10f, stageHeight * .10f);
+            contentImage.preserveAspect = true;
+        }
+        if (dismissButton != null)
+        {
+            Place(dismissButton.transform as RectTransform, new Vector2(.5f, 0), new Vector2(0, padding + buttonHeight * .5f), new Vector2(innerWidth, buttonHeight));
+            TMP_Text label = dismissButton.GetComponentInChildren<TMP_Text>(true);
+            if (label != null)
+            {
+                SetReadingText(label, Mathf.Max(30f * u, 14f / pixelScale), TextAlignmentOptions.Center);
+                label.enableWordWrapping = false;
+                CozyModalLayout.Stretch(label.rectTransform, 12f * u, 5f * u, 12f * u, 8f * u);
+            }
+        }
+        LayoutReadingScroll(u, scrollbarWidth);
+        lastParentRect = parent.rect; lastSafeArea = Screen.safeArea;
+        lastScreen = new Vector2Int(Screen.width, Screen.height);
+        authoredVersion = 5; applied = true;
     }
 
     private static void SetReadingText(TMP_Text text, float size, TextAlignmentOptions alignment)

@@ -564,6 +564,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   useEvents: 0
   promptMessage: 
+  simulationSound:
+    clip: {fileID: 8300000, guid: acb71bc333784e8a8b4e0b699659a8da, type: 3}
+    output: {fileID: 0}
+    volume: 0.75
+    pitch: 1
   vehicleName: Heavy Transport
   vehicleInfoPanel: {fileID: 0}
   vehicleNameText: {fileID: 0}
@@ -571,6 +576,11 @@ MonoBehaviour:
   vehicleSpeedText: {fileID: 0}
   uiElementsToHide: []
   assignedContract: {fileID: 0}
+  useSmartCargoLoadingZone: 1
+  cargoLoadingZonePadding: 1.5
+  onRequiredCargoLoaded:
+    m_PersistentCalls:
+      m_Calls: []
   advancesTutorial: 0
   onInspectionWindowClosed:
     m_PersistentCalls:
@@ -583,14 +593,19 @@ MonoBehaviour:
   engineTorque: 1500
   vehicleMass: 1000
   centerOfMassOffset: -0.5
+  freezeChassisZRotationWhileDriving: 1
+  normalizeOverscaledPhysicsRoot: 1
+  physicsRootScaleThreshold: 10
   wheelObjects:
   - {fileID: 6799950169683078808}
   - {fileID: 3324657854841065593}
   - {fileID: 1156329728540158857}
   - {fileID: 2855705828966333653}
   wheelRadius: 0.4
+  useWheelMeshRadius: 0
   wheelMass: 50
   spinAxis: {x: 1, y: 0, z: 0}
+  alignWheelAxisToMesh: 1
   brakeTorque: 3000
   stoppedLinearSpeed: 0.08
   stoppedAngularSpeed: 0.15

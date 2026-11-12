@@ -418,6 +418,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   useEvents: 1
   promptMessage: 
+  simulationSound:
+    clip: {fileID: 8300000, guid: fa170e0440e943f4ab08694e8d00ef63, type: 3}
+    output: {fileID: 0}
+    volume: 0.75
+    pitch: 1
   vehicleName: Cart
   vehicleInfoPanel: {fileID: 0}
   vehicleNameText: {fileID: 0}
@@ -454,8 +459,10 @@ MonoBehaviour:
   - {fileID: 7270735317542765784}
   - {fileID: 6096802694335875331}
   wheelRadius: 0.5
+  useWheelMeshRadius: 0
   wheelMass: 50
   spinAxis: {x: -1, y: 0, z: 0}
+  alignWheelAxisToMesh: 1
   brakeTorque: 3000
   stoppedLinearSpeed: 0.08
   stoppedAngularSpeed: 0.15
@@ -525,6 +532,8 @@ MonoBehaviour:
   requiredNPCPhaseIndex: 1
   nextNPCPhaseIndex: 2
   completionSaveKey: 
+  requireAlmanacReviewBeforeAdvance: 0
+  almanacReviewReminder: []
 --- !u!1 &7270735317542765784
 GameObject:
   m_ObjectHideFlags: 0

@@ -481,6 +481,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   useEvents: 0
   promptMessage: 
+  simulationSound:
+    clip: {fileID: 8300000, guid: 7a4698908d2140a5a3b1073861cfd374, type: 3}
+    output: {fileID: 0}
+    volume: 0.75
+    pitch: 1
   vehicleName: Heavy Transport
   vehicleInfoPanel: {fileID: 0}
   vehicleNameText: {fileID: 0}
@@ -505,6 +510,7 @@ MonoBehaviour:
   engineTorque: 2000
   vehicleMass: 1000
   centerOfMassOffset: -0.5
+  freezeChassisZRotationWhileDriving: 1
   normalizeOverscaledPhysicsRoot: 1
   physicsRootScaleThreshold: 10
   wheelObjects:
@@ -513,8 +519,10 @@ MonoBehaviour:
   - {fileID: 3852828842481252581}
   - {fileID: 2352625235362827239}
   wheelRadius: 0.6
+  useWheelMeshRadius: 0
   wheelMass: 50
   spinAxis: {x: 1, y: 0, z: 0}
+  alignWheelAxisToMesh: 1
   brakeTorque: 3000
   stoppedLinearSpeed: 0.08
   stoppedAngularSpeed: 0.15

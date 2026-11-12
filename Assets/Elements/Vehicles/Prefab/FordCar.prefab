@@ -1065,9 +1065,9 @@ MonoBehaviour:
   useEvents: 0
   promptMessage: 
   simulationSound:
-    clip: {fileID: 0}
+    clip: {fileID: 8300000, guid: acb71bc333784e8a8b4e0b699659a8da, type: 3}
     output: {fileID: 0}
-    volume: 0.65
+    volume: 0.75
     pitch: 1
   vehicleName: Ford Truck
   vehicleInfoPanel: {fileID: 0}
@@ -1104,6 +1104,7 @@ MonoBehaviour:
   - {fileID: 5286042809000227998}
   - {fileID: 5826357669997465325}
   wheelRadius: 0.68112
+  useWheelMeshRadius: 0
   wheelMass: 50
   spinAxis: {x: 1, y: 0, z: 0}
   alignWheelAxisToMesh: 1
