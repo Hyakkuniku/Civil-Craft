@@ -15,7 +15,7 @@ MonoBehaviour:
   itemId: shop_cosmetic_Accessory_SafetyVest
   itemName: Safety Vest
   description: Unlock the Safety Vest accessory for your builder.
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: 8df07a5992cc2d9498b200608e853a5d, type: 3}
   category: 0
   cosmeticDefinition: {fileID: 11400000, guid: a3ef68c70f1243a409630f5a87da038a, type: 2}
   price: 2500

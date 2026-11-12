@@ -21,6 +21,7 @@ public static class CharacterCustomizationSetup
     private const string PreviewPrefabPath = "Assets/Resources/Loading/NewCharacterPreview.prefab";
     private const string ManagersPrefabPath = "Assets/Prefabs/BuildingMode/MANAGERS AND CANVASES.prefab";
     private const string CosmeticImageFolder = "Assets/Elements/Characters/Cosmetics/Images";
+    private const string CapIconPath = "Assets/Elements/UI/cap_no_bg.png";
     private static readonly string[] ScenePaths =
     {
         "Assets/Scenes/CanyonCrossing.unity",
@@ -42,9 +43,9 @@ public static class CharacterCustomizationSetup
     {
         new Spec { id="Accessory_None", label="None", category=CosmeticCategory.Accessories, modelNames=new string[0], defaultUnlocked=true, defaultWhenEmpty=true },
         new Spec { id="EngineeringHardHat", label="Engineering Hard Hat", category=CosmeticCategory.Accessories, modelNames=new[]{"Base_Hard Hat"}, iconPath="Assets/Elements/UI/RewardsUI/hard_hat.png" },
-        new Spec { id="Accessory_SmallCap", label="Small Cap", category=CosmeticCategory.Accessories, modelNames=new[]{"Accesories_Cap_Small"} },
-        new Spec { id="Accessory_LargeCap", label="Large Cap", category=CosmeticCategory.Accessories, modelNames=new[]{"Accesories_Cap_Large"} },
-        new Spec { id="Accessory_SafetyVest", label="Safety Vest", category=CosmeticCategory.Accessories, modelNames=new[]{"Accesories_Vest"} },
+        new Spec { id="Accessory_SmallCap", label="Small Cap", category=CosmeticCategory.Accessories, modelNames=new[]{"Accesories_Cap_Small"}, iconPath=CapIconPath },
+        new Spec { id="Accessory_LargeCap", label="Large Cap", category=CosmeticCategory.Accessories, modelNames=new[]{"Accesories_Cap_Large"}, iconPath=CapIconPath },
+        new Spec { id="Accessory_SafetyVest", label="Safety Vest", category=CosmeticCategory.Accessories, modelNames=new[]{"Accesories_Vest"}, iconPath="Assets/Elements/UI/safety_vest_no_bg.png" },
 
         new Spec { id="Hair_Base", label="Classic Hair", category=CosmeticCategory.Hair, modelNames=new[]{"Base_Hair.Front", "Base_Hair.Back"}, iconPath=CosmeticImageFolder+"/Hair_Base.png", defaultUnlocked=true, defaultWhenEmpty=true },
         new Spec { id="Hair_1", label="Side Sweep", category=CosmeticCategory.Hair, modelNames=new[]{"Hair_1"}, iconPath=CosmeticImageFolder+"/Hair_1.png" },

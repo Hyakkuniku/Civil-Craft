@@ -395740,6 +395740,7 @@ MonoBehaviour:
   rotateWhileTraversingLinks: 1
   travellingPrompt: Moving to the next site...
   onlyShowExclamationWhenInteractionNeeded: 0
+  suppressDialogueMurmur: 1
   onProgressionFinished:
     m_PersistentCalls:
       m_Calls: []

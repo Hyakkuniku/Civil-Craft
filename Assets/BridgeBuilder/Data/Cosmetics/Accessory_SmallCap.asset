@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   permanentID: Accessory_SmallCap
   displayName: Small Cap
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: cdcd6d7967f9be4489cabc2d2cf5aff0, type: 3}
   category: 0
   modelID: Accesories_Cap_Small
   availableColors:

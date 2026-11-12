@@ -293,6 +293,8 @@ public class NPCProgressionManager : MonoBehaviour
     [SerializeField] private string travellingPrompt = "Moving to the next site...";
     [Tooltip("When enabled, checked phase exclamation marks appear only while another conversation is needed. Hides them during building, dialogue, ordered lessons/quiz reviews, and accepted contracts until turn-in is ready. Existing NPCs retain their authored phase-only behavior by default.")]
     [SerializeField] private bool onlyShowExclamationWhenInteractionNeeded;
+    [Tooltip("Keep this NPC's dialogue silent while the text is typing.")]
+    [SerializeField] private bool suppressDialogueMurmur;
 
     [Header("Events")]
     public UnityEvent onProgressionFinished;
@@ -437,6 +439,7 @@ public class NPCProgressionManager : MonoBehaviour
             : null;
 
     public string ProgressionSaveId => progressionSaveId;
+    internal bool SuppressDialogueMurmur => suppressDialogueMurmur;
 
     public bool HasCompletedPhaseDialogue(int phaseIndex)
     {

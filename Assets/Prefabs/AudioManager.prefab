@@ -49,6 +49,8 @@ MonoBehaviour:
     type: 2}
   sfxOutput: {fileID: -1157879735568590382, guid: 842026f4aa4a40c45a58164f3ab562be,
     type: 2}
+  npcMurmurClip: {fileID: 8300000, guid: 274111a77c824f9b8499696dfcf517d1, type: 3}
+  npcMurmurVolume: 0.35
   musicTracks:
   - id: BGM
     clip: {fileID: 8300000, guid: a6a833712f1dcaf429d7234eac51747d, type: 3}

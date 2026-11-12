@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier:
   lessonId: civil-craft-suspension-bridge-lesson-v1
   lessonTitle: Suspension Bridge
-  lessonImage: {fileID: 0}
+  lessonImage: {fileID: 21300000, guid: 8b9c780c187c5d84bb6df0bb72aa07ae, type: 3}
   popupDescription: "A <b><#E09500>Suspension Bridge</color></b> hangs its roadway from main cables supported by towers.\n\nHangers transfer the roadway load to the main cables. The cables carry tension, the towers carry compression, and the anchorages resist the pull of the cables. These connections form a continuous load path to the ground.\n\nReview the parts and their roles in your <b><#E09500>Almanac</color></b>."
   almanacImage: {fileID: 0}
   lessonDescription: "A <b><#E09500>Suspension Bridge</color></b> uses main cables supported by towers, with vertical hangers connecting the cables to the roadway. This arrangement can span long distances when the components and their connections safely carry the load.\n\n<b><#E09500>Hangers</color></b> transfer loads from the roadway to the main cables. The <b><#E09500>main cables</color></b> primarily carry tension. The <b><#E09500>towers</color></b> primarily carry compression toward the ground, and the <b><#E09500>anchorages</color></b> resist the cables' pulling forces.\n\nA truck puts weight on the roadway as it moves. The roadway, hangers, cables, towers, and anchorages need to stay connected so that their forces can reach the foundations and ground. At Clark's Freight Passage, watch how the load shifts across the span and check those connections if the truck cannot finish the crossing."

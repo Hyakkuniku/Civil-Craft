@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   permanentID: Accessory_SafetyVest
   displayName: Safety Vest
-  icon: {fileID: 0}
+  icon: {fileID: 21300000, guid: 8df07a5992cc2d9498b200608e853a5d, type: 3}
   category: 0
   modelID: Accesories_Vest
   availableColors:

@@ -58,6 +58,10 @@ public sealed class AudioManager : MonoBehaviour
     [SerializeField] private List<AudioLibraryEntry> soundEffects =
         new List<AudioLibraryEntry>();
 
+    [Header("NPC Dialogue")]
+    [SerializeField] private AudioClip npcMurmurClip;
+    [Range(0f, 1f)] [SerializeField] private float npcMurmurVolume = 0.35f;
+
     [Header("Startup Music")]
     [SerializeField] private bool playMusicOnStart;
     [SerializeField] private string startingMusicId;
@@ -89,6 +93,8 @@ public sealed class AudioManager : MonoBehaviour
 
     public string CurrentMusicId => currentMusicId;
     public AudioMixerGroup SfxOutput => sfxOutput;
+    internal AudioClip NpcMurmurClip => npcMurmurClip;
+    internal float NpcMurmurVolume => npcMurmurVolume;
     // UI fallbacks compare this around one input event, so an action's own
     // sound takes priority without suppressing unrelated clicks that frame.
     public ulong SfxPlaybackRevision { get; private set; }

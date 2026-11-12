@@ -116,6 +116,9 @@ public class DialogueManager : MonoBehaviour
 
     private bool isTyping = false;
     private Coroutine typingCoroutine;
+    private AudioSource murmurSource;
+    private bool murmurAllowed;
+    private bool murmurPaused;
     private Coroutine hideDialogueCoroutine;
     private RectTransform skipButtonRect;
     private Canvas skipButtonCanvas;
@@ -208,6 +211,7 @@ public class DialogueManager : MonoBehaviour
     private void LateUpdate()
     {
         RefreshCollectiblePresentation();
+        RefreshDialogueMurmur();
         if (restoreSkipAfterCollectible && !IsCollectibleOverlayActive && !IsPaused &&
             isDialogueActive && dialogueBox != null && dialogueBox.activeInHierarchy)
         {
@@ -234,9 +238,10 @@ public class DialogueManager : MonoBehaviour
         bool wasAlreadyActive = isDialogueActive;
         ResolvePlayerInput();
 
+        Transform speaker = ResolveSpeakerTransform(speakerAnimator, speakerTransform);
+        SetDialogueMurmurSpeaker(speaker, dialogue.name);
         SetActiveSpeaker(speakerAnimator);
-        TurnParticipantsTowardEachOther(
-            ResolveSpeakerTransform(speakerAnimator, speakerTransform));
+        TurnParticipantsTowardEachOther(speaker);
 
         ResolveDialogueBox();
         PreserveDialogueAnimationState();
@@ -288,6 +293,7 @@ public class DialogueManager : MonoBehaviour
             if (typingCoroutine != null) StopCoroutine(typingCoroutine);
             dialogueText.maxVisibleCharacters = 99999; 
             isTyping = false;
+            StopDialogueMurmur();
             return;
         }
 
@@ -328,12 +334,79 @@ public class DialogueManager : MonoBehaviour
 
         while (IsPaused || IsCollectibleOverlayActive) yield return null;
         isTyping = false;
+        StopDialogueMurmur();
+    }
+
+    private void SetDialogueMurmurSpeaker(Transform speaker, string speakerName)
+    {
+        StopDialogueMurmur();
+        NPCProgressionManager progression = speaker != null ? speaker.GetComponentInParent<NPCProgressionManager>(true) : null;
+        murmurAllowed = (speaker != null || !string.IsNullOrWhiteSpace(speakerName)) &&
+            (progression == null || !progression.SuppressDialogueMurmur);
+    }
+
+    private void RefreshDialogueMurmur()
+    {
+        AudioManager audio = AudioManager.Instance;
+        if (!isDialogueActive || !isTyping || !murmurAllowed ||
+            dialogueText == null || dialogueText.textInfo.characterCount == 0 ||
+            audio == null || audio.NpcMurmurClip == null)
+        {
+            StopDialogueMurmur();
+            return;
+        }
+
+        if (IsPaused || IsCollectibleOverlayActive || Time.timeScale <= 0f || AudioListener.pause ||
+            (dialogueBox != null && !dialogueBox.activeInHierarchy))
+        {
+            if (murmurSource != null && murmurSource.isPlaying)
+            {
+                murmurSource.Pause();
+                murmurPaused = true;
+            }
+            return;
+        }
+
+        if (murmurSource == null)
+        {
+            murmurSource = gameObject.AddComponent<AudioSource>();
+            murmurSource.playOnAwake = false;
+            murmurSource.loop = true;
+        }
+        if (murmurSource.clip != audio.NpcMurmurClip)
+        {
+            StopDialogueMurmur();
+            murmurSource.clip = audio.NpcMurmurClip;
+            murmurSource.volume = audio.NpcMurmurVolume;
+            murmurSource.outputAudioMixerGroup = audio.SfxOutput;
+        }
+
+        if (murmurPaused)
+        {
+            murmurSource.UnPause();
+            murmurPaused = false;
+        }
+        else if (!murmurSource.isPlaying)
+        {
+            murmurSource.Play();
+        }
+    }
+
+    private void StopDialogueMurmur()
+    {
+        if (murmurSource != null && murmurSource.clip != null)
+        {
+            murmurSource.Stop();
+            murmurSource.clip = null;
+        }
+        murmurPaused = false;
     }
 
     void EndDialogue()
     {
         if (!isDialogueActive) return;
         isDialogueActive = false;
+        StopDialogueMurmur();
         restoreSkipAfterCollectible = false;
         SetSkipButtonVisible(false);
         StopActiveSpeakerTalking();
@@ -416,6 +489,7 @@ public class DialogueManager : MonoBehaviour
     private void OnDisable()
     {
         isDialogueActive = false;
+        StopDialogueMurmur();
         restoreSkipAfterCollectible = false;
         SetSkipButtonVisible(false);
         RestoreCollectiblePresentation();
