@@ -406,6 +406,21 @@ MonoBehaviour:
     volume: 1
     pitch: 1
     randomPitchRange: 0.06
+  - id: CollectibleReveal
+    clip: {fileID: 8300000, guid: 7504f619e4a147b39b0fef95ac3b4188, type: 3}
+    volume: 0.8
+    pitch: 1
+    randomPitchRange: 0
+  - id: CollectibleCollect
+    clip: {fileID: 8300000, guid: c7d5849c36524cf0b04812deb80b6b1d, type: 3}
+    volume: 0.85
+    pitch: 1
+    randomPitchRange: 0
+  - id: MaterialIntroduction
+    clip: {fileID: 8300000, guid: 01ceb26b82a34aac9816ead9648c1caf, type: 3}
+    volume: 0.72
+    pitch: 1
+    randomPitchRange: 0
   playMusicOnStart: 1
   startingMusicId: BGM
   defaultMusicFadeDuration: 0.75

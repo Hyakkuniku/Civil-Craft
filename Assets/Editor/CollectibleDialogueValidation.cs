@@ -8,6 +8,9 @@ using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 using UnityEngine.UI;
 using Object = UnityEngine.Object;
 
@@ -26,7 +29,8 @@ public static class CollectibleDialogueValidation
     {
         if (!Application.isBatchMode || !ParrelSync.ClonesManager.IsClone())
             throw new InvalidOperationException("Run this disposable fixture in the batch validation clone only.");
-        string report = "Temp/CollectibleDialogueValidation.txt";
+        Directory.CreateDirectory("Logs");
+        string report = "Logs/CollectibleDialogueValidation.txt";
         try
         {
             // Retain the existing native Pause/input regression before discarding
@@ -38,14 +42,13 @@ public static class CollectibleDialogueValidation
             Check(PlayerDataManager.Instance == null && ItemUnlockUI.Instance == null && PauseManager.Instance == null,
                 "The isolated fixture must not have a live save, reward or Pause owner.");
 
-            var canvasObject = new GameObject("Disposable popup Canvas", typeof(RectTransform), typeof(Canvas));
+            var canvasObject = new GameObject("Disposable popup Canvas", typeof(RectTransform), typeof(Canvas), typeof(GraphicRaycaster));
             canvasObject.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
             ((RectTransform)canvasObject.transform).sizeDelta = new Vector2(1920, 1080);
             var owner = new GameObject("Disposable dialogue owner");
             var dialogue = owner.AddComponent<DialogueManager>();
             var box = new GameObject("Disposable DialogueBox", typeof(RectTransform));
             box.transform.SetParent(canvasObject.transform, false);
-            var authoredGroup = box.AddComponent<CanvasGroup>(); authoredGroup.alpha = .7f; authoredGroup.interactable = false;
             Set(dialogue, "dialogueBox", box);
             dialogue.nameText = Text(box.transform, "Speaker"); dialogue.dialogueText = Text(box.transform, "Sentence");
             var skipObject = new GameObject("Disposable Skip", typeof(RectTransform), typeof(Button));
@@ -65,6 +68,17 @@ public static class CollectibleDialogueValidation
             ItemUnlockUI popup = popupRoot.GetComponent<ItemUnlockUI>();
             if (ItemUnlockUI.Instance != popup) Call(popup, "Awake");
             popup.uiElementsToHide.Add(box); popup.uiElementsToHide.Add(skipObject);
+            Check(box.GetComponent<CanvasGroup>() == null, "The absent-CanvasGroup regression must start without a group.");
+            int almanacClaims = 0;
+            popup.ShowReward("Engineering Almanac", null, string.Empty, () => almanacClaims++);
+            CanvasGroup authoredGroup = box.GetComponent<CanvasGroup>();
+            Check(authoredGroup != null && box.GetComponents<CanvasGroup>().Length == 1 && Hidden(dialogue) &&
+                popup.popupPanel.activeInHierarchy, "Missing dialogue CanvasGroup interrupted the Almanac collectible before opening.");
+            ClickCollect(canvasObject, popup.collectButton);
+            Check(almanacClaims == 1 && !Hidden(dialogue) && !DialogueManager.IsCollectibleOverlayActive &&
+                !popup.popupPanel.activeSelf, "Pointer-clicking Collect did not claim the Almanac exactly once and resume dialogue.");
+            // Reuse the generated group as an authored non-default fade/lock.
+            authoredGroup.alpha = .7f; authoredGroup.interactable = false;
             int shop = 0, map = 0, almanac = 0;
             popup.ShowReward("Shop", null, string.Empty, () => { shop++; popup.ShowReward("Almanac", null, string.Empty, () => almanac++); });
             popup.ShowReward("Map", null, string.Empty, () => map++);
@@ -146,10 +160,45 @@ public static class CollectibleDialogueValidation
             Check(!Hidden(dialogue) && !DialogueManager.IsCollectibleOverlayActive && skipObject.activeSelf,
                 "Destroyed collectible owner stranded the conversation.");
             Check(dialogueCompletions == 0, "Presentation checks invoked a story completion callback.");
-            File.WriteAllText(report, "PASS: " + checks + " native assertions. Shop/Map/Almanac queue, callback re-entry, typewriter, Next/Skip, independent owners, disable/destroy, completed/new dialogue, nested Pause and authored material reader verified. No player data, discovery, account, network, scene or asset save was invoked.\n");
+            Check(box.GetComponents<CanvasGroup>().Length == 1, "Repeated collectibles created duplicate dialogue masks.");
+            File.WriteAllText(report, "PASS: " + checks + " native assertions. Missing/reused CanvasGroup and real GraphicRaycaster/pointer-click Almanac claim, Shop/Map/Almanac queue, callback re-entry, typewriter, Next/Skip, independent owners, disable/destroy, completed/new dialogue, nested Pause and authored material reader verified. No player data, discovery, account, network, scene or asset save was invoked.\n");
             Debug.Log("[Collectible Dialogue] " + File.ReadAllText(report));
         }
         catch (Exception error) { File.WriteAllText(report, "FAIL: " + error); throw; }
+    }
+
+    private static void ClickCollect(GameObject canvas, Button button)
+    {
+        // Render a disposable world-space Canvas so Unity assigns real graphic
+        // depths before the batch-mode raycaster runs (not -1/unrendered).
+        Canvas surface = canvas.GetComponent<Canvas>();
+        var cameraObject = new GameObject("Disposable collectible pointer camera", typeof(Camera));
+        Camera camera = cameraObject.GetComponent<Camera>();
+        camera.orthographic = true; camera.orthographicSize = 540f; camera.transform.position = new Vector3(0, 0, -100);
+        camera.nearClipPlane = .1f; camera.farClipPlane = 200f; camera.useOcclusionCulling = false;
+        var target = new RenderTexture(1920, 1080, 24); target.Create(); camera.targetTexture = target;
+        surface.renderMode = RenderMode.WorldSpace; surface.worldCamera = camera;
+        ((RectTransform)surface.transform).sizeDelta = new Vector2(1920, 1080);
+        Canvas.ForceUpdateCanvases();
+        var request = new UniversalRenderPipeline.SingleCameraRequest { destination = target };
+        if (RenderPipeline.SupportsRenderRequest(camera, request)) RenderPipeline.SubmitRenderRequest(camera, request); else camera.Render();
+        var events = new GameObject("Disposable pointer events", typeof(EventSystem)).GetComponent<EventSystem>();
+        var pointer = new PointerEventData(events)
+        {
+            button = PointerEventData.InputButton.Left,
+            position = RectTransformUtility.WorldToScreenPoint(camera, button.transform.position)
+        };
+        var hits = new List<RaycastResult>();
+        canvas.GetComponent<GraphicRaycaster>().Raycast(pointer, hits);
+        Check(button.IsActive() && button.IsInteractable() && hits.Count > 0 &&
+            hits[0].gameObject.GetComponentInParent<Button>() == button, "The visible Almanac Collect button is blocked from UI pointer raycasts: active=" +
+            button.IsActive() + "; interactable=" + button.IsInteractable() + "; hits=" + hits.Count + "; top=" +
+            (hits.Count > 0 ? hits[0].gameObject.name : "none") + "; graphic depth=" + button.targetGraphic.depth + "; pointer=" + pointer.position);
+        Check(ExecuteEvents.ExecuteHierarchy(hits[0].gameObject, pointer, ExecuteEvents.pointerClickHandler) != null,
+            "The real Collect button did not receive its pointer click.");
+        Object.DestroyImmediate(events.gameObject);
+        camera.targetTexture = null; target.Release(); Object.DestroyImmediate(target); Object.DestroyImmediate(cameraObject);
+        surface.worldCamera = null; surface.renderMode = RenderMode.ScreenSpaceOverlay;
     }
 
     private static TextMeshProUGUI Text(Transform parent, string name)

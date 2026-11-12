@@ -34,6 +34,12 @@ public class ItemUnlockUI : MonoBehaviour
     [Tooltip("Scene-authored reader for materials only. Cosmetic Collect rewards keep their original panel.")]
     public LearningPopupLayout materialPopup;
 
+    [Header("Popup Audio")]
+    [SerializeField] private string collectibleRevealSfxId = "CollectibleReveal";
+    [SerializeField] private string collectibleCollectSfxId = "CollectibleCollect";
+    [SerializeField] private string materialIntroductionSfxId = "MaterialIntroduction";
+    [SerializeField] private string materialAcknowledgeSfxId = "Interact";
+
     // --- NEW: UI Hiding Logic ---
     [Header("HUD Management")]
     [Tooltip("Drag UI elements here (like the Minimap or HUD Canvas) that should hide while this is open.")]
@@ -184,6 +190,7 @@ public class ItemUnlockUI : MonoBehaviour
             if (acknowledgement != null) acknowledgement.text = string.IsNullOrWhiteSpace(request.buttonLabel) ? "GOT IT" : request.buttonLabel;
             materialPopup.gameObject.SetActive(true);
             materialPopup.transform.SetAsLastSibling();
+            PlayRevealSound(request, materialPopup.gameObject);
             return;
         }
         if (materialPopup != null) materialPopup.gameObject.SetActive(false);
@@ -215,11 +222,29 @@ public class ItemUnlockUI : MonoBehaviour
 
         // Show the panel
         if (popupPanel != null) popupPanel.SetActive(true);
+        PlayRevealSound(request, popupPanel);
+    }
+
+    private void PlayRevealSound(RewardRequest request, GameObject panel)
+    {
+        if (panel == null || !panel.activeInHierarchy) return;
+        PlayPopupSound(request.useMaterialLayout ? materialIntroductionSfxId : collectibleRevealSfxId);
+        if (request.useMaterialLayout && request.materialToDiscover != null &&
+            !string.IsNullOrWhiteSpace(request.materialToDiscover.equipSfxId))
+            PlayPopupSound(request.materialToDiscover.equipSfxId, .45f);
+    }
+
+    private static void PlayPopupSound(string id, float volume = 1f)
+    {
+        if (AudioManager.Instance != null && !string.IsNullOrWhiteSpace(id))
+            AudioManager.Instance.PlaySFX(id, volume);
     }
 
     private void OnCollectClicked()
     {
         if (!rewardVisible) return;
+        string acknowledgementSfxId = pendingMaterialToDiscover != null
+            ? materialAcknowledgeSfxId : collectibleCollectSfxId;
         // Hide the panel
         if (popupPanel != null) popupPanel.SetActive(false);
         if (materialPopup != null) materialPopup.gameObject.SetActive(false);
@@ -253,6 +278,7 @@ public class ItemUnlockUI : MonoBehaviour
         pendingHatID = string.Empty;
         pendingMaterialToDiscover = null;
         rewardVisible = false;
+        PlayPopupSound(acknowledgementSfxId);
 
         // The reward callback runs only after the panel is closed, so feature
         // notifications triggered by it naturally appear after Collect.

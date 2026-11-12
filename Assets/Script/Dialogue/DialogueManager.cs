@@ -449,7 +449,13 @@ public class DialogueManager : MonoBehaviour
                 // Unity permits one CanvasGroup on this object. Preserve the
                 // authored values rather than adding a competing component.
                 if (collectiblePresentationGroup == null)
-                    collectiblePresentationGroup = dialogueBox.GetComponent<CanvasGroup>() ?? dialogueBox.AddComponent<CanvasGroup>();
+                {
+                    // Unity can return a missing-component wrapper here. The
+                    // overloaded null check handles it; C# ?? does not.
+                    collectiblePresentationGroup = dialogueBox.GetComponent<CanvasGroup>();
+                    if (collectiblePresentationGroup == null)
+                        collectiblePresentationGroup = dialogueBox.AddComponent<CanvasGroup>();
+                }
                 dialogueGroupEnabledBeforeCollectible = collectiblePresentationGroup.enabled;
                 dialogueAlphaBeforeCollectible = collectiblePresentationGroup.alpha;
                 dialogueInteractableBeforeCollectible = collectiblePresentationGroup.interactable;
