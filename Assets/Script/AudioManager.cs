@@ -89,6 +89,9 @@ public sealed class AudioManager : MonoBehaviour
 
     public string CurrentMusicId => currentMusicId;
     public AudioMixerGroup SfxOutput => sfxOutput;
+    // UI fallbacks compare this around one input event, so an action's own
+    // sound takes priority without suppressing unrelated clicks that frame.
+    public ulong SfxPlaybackRevision { get; private set; }
     public bool IsMusicPlaying =>
         (firstMusicSource != null && firstMusicSource.isPlaying) ||
         (secondMusicSource != null && secondMusicSource.isPlaying);
@@ -242,6 +245,7 @@ public sealed class AudioManager : MonoBehaviour
         source.pitch = GetRandomizedPitch(sound);
         source.loop = false;
         voice.startedAt = AudioSettings.dspTime;
+        SfxPlaybackRevision++;
         source.Play();
     }
 

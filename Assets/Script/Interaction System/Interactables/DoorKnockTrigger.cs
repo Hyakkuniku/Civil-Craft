@@ -69,6 +69,8 @@ public class DoorKnockTrigger : MonoBehaviour
     {
         isKnocking = true;
         Debug.Log("*Knock Knock Knock*");
+        if (SceneInteractionAudio.IsSupportedScene && AudioManager.Instance != null)
+            AudioManager.Instance.PlaySFX("KnockDoor");
 
         yield return new WaitForSeconds(delayAfterKnock);
 

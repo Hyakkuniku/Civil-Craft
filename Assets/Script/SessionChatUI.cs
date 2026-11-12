@@ -117,6 +117,8 @@ public sealed class SessionChatUI : MonoBehaviour
         if (!captured || messageInput == null) return;
         FusionMultiplayerAvatar avatar = LocalAvatar(boundRunner);
         if (avatar == null || !avatar.TrySendChat(messageInput.text)) { RefreshControls(); return; }
+        if (SceneInteractionAudio.IsSupportedScene && AudioManager.Instance != null)
+            AudioManager.Instance.PlaySFX("Interact", .72f);
         messageInput.SetTextWithoutNotify(string.Empty);
         messageInput.ActivateInputField(); RefreshControls();
     }

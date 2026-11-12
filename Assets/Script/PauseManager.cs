@@ -217,6 +217,8 @@ public class PauseManager : MonoBehaviour
     public void ResumeGame()
     {
         if (isClosingPause) return;
+        if (isPaused && SceneInteractionAudio.IsSupportedScene && AudioManager.Instance != null)
+            AudioManager.Instance.PlaySFX("Interact", .72f);
         if (isPaused && pausePanel != null && pausePanel.activeInHierarchy &&
             closeDuration > 0f)
         {
