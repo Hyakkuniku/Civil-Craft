@@ -1,0 +1,18 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: db97c083e7844ed3a6a75107b5059cf8, type: 3}
+  m_Name: BridgeEnvironmentalAudioSettings
+  m_EditorClassIdentifier:
+  windLoop: {fileID: 8300000, guid: 2137a7031fd448e688b236529c6289c4, type: 3}
+  earthquakeLoop: {fileID: 8300000, guid: 9b68af8652994319a7ae05c832dee008, type: 3}
+  windVolume: 0.8
+  earthquakeVolume: 0.85

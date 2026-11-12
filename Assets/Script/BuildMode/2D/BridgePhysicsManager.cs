@@ -662,6 +662,7 @@ public partial class BridgePhysicsManager : MonoBehaviour
     private void OnDestroy()
     {
         DisposeSimulationPlayback();
+        ClearEnvironmentalTest();
         CancelMultiLoadSession();
         WaterImpact.UnregisterManager(this);
         RestoreGlobalPhysicsSettings();
@@ -892,6 +893,7 @@ public partial class BridgePhysicsManager : MonoBehaviour
 
     private void LateUpdate()
     {
+        RefreshEnvironmentalAudio();
         RenderEnvironmentalTest();
         if (!IsSimulationActive || activeStressHandlers.Count == 0)
         {

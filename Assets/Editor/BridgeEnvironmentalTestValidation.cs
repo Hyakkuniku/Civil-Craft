@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using System.Linq;
+using System.Reflection;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -10,6 +12,92 @@ using Object = UnityEngine.Object;
 
 public static class BridgeEnvironmentalTestValidation
 {
+    [InitializeOnLoadMethod]
+    private static void WatchAudioRequest()
+    {
+        EditorApplication.update -= PollAudioRequest;
+        EditorApplication.update += PollAudioRequest;
+    }
+
+    private static void PollAudioRequest()
+    {
+        const string request = "Temp/bridge-environment-audio.request";
+        if (!File.Exists(request) || EditorApplication.isCompiling || EditorApplication.isUpdating ||
+            EditorApplication.isPlayingOrWillChangePlaymode || BuildPipeline.isBuildingPlayer) return;
+        File.Delete(request);
+        try
+        {
+            ValidateAudio();
+            File.WriteAllText("Logs/bridge-environment-audio.txt", "PASS shared resource clips, separate wind/quake loops, SFX routing, event intensity, and manager teardown.");
+        }
+        catch (Exception error)
+        {
+            File.WriteAllText("Logs/bridge-environment-audio.txt", "FAIL " + error);
+            Debug.LogException(error);
+        }
+    }
+
+    [MenuItem("Tools/Civil Craft/Build/Validate Wind and Earthquake Audio")]
+    public static void ValidateAudio()
+    {
+        Require(!EditorApplication.isPlayingOrWillChangePlaymode && AudioManager.Instance == null,
+            "Run detached audio validation in Edit Mode.");
+        var settings = Resources.Load<BridgeEnvironmentalAudioSettings>("BridgeEnvironmentalAudioSettings");
+        Require(settings != null && settings.windLoop != null && settings.earthquakeLoop != null,
+            "The shared environmental audio settings or clips are missing.");
+        Require(settings.windLoop.name == "wind_gust_loop" && settings.earthquakeLoop.name == "earthquake_rumble_loop" &&
+            settings.windLoop.channels == 2 && settings.earthquakeLoop.channels == 2 &&
+            Mathf.Abs(settings.windLoop.length - 12f) < .001f && Mathf.Abs(settings.earthquakeLoop.length - 12f) < .001f,
+            "Environmental event clips do not match their authored stereo loops.");
+        Scene preview = EditorSceneManager.NewPreviewScene();
+        var root = new GameObject("Detached environmental audio check");
+        SceneManager.MoveGameObjectToScene(root, preview);
+        AudioManager audio = null;
+        BridgeEnvironmentalAudio loops = null;
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        try
+        {
+            audio = root.AddComponent<AudioManager>();
+            EditorUtility.CopySerialized(AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/AudioManager.prefab").GetComponent<AudioManager>(), audio);
+            var data = new SerializedObject(audio);
+            data.FindProperty("persistAcrossScenes").boolValue = false;
+            data.ApplyModifiedPropertiesWithoutUndo();
+            typeof(AudioManager).GetMethod("Awake", flags).Invoke(audio, null);
+            var owner = NewChild(root.transform, "Simulation owner");
+            var manager = owner.AddComponent<BridgePhysicsManager>();
+            typeof(BridgePhysicsManager).GetMethod("PrepareEnvironmentalAudio", flags).Invoke(manager, null);
+            loops = (BridgeEnvironmentalAudio)typeof(BridgePhysicsManager).GetField("environmentalAudio", flags).GetValue(manager);
+            Require(loops != null && owner.GetComponentsInChildren<AudioSource>(true).Length == 0,
+                "Preparing an event must not autoplay environmental sounds.");
+            var profile = new BridgeEnvironmentalTest { windPressureKPa = 1f, earthquakeStrengthG = .4f }.Freeze();
+            loops.Tick(profile, .5f, profile.Sample(.5f), false);
+            AudioSource[] sources = owner.GetComponentsInChildren<AudioSource>(true);
+            Require(sources.Length == 2 && sources.Any(source => source.clip == settings.windLoop) &&
+                sources.Any(source => source.clip == settings.earthquakeLoop), "Wind and earthquake must own separate matching channels.");
+            Require(sources.All(source => source.loop && !source.playOnAwake && !source.ignoreListenerPause &&
+                source.spatialBlend == 0f && source.dopplerLevel == 0f && source.volume > 0f &&
+                source.outputAudioMixerGroup == audio.SfxOutput), "Environmental sources must use paused, centered SFX routing.");
+            float windVolume = sources.Single(source => source.clip == settings.windLoop).volume;
+            loops.Tick(profile, .02f, profile.Sample(.02f), false);
+            Require(sources.Single(source => source.clip == settings.windLoop).volume < windVolume,
+                "Wind audio must follow the event's attack and gust strength.");
+            typeof(BridgePhysicsManager).GetMethod("ClearEnvironmentalTest", flags).Invoke(manager, null);
+            Require(typeof(BridgePhysicsManager).GetField("environmentalAudio", flags).GetValue(manager) == null,
+                "Simulation reset retained its environmental audio owner.");
+        }
+        finally
+        {
+            loops?.Dispose();
+            if (audio != null)
+            {
+                audio.StopAllSFX();
+                typeof(AudioManager).GetMethod("OnDestroy", flags).Invoke(audio, null);
+            }
+            Object.DestroyImmediate(root);
+            EditorSceneManager.ClosePreviewScene(preview);
+        }
+    }
+
     [MenuItem("Tools/Civil Craft/Build/Validate Wind and Earthquake")]
     public static void Run()
     {

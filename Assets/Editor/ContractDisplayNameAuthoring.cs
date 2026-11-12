@@ -53,7 +53,8 @@ public static class ContractDisplayNameAuthoring
         if (running || !File.Exists(Request) || EditorApplication.isCompiling || EditorApplication.isUpdating ||
             EditorApplication.isPlayingOrWillChangePlaymode || BuildPipeline.isBuildingPlayer ||
             AssetDatabase.IsAssetImportWorkerProcess() || PrefabStageUtility.GetCurrentPrefabStage() != null) return;
-        string command = File.ReadAllText(Request).Trim(); File.Delete(Request); Run(command);
+        string command = File.ReadAllText(Request).Trim(); File.Delete(Request);
+        if (command == "weather") ContractWeatherBriefings.Apply(); else Run(command);
     }
     [MenuItem("Tools/Civil Craft/Contracts/Display Names/Apply")]
     public static void Apply() => Run("apply");
@@ -181,6 +182,115 @@ public static class ContractDisplayNameAuthoring
         finally { Object.DestroyImmediate(copy); }
     }
     private static string SceneKey(SceneSetup value) => value.path + ":" + value.isLoaded + ":" + value.isActive;
+    private static void Require(bool value, string message) { if (!value) throw new InvalidOperationException(message); }
+}
+
+/// <summary>Authors hazard notices from each contract's actual solo simulation settings.</summary>
+public static class ContractWeatherBriefings
+{
+    private const string Folder = "Assets/BridgeBuilder/Data/Contract";
+    private const string Report = "Logs/contract-weather-briefings.txt";
+
+    private static string Condition(int flags) => flags == 3 ? "wind gusts and earthquake shaking" :
+        flags == 1 ? "wind gusts" : "earthquake shaking";
+    private static string Brief(int flags) => "Solo test conditions: Expect " + Condition(flags) + ". Keep the bridge stable throughout the vehicle crossing.";
+    private static string Spoken(int flags) => "During the solo vehicle test, expect <b><#E09500>" + Condition(flags) +
+        "</color></b>. Check your supports, bracing, and connections.";
+    private static string[] CleanLines(Dialogue dialogue) => (dialogue.sentences ?? Array.Empty<string>())
+        .Where(line => !Enumerable.Range(1, 3).Any(flags => line == Spoken(flags))).ToArray();
+
+    [MenuItem("Tools/Civil Craft/Contracts/Update Wind and Earthquake Briefings")]
+    public static void Apply()
+    {
+        Directory.CreateDirectory("Logs");
+        var report = new StringBuilder();
+        var changed = new List<ContractSO>();
+        var originals = new Dictionary<ContractSO, string>();
+        var protectedState = new Dictionary<ContractSO, string>();
+        var dirty = new Dictionary<ContractSO, bool>();
+        bool saving = false;
+        var sceneState = Enumerable.Range(0, SceneManager.sceneCount).Select(SceneManager.GetSceneAt)
+            .ToDictionary(scene => scene, scene => scene.isDirty);
+        try
+        {
+            Require(!ParrelSync.ClonesManager.IsClone() && !EditorApplication.isPlayingOrWillChangePlaymode &&
+                !EditorApplication.isCompiling && !EditorApplication.isUpdating, "Run in the original Editor's idle Edit Mode.");
+            ContractSO[] all = AssetDatabase.FindAssets("t:ContractSO", new[] { Folder }).Select(AssetDatabase.GUIDToAssetPath)
+                .Select(AssetDatabase.LoadAssetAtPath<ContractSO>).ToArray();
+            foreach (ContractSO contract in all)
+            {
+                originals[contract] = EditorJsonUtility.ToJson(contract);
+                protectedState[contract] = WithoutBriefing(contract);
+                dirty[contract] = EditorUtility.IsDirty(contract);
+            }
+            foreach (ContractSO contract in all)
+            {
+                BridgeEnvironmentalTest environment = contract.liveLoadMode == ContractSO.LiveLoadMode.Vehicle ? contract.environmentalTest : null;
+                int flags = environment == null ? 0 : (environment.HasWind ? 1 : 0) | (environment.HasEarthquake ? 2 : 0);
+                if (flags == 0) continue;
+                Require(contract.offerDialogue != null && contract.reminderDialogue != null, "Missing authored dialogue: " + contract.name);
+                string brief = contract.jobDescription ?? string.Empty;
+                for (int previous = 1; previous <= 3; previous++) brief = brief.Replace("\n\n" + Brief(previous), string.Empty);
+                brief = brief.TrimEnd() + "\n\n" + Brief(flags);
+                var offer = CleanLines(contract.offerDialogue).ToList();
+                offer.Insert(Mathf.Max(0, offer.Count - 1), Spoken(flags));
+                string[] reminder = CleanLines(contract.reminderDialogue).Concat(new[] { Spoken(flags) }).ToArray();
+                if (contract.jobDescription != brief || !(contract.offerDialogue.sentences ?? Array.Empty<string>()).SequenceEqual(offer) ||
+                    !(contract.reminderDialogue.sentences ?? Array.Empty<string>()).SequenceEqual(reminder))
+                {
+                    Undo.RecordObject(contract, "Mention contract wind and earthquakes");
+                    contract.jobDescription = brief;
+                    contract.offerDialogue.sentences = offer.ToArray();
+                    contract.reminderDialogue.sentences = reminder;
+                    EditorUtility.SetDirty(contract); changed.Add(contract);
+                }
+                Require(contract.jobDescription.Contains(Brief(flags)) && contract.offerDialogue.sentences.Contains(Spoken(flags)) &&
+                    contract.reminderDialogue.sentences.Contains(Spoken(flags)), "Missing condition notice: " + contract.name);
+                report.AppendLine("VERIFIED: " + contract.DisplayName + " — " + Condition(flags) + "; project brief, offer and reminder.");
+            }
+            foreach (ContractSO contract in all)
+                Require(WithoutBriefing(contract) == protectedState[contract], "A non-briefing field changed: " + contract.name);
+            string backup = "LocalBackups/ContractWeatherBriefings-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
+            foreach (ContractSO contract in changed)
+            {
+                string path = AssetDatabase.GetAssetPath(contract), destination = backup + "/" + path.Substring(Folder.Length + 1);
+                Directory.CreateDirectory(Path.GetDirectoryName(destination)); File.Copy(path, destination);
+                if (dirty[contract]) File.WriteAllText(destination + ".loaded-before.json", originals[contract]);
+            }
+            saving = true;
+            foreach (ContractSO contract in changed)
+            {
+                if (!dirty[contract]) AssetDatabase.SaveAssetIfDirty(contract);
+                report.AppendLine((dirty[contract] ? "UNSAVED: " : "SAVED: ") + AssetDatabase.GetAssetPath(contract));
+            }
+            foreach (ContractSO contract in all) Require(EditorUtility.IsDirty(contract) == dirty[contract], "Original asset dirty state changed: " + contract.name);
+            foreach (var scene in sceneState) Require(scene.Key.isDirty == scene.Value, "A scene's unsaved state changed.");
+            report.AppendLine("PASS: " + all.Length + " contracts audited. IDs, load rosters, budgets, materials, environmental settings, other dialogue and progression unchanged. Existing unsaved edits preserved; no scenes saved.");
+        }
+        catch (Exception error)
+        {
+            if (!saving) foreach (ContractSO contract in changed)
+            {
+                EditorJsonUtility.FromJsonOverwrite(originals[contract], contract);
+                if (dirty[contract]) EditorUtility.SetDirty(contract); else EditorUtility.ClearDirty(contract);
+            }
+            report.AppendLine("FAILED: " + error); Debug.LogException(error);
+        }
+        File.WriteAllText(Report, report.ToString());
+    }
+
+    private static string WithoutBriefing(ContractSO source)
+    {
+        ContractSO copy = Object.Instantiate(source);
+        try
+        {
+            copy.name = source.name; copy.jobDescription = string.Empty;
+            if (copy.offerDialogue != null) copy.offerDialogue.sentences = Array.Empty<string>();
+            if (copy.reminderDialogue != null) copy.reminderDialogue.sentences = Array.Empty<string>();
+            return EditorJsonUtility.ToJson(copy);
+        }
+        finally { Object.DestroyImmediate(copy); }
+    }
     private static void Require(bool value, string message) { if (!value) throw new InvalidOperationException(message); }
 }
 #endif

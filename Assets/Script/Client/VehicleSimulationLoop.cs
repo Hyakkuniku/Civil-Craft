@@ -18,10 +18,15 @@ public sealed class VehicleSimulationLoop : IDisposable
 {
     private const string ChannelName = "Vehicle Simulation Audio (Runtime)";
     private readonly Transform owner;
+    private readonly string channelName;
     private AudioSource source;
     private bool suspended;
 
-    public VehicleSimulationLoop(Transform owner) { this.owner = owner; }
+    public VehicleSimulationLoop(Transform owner, string channelName = ChannelName)
+    {
+        this.owner = owner;
+        this.channelName = channelName;
+    }
 
     public void Tick(VehicleSimulationSound settings, bool driving, bool paused)
     {
@@ -36,10 +41,10 @@ public sealed class VehicleSimulationLoop : IDisposable
         {
             // Host test clones can inherit this child from an already used vehicle.
             // Reuse its channel instead of adding another source on each test.
-            Transform channel = owner.Find(ChannelName);
+            Transform channel = owner.Find(channelName);
             if (channel == null)
             {
-                var node = new GameObject(ChannelName);
+                var node = new GameObject(channelName);
                 node.transform.SetParent(owner, false);
                 channel = node.transform;
             }

@@ -43,6 +43,7 @@ public partial class BridgePhysicsManager
 
         environmentalTest = contract.environmentalTest.Freeze();
         environmentalEventTime = -environmentalTest.startDelay;
+        PrepareEnvironmentalAudio();
         bool hasBounds = false;
         foreach (Point point in deterministicPoints)
         {
@@ -131,6 +132,8 @@ public partial class BridgePhysicsManager
 
     private void ClearEnvironmentalTest()
     {
+        environmentalAudio?.Dispose();
+        environmentalAudio = null;
         environmentalEffects?.Dispose();
         environmentalEffects = null;
         environmentalTest = null;

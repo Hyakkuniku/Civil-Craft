@@ -68,10 +68,14 @@ MonoBehaviour:
   autoCollectReward: 0
   featureUnlockRewards: []
   clientName: Clark
-  jobDescription: Connect the factory access road across the 80-meter channel. Keep
-    the SUV's lane closer to one side to work around the existing equipment, and
+  jobDescription: 'Connect the factory access road across the 80-meter channel. Keep
+    the SUV''s lane closer to one side to work around the existing equipment, and
     carry it safely to the opposite bank. Review why an off-center load can create
     torsion in a real bridge.
+
+
+    Solo test conditions: Expect earthquake shaking.
+    Keep the bridge stable throughout the vehicle crossing.'
   budget: 800000
   liveLoadWeight: 1000
   bridgeSpan: 80
@@ -113,6 +117,8 @@ MonoBehaviour:
       roadway and supports carry it safely from one bank to the other.
     - In a real bridge, that off-center load can also create a <b><#E09500>twisting
       moment</color></b>. Keep the lesson in mind when considering the lane's position.
+    - During the solo vehicle test, expect <b><#E09500>earthquake shaking</color></b>.
+      Check your supports, bracing, and connections.
     - Build around the conditions at this site, {PlayerName}. If you're ready, you
       can take the contract.
   continueOfferDialogue:
@@ -124,6 +130,8 @@ MonoBehaviour:
     - Remember, we can't move the existing equipment to make room for your bridge.
     - Keep the SUV's lane clear, check the roadway connections, and remember why
       an <b><#E09500>off-center load can create torsion</color></b> in a real bridge.
+    - During the solo vehicle test, expect <b><#E09500>earthquake shaking</color></b>.
+      Check your supports, bracing, and connections.
   finishedContractDialogue:
     name: Clark
     sentences:

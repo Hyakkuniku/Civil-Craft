@@ -151,8 +151,15 @@ public static class BuildTutorialWarningValidation
                     Render(camera, screen, path.Replace(".png", "-Resume.png"));
                 }
                 Rect inset = Rect.MinMaxRect(parent.rect.xMin + 30, parent.rect.yMin + 18, parent.rect.xMax - 20, parent.rect.yMax - 30);
+                Vector2 instructionHome = card.anchoredPosition;
+                foreach (Vector2 displacement in new[] { new Vector2(-300, 0), new Vector2(0, -520), new Vector2(170, 240) })
+                {
+                    card.anchoredPosition = instructionHome + displacement;
+                    Validate(warning, warningText, warningPosition, warningSize, card, parent.rect, screen + "/moved instruction");
+                }
+                card.anchoredPosition = instructionHome;
                 Validate(warning, warningText, warningPosition, warningSize, card, inset, screen + "/safe area");
-                report.AppendLine("PASS: " + screen.x + "x" + screen.y + "; warning-only priority preview and resumed actual Wood Pier/long Truss instruction; full glyphs, >=26pt text, safe area, repeats and Undo click-through. Instruction object/message/font/rectangle unchanged. Temp/BuildTutorialWarning/Warning-" + screen.x + "x" + screen.y + ".png");
+                report.AppendLine("PASS: " + screen.x + "x" + screen.y + "; Blueprint Mismatch stays centered for Left/LowCenter/moved instructions and asymmetric safe areas; priority and resumed Wood Pier/long Truss instruction, full glyphs, >=26pt text, repeats and Undo click-through verified. Instruction object/message/font/rectangle unchanged. Temp/BuildTutorialWarning/Warning-" + screen.x + "x" + screen.y + ".png");
             }
             Configure(parent, camera, screens[0], reference, match);
             text.text = messages[0];
@@ -164,6 +171,7 @@ public static class BuildTutorialWarningValidation
             Check(TutorialWarningLayout.ApplyWithin(warning, warningText, warningPosition, warningSize, parent.rect, default),
                 "A missing instruction must still fit the warning by itself.");
             ValidateGlyphs(warning, warningText, parent.rect, "Warning without instruction");
+            Check(Vector2.Distance(Bounds(warning, parent).center, parent.rect.center) < .1f, "Warning without an instruction is not centered.");
             Vector2 validPosition = warning.anchoredPosition, validSize = warning.rect.size;
             string validMessage = warningText.text;
             Check(!TutorialWarningLayout.Apply(null, warningText, warningPosition, warningSize, card) &&
@@ -208,6 +216,10 @@ public static class BuildTutorialWarningValidation
         Check(text.text == content && text.font == font && text.richText == richText, "Warning content/font changed: " + label);
         Canvas.ForceUpdateCanvases();
         ValidateGlyphs(warning, text, safe, "Warning " + label);
+        Rect parentBounds = parent.rect;
+        Rect usable = Rect.MinMaxRect(Mathf.Max(parentBounds.xMin, safe.xMin), Mathf.Max(parentBounds.yMin, safe.yMin),
+            Mathf.Min(parentBounds.xMax, safe.xMax), Mathf.Min(parentBounds.yMax, safe.yMax));
+        Check(Vector2.Distance(Bounds(warning, parent).center, usable.center) < .1f, "Blueprint Mismatch is not centered: " + label);
         Vector2 beforeSize = warning.rect.size, beforePosition = warning.anchoredPosition;
         float beforeFont = text.fontSize;
         Check(TutorialWarningLayout.ApplyWithin(warning, text, position, size, safe, instructionBounds) &&

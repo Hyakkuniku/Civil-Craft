@@ -50,9 +50,14 @@ MonoBehaviour:
   autoCollectReward: 0
   featureUnlockRewards: []
   clientName: Ford
-  jobDescription: Build a safe, direct bridge route for loaded cargo trucks to reach
+  jobDescription: 'Build a safe, direct bridge route for loaded cargo trucks to reach
     the construction site. The rocky section may be used as an extra support point.
     Observe the structural members under stress while testing the crossing.
+
+
+    Solo
+    test conditions: Expect wind gusts. Keep the bridge stable throughout the vehicle
+    crossing.'
   budget: 400000
   liveLoadWeight: 50
   bridgeSpan: 80
@@ -98,6 +103,8 @@ MonoBehaviour:
       stress.
     - <b><#E09500>These trucks carry a lot of weight, so make sure the structure
       can handle them safely</color></b>.
+    - During the solo vehicle test, expect <b><#E09500>wind gusts</color></b>. Check
+      your supports, bracing, and connections.
     - I'll leave the design decisions to you, {PlayerName}. If you're ready, take
       the contract.
   continueOfferDialogue:
@@ -108,6 +115,8 @@ MonoBehaviour:
     sentences:
     - <b><#E09500>Those trucks aren't light. If a part of the bridge is taking too
       much stress, you might need to rethink the supports or structural arrangement</color></b>.
+    - During the solo vehicle test, expect <b><#E09500>wind gusts</color></b>. Check
+      your supports, bracing, and connections.
   finishedContractDialogue:
     name: Ford
     sentences:

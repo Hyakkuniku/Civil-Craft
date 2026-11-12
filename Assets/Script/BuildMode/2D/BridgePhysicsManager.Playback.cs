@@ -144,8 +144,14 @@ public partial class BridgePhysicsManager
 
     private void FinishSimulationPlayback(ContractSO contract, BuildLocation location)
     {
-        if (location == SimulationLocation) EndSimulationPlayback();
+        if (location != SimulationLocation) return;
+        environmentalAudio?.Finish();
+        EndSimulationPlayback();
     }
 
-    private void FailSimulationPlayback(string reason) => EndSimulationPlayback();
+    private void FailSimulationPlayback(string reason)
+    {
+        environmentalAudio?.Finish();
+        EndSimulationPlayback();
+    }
 }
