@@ -15,6 +15,12 @@ MonoBehaviour:
   liveLoadMode: 0
   vehicleTestMode: 0
   liveLoadTests: []
+  environmentalTest:
+    windPressureKPa: 0
+    windFromRight: 0
+    earthquakeStrengthG: 0
+    startDelay: 1
+    duration: 6
   allowVehicleCargo: 0
   minimumLoadedCargo: 0
   cargoUnlockProgressionId: 
@@ -36,9 +42,9 @@ MonoBehaviour:
     Ironhaven's equipment storage area and active work site. Carry the mobile crane
     safely to the opposite side. During testing, examine overloaded or broken members
     and identify where a problem begins before revising the design.
-  budget: 1000000
-  liveLoadWeight: 30000
-  bridgeSpan: 90
+  budget: 2000000
+  liveLoadWeight: 20000
+  bridgeSpan: 150
   twoWayRoad: 1
   twoWayRoadWidth: 16
   allowedMaterials:

@@ -19,7 +19,7 @@ void Check(bool value,string message){checks++;if(!value)throw new Exception(mes
     return(c,l,vehicles.ToArray());
 }
 LiveLoadTestRoster Resolve(BuildLocation l,ContractSO c){Check(LiveLoadTestRoster.TryCreate(l,c,out var r,out var error),error);return r;}
-foreach(int count in new[]{2,3,4}) foreach(var mode in new[]{ContractSO.VehicleTestMode.Sequential,ContractSO.VehicleTestMode.Together})
+foreach(int count in new[]{2,3,4,5}) foreach(var mode in new[]{ContractSO.VehicleTestMode.Sequential,ContractSO.VehicleTestMode.Together})
 {
     var f=Fixture(count,mode);
     // The largest delay is deliberately in the first entry, not the last.
@@ -47,7 +47,7 @@ void Finish(BridgePhysicsManager p,LiveLoadTestSession s,LiveLoadVehicle v)
 {
     s.ReportFinishCandidate(v);s.ReportFinishCandidate(v);v.Progress=1;v.HasReachedEnd=true;v.transform.position=new Vector3(12);p.Factors[v]=0;s.Tick(.01f);
 }
-foreach(int count in new[]{2,3,4}) foreach(var mode in new[]{ContractSO.VehicleTestMode.Sequential,ContractSO.VehicleTestMode.Together})
+foreach(int count in new[]{2,3,4,5}) foreach(var mode in new[]{ContractSO.VehicleTestMode.Sequential,ContractSO.VehicleTestMode.Together})
 {
     LevelFailedManager.Instance=new();LevelCompleteManager.Instance=new();var f=Fixture(count,mode);var p=new BridgePhysicsManager();var roster=Resolve(f.l,f.c);
     var session=new LiveLoadTestSession(p,roster);session.Prepare();session.Prepare();session.BeginDriving();session.BeginDriving();

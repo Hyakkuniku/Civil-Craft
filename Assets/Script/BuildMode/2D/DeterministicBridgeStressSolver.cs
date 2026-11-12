@@ -556,7 +556,7 @@ public static class DeterministicBridgeStressSolver
             }
             else if (loads != null)
             {
-                if (loads.Count > 4) throw new ArgumentException("A live-load test supports at most four vehicles.", nameof(loads));
+                if (loads.Count > 5) throw new ArgumentException("A live-load test supports at most five vehicles.", nameof(loads));
                 for (int index = 0; index < loads.Count; index++)
                 {
                     PointLoad load = loads[index];

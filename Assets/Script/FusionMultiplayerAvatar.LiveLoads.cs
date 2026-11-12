@@ -23,19 +23,19 @@ public sealed partial class FusionMultiplayerAvatar
         public Quaternion Rotation;
     }
     [Networked] private int HostMultiLiveLoadCount { get; set; }
-    [Networked, Capacity(4)] private NetworkArray<MultiLiveLoadPose> HostMultiLiveLoads => default;
-    [Networked, Capacity(128)] private NetworkArray<MultiLiveLoadWheelPose> HostMultiLiveLoadWheels => default;
+    [Networked, Capacity(5)] private NetworkArray<MultiLiveLoadPose> HostMultiLiveLoads => default;
+    [Networked, Capacity(160)] private NetworkArray<MultiLiveLoadWheelPose> HostMultiLiveLoadWheels => default;
     private readonly Dictionary<int, RemoteMultiLiveLoad> remoteMultipleLoads = new Dictionary<int, RemoteMultiLiveLoad>();
     private readonly Dictionary<string, LiveLoadVehicle> remoteMultipleCandidates = new Dictionary<string, LiveLoadVehicle>();
     private int remoteMultipleSceneHandle;
     private float nextMultipleCandidateLookup;
     private BuildLocation publishedMultiLoadLocation;
     private LiveLoadTestRoster publishedMultiLoadRoster;
-    private readonly MultiLiveLoadPose[] preparedMultipleStates = new MultiLiveLoadPose[4];
-    private readonly MultiLiveLoadWheelPose[] preparedMultipleWheels = new MultiLiveLoadWheelPose[128];
-    private readonly string[] receivedMultipleKeys = new string[4];
-    private readonly LiveLoadVehicle[] receivedMultipleVehicles = new LiveLoadVehicle[4];
-    private readonly List<string> remoteMultipleKeys = new List<string>(4);
+    private readonly MultiLiveLoadPose[] preparedMultipleStates = new MultiLiveLoadPose[LiveLoadTestRoster.MaxVehicles];
+    private readonly MultiLiveLoadWheelPose[] preparedMultipleWheels = new MultiLiveLoadWheelPose[160];
+    private readonly string[] receivedMultipleKeys = new string[LiveLoadTestRoster.MaxVehicles];
+    private readonly LiveLoadVehicle[] receivedMultipleVehicles = new LiveLoadVehicle[LiveLoadTestRoster.MaxVehicles];
+    private readonly List<string> remoteMultipleKeys = new List<string>(LiveLoadTestRoster.MaxVehicles);
     private readonly HashSet<string> multiplePublishedKeys = new HashSet<string>(System.StringComparer.Ordinal);
 
     private bool PublishHostMultipleLiveLoads()
@@ -63,7 +63,7 @@ public sealed partial class FusionMultiplayerAvatar
             }
             roster = publishedMultiLoadRoster;
         }
-        if (roster == null || physics == null || physics.gameObject.scene != location.gameObject.scene || roster.Participants.Count < 2 || roster.Participants.Count > 4)
+        if (roster == null || physics == null || physics.gameObject.scene != location.gameObject.scene || roster.Participants.Count < 2 || roster.Participants.Count > LiveLoadTestRoster.MaxVehicles)
         { HostMultiLiveLoadCount = 0; return true; }
         multiplePublishedKeys.Clear();
         for (int index = 0; index < roster.Participants.Count; index++)
@@ -104,7 +104,7 @@ public sealed partial class FusionMultiplayerAvatar
 
     private void UpdateRemoteMultipleLiveLoads()
     {
-        if (HostMultiLiveLoadCount < 1 || HostMultiLiveLoadCount > 4) { RestoreRemoteMultipleLiveLoads(); return; }
+        if (HostMultiLiveLoadCount < 1 || HostMultiLiveLoadCount > LiveLoadTestRoster.MaxVehicles) { RestoreRemoteMultipleLiveLoads(); return; }
         bool unresolved = false;
         for (int index = 0; index < HostMultiLiveLoadCount; index++)
         {
@@ -181,7 +181,7 @@ public sealed partial class FusionMultiplayerAvatar
 
     internal static bool MultipleRosterIdentityChanged(IReadOnlyList<string> current, IReadOnlyList<string> next, int count)
     {
-        if (current == null || next == null || count < 1 || count > 4 || next.Count < count || current.Count != count) return true;
+        if (current == null || next == null || count < 1 || count > LiveLoadTestRoster.MaxVehicles || next.Count < count || current.Count != count) return true;
         for (int index = 0; index < count; index++) if (!string.Equals(current[index], next[index], System.StringComparison.Ordinal)) return true;
         return false;
     }
@@ -218,7 +218,7 @@ public sealed partial class FusionMultiplayerAvatar
     private static string EscapeMultipleLabel(string text) => (text ?? string.Empty).Replace('<', '‹').Replace('>', '›');
 
     private bool HasRemoteMultiplePresentation => Object != null && Object.IsValid && !HasStateAuthority && IsSessionHost &&
-        IsBridgeBuilder && !IsChallengeBusy && HostMultiLiveLoadCount > 0 && HostMultiLiveLoadCount <= 4;
+        IsBridgeBuilder && !IsChallengeBusy && HostMultiLiveLoadCount > 0 && HostMultiLiveLoadCount <= LiveLoadTestRoster.MaxVehicles;
 
     /// <summary>Guest status uses the host's roster; guests never create a local physics session.</summary>
     public bool TryGetRemoteMultiLoadStatus(out string text)

@@ -90,8 +90,9 @@ static class Program
         Check(rejected, "Huge finite weights must fail validation rather than overflow decimal arithmetic.");
         var far = Copy(prepared.Evaluate(new[] { Load(float.MaxValue,1000) }));
         Check(Same(far,Copy(prepared.Evaluate(new[] { Load(10,1000) }))), "Finite out-of-span positions must clamp safely before decimal conversion.");
-        rejected=false; try { prepared.Evaluate(new[] { Load(0,1),Load(0,1),Load(0,1),Load(0,1),Load(0,1) }); } catch (ArgumentException) { rejected=true; }
-        Check(rejected, "The approved four-vehicle bound must be enforced.");
+        Check(!Same(four,Copy(prepared.Evaluate(new[] { Load(-8,500), Load(-2,800), Load(2,1300), Load(8,2000), Load(0,1000) }))), "The fifth vehicle must independently contribute.");
+        rejected=false; try { prepared.Evaluate(new[] { Load(0,1),Load(0,1),Load(0,1),Load(0,1),Load(0,1),Load(0,1) }); } catch (ArgumentException) { rejected=true; }
+        Check(rejected, "The approved five-vehicle bound must be enforced.");
         Console.WriteLine("PASS: " + checks + " combined-load/partial-contact/pier/cable/determinism/topology assertions against the production solver.");
     }
 }

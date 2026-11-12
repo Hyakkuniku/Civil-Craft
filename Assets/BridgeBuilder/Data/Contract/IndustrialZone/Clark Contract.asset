@@ -17,28 +17,34 @@ MonoBehaviour:
   liveLoadTests:
   - entryId: ff97f048ac3848bbbdc85e63b4846c83
     displayName: Cargo Truck 1
-    emptyWeightKg: 15000
+    emptyWeightKg: 10000
     departureDelay: 0
     allowCargo: 0
     minimumLoadedCargo: 0
   - entryId: 5f269b9f5ad3407b98a264493fb1b74b
     displayName: Cargo Truck 2
-    emptyWeightKg: 15000
+    emptyWeightKg: 10000
     departureDelay: 0
     allowCargo: 0
     minimumLoadedCargo: 0
   - entryId: 828d5f6946ec4ff2b777211400803731
     displayName: Cargo Truck 3
-    emptyWeightKg: 15000
+    emptyWeightKg: 10000
     departureDelay: 0
     allowCargo: 0
     minimumLoadedCargo: 0
   - entryId: 86e9189cbcc845559af2fdc21a274fcd
     displayName: Cargo Truck 4
-    emptyWeightKg: 15000
+    emptyWeightKg: 10000
     departureDelay: 0
     allowCargo: 0
     minimumLoadedCargo: 0
+  environmentalTest:
+    windPressureKPa: 0
+    windFromRight: 0
+    earthquakeStrengthG: 0
+    startDelay: 1
+    duration: 6
   allowVehicleCargo: 0
   minimumLoadedCargo: 0
   cargoUnlockProgressionId: 

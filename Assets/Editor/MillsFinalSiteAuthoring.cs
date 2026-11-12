@@ -183,6 +183,11 @@ internal static class MillsFinalSiteAuthoring
     }
     internal static void Validate(Scene scene, BuildLocation location, ContractSO contract, StringBuilder report)
     {
+        if (contract != null && contract.HasMultipleLiveLoads)
+        {
+            MillsFinalTrafficSetup.Check(scene, location, contract, report);
+            return;
+        }
         var vehicle=FindVehicle(scene);var(start,end)=GetRoadAnchors(location);
         Require(location==FindLocation(scene)&&location.name=="workbenchMills3"&&!location.advancesTutorial&&
             contract!=null&&contract.ContractID==ContractId&&vehicle.assignedContract==contract&&vehicle.vehicleMass==contract.liveLoadWeight&&vehicle.physicsManager!=null,

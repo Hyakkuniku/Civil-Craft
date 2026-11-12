@@ -13,8 +13,44 @@ MonoBehaviour:
   m_Name: Clark Offset Road Contract
   m_EditorClassIdentifier: 
   liveLoadMode: 0
-  vehicleTestMode: 0
-  liveLoadTests: []
+  vehicleTestMode: 2
+  liveLoadTests:
+  - entryId: 5040b992705c43d6a102f8dc45a8013b
+    displayName: suvv
+    emptyWeightKg: 1000
+    departureDelay: 1
+    allowCargo: 0
+    minimumLoadedCargo: 0
+  - entryId: 65c5d62d8387493f8a17173d9e819ac9
+    displayName: suvv
+    emptyWeightKg: 1000
+    departureDelay: 2
+    allowCargo: 0
+    minimumLoadedCargo: 0
+  - entryId: 7383593308c94724be571e5a99990286
+    displayName: truck
+    emptyWeightKg: 8000
+    departureDelay: 0
+    allowCargo: 0
+    minimumLoadedCargo: 0
+  - entryId: 196c27a091e14a4ba6ba851516b878ba
+    displayName: 'suvv '
+    emptyWeightKg: 1000
+    departureDelay: 0
+    allowCargo: 0
+    minimumLoadedCargo: 0
+  - entryId: 9d815232451a4fe1a223980a86c2c421
+    displayName: suvv
+    emptyWeightKg: 1000
+    departureDelay: 0
+    allowCargo: 0
+    minimumLoadedCargo: 0
+  environmentalTest:
+    windPressureKPa: 0
+    windFromRight: 0
+    earthquakeStrengthG: 0.1
+    startDelay: 0
+    duration: 10
   allowVehicleCargo: 0
   minimumLoadedCargo: 0
   cargoUnlockProgressionId: 
@@ -36,7 +72,7 @@ MonoBehaviour:
     the SUV's lane closer to one side to work around the existing equipment, and
     carry it safely to the opposite bank. Review why an off-center load can create
     torsion in a real bridge.
-  budget: 600000
+  budget: 800000
   liveLoadWeight: 1000
   bridgeSpan: 80
   twoWayRoad: 1

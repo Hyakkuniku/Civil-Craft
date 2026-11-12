@@ -19,7 +19,7 @@ public sealed class LiveLoadTestParticipantDefinition
 
 public sealed class LiveLoadTestRoster
 {
-    public const int MaxVehicles = 4;
+    public const int MaxVehicles = 5;
     public const float MaxWeightKg = 1000000000f;
     public const float MaxDepartureDelay = 86400f;
     public ContractSO Contract { get; }

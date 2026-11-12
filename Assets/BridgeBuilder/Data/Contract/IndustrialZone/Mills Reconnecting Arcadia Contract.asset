@@ -13,8 +13,38 @@ MonoBehaviour:
   m_Name: Mills Reconnecting Arcadia Contract
   m_EditorClassIdentifier: 
   liveLoadMode: 0
-  vehicleTestMode: 0
-  liveLoadTests: []
+  vehicleTestMode: 2
+  liveLoadTests:
+  - entryId: 3c7aa1e4bba641f1a325a21b05a3b8db
+    displayName: Mills Final Temporary SUV
+    emptyWeightKg: 12000
+    departureDelay: 0
+    allowCargo: 0
+    minimumLoadedCargo: 0
+  - entryId: f23555ae72264274a7904d01cbc1f76f
+    displayName: mills final
+    emptyWeightKg: 15000
+    departureDelay: 3
+    allowCargo: 0
+    minimumLoadedCargo: 0
+  - entryId: f8b37f0f04a04a048f4773ffbfa4f24e
+    displayName: 'mills final '
+    emptyWeightKg: 15000
+    departureDelay: 6
+    allowCargo: 0
+    minimumLoadedCargo: 0
+  - entryId: 2f2bca7deffd4c5faf2a9f4adc0f4063
+    displayName: mills final
+    emptyWeightKg: 15000
+    departureDelay: 9
+    allowCargo: 0
+    minimumLoadedCargo: 0
+  environmentalTest:
+    windPressureKPa: 0
+    windFromRight: 0
+    earthquakeStrengthG: 0
+    startDelay: 1
+    duration: 6
   allowVehicleCargo: 0
   minimumLoadedCargo: 0
   cargoUnlockProgressionId: 

@@ -93,8 +93,8 @@ public sealed class ContractLiveLoadEditor : Editor
         if (!contract.HasMultipleLiveLoads) yield break;
         if (contract.liveLoadMode != ContractSO.LiveLoadMode.Vehicle || contract.winCondition != ContractSO.WinCondition.FinishLine)
             yield return "Multiple live loads require Vehicle mode and Finish Line completion.";
-        if (contract.liveLoadTests == null || contract.liveLoadTests.Count < 2 || contract.liveLoadTests.Count > 4)
-            yield return "Configure between two and four required vehicles.";
+        if (contract.liveLoadTests == null || contract.liveLoadTests.Count < 2 || contract.liveLoadTests.Count > LiveLoadTestRoster.MaxVehicles)
+            yield return "Configure between two and five required vehicles.";
         var ids = new HashSet<string>(StringComparer.Ordinal);
         if (contract.liveLoadTests == null) yield break;
         for (int index = 0; index < contract.liveLoadTests.Count; index++)

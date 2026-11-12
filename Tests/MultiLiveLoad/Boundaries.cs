@@ -40,7 +40,7 @@ public sealed class ContractSO
 }
 public sealed class BuildLocation
 {
-    public ContractSO activeContract;public readonly UnityEngine.GameObject gameObject=new();
+    public ContractSO activeContract, ChallengeContractDefinition;public readonly UnityEngine.GameObject gameObject=new();
     public List<ContractLiveLoadBinding> liveLoadVehicles=new();public List<Point> startingAnchors=new(),endingAnchors=new();
 }
 public sealed class LiveLoadVehicle
