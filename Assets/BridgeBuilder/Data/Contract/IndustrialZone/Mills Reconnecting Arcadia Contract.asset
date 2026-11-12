@@ -67,7 +67,7 @@ MonoBehaviour:
     that meets the site's requirements and carries the required test vehicle safely
     across. Apply the lessons from earlier projects, review the results, and improve
     any weak connections before returning to Mills.
-  budget: 1000000
+  budget: 2000000
   liveLoadWeight: 12000
   bridgeSpan: 150
   twoWayRoad: 1

@@ -13,8 +13,20 @@ MonoBehaviour:
   m_Name: Mills Workers Crossing Contract
   m_EditorClassIdentifier: 
   liveLoadMode: 0
-  vehicleTestMode: 0
-  liveLoadTests: []
+  vehicleTestMode: 2
+  liveLoadTests:
+  - entryId: 92e519cc57d145e283ff98bd51486aa3
+    displayName: Worker Bus 1
+    emptyWeightKg: 12000
+    departureDelay: 0
+    allowCargo: 0
+    minimumLoadedCargo: 0
+  - entryId: 3ebf73f3b93a43fb94d3c5f54cba0700
+    displayName: Worker Bus 2
+    emptyWeightKg: 12000
+    departureDelay: 0
+    allowCargo: 0
+    minimumLoadedCargo: 0
   allowVehicleCargo: 0
   minimumLoadedCargo: 0
   cargoUnlockProgressionId: 
@@ -33,9 +45,9 @@ MonoBehaviour:
   featureUnlockRewards: []
   clientName: Mills
   jobDescription: Build a 100-meter crossing that gives worker buses a direct route
-    into Ironhaven's industrial district. Carry the bus safely from one bank to the
-    other. Consider how the roadway, members, and supports work together, and use
-    the test results to guide any changes.
+    into Ironhaven's industrial district. Carry both buses safely across in opposite
+    directions. Consider how the roadway, members, and supports work together, and
+    use the test results to guide any changes.
   budget: 1000000
   liveLoadWeight: 12000
   bridgeSpan: 100
@@ -72,8 +84,8 @@ MonoBehaviour:
     - Here's the project.
     - Build a crossing that gives worker buses a direct route into the industrial
       district.
-    - We'll use a <b><#E09500>Bus</color></b> to test it. Your design must meet the
-      site's requirements and carry it safely across.
+    - We'll use <b><#E09500>two worker buses</color></b> to test it. Both must cross
+      safely in opposite directions.
     - Consider the span, supports, materials, and how loads travel through the structure.
     - I won't give you a layout to follow. <b><#E09500>Use what you've learned, build
       your design, and let the results guide any changes</color></b>.

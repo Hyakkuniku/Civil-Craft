@@ -18,7 +18,6 @@ internal static class MillsFinalSiteAuthoring
     private const string SiteRoot = "Mills MAIN CONTRACT (2)";
     private const string VehicleRoot = "Mills Final Temporary Vehicle";
     private const string PlacedVehicleRoot = "Mills 3nd Contract Bus (1)";
-    private const string SourceVehicleRoot = "Mills 2nd Contract Bus";
     private const string Action = "Author Mills final temporary vehicle";
     private const string ContractPath = "Assets/BridgeBuilder/Data/Contract/IndustrialZone/Mills Reconnecting Arcadia Contract.asset";
     internal const string ContractId = "MillsReconnectingArcadia";
@@ -99,12 +98,13 @@ internal static class MillsFinalSiteAuthoring
         {
             Require(!All<LiveLoadVehicle>(scene).Any(value => value.assignedContract == contract), "A final-contract live load already exists. Inspect and bind it explicitly instead of creating a duplicate.");
             Require(!All<LiveLoadVehicle>(scene).Any(value => value.transform.position.x > 3100f), "An authored live load exists near the final site. Review the inspection and explicitly select it before adding a temporary clone.");
-            GameObject source = scene.GetRootGameObjects().Single(root => root.name == SourceVehicleRoot);
-            LiveLoadVehicle original = source.GetComponentsInChildren<LiveLoadVehicle>(true).Single();
+            LiveLoadVehicle original = MillsWorkersCrossingSiteAuthoring.FindVehicles(scene)
+                .Single(bus => bus.startPoint != null && bus.endPoint != null && bus.startPoint.position.x < bus.endPoint.position.x);
+            GameObject source = original.transform.root.gameObject;
             Require(original.assignedContract != null && original.assignedContract.ContractID == "MillsWorkersCrossing" &&
                 original.startPoint != null && original.endPoint != null && original.startPoint.IsChildOf(source.transform) && original.endPoint.IsChildOf(source.transform) &&
                 !original.startPoint.IsChildOf(original.transform) && !original.endPoint.IsChildOf(original.transform),
-                "Only clone the exact inspected workers' temporary SUV root with its own independent fixed route.");
+                "Only clone the inspected eastbound Workers' Crossing vehicle with its own independent fixed route.");
             var sourceSite = MillsWorkersCrossingSiteAuthoring.FindLocation(scene);
             var (sourceAnchor, _) = MillsWorkersCrossingSiteAuthoring.GetRoadAnchors(sourceSite);
             GameObject copy = UnityEngine.Object.Instantiate(source); copy.name = VehicleRoot;
@@ -210,7 +210,8 @@ internal static class MillsFinalSiteAuthoring
                 Require(TryGround(scene,new Vector3(point.x,point.y-vehicle.wheelRadius,point.z),out float y)&&Mathf.Abs(y-(point.y-vehicle.wheelRadius))<.12f,
                     $"Final SUV wheel {wheel.name} needs road beneath it at {point:F3}.");
             }
-        Require(MillsWorkersCrossingSiteAuthoring.FindVehicle(scene).assignedContract.ContractID=="MillsWorkersCrossing"&&
+        var workers = MillsWorkersCrossingSiteAuthoring.FindVehicles(scene);
+        Require(workers.Length>0&&workers.All(vehicle=>vehicle.assignedContract?.ContractID=="MillsWorkersCrossing")&&
             MillsHeavyEquipmentSiteAuthoring.FindVehicle(scene).assignedContract.ContractID=="MillsMainContract","Earlier Mills vehicle bindings changed.");
         report.AppendLine($"PASS: final crossing {end.transform.position.x-start.transform.position.x:0.###}m, single {contract.liveLoadWeight:0.##} kg temporary SUV, {vehicle.wheelObjects.Length} wheels, lane offset {vehicle.transform.position.z-start.transform.position.z:0.###}m; route {from:F3} -> {to:F3}; grounded approaches and full-envelope finish.");
         report.AppendLine("TEMPORARY VISUAL: one SUV represents regional traffic. This setup does not claim to implement mixed regional vehicle models or a multiple-vehicle roster.");

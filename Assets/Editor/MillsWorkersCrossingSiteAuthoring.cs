@@ -7,7 +7,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-/// <summary>Scene-only binding of Mills's explicitly placed Workers' Crossing live load.</summary>
+/// <summary>Scene authoring and validation for the Workers' Crossing live loads.</summary>
 internal static class MillsWorkersCrossingSiteAuthoring
 {
     private const string SiteRoot = "Mills MAIN CONTRACT (1)";
@@ -16,7 +16,11 @@ internal static class MillsWorkersCrossingSiteAuthoring
     private const string ContractId = "MillsWorkersCrossing";
 
     internal static BuildLocation FindLocation(Scene scene) => All<BuildLocation>(scene).Single(site => HasAncestor(site.transform, SiteRoot));
-    internal static LiveLoadVehicle FindVehicle(Scene scene) => All<LiveLoadVehicle>(scene).Single(vehicle => HasAncestor(vehicle.transform, VehicleRoot));
+    private static LiveLoadVehicle FindVehicle(Scene scene) => All<LiveLoadVehicle>(scene).Single(vehicle => HasAncestor(vehicle.transform, VehicleRoot));
+    internal static LiveLoadVehicle[] FindVehicles(Scene scene) => All<LiveLoadVehicle>(scene)
+        .Where(vehicle => HasAncestor(vehicle.transform, VehicleRoot) ||
+            vehicle.transform.root.name.Trim().StartsWith("mills worker bus ", StringComparison.OrdinalIgnoreCase))
+        .OrderBy(vehicle => vehicle.transform.root.name, StringComparer.OrdinalIgnoreCase).ToArray();
     internal static (Point start, Point end) GetRoadAnchors(BuildLocation location)
     {
         Point start = location.startingAnchors.Single(point => point != null && point.name == "LeftAnchor");
@@ -30,8 +34,13 @@ internal static class MillsWorkersCrossingSiteAuthoring
     internal static void Inspect(Scene scene, StringBuilder report)
     {
         BuildLocation location = FindLocation(scene); var (start, end) = GetRoadAnchors(location);
-        LiveLoadVehicle vehicle = FindVehicle(scene);
         report.AppendLine($"WORKERS SITE {location.name} position={location.transform.position:F3}, anchors {start.transform.position:F3} -> {end.transform.position:F3}, span={end.transform.position.x - start.transform.position.x:0.###}m, contract={location.activeContract?.name}");
+        foreach (LiveLoadVehicle vehicle in FindVehicles(scene))
+            InspectVehicle(scene, vehicle, start, end, report);
+    }
+
+    private static void InspectVehicle(Scene scene, LiveLoadVehicle vehicle, Point start, Point end, StringBuilder report)
+    {
         report.AppendLine($"LIVE LOAD {vehicle.name} position={vehicle.transform.position:F3}, rotation={vehicle.transform.eulerAngles:F2}, mass={vehicle.vehicleMass}, contract={vehicle.assignedContract?.name}, radius={vehicle.wheelRadius:0.###}, axis={vehicle.spinAxis:F3}");
         report.AppendLine($"  Start={(vehicle.startPoint != null ? vehicle.startPoint.position.ToString("F3") : "unassigned")}, End={(vehicle.endPoint != null ? vehicle.endPoint.position.ToString("F3") : "unassigned")}");
         vehicle.TryGetMultiLoadEnvelopeBounds(out Bounds envelope); report.AppendLine("  Physical envelope: " + envelope);
@@ -123,6 +132,12 @@ internal static class MillsWorkersCrossingSiteAuthoring
 
     internal static void Validate(Scene scene, BuildLocation location, ContractSO contract, StringBuilder report)
     {
+        if (contract.HasMultipleLiveLoads)
+        {
+            ValidateBusRoutes(scene, location, contract, report);
+            return;
+        }
+
         var vehicle = FindVehicle(scene); var (start, end) = GetRoadAnchors(location);
         Require(location == FindLocation(scene) && location.name == "workbenchMills2" && !location.advancesTutorial &&
             vehicle.assignedContract == contract && vehicle.vehicleMass == contract.liveLoadWeight && vehicle.physicsManager != null &&
@@ -151,6 +166,75 @@ internal static class MillsWorkersCrossingSiteAuthoring
         }
         report.AppendLine($"PASS: Workers' Crossing single {contract.liveLoadWeight:0.##} kg live load, {vehicle.wheelObjects.Length} wheels, 100 m site, lane offset {vehicle.transform.position.z - start.transform.position.z:0.###} m, route {from:F2} -> {to:F2}; grounded approaches, full-envelope finish and correct Mills contract.");
         if (IsSUVPlaceholder(vehicle)) report.AppendLine("TEMPORARY VISUAL: the scene's copied SUV represents the Bus test. Replace it with the final bus model/rig before claiming the bus visual is complete.");
+    }
+
+    private static void ValidateBusRoutes(Scene scene, BuildLocation location, ContractSO contract, StringBuilder report)
+    {
+        Require(location == FindLocation(scene) && !location.advancesTutorial, "Use the Workers' Crossing workbench.");
+        var (left, right) = GetRoadAnchors(location);
+        var buses = FindVehicles(scene);
+        Require(buses.Length == 2, "Workers' Crossing needs its two placed buses.");
+
+        ContractSO previous = location.activeContract;
+        LiveLoadTestRoster roster;
+        try
+        {
+            location.activeContract = contract;
+            Require(LiveLoadTestRoster.TryCreate(location, contract, out roster, out string reason), reason);
+        }
+        finally { location.activeContract = previous; }
+
+        Require(roster.Mode == ContractSO.VehicleTestMode.Together && roster.Participants.Count == buses.Length &&
+            buses.All(bus => roster.Participants.Any(entry => entry.Vehicle == bus)),
+            "Bind both worker buses in the same test.");
+        Require(buses.Select(bus => bus.startPoint).Distinct().Count() == 2 &&
+            buses.Select(bus => bus.endPoint).Distinct().Count() == 2, "Each bus needs its own route markers.");
+        Require(buses.Count(bus => bus.startPoint.position.x < bus.endPoint.position.x) == 1, "Start the buses on opposite banks.");
+
+        var lanes = new List<Bounds>();
+        foreach (var entry in roster.Participants)
+        {
+            LiveLoadVehicle bus = entry.Vehicle;
+            bus.GetMultiLoadRoutePoses(out Vector3 from, out Vector3 to);
+            Require(!bus.startPoint.IsChildOf(bus.transform) && !bus.endPoint.IsChildOf(bus.transform) &&
+                Vector3.Distance(from, bus.startPoint.position) < .01f, $"Align the fixed route markers for {entry.DisplayName}.");
+            Require(bus.TryGetMultiLoadStartBounds(out Bounds bounds), "Give each bus a solid chassis.");
+            Require(Mathf.Abs(from.z - to.z) < .01f &&
+                Mathf.Abs(bounds.center.z - left.transform.position.z) + bounds.extents.z < contract.twoWayRoadWidth * .5f,
+                $"Keep {entry.DisplayName} in a straight lane within the deck.");
+            Require(lanes.All(lane => bounds.max.z < lane.min.z || bounds.min.z > lane.max.z), "Keep the bus lanes clear of one another.");
+            lanes.Add(bounds);
+
+            var finish = bus.endPoint.GetComponent<FinishLineTrigger>();
+            var zone = bus.endPoint.GetComponent<BoxCollider>();
+            Require(finish != null && finish.enabled && finish.assignedContract == contract &&
+                zone != null && zone.enabled && zone.isTrigger, $"Bind the {entry.DisplayName} finish trigger to Workers' Crossing.");
+            Require(bus.GetComponentsInChildren<Collider>().Any(collider => collider.enabled && !collider.isTrigger &&
+                !Physics.GetIgnoreLayerCollision(collider.gameObject.layer, zone.gameObject.layer)),
+                $"Allow {entry.DisplayName} to collide with its finish trigger.");
+            Bounds parked = bounds;
+            parked.center += to - from;
+            Require(zone.bounds.Intersects(parked), $"Place the {entry.DisplayName} trigger within reach of the bus at the end marker.");
+            float length = bounds.size.x;
+            Require(to.x > from.x ? zone.bounds.min.x - length > right.transform.position.x :
+                zone.bounds.max.x + length < left.transform.position.x, $"Give {entry.DisplayName} room to clear the bridge before its finish trigger.");
+
+            Require(bus.wheelObjects != null && bus.wheelObjects.Length == 4 && bus.wheelObjects.Distinct().Count() == 4,
+                $"Bind all four wheels for {entry.DisplayName}.");
+            foreach (var wheel in bus.wheelObjects)
+            {
+                var renderer = wheel != null ? wheel.GetComponentInChildren<Renderer>(true) : null;
+                Require(renderer != null && wheel.transform.IsChildOf(bus.transform), $"Bind the physical wheels for {entry.DisplayName}.");
+                float radius = renderer.bounds.extents.y;
+                foreach (var shift in new[] { Vector3.zero, to - from })
+                {
+                    Vector3 contact = renderer.bounds.center + shift - Vector3.up * radius;
+                    Require(TryGround(scene, contact, out float height) && Mathf.Abs(height - contact.y) < .12f,
+                        $"Give {entry.DisplayName} wheel support at {contact:F3}.");
+                }
+            }
+            report.AppendLine($"PASS: {entry.DisplayName}, {entry.WeightKg:0.##} kg, grounded route {from:F3} -> {to:F3} and clear finish.");
+        }
     }
 
     private static bool FindLevelWheelGround(Scene scene, Vector3[] offsets, float x, float z, float referenceY, out float ground)
