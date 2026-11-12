@@ -17,16 +17,22 @@ MonoBehaviour:
   liveLoadTests:
   - entryId: 3b512da454a74c88b2ea8e444225f45c
     displayName: Ford Truck 1
-    emptyWeightKg: 1000
+    emptyWeightKg: 5000
     departureDelay: 0
     allowCargo: 0
     minimumLoadedCargo: 0
   - entryId: 0c2c6c854f754fabbe049d67ad539bae
     displayName: Ford Truck 2
-    emptyWeightKg: 1000
+    emptyWeightKg: 5000
     departureDelay: 0
     allowCargo: 0
     minimumLoadedCargo: 0
+  environmentalTest:
+    windPressureKPa: 1
+    windFromRight: 1
+    earthquakeStrengthG: 0
+    startDelay: 1
+    duration: 30
   allowVehicleCargo: 0
   minimumLoadedCargo: 0
   cargoUnlockProgressionId: 
@@ -47,7 +53,7 @@ MonoBehaviour:
   jobDescription: Build a safe, direct bridge route for loaded cargo trucks to reach
     the construction site. The rocky section may be used as an extra support point.
     Observe the structural members under stress while testing the crossing.
-  budget: 60000000
+  budget: 400000
   liveLoadWeight: 50
   bridgeSpan: 80
   twoWayRoad: 0
