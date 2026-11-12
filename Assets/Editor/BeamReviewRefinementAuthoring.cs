@@ -84,8 +84,9 @@ public static class BeamReviewRefinementAuthoring
             steps = authored.Select(JsonUtility.ToJson).ToArray(), contract = EditorJsonUtility.ToJson(contract)
         };
         string expectedDead = proof.phases[4]
-            .Replace("\"playDialogueOnArrival\":false", "\"playDialogueOnArrival\":true")
-            .Replace("\"reviewAlmanacWhileTravelling\":false", "\"reviewAlmanacWhileTravelling\":true");
+            .Replace("\"playDialogueOnArrival\":true", "\"playDialogueOnArrival\":false")
+            .Replace("\"reviewAlmanacWhileTravelling\":true", "\"reviewAlmanacWhileTravelling\":false")
+            .Replace("\"showExclamationMark\":false", "\"showExclamationMark\":true");
         string[] expectedSteps = remove ? proof.steps.Where((step, index) => index != removedIndex).ToArray() : proof.steps;
         // Run the read-only detached factory/action checks before scene mutation.
         string detached = BeamTutorialBuildValidation.ValidateDetached();
@@ -100,11 +101,12 @@ public static class BeamReviewRefinementAuthoring
                 sequence.tutorialSteps = authored.Where((step, index) => index != removedIndex).ToArray();
                 EditorUtility.SetDirty(sequence);
             }
-            if (!dead.playDialogueOnArrival || !dead.reviewAlmanacWhileTravelling)
+            if (dead.playDialogueOnArrival || dead.reviewAlmanacWhileTravelling || !dead.showExclamationMark)
             {
-                Undo.RecordObject(bhan, "Begin first Almanac entry review on Bhan arrival");
-                dead.playDialogueOnArrival = true;
-                dead.reviewAlmanacWhileTravelling = true;
+                Undo.RecordObject(bhan, "Prompt the player to talk to Bhan for the first Almanac review");
+                dead.playDialogueOnArrival = false;
+                dead.reviewAlmanacWhileTravelling = false;
+                dead.showExclamationMark = true;
                 EditorUtility.SetDirty(bhan);
             }
             Check(sequence.tutorialSteps.Select(JsonUtility.ToJson).SequenceEqual(expectedSteps),
@@ -122,7 +124,7 @@ public static class BeamReviewRefinementAuthoring
         var report = new StringBuilder("Beam Statistics + first-entry Almanac guidance\n");
         report.AppendLine(detached);
         report.AppendLine("PASS: 29 -> 28 logical steps (or already refined); only the pictured closing instruction removed. Existing statistics explanation pages are preserved. Statistics still opens, stays click-through, and retains normal placement cleanup.");
-        report.AppendLine("PASS: first-entry Almanac guidance begins during Bhan's post-turn-in walk once reward/dialogue/Pause panels close. A genuine review while walking counts once; follow-up dialogue waits for arrival. Original HUD arrow/review identity retained.");
+        report.AppendLine("PASS: Bhan shows an exclamation mark when he arrives. Talking to him opens the first-entry review with the original HUD arrow and review identity.");
         report.AppendLine("PASS: all other steps, camera/ghost references, callbacks, phases, destinations, IDs, contract, budget, load and rewards preserved.");
         report.AppendLine("No scenes opened, closed or saved; no player saves accessed. Review and save CanyonCrossing in Unity.");
         Write(report.ToString());
@@ -140,10 +142,10 @@ public static class BeamReviewRefinementAuthoring
         Check(bhan.AuthoredPhases.Select(JsonUtility.ToJson).SequenceEqual(proof.phases), "A checked Bhan phase changed.");
         Check(EditorJsonUtility.ToJson(bhan.AuthoredPhases[3].contract) == proof.contract, "The original contract changed.");
         var phase = bhan.AuthoredPhases[4];
-        Check(phase.playDialogueOnArrival && phase.reviewAlmanacWhileTravelling &&
+        Check(!phase.playDialogueOnArrival && !phase.reviewAlmanacWhileTravelling && phase.showExclamationMark &&
             phase.optionalDialogueSequence[0].reviewStepId == "training-bridge-record-review",
-            "Automatic first-entry review is not configured.");
-        Write("PASS: loaded 28-logical-step tutorial, existing statistics explanation pages and all preserved step/phase/contract data, automatic first-entry guidance and unchanged review identity.\n" +
+            "The first-entry review must wait for the player to talk to Bhan.");
+        Write("PASS: loaded 28-logical-step tutorial, existing statistics explanation pages, and first-entry guidance triggered by talking to Bhan.\n" +
             (scene.isDirty ? "CanyonCrossing still has unsaved edits; save it in Unity.\n" : "PASS: CanyonCrossing is saved and clean.\n"));
     }
 

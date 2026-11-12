@@ -218,7 +218,8 @@ public static class TrussTutorialStoryAuthoring
             Say("From here on, things will be a little different.", "You'll begin working on " + Em("actual construction projects") + ".",
                 "And for your first project, I'll be guiding you one last time.", "Come with me.")
         };
-        follow.playDialogueOnArrival = true;
+        follow.playDialogueOnArrival = false;
+        follow.showExclamationMark = true;
         // Old saves can have recorded the previous short 'Follow me' dialogue.
         // They may still take the new assessment while in this same phase; later
         // City+ saves are never rewound. The existing final callback leaves Follow.
@@ -260,7 +261,8 @@ public static class TrussTutorialStoryAuthoring
         var follow = phases[7];
         if (follow.optionalDialogueSequence.Count != 3 || !follow.optionalDialogueSequence.Select(step => (int)step.stepType).SequenceEqual(new[] { 0, 2, 0 }) ||
             follow.optionalDialogueSequence[1].quiz != Load<QuizData>(Data + "Quized/TrussBridgeQuiz.asset") ||
-            !follow.repeatDialogue || !follow.playDialogueOnArrival || !string.IsNullOrEmpty(follow.unlockFeatureIdAfterDialogue) || follow.showFeatureCollectPopup)
+            !follow.repeatDialogue || follow.playDialogueOnArrival || !follow.showExclamationMark ||
+            !string.IsNullOrEmpty(follow.unlockFeatureIdAfterDialogue) || follow.showFeatureCollectPopup)
             throw new InvalidOperationException("The assessment must precede departure, support legacy Follow saves, and grant no extra reward.");
         BuildLocation location = phases[6].targetBuildLocation;
         if (location.RestartGuidedTutorialOnFailure)

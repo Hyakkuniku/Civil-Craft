@@ -1,4 +1,3 @@
-using System.Collections;
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -51,13 +50,27 @@ public class TutorialNameNPC : Interactable
     private Dialogue fallbackReviewAlmanacDialogue;
     private bool isReviewingWithBhan;
     private AlmanacManager requiredReviewBook;
-    private Coroutine reviewContinuation;
+
+    public bool ShouldShowExclamationMark
+    {
+        get
+        {
+            if (!IsInteractionAvailable || isReviewingWithBhan || isCompletingHouseInteraction || isWalkingAway)
+                return false;
+
+            var player = PlayerDataManager.Instance != null ? PlayerDataManager.Instance.CurrentData : null;
+            return player != null && player.hasAlmanac && !string.IsNullOrWhiteSpace(player.playerName) &&
+                player.playerName != "Guest" && HasCompletedRequiredAlmanacTutorial();
+        }
+    }
 
     private void Awake()
     {
         dialogueManager = FindObjectOfType<DialogueManager>();
         npcAnimator = GetComponentInChildren<Animator>();
         nameUI = FindObjectOfType<NameRegistrationUI>(true); 
+        var marker = GetComponent<NPCExclamationMarker>() ?? gameObject.AddComponent<NPCExclamationMarker>();
+        marker.Initialize(() => this != null && ShouldShowExclamationMark);
     }
 
     private void Update()
@@ -269,36 +282,8 @@ public class TutorialNameNPC : Interactable
 
     private void HandleRequiredReviewClosed()
     {
-        // Only a review requested by this conversation continues automatically.
-        // Opening the Almanac normally elsewhere still requires returning to Bhan.
         DetachRequiredReviewBook();
-        if (isReviewingWithBhan && reviewContinuation == null && isActiveAndEnabled)
-            reviewContinuation = StartCoroutine(ContinueHouseAfterRequiredReview());
-    }
-
-    private IEnumerator ContinueHouseAfterRequiredReview()
-    {
-        // A zero-frame book animation can close before the tutorial's tracked
-        // close-button listener runs. Wait for the complete click dispatch before
-        // checking the mandatory review, and never replace another conversation.
-        yield return null;
-        while (DialogueManager.IsAnyDialogueVisible) yield return null;
-
-        reviewContinuation = null;
-        if (TryConsumeRequiredReviewCompletion()) BeginHouseCompletion();
-    }
-
-    private bool TryConsumeRequiredReviewCompletion()
-    {
-        bool shouldContinue = isReviewingWithBhan && IsInteractionAvailable &&
-            !isCompletingHouseInteraction && !isWalkingAway &&
-            PlayerDataManager.Instance != null && PlayerDataManager.Instance.CurrentData != null &&
-            PlayerDataManager.Instance.CurrentData.hasAlmanac &&
-            !string.IsNullOrWhiteSpace(PlayerDataManager.Instance.CurrentData.playerName) &&
-            PlayerDataManager.Instance.CurrentData.playerName != "Guest" &&
-            HasCompletedRequiredAlmanacTutorial();
         isReviewingWithBhan = false;
-        return shouldContinue;
     }
 
     private void DetachRequiredReviewBook()
@@ -308,13 +293,7 @@ public class TutorialNameNPC : Interactable
         requiredReviewBook = null;
     }
 
-    private void OnDisable()
-    {
-        DetachRequiredReviewBook();
-        if (reviewContinuation != null) StopCoroutine(reviewContinuation);
-        reviewContinuation = null;
-        isReviewingWithBhan = false;
-    }
+    private void OnDisable() => HandleRequiredReviewClosed();
 
     private void CompleteHouseTutorialSafely()
     {

@@ -102,17 +102,18 @@ public static class LiveLoadReviewGuidanceValidation
                 bhan.AuthoredPhases[3].contract.finishedContractDialogue.sentences.Any(line => line.Contains("review your first entry")),
                 "The existing Beam completion/first-entry dialogue is missing.");
             NPCProgressionPhase firstEntryPhase = bhan.AuthoredPhases[4];
-            Check(firstEntryPhase.phaseId == "DeadLoad" && firstEntryPhase.playDialogueOnArrival && firstEntryPhase.reviewAlmanacWhileTravelling &&
+            Check(firstEntryPhase.phaseId == "DeadLoad" && firstEntryPhase.showExclamationMark &&
+                !firstEntryPhase.playDialogueOnArrival && !firstEntryPhase.reviewAlmanacWhileTravelling &&
                 firstEntryPhase.optionalDialogueSequence[0].stepType == NPCOptionalDialogueStep.StepType.AlmanacReview &&
                 firstEntryPhase.optionalDialogueSequence[0].reviewStepId == "training-bridge-record-review",
-                "The first-entry guidance must start during the existing post-turn-in walk, without an extra NPC tap.");
+                "The first-entry guidance must start when the player talks to Bhan at his destination.");
             var firstEntrySteps = (TutorialStep[])factory.Invoke(null, new object[] { book, "first entry" });
             Check(firstEntrySteps[0].usePointer && firstEntrySteps[0].pointerTarget == steps[0].pointerTarget &&
                 firstEntrySteps[0].pointerOffset == steps[0].pointerOffset &&
                 firstEntrySteps[0].pointerRotation == steps[0].pointerRotation &&
                 !firstEntrySteps[0].advanceOnClick && !firstEntrySteps[1].usePointer,
                 "Post-Beam first-entry guidance must use the same tested click-through HUD arrow and real review gate.");
-            report.AppendLine("PASS: Beam first-entry review offers this same HUD arrow during the paid turn-in walk; original dialogue, review ID and open/close authority retained. Follow-up stays arrival-gated.");
+            report.AppendLine("PASS: Beam first-entry review uses the same HUD arrow after the player talks to Bhan. The original dialogue, review ID and book completion gate are intact.");
 
             foreach (Vector2Int resolution in new[] { new Vector2Int(1280, 720), new Vector2Int(1600, 1200) })
             {

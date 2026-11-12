@@ -51,7 +51,7 @@ public static class SilasStoryAuthoring
         BuildLocation firstSite = phases[3].targetBuildLocation, secondSite = phases[8].targetBuildLocation;
         string firstSiteBefore = WithoutSimulationLesson(firstSite), secondSiteBefore = WithoutSimulationLesson(secondSite);
         string firstContractBefore = ProtectedContract(distribution), secondContractBefore = ProtectedContract(transfer);
-        string multiplayerBefore = PhaseWithoutDialogue(phases[10]);
+        string multiplayerBefore = ProtectedMultiplayerPhase(phases[10]);
         var protectedState = CaptureProtectedState(scene, silas, firstSite, secondSite);
         bool initiallyDirty = scene.isDirty;
         string backup = "Temp/SilasStory/" + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff");
@@ -63,6 +63,11 @@ public static class SilasStoryAuthoring
         try
         {
             Undo.RecordObject(silas, "Update Silas dialogue without changing saved phase indices");
+            foreach (var phase in phases)
+            {
+                phase.playDialogueOnArrival = false;
+                phase.showExclamationMark = true;
+            }
             phases[0].phaseDialogue = Dialogue("So, you're the Engineer who's been working with Reed and Vance.",
                 "I'm " + Em("Silas") + ". I handle some of the more demanding projects farther into Canyon Crossing.",
                 "I've seen what your crossings have done for the route.",
@@ -89,7 +94,7 @@ public static class SilasStoryAuthoring
                     "That's why it's important to consider the entire bridge, not just the section where the vehicle is located."),
                 LessonStep(DistributionLesson())
             };
-            phases[2].playDialogueOnArrival = true; phases[2].repeatDialogue = true;
+            phases[2].repeatDialogue = true;
             phases[4].phaseDialogue = Dialogue();
             phases[4].optionalDialogueSequence = new List<NPCOptionalDialogueStep>
             {
@@ -100,7 +105,7 @@ public static class SilasStoryAuthoring
                     "But Canyon Crossing doesn't end there.", "There's one more gap ahead.",
                     "Beyond it is the road leading toward " + Em("Town River") + ".", "Come with me.")
             };
-            phases[4].playDialogueOnArrival = true; phases[4].repeatDialogue = true;
+            phases[4].repeatDialogue = true;
             phases[5].phaseDialogue = Dialogue("Take a look ahead."); phases[5].repeatDialogue = true;
             phases[6].phaseDialogue = Dialogue("That road leads out of " + Em("Canyon Crossing") + ".",
                 Em("Town River") + " is beyond it.",
@@ -129,7 +134,7 @@ public static class SilasStoryAuthoring
                     Em("Every component has a role in carrying and transferring the load safely") + "."),
                 LessonStep(TransferLesson())
             };
-            phases[7].playDialogueOnArrival = true; phases[7].repeatDialogue = true; phases[7].introduceMaterialOnlyOnce = false;
+            phases[7].repeatDialogue = true; phases[7].introduceMaterialOnlyOnce = false;
             phases[9].phaseDialogue = Dialogue();
             phases[9].optionalDialogueSequence = new List<NPCOptionalDialogueStep>
             {
@@ -137,7 +142,7 @@ public static class SilasStoryAuthoring
                 Say("Your route through Canyon Crossing is complete, {PlayerName}. You can head toward " + Em("Town River") + " when you're ready.",
                     "Before you go, there's another way to put those building skills to use: building alongside a friend.")
             };
-            phases[9].playDialogueOnArrival = true; phases[9].repeatDialogue = true;
+            phases[9].repeatDialogue = true;
             // Retain this phase's original feature, icon, Collect popup and callbacks exactly.
             phases[10].phaseDialogue = Dialogue("The community is connected and the eastern passage is open, {PlayerName}. You've learned how a bridge carries its loads.",
                 "Now you can put those skills to use alongside a friend. I'm unlocking " + Em("Multiplayer") + " for you!",
@@ -190,7 +195,7 @@ public static class SilasStoryAuthoring
             { PrefabUtility.RecordPrefabInstancePropertyModifications(site); EditorUtility.SetDirty(site); }
             foreach (AlmanacLessonTab tab in All<AlmanacLessonTab>(scene)) { RegisterLesson(tab, DistributionLesson()); RegisterLesson(tab, TransferLesson()); }
             ValidateScene(scene, silas);
-            Require(PhaseWithoutDialogue(phases[10]) == multiplayerBefore, "Multiplayer feature/Collect configuration changed. Update rolled back.");
+            Require(ProtectedMultiplayerPhase(phases[10]) == multiplayerBefore, "Multiplayer feature/Collect configuration changed. Update rolled back.");
             Require(ProtectedContract(distribution) == firstContractBefore && ProtectedContract(transfer) == secondContractBefore,
                 "A main contract changed outside wording and the confirmed span. Update rolled back.");
             Require(WithoutSimulationLesson(firstSite) == firstSiteBefore && WithoutSimulationLesson(secondSite) == secondSiteBefore,
@@ -276,17 +281,19 @@ public static class SilasStoryAuthoring
     private static void ValidateScene(Scene scene, NPCProgressionManager silas)
     {
         Preflight(scene, silas); var phases = silas.AuthoredPhases;
-        Require(StepTypes(phases[2], 0, 0, 3) && phases[2].optionalDialogueSequence[2].lesson == DistributionLesson() && phases[2].playDialogueOnArrival && phases[2].repeatDialogue,
+        Require(phases.All(phase => !phase.playDialogueOnArrival && phase.showExclamationMark),
+            "Silas must prompt the player to talk at every story phase.");
+        Require(StepTypes(phases[2], 0, 0, 3) && phases[2].optionalDialogueSequence[2].lesson == DistributionLesson() && phases[2].repeatDialogue,
             "Load Distribution must finish before the first main briefing.");
         Require(StepTypes(phases[4], 3, 0, 2, 0) && phases[4].optionalDialogueSequence[0].lesson == DistributionLesson() &&
-            IsQuiz(phases[4].optionalDialogueSequence[2], DistributionQuiz(), DistributionQuizStepId) && phases[4].playDialogueOnArrival && phases[4].repeatDialogue,
+            IsQuiz(phases[4].optionalDialogueSequence[2], DistributionQuiz(), DistributionQuizStepId) && phases[4].repeatDialogue,
             "The first review/assessment must finish before the second main introduction.");
         Require(StepTypes(phases[7], 0, 1, 0, 0, 3) && phases[7].optionalDialogueSequence[1].material == Rope() &&
             phases[7].optionalDialogueSequence[1].materialButtonLabel == "CONTINUE" && phases[7].optionalDialogueSequence[4].lesson == TransferLesson() &&
-            phases[7].playDialogueOnArrival && phases[7].repeatDialogue && !phases[7].introduceMaterialOnlyOnce,
+            phases[7].repeatDialogue && !phases[7].introduceMaterialOnlyOnce,
             "Rope dialogue/unlock and the Load Transfer lesson must finish before the second main briefing.");
         Require(StepTypes(phases[9], 3, 0, 2, 0) && phases[9].optionalDialogueSequence[0].lesson == TransferLesson() &&
-            IsQuiz(phases[9].optionalDialogueSequence[2], TransferQuiz(), TransferQuizStepId) && phases[9].playDialogueOnArrival && phases[9].repeatDialogue,
+            IsQuiz(phases[9].optionalDialogueSequence[2], TransferQuiz(), TransferQuizStepId) && phases[9].repeatDialogue,
             "The second review/assessment must finish before the finale and multiplayer introduction.");
         Require(DistributionContract().bridgeSpan == 100 && TransferContract().bridgeSpan == 100 &&
             DistributionContract().offerDialogue.sentences.Length == 9 && DistributionContract().reminderDialogue.sentences.Length == 3 && DistributionContract().finishedContractDialogue.sentences.Length == 6 &&
@@ -320,7 +327,10 @@ public static class SilasStoryAuthoring
         foreach (Component item in items) if (item != silas && item != first && item != second && !result.ContainsKey(item)) result[item] = EditorJsonUtility.ToJson(item);
         return result;
     }
-    private static string PhaseWithoutDialogue(NPCProgressionPhase phase) => JsonUtility.ToJson(phase).Replace("\"phaseDialogue\":" + JsonUtility.ToJson(phase.phaseDialogue), "\"phaseDialogue\":null");
+    private static string ProtectedMultiplayerPhase(NPCProgressionPhase phase) => JsonUtility.ToJson(phase)
+        .Replace("\"phaseDialogue\":" + JsonUtility.ToJson(phase.phaseDialogue), "\"phaseDialogue\":null")
+        .Replace("\"playDialogueOnArrival\":true", "\"playDialogueOnArrival\":false")
+        .Replace("\"showExclamationMark\":false", "\"showExclamationMark\":true");
     private static string ProtectedContract(ContractSO contract)
     {
         ContractSO copy = UnityEngine.Object.Instantiate(contract); copy.name = contract.name; copy.bridgeSpan = 100;

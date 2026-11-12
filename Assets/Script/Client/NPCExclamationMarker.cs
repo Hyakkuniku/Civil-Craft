@@ -5,7 +5,7 @@ using UnityEngine.SceneManagement;
 [DisallowMultipleComponent, DefaultExecutionOrder(150)]
 public sealed class NPCExclamationMarker : MonoBehaviour
 {
-    private NPCProgressionManager owner;
+    private System.Func<bool> shouldShow;
     private GameObject canvasObject;
     private Canvas canvas;
     private RectTransform badge;
@@ -15,16 +15,19 @@ public sealed class NPCExclamationMarker : MonoBehaviour
     private Camera worldCamera;
     private float nextCameraSearch;
 
-    public void Initialize(NPCProgressionManager progression)
+    public void Initialize(NPCProgressionManager progression) =>
+        Initialize(() => progression != null && progression.ShouldShowExclamationMark);
+
+    internal void Initialize(System.Func<bool> shouldShow)
     {
-        owner = progression;
+        this.shouldShow = shouldShow;
         renderers = GetComponentsInChildren<Renderer>(true);
         nextHeadCheck = nextCameraSearch = 0f;
     }
 
     private void LateUpdate()
     {
-        bool visible = owner != null && owner.ShouldShowExclamationMark &&
+        bool visible = shouldShow != null && shouldShow() &&
             (UIPanelCoordinator.Instance == null || !UIPanelCoordinator.Instance.HasOpenPanel) &&
             !DialogueManager.IsAnyDialogueVisible &&
             (PauseManager.Instance == null || !PauseManager.Instance.isPaused) &&

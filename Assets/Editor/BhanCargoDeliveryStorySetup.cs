@@ -132,7 +132,8 @@ public static class BhanCargoDeliveryStorySetup
                 target.objectReferenceValue = destination;
                 changed = true;
             }
-            changed |= SetBool(liveLoad, "playDialogueOnArrival", true);
+            changed |= SetBool(liveLoad, "playDialogueOnArrival", false);
+            changed |= SetBool(liveLoad, "showExclamationMark", true);
             changed |= SetBool(liveLoad, "repeatDialogue", false);
             SerializedProperty move = liveLoad.FindPropertyRelative("onDialogueFinishedPhaseMove");
             if (move != null)

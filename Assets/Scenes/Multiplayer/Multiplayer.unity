@@ -144981,7 +144981,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
-    showExclamationMark: 0
+    showExclamationMark: 1
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -144998,7 +144998,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Silas
-    playDialogueOnArrival: 1
+    playDialogueOnArrival: 0
     reviewAlmanacWhileTravelling: 0
     repeatDialogue: 0
     enableIdleRoaming: 0
@@ -145041,7 +145041,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
-    showExclamationMark: 0
+    showExclamationMark: 1
     contract: {fileID: 11400000, guid: 9de353268b31b6d4aac7964bf7b8676c, type: 2}
     targetBuildLocation: {fileID: 4247076027259698586}
     linkedCargo: {fileID: 0}
@@ -145052,7 +145052,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Silas
-    playDialogueOnArrival: 1
+    playDialogueOnArrival: 0
     reviewAlmanacWhileTravelling: 0
     repeatDialogue: 0
     enableIdleRoaming: 0
@@ -145223,7 +145223,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
-    showExclamationMark: 0
+    showExclamationMark: 1
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -145247,7 +145247,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Silas
-    playDialogueOnArrival: 1
+    playDialogueOnArrival: 0
     reviewAlmanacWhileTravelling: 0
     repeatDialogue: 0
     enableIdleRoaming: 0
@@ -145290,7 +145290,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
-    showExclamationMark: 0
+    showExclamationMark: 1
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -145336,7 +145336,7 @@ MonoBehaviour:
       referenceImage: {fileID: 0}
     runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Silas
-    playDialogueOnArrival: 1
+    playDialogueOnArrival: 0
     reviewAlmanacWhileTravelling: 0
     repeatDialogue: 0
     enableIdleRoaming: 0
@@ -145379,7 +145379,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
-    showExclamationMark: 0
+    showExclamationMark: 1
     contract: {fileID: 11400000, guid: 511cf4b78fcb2ee4aa7169008e424b48, type: 2}
     targetBuildLocation: {fileID: 4247076026978126500}
     linkedCargo: {fileID: 0}
@@ -145390,7 +145390,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Silas
-    playDialogueOnArrival: 1
+    playDialogueOnArrival: 0
     reviewAlmanacWhileTravelling: 0
     repeatDialogue: 0
     enableIdleRoaming: 0
@@ -297793,7 +297793,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
-    showExclamationMark: 0
+    showExclamationMark: 1
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -297805,7 +297805,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Professor Bhan
-    playDialogueOnArrival: 1
+    playDialogueOnArrival: 0
     reviewAlmanacWhileTravelling: 0
     repeatDialogue: 1
     enableIdleRoaming: 0
@@ -298307,7 +298307,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
-    showExclamationMark: 0
+    showExclamationMark: 1
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -298319,7 +298319,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Professor Bhan
-    playDialogueOnArrival: 1
+    playDialogueOnArrival: 0
     reviewAlmanacWhileTravelling: 0
     repeatDialogue: 0
     enableIdleRoaming: 0
@@ -298546,7 +298546,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
-    showExclamationMark: 0
+    showExclamationMark: 1
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -298558,7 +298558,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Professor Bhan
-    playDialogueOnArrival: 1
+    playDialogueOnArrival: 0
     reviewAlmanacWhileTravelling: 0
     repeatDialogue: 1
     enableIdleRoaming: 0
@@ -298711,7 +298711,7 @@ MonoBehaviour:
     travelWaypoints: []
     useGroundedWaypoints: 0
     running: 0
-    showExclamationMark: 0
+    showExclamationMark: 1
     contract: {fileID: 0}
     targetBuildLocation: {fileID: 0}
     linkedCargo: {fileID: 0}
@@ -298747,7 +298747,7 @@ MonoBehaviour:
     optionalDialogueSequence: []
     runOptionalSequenceBeforeTurnIn: 0
     dialoguePrompt: Talk to Professor Bhan
-    playDialogueOnArrival: 1
+    playDialogueOnArrival: 0
     reviewAlmanacWhileTravelling: 0
     repeatDialogue: 0
     enableIdleRoaming: 0

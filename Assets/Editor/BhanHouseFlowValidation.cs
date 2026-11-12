@@ -145,64 +145,61 @@ public static class BhanHouseFlowValidation
             TutorialNameNPC npc = npcOwner.AddComponent<TutorialNameNPC>();
             npcOwner.SetActive(true); // Its Awake only discovers references; no interaction is dispatched.
             Check(npc.IsInteractionAvailable, "The isolated NPC must be available before eligibility checks.");
-            MethodInfo consume = Method(typeof(TutorialNameNPC), "TryConsumeRequiredReviewCompletion", PrivateInstance);
-            Check(consume.ReturnType == typeof(bool) && consume.GetParameters().Length == 0,
-                "The required-review eligibility seam has changed.");
-
-            Check(!Consume(npc, consume), "A normal Almanac opening must not arm Bhan's automatic continuation.");
-            Arm(npc);
-            Check(Consume(npc, consume) && !Consume(npc, consume), "Bhan's completed mandatory review must continue exactly once.");
-
-            currentData.SetValue(manager, ReviewData(false));
-            Arm(npc);
-            Check(!Consume(npc, consume), "An unfinished Almanac review must not start the show/reward phase.");
-            currentData.SetValue(manager, ReviewData(true));
-            Check(!Consume(npc, consume), "A rejected review must consume its pending flag.");
+            MethodInfo closed = Method(typeof(TutorialNameNPC), "HandleRequiredReviewClosed", PrivateInstance);
+            foreach (bool completed in new[] { false, true })
+            {
+                currentData.SetValue(manager, ReviewData(completed));
+                Set(npc, "isReviewingWithBhan", true);
+                Check(!npc.ShouldShowExclamationMark, "Hide Bhan's marker while his review is open.");
+                closed.Invoke(npc, null);
+                Check(!(bool)Get(npc, "isReviewingWithBhan") && !(bool)Get(npc, "isCompletingHouseInteraction"),
+                    "Closing the Almanac must return control to the player.");
+                Check(npc.ShouldShowExclamationMark == completed, "Show Bhan's marker once the mandatory review is complete.");
+            }
 
             instance.SetValue(null, null);
-            Arm(npc); Check(!Consume(npc, consume), "A missing player manager must not continue the house flow.");
+            Check(!npc.ShouldShowExclamationMark, "Hide the marker without a player manager.");
             instance.SetValue(null, manager);
             currentData.SetValue(manager, null);
-            Arm(npc); Check(!Consume(npc, consume), "Missing player data must not continue the house flow.");
+            Check(!npc.ShouldShowExclamationMark, "Hide the marker without player data.");
             PlayerData data = ReviewData(true);
             currentData.SetValue(manager, data);
             data.hasAlmanac = false;
-            Arm(npc); Check(!Consume(npc, consume), "A player without the Almanac must not continue the house flow.");
+            Check(!npc.ShouldShowExclamationMark, "Hide the marker until the player owns the Almanac.");
             data.hasAlmanac = true;
             foreach (string name in new[] { "Guest", "", "   ", null })
             {
                 data.playerName = name;
-                Arm(npc); Check(!Consume(npc, consume), "An unregistered player must not continue the house flow.");
+                Check(!npc.ShouldShowExclamationMark, "Hide the marker for an unregistered player.");
             }
             data.playerName = "Fixture Engineer";
             npc.enabled = false;
-            Arm(npc); Check(!Consume(npc, consume), "A disabled NPC must not continue the house flow.");
+            Check(!npc.ShouldShowExclamationMark, "Hide the marker on a disabled NPC.");
             npc.enabled = true;
             npcOwner.SetActive(false);
-            Arm(npc); Check(!Consume(npc, consume), "An inactive NPC must not continue the house flow.");
+            Check(!npc.ShouldShowExclamationMark, "Hide the marker on an inactive NPC.");
             npcOwner.SetActive(true);
             foreach (string busy in new[] { "isCompletingHouseInteraction", "isWalkingAway" })
             {
                 Set(npc, busy, true);
-                Arm(npc); Check(!Consume(npc, consume), "An NPC already completing/leaving must not repeat house completion.");
+                Check(!npc.ShouldShowExclamationMark, "Hide the marker during house completion and departure.");
                 Set(npc, busy, false);
             }
-            Check(!Consume(npc, consume), "An unrelated later interaction must not inherit a rejected pending review.");
-            report.AppendLine("PASS: Bhan-requested completed review is eligible once; normal opening, incomplete review, missing data/book/name, disabled/inactive NPC and completing/leaving states cannot auto-continue.");
+            Check(npc.ShouldShowExclamationMark, "A returning player who already reviewed the book can talk to Bhan.");
+            report.AppendLine("PASS: Closing the Almanac ends the review and shows Bhan's exclamation mark when the player is ready to talk.");
 
             bookOwner = Fixture("Bhan Flow Book (Temporary, Inactive)", preview);
             AlmanacManager book = bookOwner.AddComponent<AlmanacManager>();
             book.enabled = false;
-            MethodInfo closed = Method(typeof(TutorialNameNPC), "HandleRequiredReviewClosed", PrivateInstance);
             var callback = (Action)Delegate.CreateDelegate(typeof(Action), npc, closed);
             Action unrelated = () => { };
             book.OnAlmanacClosed += unrelated;
             book.OnAlmanacClosed += callback;
             Set(npc, "requiredReviewBook", book);
-            Arm(npc);
+            Set(npc, "isReviewingWithBhan", true);
             Method(typeof(TutorialNameNPC), "OnDisable", PrivateInstance).Invoke(npc, null);
-            Check(Get(npc, "requiredReviewBook") == null && !(bool)Get(npc, "isReviewingWithBhan") &&
-                Get(npc, "reviewContinuation") == null, "Disabling Bhan must detach and disarm the required review.");
+            Check(Get(npc, "requiredReviewBook") == null && !(bool)Get(npc, "isReviewingWithBhan"),
+                "Disabling Bhan must detach and disarm the required review.");
             var listeners = (Action)Field(typeof(AlmanacManager), "OnAlmanacClosed", PrivateInstance).GetValue(book);
             Check(listeners != null && listeners.GetInvocationList().Length == 1 && listeners == unrelated,
                 "Bhan's cleanup must remove only its own Almanac close callback.");
@@ -436,13 +433,6 @@ public static class BhanHouseFlowValidation
         owner.SetActive(false);
         SceneManager.MoveGameObjectToScene(owner, preview);
         return owner;
-    }
-    private static void Arm(TutorialNameNPC npc) => Set(npc, "isReviewingWithBhan", true);
-    private static bool Consume(TutorialNameNPC npc, MethodInfo consume)
-    {
-        bool eligible = (bool)consume.Invoke(npc, null);
-        Check(!(bool)Get(npc, "isReviewingWithBhan"), "Eligibility evaluation must consume its pending flag.");
-        return eligible;
     }
     private static object Get(object target, string name) => Field(target.GetType(), name, PrivateInstance).GetValue(target);
     private static void Set(object target, string name, object value) => Field(target.GetType(), name, PrivateInstance).SetValue(target, value);

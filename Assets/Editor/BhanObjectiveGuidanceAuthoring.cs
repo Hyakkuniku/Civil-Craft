@@ -56,7 +56,7 @@ public static class BhanObjectiveGuidanceAuthoring
         "Build Tutorial 2", "Follow", "City", "Shopkeeper", "Go to Shopkeeper", "CollectMap", "Farewell",
         "Find Reed", "Retired", "Despawned"
     };
-    private static readonly HashSet<int> TalkPhases = new HashSet<int> { 0, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12 };
+    private static readonly HashSet<int> TalkPhases = new HashSet<int> { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 };
 
     static BhanObjectiveGuidanceAuthoring() { EditorApplication.update += Poll; }
     private static void Poll()
@@ -133,7 +133,7 @@ public static class BhanObjectiveGuidanceAuthoring
             ValidateReview(bhan.gameObject, "Review your first bridge record");
             ValidateReview(vehicle.gameObject, "Review the Live Load lesson");
             ConfigureCatalog(verify, report);
-            report.AppendLine("ATTENTION: Bhan conversation/offer/turn-in phases enabled; inspection, shopkeeper errand, Find Reed and terminal phases off. Reed's initial meeting enabled on this scene instance only.");
+            report.AppendLine("ATTENTION: Bhan's conversations, offers and turn-ins show an exclamation mark when interaction is needed. Reed's initial meeting also shows one.");
             report.AppendLine("RUNTIME OBJECTIVES: Live Load lesson review and first completed bridge record review enabled.");
             if (!verify)
             {

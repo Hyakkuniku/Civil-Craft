@@ -250,11 +250,9 @@ public static class BeamTutorialStoryAuthoring
         dead.unlockFeatureIdAfterDialogue = string.Empty;
         dead.showFeatureCollectPopup = false;
         dead.repeatDialogue = false;
-        // The turn-in already asks for the first Almanac entry. Begin its
-        // existing review on arrival instead of requiring another NPC tap.
-        // The arrival runner still waits for rewards/dialogue/Pause to close.
-        dead.playDialogueOnArrival = true;
-        dead.reviewAlmanacWhileTravelling = true;
+        dead.playDialogueOnArrival = false;
+        dead.reviewAlmanacWhileTravelling = false;
+        dead.showExclamationMark = true;
         // The previous event moved first and opened the lesson second. The ordered
         // reader and assessment now own that wait; phase travel happens last.
         dead.onDialogueFinished = new UnityEvent();
@@ -325,8 +323,9 @@ public static class BeamTutorialStoryAuthoring
                     dead[5].quiz.name + ", assessment=" + dead[5].quiz.assessmentMode + ", questions=" + dead[5].quiz.QuestionCount +
                     ", valid=" + dead[5].quiz.TryValidate(out string detail) + ", error=" + detail : "missing"));
         if (!string.IsNullOrWhiteSpace(Phase(phases, "DeadLoad").unlockFeatureIdAfterDialogue) ||
-            !Phase(phases, "DeadLoad").playDialogueOnArrival ||
-            !Phase(phases, "DeadLoad").reviewAlmanacWhileTravelling ||
+            Phase(phases, "DeadLoad").playDialogueOnArrival ||
+            Phase(phases, "DeadLoad").reviewAlmanacWhileTravelling ||
+            !Phase(phases, "DeadLoad").showExclamationMark ||
             Phase(phases, "DeadLoad").onDialogueFinishedPhaseMove.phaseId != "Beam")
             throw new InvalidOperationException("Assessment must have no feature reward and continue to the existing Beam phase only after submission.");
         ContractSO contract = Phase(phases, "Give Contract Build Location 1").contract;
