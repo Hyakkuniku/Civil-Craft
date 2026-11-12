@@ -1,5 +1,7 @@
 using Fusion;
 using UnityEditor;
+using UnityEditor.Build;
+using UnityEditor.Build.Reporting;
 using UnityEngine;
 
 /// <summary>One-time Unity-authored prefab creation for the Fusion avatar proxy.</summary>
@@ -19,6 +21,24 @@ public static class FusionAvatarPrefabAuthoring
     {
         if (EditorApplication.isPlayingOrWillChangePlaymode) return;
         if (AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath) == null) CreatePrefab();
+    }
+
+    [MenuItem("Civil Craft/Multiplayer/Validate Fusion Avatar Capacity")]
+    public static void ValidateCapacity()
+    {
+        NetworkObject prefab = AssetDatabase.LoadAssetAtPath<NetworkObject>(PrefabPath);
+        if (prefab == null || !prefab.TryGetComponent(out FusionMultiplayerAvatar avatar) ||
+            prefab.NetworkedBehaviours == null ||
+            !System.Array.Exists(prefab.NetworkedBehaviours, behaviour => behaviour == avatar))
+            throw new BuildFailedException("The Fusion avatar prefab is missing its baked network behaviour.");
+
+        int stateBytes = NetworkObject.GetWordCount(prefab) * sizeof(int);
+        int pageBytes = 1 << (int)NetworkProjectConfig.Global.Heap.PageShift;
+        if (stateBytes > pageBytes)
+            throw new BuildFailedException($"The Fusion avatar needs {stateBytes:N0} bytes, but a heap page holds " +
+                $"{pageBytes:N0} bytes. Players can join a room but their avatars cannot spawn.");
+
+        Debug.Log($"[Fusion] Avatar state fits the heap page ({stateBytes:N0} of {pageBytes:N0} bytes).", prefab);
     }
 
     [MenuItem("Civil Craft/Multiplayer/Create Fusion Avatar Prefab")]
@@ -47,4 +67,11 @@ public static class FusionAvatarPrefabAuthoring
             Object.DestroyImmediate(root);
         }
     }
+}
+
+public sealed class FusionAvatarCapacityBuildCheck : IPreprocessBuildWithReport
+{
+    public int callbackOrder => 0;
+
+    public void OnPreprocessBuild(BuildReport report) => FusionAvatarPrefabAuthoring.ValidateCapacity();
 }

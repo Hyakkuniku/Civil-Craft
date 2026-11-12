@@ -1375,11 +1375,15 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
 
     private void FindScenePlayer()
     {
-        PlayerMotor motor = FindObjectOfType<PlayerMotor>(true);
-        if (motor == null) return;
-        BindSceneMotor(motor);
-        sceneCosmetics = motor.GetComponent<PlayerCosmetics>();
-        sceneAnimator = motor.playerAnimator;
+        Scene activeScene = SceneManager.GetActiveScene();
+        foreach (PlayerMotor motor in FindObjectsOfType<PlayerMotor>())
+        {
+            if (motor.gameObject.scene != activeScene || !motor.CompareTag("Player")) continue;
+            BindSceneMotor(motor);
+            sceneCosmetics = motor.GetComponent<PlayerCosmetics>();
+            sceneAnimator = motor.playerAnimator;
+            break;
+        }
     }
 
     private void BindSceneMotor(PlayerMotor motor)
@@ -1500,15 +1504,25 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
         Debug.LogWarning("[Fusion] No safe second spawn found; players will begin together.", this);
     }
 
+    private Transform FindScenePlayerVisual()
+    {
+        if (sceneMotor == null) return null;
+        Transform player = sceneMotor.transform;
+        Animator animator = sceneMotor.playerAnimator;
+        if (animator != null && animator.transform != player && animator.transform.IsChildOf(player))
+        {
+            Transform model = animator.transform;
+            while (model.parent != player) model = model.parent;
+            return model;
+        }
+        return player.Find("NewCharacterModel");
+    }
+
     private void CreateRemoteVisual()
     {
         if (sceneMotor == null || sceneCosmetics == null) return;
-        Transform sourceVisual = sceneMotor.transform.Find("NewCharacterModel");
-        if (sourceVisual == null)
-        {
-            Debug.LogError("[Fusion] Scene Player has no NewCharacterModel to mirror.", this);
-            return;
-        }
+        Transform sourceVisual = FindScenePlayerVisual();
+        if (sourceVisual == null) return;
 
         visualContainer = new GameObject("Remote Player Appearance");
         visualContainer.transform.SetParent(transform, false);
@@ -1534,6 +1548,8 @@ public sealed partial class FusionMultiplayerAvatar : NetworkBehaviour
         remoteHats = CopyHats(sceneCosmetics.hats, cloneMap);
         remoteAnimator = visual.GetComponentInChildren<Animator>(true);
         lastObservedJumpSequence = JumpSequence;
+        // Local camera/UI may be hiding its own model when the guest joins.
+        visual.SetActive(true);
         visualContainer.SetActive(true);
         lastAppliedAppearance = null;
     }

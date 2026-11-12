@@ -361,7 +361,7 @@ public sealed partial class FusionMultiplayerAvatar
     /// <summary>A visual-only wardrobe preview. Never clones the gameplay Player or its controller.</summary>
     public GameObject CreateLobbyVisual(Transform parent)
     {
-        Transform source = sceneMotor != null ? sceneMotor.transform.Find("NewCharacterModel") : null;
+        Transform source = FindScenePlayerVisual();
         if (source == null || sceneCosmetics == null) return null;
         GameObject clone = Instantiate(source.gameObject, parent, false);
         clone.SetActive(false);

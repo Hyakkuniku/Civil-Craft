@@ -16,8 +16,10 @@ public sealed partial class FusionMultiplayerAvatar
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetChatListeners() { ChatMessageReceived = null; }
 
-    public bool CanSendChat => Object != null && Object.IsValid && HasInputAuthority &&
-        Runner != null && Runner.IsRunning && Time.unscaledTime >= nextLocalChatTime &&
+    public bool CanSendChat => IsChatReady && Time.unscaledTime >= nextLocalChatTime;
+
+    internal bool IsChatReady => Object != null && Object.IsValid && HasInputAuthority &&
+        Runner != null && Runner.IsRunning &&
         FusionConnectionManager.Instance != null && FusionConnectionManager.Instance.Runner == Runner &&
         FusionConnectionManager.Instance.IsHostWorldSession && !FusionConnectionManager.Instance.IsNetworkSceneLoading &&
         FusionConnectionManager.Instance.ConnectedPlayerCount > 1 && FindHost(Runner) != null;
@@ -62,6 +64,7 @@ public sealed partial class FusionMultiplayerAvatar
     {
         if (!IsSessionHost || sequence <= lastDeliveredChatSequence) return;
         lastDeliveredChatSequence = sequence;
+        ChatMessageReceived?.Invoke(Runner, sequence, name, message);
         // Play at the deduplicated delivery point, even while chat is closed.
         // The authenticated PlayerRef distinguishes peers with identical names.
         FusionConnectionManager connection = FusionConnectionManager.Instance;
@@ -79,7 +82,6 @@ public sealed partial class FusionMultiplayerAvatar
             if (bubble == null) bubble = avatar.gameObject.AddComponent<PlayerChatBubble>();
             bubble.Show(avatar, message);
         }
-        ChatMessageReceived?.Invoke(Runner, sequence, name, message);
     }
 
     public bool TryGetChatAnchor(out Transform anchor)

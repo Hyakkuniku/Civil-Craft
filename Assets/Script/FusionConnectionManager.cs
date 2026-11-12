@@ -210,7 +210,11 @@ public sealed class FusionConnectionManager : MonoBehaviour
             if (!result.Ok)
                 throw new InvalidOperationException($"Fusion {args.GameMode} failed: {result.ShutdownReason}. {result.ErrorMessage}");
 
-            if (args.GameMode == GameMode.Host) HostJoinCode = args.SessionName;
+            if (args.GameMode == GameMode.Host)
+            {
+                HostJoinCode = args.SessionName;
+                runner.GetComponent<FusionSessionCallbacks>().RequestAvatarReconciliation();
+            }
             else clientSessionEstablished = true;
         }
         catch
@@ -413,7 +417,7 @@ public sealed class FusionConnectionManager : MonoBehaviour
     {
         // A local scene transition may already be in flight when the host drops.
         while (LoadingScreenManager.IsLoading ||
-               (disconnectedSceneManager != null && disconnectedSceneManager.IsBusy))
+               (disconnectedSceneManager != null && disconnectedSceneManager.Runner != null && disconnectedSceneManager.IsBusy))
             yield return null;
 
         if (!pendingHostLeftNotice) yield break;
@@ -439,7 +443,10 @@ public sealed class FusionConnectionManager : MonoBehaviour
         runnerObject.AddComponent<FusionHostWorldBridgeSync>();
         runnerObject.AddComponent<FusionChallengeSubmissionSync>();
         runnerObject.AddComponent<FusionChallengeTestSync>();
-        runnerObject.AddComponent<FusionSessionCallbacks>();
+        var callbacks = runnerObject.AddComponent<FusionSessionCallbacks>();
+        // The runner is already awake. Register before StartGame so even a
+        // synchronous takeover of the open Canyon scene reaches our callbacks.
+        runner.AddCallbacks(callbacks);
         return runner;
     }
 
@@ -457,8 +464,8 @@ public sealed class FusionConnectionManager : MonoBehaviour
         // Room names are regional. Pin both players to one region until the UI
         // can include a region selector alongside the room code.
         FusionAppSettings settings = PhotonAppSettings.Global.AppSettings.GetCopy();
-        // Replicated participant arrays and challenge descriptors require matching clients.
-        settings.AppVersion = settings.AppVersion + "-loads4-wide-mutual-v5";
+        // Keep clients with the old avatar heap limit out of updated rooms.
+        settings.AppVersion = settings.AppVersion + "-loads4-wide-mutual-v6";
         settings.FixedRegion = FixedRegion;
         return settings;
     }

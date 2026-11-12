@@ -31,6 +31,14 @@ Both host and guest must use the updated build because the delivery RPC signatur
 
 Unity import and Fusion processing completed successfully. The 27 standalone checks passed. Detached native checks passed at 1280×720, 1024×768 and 720×1280, including short messages, literal markup, 280-character wrapping, click-through and clearing. Correctly framed maximum-length previews were visually inspected. The source scene's dirty state was preserved and no scene was saved. These checks do not verify live delivery between two players.
 
+## Fusion 2.1.3 compatibility
+
+Fusion 2.1.3 build 2390 generates calls from `Assembly-CSharp` to internal `Fusion.Runtime` RPC methods. Unity's Mono runtime threw `MethodAccessException` at `CheckInvokeRpc` in a two-client room, affecting chat and position updates. The active, Debug, and Release `Fusion.Runtime` binaries include an `InternalsVisibleTo("Assembly-CSharp")` attribute so the generated calls can run.
+
+On November 13, 2026, two standalone test clients joined through Photon using the production session and chat scripts with test avatars. Both clients received chat and position updates with each repaired library. After replacing the SDK, repeat that two-client check.
+
+The Android build's full avatar needs 34,620 bytes of state, including Fusion's header. The former 32 KiB heap page rejected it even after the guest loaded Canyon Crossing. A two-client test with the same state size reproduced the failure at 32 KiB and passed chat and movement at 64 KiB. The heap keeps its 8 MiB configured size by using 128 pages. The build-time avatar capacity check reports future size mismatches before packaging.
+
 ## Two-player acceptance test
 
 1. Refresh Unity outside Play Mode. Build the updated APK for the second device/client.

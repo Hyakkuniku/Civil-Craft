@@ -172,8 +172,8 @@ public sealed class SessionChatUI : MonoBehaviour
         if (status != null) status.text = challengeFeedback != null && Time.unscaledTime < challengeFeedbackUntil ? challengeFeedback :
             boundRunner == null ? "Turn on multiplayer to chat." :
             FusionConnectionManager.Instance != null && FusionConnectionManager.Instance.ConnectedPlayerCount < 2 ? "Waiting for a guest to join..." :
-            hostChallenge && !avatar.AreChallengeCompletionsReady ? "Checking both players' completed crossings..." :
-            avatar == null ? "Connecting chat..." : !canSend ? "Please wait a moment before sending again." : "Enter to send  •  Session only";
+            avatar == null || !avatar.IsChatReady ? "Connecting chat..." :
+            !canSend ? "Please wait a moment before sending again." : "Enter to send  •  Session only";
         if (unreadBadge != null) { unreadBadge.gameObject.SetActive(unread > 0); unreadBadge.text = unread > 9 ? "9+" : unread.ToString(); }
     }
     private void Receive(NetworkRunner runner, int sequence, string name, string body)

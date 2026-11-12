@@ -8,13 +8,17 @@ using UnityEngine.SceneManagement;
 /// <summary>Spawns one Fusion avatar proxy per connected player in a live world.</summary>
 public sealed class FusionSessionCallbacks : MonoBehaviour, INetworkRunnerCallbacks
 {
+    private NetworkRunner sessionRunner;
     private NetworkObject avatarPrefab;
     private FusionHostWorldBridgeSync worldBridges;
     private FusionChallengeSubmissionSync challengeSubmissions;
     private FusionChallengeTestSync challengeTests;
+    private bool avatarReconciliationPending;
+    private float nextAvatarAttemptTime;
 
     private void Awake()
     {
+        sessionRunner = GetComponent<NetworkRunner>();
         avatarPrefab = Resources.Load<NetworkObject>("FusionMultiplayerAvatar");
         worldBridges = GetComponent<FusionHostWorldBridgeSync>();
         challengeSubmissions = GetComponent<FusionChallengeSubmissionSync>();
@@ -23,37 +27,76 @@ public sealed class FusionSessionCallbacks : MonoBehaviour, INetworkRunnerCallba
 
     public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
     {
-        EnsureAvatars(runner);
+        RequestAvatarReconciliation();
         worldBridges?.OnPlayerJoined(player);
     }
 
     public void OnSceneLoadDone(NetworkRunner runner)
     {
         FusionConnectionManager.Instance?.HandleSceneLoadCompleted(runner);
-        EnsureAvatars(runner);
+        RequestAvatarReconciliation();
         worldBridges?.OnSceneReady();
     }
 
-    private void EnsureAvatars(NetworkRunner runner)
+    internal void RequestAvatarReconciliation()
     {
+        avatarReconciliationPending = true;
+        nextAvatarAttemptTime = 0f;
+    }
+
+    private void LateUpdate()
+    {
+        NetworkRunner runner = sessionRunner;
+        if (!avatarReconciliationPending || runner == null || !runner.IsRunning ||
+            Time.unscaledTime < nextAvatarAttemptTime) return;
+
         FusionConnectionManager connection = FusionConnectionManager.Instance;
-        if (runner == null || !runner.IsServer || connection == null ||
-            connection.Runner != runner || connection.IsNetworkSceneLoading ||
-            !connection.IsAvatarScene) return;
+        if (!runner.IsServer || connection == null || connection.Runner != runner)
+        {
+            avatarReconciliationPending = false;
+            return;
+        }
+        // Scene and player callbacks can arrive before the runner can spawn.
+        // Keep the request until the active scene and host identity are ready.
+        if (connection.IsNetworkSceneLoading || !runner.LocalPlayer.IsRealPlayer) return;
+        avatarReconciliationPending = false;
+        if (!connection.IsAvatarScene) return;
         if (avatarPrefab == null)
         {
             Debug.LogError("[Fusion] FusionMultiplayerAvatar prefab is missing from Resources.", this);
             return;
         }
 
-        foreach (PlayerRef player in runner.ActivePlayers)
+        foreach (PlayerRef player in runner.CommittedPlayers)
         {
-            if (runner.TryGetPlayerObject(player, out NetworkObject existing) && existing != null)
+            if (runner.TryGetPlayerObject(player, out NetworkObject existing) && existing != null && existing.IsValid)
                 continue;
 
-            NetworkObject avatar = runner.Spawn(avatarPrefab, Vector3.zero,
-                Quaternion.identity, player);
-            if (avatar != null) runner.SetPlayerObject(player, avatar);
+            try
+            {
+                NetworkSpawnStatus status = runner.TrySpawn(avatarPrefab, out NetworkObject avatar,
+                    inputAuthority: player);
+                if (status == NetworkSpawnStatus.Spawned)
+                {
+                    runner.SetPlayerObject(player, avatar);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                    Debug.Log($"[Fusion session] Registered {(player == runner.LocalPlayer ? "host" : "guest")} " +
+                        $"avatar in {SceneManager.GetActiveScene().name}.", this);
+#endif
+                }
+                else if (status == NetworkSpawnStatus.FailedLocalPlayerNotYetSet ||
+                         status == NetworkSpawnStatus.FailedSimulationNotRunning)
+                {
+                    avatarReconciliationPending = true;
+                    nextAvatarAttemptTime = Time.unscaledTime + 0.25f;
+                }
+                else
+                    Debug.LogError($"[Fusion] Could not spawn the avatar for {player}: {status}.", this);
+            }
+            catch (Exception exception)
+            {
+                Debug.LogError($"[Fusion] Could not set up the avatar for {player}: {exception.Message}", this);
+            }
         }
     }
 
@@ -71,6 +114,7 @@ public sealed class FusionSessionCallbacks : MonoBehaviour, INetworkRunnerCallba
 
     public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason)
     {
+        avatarReconciliationPending = false;
         challengeTests?.Clear();
         challengeSubmissions?.Clear();
 #if UNITY_EDITOR || DEVELOPMENT_BUILD

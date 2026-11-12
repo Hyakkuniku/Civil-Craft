@@ -22,7 +22,7 @@ The feature reads a retained authored contract definition, or the NPC's authored
 
 Chat history and unsent text remain intact when starting an invitation. The new action is hidden from guests, disabled while waiting for a guest or another challenge, and blocked during dialogue, pause, loading and tutorial activity. Disconnect and cancellation reuse the established challenge cleanup and return-position handling.
 
-Both players need the updated game build. The multiplayer compatibility suffix is `loads4-wide-mutual-v5`, keeping clients without the two-player completion check out of these sessions.
+Both players need the updated game build. The multiplayer compatibility suffix is `loads4-wide-mutual-v6`, which requires the larger Fusion heap page needed by the full avatar.
 
 ## Repeatable checks
 
